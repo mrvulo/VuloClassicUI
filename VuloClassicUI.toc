@@ -1,0 +1,52 @@
+## Interface: 20505
+## Title: |cff9b6cffVuloClassicUI|r
+## Notes: Modular UI suite for TBC Classic Anniversary
+## Author: Vulo
+## Version: 1.0.0
+## SavedVariables: VuloClassicUIDB
+## SavedVariablesPerCharacter: VuloClassicUICharDB
+## IconTexture: Interface\AddOns\VuloClassicUI\Media\Icons\vui4
+## Category: VuloUI
+
+# --- Libraries (zuerst, damit alles drauf zugreifen kann) ---
+Libs\LibStub\LibStub.lua
+Libs\CallbackHandler-1.0\CallbackHandler-1.0.lua
+Libs\LibSharedMedia-3.0\LibSharedMedia-3.0.lua
+
+# --- Core ---
+Core\Namespace.lua
+Core\Utils.lua
+Core\Database.lua
+Core\Modules.lua
+Core\Events.lua
+Core\MediaRegistry.lua
+
+# --- UI Framework ---
+UI\Widgets.lua
+UI\MainFrame.lua
+UI\Sidebar.lua
+UI\OptionsBuilder.lua
+
+# --- Modules (Reihenfolge egal, jedes registriert sich selbst) ---
+Modules\Profiles.lua
+Modules\Minimap.lua
+Modules\FontBars.lua
+Modules\PlayerCastbar.lua
+Modules\CooldownPulse.lua
+Modules\Arena\Init.lua
+Modules\Arena\Core.lua
+Modules\Arena\Layout.lua
+Modules\Arena\ClassColor.lua
+Modules\Arena\Trinket.lua
+Modules\Arena\DR.lua
+Modules\Arena\Castbar.lua
+Modules\CharacterPanel.lua
+Modules\CharacterPanel_Impl.lua
+Modules\QueueTimer.lua
+Modules\TooltipIDs.lua
+Modules\AutoItemBuy.lua
+Modules\FixAuctionDropdown.lua
+Modules\FixGuildNewsNil.lua
+
+# --- Init (zuletzt, startet alles) ---
+Core\Init.lua
