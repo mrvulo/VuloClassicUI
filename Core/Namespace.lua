@@ -11,6 +11,21 @@ ns.NAME      = addonName
 ns.VERSION   = "1.0.0"
 ns.PREFIX    = "|cff9b6cffVuloClassicUI|r"
 
+-- Color-Escape-Codes für Strings (FontStrings, Tooltip-Lines, ns:Print)
+ns.C = {
+    accent = "|cff9b6cff",
+    gold   = "|cffffd100",
+    silver = "|cffc7c7cf",
+    copper = "|cffeda55f",
+    pos    = "|cff44ff44",
+    neg    = "|cffff4444",
+    gray   = "|cffaaaaaa",
+    white  = "|cffffffff",
+    yellow = "|cffffff00",
+    red    = "|cffff5555",
+    r      = "|r",
+}
+
 -- Farben fürs UI (EUI-Style: dunkle Backdrops, lila Akzent)
 ns.COLORS = {
     accent     = { r = 0.608, g = 0.424, b = 1.000 },  -- 9b6cff

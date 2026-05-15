@@ -57,6 +57,14 @@ SlashCmdList["VULOCLASSICUI"] = function(msg)
                 ns:Print("  - %s (%s) [%s]", m.name, key, (m.db and m.db.enabled) and "ON" or "off")
             end
 
+        elseif msg == "goldreset" then
+            local gt = ns.modules.goldtracker
+            if gt and gt.ResetSession then
+                gt.ResetSession()
+            else
+                ns:Print("Gold-Tracker nicht aktiv.")
+            end
+
         elseif ns.modules[msg] then
             if not ns.UI.mainFrame or not ns.UI.mainFrame:IsShown() then
                 ns.UI:ToggleMainFrame()
@@ -64,7 +72,7 @@ SlashCmdList["VULOCLASSICUI"] = function(msg)
             ns.UI:ShowModulePage(msg)
 
         else
-            ns:Print("Befehle: /vcui (Optionen) | /vcui <modul> | /vcui modules | /vcui debug | /vcui reset")
+            ns:Print("Befehle: /vcui (Optionen) | /vcui <modul> | /vcui modules | /vcui goldreset | /vcui debug | /vcui reset")
         end
     end)
 

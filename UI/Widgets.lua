@@ -282,11 +282,45 @@ function UI:CreateSlider(parent, config)
         thumb:SetVertexColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 1)
     end
 
-    -- Wert-Display rechts
+    -- Wert-Display + klickbare ± Buttons (SHIFT = 5× step)
+    local stepSize = config.step or 1
+    local accent = ns.COLORS.accent
+
+    local function makeStepButton(label, dir)
+        local b = CreateFrame("Button", nil, s)
+        b:SetSize(16, 16)
+        local border = b:CreateTexture(nil, "BACKGROUND")
+        border:SetAllPoints(b)
+        border:SetColorTexture(0.3, 0.3, 0.35, 1)
+        local fill = b:CreateTexture(nil, "ARTWORK")
+        fill:SetPoint("TOPLEFT", b, "TOPLEFT", 1, -1)
+        fill:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -1, 1)
+        fill:SetColorTexture(0.14, 0.14, 0.16, 1)
+        local txt = b:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+        txt:SetPoint("CENTER", b, "CENTER", 0, 1)
+        txt:SetText(label)
+        b:SetScript("OnEnter", function() border:SetColorTexture(accent.r, accent.g, accent.b, 1) end)
+        b:SetScript("OnLeave", function() border:SetColorTexture(0.3, 0.3, 0.35, 1) end)
+        b:RegisterForClicks("LeftButtonUp")
+        b:SetScript("OnClick", function()
+            local mult = IsShiftKeyDown() and 5 or 1
+            s:SetValue(s:GetValue() + dir * stepSize * mult)
+        end)
+        return b
+    end
+
+    local minusBtn = makeStepButton("-", -1)
+    minusBtn:SetPoint("LEFT", s, "RIGHT", 8, 0)
+
     local valueText = s:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    valueText:SetPoint("LEFT", s, "RIGHT", 8, 0)
+    valueText:SetPoint("LEFT", minusBtn, "RIGHT", 4, 0)
+    valueText:SetWidth(36)
+    valueText:SetJustifyH("CENTER")
     local current = config.get(s) or 0
     valueText:SetText(string.format("%g", current))
+
+    local plusBtn = makeStepButton("+", 1)
+    plusBtn:SetPoint("LEFT", valueText, "RIGHT", 4, 0)
 
     s:SetScript("OnValueChanged", function(self, v)
         if config.step and config.step >= 1 then

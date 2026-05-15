@@ -82,50 +82,43 @@ local Blizzard = {}
 
 local FALLBACK_W, FALLBACK_H = 260, 18
 
-local function bz_collectStatusBars(frame, depth, out)
-    if not frame or depth > 5 then return end
-    out = out or {}
-    if frame.GetObjectType and frame:GetObjectType() == "StatusBar" then
-        table.insert(out, frame)
-    end
-    local kids = { frame:GetChildren() }
-    for _, kid in ipairs(kids) do
-        bz_collectStatusBars(kid, depth + 1, out)
-    end
-    return out
-end
-
 local function bz_getBar()
     return _G.PlayerCastingBarFrame or _G.CastingBarFrame
 end
 
+-- Ein Walk durch den Frame-Tree, sammelt StatusBars + Texturen gleichzeitig
+local function bz_walkAndCollect(frame, depth, statusbars, textures)
+    if not frame or depth > 5 then return end
+    if frame.GetObjectType and frame:GetObjectType() == "StatusBar" then
+        table.insert(statusbars, frame)
+    end
+    if frame.GetRegions then
+        for _, r in ipairs({ frame:GetRegions() }) do
+            if r.GetObjectType and r:GetObjectType() == "Texture" then
+                local cr, cg, cb, ca = 1, 1, 1, 1
+                if r.GetVertexColor then cr, cg, cb, ca = r:GetVertexColor() end
+                table.insert(textures, { tex = r, origR = cr, origG = cg, origB = cb, origA = ca })
+            end
+        end
+    end
+    if frame.GetChildren then
+        for _, c in ipairs({ frame:GetChildren() }) do
+            bz_walkAndCollect(c, depth + 1, statusbars, textures)
+        end
+    end
+end
+
 local function bz_ensureStatusBars(bar)
     if bar._vcui_statusbars then return end
-    bar._vcui_statusbars = bz_collectStatusBars(bar, 0, {}) or {}
+    bar._vcui_statusbars = {}
+    bar._vcui_textures   = {}
+    bz_walkAndCollect(bar, 0, bar._vcui_statusbars, bar._vcui_textures)
     bar._vcui_origColors = {}
     for i, sb in ipairs(bar._vcui_statusbars) do
         local r, g, b, a = 1, 1, 1, 1
         if sb.GetStatusBarColor then r, g, b, a = sb:GetStatusBarColor() end
         bar._vcui_origColors[i] = { r = r, g = g, b = b, a = a }
     end
-    -- Auch Texturen sammeln für VertexColor-Override
-    bar._vcui_textures = {}
-    local function walk(f)
-        if not f then return end
-        if f.GetRegions then
-            for _, r in ipairs({ f:GetRegions() }) do
-                if r.GetObjectType and r:GetObjectType() == "Texture" then
-                    local cr, cg, cb, ca = 1, 1, 1, 1
-                    if r.GetVertexColor then cr, cg, cb, ca = r:GetVertexColor() end
-                    table.insert(bar._vcui_textures, { tex = r, origR = cr, origG = cg, origB = cb, origA = ca })
-                end
-            end
-        end
-        if f.GetChildren then
-            for _, c in ipairs({ f:GetChildren() }) do walk(c) end
-        end
-    end
-    walk(bar)
 end
 
 local function bz_setChannelColor(bar, isChannel)
@@ -360,50 +353,15 @@ local function c_create()
     cFrame:Hide()
 
     -- Mover-Overlay (deutlich sichtbar im Unlock-Mode)
-    cFrame.mover = CreateFrame("Frame", nil, cFrame)
-    cFrame.mover:SetPoint("CENTER", cFrame, "CENTER", 0, 0)
-    -- Großer Mover über die Bar hinaus, mindestens 60px hoch damit der Text reinpasst
-    cFrame.mover:SetSize(math.max(mod.db.width + 60, 200), math.max(60, mod.db.height + 40))
-    cFrame.mover:SetFrameStrata("HIGH")
-    cFrame.mover:EnableMouse(true)
-    cFrame.mover:Hide()
-
-    cFrame.mover.bg = cFrame.mover:CreateTexture(nil, "BACKGROUND")
-    cFrame.mover.bg:SetAllPoints(cFrame.mover)
-    cFrame.mover.bg:SetColorTexture(0.6, 0.4, 1.0, 0.4)  -- lila transparent
-
-    cFrame.mover.border = CreateFrame("Frame", nil, cFrame.mover,
-        BackdropTemplateMixin and "BackdropTemplate")
-    cFrame.mover.border:SetAllPoints(cFrame.mover)
-    if cFrame.mover.border.SetBackdrop then
-        cFrame.mover.border:SetBackdrop({
-            edgeFile = "Interface\\Buttons\\WHITE8X8",
-            edgeSize = 2,
-        })
-        cFrame.mover.border:SetBackdropBorderColor(0.75, 0.35, 1, 1)
-    end
-
-    cFrame.mover.label = cFrame.mover:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    cFrame.mover.label:SetPoint("CENTER", cFrame.mover, "CENTER", 0, 0)
-    cFrame.mover.label:SetText("|cffffffffCASTBAR|r\n|cffaaaaaaSHIFT+Ziehen|r")
-    cFrame.mover.label:SetJustifyH("CENTER")
-
-    cFrame.mover:RegisterForDrag("LeftButton")
-    cFrame.mover:SetScript("OnDragStart", function() cFrame:StartMoving() end)
-    cFrame.mover:SetScript("OnDragStop", function()
-        cFrame:StopMovingOrSizing()
-        -- Berechne Center-Offset relativ zu UIParent-Center (anchor-unabhängig)
-        local fx, fy = cFrame:GetCenter()
-        local px, py = UIParent:GetCenter()
-        if fx and fy and px and py then
-            local x = fx - px
-            local y = fy - py
-            cFrame:ClearAllPoints()
-            cFrame:SetPoint("CENTER", UIParent, "CENTER", x, y)
-            mod.db.x = x; mod.db.y = y
+    cFrame.mover = ns:CreateMover(cFrame, {
+        label  = "|cffffffffCASTBAR|r\n|cffaaaaaaZiehen oder Pfeiltasten|r",
+        db     = mod.db,
+        width  = math.max(mod.db.width + 60, 200),
+        height = math.max(60, mod.db.height + 40),
+        onMove = function(x, y)
             ns:Print(string.format("Castbar Position: x=%.0f, y=%.0f", x, y))
-        end
-    end)
+        end,
+    })
 
     -- Keine Mouse-Events auf cFrame selbst (würde mit dem Mover-Overlay konfliktieren)
     cFrame:EnableMouse(false)
@@ -670,7 +628,7 @@ local function c_setUnlocked(state)
         c_showTicks(3)
         -- Mover-Overlay drüber anzeigen
         cFrame.mover:Show()
-        ns:Print("Castbar-Mover aktiv. |cff9b6cffLila Box ziehen|r zum Verschieben. Nochmal auf 'Unlock / Test' klicken zum Beenden.")
+        ns:Print("Castbar-Mover aktiv. |cff9b6cffLila Box ziehen|r oder |cff9b6cffPfeiltasten|r (SHIFT = 5px). Nochmal auf 'Unlock / Test' klicken zum Beenden.")
     else
         cFrame.mover:Hide()
         c_hideAllTicks()
