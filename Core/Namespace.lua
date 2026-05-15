@@ -8,7 +8,7 @@ local addonName, ns = ...
 _G.VuloClassicUI = ns
 
 ns.NAME      = addonName
-ns.VERSION   = "1.0.0"
+ns.VERSION   = "1.4.4"
 ns.PREFIX    = "|cff9b6cffVuloClassicUI|r"
 
 -- Color-Escape-Codes für Strings (FontStrings, Tooltip-Lines, ns:Print)
