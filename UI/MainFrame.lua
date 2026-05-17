@@ -38,8 +38,9 @@ function UI:CreateMainFrame()
     -- Saubere Backdrop ohne Tooltip-Look
     UI:StyleBackdrop(f, { bg = ns.COLORS.bg, border = ns.COLORS.border })
 
-    -- Position aus DB
-    local pos = (ns.db and ns.db.profile.ui.mainFramePos) or { point = "CENTER", relPoint = "CENTER", x = 0, y = 0 }
+    -- Position aus DB (mit voller nil-Kette guard)
+    local pos = (ns.db and ns.db.profile and ns.db.profile.ui and ns.db.profile.ui.mainFramePos)
+              or { point = "CENTER", relPoint = "CENTER", x = 0, y = 0 }
     f:SetPoint(pos.point, UIParent, pos.relPoint, pos.x, pos.y)
 
     -- ESC schließt
@@ -73,19 +74,204 @@ function UI:CreateMainFrame()
     -- Title-Hintergrund (etwas dunkler)
     UI.SetColorBG(titleBar, 0.04, 0.04, 0.05, 1)
 
-    -- Title-Text
+    -- Title: Icon (V vom Logo) + "uloClassicUI" Text + Version + CPU
     local title = titleBar:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    title:SetPoint("LEFT", titleBar, "LEFT", 12, 0)
-    title:SetText("|cff9b6cffVuloClassicUI|r")
+    title:SetText("|cff9b6cffuloClassicUI|r")
+    local _, titleFontSize = title:GetFont()
+    local iconSize = (titleFontSize or 14) + 4
+
+    local titleIcon = titleBar:CreateTexture(nil, "OVERLAY")
+    titleIcon:SetTexture("Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\vui4")
+    titleIcon:SetPoint("LEFT", titleBar, "LEFT", 10, 0)
+    titleIcon:SetSize(iconSize, iconSize)
+
+    title:SetPoint("LEFT", titleIcon, "RIGHT", 1, 0)
 
     local version = titleBar:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    version:SetPoint("LEFT", title, "RIGHT", 6, -1)
+    version:SetPoint("LEFT", title, "RIGHT", 8, -1)
     version:SetText("v" .. ns.VERSION)
+
+    -- CPU-Usage (refresh alle 2s während Frame sichtbar)
+    local cpuText = titleBar:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    cpuText:SetPoint("LEFT", version, "RIGHT", 10, 0)
+    cpuText:SetText("")
+
+    local cpuTicker
+    local function updateCPU()
+        local cv = (C_CVar and C_CVar.GetCVar and C_CVar.GetCVar("scriptProfile"))
+                or (GetCVar and GetCVar("scriptProfile"))
+        if cv ~= "1" then
+            cpuText:SetText("|cff666666CPU: off|r")
+            return
+        end
+        if C_AddOns and C_AddOns.UpdateAddOnCPUUsage then
+            C_AddOns.UpdateAddOnCPUUsage()
+        elseif _G.UpdateAddOnCPUUsage then
+            UpdateAddOnCPUUsage()
+        end
+        local ms = 0
+        if C_AddOns and C_AddOns.GetAddOnCPUUsage then
+            ms = C_AddOns.GetAddOnCPUUsage("VuloClassicUI") or 0
+        elseif _G.GetAddOnCPUUsage then
+            ms = GetAddOnCPUUsage("VuloClassicUI") or 0
+        end
+        cpuText:SetText(string.format("|cff888888CPU: %.1f ms|r", ms))
+    end
+
+    f:HookScript("OnShow", function()
+        updateCPU()
+        if not cpuTicker and C_Timer and C_Timer.NewTicker then
+            cpuTicker = C_Timer.NewTicker(2, updateCPU)
+        end
+    end)
+    f:HookScript("OnHide", function()
+        if cpuTicker then cpuTicker:Cancel(); cpuTicker = nil end
+    end)
 
     -- Close-Button (rechts)
     local closeBtn = CreateFrame("Button", nil, titleBar)
     closeBtn:SetSize(28, 28)
     closeBtn:SetPoint("RIGHT", titleBar, "RIGHT", -8, 0)
+
+    -- =========================================================
+    -- Search-Box (zwischen CPU-Text und Close-Button)
+    -- =========================================================
+    local searchBox = CreateFrame("EditBox", nil, titleBar)
+    searchBox:SetSize(200, 20)
+    searchBox:SetPoint("RIGHT", closeBtn, "LEFT", -8, 0)
+    searchBox:SetAutoFocus(false)
+    searchBox:SetFontObject("GameFontHighlightSmall")
+    searchBox:SetMaxLetters(60)
+    searchBox:SetTextInsets(8, 8, 0, 0)
+
+    local sbBg = searchBox:CreateTexture(nil, "BACKGROUND")
+    sbBg:SetAllPoints(searchBox)
+    sbBg:SetColorTexture(0.05, 0.05, 0.07, 0.95)
+
+    local sbBorder = CreateFrame("Frame", nil, searchBox, BackdropTemplateMixin and "BackdropTemplate")
+    sbBorder:SetAllPoints(searchBox)
+    if sbBorder.SetBackdrop then
+        sbBorder:SetBackdrop({ edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
+        sbBorder:SetBackdropBorderColor(ns.COLORS.border.r, ns.COLORS.border.g, ns.COLORS.border.b, 1)
+    end
+
+    local placeholder = searchBox:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+    placeholder:SetPoint("LEFT", searchBox, "LEFT", 8, 0)
+    placeholder:SetText("Search settings...")
+
+    -- Result-Dropdown unter der Search-Box
+    local searchDD = CreateFrame("Frame", nil, f)
+    searchDD:SetSize(320, 200)
+    searchDD:SetPoint("TOPRIGHT", searchBox, "BOTTOMRIGHT", 0, -2)
+    searchDD:SetFrameStrata("FULLSCREEN_DIALOG")
+    searchDD:SetFrameLevel(300)
+    searchDD:Hide()
+
+    local ddBg = searchDD:CreateTexture(nil, "BACKGROUND")
+    ddBg:SetAllPoints(searchDD)
+    ddBg:SetColorTexture(0.05, 0.05, 0.07, 0.98)
+    local ddBorder = CreateFrame("Frame", nil, searchDD, BackdropTemplateMixin and "BackdropTemplate")
+    ddBorder:SetAllPoints(searchDD)
+    if ddBorder.SetBackdrop then
+        ddBorder:SetBackdrop({ edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
+        ddBorder:SetBackdropBorderColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 1)
+    end
+
+    -- Such-Logik: iteriert alle Module + Tabs + Items, matched per label-substring
+    local function searchOptions(query)
+        query = query:lower()
+        local results = {}
+        for _, key in ipairs(ns.moduleOrder or {}) do
+            local m = ns.modules[key]
+            if m and m.GetOptions then
+                local tabIds = {}
+                if m.tabs then
+                    for _, t in ipairs(m.tabs) do table.insert(tabIds, t.id) end
+                else
+                    table.insert(tabIds, "default")
+                end
+                for _, tid in ipairs(tabIds) do
+                    local ok, items = pcall(m.GetOptions, m, tid)
+                    if ok and type(items) == "table" then
+                        local function scan(list)
+                            for _, item in ipairs(list) do
+                                local label = (item.label or item.text or ""):lower()
+                                if label ~= "" and label:find(query, 1, true) then
+                                    table.insert(results, {
+                                        modName = m.name, modKey = key,
+                                        tabId = tid, label = item.label or item.text,
+                                    })
+                                    if #results >= 20 then return true end
+                                end
+                                if item.items then
+                                    if scan(item.items) then return true end
+                                end
+                            end
+                        end
+                        if scan(items) then break end
+                    end
+                end
+            end
+        end
+        return results
+    end
+
+    -- Result-Rows (reused pool)
+    local resultRows = {}
+    local function renderResults(results)
+        for _, row in ipairs(resultRows) do row:Hide() end
+        if #results == 0 then searchDD:Hide(); return end
+        local y = -4
+        for i, res in ipairs(results) do
+            local row = resultRows[i]
+            if not row then
+                row = CreateFrame("Button", nil, searchDD)
+                row:SetHeight(20)
+                row:SetPoint("LEFT", searchDD, "LEFT", 4, 0)
+                row:SetPoint("RIGHT", searchDD, "RIGHT", -4, 0)
+                row.text = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+                row.text:SetPoint("LEFT", row, "LEFT", 6, 0)
+                row.text:SetPoint("RIGHT", row, "RIGHT", -6, 0)
+                row.text:SetJustifyH("LEFT")
+                row.hover = row:CreateTexture(nil, "BACKGROUND")
+                row.hover:SetAllPoints(row)
+                row.hover:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 0.25)
+                row.hover:Hide()
+                row:SetScript("OnEnter", function(self) self.hover:Show() end)
+                row:SetScript("OnLeave", function(self) self.hover:Hide() end)
+                resultRows[i] = row
+            end
+            row:SetPoint("TOP", searchDD, "TOP", 0, y)
+            row.text:SetText(string.format("|cff9b6cff%s|r  »  %s", res.modName, res.label))
+            row._modKey = res.modKey
+            row._tabId  = res.tabId
+            row:SetScript("OnClick", function(self)
+                searchBox:ClearFocus()
+                searchBox:SetText("")
+                placeholder:Show()
+                searchDD:Hide()
+                if UI.ShowModulePage then UI:ShowModulePage(self._modKey) end
+                if self._tabId and self._tabId ~= "default" and UI.ShowTab then
+                    UI:ShowTab(self._tabId)
+                end
+            end)
+            row:Show()
+            y = y - 22
+        end
+        searchDD:SetHeight(math.min(440, 8 + #results * 22))
+        searchDD:Show()
+    end
+
+    searchBox:HookScript("OnTextChanged", function(self)
+        local q = self:GetText() or ""
+        if q == "" then placeholder:Show() else placeholder:Hide() end
+        if #q < 2 then searchDD:Hide(); return end
+        renderResults(searchOptions(q))
+    end)
+    searchBox:SetScript("OnEscapePressed", function(self)
+        self:SetText(""); self:ClearFocus(); searchDD:Hide(); placeholder:Show()
+    end)
+    searchBox:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
     local closeText = closeBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     closeText:SetPoint("CENTER", closeBtn, "CENTER", 0, 0)
     closeText:SetText("×")

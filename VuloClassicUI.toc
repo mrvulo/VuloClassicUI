@@ -2,9 +2,9 @@
 ## Title: |cff9b6cffVuloClassicUI|r
 ## Notes: Modular UI suite for TBC Classic Anniversary
 ## Author: Vulo
-## Version: 1.4.4
-## SavedVariables: VuloClassicUIDB
-## SavedVariablesPerCharacter: VuloClassicUICharDB
+## Version: 1.4.5
+## SavedVariables: VuloClassicUIDB, TrinketMenuOptions
+## SavedVariablesPerCharacter: VuloClassicUICharDB, TrinketMenuPerOptions, TrinketMenuQueue
 ## IconTexture: Interface\AddOns\VuloClassicUI\Media\Icons\vui4
 ## Category: VuloUI
 
@@ -29,6 +29,7 @@ UI\Sidebar.lua
 UI\OptionsBuilder.lua
 
 # --- Modules (Reihenfolge egal, jedes registriert sich selbst) ---
+Modules\GlobalSettings.lua
 Modules\Profiles.lua
 Modules\Minimap.lua
 Modules\FontBars.lua
@@ -43,6 +44,7 @@ Modules\Arena\DR.lua
 Modules\Arena\Castbar.lua
 Modules\CharacterPanel.lua
 Modules\CharacterPanel_Impl.lua
+Modules\MiscQoL.lua
 Modules\QueueTimer.lua
 Modules\TooltipIDs.lua
 Modules\AutoItemBuy.lua
@@ -51,6 +53,16 @@ Modules\VTManaDisplay.lua
 Modules\CombatText.lua
 Modules\FixAuctionDropdown.lua
 Modules\FixGuildNewsNil.lua
+
+# --- Trinkets-Engine (Code extern) + VCUI-Wrapper in Modules/Trinkets.lua ---
+Trinkets\TrinketMenuGlobals.lua
+Trinkets\TrinketMenu.lua
+Trinkets\TrinketMenu.xml
+Trinkets\TrinketMenuOpt.lua
+Trinkets\TrinketMenuOpt.xml
+Trinkets\TrinketMenuQueue.lua
+Trinkets\TrinketMenuQueue.xml
+Modules\Trinkets.lua
 
 # --- Init (zuletzt, startet alles) ---
 Core\Init.lua

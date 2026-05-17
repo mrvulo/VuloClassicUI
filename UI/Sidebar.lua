@@ -12,7 +12,8 @@ local GROUP_HEADER_H = 28
 local GROUP_GAP      = 6
 
 UI.sidebarButtons     = {}
-UI.sidebarGroupOrder  = { "Account", "Core", "Unit Frames", "PvP", "QoL", "UI Reskin", "Bugfixes" }  -- gewünschte Reihenfolge
+UI.sidebarGroupOrder  = { "Global", "Unit Frames", "PvP", "QoL", "UI Reskin", "Bugfixes" }  -- gewünschte Reihenfolge
+UI.sidebarHiddenGroups = { ["_hidden"] = true, ["Account"] = true, ["Core"] = true }  -- nicht in Sidebar zeigen
 UI.sidebarGroupBuckets = {}
 
 local function highlightSelected()
@@ -99,10 +100,11 @@ local function rebuildBuckets()
     end
 
     -- Gruppen die nicht in der Reihenfolge sind, hinten anhängen
+    -- (außer explizit hidden)
     local seen = {}
     for _, g in ipairs(UI.sidebarGroupOrder) do seen[g] = true end
     for g in pairs(UI.sidebarGroupBuckets) do
-        if not seen[g] then
+        if not seen[g] and not (UI.sidebarHiddenGroups and UI.sidebarHiddenGroups[g]) then
             table.insert(UI.sidebarGroupOrder, g)
         end
     end
@@ -131,7 +133,8 @@ function UI:PopulateSidebar()
     local y = 0
     for _, groupName in ipairs(UI.sidebarGroupOrder) do
         local moduleKeys = UI.sidebarGroupBuckets[groupName]
-        if moduleKeys and #moduleKeys > 0 then
+        local hidden = UI.sidebarHiddenGroups and UI.sidebarHiddenGroups[groupName]
+        if moduleKeys and #moduleKeys > 0 and not hidden then
             -- Gruppen-Header
             local header = createGroupHeader(parent, groupName)
             header:SetPoint("TOPLEFT",  parent, "TOPLEFT",   0, -y)

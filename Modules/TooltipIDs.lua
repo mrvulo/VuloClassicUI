@@ -85,6 +85,9 @@ local moduleDefaults = { enabled = true }
 for kind in pairs(kinds) do
     moduleDefaults[kind] = not defaultDisabledKinds[kind]
 end
+-- Zusatz-Features für Spieler-Tooltips (iLvL + Talent-Verteilung)
+moduleDefaults.showPlayerILvl    = true
+moduleDefaults.showPlayerTalents = true
 
 local mod = ns:RegisterModule("tooltipids", {
     name        = "Tooltip IDs",
@@ -606,9 +609,139 @@ end
 -- =========================================================
 -- Lifecycle
 -- =========================================================
+-- =========================================================
+-- Player Tooltip Enhancement: iLvL + Talent-Verteilung
+-- =========================================================
+local inspectCache = {}                -- guid -> { talents={t1,t2,t3}, ilvl=N, expiry=time }
+local INSPECT_CACHE_TIME = 60          -- Sek. Cache pro Spieler
+local INSPECT_THROTTLE   = 1.0         -- max 1 Inspect pro Sekunde
+local lastInspectTime    = 0
+local pendingInspectGUID = nil
+local pendingInspectUnit = nil
+
+local function getCachedInspect(guid)
+    local d = inspectCache[guid]
+    if d and d.expiry > GetTime() then return d end
+    return nil
+end
+
+local function requestInspect(unit)
+    if not unit or not UnitExists(unit) or not UnitIsPlayer(unit) then return end
+    if not CanInspect or not CanInspect(unit) then return end
+    -- Range-Check VOR NotifyInspect → vermeidet "out of range"-Sound
+    -- index 1 = INSPECT (28y) in Anniversary
+    if CheckInteractDistance and not CheckInteractDistance(unit, 1) then return end
+    if (GetTime() - lastInspectTime) < INSPECT_THROTTLE then return end
+    local guid = UnitGUID(unit)
+    if not guid or getCachedInspect(guid) then return end
+    pendingInspectGUID = guid
+    pendingInspectUnit = unit
+    lastInspectTime    = GetTime()
+    if NotifyInspect then NotifyInspect(unit) end
+end
+
+local function computeAverageILvl(unit)
+    if not GetInventoryItemLink then return 0 end
+    local total, count = 0, 0
+    -- 1-18 = Equip, skip Shirt (4) und Tabard (19)
+    for slot = 1, 18 do
+        if slot ~= 4 then
+            local link = GetInventoryItemLink(unit, slot)
+            if link then
+                local ilvl
+                if C_Item and C_Item.GetDetailedItemLevelInfo then
+                    local ok, lvl = pcall(C_Item.GetDetailedItemLevelInfo, link)
+                    if ok then ilvl = lvl end
+                end
+                if not ilvl then
+                    local _, _, _, lvl = GetItemInfo(link)
+                    ilvl = lvl
+                end
+                if ilvl and ilvl > 0 then
+                    total = total + ilvl
+                    count = count + 1
+                end
+            end
+        end
+    end
+    if count == 0 then return 0 end
+    return math.floor(total / count + 0.5)
+end
+
+local function computeTalents(isInspect)
+    if not GetNumTalentTabs or not GetTalentInfo or not GetNumTalents then return nil end
+    local n = GetNumTalentTabs(isInspect or false) or 3
+    local t = {}
+    for tab = 1, n do
+        local numTalents = GetNumTalents(tab, isInspect or false) or 0
+        local spent = 0
+        for i = 1, numTalents do
+            local _, _, _, _, rank = GetTalentInfo(tab, i, isInspect or false)
+            if rank and rank > 0 then spent = spent + rank end
+        end
+        t[tab] = spent
+    end
+    return t
+end
+
+local function onInspectReady(_, guid)
+    guid = guid or pendingInspectGUID
+    if not guid then return end
+    local unit = pendingInspectUnit
+    pendingInspectGUID = nil
+    pendingInspectUnit = nil
+    if not unit or not UnitExists(unit) then return end
+
+    local talents = computeTalents(true)
+    local ilvl    = computeAverageILvl(unit)
+    inspectCache[guid] = {
+        talents = talents, ilvl = ilvl,
+        expiry  = GetTime() + INSPECT_CACHE_TIME,
+    }
+    -- Tooltip sofort re-rendern (SetUnit triggert alle Hooks neu)
+    if GameTooltip and GameTooltip:IsShown() then
+        local _, ttUnit = GameTooltip:GetUnit()
+        if ttUnit and UnitGUID(ttUnit) == guid then
+            GameTooltip:SetUnit(ttUnit)
+        end
+    end
+end
+
+local function onPlayerTooltipUnit(tooltip)
+    if not mod._enabled then return end
+    if not (mod.db.showPlayerILvl or mod.db.showPlayerTalents) then return end
+    local _, unit = tooltip:GetUnit()
+    if not unit or not UnitIsPlayer(unit) then return end
+
+    local guid = UnitGUID(unit)
+    if not guid then return end
+
+    local data = getCachedInspect(guid)
+    if data then
+        if mod.db.showPlayerTalents and data.talents and data.talents[1] then
+            local s = string.format("%d/%d/%d",
+                data.talents[1] or 0, data.talents[2] or 0, data.talents[3] or 0)
+            tooltip:AddLine("|cff9b6cffTalente:|r " .. s)
+        end
+        if mod.db.showPlayerILvl and data.ilvl and data.ilvl > 0 then
+            tooltip:AddLine(string.format("|cff9b6cffiLvL:|r %d", data.ilvl))
+        end
+    else
+        requestInspect(unit)
+    end
+end
+
 function mod:OnEnable()
     installHooks()
     scanAddonTooltips()
+
+    -- Player-Tooltip: Inspect-Events + Tooltip-Hook (legacy OnTooltipSetUnit
+    -- ist in Anniversary der funktionierende Pfad — TooltipDataProcessor fires nicht)
+    ns:RegisterEvent("INSPECT_READY",         onInspectReady)
+    ns:RegisterEvent("INSPECT_TALENT_READY",  onInspectReady)
+    if GameTooltip and GameTooltip.HookScript then
+        GameTooltip:HookScript("OnTooltipSetUnit", onPlayerTooltipUnit)
+    end
 
     -- Achievement-/Collection-/Garrison-Frames werden lazy geladen
     ns:RegisterEvent("ADDON_LOADED", function(_, addonName)
@@ -709,6 +842,13 @@ end
 -- =========================================================
 
 -- Helfer um pro Kind einen Checkbox-Eintrag zu bauen (Toggle für die UI)
+function mod:OnDisable()
+    -- Inspect-Events sauber abmelden (Tooltip-HookScript bleibt — kann nicht entfernt
+    -- werden, aber onPlayerTooltipUnit prüft selbst mod._enabled).
+    ns:UnregisterEvent("INSPECT_READY",        onInspectReady)
+    ns:UnregisterEvent("INSPECT_TALENT_READY", onInspectReady)
+end
+
 local function kindCheckbox(kind)
     return {
         type = "checkbox",
@@ -744,6 +884,17 @@ function mod:GetOptions()
                 end },
             },
         },
+        { type = "spacer", height = 8 },
+        { type = "header", text = "Spieler-Tooltip (Inspect-basiert)" },
+        { type = "desc",
+          text = "|cffaaaaaaWenn du mit der Maus über einen Spieler gehst, wird sein iLvL-Durchschnitt + Talent-Verteilung (z.B. 14/0/47) im Tooltip angezeigt. Daten werden 60s pro Spieler gecacht, Inspect-Throttle 1/s.|r" },
+        { type = "toggle", label = "iLvL-Durchschnitt anzeigen",
+          get = function() return mod.db.showPlayerILvl end,
+          set = function(_, v) mod.db.showPlayerILvl = v end },
+        { type = "toggle", label = "Talent-Verteilung anzeigen (z.B. 14/0/47)",
+          get = function() return mod.db.showPlayerTalents end,
+          set = function(_, v) mod.db.showPlayerTalents = v end },
+
         { type = "spacer", height = 8 },
         { type = "header", text = "ID-Typen" },
         { type = "desc",   text = "Welche IDs sollen in Tooltips angezeigt werden? Manche Typen sind nur in Retail aktiv und werden in TBC ignoriert (z.B. TraitNodeID, SourceID)." },

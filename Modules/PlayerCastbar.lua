@@ -23,6 +23,8 @@ local mod = ns:RegisterModule("playercastbar", {
         height        = 18,
         iconSize      = 14,
         iconGap       = 3,
+        iconX         = 0,     -- zusätzlicher X-Offset für das Icon
+        iconY         = 0,     -- Y-Offset (positiv = oben)
         x             = 0,
         y             = -180,
         unlocked      = false,
@@ -368,8 +370,43 @@ local function c_create()
 
     cFrame.icon = cFrame:CreateTexture(nil, "BORDER")
     cFrame.icon:SetSize(mod.db.iconSize, mod.db.iconSize)
-    cFrame.icon:SetPoint("RIGHT", cFrame, "LEFT", -mod.db.iconGap, 0)
+    cFrame.icon:SetPoint("RIGHT", cFrame, "LEFT",
+        -(mod.db.iconGap or 3) + (mod.db.iconX or 0), (mod.db.iconY or 0))
     cFrame.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+
+    -- 1px Border um das Icon (4 Edges, anchored am Icon → wandern automatisch mit)
+    local function makeIconEdge()
+        local t = cFrame:CreateTexture(nil, "OVERLAY")
+        t:SetColorTexture(0, 0, 0, 1)
+        return t
+    end
+    cFrame.iconBorderT = makeIconEdge()
+    cFrame.iconBorderT:SetPoint("BOTTOMLEFT",  cFrame.icon, "TOPLEFT",  -1, 0)
+    cFrame.iconBorderT:SetPoint("BOTTOMRIGHT", cFrame.icon, "TOPRIGHT",  1, 0)
+    cFrame.iconBorderT:SetHeight(1)
+
+    cFrame.iconBorderB = makeIconEdge()
+    cFrame.iconBorderB:SetPoint("TOPLEFT",     cFrame.icon, "BOTTOMLEFT",  -1, 0)
+    cFrame.iconBorderB:SetPoint("TOPRIGHT",    cFrame.icon, "BOTTOMRIGHT",  1, 0)
+    cFrame.iconBorderB:SetHeight(1)
+
+    cFrame.iconBorderL = makeIconEdge()
+    cFrame.iconBorderL:SetPoint("TOPRIGHT",    cFrame.icon, "TOPLEFT",     0,  1)
+    cFrame.iconBorderL:SetPoint("BOTTOMRIGHT", cFrame.icon, "BOTTOMLEFT",  0, -1)
+    cFrame.iconBorderL:SetWidth(1)
+
+    cFrame.iconBorderR = makeIconEdge()
+    cFrame.iconBorderR:SetPoint("TOPLEFT",     cFrame.icon, "TOPRIGHT",    0,  1)
+    cFrame.iconBorderR:SetPoint("BOTTOMLEFT",  cFrame.icon, "BOTTOMRIGHT", 0, -1)
+    cFrame.iconBorderR:SetWidth(1)
+
+    cFrame.setIconShown = function(state)
+        cFrame.icon:SetShown(state)
+        cFrame.iconBorderT:SetShown(state)
+        cFrame.iconBorderB:SetShown(state)
+        cFrame.iconBorderL:SetShown(state)
+        cFrame.iconBorderR:SetShown(state)
+    end
 
     cFrame.bar = CreateFrame("StatusBar", nil, cFrame)
     cFrame.bar:SetAllPoints(cFrame)
@@ -489,7 +526,7 @@ local function c_startCast(isChannel)
     cFrame:SetAlpha(1)
     cFrame:Show()
     cFrame.icon:SetTexture(icon)
-    cFrame.icon:SetShown(mod.db.showIcon)
+    cFrame.setIconShown(mod.db.showIcon)
     cFrame.nameText:SetText(mod.db.showSpellName and name or "")
 
     if isChannel then
@@ -608,7 +645,8 @@ local function c_applyLayout()
     cFrame:SetPoint("CENTER", UIParent, "CENTER", mod.db.x, mod.db.y)
     cFrame.icon:SetSize(mod.db.iconSize, mod.db.iconSize)
     cFrame.icon:ClearAllPoints()
-    cFrame.icon:SetPoint("RIGHT", cFrame, "LEFT", -mod.db.iconGap, 0)
+    cFrame.icon:SetPoint("RIGHT", cFrame, "LEFT",
+        -(mod.db.iconGap or 3) + (mod.db.iconX or 0), (mod.db.iconY or 0))
     cFrame.spark:SetHeight(mod.db.height + 8)
 end
 
@@ -623,7 +661,7 @@ local function c_setUnlocked(state)
         cFrame.nameText:SetText("|cff9b6cffMind Flay|r")
         cFrame.timeText:SetText("1.5 / 2.0")
         cFrame.icon:SetTexture("Interface\\Icons\\Spell_Nature_Earthbind")
-        cFrame.icon:SetShown(mod.db.showIcon)
+        cFrame.setIconShown(mod.db.showIcon)
         c_applyColor(mod.db.castColor)
         c_showTicks(3)
         -- Mover-Overlay drüber anzeigen
@@ -761,7 +799,7 @@ function mod:GetOptions()
             get = function() return mod.db.showIcon end,
             set = function(_, v)
                 mod.db.showIcon = v
-                if cFrame then cFrame.icon:SetShown(v) end
+                if cFrame then cFrame.setIconShown(v) end
             end,
         })
         table.insert(items, {
@@ -781,6 +819,20 @@ function mod:GetOptions()
             min = 16, max = 48, step = 1,
             get = function() return mod.db.iconSize end,
             set = function(_, v) mod.db.iconSize = v; c_applyLayout() end,
+        })
+        table.insert(items, {
+            type = "slider", label = "Icon X-Offset",
+            min = -100, max = 100, step = 1,
+            tooltip = "Verschiebt das Icon horizontal. Negativ = nach links, positiv = nach rechts.",
+            get = function() return mod.db.iconX or 0 end,
+            set = function(_, v) mod.db.iconX = v; c_applyLayout() end,
+        })
+        table.insert(items, {
+            type = "slider", label = "Icon Y-Offset",
+            min = -50, max = 50, step = 1,
+            tooltip = "Verschiebt das Icon vertikal. Positiv = nach oben, negativ = nach unten.",
+            get = function() return mod.db.iconY or 0 end,
+            set = function(_, v) mod.db.iconY = v; c_applyLayout() end,
         })
     end
 
