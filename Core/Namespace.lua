@@ -8,7 +8,9 @@ local addonName, ns = ...
 _G.VuloClassicUI = ns
 
 ns.NAME      = addonName
-ns.VERSION   = "1.4.5"
+-- Version dynamisch aus TOC lesen (sonst müsste man bei jedem Bump 2 Stellen ändern)
+local _metaGet = (C_AddOns and C_AddOns.GetAddOnMetadata) or _G.GetAddOnMetadata
+ns.VERSION   = (_metaGet and _metaGet(addonName, "Version")) or "?"
 ns.PREFIX    = "|cff9b6cffVuloClassicUI|r"
 
 -- Color-Escape-Codes für Strings (FontStrings, Tooltip-Lines, ns:Print)
