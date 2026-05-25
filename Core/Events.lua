@@ -13,8 +13,11 @@ local handlers = {}  -- event -> { handler1, handler2, ... }
 
 function ns:RegisterEvent(event, handler)
     if not handlers[event] then
+        -- pcall: nicht alle Events existieren in jeder WoW-Version
+        -- (z.B. INSPECT_TALENT_READY in Anniversary nicht). Silent ignorieren.
+        local ok = pcall(dispatcher.RegisterEvent, dispatcher, event)
+        if not ok then return end
         handlers[event] = {}
-        dispatcher:RegisterEvent(event)
     end
     table.insert(handlers[event], handler)
 end
@@ -28,7 +31,7 @@ function ns:UnregisterEvent(event, handler)
     end
     if #handlers[event] == 0 then
         handlers[event] = nil
-        dispatcher:UnregisterEvent(event)
+        pcall(dispatcher.UnregisterEvent, dispatcher, event)
     end
 end
 

@@ -13,18 +13,21 @@ local mod = ns:RegisterModule("miscqol", {
         enabled               = true,
         -- Charakter / Auto-Aktionen
         autoAcceptQuest       = false,
+        autoTurnInQuest       = false,
         autoAcceptRes         = true,
         autoAcceptSummon      = false,
         autoReleasePvP        = true,
         -- Anbieter
         autoSellJunk          = true,
         autoRepair            = true,
+        maxStackButton        = true,
         -- Sichtbarkeit
         hideErrors            = false,
         hideZoneText          = false,
         hidePortraitNumbers   = false,
         hideKeybindText       = false,
         hideMacroText         = false,
+        hideStackCount        = false,
         hideRaidGroupLabels   = false,
         -- Textgrößen
         mailTextSize          = 13,
@@ -128,6 +131,76 @@ local function repairAll()
 end
 
 -- =========================================================
+-- StackSplitFrame: MAX-Button (Stack-Anzahl direkt einkaufen / splitten)
+-- =========================================================
+local _stackSplitHooked = false
+
+local function applyMaxStackButton()
+    if not StackSplitFrame then return end
+    local btn = _G.VCUI_StackSplitMaxButton
+    if not btn then return end
+    btn:SetShown(mod.db.maxStackButton ~= false and StackSplitFrame:IsShown())
+end
+
+local function setupStackSplitMaxButton()
+    if _stackSplitHooked then return end
+    if not StackSplitFrame then return end
+
+    local okBtn  = StackSplitFrame.okayButton  or _G.StackSplitOkayButton
+    local cancel = StackSplitFrame.cancelButton or _G.StackSplitCancelButton
+    if not okBtn or not cancel then return end
+
+    _stackSplitHooked = true
+
+    -- Frame-Höhe einmalig erweitern damit MAX-Button innen am Boden Platz hat.
+    -- Width-Extension funktioniert nicht weil der Backdrop in Classic eine
+    -- fixe Größe hat und nicht mit SetWidth mitwächst → Button würde aus dem
+    -- dunklen Panel rausragen. Bottom-Position bleibt sauber im Backdrop.
+    if not StackSplitFrame._vcuiHeightExtended then
+        StackSplitFrame._vcuiHeightExtended = true
+        local h = StackSplitFrame:GetHeight() or 50
+        StackSplitFrame:SetHeight(h + 28)
+    end
+
+    local btn = CreateFrame("Button", "VCUI_StackSplitMaxButton", StackSplitFrame, "UIPanelButtonTemplate")
+    btn:SetSize(80, 22)
+    btn:SetText("MAX")
+    -- Zentriert am unteren Innenrand des Popups
+    btn:ClearAllPoints()
+    btn:SetPoint("BOTTOM", StackSplitFrame, "BOTTOM", 0, 8)
+    btn:SetFrameLevel(StackSplitFrame:GetFrameLevel() + 2)
+    btn:SetScript("OnClick", function()
+        local maxStack = StackSplitFrame.maxStack or 1
+        if maxStack < 1 then return end
+
+        -- Classic/Anniversary: StackSplitFrame.split ist eine ZAHL (aktueller Wert),
+        -- der OK-Handler liest sie direkt via StackSplitFrame.owner:SplitStack(.split).
+        -- Retail: .split ist eine EditBox mit :SetNumber().
+        local s = StackSplitFrame.split
+        if type(s) == "number" then
+            StackSplitFrame.split = maxStack
+            if _G.StackSplitText then
+                _G.StackSplitText:SetText(maxStack)
+            end
+        elseif type(s) == "table" and s.SetNumber then
+            s:SetNumber(maxStack)
+        end
+
+        -- Klick auf OK triggert Merchant-Buy bzw. Bag-Split mit dem gesetzten Wert
+        local ok = StackSplitFrame.okayButton or _G.StackSplitOkayButton
+        if ok and ok.Click then ok:Click() end
+    end)
+
+    -- Zeige/Verstecke synchron mit Popup
+    StackSplitFrame:HookScript("OnShow", function()
+        btn:SetShown(mod.db.maxStackButton ~= false)
+    end)
+    StackSplitFrame:HookScript("OnHide", function()
+        btn:Hide()
+    end)
+end
+
+-- =========================================================
 -- Event-Handler
 -- =========================================================
 local function onMerchantShow()
@@ -169,6 +242,24 @@ local function onQuestAcceptConfirm()
     if AcceptQuest then AcceptQuest() end
 end
 
+local function onQuestProgress()
+    if not mod.db.autoTurnInQuest then return end
+    -- Wenn alle Quest-Items abgegeben sind → CompleteQuest triggert QUEST_COMPLETE
+    if IsQuestCompletable and IsQuestCompletable() and CompleteQuest then
+        CompleteQuest()
+    end
+end
+
+local function onQuestComplete()
+    if not mod.db.autoTurnInQuest then return end
+    if not GetNumQuestChoices or not GetQuestReward then return end
+    local choices = GetNumQuestChoices() or 0
+    -- 0 = kein Choice-Reward (auto-pick), 1 = nur ein Reward, >1 = User muss wählen
+    if choices <= 1 then
+        GetQuestReward(choices)
+    end
+end
+
 local function onPlayerDead()
     if not mod.db.autoReleasePvP then return end
     if not IsInInstance then return end
@@ -200,10 +291,17 @@ local function applyHideZoneText()
         if zt  then zt:UnregisterAllEvents();  zt:Hide()  end
         if szt then szt:UnregisterAllEvents(); szt:Hide() end
     else
+        -- Re-register Events; NICHT direkt :Show() aufrufen — FadingFrame OnUpdate
+        -- crasht mit 'startTime nil', wenn Frame nicht via FadingFrame_Show()
+        -- gezeigt wurde. Blizzard zeigt + fadet beim nächsten Zone-Change selbst.
         if zt then
             zt:RegisterEvent("ZONE_CHANGED")
             zt:RegisterEvent("ZONE_CHANGED_NEW_AREA")
             zt:RegisterEvent("ZONE_CHANGED_INDOORS")
+        end
+        if szt then
+            szt:RegisterEvent("ZONE_CHANGED")
+            szt:RegisterEvent("ZONE_CHANGED_INDOORS")
         end
     end
 end
@@ -244,6 +342,14 @@ local function applyHideMacroText()
     forEachActionButton(function(b)
         if b.Name then
             if mod.db.hideMacroText then b.Name:Hide() else b.Name:Show() end
+        end
+    end)
+end
+
+local function applyHideStackCount()
+    forEachActionButton(function(b)
+        if b.Count then
+            if mod.db.hideStackCount then b.Count:Hide() else b.Count:Show() end
         end
     end)
 end
@@ -289,6 +395,7 @@ local function applyAllVisibility()
     applyHidePortraitNumbers()
     applyHideKeybindText()
     applyHideMacroText()
+    applyHideStackCount()
     applyHideRaidGroupLabels()
     applyMailTextSize()
     applyQuestTextSize()
@@ -309,6 +416,8 @@ function mod:OnEnable()
     ns:RegisterEvent("QUEST_GREETING",        onQuestGreeting)
     ns:RegisterEvent("QUEST_DETAIL",          onQuestDetail)
     ns:RegisterEvent("QUEST_ACCEPT_CONFIRM",  onQuestAcceptConfirm)
+    ns:RegisterEvent("QUEST_PROGRESS",        onQuestProgress)
+    ns:RegisterEvent("QUEST_COMPLETE",        onQuestComplete)
     ns:RegisterEvent("PLAYER_DEAD",           onPlayerDead)
     ns:RegisterEvent("PLAYER_LOGIN",          onPlayerLogin)
 
@@ -316,6 +425,13 @@ function mod:OnEnable()
         applyAllVisibility()
     elseif C_Timer and C_Timer.After then
         C_Timer.After(1, applyAllVisibility)
+    end
+
+    -- StackSplit MAX-Button erstellen (defer, falls Frame noch nicht da)
+    if C_Timer and C_Timer.After then
+        C_Timer.After(0.5, setupStackSplitMaxButton)
+    else
+        setupStackSplitMaxButton()
     end
 end
 
@@ -326,6 +442,8 @@ function mod:OnDisable()
     ns:UnregisterEvent("QUEST_GREETING",        onQuestGreeting)
     ns:UnregisterEvent("QUEST_DETAIL",          onQuestDetail)
     ns:UnregisterEvent("QUEST_ACCEPT_CONFIRM",  onQuestAcceptConfirm)
+    ns:UnregisterEvent("QUEST_PROGRESS",        onQuestProgress)
+    ns:UnregisterEvent("QUEST_COMPLETE",        onQuestComplete)
     ns:UnregisterEvent("PLAYER_DEAD",           onPlayerDead)
     ns:UnregisterEvent("PLAYER_LOGIN",          onPlayerLogin)
 end
@@ -353,6 +471,8 @@ function mod:GetOptions()
         { type = "header", text = "Charakter" },
         tgl("autoAcceptQuest",   "Quests automatisch annehmen",
             "Akzeptiert Quests beim Anklicken eines NPCs automatisch."),
+        tgl("autoTurnInQuest",   "Quests automatisch abgeben",
+            "Schließt fertige Quests automatisch ab. Bei mehreren Wahl-Belohnungen wird auf User-Wahl gewartet (kein Auto-Pick)."),
         tgl("autoAcceptRes",     "Wiederbelebung automatisch annehmen",
             "Klickt 'Akzeptieren' auf Rez-Popups automatisch (nicht im Kampf)."),
         tgl("autoAcceptSummon",  "Beschwörung automatisch annehmen",
@@ -366,6 +486,9 @@ function mod:GetOptions()
             "Verkauft alle grauen Items beim Öffnen eines Vendors. Erlös wird im Chat angezeigt."),
         tgl("autoRepair",        "Automatisch reparieren",
             "Repariert komplette Ausrüstung beim Vendor, sofern Gold reicht."),
+        tgl("maxStackButton",    "Stack-Split Popup: MAX-Button",
+            "Fügt einen 'MAX'-Button im Mengen-Popup ein. Klick = vollen Stack einkaufen (bei Vendor) bzw. komplett splitten (bei Bag-Items).",
+            applyMaxStackButton),
 
         { type = "spacer", height = 6 },
         { type = "header", text = "Sichtbarkeit" },
@@ -384,6 +507,9 @@ function mod:GetOptions()
         tgl("hideMacroText",     "Makro-/Spell-Namen an Action-Buttons verstecken",
             "Versteckt die Text-Labels unter den Aktions-Buttons.",
             applyHideMacroText),
+        tgl("hideStackCount",    "Stack-/Charge-Zahlen auf Action-Buttons verstecken",
+            "Versteckt die kleinen Boxen mit Zahlen oben rechts (Item-Stacks, Charges, Cooldown-Sekunden bei langen CDs).",
+            applyHideStackCount),
         tgl("hideRaidGroupLabels", "Raid-Gruppen-Labels verstecken",
             "Versteckt die 'Gruppe 1'/'Gruppe 2'-Labels über den Compact-Raid-Frames.",
             applyHideRaidGroupLabels),

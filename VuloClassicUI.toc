@@ -2,9 +2,9 @@
 ## Title: |cff9b6cffVuloClassicUI|r
 ## Notes: Modular UI suite for TBC Classic Anniversary
 ## Author: Vulo
-## Version: 1.4.5
-## SavedVariables: VuloClassicUIDB, TrinketMenuOptions
-## SavedVariablesPerCharacter: VuloClassicUICharDB, TrinketMenuPerOptions, TrinketMenuQueue
+## Version: 1.5.0
+## SavedVariables: VuloClassicUIDB, TrinketsOptions
+## SavedVariablesPerCharacter: VuloClassicUICharDB, TrinketsPerOptions, TrinketsQueue
 ## IconTexture: Interface\AddOns\VuloClassicUI\Media\Icons\vui4
 ## Category: VuloUI
 
@@ -55,13 +55,13 @@ Modules\FixAuctionDropdown.lua
 Modules\FixGuildNewsNil.lua
 
 # --- Trinkets-Engine (Code extern) + VCUI-Wrapper in Modules/Trinkets.lua ---
-Trinkets\TrinketMenuGlobals.lua
-Trinkets\TrinketMenu.lua
-Trinkets\TrinketMenu.xml
-Trinkets\TrinketMenuOpt.lua
-Trinkets\TrinketMenuOpt.xml
-Trinkets\TrinketMenuQueue.lua
-Trinkets\TrinketMenuQueue.xml
+Trinkets\TrinketsGlobals.lua
+Trinkets\Trinkets.lua
+Trinkets\Trinkets.xml
+Trinkets\TrinketsOpt.lua
+Trinkets\TrinketsOpt.xml
+Trinkets\TrinketsQueue.lua
+Trinkets\TrinketsQueue.xml
 Modules\Trinkets.lua
 
 # --- Init (zuletzt, startet alles) ---

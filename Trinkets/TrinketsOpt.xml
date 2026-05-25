@@ -1,46 +1,46 @@
 <Ui xmlns = "http://www.blizzard.com/wow/ui/" xmlns:xsi = "http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation = "http://www.blizzard.com/wow/ui/ ..\FrameXML\UI.xsd">
-	<Button name = "TrinketMenu_TabTemplate" inherits = "UIPanelButtonGrayTemplate" virtual = "true">
+	<Button name = "Trinkets_TabTemplate" inherits = "UIPanelButtonGrayTemplate" virtual = "true">
 		<Size>
 			<AbsDimension x = "96" y = "28"/>
 		</Size>
 		<Scripts>
 			<OnClick>
-				TrinketMenu.Tab_OnClick(self:GetID())
+				Trinkets.Tab_OnClick(self:GetID())
 			</OnClick>
 		</Scripts>
 		<NormalFont style = "GameFontHighlightSmall"/>
 		<DisabledFont style = "GameFontDisableSmall"/>
 		<HighlightFont style = "GameFontHighlightSmall"/>
 	</Button>
-	<Button name = "TrinketMenu_SmallButtonTemplate" virtual = "true">
+	<Button name = "Trinkets_SmallButtonTemplate" virtual = "true">
 		<Size>
 			<AbsDimension x = "16" y = "16"/>
 		</Size>
 		<Scripts>
 			<OnClick>
-				TrinketMenu.SmallButton_OnClick(self)
+				Trinkets.SmallButton_OnClick(self)
 			</OnClick>
 			<OnEnter>
-				TrinketMenu.OnTooltip(self)
+				Trinkets.OnTooltip(self)
 			</OnEnter>
 			<OnLeave>
 				GameTooltip:Hide()
 			</OnLeave>
 		</Scripts>
-		<HighlightTexture file = "Interface\AddOns\TrinketMenu\Textures\Buttons" alphaMode = "ADD">
+		<HighlightTexture file = "Interface\AddOns\Trinkets\Textures\Buttons" alphaMode = "ADD">
 			<TexCoords left = ".25" right = ".375" top = "0" bottom = ".125"/>
 		</HighlightTexture>
 	</Button>
-	<CheckButton name = "TrinketMenu_CheckButtonTemplate" inherits = "UICheckButtonTemplate" virtual = "true">
+	<CheckButton name = "Trinkets_CheckButtonTemplate" inherits = "UICheckButtonTemplate" virtual = "true">
 		<Size>
 			<AbsDimension x = "24" y = "24"/>
 		</Size>
 		<Scripts>
 			<OnClick>
-				TrinketMenu.CheckButton_OnClick(self)
+				Trinkets.CheckButton_OnClick(self)
 			</OnClick>
 			<OnEnter>
-				TrinketMenu.OnTooltip(self)
+				Trinkets.OnTooltip(self)
 			</OnEnter>
 			<OnLeave>
 				GameTooltip:Hide()
@@ -48,7 +48,7 @@
 		</Scripts>
 	</CheckButton>
 	<!-- Minimap button -->
-	<Button name = "TrinketMenu_IconFrame" frameStrata = "MEDIUM" parent = "Minimap" enableMouse = "true" movable = "true" toplevel = "true" hidden = "false">
+	<Button name = "Trinkets_IconFrame" frameStrata = "MEDIUM" parent = "Minimap" enableMouse = "true" movable = "true" toplevel = "true" hidden = "false">
 		<Size>
 			<AbsDimension x = "32" y = "32"/>
 		</Size>
@@ -61,34 +61,34 @@
 				self:RegisterForDrag("LeftButton")
 			</OnLoad>
 			<OnEnter>
-				TrinketMenu.OnTooltip(self, "TrinketMenu", (TrinketMenuOptions.DisableToggle == "ON") and "Click: toggle options\nDrag: move icon" or "Left click: toggle trinkets\nRight click: toggle options\nDrag: move icon")
+				Trinkets.OnTooltip(self, "Trinkets", (TrinketsOptions.DisableToggle == "ON") and "Click: toggle options\nDrag: move icon" or "Left click: toggle trinkets\nRight click: toggle options\nDrag: move icon")
 			</OnEnter>
 			<OnLeave>
 				GameTooltip:Hide()
 			</OnLeave>
 			<OnDragStart>
 				self:LockHighlight()
-				TrinketMenu.StartTimer("DragMinimapButton")
+				Trinkets.StartTimer("DragMinimapButton")
 			</OnDragStart>
 			<OnDragStop>
-				TrinketMenu.StopTimer("DragMinimapButton")
+				Trinkets.StopTimer("DragMinimapButton")
 				self:UnlockHighlight()
 			</OnDragStop>
 			<OnClick>
-				TrinketMenu.MinimapButton_OnClick(button)
+				Trinkets.MinimapButton_OnClick(button)
 			</OnClick>
 		</Scripts>
-		<NormalTexture file = "Interface\AddOns\TrinketMenu\Textures\TrinketMenu-Icon-Up"/>
-		<PushedTexture file = "Interface\AddOns\TrinketMenu\Textures\TrinketMenu-Icon-Down"/>
+		<NormalTexture file = "Interface\AddOns\Trinkets\Textures\Trinkets-Icon-Up"/>
+		<PushedTexture file = "Interface\AddOns\Trinkets\Textures\Trinkets-Icon-Down"/>
 		<HighlightTexture alphaMode = "ADD" file = "Interface\Minimap\UI-Minimap-ZoomButton-Highlight"/>
 	</Button>
-	<Frame name = "TrinketMenu_OptFrame" parent = "UIParent" movable = "true" toplevel = "true" clampedToScreen = "true" hidden = "true" inherits = "TrinketMenuBackdropTemplate">
+	<Frame name = "Trinkets_OptFrame" parent = "UIParent" movable = "true" toplevel = "true" clampedToScreen = "true" hidden = "true" inherits = "TrinketsBackdropTemplate">
 		<Size x = "300" y = "356"/>
 		<Anchors>
 			<Anchor point = "CENTER"/>
 		</Anchors>
 		<KeyValues>
-			<KeyValue key="backdropInfo" value="TRINKETMENU_BACKDROP_16" type="global"/>
+			<KeyValue key="backdropInfo" value="Trinkets_BACKDROP_16" type="global"/>
 		</KeyValues>
 		<Layers>
 			<Layer level = "BACKGROUND">
@@ -112,7 +112,7 @@
 				</Texture>
 			</Layer>
 			<Layer level = "OVERLAY">
-				<FontString name = "TrinketMenu_Title" inherits = "GameFontHighlightSmall">
+				<FontString name = "Trinkets_Title" inherits = "GameFontHighlightSmall">
 					<Anchors>
 						<Anchor point = "TOP">
 							<Offset>
@@ -125,7 +125,7 @@
 			</Layer>
 		</Layers>
 		<Frames>
-			<Button name = "TrinketMenu_CloseButton" inherits = "TrinketMenu_SmallButtonTemplate">
+			<Button name = "Trinkets_CloseButton" inherits = "Trinkets_SmallButtonTemplate">
 				<Anchors>
 					<Anchor point = "TOPRIGHT">
 						<Offset>
@@ -133,32 +133,32 @@
 						</Offset>
 					</Anchor>
 				</Anchors>
-				<NormalTexture file = "Interface\AddOns\TrinketMenu\Textures\Buttons">
+				<NormalTexture file = "Interface\AddOns\Trinkets\Textures\Buttons">
 					<TexCoords left = ".375" right = ".5" top = ".25" bottom = ".375"/>
 				</NormalTexture>
-				<PushedTexture file = "Interface\AddOns\TrinketMenu\Textures\Buttons">
+				<PushedTexture file = "Interface\AddOns\Trinkets\Textures\Buttons">
 					<TexCoords left = ".5" right = ".625" top = ".25" bottom = ".375"/>
 				</PushedTexture>
-				<DisabledTexture file = "Interface\AddOns\TrinketMenu\Textures\Buttons">
+				<DisabledTexture file = "Interface\AddOns\Trinkets\Textures\Buttons">
 					<TexCoords left = ".625" right = ".75" top = ".25" bottom = ".375"/>
 				</DisabledTexture>
 			</Button>
-			<Button name = "TrinketMenu_LockButton" inherits = "TrinketMenu_SmallButtonTemplate">
+			<Button name = "Trinkets_LockButton" inherits = "Trinkets_SmallButtonTemplate">
 				<Anchors>
-					<Anchor point = "TOPRIGHT" relativeTo = "TrinketMenu_CloseButton" relativePoint = "TOPLEFT">
+					<Anchor point = "TOPRIGHT" relativeTo = "Trinkets_CloseButton" relativePoint = "TOPLEFT">
 						<Offset>
 							<AbsDimension x = "-2" y = "0"/>
 						</Offset>
 					</Anchor>
 				</Anchors>
-				<NormalTexture file = "Interface\AddOns\TrinketMenu\Textures\Buttons">
+				<NormalTexture file = "Interface\AddOns\Trinkets\Textures\Buttons">
 					<TexCoords left = ".75" right = ".875" top = ".125" bottom = ".25"/>
 				</NormalTexture>
-				<PushedTexture file = "Interface\AddOns\TrinketMenu\Textures\Buttons">
+				<PushedTexture file = "Interface\AddOns\Trinkets\Textures\Buttons">
 					<TexCoords left = ".875" right = "1" top = ".125" bottom = ".25"/>
 				</PushedTexture>
 			</Button>
-			<Button name = "TrinketMenu_Tab1" inherits = "TrinketMenu_TabTemplate" text = "Options" id = "1">
+			<Button name = "Trinkets_Tab1" inherits = "Trinkets_TabTemplate" text = "Options" id = "1">
 				<Anchors>
 					<Anchor point = "TOPRIGHT">
 						<Offset>
@@ -167,7 +167,7 @@
 					</Anchor>
 				</Anchors>
 			</Button>
-			<Frame name = "TrinketMenu_SubOptFrame" hidden = "true" inherits = "TrinketMenuBackdropTemplate">
+			<Frame name = "Trinkets_SubOptFrame" hidden = "true" inherits = "TrinketsBackdropTemplate">
 				<Anchors>
 					<Anchor point = "TOPLEFT">
 						<Offset>
@@ -181,7 +181,7 @@
 					</Anchor>
 				</Anchors>
 				<KeyValues>
-					<KeyValue key="backdropInfo" value="TRINKETMENU_BACKDROP_16" type="global"/>
+					<KeyValue key="backdropInfo" value="Trinkets_BACKDROP_16" type="global"/>
 				</KeyValues>
 				<Layers>
 					<Layer level = "BACKGROUND">
@@ -206,7 +206,7 @@
 					</Layer>
 				</Layers>
 				<Frames>
-					<CheckButton name = "TrinketMenu_OptLocked" inherits = "TrinketMenu_CheckButtonTemplate">
+					<CheckButton name = "Trinkets_OptLocked" inherits = "Trinkets_CheckButtonTemplate">
 						<Anchors>
 							<Anchor point = "TOPLEFT">
 								<Offset>
@@ -215,126 +215,126 @@
 							</Anchor>
 						</Anchors>
 					</CheckButton>
-					<CheckButton name = "TrinketMenu_OptShowIcon" inherits = "TrinketMenu_CheckButtonTemplate">
+					<CheckButton name = "Trinkets_OptShowIcon" inherits = "Trinkets_CheckButtonTemplate">
 						<Anchors>
-							<Anchor point = "TOPLEFT" relativeTo = "TrinketMenu_OptLocked" relativePoint = "BOTTOMLEFT">
+							<Anchor point = "TOPLEFT" relativeTo = "Trinkets_OptLocked" relativePoint = "BOTTOMLEFT">
 								<Offset>
 									<AbsDimension x = "0" y = "4"/>
 								</Offset>
 							</Anchor>
 						</Anchors>
 					</CheckButton>
-					<CheckButton name = "TrinketMenu_OptDisableToggle" inherits = "TrinketMenu_CheckButtonTemplate">
+					<CheckButton name = "Trinkets_OptDisableToggle" inherits = "Trinkets_CheckButtonTemplate">
 						<Anchors>
-							<Anchor point = "TOPLEFT" relativeTo = "TrinketMenu_OptShowIcon" relativePoint = "BOTTOMLEFT">
+							<Anchor point = "TOPLEFT" relativeTo = "Trinkets_OptShowIcon" relativePoint = "BOTTOMLEFT">
 								<Offset>
 									<AbsDimension x = "16" y = "4"/>
 								</Offset>
 							</Anchor>
 						</Anchors>
 					</CheckButton>
-					<CheckButton name = "TrinketMenu_OptSquareMinimap" inherits = "TrinketMenu_CheckButtonTemplate">
+					<CheckButton name = "Trinkets_OptSquareMinimap" inherits = "Trinkets_CheckButtonTemplate">
 						<Anchors>
-							<Anchor point = "TOPLEFT" relativeTo = "TrinketMenu_OptDisableToggle" relativePoint = "BOTTOMLEFT">
+							<Anchor point = "TOPLEFT" relativeTo = "Trinkets_OptDisableToggle" relativePoint = "BOTTOMLEFT">
 								<Offset>
 									<AbsDimension x = "0" y = "4"/>
 								</Offset>
 							</Anchor>
 						</Anchors>
 					</CheckButton>
-					<CheckButton name = "TrinketMenu_OptCooldownCount" inherits = "TrinketMenu_CheckButtonTemplate">
+					<CheckButton name = "Trinkets_OptCooldownCount" inherits = "Trinkets_CheckButtonTemplate">
 						<Anchors>
-							<Anchor point = "TOPLEFT" relativeTo = "TrinketMenu_OptSquareMinimap" relativePoint = "BOTTOMLEFT">
+							<Anchor point = "TOPLEFT" relativeTo = "Trinkets_OptSquareMinimap" relativePoint = "BOTTOMLEFT">
 								<Offset>
 									<AbsDimension x = "-16" y = "4"/>
 								</Offset>
 							</Anchor>
 						</Anchors>
 					</CheckButton>
-					<CheckButton name = "TrinketMenu_OptLargeCooldown" inherits = "TrinketMenu_CheckButtonTemplate">
+					<CheckButton name = "Trinkets_OptLargeCooldown" inherits = "Trinkets_CheckButtonTemplate">
 						<Anchors>
-							<Anchor point = "TOPLEFT" relativeTo = "TrinketMenu_OptCooldownCount" relativePoint = "BOTTOMLEFT">
+							<Anchor point = "TOPLEFT" relativeTo = "Trinkets_OptCooldownCount" relativePoint = "BOTTOMLEFT">
 								<Offset>
 									<AbsDimension x = "16" y = "4"/>
 								</Offset>
 							</Anchor>
 						</Anchors>
 					</CheckButton>
-					<CheckButton name = "TrinketMenu_OptCooldownCountBlizzard" inherits = "TrinketMenu_CheckButtonTemplate">
+					<CheckButton name = "Trinkets_OptCooldownCountBlizzard" inherits = "Trinkets_CheckButtonTemplate">
 						<Anchors>
-							<Anchor point = "TOPLEFT" relativeTo = "TrinketMenu_OptLargeCooldown" relativePoint = "BOTTOMLEFT">
+							<Anchor point = "TOPLEFT" relativeTo = "Trinkets_OptLargeCooldown" relativePoint = "BOTTOMLEFT">
 								<Offset>
 									<AbsDimension x = "-16" y = "4"/>
 								</Offset>
 							</Anchor>
 						</Anchors>
 					</CheckButton>
-					<CheckButton name = "TrinketMenu_OptCooldownCountOmniCC" inherits = "TrinketMenu_CheckButtonTemplate">
+					<CheckButton name = "Trinkets_OptCooldownCountOmniCC" inherits = "Trinkets_CheckButtonTemplate">
 						<Anchors>
-							<Anchor point = "TOPLEFT" relativeTo = "TrinketMenu_OptCooldownCountBlizzard" relativePoint = "BOTTOMLEFT">
+							<Anchor point = "TOPLEFT" relativeTo = "Trinkets_OptCooldownCountBlizzard" relativePoint = "BOTTOMLEFT">
 								<Offset>
 									<AbsDimension x = "0" y = "4"/>
 								</Offset>
 							</Anchor>
 						</Anchors>
 					</CheckButton>
-					<CheckButton name = "TrinketMenu_OptShowTooltips" inherits = "TrinketMenu_CheckButtonTemplate">
+					<CheckButton name = "Trinkets_OptShowTooltips" inherits = "Trinkets_CheckButtonTemplate">
 						<Anchors>
-							<Anchor point = "TOPLEFT" relativeTo = "TrinketMenu_OptCooldownCountOmniCC" relativePoint = "BOTTOMLEFT">
+							<Anchor point = "TOPLEFT" relativeTo = "Trinkets_OptCooldownCountOmniCC" relativePoint = "BOTTOMLEFT">
 								<Offset>
 									<AbsDimension x = "0" y = "4"/>
 								</Offset>
 							</Anchor>
 						</Anchors>
 					</CheckButton>
-					<CheckButton name = "TrinketMenu_OptTooltipFollow" inherits = "TrinketMenu_CheckButtonTemplate">
+					<CheckButton name = "Trinkets_OptTooltipFollow" inherits = "Trinkets_CheckButtonTemplate">
 						<Anchors>
-							<Anchor point = "TOPLEFT" relativeTo = "TrinketMenu_OptShowTooltips" relativePoint = "BOTTOMLEFT">
+							<Anchor point = "TOPLEFT" relativeTo = "Trinkets_OptShowTooltips" relativePoint = "BOTTOMLEFT">
 								<Offset>
 									<AbsDimension x = "16" y = "4"/>
 								</Offset>
 							</Anchor>
 						</Anchors>
 					</CheckButton>
-					<CheckButton name = "TrinketMenu_OptTinyTooltips" inherits = "TrinketMenu_CheckButtonTemplate">
+					<CheckButton name = "Trinkets_OptTinyTooltips" inherits = "Trinkets_CheckButtonTemplate">
 						<Anchors>
-							<Anchor point = "TOPLEFT" relativeTo = "TrinketMenu_OptTooltipFollow" relativePoint = "BOTTOMLEFT">
+							<Anchor point = "TOPLEFT" relativeTo = "Trinkets_OptTooltipFollow" relativePoint = "BOTTOMLEFT">
 								<Offset>
 									<AbsDimension x = "0" y = "4"/>
 								</Offset>
 							</Anchor>
 						</Anchors>
 					</CheckButton>
-					<CheckButton name = "TrinketMenu_OptShowHotKeys" inherits = "TrinketMenu_CheckButtonTemplate">
+					<CheckButton name = "Trinkets_OptShowHotKeys" inherits = "Trinkets_CheckButtonTemplate">
 						<Anchors>
-							<Anchor point = "TOPLEFT" relativeTo = "TrinketMenu_OptTinyTooltips" relativePoint = "BOTTOMLEFT">
+							<Anchor point = "TOPLEFT" relativeTo = "Trinkets_OptTinyTooltips" relativePoint = "BOTTOMLEFT">
 								<Offset>
 									<AbsDimension x = "-16" y = "4"/>
 								</Offset>
 							</Anchor>
 						</Anchors>
 					</CheckButton>
-					<CheckButton name = "TrinketMenu_OptStopOnSwap" inherits = "TrinketMenu_CheckButtonTemplate">
+					<CheckButton name = "Trinkets_OptStopOnSwap" inherits = "Trinkets_CheckButtonTemplate">
 						<Anchors>
-							<Anchor point = "TOPLEFT" relativeTo = "TrinketMenu_OptShowHotKeys" relativePoint = "BOTTOMLEFT">
+							<Anchor point = "TOPLEFT" relativeTo = "Trinkets_OptShowHotKeys" relativePoint = "BOTTOMLEFT">
 								<Offset>
 									<AbsDimension x = "0" y = "4"/>
 								</Offset>
 							</Anchor>
 						</Anchors>
 					</CheckButton>
-					<!--<CheckButton name = "TrinketMenu_OptRedRange" inherits = "TrinketMenu_CheckButtonTemplate">
+					<!--<CheckButton name = "Trinkets_OptRedRange" inherits = "Trinkets_CheckButtonTemplate">
 						<Anchors>
-							<Anchor point = "TOPLEFT" relativeTo = "TrinketMenu_OptStopOnSwap" relativePoint = "BOTTOMLEFT">
+							<Anchor point = "TOPLEFT" relativeTo = "Trinkets_OptStopOnSwap" relativePoint = "BOTTOMLEFT">
 								<Offset>
 									<AbsDimension x = "0" y = "4"/>
 								</Offset>
 							</Anchor>
 						</Anchors>
 					</CheckButton>-->
-					<CheckButton name = "TrinketMenu_OptHidePetBattle" inherits = "TrinketMenu_CheckButtonTemplate">
+					<CheckButton name = "Trinkets_OptHidePetBattle" inherits = "Trinkets_CheckButtonTemplate">
 						<Anchors>
-							<Anchor point = "TOPLEFT" relativeTo = "TrinketMenu_OptStopOnSwap" relativePoint = "BOTTOMLEFT">
+							<Anchor point = "TOPLEFT" relativeTo = "Trinkets_OptStopOnSwap" relativePoint = "BOTTOMLEFT">
 								<Offset>
 									<AbsDimension x = "0" y = "4"/>
 								</Offset>
@@ -342,7 +342,7 @@
 						</Anchors>
 					</CheckButton>
 
-					<CheckButton name = "TrinketMenu_OptKeepDocked" inherits = "TrinketMenu_CheckButtonTemplate">
+					<CheckButton name = "Trinkets_OptKeepDocked" inherits = "Trinkets_CheckButtonTemplate">
 						<Anchors>
 							<Anchor point = "TOPLEFT" relativePoint = "TOP">
 								<Offset>
@@ -351,75 +351,75 @@
 							</Anchor>
 						</Anchors>
 					</CheckButton>
-					<CheckButton name = "TrinketMenu_OptKeepOpen" inherits = "TrinketMenu_CheckButtonTemplate">
+					<CheckButton name = "Trinkets_OptKeepOpen" inherits = "Trinkets_CheckButtonTemplate">
 						<Anchors>
-							<Anchor point = "TOPLEFT" relativeTo = "TrinketMenu_OptKeepDocked" relativePoint = "BOTTOMLEFT">
+							<Anchor point = "TOPLEFT" relativeTo = "Trinkets_OptKeepDocked" relativePoint = "BOTTOMLEFT">
 								<Offset>
 									<AbsDimension x = "0" y = "4"/>
 								</Offset>
 							</Anchor>
 						</Anchors>
 					</CheckButton>
-					<CheckButton name = "TrinketMenu_OptMenuOnShift" inherits = "TrinketMenu_CheckButtonTemplate">
+					<CheckButton name = "Trinkets_OptMenuOnShift" inherits = "Trinkets_CheckButtonTemplate">
 						<Anchors>
-							<Anchor point = "TOPLEFT" relativeTo = "TrinketMenu_OptKeepOpen" relativePoint = "BOTTOMLEFT">
+							<Anchor point = "TOPLEFT" relativeTo = "Trinkets_OptKeepOpen" relativePoint = "BOTTOMLEFT">
 								<Offset>
 									<AbsDimension x = "0" y = "4"/>
 								</Offset>
 							</Anchor>
 						</Anchors>
 					</CheckButton>
-					<CheckButton name = "TrinketMenu_OptMenuOnRight" inherits = "TrinketMenu_CheckButtonTemplate">
+					<CheckButton name = "Trinkets_OptMenuOnRight" inherits = "Trinkets_CheckButtonTemplate">
 						<Anchors>
-							<Anchor point = "TOPLEFT" relativeTo = "TrinketMenu_OptMenuOnShift" relativePoint = "BOTTOMLEFT">
+							<Anchor point = "TOPLEFT" relativeTo = "Trinkets_OptMenuOnShift" relativePoint = "BOTTOMLEFT">
 								<Offset>
 									<AbsDimension x = "0" y = "4"/>
 								</Offset>
 							</Anchor>
 						</Anchors>
 					</CheckButton>
-					<CheckButton name = "TrinketMenu_OptNotify" inherits = "TrinketMenu_CheckButtonTemplate">
+					<CheckButton name = "Trinkets_OptNotify" inherits = "Trinkets_CheckButtonTemplate">
 						<Anchors>
-							<Anchor point = "TOPLEFT" relativeTo = "TrinketMenu_OptMenuOnRight" relativePoint = "BOTTOMLEFT">
+							<Anchor point = "TOPLEFT" relativeTo = "Trinkets_OptMenuOnRight" relativePoint = "BOTTOMLEFT">
 								<Offset>
 									<AbsDimension x = "0" y = "4"/>
 								</Offset>
 							</Anchor>
 						</Anchors>
 					</CheckButton>
-					<CheckButton name = "TrinketMenu_OptNotifyThirty" inherits = "TrinketMenu_CheckButtonTemplate">
+					<CheckButton name = "Trinkets_OptNotifyThirty" inherits = "Trinkets_CheckButtonTemplate">
 						<Anchors>
-							<Anchor point = "TOPLEFT" relativeTo = "TrinketMenu_OptNotify" relativePoint = "BOTTOMLEFT">
+							<Anchor point = "TOPLEFT" relativeTo = "Trinkets_OptNotify" relativePoint = "BOTTOMLEFT">
 								<Offset>
 									<AbsDimension x = "0" y = "4"/>
 								</Offset>
 							</Anchor>
 						</Anchors>
 					</CheckButton>
-					<CheckButton name = "TrinketMenu_OptNotifyChatAlso" inherits = "TrinketMenu_CheckButtonTemplate">
+					<CheckButton name = "Trinkets_OptNotifyChatAlso" inherits = "Trinkets_CheckButtonTemplate">
 						<Anchors>
-							<Anchor point = "TOPLEFT" relativeTo = "TrinketMenu_OptNotifyThirty" relativePoint = "BOTTOMLEFT">
+							<Anchor point = "TOPLEFT" relativeTo = "Trinkets_OptNotifyThirty" relativePoint = "BOTTOMLEFT">
 								<Offset>
 									<AbsDimension x = "0" y = "4"/>
 								</Offset>
 							</Anchor>
 						</Anchors>
 					</CheckButton>
-					<CheckButton name = "TrinketMenu_OptSetColumns" inherits = "TrinketMenu_CheckButtonTemplate">
+					<CheckButton name = "Trinkets_OptSetColumns" inherits = "Trinkets_CheckButtonTemplate">
 						<Anchors>
-							<Anchor point = "TOPLEFT" relativeTo = "TrinketMenu_OptNotifyChatAlso" relativePoint = "BOTTOMLEFT">
+							<Anchor point = "TOPLEFT" relativeTo = "Trinkets_OptNotifyChatAlso" relativePoint = "BOTTOMLEFT">
 								<Offset>
 									<AbsDimension x = "0" y = "4"/>
 								</Offset>
 							</Anchor>
 						</Anchors>
 					</CheckButton>
-					<Slider name = "TrinketMenu_OptColumnsSlider" orientation = "HORIZONTAL" enableMouse = "true" minValue = "1" maxValue = "30" defaultValue = "4" valueStep = "1" inherits = "TrinketMenuBackdropTemplate">
+					<Slider name = "Trinkets_OptColumnsSlider" orientation = "HORIZONTAL" enableMouse = "true" minValue = "1" maxValue = "30" defaultValue = "4" valueStep = "1" inherits = "TrinketsBackdropTemplate">
 						<Size>
 							<AbsDimension x = "104" y = "17"/>
 						</Size>
 						<Anchors>
-							<Anchor point = "TOPLEFT" relativeTo = "TrinketMenu_OptSetColumns" relativePoint = "BOTTOMLEFT">
+							<Anchor point = "TOPLEFT" relativeTo = "Trinkets_OptSetColumns" relativePoint = "BOTTOMLEFT">
 								<Offset>
 									<AbsDimension x = "16" y = "4"/>
 								</Offset>
@@ -429,13 +429,13 @@
 							<AbsInset left = "0" right = "0" top = "-5" bottom = "-5"/>
 						</HitRectInsets>
 						<KeyValues>
-							<KeyValue key="backdropInfo" value="TRINKETMENU_SLIDER_BACKDROP" type="global"/>
+							<KeyValue key="backdropInfo" value="Trinkets_SLIDER_BACKDROP" type="global"/>
 						</KeyValues>
 						<Layers>
 							<Layer level = "ARTWORK">
-								<FontString name = "TrinketMenu_OptColumnsSliderText" inherits = "GameFontHighlightSmall" text = "5 trinkets">
+								<FontString name = "Trinkets_OptColumnsSliderText" inherits = "GameFontHighlightSmall" text = "5 trinkets">
 									<Anchors>
-										<Anchor point = "LEFT" relativeTo = "TrinketMenu_OptSetColumnsText" relativePoint = "RIGHT">
+										<Anchor point = "LEFT" relativeTo = "Trinkets_OptSetColumnsText" relativePoint = "RIGHT">
 											<Offset>
 												<AbsDimension x = "0" y = "0"/>
 											</Offset>
@@ -446,10 +446,10 @@
 						</Layers>
 						<Scripts>
 							<OnValueChanged>
-								TrinketMenu.OptColumnsSlider_OnValueChanged(self, value)
+								Trinkets.OptColumnsSlider_OnValueChanged(self, value)
 							</OnValueChanged>
 							<OnMouseWheel>
-								TrinketMenu.SliderOnMouseWheel(self, delta)
+								Trinkets.SliderOnMouseWheel(self, delta)
 							</OnMouseWheel>
 						</Scripts>
 						<ThumbTexture name = "$parentThumb" file = "Interface\Buttons\UI-SliderBar-Button-Horizontal">
@@ -463,12 +463,12 @@
 							</OnLoad>
 						</Scripts>
 					</Slider>
-					<Slider name = "TrinketMenu_OptMainScaleSlider" orientation = "HORIZONTAL" enableMouse = "true" minValue = "0.2" maxValue = "2.5" defaultValue = "1.0" valueStep = "0.01" inherits = "TrinketMenuBackdropTemplate">
+					<Slider name = "Trinkets_OptMainScaleSlider" orientation = "HORIZONTAL" enableMouse = "true" minValue = "0.2" maxValue = "2.5" defaultValue = "1.0" valueStep = "0.01" inherits = "TrinketsBackdropTemplate">
 						<Size>
 							<AbsDimension x = "104" y = "17"/>
 						</Size>
 						<Anchors>
-							<Anchor point = "TOPLEFT" relativeTo = "TrinketMenu_OptSetColumns" relativePoint = "BOTTOMLEFT">
+							<Anchor point = "TOPLEFT" relativeTo = "Trinkets_OptSetColumns" relativePoint = "BOTTOMLEFT">
 								<Offset>
 									<AbsDimension x = "16" y = "-28"/>
 								</Offset>
@@ -478,13 +478,13 @@
 							<AbsInset left = "0" right = "0" top = "-5" bottom = "-5"/>
 						</HitRectInsets>
 						<KeyValues>
-							<KeyValue key="backdropInfo" value="TRINKETMENU_SLIDER_BACKDROP" type="global"/>
+							<KeyValue key="backdropInfo" value="Trinkets_SLIDER_BACKDROP" type="global"/>
 						</KeyValues>
 						<Layers>
 							<Layer level = "ARTWORK">
-								<FontString name = "TrinketMenu_OptMainScaleSliderText" inherits = "GameFontHighlightSmall" text = "Main Scale: 1.0">
+								<FontString name = "Trinkets_OptMainScaleSliderText" inherits = "GameFontHighlightSmall" text = "Main Scale: 1.0">
 									<Anchors>
-										<Anchor point = "TOPLEFT" relativeTo = "TrinketMenu_OptSetColumnsText" relativePoint = "BOTTOMLEFT">
+										<Anchor point = "TOPLEFT" relativeTo = "Trinkets_OptSetColumnsText" relativePoint = "BOTTOMLEFT">
 											<Offset>
 												<AbsDimension x = "0" y = "-24"/>
 											</Offset>
@@ -495,10 +495,10 @@
 						</Layers>
 						<Scripts>
 							<OnValueChanged>
-								TrinketMenu.OptMainScaleSlider_OnValueChanged(self, value)
+								Trinkets.OptMainScaleSlider_OnValueChanged(self, value)
 							</OnValueChanged>
 							<OnMouseWheel>
-								TrinketMenu.SliderOnMouseWheel(self, delta)
+								Trinkets.SliderOnMouseWheel(self, delta)
 							</OnMouseWheel>
 						</Scripts>
 						<ThumbTexture name = "$parentThumb" file = "Interface\Buttons\UI-SliderBar-Button-Horizontal">
@@ -512,12 +512,12 @@
 							</OnLoad>
 						</Scripts>
 					</Slider>
-					<Slider name = "TrinketMenu_OptMenuScaleSlider" orientation = "HORIZONTAL" enableMouse = "true" minValue = "0.2" maxValue = "2.5" defaultValue = "1.0" valueStep = "0.01" inherits = "TrinketMenuBackdropTemplate">
+					<Slider name = "Trinkets_OptMenuScaleSlider" orientation = "HORIZONTAL" enableMouse = "true" minValue = "0.2" maxValue = "2.5" defaultValue = "1.0" valueStep = "0.01" inherits = "TrinketsBackdropTemplate">
 						<Size>
 							<AbsDimension x = "104" y = "17"/>
 						</Size>
 						<Anchors>
-							<Anchor point = "TOPLEFT" relativeTo = "TrinketMenu_OptMainScaleSlider" relativePoint = "BOTTOMLEFT">
+							<Anchor point = "TOPLEFT" relativeTo = "Trinkets_OptMainScaleSlider" relativePoint = "BOTTOMLEFT">
 								<Offset>
 									<AbsDimension x = "0" y = "-16"/>
 								</Offset>
@@ -527,13 +527,13 @@
 							<AbsInset left = "0" right = "0" top = "-5" bottom = "-5"/>
 						</HitRectInsets>
 						<KeyValues>
-							<KeyValue key="backdropInfo" value="TRINKETMENU_SLIDER_BACKDROP" type="global"/>
+							<KeyValue key="backdropInfo" value="Trinkets_SLIDER_BACKDROP" type="global"/>
 						</KeyValues>
 						<Layers>
 							<Layer level = "ARTWORK">
-								<FontString name = "TrinketMenu_OptMenuScaleSliderText" inherits = "GameFontHighlightSmall" text = "Menu Scale: 1.0">
+								<FontString name = "Trinkets_OptMenuScaleSliderText" inherits = "GameFontHighlightSmall" text = "Menu Scale: 1.0">
 									<Anchors>
-										<Anchor point = "TOPLEFT" relativeTo = "TrinketMenu_OptMainScaleSliderText" relativePoint = "BOTTOMLEFT">
+										<Anchor point = "TOPLEFT" relativeTo = "Trinkets_OptMainScaleSliderText" relativePoint = "BOTTOMLEFT">
 											<Offset>
 												<AbsDimension x = "0" y = "-22"/>
 											</Offset>
@@ -544,10 +544,10 @@
 						</Layers>
 						<Scripts>
 							<OnValueChanged>
-								TrinketMenu.OptMenuScaleSlider_OnValueChanged(self, value)
+								Trinkets.OptMenuScaleSlider_OnValueChanged(self, value)
 							</OnValueChanged>
 							<OnMouseWheel>
-								TrinketMenu.SliderOnMouseWheel(self, delta)
+								Trinkets.SliderOnMouseWheel(self, delta)
 							</OnMouseWheel>
 						</Scripts>
 						<ThumbTexture name = "$parentThumb" file = "Interface\Buttons\UI-SliderBar-Button-Horizontal">
@@ -580,7 +580,7 @@
 				self:StopMovingOrSizing()
 			</OnMouseUp>
 			<OnShow>
-				TrinketMenu.OptFrame_OnShow()
+				Trinkets.OptFrame_OnShow()
 			</OnShow>
 		</Scripts>
 	</Frame>

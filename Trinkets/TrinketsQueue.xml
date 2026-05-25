@@ -1,5 +1,5 @@
 <Ui xmlns = "http://www.blizzard.com/wow/ui/" xmlns:xsi = "http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation = "http://www.blizzard.com/wow/ui/ ..\FrameXML\UI.xsd">
-	<Button name = "TrinketMenu_ProfilesListTemplate" virtual = "true">
+	<Button name = "Trinkets_ProfilesListTemplate" virtual = "true">
 		<Size>
 			<AbsDimension x = "174" y = "20"/>
 		</Size>
@@ -18,28 +18,28 @@
 		</Layers>
 		<Scripts>
 			<OnClick>
-				TrinketMenu.ProfileList_OnClick(self)
+				Trinkets.ProfileList_OnClick(self)
 			</OnClick>
 			<OnDoubleClick>
-				TrinketMenu.ProfileList_OnDoubleClick(self)
+				Trinkets.ProfileList_OnDoubleClick(self)
 			</OnDoubleClick>
 		</Scripts>
 		<HighlightTexture file = "Interface\QuestFrame\UI-QuestLogTitleHighlight" alphaMode = "ADD"/>
 	</Button>
 
-	<Button name = "TrinketMenu_ProfilesButtonTemplate" inherits = "UIPanelButtonGrayTemplate" virtual = "true">
+	<Button name = "Trinkets_ProfilesButtonTemplate" inherits = "UIPanelButtonGrayTemplate" virtual = "true">
 		<Size>
 			<AbsDimension x = "54" y = "24"/>
 		</Size>
 		<Scripts>
 			<OnEnter>
-				TrinketMenu.OnTooltip(self)
+				Trinkets.OnTooltip(self)
 			</OnEnter>
 			<OnLeave>
 				GameTooltip:Hide()
 			</OnLeave>
 			<OnClick>
-				TrinketMenu.ProfilesButton_OnClick(self)
+				Trinkets.ProfilesButton_OnClick(self)
 			</OnClick>
 		</Scripts>
 		<NormalFont style = "GameFontHighlightSmall"/>
@@ -47,27 +47,27 @@
 		<HighlightFont style = "GameFontHighlightSmall"/>
 	</Button>
 
-	<CheckButton name = "TrinketMenu_TabCheckTemplate" inherits = "UICheckButtonTemplate" virtual = "true">
+	<CheckButton name = "Trinkets_TabCheckTemplate" inherits = "UICheckButtonTemplate" virtual = "true">
 		<Size>
 			<AbsDimension x = "24" y = "24"/>
 		</Size>
 		<Scripts>
 			<OnLoad>
-				self:SetFrameLevel(getglobal("TrinketMenu_Tab"..self:GetID()):GetFrameLevel()+2)
+				self:SetFrameLevel(getglobal("Trinkets_Tab"..self:GetID()):GetFrameLevel()+2)
 			</OnLoad>
 			<OnEnter>
-				TrinketMenu.OnTooltip(self)
+				Trinkets.OnTooltip(self)
 			</OnEnter>
 			<OnLeave>
 				GameTooltip:Hide()
 			</OnLeave>
 			<OnClick>
-				TrinketMenu.TabCheck_OnClick(self)
+				Trinkets.TabCheck_OnClick(self)
 			</OnClick>
 		</Scripts>
 	</CheckButton>
 
-	<Button name = "TrinketMenu_SortTemplate" virtual = "true">
+	<Button name = "Trinkets_SortTemplate" virtual = "true">
 		<Size>
 			<AbsDimension x = "210" y = "24"/>
 		</Size>
@@ -113,7 +113,7 @@
 		<Scripts>
 			<OnEnter>
 				getglobal(self:GetName().."Highlight"):Show()
-				TrinketMenu.SortTooltip(self)
+				Trinkets.SortTooltip(self)
 			</OnEnter>
 			<OnLeave>
 				if not self.lockedHighlight then
@@ -122,53 +122,53 @@
 				GameTooltip:Hide()
 			</OnLeave>
 			<OnClick>
-				TrinketMenu.SortOnClick(self)
+				Trinkets.SortOnClick(self)
 			</OnClick>
 		</Scripts>
 	</Button>
 
-	<Button name = "TrinketMenu_MoveButtonTemplate" virtual = "true">
+	<Button name = "Trinkets_MoveButtonTemplate" virtual = "true">
 		<Size>
 			<AbsDimension x = "24" y = "24"/>
 		</Size>
 		<Scripts>
 			<OnEnter>
-				TrinketMenu.OnTooltip(self)
+				Trinkets.OnTooltip(self)
 			</OnEnter>
 			<OnLeave>
 				GameTooltip:Hide()
 			</OnLeave>
 			<OnClick>
-				TrinketMenu.SortMove(self)
+				Trinkets.SortMove(self)
 			</OnClick>
 		</Scripts>
-		<HighlightTexture file = "Interface\AddOns\TrinketMenu\Textures\Buttons" alphaMode = "ADD">
+		<HighlightTexture file = "Interface\AddOns\Trinkets\Textures\Buttons" alphaMode = "ADD">
 			<TexCoords left = ".25" right = ".375" top = "0" bottom = ".125"/>
 		</HighlightTexture>
 	</Button>
 
-	<Button name = "TrinketMenu_Tab2" inherits = "TrinketMenu_TabTemplate" parent = "TrinketMenu_OptFrame" text = "Bottom" id = "2">
+	<Button name = "Trinkets_Tab2" inherits = "Trinkets_TabTemplate" parent = "Trinkets_OptFrame" text = "Bottom" id = "2">
 		<Anchors>
-			<Anchor point = "TOPRIGHT" relativeTo = "TrinketMenu_Tab1" relativePoint = "TOPLEFT"/>
+			<Anchor point = "TOPRIGHT" relativeTo = "Trinkets_Tab1" relativePoint = "TOPLEFT"/>
 		</Anchors>
 	</Button>
-	<CheckButton name = "TrinketMenu_Trinket1Check" inherits = "TrinketMenu_TabCheckTemplate" parent = "TrinketMenu_OptFrame" id = "2">
+	<CheckButton name = "Trinkets_Trinket1Check" inherits = "Trinkets_TabCheckTemplate" parent = "Trinkets_OptFrame" id = "2">
 		<Anchors>
-			<Anchor point = "RIGHT" relativeTo = "TrinketMenu_Tab2" relativePoint = "RIGHT">
+			<Anchor point = "RIGHT" relativeTo = "Trinkets_Tab2" relativePoint = "RIGHT">
 				<Offset>
 					<AbsDimension x = "-4" y = "0"/>
 				</Offset>
 			</Anchor>
 		</Anchors>
 	</CheckButton>
-	<Button name = "TrinketMenu_Tab3" inherits = "TrinketMenu_TabTemplate" parent = "TrinketMenu_OptFrame" text = "Top" id = "3">
+	<Button name = "Trinkets_Tab3" inherits = "Trinkets_TabTemplate" parent = "Trinkets_OptFrame" text = "Top" id = "3">
 		<Anchors>
-			<Anchor point = "TOPRIGHT" relativeTo = "TrinketMenu_Tab2" relativePoint = "TOPLEFT"/>
+			<Anchor point = "TOPRIGHT" relativeTo = "Trinkets_Tab2" relativePoint = "TOPLEFT"/>
 		</Anchors>
 	</Button>
-	<CheckButton name = "TrinketMenu_Trinket0Check" inherits = "TrinketMenu_TabCheckTemplate" parent = "TrinketMenu_OptFrame" id = "3">
+	<CheckButton name = "Trinkets_Trinket0Check" inherits = "Trinkets_TabCheckTemplate" parent = "Trinkets_OptFrame" id = "3">
 		<Anchors>
-			<Anchor point = "RIGHT" relativeTo = "TrinketMenu_Tab3" relativePoint = "RIGHT">
+			<Anchor point = "RIGHT" relativeTo = "Trinkets_Tab3" relativePoint = "RIGHT">
 				<Offset>
 					<AbsDimension x = "-4" y = "0"/>
 				</Offset>
@@ -176,7 +176,7 @@
 		</Anchors>
 	</CheckButton>
 
-	<Frame name = "TrinketMenu_SubQueueFrame" parent = "TrinketMenu_OptFrame" hidden = "true" inherits = "TrinketMenuBackdropTemplate">
+	<Frame name = "Trinkets_SubQueueFrame" parent = "Trinkets_OptFrame" hidden = "true" inherits = "TrinketsBackdropTemplate">
 		<Anchors>
 			<Anchor point = "TOPLEFT">
 				<Offset>
@@ -190,7 +190,7 @@
 			</Anchor>
 		</Anchors>
 		<KeyValues>
-			<KeyValue key="backdropInfo" value="TRINKETMENU_BACKDROP_16" type="global"/>
+			<KeyValue key="backdropInfo" value="Trinkets_BACKDROP_16" type="global"/>
 		</KeyValues>
 		<Layers>
 			<Layer level = "BACKGROUND">
@@ -215,7 +215,7 @@
 			</Layer>
 		</Layers>
 		<Frames>
-			<Button name = "TrinketMenu_MoveTop" inherits = "TrinketMenu_MoveButtonTemplate">
+			<Button name = "Trinkets_MoveTop" inherits = "Trinkets_MoveButtonTemplate">
 				<Anchors>
 					<Anchor point = "TOPLEFT">
 						<Offset>
@@ -223,105 +223,105 @@
 						</Offset>
 					</Anchor>
 				</Anchors>
-				<NormalTexture file = "Interface\AddOns\TrinketMenu\Textures\Buttons">
+				<NormalTexture file = "Interface\AddOns\Trinkets\Textures\Buttons">
 					<TexCoords left = ".375" right = ".5" top = "0" bottom = ".125"/>
 				</NormalTexture>
-				<PushedTexture file = "Interface\AddOns\TrinketMenu\Textures\Buttons">
+				<PushedTexture file = "Interface\AddOns\Trinkets\Textures\Buttons">
 					<TexCoords left = ".5" right = ".625" top = "0" bottom = ".125"/>
 				</PushedTexture>
-				<DisabledTexture file = "Interface\AddOns\TrinketMenu\Textures\Buttons">
+				<DisabledTexture file = "Interface\AddOns\Trinkets\Textures\Buttons">
 					<TexCoords left = ".625" right = ".75" top = "0" bottom = ".125"/>
 				</DisabledTexture>
 			</Button>
-			<Button name = "TrinketMenu_MoveUp" inherits = "TrinketMenu_MoveButtonTemplate">
+			<Button name = "Trinkets_MoveUp" inherits = "Trinkets_MoveButtonTemplate">
 				<Anchors>
-					<Anchor point = "TOPLEFT" relativeTo = "TrinketMenu_MoveTop" relativePoint = "BOTTOMLEFT">
+					<Anchor point = "TOPLEFT" relativeTo = "Trinkets_MoveTop" relativePoint = "BOTTOMLEFT">
 						<Offset>
 							<AbsDimension x = "0" y = "-8"/>
 						</Offset>
 					</Anchor>
 				</Anchors>
-				<NormalTexture file = "Interface\AddOns\TrinketMenu\Textures\Buttons">
+				<NormalTexture file = "Interface\AddOns\Trinkets\Textures\Buttons">
 					<TexCoords left = "0" right = ".125" top = ".125" bottom = ".25"/>
 				</NormalTexture>
-				<PushedTexture file = "Interface\AddOns\TrinketMenu\Textures\Buttons">
+				<PushedTexture file = "Interface\AddOns\Trinkets\Textures\Buttons">
 					<TexCoords left = ".125" right = ".25" top = ".125" bottom = ".25"/>
 				</PushedTexture>
-				<DisabledTexture file = "Interface\AddOns\TrinketMenu\Textures\Buttons">
+				<DisabledTexture file = "Interface\AddOns\Trinkets\Textures\Buttons">
 					<TexCoords left = ".25" right = ".375" top = ".125" bottom = ".25"/>
 				</DisabledTexture>
 			</Button>
-			<Button name = "TrinketMenu_MoveDown" inherits = "TrinketMenu_MoveButtonTemplate">
+			<Button name = "Trinkets_MoveDown" inherits = "Trinkets_MoveButtonTemplate">
 				<Anchors>
-					<Anchor point = "TOPLEFT" relativeTo = "TrinketMenu_MoveUp" relativePoint = "BOTTOMLEFT">
+					<Anchor point = "TOPLEFT" relativeTo = "Trinkets_MoveUp" relativePoint = "BOTTOMLEFT">
 						<Offset>
 							<AbsDimension x = "0" y = "-8"/>
 						</Offset>
 					</Anchor>
 				</Anchors>
-				<NormalTexture file = "Interface\AddOns\TrinketMenu\Textures\Buttons">
+				<NormalTexture file = "Interface\AddOns\Trinkets\Textures\Buttons">
 					<TexCoords left = ".375" right = ".5" top = ".125" bottom = ".25"/>
 				</NormalTexture>
-				<PushedTexture file = "Interface\AddOns\TrinketMenu\Textures\Buttons">
+				<PushedTexture file = "Interface\AddOns\Trinkets\Textures\Buttons">
 					<TexCoords left = ".5" right = ".625" top = ".125" bottom = ".25"/>
 				</PushedTexture>
-				<DisabledTexture file = "Interface\AddOns\TrinketMenu\Textures\Buttons">
+				<DisabledTexture file = "Interface\AddOns\Trinkets\Textures\Buttons">
 					<TexCoords left = ".625" right = ".75" top = ".125" bottom = ".25"/>
 				</DisabledTexture>
 			</Button>
-			<Button name = "TrinketMenu_MoveBottom" inherits = "TrinketMenu_MoveButtonTemplate">
+			<Button name = "Trinkets_MoveBottom" inherits = "Trinkets_MoveButtonTemplate">
 				<Anchors>
-					<Anchor point = "TOPLEFT" relativeTo = "TrinketMenu_MoveDown" relativePoint = "BOTTOMLEFT">
+					<Anchor point = "TOPLEFT" relativeTo = "Trinkets_MoveDown" relativePoint = "BOTTOMLEFT">
 						<Offset>
 							<AbsDimension x = "0" y = "-8"/>
 						</Offset>
 					</Anchor>
 				</Anchors>
-				<NormalTexture file = "Interface\AddOns\TrinketMenu\Textures\Buttons">
+				<NormalTexture file = "Interface\AddOns\Trinkets\Textures\Buttons">
 					<TexCoords left = "0" right = ".125" top = ".25" bottom = ".375"/>
 				</NormalTexture>
-				<PushedTexture file = "Interface\AddOns\TrinketMenu\Textures\Buttons">
+				<PushedTexture file = "Interface\AddOns\Trinkets\Textures\Buttons">
 					<TexCoords left = ".125" right = ".25" top = ".25" bottom = ".375"/>
 				</PushedTexture>
-				<DisabledTexture file = "Interface\AddOns\TrinketMenu\Textures\Buttons">
+				<DisabledTexture file = "Interface\AddOns\Trinkets\Textures\Buttons">
 					<TexCoords left = ".25" right = ".375" top = ".25" bottom = ".375"/>
 				</DisabledTexture>
 			</Button>
-			<Button name = "TrinketMenu_Profiles" inherits = "TrinketMenu_MoveButtonTemplate">
+			<Button name = "Trinkets_Profiles" inherits = "Trinkets_MoveButtonTemplate">
 				<Anchors>
-					<Anchor point = "BOTTOMLEFT" relativeTo = "TrinketMenu_MoveTop" relativePoint = "TOPLEFT">
+					<Anchor point = "BOTTOMLEFT" relativeTo = "Trinkets_MoveTop" relativePoint = "TOPLEFT">
 						<Offset>
 							<AbsDimension x = "0" y = "12"/>
 						</Offset>
 					</Anchor>
 				</Anchors>
-				<NormalTexture file = "Interface\AddOns\TrinketMenu\Textures\Buttons">
+				<NormalTexture file = "Interface\AddOns\Trinkets\Textures\Buttons">
 					<TexCoords left = ".75" right = ".875" top = ".25" bottom = ".375"/>
 				</NormalTexture>
-				<PushedTexture file = "Interface\AddOns\TrinketMenu\Textures\Buttons">
+				<PushedTexture file = "Interface\AddOns\Trinkets\Textures\Buttons">
 					<TexCoords left = ".875" right = "1" top = ".25" bottom = ".375"/>
 				</PushedTexture>
 			</Button>
-			<Button name = "TrinketMenu_Delete" inherits = "TrinketMenu_MoveButtonTemplate">
+			<Button name = "Trinkets_Delete" inherits = "Trinkets_MoveButtonTemplate">
 				<Anchors>
-					<Anchor point = "TOPLEFT" relativeTo = "TrinketMenu_MoveBottom" relativePoint = "BOTTOMLEFT">
+					<Anchor point = "TOPLEFT" relativeTo = "Trinkets_MoveBottom" relativePoint = "BOTTOMLEFT">
 						<Offset>
 							<AbsDimension x = "0" y = "-12"/>
 						</Offset>
 					</Anchor>
 				</Anchors>
-				<NormalTexture file = "Interface\AddOns\TrinketMenu\Textures\Buttons">
+				<NormalTexture file = "Interface\AddOns\Trinkets\Textures\Buttons">
 					<TexCoords left = "0" right = ".125" top = ".375" bottom = ".5"/>
 				</NormalTexture>
-				<PushedTexture file = "Interface\AddOns\TrinketMenu\Textures\Buttons">
+				<PushedTexture file = "Interface\AddOns\Trinkets\Textures\Buttons">
 					<TexCoords left = ".125" right = ".25" top = ".375" bottom = ".5"/>
 				</PushedTexture>
-				<DisabledTexture file = "Interface\AddOns\TrinketMenu\Textures\Buttons">
+				<DisabledTexture file = "Interface\AddOns\Trinkets\Textures\Buttons">
 					<TexCoords left = ".25" right = ".375" top = ".375" bottom = ".5"/>
 				</DisabledTexture>
 			</Button>
 
-			<EditBox name = "TrinketMenu_SortDelay" numeric = "true" historyLines = "0" enableMouse = "true" autoFocus = "false" letters = "3" virtual = "true">
+			<EditBox name = "Trinkets_SortDelay" numeric = "true" historyLines = "0" enableMouse = "true" autoFocus = "false" letters = "3" virtual = "true">
 				<Size>
 					<AbsDimension x = "28" y = "20"/>
 				</Size>
@@ -389,7 +389,7 @@
 				</Layers>
 				<Scripts>
 					<OnEnter>
-						TrinketMenu.OnTooltip(self)
+						Trinkets.OnTooltip(self)
 					</OnEnter>
 					<OnLeave>
 						GameTooltip:Hide()
@@ -401,15 +401,15 @@
 						self:ClearFocus()
 					</OnEnterPressed>
 					<OnTextChanged>
-						TrinketMenu.SortDelay_OnTextChanged()
+						Trinkets.SortDelay_OnTextChanged()
 					</OnTextChanged>
 				</Scripts>
 				<FontString inherits = "GameFontHighlight" justifyH = "RIGHT"/>
 			</EditBox>
 
-			<CheckButton name = "TrinketMenu_SortPriority" inherits = "TrinketMenu_CheckButtonTemplate">
+			<CheckButton name = "Trinkets_SortPriority" inherits = "Trinkets_CheckButtonTemplate">
 				<Anchors>
-					<Anchor point = "TOPLEFT" relativeTo = "TrinketMenu_SortDelay" relativePoint = "TOPRIGHT">
+					<Anchor point = "TOPLEFT" relativeTo = "Trinkets_SortDelay" relativePoint = "TOPRIGHT">
 						<Offset>
 							<AbsDimension x = "40" y = "2"/>
 						</Offset>
@@ -417,14 +417,14 @@
 				</Anchors>
 				<Scripts>
 					<OnClick>
-						TrinketMenu.SortPriority_OnClick(self)
+						Trinkets.SortPriority_OnClick(self)
 					</OnClick>
 				</Scripts>
 			</CheckButton>
 
-			<CheckButton name = "TrinketMenu_SortKeepEquipped" inherits = "TrinketMenu_CheckButtonTemplate">
+			<CheckButton name = "Trinkets_SortKeepEquipped" inherits = "Trinkets_CheckButtonTemplate">
 				<Anchors>
-					<Anchor point = "TOPLEFT" relativeTo = "TrinketMenu_SortPriority" relativePoint = "TOPRIGHT">
+					<Anchor point = "TOPLEFT" relativeTo = "Trinkets_SortPriority" relativePoint = "TOPRIGHT">
 						<Offset>
 							<AbsDimension x = "40" y = "0"/>
 						</Offset>
@@ -432,12 +432,12 @@
 				</Anchors>
 				<Scripts>
 					<OnClick>
-						TrinketMenu.SortKeepEquipped_OnClick(self)
+						Trinkets.SortKeepEquipped_OnClick(self)
 					</OnClick>
 				</Scripts>
 			</CheckButton>
 
-			<Frame name = "TrinketMenu_SortListFrame" inherits = "TrinketMenuBackdropTemplate">
+			<Frame name = "Trinkets_SortListFrame" inherits = "TrinketsBackdropTemplate">
 				<Anchors>
 					<Anchor point = "TOPLEFT">
 						<Offset>
@@ -451,7 +451,7 @@
 					</Anchor>
 				</Anchors>
 				<KeyValues>
-					<KeyValue key="backdropInfo" value="TRINKETMENU_BACKDROP_16" type="global"/>
+					<KeyValue key="backdropInfo" value="Trinkets_BACKDROP_16" type="global"/>
 				</KeyValues>
 				<Layers>
 					<Layer level = "BACKGROUND">
@@ -477,7 +477,7 @@
 				</Layers>
 
 				<Frames>
-					<Button name = "TrinketMenu_Sort1" inherits = "TrinketMenu_SortTemplate" id = "1">
+					<Button name = "Trinkets_Sort1" inherits = "Trinkets_SortTemplate" id = "1">
 						<Anchors>
 							<Anchor point = "TOPLEFT">
 								<Offset>
@@ -486,50 +486,50 @@
 							</Anchor>
 						</Anchors>
 					</Button>
-					<Button name = "TrinketMenu_Sort2" inherits = "TrinketMenu_SortTemplate" id = "2">
+					<Button name = "Trinkets_Sort2" inherits = "Trinkets_SortTemplate" id = "2">
 						<Anchors>
-							<Anchor point = "TOPLEFT" relativeTo = "TrinketMenu_Sort1" relativePoint = "BOTTOMLEFT"/>
+							<Anchor point = "TOPLEFT" relativeTo = "Trinkets_Sort1" relativePoint = "BOTTOMLEFT"/>
 						</Anchors>
 					</Button>
-					<Button name = "TrinketMenu_Sort3" inherits = "TrinketMenu_SortTemplate" id = "3">
+					<Button name = "Trinkets_Sort3" inherits = "Trinkets_SortTemplate" id = "3">
 						<Anchors>
-							<Anchor point = "TOPLEFT" relativeTo = "TrinketMenu_Sort2" relativePoint = "BOTTOMLEFT"/>
+							<Anchor point = "TOPLEFT" relativeTo = "Trinkets_Sort2" relativePoint = "BOTTOMLEFT"/>
 						</Anchors>
 					</Button>
-					<Button name = "TrinketMenu_Sort4" inherits = "TrinketMenu_SortTemplate" id = "4">
+					<Button name = "Trinkets_Sort4" inherits = "Trinkets_SortTemplate" id = "4">
 						<Anchors>
-							<Anchor point = "TOPLEFT" relativeTo = "TrinketMenu_Sort3" relativePoint = "BOTTOMLEFT"/>
+							<Anchor point = "TOPLEFT" relativeTo = "Trinkets_Sort3" relativePoint = "BOTTOMLEFT"/>
 						</Anchors>
 					</Button>
-					<Button name = "TrinketMenu_Sort5" inherits = "TrinketMenu_SortTemplate" id = "5">
+					<Button name = "Trinkets_Sort5" inherits = "Trinkets_SortTemplate" id = "5">
 						<Anchors>
-							<Anchor point = "TOPLEFT" relativeTo = "TrinketMenu_Sort4" relativePoint = "BOTTOMLEFT"/>
+							<Anchor point = "TOPLEFT" relativeTo = "Trinkets_Sort4" relativePoint = "BOTTOMLEFT"/>
 						</Anchors>
 					</Button>
-					<Button name = "TrinketMenu_Sort6" inherits = "TrinketMenu_SortTemplate" id = "6">
+					<Button name = "Trinkets_Sort6" inherits = "Trinkets_SortTemplate" id = "6">
 						<Anchors>
-							<Anchor point = "TOPLEFT" relativeTo = "TrinketMenu_Sort5" relativePoint = "BOTTOMLEFT"/>
+							<Anchor point = "TOPLEFT" relativeTo = "Trinkets_Sort5" relativePoint = "BOTTOMLEFT"/>
 						</Anchors>
 					</Button>
-					<Button name = "TrinketMenu_Sort7" inherits = "TrinketMenu_SortTemplate" id = "7">
+					<Button name = "Trinkets_Sort7" inherits = "Trinkets_SortTemplate" id = "7">
 						<Anchors>
-							<Anchor point = "TOPLEFT" relativeTo = "TrinketMenu_Sort6" relativePoint = "BOTTOMLEFT"/>
+							<Anchor point = "TOPLEFT" relativeTo = "Trinkets_Sort6" relativePoint = "BOTTOMLEFT"/>
 						</Anchors>
 					</Button>
-					<Button name = "TrinketMenu_Sort8" inherits = "TrinketMenu_SortTemplate" id = "8">
+					<Button name = "Trinkets_Sort8" inherits = "Trinkets_SortTemplate" id = "8">
 						<Anchors>
-							<Anchor point = "TOPLEFT" relativeTo = "TrinketMenu_Sort7" relativePoint = "BOTTOMLEFT"/>
+							<Anchor point = "TOPLEFT" relativeTo = "Trinkets_Sort7" relativePoint = "BOTTOMLEFT"/>
 						</Anchors>
 					</Button>
-					<Button name = "TrinketMenu_Sort9" inherits = "TrinketMenu_SortTemplate" id = "9">
+					<Button name = "Trinkets_Sort9" inherits = "Trinkets_SortTemplate" id = "9">
 						<Anchors>
-							<Anchor point = "TOPLEFT" relativeTo = "TrinketMenu_Sort8" relativePoint = "BOTTOMLEFT"/>
+							<Anchor point = "TOPLEFT" relativeTo = "Trinkets_Sort8" relativePoint = "BOTTOMLEFT"/>
 						</Anchors>
 					</Button>
-					<ScrollFrame name = "TrinketMenu_SortScroll" inherits = "FauxScrollFrameTemplate">
+					<ScrollFrame name = "Trinkets_SortScroll" inherits = "FauxScrollFrameTemplate">
 						<Anchors>
-							<Anchor point = "TOPLEFT" relativeTo = "TrinketMenu_Sort1" relativePoint = "TOPLEFT"/>
-							<Anchor point = "BOTTOMRIGHT" relativeTo = "TrinketMenu_Sort9" relativePoint = "BOTTOMRIGHT"/>
+							<Anchor point = "TOPLEFT" relativeTo = "Trinkets_Sort1" relativePoint = "TOPLEFT"/>
+							<Anchor point = "BOTTOMRIGHT" relativeTo = "Trinkets_Sort9" relativePoint = "BOTTOMRIGHT"/>
 						</Anchors>
 						<Layers>
 							<Layer level = "BACKGROUND">
@@ -555,10 +555,10 @@
 						</Layers>
 						<Scripts>
 							<OnVerticalScroll>
-								FauxScrollFrame_OnVerticalScroll(self, offset, 24, TrinketMenu.SortScrollFrameUpdate)
+								FauxScrollFrame_OnVerticalScroll(self, offset, 24, Trinkets.SortScrollFrameUpdate)
 							</OnVerticalScroll>
 							<OnShow>
-								TrinketMenu.SortScrollFrameUpdate()
+								Trinkets.SortScrollFrameUpdate()
 							</OnShow>
 						</Scripts>
 					</ScrollFrame>
@@ -570,7 +570,7 @@
 				</Scripts>
 			</Frame>
 
-			<Frame name = "TrinketMenu_ProfilesFrame" hidden = "true" inherits = "TrinketMenuBackdropTemplate">
+			<Frame name = "Trinkets_ProfilesFrame" hidden = "true" inherits = "TrinketsBackdropTemplate">
 				<Anchors>
 					<Anchor point = "TOPLEFT">
 						<Offset>
@@ -584,7 +584,7 @@
 					</Anchor>
 				</Anchors>
 				<KeyValues>
-					<KeyValue key="backdropInfo" value="TRINKETMENU_BACKDROP_16" type="global"/>
+					<KeyValue key="backdropInfo" value="Trinkets_BACKDROP_16" type="global"/>
 				</KeyValues>
 				<Layers>
 					<Layer level = "BACKGROUND">
@@ -609,7 +609,7 @@
 					</Layer>
 				</Layers>
 				<Frames>
-					<EditBox name = "TrinketMenu_ProfileName" historyLines = "0" enableMouse = "true" autoFocus = "false" letters = "256">
+					<EditBox name = "Trinkets_ProfileName" historyLines = "0" enableMouse = "true" autoFocus = "false" letters = "256">
 						<Size>
 							<AbsDimension x = "160" y = "20"/>
 						</Size>
@@ -668,7 +668,7 @@
 						</Layers>
 						<Scripts>
 							<OnEnter>
-								TrinketMenu.OnTooltip(self)
+								Trinkets.OnTooltip(self)
 							</OnEnter>
 							<OnLeave>
 								GameTooltip:Hide()
@@ -680,12 +680,12 @@
 								self:ClearFocus()
 							</OnEnterPressed>
 							<OnTextChanged>
-								TrinketMenu.ProfileName_OnTextChanged()
+								Trinkets.ProfileName_OnTextChanged()
 							</OnTextChanged>
 						</Scripts>
 						<FontString inherits = "GameFontHighlight"/>
 					</EditBox>
-					<Button name = "TrinketMenu_ProfilesDelete" inherits = "TrinketMenu_ProfilesButtonTemplate" text = "Delete">
+					<Button name = "Trinkets_ProfilesDelete" inherits = "Trinkets_ProfilesButtonTemplate" text = "Delete">
 						<Anchors>
 							<Anchor point = "BOTTOMLEFT">
 								<Offset>
@@ -694,34 +694,34 @@
 							</Anchor>
 						</Anchors>
 					</Button>
-					<Button name = "TrinketMenu_ProfilesLoad" inherits = "TrinketMenu_ProfilesButtonTemplate" text = "Load">
+					<Button name = "Trinkets_ProfilesLoad" inherits = "Trinkets_ProfilesButtonTemplate" text = "Load">
 						<Anchors>
-							<Anchor point = "LEFT" relativeTo = "TrinketMenu_ProfilesDelete" relativePoint = "RIGHT">
+							<Anchor point = "LEFT" relativeTo = "Trinkets_ProfilesDelete" relativePoint = "RIGHT">
 								<Offset>
 									<AbsDimension x = "4" y = "0"/>
 								</Offset>
 							</Anchor>
 						</Anchors>
 					</Button>
-					<Button name = "TrinketMenu_ProfilesSave" inherits = "TrinketMenu_ProfilesButtonTemplate" text = "Save">
+					<Button name = "Trinkets_ProfilesSave" inherits = "Trinkets_ProfilesButtonTemplate" text = "Save">
 						<Anchors>
-							<Anchor point = "LEFT" relativeTo = "TrinketMenu_ProfilesLoad" relativePoint = "RIGHT">
+							<Anchor point = "LEFT" relativeTo = "Trinkets_ProfilesLoad" relativePoint = "RIGHT">
 								<Offset>
 									<AbsDimension x = "4" y = "0"/>
 								</Offset>
 							</Anchor>
 						</Anchors>
 					</Button>
-					<Button name = "TrinketMenu_ProfilesCancel" inherits = "TrinketMenu_ProfilesButtonTemplate" text = "Cancel">
+					<Button name = "Trinkets_ProfilesCancel" inherits = "Trinkets_ProfilesButtonTemplate" text = "Cancel">
 						<Anchors>
-							<Anchor point = "LEFT" relativeTo = "TrinketMenu_ProfilesSave" relativePoint = "RIGHT">
+							<Anchor point = "LEFT" relativeTo = "Trinkets_ProfilesSave" relativePoint = "RIGHT">
 								<Offset>
 									<AbsDimension x = "4" y = "0"/>
 								</Offset>
 							</Anchor>
 						</Anchors>
 					</Button>
-					<Frame name = "TrinketMenu_ProfilesListFrame" inherits = "TrinketMenuBackdropTemplate">
+					<Frame name = "Trinkets_ProfilesListFrame" inherits = "TrinketsBackdropTemplate">
 						<Anchors>
 							<Anchor point = "TOPLEFT">
 								<Offset>
@@ -735,7 +735,7 @@
 							</Anchor>
 						</Anchors>
 						<KeyValues>
-							<KeyValue key="backdropInfo" value="TRINKETMENU_BACKDROP_16" type="global"/>
+							<KeyValue key="backdropInfo" value="Trinkets_BACKDROP_16" type="global"/>
 						</KeyValues>
 						<Layers>
 							<Layer level = "BACKGROUND">
@@ -760,7 +760,7 @@
 							</Layer>
 						</Layers>
 						<Frames>
-							<Button name = "TrinketMenu_Profile1" inherits = "TrinketMenu_ProfilesListTemplate" id = "1">
+							<Button name = "Trinkets_Profile1" inherits = "Trinkets_ProfilesListTemplate" id = "1">
 								<Anchors>
 									<Anchor point = "TOPLEFT">
 										<Offset>
@@ -769,40 +769,40 @@
 									</Anchor>
 								</Anchors>
 							</Button>
-							<Button name = "TrinketMenu_Profile2" inherits = "TrinketMenu_ProfilesListTemplate" id = "2">
+							<Button name = "Trinkets_Profile2" inherits = "Trinkets_ProfilesListTemplate" id = "2">
 								<Anchors>
-									<Anchor point = "TOPLEFT" relativeTo = "TrinketMenu_Profile1" relativePoint = "BOTTOMLEFT"/>
+									<Anchor point = "TOPLEFT" relativeTo = "Trinkets_Profile1" relativePoint = "BOTTOMLEFT"/>
 								</Anchors>
 							</Button>
-							<Button name = "TrinketMenu_Profile3" inherits = "TrinketMenu_ProfilesListTemplate" id = "3">
+							<Button name = "Trinkets_Profile3" inherits = "Trinkets_ProfilesListTemplate" id = "3">
 								<Anchors>
-									<Anchor point = "TOPLEFT" relativeTo = "TrinketMenu_Profile2" relativePoint = "BOTTOMLEFT"/>
+									<Anchor point = "TOPLEFT" relativeTo = "Trinkets_Profile2" relativePoint = "BOTTOMLEFT"/>
 								</Anchors>
 							</Button>
-							<Button name = "TrinketMenu_Profile4" inherits = "TrinketMenu_ProfilesListTemplate" id = "4">
+							<Button name = "Trinkets_Profile4" inherits = "Trinkets_ProfilesListTemplate" id = "4">
 								<Anchors>
-									<Anchor point = "TOPLEFT" relativeTo = "TrinketMenu_Profile3" relativePoint = "BOTTOMLEFT"/>
+									<Anchor point = "TOPLEFT" relativeTo = "Trinkets_Profile3" relativePoint = "BOTTOMLEFT"/>
 								</Anchors>
 							</Button>
-							<Button name = "TrinketMenu_Profile5" inherits = "TrinketMenu_ProfilesListTemplate" id = "5">
+							<Button name = "Trinkets_Profile5" inherits = "Trinkets_ProfilesListTemplate" id = "5">
 								<Anchors>
-									<Anchor point = "TOPLEFT" relativeTo = "TrinketMenu_Profile4" relativePoint = "BOTTOMLEFT"/>
+									<Anchor point = "TOPLEFT" relativeTo = "Trinkets_Profile4" relativePoint = "BOTTOMLEFT"/>
 								</Anchors>
 							</Button>
-							<Button name = "TrinketMenu_Profile6" inherits = "TrinketMenu_ProfilesListTemplate" id = "6">
+							<Button name = "Trinkets_Profile6" inherits = "Trinkets_ProfilesListTemplate" id = "6">
 								<Anchors>
-									<Anchor point = "TOPLEFT" relativeTo = "TrinketMenu_Profile5" relativePoint = "BOTTOMLEFT"/>
+									<Anchor point = "TOPLEFT" relativeTo = "Trinkets_Profile5" relativePoint = "BOTTOMLEFT"/>
 								</Anchors>
 							</Button>
-							<Button name = "TrinketMenu_Profile7" inherits = "TrinketMenu_ProfilesListTemplate" id = "7">
+							<Button name = "Trinkets_Profile7" inherits = "Trinkets_ProfilesListTemplate" id = "7">
 								<Anchors>
-									<Anchor point = "TOPLEFT" relativeTo = "TrinketMenu_Profile6" relativePoint = "BOTTOMLEFT"/>
+									<Anchor point = "TOPLEFT" relativeTo = "Trinkets_Profile6" relativePoint = "BOTTOMLEFT"/>
 								</Anchors>
 							</Button>
-							<ScrollFrame name = "TrinketMenu_ProfileScroll" inherits = "FauxScrollFrameTemplate">
+							<ScrollFrame name = "Trinkets_ProfileScroll" inherits = "FauxScrollFrameTemplate">
 								<Anchors>
-									<Anchor point = "TOPLEFT" relativeTo = "TrinketMenu_Profile1" relativePoint = "TOPLEFT"/>
-									<Anchor point = "BOTTOMRIGHT" relativeTo = "TrinketMenu_Profile7" relativePoint = "BOTTOMRIGHT"/>
+									<Anchor point = "TOPLEFT" relativeTo = "Trinkets_Profile1" relativePoint = "TOPLEFT"/>
+									<Anchor point = "BOTTOMRIGHT" relativeTo = "Trinkets_Profile7" relativePoint = "BOTTOMRIGHT"/>
 								</Anchors>
 								<Layers>
 									<Layer level = "BACKGROUND">
@@ -828,10 +828,10 @@
 								</Layers>
 								<Scripts>
 									<OnVerticalScroll>
-										FauxScrollFrame_OnVerticalScroll(self, offset, 20, TrinketMenu.ProfileScrollFrameUpdate)
+										FauxScrollFrame_OnVerticalScroll(self, offset, 20, Trinkets.ProfileScrollFrameUpdate)
 									</OnVerticalScroll>
 									<OnShow>
-										TrinketMenu.ProfileScrollFrameUpdate()
+										Trinkets.ProfileScrollFrameUpdate()
 									</OnShow>
 								</Scripts>
 							</ScrollFrame>
@@ -842,7 +842,7 @@
 							</OnLoad>
 						</Scripts>
 					</Frame>
-					<CheckButton name = "TrinketMenu_OptHideOnLoad" inherits = "TrinketMenu_CheckButtonTemplate">
+					<CheckButton name = "Trinkets_OptHideOnLoad" inherits = "Trinkets_CheckButtonTemplate">
 						<Anchors>
 							<Anchor point = "TOPLEFT" relativePoint = "BOTTOMLEFT">
 								<Offset>
@@ -857,7 +857,7 @@
 						self:OnBackdropLoaded()
 					</OnLoad>
 					<OnHide>
-						TrinketMenu.ProfilesFrame_OnHide()
+						Trinkets.ProfilesFrame_OnHide()
 					</OnHide>
 					<OnShow>
 						PlaySound(624)

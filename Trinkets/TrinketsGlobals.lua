@@ -1,4 +1,4 @@
-TRINKETMENU_BACKDROP_16_16_4444 = {
+Trinkets_BACKDROP_16_16_4444 = {
 	bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
 	edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
 	tile = true,
@@ -7,11 +7,11 @@ TRINKETMENU_BACKDROP_16_16_4444 = {
 	edgeSize = 16,
 	insets = { left = 4, right = 4, top = 4, bottom = 4 },
 }
-TRINKETMENU_BACKDROP_16 = {
+Trinkets_BACKDROP_16 = {
 	edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
 	edgeSize = 16,
 }
-TRINKETMENU_SLIDER_BACKDROP = {
+Trinkets_SLIDER_BACKDROP = {
 	bgFile = "Interface\\Buttons\\UI-SliderBar-Background",
 	edgeFile = "Interface\\Buttons\\UI-SliderBar-Border",
 	tile = true,
@@ -93,4 +93,4 @@ function BackdropTemplatePolyfillMixin:SetupTextureCoordinates()
 	-- Deliberate no-op as texture coordinates are handled C-side pre-9.x.
 end
 
-TrinketMenuBackdropTemplateMixin = CreateFromMixins(BackdropTemplateMixin or BackdropTemplatePolyfillMixin)
+TrinketsBackdropTemplateMixin = CreateFromMixins(BackdropTemplateMixin or BackdropTemplatePolyfillMixin)

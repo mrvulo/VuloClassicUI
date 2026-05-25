@@ -613,8 +613,10 @@ end
 -- Player Tooltip Enhancement: iLvL + Talent-Verteilung
 -- =========================================================
 local inspectCache = {}                -- guid -> { talents={t1,t2,t3}, ilvl=N, expiry=time }
+local inspectFail  = {}                -- guid -> expiry: kürzlich fehlgeschlagen, nicht erneut probieren
 local INSPECT_CACHE_TIME = 60          -- Sek. Cache pro Spieler
-local INSPECT_THROTTLE   = 1.0         -- max 1 Inspect pro Sekunde
+local INSPECT_FAIL_TIME  = 30          -- Sek. bis erneuter Versuch nach Fehlschlag (out of range)
+local INSPECT_THROTTLE   = 1.0
 local lastInspectTime    = 0
 local pendingInspectGUID = nil
 local pendingInspectUnit = nil
@@ -628,15 +630,18 @@ end
 local function requestInspect(unit)
     if not unit or not UnitExists(unit) or not UnitIsPlayer(unit) then return end
     if not CanInspect or not CanInspect(unit) then return end
-    -- Range-Check VOR NotifyInspect → vermeidet "out of range"-Sound
-    -- index 1 = INSPECT (28y) in Anniversary
-    if CheckInteractDistance and not CheckInteractDistance(unit, 1) then return end
+    if UnitIsVisible and not UnitIsVisible(unit) then return end
     if (GetTime() - lastInspectTime) < INSPECT_THROTTLE then return end
     local guid = UnitGUID(unit)
     if not guid or getCachedInspect(guid) then return end
+    -- Negativ-Cache: kürzlich out-of-range fehlgeschlagen → nicht erneut (kein Sound-Spam)
+    if inspectFail[guid] and inspectFail[guid] > GetTime() then return end
+
     pendingInspectGUID = guid
     pendingInspectUnit = unit
     lastInspectTime    = GetTime()
+    -- Vorab als "fehlgeschlagen" markieren; bei erfolgreichem INSPECT_READY wieder löschen.
+    inspectFail[guid] = GetTime() + INSPECT_FAIL_TIME
     if NotifyInspect then NotifyInspect(unit) end
 end
 
@@ -687,6 +692,7 @@ end
 local function onInspectReady(_, guid)
     guid = guid or pendingInspectGUID
     if not guid then return end
+    inspectFail[guid] = nil  -- erfolgreich → Negativ-Cache löschen
     local unit = pendingInspectUnit
     pendingInspectGUID = nil
     pendingInspectUnit = nil
@@ -739,7 +745,10 @@ function mod:OnEnable()
     -- ist in Anniversary der funktionierende Pfad — TooltipDataProcessor fires nicht)
     ns:RegisterEvent("INSPECT_READY",         onInspectReady)
     ns:RegisterEvent("INSPECT_TALENT_READY",  onInspectReady)
-    if GameTooltip and GameTooltip.HookScript then
+    -- Guard-Flag: HookScript appended jeder Aufruf → bei Toggle off→on hätte
+    -- onPlayerTooltipUnit sonst doppelt registriert + Tooltip-Lines doppelt.
+    if GameTooltip and GameTooltip.HookScript and not mod._tooltipHooked then
+        mod._tooltipHooked = true
         GameTooltip:HookScript("OnTooltipSetUnit", onPlayerTooltipUnit)
     end
 
@@ -843,10 +852,10 @@ end
 
 -- Helfer um pro Kind einen Checkbox-Eintrag zu bauen (Toggle für die UI)
 function mod:OnDisable()
-    -- Inspect-Events sauber abmelden (Tooltip-HookScript bleibt — kann nicht entfernt
-    -- werden, aber onPlayerTooltipUnit prüft selbst mod._enabled).
-    ns:UnregisterEvent("INSPECT_READY",        onInspectReady)
-    ns:UnregisterEvent("INSPECT_TALENT_READY", onInspectReady)
+    -- pcall: INSPECT_TALENT_READY existiert in Anniversary evtl. nicht,
+    -- UnregisterEvent würde sonst werfen und SafeDisable abbrechen.
+    pcall(ns.UnregisterEvent, ns, "INSPECT_READY",        onInspectReady)
+    pcall(ns.UnregisterEvent, ns, "INSPECT_TALENT_READY", onInspectReady)
 end
 
 local function kindCheckbox(kind)

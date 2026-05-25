@@ -179,14 +179,15 @@ function UI:CreateToggle(parent, config)
     btn:SetSize(switchW, switchH)
     btn:SetPoint("RIGHT", container, "RIGHT", 0, 0)
 
-    -- Container-Breite: explizit gesetzt, oder dynamisch aus Label-Breite + Switch + Padding
+    -- Container-Breite: explizit gesetzt, oder fest 360 damit Switches in einer Spalte landen
+    -- (unterschiedlich lange Labels würden sonst die Switch-X-Position verschieben)
     local explicitW = config.width
     if explicitW then
         container:SetSize(explicitW, 22)
     else
         local labelW = label:GetStringWidth() or 0
-        local needed = labelW + 16 + switchW   -- Label + Gap + Switch
-        container:SetSize(math.max(needed, 220), 22)
+        local needed = labelW + 16 + switchW
+        container:SetSize(math.max(needed, 360), 22)
     end
 
     -- BG-Track
@@ -396,17 +397,6 @@ local function ensurePopupFrame()
 
     activePopup = p
     return p
-end
-
--- Klick AUSSERHALB des Popups schließt es.
--- Wir nutzen ein OnUpdate auf dem Popup selbst statt eines mausschluckenden Overlay-Frames,
--- damit der Rest des UIs uneingeschränkt klickbar bleibt.
-local function popupOnUpdate(self)
-    -- Wenn Maus außerhalb des Popups UND der Button-Frame ist UND geklickt wurde:
-    -- Nicht trivial ohne OnMouseDown-Hook am Parent. Wir nutzen einen anderen Trick:
-    -- Wir lassen das Popup einfach offen bis der User entweder einen Eintrag wählt,
-    -- ESC drückt, oder den selben Dropdown-Button nochmal klickt.
-    -- Das ist sicherer als ein global mouse-eating Overlay.
 end
 
 local function openPopup(button, config)

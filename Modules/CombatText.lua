@@ -1,147 +1,348 @@
 -- =========================================================
 -- VuloClassicUI / Modules / CombatText
--- Wrapper für Blizzards eingebauten Floating Combat Text:
--- Master + pro-Event Toggles, plus freier Mover für den Anchor.
+-- Eigene Scrolling-Combat-Text Engine.
+-- Anniversary hat Blizzards altes Player-FCT deaktiviert, daher custom:
+--   - FontString-Pool, animiert scroll + fade
+--   - CLEU + REGEN-Events triggern spawnMessage
+-- Zusätzlich: WorldTextScale (Engine-FCT über Mob/Pet) bleibt.
 -- =========================================================
 local _, ns = ...
-
--- API-Compat: Anniversary nutzt modernes Backend → C_AddOns statt Globals
-local IsAddOnLoaded = (C_AddOns and C_AddOns.IsAddOnLoaded) or _G.IsAddOnLoaded
-local LoadAddOn     = (C_AddOns and C_AddOns.LoadAddOn)     or _G.LoadAddOn
 
 local mod = ns:RegisterModule("combattext", {
     name        = "Combat Text",
     group       = "QoL",
-    description = "Blizzards Floating Combat Text mit konfigurierbaren Event-Filtern und frei positionierbarem Anchor.",
+    description = "Eigene Floating-Combat-Text-Engine mit konfigurierbaren Events, Farbe, Größe und Position.",
     defaults    = {
         enabled        = true,
-        master         = true,
-        combatState    = true,   -- +Combat / -Combat
-        spellMechanics = true,   -- Interrupted / Reflected
-        dispels        = true,   -- Dispelled (Purged fällt auch hier rein)
-        auras          = true,   -- You gave / gave you
-        reactives      = true,   -- Reflected, Counterattack-Procs
-        dodgeParryMiss = true,   -- Parried / Dodged / Missed
-        repairs        = true,   -- Reparaturkosten
-        x              = 0,      -- Offset relativ zu PlayerFrameHealthBar.TOP
+        -- Master-Kategorien (Quick on/off, übersteuern per-event enabled NICHT)
+        showCombatState     = true,   -- combatStart + combatEnd
+        showCombatLog       = true,   -- spellInterrupt + dispels + missed
+        showDurability      = true,   -- lowDurability
+        -- Event-Filter (legacy boolean flags — werden bei migration in events[].enabled übernommen)
+        combatState    = true,
+        spellInterrupt = true,
+        dispels        = true,
+        missed         = true,
+        -- Schriftart (global) — Pfad als Wert
+        fontFace       = "Interface\\AddOns\\VuloClassicUI\\Media\\Fonts\\Expressway.TTF",
+        -- DAMAGE_TEXT_FONT (Blizzards Mob-FCT) gleichzeitig mit fontFace ändern
+        applyToMobFCT  = true,
+        -- Per-Event Customization (color, size, outline, shadow + shadowColor + shadowOffset)
+        events = {
+            combatStart    = { enabled = true, color = { r = 1.0, g = 0.4, b = 0.4 }, size = 0, outline = true,  shadow = true, shadowColor = { r = 0, g = 0, b = 0 }, shadowX = 2, shadowY = -2 },
+            combatEnd      = { enabled = true, color = { r = 0.6, g = 0.9, b = 0.6 }, size = 0, outline = true,  shadow = true, shadowColor = { r = 0, g = 0, b = 0 }, shadowX = 2, shadowY = -2 },
+            spellInterrupt = { enabled = true, color = { r = 1.0, g = 1.0, b = 0.3 }, size = 0, outline = true,  shadow = true, shadowColor = { r = 0, g = 0, b = 0 }, shadowX = 2, shadowY = -2 },
+            dispels        = { enabled = true, color = { r = 0.6, g = 0.9, b = 1.0 }, size = 0, outline = true,  shadow = true, shadowColor = { r = 0, g = 0, b = 0 }, shadowX = 2, shadowY = -2 },
+            missed         = { enabled = true, color = { r = 1.0, g = 0.7, b = 0.2 }, size = 0, outline = true,  shadow = true, shadowColor = { r = 0, g = 0, b = 0 }, shadowX = 2, shadowY = -2 },
+            lowDurability  = { enabled = true, color = { r = 1.0, g = 0.3, b = 0.3 }, size = 0, outline = true,  shadow = true, shadowColor = { r = 0, g = 0, b = 0 }, shadowX = 2, shadowY = -2 },
+        },
+        -- Low-Durability Schwellwert (Prozent)
+        durabilityThreshold = 15,
+        -- Engine-FCT
+        worldTextScale = 1.0,
+        sharpFonts     = true,
+        -- Globale Defaults (für Events mit size=0 oder outline/shadow=nil)
+        fontSize       = 18,
+        color          = { r = 1, g = 1, b = 0 },
+        scrollDuration = 2.0,
+        scrollDistance = 80,
+        fontOutline    = true,
+        fontShadow     = true,
+        shadowX        = 2,
+        shadowY        = -2,
+        -- Position
+        x              = 0,
         y              = 0,
         unlocked       = false,
-        sharpFonts     = true,   -- Skurri-Bitmap → Friz Quadrata TTF + OUTLINE
-        worldTextScale = 1.0,    -- Engine-FCT (über Mob/Pet) Skalierung — 1.0 = Standard
+        centerOnScreen = false,
     },
 })
 
 -- =========================================================
--- CVar Mapping
+-- Custom Scrolling-Text Engine
 -- =========================================================
-local CVARS = {
-    master          = "enableCombatText",
-    combatState     = "floatingCombatTextCombatState",
-    spellMechanics  = "floatingCombatTextSpellMechanics",
-    dispels         = "floatingCombatTextDispels",
-    auras           = "floatingCombatTextAuras",
-    reactives       = "floatingCombatTextReactives",
-    dodgeParryMiss  = "floatingCombatTextDodgeParryMiss",
-    repairs         = "floatingCombatTextRepairs",
+local container       -- Anchor-Frame
+local moverFrame      -- Mover für Position
+local POOL_SIZE = 20
+local fontStringPool = {}
+local activeMessages = {}
+
+-- Verfügbare Schriftarten (Expressway + Blizzards eingebaute, immer verfügbar)
+local EXPRESSWAY_PATH = "Interface\\AddOns\\VuloClassicUI\\Media\\Fonts\\Expressway.TTF"
+local FONT_VALUES = {
+    { value = EXPRESSWAY_PATH,         text = "Expressway (Standard)" },
+    { value = "Fonts\\FRIZQT__.TTF",   text = "Friz Quadrata (Blizzard)" },
+    { value = "Fonts\\ARIALN.TTF",     text = "Arial Narrow" },
+    { value = "Fonts\\MORPHEUS.TTF",   text = "Morpheus" },
+    { value = "Fonts\\skurri.ttf",     text = "Skurri" },
 }
 
--- =========================================================
--- Helpers
--- =========================================================
-local function applyWorldTextScale()
-    local v = tostring(mod.db.worldTextScale or 1.0)
-    -- Mehrere mögliche CVar-Namen je nach WoW-Version probieren
-    pcall(SetCVar, "WorldTextScale",  v)
-    pcall(SetCVar, "damageTextScale", v)
+local function getActiveFontPath()
+    local saved = mod.db and mod.db.fontFace
+    if saved and saved ~= "" then return saved end
+    return EXPRESSWAY_PATH
 end
 
-local function applyCVars()
-    for key, cvar in pairs(CVARS) do
-        pcall(SetCVar, cvar, mod.db[key] and "1" or "0")
+local function applyStyleToFS(fs, size, outlineOverride, shadowOverride, shadowColor, shadowX, shadowY)
+    local outline = (outlineOverride ~= nil) and outlineOverride or mod.db.fontOutline
+    local shadow  = (shadowOverride  ~= nil) and shadowOverride  or mod.db.fontShadow
+    local flags = outline and "THICKOUTLINE" or ""
+    fs:SetFont(getActiveFontPath(), size or mod.db.fontSize or 18, flags)
+    if shadow then
+        local sc = shadowColor or { r = 0, g = 0, b = 0 }
+        fs:SetShadowColor(sc.r or 0, sc.g or 0, sc.b or 0, 1)
+        fs:SetShadowOffset(shadowX or mod.db.shadowX or 2, shadowY or mod.db.shadowY or -2)
+    else
+        fs:SetShadowOffset(0, 0)
     end
-    applyWorldTextScale()
-    -- Legacy globale Flag (in alten Builds verwendet)
-    if SHOW_COMBAT_TEXT ~= nil then
-        SHOW_COMBAT_TEXT = mod.db.master and "1" or "0"
+end
+
+local function createContainer()
+    if container then return container end
+    container = CreateFrame("Frame", "VCUI_CombatTextContainer", UIParent)
+    container:SetSize(200, 1)
+    container:SetFrameStrata("HIGH")
+    container:Show()
+    -- Pre-create FontStrings
+    for i = 1, POOL_SIZE do
+        local fs = container:CreateFontString(nil, "OVERLAY")
+        applyStyleToFS(fs)
+        fs:Hide()
+        table.insert(fontStringPool, fs)
     end
-    -- Blizzard CombatText nachladen wenn nötig
-    if mod.db.master then
-        if IsAddOnLoaded and not IsAddOnLoaded("Blizzard_CombatText") and LoadAddOn then
-            pcall(LoadAddOn, "Blizzard_CombatText")
+    -- OnUpdate animiert alle aktiven messages
+    container:SetScript("OnUpdate", function(_, elapsed)
+        for i = #activeMessages, 1, -1 do
+            local m = activeMessages[i]
+            m.t = m.t + elapsed
+            local p = m.t / m.dur
+            if p >= 1 then
+                m.fs:Hide()
+                m.fs:ClearAllPoints()
+                table.insert(fontStringPool, m.fs)
+                table.remove(activeMessages, i)
+            else
+                m.fs:ClearAllPoints()
+                m.fs:SetPoint("CENTER", container, "CENTER", 0, p * m.dist)
+                m.fs:SetAlpha(1 - p)
+            end
         end
-        if CombatText_UpdateDisplayedMessages then
-            pcall(CombatText_UpdateDisplayedMessages)
-        end
-    end
+    end)
+    return container
 end
 
 local function getAnchor()
-    return _G.PlayerFrameHealthBar or _G.PlayerFrame
+    if mod.db.centerOnScreen then return UIParent end
+    return _G.PlayerFrameHealthBar or _G.PlayerFrame or UIParent
+end
+
+local function reAnchorContainer()
+    if not container then return end
+    local anchor = getAnchor()
+    container:ClearAllPoints()
+    if mod.db.centerOnScreen then
+        container:SetPoint("CENTER", anchor, "CENTER", mod.db.x or 0, mod.db.y or 0)
+    else
+        container:SetPoint("BOTTOM", anchor, "TOP", mod.db.x or 0, 25 + (mod.db.y or 0))
+    end
+end
+
+local function applyFontToPool()
+    local size = mod.db.fontSize or 18
+    for _, fs in ipairs(fontStringPool) do applyStyleToFS(fs, size) end
+    for _, m in ipairs(activeMessages) do applyStyleToFS(m.fs, size) end
+end
+
+-- Mapping Event-Key → Master-Kategorie-Toggle
+local EVENT_CATEGORY = {
+    combatStart    = "showCombatState",
+    combatEnd      = "showCombatState",
+    spellInterrupt = "showCombatLog",
+    dispels        = "showCombatLog",
+    missed         = "showCombatLog",
+    lowDurability  = "showDurability",
+}
+
+local function spawnEvent(eventKey, text)
+    if not text or text == "" then return end
+    local ev = mod.db.events and mod.db.events[eventKey]
+    if not ev or ev.enabled == false then return end
+    -- Master-Kategorie-Filter (Quick on/off)
+    local cat = EVENT_CATEGORY[eventKey]
+    if cat and mod.db[cat] == false then return end
+    createContainer()
+    local fs = table.remove(fontStringPool)
+    if not fs then
+        local oldest = table.remove(activeMessages, 1)
+        if oldest then fs = oldest.fs else return end
+    end
+    -- Per-Event Style: size override + outline + shadow + shadowColor + offsets
+    local sz = (ev.size and ev.size > 0) and ev.size or nil
+    applyStyleToFS(fs, sz, ev.outline, ev.shadow, ev.shadowColor, ev.shadowX, ev.shadowY)
+    fs:SetText(text)
+    local c = ev.color or mod.db.color or { r = 1, g = 1, b = 1 }
+    fs:SetTextColor(c.r or 1, c.g or 1, c.b or 1, 1)
+    fs:SetAlpha(1)
+    fs:ClearAllPoints()
+    fs:SetPoint("CENTER", container, "CENTER", 0, 0)
+    fs:Show()
+    table.insert(activeMessages, {
+        fs = fs, t = 0,
+        dur = mod.db.scrollDuration or 2.0,
+        dist = mod.db.scrollDistance or 80,
+    })
 end
 
 -- =========================================================
--- Skurri-Bitmap durch Friz Quadrata TTF ersetzen.
--- Blizzards CombatText nutzt die NumberFont_Outline_* Templates für
--- die großen Damage-Zahlen — bei nicht-nativen UI-Scales wird die
--- Bitmap-Font Skurri unscharf. TTF + OUTLINE bleibt bei jeder Scale scharf.
+-- Event-Handler
+-- =========================================================
+local playerGUID
+
+-- Equipment Slots zum Durability-Check
+local EQUIP_SLOTS = { 1, 2, 3, 5, 6, 7, 8, 9, 10, 15, 16, 17, 18 }
+local _durabilityPending = false
+local _wasLowDurability  = false
+
+local function doCheckDurability()
+    if not mod._enabled or not mod.db then return end
+    local ev = mod.db.events and mod.db.events.lowDurability
+    if not ev or ev.enabled == false then return end
+    -- Im Combat nicht warnen (kommt erst nach REGEN_ENABLED)
+    if InCombatLockdown() then return end
+
+    local threshold = (mod.db.durabilityThreshold or 15) / 100
+    local hasLow = false
+    for _, slot in ipairs(EQUIP_SLOTS) do
+        local current, maximum = GetInventoryItemDurability(slot)
+        if current and maximum and maximum > 0 then
+            if (current / maximum) < threshold then
+                hasLow = true
+                break
+            end
+        end
+    end
+
+    -- Edge-triggered: nur spawnen wenn vorher OK und jetzt low (kein Spam)
+    if hasLow and not _wasLowDurability then
+        spawnEvent("lowDurability", "LOW DURABILITY")
+    end
+    _wasLowDurability = hasLow
+end
+
+local function scheduleDurabilityCheck()
+    if _durabilityPending then return end
+    _durabilityPending = true
+    C_Timer.After(0.5, function()
+        _durabilityPending = false
+        doCheckDurability()
+    end)
+end
+
+local function onCombatStart()
+    if not mod._enabled then return end
+    spawnEvent("combatStart", "+Combat")
+end
+local function onCombatEnd()
+    if not mod._enabled then return end
+    spawnEvent("combatEnd", "-Combat")
+    -- Nach Combat-Exit Durability checken
+    scheduleDurabilityCheck()
+end
+
+local function onCLEU()
+    if not mod._enabled then return end
+    if not playerGUID then
+        playerGUID = UnitGUID("player")
+        if not playerGUID then return end
+    end
+    local _, subEvent, _, sourceGUID, _, _, _, destGUID, _, _, _,
+          _, spellName, _, extraSpellId, extraSpellName, _, missType
+          = CombatLogGetCurrentEventInfo()
+
+    if subEvent == "SPELL_INTERRUPT" and sourceGUID == playerGUID then
+        spawnEvent("spellInterrupt", "Interrupted: " .. (extraSpellName or spellName or "?"))
+    elseif subEvent == "SPELL_DISPEL" and sourceGUID == playerGUID then
+        spawnEvent("dispels", "Dispelled: " .. (extraSpellName or "?"))
+    elseif subEvent == "SPELL_STOLEN" and sourceGUID == playerGUID then
+        spawnEvent("dispels", "Purged: " .. (extraSpellName or "?"))
+    elseif (subEvent == "SWING_MISSED" or subEvent == "RANGE_MISSED" or subEvent == "SPELL_MISSED")
+        and destGUID == playerGUID then
+        local realMissType
+        if subEvent == "SWING_MISSED" then
+            realMissType = select(12, CombatLogGetCurrentEventInfo())
+        else
+            realMissType = missType
+        end
+        local label = realMissType or "Missed"
+        if label == "PARRY"  then label = "Parried"
+        elseif label == "DODGE" then label = "Dodged"
+        elseif label == "MISS"  then label = "Missed"
+        elseif label == "BLOCK" then label = "Blocked"
+        elseif label == "ABSORB" then label = "Absorbed"
+        end
+        spawnEvent("missed", label)
+    end
+end
+
+-- =========================================================
+-- Hit-Indikator Font-Schärfung (PetHitIndicator, NumberFont*)
 -- =========================================================
 local FONTS_TO_SHARPEN = {
-    "NumberFont_Outline_Huge",
-    "NumberFont_Outline_Large",
-    "NumberFont_Outline_Med",
-    "NumberFontNormalHuge",
-    "CombatTextFont",
-    -- Hit-Indikatoren auf UnitFrames (Schaden über Pet/Player-Portrait)
-    "PetHitIndicator",
-    "PlayerHitIndicator",
+    "NumberFont_Outline_Huge", "NumberFont_Outline_Large", "NumberFont_Outline_Med",
+    "NumberFontNormalHuge", "PetHitIndicator", "PlayerHitIndicator",
 }
 
 local function applySharpFonts()
     if not mod.db.sharpFonts then return end
-    local font = "Fonts\\FRIZQT__.TTF"
+    local font = getActiveFontPath()
     for _, name in ipairs(FONTS_TO_SHARPEN) do
         local f = _G[name]
         if f and f.SetFont and f.GetFont then
             local _, size, flags = f:GetFont()
-            size  = size or 16
+            size = size or 16
             flags = flags or "OUTLINE"
-            -- Wenn schon OUTLINE drin: behalten. Sonst OUTLINE hinzufügen.
             if not flags:find("OUTLINE") then
-                flags = flags .. (flags ~= "" and "," or "") .. "OUTLINE"
+                flags = flags .. ",OUTLINE"
             end
             pcall(f.SetFont, f, font, size, flags)
         end
     end
 end
 
-local function reAnchorCombatText()
-    local ct = _G.CombatText
-    local anchor = getAnchor()
-    if not ct or not anchor then return end
-    ct:ClearAllPoints()
-    ct:SetPoint("BOTTOM", anchor, "TOP", mod.db.x or 0, 25 + (mod.db.y or 0))
+-- Blizzard Mob-FCT Font (DAMAGE_TEXT_FONT global + CombatTextFont) — wie VuloUI
+local function applyDamageTextFont()
+    if not mod.db or mod.db.applyToMobFCT == false then return end
+    local path = getActiveFontPath()
+    _G.DAMAGE_TEXT_FONT = path
+    if _G.CombatTextFont and _G.CombatTextFont.SetFont then
+        pcall(_G.CombatTextFont.SetFont, _G.CombatTextFont, path, 120, "")
+    end
+end
+
+local function applyWorldTextScale()
+    local v = tostring(mod.db.worldTextScale or 1.0)
+    pcall(SetCVar, "WorldTextScale",  v)
+    pcall(SetCVar, "damageTextScale", v)
 end
 
 -- =========================================================
--- Mover-Frame
+-- Mover (für Position der Custom-Engine)
 -- =========================================================
-local moverFrame
-
 local function applyMoverPosition()
     if moverFrame then
         local anchor = getAnchor()
-        if anchor then
-            moverFrame:ClearAllPoints()
-            moverFrame:SetPoint("BOTTOM", anchor, "TOP",
-                mod.db.x or 0, 25 + (mod.db.y or 0))
+        moverFrame:ClearAllPoints()
+        if mod.db.centerOnScreen then
+            moverFrame:SetPoint("CENTER", anchor, "CENTER", mod.db.x or 0, mod.db.y or 0)
+        else
+            moverFrame:SetPoint("BOTTOM", anchor, "TOP", mod.db.x or 0, 25 + (mod.db.y or 0))
         end
     end
-    reAnchorCombatText()
+    reAnchorContainer()
 end
 
 local function createMover()
     if moverFrame then return moverFrame end
-
     moverFrame = CreateFrame("Frame", "VCUI_CombatTextMover", UIParent)
     moverFrame:SetSize(200, 60)
     moverFrame:SetFrameStrata("HIGH")
@@ -149,29 +350,9 @@ local function createMover()
     moverFrame:SetMovable(true)
     moverFrame:Hide()
 
-    local anchor = getAnchor()
-    if anchor then
-        moverFrame:SetPoint("BOTTOM", anchor, "TOP",
-            mod.db.x or 0, 25 + (mod.db.y or 0))
-    else
-        moverFrame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
-    end
-
-    moverFrame.bg = moverFrame:CreateTexture(nil, "BACKGROUND")
-    moverFrame.bg:SetAllPoints(moverFrame)
-    moverFrame.bg:SetColorTexture(0.6, 0.4, 1.0, 0.4)
-
-    moverFrame.border = CreateFrame("Frame", nil, moverFrame,
-        BackdropTemplateMixin and "BackdropTemplate")
-    moverFrame.border:SetAllPoints(moverFrame)
-    if moverFrame.border.SetBackdrop then
-        moverFrame.border:SetBackdrop({
-            edgeFile = "Interface\\Buttons\\WHITE8X8",
-            edgeSize = 2,
-        })
-        moverFrame.border:SetBackdropBorderColor(0.75, 0.35, 1, 1)
-    end
-
+    local bg = moverFrame:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints(moverFrame)
+    bg:SetColorTexture(0.6, 0.4, 1.0, 0.4)
     moverFrame.label = moverFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     moverFrame.label:SetPoint("CENTER", moverFrame, "CENTER", 0, 0)
     moverFrame.label:SetText("|cffffffffCOMBAT TEXT|r")
@@ -180,31 +361,27 @@ local function createMover()
     moverFrame:SetScript("OnDragStart", function(self) self:StartMoving() end)
     moverFrame:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
-        -- Offset zur PlayerFrame anchor berechnen
         local a = getAnchor()
         if not a then return end
         local mx, my = self:GetCenter()
         local ax, ay = a:GetCenter()
-        local _, ah  = a:GetSize()
-        local _, mh  = self:GetSize()
-        -- Wir wollen: mover BOTTOM = anchor.TOP + 25 + db.y
-        -- → mover.center_y = anchor.center_y + ah/2 + 25 + db.y + mh/2
-        -- → db.y = mover.center_y - anchor.center_y - ah/2 - 25 - mh/2
-        local dy = my - ay - ah/2 - 25 - mh/2
-        local dx = mx - ax
-        mod.db.x = dx
-        mod.db.y = dy
+        local _, ah = a:GetSize()
+        local _, mh = self:GetSize()
+        if mod.db.centerOnScreen then
+            mod.db.x = mx - ax
+            mod.db.y = my - ay
+        else
+            mod.db.x = mx - ax
+            mod.db.y = my - ay - ah/2 - 25 - mh/2
+        end
         applyMoverPosition()
-        ns:Print(string.format("Combat-Text-Anchor: x=%.0f, y=%.0f", dx, dy))
     end)
 
-    -- Keyboard für Fein-Justierung (1px, SHIFT = 5px)
     moverFrame:EnableKeyboard(true)
     moverFrame:SetPropagateKeyboardInput(true)
     moverFrame:SetScript("OnKeyDown", function(self, key)
         if not mod.db.unlocked then
-            self:SetPropagateKeyboardInput(true)
-            return
+            self:SetPropagateKeyboardInput(true); return
         end
         local step = IsShiftKeyDown() and 5 or 1
         local dx, dy = 0, 0
@@ -212,16 +389,12 @@ local function createMover()
         elseif key == "DOWN"  then dy = -step
         elseif key == "LEFT"  then dx = -step
         elseif key == "RIGHT" then dx =  step
-        else
-            self:SetPropagateKeyboardInput(true)
-            return
-        end
+        else self:SetPropagateKeyboardInput(true); return end
         self:SetPropagateKeyboardInput(false)
         mod.db.x = (mod.db.x or 0) + dx
         mod.db.y = (mod.db.y or 0) + dy
         applyMoverPosition()
     end)
-
     return moverFrame
 end
 
@@ -231,10 +404,9 @@ local function setUnlocked(state)
     applyMoverPosition()
     if state then
         moverFrame:Show()
-        ns:Print("Combat-Text-Mover aktiv. |cff9b6cffZiehen|r oder |cff9b6cffPfeiltasten|r (SHIFT = 5px).")
+        ns:Print("Combat-Text-Mover aktiv. Drag oder Pfeiltasten (SHIFT=5px).")
     else
         moverFrame:Hide()
-        ns:Print("Combat-Text-Mover deaktiviert.")
     end
 end
 
@@ -242,108 +414,247 @@ end
 -- Lifecycle
 -- =========================================================
 function mod:OnEnable()
-    applyCVars()
+    if not mod.db then return end  -- defensive: DB nicht initialisiert
+    playerGUID = UnitGUID("player")
+    createContainer()
+    reAnchorContainer()
     applySharpFonts()
-    -- Blizzard CombatText positioniert sich beim Load — daher delayed Re-Anchor
-    -- + nochmal sharpFonts da Blizzard die Templates beim ersten Load resetten könnte
-    if C_Timer and C_Timer.After then
-        C_Timer.After(0.5, function()
-            reAnchorCombatText()
-            applySharpFonts()
-        end)
-    else
-        reAnchorCombatText()
-    end
+    applyWorldTextScale()
+    applyDamageTextFont()
+
+    ns:RegisterEvent("PLAYER_REGEN_DISABLED", onCombatStart)
+    ns:RegisterEvent("PLAYER_REGEN_ENABLED",  onCombatEnd)
+    ns:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", onCLEU)
+    ns:RegisterEvent("UPDATE_INVENTORY_DURABILITY", scheduleDurabilityCheck)
+
+    -- Initialer Durability-Check (delayed, damit Inventory geladen ist)
+    C_Timer.After(2.0, scheduleDurabilityCheck)
 end
 
 function mod:OnDisable()
-    pcall(SetCVar, "enableCombatText", "0")
-    if SHOW_COMBAT_TEXT ~= nil then SHOW_COMBAT_TEXT = "0" end
-    if moverFrame then moverFrame:Hide() end
+    ns:UnregisterEvent("PLAYER_REGEN_DISABLED", onCombatStart)
+    ns:UnregisterEvent("PLAYER_REGEN_ENABLED",  onCombatEnd)
+    ns:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED", onCLEU)
+    ns:UnregisterEvent("UPDATE_INVENTORY_DURABILITY", scheduleDurabilityCheck)
+    if container then container:Hide() end
+    if moverFrame then moverFrame:Hide() end  -- Mover nicht "verwaist" lassen
 end
 
 -- =========================================================
 -- Options
 -- =========================================================
-function mod:GetOptions()
-    local function makeToggle(key, label, tooltip)
-        return {
-            type = "toggle", label = label, tooltip = tooltip,
-            get = function() return mod.db[key] end,
-            set = function(_, v)
-                mod.db[key] = v
-                applyCVars()
-            end,
-        }
+local function openColorPicker(getCurrent, setNew)
+    local c = getCurrent() or { r = 1, g = 1, b = 1 }
+    local function onChange()
+        local r, g, b = ColorPickerFrame:GetColorRGB()
+        setNew({ r = r, g = g, b = b })
     end
+    local function onCancel(prev) if prev then setNew(prev) end end
+    local info = {
+        r = c.r, g = c.g, b = c.b,
+        swatchFunc = onChange, cancelFunc = onCancel, opacity = false,
+    }
+    if ColorPickerFrame.SetupColorPickerAndShow then
+        ColorPickerFrame:SetupColorPickerAndShow(info)
+    elseif _G.OpenColorPicker then
+        _G.OpenColorPicker(info)
+    end
+end
 
+local function eventSection(key, label, previewText)
+    local function ev() return mod.db.events[key] end
     return {
-        { type = "header", text = "Combat Text" },
-        { type = "desc",
-          text = "|cffaaaaaaBlizzards eingebauter Floating Combat Text. Master-Schalter steuert das ganze System, jeder Event-Typ ist einzeln an/aus schaltbar.|r" },
-
-        makeToggle("master", "Combat Text aktivieren (Master)",
-            "Schaltet das gesamte Floating-Combat-Text-System ein oder aus."),
-
-        { type = "spacer", height = 8 },
-        { type = "header", text = "Events" },
-
-        makeToggle("combatState",    "+Combat / -Combat",
-            "Zeigt 'Entering Combat' und 'Leaving Combat'."),
-        makeToggle("spellMechanics", "Interrupted / Reflected (Spell-Mechaniken)",
-            "Zeigt unterbrochene oder reflektierte Zauber."),
-        makeToggle("dispels",        "Dispelled / Purged",
-            "Zeigt eigene Dispels und Purges (Buff-Entfernungen)."),
-        makeToggle("auras",          "You gave / gave you (Auras)",
-            "Zeigt verteilte und erhaltene Buffs/Debuffs."),
-        makeToggle("reactives",      "Reaktive Procs",
-            "Zeigt reaktive Spells (z.B. Counterattack-Proc, Reflected)."),
-        makeToggle("dodgeParryMiss", "Parried / Dodged / Missed",
-            "Zeigt geblockte/pariert/ausgewichene Treffer."),
-        makeToggle("repairs",        "Reparaturkosten",
-            "Zeigt Reparaturkosten beim NPC."),
-
-        { type = "spacer", height = 8 },
-        { type = "header", text = "Darstellung" },
-        { type = "toggle", label = "Schärfere Schrift (Friz Quadrata TTF + OUTLINE)",
-          tooltip = "Ersetzt die Skurri-Bitmap-Schrift durch Friz Quadrata mit Outline. Bleibt bei jeder UI-Scale scharf statt verschwommen.",
-          get = function() return mod.db.sharpFonts end,
-          set = function(_, v)
-              mod.db.sharpFonts = v
-              if v then
-                  applySharpFonts()
-                  ns:Print("Damage-Text-Schrift gesch\195\164rft. |cffffff00/reload|r falls die Standard-Font noch \195\188brig ist.")
-              else
-                  ns:Print("Damage-Text-Schrift zur\195\188ckgesetzt — |cffffff00/reload|r erforderlich um Skurri wieder zu laden.")
-              end
-          end },
-        { type = "slider", label = "Engine-FCT Skalierung (über Mob/Pet)",
-          min = 1.0, max = 2.5, step = 0.1,
-          tooltip = "Skaliert die Schadenszahlen die im 3D-World über Mobs und Pets erscheinen. Bei niedriger UI-Scale (z.B. 65%) hochsetzen — gibt der Bitmap-Font mehr Pixel, wird schärfer.",
-          get = function() return mod.db.worldTextScale or 1.0 end,
-          set = function(_, v)
-              mod.db.worldTextScale = v
-              applyWorldTextScale()
-          end },
-        { type = "desc",
-          text = "|cffaaaaaa\195\156ber-Mob/Pet-Zahlen sind |cffffffffEngine-gerendert|r |cffaaaaaa(nicht Lua), nur via Scale beeinflussbar. Pixel-perfect UI-Scale w\195\244re |cffffffff768/Bildschirmh\195\182he|r |cffaaaaaa(z.B. 0.71 bei 1080p, 0.53 bei 1440p).|r" },
-
-        { type = "spacer", height = 8 },
-        { type = "header", text = "Position" },
-        { type = "desc",
-          text = "|cffaaaaaaCombat Text erscheint Standard \195\188ber dem Spieler-Frame. Unlock zeigt einen Mover — mit Drag oder Pfeiltasten verschieben (SHIFT = 5px).|r" },
-        { type = "group", layout = "row", gap = 8,
+        { type = "header", text = label },
+        { type = "group", layout = "row", gap = 6,
           items = {
-              { type = "button", label = "Unlock / Positionieren", width = 200,
-                onClick = function() setUnlocked(not mod.db.unlocked) end },
-              { type = "button", label = "Position zurücksetzen", width = 180,
+              { type = "toggle", label = "Aktiviert",
+                get = function() return ev().enabled end,
+                set = function(_, v) ev().enabled = v end },
+              { type = "button", label = "Textfarbe...", width = 110,
                 onClick = function()
-                    mod.db.x = 0
-                    mod.db.y = 0
-                    applyMoverPosition()
-                    ns:Print("Combat-Text-Position zur\195\188ckgesetzt.")
+                    openColorPicker(function() return ev().color end,
+                        function(c) ev().color = c end)
                 end },
+              { type = "button", label = "Schattenfarbe...", width = 130,
+                onClick = function()
+                    openColorPicker(function() return ev().shadowColor end,
+                        function(c) ev().shadowColor = c end)
+                end },
+              { type = "button", label = "Test", width = 70,
+                onClick = function() spawnEvent(key, previewText) end },
           },
         },
+        { type = "slider", label = "Schriftgröße (0 = global)",
+          min = 0, max = 32, step = 1,
+          get = function() return ev().size or 0 end,
+          set = function(_, v) ev().size = v end },
+        { type = "group", layout = "row", gap = 8,
+          items = {
+              { type = "toggle", label = "Kontur",
+                get = function() return ev().outline end,
+                set = function(_, v) ev().outline = v end },
+              { type = "toggle", label = "Schatten",
+                get = function() return ev().shadow end,
+                set = function(_, v) ev().shadow = v end },
+          },
+        },
+        { type = "slider", label = "Shadow X Offset",
+          min = -10, max = 10, step = 1,
+          get = function() return ev().shadowX or 2 end,
+          set = function(_, v) ev().shadowX = v end },
+        { type = "slider", label = "Shadow Y Offset",
+          min = -10, max = 10, step = 1,
+          get = function() return ev().shadowY or -2 end,
+          set = function(_, v) ev().shadowY = v end },
     }
+end
+
+function mod:GetOptions()
+    local items = {
+        { type = "header", text = "Combat Text" },
+        { type = "desc",
+          text = "|cffaaaaaaEigene Scrolling-Text-Engine \195\188ber dem Spieler. Anniversary hat Blizzards altes Player-FCT deaktiviert. Jeder Event kann eigene Farbe + Gr\195\182\195\159e + Kontur/Schatten haben.|r" },
+
+        -- Master-Kategorien (Quick on/off — \195\188bersteuern per-event nicht, sondern f\195\188gen Filter dr\195\188ber hinzu)
+        { type = "spacer", height = 6 },
+        { type = "header", text = "Kategorien (Quick on/off)" },
+        { type = "group", layout = "row", gap = 8,
+          items = {
+              { type = "toggle", label = "Combat-Status (+/- Combat)",
+                tooltip = "Combat-Start und Combat-Ende Messages.",
+                get = function() return mod.db.showCombatState ~= false end,
+                set = function(_, v) mod.db.showCombatState = v end },
+              { type = "toggle", label = "Combat-Log Events",
+                tooltip = "Interrupts, Dispels, Misses (Parry/Dodge/Block).",
+                get = function() return mod.db.showCombatLog ~= false end,
+                set = function(_, v) mod.db.showCombatLog = v end },
+              { type = "toggle", label = "Durability-Warnung",
+                tooltip = "Niedrige Durability nach Combat-Exit.",
+                get = function() return mod.db.showDurability ~= false end,
+                set = function(_, v) mod.db.showDurability = v end },
+          },
+        },
+
+        { type = "spacer", height = 6 },
+        { type = "header", text = "Globale Defaults" },
+        -- Schriftart-Dropdown (\195\188bernimmt das VuloUI-Pattern)
+        { type = "dropdown", label = "Schriftart",
+          tooltip = "Schriftart f\195\188r unsere Combat-Text Engine. Wird auch f\195\188r Blizzards Mob-FCT (DAMAGE_TEXT_FONT) verwendet, wenn unten aktiviert.",
+          values = FONT_VALUES,
+          get = function() return getActiveFontPath() end,
+          set = function(_, v)
+              mod.db.fontFace = v
+              applyFontToPool()
+              applySharpFonts()
+              applyDamageTextFont()
+          end },
+        { type = "toggle", label = "Schriftart auch auf Blizzard Mob-FCT anwenden",
+          tooltip = "Setzt zus\195\164tzlich DAMAGE_TEXT_FONT global \194\151 \195\164ndert die Schrift der Damage-Numbers \195\188ber Mobs/Pets. Erfordert /reload um wirksam zu werden.",
+          get = function() return mod.db.applyToMobFCT ~= false end,
+          set = function(_, v) mod.db.applyToMobFCT = v; applyDamageTextFont() end },
+        { type = "slider", label = "Standard-Schriftgröße",
+          min = 10, max = 32, step = 1,
+          get = function() return mod.db.fontSize end,
+          set = function(_, v) mod.db.fontSize = v; applyFontToPool() end },
+        { type = "toggle", label = "Standard: Dicke Kontur",
+          get = function() return mod.db.fontOutline end,
+          set = function(_, v) mod.db.fontOutline = v end },
+        { type = "toggle", label = "Standard: Schatten",
+          get = function() return mod.db.fontShadow end,
+          set = function(_, v) mod.db.fontShadow = v end },
+        { type = "slider", label = "Scroll-Dauer (Sek.)",
+          min = 0.5, max = 5.0, step = 0.1,
+          get = function() return mod.db.scrollDuration end,
+          set = function(_, v) mod.db.scrollDuration = v end },
+        { type = "slider", label = "Scroll-Distanz (px)",
+          min = 20, max = 200, step = 5,
+          get = function() return mod.db.scrollDistance end,
+          set = function(_, v) mod.db.scrollDistance = v end },
+        { type = "button", label = "Test (alle Events)", width = 200,
+          onClick = function()
+              spawnEvent("combatStart",    "+Combat")
+              C_Timer.After(0.4, function() spawnEvent("spellInterrupt", "Interrupted: Frostbolt") end)
+              C_Timer.After(0.8, function() spawnEvent("dispels",        "Dispelled: Curse") end)
+              C_Timer.After(1.2, function() spawnEvent("missed",         "Parried") end)
+          end },
+    }
+
+    -- Per-Event Sections
+    local function appendSection(secItems)
+        for _, it in ipairs(secItems) do table.insert(items, it) end
+    end
+    appendSection({{ type = "spacer", height = 8 }})
+    appendSection(eventSection("combatStart",    "+Combat",        "+Combat"))
+    appendSection({{ type = "spacer", height = 4 }})
+    appendSection(eventSection("combatEnd",      "-Combat",        "-Combat"))
+    appendSection({{ type = "spacer", height = 4 }})
+    appendSection(eventSection("spellInterrupt", "Interrupted",    "Interrupted: Frostbolt"))
+    appendSection({{ type = "spacer", height = 4 }})
+    appendSection(eventSection("dispels",        "Dispelled/Purged", "Dispelled: Curse"))
+    appendSection({{ type = "spacer", height = 4 }})
+    appendSection(eventSection("missed",         "Parried/Dodged/Missed", "Parried"))
+    appendSection({{ type = "spacer", height = 4 }})
+    appendSection(eventSection("lowDurability",  "Low Durability", "LOW DURABILITY"))
+    -- Threshold-Slider direkt unter Low-Durability Section
+    table.insert(items, { type = "slider", label = "Durability-Schwellwert (%)",
+        min = 5, max = 50, step = 1,
+        tooltip = "Warnung erscheint wenn mindestens ein angelegtes Item unter diesem Wert ist (nach Combat-Exit).",
+        get = function() return mod.db.durabilityThreshold or 15 end,
+        set = function(_, v)
+            mod.db.durabilityThreshold = v
+            _wasLowDurability = false  -- Reset damit Re-Trigger möglich
+            scheduleDurabilityCheck()
+        end })
+
+    -- Engine-FCT + Position section
+    table.insert(items, { type = "spacer", height = 8 })
+    table.insert(items, { type = "header", text = "Engine-FCT (über Mob/Pet)" })
+    table.insert(items, { type = "toggle", label = "Schärfere Hit-Indikator-Schrift (Friz Quadrata)",
+        get = function() return mod.db.sharpFonts end,
+        set = function(_, v) mod.db.sharpFonts = v; applySharpFonts() end })
+    table.insert(items, { type = "slider", label = "Engine-FCT Skalierung",
+        min = 1.0, max = 2.5, step = 0.1,
+        tooltip = "Damage-Numbers über Mob/Pet — Bitmap-Skalierung.",
+        get = function() return mod.db.worldTextScale end,
+        set = function(_, v) mod.db.worldTextScale = v; applyWorldTextScale() end })
+
+    table.insert(items, { type = "spacer", height = 8 })
+    table.insert(items, { type = "header", text = "Position" })
+    table.insert(items, { type = "toggle", label = "Zentrieren",
+        tooltip = "Behält die horizontale Position bei und zentriert nur vertikal in Bildschirm-Mitte.",
+        get = function() return mod.db.centerOnScreen end,
+        set = function(_, v)
+            local prev = mod.db.centerOnScreen
+            mod.db.centerOnScreen = v
+            local ct = container
+            if v and not prev and ct then
+                local fcx = ct:GetCenter()
+                local px  = UIParent:GetCenter()
+                if fcx and px then mod.db.x = fcx - px; mod.db.y = 0 end
+            elseif not v and prev and ct then
+                local anchor = _G.PlayerFrameHealthBar or _G.PlayerFrame
+                local fcx, fcy = ct:GetCenter()
+                if anchor and fcx and fcy then
+                    local acx, atop = anchor:GetCenter(), anchor:GetTop()
+                    if acx and atop then
+                        mod.db.x = fcx - acx
+                        mod.db.y = fcy - atop - 25
+                    end
+                end
+            end
+            applyMoverPosition()
+        end })
+    table.insert(items, { type = "group", layout = "row", gap = 8,
+        items = {
+            { type = "button", label = "Unlock / Positionieren", width = 200,
+              onClick = function() setUnlocked(not mod.db.unlocked) end },
+            { type = "button", label = "Position zurücksetzen", width = 180,
+              onClick = function()
+                  mod.db.x = 0; mod.db.y = 0
+                  applyMoverPosition()
+              end },
+        },
+    })
+
+    return items
 end

@@ -1,0 +1,378 @@
+<Ui xmlns = "http://www.blizzard.com/wow/ui/" xmlns:xsi = "http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation = "http://www.blizzard.com/wow/ui/ ..\FrameXML\UI.xsd">
+	<!-- Backdrop Template -->
+	<Frame name = "TrinketsBackdropTemplate" mixin = "TrinketsBackdropTemplateMixin" virtual = "true">
+		<Scripts>
+			<OnLoad method = "OnBackdropLoaded"/>
+			<OnSizeChanged method = "OnBackdropSizeChanged"/>
+		</Scripts>
+	</Frame>
+	<!-- Worn trinkets template -->
+	<CheckButton name = "TrinketsMainTrinketTemplate" inherits = "ActionButtonTemplate,SecureActionButtonTemplate" virtual = "true">
+		<Scripts>
+			<OnLoad>
+				self:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+				if self.TogglePopup then
+					self.TogglePopup = function() end
+				end
+			</OnLoad>
+			<OnShow>
+				if self.Arrow then
+					self.Arrow:SetShown(false)
+				end
+			</OnShow>
+			<PostClick>
+				Trinkets.MainTrinket_OnClick(self, button, down)
+			</PostClick>
+			<OnEnter>
+				if TrinketsOptions.MenuOnRight == "OFF" then
+					Trinkets.BuildMenu()
+				end
+				Trinkets.WornTrinketTooltip(self)
+			</OnEnter>
+			<OnLeave>
+				Trinkets.ClearTooltip()
+			</OnLeave>
+		</Scripts>
+	</CheckButton>
+	<!-- Menu trinkets template -->
+	<CheckButton name = "TrinketsMenuTrinketTemplate" inherits = "ActionButtonTemplate" virtual = "true">
+		<Scripts>
+			<OnLoad>
+				self:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+				if self.TogglePopup then
+					self.TogglePopup = function() end
+				end
+				if self.cooldown then
+					self.cooldown:SetSwipeColor(0, 0, 0, 0.8)
+				end
+				if self.icon then
+					self.icon:SetAllPoints()
+				end
+			</OnLoad>
+			<OnShow>
+				if self.Arrow then
+					self.Arrow:SetShown(false)
+				end
+			</OnShow>
+			<PostClick>
+				Trinkets.MenuTrinket_OnClick(self, button, down)
+			</PostClick>
+			<OnEnter>
+				Trinkets.MenuTrinketTooltip(self)
+			</OnEnter>
+			<OnLeave>
+				Trinkets.ClearTooltip()
+			</OnLeave>
+		</Scripts>
+	</CheckButton>
+	<!-- Cooldown time text template -->
+	<Frame name = "TrinketsTimeTemplate" enableMouse = "false" virtual = "true">
+		<Size>
+			<AbsDimension x = "36" y = "12"/>
+		</Size>
+		<Anchors>
+			<Anchor point = "BOTTOMRIGHT"/>
+		</Anchors>
+		<Layers>
+			<Layer level = "OVERLAY">
+				<FontString name = "$parentTime" inherits = "NumberFontNormal" justifyH = "CENTER"/>
+			</Layer>
+		</Layers>
+	</Frame>
+	<!-- Combat queue inset template -->
+	<Frame name = "TrinketsQueueTemplate" enableMouse = "false" virtual = "true">
+		<Size>
+			<AbsDimension x = "18" y = "18"/>
+		</Size>
+		<Anchors>
+			<Anchor point = "TOPLEFT">
+				<Offset>
+					<AbsDimension x = "-2" y = "2"/>
+				</Offset>
+			</Anchor>
+		</Anchors>
+		<Layers>
+			<Layer level = "OVERLAY">
+				<Texture name = "$parentQueue"/>
+			</Layer>
+		</Layers>
+	</Frame>
+	<!-- MainFrame: Equipped Trinkets -->
+	<Frame name = "Trinkets_MainFrame" toplevel = "true" frameStrata = "BACKGROUND" enableMouse = "true" movable = "true" parent = "UIParent" hidden = "true" inherits = "TrinketsBackdropTemplate">
+		<Size>
+			<AbsDimension x = "92" y = "52" />
+		</Size>
+		<KeyValues>
+			<KeyValue key = "backdropInfo" value = "Trinkets_BACKDROP_16_16_4444" type = "global"/>
+		</KeyValues>
+		<Anchors>
+			<Anchor point = "TOPLEFT" relativeTo = "UIParent" relativePoint = "BOTTOMLEFT">
+				<Offset>
+					<AbsDimension x = "400" y = "400"/>
+				</Offset>
+			</Anchor>
+		</Anchors>
+
+		<Layers>
+			<Layer level = "OVERLAY">
+				<Texture name = "Trinkets_MainDock_TOPRIGHT" file = "Interface\Tooltips\UI-Tooltip-Border" alphaMode = "ADD" hidden = "true">
+					<Size>
+						<AbsDimension x = "16" y = "16"/>
+					</Size>
+					<Anchors>
+						<Anchor point = "TOPRIGHT"/>
+					</Anchors>
+					<TexCoords left = "0.625" right = "0.75" top = "0" bottom = "1"/>
+				</Texture>
+				<Texture name = "Trinkets_MainDock_TOPLEFT" file = "Interface\Tooltips\UI-Tooltip-Border" alphaMode = "ADD" hidden = "true">
+					<Size>
+						<AbsDimension x = "16" y = "16"/>
+					</Size>
+					<Anchors>
+						<Anchor point = "TOPLEFT"/>
+					</Anchors>
+					<TexCoords left = "0.5" right = "0.625" top = "0" bottom = "1"/>
+				</Texture>
+				<Texture name = "Trinkets_MainDock_BOTTOMLEFT" file = "Interface\Tooltips\UI-Tooltip-Border" alphaMode = "ADD" hidden = "true">
+					<Size>
+						<AbsDimension x = "16" y = "16"/>
+					</Size>
+					<Anchors>
+						<Anchor point = "BOTTOMLEFT"/>
+					</Anchors>
+					<TexCoords left = "0.75" right = "0.875" top = "0" bottom = "1"/>
+				</Texture>
+				<Texture name = "Trinkets_MainDock_BOTTOMRIGHT" file = "Interface\Tooltips\UI-Tooltip-Border" alphaMode = "ADD" hidden = "true">
+					<Size>
+						<AbsDimension x = "16" y = "16"/>
+					</Size>
+					<Anchors>
+						<Anchor point = "BOTTOMRIGHT"/>
+					</Anchors>
+					<TexCoords left = "0.875" right = "1" top = "0" bottom = "1"/>
+				</Texture>
+			</Layer>
+		</Layers>
+		<Frames>
+			<CheckButton name = "Trinkets_Trinket0" inherits = "TrinketsMainTrinketTemplate" id = "13">
+				<Anchors>
+					<Anchor point = "TOPLEFT">
+						<Offset>
+							<AbsDimension x = "8" y = "-8"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Scripts>
+					<OnLoad>
+						if WOW_PROJECT_ID == WOW_PROJECT_MAINLINE then
+							self:SetPoint("TOPLEFT", 4, -4)
+						else
+							self:SetPoint("TOPLEFT", 8, -8)
+						end
+						self:RegisterForClicks("LeftButtonDown", "LeftButtonUp", "RightButtonUp")
+						if self.cooldown then
+							self.cooldown:SetSwipeColor(0, 0, 0, 0.8)
+						end
+						if self.icon then
+							self.icon:SetAllPoints()
+						end
+					</OnLoad>
+				</Scripts>
+			</CheckButton>
+			<Frame parent = "Trinkets_Trinket0" inherits = "TrinketsTimeTemplate"/>
+			<Frame parent = "Trinkets_Trinket0" inherits = "TrinketsQueueTemplate"/>
+
+			<CheckButton name = "Trinkets_Trinket1" inherits = "TrinketsMainTrinketTemplate" id = "14">
+				<Anchors>
+					<Anchor point = "BOTTOMRIGHT">
+						<Offset>
+							<AbsDimension x = "-8" y = "8"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Scripts>
+					<OnLoad>
+						if WOW_PROJECT_ID == WOW_PROJECT_MAINLINE then
+							self:SetPoint("BOTTOMRIGHT", -3, 3)
+						else
+							self:SetPoint("BOTTOMRIGHT", -8, 8)
+						end
+						self:RegisterForClicks("LeftButtonDown", "LeftButtonUp", "RightButtonUp")
+						if self.cooldown then
+							self.cooldown:SetSwipeColor(0, 0, 0, 0.8)
+						end
+						if self.icon then
+							self.icon:SetAllPoints()
+						end
+					</OnLoad>
+				</Scripts>
+			</CheckButton>
+			<Frame parent = "Trinkets_Trinket1" inherits = "TrinketsTimeTemplate"/>
+			<Frame parent = "Trinkets_Trinket1" inherits = "TrinketsQueueTemplate"/>
+		</Frames>
+		<Scripts>
+			<OnLoad>
+				Trinkets.OnLoad(self)
+			</OnLoad>
+			<OnEvent>
+				Trinkets.OnEvent(self, event, ...)
+			</OnEvent>
+			<OnMouseDown>
+				Trinkets.MainFrame_OnMouseDown(self)
+			</OnMouseDown>
+			<OnMouseUp>
+				Trinkets.MainFrame_OnMouseUp(self)
+			</OnMouseUp>
+			<OnShow>
+				Trinkets.OnShow()
+			</OnShow>
+			<OnHide>
+				Trinkets.OnHide()
+			</OnHide>
+		</Scripts>
+	</Frame>
+	<!-- MenuFrame: Bagged Trinkets -->
+	<Frame name = "Trinkets_MenuFrame" toplevel = "true" frameStrata = "MEDIUM" enableMouse = "true" movable = "true" parent = "UIParent" hidden = "true" clampedToScreen = "true" inherits = "TrinketsBackdropTemplate">
+		<Size>
+			<AbsDimension x = "52" y = "92" />
+		</Size>
+		<KeyValues>
+			<KeyValue key = "backdropInfo" value = "Trinkets_BACKDROP_16_16_4444" type = "global"/>
+		</KeyValues>
+		<Anchors>
+			<Anchor point = "BOTTOMLEFT" relativeTo = "Trinkets_MainFrame" relativePoint = "BOTTOMRIGHT"/>
+		</Anchors>
+
+		<Layers>
+			<Layer level = "OVERLAY">
+				<Texture name = "Trinkets_MenuDock_TOPRIGHT" file = "Interface\Tooltips\UI-Tooltip-Border" alphaMode = "ADD" hidden = "true">
+					<Size>
+						<AbsDimension x = "16" y = "16"/>
+					</Size>
+					<Anchors>
+						<Anchor point = "TOPRIGHT"/>
+					</Anchors>
+					<TexCoords left = "0.625" right = "0.75" top = "0" bottom = "1"/>
+				</Texture>
+				<Texture name = "Trinkets_MenuDock_TOPLEFT" file = "Interface\Tooltips\UI-Tooltip-Border" alphaMode = "ADD" hidden = "true">
+					<Size>
+						<AbsDimension x = "16" y = "16"/>
+					</Size>
+					<Anchors>
+						<Anchor point = "TOPLEFT"/>
+					</Anchors>
+					<TexCoords left = "0.5" right = "0.625" top = "0" bottom = "1"/>
+				</Texture>
+				<Texture name = "Trinkets_MenuDock_BOTTOMLEFT" file = "Interface\Tooltips\UI-Tooltip-Border" alphaMode = "ADD" hidden = "true">
+					<Size>
+						<AbsDimension x = "16" y = "16"/>
+					</Size>
+					<Anchors>
+						<Anchor point = "BOTTOMLEFT"/>
+					</Anchors>
+					<TexCoords left = "0.75" right = "0.875" top = "0" bottom = "1"/>
+				</Texture>
+				<Texture name = "Trinkets_MenuDock_BOTTOMRIGHT" file = "Interface\Tooltips\UI-Tooltip-Border" alphaMode = "ADD" hidden = "true">
+					<Size>
+						<AbsDimension x = "16" y = "16"/>
+					</Size>
+					<Anchors>
+						<Anchor point = "BOTTOMRIGHT"/>
+					</Anchors>
+					<TexCoords left = "0.875" right = "1" top = "0" bottom = "1"/>
+				</Texture>
+			</Layer>
+		</Layers>
+		<Frames>
+			<CheckButton name = "Trinkets_Menu1" inherits = "TrinketsMenuTrinketTemplate" id = "1"/>
+			<CheckButton name = "Trinkets_Menu2" inherits = "TrinketsMenuTrinketTemplate" id = "2"/>
+			<CheckButton name = "Trinkets_Menu3" inherits = "TrinketsMenuTrinketTemplate" id = "3"/>
+			<CheckButton name = "Trinkets_Menu4" inherits = "TrinketsMenuTrinketTemplate" id = "4"/>
+			<CheckButton name = "Trinkets_Menu5" inherits = "TrinketsMenuTrinketTemplate" id = "5"/>
+			<CheckButton name = "Trinkets_Menu6" inherits = "TrinketsMenuTrinketTemplate" id = "6"/>
+			<CheckButton name = "Trinkets_Menu7" inherits = "TrinketsMenuTrinketTemplate" id = "7"/>
+			<CheckButton name = "Trinkets_Menu8" inherits = "TrinketsMenuTrinketTemplate" id = "8"/>
+			<CheckButton name = "Trinkets_Menu9" inherits = "TrinketsMenuTrinketTemplate" id = "9"/>
+			<CheckButton name = "Trinkets_Menu10" inherits = "TrinketsMenuTrinketTemplate" id = "10"/>
+			<CheckButton name = "Trinkets_Menu11" inherits = "TrinketsMenuTrinketTemplate" id = "11"/>
+			<CheckButton name = "Trinkets_Menu12" inherits = "TrinketsMenuTrinketTemplate" id = "12"/>
+			<CheckButton name = "Trinkets_Menu13" inherits = "TrinketsMenuTrinketTemplate" id = "13"/>
+			<CheckButton name = "Trinkets_Menu14" inherits = "TrinketsMenuTrinketTemplate" id = "14"/>
+			<CheckButton name = "Trinkets_Menu15" inherits = "TrinketsMenuTrinketTemplate" id = "15"/>
+			<CheckButton name = "Trinkets_Menu16" inherits = "TrinketsMenuTrinketTemplate" id = "16"/>
+			<CheckButton name = "Trinkets_Menu17" inherits = "TrinketsMenuTrinketTemplate" id = "17"/>
+			<CheckButton name = "Trinkets_Menu18" inherits = "TrinketsMenuTrinketTemplate" id = "18"/>
+			<CheckButton name = "Trinkets_Menu19" inherits = "TrinketsMenuTrinketTemplate" id = "19"/>
+			<CheckButton name = "Trinkets_Menu20" inherits = "TrinketsMenuTrinketTemplate" id = "20"/>
+			<CheckButton name = "Trinkets_Menu21" inherits = "TrinketsMenuTrinketTemplate" id = "21"/>
+			<CheckButton name = "Trinkets_Menu22" inherits = "TrinketsMenuTrinketTemplate" id = "22"/>
+			<CheckButton name = "Trinkets_Menu23" inherits = "TrinketsMenuTrinketTemplate" id = "23"/>
+			<CheckButton name = "Trinkets_Menu24" inherits = "TrinketsMenuTrinketTemplate" id = "24"/>
+			<CheckButton name = "Trinkets_Menu25" inherits = "TrinketsMenuTrinketTemplate" id = "25"/>
+			<CheckButton name = "Trinkets_Menu26" inherits = "TrinketsMenuTrinketTemplate" id = "26"/>
+			<CheckButton name = "Trinkets_Menu27" inherits = "TrinketsMenuTrinketTemplate" id = "27"/>
+			<CheckButton name = "Trinkets_Menu28" inherits = "TrinketsMenuTrinketTemplate" id = "28"/>
+			<CheckButton name = "Trinkets_Menu29" inherits = "TrinketsMenuTrinketTemplate" id = "29"/>
+			<CheckButton name = "Trinkets_Menu30" inherits = "TrinketsMenuTrinketTemplate" id = "30"/>
+			<Frame parent = "Trinkets_Menu1" inherits = "TrinketsTimeTemplate"/>
+			<Frame parent = "Trinkets_Menu2" inherits = "TrinketsTimeTemplate"/>
+			<Frame parent = "Trinkets_Menu3" inherits = "TrinketsTimeTemplate"/>
+			<Frame parent = "Trinkets_Menu4" inherits = "TrinketsTimeTemplate"/>
+			<Frame parent = "Trinkets_Menu5" inherits = "TrinketsTimeTemplate"/>
+			<Frame parent = "Trinkets_Menu6" inherits = "TrinketsTimeTemplate"/>
+			<Frame parent = "Trinkets_Menu7" inherits = "TrinketsTimeTemplate"/>
+			<Frame parent = "Trinkets_Menu8" inherits = "TrinketsTimeTemplate"/>
+			<Frame parent = "Trinkets_Menu9" inherits = "TrinketsTimeTemplate"/>
+			<Frame parent = "Trinkets_Menu10" inherits = "TrinketsTimeTemplate"/>
+			<Frame parent = "Trinkets_Menu11" inherits = "TrinketsTimeTemplate"/>
+			<Frame parent = "Trinkets_Menu12" inherits = "TrinketsTimeTemplate"/>
+			<Frame parent = "Trinkets_Menu13" inherits = "TrinketsTimeTemplate"/>
+			<Frame parent = "Trinkets_Menu14" inherits = "TrinketsTimeTemplate"/>
+			<Frame parent = "Trinkets_Menu15" inherits = "TrinketsTimeTemplate"/>
+			<Frame parent = "Trinkets_Menu16" inherits = "TrinketsTimeTemplate"/>
+			<Frame parent = "Trinkets_Menu17" inherits = "TrinketsTimeTemplate"/>
+			<Frame parent = "Trinkets_Menu18" inherits = "TrinketsTimeTemplate"/>
+			<Frame parent = "Trinkets_Menu19" inherits = "TrinketsTimeTemplate"/>
+			<Frame parent = "Trinkets_Menu20" inherits = "TrinketsTimeTemplate"/>
+			<Frame parent = "Trinkets_Menu21" inherits = "TrinketsTimeTemplate"/>
+			<Frame parent = "Trinkets_Menu22" inherits = "TrinketsTimeTemplate"/>
+			<Frame parent = "Trinkets_Menu23" inherits = "TrinketsTimeTemplate"/>
+			<Frame parent = "Trinkets_Menu24" inherits = "TrinketsTimeTemplate"/>
+			<Frame parent = "Trinkets_Menu25" inherits = "TrinketsTimeTemplate"/>
+			<Frame parent = "Trinkets_Menu26" inherits = "TrinketsTimeTemplate"/>
+			<Frame parent = "Trinkets_Menu27" inherits = "TrinketsTimeTemplate"/>
+			<Frame parent = "Trinkets_Menu28" inherits = "TrinketsTimeTemplate"/>
+			<Frame parent = "Trinkets_Menu29" inherits = "TrinketsTimeTemplate"/>
+			<Frame parent = "Trinkets_Menu30" inherits = "TrinketsTimeTemplate"/>
+		</Frames>
+		<Scripts>
+			<OnLoad>
+				self:OnBackdropLoaded()
+				self:SetBackdropColor(0.0, 0.0, 0.0)
+				self:SetBackdropBorderColor(0.0, 0.0, 0.0)
+			</OnLoad>
+			<OnMouseDown>
+				Trinkets.MenuFrame_OnMouseDown(button)
+			</OnMouseDown>
+			<OnMouseUp>
+				Trinkets.MenuFrame_OnMouseUp(button)
+			</OnMouseUp>
+		</Scripts>
+	</Frame>
+	<!-- OnUpdate to process all timers -->
+	<Frame name = "Trinkets_TimersFrame" hidden = "true">
+		<Scripts>
+			<OnUpdate>
+				Trinkets.TimersFrame_OnUpdate(elapsed)
+			</OnUpdate>
+		</Scripts>
+	</Frame>
+	<!-- Hidden GameTooltip for tooltip scanning -->
+	<GameTooltip name = "Trinkets_TooltipScan" inherits = "GameTooltipTemplate" hidden = "true">
+		<Scripts>
+			<OnLoad>
+				self:SetOwner(WorldFrame, "ANCHOR_NONE")
+			</OnLoad>
+		</Scripts>
+	</GameTooltip>
+</Ui>

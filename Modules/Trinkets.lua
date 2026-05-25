@@ -21,20 +21,27 @@ local mod = ns:RegisterModule("trinkets", {
 -- =========================================================
 -- Helpers
 -- =========================================================
-local function getMainFrame()    return _G.TrinketMenu_MainFrame end
-local function getIconFrame()    return _G.TrinketMenu_IconFrame end
-local function getOptFrame()     return _G.TrinketMenu_OptFrame  end
+local function getMainFrame()    return _G.Trinkets_MainFrame end
+local function getIconFrame()    return _G.Trinkets_IconFrame end
+local function getOptFrame()     return _G.Trinkets_OptFrame  end
 
 local function setShown(state)
     local f = getMainFrame()
     if not f then return end
-    if state then f:Show() else f:Hide() end
+    -- Secure-Frame: Show/Hide aus insecure Addon-Code wird vom WoW-Security
+    -- geblockt. Skip im Combat, pcall um sonstige action-blocked-Pings abzufangen.
+    if InCombatLockdown and InCombatLockdown() then return end
+    if state and f:IsShown() then return end
+    if not state and not f:IsShown() then return end
+    pcall(function()
+        if state then f:Show() else f:Hide() end
+    end)
 end
 
 local function rescaleMain()
     local f = getMainFrame()
-    if f and TrinketMenuPerOptions and TrinketMenuPerOptions.MainScale then
-        f:SetScale(TrinketMenuPerOptions.MainScale)
+    if f and TrinketsPerOptions and TrinketsPerOptions.MainScale then
+        f:SetScale(TrinketsPerOptions.MainScale)
     end
 end
 
@@ -42,8 +49,8 @@ end
 -- Mit HookScript: falls Engine sie später wieder zeigen will, sofort wieder hide.
 local function suppressEngineUI()
     -- SavedVar-Flag (falls Engine sich darauf verlässt)
-    if _G.TrinketMenuOptions then
-        _G.TrinketMenuOptions.ShowIcon = "OFF"
+    if _G.TrinketsOptions then
+        _G.TrinketsOptions.ShowIcon = "OFF"
     end
 
     local mm = getIconFrame()
@@ -70,17 +77,14 @@ end
 -- Lifecycle
 -- =========================================================
 function mod:OnEnable()
-    -- Engine initialisiert sich beim Load — wir warten kurz und übernehmen
+    -- Engine initialisiert sich beim Load — wir warten kurz mit dem Suppress.
+    -- KEIN setShown beim Init (Trinkets_MainFrame ist secure → Show()
+    -- aus insecure Code wird vom WoW-Security geblockt). Engine zeigt selbst.
     if C_Timer and C_Timer.After then
-        C_Timer.After(0.3, function()
-            suppressEngineUI()
-            setShown(mod.db.showFrame)
-        end)
-        -- Sicherheitsnetz: nach 2s nochmal (falls Engine später shown will)
-        C_Timer.After(2, suppressEngineUI)
+        C_Timer.After(0.3, suppressEngineUI)
+        C_Timer.After(2,   suppressEngineUI)
     else
         suppressEngineUI()
-        setShown(mod.db.showFrame)
     end
 end
 
@@ -109,11 +113,11 @@ function mod:GetOptions()
         { type = "toggle", label = "Position gesperrt",
           tooltip = "Wenn an, kann das Frame nicht versehentlich verschoben werden.",
           get = function()
-              return _G.TrinketMenuOptions and _G.TrinketMenuOptions.Locked == "ON"
+              return _G.TrinketsOptions and _G.TrinketsOptions.Locked == "ON"
           end,
           set = function(_, v)
-              if _G.TrinketMenuOptions then
-                  _G.TrinketMenuOptions.Locked = v and "ON" or "OFF"
+              if _G.TrinketsOptions then
+                  _G.TrinketsOptions.Locked = v and "ON" or "OFF"
               end
           end },
 
@@ -121,11 +125,11 @@ function mod:GetOptions()
           min = 0.5, max = 2.0, step = 0.05,
           tooltip = "Skaliert die Trinket-Slots.",
           get = function()
-              return (_G.TrinketMenuPerOptions and _G.TrinketMenuPerOptions.MainScale) or 1.0
+              return (_G.TrinketsPerOptions and _G.TrinketsPerOptions.MainScale) or 1.0
           end,
           set = function(_, v)
-              if _G.TrinketMenuPerOptions then
-                  _G.TrinketMenuPerOptions.MainScale = v
+              if _G.TrinketsPerOptions then
+                  _G.TrinketsPerOptions.MainScale = v
               end
               rescaleMain()
           end },
