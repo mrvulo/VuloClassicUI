@@ -115,6 +115,10 @@ function UI:CreateMainFrame()
     end
 
     local cpuTicker
+    -- WoW's GetAddOnCPUUsage gibt KUMULATIVE ms seit Profiling-Start zurück.
+    -- Wir wollen aber "ms pro Sekunde" (= aktuelle Auslastung) — daher Differenz zum letzten Tick.
+    local _lastTotal, _lastOwn, _lastTime = 0, 0, 0
+
     local function updateCPU()
         local cv = (C_CVar and C_CVar.GetCVar and C_CVar.GetCVar("scriptProfile"))
                 or (GetCVar and GetCVar("scriptProfile"))
@@ -123,10 +127,29 @@ function UI:CreateMainFrame()
             return
         end
         if _UpdateCPU then _UpdateCPU() end
-        local own = (_GetCPU and _GetCPU("VuloClassicUI")) or 0
+
+        local now   = GetTime() or 0
+        local own   = (_GetCPU and _GetCPU("VuloClassicUI")) or 0
         local total = getTotalAddonCPU()
-        -- Format: "CPU: 14.2 ms (VCUI: 0.8)"
-        cpuText:SetText(string.format("|cff888888CPU: %.1f ms |cff666666(VCUI: %.1f)|r|r", total, own))
+
+        if _lastTime == 0 then
+            -- Erster Tick — noch keine Differenz möglich
+            cpuText:SetText("|cff888888CPU: messe...|r")
+            _lastTotal, _lastOwn, _lastTime = total, own, now
+            return
+        end
+
+        local dt = now - _lastTime
+        if dt < 0.1 then return end  -- zu kleine Differenz, skip
+
+        local totalRate = (total - _lastTotal) / dt   -- ms verbraucht pro Sek
+        local ownRate   = (own   - _lastOwn)   / dt
+
+        cpuText:SetText(string.format(
+            "|cff888888CPU: %.2f ms/s |cff666666(VCUI: %.2f)|r|r",
+            totalRate, ownRate))
+
+        _lastTotal, _lastOwn, _lastTime = total, own, now
     end
 
     f:HookScript("OnShow", function()
