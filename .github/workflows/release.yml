@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write  # nötig damit der Packager GitHub Releases erstellen darf
+
 jobs:
   release:
     runs-on: ubuntu-latest
