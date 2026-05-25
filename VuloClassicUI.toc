@@ -57,6 +57,7 @@ Modules\FixAuctionDropdown.lua
 Modules\FixGuildNewsNil.lua
 Modules\FixLFGBrowseNil.lua
 Modules\FixItemRackProtected.lua
+Modules\FixInspect.lua
 
 # --- Trinkets-Engine (Code extern) + VCUI-Wrapper in Modules/Trinkets.lua ---
 Trinkets\TrinketsGlobals.lua
