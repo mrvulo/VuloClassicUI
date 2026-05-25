@@ -3,6 +3,7 @@
 ## Notes: Modular UI suite for TBC Classic Anniversary
 ## Author: Vulo
 ## Version: 1.5.0
+## X-Wago-ID: rN4kojGD
 ## SavedVariables: VuloClassicUIDB, TrinketsOptions
 ## SavedVariablesPerCharacter: VuloClassicUICharDB, TrinketsPerOptions, TrinketsQueue
 ## IconTexture: Interface\AddOns\VuloClassicUI\Media\Icons\vui4
