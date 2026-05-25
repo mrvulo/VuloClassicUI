@@ -50,6 +50,18 @@ local function pixelPerfectScale()
     return 0.65
 end
 
+-- StaticPopup für Profiling-Toggle (benötigt /reload damit der CVar greift)
+StaticPopupDialogs["VCUI_RELOAD_PROFILING"] = {
+    text = "Script-Profiling ge\195\164ndert. /reload erforderlich damit die CPU-Anzeige aktualisiert wird.",
+    button1 = "Jetzt reloaden",
+    button2 = "Sp\195\164ter",
+    OnAccept = function() ReloadUI() end,
+    timeout = 0,
+    whileDead = true,
+    hideOnEscape = true,
+    preferredIndex = 3,
+}
+
 -- =========================================================
 -- Tab: General
 -- =========================================================
@@ -96,6 +108,16 @@ local function generalOptions()
           end,
           set = function(_, v)
               if ns.ToggleModule then ns:ToggleModule("minimap", v) end
+          end },
+
+        { type = "spacer", height = 6 },
+        { type = "header", text = "Debug" },
+        { type = "toggle", label = "Script-Profiling aktivieren (CPU-Anzeige)",
+          tooltip = "Aktiviert WoWs scriptProfile CVar damit die CPU-Anzeige im Config-Header funktioniert.\n\n|cffff8800ACHTUNG:|r Profiling kostet ~3-5% Performance. Nur zum Debuggen empfohlen.\n\n|cffaaaaaaErfordert /reload damit die \195\132nderung greift.|r",
+          get = function() return getCVarNum("scriptProfile") == 1 end,
+          set = function(_, v)
+              setCVar("scriptProfile", v and "1" or "0")
+              StaticPopup_Show("VCUI_RELOAD_PROFILING")
           end },
     }
 end
