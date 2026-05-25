@@ -2,7 +2,7 @@
 ## Title: |cff9b6cffVuloClassicUI|r
 ## Notes: Modular UI suite for TBC Classic Anniversary
 ## Author: Vulo
-## Version: 1.5.4
+## Version: 1.5.5
 ## X-Wago-ID: rN4kojGD
 ## X-Curse-Project-ID: 1553405
 ## SavedVariables: VuloClassicUIDB, TrinketsOptions
@@ -55,6 +55,7 @@ Modules\VTManaDisplay.lua
 Modules\CombatText.lua
 Modules\FixAuctionDropdown.lua
 Modules\FixGuildNewsNil.lua
+Modules\FixLFGBrowseNil.lua
 
 # --- Trinkets-Engine (Code extern) + VCUI-Wrapper in Modules/Trinkets.lua ---
 Trinkets\TrinketsGlobals.lua
