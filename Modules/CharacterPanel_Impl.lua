@@ -1,7 +1,7 @@
 -- =========================================================
 -- VuloClassicUI / Modules / CharacterPanel_Impl
--- Portiert aus BetterCharacterPanel (TBC ANNIVERSARY).
--- Funktioniert nur wenn das Modul "characterpanel" aktiviert ist.
+-- Ported from BetterCharacterPanel (TBC ANNIVERSARY).
+-- Only works if the "characterpanel" module is enabled.
 -- =========================================================
 local _, ns = ...
 
@@ -10,8 +10,8 @@ if not isTBC then
     return
 end
 
--- Wir warten auf PLAYER_LOGIN damit Modul-Registry und DB bereit sind.
--- Wenn das Modul deaktiviert ist, returnen wir früh.
+-- We wait for PLAYER_LOGIN so the module registry and DB are ready.
+-- If the module is disabled, we return early.
 local initFrame = CreateFrame("Frame")
 initFrame:RegisterEvent("PLAYER_LOGIN")
 initFrame:SetScript("OnEvent", function(self)
@@ -20,19 +20,19 @@ initFrame:SetScript("OnEvent", function(self)
     if not mod or not mod.db or not mod.db.enabled then
         return
     end
-    -- Modul ist aktiv → der Rest dieser Datei läuft als Initialisierung
+    -- Module is active -> the rest of this file runs as initialization
     if ns.RunCharacterPanelInit then
         ns:RunCharacterPanelInit()
     end
 end)
 
--- Der eigentliche Code wird in einer Funktion gewrappt, damit wir ihn lazy starten können.
+-- The actual code is wrapped in a function so we can start it lazily.
 function ns:RunCharacterPanelInit()
     if ns._characterPanelInitialised then return end
     ns._characterPanelInitialised = true
 
-    -- "addon" ist nur eine Event-Handler-Sammlung im Original-Code.
-    -- Wir bauen sie hier lokal nach.
+    -- "addon" is just an event handler collection in the original code.
+    -- We rebuild it here locally.
     local addon = {}
 
     -- =========================================================
@@ -400,9 +400,9 @@ local function AnchorSocketsBelowCentered(ilvlFS, textures)
 	local gap = SOCKET_GAP
 	local step = size + gap
 
-	-- Gesamtbreite der sichtbaren Sockets + Gaps zwischen ihnen
+	-- Total width of visible sockets + gaps between them
 	local totalW = shown * size + (shown - 1) * gap
-	-- StartX: linke Kante des ersten Sockets relativ zum Center, dann zum Center des Sockets
+	-- StartX: left edge of the first socket relative to center, then to socket center
 	local startX = -totalW / 2 + size / 2
 
 	local idx = 0
@@ -412,7 +412,7 @@ local function AnchorSocketsBelowCentered(ilvlFS, textures)
 		t:ClearAllPoints()
 
 		if t:IsShown() then
-			-- Auf ganze Pixel runden damit keine subpixel-Verschiebungen entstehen
+			-- Round to whole pixels so no subpixel offsets occur
 			local x = math.floor(startX + idx * step + 0.5)
 			t:SetPoint("TOP", ilvlFS, "BOTTOM", x, SOCKET_Y_GAP)
 			idx = idx + 1
@@ -716,7 +716,7 @@ local function CreatePlayerAvgIlvlDisplay()
 	fs:SetJustifyV("MIDDLE")
 	fs:SetText("")
 
-	-- Mittig über dem Hands-Slot
+	-- Centered above the hands slot
 	fs:SetPoint("BOTTOM", anchor, "TOP", -8, 9)
 
 	PaperDollFrame.avgIlvlDisplay = fs

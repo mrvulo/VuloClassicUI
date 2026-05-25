@@ -1,42 +1,42 @@
 -- =========================================================
 -- VuloClassicUI / Modules / CooldownPulse
--- Portiert aus Doom_CooldownPulse.
--- Blitzt das Icon eines Spells/Items kurz groß in der Bildschirmmitte
--- wenn dessen Cooldown abläuft.
+-- Ported from Doom_CooldownPulse.
+-- Briefly flashes the icon of a spell/item large in the screen center
+-- when its cooldown expires.
 --
--- Portiert für TBC 2.5.5 (keine C_Spell / C_Container / Settings APIs).
+-- Ported for TBC 2.5.5 (no C_Spell / C_Container / Settings APIs).
 -- =========================================================
 local _, ns = ...
 
 local mod = ns:RegisterModule("cooldownpulse", {
     name        = "Cooldown Pulse",
     group       = "Unit Frames",
-    description = "Zeigt das Icon eines abgelaufenen Cooldowns als kurz pulsierende Animation in der Bildschirmmitte (basierend auf Doom_CooldownPulse).",
+    description = "Shows the icon of an expired cooldown as a brief pulsing animation in the screen center (based on Doom_CooldownPulse).",
     defaults = {
-        enabled       = false,  -- default AUS
+        enabled       = false,  -- default OFF
         iconSize      = 75,
         fadeInTime    = 0.3,
         fadeOutTime   = 0.7,
         maxAlpha      = 0.7,
         holdTime      = 0,
         animScale     = 1.5,
-        remainingTime = 0,      -- Cooldown muss UNTER diesem Wert sein um zu triggern
+        remainingTime = 0,      -- Cooldown must be UNDER this value to trigger
         showSpellName = false,
         unlocked      = false,
-        x             = nil,    -- wird beim ersten Run gesetzt (Bildschirmmitte)
+        x             = nil,    -- set on first run (screen center)
         y             = nil,
-        ignoredSpells = "",     -- komma-separiert
-        invertIgnored = false,  -- false = Blacklist, true = Whitelist
+        ignoredSpells = "",     -- comma-separated
+        invertIgnored = false,  -- false = blacklist, true = whitelist
     },
 })
 
 -- =========================================================
--- API-Compat: GetItemCooldown ist in 2.5.5 nicht global verfügbar.
--- Mögliche Stellen je nach Client-Version:
+-- API compat: GetItemCooldown is not available globally in 2.5.5.
+-- Possible locations depending on client version:
 --   - global GetItemCooldown (Classic Era)
 --   - C_Item.GetItemCooldown (Retail 10.2+)
 --   - C_Container.GetItemCooldown (Retail 10.0+)
--- Fallback: über Bags scannen mit GetContainerItemCooldown.
+-- Fallback: scan bags with GetContainerItemCooldown.
 -- =========================================================
 local function getItemCooldown(itemID)
     if not itemID then return 0, 0, 0 end
@@ -52,7 +52,7 @@ local function getItemCooldown(itemID)
         return C_Container.GetItemCooldown(itemID)
     end
 
-    -- Fallback: durch alle Bags scannen
+    -- Fallback: scan all bags
     local getContainerItemInfo = _G.GetContainerItemInfo
     local getContainerItemCooldown = _G.GetContainerItemCooldown
     if _G.C_Container then
@@ -90,10 +90,10 @@ local function getContainerItemID(bag, slot)
 end
 
 -- =========================================================
--- Lokale State
+-- Local state
 -- =========================================================
 local cooldowns = {}   -- [id] = getCooldownDetailsFn
-local animating = {}   -- queue von {texture, isPet, name}
+local animating = {}   -- queue of {texture, isPet, name}
 local watching  = {}   -- [id] = {startTime, type, ref}
 local itemSpells = {}  -- [spellID] = itemID
 
@@ -161,7 +161,7 @@ local function trackItemSpell(itemID)
 end
 
 -- =========================================================
--- Cooldown/Animation Update (OnUpdate)
+-- Cooldown/animation update (OnUpdate)
 -- =========================================================
 local elapsed = 0
 local runtimer = 0
@@ -289,7 +289,7 @@ local function OnUpdate(_, update)
 end
 
 -- =========================================================
--- Frame-Setup
+-- Frame setup
 -- =========================================================
 local function ensureFrame()
     if DCP then return DCP end
@@ -317,7 +317,7 @@ local function ensureFrame()
     DCPT = DCP:CreateTexture(nil, "BACKGROUND")
     DCPT:SetAllPoints(DCP)
 
-    -- Default-Position: Mitte
+    -- Default position: center
     if not mod.db.x then mod.db.x = UIParent:GetWidth() * UIParent:GetEffectiveScale() / 2 end
     if not mod.db.y then mod.db.y = UIParent:GetHeight() * UIParent:GetEffectiveScale() / 2 end
     DCP:SetWidth(mod.db.iconSize or 75)
@@ -339,12 +339,12 @@ local function setUnlocked(state)
         DCP:EnableMouse(true)
         DCP:SetWidth(mod.db.iconSize)
         DCP:SetHeight(mod.db.iconSize)
-        ns:Print("Cooldown Pulse Unlock aktiv — Icon ziehen zum Verschieben.")
+        ns:Print("Cooldown Pulse unlock active — drag icon to move.")
     else
         DCP:SetAlpha(0)
         DCPT:SetTexture(nil)
         DCP:EnableMouse(false)
-        ns:Print("Cooldown Pulse Unlock deaktiviert.")
+        ns:Print("Cooldown Pulse unlock disabled.")
     end
 end
 
@@ -360,7 +360,7 @@ end
 
 local function triggerItem(itemID)
     if not itemID then return end
-    -- texture aus GetItemInfo holen (Index 10 = icon)
+    -- Get texture from GetItemInfo (index 10 = icon)
     local texture = select(10, GetItemInfo(itemID))
     watching[itemID] = { GetTime(), "item", texture }
     itemSpells[itemID] = nil
@@ -418,7 +418,7 @@ local function setupEvents()
             end
 
         elseif event == "PLAYER_ENTERING_WORLD" then
-            -- In Arena: clear queue (Animationen sind distracting)
+            -- In arena: clear queue (animations are distracting)
             local inInstance, instanceType = IsInInstance()
             if inInstance and instanceType == "arena" then
                 if DCP then DCP:SetScript("OnUpdate", nil) end
@@ -428,7 +428,7 @@ local function setupEvents()
         end
     end)
 
-    -- Hooks für Item-Usage (Action-Bars, Bag-Slots, Inventory)
+    -- Hooks for item usage (action bars, bag slots, inventory)
     if UseAction then
         hooksecurefunc("UseAction", function(slot)
             if not mod._enabled then return end
@@ -457,7 +457,7 @@ local function setupEvents()
         end)
     end
 
-    -- UseContainerItem: globaler Hook (in 2.5.5 global, ab Retail 10.0+ in C_Container)
+    -- UseContainerItem: global hook (global in 2.5.5, in C_Container as of Retail 10.0+)
     if _G.UseContainerItem then
         hooksecurefunc("UseContainerItem", function(bag, slot)
             if not mod._enabled then return end
@@ -486,7 +486,7 @@ local function setupEvents()
 end
 
 -- =========================================================
--- Test-Animation
+-- Test animation
 -- =========================================================
 local function testAnimation()
     ensureFrame()
@@ -516,7 +516,7 @@ function mod:OnDisable()
 end
 
 -- =========================================================
--- Options-Page
+-- Options page
 -- =========================================================
 function mod:GetOptions()
     return {
@@ -526,17 +526,17 @@ function mod:GetOptions()
             items = {
                 {
                     type = "button", label = "Unlock",
-                    tooltip = "Zeigt ein Test-Icon das du verschieben kannst.",
+                    tooltip = "Shows a test icon you can move around.",
                     width = 90,
                     onClick = function() setUnlocked(not mod.db.unlocked) end,
                 },
                 {
-                    type = "button", label = "Test-Pulse", width = 110,
-                    tooltip = "Spielt eine Test-Animation ab.",
+                    type = "button", label = "Test Pulse", width = 110,
+                    tooltip = "Plays a test animation.",
                     onClick = testAnimation,
                 },
                 {
-                    type = "button", label = "Position zurücksetzen", width = 170,
+                    type = "button", label = "Reset Position", width = 170,
                     onClick = function()
                         mod.db.x = UIParent:GetWidth() * UIParent:GetEffectiveScale() / 2
                         mod.db.y = UIParent:GetHeight() * UIParent:GetEffectiveScale() / 2
@@ -544,17 +544,17 @@ function mod:GetOptions()
                             DCP:ClearAllPoints()
                             DCP:SetPoint("CENTER", UIParent, "BOTTOMLEFT", mod.db.x, mod.db.y)
                         end
-                        ns:Print("Cooldown Pulse Position zurückgesetzt.")
+                        ns:Print("Cooldown Pulse position reset.")
                     end,
                 },
             },
         },
 
         { type = "spacer", height = 8 },
-        { type = "header", text = "Aussehen" },
+        { type = "header", text = "Appearance" },
 
         {
-            type = "slider", label = "Icon-Größe",
+            type = "slider", label = "Icon Size",
             min = 30, max = 125, step = 5,
             get = function() return mod.db.iconSize end,
             set = function(_, v)
@@ -565,62 +565,62 @@ function mod:GetOptions()
             end,
         },
         {
-            type = "slider", label = "Max Deckkraft",
+            type = "slider", label = "Max Opacity",
             min = 0.1, max = 1.0, step = 0.05,
             get = function() return mod.db.maxAlpha end,
             set = function(_, v) mod.db.maxAlpha = v end,
         },
         {
-            type = "slider", label = "Animations-Skalierung",
+            type = "slider", label = "Animation Scale",
             min = 1.0, max = 2.5, step = 0.1,
             get = function() return mod.db.animScale end,
             set = function(_, v) mod.db.animScale = v end,
         },
         {
-            type = "slider", label = "Einblend-Zeit (s)",
+            type = "slider", label = "Fade-In Time (s)",
             min = 0, max = 1.5, step = 0.1,
             get = function() return mod.db.fadeInTime end,
             set = function(_, v) mod.db.fadeInTime = v end,
         },
         {
-            type = "slider", label = "Halten-Zeit (s)",
+            type = "slider", label = "Hold Time (s)",
             min = 0, max = 1.5, step = 0.1,
             get = function() return mod.db.holdTime end,
             set = function(_, v) mod.db.holdTime = v end,
         },
         {
-            type = "slider", label = "Ausblend-Zeit (s)",
+            type = "slider", label = "Fade-Out Time (s)",
             min = 0, max = 1.5, step = 0.1,
             get = function() return mod.db.fadeOutTime end,
             set = function(_, v) mod.db.fadeOutTime = v end,
         },
         {
-            type = "slider", label = "Anzeige vor Verfügbarkeit (s)",
-            tooltip = "Triggert die Animation X Sekunden BEVOR der Cooldown abläuft. 0 = exakt bei Cooldown-Ende.",
+            type = "slider", label = "Show Before Available (s)",
+            tooltip = "Triggers the animation X seconds BEFORE the cooldown expires. 0 = exactly at cooldown end.",
             min = 0, max = 3, step = 0.1,
             get = function() return mod.db.remainingTime end,
             set = function(_, v) mod.db.remainingTime = v end,
         },
 
         { type = "spacer", height = 8 },
-        { type = "header", text = "Spell-Filter" },
+        { type = "header", text = "Spell Filter" },
 
         {
-            type = "toggle", label = "Spell-Namen anzeigen",
-            tooltip = "Zeigt den Namen des Spells unter dem Icon.",
+            type = "toggle", label = "Show spell names",
+            tooltip = "Shows the name of the spell under the icon.",
             get = function() return mod.db.showSpellName end,
             set = function(_, v) mod.db.showSpellName = v end,
         },
         {
-            type = "toggle", label = "Filter umkehren (Whitelist statt Blacklist)",
-            tooltip = "Aus: Liste = ignorierte Spells. An: Liste = NUR diese Spells zeigen.",
+            type = "toggle", label = "Invert filter (whitelist instead of blacklist)",
+            tooltip = "Off: List = ignored spells. On: List = show ONLY these spells.",
             get = function() return mod.db.invertIgnored end,
             set = function(_, v) mod.db.invertIgnored = v end,
         },
         {
-            type = "editbox", label = "Spell-Liste (komma-getrennt)",
+            type = "editbox", label = "Spell List (comma-separated)",
             width = 400,
-            tooltip = "Spell-Namen exakt wie im Spiel, komma-getrennt. Auch Spell-IDs möglich.",
+            tooltip = "Spell names exactly as in-game, comma-separated. Spell IDs also work.",
             get = function() return mod.db.ignoredSpells end,
             set = function(_, v) mod.db.ignoredSpells = v end,
         },
@@ -628,7 +628,7 @@ function mod:GetOptions()
 end
 
 -- =========================================================
--- Slash-Commands
+-- Slash commands
 -- =========================================================
 SLASH_VCUI_DCP1 = "/dcp"
 SLASH_VCUI_DCP2 = "/cooldownpulse"

@@ -1,15 +1,15 @@
 -- =========================================================
 -- VuloClassicUI / Modules / Arena / Layout
--- Drag&Drop für die Reihenfolge der Arena-Frames.
--- Blizzard ordnet sie standardmäßig 1-5 untereinander an.
--- Wir überschreiben das mit mod.db.slotOrder und mod.db.slotSpacing.
+-- Drag & drop for the order of the arena frames.
+-- Blizzard arranges them 1-5 stacked by default.
+-- We override that with mod.db.slotOrder and mod.db.slotSpacing.
 -- =========================================================
 local _, ns = ...
 local mod = ns.ArenaModule
 local H = mod.helpers
 
 -- =========================================================
--- Layout anwenden
+-- Apply layout
 -- =========================================================
 local function applyLayout()
     local owner = H.GetOwner()
@@ -19,7 +19,7 @@ local function applyLayout()
     local spacing = mod.db.slotSpacing or 6
     local grow    = mod.db.growDirection or "down"
 
-    -- Erstes Frame relative zum Container, alle anderen relativ zum vorherigen
+    -- First frame relative to the container, all others relative to the previous
     local previous = nil
     for visualIndex, slotIndex in ipairs(order) do
         local frame = _G["ArenaEnemyFrame" .. slotIndex]
@@ -28,7 +28,7 @@ local function applyLayout()
             local offsets = mod.db.slotOffsets and mod.db.slotOffsets[slotIndex] or { x = 0, y = 0 }
 
             if not previous then
-                -- Erstes sichtbares Frame an Container
+                -- First visible frame on container
                 local anchorPoint = (grow == "down") and "TOP" or "BOTTOM"
                 frame:SetPoint(anchorPoint, owner, anchorPoint, offsets.x or 0, offsets.y or 0)
             else
@@ -45,21 +45,21 @@ end
 mod.ApplyLayout = applyLayout
 
 -- =========================================================
--- Hook in Blizzards Update, damit unser Layout nach jedem Refresh greift
+-- Hook into Blizzard's update so our layout takes effect after each refresh
 -- =========================================================
 local layoutHooked = false
 local function hookLayout()
     if layoutHooked or not hooksecurefunc then return end
     layoutHooked = true
 
-    -- ArenaEnemyFrames_UpdatePlayer wird pro Slot aufgerufen
+    -- ArenaEnemyFrames_UpdatePlayer is called per slot
     if _G.ArenaEnemyFrames_UpdatePlayer then
         hooksecurefunc("ArenaEnemyFrames_UpdatePlayer", function()
             if not mod._enabled then return end
             applyLayout()
         end)
     end
-    -- Generelles Update
+    -- General update
     if _G.ArenaEnemyFrames_Update then
         hooksecurefunc("ArenaEnemyFrames_Update", function()
             if not mod._enabled then return end
@@ -69,7 +69,7 @@ local function hookLayout()
 end
 
 -- =========================================================
--- Layout-Editor: zeigt Buttons im VCUI mit ↑ ↓ zum Verschieben einzelner Slots
+-- Layout editor: shows buttons in VCUI with up/down arrows to move single slots
 -- =========================================================
 local function moveSlot(slotIndex, direction)
     local order = mod.db.slotOrder
@@ -82,7 +82,7 @@ local function moveSlot(slotIndex, direction)
     if newPos < 1 or newPos > #order then return end
     order[pos], order[newPos] = order[newPos], order[pos]
     applyLayout()
-    -- Page neu rendern um neue Reihenfolge anzuzeigen
+    -- Re-render page to show new order
     ns.UI:BuildOptionsPage("arenaframes")
 end
 
@@ -90,10 +90,10 @@ end
 -- Lifecycle
 -- =========================================================
 mod:OnArenaFramesReady(function(frame, i)
-    -- Nichts pro Frame zu tun, wir setzen Layout für alle gleichzeitig
+    -- Nothing to do per frame, we set layout for all at once
 end)
 
--- Hook installieren (passiert nach Init, wenn Blizzard_ArenaUI da ist)
+-- Install hook (happens after init, when Blizzard_ArenaUI is loaded)
 local layoutInitFrame = CreateFrame("Frame")
 layoutInitFrame:RegisterEvent("ADDON_LOADED")
 layoutInitFrame:RegisterEvent("PLAYER_LOGIN")
@@ -103,26 +103,26 @@ layoutInitFrame:SetScript("OnEvent", function(_, _, addonName)
 end)
 
 -- =========================================================
--- Options-Section
+-- Options section
 -- =========================================================
 mod:AddOptionsSection("layout", function()
     local items = {
-        { type = "header", text = "Layout (Reihenfolge)" },
-        { type = "desc",   text = "Reihenfolge der Arena-Frames. Nutze ↑/↓ um Slot 1-5 zu verschieben." },
+        { type = "header", text = "Layout (Order)" },
+        { type = "desc",   text = "Order of the arena frames. Use up/down to move slots 1-5." },
         { type = "spacer", height = 4 },
     }
 
-    -- Pro Slot eine Reihe: [Slot N] [↑] [↓]
+    -- One row per slot: [Slot N] [up] [down]
     for visualIndex, slotIndex in ipairs(mod.db.slotOrder) do
         table.insert(items, {
             type = "group", layout = "row", gap = 4,
             items = {
-                { type = "desc", text = string.format("|cff9b6cff%d.|r  Arena-Slot %d", visualIndex, slotIndex), width = 140 },
+                { type = "desc", text = string.format("|cff9b6cff%d.|r  Arena Slot %d", visualIndex, slotIndex), width = 140 },
                 { type = "iconbutton", icon = "up",   width = 28, height = 24,
-                  tooltip = "Nach oben verschieben",
+                  tooltip = "Move up",
                   onClick = function() moveSlot(slotIndex, -1) end },
                 { type = "iconbutton", icon = "down", width = 28, height = 24,
-                  tooltip = "Nach unten verschieben",
+                  tooltip = "Move down",
                   onClick = function() moveSlot(slotIndex,  1) end },
             },
         })
@@ -130,22 +130,22 @@ mod:AddOptionsSection("layout", function()
 
     table.insert(items, { type = "spacer", height = 4 })
     table.insert(items, {
-        type = "slider", label = "Abstand zwischen Frames",
+        type = "slider", label = "Spacing between frames",
         min = 0, max = 40, step = 1,
         get = function() return mod.db.slotSpacing end,
         set = function(_, v) mod.db.slotSpacing = v; applyLayout() end,
     })
     table.insert(items, {
-        type = "dropdown", label = "Wachstumsrichtung",
+        type = "dropdown", label = "Grow direction",
         values = {
-            { value = "down", text = "Nach unten" },
-            { value = "up",   text = "Nach oben" },
+            { value = "down", text = "Downward" },
+            { value = "up",   text = "Upward" },
         },
         get = function() return mod.db.growDirection end,
         set = function(_, v) mod.db.growDirection = v; applyLayout() end,
     })
     table.insert(items, {
-        type = "button", label = "Reihenfolge zurücksetzen", width = 180,
+        type = "button", label = "Reset order", width = 180,
         onClick = function()
             mod.db.slotOrder = { 1, 2, 3, 4, 5 }
             applyLayout()

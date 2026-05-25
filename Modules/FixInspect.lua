@@ -1,21 +1,21 @@
 -- =========================================================
 -- VuloClassicUI / Modules / FixInspect
--- Behebt h\195\164ufige Inspect-Bugs in Anniversary:
---   1. Blizzard ruft ClearInspectPlayer() nicht zuverl\195\164ssig wenn InspectFrame
---      geschlossen wird → Server denkt Inspect l\195\164uft noch → n\195\164chster Inspect
---      eines anderen Spielers schl\195\164gt fehl.
---   2. Stuck-State: INSPECT_READY kommt nie zur\195\188ck (Spieler out of range,
---      Disconnect, oder Server-Timeout) → permanenter pending-State.
---   Wir trackt aktive Inspects mit Timestamp und resette automatisch wenn
---   nach 8s nichts zur\195\188ckkam, plus Cleanup beim InspectFrame:OnHide.
--- Slash: /inspectreset — manueller Force-Reset wenn UI komplett stuck ist.
+-- Fixes common inspect bugs in Anniversary:
+--   1. Blizzard doesn't reliably call ClearInspectPlayer() when InspectFrame
+--      is closed -> server thinks inspect is still running -> next inspect
+--      of another player fails.
+--   2. Stuck state: INSPECT_READY never comes back (player out of range,
+--      disconnect, or server timeout) -> permanent pending state.
+--   We track active inspects with a timestamp and reset automatically when
+--   nothing came back after 8s, plus cleanup on InspectFrame:OnHide.
+-- Slash: /inspectreset — manual force-reset when the UI is completely stuck.
 -- =========================================================
 local _, ns = ...
 
 local mod = ns:RegisterModule("fixinspect", {
     name        = "Inspect Fix",
     group       = "Bugfixes",
-    description = "Behebt stuck-Inspect-Bugs (kein Spieler-Inspect mehr m\195\182glich nach fehlerhaftem Close/Timeout). Auto-Reset nach 8s + Cleanup beim InspectFrame schlie\195\159en + /inspectreset Slash-Command.",
+    description = "Fixes stuck inspect bugs (no player inspect possible after a faulty close/timeout). Auto-reset after 8s + cleanup when InspectFrame closes + /inspectreset slash command.",
     defaults = {
         enabled    = true,
         autoReset  = true,
@@ -44,12 +44,12 @@ local function resetInspect()
 end
 
 local function onInspectReady()
-    -- Server hat geantwortet — tracking-state aufr\195\164umen
+    -- Server has responded — clean up tracking state
     _activeGUID = nil
     _activeTime = 0
 end
 
--- Wird gehookt: NotifyInspect → wir markieren den pending-State
+-- Hooked: NotifyInspect -> we mark the pending state
 local function trackNotifyInspect(unit)
     if not unit or not UnitExists(unit) then return end
     _activeGUID = UnitGUID(unit)
@@ -59,7 +59,7 @@ end
 local function hookNotifyInspect()
     if _hookedNotify then return end
     if type(_G.NotifyInspect) ~= "function" then return end
-    -- hooksecurefunc l\195\164uft NACH dem Original-Call, taintet nichts
+    -- hooksecurefunc runs AFTER the original call, doesn't taint anything
     hooksecurefunc("NotifyInspect", trackNotifyInspect)
     _hookedNotify = true
 end
@@ -68,14 +68,14 @@ local function hookInspectFrame()
     if _hookedFrame then return end
     local f = _G.InspectFrame
     if not f then return end
-    -- Auto-cleanup beim Schlie\195\159en — Blizzard macht das nicht zuverl\195\164ssig
+    -- Auto-cleanup on close — Blizzard doesn't do this reliably
     f:HookScript("OnHide", function()
         if mod._enabled then resetInspect() end
     end)
     _hookedFrame = true
 end
 
--- Watchdog: pr\195\188ft alle 2s ob pending-Inspect zu alt ist → reset
+-- Watchdog: checks every 2s whether the pending inspect is too old -> reset
 local function watchdogTick()
     if not mod._enabled or not mod.db or not mod.db.autoReset then return end
     if _activeTime == 0 then return end
@@ -86,15 +86,15 @@ local function watchdogTick()
 end
 
 -- =========================================================
--- Slash-Command f\195\188r manuellen Reset
+-- Slash command for manual reset
 -- =========================================================
 _G.SLASH_VCUIINSPECTRESET1 = "/inspectreset"
 _G.SlashCmdList["VCUIINSPECTRESET"] = function()
     resetInspect()
     if ns and ns.Print then
-        ns:Print("Inspect-State manuell zur\195\188ckgesetzt. Versuche jetzt erneut.")
+        ns:Print("Inspect state manually reset. Try again now.")
     else
-        DEFAULT_CHAT_FRAME:AddMessage("|cffffff00[VuloClassicUI]|r Inspect-State zur\195\188ckgesetzt.")
+        DEFAULT_CHAT_FRAME:AddMessage("|cffffff00[VuloClassicUI]|r Inspect state reset.")
     end
 end
 
@@ -106,11 +106,11 @@ local installFrame
 function mod:OnEnable()
     if not mod.db then return end
 
-    -- Sofort versuchen (NotifyInspect ist global verf\195\188gbar)
+    -- Try immediately (NotifyInspect is available globally)
     hookNotifyInspect()
     hookInspectFrame()
 
-    -- ADDON_LOADED f\195\188r Blizzard_InspectUI (wird lazy geladen)
+    -- ADDON_LOADED for Blizzard_InspectUI (loaded lazily)
     if not installFrame then
         installFrame = CreateFrame("Frame")
         installFrame:RegisterEvent("ADDON_LOADED")
@@ -124,7 +124,7 @@ function mod:OnEnable()
     -- INSPECT_READY clearing
     ns:RegisterEvent("INSPECT_READY", onInspectReady)
 
-    -- Watchdog-Ticker (2s)
+    -- Watchdog ticker (2s)
     if not _watchdog and C_Timer and C_Timer.NewTicker then
         _watchdog = C_Timer.NewTicker(2, watchdogTick)
     end
@@ -140,35 +140,35 @@ end
 -- =========================================================
 function mod:GetOptions()
     return {
-        { type = "header", text = "Verhalten" },
+        { type = "header", text = "Behavior" },
 
-        { type = "toggle", label = "Auto-Reset bei Timeout",
-          tooltip = "Wenn nach X Sekunden keine Antwort vom Server kommt, wird der pending Inspect-State automatisch zur\195\188ckgesetzt — damit der n\195\164chste Inspect-Versuch wieder funktioniert.",
+        { type = "toggle", label = "Auto-reset on timeout",
+          tooltip = "If no response from the server comes after X seconds, the pending inspect state is automatically reset — so the next inspect attempt works again.",
           get = function() return mod.db.autoReset ~= false end,
           set = function(_, v) mod.db.autoReset = v end },
 
-        { type = "slider", label = "Timeout (Sekunden)",
+        { type = "slider", label = "Timeout (seconds)",
           min = 3, max = 20, step = 1,
-          tooltip = "Wie lange auf INSPECT_READY warten bevor Auto-Reset greift. 8 Sekunden ist ein guter Default — schnell genug f\195\188r out-of-range, langsam genug um normale Server-Lag nicht abzubrechen.",
+          tooltip = "How long to wait for INSPECT_READY before auto-reset kicks in. 8 seconds is a good default — fast enough for out-of-range, slow enough not to abort normal server lag.",
           get = function() return mod.db.timeoutSec or 8 end,
           set = function(_, v) mod.db.timeoutSec = v end },
 
         { type = "spacer", height = 6 },
-        { type = "header", text = "Manueller Reset" },
-        { type = "button", label = "Inspect-State jetzt zur\195\188cksetzen", width = 240,
+        { type = "header", text = "Manual Reset" },
+        { type = "button", label = "Reset inspect state now", width = 240,
           onClick = function()
               resetInspect()
-              ns:Print("Inspect-State manuell zur\195\188ckgesetzt.")
+              ns:Print("Inspect state manually reset.")
           end },
-        { type = "desc", text = "|cffaaaaaaSlash-Command: /inspectreset|r" },
+        { type = "desc", text = "|cffaaaaaaSlash command: /inspectreset|r" },
 
         { type = "spacer", height = 8 },
         { type = "header", text = "Status" },
         { type = "desc", text = string.format(
-            "NotifyInspect Hook: %s\nInspectFrame Hook: %s",
-            _hookedNotify and "|cff66ff66aktiv|r" or "|cffff8800wartet|r",
-            _hookedFrame  and "|cff66ff66aktiv|r" or "|cffff8800wartet auf Blizzard_InspectUI|r") },
+            "NotifyInspect hook: %s\nInspectFrame hook: %s",
+            _hookedNotify and "|cff66ff66active|r" or "|cffff8800waiting|r",
+            _hookedFrame  and "|cff66ff66active|r" or "|cffff8800waiting for Blizzard_InspectUI|r") },
         { type = "spacer", height = 4 },
-        { type = "desc", text = "|cffaaaaaaWas der Fix macht: trackt aktive Inspects mit Timestamp, ruft ClearInspectPlayer() beim Schlie\195\159en + bei Timeout auf. Verhindert dass ein stuck-State alle nachfolgenden Inspects blockiert.|r" },
+        { type = "desc", text = "|cffaaaaaaWhat the fix does: tracks active inspects with a timestamp, calls ClearInspectPlayer() on close + on timeout. Prevents a stuck state from blocking all subsequent inspects.|r" },
     }
 end

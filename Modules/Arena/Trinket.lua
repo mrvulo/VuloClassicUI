@@ -1,31 +1,31 @@
 -- =========================================================
 -- VuloClassicUI / Modules / Arena / Trinket
--- PvP-Trinket-Cooldown-Tracker pro Arena-Gegner.
--- Erkennt den Cast über COMBAT_LOG_EVENT_UNFILTERED und zeigt Icon + Timer.
+-- PvP trinket cooldown tracker per arena opponent.
+-- Detects the cast via COMBAT_LOG_EVENT_UNFILTERED and shows icon + timer.
 -- =========================================================
 local _, ns = ...
 local mod = ns.ArenaModule
 local H = mod.helpers
 
 -- =========================================================
--- TBC PvP Trinket Spells und ihre Cooldowns
+-- TBC PvP trinket spells and their cooldowns
 -- =========================================================
 local TRINKET_SPELLS = {
-    -- PvP Trinket Item-Spells (alle gleicher Effekt, alle 2 min CD in TBC)
+    -- PvP trinket item spells (all same effect, all 2 min CD in TBC)
     [42292] = 120,  -- PvP Trinket (Gladiator/Arena/Honor)
     [7744]  = 120,  -- Will of the Forsaken (Undead)
     [59752] = 120,  -- Will to Survive / Every Man for Himself (Human, retail)
-    [20594] = 120,  -- Stoneform (Dwarf) - eigentlich Bleed/Disease/Poison Removal, aber teilt sich CD-ähnlich
+    [20594] = 120,  -- Stoneform (Dwarf) - actually Bleed/Disease/Poison removal, but shares CD-like
 }
 
--- Icons für die Trinkets (Atlas geht in TBC nicht überall, daher TexturePath)
+-- Icons for the trinkets (atlas doesn't work everywhere in TBC, so TexturePath)
 local TRINKET_TEXTURE = "Interface\\Icons\\INV_Jewelry_TrinketPVP_02"
 
--- Pro Slot ein Trinket-Frame
+-- One trinket frame per slot
 local trinketFrames = {}
 
 -- =========================================================
--- Trinket-Frame erstellen
+-- Create trinket frame
 -- =========================================================
 local function createTrinketFrame(parent, slotIndex)
     local f = CreateFrame("Frame", "VCUIArenaTrinket" .. slotIndex, parent)
@@ -44,14 +44,14 @@ local function createTrinketFrame(parent, slotIndex)
     f.border:SetColorTexture(0, 0, 0, 0.8)
     f.border:SetDrawLayer("BACKGROUND")
 
-    -- Cooldown-Spiral
+    -- Cooldown spiral
     f.cd = CreateFrame("Cooldown", nil, f, "CooldownFrameTemplate")
     f.cd:SetAllPoints(f)
     f.cd:SetDrawEdge(true)
     f.cd:SetHideCountdownNumbers(false)
 
     -- Tooltip
-    f:EnableMouse(false)  -- nicht klickbar, sonst Combat-Probleme
+    f:EnableMouse(false)  -- not clickable, otherwise combat issues
 
     f:Hide()
     return f
@@ -65,7 +65,7 @@ local function ensureTrinketFrame(arenaFrame, i)
 end
 
 -- =========================================================
--- Anchor + Anzeige
+-- Anchor + display
 -- =========================================================
 local function anchorTrinketFrame(tf, arenaFrame)
     if not tf or not arenaFrame then return end
@@ -84,7 +84,7 @@ local function applyToFrame(arenaFrame, i)
     if mod.db.trinketEnabled then
         tf:Show()
         if mod:IsUnlocked() then
-            -- Test: zeige Icon ohne Cooldown
+            -- Test: show icon without cooldown
             tf.cd:Hide()
             tf.icon:SetDesaturated(false)
         end
@@ -98,7 +98,7 @@ mod.RefreshTrinkets = function()
 end
 
 -- =========================================================
--- Cooldown auslösen
+-- Trigger cooldown
 -- =========================================================
 local activeCDs = {}  -- arenaUnit -> { startTime, duration }
 
@@ -116,7 +116,7 @@ local function startCooldown(unit, duration)
 
     activeCDs[unit] = { start = GetTime(), duration = duration }
 
-    -- Nach Ablauf wieder hell
+    -- Brighten again after expiry
     if C_Timer and C_Timer.After then
         C_Timer.After(duration + 0.1, function()
             if activeCDs[unit] and activeCDs[unit].start + activeCDs[unit].duration <= GetTime() then
@@ -128,7 +128,7 @@ local function startCooldown(unit, duration)
 end
 
 -- =========================================================
--- Combat Log: Trinket-Cast erkennen
+-- Combat log: detect trinket cast
 -- =========================================================
 local function onCombatLog()
     local _, subevent, _, sourceGUID, _, sourceFlags, _, _, _, _, _, spellId =
@@ -137,7 +137,7 @@ local function onCombatLog()
     if subevent ~= "SPELL_CAST_SUCCESS" then return end
     if not TRINKET_SPELLS[spellId] then return end
 
-    -- Welcher Arena-Slot ist das?
+    -- Which arena slot is it?
     for i = 1, 5 do
         local unit = "arena" .. i
         if UnitExists(unit) and UnitGUID(unit) == sourceGUID then
@@ -148,7 +148,7 @@ local function onCombatLog()
 end
 
 -- =========================================================
--- Bei Arena-Start: alle CDs zurücksetzen
+-- On arena start: reset all CDs
 -- =========================================================
 local function resetAllCDs()
     activeCDs = {}
@@ -173,31 +173,31 @@ ns:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", function()
 end)
 
 ns:RegisterEvent("PLAYER_ENTERING_WORLD", function()
-    -- Beim Zone-Wechsel weg von Arena → reset
+    -- On zone change away from arena -> reset
     if IsInInstance then
         local _, instanceType = IsInInstance()
         if instanceType ~= "arena" then resetAllCDs() end
     end
 end)
 ns:RegisterEvent("ARENA_OPPONENT_UPDATE", function(_, _, eventType)
-    -- "seen" = neue Gegner; bei Match-Start reset
+    -- "seen" = new opponents; reset on match start
     if eventType == "seen" then resetAllCDs() end
 end)
 
 -- =========================================================
--- Options-Section
+-- Options section
 -- =========================================================
 mod:AddOptionsSection("trinket", function()
     return {
-        { type = "header", text = "PvP-Trinket Tracker" },
+        { type = "header", text = "PvP Trinket Tracker" },
         {
-            type = "checkbox", label = "PvP-Trinket-Cooldown anzeigen",
-            tooltip = "Zeigt ein Icon mit Cooldown-Spiral neben dem Arena-Frame an, wenn der Gegner sein PvP-Trinket benutzt hat.",
+            type = "checkbox", label = "Show PvP trinket cooldown",
+            tooltip = "Shows an icon with cooldown spiral next to the arena frame when the opponent used their PvP trinket.",
             get = function() return mod.db.trinketEnabled end,
             set = function(_, v) mod.db.trinketEnabled = v; mod.RefreshTrinkets() end,
         },
         {
-            type = "slider", label = "Icon-Größe",
+            type = "slider", label = "Icon size",
             min = 16, max = 48, step = 1,
             get = function() return mod.db.trinketSize end,
             set = function(_, v) mod.db.trinketSize = v; mod.RefreshTrinkets() end,
@@ -205,8 +205,8 @@ mod:AddOptionsSection("trinket", function()
         {
             type = "dropdown", label = "Position",
             values = {
-                { value = "LEFT",  text = "Links vom Frame" },
-                { value = "RIGHT", text = "Rechts vom Frame" },
+                { value = "LEFT",  text = "Left of frame" },
+                { value = "RIGHT", text = "Right of frame" },
             },
             get = function() return mod.db.trinketAnchor end,
             set = function(_, v) mod.db.trinketAnchor = v; mod.RefreshTrinkets() end,

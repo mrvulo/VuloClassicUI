@@ -1,15 +1,15 @@
 -- =========================================================
 -- VuloClassicUI / Modules / Arena / Castbar
--- Eigene Castbar pro Arena-Gegner.
+-- Custom castbar per arena opponent.
 -- =========================================================
 local _, ns = ...
 local mod = ns.ArenaModule
 local H = mod.helpers
 
-local castbars = {}  -- slot → frame
+local castbars = {}  -- slot -> frame
 
 -- =========================================================
--- Castbar bauen
+-- Build castbar
 -- =========================================================
 local function createCastbar(parent, slotIndex)
     local f = CreateFrame("StatusBar", "VCUIArenaCastbar" .. slotIndex, parent, "BackdropTemplate")
@@ -19,7 +19,7 @@ local function createCastbar(parent, slotIndex)
     f:SetMinMaxValues(0, 1)
     f:SetValue(0)
 
-    -- Hintergrund
+    -- Background
     f.bg = f:CreateTexture(nil, "BACKGROUND")
     f.bg:SetAllPoints(f)
     f.bg:SetColorTexture(0, 0, 0, 0.7)
@@ -31,19 +31,19 @@ local function createCastbar(parent, slotIndex)
         insets = { left = 2, right = 2, top = 2, bottom = 2 },
     })
 
-    -- Icon links
+    -- Icon on the left
     f.icon = f:CreateTexture(nil, "OVERLAY")
     f.icon:SetSize(mod.db.castbarHeight, mod.db.castbarHeight)
     f.icon:SetPoint("RIGHT", f, "LEFT", -2, 0)
     f.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
 
-    -- Spell-Name
+    -- Spell name
     f.text = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     f.text:SetPoint("LEFT",  f, "LEFT",   4, 0)
     f.text:SetPoint("RIGHT", f, "RIGHT", -4, 0)
     f.text:SetJustifyH("LEFT")
 
-    -- Timer rechts
+    -- Timer on the right
     f.timer = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     f.timer:SetPoint("RIGHT", f, "RIGHT", -4, 0)
 
@@ -67,7 +67,7 @@ local function ensureCastbar(arenaFrame, i)
 end
 
 -- =========================================================
--- OnUpdate für laufende Casts
+-- OnUpdate for running casts
 -- =========================================================
 local function castbarOnUpdate(self, elapsed)
     if not self.casting and not self.channeling then
@@ -97,7 +97,7 @@ local function castbarOnUpdate(self, elapsed)
 end
 
 -- =========================================================
--- Cast starten
+-- Start cast
 -- =========================================================
 local function startCast(unit, channeling)
     local i = tonumber(unit:match("^arena(%d)$"))
@@ -154,7 +154,7 @@ local function stopCast(unit, interrupted)
 end
 
 -- =========================================================
--- Castbar-Anchor neu setzen (bei Layout-Änderung)
+-- Re-anchor castbar (on layout change)
 -- =========================================================
 local function refreshCastbars()
     H.ForEach(function(frame, i)
@@ -212,19 +212,19 @@ mod:AddOptionsSection("castbar", function()
     return {
         { type = "header", text = "Castbar" },
         {
-            type = "checkbox", label = "Castbar für Arena-Gegner",
-            tooltip = "Zeigt eine Castbar unter dem Frame, wenn der Gegner casted oder channelt.",
+            type = "checkbox", label = "Castbar for arena opponents",
+            tooltip = "Shows a castbar below the frame when the opponent casts or channels.",
             get = function() return mod.db.castbarEnabled end,
             set = function(_, v) mod.db.castbarEnabled = v; refreshCastbars() end,
         },
         {
-            type = "slider", label = "Breite",
+            type = "slider", label = "Width",
             min = 60, max = 250, step = 1,
             get = function() return mod.db.castbarWidth end,
             set = function(_, v) mod.db.castbarWidth = v; refreshCastbars() end,
         },
         {
-            type = "slider", label = "Höhe",
+            type = "slider", label = "Height",
             min = 8, max = 30, step = 1,
             get = function() return mod.db.castbarHeight end,
             set = function(_, v) mod.db.castbarHeight = v; refreshCastbars() end,

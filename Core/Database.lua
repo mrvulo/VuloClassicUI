@@ -1,14 +1,14 @@
 -- =========================================================
 -- VuloClassicUI / Core / Database
--- SavedVariables mit Profile-System.
+-- SavedVariables with profile system.
 --
--- Struktur:
+-- Structure:
 --   VuloClassicUIDB.global              -- account-wide settings (debug, migration flags)
---   VuloClassicUIDB.profiles[name]      -- jedes Profil enthält modules.X.* settings
---   VuloClassicUIDB.classAssignments    -- "WARRIOR" -> "Krieger PvP"
---   VuloClassicUIDB.activeProfile       -- aktuell geladenes Profil (für Char-spezifische Overrides)
+--   VuloClassicUIDB.profiles[name]      -- each profile contains modules.X.* settings
+--   VuloClassicUIDB.classAssignments    -- "WARRIOR" -> "Warrior PvP"
+--   VuloClassicUIDB.activeProfile       -- currently loaded profile (for char-specific overrides)
 --
---   ns.db.profile.modules[key]          -- pointer auf das aktuelle Profil (so wie vorher)
+--   ns.db.profile.modules[key]          -- pointer to the current profile (same as before)
 -- =========================================================
 local _, ns = ...
 
@@ -22,7 +22,7 @@ ns.defaults = {
             scale = 1.0,
         },
         modules = {
-            -- wird dynamisch aufgefüllt aus mod.defaults
+            -- populated dynamically from mod.defaults
         },
     },
 }
@@ -43,29 +43,29 @@ local function getClassKey()
 end
 
 -- =========================================================
--- Init nach ADDON_LOADED
+-- Init after ADDON_LOADED
 -- =========================================================
 function ns:InitDB()
     VuloClassicUIDB     = VuloClassicUIDB     or {}
     VuloClassicUICharDB = VuloClassicUICharDB or {}
 
-    -- Migration: alte Struktur (db.profile.modules.X) auf neue (db.profiles.Default.modules.X)
+    -- Migration: old structure (db.profile.modules.X) to new (db.profiles.Default.modules.X)
     if VuloClassicUIDB.profile and not VuloClassicUIDB.profiles then
         VuloClassicUIDB.profiles = {
             [DEFAULT_PROFILE] = VuloClassicUIDB.profile,
         }
         VuloClassicUIDB.profile = nil
-        ns:Print("Settings auf Profile-System migriert (alle Settings sind im Profil '%s').", DEFAULT_PROFILE)
+        ns:Print("Settings migrated to profile system (all settings are in profile '%s').", DEFAULT_PROFILE)
     end
 
     VuloClassicUIDB.global            = VuloClassicUIDB.global            or {}
     VuloClassicUIDB.profiles          = VuloClassicUIDB.profiles          or {}
     VuloClassicUIDB.classAssignments  = VuloClassicUIDB.classAssignments  or {}
 
-    -- Globale Defaults
+    -- Global defaults
     VuloClassicUIDB.global = ns:ApplyDefaults(VuloClassicUIDB.global, ns.defaults.global)
 
-    -- Sicherstellen dass das Default-Profil existiert
+    -- Make sure the Default profile exists
     if not VuloClassicUIDB.profiles[DEFAULT_PROFILE] then
         VuloClassicUIDB.profiles[DEFAULT_PROFILE] = {}
     end
@@ -73,45 +73,45 @@ function ns:InitDB()
         VuloClassicUIDB.profiles[DEFAULT_PROFILE], ns.defaults.profile
     )
 
-    -- Aktives Profil bestimmen:
-    --   1. Klassen-Zuweisung
-    --   2. Fallback: zuletzt aktives Profil
+    -- Determine active profile:
+    --   1. Class assignment
+    --   2. Fallback: last active profile
     --   3. Fallback: Default
     local classKey   = getClassKey()
     local assigned   = VuloClassicUIDB.classAssignments[classKey]
     local activeName = assigned or VuloClassicUIDB.activeProfile or DEFAULT_PROFILE
 
-    -- Falls das Profil nicht (mehr) existiert: Default nehmen
+    -- If the profile no longer exists: use Default
     if not VuloClassicUIDB.profiles[activeName] then
         activeName = DEFAULT_PROFILE
     end
 
     ns:LoadProfile(activeName)
 
-    -- Char-DB
+    -- Char DB
     VuloClassicUICharDB = ns:ApplyDefaults(VuloClassicUICharDB, ns.defaults.char or {})
 
     ns.db.global = VuloClassicUIDB.global
     ns.db.char   = VuloClassicUICharDB
 
-    -- Migration alter Standalone-Addon-SVs (nur einmalig)
+    -- Migrate old standalone addon SVs (one-time only)
     ns:MigrateLegacyDBs()
 end
 
 -- =========================================================
--- Profile laden (setzt ns.db.profile auf das gewählte Profil)
+-- Load profile (sets ns.db.profile to the selected profile)
 -- =========================================================
 function ns:LoadProfile(profileName)
     local profileData = VuloClassicUIDB.profiles[profileName]
     if not profileData then
-        ns:Print("|cffff5555Profil '%s' existiert nicht.|r", profileName)
+        ns:Print("|cffff5555Profile '%s' does not exist.|r", profileName)
         return false
     end
 
-    -- Defaults aufs Profil anwenden (für neue Settings die das Profil noch nicht kennt)
+    -- Apply defaults to the profile (for new settings the profile doesn't know yet)
     profileData = ns:ApplyDefaults(profileData, ns.defaults.profile)
 
-    -- Modul-spezifische Defaults rein
+    -- Apply module-specific defaults
     for key, mod in pairs(ns.modules or {}) do
         profileData.modules[key] = ns:ApplyDefaults(
             profileData.modules[key], mod.defaults or {}
@@ -124,7 +124,7 @@ function ns:LoadProfile(profileName)
     ns.db = ns.db or {}
     ns.db.profile = profileData
 
-    -- Module mit ihrem mod.db neu verknüpfen
+    -- Re-link modules with their mod.db
     for key, mod in pairs(ns.modules or {}) do
         mod.db = profileData.modules[key]
     end
@@ -133,7 +133,7 @@ function ns:LoadProfile(profileName)
 end
 
 -- =========================================================
--- Profile-API
+-- Profile API
 -- =========================================================
 function ns:GetActiveProfileName()
     return VuloClassicUIDB and VuloClassicUIDB.activeProfile or DEFAULT_PROFILE
@@ -152,8 +152,8 @@ function ns:ProfileExists(name)
 end
 
 function ns:CreateProfile(name, copyFrom)
-    if not name or name == "" then return false, "Name darf nicht leer sein." end
-    if ns:ProfileExists(name) then return false, "Profil existiert bereits." end
+    if not name or name == "" then return false, "Name cannot be empty." end
+    if ns:ProfileExists(name) then return false, "Profile already exists." end
 
     local newProfile
     if copyFrom and ns:ProfileExists(copyFrom) then
@@ -163,38 +163,38 @@ function ns:CreateProfile(name, copyFrom)
     end
 
     VuloClassicUIDB.profiles[name] = newProfile
-    ns:Print("Profil '%s' erstellt%s.", name, copyFrom and (" (Kopie von '" .. copyFrom .. "')") or "")
+    ns:Print("Profile '%s' created%s.", name, copyFrom and (" (copy of '" .. copyFrom .. "')") or "")
     return true
 end
 
 function ns:DeleteProfile(name)
-    if name == DEFAULT_PROFILE then return false, "Default-Profil kann nicht gelöscht werden." end
-    if not ns:ProfileExists(name) then return false, "Profil existiert nicht." end
+    if name == DEFAULT_PROFILE then return false, "Default profile cannot be deleted." end
+    if not ns:ProfileExists(name) then return false, "Profile does not exist." end
 
     VuloClassicUIDB.profiles[name] = nil
 
-    -- Klassen-Zuweisungen aufräumen
+    -- Clean up class assignments
     for classKey, assigned in pairs(VuloClassicUIDB.classAssignments) do
         if assigned == name then
             VuloClassicUIDB.classAssignments[classKey] = nil
         end
     end
 
-    -- Falls aktives Profil gelöscht wurde: zurück auf Default
+    -- If active profile was deleted: revert to Default
     if ns:GetActiveProfileName() == name then
         ns:LoadProfile(DEFAULT_PROFILE)
-        ns:Print("Aktives Profil gelöscht. Default geladen. /reload empfohlen.")
+        ns:Print("Active profile deleted. Default loaded. /reload recommended.")
     end
 
-    ns:Print("Profil '%s' gelöscht.", name)
+    ns:Print("Profile '%s' deleted.", name)
     return true
 end
 
 function ns:RenameProfile(oldName, newName)
-    if oldName == DEFAULT_PROFILE then return false, "Default-Profil kann nicht umbenannt werden." end
-    if not ns:ProfileExists(oldName) then return false, "Profil existiert nicht." end
-    if not newName or newName == "" then return false, "Name darf nicht leer sein." end
-    if ns:ProfileExists(newName) then return false, "Neuer Name existiert bereits." end
+    if oldName == DEFAULT_PROFILE then return false, "Default profile cannot be renamed." end
+    if not ns:ProfileExists(oldName) then return false, "Profile does not exist." end
+    if not newName or newName == "" then return false, "Name cannot be empty." end
+    if ns:ProfileExists(newName) then return false, "New name already exists." end
 
     VuloClassicUIDB.profiles[newName] = VuloClassicUIDB.profiles[oldName]
     VuloClassicUIDB.profiles[oldName] = nil
@@ -209,19 +209,19 @@ function ns:RenameProfile(oldName, newName)
         VuloClassicUIDB.activeProfile = newName
     end
 
-    ns:Print("Profil '%s' umbenannt zu '%s'.", oldName, newName)
+    ns:Print("Profile '%s' renamed to '%s'.", oldName, newName)
     return true
 end
 
 function ns:SwitchProfile(name)
     if not ns:ProfileExists(name) then
-        ns:Print("|cffff5555Profil '%s' existiert nicht.|r", name)
+        ns:Print("|cffff5555Profile '%s' does not exist.|r", name)
         return false
     end
     if ns:GetActiveProfileName() == name then return true end
 
     ns:LoadProfile(name)
-    ns:Print("Profil '%s' geladen. |cffffff00/reload|r empfohlen damit alle Module die neuen Settings nutzen.", name)
+    ns:Print("Profile '%s' loaded. |cffffff00/reload|r recommended so all modules use the new settings.", name)
     return true
 end
 
@@ -245,7 +245,7 @@ end
 function ns:GetMyClassKey() return getClassKey() end
 
 -- =========================================================
--- Migration alter Standalone-Addons (einmalig, wandert in Default-Profil)
+-- Migration of old standalone addons (one-time, moves into Default profile)
 -- =========================================================
 function ns:MigrateLegacyDBs()
     if ns.db.global.migratedLegacy then return end
@@ -259,7 +259,7 @@ function ns:MigrateLegacyDBs()
         if src.powerSize       then dst.powerSize       = src.powerSize end
         if src.petFeedbackSize then dst.petFeedbackSize = src.petFeedbackSize end
         if src.onlyTheseBars ~= nil then dst.onlyTheseBars = src.onlyTheseBars end
-        ns:Print("Settings aus VuloFontBars übernommen.")
+        ns:Print("Settings imported from VuloFontBars.")
     end
 
     if ArenaEnemyEditDB and ns.modules.arenaframes then
@@ -269,7 +269,7 @@ function ns:MigrateLegacyDBs()
         if src.scale      then dst.scale      = src.scale end
         if src.healthSize then dst.healthSize = src.healthSize end
         if src.powerSize  then dst.powerSize  = src.powerSize end
-        ns:Print("Settings aus ArenaEnemyEdit übernommen.")
+        ns:Print("Settings imported from ArenaEnemyEdit.")
     end
 
     if BetterBlizzQueueDB and ns.modules.queuetimer then
@@ -278,7 +278,7 @@ function ns:MigrateLegacyDBs()
         if src.queueTimerAudio   ~= nil then dst.queueTimerAudio   = src.queueTimerAudio end
         if src.queueTimerWarning ~= nil then dst.queueTimerWarning = src.queueTimerWarning end
         if src.hideOtherTimers   ~= nil then dst.hideOtherTimers   = src.hideOtherTimers end
-        ns:Print("Settings aus BetterBlizzQueue übernommen.")
+        ns:Print("Settings imported from BetterBlizzQueue.")
     end
 
     if idTipConfig and ns.modules.tooltipids then
@@ -292,14 +292,14 @@ function ns:MigrateLegacyDBs()
                 if type(v) == "boolean" then dst[kind] = v end
             end
         end
-        ns:Print("Settings aus idTip übernommen.")
+        ns:Print("Settings imported from idTip.")
     end
 
     ns.db.global.migratedLegacy = true
 end
 
 -- =========================================================
--- Komfort-Accessor
+-- Convenience accessor
 -- =========================================================
 function ns:GetModuleDB(key)
     if not ns.db or not ns.db.profile then return nil end

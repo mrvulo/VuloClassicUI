@@ -1,14 +1,14 @@
 -- =========================================================
 -- VuloClassicUI / UI / Widgets
--- EUI-inspirierte Widgets: Toggle-Switches, lila Slider, Dropdowns,
--- Sektions-Header, Buttons, EditBoxes.
+-- EUI-inspired widgets: toggle switches, purple sliders, dropdowns,
+-- section headers, buttons, editboxes.
 -- =========================================================
 local _, ns = ...
 ns.UI = ns.UI or {}
 local UI = ns.UI
 
 -- =========================================================
--- Helper: weißes 1px-Pixel als Hintergrund-Texture
+-- Helper: white 1px pixel as background texture
 -- =========================================================
 
 local function setColorBG(frame, r, g, b, a, drawLayer)
@@ -21,16 +21,16 @@ end
 UI.SetColorBG = setColorBG
 
 -- =========================================================
--- Scrollbar im lila Akzent-Style
--- Funktioniert auf ScrollFrames die UIPanelScrollFrameTemplate nutzen.
+-- Scrollbar in purple accent style
+-- Works on ScrollFrames that use UIPanelScrollFrameTemplate.
 -- =========================================================
 function UI.StyleScrollbar(scrollFrame)
     if not scrollFrame then return end
 
-    -- ScrollBar finden:
-    --   1. Direkt als Property (Retail-Style)
-    --   2. Via _G mit Name (wenn ScrollFrame benannt)
-    --   3. Über Children-Iteration (wenn Frame keinen Namen hat)
+    -- Find ScrollBar:
+    --   1. Directly as property (Retail style)
+    --   2. Via _G with name (if ScrollFrame is named)
+    --   3. Via child iteration (if frame has no name)
     local sb = scrollFrame.ScrollBar
     if not sb then
         local sfName = scrollFrame.GetName and scrollFrame:GetName()
@@ -43,7 +43,7 @@ function UI.StyleScrollbar(scrollFrame)
     end
     if not sb then return end
 
-    -- Pfeil-Buttons oben/unten verstecken
+    -- Hide arrow buttons at top/bottom
     local function findChild(parent, suffix)
         local pName = parent.GetName and parent:GetName()
         if pName then
@@ -57,14 +57,14 @@ function UI.StyleScrollbar(scrollFrame)
     if upBtn   then upBtn:Hide();   upBtn:SetHeight(0.001)   end
     if downBtn then downBtn:Hide(); downBtn:SetHeight(0.001) end
 
-    -- Alte Track-Texturen (gelbe Tooltip-Borders) entfernen
+    -- Remove old track textures (yellow tooltip borders)
     for _, region in ipairs({ sb:GetRegions() }) do
         if region.GetObjectType and region:GetObjectType() == "Texture" then
             region:SetTexture(nil)
         end
     end
 
-    -- Neuen schmalen Track zeichnen
+    -- Draw new slim track
     if not sb._vcTrack then
         local track = sb:CreateTexture(nil, "BACKGROUND")
         track:SetPoint("TOP",    sb, "TOP",    0, 0)
@@ -74,7 +74,7 @@ function UI.StyleScrollbar(scrollFrame)
         sb._vcTrack = track
     end
 
-    -- Thumb (der bewegliche Balken) lila einfärben
+    -- Tint thumb (the movable bar) purple
     local thumb = sb:GetThumbTexture()
     if thumb then
         thumb:SetTexture(nil)
@@ -86,7 +86,7 @@ function UI.StyleScrollbar(scrollFrame)
 end
 
 -- =========================================================
--- Tooltip-Helper
+-- Tooltip helper
 -- =========================================================
 local function attachTooltip(frame, text)
     if not text then return end
@@ -99,7 +99,7 @@ local function attachTooltip(frame, text)
 end
 
 -- =========================================================
--- Sauberen Backdrop ohne Tooltip-Border bauen
+-- Build a clean backdrop without tooltip border
 -- =========================================================
 function UI:StyleBackdrop(frame, opts)
     opts = opts or {}
@@ -113,7 +113,7 @@ function UI:StyleBackdrop(frame, opts)
     end
     frame._vcBG:SetColorTexture(bgColor.r, bgColor.g, bgColor.b, bgColor.a or 1)
 
-    -- Border: 4 dünne Linien (top/bottom/left/right)
+    -- Border: 4 thin lines (top/bottom/left/right)
     if not frame._vcBorders then
         frame._vcBorders = {}
         for i = 1, 4 do
@@ -141,7 +141,7 @@ function UI:StyleBackdrop(frame, opts)
 end
 
 -- =========================================================
--- Header (Sektions-Überschrift im EUI-Style: Großbuchstaben, gedimpft)
+-- Header (section heading in EUI style: uppercase, dimmed)
 -- =========================================================
 function UI:CreateHeader(parent, text)
     local fs = parent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -162,25 +162,25 @@ function UI:CreateDescription(parent, text)
 end
 
 -- =========================================================
--- Toggle-Switch (EUI-Style: Switch links/rechts mit lila Akzent)
+-- Toggle Switch (EUI style: switch left/right with purple accent)
 -- =========================================================
 function UI:CreateToggle(parent, config)
     local container = CreateFrame("Frame", nil, parent)
 
-    -- Label links
+    -- Label on the left
     local label = container:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     label:SetText(config.label or "")
     label:SetPoint("LEFT", container, "LEFT", 0, 0)
     label:SetTextColor(1, 1, 1)
 
-    -- Switch rechts (Button)
+    -- Switch on the right (Button)
     local switchW, switchH = 36, 18
     local btn = CreateFrame("Button", nil, container)
     btn:SetSize(switchW, switchH)
     btn:SetPoint("RIGHT", container, "RIGHT", 0, 0)
 
-    -- Container-Breite: explizit gesetzt, oder fest 360 damit Switches in einer Spalte landen
-    -- (unterschiedlich lange Labels würden sonst die Switch-X-Position verschieben)
+    -- Container width: explicitly set, or fixed at 360 so switches end up in one column
+    -- (labels of different lengths would otherwise shift the switch X position)
     local explicitW = config.width
     if explicitW then
         container:SetSize(explicitW, 22)
@@ -190,7 +190,7 @@ function UI:CreateToggle(parent, config)
         container:SetSize(math.max(needed, 360), 22)
     end
 
-    -- BG-Track
+    -- BG track
     local track = btn:CreateTexture(nil, "BACKGROUND")
     track:SetAllPoints(btn)
     track:SetColorTexture(ns.COLORS.toggleOff.r, ns.COLORS.toggleOff.g, ns.COLORS.toggleOff.b, 1)
@@ -200,7 +200,7 @@ function UI:CreateToggle(parent, config)
     knob:SetSize(switchH - 4, switchH - 4)
     knob:SetColorTexture(1, 1, 1, 1)
 
-    -- Border (sehr dünn)
+    -- Border (very thin)
     local borderColor = ns.COLORS.border
     local borders = {}
     for i = 1, 4 do
@@ -232,7 +232,7 @@ function UI:CreateToggle(parent, config)
         refresh()
     end)
 
-    -- Komfort: ganzer Container klickbar
+    -- Convenience: entire container is clickable
     container:EnableMouse(true)
     container:SetScript("OnMouseUp", function(self, button)
         if button == "LeftButton" then
@@ -253,13 +253,13 @@ function UI:CreateToggle(parent, config)
     return container
 end
 
--- Alte API-Kompatibilität: CreateCheckbox liefert jetzt einen Toggle
+-- Old API compatibility: CreateCheckbox now returns a Toggle
 function UI:CreateCheckbox(parent, config)
     return UI:CreateToggle(parent, config)
 end
 
 -- =========================================================
--- Slider (lila Akzent, Wert-Display rechts)
+-- Slider (purple accent, value display on the right)
 -- =========================================================
 function UI:CreateSlider(parent, config)
     local s = CreateFrame("Slider", nil, parent, "OptionsSliderTemplate")
@@ -269,7 +269,7 @@ function UI:CreateSlider(parent, config)
     s:SetObeyStepOnDrag(true)
     s:SetValue(config.get(s) or config.min or 0)
 
-    if s.Low  then s.Low:SetText("") end  -- Min-Text ausblenden (clean)
+    if s.Low  then s.Low:SetText("") end  -- hide min text (clean)
     if s.High then s.High:SetText("") end
     if s.Text then
         s.Text:SetText(config.label or "")
@@ -277,13 +277,13 @@ function UI:CreateSlider(parent, config)
         s.Text:SetTextColor(c.r, c.g, c.b)
     end
 
-    -- Slider-Track in lila einfärben (das gelbe Standard-Thumb bleibt)
+    -- Tint slider track purple (the yellow default thumb stays)
     local thumb = s:GetThumbTexture()
     if thumb then
         thumb:SetVertexColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 1)
     end
 
-    -- Wert-Display + klickbare ± Buttons (SHIFT = 5× step)
+    -- Value display + clickable ± buttons (SHIFT = 5x step)
     local stepSize = config.step or 1
     local accent = ns.COLORS.accent
 
@@ -339,11 +339,11 @@ function UI:CreateSlider(parent, config)
 end
 
 -- =========================================================
--- Dropdown (eigenes EUI-Style Widget, kein UIDropDownMenu)
--- Layout: schwarzer Hintergrund, lila Border, V-Pfeil rechts, Liste klappt auf
+-- Dropdown (custom EUI-style widget, not UIDropDownMenu)
+-- Layout: black background, purple border, V-arrow on the right, list expands downward
 -- =========================================================
 
--- Wir teilen ein einziges Popup-Frame zwischen allen Dropdowns (immer nur eins offen)
+-- We share one popup frame across all dropdowns (only one open at a time)
 local activePopup
 
 local function closeActivePopup()
@@ -364,13 +364,13 @@ local function ensurePopupFrame()
     p:EnableMouse(true)
     p:Hide()
 
-    -- Hintergrund
+    -- Background
     local bg = p:CreateTexture(nil, "BACKGROUND")
     bg:SetAllPoints(p)
     bg:SetColorTexture(0.08, 0.08, 0.10, 0.98)
     p._bg = bg
 
-    -- Border (lila)
+    -- Border (purple)
     local borders = {}
     for i = 1, 4 do
         local b = p:CreateTexture(nil, "BORDER")
@@ -384,7 +384,7 @@ local function ensurePopupFrame()
 
     p._items = {}
 
-    -- OnHide: Owner-Border zurücksetzen
+    -- OnHide: reset owner border
     p:SetScript("OnHide", function(self)
         if self._owner and self._owner._setHovered then
             self._owner._setHovered(false)
@@ -392,7 +392,7 @@ local function ensurePopupFrame()
         self._owner = nil
     end)
 
-    -- ESC schließt das Popup
+    -- ESC closes the popup
     tinsert(UISpecialFrames, "VCDropdownPopup")
 
     activePopup = p
@@ -412,7 +412,7 @@ local function openPopup(button, config)
     p:SetPoint("TOPLEFT", button, "BOTTOMLEFT", 0, -2)
     p:SetSize(width, height)
 
-    -- Alte Items recyceln / verstecken
+    -- Recycle / hide old items
     for _, item in ipairs(p._items) do item:Hide() end
 
     for i, opt in ipairs(values) do
@@ -475,7 +475,7 @@ function UI:CreateDropdown(parent, config)
     local container = CreateFrame("Frame", nil, parent)
     container:SetSize(config.width or 160, config.label and 46 or 26)
 
-    -- Optionales Label oben
+    -- Optional label on top
     if config.label then
         local label = container:CreateFontString(nil, "OVERLAY", "GameFontNormal")
         label:SetPoint("TOPLEFT", container, "TOPLEFT", 0, 0)
@@ -485,7 +485,7 @@ function UI:CreateDropdown(parent, config)
         container._label = label
     end
 
-    -- Eigentlicher Button
+    -- Actual button
     local btn = CreateFrame("Button", nil, container)
     btn:SetHeight(26)
     if config.label then
@@ -500,7 +500,7 @@ function UI:CreateDropdown(parent, config)
     bg:SetAllPoints(btn)
     bg:SetColorTexture(0.06, 0.06, 0.08, 1)
 
-    -- Border (dünn, schaltet auf lila bei hover/open)
+    -- Border (thin, switches to purple on hover/open)
     local borders = {}
     for i = 1, 4 do
         local b = btn:CreateTexture(nil, "BORDER")
@@ -512,13 +512,13 @@ function UI:CreateDropdown(parent, config)
     borders[3]:SetPoint("TOPLEFT", btn, "TOPLEFT"); borders[3]:SetPoint("BOTTOMLEFT", btn, "BOTTOMLEFT"); borders[3]:SetWidth(1)
     borders[4]:SetPoint("TOPRIGHT", btn, "TOPRIGHT"); borders[4]:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT"); borders[4]:SetWidth(1)
 
-    -- Aktueller Wert-Text
+    -- Current value text
     local valueText = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     valueText:SetPoint("LEFT",  btn, "LEFT",   8, 0)
     valueText:SetPoint("RIGHT", btn, "RIGHT", -22, 0)
     valueText:SetJustifyH("LEFT")
 
-    -- V-Pfeil rechts
+    -- V-arrow on the right
     local arrow = btn:CreateTexture(nil, "OVERLAY")
     arrow:SetSize(10, 10)
     arrow:SetPoint("RIGHT", btn, "RIGHT", -6, 0)
@@ -526,7 +526,7 @@ function UI:CreateDropdown(parent, config)
     arrow:SetTexCoord(0.25, 0.75, 0.30, 0.80)
     arrow:SetVertexColor(0.7, 0.7, 0.75)
 
-    -- Border-Hover/Open-Effekt
+    -- Border hover/open effect
     local function setHovered(state)
         local c = state and ns.COLORS.accent or ns.COLORS.border
         for _, b in ipairs(borders) do
@@ -587,7 +587,7 @@ function UI:CreateEditBox(parent, config)
     local container = CreateFrame("Frame", nil, parent)
     container:SetHeight(26)
 
-    -- Label LINKS vom Edit-Feld (statt oben drüber)
+    -- Label to the LEFT of the edit field (instead of above)
     local label, eb
     if config.label and config.label ~= "" then
         label = container:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -597,21 +597,21 @@ function UI:CreateEditBox(parent, config)
         label:SetTextColor(c.r, c.g, c.b)
     end
 
-    -- Edit-Feld (rechteckig, eigener Style — KEIN InputBoxTemplate)
+    -- Edit field (rectangular, custom style — NO InputBoxTemplate)
     eb = CreateFrame("EditBox", nil, container)
     eb:SetHeight(22)
     eb:SetAutoFocus(false)
     eb:SetFontObject("ChatFontNormal")
-    eb:SetTextInsets(8, 8, 0, 0)  -- innen-Padding links/rechts
+    eb:SetTextInsets(8, 8, 0, 0)  -- inner padding left/right
     eb:SetText(tostring(config.get(eb) or ""))
 
-    -- Hintergrund (dunkel-lila getönt)
+    -- Background (dark purple tinted)
     local bg = eb:CreateTexture(nil, "BACKGROUND")
     bg:SetAllPoints(eb)
     bg:SetColorTexture(0.06, 0.05, 0.10, 0.85)
     eb._bg = bg
 
-    -- Border (1px, Akzent-lila)
+    -- Border (1px, accent purple)
     local borderColor = ns.COLORS.border or { r = 0.35, g = 0.25, b = 0.55, a = 1 }
     local borderFrame = CreateFrame("Frame", nil, eb,
         BackdropTemplateMixin and "BackdropTemplate")
@@ -625,7 +625,7 @@ function UI:CreateEditBox(parent, config)
     end
     eb._borderFrame = borderFrame
 
-    -- Bei Focus: hellere lila Border
+    -- On focus: brighter purple border
     eb:SetScript("OnEditFocusGained", function(self)
         if self._borderFrame and self._borderFrame.SetBackdropBorderColor then
             local c = ns.COLORS.accent
@@ -639,7 +639,7 @@ function UI:CreateEditBox(parent, config)
     end)
 
     if label then
-        -- config.width = gewünschte GESAMT-Breite (Label + Gap + Editbox)
+        -- config.width = desired TOTAL width (label + gap + editbox)
         local labelW = label:GetStringWidth() or 0
         local totalW = config.width or (labelW + 12 + 140)
         local editW  = config.editWidth or (totalW - labelW - 12)
@@ -649,7 +649,7 @@ function UI:CreateEditBox(parent, config)
         eb:SetPoint("LEFT", label, "RIGHT", 12, 0)
         eb:SetWidth(editW)
     else
-        -- Kein Label: Edit-Feld füllt den Container
+        -- No label: edit field fills the container
         container:SetWidth(config.width or 160)
         eb:SetPoint("LEFT",  container, "LEFT",  0, 0)
         eb:SetWidth(config.width or 160)
@@ -671,7 +671,7 @@ function UI:CreateEditBox(parent, config)
 end
 
 -- =========================================================
--- Button (clean, mit Akzent-Hover)
+-- Button (clean, with accent hover)
 -- =========================================================
 function UI:CreateButton(parent, config)
     local b = CreateFrame("Button", nil, parent)
@@ -682,7 +682,7 @@ function UI:CreateButton(parent, config)
     bg:SetAllPoints(b)
     bg:SetColorTexture(0.15, 0.15, 0.18, 1)
 
-    -- Border (dünn)
+    -- Border (thin)
     local borderColor = ns.COLORS.border
     local borders = {}
     for i = 1, 4 do
@@ -702,12 +702,12 @@ function UI:CreateButton(parent, config)
     local tc = ns.COLORS.text
     text:SetTextColor(tc.r, tc.g, tc.b)
 
-    -- Akzent-Variante (primary button)
+    -- Accent variant (primary button)
     if config.primary then
         bg:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 1)
     end
 
-    -- Hover-Effekt
+    -- Hover effect
     b:SetScript("OnEnter", function()
         if config.primary then
             bg:SetColorTexture(ns.COLORS.accent.r * 1.15, ns.COLORS.accent.g * 1.15, ns.COLORS.accent.b * 1.15, 1)
@@ -740,10 +740,10 @@ function UI:CreateButton(parent, config)
 end
 
 -- =========================================================
--- Icon-Button (statt Text-Label eine Textur, z.B. Pfeile)
--- config.icon kann sein:
---   "up", "down", "left", "right" → eingebaute Blizzard-Pfeile
---   "Interface\\..."              → beliebige Textur
+-- Icon button (texture instead of text label, e.g. arrows)
+-- config.icon can be:
+--   "up", "down", "left", "right" -> built-in Blizzard arrows
+--   "Interface\\..."              -> any texture
 -- =========================================================
 local BUILTIN_ICONS = {
     up    = { tex = "Interface\\Buttons\\UI-ScrollBar-ScrollUpButton-Up",   tc = {0.25, 0.75, 0.25, 0.75} },
@@ -756,12 +756,12 @@ function UI:CreateIconButton(parent, config)
     local b = CreateFrame("Button", nil, parent)
     b:SetSize(config.width or 24, config.height or 24)
 
-    -- Hintergrund
+    -- Background
     local bg = b:CreateTexture(nil, "BACKGROUND")
     bg:SetAllPoints(b)
     bg:SetColorTexture(0.15, 0.15, 0.18, 1)
 
-    -- Border (dünn)
+    -- Border (thin)
     local borderColor = ns.COLORS.border
     local borders = {}
     for i = 1, 4 do
@@ -774,7 +774,7 @@ function UI:CreateIconButton(parent, config)
     borders[3]:SetPoint("TOPLEFT", b, "TOPLEFT"); borders[3]:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT"); borders[3]:SetWidth(1)
     borders[4]:SetPoint("TOPRIGHT", b, "TOPRIGHT"); borders[4]:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT"); borders[4]:SetWidth(1)
 
-    -- Icon-Texture
+    -- Icon texture
     local icon = b:CreateTexture(nil, "ARTWORK")
     icon:SetSize((config.width or 24) - 8, (config.height or 24) - 8)
     icon:SetPoint("CENTER", b, "CENTER", 0, 0)
@@ -813,13 +813,13 @@ function UI:CreateIconButton(parent, config)
 end
 
 -- =========================================================
--- Power-Button (kleiner Toggle pro Sidebar-Eintrag)
+-- Power button (small toggle per sidebar entry)
 -- =========================================================
 function UI:CreatePowerButton(parent, config)
     local b = CreateFrame("Button", nil, parent)
     b:SetSize(16, 16)
 
-    -- Power-Icon (weiße Pixel = sichtbar, schwarz = transparent dank Alpha-Channel)
+    -- Power icon (white pixels = visible, black = transparent thanks to alpha channel)
     local icon = b:CreateTexture(nil, "ARTWORK")
     icon:SetAllPoints(b)
     icon:SetTexture("Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\power")
@@ -828,10 +828,10 @@ function UI:CreatePowerButton(parent, config)
     local function refresh()
         local on = config.get() and true or false
         if on then
-            -- Aktiv: lila Akzent-Farbe
+            -- Active: purple accent color
             icon:SetVertexColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 1)
         else
-            -- Inaktiv: ausgegraut (dunkles Grau, ~40% Alpha)
+            -- Inactive: greyed out (dark grey, ~40% alpha)
             icon:SetVertexColor(0.4, 0.4, 0.4, 0.6)
         end
     end
@@ -843,7 +843,7 @@ function UI:CreatePowerButton(parent, config)
     end)
 
     b:SetScript("OnEnter", function()
-        -- Hover: helleres Weiß
+        -- Hover: brighter white
         icon:SetVertexColor(1, 1, 1, 1)
         if config.tooltip then
             GameTooltip:SetOwner(b, "ANCHOR_RIGHT")

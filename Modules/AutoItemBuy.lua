@@ -1,30 +1,30 @@
 -- =========================================================
 -- VuloClassicUI / Modules / AutoItemBuy
--- Kauft automatisch bestimmte Items bei bestimmten Händlern.
--- Shift halten beim Öffnen des Händlerfensters = Not-Aus.
+-- Automatically buys certain items at certain vendors.
+-- Hold Shift when opening the merchant window = emergency stop.
 --
--- Konfigurierbar im UI: Händler-Namen und Item-Namen.
--- Default: aus.
+-- Configurable in the UI: vendor names and item names.
+-- Default: off.
 -- =========================================================
 local _, ns = ...
 
 local mod = ns:RegisterModule("autoitembuy", {
     name        = "Auto Item Buy",
     group       = "QoL",
-    description = "Kauft automatisch festgelegte Items bei festgelegten Händlern. Shift beim Öffnen des Händlerfensters = Not-Aus.",
+    description = "Automatically buys configured items at configured vendors. Shift when opening the merchant window = emergency stop.",
     defaults = {
-        enabled    = false,  -- standardmäßig AUS
-        autoClose  = true,   -- Händlerfenster nach Kauf schließen
-        chatMsg    = true,   -- Print bei jedem Kauf
-        vendors    = {},     -- vendors[händlerName] = { itemName1 = true, itemName2 = true, ... }
+        enabled    = false,  -- OFF by default
+        autoClose  = true,   -- close merchant window after purchase
+        chatMsg    = true,   -- print on each purchase
+        vendors    = {},     -- vendors[vendorName] = { itemName1 = true, itemName2 = true, ... }
     },
 })
 
 -- =========================================================
--- Buffer für UI-Eingaben (nicht in der DB)
+-- Buffers for UI input (not in the DB)
 -- =========================================================
 local addVendorBuffer  = ""
-local selectedVendor   = nil  -- aktuell ausgewählter Händler in der UI
+local selectedVendor   = nil  -- currently selected vendor in the UI
 local addItemBuffer    = ""
 
 -- =========================================================
@@ -62,7 +62,7 @@ local function refreshUI()
 end
 
 -- =========================================================
--- Event-Handling (MERCHANT_SHOW)
+-- Event handling (MERCHANT_SHOW)
 -- =========================================================
 local eventFrame
 
@@ -74,7 +74,7 @@ local function setupEvents()
         if event ~= "MERCHANT_SHOW" then return end
         if not mod._enabled then return end
 
-        -- SHIFT halten = Not-Aus
+        -- Hold SHIFT = emergency stop
         if IsShiftKeyDown() then return end
 
         local npcName = UnitName("npc") or UnitName("target")
@@ -88,13 +88,13 @@ local function setupEvents()
         for i = 1, numItems do
             local name = GetMerchantItemInfo(i)
             if name and vendor[name] then
-                p("Kaufe: " .. name)
+                p("Buying: " .. name)
                 pcall(function() BuyMerchantItem(i, 1) end)
                 bought = bought + 1
             end
         end
 
-        -- Optional: Händlerfenster automatisch schließen
+        -- Optional: close merchant window automatically
         if mod.db.autoClose and bought > 0 then
             local count = 0
             self:SetScript("OnUpdate", function(s)
@@ -116,65 +116,65 @@ function mod:OnEnable()
 end
 
 -- =========================================================
--- Options-Page
+-- Options page
 -- =========================================================
 function mod:GetOptions()
     local items = {}
 
     -- =========================================================
-    -- Allgemeine Settings
+    -- General settings
     -- =========================================================
-    table.insert(items, { type = "header", text = "Allgemein" })
+    table.insert(items, { type = "header", text = "General" })
 
     table.insert(items, {
-        type = "toggle", label = "Händlerfenster nach Kauf schließen",
-        tooltip = "Schließt das Händlerfenster automatisch ~0.2s nach dem Kauf.",
+        type = "toggle", label = "Close merchant window after purchase",
+        tooltip = "Closes the merchant window automatically ~0.2s after purchase.",
         get = function() return mod.db.autoClose end,
         set = function(_, v) mod.db.autoClose = v end,
     })
 
     table.insert(items, {
-        type = "toggle", label = "Chat-Nachricht bei jedem Kauf",
+        type = "toggle", label = "Chat message on each purchase",
         get = function() return mod.db.chatMsg end,
         set = function(_, v) mod.db.chatMsg = v end,
     })
 
     table.insert(items, { type = "desc",
-        text = "|cffaaaaaaTipp: Halte SHIFT beim Öffnen des Händlerfensters, um automatischen Kauf einmalig zu überspringen.|r" })
+        text = "|cffaaaaaaTip: Hold SHIFT when opening the merchant window to skip automatic purchase once.|r" })
 
     table.insert(items, { type = "spacer", height = 12 })
 
     -- =========================================================
-    -- Händler hinzufügen
+    -- Add vendor
     -- =========================================================
-    table.insert(items, { type = "header", text = "Händler hinzufügen" })
+    table.insert(items, { type = "header", text = "Add Vendor" })
 
     table.insert(items, {
         type = "group", layout = "row", gap = 6,
         items = {
             {
-                type = "editbox", label = "Händler-Name",
+                type = "editbox", label = "Vendor Name",
                 width = 260,
                 get = function() return addVendorBuffer end,
                 set = function(_, v) addVendorBuffer = v end,
             },
             {
-                type = "button", label = "Hinzufügen", width = 100,
+                type = "button", label = "Add", width = 100,
                 onClick = function()
                     local name = (addVendorBuffer or ""):match("^%s*(.-)%s*$")
                     if not name or name == "" then
-                        ns:Print("|cffff5555Bitte einen Händler-Namen eingeben.|r")
+                        ns:Print("|cffff5555Please enter a vendor name.|r")
                         return
                     end
                     mod.db.vendors = mod.db.vendors or {}
                     if mod.db.vendors[name] then
-                        ns:Print("|cffff5555Händler '%s' existiert bereits.|r", name)
+                        ns:Print("|cffff5555Vendor '%s' already exists.|r", name)
                         return
                     end
                     mod.db.vendors[name] = {}
                     selectedVendor = name
                     addVendorBuffer = ""
-                    ns:Print("Händler '%s' hinzugefügt.", name)
+                    ns:Print("Vendor '%s' added.", name)
                     refreshUI()
                 end,
             },
@@ -184,16 +184,16 @@ function mod:GetOptions()
     table.insert(items, { type = "spacer", height = 12 })
 
     -- =========================================================
-    -- Händler-Auswahl & Verwaltung
+    -- Vendor selection & management
     -- =========================================================
-    table.insert(items, { type = "header", text = "Händler verwalten" })
+    table.insert(items, { type = "header", text = "Manage Vendors" })
 
     local vendorList = getVendorList()
     if #vendorList == 0 then
         table.insert(items, { type = "desc",
-            text = "|cffaaaaaaNoch keine Händler hinzugefügt. Füge oben einen Händler hinzu, dann wähle ihn hier aus, um Items zu konfigurieren.|r" })
+            text = "|cffaaaaaaNo vendors added yet. Add a vendor above, then select it here to configure items.|r" })
     else
-        -- Auto-select wenn noch keiner gewählt
+        -- Auto-select if none chosen yet
         if not selectedVendor or not mod.db.vendors[selectedVendor] then
             selectedVendor = vendorList[1]
         end
@@ -204,7 +204,7 @@ function mod:GetOptions()
         end
 
         table.insert(items, {
-            type = "dropdown", label = "Aktuell ausgewählter Händler",
+            type = "dropdown", label = "Currently selected vendor",
             width = 280,
             values = vendorValues,
             get = function() return selectedVendor end,
@@ -215,12 +215,12 @@ function mod:GetOptions()
         })
 
         table.insert(items, {
-            type = "button", label = "Diesen Händler löschen", width = 180,
+            type = "button", label = "Delete this vendor", width = 180,
             onClick = function()
                 if not selectedVendor then return end
                 local name = selectedVendor
                 mod.db.vendors[name] = nil
-                ns:Print("Händler '%s' entfernt.", name)
+                ns:Print("Vendor '%s' removed.", name)
                 selectedVendor = nil
                 refreshUI()
             end,
@@ -229,32 +229,32 @@ function mod:GetOptions()
         table.insert(items, { type = "spacer", height = 12 })
 
         -- =========================================================
-        -- Items für ausgewählten Händler
+        -- Items for selected vendor
         -- =========================================================
         table.insert(items, { type = "header",
-            text = string.format("Items bei '%s'", selectedVendor) })
+            text = string.format("Items at '%s'", selectedVendor) })
 
         table.insert(items, {
             type = "group", layout = "row", gap = 6,
             items = {
                 {
-                    type = "editbox", label = "Item-Name (exakt wie im Spiel)",
+                    type = "editbox", label = "Item name (exactly as in-game)",
                     width = 260,
                     get = function() return addItemBuffer end,
                     set = function(_, v) addItemBuffer = v end,
                 },
                 {
-                    type = "button", label = "Hinzufügen", width = 100,
+                    type = "button", label = "Add", width = 100,
                     onClick = function()
                         local name = (addItemBuffer or ""):match("^%s*(.-)%s*$")
                         if not name or name == "" then
-                            ns:Print("|cffff5555Bitte einen Item-Namen eingeben.|r")
+                            ns:Print("|cffff5555Please enter an item name.|r")
                             return
                         end
                         if not selectedVendor or not mod.db.vendors[selectedVendor] then return end
                         mod.db.vendors[selectedVendor][name] = true
                         addItemBuffer = ""
-                        ns:Print("Item '%s' bei Händler '%s' hinzugefügt.", name, selectedVendor)
+                        ns:Print("Item '%s' added at vendor '%s'.", name, selectedVendor)
                         refreshUI()
                     end,
                 },
@@ -262,24 +262,24 @@ function mod:GetOptions()
         })
 
         table.insert(items, { type = "desc",
-            text = "|cffaaaaaaItem-Namen müssen exakt mit dem In-Game-Namen übereinstimmen (inkl. Groß-/Kleinschreibung und Sonderzeichen).|r" })
+            text = "|cffaaaaaaItem names must match the in-game name exactly (including case and special characters).|r" })
 
         local itemList = getVendorItems(selectedVendor)
         if #itemList == 0 then
             table.insert(items, { type = "desc",
-                text = "|cffaaaaaaKeine Items konfiguriert. Füge oben Items hinzu, die bei diesem Händler automatisch gekauft werden sollen.|r" })
+                text = "|cffaaaaaaNo items configured. Add items above that should be bought automatically at this vendor.|r" })
         else
             for _, itemName in ipairs(itemList) do
                 table.insert(items, {
                     type = "group", layout = "row", gap = 6,
                     items = {
-                        { type = "desc", text = "• " .. itemName, width = 340 },
+                        { type = "desc", text = "- " .. itemName, width = 340 },
                         {
-                            type = "button", label = "Entfernen", width = 90,
+                            type = "button", label = "Remove", width = 90,
                             onClick = function()
                                 if not selectedVendor or not mod.db.vendors[selectedVendor] then return end
                                 mod.db.vendors[selectedVendor][itemName] = nil
-                                ns:Print("Item '%s' entfernt.", itemName)
+                                ns:Print("Item '%s' removed.", itemName)
                                 refreshUI()
                             end,
                         },

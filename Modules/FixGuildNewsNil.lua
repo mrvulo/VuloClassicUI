@@ -1,19 +1,19 @@
 -- =========================================================
 -- VuloClassicUI / Modules / FixGuildNewsNil
--- Behebt einen Bug in Blizzard_Communities wo defekte Guild-News-Einträge
--- ("formatString")-Fehler werfen, die das Guild-News-Panel unbrauchbar machen.
--- Wrappt GuildNewsButton_SetNews mit xpcall und zeigt einen Fallback-Text
--- für defekte Einträge an.
+-- Fixes a bug in Blizzard_Communities where broken guild news entries
+-- throw ("formatString") errors that make the guild news panel unusable.
+-- Wraps GuildNewsButton_SetNews with xpcall and shows a fallback text
+-- for broken entries.
 -- =========================================================
 local _, ns = ...
 
 local mod = ns:RegisterModule("fixguildnews", {
     name        = "Guild News Nil Fix",
     group       = "Bugfixes",
-    description = "Fängt Lua-Fehler in den Gilden-News-Einträgen ab (typisch \"formatString\" oder \"GuildUtil\") und ersetzt defekte Einträge durch einen Fallback-Text statt das ganze Panel kaputtgehen zu lassen.",
+    description = "Catches Lua errors in guild news entries (typically \"formatString\" or \"GuildUtil\") and replaces broken entries with a fallback text instead of letting the whole panel break.",
     defaults = {
         enabled    = true,
-        showReport = true,  -- zeigt einmalig im Chat dass der Fix angesprungen ist
+        showReport = true,  -- shows once in chat when the fix has been triggered
     },
 })
 
@@ -82,12 +82,12 @@ local function installPatch()
             if mod.db.showReport and not _G.VCUI_GuildNewsNilFix_Reported then
                 _G.VCUI_GuildNewsNilFix_Reported = true
                 DEFAULT_CHAT_FRAME:AddMessage(
-                    "|cffffff00[VuloClassicUI]|r Blizzard Guild-News-Fehler abgefangen (Fallback eingesetzt).")
+                    "|cffffff00[VuloClassicUI]|r Blizzard guild news error caught (fallback applied).")
             end
             return
         end
 
-        -- Andere Fehler durchreichen
+        -- Pass other errors through
         error(errText)
     end
 
@@ -110,9 +110,9 @@ function mod:OnEnable()
         end)
     end
 
-    -- Direkt versuchen (falls Blizzard_Communities schon geladen ist)
+    -- Try directly (in case Blizzard_Communities is already loaded)
     installPatch()
-    -- Plus ein delayed retry für Edge-Cases
+    -- Plus a delayed retry for edge cases
     if C_Timer and C_Timer.After then
         C_Timer.After(1, installPatch)
     end
@@ -123,17 +123,17 @@ end
 -- =========================================================
 function mod:GetOptions()
     return {
-        { type = "header", text = "Verhalten" },
+        { type = "header", text = "Behavior" },
         {
-            type = "toggle", label = "Chat-Nachricht beim ersten Fehler",
-            tooltip = "Zeigt einmalig pro Session eine kurze Nachricht im Chat wenn ein Gilden-News-Fehler abgefangen wurde.",
+            type = "toggle", label = "Chat message on first error",
+            tooltip = "Shows a brief message once per session in chat when a guild news error was caught.",
             get = function() return mod.db.showReport end,
             set = function(_, v) mod.db.showReport = v end,
         },
         { type = "spacer", height = 8 },
-        { type = "desc", text = "Dieser Fix wickelt Blizzards |cffffffffGuildNewsButton_SetNews|r-Funktion in einen geschützten Aufruf (xpcall) ein. Wenn ein Eintrag einen bekannten Fehler wirft (\"formatString\" oder \"GuildUtil\"), wird der Eintrag durch einen Fallback-Text \"Invalid guild news entry\" ersetzt — das Panel bleibt benutzbar." },
+        { type = "desc", text = "This fix wraps Blizzard's |cffffffffGuildNewsButton_SetNews|r function in a protected call (xpcall). When an entry throws a known error (\"formatString\" or \"GuildUtil\"), the entry is replaced with a fallback text \"Invalid guild news entry\" — the panel remains usable." },
         { type = "spacer", height = 6 },
         { type = "desc", text = string.format("|cffaaaaaaStatus: %s|r",
-            wrappedAlready and "|cff66ff66Hook aktiv|r" or "wartet auf Blizzard_Communities") },
+            wrappedAlready and "|cff66ff66Hook active|r" or "waiting for Blizzard_Communities") },
     }
 end

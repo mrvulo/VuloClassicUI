@@ -10,7 +10,7 @@
 ## IconTexture: Interface\AddOns\VuloClassicUI\Media\Icons\vui4
 ## Category: VuloUI
 
-# --- Libraries (zuerst, damit alles drauf zugreifen kann) ---
+# --- Libraries (loaded first so everything can access them) ---
 Libs\LibStub\LibStub.lua
 Libs\CallbackHandler-1.0\CallbackHandler-1.0.lua
 Libs\LibSharedMedia-3.0\LibSharedMedia-3.0.lua
@@ -30,7 +30,7 @@ UI\MainFrame.lua
 UI\Sidebar.lua
 UI\OptionsBuilder.lua
 
-# --- Modules (Reihenfolge egal, jedes registriert sich selbst) ---
+# --- Modules (order doesn't matter, each registers itself) ---
 Modules\GlobalSettings.lua
 Modules\Profiles.lua
 Modules\Minimap.lua
@@ -59,7 +59,7 @@ Modules\FixLFGBrowseNil.lua
 Modules\FixItemRackProtected.lua
 Modules\FixInspect.lua
 
-# --- Trinkets-Engine (Code extern) + VCUI-Wrapper in Modules/Trinkets.lua ---
+# --- Trinkets engine (external code) + VCUI wrapper in Modules/Trinkets.lua ---
 Trinkets\TrinketsGlobals.lua
 Trinkets\Trinkets.lua
 Trinkets\Trinkets.xml
@@ -69,5 +69,5 @@ Trinkets\TrinketsQueue.lua
 Trinkets\TrinketsQueue.xml
 Modules\Trinkets.lua
 
-# --- Init (zuletzt, startet alles) ---
+# --- Init (loaded last, kicks off everything) ---
 Core\Init.lua

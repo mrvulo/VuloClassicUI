@@ -1,36 +1,36 @@
 -- =========================================================
 -- VuloClassicUI / Modules / PlayerCastbar
--- Zwei Modi:
---   "blizzard" → Original Castbar erweitert (Restzeit-Text, lila Ticks, Channel-Färbung)
---   "custom"   → Eigene Castbar im VUI-Style (Icon, Spell-Name unter Bar, etc.)
+-- Two modes:
+--   "blizzard" -> Original castbar extended (time remaining text, purple ticks, channel coloring)
+--   "custom"   -> Custom castbar in VUI style (icon, spell name below bar, etc.)
 -- =========================================================
 local _, ns = ...
 
 local mod = ns:RegisterModule("playercastbar", {
     name        = "Player Castbar",
     group       = "Unit Frames",
-    description = "Spieler-Castbar mit zwei Modi: Original (Blizzard-Bar erweitert) oder Eigene Castbar (VUI-Style).",
+    description = "Player castbar with two modes: Original (Blizzard bar extended) or Custom castbar (VUI style).",
     defaults = {
         enabled       = true,
-        mode          = "blizzard",        -- "blizzard" oder "custom"
-        -- Gemeinsame Defaults
+        mode          = "blizzard",        -- "blizzard" or "custom"
+        -- Shared defaults
         showTimeText  = true,
         showTicks     = true,
         showSpellName = true,
         showIcon      = true,
-        -- Custom-Modus: Größe & Position
+        -- Custom mode: size & position
         width         = 240,
         height        = 18,
         iconSize      = 14,
         iconGap       = 3,
-        iconX         = 0,     -- zusätzlicher X-Offset für das Icon
-        iconY         = 0,     -- Y-Offset (positiv = oben)
+        iconX         = 0,     -- additional X offset for the icon
+        iconY         = 0,     -- Y offset (positive = up)
         x             = 0,
         y             = -180,
         unlocked      = false,
-        -- Farben (für beide Modi)
+        -- Colors (for both modes)
         accentColor   = { r = 0.608, g = 0.424, b = 1.000, a = 0.90 },  -- #9b6cff
-        castColor     = { r = 1.00,  g = 0.80,  b = 0.20,  a = 1.00 },  -- gelb
+        castColor     = { r = 1.00,  g = 0.80,  b = 0.20,  a = 1.00 },  -- yellow
         channelColor  = { r = 0.608, g = 0.424, b = 1.000, a = 1.00 },  -- #9b6cff
         successColor  = { r = 0.40, g = 0.85, b = 0.40, a = 1.00 },
         failColor     = { r = 0.90, g = 0.25, b = 0.25, a = 1.00 },
@@ -39,8 +39,8 @@ local mod = ns:RegisterModule("playercastbar", {
 
 local TEX_PATH    = "Interface\\AddOns\\VuloClassicUI\\Media\\Castbar\\"
 local TEX_BG      = TEX_PATH .. "CastingBarBackground"
-local TEX_FILL    = TEX_PATH .. "CastingBarStandard"     -- gelb getönt → für normale Casts
-local TEX_CHANNEL = TEX_PATH .. "CastingBarChannel"      -- separate Channel-Textur
+local TEX_FILL    = TEX_PATH .. "CastingBarStandard"     -- yellow tinted -> for normal casts
+local TEX_CHANNEL = TEX_PATH .. "CastingBarChannel"      -- separate channel texture
 local TEX_SPARK   = TEX_PATH .. "CastingBarSpark"
 local TEX_MASK    = TEX_PATH .. "CastingBarMask"
 
@@ -76,7 +76,7 @@ local CHANNEL_TICKS = {
 
 -- =========================================================================
 -- =========================================================================
--- MODE 1: BLIZZARD (Original-Castbar erweitert)
+-- MODE 1: BLIZZARD (original castbar extended)
 -- =========================================================================
 -- =========================================================================
 
@@ -88,7 +88,7 @@ local function bz_getBar()
     return _G.PlayerCastingBarFrame or _G.CastingBarFrame
 end
 
--- Ein Walk durch den Frame-Tree, sammelt StatusBars + Texturen gleichzeitig
+-- Single walk through the frame tree, collects StatusBars + textures simultaneously
 local function bz_walkAndCollect(frame, depth, statusbars, textures)
     if not frame or depth > 5 then return end
     if frame.GetObjectType and frame:GetObjectType() == "StatusBar" then
@@ -158,7 +158,7 @@ local function bz_ensureOverlay(bar)
     local o = CreateFrame("Frame", nil, bar)
     o:SetAllPoints(bar)
 
-    -- Restzeit-Text
+    -- Time remaining text
     o.timeText = o:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     local font, size, flags = o.timeText:GetFont()
     o.timeText:SetFont(font, (size or 10) + 2, flags)
@@ -167,7 +167,7 @@ local function bz_ensureOverlay(bar)
     o.timeText:SetJustifyH("RIGHT")
     o.timeText:SetText("")
 
-    -- Tick-Pool
+    -- Tick pool
     o.ticks = {}
 
     bar._vcui_overlay = o
@@ -325,7 +325,7 @@ local function c_showTicks(count)
     for i = 1, linesToDraw do
         local t = cFrame.ticks[i]
         if not t then
-            -- Auf cFrame.bar statt cFrame: liegt automatisch über der Bar-Statusbar-Textur
+            -- On cFrame.bar instead of cFrame: automatically sits on top of the bar StatusBar texture
             t = cFrame.bar:CreateTexture(nil, "OVERLAY", nil, 7)
             t:SetWidth(2)
             cFrame.ticks[i] = t
@@ -354,18 +354,18 @@ local function c_create()
     cFrame:SetClampedToScreen(false)
     cFrame:Hide()
 
-    -- Mover-Overlay (deutlich sichtbar im Unlock-Mode)
+    -- Mover overlay (clearly visible in unlock mode)
     cFrame.mover = ns:CreateMover(cFrame, {
-        label  = "|cffffffffCASTBAR|r\n|cffaaaaaaZiehen oder Pfeiltasten|r",
+        label  = "|cffffffffCASTBAR|r\n|cffaaaaaaDrag or arrow keys|r",
         db     = mod.db,
         width  = math.max(mod.db.width + 60, 200),
         height = math.max(60, mod.db.height + 40),
         onMove = function(x, y)
-            ns:Print(string.format("Castbar Position: x=%.0f, y=%.0f", x, y))
+            ns:Print(string.format("Castbar position: x=%.0f, y=%.0f", x, y))
         end,
     })
 
-    -- Keine Mouse-Events auf cFrame selbst (würde mit dem Mover-Overlay konfliktieren)
+    -- No mouse events on cFrame itself (would conflict with the mover overlay)
     cFrame:EnableMouse(false)
 
     cFrame.icon = cFrame:CreateTexture(nil, "BORDER")
@@ -374,7 +374,7 @@ local function c_create()
         -(mod.db.iconGap or 3) + (mod.db.iconX or 0), (mod.db.iconY or 0))
     cFrame.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
 
-    -- 1px Border um das Icon (4 Edges, anchored am Icon → wandern automatisch mit)
+    -- 1px border around the icon (4 edges, anchored to the icon -> move automatically with it)
     local function makeIconEdge()
         local t = cFrame:CreateTexture(nil, "OVERLAY")
         t:SetColorTexture(0, 0, 0, 1)
@@ -420,7 +420,7 @@ local function c_create()
     cFrame.bg:SetTexture(TEX_BG)
     cFrame.bg:SetVertexColor(0.1, 0.1, 0.1, 0.85)
 
-    -- Mask für runde Ecken (initial einmal anlegen, wird nach Textur-Wechsel re-attached)
+    -- Mask for rounded corners (created once initially, re-attached after texture change)
     local function applyMask()
         local fillTex = cFrame.bar:GetStatusBarTexture()
         if fillTex and fillTex.AddMaskTexture then
@@ -442,14 +442,14 @@ local function c_create()
     cFrame.spark:SetSize(16, mod.db.height + 8)
 
     local font = "Fonts\\FRIZQT__.TTF"
-    -- Spell-Name UNTEN-LINKS
+    -- Spell name BOTTOM-LEFT
     cFrame.nameText = cFrame:CreateFontString(nil, "OVERLAY")
     cFrame.nameText:SetFont(font, 11, "OUTLINE")
     cFrame.nameText:SetPoint("TOPLEFT", cFrame, "BOTTOMLEFT", 2, -2)
     cFrame.nameText:SetJustifyH("LEFT")
     cFrame.nameText:SetTextColor(1, 1, 1)
 
-    -- Cast-Timer UNTEN-RECHTS (auf gleicher Höhe wie Name)
+    -- Cast timer BOTTOM-RIGHT (same height as name)
     cFrame.timeText = cFrame:CreateFontString(nil, "OVERLAY")
     cFrame.timeText:SetFont(font, 11, "OUTLINE")
     cFrame.timeText:SetPoint("TOPRIGHT", cFrame, "BOTTOMRIGHT", -2, -2)
@@ -460,7 +460,7 @@ local function c_create()
 
     cFrame:SetScript("OnUpdate", function(self, elapsed)
         if not castInfo then
-            -- Im Unlock-Mode sichtbar lassen, sonst verstecken
+            -- Keep visible in unlock mode, otherwise hide
             if not mod.db.unlocked then self:Hide() end
             return
         end
@@ -530,18 +530,18 @@ local function c_startCast(isChannel)
     cFrame.nameText:SetText(mod.db.showSpellName and name or "")
 
     if isChannel then
-        -- Channel: grüne Textur, keine Tönung (Textur ist schon grün)
+        -- Channel: green texture, no tint (texture is already green)
         cFrame.bar:SetStatusBarTexture(TEX_CHANNEL)
         if cFrame._applyMask then cFrame._applyMask() end
-        c_applyColor({ r = 1, g = 1, b = 1, a = 1 })  -- weiß = keine Multiplikation
+        c_applyColor({ r = 1, g = 1, b = 1, a = 1 })  -- white = no multiplication
         local count = CHANNEL_TICKS[name]
         if count then c_showTicks(count) else c_hideAllTicks() end
         cFrame.spark:Hide()
     else
-        -- Normaler Cast: gelbe Textur, keine Tönung
+        -- Normal cast: yellow texture, no tint
         cFrame.bar:SetStatusBarTexture(TEX_FILL)
         if cFrame._applyMask then cFrame._applyMask() end
-        c_applyColor({ r = 1, g = 1, b = 1, a = 1 })  -- weiß = keine Multiplikation
+        c_applyColor({ r = 1, g = 1, b = 1, a = 1 })  -- white = no multiplication
         c_hideAllTicks()
         cFrame.spark:Show()
     end
@@ -594,9 +594,9 @@ function Custom:Enable()
             elseif event == "UNIT_SPELLCAST_CHANNEL_STOP" then
                 c_stopCast(true)
             elseif event == "UNIT_SPELLCAST_STOP" then
-                -- STOP feuert auch bei Spell-Pushback, prüfen ob Cast wirklich vorbei ist
+                -- STOP also fires on spell pushback, check if cast is really over
                 if castInfo and not castInfo.isChannel and not castInfo.fadeOut then
-                    -- Nur stoppen wenn UnitCastingInfo wirklich nichts mehr zurückgibt
+                    -- Only stop if UnitCastingInfo really returns nothing anymore
                     local stillCasting = UnitCastingInfo("player")
                     if not stillCasting then
                         c_stopCast(true)
@@ -604,8 +604,8 @@ function Custom:Enable()
                 end
             elseif event == "UNIT_SPELLCAST_FAILED"
                 or event == "UNIT_SPELLCAST_FAILED_QUIET" then
-                -- FAILED_QUIET feuert oft bei Versuchen während laufendem Cast.
-                -- Nur abbrechen wenn KEIN Cast/Channel mehr läuft.
+                -- FAILED_QUIET often fires on attempts during an ongoing cast.
+                -- Only abort if NO cast/channel is running anymore.
                 if castInfo and not castInfo.fadeOut then
                     local stillCasting = UnitCastingInfo("player") or UnitChannelInfo("player")
                     if not stillCasting then
@@ -613,13 +613,13 @@ function Custom:Enable()
                     end
                 end
             elseif event == "UNIT_SPELLCAST_INTERRUPTED" then
-                -- Echter Interrupt (z.B. durch Kick) → immer stoppen
+                -- Real interrupt (e.g. by Kick) -> always stop
                 if castInfo then c_stopCast(false) end
             end
         end)
     end
 
-    -- Blizzard-Bar verstecken
+    -- Hide Blizzard bar
     local b = bz_getBar()
     if b then
         if b.UnregisterAllEvents then b:UnregisterAllEvents() end
@@ -654,7 +654,7 @@ local function c_setUnlocked(state)
     mod.db.unlocked = state
     c_create()
     if state then
-        -- Castbar selbst zeigen mit Test-Inhalt
+        -- Show the castbar itself with test content
         cFrame:Show()
         cFrame:SetAlpha(1)
         cFrame.bar:SetValue(0.7)
@@ -664,14 +664,14 @@ local function c_setUnlocked(state)
         cFrame.setIconShown(mod.db.showIcon)
         c_applyColor(mod.db.castColor)
         c_showTicks(3)
-        -- Mover-Overlay drüber anzeigen
+        -- Show mover overlay on top
         cFrame.mover:Show()
-        ns:Print("Castbar-Mover aktiv. |cff9b6cffLila Box ziehen|r oder |cff9b6cffPfeiltasten|r (SHIFT = 5px). Nochmal auf 'Unlock / Test' klicken zum Beenden.")
+        ns:Print("Castbar mover active. |cff9b6cffDrag purple box|r or use |cff9b6cffarrow keys|r (SHIFT = 5px). Click 'Unlock / Test' again to finish.")
     else
         cFrame.mover:Hide()
         c_hideAllTicks()
         if not castInfo then cFrame:Hide() end
-        ns:Print("Castbar-Mover deaktiviert.")
+        ns:Print("Castbar mover disabled.")
     end
 end
 
@@ -687,8 +687,8 @@ local function switchMode(newMode)
 
     if newMode == "blizzard" then
         Custom:Disable()
-        -- Wenn ein /reload nicht passiert ist, die Events der Bar reaktivieren
-        -- ist nicht möglich ohne /reload → User darauf hinweisen.
+        -- Without a /reload, reactivating the bar's events is not possible
+        -- -> warn the user about this.
         Blizzard:Enable()
     else
         Blizzard:Disable()
@@ -701,8 +701,8 @@ end
 -- =========================================================================
 
 function mod:OnEnable()
-    -- Migration: alte Channel-Farbe (0.75, 0.35, 1.00) auf neue #9b6cff aktualisieren.
-    -- Nur wenn der User die Farbe nicht selbst angepasst hatte.
+    -- Migration: update old channel color (0.75, 0.35, 1.00) to new #9b6cff.
+    -- Only if the user didn't customize the color themselves.
     local function isOldDefault(c)
         return c and math.abs((c.r or 0) - 0.75) < 0.01
                  and math.abs((c.g or 0) - 0.35) < 0.01
@@ -734,58 +734,58 @@ end
 function mod:GetOptions()
     local items = {}
 
-    table.insert(items, { type = "header", text = "Modus" })
+    table.insert(items, { type = "header", text = "Mode" })
     table.insert(items, {
-        type = "dropdown", label = "Castbar-Variante",
+        type = "dropdown", label = "Castbar Variant",
         width = 320,
-        tooltip = "Wechsel zwischen Original (Blizzard-Bar erweitert) und Eigene Castbar (VUI-Style mit Icon, Spell-Name unter Bar).",
+        tooltip = "Switch between Original (Blizzard bar extended) and Custom castbar (VUI style with icon, spell name below bar).",
         values = {
-            { value = "blizzard", text = "Original (Blizzard-Bar erweitert)" },
-            { value = "custom",   text = "Eigene Castbar (VUI-Style)" },
+            { value = "blizzard", text = "Original (Blizzard bar extended)" },
+            { value = "custom",   text = "Custom Castbar (VUI style)" },
         },
         get = function() return mod.db.mode end,
         set = function(_, v)
             switchMode(v)
             if v == "blizzard" then
-                ns:Print("Castbar-Modus auf |cff9b6cffOriginal|r gewechselt. |cffffff00/reload|r empfohlen damit die Standard-Bar wieder normal arbeitet.")
+                ns:Print("Castbar mode switched to |cff9b6cffOriginal|r. |cffffff00/reload|r recommended so the default bar works normally again.")
             else
-                ns:Print("Castbar-Modus auf |cff9b6cffVUI-Style|r gewechselt.")
+                ns:Print("Castbar mode switched to |cff9b6cffVUI Style|r.")
             end
         end,
     })
     table.insert(items, { type = "desc",
-        text = "|cffaaaaaaModus-Wechsel: Nach dem Umschalten kann ein /reload nötig sein damit die Standard-Bar wieder normal funktioniert.|r" })
+        text = "|cffaaaaaaMode switch: A /reload may be required after switching so the default bar works normally again.|r" })
 
     table.insert(items, { type = "spacer", height = 8 })
-    table.insert(items, { type = "header", text = "Allgemein" })
+    table.insert(items, { type = "header", text = "General" })
 
     table.insert(items, {
-        type = "toggle", label = "Spell-Name anzeigen",
+        type = "toggle", label = "Show spell name",
         get = function() return mod.db.showSpellName end,
         set = function(_, v) mod.db.showSpellName = v end,
     })
     table.insert(items, {
-        type = "toggle", label = "Cast-Timer anzeigen",
+        type = "toggle", label = "Show cast timer",
         get = function() return mod.db.showTimeText end,
         set = function(_, v) mod.db.showTimeText = v end,
     })
     table.insert(items, {
-        type = "toggle", label = "Channel-Ticks anzeigen",
-        tooltip = "Zeigt vertikale Linien an Tick-Zeitpunkten (Mind Flay, Drain Soul, Hellfire, etc.)",
+        type = "toggle", label = "Show channel ticks",
+        tooltip = "Shows vertical lines at tick points (Mind Flay, Drain Soul, Hellfire, etc.)",
         get = function() return mod.db.showTicks end,
         set = function(_, v) mod.db.showTicks = v end,
     })
 
-    -- Mode-spezifische Optionen
+    -- Mode-specific options
     if mod.db.mode == "custom" then
         table.insert(items, { type = "spacer", height = 8 })
-        table.insert(items, { type = "header", text = "VUI-Style: Position & Größe" })
+        table.insert(items, { type = "header", text = "VUI Style: Position & Size" })
         table.insert(items, {
             type = "group", layout = "row", gap = 8,
             items = {
                 { type = "button", label = "Unlock / Test", width = 130,
                   onClick = function() c_setUnlocked(not mod.db.unlocked) end },
-                { type = "button", label = "Position zentrieren", width = 170,
+                { type = "button", label = "Center Position", width = 170,
                   onClick = function()
                       mod.db.x = 0; mod.db.y = -180
                       c_applyLayout()
@@ -793,9 +793,9 @@ function mod:GetOptions()
             },
         })
         table.insert(items, { type = "desc",
-            text = "|cffaaaaaaTipp: Halte |cffffffffSHIFT|r und ziehe die Castbar mit der linken Maustaste während eines Casts um sie zu verschieben. Oder nutze 'Unlock / Test' für eine permanente Test-Bar zum Positionieren.|r" })
+            text = "|cffaaaaaaTip: Hold |cffffffffSHIFT|r and drag the castbar with the left mouse button during a cast to move it. Or use 'Unlock / Test' for a permanent test bar for positioning.|r" })
         table.insert(items, {
-            type = "toggle", label = "Icon anzeigen",
+            type = "toggle", label = "Show icon",
             get = function() return mod.db.showIcon end,
             set = function(_, v)
                 mod.db.showIcon = v
@@ -803,34 +803,34 @@ function mod:GetOptions()
             end,
         })
         table.insert(items, {
-            type = "slider", label = "Breite",
+            type = "slider", label = "Width",
             min = 120, max = 400, step = 5,
             get = function() return mod.db.width end,
             set = function(_, v) mod.db.width = v; c_applyLayout() end,
         })
         table.insert(items, {
-            type = "slider", label = "Höhe",
+            type = "slider", label = "Height",
             min = 12, max = 36, step = 1,
             get = function() return mod.db.height end,
             set = function(_, v) mod.db.height = v; c_applyLayout() end,
         })
         table.insert(items, {
-            type = "slider", label = "Icon-Größe",
+            type = "slider", label = "Icon Size",
             min = 16, max = 48, step = 1,
             get = function() return mod.db.iconSize end,
             set = function(_, v) mod.db.iconSize = v; c_applyLayout() end,
         })
         table.insert(items, {
-            type = "slider", label = "Icon X-Offset",
+            type = "slider", label = "Icon X Offset",
             min = -100, max = 100, step = 1,
-            tooltip = "Verschiebt das Icon horizontal. Negativ = nach links, positiv = nach rechts.",
+            tooltip = "Moves the icon horizontally. Negative = left, positive = right.",
             get = function() return mod.db.iconX or 0 end,
             set = function(_, v) mod.db.iconX = v; c_applyLayout() end,
         })
         table.insert(items, {
-            type = "slider", label = "Icon Y-Offset",
+            type = "slider", label = "Icon Y Offset",
             min = -50, max = 50, step = 1,
-            tooltip = "Verschiebt das Icon vertikal. Positiv = nach oben, negativ = nach unten.",
+            tooltip = "Moves the icon vertically. Positive = up, negative = down.",
             get = function() return mod.db.iconY or 0 end,
             set = function(_, v) mod.db.iconY = v; c_applyLayout() end,
         })
@@ -840,13 +840,13 @@ function mod:GetOptions()
 end
 
 -- =========================================================
--- Slash für Test
+-- Slash command for testing
 -- =========================================================
 SLASH_SCTTEST1 = "/scttest"
 SlashCmdList.SCTTEST = function()
     if mod.db.mode == "custom" then
         c_setUnlocked(not mod.db.unlocked)
     else
-        ns:Print("Test nur im 'Eigene Castbar'-Modus verfügbar.")
+        ns:Print("Test only available in 'Custom Castbar' mode.")
     end
 end

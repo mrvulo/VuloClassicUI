@@ -1,15 +1,15 @@
 -- =========================================================
 -- VuloClassicUI / Modules / VTManaDisplay
--- Trackt wieviel Mana der Spieler mit Vampirberührung an die
--- Gruppe gegeben hat (5% des Shadow-Schadens pro Tick, pro Mana-User).
--- Reset bei Kampfbeginn. Nur aktiv wenn Priester.
+-- Tracks how much mana the player has given to the group with
+-- Vampiric Touch (5% of shadow damage per tick, per mana user).
+-- Reset on combat start. Only active for priests.
 -- =========================================================
 local _, ns = ...
 
 local mod = ns:RegisterModule("vtmanadisplay", {
     name        = "VT Mana Display",
     group       = "QoL",
-    description = "Zeigt live wieviel Mana du mit Vampirberührung an die Gruppe gegeben hast. Reset bei Kampfbeginn. Nur aktiv wenn Priester.",
+    description = "Live display of how much mana you've given to the group with Vampiric Touch. Reset on combat start. Only active for priests.",
     defaults    = {
         enabled    = true,
         showFrame  = true,
@@ -25,14 +25,14 @@ local VT_SPELL_ID_BASE = 34914  -- Vampiric Touch base (TBC)
 local SHADOW_SCHOOL    = 32
 
 -- =========================================================
--- Runtime State
+-- Runtime state
 -- =========================================================
 local playerGUID
-local vtSpellName          -- lokalisierter Name, filtert alle Ränge
-local vtTargets  = {}      -- destGUID -> true (aktive VTs)
+local vtSpellName          -- localized name, filters all ranks
+local vtTargets  = {}      -- destGUID -> true (active VTs)
 local totalMana  = 0
 local lastTick   = 0
-local cFrame              -- Display-Frame
+local cFrame              -- display frame
 
 -- =========================================================
 -- Helpers
@@ -51,7 +51,7 @@ end
 local function reportChat()
     if not mod.db.showInChat then return end
     if totalMana <= 0 then return end
-    ns:Print("Vampirberührung: %d Mana an Gruppe gegeben.", math.floor(totalMana))
+    ns:Print("Vampiric Touch: %d mana given to the group.", math.floor(totalMana))
 end
 
 local function refreshSpell()
@@ -59,9 +59,9 @@ local function refreshSpell()
 end
 
 -- =========================================================
--- Combat Log Handler
--- Anniversary nutzt modernes Backend — Args via CombatLogGetCurrentEventInfo().
--- Lookup-Table statt mehrerer string-compares pro Event (Hot-Path-Filter).
+-- Combat log handler
+-- Anniversary uses the modern backend — args via CombatLogGetCurrentEventInfo().
+-- Lookup table instead of multiple string compares per event (hot-path filter).
 -- =========================================================
 local TRACKED_EVENTS = {
     SPELL_AURA_APPLIED    = "apply",
@@ -106,7 +106,7 @@ local function onCLEU()
 end
 
 -- =========================================================
--- Frame + Mover
+-- Frame + mover
 -- =========================================================
 local function createFrame()
     if cFrame then return cFrame end
@@ -130,7 +130,7 @@ local function createFrame()
         width  = 200,
         height = 40,
         onMove = function(x, y)
-            ns:Print(string.format("VT-Mana-Frame: x=%.0f, y=%.0f", x, y))
+            ns:Print(string.format("VT mana frame: x=%.0f, y=%.0f", x, y))
         end,
     })
 
@@ -143,11 +143,11 @@ local function setUnlocked(state)
     if state then
         cFrame:Show()
         cFrame.mover:Show()
-        ns:Print("VT-Mana-Mover aktiv. |cff9b6cffZiehen|r oder |cff9b6cffPfeiltasten|r (SHIFT = 5px).")
+        ns:Print("VT mana mover active. |cff9b6cffDrag|r or |cff9b6cffarrow keys|r (SHIFT = 5px).")
     else
         cFrame.mover:Hide()
         if not mod.db.showFrame then cFrame:Hide() end
-        ns:Print("VT-Mana-Mover deaktiviert.")
+        ns:Print("VT mana mover disabled.")
     end
 end
 
@@ -155,7 +155,7 @@ end
 -- Lifecycle
 -- =========================================================
 function mod:OnEnable()
-    -- Migration: alte Settings unter "vampirictouchmana" übernehmen
+    -- Migration: take over old settings under "vampirictouchmana"
     if ns.db and ns.db.profile and ns.db.profile.modules then
         local old = ns.db.profile.modules.vampirictouchmana
         if old then
@@ -168,7 +168,7 @@ function mod:OnEnable()
         end
     end
 
-    -- Nur Priester
+    -- Priests only
     local _, class = UnitClass("player")
     if class ~= "PRIEST" then return end
 
@@ -201,23 +201,23 @@ function mod:GetOptions()
     return {
         { type = "header", text = "VT Mana Display" },
         { type = "desc",
-          text = "|cffaaaaaaZeigt live wieviel Mana du mit Vampirberührung an die Gruppe gegeben hast (5% des Shadow-Schadens pro Tick, pro Mana-User).|n"
-              .. "|cffffffffReset automatisch bei Kampfbeginn.|r|n"
-              .. "Nur aktiv für Priester.|r" },
+          text = "|cffaaaaaaShows live how much mana you've given to the group with Vampiric Touch (5% of shadow damage per tick, per mana user).|n"
+              .. "|cffffffffReset automatically on combat start.|r|n"
+              .. "Only active for priests.|r" },
 
-        { type = "toggle", label = "Frame anzeigen",
+        { type = "toggle", label = "Show frame",
           get = function() return mod.db.showFrame end,
           set = function(_, v)
               mod.db.showFrame = v
               if cFrame then if v then cFrame:Show() else cFrame:Hide() end end
           end },
 
-        { type = "toggle", label = "Bei Kampfende in Chat ausgeben",
-          tooltip = "Schreibt nach jedem Kampf eine Zusammenfassung in den Chat.",
+        { type = "toggle", label = "Print to chat at combat end",
+          tooltip = "Writes a summary in chat after each fight.",
           get = function() return mod.db.showInChat end,
           set = function(_, v) mod.db.showInChat = v end },
 
-        { type = "slider", label = "Schriftgröße",
+        { type = "slider", label = "Font size",
           min = 8, max = 32, step = 1,
           get = function() return mod.db.fontSize end,
           set = function(_, v)
@@ -229,14 +229,14 @@ function mod:GetOptions()
 
         { type = "group", layout = "row", gap = 8,
           items = {
-              { type = "button", label = "Unlock / Positionieren", width = 200,
+              { type = "button", label = "Unlock / Position", width = 200,
                 onClick = function() setUnlocked(not mod.db.unlocked) end },
-              { type = "button", label = "Manuell zurücksetzen", width = 200,
+              { type = "button", label = "Reset manually", width = 200,
                 onClick = function()
                     totalMana = 0
                     lastTick  = 0
                     updateFrame()
-                    ns:Print("VT-Mana zurückgesetzt.")
+                    ns:Print("VT mana reset.")
                 end },
           },
         },

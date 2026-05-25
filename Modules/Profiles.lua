@@ -1,25 +1,25 @@
 -- =========================================================
 -- VuloClassicUI / Modules / Profiles
--- Profil-Manager als eigenes "Modul" in der Sidebar.
--- Erlaubt: Profil wechseln, erstellen, kopieren, löschen, umbenennen, pro-Klasse zuordnen.
+-- Profile manager as its own "module" in the sidebar.
+-- Allows: switch, create, copy, delete, rename profiles, assign per class.
 -- =========================================================
 local _, ns = ...
 
 local mod = ns:RegisterModule("profiles", {
     name        = "Profiles",
     group       = "Account",
-    description = "Verwalte Profile mit unterschiedlichen Settings. Pro Klasse kann ein Standard-Profil zugewiesen werden, das beim Login automatisch geladen wird.",
-    noToggle    = true,  -- kein Power-Button in der Sidebar
+    description = "Manage profiles with different settings. A default profile can be assigned per class and is loaded automatically on login.",
+    noToggle    = true,  -- no power button in the sidebar
     defaults    = {
         enabled = true,
     },
 })
 
--- Dieses "Modul" hat keine eigene Lifecycle-Logik
+-- This "module" has no lifecycle logic of its own
 function mod:OnEnable() end
 
 -- =========================================================
--- Daten für UI
+-- Data for UI
 -- =========================================================
 local CLASS_LIST = {
     "WARRIOR", "PALADIN", "HUNTER", "ROGUE", "PRIEST",
@@ -27,17 +27,17 @@ local CLASS_LIST = {
 }
 
 local CLASS_LABELS = {
-    WARRIOR = "Krieger", PALADIN = "Paladin", HUNTER = "Jäger", ROGUE = "Schurke",
-    PRIEST = "Priester", SHAMAN = "Schamane", MAGE = "Magier", WARLOCK = "Hexenmeister",
-    DRUID = "Druide",
+    WARRIOR = "Warrior", PALADIN = "Paladin", HUNTER = "Hunter", ROGUE = "Rogue",
+    PRIEST = "Priest", SHAMAN = "Shaman", MAGE = "Mage", WARLOCK = "Warlock",
+    DRUID = "Druid",
 }
 
--- Buffer für UI-Eingaben (nicht in der DB gespeichert)
+-- Buffers for UI input (not saved in the DB)
 local newProfileNameBuffer = ""
 local copyFromBuffer       = nil
 local renameNewBuffer      = ""
 
--- Hilfsfunktionen
+-- Helper functions
 local function getProfileValues()
     local values = {}
     for _, name in ipairs(ns:GetProfileNames()) do
@@ -47,7 +47,7 @@ local function getProfileValues()
 end
 
 local function getProfileValuesWithNone()
-    local values = { { value = "", text = "— keine —" } }
+    local values = { { value = "", text = "- none -" } }
     for _, name in ipairs(ns:GetProfileNames()) do
         table.insert(values, { value = name, text = name })
     end
@@ -61,7 +61,7 @@ local function refreshUI()
 end
 
 -- =========================================================
--- Options-Page
+-- Options page
 -- =========================================================
 function mod:GetOptions()
     local items = {}
@@ -69,18 +69,18 @@ function mod:GetOptions()
     local myClass    = ns:GetMyClassKey()
 
     -- =========================================================
-    -- Sektion: Aktives Profil
+    -- Section: Active Profile
     -- =========================================================
-    table.insert(items, { type = "header", text = "Aktives Profil" })
+    table.insert(items, { type = "header", text = "Active Profile" })
 
     table.insert(items, {
         type = "desc",
-        text = string.format("Du benutzt gerade: |cff9b6cff%s|r  (Klasse: %s)",
+        text = string.format("You are currently using: |cff9b6cff%s|r  (Class: %s)",
             activeName, CLASS_LABELS[myClass] or myClass)
     })
 
     table.insert(items, {
-        type = "dropdown", label = "Profil wechseln",
+        type = "dropdown", label = "Switch Profile",
         width = 220,
         values = getProfileValues(),
         get = function() return ns:GetActiveProfileName() end,
@@ -93,9 +93,9 @@ function mod:GetOptions()
     table.insert(items, { type = "spacer", height = 12 })
 
     -- =========================================================
-    -- Sektion: Profil erstellen
+    -- Section: Create Profile
     -- =========================================================
-    table.insert(items, { type = "header", text = "Neues Profil erstellen" })
+    table.insert(items, { type = "header", text = "Create New Profile" })
 
     table.insert(items, {
         type = "editbox", label = "Name",
@@ -105,10 +105,10 @@ function mod:GetOptions()
     })
 
     table.insert(items, {
-        type = "dropdown", label = "Settings kopieren von",
+        type = "dropdown", label = "Copy Settings From",
         width = 220,
         values = (function()
-            local v = { { value = "", text = "— leeres Profil (Defaults) —" } }
+            local v = { { value = "", text = "- empty profile (defaults) -" } }
             for _, name in ipairs(ns:GetProfileNames()) do
                 table.insert(v, { value = name, text = name })
             end
@@ -119,16 +119,16 @@ function mod:GetOptions()
     })
 
     table.insert(items, {
-        type = "button", label = "Profil erstellen", width = 160,
+        type = "button", label = "Create Profile", width = 160,
         onClick = function()
             local name = (newProfileNameBuffer or ""):match("^%s*(.-)%s*$")
             if not name or name == "" then
-                ns:Print("|cffff5555Bitte einen Namen eingeben.|r")
+                ns:Print("|cffff5555Please enter a name.|r")
                 return
             end
             local ok, err = ns:CreateProfile(name, copyFromBuffer)
             if not ok then
-                ns:Print("|cffff5555%s|r", err or "Fehler.")
+                ns:Print("|cffff5555%s|r", err or "Error.")
             else
                 newProfileNameBuffer = ""
                 copyFromBuffer = nil
@@ -140,30 +140,30 @@ function mod:GetOptions()
     table.insert(items, { type = "spacer", height = 12 })
 
     -- =========================================================
-    -- Sektion: Aktives Profil verwalten
+    -- Section: Manage Active Profile
     -- =========================================================
-    table.insert(items, { type = "header", text = "Aktuelles Profil verwalten" })
+    table.insert(items, { type = "header", text = "Manage Current Profile" })
 
     table.insert(items, {
         type = "group", layout = "row", gap = 6,
         items = {
             {
-                type = "editbox", label = "Umbenennen zu",
+                type = "editbox", label = "Rename to",
                 width = 180,
                 get = function() return renameNewBuffer end,
                 set = function(_, v) renameNewBuffer = v end,
             },
             {
-                type = "button", label = "Umbenennen", width = 110,
+                type = "button", label = "Rename", width = 110,
                 onClick = function()
                     local newName = (renameNewBuffer or ""):match("^%s*(.-)%s*$")
                     if not newName or newName == "" then
-                        ns:Print("|cffff5555Bitte neuen Namen eingeben.|r")
+                        ns:Print("|cffff5555Please enter a new name.|r")
                         return
                     end
                     local ok, err = ns:RenameProfile(ns:GetActiveProfileName(), newName)
                     if not ok then
-                        ns:Print("|cffff5555%s|r", err or "Fehler.")
+                        ns:Print("|cffff5555%s|r", err or "Error.")
                     else
                         renameNewBuffer = ""
                         refreshUI()
@@ -174,26 +174,26 @@ function mod:GetOptions()
     })
 
     table.insert(items, {
-        type = "button", label = "Aktives Profil löschen", width = 200,
+        type = "button", label = "Delete Active Profile", width = 200,
         onClick = function()
             local active = ns:GetActiveProfileName()
             if active == "Default" then
-                ns:Print("|cffff5555Default-Profil kann nicht gelöscht werden.|r")
+                ns:Print("|cffff5555Default profile cannot be deleted.|r")
                 return
             end
             local ok, err = ns:DeleteProfile(active)
-            if not ok then ns:Print("|cffff5555%s|r", err or "Fehler.") end
+            if not ok then ns:Print("|cffff5555%s|r", err or "Error.") end
             refreshUI()
         end,
     })
 
     table.insert(items, {
-        type = "button", label = "Auf aktive Klasse anwenden", width = 220,
-        tooltip = string.format("Setzt das aktuelle Profil als Standard für %s.",
+        type = "button", label = "Apply to Active Class", width = 220,
+        tooltip = string.format("Sets the current profile as the default for %s.",
             CLASS_LABELS[myClass] or myClass),
         onClick = function()
             ns:AssignClassToProfile(myClass, ns:GetActiveProfileName())
-            ns:Print("'%s' ist jetzt Standard-Profil für %s.",
+            ns:Print("'%s' is now the default profile for %s.",
                 ns:GetActiveProfileName(), CLASS_LABELS[myClass] or myClass)
             refreshUI()
         end,
@@ -202,13 +202,13 @@ function mod:GetOptions()
     table.insert(items, { type = "spacer", height = 14 })
 
     -- =========================================================
-    -- Sektion: Klassen-Zuordnungen
+    -- Section: Class assignments
     -- =========================================================
-    table.insert(items, { type = "header", text = "Profil-Zuordnung pro Klasse" })
+    table.insert(items, { type = "header", text = "Profile Assignment per Class" })
 
     table.insert(items, {
         type = "desc",
-        text = "Wähle für jede Klasse ein Standard-Profil. Beim Login mit einem Charakter dieser Klasse wird das Profil automatisch geladen.",
+        text = "Choose a default profile for each class. When logging in with a character of that class, the profile will be loaded automatically.",
     })
 
     local values = getProfileValuesWithNone()

@@ -1,24 +1,24 @@
 -- =========================================================
 -- VuloClassicUI / Core / Mover
--- Generischer Mover-Helper. Erstellt einen lila Drag-Overlay
--- mit Pfeiltasten-Fein-Justierung (1px / SHIFT = 5px).
+-- Generic mover helper. Creates a purple drag overlay
+-- with arrow-key fine adjustment (1px / SHIFT = 5px).
 --
--- Nutzung:
+-- Usage:
 --   local mover = ns:CreateMover(target, {
---       label  = "|cffffffffMEIN FRAME|r",
---       db     = mod.db,              -- braucht x, y, unlocked
---       width  = 200, height = 40,    -- mover-Größe (optional)
---       onMove = function(x, y) end,  -- callback nach drag/key (optional)
+--       label  = "|cffffffffMY FRAME|r",
+--       db     = mod.db,              -- needs x, y, unlocked
+--       width  = 200, height = 40,    -- mover size (optional)
+--       onMove = function(x, y) end,  -- callback after drag/key (optional)
 --   })
---   mover:Show()  -- zeigt den Mover (target wird per StartMoving verschoben)
+--   mover:Show()  -- shows the mover (target is moved via StartMoving)
 -- =========================================================
 local _, ns = ...
 
 function ns:CreateMover(target, opts)
     opts = opts or {}
     local db = opts.db
-    assert(db, "ns:CreateMover braucht opts.db")
-    assert(target, "ns:CreateMover braucht target")
+    assert(db, "ns:CreateMover needs opts.db")
+    assert(target, "ns:CreateMover needs target")
 
     target:SetMovable(true)
     target:SetClampedToScreen(false)
@@ -52,7 +52,7 @@ function ns:CreateMover(target, opts)
         mover.label:SetText(opts.label)
     end
 
-    -- Drag — verschiebt target, schreibt x/y in db (relativ zu UIParent-Center)
+    -- Drag — moves target, writes x/y into db (relative to UIParent center)
     mover:RegisterForDrag("LeftButton")
     mover:SetScript("OnDragStart", function() target:StartMoving() end)
     mover:SetScript("OnDragStop", function()
@@ -68,7 +68,7 @@ function ns:CreateMover(target, opts)
         end
     end)
 
-    -- Keyboard — Pfeiltasten 1px, SHIFT 5px
+    -- Keyboard — arrow keys 1px, SHIFT 5px
     mover:EnableKeyboard(true)
     mover:SetPropagateKeyboardInput(true)
     mover:SetScript("OnKeyDown", function(self, key)

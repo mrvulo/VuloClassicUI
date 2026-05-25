@@ -1,6 +1,6 @@
 -- =========================================================
 -- VuloClassicUI / UI / MainFrame
--- EUI-inspiriertes Hauptfenster:
+-- EUI-inspired main window:
 --   ┌─────────────────────────────────────────────────────┐
 --   │ Title                                             X │
 --   ├──────────┬──────────────────────────────────────────┤
@@ -35,18 +35,18 @@ function UI:CreateMainFrame()
     f:RegisterForDrag("LeftButton")
     f:Hide()
 
-    -- Saubere Backdrop ohne Tooltip-Look
+    -- Clean backdrop without tooltip look
     UI:StyleBackdrop(f, { bg = ns.COLORS.bg, border = ns.COLORS.border })
 
-    -- Position aus DB (mit voller nil-Kette guard)
+    -- Position from DB (with full nil-chain guard)
     local pos = (ns.db and ns.db.profile and ns.db.profile.ui and ns.db.profile.ui.mainFramePos)
               or { point = "CENTER", relPoint = "CENTER", x = 0, y = 0 }
     f:SetPoint(pos.point, UIParent, pos.relPoint, pos.x, pos.y)
 
-    -- ESC schließt
+    -- ESC closes
     tinsert(UISpecialFrames, "VuloClassicUIMainFrame")
 
-    -- Klick irgendwo aufs Fenster schließt offene Dropdown-Popups
+    -- Click anywhere on the frame closes open dropdown popups
     f:SetScript("OnMouseDown", function()
         if _G.VCDropdownPopup and _G.VCDropdownPopup:IsShown() then
             _G.VCDropdownPopup:Hide()
@@ -54,7 +54,7 @@ function UI:CreateMainFrame()
     end)
 
     -- =========================================================
-    -- Title-Bar (draggable)
+    -- Title bar (draggable)
     -- =========================================================
     local titleBar = CreateFrame("Frame", nil, f)
     titleBar:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
@@ -71,10 +71,10 @@ function UI:CreateMainFrame()
         end
     end)
 
-    -- Title-Hintergrund (etwas dunkler)
+    -- Title background (slightly darker)
     UI.SetColorBG(titleBar, 0.04, 0.04, 0.05, 1)
 
-    -- Title: Icon (V vom Logo) + "uloClassicUI" Text + Version + CPU
+    -- Title: icon (V from logo) + "uloClassicUI" text + version + CPU
     local title = titleBar:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     title:SetText("|cff9b6cffuloClassicUI|r")
     local _, titleFontSize = title:GetFont()
@@ -91,18 +91,18 @@ function UI:CreateMainFrame()
     version:SetPoint("LEFT", title, "RIGHT", 8, -1)
     version:SetText("v" .. ns.VERSION)
 
-    -- CPU-Usage (refresh alle 2s während Frame sichtbar)
+    -- CPU usage (refresh every 2s while frame is visible)
     local cpuText = titleBar:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     cpuText:SetPoint("LEFT", version, "RIGHT", 10, 0)
     cpuText:SetText("")
 
-    -- API-Compat (Anniversary nutzt teils C_AddOns Namespace)
+    -- API compat (Anniversary uses the C_AddOns namespace in some cases)
     local _UpdateCPU  = (C_AddOns and C_AddOns.UpdateAddOnCPUUsage) or _G.UpdateAddOnCPUUsage
     local _GetCPU     = (C_AddOns and C_AddOns.GetAddOnCPUUsage)    or _G.GetAddOnCPUUsage
     local _GetNum     = (C_AddOns and C_AddOns.GetNumAddOns)        or _G.GetNumAddOns
     local _IsLoaded   = (C_AddOns and C_AddOns.IsAddOnLoaded)       or _G.IsAddOnLoaded
 
-    -- Summiert CPU-ms aller aktuell geladenen Addons
+    -- Sums CPU ms of all currently loaded addons
     local function getTotalAddonCPU()
         if not _GetCPU or not _GetNum then return 0 end
         local total = 0
@@ -115,8 +115,8 @@ function UI:CreateMainFrame()
     end
 
     local cpuTicker
-    -- WoW's GetAddOnCPUUsage gibt KUMULATIVE ms seit Profiling-Start zurück.
-    -- Wir wollen aber "ms pro Sekunde" (= aktuelle Auslastung) — daher Differenz zum letzten Tick.
+    -- WoW's GetAddOnCPUUsage returns CUMULATIVE ms since profiling started.
+    -- But we want "ms per second" (= current load) — so use the delta to the last tick.
     local _lastTotal, _lastOwn, _lastTime = 0, 0, 0
 
     local function updateCPU()
@@ -133,16 +133,16 @@ function UI:CreateMainFrame()
         local total = getTotalAddonCPU()
 
         if _lastTime == 0 then
-            -- Erster Tick — noch keine Differenz möglich
-            cpuText:SetText("|cff888888CPU: messe...|r")
+            -- First tick — no delta available yet
+            cpuText:SetText("|cff888888CPU: measuring...|r")
             _lastTotal, _lastOwn, _lastTime = total, own, now
             return
         end
 
         local dt = now - _lastTime
-        if dt < 0.1 then return end  -- zu kleine Differenz, skip
+        if dt < 0.1 then return end  -- delta too small, skip
 
-        local totalRate = (total - _lastTotal) / dt   -- ms verbraucht pro Sek
+        local totalRate = (total - _lastTotal) / dt   -- ms spent per second
         local ownRate   = (own   - _lastOwn)   / dt
 
         cpuText:SetText(string.format(
@@ -162,13 +162,13 @@ function UI:CreateMainFrame()
         if cpuTicker then cpuTicker:Cancel(); cpuTicker = nil end
     end)
 
-    -- Close-Button (rechts)
+    -- Close button (right)
     local closeBtn = CreateFrame("Button", nil, titleBar)
     closeBtn:SetSize(28, 28)
     closeBtn:SetPoint("RIGHT", titleBar, "RIGHT", -8, 0)
 
     -- =========================================================
-    -- Search-Box (zwischen CPU-Text und Close-Button)
+    -- Search box (between CPU text and close button)
     -- =========================================================
     local searchBox = CreateFrame("EditBox", nil, titleBar)
     searchBox:SetSize(200, 20)
@@ -193,7 +193,7 @@ function UI:CreateMainFrame()
     placeholder:SetPoint("LEFT", searchBox, "LEFT", 8, 0)
     placeholder:SetText("Search settings...")
 
-    -- Result-Dropdown unter der Search-Box
+    -- Result dropdown below the search box
     local searchDD = CreateFrame("Frame", nil, f)
     searchDD:SetSize(320, 200)
     searchDD:SetPoint("TOPRIGHT", searchBox, "BOTTOMRIGHT", 0, -2)
@@ -211,7 +211,7 @@ function UI:CreateMainFrame()
         ddBorder:SetBackdropBorderColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 1)
     end
 
-    -- Such-Logik: iteriert alle Module + Tabs + Items, matched per label-substring
+    -- Search logic: iterates all modules + tabs + items, matches by label substring
     local function searchOptions(query)
         query = query:lower()
         local results = {}
@@ -250,7 +250,7 @@ function UI:CreateMainFrame()
         return results
     end
 
-    -- Result-Rows (reused pool)
+    -- Result rows (reused pool)
     local resultRows = {}
     local function renderResults(results)
         for _, row in ipairs(resultRows) do row:Hide() end
@@ -310,14 +310,14 @@ function UI:CreateMainFrame()
     closeText:SetPoint("CENTER", closeBtn, "CENTER", 0, 0)
     closeText:SetText("×")
     closeText:SetTextColor(0.7, 0.7, 0.7)
-    -- Font-Größe explizit setzen (GameFontNormalLarge ist ~16, wir wollen 24)
+    -- Set font size explicitly (GameFontNormalLarge is ~16, we want 24)
     local font, _, flags = closeText:GetFont()
     if font then closeText:SetFont(font, 24, flags or "") end
     closeBtn:SetScript("OnEnter", function() closeText:SetTextColor(1, 0.3, 0.3) end)
     closeBtn:SetScript("OnLeave", function() closeText:SetTextColor(0.7, 0.7, 0.7) end)
     closeBtn:SetScript("OnClick", function() f:Hide() end)
 
-    -- Trenn-Linie unter Titel
+    -- Separator line below title
     local sep = f:CreateTexture(nil, "ARTWORK")
     sep:SetColorTexture(ns.COLORS.border.r, ns.COLORS.border.g, ns.COLORS.border.b, 1)
     sep:SetPoint("TOPLEFT",  titleBar, "BOTTOMLEFT",  0, 0)
@@ -325,7 +325,7 @@ function UI:CreateMainFrame()
     sep:SetHeight(1)
 
     -- =========================================================
-    -- Sidebar (links)
+    -- Sidebar (left)
     -- =========================================================
     local sidebar = CreateFrame("Frame", nil, f)
     sidebar:SetPoint("TOPLEFT",    sep, "BOTTOMLEFT", 0, 0)
@@ -333,14 +333,14 @@ function UI:CreateMainFrame()
     sidebar:SetWidth(SIDEBAR_WIDTH)
     UI.SetColorBG(sidebar, ns.COLORS.bgLight.r, ns.COLORS.bgLight.g, ns.COLORS.bgLight.b, 1)
 
-    -- Sidebar-Trenn-Linie rechts
+    -- Sidebar separator line on the right
     local sidebarSep = f:CreateTexture(nil, "ARTWORK")
     sidebarSep:SetColorTexture(ns.COLORS.border.r, ns.COLORS.border.g, ns.COLORS.border.b, 1)
     sidebarSep:SetPoint("TOPLEFT",    sidebar, "TOPRIGHT", 0, 0)
     sidebarSep:SetPoint("BOTTOMLEFT", sidebar, "BOTTOMRIGHT", 0, 0)
     sidebarSep:SetWidth(1)
 
-    -- Sidebar-ScrollFrame (für lange Modul-Listen)
+    -- Sidebar ScrollFrame (for long module lists)
     local sidebarScroll = CreateFrame("ScrollFrame", nil, sidebar, "UIPanelScrollFrameTemplate")
     sidebarScroll:SetPoint("TOPLEFT",     sidebar, "TOPLEFT",     6, -6)
     sidebarScroll:SetPoint("BOTTOMRIGHT", sidebar, "BOTTOMRIGHT", -14, 6)
@@ -354,7 +354,7 @@ function UI:CreateMainFrame()
     f.sidebarScroll   = sidebarScroll
 
     -- =========================================================
-    -- Tab-Bar (oben rechts, über Content)
+    -- Tab bar (top right, above content)
     -- =========================================================
     local tabBar = CreateFrame("Frame", nil, f)
     tabBar:SetPoint("TOPLEFT",  sidebar,  "TOPRIGHT", 1, 0)
@@ -372,7 +372,7 @@ function UI:CreateMainFrame()
     f.tabs   = {}
 
     -- =========================================================
-    -- Content (rechts unter Tabs)
+    -- Content (right side, below tabs)
     -- =========================================================
     local content = CreateFrame("Frame", nil, f)
     content:SetPoint("TOPLEFT",     tabBar,  "BOTTOMLEFT",  0, -1)
@@ -381,7 +381,7 @@ function UI:CreateMainFrame()
 
     f.content = content
 
-    -- Scroll innerhalb Content
+    -- Scroll inside content
     local scroll = CreateFrame("ScrollFrame", nil, content, "UIPanelScrollFrameTemplate")
     scroll:SetPoint("TOPLEFT",     content, "TOPLEFT",     8,  -8)
     scroll:SetPoint("BOTTOMRIGHT", content, "BOTTOMRIGHT", -20, 8)
@@ -393,7 +393,7 @@ function UI:CreateMainFrame()
     f.scrollChild = scrollChild
 
     -- =========================================================
-    -- Bottom-Bar
+    -- Bottom bar
     -- =========================================================
     local bottomBar = CreateFrame("Frame", nil, f)
     bottomBar:SetPoint("BOTTOMLEFT",  f, "BOTTOMLEFT",  0, 0)
@@ -407,15 +407,15 @@ function UI:CreateMainFrame()
     bottomSep:SetPoint("BOTTOMRIGHT", bottomBar, "TOPRIGHT", 0, 0)
     bottomSep:SetHeight(1)
 
-    -- Reset (links)
+    -- Reset (left)
     local resetBtn = UI:CreateButton(bottomBar, {
         label = "Reset Module", width = 130, height = 26,
-        tooltip = "Setzt alle Einstellungen des aktuellen Moduls auf Defaults zurück.",
+        tooltip = "Resets all settings of the current module to defaults.",
         onClick = function()
             if not UI.currentModule then return end
             local mod = ns.modules[UI.currentModule]
             if not mod then return end
-            -- Modul-Defaults rekursiv kopieren
+            -- Recursively copy module defaults
             for k, v in pairs(mod.defaults or {}) do
                 if type(v) == "table" then
                     mod.db[k] = ns:DeepCopy(v)
@@ -425,7 +425,7 @@ function UI:CreateMainFrame()
             end
             UI:BuildOptionsPage(UI.currentModule)
             UI:RefreshSidebarStates()
-            ns:Print("Modul '%s' zurückgesetzt.", mod.name)
+            ns:Print("Module '%s' reset.", mod.name)
         end,
     })
     resetBtn:SetPoint("LEFT", bottomBar, "LEFT", 10, 0)
@@ -433,12 +433,12 @@ function UI:CreateMainFrame()
     -- Reload UI
     local reloadBtn = UI:CreateButton(bottomBar, {
         label = "Reload UI", width = 100, height = 26,
-        tooltip = "Lädt die WoW-UI komplett neu (/reload).",
+        tooltip = "Reloads the WoW UI completely (/reload).",
         onClick = function() ReloadUI() end,
     })
     reloadBtn:SetPoint("LEFT", resetBtn, "RIGHT", 6, 0)
 
-    -- Done (rechts, primary)
+    -- Done (right, primary)
     local doneBtn = UI:CreateButton(bottomBar, {
         label = "Done", width = 90, height = 26, primary = true,
         onClick = function() f:Hide() end,
@@ -450,27 +450,27 @@ function UI:CreateMainFrame()
 end
 
 -- =========================================================
--- Tab-System
+-- Tab system
 -- =========================================================
--- Tabs werden für das aktuelle Modul gebaut. Default: ein einziger Tab "Settings".
--- Module können in mod.tabs = { {id="general", label="General"}, ... } definieren.
+-- Tabs are built for the current module. Default: a single tab "Settings".
+-- Modules can define mod.tabs = { {id="general", label="General"}, ... }.
 function UI:BuildTabsForModule(key)
     local f = UI.mainFrame
     if not f then return end
     local mod = ns.modules[key]
 
-    -- Alte Tabs entfernen
+    -- Remove old tabs
     for _, tab in ipairs(f.tabs) do
         tab:Hide()
         tab:SetParent(nil)
     end
     f.tabs = {}
 
-    -- Tab-Definitionen ermitteln
+    -- Resolve tab definitions
     local tabs = (mod and mod.tabs) or { { id = "default", label = "Settings" } }
     local hasRealTabs = mod and mod.tabs and #mod.tabs > 1
 
-    -- Wenn nur Default-Tab: Tab-Bar ausblenden, Content nach oben ziehen
+    -- If only the default tab: hide tab bar, pull content up
     if not hasRealTabs then
         f.tabBar:Hide()
         f.content:ClearAllPoints()
@@ -545,7 +545,7 @@ function UI:ShowTab(tabId)
             tab._text:SetTextColor(c.r, c.g, c.b)
         end
     end
-    -- Content für diesen Tab rendern
+    -- Render content for this tab
     if UI.currentModule then
         UI:BuildOptionsPage(UI.currentModule, tabId)
     end

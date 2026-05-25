@@ -1,8 +1,8 @@
 -- =========================================================
 -- VuloClassicUI / Core / Events
--- Zentraler Event-Dispatcher.
--- Module können ns:RegisterEvent("EVENT", function(...) end) machen,
--- statt jedes Mal einen eigenen Frame zu erstellen.
+-- Central event dispatcher.
+-- Modules can call ns:RegisterEvent("EVENT", function(...) end)
+-- instead of creating their own frame each time.
 -- =========================================================
 local _, ns = ...
 
@@ -13,8 +13,8 @@ local handlers = {}  -- event -> { handler1, handler2, ... }
 
 function ns:RegisterEvent(event, handler)
     if not handlers[event] then
-        -- pcall: nicht alle Events existieren in jeder WoW-Version
-        -- (z.B. INSPECT_TALENT_READY in Anniversary nicht). Silent ignorieren.
+        -- pcall: not all events exist in every WoW version
+        -- (e.g. INSPECT_TALENT_READY does not exist in Anniversary). Silently ignore.
         local ok = pcall(dispatcher.RegisterEvent, dispatcher, event)
         if not ok then return end
         handlers[event] = {}
@@ -41,7 +41,7 @@ dispatcher:SetScript("OnEvent", function(_, event, ...)
     for _, h in ipairs(list) do
         local ok, err = pcall(h, event, ...)
         if not ok then
-            ns:Print("|cffff5555Event-Handler-Fehler (%s):|r %s", event, tostring(err))
+            ns:Print("|cffff5555Event handler error (%s):|r %s", event, tostring(err))
         end
     end
 end)

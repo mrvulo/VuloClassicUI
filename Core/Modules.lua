@@ -1,29 +1,29 @@
 -- =========================================================
 -- VuloClassicUI / Core / Modules
--- Modul-Registry. Jedes Modul ruft ns:RegisterModule(key, def) auf.
+-- Module registry. Each module calls ns:RegisterModule(key, def).
 --
 -- def = {
---   name        = "Hübscher Anzeigename",
---   description = "Was macht das Modul",
---   defaults    = { enabled = true, ... },          -- merged in db.profile.modules[key]
---   OnEnable    = function(self) ... end,           -- self = module, hat self.db
+--   name        = "Nice display name",
+--   description = "What the module does",
+--   defaults    = { enabled = true, ... },          -- merged into db.profile.modules[key]
+--   OnEnable    = function(self) ... end,           -- self = module, has self.db
 --   OnDisable   = function(self) ... end,
---   GetOptions  = function(self) return {...} end,  -- liefert Options-Definition (siehe OptionsBuilder)
+--   GetOptions  = function(self) return {...} end,  -- returns options definition (see OptionsBuilder)
 -- }
 -- =========================================================
 local _, ns = ...
 
 function ns:RegisterModule(key, def)
     if ns.modules[key] then
-        ns:Print("WARN: Modul '%s' bereits registriert.", key)
+        ns:Print("WARN: Module '%s' already registered.", key)
         return ns.modules[key]
     end
 
     def.key      = key
     def.name     = def.name or key
-    def.group    = def.group or "Core"   -- Sidebar-Gruppe (z.B. "Core", "QoL", "Reskin")
+    def.group    = def.group or "Core"   -- Sidebar group (e.g. "Core", "QoL", "Reskin")
     def.defaults = def.defaults or {}
-    -- Jedes Modul kriegt automatisch ein "enabled" Flag im Default
+    -- Every module automatically gets an "enabled" flag in the defaults
     if def.defaults.enabled == nil then
         def.defaults.enabled = true
     end
@@ -35,7 +35,7 @@ function ns:RegisterModule(key, def)
 end
 
 -- =========================================================
--- Wird in Init.lua aufgerufen, nachdem DB initialisiert ist.
+-- Called in Init.lua after DB is initialized.
 -- =========================================================
 function ns:EnableModules()
     for _, key in ipairs(ns.moduleOrder) do
@@ -54,11 +54,11 @@ function ns:SafeEnable(mod)
     end
     local ok, err = pcall(mod.OnEnable, mod)
     if not ok then
-        ns:Print("|cffff5555Fehler beim Aktivieren von Modul '%s':|r %s", mod.name, tostring(err))
+        ns:Print("|cffff5555Error enabling module '%s':|r %s", mod.name, tostring(err))
         return
     end
     mod._enabled = true
-    ns:Debug("Modul aktiviert: %s", mod.name)
+    ns:Debug("Module enabled: %s", mod.name)
 end
 
 function ns:SafeDisable(mod)
@@ -66,7 +66,7 @@ function ns:SafeDisable(mod)
     if mod.OnDisable then
         local ok, err = pcall(mod.OnDisable, mod)
         if not ok then
-            ns:Print("|cffff5555Fehler beim Deaktivieren von '%s':|r %s", mod.name, tostring(err))
+            ns:Print("|cffff5555Error disabling '%s':|r %s", mod.name, tostring(err))
         end
     end
     mod._enabled = false
@@ -80,7 +80,7 @@ function ns:ToggleModule(key, state)
         ns:SafeEnable(mod)
     else
         ns:SafeDisable(mod)
-        -- Viele Hooks lassen sich zur Laufzeit nicht entfernen → ReloadUI empfehlen
-        ns:Print("Modul '%s' deaktiviert. /reload für vollständige Wirkung empfohlen.", mod.name)
+        -- Many hooks can't be removed at runtime -> recommend ReloadUI
+        ns:Print("Module '%s' disabled. /reload recommended for full effect.", mod.name)
     end
 end

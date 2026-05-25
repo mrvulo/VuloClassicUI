@@ -1,9 +1,9 @@
 -- =========================================================
 -- VuloClassicUI / UI / OptionsBuilder
--- Baut die Content-Seite für ein Modul anhand von mod:GetOptions().
--- Tab-aware: mod:GetOptions(tabId) wenn das Modul Tabs definiert.
+-- Builds the content page for a module from mod:GetOptions().
+-- Tab-aware: mod:GetOptions(tabId) when the module defines tabs.
 --
--- Item-Typen:
+-- Item types:
 --   { type = "header",    text }
 --   { type = "desc",      text, width? }
 --   { type = "checkbox" / "toggle", label, tooltip, get, set, width? }
@@ -84,7 +84,7 @@ local function placeItem(parent, item, y)
         return UI:PlaceGroup(parent, item, y)
     end
     if item.type == "header" then
-        -- Header bekommt extra Abstand davor
+        -- Header gets extra spacing above
         y = y - 6
     end
 
@@ -155,7 +155,7 @@ function UI:PlaceGroup(parent, group, y)
 end
 
 -- =========================================================
--- Haupt-Funktion
+-- Main function
 -- =========================================================
 function UI:BuildOptionsPage(key, tabId)
     local f = UI.mainFrame
@@ -169,7 +169,7 @@ function UI:BuildOptionsPage(key, tabId)
 
     local y = -8
 
-    -- Modul-Beschreibung oben (klein, dim)
+    -- Module description on top (small, dim)
     if mod.description and mod.description ~= "" then
         local desc = UI:CreateDescription(parent, mod.description)
         desc:SetPoint("TOPLEFT", parent, "TOPLEFT", CONTENT_PADDING, y)
@@ -180,7 +180,7 @@ function UI:BuildOptionsPage(key, tabId)
         y = y - math.max(20, (descH or 18) + 8)
     end
 
-    -- Optionen abrufen, ggf. mit tabId
+    -- Fetch options, optionally with tabId
     local items
     if mod.GetOptions then
         items = mod:GetOptions(tabId)

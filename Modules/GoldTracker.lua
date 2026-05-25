@@ -1,23 +1,23 @@
 -- =========================================================
 -- VuloClassicUI / Modules / GoldTracker
--- Zeigt im Backpack-Gold-Tooltip die Bilanz seit dem letzten manuellen
--- Reset: Erhalten, Ausgegeben, Netto. Pro Char persistent in
--- ns.db.char.goldtracker (überlebt /reload und Logout).
--- Reset via Options-Button oder /vcui goldreset.
+-- Shows in the backpack gold tooltip the balance since the last manual
+-- reset: gained, spent, net. Per-char persistent in
+-- ns.db.char.goldtracker (survives /reload and logout).
+-- Reset via options button or /vcui goldreset.
 -- =========================================================
 local _, ns = ...
 
 local mod = ns:RegisterModule("goldtracker", {
     name        = "Gold Tracker",
     group       = "QoL",
-    description = "Zeigt im Backpack-Gold-Tooltip wieviel Gold seit dem letzten Reset dazugekommen oder ausgegeben wurde. Pro Char persistent.",
+    description = "Shows in the backpack gold tooltip how much gold has been gained or spent since the last reset. Per-char persistent.",
     defaults    = {
         enabled = true,
     },
 })
 
 -- =========================================================
--- Persistent State (pro Char in VuloClassicUICharDB)
+-- Persistent state (per char in VuloClassicUICharDB)
 -- =========================================================
 local hooked = false
 
@@ -25,7 +25,7 @@ local function data()
     if not (ns.db and ns.db.char) then return nil end
     if not ns.db.char.goldtracker then
         ns.db.char.goldtracker = {
-            sessionStart = nil,  -- nil = noch nie initialisiert
+            sessionStart = nil,  -- nil = never initialized
             lastMoney    = nil,
             gained       = 0,
             spent        = 0,
@@ -35,7 +35,7 @@ local function data()
 end
 
 -- =========================================================
--- Farben
+-- Colors
 -- =========================================================
 local GOLD_COLOR   = "|cffffd100"
 local SILVER_COLOR = "|cffc7c7cf"
@@ -62,8 +62,8 @@ local function formatCopper(copper)
     return table.concat(parts, " ")
 end
 
--- Resettet die Bilanz auf "jetzt". force=true = explizit (Button/Slash),
--- ohne force = nur wenn noch nie initialisiert wurde.
+-- Resets the balance to "now". force=true = explicit (button/slash),
+-- without force = only if never initialized.
 local function initSession(force)
     local d = data()
     if not d then return end
@@ -74,9 +74,9 @@ local function initSession(force)
     d.spent        = 0
 end
 
--- Bei Login/Reload: lastMoney auf current syncen OHNE offline-Delta
--- (AH/Mail/Trades zwischen Sessions) in gained/spent einzurechnen.
--- Initialisiert die DB falls noch nie geschehen.
+-- On login/reload: sync lastMoney to current WITHOUT including offline delta
+-- (AH/mail/trades between sessions) in gained/spent.
+-- Initializes the DB if never done.
 local function syncOnLogin()
     local d = data()
     if not d then return end
@@ -105,13 +105,13 @@ local function onMoney()
 end
 
 -- =========================================================
--- Public API (für /vcui goldreset und Options-Button)
+-- Public API (for /vcui goldreset and options button)
 -- =========================================================
 function mod.ResetSession()
     initSession(true)
     local d = data()
     if d then
-        ns:Print(ACCENT .. "Gold-Tracker zur\195\188ckgesetzt|r. Start = " .. formatCopper(d.sessionStart))
+        ns:Print(ACCENT .. "Gold Tracker reset|r. Start = " .. formatCopper(d.sessionStart))
     end
 end
 
@@ -124,29 +124,29 @@ local function showTooltip(self)
     if not d then return end
     if not d.sessionStart then initSession(false) end
 
-    -- Wenn schon ein Tooltip auf diesem Frame liegt (z.B. Baganators
-    -- Realm/Account-Übersicht), Lines anhängen. Sonst eigenen Tooltip.
+    -- If a tooltip is already on this frame (e.g. Baganator's
+    -- realm/account overview), append lines. Otherwise own tooltip.
     if GameTooltip:GetOwner() ~= self then
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     else
         GameTooltip:AddLine(" ")
     end
 
-    GameTooltip:AddLine(ACCENT .. "Gold-Bilanz|r")
+    GameTooltip:AddLine(ACCENT .. "Gold Balance|r")
     GameTooltip:AddLine(" ")
-    GameTooltip:AddDoubleLine(POS_COLOR .. "Erhalten:|r",   formatCopper(d.gained))
-    GameTooltip:AddDoubleLine(NEG_COLOR .. "Ausgegeben:|r", formatCopper(d.spent))
+    GameTooltip:AddDoubleLine(POS_COLOR .. "Gained:|r", formatCopper(d.gained))
+    GameTooltip:AddDoubleLine(NEG_COLOR .. "Spent:|r",  formatCopper(d.spent))
 
     local net   = (d.gained or 0) - (d.spent or 0)
     local color = net >= 0 and POS_COLOR or NEG_COLOR
     local sign  = net >= 0 and "+" or "-"
-    GameTooltip:AddDoubleLine("|cffffffffNetto:|r",
+    GameTooltip:AddDoubleLine("|cffffffffNet:|r",
         color .. sign .. " " .. formatCopper(net) .. "|r")
 
     GameTooltip:AddLine(" ")
     GameTooltip:AddDoubleLine(GRAY .. "Start:|r", GRAY .. formatCopper(d.sessionStart or 0) .. "|r")
-    GameTooltip:AddDoubleLine(GRAY .. "Jetzt:|r", GRAY .. formatCopper(d.lastMoney or 0)    .. "|r")
-    GameTooltip:AddLine(GRAY .. "Reset mit /vcui goldreset|r")
+    GameTooltip:AddDoubleLine(GRAY .. "Now:|r",   GRAY .. formatCopper(d.lastMoney or 0)    .. "|r")
+    GameTooltip:AddLine(GRAY .. "Reset with /vcui goldreset|r")
 
     GameTooltip:Show()
 end
@@ -156,9 +156,9 @@ local function hideTooltip()
 end
 
 -- =========================================================
--- Frame-Hook
--- Unterstützt Baganator (BaganatorCurrencyWidgetMixin) UND default
--- Blizzard MoneyFrame als Fallback. Retry alle 3s bis was gefunden ist.
+-- Frame hook
+-- Supports Baganator (BaganatorCurrencyWidgetMixin) AND default
+-- Blizzard MoneyFrame as fallback. Retries every 3s until found.
 -- =========================================================
 local function findMoneyFontString(frame, depth)
     if not frame or depth > 8 then return nil end
@@ -191,7 +191,7 @@ local function tryHook()
     if hooked then return end
     local foundAny = false
 
-    -- 1. Baganator Mixin — greift bei künftigen CurrencyBar-Instanzen
+    -- 1. Baganator mixin — catches future CurrencyBar instances
     if _G.BaganatorCurrencyWidgetMixin and not mod._baganatorMixinHooked then
         mod._baganatorMixinHooked = true
         hooksecurefunc(_G.BaganatorCurrencyWidgetMixin, "OnLoad", function(widget)
@@ -200,7 +200,7 @@ local function tryHook()
         foundAny = true
     end
 
-    -- 2. Existierende Baganator-Frames durchsuchen
+    -- 2. Scan existing Baganator frames
     for name, frame in pairs(_G) do
         if type(name) == "string" and name:find("^Baganator_") and type(frame) == "table" then
             local ok = pcall(function() return frame.GetObjectType end)
@@ -213,7 +213,7 @@ local function tryHook()
         end
     end
 
-    -- 3. Default Blizzard MoneyFrames (Fallback ohne Baganator)
+    -- 3. Default Blizzard MoneyFrames (fallback without Baganator)
     local defaultFrames = {
         "ContainerFrame1MoneyFrame",
         "BackpackTokenFrameMoneyFrame",
@@ -241,12 +241,12 @@ end
 -- Lifecycle
 -- =========================================================
 function mod:OnEnable()
-    -- WICHTIG: KEIN initSession(true) bei OnEnable! Persistente Werte
-    -- müssen erhalten bleiben. syncOnLogin() macht NUR lastMoney sync.
+    -- IMPORTANT: NO initSession(true) in OnEnable! Persistent values
+    -- must be preserved. syncOnLogin() only syncs lastMoney.
     ns:RegisterEvent("PLAYER_LOGIN", syncOnLogin)
     ns:RegisterEvent("PLAYER_MONEY", onMoney)
 
-    -- Falls Modul später (nach PLAYER_LOGIN) per Toggle aktiviert wird:
+    -- If module is enabled later (after PLAYER_LOGIN) via toggle:
     if ns.isInitialised then syncOnLogin() end
 
     tryHook()
@@ -255,8 +255,8 @@ end
 function mod:OnDisable()
     ns:UnregisterEvent("PLAYER_LOGIN", syncOnLogin)
     ns:UnregisterEvent("PLAYER_MONEY", onMoney)
-    -- HookScripts auf MoneyFrame können nicht entfernt werden,
-    -- showTooltip() prüft selbst mod._enabled.
+    -- HookScripts on MoneyFrame can't be removed,
+    -- showTooltip() checks mod._enabled itself.
 end
 
 -- =========================================================
@@ -266,14 +266,14 @@ function mod:GetOptions()
     return {
         { type = "header", text = "Gold Tracker" },
         { type = "desc",
-          text = "|cffaaaaaaZeigt im Backpack-Gold-Tooltip die Bilanz seit dem letzten manuellen Reset:|n"
-              .. "  • |cff44ff44Erhalten|r (Quest, Loot, Vendor-Verkauf, Mail)|n"
-              .. "  • |cffff4444Ausgegeben|r (Repair, Vendor-Kauf, Mail-Cost)|n"
-              .. "  • |cffffffffNetto|r (+/− seit Reset)|n|n"
-              .. "Werte sind |cffffffffpro Char persistent|r über /reload und Logout.|n"
-              .. "Offline-Gold (AH-Mail, Trade) wird nicht eingerechnet.|n|n"
-              .. "Reset: Button unten oder |cffffff00/vcui goldreset|r.|r" },
-        { type = "button", label = "Session zurücksetzen", width = 200,
+          text = "|cffaaaaaaShows in the backpack gold tooltip the balance since the last manual reset:|n"
+              .. "  - |cff44ff44Gained|r (quests, loot, vendor sales, mail)|n"
+              .. "  - |cffff4444Spent|r (repair, vendor buy, mail cost)|n"
+              .. "  - |cffffffffNet|r (+/- since reset)|n|n"
+              .. "Values are |cffffffffper-char persistent|r across /reload and logout.|n"
+              .. "Offline gold (AH mail, trade) is not counted.|n|n"
+              .. "Reset: button below or |cffffff00/vcui goldreset|r.|r" },
+        { type = "button", label = "Reset session", width = 200,
           onClick = function() mod.ResetSession() end },
     }
 end

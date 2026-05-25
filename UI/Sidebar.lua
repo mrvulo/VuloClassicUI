@@ -1,7 +1,7 @@
 -- =========================================================
 -- VuloClassicUI / UI / Sidebar
--- EUI-Stil: Module sind unter Gruppen-Headern gelistet (Core, QoL, Reskin, ...).
--- Rechts an jedem Eintrag: Power-Button zum Aktivieren/Deaktivieren.
+-- EUI style: modules are listed under group headers (Core, QoL, Reskin, ...).
+-- On the right of each entry: power button to enable/disable.
 -- =========================================================
 local _, ns = ...
 ns.UI = ns.UI or {}
@@ -12,8 +12,8 @@ local GROUP_HEADER_H = 28
 local GROUP_GAP      = 6
 
 UI.sidebarButtons     = {}
-UI.sidebarGroupOrder  = { "Global", "Unit Frames", "PvP", "QoL", "UI Reskin", "Bugfixes" }  -- gewünschte Reihenfolge
-UI.sidebarHiddenGroups = { ["_hidden"] = true, ["Account"] = true, ["Core"] = true }  -- nicht in Sidebar zeigen
+UI.sidebarGroupOrder  = { "Global", "Unit Frames", "PvP", "QoL", "UI Reskin", "Bugfixes" }  -- desired order
+UI.sidebarHiddenGroups = { ["_hidden"] = true, ["Account"] = true, ["Core"] = true }  -- not shown in sidebar
 UI.sidebarGroupBuckets = {}
 
 local function highlightSelected()
@@ -33,7 +33,7 @@ local function createModuleRow(parent, key, mod)
     local row = CreateFrame("Button", nil, parent)
     row:SetHeight(ROW_HEIGHT)
 
-    -- Selected-Background (transparent wenn nicht selected)
+    -- Selected background (transparent when not selected)
     local bg = row:CreateTexture(nil, "BACKGROUND")
     bg:SetAllPoints(row)
     bg:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 0.18)
@@ -51,7 +51,7 @@ local function createModuleRow(parent, key, mod)
     label:SetText(mod.name)
     row.label = label
 
-    -- Power-Button rechts (toggle) - außer das Modul markiert sich als noToggle
+    -- Power button on the right (toggle) - unless module marks itself as noToggle
     if not mod.noToggle then
         local power = UI:CreatePowerButton(row, {
             get = function() return mod.db and mod.db.enabled end,
@@ -59,7 +59,7 @@ local function createModuleRow(parent, key, mod)
                 ns:ToggleModule(key, v)
                 UI:RefreshSidebarStates()
             end,
-            tooltip = "Modul ein-/ausschalten",
+            tooltip = "Enable/disable module",
         })
         power:SetPoint("RIGHT", row, "RIGHT", -8, 0)
         row.power = power
@@ -86,7 +86,7 @@ local function createGroupHeader(parent, groupName)
 end
 
 -- =========================================================
--- Gruppen-Bucket aufbauen
+-- Build group buckets
 -- =========================================================
 local function rebuildBuckets()
     UI.sidebarGroupBuckets = {}
@@ -99,8 +99,8 @@ local function rebuildBuckets()
         table.insert(UI.sidebarGroupBuckets[g], key)
     end
 
-    -- Gruppen die nicht in der Reihenfolge sind, hinten anhängen
-    -- (außer explizit hidden)
+    -- Groups not in the order list get appended at the end
+    -- (unless explicitly hidden)
     local seen = {}
     for _, g in ipairs(UI.sidebarGroupOrder) do seen[g] = true end
     for g in pairs(UI.sidebarGroupBuckets) do
@@ -111,14 +111,14 @@ local function rebuildBuckets()
 end
 
 -- =========================================================
--- Sidebar befüllen
+-- Populate sidebar
 -- =========================================================
 function UI:PopulateSidebar()
     local f = UI.mainFrame
     if not f then return end
     local parent = f.sidebarContent
 
-    -- Alte Kinder cleanen
+    -- Clean up old children
     if UI._sidebarChildren then
         for _, c in ipairs(UI._sidebarChildren) do
             c:Hide()
@@ -135,14 +135,14 @@ function UI:PopulateSidebar()
         local moduleKeys = UI.sidebarGroupBuckets[groupName]
         local hidden = UI.sidebarHiddenGroups and UI.sidebarHiddenGroups[groupName]
         if moduleKeys and #moduleKeys > 0 and not hidden then
-            -- Gruppen-Header
+            -- Group header
             local header = createGroupHeader(parent, groupName)
             header:SetPoint("TOPLEFT",  parent, "TOPLEFT",   0, -y)
             header:SetPoint("TOPRIGHT", parent, "TOPRIGHT",  0, -y)
             table.insert(UI._sidebarChildren, header)
             y = y + GROUP_HEADER_H
 
-            -- Modul-Rows
+            -- Module rows
             for _, key in ipairs(moduleKeys) do
                 local mod = ns.modules[key]
                 local row = createModuleRow(parent, key, mod)
@@ -175,6 +175,6 @@ function UI:ShowModulePage(key)
     UI.currentModule = key
     UI.currentTab    = nil
     UI:BuildTabsForModule(key)
-    -- BuildTabsForModule ruft am Ende ShowTab(firstTabId) auf, was BuildOptionsPage triggert
+    -- BuildTabsForModule eventually calls ShowTab(firstTabId), which triggers BuildOptionsPage
     highlightSelected()
 end

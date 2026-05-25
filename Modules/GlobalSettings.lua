@@ -1,15 +1,15 @@
 -- =========================================================
 -- VuloClassicUI / Modules / GlobalSettings
--- Einziger Sidebar-Eintrag mit zwei Tabs:
---   General — UI-Scale, Kamera-Distanz, Minimap-Button
---   Profile — Pointer auf das Profiles-Modul
+-- Single sidebar entry with two tabs:
+--   General — UI scale, camera distance, minimap button
+--   Profile — pointer to the Profiles module
 -- =========================================================
 local _, ns = ...
 
 local mod = ns:RegisterModule("globalsettings", {
     name        = "Global Settings",
     group       = "Global",
-    description = "Globale UI-Einstellungen + Profile-Verwaltung.",
+    description = "Global UI settings + profile management.",
     defaults    = { enabled = true },
 })
 
@@ -33,7 +33,7 @@ end
 
 local function applyUIScale(scale)
     if not scale or scale <= 0 then return end
-    -- useUiScale muss "1" sein damit uiScale greift
+    -- useUiScale must be "1" for uiScale to take effect
     setCVar("useUiScale", "1")
     setCVar("uiScale", scale)
     if UIParent and UIParent.SetScale then
@@ -42,7 +42,7 @@ local function applyUIScale(scale)
 end
 
 local function pixelPerfectScale()
-    -- 768 / vertikale physische Auflösung
+    -- 768 / vertical physical resolution
     if GetPhysicalScreenSize then
         local _, h = GetPhysicalScreenSize()
         if h and h > 0 then return 768 / h end
@@ -50,11 +50,11 @@ local function pixelPerfectScale()
     return 0.65
 end
 
--- StaticPopup für Profiling-Toggle (benötigt /reload damit der CVar greift)
+-- StaticPopup for profiling toggle (requires /reload for the CVar to take effect)
 StaticPopupDialogs["VCUI_RELOAD_PROFILING"] = {
-    text = "Script-Profiling ge\195\164ndert. /reload erforderlich damit die CPU-Anzeige aktualisiert wird.",
-    button1 = "Jetzt reloaden",
-    button2 = "Sp\195\164ter",
+    text = "Script profiling changed. /reload required for the CPU display to update.",
+    button1 = "Reload now",
+    button2 = "Later",
     OnAccept = function() ReloadUI() end,
     timeout = 0,
     whileDead = true,
@@ -71,7 +71,7 @@ local function generalOptions()
 
         { type = "slider", label = "UI Scale",
           min = 0.40, max = 1.15, step = 0.01,
-          tooltip = "Manuelle UI-Skalierung. 0.65 ist kleiner, 1.0 ist Standard.",
+          tooltip = "Manual UI scaling. 0.65 is smaller, 1.0 is default.",
           get = function() return getCVarNum("uiScale") end,
           set = function(_, v) applyUIScale(v) end },
 
@@ -91,17 +91,17 @@ local function generalOptions()
         },
 
         { type = "spacer", height = 6 },
-        { type = "header", text = "Kamera" },
+        { type = "header", text = "Camera" },
         { type = "slider", label = "Max Camera Distance",
           min = 1.0, max = 3.4, step = 0.1,
-          tooltip = "Maximale Kamera-Entfernung (CVar cameraDistanceMaxZoomFactor).",
+          tooltip = "Maximum camera distance (CVar cameraDistanceMaxZoomFactor).",
           get = function() return getCVarNum("cameraDistanceMaxZoomFactor") end,
           set = function(_, v) setCVar("cameraDistanceMaxZoomFactor", v) end },
 
         { type = "spacer", height = 6 },
         { type = "header", text = "Minimap" },
-        { type = "toggle", label = "Minimap-Button anzeigen",
-          tooltip = "VuloClassicUI-Button auf der Minimap an/aus.",
+        { type = "toggle", label = "Show Minimap Button",
+          tooltip = "Toggle the VuloClassicUI button on the minimap.",
           get = function()
               local m = ns.modules and ns.modules.minimap
               return m and m.db and m.db.enabled
@@ -111,9 +111,9 @@ local function generalOptions()
           end },
 
         { type = "spacer", height = 6 },
-        { type = "header", text = "Performance-Anzeige" },
-        { type = "toggle", label = "CPU-Auslastung im Header anzeigen",
-          tooltip = "Zeigt die Gesamt-CPU-Auslastung aller aktiven Addons (plus VuloClassicUI's eigenen Anteil) oben im Config-Header.\n\n|cffaaaaaaErfordert /reload nach dem Umschalten.\n\nHinweis: Aktiviert WoWs scriptProfile CVar, der ~3-5% Performance kostet — das ist der Preis daf\195\188r dass WoW die Daten \195\188berhaupt sammelt.|r",
+        { type = "header", text = "Performance Display" },
+        { type = "toggle", label = "Show CPU Usage in Header",
+          tooltip = "Shows total CPU usage of all active addons (plus VuloClassicUI's own share) at the top of the config header.\n\n|cffaaaaaaRequires /reload after toggling.\n\nNote: Enables WoW's scriptProfile CVar, which costs ~3-5% performance — that's the price for WoW collecting this data at all.|r",
           get = function() return getCVarNum("scriptProfile") == 1 end,
           set = function(_, v)
               setCVar("scriptProfile", v and "1" or "0")
@@ -123,7 +123,7 @@ local function generalOptions()
 end
 
 -- =========================================================
--- Tab: Profile (delegiert ans Profiles-Modul)
+-- Tab: Profile (delegates to the Profiles module)
 -- =========================================================
 local function profileOptions()
     local p = ns.modules and ns.modules.profiles
@@ -133,12 +133,12 @@ local function profileOptions()
     end
     return {
         { type = "desc",
-          text = "|cffff5555Profile-Modul nicht geladen.|r" },
+          text = "|cffff5555Profile module not loaded.|r" },
     }
 end
 
 -- =========================================================
--- Options Dispatcher
+-- Options dispatcher
 -- =========================================================
 function mod:GetOptions(tabId)
     if tabId == "profile" then return profileOptions() end

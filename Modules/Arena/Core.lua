@@ -1,6 +1,6 @@
 -- =========================================================
 -- VuloClassicUI / Modules / Arena / Core
--- Position, Scale, Fonts, Mover-Overlay, Ctrl+Shift+Click zum Verschieben.
+-- Position, scale, fonts, mover overlay, Ctrl+Shift+click to move.
 -- =========================================================
 local _, ns = ...
 local mod = ns.ArenaModule
@@ -9,11 +9,11 @@ local H = mod.helpers
 local pendingApply = false
 local unlocked = false
 local hookedManage = false
-local moverOverlay  -- Hint-Overlay oben am Bildschirm
-local dragOverlay   -- Drag-Overlay über den Arena-Frames
+local moverOverlay  -- hint overlay at top of screen
+local dragOverlay   -- drag overlay above the arena frames
 
 -- =========================================================
--- Unmanage + Apply Position/Scale
+-- Unmanage + apply position/scale
 -- =========================================================
 local function unmanageOwner()
     if UIPARENT_MANAGED_FRAME_POSITIONS and UIPARENT_MANAGED_FRAME_POSITIONS["ArenaEnemyFrames"] then
@@ -32,7 +32,7 @@ local function applyToOwner()
     owner:SetPoint(p.point or "CENTER", UIParent, p.relPoint or "CENTER", p.x or 0, p.y or 0)
     owner:SetScale(mod.db.scale or 1.0)
 
-    -- Wenn das Drag-Overlay sichtbar ist, dem neuen Owner-Layout folgen
+    -- If the drag overlay is visible, follow the new owner layout
     if dragOverlay and dragOverlay:IsShown() and mod.UpdateDragOverlay then
         mod:UpdateDragOverlay()
     end
@@ -62,7 +62,7 @@ end
 mod.ApplyFonts = applyAllFonts
 
 -- =========================================================
--- Hook in TextStatusBar_UpdateTextString, damit unsere Sizes nicht überschrieben werden
+-- Hook into TextStatusBar_UpdateTextString so our sizes don't get overwritten
 -- =========================================================
 local fontHooksInstalled = false
 local function installFontHooks()
@@ -87,7 +87,7 @@ local function installFontHooks()
 end
 
 -- =========================================================
--- Hook UIParent_ManageFramePositions, damit Blizzard nicht zurücksnappt
+-- Hook UIParent_ManageFramePositions so Blizzard doesn't snap back
 -- =========================================================
 local function hookManageFramePositions()
     if hookedManage or not hooksecurefunc then return end
@@ -100,13 +100,13 @@ local function hookManageFramePositions()
 end
 
 -- =========================================================
--- Drag-Overlay (nur sichtbar im Unlock-Mode)
--- Liegt über den Arena-Frames, fängt Maus-Input ab und verschiebt den Container.
+-- Drag overlay (only visible in unlock mode)
+-- Sits above the arena frames, catches mouse input and moves the container.
 -- =========================================================
--- Drag-Overlay als Standalone-Mover.
--- Der Mover ist ein eigener Frame mit fester Größe, der an der Position des
--- ArenaEnemyFrames sitzt. Beim Ziehen verschieben wir den Container mit.
--- Funktioniert auch wenn die Test-Frames noch nicht voll positioniert sind.
+-- Drag overlay as a standalone mover.
+-- The mover is its own frame with fixed size, sitting at the position of
+-- the ArenaEnemyFrames. When dragging, we move the container along.
+-- Also works when the test frames aren't fully positioned yet.
 -- =========================================================
 local MOVER_WIDTH  = 220
 local MOVER_HEIGHT = 280
@@ -125,12 +125,12 @@ local function ensureDragOverlay()
     dragOverlay:SetClampedToScreen(true)
     dragOverlay:Hide()
 
-    -- Hintergrund (halbtransparent lila)
+    -- Background (semi-transparent purple)
     local bg = dragOverlay:CreateTexture(nil, "BACKGROUND")
     bg:SetAllPoints(dragOverlay)
     bg:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 0.30)
 
-    -- Border (dickerer lila Rand)
+    -- Border (thicker purple edge)
     local borders = {}
     for i = 1, 4 do
         local b = dragOverlay:CreateTexture(nil, "BORDER")
@@ -142,21 +142,21 @@ local function ensureDragOverlay()
     borders[3]:SetPoint("TOPLEFT", dragOverlay, "TOPLEFT"); borders[3]:SetPoint("BOTTOMLEFT", dragOverlay, "BOTTOMLEFT"); borders[3]:SetWidth(2)
     borders[4]:SetPoint("TOPRIGHT", dragOverlay, "TOPRIGHT"); borders[4]:SetPoint("BOTTOMRIGHT", dragOverlay, "BOTTOMRIGHT"); borders[4]:SetWidth(2)
 
-    -- Label oben
+    -- Label on top
     local title = dragOverlay:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     title:SetPoint("TOP", dragOverlay, "TOP", 0, -12)
-    title:SetText("|cffffffffArena-Frames|r")
+    title:SetText("|cffffffffArena Frames|r")
     title:SetJustifyH("CENTER")
 
     local subtitle = dragOverlay:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     subtitle:SetPoint("TOP", title, "BOTTOM", 0, -6)
-    subtitle:SetText("|cffaaaaaaKlick + Ziehen\nMausrad = Scale|r")
+    subtitle:SetText("|cffaaaaaaClick + drag\nMouse wheel = scale|r")
     subtitle:SetJustifyH("CENTER")
     dragOverlay.subtitle = subtitle
 
-    -- Drag: bewegt den Mover selbst, am Ende übernehmen wir die Position
+    -- Drag: moves the mover itself, we apply the position at the end
     dragOverlay:SetScript("OnDragStart", function(self)
-        if ns:InCombat() then ns:Print("Im Kampf nicht möglich."); return end
+        if ns:InCombat() then ns:Print("Not possible in combat."); return end
         self:StartMoving()
         self._vcMoving = true
     end)
@@ -166,19 +166,19 @@ local function ensureDragOverlay()
         self:StopMovingOrSizing()
         self._vcMoving = false
 
-        -- Position des Movers übernehmen → in mod.db.pos speichern
+        -- Apply mover position -> save in mod.db.pos
         local point, _, relPoint, x, y = self:GetPoint(1)
         mod.db.pos.point    = point    or "CENTER"
         mod.db.pos.relPoint = relPoint or "CENTER"
         mod.db.pos.x        = x or 0
         mod.db.pos.y        = y or 0
 
-        -- Container an die neue Position
+        -- Move container to the new position
         applyToOwner()
-        ns:Print("Arena-Frames Position gespeichert.")
+        ns:Print("Arena Frames position saved.")
     end)
 
-    -- Mausrad zum Skalieren
+    -- Mouse wheel to scale
     dragOverlay:SetScript("OnMouseWheel", function(_, delta)
         if ns:InCombat() then return end
         local s = ns:Clamp((mod.db.scale or 1.0) + (delta > 0 and 0.05 or -0.05), 0.5, 2.0)
@@ -188,14 +188,14 @@ local function ensureDragOverlay()
             moverOverlay.title:SetText(string.format("|cff9b6cffArenaFrames Unlock|r  |cffaaaaaa(Scale: %.2f)|r", s))
         end
         if subtitle then
-            subtitle:SetText(string.format("|cffaaaaaaKlick + Ziehen\nMausrad = Scale\nAktuell: %.2f|r", s))
+            subtitle:SetText(string.format("|cffaaaaaaClick + drag\nMouse wheel = scale\nCurrent: %.2f|r", s))
         end
     end)
 
     return dragOverlay
 end
 
--- Mover an die Position des ArenaEnemyFrames-Containers setzen (bei Show)
+-- Set mover to the position of the ArenaEnemyFrames container (on show)
 function mod:UpdateDragOverlay()
     if not dragOverlay then return end
 
@@ -205,7 +205,7 @@ function mod:UpdateDragOverlay()
 end
 
 -- =========================================================
--- Hint-Overlay oben am Bildschirm (zeigt Scale, Hinweis-Text)
+-- Hint overlay at top of screen (shows scale, hint text)
 -- =========================================================
 local function createMoverOverlay()
     if moverOverlay then return end
@@ -227,7 +227,7 @@ local function createMoverOverlay()
 
     moverOverlay.hint = moverOverlay:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     moverOverlay.hint:SetPoint("TOP", moverOverlay.title, "BOTTOM", 0, -4)
-    moverOverlay.hint:SetText("Lila Overlay über den Frames ziehen zum Verschieben.\nMausrad auf Overlay = Scale. /vcui arenaframes zum Beenden.")
+    moverOverlay.hint:SetText("Drag the purple overlay above the frames to move.\nMouse wheel on overlay = scale. /vcui arenaframes to finish.")
     moverOverlay.hint:SetJustifyH("CENTER")
 
     moverOverlay:Hide()
@@ -237,14 +237,14 @@ local function setUnlocked(state)
     unlocked = state
     if state then
         if ns:InCombat() then
-            ns:Print("Im Kampf nicht möglich.")
+            ns:Print("Not possible in combat.")
             unlocked = false
             return
         end
         createMoverOverlay()
         moverOverlay:Show()
 
-        -- Blizzard_ArenaUI sicherstellen (für die echten Frames im Arena-Kampf)
+        -- Ensure Blizzard_ArenaUI (for the real frames in arena combat)
         if not H.GetOwner() then
             if UIParentLoadAddOn and IsAddOnLoaded and not IsAddOnLoaded("Blizzard_ArenaUI") then
                 UIParentLoadAddOn("Blizzard_ArenaUI")
@@ -252,17 +252,17 @@ local function setUnlocked(state)
         end
         mod:ShowTestFrames(true)
 
-        -- Drag-Overlay zeigen — ist ein eigener Mover, unabhängig von Frame-Sichtbarkeit
+        -- Show drag overlay — it's its own mover, independent of frame visibility
         ensureDragOverlay()
         mod:UpdateDragOverlay()
         dragOverlay:Show()
 
-        ns:Print("Unlock aktiv. Klick + Ziehen auf das lila Overlay zum Verschieben.")
+        ns:Print("Unlock active. Click + drag the purple overlay to move.")
     else
         if moverOverlay then moverOverlay:Hide() end
         if dragOverlay  then dragOverlay:Hide() end
         mod:ShowTestFrames(false)
-        ns:Print("Unlock deaktiviert.")
+        ns:Print("Unlock disabled.")
     end
 end
 
@@ -270,14 +270,14 @@ mod.SetUnlocked = setUnlocked
 mod.IsUnlocked  = function() return unlocked end
 
 -- =========================================================
--- Test-Frames anzeigen (für Konfiguration ohne Arena)
--- Blizzards ArenaEnemyFrame_SetMaxArenaPlayers + Show
+-- Show test frames (for configuration without arena)
+-- Blizzard's ArenaEnemyFrame_SetMaxArenaPlayers + Show
 -- =========================================================
 local function showTestArenaFrames(show)
     H.ForEach(function(frame, i)
         if show then
             frame:Show()
-            -- Ohne echte Unit-Daten zeigen die Frames nichts. Setze ein Dummy.
+            -- Without real unit data the frames show nothing. Set a dummy.
             if frame.healthbar then
                 frame.healthbar:SetMinMaxValues(0, 100)
                 frame.healthbar:SetValue(75)
@@ -289,14 +289,14 @@ local function showTestArenaFrames(show)
             local nameText = H.GetNameText(frame)
             if nameText then nameText:SetText("ArenaPlayer" .. i) end
         else
-            -- Bei Frame "verstecken" nicht :Hide() machen, sonst registriert er sich neu
-            -- Stattdessen den Owner refreshen
+            -- When "hiding" don't call :Hide(), otherwise it re-registers
+            -- Instead refresh the owner
         end
     end)
     if not show then
         local owner = H.GetOwner()
         if owner and ArenaEnemyFrames_Update then
-            -- Lass Blizzard die Frames wieder normal verwalten
+            -- Let Blizzard manage the frames normally again
             pcall(ArenaEnemyFrames_Update)
         end
     end
@@ -305,13 +305,13 @@ end
 mod.ShowTestFrames = showTestArenaFrames
 
 -- =========================================================
--- Lifecycle (vom Init aufgerufen)
+-- Lifecycle (called from init)
 -- =========================================================
 function mod:OnEnableCore()
     installFontHooks()
     hookManageFramePositions()
 
-    -- Submodule informieren wenn die Frames bereit sind
+    -- Notify submodules when frames are ready
     self:OnArenaFramesReady(function(frame, i)
         applyArenaFonts(frame)
     end)
@@ -336,7 +336,7 @@ function mod:Refresh()
     if self:RefreshAll() then
         applyAllFonts()
     end
-    -- Manchmal kommen die Frames verzögert
+    -- Sometimes the frames arrive delayed
     if C_Timer and C_Timer.After then
         C_Timer.After(0, function() applyToOwner() end)
         C_Timer.After(1, function() applyToOwner(); self:RefreshAll() end)
@@ -344,25 +344,25 @@ function mod:Refresh()
 end
 
 -- =========================================================
--- Options-Section: Position, Scale, Fonts
+-- Options section: position, scale, fonts
 -- =========================================================
 mod:AddOptionsSection("core", function()
     return {
-        { type = "header", text = "Position & Größe" },
+        { type = "header", text = "Position & Size" },
         {
             type = "group", layout = "row", gap = 8,
             items = {
                 { type = "button", label = "Unlock", width = 80,
                   onClick = function() setUnlocked(not unlocked) end },
-                { type = "button", label = "Position zurücksetzen", width = 160,
+                { type = "button", label = "Reset position", width = 160,
                   onClick = function()
                       mod.db.pos = { point = "CENTER", relPoint = "CENTER", x = 0, y = 0 }
                       applyToOwner()
-                      ns:Print("Position zurückgesetzt.")
+                      ns:Print("Position reset.")
                   end },
             },
         },
-        { type = "desc", text = "Im Unlock-Mode erscheint ein lila Overlay über den Frames. Klick + Ziehen zum Verschieben, Mausrad zum Skalieren." },
+        { type = "desc", text = "In unlock mode a purple overlay appears above the frames. Click + drag to move, mouse wheel to scale." },
         {
             type = "slider", label = "Scale",
             min = 0.5, max = 2.0, step = 0.05,
@@ -370,15 +370,15 @@ mod:AddOptionsSection("core", function()
             set = function(_, v) mod.db.scale = v; applyToOwner() end,
         },
         { type = "spacer", height = 6 },
-        { type = "header", text = "Schriftgrößen" },
+        { type = "header", text = "Font Sizes" },
         {
-            type = "slider", label = "Health-Bar Text",
+            type = "slider", label = "Health Bar Text",
             min = 6, max = 20, step = 1,
             get = function() return mod.db.healthSize end,
             set = function(_, v) mod.db.healthSize = v; applyAllFonts() end,
         },
         {
-            type = "slider", label = "Power-Bar Text",
+            type = "slider", label = "Power Bar Text",
             min = 6, max = 20, step = 1,
             get = function() return mod.db.powerSize end,
             set = function(_, v) mod.db.powerSize = v; applyAllFonts() end,

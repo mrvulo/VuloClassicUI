@@ -1,14 +1,14 @@
 -- =========================================================
 -- VuloClassicUI / Modules / CharacterPanel
--- Verbessertes Charakter-Panel (iLvL pro Slot, Sockets, Enchant-Kürzung).
--- Der eigentliche Code liegt in CharacterPanel_Impl.lua und liest mod.db.
+-- Enhanced character panel (iLvL per slot, sockets, enchant shortening).
+-- The actual code lives in CharacterPanel_Impl.lua and reads mod.db.
 -- =========================================================
 local _, ns = ...
 
 local mod = ns:RegisterModule("characterpanel", {
     name        = "Character Panel",
     group       = "UI Reskin",
-    description = "Verbessert das Charakter-Panel: iLvL pro Slot, Sockel-Anzeige, gekürzte Enchant-Texte.",
+    description = "Enhances the character panel: iLvL per slot, socket display, shortened enchant text.",
     defaults = {
         showItemLevel       = true,
         showSockets         = true,
@@ -20,7 +20,7 @@ local mod = ns:RegisterModule("characterpanel", {
 })
 
 -- =========================================================
--- iLvL Font-Size auf alle existing slot displays anwenden
+-- Apply iLvL font size to all existing slot displays
 -- =========================================================
 local SLOTS = {
     "Head","Neck","Shoulder","Back","Chest","Wrist","Hands","Waist",
@@ -41,7 +41,7 @@ end
 local function reapplyItemLevelSize()
     local size = mod.db.itemLevelSize or 11
 
-    -- Pfad 1: direkter Slot-Zugriff (falls Slot named ist und ilvlDisplay direkt anhängt)
+    -- Path 1: direct slot access (if slot is named and ilvlDisplay is attached directly)
     for _, slot in ipairs(SLOTS) do
         local f = _G["Character" .. slot .. "Slot"]
         if f and f.ilvlDisplay then
@@ -49,7 +49,7 @@ local function reapplyItemLevelSize()
         end
     end
 
-    -- Pfad 2: Anniversary — ilvlDisplay hängt an anonymen Sub-Frames von PaperDollItemsFrame
+    -- Path 2: Anniversary — ilvlDisplay hangs on anonymous sub-frames of PaperDollItemsFrame
     local pdi = _G.PaperDollItemsFrame
     if pdi and pdi.GetChildren then
         for _, child in ipairs({ pdi:GetChildren() }) do
@@ -62,8 +62,8 @@ end
 mod.reapplyItemLevelSize = reapplyItemLevelSize
 
 function mod:OnEnable()
-    -- Hook auf CharacterFrame:OnShow → iLvL-FontStrings werden vom Impl neu erstellt
-    -- mit hartem default (11), daher reapply nach jedem Open mit aktueller Slider-Größe
+    -- Hook on CharacterFrame:OnShow -> iLvL FontStrings are recreated by Impl
+    -- with a hard default (11), so reapply after each open with the current slider size
     if _G.CharacterFrame and not _G.CharacterFrame._vcui_ilvlHook then
         _G.CharacterFrame._vcui_ilvlHook = true
         _G.CharacterFrame:HookScript("OnShow", function()
@@ -78,30 +78,30 @@ end
 
 function mod:GetOptions()
     return {
-        { type = "header", text = "Anzeigen" },
-        { type = "checkbox", label = "Item-Level pro Slot anzeigen",
+        { type = "header", text = "Display" },
+        { type = "checkbox", label = "Show item level per slot",
           get = function() return mod.db.showItemLevel end,
           set = function(_, v) mod.db.showItemLevel = v end },
-        { type = "checkbox", label = "Durchschnittliches Item-Level anzeigen",
+        { type = "checkbox", label = "Show average item level",
           get = function() return mod.db.showAvgItemLevel end,
           set = function(_, v) mod.db.showAvgItemLevel = v end },
-        { type = "checkbox", label = "Sockel anzeigen",
+        { type = "checkbox", label = "Show sockets",
           get = function() return mod.db.showSockets end,
           set = function(_, v) mod.db.showSockets = v end },
-        { type = "checkbox", label = "Verzauberungstexte kürzen (DE/EN)",
-          tooltip = "Beispiel: 'Stamina' -> 'Stam', 'Ausdauer' -> 'Ausd'.",
+        { type = "checkbox", label = "Shorten enchant text (DE/EN)",
+          tooltip = "Example: 'Stamina' -> 'Stam', 'Ausdauer' -> 'Ausd'.",
           get = function() return mod.db.shortenEnchants end,
           set = function(_, v) mod.db.shortenEnchants = v end },
-        { type = "checkbox", label = "Ringe als verzauberbar behandeln",
-          tooltip = "Zeigt auch auf Ringen den Verzauberungstext (TBC: einige Berufe können Ringe verzaubern).",
+        { type = "checkbox", label = "Treat rings as enchantable",
+          tooltip = "Also shows enchant text on rings (TBC: some professions can enchant rings).",
           get = function() return mod.db.ringsEnchantable end,
           set = function(_, v) mod.db.ringsEnchantable = v end },
 
         { type = "spacer", height = 6 },
-        { type = "header", text = "Textgröße" },
-        { type = "slider", label = "Item-Level Text Größe",
+        { type = "header", text = "Text Size" },
+        { type = "slider", label = "Item Level Text Size",
           min = 8, max = 24, step = 1,
-          tooltip = "Schriftgröße der Item-Level-Zahl auf jedem Item-Slot. Wirkt sofort wenn das Charakter-Panel offen ist.",
+          tooltip = "Font size of the item level number on each item slot. Takes effect immediately when the character panel is open.",
           get = function() return mod.db.itemLevelSize end,
           set = function(_, v)
               mod.db.itemLevelSize = v
@@ -109,6 +109,6 @@ function mod:GetOptions()
           end },
 
         { type = "spacer" },
-        { type = "desc", text = "Hinweis: Einige Änderungen greifen erst nach /reload vollständig, da das Charakter-Panel beim Laden gehookt wird." },
+        { type = "desc", text = "Note: Some changes only take full effect after /reload, since the character panel is hooked on load." },
     }
 end

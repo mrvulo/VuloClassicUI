@@ -1,15 +1,15 @@
 -- =========================================================
 -- VuloClassicUI / Modules / FixAuctionPriceDropdown
--- Behebt einen Bug im deutschen Client wo das PriceDropdown im
--- Auktionshaus nil-Fehler wirft. Stellt einen leeren PriceDropdown
--- bereit damit die UI nicht crasht.
+-- Fixes a bug in the German client where the PriceDropdown in the
+-- auction house throws nil errors. Provides an empty PriceDropdown
+-- so the UI doesn't crash.
 -- =========================================================
 local _, ns = ...
 
 local mod = ns:RegisterModule("fixauctiondropdown", {
     name        = "Auction Price Fix",
     group       = "Bugfixes",
-    description = "Behebt einen nil-Fehler im deutschen Auktionshaus-UI (PriceDropdown nicht definiert).",
+    description = "Fixes a nil error in the German auction house UI (PriceDropdown not defined).",
     defaults = {
         enabled = true,
     },
@@ -35,12 +35,12 @@ end
 function mod:GetOptions()
     return {
         { type = "header", text = "Info" },
-        { type = "desc", text = "Dieser Fix behebt einen bekannten Bug in der deutschen WoW-Lokalisierung: das Auktionshaus-UI referenziert ein \"PriceDropdown\"-Element, das nie definiert wurde, was zu Lua-Fehlern beim Öffnen des Auktionshauses führt." },
+        { type = "desc", text = "This fix addresses a known bug in the German WoW localization: the auction house UI references a \"PriceDropdown\" element that was never defined, which causes Lua errors when opening the auction house." },
         { type = "spacer", height = 6 },
-        { type = "desc", text = string.format("|cffaaaaaaAktuelle Sprache: %s|r", GetLocale() or "?") },
-        { type = "desc", text = "|cffaaaaaaDer Fix greift nur auf deutschen Clients (deDE). Auf anderen Sprachen ist das Modul inaktiv.|r" },
+        { type = "desc", text = string.format("|cffaaaaaaCurrent locale: %s|r", GetLocale() or "?") },
+        { type = "desc", text = "|cffaaaaaaThe fix only applies on German clients (deDE). On other languages the module is inactive.|r" },
         { type = "spacer", height = 6 },
         { type = "desc", text = string.format("|cffaaaaaaStatus: %s|r",
-            applied and (_G.PriceDropdown and "|cff66ff66angewendet|r" or "übersprungen (deDE-only)") or "nicht angewendet") },
+            applied and (_G.PriceDropdown and "|cff66ff66applied|r" or "skipped (deDE-only)") or "not applied") },
     }
 end

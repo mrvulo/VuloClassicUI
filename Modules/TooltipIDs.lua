@@ -1,14 +1,14 @@
 -- =========================================================
 -- VuloClassicUI / Modules / TooltipIDs
--- Ehemals: idTip von silverwind (https://github.com/silverwind/idTip)
--- Fügt verschiedene IDs zu Tooltips hinzu (SpellID, ItemID, NPC ID, ...).
+-- Formerly: idTip by silverwind (https://github.com/silverwind/idTip)
+-- Adds various IDs to tooltips (SpellID, ItemID, NPC ID, ...).
 --
--- Code 1:1 portiert. SavedVariables-Settings sind in mod.db statt idTipConfig.
+-- Code ported 1:1. SavedVariables settings are in mod.db instead of idTipConfig.
 -- =========================================================
 local _, ns = ...
 
 -- =========================================================
--- API-Aliase (Retail/Classic-Kompatibilität)
+-- API aliases (Retail/Classic compatibility)
 -- =========================================================
 local GetSpellTexture = (C_Spell and C_Spell.GetSpellTexture) and C_Spell.GetSpellTexture or GetSpellTexture
 local GetItemIconByID = (C_Item and C_Item.GetItemIconByID) and C_Item.GetItemIconByID or GetItemIconByID
@@ -19,7 +19,7 @@ local GetRecipeReagentItemLink = (C_TradeSkillUI and C_TradeSkillUI.GetRecipeRea
 local GetItemLinkByGUID = (C_Item and C_Item.GetItemLinkByGUID) and C_Item.GetItemLinkByGUID
 
 -- =========================================================
--- Kinds (ID-Typen)
+-- Kinds (ID types)
 -- =========================================================
 local kinds = {
     spell         = "SpellID",
@@ -52,7 +52,7 @@ local kinds = {
     traitdef      = "TraitDefinitionID",
 }
 
--- Liste in stabiler Reihenfolge für die UI
+-- List in stable order for the UI
 local kindOrder = {
     "spell", "item", "unit", "quest", "talent",
     "achievement", "criteria", "ability", "currency",
@@ -67,7 +67,7 @@ local defaultDisabledKinds = {
     bonus = true, traitnode = true, traitentry = true, traitdef = true,
 }
 
--- TooltipDataProcessor type → kind mapping (Retail)
+-- TooltipDataProcessor type -> kind mapping (Retail)
 local kindsByID = {
     [0]  = "item",        [1]  = "spell",  [2]  = "unit",      [3]  = "unit",
     [4]  = "object",      [5]  = "currency", [6]  = "unit",    [7]  = "spell",
@@ -79,20 +79,20 @@ local kindsByID = {
 }
 
 -- =========================================================
--- Modul registrieren mit Defaults für alle ID-Typen
+-- Register module with defaults for all ID types
 -- =========================================================
 local moduleDefaults = { enabled = true }
 for kind in pairs(kinds) do
     moduleDefaults[kind] = not defaultDisabledKinds[kind]
 end
--- Zusatz-Features für Spieler-Tooltips (iLvL + Talent-Verteilung)
+-- Extra features for player tooltips (iLvL + talent distribution)
 moduleDefaults.showPlayerILvl    = true
 moduleDefaults.showPlayerTalents = true
 
 local mod = ns:RegisterModule("tooltipids", {
     name        = "Tooltip IDs",
     group       = "QoL",
-    description = "Zeigt SpellID, ItemID, NPC-ID und viele weitere IDs in Tooltips an (basierend auf idTip von silverwind).",
+    description = "Shows SpellID, ItemID, NPC ID and many other IDs in tooltips (based on idTip by silverwind).",
     defaults    = moduleDefaults,
 })
 
@@ -137,7 +137,7 @@ local function isSecret(value)
 end
 
 -- =========================================================
--- Kern-Funktionen: addLine / add / addByKind / addItemInfo
+-- Core functions: addLine / add / addByKind / addItemInfo
 -- =========================================================
 local function addLine(tooltip, id, kind)
     if isSecret(id) then return end
@@ -147,7 +147,7 @@ local function addLine(tooltip, id, kind)
     local ok, name = pcall(getTooltipName, tooltip)
     if not ok or not name then return end
 
-    -- Schon vorhandene Zeile prüfen, um Doppel-IDs zu vermeiden
+    -- Check existing lines to avoid duplicate IDs
     local frame, text
     for i = tooltip:NumLines(), 1, -1 do
         frame = _G[name .. "TextLeft" .. i]
@@ -253,7 +253,7 @@ local function addItemInfo(tooltip, link)
         end
     end
 
-    -- GetMouseFocus für TradeSkill-Reagents (kann in TBC Classic anders sein, defensiv prüfen)
+    -- GetMouseFocus for TradeSkill reagents (may differ in TBC Classic, check defensively)
     local itemId = string.match(link, "item:(%d*)")
     if (itemId == "" or itemId == "0") and TradeSkillFrame and TradeSkillFrame.RecipeList
        and TradeSkillFrame:IsVisible() and GetRecipeReagentItemLink and GetMouseFocus then
@@ -306,7 +306,7 @@ local function attachItemTooltip(tooltip, id)
 end
 
 -- =========================================================
--- Achievement/Criteria-Helper (werden im ADDON_LOADED-Handler verwendet)
+-- Achievement/Criteria helpers (used in the ADDON_LOADED handler)
 -- =========================================================
 local function achievementOnEnter(btn)
     GameTooltip:SetOwner(btn, "ANCHOR_NONE")
@@ -337,7 +337,7 @@ local function criteriaOnEnter(enterIndex)
 end
 
 -- =========================================================
--- Addon-erstellte Tooltips scannen (z.B. ElvUI_SpellBookTooltip)
+-- Scan addon-created tooltips (e.g. ElvUI_SpellBookTooltip)
 -- =========================================================
 local hookedTooltips = {}
 
@@ -374,7 +374,7 @@ local function scanAddonTooltips()
 end
 
 -- =========================================================
--- Alle GameTooltip-Hooks einmalig setzen
+-- Install all GameTooltip hooks once
 -- =========================================================
 local hooksInstalled = false
 local function installHooks()
@@ -383,7 +383,7 @@ local function installHooks()
 
     hookedTooltips[GameTooltip] = true
 
-    -- Retail TooltipDataProcessor (für moderne Clients)
+    -- Retail TooltipDataProcessor (for modern clients)
     if TooltipDataProcessor then
         TooltipDataProcessor.AddTooltipPostCall(TooltipDataProcessor.AllTypes, function(tooltip, data)
             if not data or not data.type then return end
@@ -534,7 +534,7 @@ local function installHooks()
 
     hookScript(GameTooltip, "OnTooltipSetItem", onSetItem)
 
-    -- Currency-Hooks
+    -- Currency hooks
     if C_CurrencyInfo and C_CurrencyInfo.GetCurrencyListLink then
         hook(GameTooltip, "SetCurrencyToken", function(tooltip, index)
             local link = C_CurrencyInfo.GetCurrencyListLink(index)
@@ -547,7 +547,7 @@ local function installHooks()
     hook(GameTooltip, "SetCurrencyByID",        function(tooltip, id) add(tooltip, id, "currency") end)
     hook(GameTooltip, "SetCurrencyTokenByID",   function(tooltip, id) add(tooltip, id, "currency") end)
 
-    -- Quest-Hooks
+    -- Quest hooks
     if C_QuestLog and C_QuestLog.GetQuestIDForLogIndex then
         hook(_G, "QuestMapLogTitleButton_OnEnter", function(tooltip)
             if tooltip and tooltip.questLogIndex then
@@ -561,7 +561,7 @@ local function installHooks()
         if tooltip and tooltip.questID then add(GameTooltip, tooltip.questID, "quest") end
     end)
 
-    -- AreaPois / Vignettes (Retail-only, in TBC werden die Mixins nil sein → hook() ignoriert)
+    -- AreaPois / Vignettes (Retail-only, the mixins will be nil in TBC -> hook() ignores)
     if AreaPOIPinMixin then
         hook(AreaPOIPinMixin, "TryShowTooltip", function(tooltip)
             if tooltip and tooltip.areaPoiID then add(GameTooltip, tooltip.areaPoiID, "areapoi") end
@@ -575,7 +575,7 @@ local function installHooks()
         end)
     end
 
-    -- PetBattle (Retail-only, in TBC nil → ignoriert)
+    -- PetBattle (Retail-only, nil in TBC -> ignored)
     if C_PetBattles and C_PetBattles.GetActivePet and C_PetBattles.GetAbilityInfo then
         hook(_G, "PetBattleAbilityButton_OnEnter", function(btn)
             local petIndex = C_PetBattles.GetActivePet(LE_BATTLE_PET_ALLY)
@@ -610,12 +610,12 @@ end
 -- Lifecycle
 -- =========================================================
 -- =========================================================
--- Player Tooltip Enhancement: iLvL + Talent-Verteilung
+-- Player tooltip enhancement: iLvL + talent distribution
 -- =========================================================
 local inspectCache = {}                -- guid -> { talents={t1,t2,t3}, ilvl=N, expiry=time }
-local inspectFail  = {}                -- guid -> expiry: kürzlich fehlgeschlagen, nicht erneut probieren
-local INSPECT_CACHE_TIME = 60          -- Sek. Cache pro Spieler
-local INSPECT_FAIL_TIME  = 30          -- Sek. bis erneuter Versuch nach Fehlschlag (out of range)
+local inspectFail  = {}                -- guid -> expiry: recently failed, don't retry
+local INSPECT_CACHE_TIME = 60          -- seconds cache per player
+local INSPECT_FAIL_TIME  = 30          -- seconds until retry after failure (out of range)
 local INSPECT_THROTTLE   = 1.0
 local lastInspectTime    = 0
 local pendingInspectGUID = nil
@@ -634,13 +634,13 @@ local function requestInspect(unit)
     if (GetTime() - lastInspectTime) < INSPECT_THROTTLE then return end
     local guid = UnitGUID(unit)
     if not guid or getCachedInspect(guid) then return end
-    -- Negativ-Cache: kürzlich out-of-range fehlgeschlagen → nicht erneut (kein Sound-Spam)
+    -- Negative cache: recently failed out-of-range -> don't retry (no sound spam)
     if inspectFail[guid] and inspectFail[guid] > GetTime() then return end
 
     pendingInspectGUID = guid
     pendingInspectUnit = unit
     lastInspectTime    = GetTime()
-    -- Vorab als "fehlgeschlagen" markieren; bei erfolgreichem INSPECT_READY wieder löschen.
+    -- Pre-mark as "failed"; clear again on successful INSPECT_READY.
     inspectFail[guid] = GetTime() + INSPECT_FAIL_TIME
     if NotifyInspect then NotifyInspect(unit) end
 end
@@ -648,7 +648,7 @@ end
 local function computeAverageILvl(unit)
     if not GetInventoryItemLink then return 0 end
     local total, count = 0, 0
-    -- 1-18 = Equip, skip Shirt (4) und Tabard (19)
+    -- 1-18 = equip slots, skip Shirt (4) and Tabard (19)
     for slot = 1, 18 do
         if slot ~= 4 then
             local link = GetInventoryItemLink(unit, slot)
@@ -692,7 +692,7 @@ end
 local function onInspectReady(_, guid)
     guid = guid or pendingInspectGUID
     if not guid then return end
-    inspectFail[guid] = nil  -- erfolgreich → Negativ-Cache löschen
+    inspectFail[guid] = nil  -- successful -> clear negative cache
     local unit = pendingInspectUnit
     pendingInspectGUID = nil
     pendingInspectUnit = nil
@@ -704,7 +704,7 @@ local function onInspectReady(_, guid)
         talents = talents, ilvl = ilvl,
         expiry  = GetTime() + INSPECT_CACHE_TIME,
     }
-    -- Tooltip sofort re-rendern (SetUnit triggert alle Hooks neu)
+    -- Re-render tooltip immediately (SetUnit triggers all hooks again)
     if GameTooltip and GameTooltip:IsShown() then
         local _, ttUnit = GameTooltip:GetUnit()
         if ttUnit and UnitGUID(ttUnit) == guid then
@@ -727,7 +727,7 @@ local function onPlayerTooltipUnit(tooltip)
         if mod.db.showPlayerTalents and data.talents and data.talents[1] then
             local s = string.format("%d/%d/%d",
                 data.talents[1] or 0, data.talents[2] or 0, data.talents[3] or 0)
-            tooltip:AddLine("|cff9b6cffTalente:|r " .. s)
+            tooltip:AddLine("|cff9b6cffTalents:|r " .. s)
         end
         if mod.db.showPlayerILvl and data.ilvl and data.ilvl > 0 then
             tooltip:AddLine(string.format("|cff9b6cffiLvL:|r %d", data.ilvl))
@@ -741,25 +741,25 @@ function mod:OnEnable()
     installHooks()
     scanAddonTooltips()
 
-    -- Player-Tooltip: Inspect-Events + Tooltip-Hook (legacy OnTooltipSetUnit
-    -- ist in Anniversary der funktionierende Pfad — TooltipDataProcessor fires nicht)
+    -- Player tooltip: inspect events + tooltip hook (legacy OnTooltipSetUnit
+    -- is the working path in Anniversary — TooltipDataProcessor doesn't fire)
     ns:RegisterEvent("INSPECT_READY",         onInspectReady)
     ns:RegisterEvent("INSPECT_TALENT_READY",  onInspectReady)
-    -- Guard-Flag: HookScript appended jeder Aufruf → bei Toggle off→on hätte
-    -- onPlayerTooltipUnit sonst doppelt registriert + Tooltip-Lines doppelt.
+    -- Guard flag: HookScript appends on every call -> on toggle off->on
+    -- onPlayerTooltipUnit would otherwise register twice + tooltip lines doubled.
     if GameTooltip and GameTooltip.HookScript and not mod._tooltipHooked then
         mod._tooltipHooked = true
         GameTooltip:HookScript("OnTooltipSetUnit", onPlayerTooltipUnit)
     end
 
-    -- Achievement-/Collection-/Garrison-Frames werden lazy geladen
+    -- Achievement/Collection/Garrison frames are loaded lazily
     ns:RegisterEvent("ADDON_LOADED", function(_, addonName)
         if not mod._enabled then return end
         scanAddonTooltips()
 
         if addonName == "Blizzard_AchievementUI" then
             if AchievementTemplateMixin then
-                -- Modern (Dragonflight+) — in TBC nicht vorhanden, daher i.d.R. skip
+                -- Modern (Dragonflight+) — not present in TBC, so usually skip
                 hook(AchievementTemplateMixin, "OnEnter", achievementOnEnter)
                 hook(AchievementTemplateMixin, "OnLeave", GameTooltip_Hide)
                 local hooked = {}
@@ -786,7 +786,7 @@ function mod:OnEnable()
                 end
             elseif AchievementFrameAchievementsContainer
                    and AchievementFrameAchievementsContainer.buttons then
-                -- Pre-Dragonflight (Classic/TBC) — der normale Pfad
+                -- Pre-Dragonflight (Classic/TBC) — the normal path
                 for _, button in ipairs(AchievementFrameAchievementsContainer.buttons) do
                     hookScript(button, "OnEnter", achievementOnEnter)
                     hookScript(button, "OnLeave", GameTooltip_Hide)
@@ -839,7 +839,7 @@ function mod:OnEnable()
         end
     end)
 
-    -- Login: nochmal scannen, falls in der Zwischenzeit weitere Tooltips erstellt wurden
+    -- Login: rescan in case more tooltips were created in the meantime
     ns:RegisterEvent("PLAYER_LOGIN", function()
         if not mod._enabled then return end
         scanAddonTooltips()
@@ -850,10 +850,10 @@ end
 -- Options
 -- =========================================================
 
--- Helfer um pro Kind einen Checkbox-Eintrag zu bauen (Toggle für die UI)
+-- Helper to build a checkbox entry per kind (toggle for the UI)
 function mod:OnDisable()
-    -- pcall: INSPECT_TALENT_READY existiert in Anniversary evtl. nicht,
-    -- UnregisterEvent würde sonst werfen und SafeDisable abbrechen.
+    -- pcall: INSPECT_TALENT_READY may not exist in Anniversary,
+    -- UnregisterEvent would otherwise throw and abort SafeDisable.
     pcall(ns.UnregisterEvent, ns, "INSPECT_READY",        onInspectReady)
     pcall(ns.UnregisterEvent, ns, "INSPECT_TALENT_READY", onInspectReady)
 end
@@ -862,7 +862,7 @@ local function kindCheckbox(kind)
     return {
         type = "checkbox",
         label = kinds[kind] .. (defaultDisabledKinds[kind] and "  |cff888888(off by default)|r" or ""),
-        tooltip = "Zeigt " .. kinds[kind] .. " in Tooltips an.",
+        tooltip = "Shows " .. kinds[kind] .. " in tooltips.",
         get = function() return mod.db[kind] end,
         set = function(_, v) mod.db[kind] = v end,
     }
@@ -870,18 +870,18 @@ end
 
 function mod:GetOptions()
     local items = {
-        { type = "header", text = "Allgemein" },
-        { type = "desc",   text = "Zeigt zusätzliche ID-Zeilen in Tooltips, z.B. Spell-, Item- oder NPC-IDs." },
+        { type = "header", text = "General" },
+        { type = "desc",   text = "Shows additional ID lines in tooltips, e.g. spell, item or NPC IDs." },
         { type = "spacer" },
-        { type = "header", text = "Schnellauswahl" },
+        { type = "header", text = "Quick Select" },
         {
             type = "group", layout = "row", gap = 6,
             items = {
-                { type = "button", label = "Alle an", width = 80, onClick = function()
+                { type = "button", label = "All on", width = 80, onClick = function()
                     for k in pairs(kinds) do mod.db[k] = true end
                     ns.UI:BuildOptionsPage("tooltipids")
                 end },
-                { type = "button", label = "Alle aus", width = 80, onClick = function()
+                { type = "button", label = "All off", width = 80, onClick = function()
                     for k in pairs(kinds) do mod.db[k] = false end
                     ns.UI:BuildOptionsPage("tooltipids")
                 end },
@@ -894,23 +894,23 @@ function mod:GetOptions()
             },
         },
         { type = "spacer", height = 8 },
-        { type = "header", text = "Spieler-Tooltip (Inspect-basiert)" },
+        { type = "header", text = "Player Tooltip (Inspect-based)" },
         { type = "desc",
-          text = "|cffaaaaaaWenn du mit der Maus über einen Spieler gehst, wird sein iLvL-Durchschnitt + Talent-Verteilung (z.B. 14/0/47) im Tooltip angezeigt. Daten werden 60s pro Spieler gecacht, Inspect-Throttle 1/s.|r" },
-        { type = "toggle", label = "iLvL-Durchschnitt anzeigen",
+          text = "|cffaaaaaaWhen you hover over a player, their average iLvL + talent distribution (e.g. 14/0/47) is shown in the tooltip. Data is cached 60s per player, inspect throttle 1/s.|r" },
+        { type = "toggle", label = "Show average iLvL",
           get = function() return mod.db.showPlayerILvl end,
           set = function(_, v) mod.db.showPlayerILvl = v end },
-        { type = "toggle", label = "Talent-Verteilung anzeigen (z.B. 14/0/47)",
+        { type = "toggle", label = "Show talent distribution (e.g. 14/0/47)",
           get = function() return mod.db.showPlayerTalents end,
           set = function(_, v) mod.db.showPlayerTalents = v end },
 
         { type = "spacer", height = 8 },
-        { type = "header", text = "ID-Typen" },
-        { type = "desc",   text = "Welche IDs sollen in Tooltips angezeigt werden? Manche Typen sind nur in Retail aktiv und werden in TBC ignoriert (z.B. TraitNodeID, SourceID)." },
+        { type = "header", text = "ID Types" },
+        { type = "desc",   text = "Which IDs should be shown in tooltips? Some types are only active in Retail and are ignored in TBC (e.g. TraitNodeID, SourceID)." },
         { type = "spacer", height = 4 },
     }
 
-    -- ID-Checkboxes in 2 Spalten
+    -- ID checkboxes in 2 columns
     local checkboxes = {}
     for _, kind in ipairs(kindOrder) do
         if kinds[kind] then

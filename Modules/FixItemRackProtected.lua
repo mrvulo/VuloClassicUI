@@ -1,20 +1,20 @@
 -- =========================================================
 -- VuloClassicUI / Modules / FixItemRackProtected
--- Behebt einen Anniversary-Crash bei ItemRack:
---   ItemRack hookt CharacterModelFrame:OnMouseUp und ruft im alten Handler
---   AutoEquipCursorItem() auf. In Anniversary ist die Funktion protected,
---   darf also nicht aus einem Addon-Hook heraus aufgerufen werden →
+-- Fixes an Anniversary crash with ItemRack:
+--   ItemRack hooks CharacterModelFrame:OnMouseUp and in the old handler calls
+--   AutoEquipCursorItem(). In Anniversary that function is protected,
+--   meaning it cannot be called from an addon hook ->
 --   ADDON_ACTION_BLOCKED.
--- Wir ersetzen ItemRack's Hook durch einen Wrapper: wenn der Cursor ein Item
--- trägt, blocken wir den Call (ClearCursor → Item geht ins Inventory zurück,
--- nichts geht verloren) und melden es einmalig im Chat.
+-- We replace ItemRack's hook with a wrapper: if the cursor is holding an item,
+-- we block the call (ClearCursor -> item goes back to inventory,
+-- nothing is lost) and report it once in chat.
 -- =========================================================
 local _, ns = ...
 
 local mod = ns:RegisterModule("fixitemrack", {
     name        = "ItemRack Protected Fix",
     group       = "Bugfixes",
-    description = "F\195\164ngt den Anniversary ADDON_ACTION_BLOCKED-Crash ab, wenn ItemRack versucht ein Item am Charaktermodell automatisch zu equippen.",
+    description = "Catches the Anniversary ADDON_ACTION_BLOCKED crash when ItemRack tries to auto-equip an item on the character model.",
     defaults = {
         enabled    = true,
         showReport = true,
@@ -46,20 +46,20 @@ local function installPatch()
         end
 
         if CursorHasItem and CursorHasItem() then
-            -- Verhindert ItemRack's geblockten AutoEquipCursorItem-Call:
-            -- Item zur\195\188ck ins Inventar (geht NICHT verloren).
+            -- Prevents ItemRack's blocked AutoEquipCursorItem call:
+            -- Item returns to inventory (does NOT get lost).
             ClearCursor()
             if mod.db.showReport and not _G.VCUI_ItemRackFix_Reported then
                 _G.VCUI_ItemRackFix_Reported = true
                 DEFAULT_CHAT_FRAME:AddMessage(
-                    "|cffffff00[VuloClassicUI]|r ItemRack Auto-Equip am Charaktermodell blockiert (Anniversary-Schutz). " ..
-                    "Bitte Drag&Drop direkt in den Equipment-Slot verwenden.")
+                    "|cffffff00[VuloClassicUI]|r ItemRack auto-equip on character model blocked (Anniversary protection). " ..
+                    "Please use drag & drop directly into the equipment slot.")
             end
             return
         end
 
-        -- Kein Cursor-Item — ItemRack's Hook normal durchlaufen lassen
-        -- (Rotations-Handling etc.)
+        -- No cursor item — let ItemRack's hook run normally
+        -- (rotation handling, etc.)
         oldScript(self, button)
     end)
 
@@ -80,13 +80,13 @@ function mod:OnEnable()
             if addonName == "ItemRack" then
                 installPatch()
             else
-                -- PLAYER_LOGIN oder anderes addon — generischer Versuch
+                -- PLAYER_LOGIN or other addon — generic attempt
                 installPatch()
             end
         end)
     end
 
-    -- Direkter Versuch + delayed Retries (ItemRack k\195\182nnte Hook erst sp\195\164t setzen)
+    -- Direct attempt + delayed retries (ItemRack may set its hook later)
     installPatch()
     if C_Timer and C_Timer.After then
         C_Timer.After(1, installPatch)
@@ -99,19 +99,19 @@ end
 -- =========================================================
 function mod:GetOptions()
     return {
-        { type = "header", text = "Verhalten" },
+        { type = "header", text = "Behavior" },
         {
-            type = "toggle", label = "Chat-Nachricht beim ersten Block",
-            tooltip = "Zeigt einmalig pro Session eine Nachricht wenn ItemRack's Auto-Equip blockiert wurde.",
+            type = "toggle", label = "Chat message on first block",
+            tooltip = "Shows a message once per session when ItemRack's auto-equip was blocked.",
             get = function() return mod.db.showReport end,
             set = function(_, v) mod.db.showReport = v end,
         },
         { type = "spacer", height = 8 },
-        { type = "desc", text = "Dieser Fix ersetzt ItemRack's |cffffffffCharacterModelFrame:OnMouseUp|r-Hook durch einen Wrapper. Wenn du ein Item am Cursor h\195\164ltst und auf das Charaktermodell klickst, w\195\188rde ItemRack die geschtzte |cffffffffAutoEquipCursorItem()|r aufrufen — Anniversary blockt das. Wir clearen stattdessen den Cursor (Item geht zur\195\188ck ins Inventar) und vermeiden so den Crash." },
+        { type = "desc", text = "This fix replaces ItemRack's |cffffffffCharacterModelFrame:OnMouseUp|r hook with a wrapper. When you hold an item on the cursor and click on the character model, ItemRack would call the protected |cffffffffAutoEquipCursorItem()|r — Anniversary blocks that. Instead we clear the cursor (item goes back to inventory) and avoid the crash." },
         { type = "spacer", height = 4 },
-        { type = "desc", text = "|cffaaaaaaTipp: Items per Drag&Drop direkt in den Equipment-Slot ziehen funktioniert weiterhin normal.|r" },
+        { type = "desc", text = "|cffaaaaaaTip: Drag & dropping items directly into the equipment slot still works normally.|r" },
         { type = "spacer", height = 6 },
         { type = "desc", text = string.format("|cffaaaaaaStatus: %s|r",
-            wrappedAlready and "|cff66ff66Hook aktiv|r" or "wartet auf ItemRack") },
+            wrappedAlready and "|cff66ff66Hook active|r" or "waiting for ItemRack") },
     }
 end

@@ -1,17 +1,17 @@
 -- =========================================================
 -- VuloClassicUI / Core / MediaRegistry
--- Registriert alle mitgelieferten Sounds, Fonts und StatusBars
--- via LibSharedMedia-3.0. Andere Addons (BigWigs, ElvUI, WeakAuras,
--- DBM, ...) erkennen diese Media dann automatisch.
+-- Registers all bundled sounds, fonts and statusbars
+-- via LibSharedMedia-3.0. Other addons (BigWigs, ElvUI, WeakAuras,
+-- DBM, ...) will then automatically detect this media.
 --
--- Pfade liegen unter Interface\AddOns\VuloClassicUI\Media\
+-- Paths live under Interface\AddOns\VuloClassicUI\Media\
 -- =========================================================
 local _, ns = ...
 
 local LSM = LibStub and LibStub:GetLibrary("LibSharedMedia-3.0", true)
 if not LSM then
     if ns.Print then
-        ns:Print("|cffff5555LibSharedMedia-3.0 nicht gefunden, Media-Registry wird übersprungen.|r")
+        ns:Print("|cffff5555LibSharedMedia-3.0 not found, Media Registry will be skipped.|r")
     end
     return
 end
@@ -48,21 +48,21 @@ for name, file in pairs(namedSounds) do
     LSM:Register("sound", name, SOUNDS .. file)
 end
 
--- Zahlen 1-10 (mit rot-eingefärbtem Label)
+-- Numbers 1-10 (with red-tinted label)
 for i = 1, 10 do
     local label = string.format("|cFFFF0000%d|r", i)
-    -- Die Original-VuloMedia hatte für 10 "FE0000" statt "FF0000" — beibehalten
+    -- Original VuloMedia used "FE0000" instead of "FF0000" for 10 — kept as-is
     if i == 10 then label = "|cFFFE000010|r" end
     LSM:Register("sound", label, SOUNDS .. tostring(i) .. ".ogg")
 end
 
--- Raid-Marker-Icons 1-8 (mit Texture-Icon)
+-- Raid marker icons 1-8 (with texture icon)
 for i = 1, 8 do
     local label = string.format("|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_%d:16|t", i)
     LSM:Register("sound", label, SOUNDS .. string.format("0%d.ogg", i))
 end
 
--- Boss-Calls & generische Encounter-Sounds (rot eingefärbt)
+-- Boss calls & generic encounter sounds (red-tinted)
 local redSounds = {
     "Add", "Adds", "AoE", "Assist", "Avoid", "Back", "Backup", "Bait", "Beam",
     "Bloodlust", "Blue", "Boss", "Break", "Buff", "CC", "CD", "Center", "Chain",
@@ -83,6 +83,6 @@ for _, name in ipairs(redSounds) do
 end
 
 -- =========================================================
--- Globale Konvenienz-Pointer für VCUI-Module
+-- Global convenience pointer for VCUI modules
 -- =========================================================
 ns.LSM = LSM

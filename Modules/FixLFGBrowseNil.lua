@@ -1,22 +1,22 @@
 -- =========================================================
 -- VuloClassicUI / Modules / FixLFGBrowseNil
--- Behebt einen Bug im Anniversary GroupFinder (Vanilla-Style) wo
--- LFGBrowseSearchEntry_Update mit veralteten resultIDs aufgerufen wird:
---   C_LFGList.GetSearchResultInfo(resultID) gibt nil zurück, weil das
---   Result vom Server inzwischen entfernt wurde — Blizzards Update-Funktion
---   indiziert dann auf nil und crasht (Blizzard_LFGVanilla_Browse.lua:267).
--- Wrappt LFGBrowseSearchEntry_Update in xpcall — defekte Einträge bleiben
--- mit ihrem alten Zustand sichtbar bis Blizzards Refresh sie neu zeichnet.
+-- Fixes a bug in the Anniversary GroupFinder (Vanilla-style) where
+-- LFGBrowseSearchEntry_Update is called with stale resultIDs:
+--   C_LFGList.GetSearchResultInfo(resultID) returns nil because the
+--   result was already removed from the server — Blizzard's update function
+--   then indexes into nil and crashes (Blizzard_LFGVanilla_Browse.lua:267).
+-- Wraps LFGBrowseSearchEntry_Update in xpcall — broken entries remain
+-- visible with their old state until Blizzard's refresh redraws them.
 -- =========================================================
 local _, ns = ...
 
 local mod = ns:RegisterModule("fixlfgbrowsenil", {
     name        = "LFG Browse Nil Fix",
     group       = "Bugfixes",
-    description = "F\195\164ngt Lua-Fehler im Anniversary Group-Finder ab (LFGBrowseSearchEntry_Update mit veralteten resultIDs). Verhindert Chat-Spam und kaputte Browse-Listen.",
+    description = "Catches Lua errors in the Anniversary Group Finder (LFGBrowseSearchEntry_Update with stale resultIDs). Prevents chat spam and broken browse lists.",
     defaults = {
         enabled    = true,
-        showReport = true,  -- einmalig pro Session melden
+        showReport = true,  -- report once per session
     },
 })
 
@@ -46,18 +46,18 @@ local function installPatch()
         if ok then return end
 
         local errText = tostring(err or "")
-        -- Bekannter Anniversary-Bug: searchResultInfo wird nil weil Server-Result
-        -- veraltet ist. Silent return — Blizzards n\195\164chster Refresh r\195\164umt auf.
+        -- Known Anniversary bug: searchResultInfo becomes nil because the server
+        -- result is stale. Silent return — Blizzard's next refresh cleans up.
         if errText:find("searchResultInfo") or errText:find("attempt to index") then
             if mod.db.showReport and not _G.VCUI_LFGBrowseNilFix_Reported then
                 _G.VCUI_LFGBrowseNilFix_Reported = true
                 DEFAULT_CHAT_FRAME:AddMessage(
-                    "|cffffff00[VuloClassicUI]|r Blizzard LFG-Browse Fehler abgefangen (veralteter Eintrag \195\188bersprungen).")
+                    "|cffffff00[VuloClassicUI]|r Blizzard LFG browse error caught (stale entry skipped).")
             end
             return
         end
 
-        -- Andere Fehler durchreichen damit BugSack & Co was sehen
+        -- Pass other errors through so BugSack & co. see them
         error(errText)
     end
 
@@ -80,9 +80,9 @@ function mod:OnEnable()
         end)
     end
 
-    -- Direkt versuchen (falls Addon schon geladen ist)
+    -- Try directly (in case addon is already loaded)
     installPatch()
-    -- Plus ein delayed retry f\195\188r Edge-Cases
+    -- Plus a delayed retry for edge cases
     if C_Timer and C_Timer.After then
         C_Timer.After(1, installPatch)
     end
@@ -93,17 +93,17 @@ end
 -- =========================================================
 function mod:GetOptions()
     return {
-        { type = "header", text = "Verhalten" },
+        { type = "header", text = "Behavior" },
         {
-            type = "toggle", label = "Chat-Nachricht beim ersten Fehler",
-            tooltip = "Zeigt einmalig pro Session eine kurze Nachricht im Chat wenn ein LFG-Browse-Fehler abgefangen wurde.",
+            type = "toggle", label = "Chat message on first error",
+            tooltip = "Shows a brief message once per session in chat when an LFG browse error was caught.",
             get = function() return mod.db.showReport end,
             set = function(_, v) mod.db.showReport = v end,
         },
         { type = "spacer", height = 8 },
-        { type = "desc", text = "Dieser Fix wickelt Blizzards |cffffffffLFGBrowseSearchEntry_Update|r-Funktion in einen gesch\195\188tzten Aufruf (xpcall) ein. Wenn der Eintrag wegen einer veralteten resultID crasht (\"searchResultInfo nil\"), wird der Fehler verschluckt — Blizzards n\195\164chster Refresh r\195\164umt den Listen-Eintrag automatisch auf." },
+        { type = "desc", text = "This fix wraps Blizzard's |cffffffffLFGBrowseSearchEntry_Update|r function in a protected call (xpcall). When the entry crashes due to a stale resultID (\"searchResultInfo nil\"), the error is swallowed — Blizzard's next refresh automatically cleans up the list entry." },
         { type = "spacer", height = 6 },
         { type = "desc", text = string.format("|cffaaaaaaStatus: %s|r",
-            wrappedAlready and "|cff66ff66Hook aktiv|r" or "wartet auf Blizzard_GroupFinder_VanillaStyle") },
+            wrappedAlready and "|cff66ff66Hook active|r" or "waiting for Blizzard_GroupFinder_VanillaStyle") },
     }
 end

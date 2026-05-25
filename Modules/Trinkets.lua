@@ -1,17 +1,17 @@
 -- =========================================================
 -- VuloClassicUI / Modules / Trinkets
--- Zwei Trinket-Slots mit Cooldown, Dropdown und Queue.
--- Eingebettete Engine unter Trinkets/* (Code unverändert).
--- Dieses Modul:
---   • versteckt das eigene Options-Fenster + Minimap-Icon der Engine
---   • bringt alle relevanten Einstellungen direkt in die VCUI-Modulseite
+-- Two trinket slots with cooldown, dropdown and queue.
+-- Embedded engine under Trinkets/* (code unchanged).
+-- This module:
+--   * hides the engine's own options window + minimap icon
+--   * brings all relevant settings directly into the VCUI module page
 -- =========================================================
 local _, ns = ...
 
 local mod = ns:RegisterModule("trinkets", {
     name        = "Trinkets",
     group       = "QoL",
-    description = "Zwei Trinket-Slots auf dem Bildschirm mit Cooldown-Anzeige, Dropdown-Auswahl und Auto-Queue.",
+    description = "Two trinket slots on screen with cooldown display, dropdown selection and auto-queue.",
     defaults    = {
         enabled   = true,
         showFrame = true,
@@ -28,8 +28,8 @@ local function getOptFrame()     return _G.Trinkets_OptFrame  end
 local function setShown(state)
     local f = getMainFrame()
     if not f then return end
-    -- Secure-Frame: Show/Hide aus insecure Addon-Code wird vom WoW-Security
-    -- geblockt. Skip im Combat, pcall um sonstige action-blocked-Pings abzufangen.
+    -- Secure frame: Show/Hide from insecure addon code is blocked by WoW
+    -- security. Skip in combat, pcall to catch other action-blocked pings.
     if InCombatLockdown and InCombatLockdown() then return end
     if state and f:IsShown() then return end
     if not state and not f:IsShown() then return end
@@ -45,10 +45,10 @@ local function rescaleMain()
     end
 end
 
--- Versteckt Minimap-Icon + Options-Fenster der Engine permanent.
--- Mit HookScript: falls Engine sie später wieder zeigen will, sofort wieder hide.
+-- Permanently hides the engine's minimap icon + options window.
+-- With HookScript: if the engine wants to show them again later, hide immediately.
 local function suppressEngineUI()
-    -- SavedVar-Flag (falls Engine sich darauf verlässt)
+    -- SavedVar flag (in case the engine relies on it)
     if _G.TrinketsOptions then
         _G.TrinketsOptions.ShowIcon = "OFF"
     end
@@ -77,9 +77,9 @@ end
 -- Lifecycle
 -- =========================================================
 function mod:OnEnable()
-    -- Engine initialisiert sich beim Load — wir warten kurz mit dem Suppress.
-    -- KEIN setShown beim Init (Trinkets_MainFrame ist secure → Show()
-    -- aus insecure Code wird vom WoW-Security geblockt). Engine zeigt selbst.
+    -- Engine initializes on load — we wait briefly with the suppress.
+    -- NO setShown on init (Trinkets_MainFrame is secure -> Show()
+    -- from insecure code is blocked by WoW security). Engine shows itself.
     if C_Timer and C_Timer.After then
         C_Timer.After(0.3, suppressEngineUI)
         C_Timer.After(2,   suppressEngineUI)
@@ -99,19 +99,19 @@ function mod:GetOptions()
     return {
         { type = "header", text = "Trinkets" },
         { type = "desc",
-          text = "|cffaaaaaaZwei Trinket-Slots mit Cooldown, Dropdown-Auswahl und Auto-Queue.|n"
-              .. "Linksklick = nutzen, Rechtsklick = Dropdown.|r" },
+          text = "|cffaaaaaaTwo trinket slots with cooldown, dropdown selection and auto-queue.|n"
+              .. "Left click = use, right click = dropdown.|r" },
 
-        { type = "toggle", label = "Frame anzeigen",
-          tooltip = "Versteckt oder zeigt die zwei Trinket-Slots. Auto-Queue läuft auch im versteckten Zustand weiter.",
+        { type = "toggle", label = "Show frame",
+          tooltip = "Hides or shows the two trinket slots. Auto-queue continues to run while hidden.",
           get = function() return mod.db.showFrame end,
           set = function(_, v)
               mod.db.showFrame = v
               setShown(v)
           end },
 
-        { type = "toggle", label = "Position gesperrt",
-          tooltip = "Wenn an, kann das Frame nicht versehentlich verschoben werden.",
+        { type = "toggle", label = "Position locked",
+          tooltip = "If on, the frame cannot be accidentally moved.",
           get = function()
               return _G.TrinketsOptions and _G.TrinketsOptions.Locked == "ON"
           end,
@@ -121,9 +121,9 @@ function mod:GetOptions()
               end
           end },
 
-        { type = "slider", label = "Größe",
+        { type = "slider", label = "Size",
           min = 0.5, max = 2.0, step = 0.05,
-          tooltip = "Skaliert die Trinket-Slots.",
+          tooltip = "Scales the trinket slots.",
           get = function()
               return (_G.TrinketsPerOptions and _G.TrinketsPerOptions.MainScale) or 1.0
           end,
@@ -136,6 +136,6 @@ function mod:GetOptions()
 
         { type = "spacer", height = 4 },
         { type = "desc",
-          text = "|cffaaaaaaTipp: Linksklick auf einen Slot nutzt das Trinket, Rechtsklick zeigt die Auswahl-Liste. Auto-Queue konfigurierst du per Rechtsklick → Queue-Tab.|r" },
+          text = "|cffaaaaaaTip: Left click on a slot uses the trinket, right click shows the selection list. Auto-queue is configured via right click -> Queue tab.|r" },
     }
 end

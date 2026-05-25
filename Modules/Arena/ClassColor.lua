@@ -1,13 +1,13 @@
 -- =========================================================
 -- VuloClassicUI / Modules / Arena / ClassColor
--- Klassen-farbige Health-Bar, Klassen-Icon statt Portrait, Name in Klassen-Farbe.
+-- Class-colored health bar, class icon instead of portrait, name in class color.
 -- =========================================================
 local _, ns = ...
 local mod = ns.ArenaModule
 local H = mod.helpers
 
 -- =========================================================
--- Klassen-Icon Texture-Coords (Blizzards UI-Charactercreate-Classes)
+-- Class icon texture coords (Blizzard's UI-Charactercreate-Classes)
 -- =========================================================
 local CLASS_ICON_TCOORDS = CLASS_ICON_TCOORDS or {
     ["WARRIOR"]     = { 0,    0.25, 0,    0.25 },
@@ -27,25 +27,25 @@ local CLASS_ICON_TCOORDS = CLASS_ICON_TCOORDS or {
 local CLASS_ICON_TEXTURE = "Interface\\WorldStateFrame\\Icons-Classes"
 
 -- =========================================================
--- Klassen-Farbe holen
+-- Get class color
 -- =========================================================
 local function classColor(class)
     if not class then return nil end
-    -- RAID_CLASS_COLORS ist in TBC 2.5.5 verfügbar
+    -- RAID_CLASS_COLORS is available in TBC 2.5.5
     local c = RAID_CLASS_COLORS and RAID_CLASS_COLORS[class]
     if c then return c.r, c.g, c.b end
     return 1, 1, 1
 end
 
 -- =========================================================
--- Pro Frame anwenden
+-- Apply per frame
 -- =========================================================
 local applyClassToFrame  -- forward declaration
 
 local function applyToFrame(frame, i)
     local unit = H.GetUnit(i)
     if not UnitExists(unit) then
-        -- Test-Mode: nutze irgendeine Klasse als Demo, sonst nichts
+        -- Test mode: use any class as demo, otherwise nothing
         if mod:IsUnlocked() then
             local demoClasses = { "WARRIOR", "MAGE", "ROGUE", "DRUID", "PRIEST" }
             local demo = demoClasses[i] or "WARRIOR"
@@ -58,27 +58,27 @@ local function applyToFrame(frame, i)
     applyClassToFrame(frame, class)
 end
 
-applyClassToFrame = function(frame, class)  -- ist die forward-deklarierte local
+applyClassToFrame = function(frame, class)  -- the forward-declared local
     if not class then return end
     local r, g, b = classColor(class)
 
-    -- Health-Bar einfärben
+    -- Color health bar
     if mod.db.classColorHealth then
         local health = H.GetArenaBars(frame)
         if health then
             health:SetStatusBarColor(r, g, b)
-            -- Verhindern dass Blizzard zurückfärbt
+            -- Prevent Blizzard from re-coloring
             if health.SetForceStatusColor then health:SetForceStatusColor(r, g, b) end
         end
     end
 
-    -- Name einfärben
+    -- Color name
     if mod.db.classColorName then
         local nameText = H.GetNameText(frame)
         if nameText then nameText:SetTextColor(r, g, b) end
     end
 
-    -- Klassen-Icon statt Portrait
+    -- Class icon instead of portrait
     if mod.db.classIconPortrait then
         local portrait = H.GetPortrait(frame)
         if portrait then
@@ -92,18 +92,18 @@ applyClassToFrame = function(frame, class)  -- ist die forward-deklarierte local
     end
 end
 
--- Wenn Settings ausgeschaltet werden → originale Werte wiederherstellen
+-- When settings are turned off -> restore original values
 local function restoreFrame(frame, i)
     local unit = H.GetUnit(i)
     local health = H.GetArenaBars(frame)
     if health then
-        -- Standard-Power-Type-Farbe (für Health: einfach generisches Grün, das ist Blizzards Default)
+        -- Standard power type color (for health: generic green, Blizzard's default)
         health:SetStatusBarColor(0, 1, 0)
     end
     local nameText = H.GetNameText(frame)
     if nameText then nameText:SetTextColor(1, 0.82, 0) end
 
-    -- Portrait: wenn Unit existiert, lass Blizzard es regenerieren
+    -- Portrait: if unit exists, let Blizzard regenerate it
     local portrait = H.GetPortrait(frame)
     if portrait and UnitExists(unit) and SetPortraitTexture then
         portrait:SetTexCoord(0, 1, 0, 1)
@@ -123,14 +123,14 @@ mod.ApplyClassColors   = applyAll
 mod.RestoreClassColors = restoreAll
 
 -- =========================================================
--- Hooks + Events
+-- Hooks + events
 -- =========================================================
 mod:OnArenaFramesReady(function(frame, i)
     applyToFrame(frame, i)
 end)
 
--- Blizzard schreibt Bar-Farbe bei TextStatusBar_UpdateTextString und Update zurück.
--- Wir hooken die wichtigsten Update-Pfade.
+-- Blizzard rewrites bar color in TextStatusBar_UpdateTextString and Update.
+-- We hook the most important update paths.
 local classColorHooked = false
 local function installHooks()
     if classColorHooked or not hooksecurefunc then return end
@@ -143,11 +143,11 @@ local function installHooks()
         end)
     end
     if _G.UnitFrame_OnEvent then
-        -- Riskanter Hook; nicht nötig wenn _UpdatePlayer reicht
+        -- Risky hook; not needed if _UpdatePlayer is enough
     end
 end
 
--- UNIT_PORTRAIT_UPDATE / PORTRAITS_UPDATED feuern wenn Blizzard das Portrait neu zeichnet
+-- UNIT_PORTRAIT_UPDATE / PORTRAITS_UPDATED fire when Blizzard redraws the portrait
 ns:RegisterEvent("UNIT_PORTRAIT_UPDATE", function(_, unit)
     if not mod._enabled then return end
     if unit and unit:match("^arena[1-5]$") then
@@ -166,20 +166,20 @@ ns:RegisterEvent("ARENA_OPPONENT_UPDATE", function()
     end
 end)
 
--- Setze Hooks bei Modul-Activate
+-- Install hooks on module activate
 mod:RegisterOnEnable(function()
     installHooks()
 end)
 
 -- =========================================================
--- Options-Section
+-- Options section
 -- =========================================================
 mod:AddOptionsSection("classcolor", function()
     return {
-        { type = "header", text = "Klassen-Optik" },
+        { type = "header", text = "Class Visuals" },
         {
-            type = "checkbox", label = "Klassen-farbige Health-Bars",
-            tooltip = "Färbt die Health-Bar in der Klassenfarbe des Spielers.",
+            type = "checkbox", label = "Class-colored health bars",
+            tooltip = "Colors the health bar in the player's class color.",
             get = function() return mod.db.classColorHealth end,
             set = function(_, v)
                 mod.db.classColorHealth = v
@@ -187,13 +187,13 @@ mod:AddOptionsSection("classcolor", function()
             end,
         },
         {
-            type = "checkbox", label = "Klassen-farbiger Name",
+            type = "checkbox", label = "Class-colored name",
             get = function() return mod.db.classColorName end,
             set = function(_, v) mod.db.classColorName = v; applyAll() end,
         },
         {
-            type = "checkbox", label = "Klassen-Icon statt Portrait",
-            tooltip = "Ersetzt das 3D-Portrait durch ein Klassen-Symbol.",
+            type = "checkbox", label = "Class icon instead of portrait",
+            tooltip = "Replaces the 3D portrait with a class symbol.",
             get = function() return mod.db.classIconPortrait end,
             set = function(_, v)
                 mod.db.classIconPortrait = v

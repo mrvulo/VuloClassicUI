@@ -1,9 +1,9 @@
 -- =========================================================
 -- VuloClassicUI / Modules / Arena / DR (Diminishing Returns)
--- Trackt DR-Kategorien pro Arena-Gegner und zeigt Icon + Timer.
+-- Tracks DR categories per arena opponent and shows icon + timer.
 --
--- TBC DR-System: Full → 1/2 → 1/4 → Immune
--- Reset nach ~15-18 Sekunden ohne neuen Cast derselben Kategorie.
+-- TBC DR system: Full -> 1/2 -> 1/4 -> Immune
+-- Reset after ~15-18 seconds without a new cast of the same category.
 -- =========================================================
 local _, ns = ...
 local mod = ns.ArenaModule
@@ -11,13 +11,13 @@ local mod = ns.ArenaModule
 local DR_RESET_TIME = 18  -- TBC
 
 -- =========================================================
--- DR-Kategorien (Reihenfolge bestimmt die ID-Zuordnung in DR_SPELLS)
--- Quelle: warcraft.wiki.gg/wiki/Diminishing_returns (TBC-Eintrag)
+-- DR categories (order determines ID mapping in DR_SPELLS)
+-- Source: warcraft.wiki.gg/wiki/Diminishing_returns (TBC entry)
 -- =========================================================
 
--- Spell → Kategorie. Bewusst gekürzt auf die wichtigsten TBC-Spells.
--- Du kannst die Liste erweitern. Bei Spells mit Rank-Varianten meist
--- nur die finale Rank-ID hier; nimm bei Bedarf weitere auf.
+-- Spell -> category. Intentionally trimmed to the most important TBC spells.
+-- You can extend the list. For spells with rank variants, usually
+-- only the final rank ID is here; add more if needed.
 local DR_SPELLS = {
     -- Stuns
     [408]   = "stun",          -- Kidney Shot
@@ -66,22 +66,22 @@ local DR_SPELLS = {
     [19185] = "root",          -- Entrapment
     [13099] = "root",          -- Net-o-Matic
 
-    -- Cyclone (eigene Kategorie in TBC)
+    -- Cyclone (own category in TBC)
     [33786] = "cyclone",
 }
 
 -- =========================================================
--- DR-State pro Unit
+-- DR state per unit
 -- =========================================================
 -- drState[unit][category] = { applied = number, expires = number }
 local drState = {}
 
--- Pro Slot eine Reihe von DR-Icons
+-- One row of DR icons per slot
 -- drFrames[slot] = { container = Frame, icons = { [category] = icon } }
 local drFrames = {}
 
 -- =========================================================
--- DR-Icon-Frame erstellen
+-- Create DR icon frame
 -- =========================================================
 local function createDRContainer(parent, slotIndex)
     local container = CreateFrame("Frame", "VCUIArenaDR" .. slotIndex, parent)
@@ -98,7 +98,7 @@ local function createDRIcon(parent, category)
     f.icon:SetAllPoints(f)
     f.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
 
-    -- Border (zeigt DR-Stufe: gelb = 1/2, orange = 1/4, rot = immune)
+    -- Border (shows DR level: yellow = 1/2, orange = 1/4, red = immune)
     f.border = f:CreateTexture(nil, "OVERLAY")
     f.border:SetPoint("TOPLEFT", f, "TOPLEFT", -2, 2)
     f.border:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 2, -2)
@@ -115,7 +115,7 @@ local function createDRIcon(parent, category)
 end
 
 -- =========================================================
--- DR-Anzeige aktualisieren
+-- Update DR display
 -- =========================================================
 local function getDRColor(level)
     -- level: 1 = full, 2 = half, 3 = quarter, 4 = immune
@@ -147,7 +147,7 @@ local function updateDRDisplay(unit)
         container:SetPoint("LEFT", arenaFrame, "RIGHT", 8, 0)
     end
 
-    -- Sichtbare Icons in Reihe anordnen
+    -- Arrange visible icons in a row
     local state = drState[unit] or {}
     local visible = {}
     for cat, data in pairs(state) do
@@ -155,10 +155,10 @@ local function updateDRDisplay(unit)
             table.insert(visible, { cat = cat, data = data })
         end
     end
-    -- Stabil sortieren (alphabetisch)
+    -- Stable sort (alphabetical)
     table.sort(visible, function(a, b) return a.cat < b.cat end)
 
-    -- Alle ausblenden
+    -- Hide all
     for _, icon in pairs(container.icons) do icon:Hide() end
 
     local x = 0
@@ -172,7 +172,7 @@ local function updateDRDisplay(unit)
         icon:ClearAllPoints()
         icon:SetPoint("LEFT", container, "LEFT", x, 0)
 
-        -- Texture: erstes registrierte Spell der Kategorie
+        -- Texture: first registered spell of the category
         for spellId, cat in pairs(DR_SPELLS) do
             if cat == entry.cat then
                 local _, _, iconTex = GetSpellInfo(spellId)
@@ -191,7 +191,7 @@ local function updateDRDisplay(unit)
 end
 
 -- =========================================================
--- DR-Event verarbeiten
+-- Process DR event
 -- =========================================================
 local function onAuraApplied(destUnit, spellId)
     local cat = DR_SPELLS[spellId]
@@ -204,7 +204,7 @@ local function onAuraApplied(destUnit, spellId)
         drState[destUnit][cat] = entry
     end
 
-    -- Wenn der vorherige Eintrag abgelaufen ist, reset
+    -- If the previous entry has expired, reset
     if entry.expires < GetTime() then
         entry.applied = 0
     end
@@ -217,7 +217,7 @@ local function onAuraApplied(destUnit, spellId)
 end
 
 -- =========================================================
--- Combat Log
+-- Combat log
 -- =========================================================
 local function onCombatLog()
     local _, subevent, _, _, _, _, _, destGUID, _, _, _, spellId =
@@ -236,7 +236,7 @@ local function onCombatLog()
 end
 
 -- =========================================================
--- Periodisches Update (für Expiration)
+-- Periodic update (for expiration)
 -- =========================================================
 local updaterFrame
 local function ensureUpdater()
@@ -284,9 +284,9 @@ end)
 mod:AddOptionsSection("dr", function()
     return {
         { type = "header", text = "Diminishing Returns Tracker" },
-        { type = "desc",   text = "Zeigt rechts neben jedem Arena-Frame Icons für aktive DR-Kategorien (Stun, Fear, Polymorph etc.) mit Farb-Indikator: |cff00ff00grün|r = full, |cffffff00gelb|r = 1/2, |cffff8000orange|r = 1/4, |cffff0000rot|r = immun." },
+        { type = "desc",   text = "Shows icons to the right of each arena frame for active DR categories (Stun, Fear, Polymorph etc.) with color indicator: |cff00ff00green|r = full, |cffffff00yellow|r = 1/2, |cffff8000orange|r = 1/4, |cffff0000red|r = immune." },
         {
-            type = "checkbox", label = "DR-Tracking aktivieren",
+            type = "checkbox", label = "Enable DR tracking",
             get = function() return mod.db.drEnabled end,
             set = function(_, v)
                 mod.db.drEnabled = v
@@ -294,7 +294,7 @@ mod:AddOptionsSection("dr", function()
             end,
         },
         {
-            type = "slider", label = "Icon-Größe",
+            type = "slider", label = "Icon size",
             min = 16, max = 40, step = 1,
             get = function() return mod.db.drSize end,
             set = function(_, v) mod.db.drSize = v end,

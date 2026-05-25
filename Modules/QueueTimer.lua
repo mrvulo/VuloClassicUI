@@ -1,14 +1,14 @@
 -- =========================================================
 -- VuloClassicUI / Modules / QueueTimer
--- Ehemals: BetterBlizzQueue (Classic-Variante)
--- Zeigt einen Countdown auf dem PvP/PvE Queue-Pop-Dialog.
+-- Formerly: BetterBlizzQueue (Classic variant)
+-- Shows a countdown on the PvP/PvE queue pop dialog.
 -- =========================================================
 local _, ns = ...
 
 local mod = ns:RegisterModule("queuetimer", {
     name        = "Queue Timer",
     group       = "QoL",
-    description = "Zeigt einen Countdown auf dem PvP/PvE Queue-Pop Dialog. Optional Sound-Warnung bei 5 Sekunden.",
+    description = "Shows a countdown on the PvP/PvE queue pop dialog. Optional sound warning at 5 seconds.",
     defaults = {
         queueTimerAudio   = true,
         queueTimerWarning = true,
@@ -23,7 +23,7 @@ local queues = {}
 local dungeonQueuedTime
 local soundPlayed
 local isPveQueueActive
-local pveQueuePopTime  -- nur in memory; alte SV-Pop-Time wird nicht migriert
+local pveQueuePopTime  -- only in memory; old SV pop time is not migrated
 
 -- =========================================================
 -- Helpers
@@ -200,7 +200,7 @@ local function hideOtherTimers()
 end
 
 -- =========================================================
--- Hooks (einmalig)
+-- Hooks (installed once)
 -- =========================================================
 local hooksInstalled = false
 local function installHooks()
@@ -256,22 +256,22 @@ function mod:GetOptions()
     return {
         { type = "header", text = "Sound" },
         {
-            type = "checkbox", label = "Sound bei Queue-Pop",
-            tooltip = "Spielt einen Sound ab, sobald die Queue gepoppt ist.",
+            type = "checkbox", label = "Sound on queue pop",
+            tooltip = "Plays a sound as soon as the queue pops.",
             get = function() return mod.db.queueTimerAudio end,
             set = function(_, v) mod.db.queueTimerAudio = v end,
         },
         {
-            type = "checkbox", label = "5-Sekunden-Warnung",
-            tooltip = "Spielt 3 schnelle Sounds, wenn nur noch 5 Sekunden zum Annehmen bleiben.",
+            type = "checkbox", label = "5-second warning",
+            tooltip = "Plays 3 quick sounds when only 5 seconds remain to accept.",
             get = function() return mod.db.queueTimerWarning end,
             set = function(_, v) mod.db.queueTimerWarning = v end,
         },
         { type = "spacer" },
-        { type = "header", text = "Sonstiges" },
+        { type = "header", text = "Misc" },
         {
-            type = "checkbox", label = "Andere Timer (z.B. BigWigs) verstecken",
-            tooltip = "Versteckt fremde StatusBars auf dem LFG-Ready-Popup, damit nur unser Timer sichtbar ist.",
+            type = "checkbox", label = "Hide other timers (e.g. BigWigs)",
+            tooltip = "Hides foreign StatusBars on the LFG ready popup so only our timer is visible.",
             get = function() return mod.db.hideOtherTimers end,
             set = function(_, v) mod.db.hideOtherTimers = v end,
         },

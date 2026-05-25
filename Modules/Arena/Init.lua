@@ -1,14 +1,14 @@
 -- =========================================================
 -- VuloClassicUI / Modules / Arena / Init
--- Registriert das ArenaFrames Modul und stellt gemeinsame Helpers bereit.
--- Submodule (Core, Layout, ClassColor, Trinket, DR, Castbar) erweitern mod.
+-- Registers the ArenaFrames module and provides shared helpers.
+-- Submodules (Core, Layout, ClassColor, Trinket, DR, Castbar) extend mod.
 -- =========================================================
 local _, ns = ...
 
 local mod = ns:RegisterModule("arenaframes", {
     name        = "Arena Frames",
     group       = "PvP",
-    description = "Erweitert die Arena-Enemy-Frames: verschieben/skalieren, Klassen-Farben, Class-Icons, PvP-Trinket-CD, DR-Tracking, Castbar, drag&drop Layout.",
+    description = "Enhances the Arena enemy frames: move/scale, class colors, class icons, PvP trinket CD, DR tracking, castbar, drag&drop layout.",
     defaults = {
         -- Core (Position/Scale/Fonts)
         pos        = { point = "CENTER", relPoint = "CENTER", x = 0, y = 0 },
@@ -17,10 +17,10 @@ local mod = ns:RegisterModule("arenaframes", {
         powerSize  = 10,
 
         -- Layout (drag&drop)
-        slotOrder        = { 1, 2, 3, 4, 5 },  -- default reihenfolge
-        slotSpacing      = 6,                  -- pixel zwischen frames
+        slotOrder        = { 1, 2, 3, 4, 5 },  -- default order
+        slotSpacing      = 6,                  -- pixels between frames
         growDirection    = "down",             -- "up" | "down"
-        slotOffsets      = {},                 -- pro slot { x, y } für freies positionieren
+        slotOffsets      = {},                 -- per slot { x, y } for free positioning
 
         -- ClassColor
         classColorHealth  = true,
@@ -34,11 +34,11 @@ local mod = ns:RegisterModule("arenaframes", {
         trinketOffsetX   = -6,
         trinketOffsetY   = 0,
 
-        -- DR (kommt später)
+        -- DR (coming later)
         drEnabled   = false,
         drSize      = 24,
 
-        -- Castbar (kommt später)
+        -- Castbar (coming later)
         castbarEnabled = false,
         castbarWidth   = 120,
         castbarHeight  = 14,
@@ -48,7 +48,7 @@ local mod = ns:RegisterModule("arenaframes", {
 ns.ArenaModule = mod
 
 -- =========================================================
--- Gemeinsame Helpers für Submodule
+-- Shared helpers for submodules
 -- =========================================================
 mod.helpers = {}
 local H = mod.helpers
@@ -81,7 +81,7 @@ function H.GetNameText(frame)
     return frame.name or _G[frame:GetName() .. "Name"]
 end
 
--- Speichert pro Submodul eine Liste von "OnArenaFrameReady" Handlern
+-- Stores a list of "OnArenaFrameReady" handlers per submodule
 mod._readyHandlers = {}
 function mod:OnArenaFramesReady(handler)
     table.insert(self._readyHandlers, handler)
@@ -92,15 +92,15 @@ function mod:_triggerReady()
         for _, handler in ipairs(self._readyHandlers) do
             local ok, err = pcall(handler, frame, i)
             if not ok then
-                ns:Print("|cffff5555ArenaFrames-Submodul Fehler:|r %s", tostring(err))
+                ns:Print("|cffff5555ArenaFrames submodule error:|r %s", tostring(err))
             end
         end
     end)
 end
 
--- Wird von Core.lua aufgerufen sobald die Frames sicher existieren
+-- Called by Core.lua once the frames are guaranteed to exist
 function mod:RefreshAll()
-    -- Stellt sicher dass Blizzard_ArenaUI geladen ist
+    -- Ensure Blizzard_ArenaUI is loaded
     if UIParentLoadAddOn and IsAddOnLoaded and not IsAddOnLoaded("Blizzard_ArenaUI") then
         UIParentLoadAddOn("Blizzard_ArenaUI")
     end
@@ -110,7 +110,7 @@ function mod:RefreshAll()
 end
 
 -- =========================================================
--- Lifecycle: jedes Submodul kann sich für OnEnable registrieren
+-- Lifecycle: each submodule can register for OnEnable
 -- =========================================================
 mod._onEnableHandlers = {}
 function mod:RegisterOnEnable(handler)
@@ -118,24 +118,24 @@ function mod:RegisterOnEnable(handler)
 end
 
 function mod:OnEnable()
-    -- Core's OnEnable (Position/Scale/Fonts + Frame-Hooks)
+    -- Core's OnEnable (Position/Scale/Fonts + frame hooks)
     if self.OnEnableCore then self:OnEnableCore() end
-    -- Submodule
+    -- Submodules
     for _, h in ipairs(self._onEnableHandlers) do
         local ok, err = pcall(h, self)
         if not ok then
-            ns:Print("|cffff5555Arena-Submodul OnEnable Fehler:|r %s", tostring(err))
+            ns:Print("|cffff5555Arena submodule OnEnable error:|r %s", tostring(err))
         end
     end
 end
 
 -- =========================================================
--- Options-Aggregation: jedes Submodul liefert seine Optionen-Section,
--- jede Section wird ein eigener Tab.
+-- Options aggregation: each submodule provides its options section,
+-- each section becomes its own tab.
 -- =========================================================
 mod._optionsBuilders = {}
 
--- name → Tab-Label-Mapping
+-- name -> tab label mapping
 local SECTION_LABELS = {
     core       = "General",
     layout     = "Layout",
@@ -149,7 +149,7 @@ function mod:AddOptionsSection(name, builder)
     table.insert(self._optionsBuilders, { name = name, fn = builder })
 end
 
--- Wird nach Datei-Load aufgerufen damit Tabs in der richtigen Reihenfolge stehen
+-- Called after file load so tabs end up in the correct order
 local function buildTabsArray()
     local tabs = {}
     for _, sec in ipairs(mod._optionsBuilders) do
@@ -161,9 +161,9 @@ local function buildTabsArray()
     return tabs
 end
 
--- mod.tabs muss erst nach allen AddOptionsSection-Aufrufen befüllt werden.
--- Daher Lazy-Eval beim Öffnen der Page (siehe MainFrame BuildTabsForModule).
--- Wir setzen mod.tabs einmalig bei PLAYER_LOGIN nachdem alle Submodul-Dateien geladen sind.
+-- mod.tabs can only be populated after all AddOptionsSection calls.
+-- Hence lazy eval when opening the page (see MainFrame BuildTabsForModule).
+-- We set mod.tabs once at PLAYER_LOGIN after all submodule files are loaded.
 local tabsInitFrame = CreateFrame("Frame")
 tabsInitFrame:RegisterEvent("PLAYER_LOGIN")
 tabsInitFrame:SetScript("OnEvent", function()
@@ -171,7 +171,7 @@ tabsInitFrame:SetScript("OnEvent", function()
 end)
 
 function mod:GetOptions(tabId)
-    -- Wenn ein Tab angefragt ist: nur Items dieser einen Section
+    -- If a tab is requested: only items from that one section
     if tabId and tabId ~= "default" then
         for _, sec in ipairs(self._optionsBuilders) do
             if sec.name == tabId then
@@ -181,7 +181,7 @@ function mod:GetOptions(tabId)
         return {}
     end
 
-    -- Fallback (kein Tab definiert): alle hintereinander
+    -- Fallback (no tabs defined): all in sequence
     local items = {}
     for _, sec in ipairs(self._optionsBuilders) do
         local subItems = sec.fn(self)

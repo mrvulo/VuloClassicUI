@@ -1,6 +1,6 @@
 -- =========================================================
 -- VuloClassicUI / Core / Utils
--- Allgemeine Helfer, die mehrere Module nutzen.
+-- General helpers used by multiple modules.
 -- =========================================================
 local _, ns = ...
 
@@ -29,7 +29,7 @@ function ns:Clamp(v, lo, hi)
     return v
 end
 
--- Sichere Tiefenkopie (für Defaults -> DB)
+-- Safe deep copy (for defaults -> DB)
 function ns:DeepCopy(t)
     if type(t) ~= "table" then return t end
     local copy = {}
@@ -39,7 +39,7 @@ function ns:DeepCopy(t)
     return copy
 end
 
--- Defaults rekursiv in eine bestehende Tabelle einfügen, ohne vorhandene Werte zu überschreiben
+-- Recursively insert defaults into an existing table, without overwriting existing values
 function ns:ApplyDefaults(target, defaults)
     if type(target) ~= "table" then target = {} end
     for k, v in pairs(defaults) do
@@ -53,7 +53,7 @@ function ns:ApplyDefaults(target, defaults)
 end
 
 -- =========================================================
--- Font-Helper (von VuloFontBars und ArenaEnemyEdit gebraucht)
+-- Font helper (used by VuloFontBars and ArenaEnemyEdit)
 -- =========================================================
 function ns:SafeGetFontString(bar, suffix)
     if not bar or not bar.GetName then return nil end

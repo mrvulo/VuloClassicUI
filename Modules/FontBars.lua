@@ -1,15 +1,15 @@
 -- =========================================================
 -- VuloClassicUI / Modules / FontBars
--- Ehemals: VuloFontBars
--- Kleinere Schriftgrößen auf Player/Target/Pet Health & Mana Bars,
--- plus dauerhaftes Verstecken des TargetFrameBackground.
+-- Formerly: VuloFontBars
+-- Smaller font sizes on Player/Target/Pet Health & Mana bars,
+-- plus permanently hiding the TargetFrameBackground.
 -- =========================================================
 local _, ns = ...
 
 local mod = ns:RegisterModule("fontbars", {
     name        = "Font Bars",
     group       = "Unit Frames",
-    description = "Kleinere Schriftgrößen für Player/Target/Pet Health & Mana Bars, optional TargetFrameBackground verstecken.",
+    description = "Smaller font sizes for Player/Target/Pet Health & Mana bars, optionally hide TargetFrameBackground.",
     defaults = {
         healthSize       = 11,
         powerSize        = 11,
@@ -73,10 +73,10 @@ local function hideTargetBackground()
     if TargetFrameBackground then TargetFrameBackground:Hide() end
 end
 
-mod.applyAll = applyAll  -- nach außen für Slider-Live-Updates
+mod.applyAll = applyAll  -- exposed for slider live updates
 
 -- =========================================================
--- Hooks (einmalig setzen, nicht jedes Mal bei Enable)
+-- Hooks (installed once, not on every enable)
 -- =========================================================
 local hooksInstalled = false
 local function installHooks()
@@ -137,39 +137,39 @@ end
 -- =========================================================
 function mod:GetOptions()
     return {
-        { type = "header", text = "Schriftgrößen" },
+        { type = "header", text = "Font Sizes" },
         {
-            type = "slider", label = "Health-Bar Text",
+            type = "slider", label = "Health Bar Text",
             min = 6, max = 24, step = 1,
-            tooltip = "Schriftgröße auf Health-Bars (Player/Target/Pet).",
+            tooltip = "Font size on health bars (Player/Target/Pet).",
             get = function() return mod.db.healthSize end,
             set = function(_, v) mod.db.healthSize = v; applyAll() end,
         },
         {
-            type = "slider", label = "Power-Bar Text",
+            type = "slider", label = "Power Bar Text",
             min = 6, max = 24, step = 1,
-            tooltip = "Schriftgröße auf Mana/Power-Bars.",
+            tooltip = "Font size on mana/power bars.",
             get = function() return mod.db.powerSize end,
             set = function(_, v) mod.db.powerSize = v; applyAll() end,
         },
         {
             type = "slider", label = "Pet Combat Feedback Text",
             min = 6, max = 24, step = 1,
-            tooltip = "Schriftgröße für 'Damage', 'Dodge', 'Miss' beim Pet.",
+            tooltip = "Font size for 'Damage', 'Dodge', 'Miss' on the pet.",
             get = function() return mod.db.petFeedbackSize end,
             set = function(_, v) mod.db.petFeedbackSize = v; applyAll() end,
         },
         { type = "spacer" },
-        { type = "header", text = "Verhalten" },
+        { type = "header", text = "Behavior" },
         {
-            type = "checkbox", label = "Nur Player/Target/Pet Bars beeinflussen",
-            tooltip = "Wenn aus: alle TextStatusBars im UI werden mit den Größen oben überschrieben (kann andere Addons stören).",
+            type = "checkbox", label = "Only affect Player/Target/Pet bars",
+            tooltip = "If off: all TextStatusBars in the UI are overridden with the sizes above (may interfere with other addons).",
             get = function() return mod.db.onlyTheseBars end,
             set = function(_, v) mod.db.onlyTheseBars = v; applyAll() end,
         },
         {
-            type = "checkbox", label = "TargetFrame-Background verstecken",
-            tooltip = "Versteckt das dunkle Hintergrund-Element des TargetFrames dauerhaft.",
+            type = "checkbox", label = "Hide TargetFrame background",
+            tooltip = "Permanently hides the dark background element of the TargetFrame.",
             get = function() return mod.db.hideTargetBackground end,
             set = function(_, v)
                 mod.db.hideTargetBackground = v
