@@ -1,0 +1,19 @@
+# BigWigs Packager config — https://github.com/BigWigsMods/packager
+package-as: VuloClassicUI
+
+enable-nolib-creation: no
+
+# Was NICHT ins Release-Zip soll
+ignore:
+  - .git
+  - .github
+  - .gitignore
+  - .pkgmeta.yaml
+  - .pkgmeta
+  - README.md
+  - "*.md"
+  - "*.bak"
+  - "*.yml"
+  - "*.yaml"
+
+# Keine externals — alles ist embedded (Libs, Trinkets-Engine)
