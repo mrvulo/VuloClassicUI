@@ -111,9 +111,9 @@ local function generalOptions()
           end },
 
         { type = "spacer", height = 6 },
-        { type = "header", text = "Debug" },
-        { type = "toggle", label = "Script-Profiling aktivieren (CPU-Anzeige)",
-          tooltip = "Aktiviert WoWs scriptProfile CVar damit die CPU-Anzeige im Config-Header funktioniert.\n\n|cffff8800ACHTUNG:|r Profiling kostet ~3-5% Performance. Nur zum Debuggen empfohlen.\n\n|cffaaaaaaErfordert /reload damit die \195\132nderung greift.|r",
+        { type = "header", text = "Performance-Anzeige" },
+        { type = "toggle", label = "CPU-Auslastung im Header anzeigen",
+          tooltip = "Zeigt die Gesamt-CPU-Auslastung aller aktiven Addons (plus VuloClassicUI's eigenen Anteil) oben im Config-Header.\n\n|cffaaaaaaErfordert /reload nach dem Umschalten.\n\nHinweis: Aktiviert WoWs scriptProfile CVar, der ~3-5% Performance kostet — das ist der Preis daf\195\188r dass WoW die Daten \195\188berhaupt sammelt.|r",
           get = function() return getCVarNum("scriptProfile") == 1 end,
           set = function(_, v)
               setCVar("scriptProfile", v and "1" or "0")

@@ -96,6 +96,24 @@ function UI:CreateMainFrame()
     cpuText:SetPoint("LEFT", version, "RIGHT", 10, 0)
     cpuText:SetText("")
 
+    -- API-Compat (Anniversary nutzt teils C_AddOns Namespace)
+    local _UpdateCPU  = (C_AddOns and C_AddOns.UpdateAddOnCPUUsage) or _G.UpdateAddOnCPUUsage
+    local _GetCPU     = (C_AddOns and C_AddOns.GetAddOnCPUUsage)    or _G.GetAddOnCPUUsage
+    local _GetNum     = (C_AddOns and C_AddOns.GetNumAddOns)        or _G.GetNumAddOns
+    local _IsLoaded   = (C_AddOns and C_AddOns.IsAddOnLoaded)       or _G.IsAddOnLoaded
+
+    -- Summiert CPU-ms aller aktuell geladenen Addons
+    local function getTotalAddonCPU()
+        if not _GetCPU or not _GetNum then return 0 end
+        local total = 0
+        for i = 1, _GetNum() do
+            if not _IsLoaded or _IsLoaded(i) then
+                total = total + (_GetCPU(i) or 0)
+            end
+        end
+        return total
+    end
+
     local cpuTicker
     local function updateCPU()
         local cv = (C_CVar and C_CVar.GetCVar and C_CVar.GetCVar("scriptProfile"))
@@ -104,18 +122,11 @@ function UI:CreateMainFrame()
             cpuText:SetText("|cff666666CPU: off|r")
             return
         end
-        if C_AddOns and C_AddOns.UpdateAddOnCPUUsage then
-            C_AddOns.UpdateAddOnCPUUsage()
-        elseif _G.UpdateAddOnCPUUsage then
-            UpdateAddOnCPUUsage()
-        end
-        local ms = 0
-        if C_AddOns and C_AddOns.GetAddOnCPUUsage then
-            ms = C_AddOns.GetAddOnCPUUsage("VuloClassicUI") or 0
-        elseif _G.GetAddOnCPUUsage then
-            ms = GetAddOnCPUUsage("VuloClassicUI") or 0
-        end
-        cpuText:SetText(string.format("|cff888888CPU: %.1f ms|r", ms))
+        if _UpdateCPU then _UpdateCPU() end
+        local own = (_GetCPU and _GetCPU("VuloClassicUI")) or 0
+        local total = getTotalAddonCPU()
+        -- Format: "CPU: 14.2 ms (VCUI: 0.8)"
+        cpuText:SetText(string.format("|cff888888CPU: %.1f ms |cff666666(VCUI: %.1f)|r|r", total, own))
     end
 
     f:HookScript("OnShow", function()
