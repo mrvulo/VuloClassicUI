@@ -5,11 +5,12 @@
 --   "custom"   -> Custom castbar in VUI style (icon, spell name below bar, etc.)
 -- =========================================================
 local _, ns = ...
+local L = ns.L
 
 local mod = ns:RegisterModule("playercastbar", {
-    name        = "Player Castbar",
+    name        = L["Player Castbar"],
     group       = "Unit Frames",
-    description = "Player castbar with two modes: Original (Blizzard bar extended) or Custom castbar (VUI style).",
+    description = L["Player castbar with two modes: Original (Blizzard bar extended) or Custom castbar (VUI style)."],
     defaults = {
         enabled       = true,
         mode          = "blizzard",        -- "blizzard" or "custom"
@@ -356,12 +357,12 @@ local function c_create()
 
     -- Mover overlay (clearly visible in unlock mode)
     cFrame.mover = ns:CreateMover(cFrame, {
-        label  = "|cffffffffCASTBAR|r\n|cffaaaaaaDrag or arrow keys|r",
+        label  = L["|cffffffffCASTBAR|r\n|cffaaaaaaDrag or arrow keys|r"],
         db     = mod.db,
         width  = math.max(mod.db.width + 60, 200),
         height = math.max(60, mod.db.height + 40),
         onMove = function(x, y)
-            ns:Print(string.format("Castbar position: x=%.0f, y=%.0f", x, y))
+            ns:Print(string.format(L["Castbar position: x=%.0f, y=%.0f"], x, y))
         end,
     })
 
@@ -658,7 +659,7 @@ local function c_setUnlocked(state)
         cFrame:Show()
         cFrame:SetAlpha(1)
         cFrame.bar:SetValue(0.7)
-        cFrame.nameText:SetText("|cff9b6cffMind Flay|r")
+        cFrame.nameText:SetText(L["|cff9b6cffMind Flay|r"])
         cFrame.timeText:SetText("1.5 / 2.0")
         cFrame.icon:SetTexture("Interface\\Icons\\Spell_Nature_Earthbind")
         cFrame.setIconShown(mod.db.showIcon)
@@ -666,12 +667,12 @@ local function c_setUnlocked(state)
         c_showTicks(3)
         -- Show mover overlay on top
         cFrame.mover:Show()
-        ns:Print("Castbar mover active. |cff9b6cffDrag purple box|r or use |cff9b6cffarrow keys|r (SHIFT = 5px). Click 'Unlock / Test' again to finish.")
+        ns:Print(L["Castbar mover active. |cff9b6cffDrag purple box|r or use |cff9b6cffarrow keys|r (SHIFT = 5px). Click 'Unlock / Test' again to finish."])
     else
         cFrame.mover:Hide()
         c_hideAllTicks()
         if not castInfo then cFrame:Hide() end
-        ns:Print("Castbar mover disabled.")
+        ns:Print(L["Castbar mover disabled."])
     end
 end
 
@@ -734,44 +735,44 @@ end
 function mod:GetOptions()
     local items = {}
 
-    table.insert(items, { type = "header", text = "Mode" })
+    table.insert(items, { type = "header", text = L["Mode"] })
     table.insert(items, {
-        type = "dropdown", label = "Castbar Variant",
+        type = "dropdown", label = L["Castbar Variant"],
         width = 320,
-        tooltip = "Switch between Original (Blizzard bar extended) and Custom castbar (VUI style with icon, spell name below bar).",
+        tooltip = L["Switch between Original (Blizzard bar extended) and Custom castbar (VUI style with icon, spell name below bar)."],
         values = {
-            { value = "blizzard", text = "Original (Blizzard bar extended)" },
-            { value = "custom",   text = "Custom Castbar (VUI style)" },
+            { value = "blizzard", text = L["Original (Blizzard bar extended)"] },
+            { value = "custom",   text = L["Custom Castbar (VUI style)"] },
         },
         get = function() return mod.db.mode end,
         set = function(_, v)
             switchMode(v)
             if v == "blizzard" then
-                ns:Print("Castbar mode switched to |cff9b6cffOriginal|r. |cffffff00/reload|r recommended so the default bar works normally again.")
+                ns:Print(L["Castbar mode switched to |cff9b6cffOriginal|r. |cffffff00/reload|r recommended so the default bar works normally again."])
             else
-                ns:Print("Castbar mode switched to |cff9b6cffVUI Style|r.")
+                ns:Print(L["Castbar mode switched to |cff9b6cffVUI Style|r."])
             end
         end,
     })
     table.insert(items, { type = "desc",
-        text = "|cffaaaaaaMode switch: A /reload may be required after switching so the default bar works normally again.|r" })
+        text = L["|cffaaaaaaMode switch: A /reload may be required after switching so the default bar works normally again.|r"] })
 
     table.insert(items, { type = "spacer", height = 8 })
-    table.insert(items, { type = "header", text = "General" })
+    table.insert(items, { type = "header", text = L["General"] })
 
     table.insert(items, {
-        type = "toggle", label = "Show spell name",
+        type = "toggle", label = L["Show spell name"],
         get = function() return mod.db.showSpellName end,
         set = function(_, v) mod.db.showSpellName = v end,
     })
     table.insert(items, {
-        type = "toggle", label = "Show cast timer",
+        type = "toggle", label = L["Show cast timer"],
         get = function() return mod.db.showTimeText end,
         set = function(_, v) mod.db.showTimeText = v end,
     })
     table.insert(items, {
-        type = "toggle", label = "Show channel ticks",
-        tooltip = "Shows vertical lines at tick points (Mind Flay, Drain Soul, Hellfire, etc.)",
+        type = "toggle", label = L["Show channel ticks"],
+        tooltip = L["Shows vertical lines at tick points (Mind Flay, Drain Soul, Hellfire, etc.)"],
         get = function() return mod.db.showTicks end,
         set = function(_, v) mod.db.showTicks = v end,
     })
@@ -779,13 +780,13 @@ function mod:GetOptions()
     -- Mode-specific options
     if mod.db.mode == "custom" then
         table.insert(items, { type = "spacer", height = 8 })
-        table.insert(items, { type = "header", text = "VUI Style: Position & Size" })
+        table.insert(items, { type = "header", text = L["VUI Style: Position & Size"] })
         table.insert(items, {
             type = "group", layout = "row", gap = 8,
             items = {
-                { type = "button", label = "Unlock / Test", width = 130,
+                { type = "button", label = L["Unlock / Test"], width = 130,
                   onClick = function() c_setUnlocked(not mod.db.unlocked) end },
-                { type = "button", label = "Center Position", width = 170,
+                { type = "button", label = L["Center Position"], width = 170,
                   onClick = function()
                       mod.db.x = 0; mod.db.y = -180
                       c_applyLayout()
@@ -793,9 +794,9 @@ function mod:GetOptions()
             },
         })
         table.insert(items, { type = "desc",
-            text = "|cffaaaaaaTip: Hold |cffffffffSHIFT|r and drag the castbar with the left mouse button during a cast to move it. Or use 'Unlock / Test' for a permanent test bar for positioning.|r" })
+            text = L["|cffaaaaaaTip: Hold |cffffffffSHIFT|r and drag the castbar with the left mouse button during a cast to move it. Or use 'Unlock / Test' for a permanent test bar for positioning.|r"] })
         table.insert(items, {
-            type = "toggle", label = "Show icon",
+            type = "toggle", label = L["Show icon"],
             get = function() return mod.db.showIcon end,
             set = function(_, v)
                 mod.db.showIcon = v
@@ -803,34 +804,34 @@ function mod:GetOptions()
             end,
         })
         table.insert(items, {
-            type = "slider", label = "Width",
+            type = "slider", label = L["Width"],
             min = 120, max = 400, step = 5,
             get = function() return mod.db.width end,
             set = function(_, v) mod.db.width = v; c_applyLayout() end,
         })
         table.insert(items, {
-            type = "slider", label = "Height",
+            type = "slider", label = L["Height"],
             min = 12, max = 36, step = 1,
             get = function() return mod.db.height end,
             set = function(_, v) mod.db.height = v; c_applyLayout() end,
         })
         table.insert(items, {
-            type = "slider", label = "Icon Size",
+            type = "slider", label = L["Icon Size"],
             min = 16, max = 48, step = 1,
             get = function() return mod.db.iconSize end,
             set = function(_, v) mod.db.iconSize = v; c_applyLayout() end,
         })
         table.insert(items, {
-            type = "slider", label = "Icon X Offset",
+            type = "slider", label = L["Icon X Offset"],
             min = -100, max = 100, step = 1,
-            tooltip = "Moves the icon horizontally. Negative = left, positive = right.",
+            tooltip = L["Moves the icon horizontally. Negative = left, positive = right."],
             get = function() return mod.db.iconX or 0 end,
             set = function(_, v) mod.db.iconX = v; c_applyLayout() end,
         })
         table.insert(items, {
-            type = "slider", label = "Icon Y Offset",
+            type = "slider", label = L["Icon Y Offset"],
             min = -50, max = 50, step = 1,
-            tooltip = "Moves the icon vertically. Positive = up, negative = down.",
+            tooltip = L["Moves the icon vertically. Positive = up, negative = down."],
             get = function() return mod.db.iconY or 0 end,
             set = function(_, v) mod.db.iconY = v; c_applyLayout() end,
         })
@@ -847,6 +848,6 @@ SlashCmdList.SCTTEST = function()
     if mod.db.mode == "custom" then
         c_setUnlocked(not mod.db.unlocked)
     else
-        ns:Print("Test only available in 'Custom Castbar' mode.")
+        ns:Print(L["Test only available in 'Custom Castbar' mode."])
     end
 end

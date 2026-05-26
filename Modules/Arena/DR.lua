@@ -6,6 +6,7 @@
 -- Reset after ~15-18 seconds without a new cast of the same category.
 -- =========================================================
 local _, ns = ...
+local L = ns.L
 local mod = ns.ArenaModule
 
 local DR_RESET_TIME = 18  -- TBC
@@ -283,10 +284,10 @@ end)
 -- =========================================================
 mod:AddOptionsSection("dr", function()
     return {
-        { type = "header", text = "Diminishing Returns Tracker" },
-        { type = "desc",   text = "Shows icons to the right of each arena frame for active DR categories (Stun, Fear, Polymorph etc.) with color indicator: |cff00ff00green|r = full, |cffffff00yellow|r = 1/2, |cffff8000orange|r = 1/4, |cffff0000red|r = immune." },
+        { type = "header", text = L["Diminishing Returns Tracker"] },
+        { type = "desc",   text = L["Shows icons to the right of each arena frame for active DR categories (Stun, Fear, Polymorph etc.) with color indicator: |cff00ff00green|r = full, |cffffff00yellow|r = 1/2, |cffff8000orange|r = 1/4, |cffff0000red|r = immune."] },
         {
-            type = "checkbox", label = "Enable DR tracking",
+            type = "checkbox", label = L["Enable DR tracking"],
             get = function() return mod.db.drEnabled end,
             set = function(_, v)
                 mod.db.drEnabled = v
@@ -294,7 +295,7 @@ mod:AddOptionsSection("dr", function()
             end,
         },
         {
-            type = "slider", label = "Icon size",
+            type = "slider", label = L["Icon size"],
             min = 16, max = 40, step = 1,
             get = function() return mod.db.drSize end,
             set = function(_, v) mod.db.drSize = v end,

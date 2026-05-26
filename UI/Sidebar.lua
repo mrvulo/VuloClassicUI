@@ -4,6 +4,7 @@
 -- On the right of each entry: power button to enable/disable.
 -- =========================================================
 local _, ns = ...
+local L = ns.L
 ns.UI = ns.UI or {}
 local UI = ns.UI
 
@@ -59,7 +60,7 @@ local function createModuleRow(parent, key, mod)
                 ns:ToggleModule(key, v)
                 UI:RefreshSidebarStates()
             end,
-            tooltip = "Enable/disable module",
+            tooltip = L["Enable/disable module"],
         })
         power:SetPoint("RIGHT", row, "RIGHT", -8, 0)
         row.power = power
@@ -78,7 +79,7 @@ local function createGroupHeader(parent, groupName)
 
     local fs = h:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     fs:SetPoint("LEFT", h, "LEFT", 6, -2)
-    fs:SetText(groupName)
+    fs:SetText(L[groupName])
     local c = ns.COLORS.accent
     fs:SetTextColor(c.r, c.g, c.b)
 

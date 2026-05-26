@@ -4,11 +4,12 @@
 -- The actual code lives in CharacterPanel_Impl.lua and reads mod.db.
 -- =========================================================
 local _, ns = ...
+local L = ns.L
 
 local mod = ns:RegisterModule("characterpanel", {
-    name        = "Character Panel",
+    name        = L["Character Panel"],
     group       = "UI Reskin",
-    description = "Enhances the character panel: iLvL per slot, socket display, shortened enchant text.",
+    description = L["Enhances the character panel: iLvL per slot, socket display, shortened enchant text."],
     defaults = {
         showItemLevel       = true,
         showSockets         = true,
@@ -78,30 +79,30 @@ end
 
 function mod:GetOptions()
     return {
-        { type = "header", text = "Display" },
-        { type = "checkbox", label = "Show item level per slot",
+        { type = "header", text = L["Display"] },
+        { type = "checkbox", label = L["Show item level per slot"],
           get = function() return mod.db.showItemLevel end,
           set = function(_, v) mod.db.showItemLevel = v end },
-        { type = "checkbox", label = "Show average item level",
+        { type = "checkbox", label = L["Show average item level"],
           get = function() return mod.db.showAvgItemLevel end,
           set = function(_, v) mod.db.showAvgItemLevel = v end },
-        { type = "checkbox", label = "Show sockets",
+        { type = "checkbox", label = L["Show sockets"],
           get = function() return mod.db.showSockets end,
           set = function(_, v) mod.db.showSockets = v end },
-        { type = "checkbox", label = "Shorten enchant text (DE/EN)",
-          tooltip = "Example: 'Stamina' -> 'Stam', 'Ausdauer' -> 'Ausd'.",
+        { type = "checkbox", label = L["Shorten enchant text (DE/EN)"],
+          tooltip = L["Example: 'Stamina' -> 'Stam', 'Ausdauer' -> 'Ausd'."],
           get = function() return mod.db.shortenEnchants end,
           set = function(_, v) mod.db.shortenEnchants = v end },
-        { type = "checkbox", label = "Treat rings as enchantable",
-          tooltip = "Also shows enchant text on rings (TBC: some professions can enchant rings).",
+        { type = "checkbox", label = L["Treat rings as enchantable"],
+          tooltip = L["Also shows enchant text on rings (TBC: some professions can enchant rings)."],
           get = function() return mod.db.ringsEnchantable end,
           set = function(_, v) mod.db.ringsEnchantable = v end },
 
         { type = "spacer", height = 6 },
-        { type = "header", text = "Text Size" },
-        { type = "slider", label = "Item Level Text Size",
+        { type = "header", text = L["Text Size"] },
+        { type = "slider", label = L["Item Level Text Size"],
           min = 8, max = 24, step = 1,
-          tooltip = "Font size of the item level number on each item slot. Takes effect immediately when the character panel is open.",
+          tooltip = L["Font size of the item level number on each item slot. Takes effect immediately when the character panel is open."],
           get = function() return mod.db.itemLevelSize end,
           set = function(_, v)
               mod.db.itemLevelSize = v
@@ -109,6 +110,6 @@ function mod:GetOptions()
           end },
 
         { type = "spacer" },
-        { type = "desc", text = "Note: Some changes only take full effect after /reload, since the character panel is hooked on load." },
+        { type = "desc", text = L["Note: Some changes only take full effect after /reload, since the character panel is hooked on load."] },
     }
 end

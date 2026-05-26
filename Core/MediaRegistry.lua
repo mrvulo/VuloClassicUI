@@ -7,11 +7,12 @@
 -- Paths live under Interface\AddOns\VuloClassicUI\Media\
 -- =========================================================
 local _, ns = ...
+local L = ns.L
 
 local LSM = LibStub and LibStub:GetLibrary("LibSharedMedia-3.0", true)
 if not LSM then
     if ns.Print then
-        ns:Print("|cffff5555LibSharedMedia-3.0 not found, Media Registry will be skipped.|r")
+        ns:Print(L["|cffff5555LibSharedMedia-3.0 not found, Media Registry will be skipped.|r"])
     end
     return
 end

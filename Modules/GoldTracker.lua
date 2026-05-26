@@ -6,11 +6,12 @@
 -- Reset via options button or /vcui goldreset.
 -- =========================================================
 local _, ns = ...
+local L = ns.L
 
 local mod = ns:RegisterModule("goldtracker", {
-    name        = "Gold Tracker",
+    name        = L["Gold Tracker"],
     group       = "QoL",
-    description = "Shows in the backpack gold tooltip how much gold has been gained or spent since the last reset. Per-char persistent.",
+    description = L["Shows in the backpack gold tooltip how much gold has been gained or spent since the last reset. Per-char persistent."],
     defaults    = {
         enabled = true,
     },
@@ -111,7 +112,7 @@ function mod.ResetSession()
     initSession(true)
     local d = data()
     if d then
-        ns:Print(ACCENT .. "Gold Tracker reset|r. Start = " .. formatCopper(d.sessionStart))
+        ns:Print(ACCENT .. L["Gold Tracker reset|r. Start = "] .. formatCopper(d.sessionStart))
     end
 end
 
@@ -132,21 +133,21 @@ local function showTooltip(self)
         GameTooltip:AddLine(" ")
     end
 
-    GameTooltip:AddLine(ACCENT .. "Gold Balance|r")
+    GameTooltip:AddLine(ACCENT .. L["Gold Balance|r"])
     GameTooltip:AddLine(" ")
-    GameTooltip:AddDoubleLine(POS_COLOR .. "Gained:|r", formatCopper(d.gained))
-    GameTooltip:AddDoubleLine(NEG_COLOR .. "Spent:|r",  formatCopper(d.spent))
+    GameTooltip:AddDoubleLine(POS_COLOR .. L["Gained:|r"], formatCopper(d.gained))
+    GameTooltip:AddDoubleLine(NEG_COLOR .. L["Spent:|r"],  formatCopper(d.spent))
 
     local net   = (d.gained or 0) - (d.spent or 0)
     local color = net >= 0 and POS_COLOR or NEG_COLOR
     local sign  = net >= 0 and "+" or "-"
-    GameTooltip:AddDoubleLine("|cffffffffNet:|r",
+    GameTooltip:AddDoubleLine(L["|cffffffffNet:|r"],
         color .. sign .. " " .. formatCopper(net) .. "|r")
 
     GameTooltip:AddLine(" ")
-    GameTooltip:AddDoubleLine(GRAY .. "Start:|r", GRAY .. formatCopper(d.sessionStart or 0) .. "|r")
-    GameTooltip:AddDoubleLine(GRAY .. "Now:|r",   GRAY .. formatCopper(d.lastMoney or 0)    .. "|r")
-    GameTooltip:AddLine(GRAY .. "Reset with /vcui goldreset|r")
+    GameTooltip:AddDoubleLine(GRAY .. L["Start:|r"], GRAY .. formatCopper(d.sessionStart or 0) .. "|r")
+    GameTooltip:AddDoubleLine(GRAY .. L["Now:|r"],   GRAY .. formatCopper(d.lastMoney or 0)    .. "|r")
+    GameTooltip:AddLine(GRAY .. L["Reset with /vcui goldreset|r"])
 
     GameTooltip:Show()
 end
@@ -264,16 +265,10 @@ end
 -- =========================================================
 function mod:GetOptions()
     return {
-        { type = "header", text = "Gold Tracker" },
+        { type = "header", text = L["Gold Tracker"] },
         { type = "desc",
-          text = "|cffaaaaaaShows in the backpack gold tooltip the balance since the last manual reset:|n"
-              .. "  - |cff44ff44Gained|r (quests, loot, vendor sales, mail)|n"
-              .. "  - |cffff4444Spent|r (repair, vendor buy, mail cost)|n"
-              .. "  - |cffffffffNet|r (+/- since reset)|n|n"
-              .. "Values are |cffffffffper-char persistent|r across /reload and logout.|n"
-              .. "Offline gold (AH mail, trade) is not counted.|n|n"
-              .. "Reset: button below or |cffffff00/vcui goldreset|r.|r" },
-        { type = "button", label = "Reset session", width = 200,
+          text = L["|cffaaaaaaShows in the backpack gold tooltip the balance since the last manual reset:|n  - |cff44ff44Gained|r (quests, loot, vendor sales, mail)|n  - |cffff4444Spent|r (repair, vendor buy, mail cost)|n  - |cffffffffNet|r (+/- since reset)|n|nValues are |cffffffffper-char persistent|r across /reload and logout.|nOffline gold (AH mail, trade) is not counted.|n|nReset: button below or |cffffff00/vcui goldreset|r.|r"] },
+        { type = "button", label = L["Reset session"], width = 200,
           onClick = function() mod.ResetSession() end },
     }
 end

@@ -7,11 +7,12 @@
 -- Ported for TBC 2.5.5 (no C_Spell / C_Container / Settings APIs).
 -- =========================================================
 local _, ns = ...
+local L = ns.L
 
 local mod = ns:RegisterModule("cooldownpulse", {
-    name        = "Cooldown Pulse",
+    name        = L["Cooldown Pulse"],
     group       = "Unit Frames",
-    description = "Shows the icon of an expired cooldown as a brief pulsing animation in the screen center (based on Doom_CooldownPulse).",
+    description = L["Shows the icon of an expired cooldown as a brief pulsing animation in the screen center (based on Doom_CooldownPulse)."],
     defaults = {
         enabled       = false,  -- default OFF
         iconSize      = 75,
@@ -339,12 +340,12 @@ local function setUnlocked(state)
         DCP:EnableMouse(true)
         DCP:SetWidth(mod.db.iconSize)
         DCP:SetHeight(mod.db.iconSize)
-        ns:Print("Cooldown Pulse unlock active — drag icon to move.")
+        ns:Print(L["Cooldown Pulse unlock active — drag icon to move."])
     else
         DCP:SetAlpha(0)
         DCPT:SetTexture(nil)
         DCP:EnableMouse(false)
-        ns:Print("Cooldown Pulse unlock disabled.")
+        ns:Print(L["Cooldown Pulse unlock disabled."])
     end
 end
 
@@ -491,7 +492,7 @@ end
 local function testAnimation()
     ensureFrame()
     if mod.db.unlocked then setUnlocked(false) end
-    tinsert(animating, { "Interface\\Icons\\Spell_Nature_Earthbind", nil, "Test Spell" })
+    tinsert(animating, { "Interface\\Icons\\Spell_Nature_Earthbind", nil, L["Test Spell"] })
     DCP:SetScript("OnUpdate", OnUpdate)
 end
 
@@ -520,23 +521,23 @@ end
 -- =========================================================
 function mod:GetOptions()
     return {
-        { type = "header", text = "Position" },
+        { type = "header", text = L["Position"] },
         {
             type = "group", layout = "row", gap = 8,
             items = {
                 {
-                    type = "button", label = "Unlock",
-                    tooltip = "Shows a test icon you can move around.",
+                    type = "button", label = L["Unlock"],
+                    tooltip = L["Shows a test icon you can move around."],
                     width = 90,
                     onClick = function() setUnlocked(not mod.db.unlocked) end,
                 },
                 {
-                    type = "button", label = "Test Pulse", width = 110,
-                    tooltip = "Plays a test animation.",
+                    type = "button", label = L["Test Pulse"], width = 110,
+                    tooltip = L["Plays a test animation."],
                     onClick = testAnimation,
                 },
                 {
-                    type = "button", label = "Reset Position", width = 170,
+                    type = "button", label = L["Reset Position"], width = 170,
                     onClick = function()
                         mod.db.x = UIParent:GetWidth() * UIParent:GetEffectiveScale() / 2
                         mod.db.y = UIParent:GetHeight() * UIParent:GetEffectiveScale() / 2
@@ -544,17 +545,17 @@ function mod:GetOptions()
                             DCP:ClearAllPoints()
                             DCP:SetPoint("CENTER", UIParent, "BOTTOMLEFT", mod.db.x, mod.db.y)
                         end
-                        ns:Print("Cooldown Pulse position reset.")
+                        ns:Print(L["Cooldown Pulse position reset."])
                     end,
                 },
             },
         },
 
         { type = "spacer", height = 8 },
-        { type = "header", text = "Appearance" },
+        { type = "header", text = L["Appearance"] },
 
         {
-            type = "slider", label = "Icon Size",
+            type = "slider", label = L["Icon Size"],
             min = 30, max = 125, step = 5,
             get = function() return mod.db.iconSize end,
             set = function(_, v)
@@ -565,62 +566,62 @@ function mod:GetOptions()
             end,
         },
         {
-            type = "slider", label = "Max Opacity",
+            type = "slider", label = L["Max Opacity"],
             min = 0.1, max = 1.0, step = 0.05,
             get = function() return mod.db.maxAlpha end,
             set = function(_, v) mod.db.maxAlpha = v end,
         },
         {
-            type = "slider", label = "Animation Scale",
+            type = "slider", label = L["Animation Scale"],
             min = 1.0, max = 2.5, step = 0.1,
             get = function() return mod.db.animScale end,
             set = function(_, v) mod.db.animScale = v end,
         },
         {
-            type = "slider", label = "Fade-In Time (s)",
+            type = "slider", label = L["Fade-In Time (s)"],
             min = 0, max = 1.5, step = 0.1,
             get = function() return mod.db.fadeInTime end,
             set = function(_, v) mod.db.fadeInTime = v end,
         },
         {
-            type = "slider", label = "Hold Time (s)",
+            type = "slider", label = L["Hold Time (s)"],
             min = 0, max = 1.5, step = 0.1,
             get = function() return mod.db.holdTime end,
             set = function(_, v) mod.db.holdTime = v end,
         },
         {
-            type = "slider", label = "Fade-Out Time (s)",
+            type = "slider", label = L["Fade-Out Time (s)"],
             min = 0, max = 1.5, step = 0.1,
             get = function() return mod.db.fadeOutTime end,
             set = function(_, v) mod.db.fadeOutTime = v end,
         },
         {
-            type = "slider", label = "Show Before Available (s)",
-            tooltip = "Triggers the animation X seconds BEFORE the cooldown expires. 0 = exactly at cooldown end.",
+            type = "slider", label = L["Show Before Available (s)"],
+            tooltip = L["Triggers the animation X seconds BEFORE the cooldown expires. 0 = exactly at cooldown end."],
             min = 0, max = 3, step = 0.1,
             get = function() return mod.db.remainingTime end,
             set = function(_, v) mod.db.remainingTime = v end,
         },
 
         { type = "spacer", height = 8 },
-        { type = "header", text = "Spell Filter" },
+        { type = "header", text = L["Spell Filter"] },
 
         {
-            type = "toggle", label = "Show spell names",
-            tooltip = "Shows the name of the spell under the icon.",
+            type = "toggle", label = L["Show spell names"],
+            tooltip = L["Shows the name of the spell under the icon."],
             get = function() return mod.db.showSpellName end,
             set = function(_, v) mod.db.showSpellName = v end,
         },
         {
-            type = "toggle", label = "Invert filter (whitelist instead of blacklist)",
-            tooltip = "Off: List = ignored spells. On: List = show ONLY these spells.",
+            type = "toggle", label = L["Invert filter (whitelist instead of blacklist)"],
+            tooltip = L["Off: List = ignored spells. On: List = show ONLY these spells."],
             get = function() return mod.db.invertIgnored end,
             set = function(_, v) mod.db.invertIgnored = v end,
         },
         {
-            type = "editbox", label = "Spell List (comma-separated)",
+            type = "editbox", label = L["Spell List (comma-separated)"],
             width = 400,
-            tooltip = "Spell names exactly as in-game, comma-separated. Spell IDs also work.",
+            tooltip = L["Spell names exactly as in-game, comma-separated. Spell IDs also work."],
             get = function() return mod.db.ignoredSpells end,
             set = function(_, v) mod.db.ignoredSpells = v end,
         },

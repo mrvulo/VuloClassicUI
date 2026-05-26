@@ -11,11 +11,12 @@
 -- Slash: /inspectreset — manual force-reset when the UI is completely stuck.
 -- =========================================================
 local _, ns = ...
+local L = ns.L
 
 local mod = ns:RegisterModule("fixinspect", {
-    name        = "Inspect Fix",
+    name        = L["Inspect Fix"],
     group       = "Bugfixes",
-    description = "Fixes stuck inspect bugs (no player inspect possible after a faulty close/timeout). Auto-reset after 8s + cleanup when InspectFrame closes + /inspectreset slash command.",
+    description = L["Fixes stuck inspect bugs (no player inspect possible after a faulty close/timeout). Auto-reset after 8s + cleanup when InspectFrame closes + /inspectreset slash command."],
     defaults = {
         enabled    = true,
         autoReset  = true,
@@ -92,9 +93,9 @@ _G.SLASH_VCUIINSPECTRESET1 = "/inspectreset"
 _G.SlashCmdList["VCUIINSPECTRESET"] = function()
     resetInspect()
     if ns and ns.Print then
-        ns:Print("Inspect state manually reset. Try again now.")
+        ns:Print(L["Inspect state manually reset. Try again now."])
     else
-        DEFAULT_CHAT_FRAME:AddMessage("|cffffff00[VuloClassicUI]|r Inspect state reset.")
+        DEFAULT_CHAT_FRAME:AddMessage(L["|cffffff00[VuloClassicUI]|r Inspect state reset."])
     end
 end
 
@@ -140,35 +141,35 @@ end
 -- =========================================================
 function mod:GetOptions()
     return {
-        { type = "header", text = "Behavior" },
+        { type = "header", text = L["Behavior"] },
 
-        { type = "toggle", label = "Auto-reset on timeout",
-          tooltip = "If no response from the server comes after X seconds, the pending inspect state is automatically reset — so the next inspect attempt works again.",
+        { type = "toggle", label = L["Auto-reset on timeout"],
+          tooltip = L["If no response from the server comes after X seconds, the pending inspect state is automatically reset — so the next inspect attempt works again."],
           get = function() return mod.db.autoReset ~= false end,
           set = function(_, v) mod.db.autoReset = v end },
 
-        { type = "slider", label = "Timeout (seconds)",
+        { type = "slider", label = L["Timeout (seconds)"],
           min = 3, max = 20, step = 1,
-          tooltip = "How long to wait for INSPECT_READY before auto-reset kicks in. 8 seconds is a good default — fast enough for out-of-range, slow enough not to abort normal server lag.",
+          tooltip = L["How long to wait for INSPECT_READY before auto-reset kicks in. 8 seconds is a good default — fast enough for out-of-range, slow enough not to abort normal server lag."],
           get = function() return mod.db.timeoutSec or 8 end,
           set = function(_, v) mod.db.timeoutSec = v end },
 
         { type = "spacer", height = 6 },
-        { type = "header", text = "Manual Reset" },
-        { type = "button", label = "Reset inspect state now", width = 240,
+        { type = "header", text = L["Manual Reset"] },
+        { type = "button", label = L["Reset inspect state now"], width = 240,
           onClick = function()
               resetInspect()
-              ns:Print("Inspect state manually reset.")
+              ns:Print(L["Inspect state manually reset."])
           end },
-        { type = "desc", text = "|cffaaaaaaSlash command: /inspectreset|r" },
+        { type = "desc", text = L["|cffaaaaaaSlash command: /inspectreset|r"] },
 
         { type = "spacer", height = 8 },
-        { type = "header", text = "Status" },
+        { type = "header", text = L["Status"] },
         { type = "desc", text = string.format(
-            "NotifyInspect hook: %s\nInspectFrame hook: %s",
-            _hookedNotify and "|cff66ff66active|r" or "|cffff8800waiting|r",
-            _hookedFrame  and "|cff66ff66active|r" or "|cffff8800waiting for Blizzard_InspectUI|r") },
+            L["NotifyInspect hook: %s\nInspectFrame hook: %s"],
+            _hookedNotify and L["|cff66ff66active|r"] or L["|cffff8800waiting|r"],
+            _hookedFrame  and L["|cff66ff66active|r"] or L["|cffff8800waiting for Blizzard_InspectUI|r"]) },
         { type = "spacer", height = 4 },
-        { type = "desc", text = "|cffaaaaaaWhat the fix does: tracks active inspects with a timestamp, calls ClearInspectPlayer() on close + on timeout. Prevents a stuck state from blocking all subsequent inspects.|r" },
+        { type = "desc", text = L["|cffaaaaaaWhat the fix does: tracks active inspects with a timestamp, calls ClearInspectPlayer() on close + on timeout. Prevents a stuck state from blocking all subsequent inspects.|r"] },
     }
 end

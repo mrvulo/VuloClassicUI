@@ -17,12 +17,17 @@ Libs\LibSharedMedia-3.0\LibSharedMedia-3.0.lua
 
 # --- Core ---
 Core\Namespace.lua
+Core\Locale.lua
 Core\Utils.lua
 Core\Database.lua
 Core\Modules.lua
 Core\Events.lua
 Core\MediaRegistry.lua
 Core\Mover.lua
+
+# --- Locales (must load AFTER Core\Locale.lua, BEFORE modules) ---
+Locales\enUS.lua
+Locales\deDE.lua
 
 # --- UI Framework ---
 UI\Widgets.lua

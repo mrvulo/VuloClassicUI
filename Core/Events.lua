@@ -5,6 +5,7 @@
 -- instead of creating their own frame each time.
 -- =========================================================
 local _, ns = ...
+local L = ns.L
 
 local dispatcher = CreateFrame("Frame", "VuloClassicUIEventDispatcher")
 ns.eventFrame = dispatcher
@@ -41,7 +42,7 @@ dispatcher:SetScript("OnEvent", function(_, event, ...)
     for _, h in ipairs(list) do
         local ok, err = pcall(h, event, ...)
         if not ok then
-            ns:Print("|cffff5555Event handler error (%s):|r %s", event, tostring(err))
+            ns:Print(L["|cffff5555Event handler error (%s):|r %s"], event, tostring(err))
         end
     end
 end)

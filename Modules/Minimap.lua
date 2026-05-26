@@ -6,11 +6,12 @@
 -- Shift+Drag: change position on the minimap
 -- =========================================================
 local _, ns = ...
+local L = ns.L
 
 local mod = ns:RegisterModule("minimap", {
-    name        = "Minimap Button",
+    name        = L["Minimap Button"],
     group       = "Core",
-    description = "Shows a button on the minimap to quickly open VuloClassicUI. Shift+drag moves the button.",
+    description = L["Shows a button on the minimap to quickly open VuloClassicUI. Shift+drag moves the button."],
     defaults = {
         angle  = 215,       -- degrees on the minimap (0 = top, 90 = right, 180 = bottom, 270 = left)
         radius = 80,        -- distance from the minimap center
@@ -74,7 +75,7 @@ local function createButton()
             if ns.UI and ns.UI.ToggleMainFrame then
                 ns.UI:ToggleMainFrame()
             else
-                ns:Print("UI is not loaded yet.")
+                ns:Print(L["UI is not loaded yet."])
             end
         elseif mouseBtn == "RightButton" then
             -- Dropdown with module list
@@ -102,9 +103,9 @@ local function createButton()
     button:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_LEFT")
         GameTooltip:AddLine("|cff9b6cffVuloClassicUI|r")
-        GameTooltip:AddLine("|cffffffffLeft click:|r Open options")
-        GameTooltip:AddLine("|cffffffffRight click:|r Quick module selection")
-        GameTooltip:AddLine("|cffffffffShift+drag:|r Move button")
+        GameTooltip:AddLine(L["|cffffffffLeft click:|r Open options"])
+        GameTooltip:AddLine(L["|cffffffffRight click:|r Quick module selection"])
+        GameTooltip:AddLine(L["|cffffffffShift+drag:|r Move button"])
         GameTooltip:Show()
     end)
     button:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -164,7 +165,7 @@ function mod:ShowDropdown()
     -- Header
     table.insert(menu, { text = "|cff9b6cffVuloClassicUI|r", isTitle = true, notCheckable = true })
     table.insert(menu, {
-        text = "Open Options", notCheckable = true,
+        text = L["Open Options"], notCheckable = true,
         func = function() if ns.UI then ns.UI:ToggleMainFrame() end end,
     })
     table.insert(menu, { text = "", isTitle = true, notCheckable = true })
@@ -185,7 +186,7 @@ function mod:ShowDropdown()
 
     table.insert(menu, { text = "", isTitle = true, notCheckable = true })
     table.insert(menu, {
-        text = "Reload UI", notCheckable = true,
+        text = L["Reload UI"], notCheckable = true,
         func = function() ReloadUI() end,
     })
 
@@ -206,26 +207,26 @@ end
 -- =========================================================
 function mod:GetOptions()
     return {
-        { type = "header", text = "Minimap" },
+        { type = "header", text = L["Minimap"] },
         {
-            type = "toggle", label = "Show button on minimap",
-            tooltip = "If off, the button is completely hidden.",
+            type = "toggle", label = L["Show button on minimap"],
+            tooltip = L["If off, the button is completely hidden."],
             get = function() return not mod.db.hide end,
             set = function(_, v) mod.db.hide = not v; applyVisibility() end,
         },
         {
-            type = "slider", label = "Distance from center",
+            type = "slider", label = L["Distance from center"],
             min = 50, max = 120, step = 1,
             get = function() return mod.db.radius end,
             set = function(_, v) mod.db.radius = v; updatePosition() end,
         },
         {
-            type = "slider", label = "Angle (degrees)",
+            type = "slider", label = L["Angle (degrees)"],
             min = 0, max = 360, step = 1,
             get = function() return mod.db.angle end,
             set = function(_, v) mod.db.angle = v; updatePosition() end,
         },
         { type = "spacer", height = 6 },
-        { type = "desc", text = "Tip: You can also move the button directly on the minimap — hold Shift and drag it to the desired position." },
+        { type = "desc", text = L["Tip: You can also move the button directly on the minimap — hold Shift and drag it to the desired position."] },
     }
 end

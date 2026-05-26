@@ -4,11 +4,12 @@
 -- Shows a countdown on the PvP/PvE queue pop dialog.
 -- =========================================================
 local _, ns = ...
+local L = ns.L
 
 local mod = ns:RegisterModule("queuetimer", {
-    name        = "Queue Timer",
+    name        = L["Queue Timer"],
     group       = "QoL",
-    description = "Shows a countdown on the PvP/PvE queue pop dialog. Optional sound warning at 5 seconds.",
+    description = L["Shows a countdown on the PvP/PvE queue pop dialog. Optional sound warning at 5 seconds."],
     defaults = {
         queueTimerAudio   = true,
         queueTimerWarning = true,
@@ -41,7 +42,7 @@ local function createCustomFontStrings(dialog)
 
     dialog.customLabel = dialog:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     dialog.customLabel:SetPoint("TOP", dialog.label or dialog.text, "TOP", 0, 0)
-    dialog.customLabel:SetText("Queue expires in")
+    dialog.customLabel:SetText(L["Queue expires in"])
     local f, _, fl = dialog.customLabel:GetFont(); dialog.customLabel:SetFont(f, 15, "OUTLINE")
     dialog.customLabel:SetWidth(maxWidth)
 
@@ -132,7 +133,7 @@ local function startUpdateFrame()
 end
 
 local function printMsg(message)
-    DEFAULT_CHAT_FRAME:AddMessage("|cff00c0ffQueueTimer:|r " .. message)
+    DEFAULT_CHAT_FRAME:AddMessage(L["|cff00c0ffQueueTimer:|r "] .. message)
     if mod.db.queueTimerAudio then PlaySoundFile(567458, "master") end
 end
 
@@ -159,9 +160,9 @@ local function handleDungeonReadyDialog()
 
         if dungeonQueuedTime then
             local timeWaited = GetTime() - dungeonQueuedTime
-            printMsg(timeWaited < 1 and "Dungeon queue popped instantly!" or format("Dungeon queue popped after %s", SecondsToTime(timeWaited)))
+            printMsg(timeWaited < 1 and L["Dungeon queue popped instantly!"] or format(L["Dungeon queue popped after %s"], SecondsToTime(timeWaited)))
         else
-            printMsg("Dungeon queue popped.")
+            printMsg(L["Dungeon queue popped."])
         end
         dungeonQueuedTime = nil
     end
@@ -176,7 +177,7 @@ local function updateBattlefieldStatus()
         elseif status == "confirm" then
             if queues[i] then
                 local secs = GetTime() - queues[i]
-                printMsg(secs < 1 and "Queue popped instantly!" or format("Queue popped after %s", SecondsToTime(secs)))
+                printMsg(secs < 1 and L["Queue popped instantly!"] or format(L["Queue popped after %s"], SecondsToTime(secs)))
                 queues[i] = nil
             end
             isConfirm = true
@@ -254,24 +255,24 @@ end
 -- =========================================================
 function mod:GetOptions()
     return {
-        { type = "header", text = "Sound" },
+        { type = "header", text = L["Sound"] },
         {
-            type = "checkbox", label = "Sound on queue pop",
-            tooltip = "Plays a sound as soon as the queue pops.",
+            type = "checkbox", label = L["Sound on queue pop"],
+            tooltip = L["Plays a sound as soon as the queue pops."],
             get = function() return mod.db.queueTimerAudio end,
             set = function(_, v) mod.db.queueTimerAudio = v end,
         },
         {
-            type = "checkbox", label = "5-second warning",
-            tooltip = "Plays 3 quick sounds when only 5 seconds remain to accept.",
+            type = "checkbox", label = L["5-second warning"],
+            tooltip = L["Plays 3 quick sounds when only 5 seconds remain to accept."],
             get = function() return mod.db.queueTimerWarning end,
             set = function(_, v) mod.db.queueTimerWarning = v end,
         },
         { type = "spacer" },
-        { type = "header", text = "Misc" },
+        { type = "header", text = L["Misc"] },
         {
-            type = "checkbox", label = "Hide other timers (e.g. BigWigs)",
-            tooltip = "Hides foreign StatusBars on the LFG ready popup so only our timer is visible.",
+            type = "checkbox", label = L["Hide other timers (e.g. BigWigs)"],
+            tooltip = L["Hides foreign StatusBars on the LFG ready popup so only our timer is visible."],
             get = function() return mod.db.hideOtherTimers end,
             set = function(_, v) mod.db.hideOtherTimers = v end,
         },

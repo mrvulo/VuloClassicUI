@@ -5,11 +5,12 @@
 -- so the UI doesn't crash.
 -- =========================================================
 local _, ns = ...
+local L = ns.L
 
 local mod = ns:RegisterModule("fixauctiondropdown", {
-    name        = "Auction Price Fix",
+    name        = L["Auction Price Fix"],
     group       = "Bugfixes",
-    description = "Fixes a nil error in the German auction house UI (PriceDropdown not defined).",
+    description = L["Fixes a nil error in the German auction house UI (PriceDropdown not defined)."],
     defaults = {
         enabled = true,
     },
@@ -34,13 +35,13 @@ end
 
 function mod:GetOptions()
     return {
-        { type = "header", text = "Info" },
-        { type = "desc", text = "This fix addresses a known bug in the German WoW localization: the auction house UI references a \"PriceDropdown\" element that was never defined, which causes Lua errors when opening the auction house." },
+        { type = "header", text = L["Info"] },
+        { type = "desc", text = L["This fix addresses a known bug in the German WoW localization: the auction house UI references a \"PriceDropdown\" element that was never defined, which causes Lua errors when opening the auction house."] },
         { type = "spacer", height = 6 },
-        { type = "desc", text = string.format("|cffaaaaaaCurrent locale: %s|r", GetLocale() or "?") },
-        { type = "desc", text = "|cffaaaaaaThe fix only applies on German clients (deDE). On other languages the module is inactive.|r" },
+        { type = "desc", text = string.format(L["|cffaaaaaaCurrent locale: %s|r"], GetLocale() or "?") },
+        { type = "desc", text = L["|cffaaaaaaThe fix only applies on German clients (deDE). On other languages the module is inactive.|r"] },
         { type = "spacer", height = 6 },
-        { type = "desc", text = string.format("|cffaaaaaaStatus: %s|r",
-            applied and (_G.PriceDropdown and "|cff66ff66applied|r" or "skipped (deDE-only)") or "not applied") },
+        { type = "desc", text = string.format(L["|cffaaaaaaStatus: %s|r"],
+            applied and (_G.PriceDropdown and L["|cff66ff66applied|r"] or L["skipped (deDE-only)"]) or L["not applied"]) },
     }
 end

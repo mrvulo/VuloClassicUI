@@ -11,6 +11,7 @@
 --   ns.db.profile.modules[key]          -- pointer to the current profile (same as before)
 -- =========================================================
 local _, ns = ...
+local L = ns.L
 
 ns.defaults = {
     global = {
@@ -55,7 +56,7 @@ function ns:InitDB()
             [DEFAULT_PROFILE] = VuloClassicUIDB.profile,
         }
         VuloClassicUIDB.profile = nil
-        ns:Print("Settings migrated to profile system (all settings are in profile '%s').", DEFAULT_PROFILE)
+        ns:Print(L["Settings migrated to profile system (all settings are in profile '%s')."], DEFAULT_PROFILE)
     end
 
     VuloClassicUIDB.global            = VuloClassicUIDB.global            or {}
@@ -104,7 +105,7 @@ end
 function ns:LoadProfile(profileName)
     local profileData = VuloClassicUIDB.profiles[profileName]
     if not profileData then
-        ns:Print("|cffff5555Profile '%s' does not exist.|r", profileName)
+        ns:Print(L["|cffff5555Profile '%s' does not exist.|r"], profileName)
         return false
     end
 
@@ -152,8 +153,8 @@ function ns:ProfileExists(name)
 end
 
 function ns:CreateProfile(name, copyFrom)
-    if not name or name == "" then return false, "Name cannot be empty." end
-    if ns:ProfileExists(name) then return false, "Profile already exists." end
+    if not name or name == "" then return false, L["Name cannot be empty."] end
+    if ns:ProfileExists(name) then return false, L["Profile already exists."] end
 
     local newProfile
     if copyFrom and ns:ProfileExists(copyFrom) then
@@ -163,13 +164,13 @@ function ns:CreateProfile(name, copyFrom)
     end
 
     VuloClassicUIDB.profiles[name] = newProfile
-    ns:Print("Profile '%s' created%s.", name, copyFrom and (" (copy of '" .. copyFrom .. "')") or "")
+    ns:Print(L["Profile '%s' created%s."], name, copyFrom and string.format(L[" (copy of '%s')"], copyFrom) or "")
     return true
 end
 
 function ns:DeleteProfile(name)
-    if name == DEFAULT_PROFILE then return false, "Default profile cannot be deleted." end
-    if not ns:ProfileExists(name) then return false, "Profile does not exist." end
+    if name == DEFAULT_PROFILE then return false, L["Default profile cannot be deleted."] end
+    if not ns:ProfileExists(name) then return false, L["Profile does not exist."] end
 
     VuloClassicUIDB.profiles[name] = nil
 
@@ -183,18 +184,18 @@ function ns:DeleteProfile(name)
     -- If active profile was deleted: revert to Default
     if ns:GetActiveProfileName() == name then
         ns:LoadProfile(DEFAULT_PROFILE)
-        ns:Print("Active profile deleted. Default loaded. /reload recommended.")
+        ns:Print(L["Active profile deleted. Default loaded. /reload recommended."])
     end
 
-    ns:Print("Profile '%s' deleted.", name)
+    ns:Print(L["Profile '%s' deleted."], name)
     return true
 end
 
 function ns:RenameProfile(oldName, newName)
-    if oldName == DEFAULT_PROFILE then return false, "Default profile cannot be renamed." end
-    if not ns:ProfileExists(oldName) then return false, "Profile does not exist." end
-    if not newName or newName == "" then return false, "Name cannot be empty." end
-    if ns:ProfileExists(newName) then return false, "New name already exists." end
+    if oldName == DEFAULT_PROFILE then return false, L["Default profile cannot be renamed."] end
+    if not ns:ProfileExists(oldName) then return false, L["Profile does not exist."] end
+    if not newName or newName == "" then return false, L["Name cannot be empty."] end
+    if ns:ProfileExists(newName) then return false, L["New name already exists."] end
 
     VuloClassicUIDB.profiles[newName] = VuloClassicUIDB.profiles[oldName]
     VuloClassicUIDB.profiles[oldName] = nil
@@ -209,19 +210,19 @@ function ns:RenameProfile(oldName, newName)
         VuloClassicUIDB.activeProfile = newName
     end
 
-    ns:Print("Profile '%s' renamed to '%s'.", oldName, newName)
+    ns:Print(L["Profile '%s' renamed to '%s'."], oldName, newName)
     return true
 end
 
 function ns:SwitchProfile(name)
     if not ns:ProfileExists(name) then
-        ns:Print("|cffff5555Profile '%s' does not exist.|r", name)
+        ns:Print(L["|cffff5555Profile '%s' does not exist.|r"], name)
         return false
     end
     if ns:GetActiveProfileName() == name then return true end
 
     ns:LoadProfile(name)
-    ns:Print("Profile '%s' loaded. |cffffff00/reload|r recommended so all modules use the new settings.", name)
+    ns:Print(L["Profile '%s' loaded. |cffffff00/reload|r recommended so all modules use the new settings."], name)
     return true
 end
 
@@ -259,7 +260,7 @@ function ns:MigrateLegacyDBs()
         if src.powerSize       then dst.powerSize       = src.powerSize end
         if src.petFeedbackSize then dst.petFeedbackSize = src.petFeedbackSize end
         if src.onlyTheseBars ~= nil then dst.onlyTheseBars = src.onlyTheseBars end
-        ns:Print("Settings imported from VuloFontBars.")
+        ns:Print(L["Settings imported from VuloFontBars."])
     end
 
     if ArenaEnemyEditDB and ns.modules.arenaframes then
@@ -269,7 +270,7 @@ function ns:MigrateLegacyDBs()
         if src.scale      then dst.scale      = src.scale end
         if src.healthSize then dst.healthSize = src.healthSize end
         if src.powerSize  then dst.powerSize  = src.powerSize end
-        ns:Print("Settings imported from ArenaEnemyEdit.")
+        ns:Print(L["Settings imported from ArenaEnemyEdit."])
     end
 
     if BetterBlizzQueueDB and ns.modules.queuetimer then
@@ -278,7 +279,7 @@ function ns:MigrateLegacyDBs()
         if src.queueTimerAudio   ~= nil then dst.queueTimerAudio   = src.queueTimerAudio end
         if src.queueTimerWarning ~= nil then dst.queueTimerWarning = src.queueTimerWarning end
         if src.hideOtherTimers   ~= nil then dst.hideOtherTimers   = src.hideOtherTimers end
-        ns:Print("Settings imported from BetterBlizzQueue.")
+        ns:Print(L["Settings imported from BetterBlizzQueue."])
     end
 
     if idTipConfig and ns.modules.tooltipids then
@@ -292,7 +293,7 @@ function ns:MigrateLegacyDBs()
                 if type(v) == "boolean" then dst[kind] = v end
             end
         end
-        ns:Print("Settings imported from idTip.")
+        ns:Print(L["Settings imported from idTip."])
     end
 
     ns.db.global.migratedLegacy = true

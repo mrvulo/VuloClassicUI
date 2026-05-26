@@ -4,6 +4,7 @@
 -- Detects the cast via COMBAT_LOG_EVENT_UNFILTERED and shows icon + timer.
 -- =========================================================
 local _, ns = ...
+local L = ns.L
 local mod = ns.ArenaModule
 local H = mod.helpers
 
@@ -189,36 +190,36 @@ end)
 -- =========================================================
 mod:AddOptionsSection("trinket", function()
     return {
-        { type = "header", text = "PvP Trinket Tracker" },
+        { type = "header", text = L["PvP Trinket Tracker"] },
         {
-            type = "checkbox", label = "Show PvP trinket cooldown",
-            tooltip = "Shows an icon with cooldown spiral next to the arena frame when the opponent used their PvP trinket.",
+            type = "checkbox", label = L["Show PvP trinket cooldown"],
+            tooltip = L["Shows an icon with cooldown spiral next to the arena frame when the opponent used their PvP trinket."],
             get = function() return mod.db.trinketEnabled end,
             set = function(_, v) mod.db.trinketEnabled = v; mod.RefreshTrinkets() end,
         },
         {
-            type = "slider", label = "Icon size",
+            type = "slider", label = L["Icon size"],
             min = 16, max = 48, step = 1,
             get = function() return mod.db.trinketSize end,
             set = function(_, v) mod.db.trinketSize = v; mod.RefreshTrinkets() end,
         },
         {
-            type = "dropdown", label = "Position",
+            type = "dropdown", label = L["Position"],
             values = {
-                { value = "LEFT",  text = "Left of frame" },
-                { value = "RIGHT", text = "Right of frame" },
+                { value = "LEFT",  text = L["Left of frame"] },
+                { value = "RIGHT", text = L["Right of frame"] },
             },
             get = function() return mod.db.trinketAnchor end,
             set = function(_, v) mod.db.trinketAnchor = v; mod.RefreshTrinkets() end,
         },
         {
-            type = "slider", label = "Offset X",
+            type = "slider", label = L["Offset X"],
             min = -50, max = 50, step = 1,
             get = function() return mod.db.trinketOffsetX end,
             set = function(_, v) mod.db.trinketOffsetX = v; mod.RefreshTrinkets() end,
         },
         {
-            type = "slider", label = "Offset Y",
+            type = "slider", label = L["Offset Y"],
             min = -50, max = 50, step = 1,
             get = function() return mod.db.trinketOffsetY end,
             set = function(_, v) mod.db.trinketOffsetY = v; mod.RefreshTrinkets() end,

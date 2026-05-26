@@ -5,11 +5,12 @@
 -- plus permanently hiding the TargetFrameBackground.
 -- =========================================================
 local _, ns = ...
+local L = ns.L
 
 local mod = ns:RegisterModule("fontbars", {
-    name        = "Font Bars",
+    name        = L["Font Bars"],
     group       = "Unit Frames",
-    description = "Smaller font sizes for Player/Target/Pet Health & Mana bars, optionally hide TargetFrameBackground.",
+    description = L["Smaller font sizes for Player/Target/Pet Health & Mana bars, optionally hide TargetFrameBackground."],
     defaults = {
         healthSize       = 11,
         powerSize        = 11,
@@ -137,39 +138,39 @@ end
 -- =========================================================
 function mod:GetOptions()
     return {
-        { type = "header", text = "Font Sizes" },
+        { type = "header", text = L["Font Sizes"] },
         {
-            type = "slider", label = "Health Bar Text",
+            type = "slider", label = L["Health Bar Text"],
             min = 6, max = 24, step = 1,
-            tooltip = "Font size on health bars (Player/Target/Pet).",
+            tooltip = L["Font size on health bars (Player/Target/Pet)."],
             get = function() return mod.db.healthSize end,
             set = function(_, v) mod.db.healthSize = v; applyAll() end,
         },
         {
-            type = "slider", label = "Power Bar Text",
+            type = "slider", label = L["Power Bar Text"],
             min = 6, max = 24, step = 1,
-            tooltip = "Font size on mana/power bars.",
+            tooltip = L["Font size on mana/power bars."],
             get = function() return mod.db.powerSize end,
             set = function(_, v) mod.db.powerSize = v; applyAll() end,
         },
         {
-            type = "slider", label = "Pet Combat Feedback Text",
+            type = "slider", label = L["Pet Combat Feedback Text"],
             min = 6, max = 24, step = 1,
-            tooltip = "Font size for 'Damage', 'Dodge', 'Miss' on the pet.",
+            tooltip = L["Font size for 'Damage', 'Dodge', 'Miss' on the pet."],
             get = function() return mod.db.petFeedbackSize end,
             set = function(_, v) mod.db.petFeedbackSize = v; applyAll() end,
         },
         { type = "spacer" },
-        { type = "header", text = "Behavior" },
+        { type = "header", text = L["Behavior"] },
         {
-            type = "checkbox", label = "Only affect Player/Target/Pet bars",
-            tooltip = "If off: all TextStatusBars in the UI are overridden with the sizes above (may interfere with other addons).",
+            type = "checkbox", label = L["Only affect Player/Target/Pet bars"],
+            tooltip = L["If off: all TextStatusBars in the UI are overridden with the sizes above (may interfere with other addons)."],
             get = function() return mod.db.onlyTheseBars end,
             set = function(_, v) mod.db.onlyTheseBars = v; applyAll() end,
         },
         {
-            type = "checkbox", label = "Hide TargetFrame background",
-            tooltip = "Permanently hides the dark background element of the TargetFrame.",
+            type = "checkbox", label = L["Hide TargetFrame background"],
+            tooltip = L["Permanently hides the dark background element of the TargetFrame."],
             get = function() return mod.db.hideTargetBackground end,
             set = function(_, v)
                 mod.db.hideTargetBackground = v

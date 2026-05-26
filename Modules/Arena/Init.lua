@@ -4,11 +4,12 @@
 -- Submodules (Core, Layout, ClassColor, Trinket, DR, Castbar) extend mod.
 -- =========================================================
 local _, ns = ...
+local L = ns.L
 
 local mod = ns:RegisterModule("arenaframes", {
-    name        = "Arena Frames",
+    name        = L["Arena Frames"],
     group       = "PvP",
-    description = "Enhances the Arena enemy frames: move/scale, class colors, class icons, PvP trinket CD, DR tracking, castbar, drag&drop layout.",
+    description = L["Enhances the Arena enemy frames: move/scale, class colors, class icons, PvP trinket CD, DR tracking, castbar, drag&drop layout."],
     defaults = {
         -- Core (Position/Scale/Fonts)
         pos        = { point = "CENTER", relPoint = "CENTER", x = 0, y = 0 },
@@ -92,7 +93,7 @@ function mod:_triggerReady()
         for _, handler in ipairs(self._readyHandlers) do
             local ok, err = pcall(handler, frame, i)
             if not ok then
-                ns:Print("|cffff5555ArenaFrames submodule error:|r %s", tostring(err))
+                ns:Print(L["|cffff5555ArenaFrames submodule error:|r %s"], tostring(err))
             end
         end
     end)
@@ -124,7 +125,7 @@ function mod:OnEnable()
     for _, h in ipairs(self._onEnableHandlers) do
         local ok, err = pcall(h, self)
         if not ok then
-            ns:Print("|cffff5555Arena submodule OnEnable error:|r %s", tostring(err))
+            ns:Print(L["|cffff5555Arena submodule OnEnable error:|r %s"], tostring(err))
         end
     end
 end
@@ -137,12 +138,12 @@ mod._optionsBuilders = {}
 
 -- name -> tab label mapping
 local SECTION_LABELS = {
-    core       = "General",
-    layout     = "Layout",
-    classcolor = "Class Color",
-    trinket    = "PvP Trinket",
-    dr         = "DR Tracker",
-    castbar    = "Castbar",
+    core       = L["General"],
+    layout     = L["Layout"],
+    classcolor = L["Class Color"],
+    trinket    = L["PvP Trinket"],
+    dr         = L["DR Tracker"],
+    castbar    = L["Castbar"],
 }
 
 function mod:AddOptionsSection(name, builder)

@@ -4,6 +4,7 @@
 -- enables modules, registers slash commands.
 -- =========================================================
 local _, ns = ...
+local L = ns.L
 
 local initFrame = CreateFrame("Frame")
 initFrame:RegisterEvent("ADDON_LOADED")
@@ -17,7 +18,7 @@ initFrame:SetScript("OnEvent", function(_, event, addonName)
 
     elseif event == "PLAYER_LOGIN" then
         ns.isInitialised = true
-        ns:Print("v%s loaded. /vcui to open.", ns.VERSION)
+        ns:Print(L["v%s loaded. /vcui to open."], ns.VERSION)
     end
 end)
 
@@ -31,7 +32,7 @@ SlashCmdList["VULOCLASSICUI"] = function(msg)
 
     -- Defensive: if UI is not loaded yet, show a clear message
     if not ns.UI or not ns.UI.ToggleMainFrame then
-        ns:Print("UI not loaded. Likely a Lua error during init. Enable /console scriptErrors 1 and /reload.")
+        ns:Print(L["UI not loaded. Likely a Lua error during init. Enable /console scriptErrors 1 and /reload."])
         return
     end
 
@@ -40,21 +41,21 @@ SlashCmdList["VULOCLASSICUI"] = function(msg)
             ns.UI:ToggleMainFrame()
 
         elseif msg == "reset" then
-            if ns:InCombat() then ns:Print("Not possible in combat."); return end
+            if ns:InCombat() then ns:Print(L["Not possible in combat."]); return end
             VuloClassicUIDB     = nil
             VuloClassicUICharDB = nil
-            ns:Print("DB reset. UI reloading.")
+            ns:Print(L["DB reset. UI reloading."])
             ReloadUI()
 
         elseif msg == "debug" then
             ns.db.global.debug = not ns.db.global.debug
-            ns:Print("Debug = %s", tostring(ns.db.global.debug))
+            ns:Print(L["Debug = %s"], tostring(ns.db.global.debug))
 
         elseif msg == "modules" then
-            ns:Print("Registered modules:")
+            ns:Print(L["Registered modules:"])
             for _, key in ipairs(ns.moduleOrder) do
                 local m = ns.modules[key]
-                ns:Print("  - %s (%s) [%s]", m.name, key, (m.db and m.db.enabled) and "ON" or "off")
+                ns:Print("  - %s (%s) [%s]", m.name, key, (m.db and m.db.enabled) and L["ON"] or L["off"])
             end
 
         elseif msg == "goldreset" then
@@ -62,7 +63,7 @@ SlashCmdList["VULOCLASSICUI"] = function(msg)
             if gt and gt.ResetSession then
                 gt.ResetSession()
             else
-                ns:Print("Gold Tracker not active.")
+                ns:Print(L["Gold Tracker not active."])
             end
 
         elseif ns.modules[msg] then
@@ -72,12 +73,12 @@ SlashCmdList["VULOCLASSICUI"] = function(msg)
             ns.UI:ShowModulePage(msg)
 
         else
-            ns:Print("Commands: /vcui (options) | /vcui <module> | /vcui modules | /vcui goldreset | /vcui debug | /vcui reset")
+            ns:Print(L["Commands: /vcui (options) | /vcui <module> | /vcui modules | /vcui goldreset | /vcui debug | /vcui reset"])
         end
     end)
 
     if not ok then
-        ns:Print("|cffff5555Error while executing:|r %s", tostring(err))
+        ns:Print(L["|cffff5555Error while executing:|r %s"], tostring(err))
     end
 end
 
@@ -90,7 +91,7 @@ SLASH_VCUI_RELOAD1 = "/rl"
 SLASH_VCUI_RELOAD2 = "/reloadui"
 SlashCmdList["VCUI_RELOAD"] = function()
     if InCombatLockdown and InCombatLockdown() then
-        ns:Print("Not possible in combat.")
+        ns:Print(L["Not possible in combat."])
         return
     end
     ReloadUI()

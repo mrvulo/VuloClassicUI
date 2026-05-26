@@ -4,11 +4,12 @@
 -- module: auto actions, hide features, text sizes.
 -- =========================================================
 local _, ns = ...
+local L = ns.L
 
 local mod = ns:RegisterModule("miscqol", {
-    name        = "General",
+    name        = L["General"],
     group       = "QoL",
-    description = "Collection of simple quality-of-life toggles: auto-accept (quest, res, summon), auto-sell, repair, hide UI spam, text sizes.",
+    description = L["Collection of simple quality-of-life toggles: auto-accept (quest, res, summon), auto-sell, repair, hide UI spam, text sizes."],
     defaults    = {
         enabled               = true,
         -- Character / auto actions
@@ -105,13 +106,13 @@ local function sellAllJunk()
             C_Timer.After(0.6, function()
                 local earned = (GetMoney() or 0) - moneyBefore + repairExpected
                 if earned > 0 then
-                    ns:Print("Auto-sold: %d items, +%s", sold, fmtCopper(earned))
+                    ns:Print(L["Auto-sold: %d items, +%s"], sold, fmtCopper(earned))
                 else
-                    ns:Print("Auto-sold: %d items.", sold)
+                    ns:Print(L["Auto-sold: %d items."], sold)
                 end
             end)
         else
-            ns:Print("Auto-sold: %d items.", sold)
+            ns:Print(L["Auto-sold: %d items."], sold)
         end
     end
 end
@@ -121,13 +122,13 @@ local function repairAll()
     local cost = (GetRepairAllCost and GetRepairAllCost()) or 0
     if cost <= 0 then return end
     if (GetMoney() or 0) < cost then
-        ns:Print("Repair exceeds gold (%d < %d).", GetMoney() or 0, cost)
+        ns:Print(L["Repair exceeds gold (%d < %d)."], GetMoney() or 0, cost)
         return
     end
     RepairAllItems()
     local g = math.floor(cost / 10000)
     local s = math.floor((cost % 10000) / 100)
-    ns:Print("Auto-repaired (%dg %ds).", g, s)
+    ns:Print(L["Auto-repaired (%dg %ds)."], g, s)
 end
 
 -- =========================================================
@@ -164,7 +165,7 @@ local function setupStackSplitMaxButton()
 
     local btn = CreateFrame("Button", "VCUI_StackSplitMaxButton", StackSplitFrame, "UIPanelButtonTemplate")
     btn:SetSize(80, 22)
-    btn:SetText("MAX")
+    btn:SetText(L["MAX"])
     -- Centered at the bottom inside edge of the popup
     btn:ClearAllPoints()
     btn:SetPoint("BOTTOM", StackSplitFrame, "BOTTOM", 0, 8)
@@ -464,71 +465,71 @@ function mod:GetOptions()
     end
 
     return {
-        { type = "header", text = "General - Auto Actions" },
+        { type = "header", text = L["General - Auto Actions"] },
         { type = "desc",
-          text = "|cffaaaaaaSimple on/off switches for common QoL actions. Take effect immediately, no /reload needed.|r" },
+          text = L["|cffaaaaaaSimple on/off switches for common QoL actions. Take effect immediately, no /reload needed.|r"] },
 
-        { type = "header", text = "Character" },
-        tgl("autoAcceptQuest",   "Auto-accept quests",
-            "Automatically accepts quests when clicking an NPC."),
-        tgl("autoTurnInQuest",   "Auto-turn in quests",
-            "Automatically completes finished quests. Waits for user choice on multi-reward quests (no auto-pick)."),
-        tgl("autoAcceptRes",     "Auto-accept resurrect",
-            "Automatically clicks 'Accept' on resurrect popups (not in combat)."),
-        tgl("autoAcceptSummon",  "Auto-accept summon",
-            "Automatically clicks 'Accept' on warlock/stone summon popups."),
-        tgl("autoReleasePvP",    "Auto-release spirit in PvP/Arena",
-            "Releases instantly on death in BG or arena."),
+        { type = "header", text = L["Character"] },
+        tgl("autoAcceptQuest",   L["Auto-accept quests"],
+            L["Automatically accepts quests when clicking an NPC."]),
+        tgl("autoTurnInQuest",   L["Auto-turn in quests"],
+            L["Automatically completes finished quests. Waits for user choice on multi-reward quests (no auto-pick)."]),
+        tgl("autoAcceptRes",     L["Auto-accept resurrect"],
+            L["Automatically clicks 'Accept' on resurrect popups (not in combat)."]),
+        tgl("autoAcceptSummon",  L["Auto-accept summon"],
+            L["Automatically clicks 'Accept' on warlock/stone summon popups."]),
+        tgl("autoReleasePvP",    L["Auto-release spirit in PvP/Arena"],
+            L["Releases instantly on death in BG or arena."]),
 
         { type = "spacer", height = 6 },
-        { type = "header", text = "Vendor" },
-        tgl("autoSellJunk",      "Auto-sell junk (grey)",
-            "Sells all grey items when opening a vendor. Earnings shown in chat."),
-        tgl("autoRepair",        "Auto-repair",
-            "Repairs entire equipment at the vendor if gold is sufficient."),
-        tgl("maxStackButton",    "Stack-split popup: MAX button",
-            "Adds a 'MAX' button to the quantity popup. Click = buy full stack (at vendor) or split completely (for bag items).",
+        { type = "header", text = L["Vendor"] },
+        tgl("autoSellJunk",      L["Auto-sell junk (grey)"],
+            L["Sells all grey items when opening a vendor. Earnings shown in chat."]),
+        tgl("autoRepair",        L["Auto-repair"],
+            L["Repairs entire equipment at the vendor if gold is sufficient."]),
+        tgl("maxStackButton",    L["Stack-split popup: MAX button"],
+            L["Adds a 'MAX' button to the quantity popup. Click = buy full stack (at vendor) or split completely (for bag items)."],
             applyMaxStackButton),
 
         { type = "spacer", height = 6 },
-        { type = "header", text = "Visibility" },
-        tgl("hideErrors",        "Hide UI error messages",
-            "Hides the red error messages in the screen center.",
+        { type = "header", text = L["Visibility"] },
+        tgl("hideErrors",        L["Hide UI error messages"],
+            L["Hides the red error messages in the screen center."],
             applyHideErrors),
-        tgl("hideZoneText",      "Hide zone text",
-            "Hides the large zone name when entering new areas.",
+        tgl("hideZoneText",      L["Hide zone text"],
+            L["Hides the large zone name when entering new areas."],
             applyHideZoneText),
-        tgl("hidePortraitNumbers", "Hide level numbers on portrait",
-            "Hides the level display on the Player/Target/Pet portrait.",
+        tgl("hidePortraitNumbers", L["Hide level numbers on portrait"],
+            L["Hides the level display on the Player/Target/Pet portrait."],
             applyHidePortraitNumbers),
-        tgl("hideKeybindText",   "Hide keybind text on action buttons",
-            "Hides the small key labels (1, F1, etc.) on the action buttons.",
+        tgl("hideKeybindText",   L["Hide keybind text on action buttons"],
+            L["Hides the small key labels (1, F1, etc.) on the action buttons."],
             applyHideKeybindText),
-        tgl("hideMacroText",     "Hide macro/spell names on action buttons",
-            "Hides the text labels under the action buttons.",
+        tgl("hideMacroText",     L["Hide macro/spell names on action buttons"],
+            L["Hides the text labels under the action buttons."],
             applyHideMacroText),
-        tgl("hideStackCount",    "Hide stack/charge numbers on action buttons",
-            "Hides the small boxes with numbers at the top right (item stacks, charges, cooldown seconds for long CDs).",
+        tgl("hideStackCount",    L["Hide stack/charge numbers on action buttons"],
+            L["Hides the small boxes with numbers at the top right (item stacks, charges, cooldown seconds for long CDs)."],
             applyHideStackCount),
-        tgl("hideRaidGroupLabels", "Hide raid group labels",
-            "Hides the 'Group 1'/'Group 2' labels above the compact raid frames.",
+        tgl("hideRaidGroupLabels", L["Hide raid group labels"],
+            L["Hides the 'Group 1'/'Group 2' labels above the compact raid frames."],
             applyHideRaidGroupLabels),
 
         { type = "spacer", height = 6 },
-        { type = "header", text = "Text Sizes" },
-        { type = "slider", label = "Mail Text Size",
+        { type = "header", text = L["Text Sizes"] },
+        { type = "slider", label = L["Mail Text Size"],
           min = 8, max = 20, step = 1,
-          tooltip = "Font size in mail body (opened + sent mail).",
+          tooltip = L["Font size in mail body (opened + sent mail)."],
           get = function() return mod.db.mailTextSize end,
           set = function(_, v) mod.db.mailTextSize = v; applyMailTextSize() end },
-        { type = "slider", label = "Quest Text Size",
+        { type = "slider", label = L["Quest Text Size"],
           min = 8, max = 22, step = 1,
-          tooltip = "Font size in quest descriptions + quest log.",
+          tooltip = L["Font size in quest descriptions + quest log."],
           get = function() return mod.db.questTextSize end,
           set = function(_, v) mod.db.questTextSize = v; applyQuestTextSize() end },
-        { type = "slider", label = "Book Text Size",
+        { type = "slider", label = L["Book Text Size"],
           min = 8, max = 20, step = 1,
-          tooltip = "Font size in readable books and letters from item text.",
+          tooltip = L["Font size in readable books and letters from item text."],
           get = function() return mod.db.bookTextSize end,
           set = function(_, v) mod.db.bookTextSize = v; applyBookTextSize() end },
     }

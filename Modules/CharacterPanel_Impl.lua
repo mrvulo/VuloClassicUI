@@ -4,6 +4,7 @@
 -- Only works if the "characterpanel" module is enabled.
 -- =========================================================
 local _, ns = ...
+local L = ns.L
 
 local isTBC = (WOW_PROJECT_ID == WOW_PROJECT_BURNING_CRUSADE_CLASSIC)
 if not isTBC then
@@ -578,7 +579,7 @@ local function UpdateAdditionalDisplay(button, unit)
 		local canEnchant = CanEnchantSlot(unit, slot)
 
 		if not enchantText then
-			f.enchantDisplay:SetText((canEnchant and itemLink) and "|cffff0000No Ench|r" or "")
+			f.enchantDisplay:SetText((canEnchant and itemLink) and L["|cffff0000No Ench|r"] or "")
 		else
 			local maxSize = 18
 
@@ -735,7 +736,7 @@ local function UpdatePlayerAvgIlvlDisplay()
 	local _, _, _, hex = GetItemQualityColor(avgQuality)
 	local colorHex = hex or "ffffffff"
 
-	PaperDollFrame.avgIlvlDisplay:SetText(string.format("|c%siLvL - %d|r", colorHex, ilvl))
+	PaperDollFrame.avgIlvlDisplay:SetText(string.format(L["|c%siLvL - %d|r"], colorHex, ilvl))
 end
 
 -- =========================================================

@@ -6,11 +6,12 @@
 -- for broken entries.
 -- =========================================================
 local _, ns = ...
+local L = ns.L
 
 local mod = ns:RegisterModule("fixguildnews", {
-    name        = "Guild News Nil Fix",
+    name        = L["Guild News Nil Fix"],
     group       = "Bugfixes",
-    description = "Catches Lua errors in guild news entries (typically \"formatString\" or \"GuildUtil\") and replaces broken entries with a fallback text instead of letting the whole panel break.",
+    description = L["Catches Lua errors in guild news entries (typically \"formatString\" or \"GuildUtil\") and replaces broken entries with a fallback text instead of letting the whole panel break."],
     defaults = {
         enabled    = true,
         showReport = true,  -- shows once in chat when the fix has been triggered
@@ -37,7 +38,7 @@ end
 local function applyFallbackToButton(button)
     if not button then return end
 
-    safeSetText(button.Name, "|cffff8080Invalid guild news entry|r")
+    safeSetText(button.Name, L["|cffff8080Invalid guild news entry|r"])
     safeSetText(button.Header, "")
     safeSetText(button.Time, "")
     safeSetText(button.Description, "")
@@ -82,7 +83,7 @@ local function installPatch()
             if mod.db.showReport and not _G.VCUI_GuildNewsNilFix_Reported then
                 _G.VCUI_GuildNewsNilFix_Reported = true
                 DEFAULT_CHAT_FRAME:AddMessage(
-                    "|cffffff00[VuloClassicUI]|r Blizzard guild news error caught (fallback applied).")
+                    L["|cffffff00[VuloClassicUI]|r Blizzard guild news error caught (fallback applied)."])
             end
             return
         end
@@ -123,17 +124,17 @@ end
 -- =========================================================
 function mod:GetOptions()
     return {
-        { type = "header", text = "Behavior" },
+        { type = "header", text = L["Behavior"] },
         {
-            type = "toggle", label = "Chat message on first error",
-            tooltip = "Shows a brief message once per session in chat when a guild news error was caught.",
+            type = "toggle", label = L["Chat message on first error"],
+            tooltip = L["Shows a brief message once per session in chat when a guild news error was caught."],
             get = function() return mod.db.showReport end,
             set = function(_, v) mod.db.showReport = v end,
         },
         { type = "spacer", height = 8 },
-        { type = "desc", text = "This fix wraps Blizzard's |cffffffffGuildNewsButton_SetNews|r function in a protected call (xpcall). When an entry throws a known error (\"formatString\" or \"GuildUtil\"), the entry is replaced with a fallback text \"Invalid guild news entry\" — the panel remains usable." },
+        { type = "desc", text = L["This fix wraps Blizzard's |cffffffffGuildNewsButton_SetNews|r function in a protected call (xpcall). When an entry throws a known error (\"formatString\" or \"GuildUtil\"), the entry is replaced with a fallback text \"Invalid guild news entry\" — the panel remains usable."] },
         { type = "spacer", height = 6 },
-        { type = "desc", text = string.format("|cffaaaaaaStatus: %s|r",
-            wrappedAlready and "|cff66ff66Hook active|r" or "waiting for Blizzard_Communities") },
+        { type = "desc", text = string.format(L["|cffaaaaaaStatus: %s|r"],
+            wrappedAlready and L["|cff66ff66Hook active|r"] or L["waiting for Blizzard_Communities"]) },
     }
 end

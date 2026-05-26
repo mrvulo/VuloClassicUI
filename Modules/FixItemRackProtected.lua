@@ -10,11 +10,12 @@
 -- nothing is lost) and report it once in chat.
 -- =========================================================
 local _, ns = ...
+local L = ns.L
 
 local mod = ns:RegisterModule("fixitemrack", {
-    name        = "ItemRack Protected Fix",
+    name        = L["ItemRack Protected Fix"],
     group       = "Bugfixes",
-    description = "Catches the Anniversary ADDON_ACTION_BLOCKED crash when ItemRack tries to auto-equip an item on the character model.",
+    description = L["Catches the Anniversary ADDON_ACTION_BLOCKED crash when ItemRack tries to auto-equip an item on the character model."],
     defaults = {
         enabled    = true,
         showReport = true,
@@ -52,8 +53,7 @@ local function installPatch()
             if mod.db.showReport and not _G.VCUI_ItemRackFix_Reported then
                 _G.VCUI_ItemRackFix_Reported = true
                 DEFAULT_CHAT_FRAME:AddMessage(
-                    "|cffffff00[VuloClassicUI]|r ItemRack auto-equip on character model blocked (Anniversary protection). " ..
-                    "Please use drag & drop directly into the equipment slot.")
+                    L["|cffffff00[VuloClassicUI]|r ItemRack auto-equip on character model blocked (Anniversary protection). Please use drag & drop directly into the equipment slot."])
             end
             return
         end
@@ -99,19 +99,19 @@ end
 -- =========================================================
 function mod:GetOptions()
     return {
-        { type = "header", text = "Behavior" },
+        { type = "header", text = L["Behavior"] },
         {
-            type = "toggle", label = "Chat message on first block",
-            tooltip = "Shows a message once per session when ItemRack's auto-equip was blocked.",
+            type = "toggle", label = L["Chat message on first block"],
+            tooltip = L["Shows a message once per session when ItemRack's auto-equip was blocked."],
             get = function() return mod.db.showReport end,
             set = function(_, v) mod.db.showReport = v end,
         },
         { type = "spacer", height = 8 },
-        { type = "desc", text = "This fix replaces ItemRack's |cffffffffCharacterModelFrame:OnMouseUp|r hook with a wrapper. When you hold an item on the cursor and click on the character model, ItemRack would call the protected |cffffffffAutoEquipCursorItem()|r — Anniversary blocks that. Instead we clear the cursor (item goes back to inventory) and avoid the crash." },
+        { type = "desc", text = L["This fix replaces ItemRack's |cffffffffCharacterModelFrame:OnMouseUp|r hook with a wrapper. When you hold an item on the cursor and click on the character model, ItemRack would call the protected |cffffffffAutoEquipCursorItem()|r — Anniversary blocks that. Instead we clear the cursor (item goes back to inventory) and avoid the crash."] },
         { type = "spacer", height = 4 },
-        { type = "desc", text = "|cffaaaaaaTip: Drag & dropping items directly into the equipment slot still works normally.|r" },
+        { type = "desc", text = L["|cffaaaaaaTip: Drag & dropping items directly into the equipment slot still works normally.|r"] },
         { type = "spacer", height = 6 },
-        { type = "desc", text = string.format("|cffaaaaaaStatus: %s|r",
-            wrappedAlready and "|cff66ff66Hook active|r" or "waiting for ItemRack") },
+        { type = "desc", text = string.format(L["|cffaaaaaaStatus: %s|r"],
+            wrappedAlready and L["|cff66ff66Hook active|r"] or L["waiting for ItemRack"]) },
     }
 end

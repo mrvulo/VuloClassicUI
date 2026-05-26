@@ -3,6 +3,7 @@
 -- Custom castbar per arena opponent.
 -- =========================================================
 local _, ns = ...
+local L = ns.L
 local mod = ns.ArenaModule
 local H = mod.helpers
 
@@ -142,7 +143,7 @@ local function stopCast(unit, interrupted)
     cb.channeling = false
     if interrupted then
         cb:SetStatusBarColor(1, 0, 0)
-        cb.text:SetText("INTERRUPTED")
+        cb.text:SetText(L["INTERRUPTED"])
         if C_Timer and C_Timer.After then
             C_Timer.After(0.7, function() cb:Hide() end)
         else
@@ -210,21 +211,21 @@ end)
 -- =========================================================
 mod:AddOptionsSection("castbar", function()
     return {
-        { type = "header", text = "Castbar" },
+        { type = "header", text = L["Castbar"] },
         {
-            type = "checkbox", label = "Castbar for arena opponents",
-            tooltip = "Shows a castbar below the frame when the opponent casts or channels.",
+            type = "checkbox", label = L["Castbar for arena opponents"],
+            tooltip = L["Shows a castbar below the frame when the opponent casts or channels."],
             get = function() return mod.db.castbarEnabled end,
             set = function(_, v) mod.db.castbarEnabled = v; refreshCastbars() end,
         },
         {
-            type = "slider", label = "Width",
+            type = "slider", label = L["Width"],
             min = 60, max = 250, step = 1,
             get = function() return mod.db.castbarWidth end,
             set = function(_, v) mod.db.castbarWidth = v; refreshCastbars() end,
         },
         {
-            type = "slider", label = "Height",
+            type = "slider", label = L["Height"],
             min = 8, max = 30, step = 1,
             get = function() return mod.db.castbarHeight end,
             set = function(_, v) mod.db.castbarHeight = v; refreshCastbars() end,

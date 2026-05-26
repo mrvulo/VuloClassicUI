@@ -4,10 +4,11 @@
 -- Moves + scales the Blizzard ArenaEnemyFrames, plus font sizing.
 -- =========================================================
 local _, ns = ...
+local L = ns.L
 
 local mod = ns:RegisterModule("arenaframes", {
-    name        = "Arena Frames",
-    description = "Moves/scales the ArenaEnemyFrames and changes the font size of the bars.",
+    name        = L["Arena Frames"],
+    description = L["Moves/scales the ArenaEnemyFrames and changes the font size of the bars."],
     defaults = {
         pos        = { point = "CENTER", relPoint = "CENTER", x = 0, y = 0 },
         scale      = 1.0,
@@ -120,10 +121,10 @@ local function createMover()
 
     mover.text = mover:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     mover.text:SetPoint("CENTER")
-    mover.text:SetText("ArenaEnemyFrames: drag | Scale: 1.00 (mouse wheel)")
+    mover.text:SetText(L["ArenaEnemyFrames: drag | Scale: 1.00 (mouse wheel)"])
 
     mover:SetScript("OnDragStart", function(self)
-        if ns:InCombat() then ns:Print("Not possible in combat."); return end
+        if ns:InCombat() then ns:Print(L["Not possible in combat."]); return end
         isDragging = true
         self:StartMoving()
     end)
@@ -135,10 +136,10 @@ local function createMover()
         applyToOwner()
     end)
     mover:SetScript("OnMouseWheel", function(_, delta)
-        if ns:InCombat() then ns:Print("Not possible in combat."); return end
+        if ns:InCombat() then ns:Print(L["Not possible in combat."]); return end
         local s = ns:Clamp((mod.db.scale or 1.0) + (delta > 0 and 0.05 or -0.05), 0.5, 2.0)
         mod.db.scale = s
-        mover.text:SetText(string.format("ArenaEnemyFrames: drag | Scale: %.2f (mouse wheel)", s))
+        mover.text:SetText(string.format(L["ArenaEnemyFrames: drag | Scale: %.2f (mouse wheel)"], s))
         applyToOwner()
     end)
     mover:Hide()
@@ -176,17 +177,17 @@ local function setUnlocked(state)
     unlocked = state
     tryApply()
     if state then
-        if ns:InCombat() then ns:Print("Not possible in combat."); unlocked = false; return end
+        if ns:InCombat() then ns:Print(L["Not possible in combat."]); unlocked = false; return end
         mover:Show()
-        mover.text:SetText(string.format("ArenaEnemyFrames: drag | Scale: %.2f (mouse wheel)", mod.db.scale or 1.0))
-        ns:Print("Arena Frames unlocked: drag + mouse wheel to scale.")
+        mover.text:SetText(string.format(L["ArenaEnemyFrames: drag | Scale: %.2f (mouse wheel)"], mod.db.scale or 1.0))
+        ns:Print(L["Arena Frames unlocked: drag + mouse wheel to scale."])
     else
         if mover and not ns:InCombat() then
             savePosFromMover()
             applyToOwner()
         end
         if mover then mover:Hide() end
-        ns:Print("Arena Frames locked.")
+        ns:Print(L["Arena Frames locked."])
     end
 end
 
@@ -214,40 +215,40 @@ end
 -- =========================================================
 function mod:GetOptions()
     return {
-        { type = "header", text = "Position & Size" },
+        { type = "header", text = L["Position & Size"] },
         {
-            type = "button", label = "Unlock (move/scale)",
-            tooltip = "Shows a mover. Drag to move, mouse wheel to scale.",
+            type = "button", label = L["Unlock (move/scale)"],
+            tooltip = L["Shows a mover. Drag to move, mouse wheel to scale."],
             onClick = function() setUnlocked(not unlocked) end,
         },
         {
-            type = "slider", label = "Scale",
+            type = "slider", label = L["Scale"],
             min = 0.5, max = 2.0, step = 0.05,
             get = function() return mod.db.scale end,
             set = function(_, v) mod.db.scale = v; applyToOwner() end,
         },
         { type = "spacer" },
-        { type = "header", text = "Font Sizes" },
+        { type = "header", text = L["Font Sizes"] },
         {
-            type = "slider", label = "Health Bar Text",
+            type = "slider", label = L["Health Bar Text"],
             min = 6, max = 20, step = 1,
             get = function() return mod.db.healthSize end,
             set = function(_, v) mod.db.healthSize = v; applyArenaFonts() end,
         },
         {
-            type = "slider", label = "Power Bar Text",
+            type = "slider", label = L["Power Bar Text"],
             min = 6, max = 20, step = 1,
             get = function() return mod.db.powerSize end,
             set = function(_, v) mod.db.powerSize = v; applyArenaFonts() end,
         },
         { type = "spacer" },
         {
-            type = "button", label = "Reset Position",
+            type = "button", label = L["Reset Position"],
             onClick = function()
                 mod.db.pos = { point = "CENTER", relPoint = "CENTER", x = 0, y = 0 }
                 applyMoverPos()
                 applyToOwner()
-                ns:Print("Arena Frames position reset.")
+                ns:Print(L["Arena Frames position reset."])
             end,
         },
     }

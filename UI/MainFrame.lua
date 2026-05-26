@@ -13,6 +13,7 @@
 --   └─────────────────────────────────────────────────────┘
 -- =========================================================
 local _, ns = ...
+local L = ns.L
 ns.UI = ns.UI or {}
 local UI = ns.UI
 
@@ -123,7 +124,7 @@ function UI:CreateMainFrame()
         local cv = (C_CVar and C_CVar.GetCVar and C_CVar.GetCVar("scriptProfile"))
                 or (GetCVar and GetCVar("scriptProfile"))
         if cv ~= "1" then
-            cpuText:SetText("|cff666666CPU: off|r")
+            cpuText:SetText(L["|cff666666CPU: off|r"])
             return
         end
         if _UpdateCPU then _UpdateCPU() end
@@ -134,7 +135,7 @@ function UI:CreateMainFrame()
 
         if _lastTime == 0 then
             -- First tick — no delta available yet
-            cpuText:SetText("|cff888888CPU: measuring...|r")
+            cpuText:SetText(L["|cff888888CPU: measuring...|r"])
             _lastTotal, _lastOwn, _lastTime = total, own, now
             return
         end
@@ -146,7 +147,7 @@ function UI:CreateMainFrame()
         local ownRate   = (own   - _lastOwn)   / dt
 
         cpuText:SetText(string.format(
-            "|cff888888CPU: %.2f ms/s |cff666666(VCUI: %.2f)|r|r",
+            L["|cff888888CPU: %.2f ms/s |cff666666(VCUI: %.2f)|r|r"],
             totalRate, ownRate))
 
         _lastTotal, _lastOwn, _lastTime = total, own, now
@@ -191,7 +192,7 @@ function UI:CreateMainFrame()
 
     local placeholder = searchBox:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
     placeholder:SetPoint("LEFT", searchBox, "LEFT", 8, 0)
-    placeholder:SetText("Search settings...")
+    placeholder:SetText(L["Search settings..."])
 
     -- Result dropdown below the search box
     local searchDD = CreateFrame("Frame", nil, f)
@@ -409,8 +410,8 @@ function UI:CreateMainFrame()
 
     -- Reset (left)
     local resetBtn = UI:CreateButton(bottomBar, {
-        label = "Reset Module", width = 130, height = 26,
-        tooltip = "Resets all settings of the current module to defaults.",
+        label = L["Reset Module"], width = 130, height = 26,
+        tooltip = L["Resets all settings of the current module to defaults."],
         onClick = function()
             if not UI.currentModule then return end
             local mod = ns.modules[UI.currentModule]
@@ -425,22 +426,22 @@ function UI:CreateMainFrame()
             end
             UI:BuildOptionsPage(UI.currentModule)
             UI:RefreshSidebarStates()
-            ns:Print("Module '%s' reset.", mod.name)
+            ns:Print(L["Module '%s' reset."], mod.name)
         end,
     })
     resetBtn:SetPoint("LEFT", bottomBar, "LEFT", 10, 0)
 
     -- Reload UI
     local reloadBtn = UI:CreateButton(bottomBar, {
-        label = "Reload UI", width = 100, height = 26,
-        tooltip = "Reloads the WoW UI completely (/reload).",
+        label = L["Reload UI"], width = 100, height = 26,
+        tooltip = L["Reloads the WoW UI completely (/reload)."],
         onClick = function() ReloadUI() end,
     })
     reloadBtn:SetPoint("LEFT", resetBtn, "RIGHT", 6, 0)
 
     -- Done (right, primary)
     local doneBtn = UI:CreateButton(bottomBar, {
-        label = "Done", width = 90, height = 26, primary = true,
+        label = L["Done"], width = 90, height = 26, primary = true,
         onClick = function() f:Hide() end,
     })
     doneBtn:SetPoint("RIGHT", bottomBar, "RIGHT", -10, 0)
@@ -467,7 +468,7 @@ function UI:BuildTabsForModule(key)
     f.tabs = {}
 
     -- Resolve tab definitions
-    local tabs = (mod and mod.tabs) or { { id = "default", label = "Settings" } }
+    local tabs = (mod and mod.tabs) or { { id = "default", label = L["Settings"] } }
     local hasRealTabs = mod and mod.tabs and #mod.tabs > 1
 
     -- If only the default tab: hide tab bar, pull content up

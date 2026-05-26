@@ -7,11 +7,12 @@
 -- Additionally: WorldTextScale (engine FCT above mob/pet) stays.
 -- =========================================================
 local _, ns = ...
+local L = ns.L
 
 local mod = ns:RegisterModule("combattext", {
-    name        = "Combat Text",
+    name        = L["Combat Text"],
     group       = "QoL",
-    description = "Custom floating combat text engine with configurable events, color, size and position.",
+    description = L["Custom floating combat text engine with configurable events, color, size and position."],
     defaults    = {
         enabled        = true,
         -- Master categories (quick on/off, do NOT override per-event enabled)
@@ -70,11 +71,11 @@ local activeMessages = {}
 -- Available fonts (Expressway + Blizzard built-ins, always available)
 local EXPRESSWAY_PATH = "Interface\\AddOns\\VuloClassicUI\\Media\\Fonts\\Expressway.TTF"
 local FONT_VALUES = {
-    { value = EXPRESSWAY_PATH,         text = "Expressway (Default)" },
-    { value = "Fonts\\FRIZQT__.TTF",   text = "Friz Quadrata (Blizzard)" },
-    { value = "Fonts\\ARIALN.TTF",     text = "Arial Narrow" },
-    { value = "Fonts\\MORPHEUS.TTF",   text = "Morpheus" },
-    { value = "Fonts\\skurri.ttf",     text = "Skurri" },
+    { value = EXPRESSWAY_PATH,         text = L["Expressway (Default)"] },
+    { value = "Fonts\\FRIZQT__.TTF",   text = L["Friz Quadrata (Blizzard)"] },
+    { value = "Fonts\\ARIALN.TTF",     text = L["Arial Narrow"] },
+    { value = "Fonts\\MORPHEUS.TTF",   text = L["Morpheus"] },
+    { value = "Fonts\\skurri.ttf",     text = L["Skurri"] },
 }
 
 local function getActiveFontPath()
@@ -224,7 +225,7 @@ local function doCheckDurability()
 
     -- Edge-triggered: only spawn if previously OK and now low (no spam)
     if hasLow and not _wasLowDurability then
-        spawnEvent("lowDurability", "LOW DURABILITY")
+        spawnEvent("lowDurability", L["LOW DURABILITY"])
     end
     _wasLowDurability = hasLow
 end
@@ -240,11 +241,11 @@ end
 
 local function onCombatStart()
     if not mod._enabled then return end
-    spawnEvent("combatStart", "+Combat")
+    spawnEvent("combatStart", L["+Combat"])
 end
 local function onCombatEnd()
     if not mod._enabled then return end
-    spawnEvent("combatEnd", "-Combat")
+    spawnEvent("combatEnd", L["-Combat"])
     -- Check durability after combat exit
     scheduleDurabilityCheck()
 end
@@ -260,11 +261,11 @@ local function onCLEU()
           = CombatLogGetCurrentEventInfo()
 
     if subEvent == "SPELL_INTERRUPT" and sourceGUID == playerGUID then
-        spawnEvent("spellInterrupt", "Interrupted: " .. (extraSpellName or spellName or "?"))
+        spawnEvent("spellInterrupt", L["Interrupted: "] .. (extraSpellName or spellName or "?"))
     elseif subEvent == "SPELL_DISPEL" and sourceGUID == playerGUID then
-        spawnEvent("dispels", "Dispelled: " .. (extraSpellName or "?"))
+        spawnEvent("dispels", L["Dispelled: "] .. (extraSpellName or "?"))
     elseif subEvent == "SPELL_STOLEN" and sourceGUID == playerGUID then
-        spawnEvent("dispels", "Purged: " .. (extraSpellName or "?"))
+        spawnEvent("dispels", L["Purged: "] .. (extraSpellName or "?"))
     elseif (subEvent == "SWING_MISSED" or subEvent == "RANGE_MISSED" or subEvent == "SPELL_MISSED")
         and destGUID == playerGUID then
         local realMissType
@@ -274,11 +275,11 @@ local function onCLEU()
             realMissType = missType
         end
         local label = realMissType or "Missed"
-        if label == "PARRY"  then label = "Parried"
-        elseif label == "DODGE" then label = "Dodged"
-        elseif label == "MISS"  then label = "Missed"
-        elseif label == "BLOCK" then label = "Blocked"
-        elseif label == "ABSORB" then label = "Absorbed"
+        if label == "PARRY"  then label = L["Parried"]
+        elseif label == "DODGE" then label = L["Dodged"]
+        elseif label == "MISS"  then label = L["Missed"]
+        elseif label == "BLOCK" then label = L["Blocked"]
+        elseif label == "ABSORB" then label = L["Absorbed"]
         end
         spawnEvent("missed", label)
     end
@@ -355,7 +356,7 @@ local function createMover()
     bg:SetColorTexture(0.6, 0.4, 1.0, 0.4)
     moverFrame.label = moverFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     moverFrame.label:SetPoint("CENTER", moverFrame, "CENTER", 0, 0)
-    moverFrame.label:SetText("|cffffffffCOMBAT TEXT|r")
+    moverFrame.label:SetText(L["|cffffffffCOMBAT TEXT|r"])
 
     moverFrame:RegisterForDrag("LeftButton")
     moverFrame:SetScript("OnDragStart", function(self) self:StartMoving() end)
@@ -404,7 +405,7 @@ local function setUnlocked(state)
     applyMoverPosition()
     if state then
         moverFrame:Show()
-        ns:Print("Combat Text mover active. Drag or arrow keys (SHIFT=5px).")
+        ns:Print(L["Combat Text mover active. Drag or arrow keys (SHIFT=5px)."])
     else
         moverFrame:Hide()
     end
@@ -467,42 +468,42 @@ local function eventSection(key, label, previewText)
         { type = "header", text = label },
         { type = "group", layout = "row", gap = 6,
           items = {
-              { type = "toggle", label = "Enabled",
+              { type = "toggle", label = L["Enabled"],
                 get = function() return ev().enabled end,
                 set = function(_, v) ev().enabled = v end },
-              { type = "button", label = "Text color...", width = 110,
+              { type = "button", label = L["Text color..."], width = 110,
                 onClick = function()
                     openColorPicker(function() return ev().color end,
                         function(c) ev().color = c end)
                 end },
-              { type = "button", label = "Shadow color...", width = 130,
+              { type = "button", label = L["Shadow color..."], width = 130,
                 onClick = function()
                     openColorPicker(function() return ev().shadowColor end,
                         function(c) ev().shadowColor = c end)
                 end },
-              { type = "button", label = "Test", width = 70,
+              { type = "button", label = L["Test"], width = 70,
                 onClick = function() spawnEvent(key, previewText) end },
           },
         },
-        { type = "slider", label = "Font Size (0 = global)",
+        { type = "slider", label = L["Font Size (0 = global)"],
           min = 0, max = 32, step = 1,
           get = function() return ev().size or 0 end,
           set = function(_, v) ev().size = v end },
         { type = "group", layout = "row", gap = 8,
           items = {
-              { type = "toggle", label = "Outline",
+              { type = "toggle", label = L["Outline"],
                 get = function() return ev().outline end,
                 set = function(_, v) ev().outline = v end },
-              { type = "toggle", label = "Shadow",
+              { type = "toggle", label = L["Shadow"],
                 get = function() return ev().shadow end,
                 set = function(_, v) ev().shadow = v end },
           },
         },
-        { type = "slider", label = "Shadow X Offset",
+        { type = "slider", label = L["Shadow X Offset"],
           min = -10, max = 10, step = 1,
           get = function() return ev().shadowX or 2 end,
           set = function(_, v) ev().shadowX = v end },
-        { type = "slider", label = "Shadow Y Offset",
+        { type = "slider", label = L["Shadow Y Offset"],
           min = -10, max = 10, step = 1,
           get = function() return ev().shadowY or -2 end,
           set = function(_, v) ev().shadowY = v end },
@@ -511,35 +512,35 @@ end
 
 function mod:GetOptions()
     local items = {
-        { type = "header", text = "Combat Text" },
+        { type = "header", text = L["Combat Text"] },
         { type = "desc",
-          text = "|cffaaaaaaCustom scrolling text engine above the player. Anniversary disabled Blizzard's old player FCT. Each event can have its own color + size + outline/shadow.|r" },
+          text = L["|cffaaaaaaCustom scrolling text engine above the player. Anniversary disabled Blizzard's old player FCT. Each event can have its own color + size + outline/shadow.|r"] },
 
         -- Master categories (quick on/off — do not override per-event, but add a filter on top)
         { type = "spacer", height = 6 },
-        { type = "header", text = "Categories (Quick on/off)" },
+        { type = "header", text = L["Categories (Quick on/off)"] },
         { type = "group", layout = "row", gap = 8,
           items = {
-              { type = "toggle", label = "Combat State (+/- Combat)",
-                tooltip = "Combat start and combat end messages.",
+              { type = "toggle", label = L["Combat State (+/- Combat)"],
+                tooltip = L["Combat start and combat end messages."],
                 get = function() return mod.db.showCombatState ~= false end,
                 set = function(_, v) mod.db.showCombatState = v end },
-              { type = "toggle", label = "Combat Log Events",
-                tooltip = "Interrupts, dispels, misses (Parry/Dodge/Block).",
+              { type = "toggle", label = L["Combat Log Events"],
+                tooltip = L["Interrupts, dispels, misses (Parry/Dodge/Block)."],
                 get = function() return mod.db.showCombatLog ~= false end,
                 set = function(_, v) mod.db.showCombatLog = v end },
-              { type = "toggle", label = "Durability Warning",
-                tooltip = "Low durability after combat exit.",
+              { type = "toggle", label = L["Durability Warning"],
+                tooltip = L["Low durability after combat exit."],
                 get = function() return mod.db.showDurability ~= false end,
                 set = function(_, v) mod.db.showDurability = v end },
           },
         },
 
         { type = "spacer", height = 6 },
-        { type = "header", text = "Global Defaults" },
+        { type = "header", text = L["Global Defaults"] },
         -- Font dropdown (adopts the VuloUI pattern)
-        { type = "dropdown", label = "Font",
-          tooltip = "Font for our combat text engine. Also used for Blizzard's mob FCT (DAMAGE_TEXT_FONT) when enabled below.",
+        { type = "dropdown", label = L["Font"],
+          tooltip = L["Font for our combat text engine. Also used for Blizzard's mob FCT (DAMAGE_TEXT_FONT) when enabled below."],
           values = FONT_VALUES,
           get = function() return getActiveFontPath() end,
           set = function(_, v)
@@ -548,34 +549,34 @@ function mod:GetOptions()
               applySharpFonts()
               applyDamageTextFont()
           end },
-        { type = "toggle", label = "Also apply font to Blizzard mob FCT",
-          tooltip = "Additionally sets DAMAGE_TEXT_FONT globally - changes the font of the damage numbers above mobs/pets. Requires /reload to take effect.",
+        { type = "toggle", label = L["Also apply font to Blizzard mob FCT"],
+          tooltip = L["Additionally sets DAMAGE_TEXT_FONT globally - changes the font of the damage numbers above mobs/pets. Requires /reload to take effect."],
           get = function() return mod.db.applyToMobFCT ~= false end,
           set = function(_, v) mod.db.applyToMobFCT = v; applyDamageTextFont() end },
-        { type = "slider", label = "Default Font Size",
+        { type = "slider", label = L["Default Font Size"],
           min = 10, max = 32, step = 1,
           get = function() return mod.db.fontSize end,
           set = function(_, v) mod.db.fontSize = v; applyFontToPool() end },
-        { type = "toggle", label = "Default: Thick Outline",
+        { type = "toggle", label = L["Default: Thick Outline"],
           get = function() return mod.db.fontOutline end,
           set = function(_, v) mod.db.fontOutline = v end },
-        { type = "toggle", label = "Default: Shadow",
+        { type = "toggle", label = L["Default: Shadow"],
           get = function() return mod.db.fontShadow end,
           set = function(_, v) mod.db.fontShadow = v end },
-        { type = "slider", label = "Scroll Duration (sec.)",
+        { type = "slider", label = L["Scroll Duration (sec.)"],
           min = 0.5, max = 5.0, step = 0.1,
           get = function() return mod.db.scrollDuration end,
           set = function(_, v) mod.db.scrollDuration = v end },
-        { type = "slider", label = "Scroll Distance (px)",
+        { type = "slider", label = L["Scroll Distance (px)"],
           min = 20, max = 200, step = 5,
           get = function() return mod.db.scrollDistance end,
           set = function(_, v) mod.db.scrollDistance = v end },
-        { type = "button", label = "Test (all events)", width = 200,
+        { type = "button", label = L["Test (all events)"], width = 200,
           onClick = function()
-              spawnEvent("combatStart",    "+Combat")
-              C_Timer.After(0.4, function() spawnEvent("spellInterrupt", "Interrupted: Frostbolt") end)
-              C_Timer.After(0.8, function() spawnEvent("dispels",        "Dispelled: Curse") end)
-              C_Timer.After(1.2, function() spawnEvent("missed",         "Parried") end)
+              spawnEvent("combatStart",    L["+Combat"])
+              C_Timer.After(0.4, function() spawnEvent("spellInterrupt", L["Interrupted: Frostbolt"]) end)
+              C_Timer.After(0.8, function() spawnEvent("dispels",        L["Dispelled: Curse"]) end)
+              C_Timer.After(1.2, function() spawnEvent("missed",         L["Parried"]) end)
           end },
     }
 
@@ -584,21 +585,21 @@ function mod:GetOptions()
         for _, it in ipairs(secItems) do table.insert(items, it) end
     end
     appendSection({{ type = "spacer", height = 8 }})
-    appendSection(eventSection("combatStart",    "+Combat",        "+Combat"))
+    appendSection(eventSection("combatStart",    L["+Combat"],        L["+Combat"]))
     appendSection({{ type = "spacer", height = 4 }})
-    appendSection(eventSection("combatEnd",      "-Combat",        "-Combat"))
+    appendSection(eventSection("combatEnd",      L["-Combat"],        L["-Combat"]))
     appendSection({{ type = "spacer", height = 4 }})
-    appendSection(eventSection("spellInterrupt", "Interrupted",    "Interrupted: Frostbolt"))
+    appendSection(eventSection("spellInterrupt", L["Interrupted"],    L["Interrupted: Frostbolt"]))
     appendSection({{ type = "spacer", height = 4 }})
-    appendSection(eventSection("dispels",        "Dispelled/Purged", "Dispelled: Curse"))
+    appendSection(eventSection("dispels",        L["Dispelled/Purged"], L["Dispelled: Curse"]))
     appendSection({{ type = "spacer", height = 4 }})
-    appendSection(eventSection("missed",         "Parried/Dodged/Missed", "Parried"))
+    appendSection(eventSection("missed",         L["Parried/Dodged/Missed"], L["Parried"]))
     appendSection({{ type = "spacer", height = 4 }})
-    appendSection(eventSection("lowDurability",  "Low Durability", "LOW DURABILITY"))
+    appendSection(eventSection("lowDurability",  L["Low Durability"], L["LOW DURABILITY"]))
     -- Threshold slider directly under low durability section
-    table.insert(items, { type = "slider", label = "Durability Threshold (%)",
+    table.insert(items, { type = "slider", label = L["Durability Threshold (%)"],
         min = 5, max = 50, step = 1,
-        tooltip = "Warning appears when at least one equipped item is below this value (after combat exit).",
+        tooltip = L["Warning appears when at least one equipped item is below this value (after combat exit)."],
         get = function() return mod.db.durabilityThreshold or 15 end,
         set = function(_, v)
             mod.db.durabilityThreshold = v
@@ -608,20 +609,20 @@ function mod:GetOptions()
 
     -- Engine FCT + position section
     table.insert(items, { type = "spacer", height = 8 })
-    table.insert(items, { type = "header", text = "Engine FCT (above mob/pet)" })
-    table.insert(items, { type = "toggle", label = "Sharper hit indicator font (Friz Quadrata)",
+    table.insert(items, { type = "header", text = L["Engine FCT (above mob/pet)"] })
+    table.insert(items, { type = "toggle", label = L["Sharper hit indicator font (Friz Quadrata)"],
         get = function() return mod.db.sharpFonts end,
         set = function(_, v) mod.db.sharpFonts = v; applySharpFonts() end })
-    table.insert(items, { type = "slider", label = "Engine FCT Scale",
+    table.insert(items, { type = "slider", label = L["Engine FCT Scale"],
         min = 1.0, max = 2.5, step = 0.1,
-        tooltip = "Damage numbers above mob/pet — bitmap scaling.",
+        tooltip = L["Damage numbers above mob/pet — bitmap scaling."],
         get = function() return mod.db.worldTextScale end,
         set = function(_, v) mod.db.worldTextScale = v; applyWorldTextScale() end })
 
     table.insert(items, { type = "spacer", height = 8 })
-    table.insert(items, { type = "header", text = "Position" })
-    table.insert(items, { type = "toggle", label = "Center",
-        tooltip = "Keeps the horizontal position and only centers vertically in the screen center.",
+    table.insert(items, { type = "header", text = L["Position"] })
+    table.insert(items, { type = "toggle", label = L["Center"],
+        tooltip = L["Keeps the horizontal position and only centers vertically in the screen center."],
         get = function() return mod.db.centerOnScreen end,
         set = function(_, v)
             local prev = mod.db.centerOnScreen
@@ -646,9 +647,9 @@ function mod:GetOptions()
         end })
     table.insert(items, { type = "group", layout = "row", gap = 8,
         items = {
-            { type = "button", label = "Unlock / Position", width = 200,
+            { type = "button", label = L["Unlock / Position"], width = 200,
               onClick = function() setUnlocked(not mod.db.unlocked) end },
-            { type = "button", label = "Reset Position", width = 180,
+            { type = "button", label = L["Reset Position"], width = 180,
               onClick = function()
                   mod.db.x = 0; mod.db.y = 0
                   applyMoverPosition()

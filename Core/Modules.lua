@@ -12,10 +12,11 @@
 -- }
 -- =========================================================
 local _, ns = ...
+local L = ns.L
 
 function ns:RegisterModule(key, def)
     if ns.modules[key] then
-        ns:Print("WARN: Module '%s' already registered.", key)
+        ns:Print(L["WARN: Module '%s' already registered."], key)
         return ns.modules[key]
     end
 
@@ -54,7 +55,7 @@ function ns:SafeEnable(mod)
     end
     local ok, err = pcall(mod.OnEnable, mod)
     if not ok then
-        ns:Print("|cffff5555Error enabling module '%s':|r %s", mod.name, tostring(err))
+        ns:Print(L["|cffff5555Error enabling module '%s':|r %s"], mod.name, tostring(err))
         return
     end
     mod._enabled = true
@@ -66,7 +67,7 @@ function ns:SafeDisable(mod)
     if mod.OnDisable then
         local ok, err = pcall(mod.OnDisable, mod)
         if not ok then
-            ns:Print("|cffff5555Error disabling '%s':|r %s", mod.name, tostring(err))
+            ns:Print(L["|cffff5555Error disabling '%s':|r %s"], mod.name, tostring(err))
         end
     end
     mod._enabled = false
@@ -81,6 +82,6 @@ function ns:ToggleModule(key, state)
     else
         ns:SafeDisable(mod)
         -- Many hooks can't be removed at runtime -> recommend ReloadUI
-        ns:Print("Module '%s' disabled. /reload recommended for full effect.", mod.name)
+        ns:Print(L["Module '%s' disabled. /reload recommended for full effect."], mod.name)
     end
 end

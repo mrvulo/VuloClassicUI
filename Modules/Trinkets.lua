@@ -7,11 +7,12 @@
 --   * brings all relevant settings directly into the VCUI module page
 -- =========================================================
 local _, ns = ...
+local L = ns.L
 
 local mod = ns:RegisterModule("trinkets", {
-    name        = "Trinkets",
+    name        = L["Trinkets"],
     group       = "QoL",
-    description = "Two trinket slots on screen with cooldown display, dropdown selection and auto-queue.",
+    description = L["Two trinket slots on screen with cooldown display, dropdown selection and auto-queue."],
     defaults    = {
         enabled   = true,
         showFrame = true,
@@ -97,21 +98,20 @@ end
 -- =========================================================
 function mod:GetOptions()
     return {
-        { type = "header", text = "Trinkets" },
+        { type = "header", text = L["Trinkets"] },
         { type = "desc",
-          text = "|cffaaaaaaTwo trinket slots with cooldown, dropdown selection and auto-queue.|n"
-              .. "Left click = use, right click = dropdown.|r" },
+          text = L["|cffaaaaaaTwo trinket slots with cooldown, dropdown selection and auto-queue.|nLeft click = use, right click = dropdown.|r"] },
 
-        { type = "toggle", label = "Show frame",
-          tooltip = "Hides or shows the two trinket slots. Auto-queue continues to run while hidden.",
+        { type = "toggle", label = L["Show frame"],
+          tooltip = L["Hides or shows the two trinket slots. Auto-queue continues to run while hidden."],
           get = function() return mod.db.showFrame end,
           set = function(_, v)
               mod.db.showFrame = v
               setShown(v)
           end },
 
-        { type = "toggle", label = "Position locked",
-          tooltip = "If on, the frame cannot be accidentally moved.",
+        { type = "toggle", label = L["Position locked"],
+          tooltip = L["If on, the frame cannot be accidentally moved."],
           get = function()
               return _G.TrinketsOptions and _G.TrinketsOptions.Locked == "ON"
           end,
@@ -121,9 +121,9 @@ function mod:GetOptions()
               end
           end },
 
-        { type = "slider", label = "Size",
+        { type = "slider", label = L["Size"],
           min = 0.5, max = 2.0, step = 0.05,
-          tooltip = "Scales the trinket slots.",
+          tooltip = L["Scales the trinket slots."],
           get = function()
               return (_G.TrinketsPerOptions and _G.TrinketsPerOptions.MainScale) or 1.0
           end,
@@ -136,6 +136,6 @@ function mod:GetOptions()
 
         { type = "spacer", height = 4 },
         { type = "desc",
-          text = "|cffaaaaaaTip: Left click on a slot uses the trinket, right click shows the selection list. Auto-queue is configured via right click -> Queue tab.|r" },
+          text = L["|cffaaaaaaTip: Left click on a slot uses the trinket, right click shows the selection list. Auto-queue is configured via right click -> Queue tab.|r"] },
     }
 end

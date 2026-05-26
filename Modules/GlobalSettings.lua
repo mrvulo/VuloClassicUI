@@ -5,17 +5,18 @@
 --   Profile — pointer to the Profiles module
 -- =========================================================
 local _, ns = ...
+local L = ns.L
 
 local mod = ns:RegisterModule("globalsettings", {
-    name        = "Global Settings",
+    name        = L["Global Settings"],
     group       = "Global",
-    description = "Global UI settings + profile management.",
+    description = L["Global UI settings + profile management."],
     defaults    = { enabled = true },
 })
 
 mod.tabs = {
-    { id = "general", label = "General" },
-    { id = "profile", label = "Profile" },
+    { id = "general", label = L["General"] },
+    { id = "profile", label = L["Profile"] },
 }
 
 -- =========================================================
@@ -52,9 +53,9 @@ end
 
 -- StaticPopup for profiling toggle (requires /reload for the CVar to take effect)
 StaticPopupDialogs["VCUI_RELOAD_PROFILING"] = {
-    text = "Script profiling changed. /reload required for the CPU display to update.",
-    button1 = "Reload now",
-    button2 = "Later",
+    text = L["Script profiling changed. /reload required for the CPU display to update."],
+    button1 = L["Reload now"],
+    button2 = L["Later"],
     OnAccept = function() ReloadUI() end,
     timeout = 0,
     whileDead = true,
@@ -67,41 +68,41 @@ StaticPopupDialogs["VCUI_RELOAD_PROFILING"] = {
 -- =========================================================
 local function generalOptions()
     return {
-        { type = "header", text = "Display" },
+        { type = "header", text = L["Display"] },
 
-        { type = "slider", label = "UI Scale",
+        { type = "slider", label = L["UI Scale"],
           min = 0.40, max = 1.15, step = 0.01,
-          tooltip = "Manual UI scaling. 0.65 is smaller, 1.0 is default.",
+          tooltip = L["Manual UI scaling. 0.65 is smaller, 1.0 is default."],
           get = function() return getCVarNum("uiScale") end,
           set = function(_, v) applyUIScale(v) end },
 
         { type = "group", layout = "row", gap = 8,
           items = {
-              { type = "button", label = "Pixel Perfect", width = 130,
+              { type = "button", label = L["Pixel Perfect"], width = 130,
                 onClick = function()
                     local s = pixelPerfectScale()
                     applyUIScale(s)
-                    ns:Print("UI Scale = %.4f (pixel perfect)", s)
+                    ns:Print(L["UI Scale = %.4f (pixel perfect)"], s)
                 end },
-              { type = "button", label = "1080p Scale", width = 130,
-                onClick = function() applyUIScale(768/1080); ns:Print("UI Scale = 0.7111 (1080p)") end },
-              { type = "button", label = "1440p Scale", width = 130,
-                onClick = function() applyUIScale(768/1440); ns:Print("UI Scale = 0.5333 (1440p)") end },
+              { type = "button", label = L["1080p Scale"], width = 130,
+                onClick = function() applyUIScale(768/1080); ns:Print(L["UI Scale = 0.7111 (1080p)"]) end },
+              { type = "button", label = L["1440p Scale"], width = 130,
+                onClick = function() applyUIScale(768/1440); ns:Print(L["UI Scale = 0.5333 (1440p)"]) end },
           },
         },
 
         { type = "spacer", height = 6 },
-        { type = "header", text = "Camera" },
-        { type = "slider", label = "Max Camera Distance",
+        { type = "header", text = L["Camera"] },
+        { type = "slider", label = L["Max Camera Distance"],
           min = 1.0, max = 3.4, step = 0.1,
-          tooltip = "Maximum camera distance (CVar cameraDistanceMaxZoomFactor).",
+          tooltip = L["Maximum camera distance (CVar cameraDistanceMaxZoomFactor)."],
           get = function() return getCVarNum("cameraDistanceMaxZoomFactor") end,
           set = function(_, v) setCVar("cameraDistanceMaxZoomFactor", v) end },
 
         { type = "spacer", height = 6 },
-        { type = "header", text = "Minimap" },
-        { type = "toggle", label = "Show Minimap Button",
-          tooltip = "Toggle the VuloClassicUI button on the minimap.",
+        { type = "header", text = L["Minimap"] },
+        { type = "toggle", label = L["Show Minimap Button"],
+          tooltip = L["Toggle the VuloClassicUI button on the minimap."],
           get = function()
               local m = ns.modules and ns.modules.minimap
               return m and m.db and m.db.enabled
@@ -111,9 +112,9 @@ local function generalOptions()
           end },
 
         { type = "spacer", height = 6 },
-        { type = "header", text = "Performance Display" },
-        { type = "toggle", label = "Show CPU Usage in Header",
-          tooltip = "Shows total CPU usage of all active addons (plus VuloClassicUI's own share) at the top of the config header.\n\n|cffaaaaaaRequires /reload after toggling.\n\nNote: Enables WoW's scriptProfile CVar, which costs ~3-5% performance — that's the price for WoW collecting this data at all.|r",
+        { type = "header", text = L["Performance Display"] },
+        { type = "toggle", label = L["Show CPU Usage in Header"],
+          tooltip = L["Shows total CPU usage of all active addons (plus VuloClassicUI's own share) at the top of the config header.\n\n|cffaaaaaaRequires /reload after toggling.\n\nNote: Enables WoW's scriptProfile CVar, which costs ~3-5% performance — that's the price for WoW collecting this data at all.|r"],
           get = function() return getCVarNum("scriptProfile") == 1 end,
           set = function(_, v)
               setCVar("scriptProfile", v and "1" or "0")
@@ -133,7 +134,7 @@ local function profileOptions()
     end
     return {
         { type = "desc",
-          text = "|cffff5555Profile module not loaded.|r" },
+          text = L["|cffff5555Profile module not loaded.|r"] },
     }
 end
 

@@ -6,6 +6,7 @@
 -- Code ported 1:1. SavedVariables settings are in mod.db instead of idTipConfig.
 -- =========================================================
 local _, ns = ...
+local L = ns.L
 
 -- =========================================================
 -- API aliases (Retail/Classic compatibility)
@@ -90,9 +91,9 @@ moduleDefaults.showPlayerILvl    = true
 moduleDefaults.showPlayerTalents = true
 
 local mod = ns:RegisterModule("tooltipids", {
-    name        = "Tooltip IDs",
+    name        = L["Tooltip IDs"],
     group       = "QoL",
-    description = "Shows SpellID, ItemID, NPC ID and many other IDs in tooltips (based on idTip by silverwind).",
+    description = L["Shows SpellID, ItemID, NPC ID and many other IDs in tooltips (based on idTip by silverwind)."],
     defaults    = moduleDefaults,
 })
 
@@ -727,10 +728,10 @@ local function onPlayerTooltipUnit(tooltip)
         if mod.db.showPlayerTalents and data.talents and data.talents[1] then
             local s = string.format("%d/%d/%d",
                 data.talents[1] or 0, data.talents[2] or 0, data.talents[3] or 0)
-            tooltip:AddLine("|cff9b6cffTalents:|r " .. s)
+            tooltip:AddLine(L["|cff9b6cffTalents:|r "] .. s)
         end
         if mod.db.showPlayerILvl and data.ilvl and data.ilvl > 0 then
-            tooltip:AddLine(string.format("|cff9b6cffiLvL:|r %d", data.ilvl))
+            tooltip:AddLine(string.format(L["|cff9b6cffiLvL:|r %d"], data.ilvl))
         end
     else
         requestInspect(unit)
@@ -861,8 +862,8 @@ end
 local function kindCheckbox(kind)
     return {
         type = "checkbox",
-        label = kinds[kind] .. (defaultDisabledKinds[kind] and "  |cff888888(off by default)|r" or ""),
-        tooltip = "Shows " .. kinds[kind] .. " in tooltips.",
+        label = kinds[kind] .. (defaultDisabledKinds[kind] and L["  |cff888888(off by default)|r"] or ""),
+        tooltip = string.format(L["Shows %s in tooltips."], kinds[kind]),
         get = function() return mod.db[kind] end,
         set = function(_, v) mod.db[kind] = v end,
     }
@@ -870,22 +871,22 @@ end
 
 function mod:GetOptions()
     local items = {
-        { type = "header", text = "General" },
-        { type = "desc",   text = "Shows additional ID lines in tooltips, e.g. spell, item or NPC IDs." },
+        { type = "header", text = L["General"] },
+        { type = "desc",   text = L["Shows additional ID lines in tooltips, e.g. spell, item or NPC IDs."] },
         { type = "spacer" },
-        { type = "header", text = "Quick Select" },
+        { type = "header", text = L["Quick Select"] },
         {
             type = "group", layout = "row", gap = 6,
             items = {
-                { type = "button", label = "All on", width = 80, onClick = function()
+                { type = "button", label = L["All on"], width = 80, onClick = function()
                     for k in pairs(kinds) do mod.db[k] = true end
                     ns.UI:BuildOptionsPage("tooltipids")
                 end },
-                { type = "button", label = "All off", width = 80, onClick = function()
+                { type = "button", label = L["All off"], width = 80, onClick = function()
                     for k in pairs(kinds) do mod.db[k] = false end
                     ns.UI:BuildOptionsPage("tooltipids")
                 end },
-                { type = "button", label = "Defaults", width = 80, onClick = function()
+                { type = "button", label = L["Defaults"], width = 80, onClick = function()
                     for k in pairs(kinds) do
                         mod.db[k] = not defaultDisabledKinds[k]
                     end
@@ -894,19 +895,19 @@ function mod:GetOptions()
             },
         },
         { type = "spacer", height = 8 },
-        { type = "header", text = "Player Tooltip (Inspect-based)" },
+        { type = "header", text = L["Player Tooltip (Inspect-based)"] },
         { type = "desc",
-          text = "|cffaaaaaaWhen you hover over a player, their average iLvL + talent distribution (e.g. 14/0/47) is shown in the tooltip. Data is cached 60s per player, inspect throttle 1/s.|r" },
-        { type = "toggle", label = "Show average iLvL",
+          text = L["|cffaaaaaaWhen you hover over a player, their average iLvL + talent distribution (e.g. 14/0/47) is shown in the tooltip. Data is cached 60s per player, inspect throttle 1/s.|r"] },
+        { type = "toggle", label = L["Show average iLvL"],
           get = function() return mod.db.showPlayerILvl end,
           set = function(_, v) mod.db.showPlayerILvl = v end },
-        { type = "toggle", label = "Show talent distribution (e.g. 14/0/47)",
+        { type = "toggle", label = L["Show talent distribution (e.g. 14/0/47)"],
           get = function() return mod.db.showPlayerTalents end,
           set = function(_, v) mod.db.showPlayerTalents = v end },
 
         { type = "spacer", height = 8 },
-        { type = "header", text = "ID Types" },
-        { type = "desc",   text = "Which IDs should be shown in tooltips? Some types are only active in Retail and are ignored in TBC (e.g. TraitNodeID, SourceID)." },
+        { type = "header", text = L["ID Types"] },
+        { type = "desc",   text = L["Which IDs should be shown in tooltips? Some types are only active in Retail and are ignored in TBC (e.g. TraitNodeID, SourceID)."] },
         { type = "spacer", height = 4 },
     }
 

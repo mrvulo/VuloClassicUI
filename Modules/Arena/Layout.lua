@@ -5,6 +5,7 @@
 -- We override that with mod.db.slotOrder and mod.db.slotSpacing.
 -- =========================================================
 local _, ns = ...
+local L = ns.L
 local mod = ns.ArenaModule
 local H = mod.helpers
 
@@ -107,8 +108,8 @@ end)
 -- =========================================================
 mod:AddOptionsSection("layout", function()
     local items = {
-        { type = "header", text = "Layout (Order)" },
-        { type = "desc",   text = "Order of the arena frames. Use up/down to move slots 1-5." },
+        { type = "header", text = L["Layout (Order)"] },
+        { type = "desc",   text = L["Order of the arena frames. Use up/down to move slots 1-5."] },
         { type = "spacer", height = 4 },
     }
 
@@ -117,12 +118,12 @@ mod:AddOptionsSection("layout", function()
         table.insert(items, {
             type = "group", layout = "row", gap = 4,
             items = {
-                { type = "desc", text = string.format("|cff9b6cff%d.|r  Arena Slot %d", visualIndex, slotIndex), width = 140 },
+                { type = "desc", text = string.format(L["|cff9b6cff%d.|r  Arena Slot %d"], visualIndex, slotIndex), width = 140 },
                 { type = "iconbutton", icon = "up",   width = 28, height = 24,
-                  tooltip = "Move up",
+                  tooltip = L["Move up"],
                   onClick = function() moveSlot(slotIndex, -1) end },
                 { type = "iconbutton", icon = "down", width = 28, height = 24,
-                  tooltip = "Move down",
+                  tooltip = L["Move down"],
                   onClick = function() moveSlot(slotIndex,  1) end },
             },
         })
@@ -130,22 +131,22 @@ mod:AddOptionsSection("layout", function()
 
     table.insert(items, { type = "spacer", height = 4 })
     table.insert(items, {
-        type = "slider", label = "Spacing between frames",
+        type = "slider", label = L["Spacing between frames"],
         min = 0, max = 40, step = 1,
         get = function() return mod.db.slotSpacing end,
         set = function(_, v) mod.db.slotSpacing = v; applyLayout() end,
     })
     table.insert(items, {
-        type = "dropdown", label = "Grow direction",
+        type = "dropdown", label = L["Grow direction"],
         values = {
-            { value = "down", text = "Downward" },
-            { value = "up",   text = "Upward" },
+            { value = "down", text = L["Downward"] },
+            { value = "up",   text = L["Upward"] },
         },
         get = function() return mod.db.growDirection end,
         set = function(_, v) mod.db.growDirection = v; applyLayout() end,
     })
     table.insert(items, {
-        type = "button", label = "Reset order", width = 180,
+        type = "button", label = L["Reset order"], width = 180,
         onClick = function()
             mod.db.slotOrder = { 1, 2, 3, 4, 5 }
             applyLayout()

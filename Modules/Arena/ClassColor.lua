@@ -3,6 +3,7 @@
 -- Class-colored health bar, class icon instead of portrait, name in class color.
 -- =========================================================
 local _, ns = ...
+local L = ns.L
 local mod = ns.ArenaModule
 local H = mod.helpers
 
@@ -176,10 +177,10 @@ end)
 -- =========================================================
 mod:AddOptionsSection("classcolor", function()
     return {
-        { type = "header", text = "Class Visuals" },
+        { type = "header", text = L["Class Visuals"] },
         {
-            type = "checkbox", label = "Class-colored health bars",
-            tooltip = "Colors the health bar in the player's class color.",
+            type = "checkbox", label = L["Class-colored health bars"],
+            tooltip = L["Colors the health bar in the player's class color."],
             get = function() return mod.db.classColorHealth end,
             set = function(_, v)
                 mod.db.classColorHealth = v
@@ -187,13 +188,13 @@ mod:AddOptionsSection("classcolor", function()
             end,
         },
         {
-            type = "checkbox", label = "Class-colored name",
+            type = "checkbox", label = L["Class-colored name"],
             get = function() return mod.db.classColorName end,
             set = function(_, v) mod.db.classColorName = v; applyAll() end,
         },
         {
-            type = "checkbox", label = "Class icon instead of portrait",
-            tooltip = "Replaces the 3D portrait with a class symbol.",
+            type = "checkbox", label = L["Class icon instead of portrait"],
+            tooltip = L["Replaces the 3D portrait with a class symbol."],
             get = function() return mod.db.classIconPortrait end,
             set = function(_, v)
                 mod.db.classIconPortrait = v

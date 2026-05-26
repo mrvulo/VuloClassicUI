@@ -5,11 +5,12 @@
 -- Reset on combat start. Only active for priests.
 -- =========================================================
 local _, ns = ...
+local L = ns.L
 
 local mod = ns:RegisterModule("vtmanadisplay", {
-    name        = "VT Mana Display",
+    name        = L["VT Mana Display"],
     group       = "QoL",
-    description = "Live display of how much mana you've given to the group with Vampiric Touch. Reset on combat start. Only active for priests.",
+    description = L["Live display of how much mana you've given to the group with Vampiric Touch. Reset on combat start. Only active for priests."],
     defaults    = {
         enabled    = true,
         showFrame  = true,
@@ -39,7 +40,7 @@ local cFrame              -- display frame
 -- =========================================================
 local function updateFrame()
     if not cFrame or not cFrame.text then return end
-    cFrame.text:SetText(string.format("|cff9b6cffVT Mana:|r %d", math.floor(totalMana)))
+    cFrame.text:SetText(string.format(L["|cff9b6cffVT Mana:|r %d"], math.floor(totalMana)))
 end
 
 local function resetCombat()
@@ -51,7 +52,7 @@ end
 local function reportChat()
     if not mod.db.showInChat then return end
     if totalMana <= 0 then return end
-    ns:Print("Vampiric Touch: %d mana given to the group.", math.floor(totalMana))
+    ns:Print(L["Vampiric Touch: %d mana given to the group."], math.floor(totalMana))
 end
 
 local function refreshSpell()
@@ -122,15 +123,15 @@ local function createFrame()
     cFrame.text:SetFont("Fonts\\FRIZQT__.TTF", mod.db.fontSize, "OUTLINE")
     cFrame.text:SetPoint("CENTER", cFrame, "CENTER", 0, 0)
     cFrame.text:SetTextColor(1, 1, 1, 1)
-    cFrame.text:SetText("|cff9b6cffVT Mana:|r 0")
+    cFrame.text:SetText(L["|cff9b6cffVT Mana:|r 0"])
 
     cFrame.mover = ns:CreateMover(cFrame, {
-        label  = "|cffffffffVT MANA|r",
+        label  = L["|cffffffffVT MANA|r"],
         db     = mod.db,
         width  = 200,
         height = 40,
         onMove = function(x, y)
-            ns:Print(string.format("VT mana frame: x=%.0f, y=%.0f", x, y))
+            ns:Print(string.format(L["VT mana frame: x=%.0f, y=%.0f"], x, y))
         end,
     })
 
@@ -143,11 +144,11 @@ local function setUnlocked(state)
     if state then
         cFrame:Show()
         cFrame.mover:Show()
-        ns:Print("VT mana mover active. |cff9b6cffDrag|r or |cff9b6cffarrow keys|r (SHIFT = 5px).")
+        ns:Print(L["VT mana mover active. |cff9b6cffDrag|r or |cff9b6cffarrow keys|r (SHIFT = 5px)."])
     else
         cFrame.mover:Hide()
         if not mod.db.showFrame then cFrame:Hide() end
-        ns:Print("VT mana mover disabled.")
+        ns:Print(L["VT mana mover disabled."])
     end
 end
 
@@ -199,25 +200,23 @@ end
 -- =========================================================
 function mod:GetOptions()
     return {
-        { type = "header", text = "VT Mana Display" },
+        { type = "header", text = L["VT Mana Display"] },
         { type = "desc",
-          text = "|cffaaaaaaShows live how much mana you've given to the group with Vampiric Touch (5% of shadow damage per tick, per mana user).|n"
-              .. "|cffffffffReset automatically on combat start.|r|n"
-              .. "Only active for priests.|r" },
+          text = L["|cffaaaaaaShows live how much mana you've given to the group with Vampiric Touch (5% of shadow damage per tick, per mana user).|n|cffffffffReset automatically on combat start.|r|nOnly active for priests.|r"] },
 
-        { type = "toggle", label = "Show frame",
+        { type = "toggle", label = L["Show frame"],
           get = function() return mod.db.showFrame end,
           set = function(_, v)
               mod.db.showFrame = v
               if cFrame then if v then cFrame:Show() else cFrame:Hide() end end
           end },
 
-        { type = "toggle", label = "Print to chat at combat end",
-          tooltip = "Writes a summary in chat after each fight.",
+        { type = "toggle", label = L["Print to chat at combat end"],
+          tooltip = L["Writes a summary in chat after each fight."],
           get = function() return mod.db.showInChat end,
           set = function(_, v) mod.db.showInChat = v end },
 
-        { type = "slider", label = "Font size",
+        { type = "slider", label = L["Font size"],
           min = 8, max = 32, step = 1,
           get = function() return mod.db.fontSize end,
           set = function(_, v)
@@ -229,14 +228,14 @@ function mod:GetOptions()
 
         { type = "group", layout = "row", gap = 8,
           items = {
-              { type = "button", label = "Unlock / Position", width = 200,
+              { type = "button", label = L["Unlock / Position"], width = 200,
                 onClick = function() setUnlocked(not mod.db.unlocked) end },
-              { type = "button", label = "Reset manually", width = 200,
+              { type = "button", label = L["Reset manually"], width = 200,
                 onClick = function()
                     totalMana = 0
                     lastTick  = 0
                     updateFrame()
-                    ns:Print("VT mana reset.")
+                    ns:Print(L["VT mana reset."])
                 end },
           },
         },

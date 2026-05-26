@@ -9,11 +9,12 @@
 -- visible with their old state until Blizzard's refresh redraws them.
 -- =========================================================
 local _, ns = ...
+local L = ns.L
 
 local mod = ns:RegisterModule("fixlfgbrowsenil", {
-    name        = "LFG Browse Nil Fix",
+    name        = L["LFG Browse Nil Fix"],
     group       = "Bugfixes",
-    description = "Catches Lua errors in the Anniversary Group Finder (LFGBrowseSearchEntry_Update with stale resultIDs). Prevents chat spam and broken browse lists.",
+    description = L["Catches Lua errors in the Anniversary Group Finder (LFGBrowseSearchEntry_Update with stale resultIDs). Prevents chat spam and broken browse lists."],
     defaults = {
         enabled    = true,
         showReport = true,  -- report once per session
@@ -52,7 +53,7 @@ local function installPatch()
             if mod.db.showReport and not _G.VCUI_LFGBrowseNilFix_Reported then
                 _G.VCUI_LFGBrowseNilFix_Reported = true
                 DEFAULT_CHAT_FRAME:AddMessage(
-                    "|cffffff00[VuloClassicUI]|r Blizzard LFG browse error caught (stale entry skipped).")
+                    L["|cffffff00[VuloClassicUI]|r Blizzard LFG browse error caught (stale entry skipped)."])
             end
             return
         end
@@ -93,17 +94,17 @@ end
 -- =========================================================
 function mod:GetOptions()
     return {
-        { type = "header", text = "Behavior" },
+        { type = "header", text = L["Behavior"] },
         {
-            type = "toggle", label = "Chat message on first error",
-            tooltip = "Shows a brief message once per session in chat when an LFG browse error was caught.",
+            type = "toggle", label = L["Chat message on first error"],
+            tooltip = L["Shows a brief message once per session in chat when an LFG browse error was caught."],
             get = function() return mod.db.showReport end,
             set = function(_, v) mod.db.showReport = v end,
         },
         { type = "spacer", height = 8 },
-        { type = "desc", text = "This fix wraps Blizzard's |cffffffffLFGBrowseSearchEntry_Update|r function in a protected call (xpcall). When the entry crashes due to a stale resultID (\"searchResultInfo nil\"), the error is swallowed — Blizzard's next refresh automatically cleans up the list entry." },
+        { type = "desc", text = L["This fix wraps Blizzard's |cffffffffLFGBrowseSearchEntry_Update|r function in a protected call (xpcall). When the entry crashes due to a stale resultID (\"searchResultInfo nil\"), the error is swallowed — Blizzard's next refresh automatically cleans up the list entry."] },
         { type = "spacer", height = 6 },
-        { type = "desc", text = string.format("|cffaaaaaaStatus: %s|r",
-            wrappedAlready and "|cff66ff66Hook active|r" or "waiting for Blizzard_GroupFinder_VanillaStyle") },
+        { type = "desc", text = string.format(L["|cffaaaaaaStatus: %s|r"],
+            wrappedAlready and L["|cff66ff66Hook active|r"] or L["waiting for Blizzard_GroupFinder_VanillaStyle"]) },
     }
 end
