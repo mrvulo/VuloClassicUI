@@ -17,8 +17,27 @@ local _, ns = ...
 -- Internal storage: { ["deDE"] = { ["English key"] = "Deutsche Übersetzung", ... }, ... }
 ns.localeData = ns.localeData or {}
 
--- Detect current client locale (defaults to enUS if unavailable)
-local currentLocale = (GetLocale and GetLocale()) or "enUS"
+-- Supported locales — used by the GlobalSettings dropdown
+ns.SUPPORTED_LOCALES = {
+    { value = "auto", text = "Auto (client language)" },
+    { value = "enUS", text = "English" },
+    { value = "deDE", text = "Deutsch" },
+}
+
+-- Detect locale: first check user override in SavedVariables, then fall back
+-- to client locale (GetLocale). Override must be read here at file-load
+-- because module RegisterModule() calls evaluate L["..."] immediately.
+local function detectInitialLocale()
+    local svDB = _G.VuloClassicUIDB
+    if svDB and svDB.localeOverride
+       and svDB.localeOverride ~= "auto"
+       and svDB.localeOverride ~= "" then
+        return svDB.localeOverride
+    end
+    return (GetLocale and GetLocale()) or "enUS"
+end
+
+local currentLocale = detectInitialLocale()
 
 -- The L table: fallback returns the key itself if no translation exists
 ns.L = setmetatable({}, {
@@ -48,4 +67,21 @@ end
 function ns:HasTranslation(key)
     local data = ns.localeData[currentLocale]
     return data and data[key] ~= nil
+end
+
+-- Public API for the language override dropdown
+-- Saves to SavedVariables so it survives /reload. The new locale takes effect
+-- on next /reload because module strings are evaluated at file-load time.
+function ns:SetLocaleOverride(code)
+    _G.VuloClassicUIDB = _G.VuloClassicUIDB or {}
+    if not code or code == "auto" or code == "" then
+        _G.VuloClassicUIDB.localeOverride = nil
+    else
+        _G.VuloClassicUIDB.localeOverride = code
+    end
+end
+
+function ns:GetLocaleOverride()
+    local svDB = _G.VuloClassicUIDB
+    return (svDB and svDB.localeOverride) or "auto"
 end

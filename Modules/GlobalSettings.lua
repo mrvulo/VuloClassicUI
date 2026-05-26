@@ -63,11 +63,35 @@ StaticPopupDialogs["VCUI_RELOAD_PROFILING"] = {
     preferredIndex = 3,
 }
 
+-- StaticPopup for language override (requires /reload because module strings are
+-- evaluated at file-load time, so a new locale only takes effect on reload)
+StaticPopupDialogs["VCUI_RELOAD_LOCALE"] = {
+    text = L["Language changed. /reload required to apply the new language to all UI elements."],
+    button1 = L["Reload now"],
+    button2 = L["Later"],
+    OnAccept = function() ReloadUI() end,
+    timeout = 0,
+    whileDead = true,
+    hideOnEscape = true,
+    preferredIndex = 3,
+}
+
 -- =========================================================
 -- Tab: General
 -- =========================================================
 local function generalOptions()
     return {
+        { type = "header", text = L["Language"] },
+        { type = "dropdown", label = L["UI Language"],
+          tooltip = L["Choose the language for the VuloClassicUI interface. 'Auto' uses your WoW client's language (German clients see German, all others see English).\n\n|cffaaaaaaRequires /reload to apply.|r"],
+          values = ns.SUPPORTED_LOCALES,
+          get = function() return ns:GetLocaleOverride() end,
+          set = function(_, v)
+              ns:SetLocaleOverride(v)
+              StaticPopup_Show("VCUI_RELOAD_LOCALE")
+          end },
+
+        { type = "spacer", height = 6 },
         { type = "header", text = L["Display"] },
 
         { type = "slider", label = L["UI Scale"],
