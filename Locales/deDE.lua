@@ -85,6 +85,10 @@ ns:RegisterLocale("deDE", {
     ["New Set"] = "Neues Set",
     ["Left-click: select"] = "Linksklick: Auswählen",
     ["Double-click / Right-click menu: equip"] = "Doppelklick / Rechtsklick-Menü: Anlegen",
+    ["Replace: %s"] = "Ersetzen: %s",
+    ["Remove from set"] = "Aus Set entfernen",
+    ["Loadout '%s': slot updated."] = "Set '%s': Slot aktualisiert.",
+    ["SlotPicker module is required for editing item slots."] = "Das SlotPicker-Modul ist nötig um Item-Slots zu bearbeiten.",
 
     -- SlotPicker
     ["Slot Picker"] = "Slot-Auswahl",

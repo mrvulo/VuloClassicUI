@@ -486,8 +486,59 @@ end
 -- =========================================================
 local sidebar
 local sidebarSetButtons = {}
+local sidebarItemRows   = {}    -- pool of expanded-item-row frames
 local sidebarSelected           -- currently highlighted loadout name
+local sidebarExpanded           -- name of currently expanded loadout (only one at a time)
 local refreshSidebar            -- forward declaration
+
+-- =========================================================
+-- Bag-item picker for replacing a slot in a loadout (uses SlotPicker's scan API)
+-- =========================================================
+local function showSlotReplacePicker(loadoutName, targetSlot, anchor)
+    if not ns.ScanBagsForSlot then
+        ns:Print(L["SlotPicker module is required for editing item slots."])
+        return
+    end
+
+    local results  = ns:ScanBagsForSlot(targetSlot)
+    local slotName = SLOT_NAMES[targetSlot] or ("Slot " .. targetSlot)
+    local entries  = {
+        { title = true, text = string.format(L["Replace: %s"], slotName) },
+    }
+
+    local GetContainerItemLink_ = (C_Container and C_Container.GetContainerItemLink) or _G.GetContainerItemLink
+    if #results == 0 then
+        table.insert(entries, { text = L["No matching items in your bags."], disabled = true })
+    else
+        for _, entry in ipairs(results) do
+            local link = GetContainerItemLink_ and GetContainerItemLink_(entry.bag, entry.slot)
+            if link then
+                local capturedLink = link
+                local itemName     = link:match("|h%[(.-)%]|h") or link
+                table.insert(entries, {
+                    text = "  " .. itemName,
+                    func = function()
+                        if mod.db.loadouts[loadoutName] then
+                            mod.db.loadouts[loadoutName].slots[targetSlot] = capturedLink
+                            refreshSidebar()
+                            ns:Print(string.format(L["Loadout '%s': slot updated."], loadoutName))
+                        end
+                    end,
+                })
+            end
+        end
+    end
+
+    table.insert(entries, { separator = true })
+    table.insert(entries, { text = L["Remove from set"], func = function()
+        if mod.db.loadouts[loadoutName] then
+            mod.db.loadouts[loadoutName].slots[targetSlot] = nil
+            refreshSidebar()
+        end
+    end })
+
+    ns:ShowPopupMenu(entries, anchor)
+end
 
 local function getSetIcon(name)
     local loadout = mod.db and mod.db.loadouts and mod.db.loadouts[name]
@@ -516,10 +567,27 @@ local function createSetRow(parent, index)
     btn.icon:SetPoint("LEFT", btn, "LEFT", 4, 0)
     btn.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
 
-    -- Name text
+    -- Expand button (right) — toggles inline item view
+    btn.expand = CreateFrame("Button", nil, btn)
+    btn.expand:SetSize(18, 18)
+    btn.expand:SetPoint("RIGHT", btn, "RIGHT", -4, 0)
+    btn.expand.icon = btn.expand:CreateTexture(nil, "ARTWORK")
+    btn.expand.icon:SetAllPoints(btn.expand)
+    btn.expand.icon:SetTexture("Interface\\Buttons\\UI-Panel-ExpandButton-Up")
+    btn.expand:SetHighlightTexture("Interface\\Buttons\\UI-Panel-ExpandButton-Highlight")
+    btn.expand:SetScript("OnClick", function()
+        if sidebarExpanded == btn.setName then
+            sidebarExpanded = nil
+        else
+            sidebarExpanded = btn.setName
+        end
+        refreshSidebar()
+    end)
+
+    -- Name text (between icon and expand button)
     btn.text = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     btn.text:SetPoint("LEFT", btn.icon, "RIGHT", 8, 0)
-    btn.text:SetPoint("RIGHT", btn, "RIGHT", -4, 0)
+    btn.text:SetPoint("RIGHT", btn.expand, "LEFT", -4, 0)
     btn.text:SetJustifyH("LEFT")
 
     -- Selection background
@@ -599,16 +667,122 @@ local function createSetRow(parent, index)
     return btn
 end
 
+-- =========================================================
+-- Expanded item-row (grid of item icons under a set when expanded)
+-- =========================================================
+local ITEM_COLS = 6
+local ITEM_SIZE = 26
+local ITEM_PAD  = 3
+
+local function getItemButton(row, idx)
+    local b = row.items[idx]
+    if b then return b end
+    b = CreateFrame("Button", nil, row)
+    b:SetSize(ITEM_SIZE, ITEM_SIZE)
+    b.iconTex = b:CreateTexture(nil, "ARTWORK")
+    b.iconTex:SetAllPoints(b)
+    b.iconTex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    b.iconBorder = b:CreateTexture(nil, "OVERLAY")
+    b.iconBorder:SetAllPoints(b)
+    b.iconBorder:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
+    b.iconBorder:SetBlendMode("ADD")
+    b.iconBorder:Hide()
+    b:SetScript("OnEnter", function(self)
+        if self.link then
+            GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+            pcall(GameTooltip.SetHyperlink, GameTooltip, self.link)
+            GameTooltip:Show()
+        end
+        self.iconBorder:Show()
+    end)
+    b:SetScript("OnLeave", function(self)
+        GameTooltip:Hide()
+        self.iconBorder:Hide()
+    end)
+    b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    b:SetScript("OnClick", function(self, button)
+        if button == "RightButton" then
+            -- Quick-remove
+            if self.loadoutName and self.targetSlot and mod.db.loadouts[self.loadoutName] then
+                mod.db.loadouts[self.loadoutName].slots[self.targetSlot] = nil
+                refreshSidebar()
+            end
+        else
+            -- Left-click → bag-item picker for this slot
+            if self.loadoutName and self.targetSlot then
+                showSlotReplacePicker(self.loadoutName, self.targetSlot, self)
+            end
+        end
+    end)
+    row.items[idx] = b
+    return b
+end
+
+local function getItemRow(parent, index)
+    local row = sidebarItemRows[index]
+    if row then return row end
+    row = CreateFrame("Frame", nil, parent)
+    row.items = {}
+    sidebarItemRows[index] = row
+    return row
+end
+
+local function renderItemRow(row, loadoutName)
+    local loadout = mod.db.loadouts and mod.db.loadouts[loadoutName]
+    if not loadout or not loadout.slots then
+        row:SetHeight(0)
+        return
+    end
+
+    -- Hide leftover item buttons
+    for _, b in ipairs(row.items) do b:Hide() end
+
+    -- Sort slots ascending for consistent display
+    local slotEntries = {}
+    for slot, link in pairs(loadout.slots) do
+        table.insert(slotEntries, { slot = slot, link = link })
+    end
+    table.sort(slotEntries, function(a, b) return a.slot < b.slot end)
+
+    for i, entry in ipairs(slotEntries) do
+        local b = getItemButton(row, i)
+        b.loadoutName = loadoutName
+        b.targetSlot  = entry.slot
+        b.link        = entry.link
+        local icon
+        if GetItemInfoInstant then
+            local _, _, _, _, ic = GetItemInfoInstant(entry.link)
+            icon = ic
+        end
+        b.iconTex:SetTexture(icon or "Interface\\Icons\\INV_Misc_QuestionMark")
+
+        local col = (i - 1) % ITEM_COLS
+        local rowIdx = math.floor((i - 1) / ITEM_COLS)
+        b:ClearAllPoints()
+        b:SetPoint("TOPLEFT", row, "TOPLEFT",
+            col * (ITEM_SIZE + ITEM_PAD),
+            -(rowIdx * (ITEM_SIZE + ITEM_PAD)))
+        b:Show()
+    end
+
+    local rows = math.max(1, math.ceil(#slotEntries / ITEM_COLS))
+    row:SetHeight(rows * (ITEM_SIZE + ITEM_PAD) + 2)
+end
+
 refreshSidebar = function()
     if not sidebar then return end
 
-    -- Validate selection
+    -- Validate selection / expansion
     if sidebarSelected and not (mod.db.loadouts and mod.db.loadouts[sidebarSelected]) then
         sidebarSelected = nil
     end
+    if sidebarExpanded and not (mod.db.loadouts and mod.db.loadouts[sidebarExpanded]) then
+        sidebarExpanded = nil
+    end
 
-    -- Hide leftover buttons
+    -- Hide leftover buttons + item rows
     for _, b in ipairs(sidebarSetButtons) do b:Hide() end
+    for _, r in ipairs(sidebarItemRows)   do r:Hide() end
 
     local names = sortedLoadoutNames()
     if not sidebarSelected and #names > 0 then sidebarSelected = names[1] end
@@ -627,11 +801,28 @@ refreshSidebar = function()
             btn.selection:Hide()
             btn.text:SetTextColor(1, 1, 1)
         end
+        -- Expand button icon: up-arrow when expanded (collapse), down-arrow when collapsed
+        if sidebarExpanded == name then
+            btn.expand.icon:SetTexture("Interface\\Buttons\\UI-Panel-CollapseButton-Up")
+        else
+            btn.expand.icon:SetTexture("Interface\\Buttons\\UI-Panel-ExpandButton-Up")
+        end
         btn:ClearAllPoints()
         btn:SetPoint("TOPLEFT",  sidebar, "TOPLEFT",  4, y)
         btn:SetPoint("TOPRIGHT", sidebar, "TOPRIGHT", -4, y)
         btn:Show()
         y = y - 33
+
+        -- If expanded, render the item icons below this row
+        if sidebarExpanded == name then
+            local row = getItemRow(sidebar, i)
+            renderItemRow(row, name)
+            row:ClearAllPoints()
+            row:SetPoint("TOPLEFT",  sidebar, "TOPLEFT",  6, y)
+            row:SetPoint("TOPRIGHT", sidebar, "TOPRIGHT", -6, y)
+            row:Show()
+            y = y - row:GetHeight() - 4
+        end
     end
 
     if #names == 0 then

@@ -80,6 +80,7 @@ end
 
 -- =========================================================
 -- Scan bags for items matching a slot
+-- Exposed as ns:ScanBagsForSlot so other modules (Loadouts) can reuse it
 -- =========================================================
 local function scanBagsForSlot(slotID)
     local validTypes = SLOT_INVTYPES[slotID]
@@ -276,6 +277,11 @@ local function showSlotPicker(slotID)
         popup:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
     end
     popup:Show()
+end
+
+-- Public API — Loadouts uses this to populate its expandable item picker
+function ns:ScanBagsForSlot(slotID)
+    return scanBagsForSlot(slotID)
 end
 
 -- =========================================================
