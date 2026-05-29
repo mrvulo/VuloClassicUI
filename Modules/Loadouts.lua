@@ -167,20 +167,27 @@ local function equipLoadout(name)
     end
 
     local swapped, missing = 0, 0
-    -- Two-pass strategy:
-    --   Pass 1 — for symmetric slots (rings 11/12, trinkets 13/14),
-    --            UseContainerItem always picks slot 11 / 13 → wrong.
-    --            We use EquipItemByName(link, targetSlot) which respects the slot.
-    --   Pass 2 — for everything else, UseContainerItem is fine (only one valid slot).
-    for slot, link in pairs(loadout.slots) do
+    -- Sorted-ascending iteration is critical for paired slots (rings 11/12,
+    -- trinkets 13/14): UseContainerItem only sees an INVTYPE, not the target
+    -- slot, so it prefers the FIRST matching slot. By equipping slot 11 (resp.
+    -- 13) before 12 (resp. 14) we guarantee that the first slot is occupied
+    -- by the time we get to the second slot, so WoW's auto-placement puts the
+    -- second ring/trinket into the only remaining valid slot.
+    --   We also try EquipItemByName(link, slot) first — it accepts an explicit
+    -- slot parameter and works on retail; in Anniversary it sometimes ignores
+    -- the slot, so the sorted UseContainerItem fallback compensates.
+    local sortedSlots = {}
+    for slot in pairs(loadout.slots) do table.insert(sortedSlots, slot) end
+    table.sort(sortedSlots)
+
+    for _, slot in ipairs(sortedSlots) do
+        local link = loadout.slots[slot]
         local currentLink = GetInventoryItemLink("player", slot)
         if currentLink ~= link then
             local itemID = getItemIDFromLink(link)
             if itemID then
                 local bag, bagSlot = findItemInBags(itemID)
                 if bag and bagSlot then
-                    -- Prefer EquipItemByName with explicit slot — it's the only API
-                    -- that lets us target slot 12 or 14 specifically.
                     if _G.EquipItemByName then
                         pcall(_G.EquipItemByName, link, slot)
                     else
