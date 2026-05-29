@@ -102,6 +102,7 @@ ns:RegisterLocale("deDE", {
     ["Shift + Right-click"] = "Shift + Rechtsklick",
     ["Alt + Right-click"] = "Alt + Rechtsklick",
     ["Ctrl + Right-click"] = "Strg + Rechtsklick",
+    ["Right-click only"] = "Nur Rechtsklick",
     ["Grid columns"] = "Spalten im Raster",
     ["How many item icons per row in the picker popup."] = "Wie viele Item-Icons pro Reihe im Auswahl-Popup.",
     ["Items for: %s"] = "Items für: %s",

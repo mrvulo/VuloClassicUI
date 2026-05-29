@@ -15,7 +15,7 @@ local mod = ns:RegisterModule("slotpicker", {
     description = L["Shift+Right-click an equipment slot to show all compatible items from your bags. Click to equip."],
     defaults = {
         enabled  = true,
-        modifier = "shift-right",  -- "shift-right" | "alt-right" | "ctrl-right"
+        modifier = "right",  -- "right" | "shift-right" | "alt-right" | "ctrl-right"
         cols     = 8,
     },
 })
@@ -67,8 +67,10 @@ local SLOT_FRAME_NAMES = {
 -- Modifier check
 -- =========================================================
 local function checkModifier(button)
-    local mode = mod.db.modifier or "shift-right"
-    if mode == "shift-right" then
+    local mode = mod.db.modifier or "right"
+    if mode == "right" then
+        return button == "RightButton"
+    elseif mode == "shift-right" then
         return button == "RightButton" and IsShiftKeyDown()
     elseif mode == "alt-right" then
         return button == "RightButton" and IsAltKeyDown()
@@ -310,6 +312,17 @@ end
 -- =========================================================
 function mod:OnEnable()
     if not mod.db then return end
+
+    -- One-time migration: previous default modifier was "shift-right".
+    -- Switch existing users to the new "right" default. If a user actively
+    -- prefers shift/alt/ctrl, they can change it back in the dropdown.
+    if not mod.db._defaultMigrated_v2 then
+        if mod.db.modifier == "shift-right" then
+            mod.db.modifier = "right"
+        end
+        mod.db._defaultMigrated_v2 = true
+    end
+
     hookSlots()
 end
 
@@ -325,11 +338,12 @@ function mod:GetOptions()
         { type = "dropdown", label = L["Activation modifier"],
           tooltip = L["Choose which key combination opens the item picker when you click an equipment slot."],
           values = {
+              { value = "right",       text = L["Right-click only"] },
               { value = "shift-right", text = L["Shift + Right-click"] },
               { value = "alt-right",   text = L["Alt + Right-click"] },
               { value = "ctrl-right",  text = L["Ctrl + Right-click"] },
           },
-          get = function() return mod.db.modifier or "shift-right" end,
+          get = function() return mod.db.modifier or "right" end,
           set = function(_, v) mod.db.modifier = v end },
 
         { type = "slider", label = L["Grid columns"],
