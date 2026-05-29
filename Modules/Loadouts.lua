@@ -153,12 +153,17 @@ local function equipLoadout(name)
         ns:Print(string.format(L["Loadout '%s' does not exist."], name))
         return
     end
-    if not UseContainerItem then
+    if not UseContainerItem and not _G.EquipItemByName then
         ns:Print(L["Equipment swap API not available on this client."])
         return
     end
 
     local swapped, missing = 0, 0
+    -- Two-pass strategy:
+    --   Pass 1 — for symmetric slots (rings 11/12, trinkets 13/14),
+    --            UseContainerItem always picks slot 11 / 13 → wrong.
+    --            We use EquipItemByName(link, targetSlot) which respects the slot.
+    --   Pass 2 — for everything else, UseContainerItem is fine (only one valid slot).
     for slot, link in pairs(loadout.slots) do
         local currentLink = GetInventoryItemLink("player", slot)
         if currentLink ~= link then
@@ -166,7 +171,13 @@ local function equipLoadout(name)
             if itemID then
                 local bag, bagSlot = findItemInBags(itemID)
                 if bag and bagSlot then
-                    pcall(UseContainerItem, bag, bagSlot)
+                    -- Prefer EquipItemByName with explicit slot — it's the only API
+                    -- that lets us target slot 12 or 14 specifically.
+                    if _G.EquipItemByName then
+                        pcall(_G.EquipItemByName, link, slot)
+                    else
+                        pcall(UseContainerItem, bag, bagSlot)
+                    end
                     swapped = swapped + 1
                 else
                     missing = missing + 1
