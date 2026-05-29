@@ -93,6 +93,38 @@ local function findItemInBags(targetItemID)
     return nil
 end
 
+-- =========================================================
+-- Equip a bag item into a SPECIFIC inventory slot.
+-- UseContainerItem ignores the destination slot and always picks the first
+-- valid one — that's why paired slots (rings 11/12, trinkets 13/14) always
+-- ended up in the upper slot. EquipCursorItem(slot) is the only reliable API
+-- that honours the exact target slot: pick the item onto the cursor, then
+-- equip the cursor into the requested slot.
+-- Shared with SlotPicker via ns:EquipBagItemToSlot.
+-- =========================================================
+local _PickupContainerItem = (C_Container and C_Container.PickupContainerItem) or _G.PickupContainerItem
+
+function ns:EquipBagItemToSlot(bag, bagSlot, equipSlot)
+    if InCombatLockdown() then return false, "combat" end
+    if not _PickupContainerItem or not _G.EquipCursorItem then return false, "noapi" end
+
+    ClearCursor()
+    _PickupContainerItem(bag, bagSlot)
+    -- Verify the pickup actually grabbed something
+    if CursorHasItem and not CursorHasItem() then
+        return false, "pickup"
+    end
+    -- EquipCursorItem honours the explicit slot (unlike UseContainerItem)
+    local ok = pcall(_G.EquipCursorItem, equipSlot)
+    -- Only clear if something is still stuck on the cursor (e.g. equip failed).
+    -- A BoE-confirm popup leaves the item reserved — don't yank it back, let
+    -- the player confirm. If equip succeeded the cursor is already empty.
+    if CursorHasItem and CursorHasItem() then
+        ClearCursor()
+    end
+    return ok
+end
+
 local function countSlots(loadout)
     local n = 0
     if loadout and loadout.slots then
@@ -187,21 +219,16 @@ local function equipLoadout(name)
         ns:Print(string.format(L["Loadout '%s' does not exist."], name))
         return
     end
-    if not UseContainerItem and not _G.EquipItemByName then
+    if not _PickupContainerItem and not UseContainerItem then
         ns:Print(L["Equipment swap API not available on this client."])
         return
     end
 
     local swapped, missing = 0, 0
-    -- Sorted-ascending iteration is critical for paired slots (rings 11/12,
-    -- trinkets 13/14): UseContainerItem only sees an INVTYPE, not the target
-    -- slot, so it prefers the FIRST matching slot. By equipping slot 11 (resp.
-    -- 13) before 12 (resp. 14) we guarantee that the first slot is occupied
-    -- by the time we get to the second slot, so WoW's auto-placement puts the
-    -- second ring/trinket into the only remaining valid slot.
-    --   We also try EquipItemByName(link, slot) first — it accepts an explicit
-    -- slot parameter and works on retail; in Anniversary it sometimes ignores
-    -- the slot, so the sorted UseContainerItem fallback compensates.
+    -- Sorted ascending so paired slots resolve predictably (11 before 12,
+    -- 13 before 14). We equip via ns:EquipBagItemToSlot which uses
+    -- EquipCursorItem(slot) — that honours the exact destination slot, so
+    -- ring2/trinket2 land in slot 12/14 instead of always the upper slot.
     local sortedSlots = {}
     for slot in pairs(loadout.slots) do table.insert(sortedSlots, slot) end
     table.sort(sortedSlots)
@@ -214,9 +241,9 @@ local function equipLoadout(name)
             if itemID then
                 local bag, bagSlot = findItemInBags(itemID)
                 if bag and bagSlot then
-                    if _G.EquipItemByName then
-                        pcall(_G.EquipItemByName, link, slot)
-                    else
+                    local ok = ns:EquipBagItemToSlot(bag, bagSlot, slot)
+                    if not ok and UseContainerItem then
+                        -- Fallback for non-paired slots if cursor method failed
                         pcall(UseContainerItem, bag, bagSlot)
                     end
                     swapped = swapped + 1

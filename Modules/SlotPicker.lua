@@ -190,8 +190,14 @@ local function getItemButton(idx)
             ns:Print(L["Cannot change equipment in combat."])
             return
         end
-        if button == "LeftButton" and self.bag and self.slot and UseContainerItem then
-            pcall(UseContainerItem, self.bag, self.slot)
+        if button == "LeftButton" and self.bag and self.slot then
+            -- Use the slot-aware equip helper (honours the exact target slot,
+            -- so picking for the lower ring/trinket slot works correctly).
+            if self.equipSlot and ns.EquipBagItemToSlot then
+                ns:EquipBagItemToSlot(self.bag, self.slot, self.equipSlot)
+            elseif UseContainerItem then
+                pcall(UseContainerItem, self.bag, self.slot)
+            end
             popup:Hide()
         end
     end)
@@ -242,9 +248,10 @@ local function showSlotPicker(slotID)
         for i, entry in ipairs(results) do
             local btn = getItemButton(i)
             btn:Show()
-            btn.bag    = entry.bag
-            btn.slot   = entry.slot
-            btn.itemID = entry.itemID
+            btn.bag      = entry.bag
+            btn.slot     = entry.slot
+            btn.itemID   = entry.itemID
+            btn.equipSlot = slotID  -- the character slot this picker is for
 
             -- Set icon
             local iconTex = entry.icon
