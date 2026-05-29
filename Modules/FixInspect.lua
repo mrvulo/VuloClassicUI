@@ -41,20 +41,28 @@ local _watchdog
 
 -- =========================================================
 -- Core reset
+--   softReset: clears server state + tracking, KEEPS InspectFrame.unit
+--              (used BEFORE NotifyInspect/InspectUnit — Blizzard sets unit
+--               right after, so clearing would break tooltips)
+--   hardReset: also clears InspectFrame.unit (used in OnHide / manual reset
+--              where the frame is about to close anyway)
 -- =========================================================
-local function fullReset()
+local function softReset()
     if _G.ClearInspectPlayer then
         pcall(_G.ClearInspectPlayer)
     end
-    -- Invalidate UI's cached unit so next inspect doesn't show old data
-    local f = _G.InspectFrame
-    if f then f.unit = nil end
     _activeGUID = nil
     _activeTime = 0
 end
 
+local function hardReset()
+    softReset()
+    local f = _G.InspectFrame
+    if f then f.unit = nil end
+end
+
 local function onInspectReady()
-    -- Server responded — clean our tracking, but don't full-reset (UI uses the data)
+    -- Server responded — clean our tracking, but don't reset (UI uses the data)
     _activeGUID = nil
     _activeTime = 0
 end
@@ -69,7 +77,9 @@ local function installNotifyInspectWrapper()
     _origNotifyInspect = _G.NotifyInspect
     _G.NotifyInspect = function(unit)
         if mod._enabled and mod.db and mod.db.aggressiveReset then
-            fullReset()  -- BEFORE the request → fresh state
+            -- soft: don't touch InspectFrame.unit — Blizzard sets it right after
+            -- and clearing here would break tooltips
+            softReset()
         end
         if unit and UnitExists(unit) then
             _activeGUID = UnitGUID(unit)
@@ -84,7 +94,7 @@ local function installInspectUnitWrapper()
     _origInspectUnit = _G.InspectUnit
     _G.InspectUnit = function(unit)
         if mod._enabled and mod.db and mod.db.aggressiveReset then
-            fullReset()  -- right-click menu route → also clean
+            softReset()  -- right-click menu route → also clean (soft only)
         end
         return _origInspectUnit(unit)
     end
@@ -94,22 +104,23 @@ local function hookInspectFrame()
     if _hookedFrame then return end
     local f = _G.InspectFrame
     if not f then return end
-    -- Aggressive cleanup on close — Blizzard doesn't do this reliably
+    -- Full cleanup on close (frame is about to disappear → safe to clear unit)
     f:HookScript("OnHide", function()
-        if mod._enabled then fullReset() end
+        if mod._enabled then hardReset() end
     end)
     _hookedFrame = true
 end
 
 -- =========================================================
 -- Watchdog: tighter 5s timeout
+-- Soft reset only — frame might still be open with valid data
 -- =========================================================
 local function watchdogTick()
     if not mod._enabled or not mod.db or not mod.db.autoReset then return end
     if _activeTime == 0 then return end
     local timeout = mod.db.timeoutSec or 5
     if GetTime() - _activeTime > timeout then
-        fullReset()
+        softReset()
     end
 end
 
@@ -118,7 +129,7 @@ end
 -- =========================================================
 _G.SLASH_VCUIINSPECTRESET1 = "/inspectreset"
 _G.SlashCmdList["VCUIINSPECTRESET"] = function()
-    fullReset()
+    hardReset()
     if _G.InspectFrame and _G.InspectFrame:IsShown() then
         _G.InspectFrame:Hide()
     end
@@ -214,7 +225,7 @@ function mod:GetOptions()
         { type = "header", text = L["Manual Reset"] },
         { type = "button", label = L["Reset inspect state now"], width = 240,
           onClick = function()
-              fullReset()
+              hardReset()
               if _G.InspectFrame and _G.InspectFrame:IsShown() then
                   _G.InspectFrame:Hide()
               end
