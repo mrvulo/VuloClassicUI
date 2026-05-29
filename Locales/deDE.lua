@@ -91,6 +91,7 @@ ns:RegisterLocale("deDE", {
     ["SlotPicker module is required for editing item slots."] = "Das SlotPicker-Modul ist nötig um Item-Slots zu bearbeiten.",
     ["Empty: %s"] = "Leer: %s",
     ["Left-click to pick an item from your bags"] = "Linksklick um ein Item aus den Taschen zu wählen",
+    ["(equipped)"] = "(angelegt)",
 
     -- SlotPicker
     ["Slot Picker"] = "Slot-Auswahl",

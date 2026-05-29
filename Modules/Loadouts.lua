@@ -508,32 +508,74 @@ local function showSlotReplacePicker(loadoutName, targetSlot, anchor)
         return
     end
 
-    local results  = ns:ScanBagsForSlot(targetSlot)
+    local GetContainerItemLink_ = (C_Container and C_Container.GetContainerItemLink) or _G.GetContainerItemLink
+
+    -- Build a unified candidate list:
+    --   1) Currently equipped item in that slot (if any) — common case where
+    --      the desired item is on the character, not in a bag
+    --   2) For Trinkets/Rings (paired slots), the OTHER slot's equipped item too
+    --      (you may want trinket1 to be what's currently in trinket2)
+    --   3) All compatible items found in bags by ns:ScanBagsForSlot
+    -- De-dupes by itemID so we don't show the same physical item twice.
+    local candidates = {}  -- ordered list of { link, label, sourceTag }
+    local seenItemID = {}
+
+    local function addCandidate(link, label)
+        if not link then return end
+        local itemID = tonumber(link:match("item:(%d+)"))
+        if not itemID or seenItemID[itemID] then return end
+        seenItemID[itemID] = true
+        table.insert(candidates, { link = link, label = label })
+    end
+
+    -- 1) Currently equipped at this slot
+    local currentLink = GetInventoryItemLink("player", targetSlot)
+    if currentLink then
+        local name = currentLink:match("|h%[(.-)%]|h") or currentLink
+        addCandidate(currentLink, name .. " |cff66ff66" .. L["(equipped)"] .. "|r")
+    end
+
+    -- 2) Paired slot for symmetric pairs (rings 11/12, trinkets 13/14)
+    local PAIRS = { [11] = 12, [12] = 11, [13] = 14, [14] = 13 }
+    local pairedSlot = PAIRS[targetSlot]
+    if pairedSlot then
+        local pairedLink = GetInventoryItemLink("player", pairedSlot)
+        if pairedLink then
+            local name = pairedLink:match("|h%[(.-)%]|h") or pairedLink
+            addCandidate(pairedLink, name .. " |cff8888ffin " .. (SLOT_NAMES[pairedSlot] or "?") .. "|r")
+        end
+    end
+
+    -- 3) Bag scan
+    local bagResults = ns:ScanBagsForSlot(targetSlot)
+    for _, entry in ipairs(bagResults) do
+        local link = GetContainerItemLink_ and GetContainerItemLink_(entry.bag, entry.slot)
+        if link then
+            local name = link:match("|h%[(.-)%]|h") or link
+            addCandidate(link, name)
+        end
+    end
+
     local slotName = SLOT_NAMES[targetSlot] or ("Slot " .. targetSlot)
     local entries  = {
         { title = true, text = string.format(L["Replace: %s"], slotName) },
     }
 
-    local GetContainerItemLink_ = (C_Container and C_Container.GetContainerItemLink) or _G.GetContainerItemLink
-    if #results == 0 then
+    if #candidates == 0 then
         table.insert(entries, { text = L["No matching items in your bags."], disabled = true })
     else
-        for _, entry in ipairs(results) do
-            local link = GetContainerItemLink_ and GetContainerItemLink_(entry.bag, entry.slot)
-            if link then
-                local capturedLink = link
-                local itemName     = link:match("|h%[(.-)%]|h") or link
-                table.insert(entries, {
-                    text = "  " .. itemName,
-                    func = function()
-                        if mod.db.loadouts[loadoutName] then
-                            mod.db.loadouts[loadoutName].slots[targetSlot] = capturedLink
-                            refreshSidebar()
-                            ns:Print(string.format(L["Loadout '%s': slot updated."], loadoutName))
-                        end
-                    end,
-                })
-            end
+        for _, c in ipairs(candidates) do
+            local capturedLink = c.link
+            table.insert(entries, {
+                text = "  " .. c.label,
+                func = function()
+                    if mod.db.loadouts[loadoutName] then
+                        mod.db.loadouts[loadoutName].slots[targetSlot] = capturedLink
+                        refreshSidebar()
+                        ns:Print(string.format(L["Loadout '%s': slot updated."], loadoutName))
+                    end
+                end,
+            })
         end
     end
 
