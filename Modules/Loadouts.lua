@@ -566,14 +566,18 @@ function mod:GetOptions()
         for _, name in ipairs(names) do
             local capturedName = name  -- closure capture
             local slotCount = countSlots(mod.db.loadouts[name])
-            -- Row 1: name + Equip/Overwrite/Delete
+
+            -- Row 1: name + item count (full width, separate line)
+            table.insert(items, { type = "desc",
+                text = string.format("|cffffd100%s|r |cff888888(%d %s)|r",
+                    name, slotCount, L["items"]) })
+
+            -- Row 2: action buttons (under the name, fits properly in content width)
             table.insert(items, { type = "group", layout = "row", gap = 6,
                 items = {
-                    { type = "desc", text = string.format("|cffffd100%s|r |cff888888(%d %s)|r",
-                        name, slotCount, L["items"]) },
-                    { type = "button", label = L["Equip"], width = 80,
+                    { type = "button", label = L["Equip"], width = 100,
                       onClick = function() equipLoadout(capturedName) end },
-                    { type = "button", label = L["Overwrite"], width = 100,
+                    { type = "button", label = L["Overwrite"], width = 130,
                       onClick = function()
                           -- Preserve the original slot mask when overwriting
                           local oldSlots = mod.db.loadouts[capturedName].slots or {}
@@ -585,7 +589,7 @@ function mod:GetOptions()
                           }
                           ns:Print(string.format(L["Loadout '%s' updated with current gear."], capturedName))
                       end },
-                    { type = "button", label = L["Delete"], width = 80,
+                    { type = "button", label = L["Delete"], width = 100,
                       onClick = function()
                           if mod.db.confirmDelete then
                               local dlg = StaticPopup_Show("VCUI_LOADOUT_DELETE", capturedName)
@@ -597,7 +601,7 @@ function mod:GetOptions()
                 },
             })
 
-            -- Row 2: Auto-equip on form dropdown (only show if class has forms)
+            -- Row 3: Auto-equip on form dropdown (only show if class has forms)
             if hasForms then
                 table.insert(items, { type = "dropdown",
                     label = L["Auto-equip on form"],
@@ -618,6 +622,9 @@ function mod:GetOptions()
                     end,
                 })
             end
+
+            -- Separator before next loadout
+            table.insert(items, { type = "spacer", height = 4 })
         end
     end
 
