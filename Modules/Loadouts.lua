@@ -18,8 +18,13 @@ local mod = ns:RegisterModule("loadouts", {
     description = L["Save and quickly equip gear sets for different specs, content, or roles."],
     defaults = {
         enabled       = true,
-        loadouts      = {},   -- { [name] = { slots = { [slotID] = itemLink, ... }, createdAt = epoch } }
+        loadouts      = {},   -- { [name] = { slots = { [slotID] = itemLink, ... }, createdAt = epoch, formIdx = nil } }
         confirmDelete = true,
+        -- Minimap button
+        minimap = { hidden = false, angle = -45 },
+        -- Auto-switch on stance/form change: [formIndex] = "loadoutName"
+        autoSwitchEnabled = true,
+        formMapping       = {},
     },
 })
 
@@ -33,6 +38,26 @@ local UseContainerItem      = (C_Container and C_Container.UseContainerItem)    
 -- Equipment slots we capture (skip shirt=4 and tabard=19)
 local EQUIP_SLOTS = { 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18 }
 
+-- Slot display names (for UI / pickers)
+local SLOT_NAMES = {
+    [1]  = L["Head"],    [2]  = L["Neck"],     [3]  = L["Shoulder"],
+    [5]  = L["Chest"],   [6]  = L["Waist"],    [7]  = L["Legs"],
+    [8]  = L["Feet"],    [9]  = L["Wrist"],    [10] = L["Hands"],
+    [11] = L["Finger 1"], [12] = L["Finger 2"],
+    [13] = L["Trinket 1"], [14] = L["Trinket 2"],
+    [15] = L["Back"],
+    [16] = L["Main Hand"], [17] = L["Off Hand"], [18] = L["Ranged"],
+}
+
+-- Pre-defined slot groups for quick-save
+local SLOT_GROUPS = {
+    all      = EQUIP_SLOTS,
+    trinkets = { 13, 14 },
+    weapons  = { 16, 17, 18 },
+    rings    = { 11, 12 },
+    armor    = { 1, 3, 5, 6, 7, 8, 9, 10, 15 },
+}
+
 -- =========================================================
 -- Helpers
 -- =========================================================
@@ -41,9 +66,10 @@ local function getItemIDFromLink(link)
     return tonumber(link:match("item:(%d+)"))
 end
 
-local function captureCurrentEquipment()
+local function captureCurrentEquipment(slotList)
+    slotList = slotList or EQUIP_SLOTS
     local set = {}
-    for _, slot in ipairs(EQUIP_SLOTS) do
+    for _, slot in ipairs(slotList) do
         local link = GetInventoryItemLink("player", slot)
         if link then set[slot] = link end
     end
@@ -85,17 +111,25 @@ end
 -- =========================================================
 -- Core operations
 -- =========================================================
-local function saveAs(name)
+local function saveAs(name, slotList)
     if not name or name == "" then
         ns:Print(L["Please provide a name for the loadout."])
         return
     end
     mod.db.loadouts[name] = {
-        slots     = captureCurrentEquipment(),
+        slots     = captureCurrentEquipment(slotList),
         createdAt = time(),
     }
     ns:Print(string.format(L["Loadout '%s' saved (%d items)."],
         name, countSlots(mod.db.loadouts[name])))
+end
+
+-- Pending slot list for the StaticPopup (popups have no parameter passing on Show)
+local _pendingSaveSlots = nil
+
+local function promptSaveWithSlots(slotList)
+    _pendingSaveSlots = slotList
+    StaticPopup_Show("VCUI_LOADOUT_SAVE")
 end
 
 local function deleteLoadout(name)
@@ -178,13 +212,19 @@ StaticPopupDialogs["VCUI_LOADOUT_SAVE"] = {
     hasEditBox = true,
     maxLetters = 32,
     OnAccept = function(self)
-        saveAs(self.editBox:GetText())
+        saveAs(self.editBox:GetText(), _pendingSaveSlots)
+        _pendingSaveSlots = nil
     end,
     EditBoxOnEnterPressed = function(self)
-        saveAs(self:GetText())
+        saveAs(self:GetText(), _pendingSaveSlots)
+        _pendingSaveSlots = nil
         self:GetParent():Hide()
     end,
-    EditBoxOnEscapePressed = function(self) self:GetParent():Hide() end,
+    OnCancel = function() _pendingSaveSlots = nil end,
+    EditBoxOnEscapePressed = function(self)
+        _pendingSaveSlots = nil
+        self:GetParent():Hide()
+    end,
     timeout = 0,
     whileDead = true,
     hideOnEscape = true,
@@ -242,28 +282,268 @@ _G.SlashCmdList["VCUILOADOUT"] = function(msg)
 end
 
 -- =========================================================
+-- Minimap button
+-- =========================================================
+local mmBtn
+
+local function updateMinimapPos()
+    if not mmBtn then return end
+    local angle = (mod.db.minimap and mod.db.minimap.angle) or -45
+    local rad = math.rad(angle)
+    local r = 80  -- distance from minimap center
+    local x = r * math.cos(rad)
+    local y = r * math.sin(rad)
+    mmBtn:ClearAllPoints()
+    mmBtn:SetPoint("CENTER", Minimap, "CENTER", x, y)
+end
+
+local _menuFrame
+local function showLoadoutMenu(anchor)
+    if not _menuFrame then
+        _menuFrame = CreateFrame("Frame", "VCUI_LoadoutsMenu", UIParent, "UIDropDownMenuTemplate")
+    end
+    local menuItems = {
+        { text = L["Loadouts"], isTitle = true, notCheckable = true },
+    }
+    local names = sortedLoadoutNames()
+    if #names == 0 then
+        table.insert(menuItems, { text = L["No loadouts saved yet."], disabled = true, notCheckable = true })
+    else
+        for _, name in ipairs(names) do
+            local capturedName = name
+            table.insert(menuItems, {
+                text = name,
+                notCheckable = true,
+                func = function() equipLoadout(capturedName) end,
+            })
+        end
+    end
+    table.insert(menuItems, { text = "", disabled = true, notCheckable = true })
+    table.insert(menuItems, {
+        text = L["Save current as new..."],
+        notCheckable = true,
+        func = function() promptSaveWithSlots(nil) end,
+    })
+    table.insert(menuItems, {
+        text = L["Save trinkets only..."],
+        notCheckable = true,
+        func = function() promptSaveWithSlots(SLOT_GROUPS.trinkets) end,
+    })
+    table.insert(menuItems, {
+        text = L["Save weapons only..."],
+        notCheckable = true,
+        func = function() promptSaveWithSlots(SLOT_GROUPS.weapons) end,
+    })
+    table.insert(menuItems, { text = "", disabled = true, notCheckable = true })
+    table.insert(menuItems, {
+        text = L["Settings..."],
+        notCheckable = true,
+        func = function() if ns.OpenConfig then ns:OpenConfig("loadouts") end end,
+    })
+    if _G.EasyMenu then
+        EasyMenu(menuItems, _menuFrame, anchor or "cursor", 0, 0, "MENU", 5)
+    end
+end
+
+local function createMinimapButton()
+    if mmBtn then return end
+    if not Minimap then return end
+
+    mmBtn = CreateFrame("Button", "VCUI_LoadoutsMinimapButton", Minimap)
+    mmBtn:SetSize(31, 31)
+    mmBtn:SetFrameStrata("MEDIUM")
+    mmBtn:SetFrameLevel(8)
+
+    -- Icon (equipment armor icon)
+    local icon = mmBtn:CreateTexture(nil, "BACKGROUND")
+    icon:SetTexture("Interface\\Icons\\INV_Chest_Plate06")
+    icon:SetSize(20, 20)
+    icon:SetPoint("CENTER")
+    icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)  -- crop default border
+
+    -- Round border (Blizzard minimap style)
+    local border = mmBtn:CreateTexture(nil, "OVERLAY")
+    border:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
+    border:SetSize(54, 54)
+    border:SetPoint("TOPLEFT", -6, 8)
+
+    mmBtn:SetMovable(true)
+    mmBtn:RegisterForClicks("AnyUp")
+    mmBtn:RegisterForDrag("LeftButton")
+
+    -- Drag to reposition around minimap (saved as angle)
+    mmBtn:SetScript("OnDragStart", function(self)
+        self:SetScript("OnUpdate", function()
+            local mx, my = Minimap:GetCenter()
+            local sx, sy = GetCursorPosition()
+            local scale = UIParent:GetEffectiveScale() or 1
+            sx, sy = sx / scale, sy / scale
+            local angle = math.deg(math.atan2(sy - my, sx - mx))
+            mod.db.minimap = mod.db.minimap or {}
+            mod.db.minimap.angle = angle
+            updateMinimapPos()
+        end)
+    end)
+    mmBtn:SetScript("OnDragStop", function(self)
+        self:SetScript("OnUpdate", nil)
+    end)
+
+    mmBtn:SetScript("OnClick", function(self, button)
+        if button == "LeftButton" then
+            showLoadoutMenu(self)
+        elseif button == "RightButton" then
+            if ns.OpenConfig then ns:OpenConfig("loadouts") end
+        end
+    end)
+
+    mmBtn:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+        GameTooltip:AddLine("|cff9b6cffLoadouts|r")
+        GameTooltip:AddLine(L["Left-click: switch set"], 1, 1, 1)
+        GameTooltip:AddLine(L["Right-click: settings"], 1, 1, 1)
+        GameTooltip:AddLine(L["Drag: reposition"], 0.6, 0.6, 0.6)
+        GameTooltip:Show()
+    end)
+    mmBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+    updateMinimapPos()
+
+    if mod.db.minimap and mod.db.minimap.hidden then
+        mmBtn:Hide()
+    end
+end
+
+local function applyMinimapVisibility()
+    if not mmBtn then return end
+    if mod.db.minimap and mod.db.minimap.hidden then
+        mmBtn:Hide()
+    else
+        mmBtn:Show()
+    end
+end
+
+-- =========================================================
+-- Stance/Form auto-switching
+-- =========================================================
+local _lastForm = -1
+
+local function getCurrentForm()
+    if not GetShapeshiftForm then return 0 end
+    return GetShapeshiftForm() or 0
+end
+
+local function getFormName(formIdx)
+    if formIdx == 0 then return L["No Form"] end
+    if GetShapeshiftFormInfo then
+        local _, name = pcall(GetShapeshiftFormInfo, formIdx)
+        if type(name) == "string" and name ~= "" then return name end
+    end
+    return string.format(L["Form %d"], formIdx)
+end
+
+local function onShapeshiftChange()
+    if not mod._enabled or not mod.db then return end
+    if not mod.db.autoSwitchEnabled then return end
+    if InCombatLockdown() then return end
+
+    local currentForm = getCurrentForm()
+    if currentForm == _lastForm then return end
+    _lastForm = currentForm
+
+    -- formMapping is keyed by loadout name → form index (1:1).
+    -- Reverse-look up to find which loadout is bound to the current form.
+    if not mod.db.formMapping then return end
+    for loadoutName, formIdx in pairs(mod.db.formMapping) do
+        if formIdx == currentForm and mod.db.loadouts[loadoutName] then
+            equipLoadout(loadoutName)
+            return
+        end
+    end
+end
+
+-- =========================================================
 -- Lifecycle
 -- =========================================================
 function mod:OnEnable()
     if not mod.db then return end
-    -- Defensive: ensure table exists even if profile is fresh
-    mod.db.loadouts = mod.db.loadouts or {}
+    -- Defensive: ensure tables exist even if profile is fresh
+    mod.db.loadouts    = mod.db.loadouts    or {}
+    mod.db.formMapping = mod.db.formMapping or {}
+    mod.db.minimap     = mod.db.minimap     or { hidden = false, angle = -45 }
+
+    -- Create minimap button (deferred so Minimap definitely exists)
+    if C_Timer and C_Timer.After then
+        C_Timer.After(0.5, createMinimapButton)
+    else
+        createMinimapButton()
+    end
+
+    -- Hook stance/form events
+    ns:RegisterEvent("UPDATE_SHAPESHIFT_FORM",  onShapeshiftChange)
+    ns:RegisterEvent("UPDATE_SHAPESHIFT_FORMS", onShapeshiftChange)
+    ns:RegisterEvent("PLAYER_REGEN_ENABLED",    onShapeshiftChange)  -- retry leaving combat
+
+    _lastForm = getCurrentForm()
+end
+
+function mod:OnDisable()
+    ns:UnregisterEvent("UPDATE_SHAPESHIFT_FORM",  onShapeshiftChange)
+    ns:UnregisterEvent("UPDATE_SHAPESHIFT_FORMS", onShapeshiftChange)
+    ns:UnregisterEvent("PLAYER_REGEN_ENABLED",    onShapeshiftChange)
+    if mmBtn then mmBtn:Hide() end
 end
 
 -- =========================================================
 -- Options UI
 -- =========================================================
+-- Build a list of available form indices for dropdown values
+local function buildFormDropdownValues()
+    local values = { { value = 0, text = L["None"] } }
+    -- Add all known shapeshift forms (max 6 in Anniversary classes)
+    local numForms = (GetNumShapeshiftForms and GetNumShapeshiftForms()) or 0
+    for i = 1, numForms do
+        table.insert(values, { value = i, text = getFormName(i) })
+    end
+    return values
+end
+
 function mod:GetOptions()
     local items = {
         { type = "header", text = L["Loadouts"] },
         { type = "desc", text = L["Save your current equipment as named gear sets and quickly switch between them. Equipping requires you to be out of combat — items in your bags are auto-equipped via Use."] },
 
         { type = "spacer", height = 6 },
-        { type = "button", label = L["Save current equipment as new loadout..."], width = 320,
-          onClick = function() StaticPopup_Show("VCUI_LOADOUT_SAVE") end },
+        { type = "group", layout = "row", gap = 6,
+          items = {
+              { type = "button", label = L["Save All..."], width = 130,
+                onClick = function() promptSaveWithSlots(nil) end },
+              { type = "button", label = L["Save Trinkets..."], width = 130,
+                onClick = function() promptSaveWithSlots(SLOT_GROUPS.trinkets) end },
+              { type = "button", label = L["Save Weapons..."], width = 130,
+                onClick = function() promptSaveWithSlots(SLOT_GROUPS.weapons) end },
+          },
+        },
         { type = "toggle", label = L["Confirm before deleting a loadout"],
           get = function() return mod.db.confirmDelete ~= false end,
           set = function(_, v) mod.db.confirmDelete = v end },
+
+        { type = "spacer", height = 6 },
+        { type = "header", text = L["Minimap Button"] },
+        { type = "toggle", label = L["Show minimap button"],
+          tooltip = L["Left-click for a quick set-switcher menu, right-click to open settings, drag to reposition."],
+          get = function() return not (mod.db.minimap and mod.db.minimap.hidden) end,
+          set = function(_, v)
+              mod.db.minimap = mod.db.minimap or {}
+              mod.db.minimap.hidden = not v
+              applyMinimapVisibility()
+          end },
+
+        { type = "spacer", height = 6 },
+        { type = "header", text = L["Auto-Switch on Stance/Form"] },
+        { type = "toggle", label = L["Enable auto-switching"],
+          tooltip = L["Automatically equips a loadout when your stance/form changes (warrior stances, druid forms). Out-of-combat only — if a stance change happens in combat, the swap is deferred until combat ends."],
+          get = function() return mod.db.autoSwitchEnabled ~= false end,
+          set = function(_, v) mod.db.autoSwitchEnabled = v end },
 
         { type = "spacer", height = 8 },
         { type = "header", text = L["Saved Loadouts"] },
@@ -273,9 +553,13 @@ function mod:GetOptions()
     if #names == 0 then
         table.insert(items, { type = "desc", text = L["|cffaaaaaaNo loadouts saved yet. Use the button above to save your current gear.|r"] })
     else
+        local formValues = buildFormDropdownValues()
+        local hasForms = #formValues > 1  -- 1 = only "None" → no stance class
+
         for _, name in ipairs(names) do
             local capturedName = name  -- closure capture
             local slotCount = countSlots(mod.db.loadouts[name])
+            -- Row 1: name + Equip/Overwrite/Delete
             table.insert(items, { type = "group", layout = "row", gap = 6,
                 items = {
                     { type = "desc", text = string.format("|cffffd100%s|r |cff888888(%d %s)|r",
@@ -284,8 +568,12 @@ function mod:GetOptions()
                       onClick = function() equipLoadout(capturedName) end },
                     { type = "button", label = L["Overwrite"], width = 100,
                       onClick = function()
+                          -- Preserve the original slot mask when overwriting
+                          local oldSlots = mod.db.loadouts[capturedName].slots or {}
+                          local slotList = {}
+                          for s in pairs(oldSlots) do table.insert(slotList, s) end
                           mod.db.loadouts[capturedName] = {
-                              slots = captureCurrentEquipment(),
+                              slots     = captureCurrentEquipment(#slotList > 0 and slotList or nil),
                               createdAt = time(),
                           }
                           ns:Print(string.format(L["Loadout '%s' updated with current gear."], capturedName))
@@ -301,6 +589,28 @@ function mod:GetOptions()
                       end },
                 },
             })
+
+            -- Row 2: Auto-equip on form dropdown (only show if class has forms)
+            if hasForms then
+                table.insert(items, { type = "dropdown",
+                    label = L["Auto-equip on form"],
+                    tooltip = L["Equip this loadout automatically when the chosen stance/form is activated."],
+                    values = formValues,
+                    get = function() return (mod.db.formMapping and mod.db.formMapping[capturedName]) or 0 end,
+                    set = function(_, v)
+                        mod.db.formMapping = mod.db.formMapping or {}
+                        -- Clear any other loadout currently mapped to this form (1:1 mapping)
+                        if v and v ~= 0 then
+                            for other, formIdx in pairs(mod.db.formMapping) do
+                                if formIdx == v and other ~= capturedName then
+                                    mod.db.formMapping[other] = nil
+                                end
+                            end
+                        end
+                        mod.db.formMapping[capturedName] = (v ~= 0) and v or nil
+                    end,
+                })
+            end
         end
     end
 

@@ -45,6 +45,39 @@ ns:RegisterLocale("deDE", {
     ["Usage: /loadout equip <name> | save <name> | delete <name> | list"] = "Benutzung: /loadout equip <Name> | save <Name> | delete <Name> | list",
     ["Usage: /loadout delete <name>"] = "Benutzung: /loadout delete <Name>",
     ["|cffaaaaaaSlash commands: /loadout save <name>, /loadout equip <name>, /loadout delete <name>, /loadout list. Short alias: /lo|r"] = "|cffaaaaaaSlash-Befehle: /loadout save <Name>, /loadout equip <Name>, /loadout delete <Name>, /loadout list. Kurzform: /lo|r",
+    -- Slot names
+    ["Head"] = "Kopf", ["Neck"] = "Hals", ["Shoulder"] = "Schulter",
+    ["Chest"] = "Brust", ["Waist"] = "Taille", ["Legs"] = "Beine",
+    ["Feet"] = "Füße", ["Wrist"] = "Handgelenk", ["Hands"] = "Hände",
+    ["Finger 1"] = "Finger 1", ["Finger 2"] = "Finger 2",
+    ["Trinket 1"] = "Schmuckstück 1", ["Trinket 2"] = "Schmuckstück 2",
+    ["Back"] = "Rücken",
+    ["Main Hand"] = "Haupthand", ["Off Hand"] = "Schildhand", ["Ranged"] = "Distanz",
+    -- Save modes
+    ["Save All..."] = "Alles speichern...",
+    ["Save Trinkets..."] = "Schmuckstücke speichern...",
+    ["Save Weapons..."] = "Waffen speichern...",
+    ["Save current as new..."] = "Aktuelle Ausrüstung als neu speichern...",
+    ["Save trinkets only..."] = "Nur Schmuckstücke speichern...",
+    ["Save weapons only..."] = "Nur Waffen speichern...",
+    ["Settings..."] = "Einstellungen...",
+    -- Minimap button
+    ["Minimap Button"] = "Minimap-Button",
+    ["Show minimap button"] = "Minimap-Button anzeigen",
+    ["Left-click for a quick set-switcher menu, right-click to open settings, drag to reposition."] = "Linksklick öffnet ein Schnellwahl-Menü, Rechtsklick öffnet die Einstellungen, Ziehen zum Verschieben.",
+    ["Left-click: switch set"] = "Linksklick: Set wechseln",
+    ["Right-click: settings"] = "Rechtsklick: Einstellungen",
+    ["Drag: reposition"] = "Ziehen: Verschieben",
+    -- Auto-switch
+    ["Auto-Switch on Stance/Form"] = "Auto-Wechsel bei Haltung/Gestalt",
+    ["Enable auto-switching"] = "Auto-Wechsel aktivieren",
+    ["Automatically equips a loadout when your stance/form changes (warrior stances, druid forms). Out-of-combat only — if a stance change happens in combat, the swap is deferred until combat ends."] = "Legt automatisch ein Set an, wenn deine Haltung/Gestalt wechselt (Krieger-Haltungen, Druiden-Gestalten). Nur außerhalb des Kampfes — bei einem Wechsel im Kampf wird der Swap bis nach dem Kampf verschoben.",
+    ["Auto-equip on form"] = "Auto-Anlegen bei Gestalt",
+    ["Equip this loadout automatically when the chosen stance/form is activated."] = "Legt dieses Set automatisch an, wenn die gewählte Haltung/Gestalt aktiviert wird.",
+    ["None"] = "Keine",
+    ["No Form"] = "Keine Gestalt",
+    ["Form %d"] = "Gestalt %d",
+    ["No loadouts saved"] = "Keine Sets gespeichert",
 
     -- =====================================================
     -- General UI / Common terms
