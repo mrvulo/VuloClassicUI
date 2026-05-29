@@ -938,21 +938,16 @@ local function createSidebar()
     sidebar:SetFrameStrata("HIGH")
     sidebar:Hide()
 
-    -- Anchor to the visible content area, not the outer CharacterFrame bounds
-    -- (CharacterFrame's portrait overhangs top + extended invisible logical
-    -- bottom area shift the apparent height). CharacterFrameInset / PaperDollFrame
-    -- track the actual visible body.
+    -- Match CharacterFrame's EXACT GetHeight() instead of using bottom-anchor:
+    -- some inset/paperdoll frames in Anniversary have extended bounds that
+    -- make the sidebar appear taller than the character window even when
+    -- both anchors are flush. Reading GetHeight() directly avoids that.
     local function anchorToCharacterFrame()
-        local anchor = _G.CharacterFrameInset or _G.PaperDollFrame or CharacterFrame
+        if not sidebar or not CharacterFrame then return end
         sidebar:ClearAllPoints()
-        if anchor == CharacterFrame then
-            -- Manual fallback offset for the portrait overhang at top
-            sidebar:SetPoint("TOPLEFT",    anchor, "TOPRIGHT", -4, -64)
-            sidebar:SetPoint("BOTTOMLEFT", anchor, "BOTTOMRIGHT", -4, 78)
-        else
-            sidebar:SetPoint("TOPLEFT",    anchor, "TOPRIGHT", 4, 0)
-            sidebar:SetPoint("BOTTOMLEFT", anchor, "BOTTOMRIGHT", 4, 0)
-        end
+        sidebar:SetPoint("TOPLEFT", CharacterFrame, "TOPRIGHT", -4, 0)
+        local h = CharacterFrame:GetHeight()
+        if h and h > 0 then sidebar:SetHeight(h) end
     end
     anchorToCharacterFrame()
     sidebar._reanchor = anchorToCharacterFrame
@@ -1009,6 +1004,7 @@ local function createSidebar()
     CharacterFrame:HookScript("OnShow", function()
         if mod._enabled and mod.db and mod.db.sidebarEnabled ~= false then
             sidebar:Show()
+            anchorToCharacterFrame()  -- re-sync size in case CharacterFrame changed
             refreshSidebar()
         end
     end)
