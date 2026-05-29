@@ -26,7 +26,9 @@ local mod = ns:RegisterModule("loadouts", {
         autoSwitchEnabled = true,
         formMapping       = {},
         -- Character-frame sidebar
-        sidebarEnabled    = true,
+        sidebarEnabled      = true,
+        sidebarTopOffset    = 0,   -- fine-tune top edge (px) vs CharacterFrame
+        sidebarBottomOffset = 0,   -- fine-tune bottom edge (px) vs CharacterFrame
     },
 })
 
@@ -323,6 +325,28 @@ _G.SlashCmdList["VCUILOADOUT"] = function(msg)
         end
     elseif cmd == "list" or cmd == "ls" then
         listLoadouts()
+    elseif cmd == "debug" then
+        if mod._debugSizes then mod._debugSizes() else ns:Print("Sidebar not created yet.") end
+    elseif cmd == "tune" then
+        -- /loadout tune top <n>  |  /loadout tune bottom <n>
+        local which, valStr = arg:match("^(%S+)%s*(%-?%d*)$")
+        local val = tonumber(valStr)
+        if which == "top" and val then
+            mod.db.sidebarTopOffset = val
+            if mod._reanchorSidebar then mod._reanchorSidebar() end
+            ns:Print(string.format("Sidebar top offset = %d", val))
+        elseif which == "bottom" and val then
+            mod.db.sidebarBottomOffset = val
+            if mod._reanchorSidebar then mod._reanchorSidebar() end
+            ns:Print(string.format("Sidebar bottom offset = %d", val))
+        elseif which == "reset" then
+            mod.db.sidebarTopOffset = 0
+            mod.db.sidebarBottomOffset = 0
+            if mod._reanchorSidebar then mod._reanchorSidebar() end
+            ns:Print("Sidebar offsets reset to 0.")
+        else
+            ns:Print("Usage: /loadout tune top <n> | tune bottom <n> | tune reset")
+        end
     else
         -- Treat unknown first word as a loadout name to equip
         if mod.db.loadouts[msg] then
@@ -955,19 +979,50 @@ local function createSidebar()
     sidebar:SetFrameStrata("HIGH")
     sidebar:Hide()
 
-    -- Match CharacterFrame's EXACT GetHeight() instead of using bottom-anchor:
-    -- some inset/paperdoll frames in Anniversary have extended bounds that
-    -- make the sidebar appear taller than the character window even when
-    -- both anchors are flush. Reading GetHeight() directly avoids that.
+    -- Anchor BOTH corners to CharacterFrame. This makes the sidebar height
+    -- track the character window dynamically and exactly — whatever the real
+    -- height is (even if another addon resizes CharacterFrame), top and bottom
+    -- always line up. No GetHeight() snapshot that can be measured at the wrong
+    -- time. The user-tunable offsets compensate if the frame bounds differ from
+    -- the visible backdrop on a given client.
     local function anchorToCharacterFrame()
         if not sidebar or not CharacterFrame then return end
+        local topOff = (mod.db and mod.db.sidebarTopOffset)    or 0
+        local botOff = (mod.db and mod.db.sidebarBottomOffset) or 0
         sidebar:ClearAllPoints()
-        sidebar:SetPoint("TOPLEFT", CharacterFrame, "TOPRIGHT", -4, 0)
-        local h = CharacterFrame:GetHeight()
-        if h and h > 0 then sidebar:SetHeight(h) end
+        sidebar:SetPoint("TOPLEFT",    CharacterFrame, "TOPRIGHT", -4, topOff)
+        sidebar:SetPoint("BOTTOMLEFT", CharacterFrame, "BOTTOMRIGHT", -4, botOff)
     end
     anchorToCharacterFrame()
     sidebar._reanchor = anchorToCharacterFrame
+    mod._reanchorSidebar = anchorToCharacterFrame
+
+    -- Debug: print real top/bottom/height of CharacterFrame vs the sidebar
+    mod._debugSizes = function()
+        local function dump(label, f)
+            if not f then
+                DEFAULT_CHAT_FRAME:AddMessage(string.format("  %s: |cffff5555nil|r", label))
+                return
+            end
+            local top    = f.GetTop    and f:GetTop()
+            local bottom = f.GetBottom and f:GetBottom()
+            local height = f.GetHeight and f:GetHeight()
+            DEFAULT_CHAT_FRAME:AddMessage(string.format(
+                "  %s: top=%s bottom=%s height=%s",
+                label,
+                top    and string.format("%.0f", top)    or "?",
+                bottom and string.format("%.0f", bottom) or "?",
+                height and string.format("%.0f", height) or "?"))
+        end
+        DEFAULT_CHAT_FRAME:AddMessage("|cff9b6cff[Loadouts size debug]|r")
+        dump("CharacterFrame",      _G.CharacterFrame)
+        dump("CharacterFrameInset", _G.CharacterFrameInset)
+        dump("PaperDollFrame",      _G.PaperDollFrame)
+        dump("Sidebar",             sidebar)
+        DEFAULT_CHAT_FRAME:AddMessage(string.format(
+            "  Offsets: top=%d bottom=%d",
+            mod.db.sidebarTopOffset or 0, mod.db.sidebarBottomOffset or 0))
+    end
 
     if sidebar.SetBackdrop then
         sidebar:SetBackdrop({
