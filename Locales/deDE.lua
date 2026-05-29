@@ -79,6 +79,21 @@ ns:RegisterLocale("deDE", {
     ["Form %d"] = "Gestalt %d",
     ["No loadouts saved"] = "Keine Sets gespeichert",
 
+    -- SlotPicker
+    ["Slot Picker"] = "Slot-Auswahl",
+    ["Shift+Right-click an equipment slot to show all compatible items from your bags. Click to equip."] = "Shift+Rechtsklick auf einen Ausrüstungs-Slot zeigt alle passenden Items aus deinen Taschen. Klick zum Anlegen.",
+    ["Modifier-click an equipment slot in the Character frame to open a popup with all compatible items from your bags. Click an item to equip it (out-of-combat)."] = "Modifier-Klick auf einen Ausrüstungs-Slot im Charakterfenster öffnet ein Popup mit allen passenden Items aus deinen Taschen. Klick zum Anlegen (außerhalb des Kampfes).",
+    ["Activation modifier"] = "Aktivierungs-Modifier",
+    ["Choose which key combination opens the item picker when you click an equipment slot."] = "Wähle welche Tastenkombination die Item-Auswahl beim Klick auf einen Slot öffnet.",
+    ["Shift + Right-click"] = "Shift + Rechtsklick",
+    ["Alt + Right-click"] = "Alt + Rechtsklick",
+    ["Ctrl + Right-click"] = "Strg + Rechtsklick",
+    ["Grid columns"] = "Spalten im Raster",
+    ["How many item icons per row in the picker popup."] = "Wie viele Item-Icons pro Reihe im Auswahl-Popup.",
+    ["Items for: %s"] = "Items für: %s",
+    ["No matching items in your bags."] = "Keine passenden Items in deinen Taschen.",
+    ["Item scanning API not available on this client."] = "Item-Scan-API auf diesem Client nicht verfügbar.",
+
     -- =====================================================
     -- General UI / Common terms
     -- =====================================================

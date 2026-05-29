@@ -60,6 +60,7 @@ Modules\GoldTracker.lua
 Modules\VTManaDisplay.lua
 Modules\CombatText.lua
 Modules\Loadouts.lua
+Modules\SlotPicker.lua
 Modules\FixAuctionDropdown.lua
 Modules\FixGuildNewsNil.lua
 Modules\FixLFGBrowseNil.lua
