@@ -113,6 +113,13 @@ end
 -- =========================================================
 -- Core operations
 -- =========================================================
+-- Copy a slot-id list (used as the intended mask)
+local function copySlotList(list)
+    local out = {}
+    for i, v in ipairs(list) do out[i] = v end
+    return out
+end
+
 local function saveAs(name, slotList)
     if not name or name == "" then
         ns:Print(L["Please provide a name for the loadout."])
@@ -120,6 +127,7 @@ local function saveAs(name, slotList)
     end
     mod.db.loadouts[name] = {
         slots     = captureCurrentEquipment(slotList),
+        slotMask  = copySlotList(slotList or EQUIP_SLOTS),
         createdAt = time(),
     }
     ns:Print(string.format(L["Loadout '%s' saved (%d items)."],
@@ -688,11 +696,15 @@ local function getItemButton(row, idx)
     b.iconBorder:SetBlendMode("ADD")
     b.iconBorder:Hide()
     b:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_LEFT")
         if self.link then
-            GameTooltip:SetOwner(self, "ANCHOR_LEFT")
             pcall(GameTooltip.SetHyperlink, GameTooltip, self.link)
-            GameTooltip:Show()
+        else
+            local slotName = SLOT_NAMES[self.targetSlot] or ("Slot " .. tostring(self.targetSlot))
+            GameTooltip:AddLine(string.format(L["Empty: %s"], slotName), 1, 0.82, 0)
+            GameTooltip:AddLine(L["Left-click to pick an item from your bags"], 0.7, 0.7, 0.7)
         end
+        GameTooltip:Show()
         self.iconBorder:Show()
     end)
     b:SetScript("OnLeave", function(self)
@@ -727,9 +739,12 @@ local function getItemRow(parent, index)
     return row
 end
 
+-- Default empty-slot placeholder texture
+local EMPTY_SLOT_ICON = "Interface\\PaperDoll\\UI-Backpack-EmptySlot"
+
 local function renderItemRow(row, loadoutName)
     local loadout = mod.db.loadouts and mod.db.loadouts[loadoutName]
-    if not loadout or not loadout.slots then
+    if not loadout then
         row:SetHeight(0)
         return
     end
@@ -737,24 +752,39 @@ local function renderItemRow(row, loadoutName)
     -- Hide leftover item buttons
     for _, b in ipairs(row.items) do b:Hide() end
 
-    -- Sort slots ascending for consistent display
-    local slotEntries = {}
-    for slot, link in pairs(loadout.slots) do
-        table.insert(slotEntries, { slot = slot, link = link })
-    end
-    table.sort(slotEntries, function(a, b) return a.slot < b.slot end)
-
-    for i, entry in ipairs(slotEntries) do
-        local b = getItemButton(row, i)
-        b.loadoutName = loadoutName
-        b.targetSlot  = entry.slot
-        b.link        = entry.link
-        local icon
-        if GetItemInfoInstant then
-            local _, _, _, _, ic = GetItemInfoInstant(entry.link)
-            icon = ic
+    -- Build display order from slotMask (intended slots) — fall back to slot keys for old data
+    local displaySlots = loadout.slotMask
+    if not displaySlots or #displaySlots == 0 then
+        displaySlots = {}
+        for slot in pairs(loadout.slots or {}) do
+            table.insert(displaySlots, slot)
         end
-        b.iconTex:SetTexture(icon or "Interface\\Icons\\INV_Misc_QuestionMark")
+    end
+    -- Sorted copy so display order is stable
+    local sortedSlots = {}
+    for _, s in ipairs(displaySlots) do table.insert(sortedSlots, s) end
+    table.sort(sortedSlots)
+
+    for i, slot in ipairs(sortedSlots) do
+        local b = getItemButton(row, i)
+        local link = loadout.slots and loadout.slots[slot]
+        b.loadoutName = loadoutName
+        b.targetSlot  = slot
+        b.link        = link
+
+        if link then
+            local icon
+            if GetItemInfoInstant then
+                local _, _, _, _, ic = GetItemInfoInstant(link)
+                icon = ic
+            end
+            b.iconTex:SetTexture(icon or "Interface\\Icons\\INV_Misc_QuestionMark")
+            b.iconTex:SetVertexColor(1, 1, 1)
+        else
+            -- Empty slot: show placeholder + dim color so it reads as "click to fill"
+            b.iconTex:SetTexture(EMPTY_SLOT_ICON)
+            b.iconTex:SetVertexColor(0.6, 0.6, 0.6)
+        end
 
         local col = (i - 1) % ITEM_COLS
         local rowIdx = math.floor((i - 1) / ITEM_COLS)
@@ -765,7 +795,7 @@ local function renderItemRow(row, loadoutName)
         b:Show()
     end
 
-    local rows = math.max(1, math.ceil(#slotEntries / ITEM_COLS))
+    local rows = math.max(1, math.ceil(#sortedSlots / ITEM_COLS))
     row:SetHeight(rows * (ITEM_SIZE + ITEM_PAD) + 2)
 end
 
@@ -975,6 +1005,18 @@ function mod:OnEnable()
     mod.db.loadouts    = mod.db.loadouts    or {}
     mod.db.formMapping = mod.db.formMapping or {}
     mod.db.minimap     = mod.db.minimap     or { hidden = false, angle = -45 }
+
+    -- Migration: legacy loadouts without slotMask → derive from currently saved slots
+    for _, loadout in pairs(mod.db.loadouts) do
+        if loadout and not loadout.slotMask then
+            local mask = {}
+            for slot in pairs(loadout.slots or {}) do
+                table.insert(mask, slot)
+            end
+            table.sort(mask)
+            loadout.slotMask = mask
+        end
+    end
 
     -- Create minimap button (deferred so Minimap definitely exists)
     if C_Timer and C_Timer.After then
