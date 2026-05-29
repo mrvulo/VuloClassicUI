@@ -142,6 +142,30 @@ local function promptSaveWithSlots(slotList)
     StaticPopup_Show("VCUI_LOADOUT_SAVE")
 end
 
+-- Overwrite an existing loadout with current gear, preserving the original
+-- slot mask. THIS IS THE KEY HELPER — previously every "save current as ..."
+-- button iterated over loadout.slots which only has slots that had an item
+-- at the time of the original save, so missing items (e.g. Head/Neck/Shoulder
+-- not equipped at save time) would never be re-captured.
+local function overwriteLoadout(name)
+    local loadout = mod.db.loadouts[name]
+    if not loadout then return end
+    -- Prefer slotMask (intended slots, set at save time). Fall back to existing
+    -- slots keys for legacy data without a mask.
+    local slotList = loadout.slotMask
+    if not slotList or #slotList == 0 then
+        slotList = {}
+        for s in pairs(loadout.slots or {}) do table.insert(slotList, s) end
+    end
+    if #slotList == 0 then slotList = EQUIP_SLOTS end  -- ultimate fallback: all slots
+    mod.db.loadouts[name] = {
+        slots     = captureCurrentEquipment(slotList),
+        slotMask  = copySlotList(slotList),
+        createdAt = time(),
+    }
+    ns:Print(string.format(L["Loadout '%s' updated with current gear."], name))
+end
+
 local function deleteLoadout(name)
     if not mod.db.loadouts[name] then
         ns:Print(string.format(L["Loadout '%s' does not exist."], name))
@@ -685,14 +709,7 @@ local function createSetRow(parent, index)
                 { title = true, text = self.setName },
                 { text = L["Equip"], func = function() equipLoadout(self.setName) end },
                 { text = L["Overwrite"], func = function()
-                    local oldSlots = mod.db.loadouts[self.setName].slots or {}
-                    local slotList = {}
-                    for s in pairs(oldSlots) do table.insert(slotList, s) end
-                    mod.db.loadouts[self.setName] = {
-                        slots     = captureCurrentEquipment(#slotList > 0 and slotList or nil),
-                        createdAt = time(),
-                    }
-                    ns:Print(string.format(L["Loadout '%s' updated with current gear."], self.setName))
+                    overwriteLoadout(self.setName)
                     refreshSidebar()
                 end },
                 { separator = true },
@@ -979,14 +996,7 @@ local function createSidebar()
     saveBtn:SetText(L["Save"])
     saveBtn:SetScript("OnClick", function()
         if sidebarSelected then
-            local oldSlots = mod.db.loadouts[sidebarSelected].slots or {}
-            local slotList = {}
-            for s in pairs(oldSlots) do table.insert(slotList, s) end
-            mod.db.loadouts[sidebarSelected] = {
-                slots     = captureCurrentEquipment(#slotList > 0 and slotList or nil),
-                createdAt = time(),
-            }
-            ns:Print(string.format(L["Loadout '%s' updated with current gear."], sidebarSelected))
+            overwriteLoadout(sidebarSelected)
             refreshSidebar()
         end
     end)
@@ -1175,17 +1185,7 @@ function mod:GetOptions()
                     { type = "button", label = L["Equip"], width = 100,
                       onClick = function() equipLoadout(capturedName) end },
                     { type = "button", label = L["Overwrite"], width = 130,
-                      onClick = function()
-                          -- Preserve the original slot mask when overwriting
-                          local oldSlots = mod.db.loadouts[capturedName].slots or {}
-                          local slotList = {}
-                          for s in pairs(oldSlots) do table.insert(slotList, s) end
-                          mod.db.loadouts[capturedName] = {
-                              slots     = captureCurrentEquipment(#slotList > 0 and slotList or nil),
-                              createdAt = time(),
-                          }
-                          ns:Print(string.format(L["Loadout '%s' updated with current gear."], capturedName))
-                      end },
+                      onClick = function() overwriteLoadout(capturedName) end },
                     { type = "button", label = L["Delete"], width = 100,
                       onClick = function()
                           if mod.db.confirmDelete then
