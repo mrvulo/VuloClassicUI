@@ -154,43 +154,34 @@ mod.ApplyVisibility = applyVisibility
 
 -- =========================================================
 -- Dropdown with module list (right click)
+-- Uses ns:ShowPopupMenu helper (EasyMenu is unreliable in Anniversary)
 -- =========================================================
-local dropdownFrame
-function mod:ShowDropdown()
-    if not dropdownFrame then
-        dropdownFrame = CreateFrame("Frame", "VCUIMinimapDropdown", UIParent, "UIDropDownMenuTemplate")
-    end
+function mod:ShowDropdown(anchor)
+    local entries = {
+        { title = true, text = "|cff9b6cffVuloClassicUI|r" },
+        { text = L["Open Options"],
+          func = function() if ns.UI then ns.UI:ToggleMainFrame() end end },
+        { separator = true },
+    }
 
-    local menu = {}
-    -- Header
-    table.insert(menu, { text = "|cff9b6cffVuloClassicUI|r", isTitle = true, notCheckable = true })
-    table.insert(menu, {
-        text = L["Open Options"], notCheckable = true,
-        func = function() if ns.UI then ns.UI:ToggleMainFrame() end end,
-    })
-    table.insert(menu, { text = "", isTitle = true, notCheckable = true })
-
-    -- Module list with toggle
+    -- Module list with checkbox toggles (keepOpen so user can toggle multiple)
     for _, key in ipairs(ns.moduleOrder) do
         local m = ns.modules[key]
         if m and m.db then
-            table.insert(menu, {
-                text     = m.name,
-                checked  = function() return m.db.enabled end,
-                func     = function() ns:ToggleModule(key, not m.db.enabled) end,
-                isNotRadio = true,
-                keepShownOnClick = true,
+            local capturedKey, capturedMod = key, m
+            table.insert(entries, {
+                text     = capturedMod.name,
+                checked  = function() return capturedMod.db.enabled end,
+                func     = function() ns:ToggleModule(capturedKey, not capturedMod.db.enabled) end,
+                keepOpen = true,
             })
         end
     end
 
-    table.insert(menu, { text = "", isTitle = true, notCheckable = true })
-    table.insert(menu, {
-        text = L["Reload UI"], notCheckable = true,
-        func = function() ReloadUI() end,
-    })
+    table.insert(entries, { separator = true })
+    table.insert(entries, { text = L["Reload UI"], func = function() ReloadUI() end })
 
-    EasyMenu(menu, dropdownFrame, "cursor", 0, 0, "MENU", 2)
+    ns:ShowPopupMenu(entries, anchor or "cursor")
 end
 
 -- =========================================================

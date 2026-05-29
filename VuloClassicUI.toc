@@ -24,6 +24,7 @@ Core\Modules.lua
 Core\Events.lua
 Core\MediaRegistry.lua
 Core\Mover.lua
+Core\PopupMenu.lua
 
 # --- Locales (must load AFTER Core\Locale.lua, BEFORE modules) ---
 Locales\enUS.lua
