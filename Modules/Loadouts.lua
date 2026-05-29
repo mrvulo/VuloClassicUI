@@ -856,11 +856,27 @@ local function createSidebar()
     sidebar = CreateFrame("Frame", "VCUI_LoadoutsSidebar", CharacterFrame,
         BackdropTemplateMixin and "BackdropTemplate")
     sidebar:SetWidth(190)
-    -- Match CharacterFrame height exactly (top + bottom both flush)
-    sidebar:SetPoint("TOPLEFT",    CharacterFrame, "TOPRIGHT", -4, 0)
-    sidebar:SetPoint("BOTTOMLEFT", CharacterFrame, "BOTTOMRIGHT", -4, 0)
     sidebar:SetFrameStrata("HIGH")
     sidebar:Hide()
+
+    -- Anchor to the visible content area, not the outer CharacterFrame bounds
+    -- (CharacterFrame's portrait overhangs top + extended invisible logical
+    -- bottom area shift the apparent height). CharacterFrameInset / PaperDollFrame
+    -- track the actual visible body.
+    local function anchorToCharacterFrame()
+        local anchor = _G.CharacterFrameInset or _G.PaperDollFrame or CharacterFrame
+        sidebar:ClearAllPoints()
+        if anchor == CharacterFrame then
+            -- Manual fallback offset for the portrait overhang at top
+            sidebar:SetPoint("TOPLEFT",    anchor, "TOPRIGHT", -4, -64)
+            sidebar:SetPoint("BOTTOMLEFT", anchor, "BOTTOMRIGHT", -4, 78)
+        else
+            sidebar:SetPoint("TOPLEFT",    anchor, "TOPRIGHT", 4, 0)
+            sidebar:SetPoint("BOTTOMLEFT", anchor, "BOTTOMRIGHT", 4, 0)
+        end
+    end
+    anchorToCharacterFrame()
+    sidebar._reanchor = anchorToCharacterFrame
 
     if sidebar.SetBackdrop then
         sidebar:SetBackdrop({
