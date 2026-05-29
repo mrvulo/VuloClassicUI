@@ -10,6 +10,43 @@ local _, ns = ...
 
 ns:RegisterLocale("deDE", {
     -- =====================================================
+    -- Loadouts
+    -- =====================================================
+    ["Loadouts"] = "Ausrüstungs-Sets",
+    ["Save and quickly equip gear sets for different specs, content, or roles."] = "Speichere und wechsle schnell zwischen Ausrüstungs-Sets für verschiedene Skillungen, Content oder Rollen.",
+    ["Save your current equipment as named gear sets and quickly switch between them. Equipping requires you to be out of combat — items in your bags are auto-equipped via Use."] = "Speichere deine aktuelle Ausrüstung als benannte Sets und wechsle schnell dazwischen. Equippen erfordert dass du außerhalb des Kampfes bist — Items in deinen Taschen werden automatisch via 'Benutzen' equipt.",
+    ["Save current equipment as new loadout..."] = "Aktuelle Ausrüstung als neues Set speichern...",
+    ["Save current equipment as a new loadout. Enter name:"] = "Aktuelle Ausrüstung als neues Set speichern. Name eingeben:",
+    ["Confirm before deleting a loadout"] = "Bestätigen vor dem Löschen eines Sets",
+    ["Saved Loadouts"] = "Gespeicherte Sets",
+    ["Equip"] = "Anlegen",
+    ["Overwrite"] = "Überschreiben",
+    ["Delete"] = "Löschen",
+    ["Save"] = "Speichern",
+    ["Cancel"] = "Abbrechen",
+    ["Yes"] = "Ja",
+    ["No"] = "Nein",
+    ["items"] = "Items",
+    ["Please provide a name for the loadout."] = "Bitte einen Namen für das Set angeben.",
+    ["Loadout '%s' saved (%d items)."] = "Set '%s' gespeichert (%d Items).",
+    ["Loadout '%s' updated with current gear."] = "Set '%s' wurde mit aktueller Ausrüstung aktualisiert.",
+    ["Loadout '%s' deleted."] = "Set '%s' gelöscht.",
+    ["Loadout '%s' does not exist."] = "Set '%s' existiert nicht.",
+    ["Loadout '%s' equipped (%d items swapped)."] = "Set '%s' angelegt (%d Items gewechselt).",
+    ["Loadout '%s' equipped (%d swapped, %d missing from bags)."] = "Set '%s' angelegt (%d gewechselt, %d fehlen in den Taschen).",
+    ["Loadout '%s': %d items missing from bags, nothing swapped."] = "Set '%s': %d Items fehlen in den Taschen, nichts gewechselt.",
+    ["Loadout '%s' already equipped."] = "Set '%s' bereits angelegt.",
+    ["Delete loadout '%s'?"] = "Set '%s' löschen?",
+    ["Cannot change equipment in combat."] = "Ausrüstung kann nicht im Kampf geändert werden.",
+    ["Equipment swap API not available on this client."] = "Equipment-Swap-API auf diesem Client nicht verfügbar.",
+    ["No loadouts saved yet."] = "Noch keine Sets gespeichert.",
+    ["|cffaaaaaaNo loadouts saved yet. Use the button above to save your current gear.|r"] = "|cffaaaaaaNoch keine Sets gespeichert. Nutze den Button oben um deine aktuelle Ausrüstung zu speichern.|r",
+    ["Saved loadouts:"] = "Gespeicherte Sets:",
+    ["Usage: /loadout equip <name> | save <name> | delete <name> | list"] = "Benutzung: /loadout equip <Name> | save <Name> | delete <Name> | list",
+    ["Usage: /loadout delete <name>"] = "Benutzung: /loadout delete <Name>",
+    ["|cffaaaaaaSlash commands: /loadout save <name>, /loadout equip <name>, /loadout delete <name>, /loadout list. Short alias: /lo|r"] = "|cffaaaaaaSlash-Befehle: /loadout save <Name>, /loadout equip <Name>, /loadout delete <Name>, /loadout list. Kurzform: /lo|r",
+
+    -- =====================================================
     -- General UI / Common terms
     -- =====================================================
     ["General"] = "Allgemein",
