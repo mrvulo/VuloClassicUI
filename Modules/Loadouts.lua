@@ -21,7 +21,7 @@ local mod = ns:RegisterModule("loadouts", {
         loadouts      = {},   -- { [name] = { slots = { [slotID] = itemLink, ... }, createdAt = epoch, formIdx = nil } }
         confirmDelete = true,
         -- Minimap button
-        minimap = { hidden = false, angle = -45 },
+        minimap = { hidden = false, angle = 45 },
         -- Auto-switch on stance/form change: [formIndex] = "loadoutName"
         autoSwitchEnabled = true,
         formMapping       = {},
@@ -297,6 +297,9 @@ local function updateMinimapPos()
     mmBtn:SetPoint("CENTER", Minimap, "CENTER", x, y)
 end
 
+-- Forward declarations (resolves circular references between popup menu and settings opener)
+local openLoadoutsSettings
+
 -- Loadouts dropdown — uses ns:ShowPopupMenu (shared helper, EasyMenu replacement)
 local function showLoadoutMenu(anchor)
     local entries = {
@@ -322,42 +325,62 @@ local function showLoadoutMenu(anchor)
     table.insert(entries, { text = L["Save weapons only..."],   func = function() promptSaveWithSlots(SLOT_GROUPS.weapons)  end })
     table.insert(entries, { separator = true })
     table.insert(entries, { text = L["Settings..."],
-        func = function() if ns.OpenConfig then ns:OpenConfig("loadouts") end end })
+        func = function() openLoadoutsSettings() end })
 
     ns:ShowPopupMenu(entries, anchor)
+end
+
+-- Helper: open the Loadouts settings (prefer direct tab open, fall back to main frame)
+-- Assigned to forward-declared local (declared near showLoadoutMenu)
+function openLoadoutsSettings()
+    if ns.OpenConfig then
+        ns:OpenConfig("loadouts")
+    elseif ns.UI and ns.UI.ToggleMainFrame then
+        ns.UI:ToggleMainFrame()
+    end
 end
 
 local function createMinimapButton()
     if mmBtn then return end
     if not Minimap then return end
 
+    -- LibDBIcon standard layout: 31x31 button, 53x53 border at TOPLEFT (0,0),
+    -- icon 17x17 at TOPLEFT(7, -6), background 20x20 at TOPLEFT(7, -5).
     mmBtn = CreateFrame("Button", "VCUI_LoadoutsMinimapButton", Minimap)
-    mmBtn:SetSize(31, 31)
     mmBtn:SetFrameStrata("MEDIUM")
     mmBtn:SetFrameLevel(8)
-
-    -- Icon (equipment armor icon) — circular crop for round-button look
-    local icon = mmBtn:CreateTexture(nil, "BACKGROUND")
-    icon:SetTexture("Interface\\Icons\\INV_Chest_Plate06")
-    icon:SetSize(20, 20)
-    icon:SetPoint("CENTER", mmBtn, "CENTER", 0, 1)
-    icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)  -- crop default border
-
-    -- Round border (Blizzard minimap-tracking style)
-    -- Standard LibDBIcon-style offset: TOPLEFT, 54x54, anchor (-11, 12) for proper centering
-    local border = mmBtn:CreateTexture(nil, "OVERLAY")
-    border:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
-    border:SetSize(54, 54)
-    border:SetPoint("TOPLEFT", mmBtn, "TOPLEFT", -11, 12)
-
+    mmBtn:SetSize(31, 31)
     mmBtn:SetMovable(true)
     mmBtn:RegisterForClicks("AnyUp")
     mmBtn:RegisterForDrag("LeftButton")
+
+    -- Background (the dark circle behind the icon)
+    local background = mmBtn:CreateTexture(nil, "BACKGROUND")
+    background:SetTexture("Interface\\Minimap\\UI-Minimap-Background")
+    background:SetSize(20, 20)
+    background:SetPoint("TOPLEFT", 7, -5)
+
+    -- Icon (equipment armor)
+    local icon = mmBtn:CreateTexture(nil, "ARTWORK")
+    icon:SetTexture("Interface\\Icons\\INV_Chest_Plate06")
+    icon:SetSize(17, 17)
+    icon:SetPoint("TOPLEFT", 7, -6)
+    icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)  -- crop default Blizzard icon border
+
+    -- Round border (Blizzard minimap-tracking style) — standard LibDBIcon offset
+    local border = mmBtn:CreateTexture(nil, "OVERLAY")
+    border:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
+    border:SetSize(53, 53)
+    border:SetPoint("TOPLEFT", 0, 0)
+
+    -- Hover highlight
+    mmBtn:SetHighlightTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight", "ADD")
 
     -- Drag to reposition around minimap (saved as angle)
     mmBtn:SetScript("OnDragStart", function(self)
         self:SetScript("OnUpdate", function()
             local mx, my = Minimap:GetCenter()
+            if not mx then return end
             local sx, sy = GetCursorPosition()
             local scale = UIParent:GetEffectiveScale() or 1
             sx, sy = sx / scale, sy / scale
@@ -371,20 +394,21 @@ local function createMinimapButton()
         self:SetScript("OnUpdate", nil)
     end)
 
+    -- Click handlers — Left = quick switcher menu, Right = settings
     mmBtn:SetScript("OnClick", function(self, button)
         if button == "LeftButton" then
             showLoadoutMenu(self)
         elseif button == "RightButton" then
-            if ns.OpenConfig then ns:OpenConfig("loadouts") end
+            openLoadoutsSettings()
         end
     end)
 
     mmBtn:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_LEFT")
         GameTooltip:AddLine("|cff9b6cffLoadouts|r")
-        GameTooltip:AddLine(L["Left-click: switch set"], 1, 1, 1)
-        GameTooltip:AddLine(L["Right-click: settings"], 1, 1, 1)
-        GameTooltip:AddLine(L["Drag: reposition"], 0.6, 0.6, 0.6)
+        GameTooltip:AddLine(L["Left-click: switch set"],   1, 1, 1)
+        GameTooltip:AddLine(L["Right-click: settings"],    1, 1, 1)
+        GameTooltip:AddLine(L["Drag: reposition"],         0.6, 0.6, 0.6)
         GameTooltip:Show()
     end)
     mmBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
