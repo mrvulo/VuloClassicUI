@@ -78,6 +78,13 @@ ns:RegisterLocale("deDE", {
     ["No Form"] = "Keine Gestalt",
     ["Form %d"] = "Gestalt %d",
     ["No loadouts saved"] = "Keine Sets gespeichert",
+    -- Sidebar
+    ["Character Frame Sidebar"] = "Charakterfenster-Sidebar",
+    ["Show sidebar on character frame"] = "Sidebar am Charakterfenster anzeigen",
+    ["Attach a quick-access sidebar to the right of the character window. Click a set to select, double-click or button to equip, right-click for context menu."] = "Hängt eine Schnellzugriffs-Sidebar rechts neben das Charakterfenster. Klick auf ein Set zum Auswählen, Doppelklick oder Button zum Anlegen, Rechtsklick für Kontextmenü.",
+    ["New Set"] = "Neues Set",
+    ["Left-click: select"] = "Linksklick: Auswählen",
+    ["Double-click / Right-click menu: equip"] = "Doppelklick / Rechtsklick-Menü: Anlegen",
 
     -- SlotPicker
     ["Slot Picker"] = "Slot-Auswahl",

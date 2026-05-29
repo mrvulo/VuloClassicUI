@@ -25,6 +25,8 @@ local mod = ns:RegisterModule("loadouts", {
         -- Auto-switch on stance/form change: [formIndex] = "loadoutName"
         autoSwitchEnabled = true,
         formMapping       = {},
+        -- Character-frame sidebar
+        sidebarEnabled    = true,
     },
 })
 
@@ -469,6 +471,283 @@ local function onShapeshiftChange()
 end
 
 -- =========================================================
+-- Character-frame sidebar (ItemRack-style)
+-- =========================================================
+local sidebar
+local sidebarSetButtons = {}
+local sidebarSelected           -- currently highlighted loadout name
+local refreshSidebar            -- forward declaration
+
+local function getSetIcon(name)
+    local loadout = mod.db and mod.db.loadouts and mod.db.loadouts[name]
+    if not loadout or not loadout.slots then return "Interface\\Icons\\INV_Misc_QuestionMark" end
+    if loadout.iconOverride then return loadout.iconOverride end
+    -- Auto-pick first item's icon
+    if GetItemInfoInstant then
+        for _, link in pairs(loadout.slots) do
+            local _, _, _, _, icon = GetItemInfoInstant(link)
+            if icon then return icon end
+        end
+    end
+    return "Interface\\Icons\\INV_Misc_QuestionMark"
+end
+
+local function createSetRow(parent, index)
+    local btn = sidebarSetButtons[index]
+    if btn then return btn end
+
+    btn = CreateFrame("Button", nil, parent)
+    btn:SetHeight(32)
+
+    -- Icon (left)
+    btn.icon = btn:CreateTexture(nil, "ARTWORK")
+    btn.icon:SetSize(26, 26)
+    btn.icon:SetPoint("LEFT", btn, "LEFT", 4, 0)
+    btn.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+
+    -- Name text
+    btn.text = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    btn.text:SetPoint("LEFT", btn.icon, "RIGHT", 8, 0)
+    btn.text:SetPoint("RIGHT", btn, "RIGHT", -4, 0)
+    btn.text:SetJustifyH("LEFT")
+
+    -- Selection background
+    btn.selection = btn:CreateTexture(nil, "BACKGROUND")
+    btn.selection:SetAllPoints(btn)
+    btn.selection:SetColorTexture(0.4, 0.3, 0.6, 0.45)
+    btn.selection:Hide()
+
+    -- Hover highlight
+    btn.hl = btn:CreateTexture(nil, "BACKGROUND")
+    btn.hl:SetAllPoints(btn)
+    btn.hl:SetColorTexture(0.25, 0.2, 0.35, 0.4)
+    btn.hl:Hide()
+
+    btn:SetScript("OnEnter", function(self)
+        if not self.isSelected then self.hl:Show() end
+        GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+        local loadout = mod.db.loadouts[self.setName]
+        if loadout then
+            GameTooltip:AddLine(self.setName, 1, 0.82, 0)
+            GameTooltip:AddLine(string.format("%d %s", countSlots(loadout), L["items"]),
+                0.6, 0.6, 0.6)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine(L["Left-click: select"], 1, 1, 1)
+            GameTooltip:AddLine(L["Double-click / Right-click menu: equip"], 0.7, 0.7, 0.7)
+            GameTooltip:Show()
+        end
+    end)
+    btn:SetScript("OnLeave", function(self)
+        self.hl:Hide()
+        GameTooltip:Hide()
+    end)
+
+    btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    btn:SetScript("OnClick", function(self, button)
+        if button == "RightButton" then
+            ns:ShowPopupMenu({
+                { title = true, text = self.setName },
+                { text = L["Equip"], func = function() equipLoadout(self.setName) end },
+                { text = L["Overwrite"], func = function()
+                    local oldSlots = mod.db.loadouts[self.setName].slots or {}
+                    local slotList = {}
+                    for s in pairs(oldSlots) do table.insert(slotList, s) end
+                    mod.db.loadouts[self.setName] = {
+                        slots     = captureCurrentEquipment(#slotList > 0 and slotList or nil),
+                        createdAt = time(),
+                    }
+                    ns:Print(string.format(L["Loadout '%s' updated with current gear."], self.setName))
+                    refreshSidebar()
+                end },
+                { separator = true },
+                { text = L["Delete"], func = function()
+                    if mod.db.confirmDelete then
+                        local dlg = StaticPopup_Show("VCUI_LOADOUT_DELETE", self.setName)
+                        if dlg then dlg.data = self.setName end
+                    else
+                        deleteLoadout(self.setName)
+                        refreshSidebar()
+                    end
+                end },
+            }, self)
+        else
+            -- Detect double-click via timestamp
+            local now = GetTime()
+            if self._lastClick and (now - self._lastClick) < 0.35 then
+                equipLoadout(self.setName)
+                self._lastClick = 0
+            else
+                sidebarSelected = self.setName
+                self._lastClick = now
+                refreshSidebar()
+            end
+        end
+    end)
+
+    sidebarSetButtons[index] = btn
+    return btn
+end
+
+refreshSidebar = function()
+    if not sidebar then return end
+
+    -- Validate selection
+    if sidebarSelected and not (mod.db.loadouts and mod.db.loadouts[sidebarSelected]) then
+        sidebarSelected = nil
+    end
+
+    -- Hide leftover buttons
+    for _, b in ipairs(sidebarSetButtons) do b:Hide() end
+
+    local names = sortedLoadoutNames()
+    if not sidebarSelected and #names > 0 then sidebarSelected = names[1] end
+
+    local y = -32  -- below action bar (which is at top)
+    for i, name in ipairs(names) do
+        local btn = createSetRow(sidebar, i)
+        btn.setName = name
+        btn.text:SetText(name)
+        btn.icon:SetTexture(getSetIcon(name))
+        btn.isSelected = (name == sidebarSelected)
+        if btn.isSelected then
+            btn.selection:Show()
+            btn.text:SetTextColor(1, 0.82, 0)
+        else
+            btn.selection:Hide()
+            btn.text:SetTextColor(1, 1, 1)
+        end
+        btn:ClearAllPoints()
+        btn:SetPoint("TOPLEFT",  sidebar, "TOPLEFT",  4, y)
+        btn:SetPoint("TOPRIGHT", sidebar, "TOPRIGHT", -4, y)
+        btn:Show()
+        y = y - 33
+    end
+
+    if #names == 0 then
+        if not sidebar.emptyText then
+            sidebar.emptyText = sidebar:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+            sidebar.emptyText:SetPoint("TOP", sidebar, "TOP", 0, -48)
+            sidebar.emptyText:SetTextColor(0.6, 0.6, 0.6)
+            sidebar.emptyText:SetText(L["No loadouts saved yet."])
+        end
+        sidebar.emptyText:Show()
+    elseif sidebar.emptyText then
+        sidebar.emptyText:Hide()
+    end
+
+    -- Enable/disable action buttons
+    if sidebar.equipBtn then
+        if sidebarSelected then
+            sidebar.equipBtn:Enable()
+            sidebar.saveBtn:Enable()
+        else
+            sidebar.equipBtn:Disable()
+            sidebar.saveBtn:Disable()
+        end
+    end
+end
+
+local function createSidebar()
+    if sidebar then return sidebar end
+    if not CharacterFrame then return end
+
+    sidebar = CreateFrame("Frame", "VCUI_LoadoutsSidebar", CharacterFrame,
+        BackdropTemplateMixin and "BackdropTemplate")
+    sidebar:SetWidth(190)
+    sidebar:SetPoint("TOPLEFT",    CharacterFrame, "TOPRIGHT", -4, -12)
+    sidebar:SetPoint("BOTTOMLEFT", CharacterFrame, "BOTTOMRIGHT", -4, 28)
+    sidebar:SetFrameStrata("HIGH")
+    sidebar:Hide()
+
+    if sidebar.SetBackdrop then
+        sidebar:SetBackdrop({
+            bgFile   = "Interface\\Buttons\\WHITE8X8",
+            edgeFile = "Interface\\Buttons\\WHITE8X8",
+            edgeSize = 1,
+            insets   = { left = 1, right = 1, top = 1, bottom = 1 },
+        })
+        sidebar:SetBackdropColor(0.05, 0.05, 0.08, 0.95)
+        sidebar:SetBackdropBorderColor(0.4, 0.3, 0.6, 1)
+    end
+
+    -- Action buttons (top row)
+    local equipBtn = CreateFrame("Button", nil, sidebar, "UIPanelButtonTemplate")
+    equipBtn:SetSize(86, 22)
+    equipBtn:SetPoint("TOPLEFT", sidebar, "TOPLEFT", 4, -4)
+    equipBtn:SetText(L["Equip"])
+    equipBtn:SetScript("OnClick", function()
+        if sidebarSelected then equipLoadout(sidebarSelected) end
+    end)
+    sidebar.equipBtn = equipBtn
+
+    local saveBtn = CreateFrame("Button", nil, sidebar, "UIPanelButtonTemplate")
+    saveBtn:SetSize(86, 22)
+    saveBtn:SetPoint("TOPRIGHT", sidebar, "TOPRIGHT", -4, -4)
+    saveBtn:SetText(L["Save"])
+    saveBtn:SetScript("OnClick", function()
+        if sidebarSelected then
+            local oldSlots = mod.db.loadouts[sidebarSelected].slots or {}
+            local slotList = {}
+            for s in pairs(oldSlots) do table.insert(slotList, s) end
+            mod.db.loadouts[sidebarSelected] = {
+                slots     = captureCurrentEquipment(#slotList > 0 and slotList or nil),
+                createdAt = time(),
+            }
+            ns:Print(string.format(L["Loadout '%s' updated with current gear."], sidebarSelected))
+            refreshSidebar()
+        end
+    end)
+    sidebar.saveBtn = saveBtn
+
+    -- New Set button (bottom)
+    local newBtn = CreateFrame("Button", nil, sidebar, "UIPanelButtonTemplate")
+    newBtn:SetSize(178, 24)
+    newBtn:SetPoint("BOTTOM", sidebar, "BOTTOM", 0, 4)
+    newBtn:SetText("+ " .. L["New Set"])
+    newBtn:SetScript("OnClick", function() promptSaveWithSlots(nil) end)
+    sidebar.newBtn = newBtn
+
+    -- Hook CharacterFrame show/hide
+    CharacterFrame:HookScript("OnShow", function()
+        if mod._enabled and mod.db and mod.db.sidebarEnabled ~= false then
+            sidebar:Show()
+            refreshSidebar()
+        end
+    end)
+    CharacterFrame:HookScript("OnHide", function() sidebar:Hide() end)
+
+    return sidebar
+end
+
+local function applySidebarVisibility()
+    if not sidebar then return end
+    if mod.db.sidebarEnabled == false then
+        sidebar:Hide()
+    elseif CharacterFrame and CharacterFrame:IsShown() then
+        sidebar:Show()
+        refreshSidebar()
+    end
+end
+
+-- Refresh sidebar after save/delete operations
+local _origSaveAs    = saveAs
+local _origDelete    = deleteLoadout
+saveAs = function(name, slotList)
+    _origSaveAs(name, slotList)
+    if sidebar then
+        sidebarSelected = name
+        refreshSidebar()
+    end
+end
+deleteLoadout = function(name)
+    _origDelete(name)
+    if sidebar then
+        if sidebarSelected == name then sidebarSelected = nil end
+        refreshSidebar()
+    end
+end
+
+-- =========================================================
 -- Lifecycle
 -- =========================================================
 function mod:OnEnable()
@@ -481,8 +760,10 @@ function mod:OnEnable()
     -- Create minimap button (deferred so Minimap definitely exists)
     if C_Timer and C_Timer.After then
         C_Timer.After(0.5, createMinimapButton)
+        C_Timer.After(0.5, createSidebar)
     else
         createMinimapButton()
+        createSidebar()
     end
 
     -- Hook stance/form events
@@ -533,6 +814,16 @@ function mod:GetOptions()
         { type = "toggle", label = L["Confirm before deleting a loadout"],
           get = function() return mod.db.confirmDelete ~= false end,
           set = function(_, v) mod.db.confirmDelete = v end },
+
+        { type = "spacer", height = 6 },
+        { type = "header", text = L["Character Frame Sidebar"] },
+        { type = "toggle", label = L["Show sidebar on character frame"],
+          tooltip = L["Attach a quick-access sidebar to the right of the character window. Click a set to select, double-click or button to equip, right-click for context menu."],
+          get = function() return mod.db.sidebarEnabled ~= false end,
+          set = function(_, v)
+              mod.db.sidebarEnabled = v
+              applySidebarVisibility()
+          end },
 
         { type = "spacer", height = 6 },
         { type = "header", text = L["Minimap Button"] },
