@@ -297,52 +297,128 @@ local function updateMinimapPos()
     mmBtn:SetPoint("CENTER", Minimap, "CENTER", x, y)
 end
 
+-- Custom popup menu (independent of UIDropDownMenu / EasyMenu, more reliable in Anniversary)
 local _menuFrame
-local function showLoadoutMenu(anchor)
-    if not _menuFrame then
-        _menuFrame = CreateFrame("Frame", "VCUI_LoadoutsMenu", UIParent, "UIDropDownMenuTemplate")
+local _menuButtons = {}
+
+local function createMenuFrame()
+    if _menuFrame then return _menuFrame end
+    _menuFrame = CreateFrame("Frame", "VCUI_LoadoutsMenu", UIParent,
+        BackdropTemplateMixin and "BackdropTemplate")
+    _menuFrame:SetFrameStrata("DIALOG")
+    _menuFrame:SetWidth(190)
+    _menuFrame:SetHeight(30)
+    _menuFrame:Hide()
+    _menuFrame:EnableMouse(true)
+    _menuFrame:SetClampedToScreen(true)
+    if _menuFrame.SetBackdrop then
+        _menuFrame:SetBackdrop({
+            bgFile   = "Interface\\Buttons\\WHITE8X8",
+            edgeFile = "Interface\\Buttons\\WHITE8X8",
+            edgeSize = 1,
+            insets   = { left = 1, right = 1, top = 1, bottom = 1 },
+        })
+        _menuFrame:SetBackdropColor(0.05, 0.05, 0.08, 0.95)
+        _menuFrame:SetBackdropBorderColor(0.4, 0.3, 0.6, 1)
     end
-    local menuItems = {
-        { text = L["Loadouts"], isTitle = true, notCheckable = true },
-    }
+    -- Allow ESC to close
+    tinsert(UISpecialFrames, "VCUI_LoadoutsMenu")
+    return _menuFrame
+end
+
+local function getMenuButton(idx)
+    local btn = _menuButtons[idx]
+    if btn then return btn end
+    btn = CreateFrame("Button", nil, _menuFrame)
+    btn:SetHeight(20)
+    btn.text = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    btn.text:SetPoint("LEFT", btn, "LEFT", 10, 0)
+    btn.text:SetPoint("RIGHT", btn, "RIGHT", -10, 0)
+    btn.text:SetJustifyH("LEFT")
+    btn.hl = btn:CreateTexture(nil, "BACKGROUND")
+    btn.hl:SetAllPoints(btn)
+    btn.hl:SetColorTexture(0.4, 0.3, 0.6, 0.3)
+    btn.hl:Hide()
+    btn:SetScript("OnEnter", function(self)
+        if not self._isTitle then self.hl:Show() end
+    end)
+    btn:SetScript("OnLeave", function(self) self.hl:Hide() end)
+    _menuButtons[idx] = btn
+    return btn
+end
+
+local function showLoadoutMenu(anchor)
+    local menu = createMenuFrame()
+
+    -- Build the menu items list
+    local entries = {}
+    table.insert(entries, { title = true, text = L["Loadouts"], color = { 1, 0.82, 0 } })
+
     local names = sortedLoadoutNames()
     if #names == 0 then
-        table.insert(menuItems, { text = L["No loadouts saved yet."], disabled = true, notCheckable = true })
+        table.insert(entries, { title = true, text = L["No loadouts saved yet."], color = { 0.6, 0.6, 0.6 } })
     else
         for _, name in ipairs(names) do
             local capturedName = name
-            table.insert(menuItems, {
-                text = name,
-                notCheckable = true,
-                func = function() equipLoadout(capturedName) end,
-            })
+            table.insert(entries, { text = "  " .. name, func = function() equipLoadout(capturedName) end })
         end
     end
-    table.insert(menuItems, { text = "", disabled = true, notCheckable = true })
-    table.insert(menuItems, {
-        text = L["Save current as new..."],
-        notCheckable = true,
-        func = function() promptSaveWithSlots(nil) end,
-    })
-    table.insert(menuItems, {
-        text = L["Save trinkets only..."],
-        notCheckable = true,
-        func = function() promptSaveWithSlots(SLOT_GROUPS.trinkets) end,
-    })
-    table.insert(menuItems, {
-        text = L["Save weapons only..."],
-        notCheckable = true,
-        func = function() promptSaveWithSlots(SLOT_GROUPS.weapons) end,
-    })
-    table.insert(menuItems, { text = "", disabled = true, notCheckable = true })
-    table.insert(menuItems, {
-        text = L["Settings..."],
-        notCheckable = true,
-        func = function() if ns.OpenConfig then ns:OpenConfig("loadouts") end end,
-    })
-    if _G.EasyMenu then
-        EasyMenu(menuItems, _menuFrame, anchor or "cursor", 0, 0, "MENU", 5)
+
+    table.insert(entries, { separator = true })
+    table.insert(entries, { text = L["Save current as new..."], func = function() promptSaveWithSlots(nil) end })
+    table.insert(entries, { text = L["Save trinkets only..."],  func = function() promptSaveWithSlots(SLOT_GROUPS.trinkets) end })
+    table.insert(entries, { text = L["Save weapons only..."],   func = function() promptSaveWithSlots(SLOT_GROUPS.weapons)  end })
+    table.insert(entries, { separator = true })
+    table.insert(entries, { text = L["Settings..."], func = function() if ns.OpenConfig then ns:OpenConfig("loadouts") end end })
+
+    -- Hide any leftover buttons from a previous menu
+    for _, b in ipairs(_menuButtons) do b:Hide() end
+
+    -- Layout
+    local y = -6
+    for i, entry in ipairs(entries) do
+        local btn = getMenuButton(i)
+        btn:Show()
+        btn._isTitle = entry.title or entry.separator
+        if entry.separator then
+            btn:SetHeight(6)
+            btn.text:SetText("")
+            btn:EnableMouse(false)
+            btn:SetScript("OnClick", nil)
+        elseif entry.title then
+            btn:SetHeight(20)
+            btn.text:SetText(entry.text)
+            btn.text:SetTextColor(entry.color[1], entry.color[2], entry.color[3])
+            btn:EnableMouse(false)
+            btn:SetScript("OnClick", nil)
+        else
+            btn:SetHeight(20)
+            btn.text:SetText(entry.text)
+            btn.text:SetTextColor(1, 1, 1)
+            btn:EnableMouse(true)
+            btn:RegisterForClicks("LeftButtonUp")
+            local fn = entry.func
+            btn:SetScript("OnClick", function()
+                menu:Hide()
+                if fn then fn() end
+            end)
+        end
+        btn:ClearAllPoints()
+        btn:SetPoint("TOPLEFT", menu, "TOPLEFT", 4, y)
+        btn:SetPoint("TOPRIGHT", menu, "TOPRIGHT", -4, y)
+        y = y - btn:GetHeight() - 1
     end
+    menu:SetHeight(-y + 6)
+
+    -- Position next to the anchor button
+    menu:ClearAllPoints()
+    if anchor and anchor.GetLeft then
+        menu:SetPoint("TOPRIGHT", anchor, "BOTTOMLEFT", -2, 0)
+    else
+        menu:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+    end
+
+    if menu:IsShown() then menu:Hide() else menu:Show() end
 end
 
 local function createMinimapButton()
@@ -354,18 +430,19 @@ local function createMinimapButton()
     mmBtn:SetFrameStrata("MEDIUM")
     mmBtn:SetFrameLevel(8)
 
-    -- Icon (equipment armor icon)
+    -- Icon (equipment armor icon) — circular crop for round-button look
     local icon = mmBtn:CreateTexture(nil, "BACKGROUND")
     icon:SetTexture("Interface\\Icons\\INV_Chest_Plate06")
     icon:SetSize(20, 20)
-    icon:SetPoint("CENTER")
+    icon:SetPoint("CENTER", mmBtn, "CENTER", 0, 1)
     icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)  -- crop default border
 
-    -- Round border (Blizzard minimap style)
+    -- Round border (Blizzard minimap-tracking style)
+    -- Standard LibDBIcon-style offset: TOPLEFT, 54x54, anchor (-11, 12) for proper centering
     local border = mmBtn:CreateTexture(nil, "OVERLAY")
     border:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
     border:SetSize(54, 54)
-    border:SetPoint("TOPLEFT", -6, 8)
+    border:SetPoint("TOPLEFT", mmBtn, "TOPLEFT", -11, 12)
 
     mmBtn:SetMovable(true)
     mmBtn:RegisterForClicks("AnyUp")
