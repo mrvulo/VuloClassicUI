@@ -856,8 +856,9 @@ local function createSidebar()
     sidebar = CreateFrame("Frame", "VCUI_LoadoutsSidebar", CharacterFrame,
         BackdropTemplateMixin and "BackdropTemplate")
     sidebar:SetWidth(190)
-    sidebar:SetPoint("TOPLEFT",    CharacterFrame, "TOPRIGHT", -4, -12)
-    sidebar:SetPoint("BOTTOMLEFT", CharacterFrame, "BOTTOMRIGHT", -4, 28)
+    -- Match CharacterFrame height exactly (top + bottom both flush)
+    sidebar:SetPoint("TOPLEFT",    CharacterFrame, "TOPRIGHT", -4, 0)
+    sidebar:SetPoint("BOTTOMLEFT", CharacterFrame, "BOTTOMRIGHT", -4, 0)
     sidebar:SetFrameStrata("HIGH")
     sidebar:Hide()
 
