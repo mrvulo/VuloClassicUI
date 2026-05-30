@@ -344,6 +344,23 @@ _G.SlashCmdList["VCUILOADOUT"] = function(msg)
         else
             ns:Print(L["Usage: /loadout equip <name> | save <name> | delete <name> | list"])
         end
+    elseif cmd == "spec" then
+        -- Debug: show dual-spec state
+        local active = (GetActiveTalentGroup and select(1, pcall(GetActiveTalentGroup))) and GetActiveTalentGroup() or "?"
+        local numG   = (GetNumTalentGroups  and select(1, pcall(GetNumTalentGroups)))  and GetNumTalentGroups()  or "?"
+        DEFAULT_CHAT_FRAME:AddMessage("|cff9b6cff[Loadouts spec debug]|r")
+        DEFAULT_CHAT_FRAME:AddMessage(string.format("  GetActiveTalentGroup() = %s", tostring(active)))
+        DEFAULT_CHAT_FRAME:AddMessage(string.format("  GetNumTalentGroups()   = %s", tostring(numG)))
+        DEFAULT_CHAT_FRAME:AddMessage(string.format("  specSwitchEnabled      = %s", tostring(mod.db.specSwitchEnabled)))
+        local anyMap = false
+        for name, g in pairs(mod.db.specMapping or {}) do
+            DEFAULT_CHAT_FRAME:AddMessage(string.format("  mapping: '%s' -> spec %d", name, g))
+            anyMap = true
+        end
+        if not anyMap then
+            DEFAULT_CHAT_FRAME:AddMessage("  |cffff8800No spec bindings set — bind a set to a spec in the settings.|r")
+        end
+        if mod._forceSpecCheck then mod._forceSpecCheck() end
     elseif cmd == "delete" or cmd == "del" or cmd == "remove" or cmd == "rm" then
         if arg == "" then
             ns:Print(L["Usage: /loadout delete <name>"])
@@ -649,6 +666,28 @@ local function onTalentChange()
             return
         end
     end
+end
+
+-- Force a spec re-check (clears the cached group so it always re-evaluates).
+-- Used by /loadout spec and as the polling fallback.
+mod._forceSpecCheck = function()
+    _lastSpecGroup = -1
+    onTalentChange()
+end
+
+-- Event-independent polling fallback: some Anniversary builds don't fire
+-- ACTIVE_TALENT_GROUP_CHANGED reliably, so we also poll every 2s.
+local _specPoller
+local function startSpecPolling()
+    if _specPoller or not (C_Timer and C_Timer.NewTicker) then return end
+    _specPoller = C_Timer.NewTicker(2, function()
+        if not mod._enabled or not mod.db or not mod.db.specSwitchEnabled then return end
+        if InCombatLockdown() then return end
+        local g = getActiveSpecGroup()
+        if g ~= _lastSpecGroup then
+            onTalentChange()  -- group changed since last check → switch
+        end
+    end)
 end
 
 -- =========================================================
@@ -1405,10 +1444,13 @@ function mod:OnEnable()
     ns:RegisterEvent("UPDATE_SHAPESHIFT_FORMS", onShapeshiftChange)
     ns:RegisterEvent("PLAYER_REGEN_ENABLED",    onShapeshiftChange)  -- retry leaving combat
 
-    -- Hook dual-spec events. ACTIVE_TALENT_GROUP_CHANGED is the key one —
-    -- it fires the instant you switch between Spec 1 and Spec 2.
+    -- Hook every plausible dual-spec event — Anniversary builds vary on which
+    -- one actually fires. Plus a 2s polling fallback (startSpecPolling) covers
+    -- builds where none of them fire reliably.
     ns:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED", onTalentChange)
     ns:RegisterEvent("PLAYER_TALENT_UPDATE",        onTalentChange)
+    ns:RegisterEvent("CHARACTER_POINTS_CHANGED",    onTalentChange)
+    ns:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", onTalentChange)
     ns:RegisterEvent("PLAYER_ENTERING_WORLD",       onTalentChange)
     ns:RegisterEvent("PLAYER_REGEN_ENABLED",        onTalentChange)  -- retry after combat
 
@@ -1417,6 +1459,7 @@ function mod:OnEnable()
     if C_Timer and C_Timer.After then
         C_Timer.After(2, function() _lastSpecGroup = getActiveSpecGroup() end)
     end
+    startSpecPolling()
 end
 
 function mod:OnDisable()
@@ -1425,8 +1468,11 @@ function mod:OnDisable()
     ns:UnregisterEvent("PLAYER_REGEN_ENABLED",    onShapeshiftChange)
     ns:UnregisterEvent("ACTIVE_TALENT_GROUP_CHANGED", onTalentChange)
     ns:UnregisterEvent("PLAYER_TALENT_UPDATE",        onTalentChange)
+    ns:UnregisterEvent("CHARACTER_POINTS_CHANGED",    onTalentChange)
+    ns:UnregisterEvent("PLAYER_SPECIALIZATION_CHANGED", onTalentChange)
     ns:UnregisterEvent("PLAYER_ENTERING_WORLD",       onTalentChange)
     ns:UnregisterEvent("PLAYER_REGEN_ENABLED",        onTalentChange)
+    if _specPoller then _specPoller:Cancel(); _specPoller = nil end
     if mmBtn then mmBtn:Hide() end
 end
 
