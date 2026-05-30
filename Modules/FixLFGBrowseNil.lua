@@ -12,9 +12,9 @@ local _, ns = ...
 local L = ns.L
 
 local mod = ns:RegisterModule("fixlfgbrowsenil", {
-    name        = L["LFG Browse Nil Fix"],
+    name        = "LFG Browse Nil Fix",
     group       = "Bugfixes",
-    description = L["Catches Lua errors in the Anniversary Group Finder (LFGBrowseSearchEntry_Update with stale resultIDs). Prevents chat spam and broken browse lists."],
+    description = "Catches Lua errors in the Anniversary Group Finder (LFGBrowseSearchEntry_Update with stale resultIDs). Prevents chat spam and broken browse lists.",
     defaults = {
         enabled    = true,
         showReport = true,  -- report once per session

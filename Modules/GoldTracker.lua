@@ -9,9 +9,9 @@ local _, ns = ...
 local L = ns.L
 
 local mod = ns:RegisterModule("goldtracker", {
-    name        = L["Gold Tracker"],
+    name        = "Gold Tracker",
     group       = "QoL",
-    description = L["Shows in the backpack gold tooltip how much gold has been gained or spent since the last reset. Per-char persistent."],
+    description = "Shows in the backpack gold tooltip how much gold has been gained or spent since the last reset. Per-char persistent.",
     defaults    = {
         enabled = true,
     },

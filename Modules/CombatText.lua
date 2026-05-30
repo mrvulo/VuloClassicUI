@@ -10,9 +10,9 @@ local _, ns = ...
 local L = ns.L
 
 local mod = ns:RegisterModule("combattext", {
-    name        = L["Combat Text"],
+    name        = "Combat Text",
     group       = "QoL",
-    description = L["Custom floating combat text engine with configurable events, color, size and position."],
+    description = "Custom floating combat text engine with configurable events, color, size and position.",
     defaults    = {
         enabled        = true,
         -- Master categories (quick on/off, do NOT override per-event enabled)

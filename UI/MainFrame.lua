@@ -233,7 +233,7 @@ function UI:CreateMainFrame()
                                 local label = (item.label or item.text or ""):lower()
                                 if label ~= "" and label:find(query, 1, true) then
                                     table.insert(results, {
-                                        modName = m.name, modKey = key,
+                                        modName = L[m.name], modKey = key,
                                         tabId = tid, label = item.label or item.text,
                                     })
                                     if #results >= 20 then return true end
@@ -494,7 +494,7 @@ function UI:BuildTabsForModule(key)
 
         local text = tab:CreateFontString(nil, "OVERLAY", "GameFontNormal")
         text:SetPoint("CENTER", tab, "CENTER", 0, 0)
-        text:SetText(tabDef.label)
+        text:SetText(L[tabDef.label])  -- raw English key → translate live
 
         local fontW = text:GetStringWidth() + 24
         tab:SetWidth(math.max(60, fontW))

@@ -18,9 +18,9 @@ local _, ns = ...
 local L = ns.L
 
 local mod = ns:RegisterModule("fixinspect", {
-    name        = L["Inspect Fix"],
+    name        = "Inspect Fix",
     group       = "Bugfixes",
-    description = L["Fixes stuck inspect bugs (no player inspect possible after a faulty close/timeout). Auto-reset after 8s + cleanup when InspectFrame closes + /inspectreset slash command."],
+    description = "Fixes stuck inspect bugs (no player inspect possible after a faulty close/timeout). Auto-reset after 8s + cleanup when InspectFrame closes + /inspectreset slash command.",
     defaults = {
         enabled         = true,
         aggressiveReset = true,   -- ALWAYS clear server state before NotifyInspect

@@ -8,9 +8,9 @@ local _, ns = ...
 local L = ns.L
 
 local mod = ns:RegisterModule("vtmanadisplay", {
-    name        = L["VT Mana Display"],
+    name        = "VT Mana Display",
     group       = "QoL",
-    description = L["Live display of how much mana you've given to the group with Vampiric Touch. Reset on combat start. Only active for priests."],
+    description = "Live display of how much mana you've given to the group with Vampiric Touch. Reset on combat start. Only active for priests.",
     defaults    = {
         enabled    = true,
         showFrame  = true,

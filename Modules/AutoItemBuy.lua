@@ -10,9 +10,9 @@ local _, ns = ...
 local L = ns.L
 
 local mod = ns:RegisterModule("autoitembuy", {
-    name        = L["Auto Item Buy"],
+    name        = "Auto Item Buy",
     group       = "QoL",
-    description = L["Automatically buys configured items at configured vendors. Shift when opening the merchant window = emergency stop."],
+    description = "Automatically buys configured items at configured vendors. Shift when opening the merchant window = emergency stop.",
     defaults = {
         enabled    = false,  -- OFF by default
         autoClose  = true,   -- close merchant window after purchase

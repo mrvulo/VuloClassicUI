@@ -7,9 +7,9 @@ local _, ns = ...
 local L = ns.L
 
 local mod = ns:RegisterModule("profiles", {
-    name        = L["Profiles"],
+    name        = "Profiles",
     group       = "Account",
-    description = L["Manage profiles with different settings. A default profile can be assigned per class and is loaded automatically on login."],
+    description = "Manage profiles with different settings. A default profile can be assigned per class and is loaded automatically on login.",
     noToggle    = true,  -- no power button in the sidebar
     defaults    = {
         enabled = true,

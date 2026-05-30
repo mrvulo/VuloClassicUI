@@ -8,9 +8,9 @@ local _, ns = ...
 local L = ns.L
 
 local mod = ns:RegisterModule("fixauctiondropdown", {
-    name        = L["Auction Price Fix"],
+    name        = "Auction Price Fix",
     group       = "Bugfixes",
-    description = L["Fixes a nil error in the German auction house UI (PriceDropdown not defined)."],
+    description = "Fixes a nil error in the German auction house UI (PriceDropdown not defined).",
     defaults = {
         enabled = true,
     },

@@ -8,9 +8,9 @@ local _, ns = ...
 local L = ns.L
 
 local mod = ns:RegisterModule("fontbars", {
-    name        = L["Font Bars"],
+    name        = "Font Bars",
     group       = "Unit Frames",
-    description = L["Smaller font sizes for Player/Target/Pet Health & Mana bars, optionally hide TargetFrameBackground."],
+    description = "Smaller font sizes for Player/Target/Pet Health & Mana bars, optionally hide TargetFrameBackground.",
     defaults = {
         healthSize       = 11,
         powerSize        = 11,

@@ -10,9 +10,9 @@ local _, ns = ...
 local L = ns.L
 
 local mod = ns:RegisterModule("trinkets", {
-    name        = L["Trinkets"],
+    name        = "Trinkets",
     group       = "QoL",
-    description = L["Two trinket slots on screen with cooldown display, dropdown selection and auto-queue."],
+    description = "Two trinket slots on screen with cooldown display, dropdown selection and auto-queue.",
     defaults    = {
         enabled   = true,
         showFrame = true,

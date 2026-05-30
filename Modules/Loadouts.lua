@@ -13,9 +13,9 @@ local _, ns = ...
 local L = ns.L
 
 local mod = ns:RegisterModule("loadouts", {
-    name        = L["Loadouts"],
+    name        = "Loadouts",
     group       = "QoL",
-    description = L["Save and quickly equip gear sets for different specs, content, or roles."],
+    description = "Save and quickly equip gear sets for different specs, content, or roles.",
     defaults = {
         enabled       = true,
         loadouts      = {},   -- { [name] = { slots = { [slotID] = itemLink, ... }, createdAt = epoch, formIdx = nil } }

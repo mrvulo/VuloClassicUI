@@ -7,9 +7,9 @@ local _, ns = ...
 local L = ns.L
 
 local mod = ns:RegisterModule("characterpanel", {
-    name        = L["Character Panel"],
+    name        = "Character Panel",
     group       = "UI Reskin",
-    description = L["Enhances the character panel: iLvL per slot, socket display, shortened enchant text."],
+    description = "Enhances the character panel: iLvL per slot, socket display, shortened enchant text.",
     defaults = {
         showItemLevel       = true,
         showSockets         = true,

@@ -7,9 +7,9 @@ local _, ns = ...
 local L = ns.L
 
 local mod = ns:RegisterModule("arenaframes", {
-    name        = L["Arena Frames"],
+    name        = "Arena Frames",
     group       = "PvP",
-    description = L["Enhances the Arena enemy frames: move/scale, class colors, class icons, PvP trinket CD, DR tracking, castbar, drag&drop layout."],
+    description = "Enhances the Arena enemy frames: move/scale, class colors, class icons, PvP trinket CD, DR tracking, castbar, drag&drop layout.",
     defaults = {
         -- Core (Position/Scale/Fonts)
         pos        = { point = "CENTER", relPoint = "CENTER", x = 0, y = 0 },

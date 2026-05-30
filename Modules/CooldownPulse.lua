@@ -10,9 +10,9 @@ local _, ns = ...
 local L = ns.L
 
 local mod = ns:RegisterModule("cooldownpulse", {
-    name        = L["Cooldown Pulse"],
+    name        = "Cooldown Pulse",
     group       = "Unit Frames",
-    description = L["Shows the icon of an expired cooldown as a brief pulsing animation in the screen center (based on Doom_CooldownPulse)."],
+    description = "Shows the icon of an expired cooldown as a brief pulsing animation in the screen center (based on Doom_CooldownPulse).",
     defaults = {
         enabled       = false,  -- default OFF
         iconSize      = 75,

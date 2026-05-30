@@ -10,9 +10,9 @@ local _, ns = ...
 local L = ns.L
 
 local mod = ns:RegisterModule("slotpicker", {
-    name        = L["Slot Picker"],
+    name        = "Slot Picker",
     group       = "QoL",
-    description = L["Shift+Right-click an equipment slot to show all compatible items from your bags. Click to equip."],
+    description = "Shift+Right-click an equipment slot to show all compatible items from your bags. Click to equip.",
     defaults = {
         enabled  = true,
         modifier = "right",  -- "right" | "shift-right" | "alt-right" | "ctrl-right"

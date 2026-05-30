@@ -49,7 +49,7 @@ local function createModuleRow(parent, key, mod)
     -- Label
     local label = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     label:SetPoint("LEFT", row, "LEFT", 10, 0)
-    label:SetText(mod.name)
+    label:SetText(L[mod.name])  -- mod.name is a raw English key; translate live
     row.label = label
 
     -- Power button on the right (toggle) - unless module marks itself as noToggle

@@ -8,15 +8,15 @@ local _, ns = ...
 local L = ns.L
 
 local mod = ns:RegisterModule("globalsettings", {
-    name        = L["Global Settings"],
+    name        = "Global Settings",
     group       = "Global",
-    description = L["Global UI settings + profile management."],
+    description = "Global UI settings + profile management.",
     defaults    = { enabled = true },
 })
 
 mod.tabs = {
-    { id = "general", label = L["General"] },
-    { id = "profile", label = L["Profile"] },
+    { id = "general", label = "General" },
+    { id = "profile", label = "Profile" },
 }
 
 -- =========================================================

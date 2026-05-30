@@ -7,8 +7,8 @@ local _, ns = ...
 local L = ns.L
 
 local mod = ns:RegisterModule("arenaframes", {
-    name        = L["Arena Frames"],
-    description = L["Moves/scales the ArenaEnemyFrames and changes the font size of the bars."],
+    name        = "Arena Frames",
+    description = "Moves/scales the ArenaEnemyFrames and changes the font size of the bars.",
     defaults = {
         pos        = { point = "CENTER", relPoint = "CENTER", x = 0, y = 0 },
         scale      = 1.0,

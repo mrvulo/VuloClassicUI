@@ -9,9 +9,9 @@ local _, ns = ...
 local L = ns.L
 
 local mod = ns:RegisterModule("minimap", {
-    name        = L["Minimap Button"],
+    name        = "Minimap Button",
     group       = "Core",
-    description = L["Shows a button on the minimap to quickly open VuloClassicUI. Shift+drag moves the button."],
+    description = "Shows a button on the minimap to quickly open VuloClassicUI. Shift+drag moves the button.",
     defaults = {
         angle  = 215,       -- degrees on the minimap (0 = top, 90 = right, 180 = bottom, 270 = left)
         radius = 80,        -- distance from the minimap center
@@ -170,7 +170,7 @@ function mod:ShowDropdown(anchor)
         if m and m.db then
             local capturedKey, capturedMod = key, m
             table.insert(entries, {
-                text     = capturedMod.name,
+                text     = L[capturedMod.name],  -- raw key → translate live
                 checked  = function() return capturedMod.db.enabled end,
                 func     = function() ns:ToggleModule(capturedKey, not capturedMod.db.enabled) end,
                 keepOpen = true,

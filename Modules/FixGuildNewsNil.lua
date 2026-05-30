@@ -9,9 +9,9 @@ local _, ns = ...
 local L = ns.L
 
 local mod = ns:RegisterModule("fixguildnews", {
-    name        = L["Guild News Nil Fix"],
+    name        = "Guild News Nil Fix",
     group       = "Bugfixes",
-    description = L["Catches Lua errors in guild news entries (typically \"formatString\" or \"GuildUtil\") and replaces broken entries with a fallback text instead of letting the whole panel break."],
+    description = "Catches Lua errors in guild news entries (typically \"formatString\" or \"GuildUtil\") and replaces broken entries with a fallback text instead of letting the whole panel break.",
     defaults = {
         enabled    = true,
         showReport = true,  -- shows once in chat when the fix has been triggered

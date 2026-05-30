@@ -7,9 +7,9 @@ local _, ns = ...
 local L = ns.L
 
 local mod = ns:RegisterModule("miscqol", {
-    name        = L["General"],
+    name        = "General",
     group       = "QoL",
-    description = L["Collection of simple quality-of-life toggles: auto-accept (quest, res, summon), auto-sell, repair, hide UI spam, text sizes."],
+    description = "Collection of simple quality-of-life toggles: auto-accept (quest, res, summon), auto-sell, repair, hide UI spam, text sizes.",
     defaults    = {
         enabled               = true,
         -- Character / auto actions

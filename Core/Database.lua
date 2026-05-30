@@ -50,6 +50,11 @@ function ns:InitDB()
     VuloClassicUIDB     = VuloClassicUIDB     or {}
     VuloClassicUICharDB = VuloClassicUICharDB or {}
 
+    -- SavedVariables are now available — re-resolve the locale so the override
+    -- (stored in VuloClassicUIDB.localeOverride) takes effect. Without this the
+    -- locale would be stuck on the client language read at file-load time.
+    if ns.RefreshLocale then ns:RefreshLocale() end
+
     -- Migration: old structure (db.profile.modules.X) to new (db.profiles.Default.modules.X)
     if VuloClassicUIDB.profile and not VuloClassicUIDB.profiles then
         VuloClassicUIDB.profiles = {

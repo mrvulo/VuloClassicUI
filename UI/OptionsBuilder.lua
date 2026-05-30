@@ -17,6 +17,7 @@
 local _, ns = ...
 ns.UI = ns.UI or {}
 local UI = ns.UI
+local L = ns.L
 
 local CONTENT_PADDING = 14
 local SECTION_GAP     = 12
@@ -169,9 +170,9 @@ function UI:BuildOptionsPage(key, tabId)
 
     local y = -8
 
-    -- Module description on top (small, dim)
+    -- Module description on top (small, dim) — mod.description is a raw English key
     if mod.description and mod.description ~= "" then
-        local desc = UI:CreateDescription(parent, mod.description)
+        local desc = UI:CreateDescription(parent, L[mod.description])
         desc:SetPoint("TOPLEFT", parent, "TOPLEFT", CONTENT_PADDING, y)
         local pw = parent:GetWidth()
         if not pw or pw < 100 then pw = 540 end

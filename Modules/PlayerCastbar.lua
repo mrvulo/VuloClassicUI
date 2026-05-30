@@ -8,9 +8,9 @@ local _, ns = ...
 local L = ns.L
 
 local mod = ns:RegisterModule("playercastbar", {
-    name        = L["Player Castbar"],
+    name        = "Player Castbar",
     group       = "Unit Frames",
-    description = L["Player castbar with two modes: Original (Blizzard bar extended) or Custom castbar (VUI style)."],
+    description = "Player castbar with two modes: Original (Blizzard bar extended) or Custom castbar (VUI style).",
     defaults = {
         enabled       = true,
         mode          = "blizzard",        -- "blizzard" or "custom"

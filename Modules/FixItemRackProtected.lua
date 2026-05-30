@@ -13,9 +13,9 @@ local _, ns = ...
 local L = ns.L
 
 local mod = ns:RegisterModule("fixitemrack", {
-    name        = L["ItemRack Protected Fix"],
+    name        = "ItemRack Protected Fix",
     group       = "Bugfixes",
-    description = L["Catches the Anniversary ADDON_ACTION_BLOCKED crash when ItemRack tries to auto-equip an item on the character model."],
+    description = "Catches the Anniversary ADDON_ACTION_BLOCKED crash when ItemRack tries to auto-equip an item on the character model.",
     defaults = {
         enabled    = true,
         showReport = true,
