@@ -25,10 +25,13 @@ local mod = ns:RegisterModule("loadouts", {
         -- Auto-switch on stance/form change: [formIndex] = "loadoutName"
         autoSwitchEnabled = true,
         formMapping       = {},
+        -- Auto-switch on talent spec (dominant talent tab): [tabIndex] = "loadoutName"
+        specSwitchEnabled = true,
+        specMapping       = {},
         -- Character-frame sidebar
         sidebarEnabled      = true,
-        sidebarTopOffset    = 0,   -- fine-tune top edge (px) vs CharacterFrame
-        sidebarBottomOffset = 0,   -- fine-tune bottom edge (px) vs CharacterFrame
+        sidebarTopOffset    = -14,  -- fine-tune top edge (px) vs CharacterFrame
+        sidebarBottomOffset = 45,   -- fine-tune bottom edge (px) vs CharacterFrame
     },
 })
 
@@ -565,6 +568,78 @@ local function onShapeshiftChange()
     if not mod.db.formMapping then return end
     for loadoutName, formIdx in pairs(mod.db.formMapping) do
         if formIdx == currentForm and mod.db.loadouts[loadoutName] then
+            equipLoadout(loadoutName)
+            return
+        end
+    end
+end
+
+-- =========================================================
+-- Talent-spec auto-switching
+-- TBC has no live spec switch; "spec" = which talent tab has the most points.
+-- We detect the dominant tab and auto-equip the bound loadout when talents
+-- change (respec) or on login.
+-- =========================================================
+local _lastSpecTab = -1
+
+-- Count points spent in a talent tab. GetTalentTabInfo's return layout differs
+-- in Anniversary (sometimes specID instead of name), so we sum GetTalentInfo
+-- ranks as the reliable source.
+local function getTabPoints(tab)
+    -- Try GetTalentTabInfo's pointsSpent (3rd return in classic)
+    if GetTalentTabInfo then
+        local a, b, c = GetTalentTabInfo(tab)
+        if type(c) == "number" and c > 0 then return c end
+        if type(b) == "number" and b > 0 then return b end
+    end
+    -- Fallback: sum ranks of every talent in the tab
+    local total = 0
+    local numTalents = (GetNumTalents and GetNumTalents(tab)) or 0
+    for t = 1, numTalents do
+        local rank = select(5, GetTalentInfo(tab, t))
+        total = total + (tonumber(rank) or 0)
+    end
+    return total
+end
+
+local function getTalentTabName(tab)
+    if GetTalentTabInfo then
+        local name = GetTalentTabInfo(tab)
+        if type(name) == "string" and name ~= "" then return name end
+    end
+    return string.format(L["Spec %d"], tab)
+end
+
+local function getDominantSpecTab()
+    local numTabs = (GetNumTalentTabs and GetNumTalentTabs()) or 0
+    if numTabs == 0 then return 0 end
+    local bestTab, bestPoints = 0, -1
+    local anyPoints = false
+    for tab = 1, numTabs do
+        local pts = getTabPoints(tab)
+        if pts > 0 then anyPoints = true end
+        if pts > bestPoints then
+            bestPoints = pts
+            bestTab = tab
+        end
+    end
+    if not anyPoints then return 0 end  -- no talents spent yet
+    return bestTab
+end
+
+local function onTalentChange()
+    if not mod._enabled or not mod.db then return end
+    if not mod.db.specSwitchEnabled then return end
+    if InCombatLockdown() then return end
+
+    local currentTab = getDominantSpecTab()
+    if currentTab == 0 or currentTab == _lastSpecTab then return end
+    _lastSpecTab = currentTab
+
+    -- specMapping is keyed by loadout name → talent tab index (1:1)
+    if not mod.db.specMapping then return end
+    for loadoutName, tabIdx in pairs(mod.db.specMapping) do
+        if tabIdx == currentTab and mod.db.loadouts[loadoutName] then
             equipLoadout(loadoutName)
             return
         end
@@ -1141,6 +1216,7 @@ function mod:OnEnable()
     -- Defensive: ensure tables exist even if profile is fresh
     mod.db.loadouts    = mod.db.loadouts    or {}
     mod.db.formMapping = mod.db.formMapping or {}
+    mod.db.specMapping = mod.db.specMapping or {}
     mod.db.minimap     = mod.db.minimap     or { hidden = false, angle = -45 }
 
     -- Migration: legacy loadouts without slotMask → derive from currently saved slots
@@ -1153,6 +1229,16 @@ function mod:OnEnable()
             table.sort(mask)
             loadout.slotMask = mask
         end
+    end
+
+    -- Migration: bump sidebar offsets from old 0/0 default to the tuned -14/45
+    -- (one-time; users who deliberately set their own values keep them via the flag)
+    if not mod.db._offsetMigrated then
+        if (mod.db.sidebarTopOffset or 0) == 0 and (mod.db.sidebarBottomOffset or 0) == 0 then
+            mod.db.sidebarTopOffset    = -14
+            mod.db.sidebarBottomOffset = 45
+        end
+        mod.db._offsetMigrated = true
     end
 
     -- Create minimap button (deferred so Minimap definitely exists)
@@ -1169,13 +1255,27 @@ function mod:OnEnable()
     ns:RegisterEvent("UPDATE_SHAPESHIFT_FORMS", onShapeshiftChange)
     ns:RegisterEvent("PLAYER_REGEN_ENABLED",    onShapeshiftChange)  -- retry leaving combat
 
+    -- Hook talent-spec events (TBC: respec changes the dominant talent tab)
+    ns:RegisterEvent("CHARACTER_POINTS_CHANGED", onTalentChange)
+    ns:RegisterEvent("PLAYER_TALENT_UPDATE",     onTalentChange)
+    ns:RegisterEvent("PLAYER_ENTERING_WORLD",    onTalentChange)
+    ns:RegisterEvent("PLAYER_REGEN_ENABLED",     onTalentChange)  -- retry after combat
+
     _lastForm = getCurrentForm()
+    -- Defer initial spec read — talents may not be available immediately on login
+    if C_Timer and C_Timer.After then
+        C_Timer.After(2, function() _lastSpecTab = getDominantSpecTab() end)
+    end
 end
 
 function mod:OnDisable()
     ns:UnregisterEvent("UPDATE_SHAPESHIFT_FORM",  onShapeshiftChange)
     ns:UnregisterEvent("UPDATE_SHAPESHIFT_FORMS", onShapeshiftChange)
     ns:UnregisterEvent("PLAYER_REGEN_ENABLED",    onShapeshiftChange)
+    ns:UnregisterEvent("CHARACTER_POINTS_CHANGED", onTalentChange)
+    ns:UnregisterEvent("PLAYER_TALENT_UPDATE",     onTalentChange)
+    ns:UnregisterEvent("PLAYER_ENTERING_WORLD",    onTalentChange)
+    ns:UnregisterEvent("PLAYER_REGEN_ENABLED",     onTalentChange)
     if mmBtn then mmBtn:Hide() end
 end
 
@@ -1189,6 +1289,16 @@ local function buildFormDropdownValues()
     local numForms = (GetNumShapeshiftForms and GetNumShapeshiftForms()) or 0
     for i = 1, numForms do
         table.insert(values, { value = i, text = getFormName(i) })
+    end
+    return values
+end
+
+-- Build a list of talent tabs (specs) for dropdown values
+local function buildSpecDropdownValues()
+    local values = { { value = 0, text = L["None"] } }
+    local numTabs = (GetNumTalentTabs and GetNumTalentTabs()) or 0
+    for i = 1, numTabs do
+        table.insert(values, { value = i, text = getTalentTabName(i) })
     end
     return values
 end
@@ -1235,6 +1345,13 @@ function mod:GetOptions()
           end },
 
         { type = "spacer", height = 6 },
+        { type = "header", text = L["Auto-Switch on Talent Spec"] },
+        { type = "toggle", label = L["Enable spec auto-switching"],
+          tooltip = L["Automatically equips a loadout based on your dominant talent tree. TBC has no live spec switch, so this triggers when you respec or on login. Bind each loadout to a talent tree below."],
+          get = function() return mod.db.specSwitchEnabled ~= false end,
+          set = function(_, v) mod.db.specSwitchEnabled = v end },
+
+        { type = "spacer", height = 6 },
         { type = "header", text = L["Auto-Switch on Stance/Form"] },
         { type = "toggle", label = L["Enable auto-switching"],
           tooltip = L["Automatically equips a loadout when your stance/form changes (warrior stances, druid forms). Out-of-combat only — if a stance change happens in combat, the swap is deferred until combat ends."],
@@ -1251,6 +1368,8 @@ function mod:GetOptions()
     else
         local formValues = buildFormDropdownValues()
         local hasForms = #formValues > 1  -- 1 = only "None" → no stance class
+        local specValues = buildSpecDropdownValues()
+        local hasSpecs = #specValues > 1  -- talent tabs exist
 
         for _, name in ipairs(names) do
             local capturedName = name  -- closure capture
@@ -1280,7 +1399,29 @@ function mod:GetOptions()
                 },
             })
 
-            -- Row 3: Auto-equip on form dropdown (only show if class has forms)
+            -- Row 3: Auto-equip on talent spec dropdown
+            if hasSpecs then
+                table.insert(items, { type = "dropdown",
+                    label = L["Auto-equip on spec"],
+                    tooltip = L["Equip this loadout automatically when this talent tree becomes your dominant spec (after a respec or on login)."],
+                    values = specValues,
+                    get = function() return (mod.db.specMapping and mod.db.specMapping[capturedName]) or 0 end,
+                    set = function(_, v)
+                        mod.db.specMapping = mod.db.specMapping or {}
+                        -- 1:1 mapping — clear any other loadout on this spec tab
+                        if v and v ~= 0 then
+                            for other, tabIdx in pairs(mod.db.specMapping) do
+                                if tabIdx == v and other ~= capturedName then
+                                    mod.db.specMapping[other] = nil
+                                end
+                            end
+                        end
+                        mod.db.specMapping[capturedName] = (v ~= 0) and v or nil
+                    end,
+                })
+            end
+
+            -- Row 4: Auto-equip on form dropdown (only show if class has forms)
             if hasForms then
                 table.insert(items, { type = "dropdown",
                     label = L["Auto-equip on form"],
