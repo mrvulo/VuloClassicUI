@@ -575,56 +575,61 @@ local function onShapeshiftChange()
 end
 
 -- =========================================================
--- Talent-spec auto-switching
--- TBC has no live spec switch; "spec" = which talent tab has the most points.
--- We detect the dominant tab and auto-equip the bound loadout when talents
--- change (respec) or on login.
+-- Dual-spec auto-switching
+-- Anniversary backported the WotLK dual-spec system. We use the real spec
+-- group APIs (GetActiveTalentGroup + ACTIVE_TALENT_GROUP_CHANGED) so switching
+-- between Spec 1 and Spec 2 in-game instantly equips the bound loadout.
 -- =========================================================
-local _lastSpecTab = -1
+local _lastSpecGroup = -1
 
--- Count points spent in a talent tab. GetTalentTabInfo's return layout differs
--- in Anniversary (sometimes specID instead of name), so we sum GetTalentInfo
--- ranks as the reliable source.
-local function getTabPoints(tab)
-    -- Try GetTalentTabInfo's pointsSpent (3rd return in classic)
-    if GetTalentTabInfo then
-        local a, b, c = GetTalentTabInfo(tab)
-        if type(c) == "number" and c > 0 then return c end
-        if type(b) == "number" and b > 0 then return b end
+local function getActiveSpecGroup()
+    if GetActiveTalentGroup then
+        local ok, g = pcall(GetActiveTalentGroup)
+        if ok and g then return g end
     end
-    -- Fallback: sum ranks of every talent in the tab
+    return 1
+end
+
+local function getNumSpecGroups()
+    if GetNumTalentGroups then
+        local ok, n = pcall(GetNumTalentGroups)
+        if ok and n then return n end
+    end
+    return 1
+end
+
+-- Points spent in a talent tab FOR A SPECIFIC spec group (4th param = talentGroup).
+local function getTabPoints(tab, group)
+    if GetTalentTabInfo then
+        local _, _, pointsSpent = GetTalentTabInfo(tab, false, false, group)
+        if type(pointsSpent) == "number" then return pointsSpent end
+    end
     local total = 0
     local numTalents = (GetNumTalents and GetNumTalents(tab)) or 0
     for t = 1, numTalents do
-        local rank = select(5, GetTalentInfo(tab, t))
+        local rank = select(5, GetTalentInfo(tab, t, false, false, group))
         total = total + (tonumber(rank) or 0)
     end
     return total
 end
 
-local function getTalentTabName(tab)
-    if GetTalentTabInfo then
-        local name = GetTalentTabInfo(tab)
-        if type(name) == "string" and name ~= "" then return name end
-    end
-    return string.format(L["Spec %d"], tab)
-end
-
-local function getDominantSpecTab()
+-- Label for a spec group: "Spec 1 (Shadow)" using the dominant talent tab name.
+local function getSpecGroupLabel(group)
     local numTabs = (GetNumTalentTabs and GetNumTalentTabs()) or 0
-    if numTabs == 0 then return 0 end
-    local bestTab, bestPoints = 0, -1
-    local anyPoints = false
+    local bestName, bestPoints = nil, -1
     for tab = 1, numTabs do
-        local pts = getTabPoints(tab)
-        if pts > 0 then anyPoints = true end
+        local pts = getTabPoints(tab, group)
         if pts > bestPoints then
             bestPoints = pts
-            bestTab = tab
+            local name = GetTalentTabInfo and GetTalentTabInfo(tab, false, false, group)
+            if type(name) == "string" and name ~= "" then bestName = name else bestName = nil end
         end
     end
-    if not anyPoints then return 0 end  -- no talents spent yet
-    return bestTab
+    local base = string.format(L["Spec %d"], group)
+    if bestName and bestPoints > 0 then
+        return string.format("%s (%s)", base, bestName)
+    end
+    return base
 end
 
 local function onTalentChange()
@@ -632,14 +637,14 @@ local function onTalentChange()
     if not mod.db.specSwitchEnabled then return end
     if InCombatLockdown() then return end
 
-    local currentTab = getDominantSpecTab()
-    if currentTab == 0 or currentTab == _lastSpecTab then return end
-    _lastSpecTab = currentTab
+    local currentGroup = getActiveSpecGroup()
+    if currentGroup == _lastSpecGroup then return end
+    _lastSpecGroup = currentGroup
 
-    -- specMapping is keyed by loadout name → talent tab index (1:1)
+    -- specMapping is keyed by loadout name → spec group index (1:1)
     if not mod.db.specMapping then return end
-    for loadoutName, tabIdx in pairs(mod.db.specMapping) do
-        if tabIdx == currentTab and mod.db.loadouts[loadoutName] then
+    for loadoutName, groupIdx in pairs(mod.db.specMapping) do
+        if groupIdx == currentGroup and mod.db.loadouts[loadoutName] then
             equipLoadout(loadoutName)
             return
         end
@@ -1255,16 +1260,17 @@ function mod:OnEnable()
     ns:RegisterEvent("UPDATE_SHAPESHIFT_FORMS", onShapeshiftChange)
     ns:RegisterEvent("PLAYER_REGEN_ENABLED",    onShapeshiftChange)  -- retry leaving combat
 
-    -- Hook talent-spec events (TBC: respec changes the dominant talent tab)
-    ns:RegisterEvent("CHARACTER_POINTS_CHANGED", onTalentChange)
-    ns:RegisterEvent("PLAYER_TALENT_UPDATE",     onTalentChange)
-    ns:RegisterEvent("PLAYER_ENTERING_WORLD",    onTalentChange)
-    ns:RegisterEvent("PLAYER_REGEN_ENABLED",     onTalentChange)  -- retry after combat
+    -- Hook dual-spec events. ACTIVE_TALENT_GROUP_CHANGED is the key one —
+    -- it fires the instant you switch between Spec 1 and Spec 2.
+    ns:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED", onTalentChange)
+    ns:RegisterEvent("PLAYER_TALENT_UPDATE",        onTalentChange)
+    ns:RegisterEvent("PLAYER_ENTERING_WORLD",       onTalentChange)
+    ns:RegisterEvent("PLAYER_REGEN_ENABLED",        onTalentChange)  -- retry after combat
 
     _lastForm = getCurrentForm()
-    -- Defer initial spec read — talents may not be available immediately on login
+    -- Defer initial spec read — spec group may not be available immediately on login
     if C_Timer and C_Timer.After then
-        C_Timer.After(2, function() _lastSpecTab = getDominantSpecTab() end)
+        C_Timer.After(2, function() _lastSpecGroup = getActiveSpecGroup() end)
     end
 end
 
@@ -1272,10 +1278,10 @@ function mod:OnDisable()
     ns:UnregisterEvent("UPDATE_SHAPESHIFT_FORM",  onShapeshiftChange)
     ns:UnregisterEvent("UPDATE_SHAPESHIFT_FORMS", onShapeshiftChange)
     ns:UnregisterEvent("PLAYER_REGEN_ENABLED",    onShapeshiftChange)
-    ns:UnregisterEvent("CHARACTER_POINTS_CHANGED", onTalentChange)
-    ns:UnregisterEvent("PLAYER_TALENT_UPDATE",     onTalentChange)
-    ns:UnregisterEvent("PLAYER_ENTERING_WORLD",    onTalentChange)
-    ns:UnregisterEvent("PLAYER_REGEN_ENABLED",     onTalentChange)
+    ns:UnregisterEvent("ACTIVE_TALENT_GROUP_CHANGED", onTalentChange)
+    ns:UnregisterEvent("PLAYER_TALENT_UPDATE",        onTalentChange)
+    ns:UnregisterEvent("PLAYER_ENTERING_WORLD",       onTalentChange)
+    ns:UnregisterEvent("PLAYER_REGEN_ENABLED",        onTalentChange)
     if mmBtn then mmBtn:Hide() end
 end
 
@@ -1293,12 +1299,12 @@ local function buildFormDropdownValues()
     return values
 end
 
--- Build a list of talent tabs (specs) for dropdown values
+-- Build a list of spec groups (dual-spec) for dropdown values
 local function buildSpecDropdownValues()
     local values = { { value = 0, text = L["None"] } }
-    local numTabs = (GetNumTalentTabs and GetNumTalentTabs()) or 0
-    for i = 1, numTabs do
-        table.insert(values, { value = i, text = getTalentTabName(i) })
+    local numGroups = getNumSpecGroups()
+    for g = 1, numGroups do
+        table.insert(values, { value = g, text = getSpecGroupLabel(g) })
     end
     return values
 end
@@ -1345,9 +1351,9 @@ function mod:GetOptions()
           end },
 
         { type = "spacer", height = 6 },
-        { type = "header", text = L["Auto-Switch on Talent Spec"] },
+        { type = "header", text = L["Auto-Switch on Dual Spec"] },
         { type = "toggle", label = L["Enable spec auto-switching"],
-          tooltip = L["Automatically equips a loadout based on your dominant talent tree. TBC has no live spec switch, so this triggers when you respec or on login. Bind each loadout to a talent tree below."],
+          tooltip = L["Automatically equips a loadout when you switch between Spec 1 and Spec 2 (dual spec). Bind each loadout to a spec below. Requires dual spec to be active."],
           get = function() return mod.db.specSwitchEnabled ~= false end,
           set = function(_, v) mod.db.specSwitchEnabled = v end },
 
@@ -1369,7 +1375,7 @@ function mod:GetOptions()
         local formValues = buildFormDropdownValues()
         local hasForms = #formValues > 1  -- 1 = only "None" → no stance class
         local specValues = buildSpecDropdownValues()
-        local hasSpecs = #specValues > 1  -- talent tabs exist
+        local hasSpecs = getNumSpecGroups() >= 2  -- only show when dual spec is active
 
         for _, name in ipairs(names) do
             local capturedName = name  -- closure capture
@@ -1403,7 +1409,7 @@ function mod:GetOptions()
             if hasSpecs then
                 table.insert(items, { type = "dropdown",
                     label = L["Auto-equip on spec"],
-                    tooltip = L["Equip this loadout automatically when this talent tree becomes your dominant spec (after a respec or on login)."],
+                    tooltip = L["Equip this loadout automatically when you switch to this spec."],
                     values = specValues,
                     get = function() return (mod.db.specMapping and mod.db.specMapping[capturedName]) or 0 end,
                     set = function(_, v)
