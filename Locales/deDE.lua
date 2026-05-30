@@ -91,6 +91,8 @@ ns:RegisterLocale("deDE", {
     ["New Set"] = "Neues Set",
     ["Left-click: select"] = "Linksklick: Auswählen",
     ["Double-click / Right-click menu: equip"] = "Doppelklick / Rechtsklick-Menü: Anlegen",
+    ["Change icon..."] = "Symbol ändern...",
+    ["Icon for: %s"] = "Symbol für: %s",
     ["Replace: %s"] = "Ersetzen: %s",
     ["Remove from set"] = "Aus Set entfernen",
     ["Loadout '%s': slot updated."] = "Set '%s': Slot aktualisiert.",

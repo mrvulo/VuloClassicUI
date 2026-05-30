@@ -766,6 +766,148 @@ local function getSetIcon(name)
     return "Interface\\Icons\\INV_Misc_QuestionMark"
 end
 
+-- =========================================================
+-- Set-icon picker popup
+-- Grid of: [Auto] + every item icon in the set + a few generic role icons.
+-- Click sets loadout.iconOverride (or clears it for Auto).
+-- =========================================================
+local _iconPicker
+local _iconBtns = {}
+local ICON_SIZE = 30
+local ICON_COLS = 6
+local ICON_PAD  = 3
+
+-- A few hand-picked generic icons (roles/specs) so a set can use a symbol
+-- that isn't one of its items.
+local GENERIC_ICONS = {
+    "Interface\\Icons\\Spell_Holy_PowerWordShield",
+    "Interface\\Icons\\Spell_Shadow_ShadowWordPain",
+    "Interface\\Icons\\Spell_Holy_HolyBolt",
+    "Interface\\Icons\\Spell_Nature_Lightning",
+    "Interface\\Icons\\Ability_Warrior_OffensiveStance",
+    "Interface\\Icons\\Ability_Warrior_DefensiveStance",
+    "Interface\\Icons\\Ability_Rogue_Sprint",
+    "Interface\\Icons\\Spell_Frost_FrostBolt02",
+    "Interface\\Icons\\Spell_Fire_FlameBolt",
+    "Interface\\Icons\\Spell_Nature_HealingTouch",
+    "Interface\\Icons\\INV_Sword_27",
+    "Interface\\Icons\\INV_Shield_06",
+    "Interface\\Icons\\INV_Misc_Gem_Diamond_03",
+    "Interface\\Icons\\Achievement_PVP_A_A",
+}
+
+local function getIconPickerButton(idx)
+    local b = _iconBtns[idx]
+    if b then return b end
+    b = CreateFrame("Button", nil, _iconPicker)
+    b:SetSize(ICON_SIZE, ICON_SIZE)
+    b.tex = b:CreateTexture(nil, "ARTWORK")
+    b.tex:SetAllPoints(b)
+    b.tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    b.hl = b:CreateTexture(nil, "HIGHLIGHT")
+    b.hl:SetAllPoints(b)
+    b.hl:SetColorTexture(0.4, 0.3, 0.6, 0.4)
+    b:RegisterForClicks("LeftButtonUp")
+    _iconBtns[idx] = b
+    return b
+end
+
+local function showIconPicker(loadoutName, anchor)
+    local loadout = mod.db.loadouts[loadoutName]
+    if not loadout then return end
+
+    if not _iconPicker then
+        _iconPicker = CreateFrame("Frame", "VCUI_LoadoutIconPicker", UIParent,
+            BackdropTemplateMixin and "BackdropTemplate")
+        _iconPicker:SetFrameStrata("FULLSCREEN_DIALOG")
+        _iconPicker:Hide()
+        _iconPicker:EnableMouse(true)
+        _iconPicker:SetClampedToScreen(true)
+        if _iconPicker.SetBackdrop then
+            _iconPicker:SetBackdrop({
+                bgFile   = "Interface\\Buttons\\WHITE8X8",
+                edgeFile = "Interface\\Buttons\\WHITE8X8",
+                edgeSize = 1,
+                insets   = { left = 1, right = 1, top = 1, bottom = 1 },
+            })
+            _iconPicker:SetBackdropColor(0.05, 0.05, 0.08, 0.97)
+            _iconPicker:SetBackdropBorderColor(0.4, 0.3, 0.6, 1)
+        end
+        tinsert(UISpecialFrames, "VCUI_LoadoutIconPicker")
+        _iconPicker.title = _iconPicker:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        _iconPicker.title:SetPoint("TOPLEFT", _iconPicker, "TOPLEFT", 8, -6)
+        _iconPicker.title:SetTextColor(1, 0.82, 0)
+    end
+
+    _iconPicker.title:SetText(string.format(L["Icon for: %s"], loadoutName))
+
+    -- Build the icon list: Auto first, then set items, then generics (de-duped)
+    local icons = {}           -- { tex = path or nil (=auto), isAuto = bool }
+    local seen  = {}
+    table.insert(icons, { isAuto = true })
+    if GetItemInfoInstant and loadout.slots then
+        -- stable order by slot
+        local slots = {}
+        for s in pairs(loadout.slots) do table.insert(slots, s) end
+        table.sort(slots)
+        for _, s in ipairs(slots) do
+            local _, _, _, _, ic = GetItemInfoInstant(loadout.slots[s])
+            if ic and not seen[ic] then
+                seen[ic] = true
+                table.insert(icons, { tex = ic })
+            end
+        end
+    end
+    for _, ic in ipairs(GENERIC_ICONS) do
+        if not seen[ic] then
+            seen[ic] = true
+            table.insert(icons, { tex = ic })
+        end
+    end
+
+    -- Hide leftover buttons
+    for _, b in ipairs(_iconBtns) do b:Hide() end
+
+    local startY = 24
+    for i, entry in ipairs(icons) do
+        local b = getIconPickerButton(i)
+        b:Show()
+        if entry.isAuto then
+            b.tex:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+            b.tex:SetVertexColor(0.7, 0.7, 0.7)
+            b._iconValue = nil  -- nil = auto
+        else
+            b.tex:SetTexture(entry.tex)
+            b.tex:SetVertexColor(1, 1, 1)
+            b._iconValue = entry.tex
+        end
+        b:SetScript("OnClick", function(self)
+            loadout.iconOverride = self._iconValue  -- nil → auto
+            _iconPicker:Hide()
+            refreshSidebar()
+        end)
+        local col = (i - 1) % ICON_COLS
+        local row = math.floor((i - 1) / ICON_COLS)
+        b:ClearAllPoints()
+        b:SetPoint("TOPLEFT", _iconPicker, "TOPLEFT",
+            6 + col * (ICON_SIZE + ICON_PAD),
+            -(startY + row * (ICON_SIZE + ICON_PAD)))
+    end
+
+    local numRows = math.ceil(#icons / ICON_COLS)
+    _iconPicker:SetSize(
+        ICON_COLS * (ICON_SIZE + ICON_PAD) + 12,
+        startY + numRows * (ICON_SIZE + ICON_PAD) + 8)
+
+    _iconPicker:ClearAllPoints()
+    if anchor and anchor.GetLeft then
+        _iconPicker:SetPoint("TOPRIGHT", anchor, "TOPLEFT", -4, 0)
+    else
+        _iconPicker:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+    end
+    _iconPicker:Show()
+end
+
 local function createSetRow(parent, index)
     local btn = sidebarSetButtons[index]
     if btn then return btn end
@@ -842,6 +984,9 @@ local function createSetRow(parent, index)
                 { text = L["Overwrite"], func = function()
                     overwriteLoadout(self.setName)
                     refreshSidebar()
+                end },
+                { text = L["Change icon..."], func = function()
+                    showIconPicker(self.setName, self)
                 end },
                 { separator = true },
                 { text = L["Delete"], func = function()
