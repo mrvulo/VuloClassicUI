@@ -1017,27 +1017,58 @@ local function createSetRow(parent, index)
     btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     btn:SetScript("OnClick", function(self, button)
         if button == "RightButton" then
-            ns:ShowPopupMenu({
-                { title = true, text = self.setName },
-                { text = L["Equip"], func = function() equipLoadout(self.setName) end },
+            local setName = self.setName
+            local menu = {
+                { title = true, text = setName },
+                { text = L["Equip"], func = function() equipLoadout(setName) end },
                 { text = L["Overwrite"], func = function()
-                    overwriteLoadout(self.setName)
+                    overwriteLoadout(setName)
                     refreshSidebar()
                 end },
                 { text = L["Change icon..."], func = function()
-                    showIconPicker(self.setName, self)
+                    showIconPicker(setName, self)
                 end },
-                { separator = true },
-                { text = L["Delete"], func = function()
-                    if mod.db.confirmDelete then
-                        local dlg = StaticPopup_Show("VCUI_LOADOUT_DELETE", self.setName)
-                        if dlg then dlg.data = self.setName end
-                    else
-                        deleteLoadout(self.setName)
-                        refreshSidebar()
-                    end
-                end },
-            }, self)
+            }
+
+            -- Spec-binding entries — only when dual spec is active
+            if getNumSpecGroups() >= 2 then
+                table.insert(menu, { separator = true })
+                for g = 1, getNumSpecGroups() do
+                    local group = g
+                    table.insert(menu, {
+                        text    = string.format(L["Bind to %s"], getSpecGroupLabel(group)),
+                        checked = function() return mod.db.specMapping and mod.db.specMapping[setName] == group end,
+                        func    = function()
+                            mod.db.specMapping = mod.db.specMapping or {}
+                            if mod.db.specMapping[setName] == group then
+                                -- toggle off
+                                mod.db.specMapping[setName] = nil
+                                ns:Print(string.format(L["'%s' unbound from spec."], setName))
+                            else
+                                -- 1:1 — clear any other set on this group
+                                for other, gi in pairs(mod.db.specMapping) do
+                                    if gi == group and other ~= setName then mod.db.specMapping[other] = nil end
+                                end
+                                mod.db.specMapping[setName] = group
+                                ns:Print(string.format(L["'%s' bound to %s."], setName, getSpecGroupLabel(group)))
+                            end
+                        end,
+                    })
+                end
+            end
+
+            table.insert(menu, { separator = true })
+            table.insert(menu, { text = L["Delete"], func = function()
+                if mod.db.confirmDelete then
+                    local dlg = StaticPopup_Show("VCUI_LOADOUT_DELETE", setName)
+                    if dlg then dlg.data = setName end
+                else
+                    deleteLoadout(setName)
+                    refreshSidebar()
+                end
+            end })
+
+            ns:ShowPopupMenu(menu, self)
         else
             -- Detect double-click via timestamp
             local now = GetTime()
