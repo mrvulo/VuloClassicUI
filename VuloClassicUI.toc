@@ -3,6 +3,7 @@
 ## Notes: Modular UI suite for TBC Classic Anniversary
 ## Author: Vulo
 ## Version: 1.7.2
+## OptionalDeps: Masque, Masque_Shadow
 ## X-Wago-ID: rN4kojGD
 ## X-Curse-Project-ID: 1553405
 ## SavedVariables: VuloClassicUIDB, TrinketsOptions
