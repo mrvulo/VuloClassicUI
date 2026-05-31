@@ -45,6 +45,25 @@ local SHADOW_GLOW  = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\shadow_glo
 -- How far the soft shadow bleeds out past the button edge (px)
 local SHADOW_INSET = 4
 
+-- The Masque "Shadow 1" texture is a HOLLOW rounded border (transparent centre,
+-- soft dark rounded edge — verified: centre alpha 0, edge alpha ~165-221). To
+-- make it show we lay it OVER the icon edge so the dark rounded ring sits on the
+-- icon's outer ~12%, leaving the middle visible. That IS the Shadow look.
+-- `outset` pushes the ring slightly past the icon edge for a touch of bleed.
+local function attachShadow(frame, anchor, store, outset)
+    if not frame or not anchor then return end
+    store = store or frame
+    outset = outset or 2
+    if not store._vcuiRing then
+        local ring = frame:CreateTexture(nil, "OVERLAY", nil, 6)
+        ring:SetPoint("TOPLEFT",     anchor, "TOPLEFT",     -outset,  outset)
+        ring:SetPoint("BOTTOMRIGHT", anchor, "BOTTOMRIGHT",  outset, -outset)
+        ring:SetTexture(SHADOW_GLOW)
+        ring:SetVertexColor(0, 0, 0, 1)
+        store._vcuiRing = ring
+    end
+end
+
 -- Style table: how each style draws a button
 --   border = "black" | "accent" | nil (none)
 --   bg     = dark backdrop behind the icon
@@ -133,10 +152,8 @@ local function applyStyle(button)
         button._vcuiBg:SetShown(st.bg and true or false)
     end
 
-    -- Soft black drop-shadow (Masque_Shadow look)
-    if button._vcuiShadow then
-        button._vcuiShadow:SetShown(st.shadow and true or false)
-    end
+    -- Masque "Shadow" ring (rounded dark edge over the icon)
+    if button._vcuiRing then button._vcuiRing:SetShown(st.shadow and true or false) end
 
     -- Shape mask (rounded / circle) on icon + backdrop
     if icon then
@@ -164,15 +181,10 @@ local function skinButton(button)
     if not button._vcuiSkinned then
         button._vcuiSkinned = true
 
-        -- Soft black drop-shadow behind everything (the Masque "Shadow" glow).
-        -- Bleeds out past the button edge; not masked (it already is the shape).
-        local shadow = button:CreateTexture(nil, "BACKGROUND", nil, -8)
-        shadow:SetPoint("TOPLEFT",     button, "TOPLEFT",     -SHADOW_INSET,  SHADOW_INSET)
-        shadow:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT",  SHADOW_INSET, -SHADOW_INSET)
-        shadow:SetTexture(SHADOW_GLOW)
-        shadow:SetVertexColor(0, 0, 0, 1)     -- tint the grey glow pure black
-        shadow:Hide()
-        button._vcuiShadow = shadow
+        -- Masque "Shadow" look: a soft black rounded ring laid over the icon's
+        -- outer edge. Anchored to the icon so it lines up with what you see.
+        local icon0 = getRegion(button, "Icon", button.icon or button.Icon)
+        attachShadow(button, icon0 or button, button)
 
         -- Dark backdrop behind the icon (created once; shown/hidden per style)
         local bg = button:CreateTexture(nil, "BACKGROUND", nil, -2)
@@ -241,16 +253,12 @@ end
 -- =========================================================
 local function skinWAIcon(region)
     if not region or region.regionType ~= "icon" then return end
-    if region._vcuiWAShadow then return end
-    if not region.icon then return end
-
-    -- Soft black drop-shadow behind the icon (same texture as the bars)
-    local shadow = region:CreateTexture(nil, "BACKGROUND", nil, -8)
-    shadow:SetPoint("TOPLEFT",     region, "TOPLEFT",     -SHADOW_INSET,  SHADOW_INSET)
-    shadow:SetPoint("BOTTOMRIGHT", region, "BOTTOMRIGHT",  SHADOW_INSET, -SHADOW_INSET)
-    shadow:SetTexture(SHADOW_GLOW)
-    shadow:SetVertexColor(0, 0, 0, 1)
-    region._vcuiWAShadow = shadow
+    if region._vcuiRing then return end
+    local icon = region.icon
+    if not icon then return end
+    -- Anchor to the icon itself (it spans the visible area in both Masque and
+    -- non-Masque modes), so the ring lines up with what you actually see.
+    attachShadow(region, icon, region)
 end
 
 local function skinWAById(id)
