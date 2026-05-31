@@ -343,17 +343,23 @@ local function styleWAIcon(region)
     local pct     = st.shadow and WA_SHRINK or 0
     setMasked(region, icon, maskTex ~= nil, maskTex, pct)
 
-    -- Size the cooldown to the masked icon (reference uses Cooldown = icon size).
-    -- WeakAuras re-anchors it whenever a cooldown starts, so also hook SetCooldown
-    -- to re-apply — otherwise the sweep snaps back to full size and overhangs.
-    insetCooldown(region, icon, pct)
-    if region.cooldown and not region.cooldown._vcuiCDHook then
-        region.cooldown._vcuiCDHook = true
-        hooksecurefunc(region.cooldown, "SetCooldown", function(self)
-            if not (mod._enabled and mod.db and mod.db.skinWeakAuras) then return end
-            local s = currentStyle(true)
-            insetCooldown(region, icon, s.shadow and WA_SHRINK or 0)
-        end)
+    -- Inset the cooldown to the masked icon (centres the number on it) and make
+    -- the GCD/cooldown SWEEP transparent — we can't reliably resize the sweep to
+    -- the framed icon in WeakAuras without Masque, and full-size it overhangs.
+    -- The countdown number still shows. Re-applied via SetCooldown (WeakAuras
+    -- re-draws the sweep when a cooldown starts).
+    local function fixCD(cd)
+        insetCooldown(region, icon, pct)
+        if cd.SetSwipeColor then pcall(cd.SetSwipeColor, cd, 0, 0, 0, 0) end
+    end
+    if region.cooldown then
+        fixCD(region.cooldown)
+        if not region.cooldown._vcuiCDHook then
+            region.cooldown._vcuiCDHook = true
+            hooksecurefunc(region.cooldown, "SetCooldown", function(self)
+                if mod._enabled and mod.db and mod.db.skinWeakAuras then fixCD(self) end
+            end)
+        end
     end
 
     -- Hide WeakAuras' own "Border" sub-regions — our rim replaces them, and a
