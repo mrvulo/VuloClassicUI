@@ -47,8 +47,8 @@ local TEX_BORDER   = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\Normal.tga
 -- icon's MASK is inset so the icon reads smaller than the frame and the dark
 -- backdrop shows as a rim. We shrink via the mask (survives game updates),
 -- not by re-anchoring the icon (which gets reset).
-local RIM_OUTSET  = 3
-local ICON_SHRINK = 5
+local RIM_OUTSET  = 2
+local ICON_SHRINK = 3
 
 -- The shadow layers behind the icon: filled dark backdrop + black rounded
 -- border with a soft drop-shadow (the real "Shadow" look), both bleeding a
