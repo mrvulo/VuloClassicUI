@@ -62,31 +62,33 @@ local function setIconInset(frame, icon, px)
     end
 end
 
--- The Masque "Shadow 1" construction: a FILLED dark backdrop at full FRAME
--- size with the icon shrunk inside it (setIconInset), so the backdrop shows as
--- a dark rim all around the icon. We mask the backdrop with the curved-square
--- mask so the rim has clearly rounded corners (Masque's own texture only
--- rounds subtly). `outset` is a small bleed past the frame edge for depth.
+-- Masque "Shadow 1" construction, 1:1: both layers sit at the full FRAME size
+-- BEHIND the icon, and the icon is shrunk inside them (setIconInset) so they
+-- show as the rim. Backdrop.tga = filled dark fill (depth); Normal.tga = the
+-- black hollow rounded border + soft drop-shadow. Subtle rounding comes from
+-- the textures themselves (no extra mask = matches the real skin).
+-- `outset` bleeds past the frame edge for the soft shadow.
 local function attachShadow(frame, store, outset)
     if not frame then return end
     store = store or frame
-    outset = outset or 2
+    outset = outset or 3
 
     if not store._vcuiBack then
-        local back = frame:CreateTexture(nil, "BACKGROUND", nil, -6)
+        -- filled dark backdrop (Masque "Backdrop")
+        local back = frame:CreateTexture(nil, "BACKGROUND", nil, -7)
         back:SetPoint("TOPLEFT",     frame, "TOPLEFT",     -outset,  outset)
         back:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT",  outset, -outset)
-        back:SetColorTexture(0.03, 0.03, 0.04, 1)   -- near-black solid
+        back:SetTexture(SHADOW_BACK)
+        back:SetVertexColor(0.10, 0.10, 0.12, 1)
         store._vcuiBack = back
 
-        -- Round the backdrop's corners clearly with the curved-square mask
-        if frame.CreateMaskTexture then
-            local bm = frame:CreateMaskTexture()
-            bm:SetAllPoints(back)
-            bm:SetTexture(MASK_ROUNDED, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
-            pcall(back.AddMaskTexture, back, bm)
-            store._vcuiBackMask = bm
-        end
+        -- black hollow rounded border + soft shadow (Masque "Normal")
+        local ring = frame:CreateTexture(nil, "BACKGROUND", nil, -6)
+        ring:SetPoint("TOPLEFT",     frame, "TOPLEFT",     -outset,  outset)
+        ring:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT",  outset, -outset)
+        ring:SetTexture(SHADOW_GLOW)
+        ring:SetVertexColor(0, 0, 0, 1)
+        store._vcuiRing = ring
     end
 end
 
@@ -199,8 +201,10 @@ local function applyStyle(button)
         button._vcuiBg:SetShown((st.bg and not st.shadow) and true or false)
     end
 
-    -- Masque "Shadow": filled dark rounded backdrop bleeding out as a rim
-    if button._vcuiBack then button._vcuiBack:SetShown(st.shadow and true or false) end
+    -- Masque "Shadow": filled backdrop + black rounded border behind the icon
+    local showShadow = st.shadow and true or false
+    if button._vcuiBack then button._vcuiBack:SetShown(showShadow) end
+    if button._vcuiRing then button._vcuiRing:SetShown(showShadow) end
 
     -- Shape mask (rounded / circle) on icon + backdrop
     if icon then
@@ -309,7 +313,9 @@ local function styleWAIcon(region)
     attachShadow(region, region)                -- create backdrop once
     local st = currentStyle()
 
-    if region._vcuiBack then region._vcuiBack:SetShown(st.shadow and true or false) end
+    local showShadow = st.shadow and true or false
+    if region._vcuiBack then region._vcuiBack:SetShown(showShadow) end
+    if region._vcuiRing then region._vcuiRing:SetShown(showShadow) end
 
     -- Shrink the icon for the Shadow style so the backdrop forms a rim
     setIconInset(region, icon, st.shadow and ICON_INSET or 0)
