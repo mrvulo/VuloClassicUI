@@ -307,7 +307,7 @@ local function styleWAIcon(region)
     -- frame the icon. The textures themselves provide the rounded shape/shadow.
     if region._vcuiBack then
         region._vcuiBack:SetShown(showShadow)
-        region._vcuiBack:SetVertexColor(0.3, 0.3, 0.3, 1)   -- grey fill
+        region._vcuiBack:SetVertexColor(0.06, 0.06, 0.07, 1)   -- dark, near-black fill
     end
     if region._vcuiRing then region._vcuiRing:SetShown(showShadow) end
 
