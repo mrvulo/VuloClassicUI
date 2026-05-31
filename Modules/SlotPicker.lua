@@ -9,9 +9,12 @@
 local _, ns = ...
 local L = ns.L
 
+-- Registered as a hidden module: its settings live inside the Loadouts
+-- ("Equipment Sets") page, not as a separate sidebar entry. The module still
+-- runs (hooks slots, exposes ns:ScanBagsForSlot) — it's just not shown on its own.
 local mod = ns:RegisterModule("slotpicker", {
     name        = "Slot Picker",
-    group       = "QoL",
+    group       = "_hidden",
     description = "Shift+Right-click an equipment slot to show all compatible items from your bags. Click to equip.",
     defaults = {
         enabled  = true,

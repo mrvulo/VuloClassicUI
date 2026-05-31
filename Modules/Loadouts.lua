@@ -1561,6 +1561,30 @@ function mod:GetOptions()
               applySidebarVisibility()
           end },
 
+        -- Slot Picker (formerly its own module, now integrated here)
+        { type = "spacer", height = 6 },
+        { type = "section", title = L["Slot Picker"], collapsed = false, items = {
+            { type = "desc", text = L["|cffaaaaaaRight-click an equipment slot in the character window to see all compatible items from your bags and click one to equip it.|r"] },
+            { type = "toggle", label = L["Enable slot picker"],
+              get = function() local sp = ns.modules and ns.modules.slotpicker; return sp and sp.db and sp.db.enabled end,
+              set = function(_, v) if ns.ToggleModule then ns:ToggleModule("slotpicker", v) end end },
+            { type = "dropdown", label = L["Activation modifier"],
+              tooltip = L["Choose which key combination opens the item picker when you click an equipment slot."],
+              values = {
+                  { value = "right",       text = L["Right-click only"] },
+                  { value = "shift-right", text = L["Shift + Right-click"] },
+                  { value = "alt-right",   text = L["Alt + Right-click"] },
+                  { value = "ctrl-right",  text = L["Ctrl + Right-click"] },
+              },
+              get = function() local sp = ns.modules and ns.modules.slotpicker; return (sp and sp.db and sp.db.modifier) or "right" end,
+              set = function(_, v) local sp = ns.modules and ns.modules.slotpicker; if sp and sp.db then sp.db.modifier = v end end },
+            { type = "slider", label = L["Grid columns"],
+              tooltip = L["How many item icons per row in the picker popup."],
+              min = 4, max = 14, step = 1,
+              get = function() local sp = ns.modules and ns.modules.slotpicker; return (sp and sp.db and sp.db.cols) or 8 end,
+              set = function(_, v) local sp = ns.modules and ns.modules.slotpicker; if sp and sp.db then sp.db.cols = v end end },
+        } },
+
         { type = "spacer", height = 6 },
         { type = "header", text = L["Minimap Button"] },
         { type = "toggle", label = L["Show minimap button"],

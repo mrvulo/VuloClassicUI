@@ -106,6 +106,8 @@ ns:RegisterLocale("deDE", {
 
     -- SlotPicker
     ["Slot Picker"] = "Slot-Auswahl",
+    ["Enable slot picker"] = "Slot-Auswahl aktivieren",
+    ["|cffaaaaaaRight-click an equipment slot in the character window to see all compatible items from your bags and click one to equip it.|r"] = "|cffaaaaaaRechtsklick auf einen Ausrüstungs-Slot im Charakterfenster zeigt alle passenden Items aus deinen Taschen — Klick zum Anlegen.|r",
     ["Shift+Right-click an equipment slot to show all compatible items from your bags. Click to equip."] = "Shift+Rechtsklick auf einen Ausrüstungs-Slot zeigt alle passenden Items aus deinen Taschen. Klick zum Anlegen.",
     ["Modifier-click an equipment slot in the Character frame to open a popup with all compatible items from your bags. Click an item to equip it (out-of-combat)."] = "Modifier-Klick auf einen Ausrüstungs-Slot im Charakterfenster öffnet ein Popup mit allen passenden Items aus deinen Taschen. Klick zum Anlegen (außerhalb des Kampfes).",
     ["Activation modifier"] = "Aktivierungs-Modifier",
