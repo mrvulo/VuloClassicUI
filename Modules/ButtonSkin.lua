@@ -293,6 +293,23 @@ end
 -- from the bars (its own style dropdown). The backdrop/border are textures and
 -- the icon is masked (no re-anchoring), so it survives WeakAuras' updates.
 -- =========================================================
+-- Size the cooldown to match the (masked) icon — like the reference skin sizes
+-- Cooldown to the icon, so the sweep/number sit on the icon, not overhang it.
+local function insetCooldown(region, icon, pct)
+    local cd = region.cooldown
+    if not (cd and cd.ClearAllPoints) then return end
+    cd:ClearAllPoints()
+    if pct and pct > 0 then
+        local w = (icon and icon:GetWidth()) or 0
+        if w < 1 then w = (region.GetWidth and region:GetWidth()) or 32 end
+        local inset = math.max(1, w * pct)
+        cd:SetPoint("TOPLEFT",     icon, "TOPLEFT",      inset, -inset)
+        cd:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", -inset,  inset)
+    else
+        cd:SetAllPoints(icon)
+    end
+end
+
 local function styleWAIcon(region)
     if not region or region.regionType ~= "icon" then return end
     local icon = region.icon
@@ -315,14 +332,17 @@ local function styleWAIcon(region)
     local pct     = st.shadow and SHRINK_PCT or 0
     setMasked(region, icon, maskTex ~= nil, maskTex, pct)
 
-    -- The cooldown frame stays full size (WeakAuras keeps re-anchoring it, so we
-    -- can't reliably shrink it to the 76% icon). Instead make its sweep + bling
-    -- transparent so nothing overhangs the icon — the countdown number stays.
-    if pct > 0 and region.cooldown then
-        local cd = region.cooldown
-        if cd.SetSwipeColor then pcall(cd.SetSwipeColor, cd, 0, 0, 0, 0) end
-        if cd.SetDrawBling  then pcall(cd.SetDrawBling,  cd, false) end
-        if cd.SetDrawEdge   then pcall(cd.SetDrawEdge,   cd, false) end
+    -- Size the cooldown to the masked icon (reference uses Cooldown = icon size).
+    -- WeakAuras re-anchors it whenever a cooldown starts, so also hook SetCooldown
+    -- to re-apply — otherwise the sweep snaps back to full size and overhangs.
+    insetCooldown(region, icon, pct)
+    if region.cooldown and not region.cooldown._vcuiCDHook then
+        region.cooldown._vcuiCDHook = true
+        hooksecurefunc(region.cooldown, "SetCooldown", function(self)
+            if not (mod._enabled and mod.db and mod.db.skinWeakAuras) then return end
+            local s = currentStyle(true)
+            insetCooldown(region, icon, s.shadow and SHRINK_PCT or 0)
+        end)
     end
 
     -- Hide WeakAuras' own "Border" sub-regions — our rim replaces them, and a
