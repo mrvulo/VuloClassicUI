@@ -19,7 +19,7 @@ local COLS        = 2
 UI.DASHBOARD_KEY = "__dashboard__"
 
 -- Groups shown on the dashboard, in order (matches the sidebar)
-local GROUP_ORDER = { "Global", "Unit Frames", "PvP", "QoL", "UI Reskin", "Bugfixes" }
+local GROUP_ORDER = { "Global", "Unit Frames", "Class", "PvP", "QoL", "UI Reskin", "Bugfixes" }
 local HIDDEN_GROUPS = { ["_hidden"] = true, ["Account"] = true, ["Core"] = true }
 
 UI._dashChildren = {}

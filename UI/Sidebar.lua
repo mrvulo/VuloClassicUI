@@ -20,6 +20,7 @@ local MODULE_ICONS = {
     minimap            = "Interface\\Icons\\INV_Misc_Map_01",
     fontbars           = "Interface\\Icons\\INV_Misc_Note_01",
     playercastbar      = "Interface\\Icons\\Spell_Holy_MagicalSentry",
+    swingtimer         = "Interface\\Icons\\Ability_DualWield",
     cooldownpulse      = "Interface\\Icons\\Spell_Nature_TimeStop",
     arenaframes        = "Interface\\Icons\\Achievement_Arena_2v2_1",
     characterpanel     = "Interface\\Icons\\INV_Chest_Plate06",
@@ -50,7 +51,7 @@ function ns:GetModuleIcon(key)
 end
 
 UI.sidebarButtons     = {}
-UI.sidebarGroupOrder  = { "Global", "Unit Frames", "PvP", "QoL", "UI Reskin", "Bugfixes" }  -- desired order
+UI.sidebarGroupOrder  = { "Global", "Unit Frames", "Class", "PvP", "QoL", "UI Reskin", "Bugfixes" }  -- desired order
 UI.sidebarHiddenGroups = { ["_hidden"] = true, ["Account"] = true, ["Core"] = true }  -- not shown in sidebar
 UI.sidebarGroupBuckets = {}
 

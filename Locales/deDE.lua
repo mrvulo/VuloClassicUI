@@ -10,6 +10,30 @@ local _, ns = ...
 
 ns:RegisterLocale("deDE", {
     -- =====================================================
+    -- Groups / Swing Timer
+    -- =====================================================
+    ["Class"] = "Klassenspezifisch",
+    ["Swing Timer"] = "Waffen-Swingtimer",
+    ["Weapon swing timer for your melee auto-attacks. Shows a main-hand bar and, while dual-wielding, an off-hand bar (Rogue / Warrior)."] = "Waffen-Swingtimer für deine Nahkampf-Autoangriffe. Zeigt eine Waffenhand-Leiste und beim beidhändigen Kämpfen eine Nebenhand-Leiste (Schurke / Krieger).",
+    ["|cffaaaaaaShows when your next melee auto-attack lands. The off-hand bar only appears while dual-wielding (Rogue / Warrior). The bar fills up toward the swing; the number is the time left.|r"] = "|cffaaaaaaZeigt, wann dein nächster Nahkampf-Autoangriff trifft. Die Nebenhand-Leiste erscheint nur beim beidhändigen Kämpfen (Schurke / Krieger). Die Leiste füllt sich bis zum Schlag; die Zahl ist die verbleibende Zeit.|r",
+    ["|cffffffffSWING TIMER|r\n|cffaaaaaaDrag or arrow keys|r"] = "|cffffffffSWINGTIMER|r\n|cffaaaaaaZiehen oder Pfeiltasten|r",
+    ["Swing Timer position: x=%.0f, y=%.0f"] = "Swingtimer-Position: x=%.0f, y=%.0f",
+    ["Swing Timer mover active. |cff9b6cffDrag the purple box|r or use |cff9b6cffarrow keys|r (SHIFT = 5px). Click 'Unlock / Test' again to finish."] = "Swingtimer-Verschiebemodus aktiv. |cff9b6cffLila Kasten ziehen|r oder |cff9b6cffPfeiltasten|r (SHIFT = 5px). 'Entsperren / Test' erneut klicken zum Beenden.",
+    ["Swing Timer mover disabled."] = "Swingtimer-Verschiebemodus deaktiviert.",
+    ["Show off-hand bar (while dual-wielding)"] = "Nebenhand-Leiste zeigen (beim beidhändigen Kämpfen)",
+    ["Show time remaining"] = "Verbleibende Zeit anzeigen",
+    ["Only show while attacking"] = "Nur beim Angreifen zeigen",
+    ["Hides the bars unless you're auto-attacking. Turn off to always show them."] = "Versteckt die Leisten, außer du führst Autoangriffe aus. Ausschalten, um sie immer zu zeigen.",
+    ["Bar color"] = "Balkenfarbe",
+    ["Gap between bars"] = "Abstand zwischen Leisten",
+    ["Blue"] = "Blau",
+    ["Violet"] = "Violett",
+    ["Cyan"] = "Türkis",
+    ["Green"] = "Grün",
+    ["Gold"] = "Gold",
+    ["Red"] = "Rot",
+
+    -- =====================================================
     -- Loadouts
     -- =====================================================
     ["Loadouts"] = "Ausrüstungs-Sets",
