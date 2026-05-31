@@ -1,10 +1,14 @@
 -- =========================================================
 -- VuloClassicUI / Modules / ButtonSkin
--- Lightweight "Shadow"-style skin for Blizzard action buttons — the look
--- people install Masque + Masque_Shadow for, without the framework:
+-- Lightweight Masque_Shadow-style skin for Blizzard action buttons — the
+-- look people install Masque + Masque_Shadow for, without the framework:
 --   - icons cropped so the ugly default border is gone
---   - chunky NormalTexture border removed, replaced by a clean 1px edge
---   - dark backdrop behind each icon
+--   - chunky NormalTexture border removed
+--   - rounded icon shape (mask) + a soft black drop-shadow that bleeds out
+--     past the button edge (the Masque "Shadow" look)
+--   - several styles: shadow / rounded / square / accent / circle / minimal
+-- WeakAuras icons go through Masque automatically — point its "WeakAuras"
+-- group at "Masque: Shadow 1" for the matching look.
 -- No external library, no secure-frame writes (only textures/regions are
 -- touched), fully toggleable.
 -- =========================================================
@@ -14,7 +18,7 @@ local L = ns.L
 local mod = ns:RegisterModule("buttonskin", {
     name        = "Button Skin",
     group       = "UI Reskin",
-    description = "Clean Shadow-style skin for action buttons: cropped icons, thin border, dark backdrop. A lightweight Masque_Shadow alternative.",
+    description = "Masque_Shadow-style skin for action buttons: black, rounded, soft drop-shadow. Lightweight Masque alternative with several styles.",
     defaults = {
         enabled       = true,
         style         = "shadow",  -- shadow | accent | rounded | circle | minimal
@@ -31,21 +35,27 @@ local EXTRA_PREFIXES = { "PetActionButton", "StanceButton" }
 
 local ICON_CROP = { 0.08, 0.92, 0.08, 0.92 }
 
--- Bundled mask textures (rounded-square / circular icon shapes).
+-- Bundled textures (rounded-square / circular masks + the soft shadow glow).
 -- Shipped under Media\Masks\ so they load reliably in the Classic client.
 local MASK_ROUNDED = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\csquare_mask.tga"  -- rounded square
 local MASK_CIRCLE  = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\circle_mask.tga"
+local SHADOW_GLOW  = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\shadow_glow.tga"   -- Masque "Shadow" glow
 
--- Style table: how each style draws an icon
---   border   = "black" | "accent" | nil (none)
---   bg       = show dark backdrop behind icon
---   mask     = mask texture (rounds the icon) or nil
+-- How far the soft shadow bleeds out past the button edge (px)
+local SHADOW_INSET = 4
+
+-- Style table: how each style draws a button
+--   border = "black" | "accent" | nil (none)
+--   bg     = dark backdrop behind the icon
+--   mask   = mask texture (rounds the icon + backdrop) or nil
+--   shadow = soft black drop-shadow glow behind the button (Masque_Shadow look)
 local STYLES = {
-    shadow  = { border = "black",  bg = true,  mask = nil          },  -- square, black edge
-    accent  = { border = "accent", bg = true,  mask = nil          },  -- square, purple edge
-    rounded = { border = nil,      bg = true,  mask = MASK_ROUNDED },  -- rounded silhouette
-    circle  = { border = nil,      bg = true,  mask = MASK_CIRCLE  },  -- circular silhouette
-    minimal = { border = nil,      bg = false, mask = nil          },  -- cropped icon only
+    shadow  = { border = nil,      bg = true,  mask = MASK_ROUNDED, shadow = true  },  -- Masque_Shadow: black, rounded, soft shadow
+    rounded = { border = nil,      bg = true,  mask = MASK_ROUNDED, shadow = false },  -- rounded, no shadow
+    square  = { border = "black",  bg = true,  mask = nil,          shadow = false },  -- classic square, black edge
+    accent  = { border = "accent", bg = true,  mask = nil,          shadow = false },  -- square, purple edge
+    circle  = { border = nil,      bg = true,  mask = MASK_CIRCLE,  shadow = true  },  -- circular + shadow
+    minimal = { border = nil,      bg = false, mask = nil,          shadow = false },  -- cropped icon only
 }
 
 local function currentStyle()
@@ -119,6 +129,11 @@ local function applyStyle(button)
         button._vcuiBg:SetShown(st.bg and true or false)
     end
 
+    -- Soft black drop-shadow (Masque_Shadow look)
+    if button._vcuiShadow then
+        button._vcuiShadow:SetShown(st.shadow and true or false)
+    end
+
     -- Shape mask (rounded / circle) on icon + backdrop
     if icon then
         setMasked(button, icon, st.mask ~= nil, st.mask)
@@ -145,8 +160,18 @@ local function skinButton(button)
     if not button._vcuiSkinned then
         button._vcuiSkinned = true
 
+        -- Soft black drop-shadow behind everything (the Masque "Shadow" glow).
+        -- Bleeds out past the button edge; not masked (it already is the shape).
+        local shadow = button:CreateTexture(nil, "BACKGROUND", nil, -8)
+        shadow:SetPoint("TOPLEFT",     button, "TOPLEFT",     -SHADOW_INSET,  SHADOW_INSET)
+        shadow:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT",  SHADOW_INSET, -SHADOW_INSET)
+        shadow:SetTexture(SHADOW_GLOW)
+        shadow:SetVertexColor(0, 0, 0, 1)     -- tint the grey glow pure black
+        shadow:Hide()
+        button._vcuiShadow = shadow
+
         -- Dark backdrop behind the icon (created once; shown/hidden per style)
-        local bg = button:CreateTexture(nil, "BACKGROUND")
+        local bg = button:CreateTexture(nil, "BACKGROUND", nil, -2)
         bg:SetPoint("TOPLEFT", button, "TOPLEFT", 1, -1)
         bg:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -1, 1)
         bg:SetColorTexture(0.04, 0.04, 0.05, 0.9)
@@ -252,9 +277,10 @@ end
 -- =========================================================
 function mod:GetOptions()
     local STYLE_VALUES = {
-        { value = "shadow",  text = L["Shadow (square, black edge)"] },
-        { value = "accent",  text = L["Accent (square, purple edge)"] },
-        { value = "rounded", text = L["Rounded corners"] },
+        { value = "shadow",  text = L["Shadow (black, rounded, soft shadow)"] },
+        { value = "rounded", text = L["Rounded (no shadow)"] },
+        { value = "square",  text = L["Square (black edge)"] },
+        { value = "accent",  text = L["Square (accent edge)"] },
         { value = "circle",  text = L["Circle"] },
         { value = "minimal", text = L["Minimal (icon only)"] },
     }
@@ -275,6 +301,8 @@ function mod:GetOptions()
           set = function(_, v) mod.db.skinPetStance = v; skinAll() end },
 
         { type = "spacer", height = 6 },
+        { type = "desc", text = L["|cffaaaaaaWeakAuras icons: open Masque, set the \"WeakAuras\" group to \"Masque: Shadow 1\" for the same black rounded look.|r"] },
+        { type = "spacer", height = 4 },
         { type = "desc", text = L["|cffaaaaaaNote: turning the skin off fully reverts after a /reload. Works on Blizzard's default bars; if you use another action-bar addon, let it handle skinning instead.|r"] },
     }
 end
