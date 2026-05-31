@@ -8,9 +8,38 @@ local L = ns.L
 ns.UI = ns.UI or {}
 local UI = ns.UI
 
-local ROW_HEIGHT     = 26
-local GROUP_HEADER_H = 28
-local GROUP_GAP      = 6
+local ROW_HEIGHT     = 28
+local GROUP_HEADER_H = 26
+local GROUP_GAP      = 8
+
+-- Per-module icons (Blizzard textures available in TBC Classic).
+-- Unknown keys fall back to MODULE_ICON_FALLBACK.
+local MODULE_ICONS = {
+    globalsettings     = "Interface\\Icons\\Trade_Engineering",
+    profiles           = "Interface\\Icons\\INV_Misc_Note_03",
+    minimap            = "Interface\\Icons\\INV_Misc_Map_01",
+    fontbars           = "Interface\\Icons\\INV_Misc_Note_01",
+    playercastbar      = "Interface\\Icons\\Spell_Holy_MagicalSentry",
+    cooldownpulse      = "Interface\\Icons\\Spell_Nature_TimeStop",
+    arenaframes        = "Interface\\Icons\\Achievement_Arena_2v2_1",
+    characterpanel     = "Interface\\Icons\\INV_Chest_Plate06",
+    miscqol            = "Interface\\Icons\\Trade_BlackSmithing",
+    queuetimer         = "Interface\\Icons\\INV_Misc_PocketWatch_01",
+    tooltipids         = "Interface\\Icons\\INV_Misc_QuestionMark",
+    autoitembuy        = "Interface\\Icons\\INV_Misc_Coin_01",
+    goldtracker        = "Interface\\Icons\\INV_Misc_Coin_05",
+    vtmanadisplay      = "Interface\\Icons\\INV_Potion_137",
+    combattext         = "Interface\\Icons\\Ability_Warrior_BattleShout",
+    loadouts           = "Interface\\Icons\\INV_Chest_Chain",
+    slotpicker         = "Interface\\Icons\\INV_Misc_Bag_08",
+    trinkets           = "Interface\\Icons\\INV_Misc_Gem_Variety_01",
+    fixinspect         = "Interface\\Icons\\INV_Misc_Spyglass_02",
+    fixitemrack        = "Interface\\Icons\\INV_Misc_Wrench_01",
+    fixlfgbrowsenil    = "Interface\\Icons\\INV_Misc_GroupLooking",
+    fixguildnews       = "Interface\\Icons\\INV_Scroll_03",
+    fixauctiondropdown = "Interface\\Icons\\INV_Misc_Coin_02",
+}
+local MODULE_ICON_FALLBACK = "Interface\\Icons\\INV_Misc_Gear_01"
 
 UI.sidebarButtons     = {}
 UI.sidebarGroupOrder  = { "Global", "Unit Frames", "PvP", "QoL", "UI Reskin", "Bugfixes" }  -- desired order
@@ -19,13 +48,32 @@ UI.sidebarGroupBuckets = {}
 
 local function highlightSelected()
     for key, btn in pairs(UI.sidebarButtons) do
-        if key == UI.currentModule then
+        local selected = (key == UI.currentModule)
+        if selected then
             btn.bg:Show()
+            if btn.accentBar then btn.accentBar:Show() end
             btn.label:SetTextColor(1, 1, 1)
         else
             btn.bg:Hide()
+            if btn.accentBar then btn.accentBar:Hide() end
             local c = ns.COLORS.textDim
             btn.label:SetTextColor(c.r, c.g, c.b)
+        end
+
+        -- Dim the icon + label of disabled modules so on/off is readable at a glance
+        local mod = ns.modules[key]
+        local enabled = mod and mod.db and mod.db.enabled
+        if btn.icon then
+            if enabled then
+                btn.icon:SetDesaturated(false)
+                btn.icon:SetAlpha(1)
+            else
+                btn.icon:SetDesaturated(true)
+                btn.icon:SetAlpha(0.4)
+            end
+        end
+        if not selected and not enabled then
+            btn.label:SetTextColor(ns.COLORS.textMuted.r, ns.COLORS.textMuted.g, ns.COLORS.textMuted.b)
         end
     end
 end
@@ -41,14 +89,31 @@ local function createModuleRow(parent, key, mod)
     bg:Hide()
     row.bg = bg
 
+    -- Accent bar on the left edge (shown when selected)
+    local accentBar = row:CreateTexture(nil, "ARTWORK")
+    accentBar:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 0)
+    accentBar:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 0, 0)
+    accentBar:SetWidth(3)
+    accentBar:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 1)
+    accentBar:Hide()
+    row.accentBar = accentBar
+
     -- Hover
     local hover = row:CreateTexture(nil, "HIGHLIGHT")
     hover:SetAllPoints(row)
     hover:SetColorTexture(1, 1, 1, 0.05)
 
-    -- Label
+    -- Module icon (left)
+    local icon = row:CreateTexture(nil, "ARTWORK")
+    icon:SetSize(18, 18)
+    icon:SetPoint("LEFT", row, "LEFT", 8, 0)
+    icon:SetTexture(MODULE_ICONS[key] or MODULE_ICON_FALLBACK)
+    icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)  -- crop default border
+    row.icon = icon
+
+    -- Label (after icon)
     local label = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    label:SetPoint("LEFT", row, "LEFT", 10, 0)
+    label:SetPoint("LEFT", icon, "RIGHT", 8, 0)
     label:SetText(L[mod.name])  -- mod.name is a raw English key; translate live
     row.label = label
 
@@ -77,11 +142,19 @@ local function createGroupHeader(parent, groupName)
     local h = CreateFrame("Frame", nil, parent)
     h:SetHeight(GROUP_HEADER_H)
 
-    local fs = h:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    fs:SetPoint("LEFT", h, "LEFT", 6, -2)
-    fs:SetText(L[groupName])
+    -- Uppercase, slightly smaller — reads as a section label
+    local fs = h:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    fs:SetPoint("BOTTOMLEFT", h, "BOTTOMLEFT", 8, 4)
+    fs:SetText(string.upper(L[groupName]))
     local c = ns.COLORS.accent
     fs:SetTextColor(c.r, c.g, c.b)
+
+    -- Thin separator line under the header
+    local line = h:CreateTexture(nil, "ARTWORK")
+    line:SetPoint("BOTTOMLEFT", h, "BOTTOMLEFT", 8, 0)
+    line:SetPoint("BOTTOMRIGHT", h, "BOTTOMRIGHT", -8, 0)
+    line:SetHeight(1)
+    line:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 0.25)
 
     return h
 end
