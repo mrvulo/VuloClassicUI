@@ -40,7 +40,7 @@ end
 local function createWidget(parent, item)
     local t = item.type
     if t == "header" then
-        return UI:CreateHeader(parent, item.text or ""), 22, 400
+        return UI:CreateHeader(parent, item.text or ""), 26, 480
     elseif t == "desc" then
         local fs = UI:CreateDescription(parent, item.text or "")
         fs:SetWidth(item.width or 480)
@@ -68,7 +68,7 @@ local function estimateHeight(item)
     local t = item.type
     if t == "checkbox" or t == "toggle" then return 26
     elseif t == "button" or t == "iconbutton" then return 30
-    elseif t == "header" then return 22
+    elseif t == "header" then return 26
     elseif t == "desc"   then return 22
     elseif t == "slider" then return 38
     elseif t == "dropdown" then return item.label and 50 or 32
@@ -85,8 +85,8 @@ local function placeItem(parent, item, y)
         return UI:PlaceGroup(parent, item, y)
     end
     if item.type == "header" then
-        -- Header gets extra spacing above
-        y = y - 6
+        -- Header gets extra breathing room above for clear section separation
+        y = y - 10
     end
 
     local widget, h = createWidget(parent, item)

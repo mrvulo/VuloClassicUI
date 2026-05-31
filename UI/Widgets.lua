@@ -144,12 +144,31 @@ end
 -- Header (section heading in EUI style: uppercase, dimmed)
 -- =========================================================
 function UI:CreateHeader(parent, text)
-    local fs = parent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    local f = CreateFrame("Frame", nil, parent)
+    f:SetSize(480, 22)
+
+    -- Small accent tick on the left
+    local tick = f:CreateTexture(nil, "ARTWORK")
+    tick:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 0, 3)
+    tick:SetSize(3, 12)
+    tick:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 1)
+
+    -- Header label (uppercase, bright)
+    local fs = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    fs:SetPoint("BOTTOMLEFT", tick, "BOTTOMRIGHT", 7, -1)
     fs:SetText(string.upper(text or ""))
-    local c = ns.COLORS.sectionHdr
-    fs:SetTextColor(c.r, c.g, c.b)
+    fs:SetTextColor(0.92, 0.90, 0.96)
     fs:SetJustifyH("LEFT")
-    return fs
+    f._label = fs
+
+    -- Thin accent underline spanning the row, fading to the right
+    local line = f:CreateTexture(nil, "ARTWORK")
+    line:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 0, 0)
+    line:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -10, 0)
+    line:SetHeight(1)
+    line:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 0.22)
+
+    return f
 end
 
 function UI:CreateDescription(parent, text)
@@ -277,15 +296,41 @@ function UI:CreateSlider(parent, config)
         s.Text:SetTextColor(c.r, c.g, c.b)
     end
 
-    -- Tint slider track purple (the yellow default thumb stays)
+    local accent = ns.COLORS.accent
+    local sMin = config.min or 0
+    local sMax = config.max or 100
+
+    -- Modern track: dark base bar + accent progress fill, drawn over the
+    -- plain Blizzard template track. A slim white thumb sits on top.
+    local trackBg = s:CreateTexture(nil, "ARTWORK", nil, 1)
+    trackBg:SetHeight(4)
+    trackBg:SetPoint("LEFT", s, "LEFT", 2, 0)
+    trackBg:SetPoint("RIGHT", s, "RIGHT", -2, 0)
+    trackBg:SetColorTexture(0.16, 0.16, 0.20, 1)
+
+    local trackFill = s:CreateTexture(nil, "ARTWORK", nil, 2)
+    trackFill:SetHeight(4)
+    trackFill:SetPoint("LEFT", trackBg, "LEFT", 0, 0)
+    trackFill:SetColorTexture(accent.r, accent.g, accent.b, 0.95)
+
+    local function updateFill(v)
+        local frac = 0
+        if sMax > sMin then frac = (v - sMin) / (sMax - sMin) end
+        frac = math.max(0, math.min(1, frac))
+        local w = (trackBg:GetWidth() or (config.width or 200)) * frac
+        trackFill:SetWidth(math.max(0.001, w))
+    end
+    s._updateFill = updateFill
+
+    -- Slimmer accent thumb
     local thumb = s:GetThumbTexture()
     if thumb then
-        thumb:SetVertexColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 1)
+        thumb:SetColorTexture(0.95, 0.95, 1.0, 1)
+        thumb:SetSize(8, 16)
     end
 
     -- Value display + clickable ± buttons (SHIFT = 5x step)
     local stepSize = config.step or 1
-    local accent = ns.COLORS.accent
 
     local function makeStepButton(label, dir)
         local b = CreateFrame("Button", nil, s)
@@ -328,8 +373,15 @@ function UI:CreateSlider(parent, config)
             v = math.floor(v + 0.5)
         end
         valueText:SetText(string.format("%g", v))
+        updateFill(v)
         config.set(self, v)
     end)
+
+    -- Initial fill (defer one frame so the track has its real width)
+    updateFill(config.get(s) or sMin)
+    if C_Timer and C_Timer.After then
+        C_Timer.After(0, function() updateFill(s:GetValue() or sMin) end)
+    end
 
     attachTooltip(s, config.tooltip)
     s._vcType   = "slider"
