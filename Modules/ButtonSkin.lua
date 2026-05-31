@@ -114,13 +114,31 @@ local function getRegion(button, suffix, fallback)
 end
 
 local function hideNormalTexture(button)
-    -- Action buttons expose the chunky border as NormalTexture
+    -- Action buttons expose the chunky gold border as NormalTexture
     local nt = (button.GetNormalTexture and button:GetNormalTexture())
             or getRegion(button, "NormalTexture", button.NormalTexture)
     if nt then
         nt:SetTexture(nil)
         nt:SetAlpha(0)
     end
+    -- Empty-slot grid border (shown when "always show buttons" is on)
+    local slot = getRegion(button, "SlotBackground", button.SlotBackground)
+    if slot then slot:SetAlpha(0) end
+end
+
+-- Blizzard re-applies the NormalTexture on state changes and this client has
+-- no reliable global ActionButton_Update, so hook each button's setter once.
+local function lockNormalTexture(button)
+    if button._vcuiNTHook or not button.SetNormalTexture then return end
+    button._vcuiNTHook = true
+    hooksecurefunc(button, "SetNormalTexture", function(self)
+        if mod._enabled and self._vcuiSkinned then
+            local n = self.GetNormalTexture and self:GetNormalTexture()
+            if n and n.GetAlpha and n:GetAlpha() ~= 0 then
+                n:SetTexture(nil); n:SetAlpha(0)
+            end
+        end
+    end)
 end
 
 -- Lazily create the button's reusable mask texture (anchored to the icon)
@@ -208,6 +226,9 @@ local function skinButton(button)
         -- outer edge. Anchored to the icon so it lines up with what you see.
         local icon0 = getRegion(button, "Icon", button.icon or button.Icon)
         attachShadow(button, icon0 or button, button)
+
+        -- Keep Blizzard's gold border from coming back
+        lockNormalTexture(button)
 
         -- Dark backdrop behind the icon (created once; shown/hidden per style)
         local bg = button:CreateTexture(nil, "BACKGROUND", nil, -2)
