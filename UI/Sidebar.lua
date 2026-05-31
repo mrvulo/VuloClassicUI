@@ -23,6 +23,7 @@ local MODULE_ICONS = {
     cooldownpulse      = "Interface\\Icons\\Spell_Nature_TimeStop",
     arenaframes        = "Interface\\Icons\\Achievement_Arena_2v2_1",
     characterpanel     = "Interface\\Icons\\INV_Chest_Plate06",
+    buttonskin         = "Interface\\Icons\\INV_Misc_Gem_Variety_02",
     miscqol            = "Interface\\Icons\\Trade_BlackSmithing",
     queuetimer         = "Interface\\Icons\\INV_Misc_PocketWatch_01",
     tooltipids         = "Interface\\Icons\\INV_Misc_QuestionMark",

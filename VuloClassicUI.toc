@@ -53,6 +53,7 @@ Modules\Arena\DR.lua
 Modules\Arena\Castbar.lua
 Modules\CharacterPanel.lua
 Modules\CharacterPanel_Impl.lua
+Modules\ButtonSkin.lua
 Modules\MiscQoL.lua
 Modules\QueueTimer.lua
 Modules\TooltipIDs.lua
