@@ -298,35 +298,19 @@ local function styleWAIcon(region)
     local icon = region.icon
     if not icon then return end
 
-    attachShadow(region, region)                -- create backdrop once
+    attachShadow(region, region, 3)             -- create backdrop once (outward rim)
     local st = currentStyle(true)               -- WeakAuras style
 
     local showShadow = st.shadow and true or false
     if region._vcuiBack then region._vcuiBack:SetShown(showShadow) end
     if region._vcuiRing then region._vcuiRing:SetShown(showShadow) end
 
-    -- Square mask inset for Shadow (icon reads smaller, textured backdrop = rim);
-    -- full mask for Rounded/Circle. Mask size survives WeakAuras' updates.
-    local maskTex = st.mask or (st.shadow and MASK_SQUARE) or nil
-    local pct     = st.shadow and SHRINK_PCT or 0
-    setMasked(region, icon, maskTex ~= nil, maskTex, pct)
-
-    -- The icon mask makes the icon read smaller, but the cooldown frame (the
-    -- GCD/cooldown sweep) is still full size and overhangs it. Inset the
-    -- cooldown to match the shrunk icon so they line up.
-    if region.cooldown and region.cooldown.ClearAllPoints then
-        local cd = region.cooldown
-        cd:ClearAllPoints()
-        local w = icon:GetWidth() or 0
-        if w < 1 then w = region:GetWidth() or 32 end
-        local inset = (pct > 0) and math.max(1, w * pct) or 0
-        if inset > 0 then
-            cd:SetPoint("TOPLEFT",     icon, "TOPLEFT",      inset, -inset)
-            cd:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", -inset,  inset)
-        else
-            cd:SetAllPoints(icon)
-        end
-    end
+    -- WeakAuras: do NOT shrink the icon — keep it the same size as the cooldown
+    -- frame so the cooldown/GCD sweep lines up with the icon (no overhanging
+    -- "GCD background"). The rim comes from the dark backdrop bleeding outward.
+    -- Shadow rounds the corners; Rounded/Circle use their mask.
+    local maskTex = st.mask or (st.shadow and MASK_ROUNDED) or nil
+    setMasked(region, icon, maskTex ~= nil, maskTex, 0)
 
     -- Hide WeakAuras' own "Border" sub-regions — our rim replaces them, and a
     -- second light border on top looks wrong. (Border subregions are the ones
