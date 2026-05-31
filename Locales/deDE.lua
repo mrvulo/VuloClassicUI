@@ -125,6 +125,10 @@ ns:RegisterLocale("deDE", {
     -- =====================================================
     ["General"] = "Allgemein",
     ["Settings"] = "Einstellungen",
+    ["Overview"] = "Übersicht",
+    ["%d of %d modules active"] = "%d von %d Modulen aktiv",
+    ["|cff66bb66Active|r"] = "|cff66bb66Aktiv|r",
+    ["|cff888888Disabled|r"] = "|cff888888Deaktiviert|r",
     ["Profile"] = "Profil",
     ["Display"] = "Anzeige",
     ["Behavior"] = "Verhalten",

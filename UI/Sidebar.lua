@@ -41,12 +41,26 @@ local MODULE_ICONS = {
 }
 local MODULE_ICON_FALLBACK = "Interface\\Icons\\INV_Misc_Gear_01"
 
+-- Expose for the dashboard (and anything else that needs per-module icons)
+ns.MODULE_ICONS = MODULE_ICONS
+ns.MODULE_ICON_FALLBACK = MODULE_ICON_FALLBACK
+function ns:GetModuleIcon(key)
+    return MODULE_ICONS[key] or MODULE_ICON_FALLBACK
+end
+
 UI.sidebarButtons     = {}
 UI.sidebarGroupOrder  = { "Global", "Unit Frames", "PvP", "QoL", "UI Reskin", "Bugfixes" }  -- desired order
 UI.sidebarHiddenGroups = { ["_hidden"] = true, ["Account"] = true, ["Core"] = true }  -- not shown in sidebar
 UI.sidebarGroupBuckets = {}
 
 local function highlightSelected()
+    -- Dashboard row (separate from module rows)
+    if UI._dashRow then
+        local onDash = (UI.currentModule == UI.DASHBOARD_KEY)
+        if onDash then UI._dashRow.bg:Show(); UI._dashRow.accentBar:Show()
+        else UI._dashRow.bg:Hide(); UI._dashRow.accentBar:Hide() end
+    end
+
     for key, btn in pairs(UI.sidebarButtons) do
         local selected = (key == UI.currentModule)
         if selected then
@@ -214,6 +228,52 @@ function UI:PopulateSidebar()
     rebuildBuckets()
 
     local y = 0
+
+    -- "Overview" entry at the very top → opens the dashboard
+    do
+        local row = CreateFrame("Button", nil, parent)
+        row:SetHeight(ROW_HEIGHT)
+        row:SetPoint("TOPLEFT",  parent, "TOPLEFT",  0, -y)
+        row:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, -y)
+
+        local bg = row:CreateTexture(nil, "BACKGROUND")
+        bg:SetAllPoints(row)
+        bg:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 0.18)
+        bg:Hide()
+        row.bg = bg
+
+        local accentBar = row:CreateTexture(nil, "ARTWORK")
+        accentBar:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 0)
+        accentBar:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 0, 0)
+        accentBar:SetWidth(3)
+        accentBar:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 1)
+        accentBar:Hide()
+        row.accentBar = accentBar
+
+        local hover = row:CreateTexture(nil, "HIGHLIGHT")
+        hover:SetAllPoints(row)
+        hover:SetColorTexture(1, 1, 1, 0.05)
+
+        local icon = row:CreateTexture(nil, "ARTWORK")
+        icon:SetSize(16, 16)
+        icon:SetPoint("LEFT", row, "LEFT", 8, 0)
+        icon:SetTexture("Interface\\Icons\\INV_Misc_Book_03")
+        icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+
+        local label = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+        label:SetPoint("LEFT", icon, "RIGHT", 7, 0)
+        label:SetText(L["Overview"])
+
+        row:SetScript("OnClick", function()
+            if UI.ShowDashboard then UI:ShowDashboard() end
+        end)
+
+        UI._sidebarChildren = UI._sidebarChildren or {}
+        table.insert(UI._sidebarChildren, row)
+        UI._dashRow = row
+        y = y + ROW_HEIGHT + GROUP_GAP
+    end
+
     for _, groupName in ipairs(UI.sidebarGroupOrder) do
         local moduleKeys = UI.sidebarGroupBuckets[groupName]
         local hidden = UI.sidebarHiddenGroups and UI.sidebarHiddenGroups[groupName]

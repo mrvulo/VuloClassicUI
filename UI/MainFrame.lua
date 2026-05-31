@@ -559,7 +559,10 @@ function UI:ToggleMainFrame()
     else
         f:Show()
         UI:PopulateSidebar()
-        if not UI.currentModule and ns.moduleOrder[1] then
+        -- Open on the dashboard (overview) instead of the first module
+        if UI.ShowDashboard then
+            UI:ShowDashboard()
+        elseif not UI.currentModule and ns.moduleOrder[1] then
             UI:ShowModulePage(ns.moduleOrder[1])
         end
     end
