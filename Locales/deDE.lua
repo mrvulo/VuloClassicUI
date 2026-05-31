@@ -45,6 +45,12 @@ ns:RegisterLocale("deDE", {
     ["Usage: /loadout equip <name> | save <name> | delete <name> | list"] = "Benutzung: /loadout equip <Name> | save <Name> | delete <Name> | list",
     ["Usage: /loadout delete <name>"] = "Benutzung: /loadout delete <Name>",
     ["|cffaaaaaaSlash commands: /loadout save <name>, /loadout equip <name>, /loadout delete <name>, /loadout list. Short alias: /lo|r"] = "|cffaaaaaaSlash-Befehle: /loadout save <Name>, /loadout equip <Name>, /loadout delete <Name>, /loadout list. Kurzform: /lo|r",
+    ["No account-wide loadouts to import."] = "Keine accountweiten Sets zum Importieren vorhanden.",
+    ["Imported %d account-wide loadout(s) onto this character."] = "%d accountweite(s) Set(s) auf diesen Charakter importiert.",
+    ["You have account-wide loadouts from an older version. Type /lo import to copy them onto this character."] = "Du hast accountweite Sets aus einer älteren Version. Tippe /lo import um sie auf diesen Charakter zu kopieren.",
+    ["Import from older version"] = "Aus älterer Version importieren",
+    ["|cffaaaaaaYou have gear sets saved account-wide by an older version. Loadouts are now per-character — import copies them onto THIS character.|r"] = "|cffaaaaaaDu hast Ausrüstungs-Sets, die eine ältere Version accountweit gespeichert hat. Sets sind jetzt pro Charakter — der Import kopiert sie auf DIESEN Charakter.|r",
+    ["Import account-wide loadouts"] = "Accountweite Sets importieren",
     -- Slot names
     ["Head"] = "Kopf", ["Neck"] = "Hals", ["Shoulder"] = "Schulter",
     ["Chest"] = "Brust", ["Waist"] = "Taille", ["Legs"] = "Beine",

@@ -36,6 +36,27 @@ local mod = ns:RegisterModule("loadouts", {
 })
 
 -- =========================================================
+-- Per-character storage. Loadouts (and their spec/form bindings) reference
+-- this character's gear, so they live in VuloClassicUICharDB (per-character),
+-- NOT in mod.db (account-wide). The old account-wide loadouts still sit in
+-- mod.db.loadouts as a legacy pool that "/loadout import" copies onto the
+-- current character (one-time migration for users upgrading from <= 1.8.0).
+-- =========================================================
+local function charDB()
+    _G.VuloClassicUICharDB = _G.VuloClassicUICharDB or {}
+    return _G.VuloClassicUICharDB
+end
+local function LO()
+    local c = charDB(); c.loadouts = c.loadouts or {}; return c.loadouts
+end
+local function specMap()
+    local c = charDB(); c.specMapping = c.specMapping or {}; return c.specMapping
+end
+local function formMap()
+    local c = charDB(); c.formMapping = c.formMapping or {}; return c.formMapping
+end
+
+-- =========================================================
 -- API compat (Anniversary uses C_Container namespace)
 -- =========================================================
 local GetContainerItemID    = (C_Container and C_Container.GetContainerItemID)    or _G.GetContainerItemID
@@ -138,8 +159,8 @@ end
 
 local function sortedLoadoutNames()
     local names = {}
-    if mod.db and mod.db.loadouts then
-        for name in pairs(mod.db.loadouts) do
+    if mod.db and LO() then
+        for name in pairs(LO()) do
             table.insert(names, name)
         end
         table.sort(names)
@@ -162,13 +183,13 @@ local function saveAs(name, slotList)
         ns:Print(L["Please provide a name for the loadout."])
         return
     end
-    mod.db.loadouts[name] = {
+    LO()[name] = {
         slots     = captureCurrentEquipment(slotList),
         slotMask  = copySlotList(slotList or EQUIP_SLOTS),
         createdAt = time(),
     }
     ns:Print(string.format(L["Loadout '%s' saved (%d items)."],
-        name, countSlots(mod.db.loadouts[name])))
+        name, countSlots(LO()[name])))
 end
 
 -- Pending slot list for the StaticPopup (popups have no parameter passing on Show)
@@ -185,7 +206,7 @@ end
 -- at the time of the original save, so missing items (e.g. Head/Neck/Shoulder
 -- not equipped at save time) would never be re-captured.
 local function overwriteLoadout(name)
-    local loadout = mod.db.loadouts[name]
+    local loadout = LO()[name]
     if not loadout then return end
     -- Prefer slotMask (intended slots, set at save time). Fall back to existing
     -- slots keys for legacy data without a mask.
@@ -195,7 +216,7 @@ local function overwriteLoadout(name)
         for s in pairs(loadout.slots or {}) do table.insert(slotList, s) end
     end
     if #slotList == 0 then slotList = EQUIP_SLOTS end  -- ultimate fallback: all slots
-    mod.db.loadouts[name] = {
+    LO()[name] = {
         slots     = captureCurrentEquipment(slotList),
         slotMask  = copySlotList(slotList),
         createdAt = time(),
@@ -204,11 +225,11 @@ local function overwriteLoadout(name)
 end
 
 local function deleteLoadout(name)
-    if not mod.db.loadouts[name] then
+    if not LO()[name] then
         ns:Print(string.format(L["Loadout '%s' does not exist."], name))
         return
     end
-    mod.db.loadouts[name] = nil
+    LO()[name] = nil
     ns:Print(string.format(L["Loadout '%s' deleted."], name))
 end
 
@@ -217,7 +238,7 @@ local function equipLoadout(name)
         ns:Print(L["Cannot change equipment in combat."])
         return
     end
-    local loadout = mod.db.loadouts[name]
+    local loadout = LO()[name]
     if not loadout then
         ns:Print(string.format(L["Loadout '%s' does not exist."], name))
         return
@@ -282,7 +303,7 @@ local function listLoadouts()
     for _, name in ipairs(names) do
         DEFAULT_CHAT_FRAME:AddMessage(string.format(
             "  |cffffd100%s|r (%d %s)",
-            name, countSlots(mod.db.loadouts[name]), L["items"]))
+            name, countSlots(LO()[name]), L["items"]))
     end
 end
 
@@ -353,7 +374,7 @@ _G.SlashCmdList["VCUILOADOUT"] = function(msg)
         DEFAULT_CHAT_FRAME:AddMessage(string.format("  GetNumTalentGroups()   = %s", tostring(numG)))
         DEFAULT_CHAT_FRAME:AddMessage(string.format("  specSwitchEnabled      = %s", tostring(mod.db.specSwitchEnabled)))
         local anyMap = false
-        for name, g in pairs(mod.db.specMapping or {}) do
+        for name, g in pairs(specMap() or {}) do
             DEFAULT_CHAT_FRAME:AddMessage(string.format("  mapping: '%s' -> spec %d", name, g))
             anyMap = true
         end
@@ -372,6 +393,8 @@ _G.SlashCmdList["VCUILOADOUT"] = function(msg)
         end
     elseif cmd == "list" or cmd == "ls" then
         listLoadouts()
+    elseif cmd == "import" then
+        if mod.ImportLegacy then mod.ImportLegacy() end
     elseif cmd == "debug" then
         if mod._debugSizes then mod._debugSizes() else ns:Print("Sidebar not created yet.") end
     elseif cmd == "tune" then
@@ -396,7 +419,7 @@ _G.SlashCmdList["VCUILOADOUT"] = function(msg)
         end
     else
         -- Treat unknown first word as a loadout name to equip
-        if mod.db.loadouts[msg] then
+        if LO()[msg] then
             equipLoadout(msg)
         else
             ns:Print(L["Usage: /loadout equip <name> | save <name> | delete <name> | list"])
@@ -582,9 +605,9 @@ local function onShapeshiftChange()
 
     -- formMapping is keyed by loadout name → form index (1:1).
     -- Reverse-look up to find which loadout is bound to the current form.
-    if not mod.db.formMapping then return end
-    for loadoutName, formIdx in pairs(mod.db.formMapping) do
-        if formIdx == currentForm and mod.db.loadouts[loadoutName] then
+    if not formMap() then return end
+    for loadoutName, formIdx in pairs(formMap()) do
+        if formIdx == currentForm and LO()[loadoutName] then
             equipLoadout(loadoutName)
             return
         end
@@ -659,9 +682,9 @@ local function onTalentChange()
     _lastSpecGroup = currentGroup
 
     -- specMapping is keyed by loadout name → spec group index (1:1)
-    if not mod.db.specMapping then return end
-    for loadoutName, groupIdx in pairs(mod.db.specMapping) do
-        if groupIdx == currentGroup and mod.db.loadouts[loadoutName] then
+    if not specMap() then return end
+    for loadoutName, groupIdx in pairs(specMap()) do
+        if groupIdx == currentGroup and LO()[loadoutName] then
             equipLoadout(loadoutName)
             return
         end
@@ -770,8 +793,8 @@ local function showSlotReplacePicker(loadoutName, targetSlot, anchor)
             table.insert(entries, {
                 text = "  " .. c.label,
                 func = function()
-                    if mod.db.loadouts[loadoutName] then
-                        mod.db.loadouts[loadoutName].slots[targetSlot] = capturedLink
+                    if LO()[loadoutName] then
+                        LO()[loadoutName].slots[targetSlot] = capturedLink
                         refreshSidebar()
                         ns:Print(string.format(L["Loadout '%s': slot updated."], loadoutName))
                     end
@@ -782,8 +805,8 @@ local function showSlotReplacePicker(loadoutName, targetSlot, anchor)
 
     table.insert(entries, { separator = true })
     table.insert(entries, { text = L["Remove from set"], func = function()
-        if mod.db.loadouts[loadoutName] then
-            mod.db.loadouts[loadoutName].slots[targetSlot] = nil
+        if LO()[loadoutName] then
+            LO()[loadoutName].slots[targetSlot] = nil
             refreshSidebar()
         end
     end })
@@ -792,7 +815,7 @@ local function showSlotReplacePicker(loadoutName, targetSlot, anchor)
 end
 
 local function getSetIcon(name)
-    local loadout = mod.db and mod.db.loadouts and mod.db.loadouts[name]
+    local loadout = mod.db and LO() and LO()[name]
     if not loadout or not loadout.slots then return "Interface\\Icons\\INV_Misc_QuestionMark" end
     if loadout.iconOverride then return loadout.iconOverride end
     -- Auto-pick first item's icon
@@ -852,7 +875,7 @@ local function getIconPickerButton(idx)
 end
 
 local function showIconPicker(loadoutName, anchor)
-    local loadout = mod.db.loadouts[loadoutName]
+    local loadout = LO()[loadoutName]
     if not loadout then return end
 
     if not _iconPicker then
@@ -998,7 +1021,7 @@ local function createSetRow(parent, index)
     btn:SetScript("OnEnter", function(self)
         if not self.isSelected then self.hl:Show() end
         GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-        local loadout = mod.db.loadouts[self.setName]
+        local loadout = LO()[self.setName]
         if loadout then
             GameTooltip:AddLine(self.setName, 1, 0.82, 0)
             GameTooltip:AddLine(string.format("%d %s", countSlots(loadout), L["items"]),
@@ -1037,19 +1060,18 @@ local function createSetRow(parent, index)
                     local group = g
                     table.insert(menu, {
                         text    = string.format(L["Bind to %s"], getSpecGroupLabel(group)),
-                        checked = function() return mod.db.specMapping and mod.db.specMapping[setName] == group end,
+                        checked = function() return specMap() and specMap()[setName] == group end,
                         func    = function()
-                            mod.db.specMapping = mod.db.specMapping or {}
-                            if mod.db.specMapping[setName] == group then
+                            if specMap()[setName] == group then
                                 -- toggle off
-                                mod.db.specMapping[setName] = nil
+                                specMap()[setName] = nil
                                 ns:Print(string.format(L["'%s' unbound from spec."], setName))
                             else
                                 -- 1:1 — clear any other set on this group
-                                for other, gi in pairs(mod.db.specMapping) do
-                                    if gi == group and other ~= setName then mod.db.specMapping[other] = nil end
+                                for other, gi in pairs(specMap()) do
+                                    if gi == group and other ~= setName then specMap()[other] = nil end
                                 end
-                                mod.db.specMapping[setName] = group
+                                specMap()[setName] = group
                                 ns:Print(string.format(L["'%s' bound to %s."], setName, getSpecGroupLabel(group)))
                             end
                         end,
@@ -1127,8 +1149,8 @@ local function getItemButton(row, idx)
     b:SetScript("OnClick", function(self, button)
         if button == "RightButton" then
             -- Quick-remove
-            if self.loadoutName and self.targetSlot and mod.db.loadouts[self.loadoutName] then
-                mod.db.loadouts[self.loadoutName].slots[self.targetSlot] = nil
+            if self.loadoutName and self.targetSlot and LO()[self.loadoutName] then
+                LO()[self.loadoutName].slots[self.targetSlot] = nil
                 refreshSidebar()
             end
         else
@@ -1155,7 +1177,7 @@ end
 local EMPTY_SLOT_ICON = "Interface\\PaperDoll\\UI-Backpack-EmptySlot"
 
 local function renderItemRow(row, loadoutName)
-    local loadout = mod.db.loadouts and mod.db.loadouts[loadoutName]
+    local loadout = LO() and LO()[loadoutName]
     if not loadout then
         row:SetHeight(0)
         return
@@ -1215,10 +1237,10 @@ refreshSidebar = function()
     if not sidebar then return end
 
     -- Validate selection / expansion
-    if sidebarSelected and not (mod.db.loadouts and mod.db.loadouts[sidebarSelected]) then
+    if sidebarSelected and not (LO() and LO()[sidebarSelected]) then
         sidebarSelected = nil
     end
-    if sidebarExpanded and not (mod.db.loadouts and mod.db.loadouts[sidebarExpanded]) then
+    if sidebarExpanded and not (LO() and LO()[sidebarExpanded]) then
         sidebarExpanded = nil
     end
 
@@ -1428,19 +1450,42 @@ deleteLoadout = function(name)
     end
 end
 
+-- One-time migration: copy the old account-wide loadouts (mod.db.*) onto the
+-- CURRENT character. Names that already exist on this character are skipped.
+function mod.ImportLegacy()
+    local legacy = mod.db and mod.db.loadouts
+    if not (legacy and next(legacy)) then
+        ns:Print(L["No account-wide loadouts to import."])
+        return
+    end
+    local lo, n = LO(), 0
+    for name, data in pairs(legacy) do
+        if not lo[name] then
+            lo[name] = (CopyTable and CopyTable(data)) or data
+            n = n + 1
+        end
+    end
+    for name, g in pairs(mod.db.specMapping or {}) do
+        if not specMap()[name] then specMap()[name] = g end
+    end
+    for name, g in pairs(mod.db.formMapping or {}) do
+        if not formMap()[name] then formMap()[name] = g end
+    end
+    ns:Print(string.format(L["Imported %d account-wide loadout(s) onto this character."], n))
+    refreshSidebar()
+end
+
 -- =========================================================
 -- Lifecycle
 -- =========================================================
 function mod:OnEnable()
     if not mod.db then return end
-    -- Defensive: ensure tables exist even if profile is fresh
-    mod.db.loadouts    = mod.db.loadouts    or {}
-    mod.db.formMapping = mod.db.formMapping or {}
-    mod.db.specMapping = mod.db.specMapping or {}
+    -- Ensure per-character tables exist (the accessors create them lazily)
+    LO(); formMap(); specMap()
     mod.db.minimap     = mod.db.minimap     or { hidden = false, angle = -45 }
 
     -- Migration: legacy loadouts without slotMask → derive from currently saved slots
-    for _, loadout in pairs(mod.db.loadouts) do
+    for _, loadout in pairs(LO()) do
         if loadout and not loadout.slotMask then
             local mask = {}
             for slot in pairs(loadout.slots or {}) do
@@ -1459,6 +1504,21 @@ function mod:OnEnable()
             mod.db.sidebarBottomOffset = 45
         end
         mod.db._offsetMigrated = true
+    end
+
+    -- One-time hint (per character): this character has no loadouts yet, but the
+    -- old account-wide pool still holds some (user upgrading from <= 1.8.0).
+    -- Shown once per character so other chars don't get nagged every login.
+    if not next(LO()) and not charDB()._importHintShown
+       and mod.db.loadouts and next(mod.db.loadouts) then
+        charDB()._importHintShown = true
+        if C_Timer and C_Timer.After then
+            C_Timer.After(5, function()
+                if not next(LO()) and mod.db.loadouts and next(mod.db.loadouts) then
+                    ns:Print(L["You have account-wide loadouts from an older version. Type /lo import to copy them onto this character."])
+                end
+            end)
+        end
     end
 
     -- Create minimap button (deferred so Minimap definitely exists)
@@ -1614,6 +1674,17 @@ function mod:GetOptions()
         { type = "header", text = L["Saved Loadouts"] },
     }
 
+    -- Legacy import (upgraders from <= 1.8.0): only shown while old account-wide
+    -- loadouts still exist. Loadouts are now per-character, so this copies the
+    -- old shared sets onto THIS character. Inserted at the top (after header+desc).
+    if mod.db.loadouts and next(mod.db.loadouts) then
+        table.insert(items, 3, { type = "section", title = L["Import from older version"], collapsed = false, items = {
+            { type = "desc", text = L["|cffaaaaaaYou have gear sets saved account-wide by an older version. Loadouts are now per-character — import copies them onto THIS character.|r"] },
+            { type = "button", label = L["Import account-wide loadouts"], width = 240,
+              onClick = function() mod.ImportLegacy() end },
+        } })
+    end
+
     local names = sortedLoadoutNames()
     if #names == 0 then
         table.insert(items, { type = "desc", text = L["|cffaaaaaaNo loadouts saved yet. Use the button above to save your current gear.|r"] })
@@ -1625,7 +1696,7 @@ function mod:GetOptions()
 
         for _, name in ipairs(names) do
             local capturedName = name  -- closure capture
-            local slotCount = countSlots(mod.db.loadouts[name])
+            local slotCount = countSlots(LO()[name])
 
             -- Row 1: name + item count (full width, separate line)
             table.insert(items, { type = "desc",
@@ -1657,18 +1728,17 @@ function mod:GetOptions()
                     label = L["Auto-equip on spec"],
                     tooltip = L["Equip this loadout automatically when you switch to this spec."],
                     values = specValues,
-                    get = function() return (mod.db.specMapping and mod.db.specMapping[capturedName]) or 0 end,
+                    get = function() return (specMap() and specMap()[capturedName]) or 0 end,
                     set = function(_, v)
-                        mod.db.specMapping = mod.db.specMapping or {}
                         -- 1:1 mapping — clear any other loadout on this spec tab
                         if v and v ~= 0 then
-                            for other, tabIdx in pairs(mod.db.specMapping) do
+                            for other, tabIdx in pairs(specMap()) do
                                 if tabIdx == v and other ~= capturedName then
-                                    mod.db.specMapping[other] = nil
+                                    specMap()[other] = nil
                                 end
                             end
                         end
-                        mod.db.specMapping[capturedName] = (v ~= 0) and v or nil
+                        specMap()[capturedName] = (v ~= 0) and v or nil
                     end,
                 })
             end
@@ -1679,18 +1749,17 @@ function mod:GetOptions()
                     label = L["Auto-equip on form"],
                     tooltip = L["Equip this loadout automatically when the chosen stance/form is activated."],
                     values = formValues,
-                    get = function() return (mod.db.formMapping and mod.db.formMapping[capturedName]) or 0 end,
+                    get = function() return (formMap() and formMap()[capturedName]) or 0 end,
                     set = function(_, v)
-                        mod.db.formMapping = mod.db.formMapping or {}
                         -- Clear any other loadout currently mapped to this form (1:1 mapping)
                         if v and v ~= 0 then
-                            for other, formIdx in pairs(mod.db.formMapping) do
+                            for other, formIdx in pairs(formMap()) do
                                 if formIdx == v and other ~= capturedName then
-                                    mod.db.formMapping[other] = nil
+                                    formMap()[other] = nil
                                 end
                             end
                         end
-                        mod.db.formMapping[capturedName] = (v ~= 0) and v or nil
+                        formMap()[capturedName] = (v ~= 0) and v or nil
                     end,
                 })
             end
