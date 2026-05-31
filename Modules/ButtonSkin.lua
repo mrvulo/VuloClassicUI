@@ -18,9 +18,11 @@ local mod = ns:RegisterModule("buttonskin", {
     description = "Built-in dark drop-shadow skin for action buttons and WeakAuras icons: black, rounded, soft rim. Several styles, no extra addons needed.",
     defaults = {
         enabled       = true,
-        style         = "shadow",  -- shadow | rounded | square | accent | circle | minimal
+        style         = "shadow",  -- action bars: shadow | rounded | square | accent | circle | minimal
+        waStyle       = "shadow",  -- WeakAuras icons: same set, configured separately
         skinPetStance = true,      -- also skin pet + stance buttons
-        skinWeakAuras = true,      -- also add the rim to WeakAuras icons
+        skinBars      = true,      -- skin the action bars
+        skinWeakAuras = true,      -- skin WeakAuras icons
     },
 })
 
@@ -33,39 +35,42 @@ local EXTRA_PREFIXES = { "PetActionButton", "StanceButton" }
 
 local ICON_CROP = { 0.08, 0.92, 0.08, 0.92 }
 
--- Bundled mask textures (shipped under Media\Masks\, load reliably in Classic).
+-- Bundled textures (shipped under Media\Masks\, load reliably in Classic).
 local MASK_ROUNDED = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\csquare_mask.tga"  -- rounded square
 local MASK_CIRCLE  = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\circle_mask.tga"
 local MASK_SQUARE  = "Interface\\Buttons\\WHITE8X8"                                      -- plain square
+local TEX_BACKDROP = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\Backdrop.tga"      -- filled rounded fill
+local TEX_BORDER   = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\Normal.tga"        -- black rounded border + soft shadow
 
--- How far the dark rim sticks out past the frame (px) + how many px the icon's
--- MASK is inset so the icon reads smaller than the frame and the dark backdrop
--- shows as a rim all around it (the real shadow look — icon smaller than frame).
--- We shrink the icon via the mask size, NOT by re-anchoring the icon, because
--- masks survive Blizzard's/WeakAuras' updates while re-anchoring gets reset.
-local RIM_OUTSET  = 2
+-- How far the rim/shadow bleeds out past the frame (px) + how many px the
+-- icon's MASK is inset so the icon reads smaller than the frame and the dark
+-- backdrop shows as a rim. We shrink via the mask (survives game updates),
+-- not by re-anchoring the icon (which gets reset).
+local RIM_OUTSET  = 3
 local ICON_SHRINK = 5
 
+-- The shadow layers behind the icon: filled dark backdrop + black rounded
+-- border with a soft drop-shadow (the real "Shadow" look), both bleeding a
+-- few px past the frame edge.
 local function attachShadow(frame, store, outset)
     if not frame then return end
     store = store or frame
     outset = outset or RIM_OUTSET
 
     if not store._vcuiBack then
-        local back = frame:CreateTexture(nil, "BACKGROUND", nil, -6)
+        local back = frame:CreateTexture(nil, "BACKGROUND", nil, -7)
         back:SetPoint("TOPLEFT",     frame, "TOPLEFT",     -outset,  outset)
         back:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT",  outset, -outset)
-        back:SetColorTexture(0.03, 0.03, 0.04, 1)   -- near-black
+        back:SetTexture(TEX_BACKDROP)
+        back:SetVertexColor(0.09, 0.09, 0.11, 1)
         store._vcuiBack = back
 
-        -- round the rim with its own mask (same shape as the icon mask)
-        if frame.CreateMaskTexture then
-            local bm = frame:CreateMaskTexture()
-            bm:SetAllPoints(back)
-            bm:SetTexture(MASK_ROUNDED, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
-            pcall(back.AddMaskTexture, back, bm)
-            store._vcuiBackMask = bm
-        end
+        local ring = frame:CreateTexture(nil, "BACKGROUND", nil, -6)
+        ring:SetPoint("TOPLEFT",     frame, "TOPLEFT",     -outset,  outset)
+        ring:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT",  outset, -outset)
+        ring:SetTexture(TEX_BORDER)
+        ring:SetVertexColor(0, 0, 0, 1)
+        store._vcuiRing = ring
     end
 end
 
@@ -84,8 +89,10 @@ local STYLES = {
     minimal  = { border = nil,      bg = false, mask = nil,          shadow = false },  -- cropped icon only
 }
 
-local function currentStyle()
-    return STYLES[mod.db and mod.db.style] or STYLES.shadow
+-- Style for the action bars (key="style") or WeakAuras (key="waStyle")
+local function currentStyle(forWA)
+    local key = mod.db and (forWA and mod.db.waStyle or mod.db.style)
+    return STYLES[key] or STYLES.shadow
 end
 
 -- =========================================================
@@ -174,11 +181,13 @@ local function applyStyle(button)
         button._vcuiBg:SetShown((st.bg and not st.shadow) and true or false)
     end
 
-    -- Shadow style: dark rounded rim (masked backdrop) behind the icon
-    if button._vcuiBack then button._vcuiBack:SetShown(st.shadow and true or false) end
+    -- Shadow style: filled backdrop + black rounded border behind the icon
+    local showShadow = st.shadow and true or false
+    if button._vcuiBack then button._vcuiBack:SetShown(showShadow) end
+    if button._vcuiRing then button._vcuiRing:SetShown(showShadow) end
 
     -- Icon mask. Shadow = square mask inset a few px (icon reads smaller, the
-    -- rounded backdrop shows as a rim around it). Rounded/Circle = full mask.
+    -- backdrop shows as a rim around it). Rounded/Circle = full mask.
     if icon then
         local maskTex = st.mask or (st.shadow and MASK_SQUARE) or nil
         local inset   = st.shadow and ICON_SHRINK or 0
@@ -258,7 +267,7 @@ local function forEachButton(fn)
 end
 
 local function skinAll()
-    if not mod._enabled or not mod.db then return end
+    if not mod._enabled or not mod.db or not mod.db.skinBars then return end
     forEachButton(skinButton)
 end
 
@@ -274,9 +283,9 @@ local function refreshAll()
 end
 
 -- =========================================================
--- WeakAuras icon skinning — VuloClassicUI's own skin, same style as the bars
--- (the style dropdown drives both). The rim is a masked texture (masks survive
--- WeakAuras' updates), so the icon is never re-anchored.
+-- WeakAuras icon skinning — VuloClassicUI's own skin, configured separately
+-- from the bars (its own style dropdown). The backdrop/border are textures and
+-- the icon is masked (no re-anchoring), so it survives WeakAuras' updates.
 -- =========================================================
 local function styleWAIcon(region)
     if not region or region.regionType ~= "icon" then return end
@@ -284,11 +293,13 @@ local function styleWAIcon(region)
     if not icon then return end
 
     attachShadow(region, region)                -- create backdrop once
-    local st = currentStyle()
+    local st = currentStyle(true)               -- WeakAuras style
 
-    if region._vcuiBack then region._vcuiBack:SetShown(st.shadow and true or false) end
+    local showShadow = st.shadow and true or false
+    if region._vcuiBack then region._vcuiBack:SetShown(showShadow) end
+    if region._vcuiRing then region._vcuiRing:SetShown(showShadow) end
 
-    -- Square mask inset for Shadow (icon reads smaller, rounded backdrop = rim);
+    -- Square mask inset for Shadow (icon reads smaller, textured backdrop = rim);
     -- full mask for Rounded/Circle. Mask size survives WeakAuras' updates.
     local maskTex = st.mask or (st.shadow and MASK_SQUARE) or nil
     local inset   = st.shadow and ICON_SHRINK or 0
@@ -400,30 +411,40 @@ function mod:GetOptions()
         { value = "minimal", text = L["Minimal (icon only)"] },
     }
 
-    local waText = L["|cffaaaaaaWeakAuras icons get the same dark rounded rim as the bars. Re-open this panel or /reload if a new aura isn't skinned yet.|r"]
-
     return {
         { type = "header", text = L["Button Skin"] },
-        { type = "desc", text = L["|cffaaaaaaBuilt-in dark drop-shadow skin for the action bars. Cropped icons with a soft black rounded rim.|r"] },
+        { type = "desc", text = L["|cffaaaaaaBuilt-in dark drop-shadow skin. Action bars and WeakAuras icons are configured separately below.|r"] },
 
-        { type = "dropdown", label = L["Style"],
+        -- ---- Action bars ----
+        { type = "header", text = L["Action Bars"] },
+        { type = "toggle", label = L["Skin the action bars"],
+          get = function() return mod.db.skinBars end,
+          set = function(_, v) mod.db.skinBars = v; skinAll(); refreshAll() end },
+        { type = "dropdown", label = L["Bar style"],
           tooltip = L["Pick how the action buttons look. Rounded/Circle use an icon mask; Minimal is just the cropped icon."],
           width = 260,
           values = STYLE_VALUES,
           get = function() return mod.db.style or "shadow" end,
-          set = function(_, v) mod.db.style = v; refreshAll(); skinAllWAIcons() end },
-
+          set = function(_, v) mod.db.style = v; refreshAll() end },
         { type = "toggle", label = L["Also skin pet & stance buttons"],
           get = function() return mod.db.skinPetStance end,
           set = function(_, v) mod.db.skinPetStance = v; skinAll() end },
 
-        { type = "toggle", label = L["Also skin WeakAuras icons"],
+        { type = "spacer", height = 8 },
+
+        -- ---- WeakAuras ----
+        { type = "header", text = L["WeakAuras Icons"] },
+        { type = "toggle", label = L["Skin WeakAuras icons"],
           get = function() return mod.db.skinWeakAuras end,
           set = function(_, v) mod.db.skinWeakAuras = v; skinAllWAIcons() end },
+        { type = "dropdown", label = L["WeakAuras style"],
+          tooltip = L["Style for WeakAuras icons, independent of the action bars."],
+          width = 260,
+          values = STYLE_VALUES,
+          get = function() return mod.db.waStyle or "shadow" end,
+          set = function(_, v) mod.db.waStyle = v; skinAllWAIcons() end },
 
         { type = "spacer", height = 6 },
-        { type = "desc", text = waText },
-        { type = "spacer", height = 4 },
-        { type = "desc", text = L["|cffaaaaaaNote: turning the skin off fully reverts after a /reload.|r"] },
+        { type = "desc", text = L["|cffaaaaaaNote: turning a skin off fully reverts after a /reload.|r"] },
     }
 end
