@@ -483,23 +483,31 @@ function UI:BuildTabsForModule(key)
     end
 
     f.tabBar:Show()
-    f.content:ClearAllPoints()
-    f.content:SetPoint("TOPLEFT",     f.tabBar, "BOTTOMLEFT",  0, -1)
-    f.content:SetPoint("BOTTOMRIGHT", f,        "BOTTOMRIGHT", 0, 44)
 
-    local x = 12
+    -- Lay tabs out left-to-right, wrapping to a new row when they don't fit.
+    local ROW_H  = 28
+    local x      = 12
+    local row    = 0
+    local availW = (f.tabBar:GetWidth() or 600) - 16
+
     for i, tabDef in ipairs(tabs) do
         local tab = CreateFrame("Button", nil, f.tabBar)
-        tab:SetSize(0, 28)
+        tab:SetHeight(ROW_H)
 
         local text = tab:CreateFontString(nil, "OVERLAY", "GameFontNormal")
         text:SetPoint("CENTER", tab, "CENTER", 0, 0)
         text:SetText(L[tabDef.label])  -- raw English key → translate live
 
-        local fontW = text:GetStringWidth() + 24
-        tab:SetWidth(math.max(60, fontW))
-        tab:SetPoint("BOTTOMLEFT", f.tabBar, "BOTTOMLEFT", x, 0)
-        x = x + tab:GetWidth() + 4
+        local tabW = math.max(60, (text:GetStringWidth() or 40) + 24)
+        tab:SetWidth(tabW)
+
+        -- Wrap to next row if this tab would overflow
+        if x > 12 and (x + tabW) > availW then
+            row = row + 1
+            x = 12
+        end
+        tab:SetPoint("TOPLEFT", f.tabBar, "TOPLEFT", x, -(row * ROW_H) - 2)
+        x = x + tabW + 4
 
         local underline = tab:CreateTexture(nil, "OVERLAY")
         underline:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 1)
@@ -529,6 +537,13 @@ function UI:BuildTabsForModule(key)
 
         table.insert(f.tabs, tab)
     end
+
+    -- Resize the tab bar to fit all rows, then re-anchor content below it
+    local numRows = row + 1
+    f.tabBar:SetHeight(numRows * ROW_H + 4)
+    f.content:ClearAllPoints()
+    f.content:SetPoint("TOPLEFT",     f.tabBar, "BOTTOMLEFT",  0, -1)
+    f.content:SetPoint("BOTTOMRIGHT", f,        "BOTTOMRIGHT", 0, 44)
 
     if tabs[1] then UI:ShowTab(tabs[1].id) end
 end

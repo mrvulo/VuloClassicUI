@@ -23,11 +23,20 @@ local mod = ns:RegisterModule("vtmanadisplay", {
     },
 })
 
--- When more than one class has tools, define mod.tabs here (one entry per
--- class) and the UI shows a tab bar. With a single class we skip tabs and
--- show its options directly (organized by spec headers like "Shadow").
--- e.g. to add Mage later:
---   mod.tabs = { { id = "priest", label = "Priest" }, { id = "mage", label = "Mage" } }
+-- One tab per class. Priest first (it has tools), the rest alphabetical.
+-- Classes without tools show a placeholder; add their options in GetOptions
+-- as more class tools are built.
+mod.tabs = {
+    { id = "priest",  label = "Priest"  },
+    { id = "druid",   label = "Druid"   },
+    { id = "hunter",  label = "Hunter"  },
+    { id = "mage",    label = "Mage"    },
+    { id = "paladin", label = "Paladin" },
+    { id = "rogue",   label = "Rogue"   },
+    { id = "shaman",  label = "Shaman"  },
+    { id = "warlock", label = "Warlock" },
+    { id = "warrior", label = "Warrior" },
+}
 
 local VT_SPELL_ID_BASE = 34914  -- Vampiric Touch base (TBC)
 local SHADOW_SCHOOL    = 32
@@ -261,11 +270,12 @@ local function priestOptions()
 end
 
 function mod:GetOptions(tabId)
-    -- With a single tab the UI uses the "default" path, so accept it here too.
     if tabId == "priest" or tabId == "default" or tabId == nil then
         return priestOptions()
     end
+    -- Other classes: placeholder until tools exist for them
     return {
-        { type = "desc", text = L["|cffaaaaaaNo tools for this class yet.|r"] },
+        { type = "header", text = L["No tools yet"] },
+        { type = "desc", text = L["|cffaaaaaaNo class-specific tools for this class yet. Got an idea? Let me know!|r"] },
     }
 end
