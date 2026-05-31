@@ -25,6 +25,26 @@ local BASE = "Interface\\Addons\\VuloClassicUI\\Media\\"
 LSM:Register("statusbar", "Atrocity", BASE .. "StatusBars\\Atrocity")
 LSM:Register("statusbar", "Kait",     BASE .. "StatusBars\\Kait.tga")
 
+-- Bundled bar textures under Media\textures (classic SharedMedia-style bars).
+-- These show up in any statusbar texture picker (Swing Timer, other addons, ...).
+local TEX = BASE .. "textures\\"
+LSM:Register("statusbar", "Beautiful",          TEX .. "beautiful.tga")
+LSM:Register("statusbar", "Divide",             TEX .. "divide.tga")
+LSM:Register("statusbar", "Fade",               TEX .. "fade.tga")
+LSM:Register("statusbar", "Fade Right",         TEX .. "fade-right.tga")
+LSM:Register("statusbar", "Glass",              TEX .. "glass.tga")
+LSM:Register("statusbar", "Gradient",           TEX .. "gradient-lr.tga")
+LSM:Register("statusbar", "Gradient (B-T)",     TEX .. "gradient-bt.tga")
+LSM:Register("statusbar", "Gradient (R-L)",     TEX .. "gradient-rl.tga")
+LSM:Register("statusbar", "Gradient (T-B)",     TEX .. "gradient-tb.tga")
+LSM:Register("statusbar", "Matte",              TEX .. "matte.tga")
+LSM:Register("statusbar", "Melli",              TEX .. "melli.tga")
+LSM:Register("statusbar", "Plating",            TEX .. "plating.tga")
+LSM:Register("statusbar", "Sheer",              TEX .. "sheer.tga")
+LSM:Register("statusbar", "Soft Line",          TEX .. "soft-line.tga")
+LSM:Register("statusbar", "Thin Line (Top)",    TEX .. "thin-line-top.tga")
+LSM:Register("statusbar", "Thin Line (Bottom)", TEX .. "thin-line-bottom.tga")
+
 -- =========================================================
 -- Fonts
 -- =========================================================
