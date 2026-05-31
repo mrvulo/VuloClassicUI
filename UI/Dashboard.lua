@@ -25,10 +25,18 @@ local HIDDEN_GROUPS = { ["_hidden"] = true, ["Account"] = true, ["Core"] = true 
 UI._dashChildren = {}
 
 local function clearDashboard(parent)
-    for _, c in ipairs(UI._dashChildren) do
-        c:Hide()
-        c:SetParent(nil)
-        c:ClearAllPoints()
+    -- Clear ALL children + regions of the scroll child, not just our tracked
+    -- cards — the previous module's content frames live here too and would
+    -- otherwise overlap the dashboard.
+    for _, child in ipairs({ parent:GetChildren() }) do
+        child:Hide()
+        child:SetParent(nil)
+        child:ClearAllPoints()
+    end
+    for _, r in ipairs({ parent:GetRegions() }) do
+        if r.SetText then r:SetText("") end
+        r:Hide()
+        r:ClearAllPoints()
     end
     UI._dashChildren = {}
 end
@@ -148,6 +156,7 @@ function UI:ShowDashboard()
     local parent = f.scrollChild
     clearDashboard(parent)
     parent:SetWidth((f.scroll:GetWidth() or 540) - 8)
+    if f.scroll.SetVerticalScroll then f.scroll:SetVerticalScroll(0) end
 
     -- Reflect selection in the sidebar (deselect all module rows)
     if UI.RefreshSidebarStates then UI:RefreshSidebarStates() end
