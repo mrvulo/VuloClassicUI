@@ -48,7 +48,7 @@ local SHADOW_INSET = 4
 
 -- How many px the icon shrinks so the dark backdrop shows as a rim all around
 -- it (the real Masque "Shadow" look — icon smaller than the frame).
-local ICON_INSET = 3
+local ICON_INSET = 5
 
 -- Shrink (or restore) the icon inside its frame so the backdrop forms a rim.
 local function setIconInset(frame, icon, px)
@@ -62,11 +62,11 @@ local function setIconInset(frame, icon, px)
     end
 end
 
--- The Masque "Shadow 1" look = a FILLED dark rounded backdrop (verified:
--- Backdrop.tga centre alpha 255, corners 0) at the full FRAME size, with the
--- icon shrunk inside it (see setIconInset) so the backdrop shows as a clean
--- dark rounded rim all around the icon. `outset` is a small bleed past the
--- frame edge for soft depth.
+-- The Masque "Shadow 1" construction: a FILLED dark backdrop at full FRAME
+-- size with the icon shrunk inside it (setIconInset), so the backdrop shows as
+-- a dark rim all around the icon. We mask the backdrop with the curved-square
+-- mask so the rim has clearly rounded corners (Masque's own texture only
+-- rounds subtly). `outset` is a small bleed past the frame edge for depth.
 local function attachShadow(frame, store, outset)
     if not frame then return end
     store = store or frame
@@ -76,9 +76,17 @@ local function attachShadow(frame, store, outset)
         local back = frame:CreateTexture(nil, "BACKGROUND", nil, -6)
         back:SetPoint("TOPLEFT",     frame, "TOPLEFT",     -outset,  outset)
         back:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT",  outset, -outset)
-        back:SetTexture(SHADOW_BACK)
-        back:SetVertexColor(0.03, 0.03, 0.04, 1)   -- near-black
+        back:SetColorTexture(0.03, 0.03, 0.04, 1)   -- near-black solid
         store._vcuiBack = back
+
+        -- Round the backdrop's corners clearly with the curved-square mask
+        if frame.CreateMaskTexture then
+            local bm = frame:CreateMaskTexture()
+            bm:SetAllPoints(back)
+            bm:SetTexture(MASK_ROUNDED, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+            pcall(back.AddMaskTexture, back, bm)
+            store._vcuiBackMask = bm
+        end
     end
 end
 
