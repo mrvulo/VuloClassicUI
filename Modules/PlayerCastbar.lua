@@ -837,6 +837,17 @@ function mod:GetOptions()
         })
     end
 
+    -- Swing Timer lives in its own hidden module; its options are embedded here
+    -- so it doesn't get a separate sidebar entry. Works for any melee class.
+    local sw = ns.modules and ns.modules.swingtimer
+    if sw and sw.GetOptions and sw.db then
+        table.insert(items, { type = "spacer", height = 10 })
+        table.insert(items, {
+            type = "section", title = L["Swing Timer"], collapsed = true,
+            items = sw:GetOptions(),
+        })
+    end
+
     return items
 end
 

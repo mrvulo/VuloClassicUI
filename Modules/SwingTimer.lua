@@ -15,10 +15,13 @@
 local _, ns = ...
 local L = ns.L
 
+-- group "_hidden": no own sidebar entry. The options live as a section inside
+-- the Player Castbar module (see PlayerCastbar:GetOptions). The timer itself
+-- runs for every class (the off-hand bar simply only shows while dual-wielding).
 local mod = ns:RegisterModule("swingtimer", {
     name        = "Swing Timer",
-    group       = "Class",
-    description = "Weapon swing timer for your melee auto-attacks. Shows a main-hand bar and, while dual-wielding, an off-hand bar (Rogue / Warrior).",
+    group       = "_hidden",
+    description = "Weapon swing timer for your melee auto-attacks (any melee class). Shows a main-hand bar and, while dual-wielding, an off-hand bar.",
     defaults = {
         enabled         = true,
         width           = 200,
@@ -27,10 +30,11 @@ local mod = ns:RegisterModule("swingtimer", {
         x               = 0,
         y               = -140,
         unlocked        = false,
-        showOffHand     = true,    -- show OH bar while dual-wielding
-        showText        = true,    -- show the remaining-time number
-        onlyWhileActive = true,    -- hide the frame unless you're swinging
-        colorPreset     = "blue",  -- matches the reference screenshot
+        showOffHand     = true,      -- show OH bar while dual-wielding
+        showText        = true,      -- show the remaining-time number
+        onlyWhileActive = true,      -- hide the frame unless you're swinging
+        colorPreset     = "blue",    -- matches the reference screenshot
+        texture         = "Blizzard",-- LibSharedMedia statusbar name
     },
 })
 
@@ -56,6 +60,31 @@ local COLOR_PRESETS = {
 }
 local function barColor()
     return COLOR_PRESETS[mod.db.colorPreset] or COLOR_PRESETS.blue
+end
+
+-- Resolve the chosen statusbar texture via LibSharedMedia (falls back to the
+-- bundled neutral bar if LSM or the chosen texture is unavailable).
+local function fillTexture()
+    if ns.LSM and mod.db.texture then
+        local t = ns.LSM:Fetch("statusbar", mod.db.texture, true)
+        if t then return t end
+    end
+    return TEX_FILL
+end
+
+-- Dropdown values: every statusbar texture registered with LibSharedMedia.
+local function textureValues()
+    local vals = {}
+    if ns.LSM then
+        local list = ns.LSM:List("statusbar")
+        if list then
+            for _, name in ipairs(list) do
+                vals[#vals + 1] = { value = name, text = name }
+            end
+        end
+    end
+    if #vals == 0 then vals[1] = { value = "Blizzard", text = "Blizzard" } end
+    return vals
 end
 
 local playerGUID
@@ -125,7 +154,7 @@ end
 
 local function createBar(parent, labelText)
     local bar = CreateFrame("StatusBar", nil, parent)
-    bar:SetStatusBarTexture(TEX_FILL)
+    bar:SetStatusBarTexture(fillTexture())
     bar:SetMinMaxValues(0, 1)
     bar:SetValue(0)
 
@@ -214,8 +243,9 @@ local function layout()
     ohBar:SetShown(showOH)
 
     local c = barColor()
-    mhBar:SetStatusBarColor(c.r, c.g, c.b, 1)
-    ohBar:SetStatusBarColor(c.r, c.g, c.b, 1)
+    local tex = fillTexture()
+    mhBar:SetStatusBarTexture(tex); mhBar:SetStatusBarColor(c.r, c.g, c.b, 1)
+    ohBar:SetStatusBarTexture(tex); ohBar:SetStatusBarColor(c.r, c.g, c.b, 1)
     for _, b in ipairs({ mhBar, ohBar }) do
         b.spark:SetHeight(h + 6)
         b.gloss:ClearAllPoints()
@@ -392,9 +422,12 @@ end
 function mod:GetOptions()
     local items = {}
 
-    table.insert(items, { type = "header", text = L["Swing Timer"] })
     table.insert(items, { type = "desc",
-        text = L["|cffaaaaaaShows when your next melee auto-attack lands. The off-hand bar only appears while dual-wielding (Rogue / Warrior). The bar fills up toward the swing; the number is the time left.|r"] })
+        text = L["|cffaaaaaaShows when your next melee auto-attack lands (any melee class). The off-hand bar only appears while dual-wielding. The bar fills up toward the swing; the number is the time left.|r"] })
+
+    table.insert(items, { type = "toggle", label = L["Enable swing timer"],
+        get = function() return mod.db.enabled end,
+        set = function(_, v) if ns.ToggleModule then ns:ToggleModule("swingtimer", v) end end })
 
     table.insert(items, { type = "spacer", height = 6 })
     table.insert(items, {
@@ -441,6 +474,13 @@ function mod:GetOptions()
         },
         get = function() return mod.db.colorPreset end,
         set = function(_, v) mod.db.colorPreset = v; layout() end,
+    })
+    table.insert(items, {
+        type = "dropdown", label = L["Bar texture"],
+        width = 240,
+        values = textureValues(),
+        get = function() return mod.db.texture end,
+        set = function(_, v) mod.db.texture = v; layout() end,
     })
 
     table.insert(items, { type = "spacer", height = 6 })
