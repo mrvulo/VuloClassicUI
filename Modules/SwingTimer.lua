@@ -34,8 +34,8 @@ local mod = ns:RegisterModule("swingtimer", {
         showText        = true,      -- show the remaining-time number
         onlyWhileActive = true,      -- hide the frame unless you're swinging
         colorPreset     = "blue",    -- matches the reference screenshot
-        texture         = "Blizzard",-- foreground (fill) statusbar texture
-        bgTexture       = "Blizzard",-- background statusbar texture
+        texture         = "Atrocity",-- foreground (fill) statusbar texture
+        bgTexture       = "Atrocity",-- background statusbar texture
         fillAlpha       = 1.0,       -- foreground transparency (0..1)
         bgAlpha         = 0.9,       -- background transparency (0..1)
     },
@@ -80,18 +80,30 @@ end
 local function fillTexture() return lsmStatusbar(mod.db.texture) end
 local function bgTexture()   return lsmStatusbar(mod.db.bgTexture) end
 
--- Dropdown values: every statusbar texture registered with LibSharedMedia.
+-- The bundled bar textures (Media\textures), registered in Core/MediaRegistry.
+-- The picker is limited to these on purpose — no Blizzard default, no other
+-- addons' textures.
+local BUNDLED_TEXTURES = {
+    "Atrocity", "Beautiful", "Divide", "Fade", "Fade Right", "Glass",
+    "Gradient", "Gradient (B-T)", "Gradient (R-L)", "Gradient (T-B)",
+    "Matte", "Melli", "Plating", "Sheer", "Soft Line",
+    "Thin Line (Top)", "Thin Line (Bottom)",
+}
+local DEFAULT_TEXTURE = "Atrocity"
+
+local function isBundledTexture(name)
+    for _, n in ipairs(BUNDLED_TEXTURES) do
+        if n == name then return true end
+    end
+    return false
+end
+
+-- Dropdown values: only the bundled Media\textures bars.
 local function textureValues()
     local vals = {}
-    if ns.LSM then
-        local list = ns.LSM:List("statusbar")
-        if list then
-            for _, name in ipairs(list) do
-                vals[#vals + 1] = { value = name, text = name }
-            end
-        end
+    for _, name in ipairs(BUNDLED_TEXTURES) do
+        vals[#vals + 1] = { value = name, text = name }
     end
-    if #vals == 0 then vals[1] = { value = "Blizzard", text = "Blizzard" } end
     return vals
 end
 
@@ -469,6 +481,9 @@ end
 -- =========================================================
 function mod:OnEnable()
     playerGUID = UnitGUID("player")
+    -- Migrate old/removed texture choices (e.g. "Blizzard") to a bundled one
+    if not isBundledTexture(mod.db.texture)   then mod.db.texture   = DEFAULT_TEXTURE end
+    if not isBundledTexture(mod.db.bgTexture) then mod.db.bgTexture = DEFAULT_TEXTURE end
     create()
     recomputeDualWield()
     layout()

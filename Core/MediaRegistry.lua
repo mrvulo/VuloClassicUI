@@ -20,14 +20,11 @@ end
 local BASE = "Interface\\Addons\\VuloClassicUI\\Media\\"
 
 -- =========================================================
--- StatusBars
--- =========================================================
-LSM:Register("statusbar", "Atrocity", BASE .. "StatusBars\\Atrocity")
-LSM:Register("statusbar", "Kait",     BASE .. "StatusBars\\Kait.tga")
-
--- Bundled bar textures under Media\textures (classic SharedMedia-style bars).
+-- StatusBars — only the textures bundled under Media\textures.
 -- These show up in any statusbar texture picker (Swing Timer, other addons, ...).
+-- =========================================================
 local TEX = BASE .. "textures\\"
+LSM:Register("statusbar", "Atrocity",           TEX .. "atrocity.tga")
 LSM:Register("statusbar", "Beautiful",          TEX .. "beautiful.tga")
 LSM:Register("statusbar", "Divide",             TEX .. "divide.tga")
 LSM:Register("statusbar", "Fade",               TEX .. "fade.tga")
