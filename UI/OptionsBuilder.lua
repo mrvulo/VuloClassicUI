@@ -130,6 +130,12 @@ function UI:PlaceGroup(parent, group, y)
 
         local function flushRow()
             for i, ri in ipairs(rowItems) do
+                -- Constrain the widget to the column width so a toggle's switch
+                -- (right-anchored) stays inside its column instead of overlapping
+                -- the next column's label.
+                if ri.width == nil and (ri.type == "toggle" or ri.type == "checkbox") then
+                    ri.width = colWidth - 14
+                end
                 local widget = createWidget(parent, ri)
                 if widget then
                     local xo = CONTENT_PADDING + (i - 1) * colWidth

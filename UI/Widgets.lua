@@ -198,6 +198,11 @@ function UI:CreateToggle(parent, config)
     btn:SetSize(switchW, switchH)
     btn:SetPoint("RIGHT", container, "RIGHT", 0, 0)
 
+    -- Constrain the label so it truncates instead of running under the switch
+    label:SetPoint("RIGHT", btn, "LEFT", -8, 0)
+    label:SetJustifyH("LEFT")
+    label:SetWordWrap(false)
+
     -- Container width: explicitly set, or fixed at 360 so switches end up in one column
     -- (labels of different lengths would otherwise shift the switch X position)
     local explicitW = config.width
