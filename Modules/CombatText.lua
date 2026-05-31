@@ -106,25 +106,32 @@ local function createContainer()
         fs:Hide()
         table.insert(fontStringPool, fs)
     end
-    -- OnUpdate animates all active messages
-    container:SetScript("OnUpdate", function(_, elapsed)
-        for i = #activeMessages, 1, -1 do
-            local m = activeMessages[i]
-            m.t = m.t + elapsed
-            local p = m.t / m.dur
-            if p >= 1 then
-                m.fs:Hide()
-                m.fs:ClearAllPoints()
-                table.insert(fontStringPool, m.fs)
-                table.remove(activeMessages, i)
-            else
-                m.fs:ClearAllPoints()
-                m.fs:SetPoint("CENTER", container, "CENTER", 0, p * m.dist)
-                m.fs:SetAlpha(1 - p)
-            end
-        end
-    end)
+    -- OnUpdate is attached on demand (see spawnEvent) and detaches itself
+    -- when no messages are animating — so it costs nothing while idle.
     return container
+end
+
+-- Animates active messages; self-detaches when the list empties (perf: no
+-- per-frame work when there's no combat text on screen).
+local function animateMessages(self, elapsed)
+    for i = #activeMessages, 1, -1 do
+        local m = activeMessages[i]
+        m.t = m.t + elapsed
+        local p = m.t / m.dur
+        if p >= 1 then
+            m.fs:Hide()
+            m.fs:ClearAllPoints()
+            table.insert(fontStringPool, m.fs)
+            table.remove(activeMessages, i)
+        else
+            m.fs:ClearAllPoints()
+            m.fs:SetPoint("CENTER", container, "CENTER", 0, p * m.dist)
+            m.fs:SetAlpha(1 - p)
+        end
+    end
+    if #activeMessages == 0 then
+        self:SetScript("OnUpdate", nil)  -- nothing left to animate → go idle
+    end
 end
 
 local function getAnchor()
@@ -187,6 +194,8 @@ local function spawnEvent(eventKey, text)
         dur = mod.db.scrollDuration or 2.0,
         dist = mod.db.scrollDistance or 80,
     })
+    -- Wake the animator (it detaches itself again when idle)
+    container:SetScript("OnUpdate", animateMessages)
 end
 
 -- =========================================================
