@@ -62,7 +62,7 @@ local function attachShadow(frame, store, outset)
         back:SetPoint("TOPLEFT",     frame, "TOPLEFT",     -outset,  outset)
         back:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT",  outset, -outset)
         back:SetTexture(TEX_BACKDROP)
-        back:SetVertexColor(0.09, 0.09, 0.11, 1)
+        back:SetVertexColor(0.03, 0.03, 0.04, 1)   -- near-black, merges with the border
         store._vcuiBack = back
 
         local ring = frame:CreateTexture(nil, "BACKGROUND", nil, -6)
