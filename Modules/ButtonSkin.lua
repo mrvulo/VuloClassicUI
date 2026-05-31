@@ -1,16 +1,13 @@
 -- =========================================================
 -- VuloClassicUI / Modules / ButtonSkin
--- Lightweight Masque_Shadow-style skin for Blizzard action buttons — the
--- look people install Masque + Masque_Shadow for, without the framework:
+-- Built-in dark drop-shadow skin for Blizzard action buttons + WeakAuras
+-- icons — no external skinning framework required:
 --   - icons cropped so the ugly default border is gone
 --   - chunky NormalTexture border removed
---   - rounded icon shape (mask) + a soft black drop-shadow that bleeds out
---     past the button edge (the Masque "Shadow" look)
+--   - rounded icon shape (mask) + a soft black rim around each icon
 --   - several styles: shadow / rounded / square / accent / circle / minimal
--- WeakAuras icons go through Masque automatically — point its "WeakAuras"
--- group at "Masque: Shadow 1" for the matching look.
--- No external library, no secure-frame writes (only textures/regions are
--- touched), fully toggleable.
+-- Everything is drawn by VuloClassicUI itself. No external library, no
+-- secure-frame writes (only textures/regions are touched), fully toggleable.
 -- =========================================================
 local _, ns = ...
 local L = ns.L
@@ -18,12 +15,12 @@ local L = ns.L
 local mod = ns:RegisterModule("buttonskin", {
     name        = "Button Skin",
     group       = "UI Reskin",
-    description = "Masque_Shadow-style skin for action buttons: black, rounded, soft drop-shadow. Lightweight Masque alternative with several styles.",
+    description = "Built-in dark drop-shadow skin for action buttons and WeakAuras icons: black, rounded, soft rim. Several styles, no extra addons needed.",
     defaults = {
         enabled       = true,
         style         = "shadow",  -- shadow | rounded | square | accent | circle | minimal
         skinPetStance = true,      -- also skin pet + stance buttons
-        skinWeakAuras = true,      -- also add the shadow to WeakAuras icons (no Masque)
+        skinWeakAuras = true,      -- also add the rim to WeakAuras icons
     },
 })
 
@@ -40,17 +37,14 @@ local ICON_CROP = { 0.08, 0.92, 0.08, 0.92 }
 -- Shipped under Media\Masks\ so they load reliably in the Classic client.
 local MASK_ROUNDED = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\csquare_mask.tga"  -- rounded square
 local MASK_CIRCLE  = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\circle_mask.tga"
-local SHADOW_GLOW  = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\shadow_glow.tga"      -- Masque "Shadow" hollow ring
-local SHADOW_BACK  = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\shadow_backdrop.tga"  -- Masque "Shadow" filled rounded backdrop
 
 -- How far the dark rounded rim sticks out past the icon (px)
 local RIM_OUTSET = 4
 
 -- The rim: a solid near-black texture at full FRAME size + a few px, rounded
--- with the curved-square MASK (masks survive Blizzard's/WeakAuras' updates,
--- unlike re-anchoring the icon, which gets reset). The icon itself is masked
--- with the same shape (applyStyle), so the rim wraps it as a clean dark
--- rounded border — DragonflightUI's approach (mask, don't move the icon).
+-- with the curved-square mask. Masks survive Blizzard's/WeakAuras' button
+-- updates (re-anchoring the icon does not — it just gets reset), so the icon
+-- is masked to the same shape and the rim wraps it as a clean dark border.
 local function attachShadow(frame, store, outset)
     if not frame then return end
     store = store or frame
@@ -78,12 +72,10 @@ end
 --   border = "black" | "accent" | nil (none)
 --   bg     = dark backdrop behind the icon
 --   mask   = mask texture (rounds the icon + backdrop) or nil
---   shadow = soft black drop-shadow glow behind the button (Masque_Shadow look)
+--   shadow = dark rounded rim (masked backdrop) around a rounded icon
 local STYLES = {
-    -- Default: the real Masque_Shadow look. Square cropped icon + a soft black
-    -- rounded shadow bleeding out past the edge (its rounded corners make the
-    -- square button read as gently rounded). No icon mask = rock-solid.
-    shadow   = { border = nil,      bg = true,  mask = nil,          shadow = true  },  -- Masque_Shadow: square icon + dark rim
+    -- Default: rounded icon with a soft dark rounded rim around it.
+    shadow   = { border = nil,      bg = true,  mask = nil,          shadow = true  },  -- rounded icon + dark rim
     rounded  = { border = nil,      bg = true,  mask = MASK_ROUNDED, shadow = false },  -- icon corners masked round
     square   = { border = "black",  bg = true,  mask = nil,          shadow = false },  -- crisp square, black 1px edge
     accent   = { border = "accent", bg = true,  mask = nil,          shadow = false },  -- square, purple edge
@@ -180,7 +172,7 @@ local function applyStyle(button)
         button._vcuiBg:SetShown((st.bg and not st.shadow) and true or false)
     end
 
-    -- Masque "Shadow": dark rounded rim (masked backdrop) behind the icon
+    -- Shadow style: dark rounded rim (masked backdrop) behind the icon
     if button._vcuiBack then button._vcuiBack:SetShown(st.shadow and true or false) end
 
     -- Mask the icon to the same rounded shape as the rim. Masks survive
@@ -211,8 +203,8 @@ local function skinButton(button)
     if not button._vcuiSkinned then
         button._vcuiSkinned = true
 
-        -- Masque "Shadow": filled dark rounded backdrop at button size; the icon
-        -- is shrunk inside it (applyStyle) so the backdrop forms the rim.
+        -- Dark rounded rim (masked backdrop) one size larger than the icon,
+        -- created once here and shown/hidden per style in applyStyle.
         attachShadow(button, button)
 
         -- Keep Blizzard's gold border from coming back
@@ -279,43 +271,14 @@ local function refreshAll()
 end
 
 -- =========================================================
--- WeakAuras icon skinning.
--- If Masque is installed, WeakAuras skins its own icons through it, and that's
--- the only way to get the EXACT "Masque: Shadow 1" look (Masque resizes the
--- icon to 32 inside a 42 frame — we can't replicate that without it). So when
--- Masque is present we just force the "WeakAuras" Masque group to Shadow 1 and
--- skip our own skin (would double up). Without Masque we use our own mask rim,
--- matching the action bars (style dropdown drives both).
+-- WeakAuras icon skinning — VuloClassicUI's own skin, same style as the bars
+-- (the style dropdown drives both). The rim is a masked texture (masks survive
+-- WeakAuras' updates), so the icon is never re-anchored.
 -- =========================================================
-local MSQ
-local msqChecked = false
-local function getMSQ()
-    if not msqChecked then
-        msqChecked = true
-        MSQ = (LibStub and LibStub("Masque", true)) or nil
-    end
-    return MSQ
-end
-
--- Is Masque actively skinning this WeakAuras region? (then leave it alone)
-local function isMasqueSkinned(region)
-    local g = region.MSQGroup
-    return g and g.db and not g.db.Disabled and g.db.SkinID and g.db.SkinID ~= "Blizzard"
-end
-
--- Force WeakAuras' Masque group to "Masque: Shadow 1" (sub-groups inherit it)
-local function applyWAMasqueShadow()
-    local m = getMSQ()
-    if not m or not m.GetSkin or not m:GetSkin("Masque: Shadow 1") then return end
-    local g = m:Group("WeakAuras")
-    if g and g.__Set then pcall(g.__Set, g, "SkinID", "Masque: Shadow 1") end
-end
-
 local function styleWAIcon(region)
     if not region or region.regionType ~= "icon" then return end
     local icon = region.icon
     if not icon then return end
-    if isMasqueSkinned(region) then return end  -- Masque handles it
 
     attachShadow(region, region)                -- create backdrop once
     local st = currentStyle()
@@ -378,14 +341,11 @@ end
 function mod:OnEnable()
     if not mod.db then return end
 
-    -- If Masque is present, point WeakAuras' group at Shadow 1 for the exact look
-    applyWAMasqueShadow()
-
-    -- Skin our own way (no Masque dependency). Deferred so all frames exist.
+    -- Skin everything ourselves. Deferred so all frames exist.
     if C_Timer and C_Timer.After then
         C_Timer.After(0.5, skinEverything)
-        C_Timer.After(2.0, function() applyWAMasqueShadow(); skinEverything() end)
-        C_Timer.After(5.0, function() applyWAMasqueShadow(); skinAllWAIcons() end)
+        C_Timer.After(2.0, skinEverything)
+        C_Timer.After(5.0, skinAllWAIcons)   -- WeakAuras icons often load late
     else
         skinEverything()
     end
@@ -428,7 +388,7 @@ end
 -- =========================================================
 function mod:GetOptions()
     local STYLE_VALUES = {
-        { value = "shadow",  text = L["Shadow (Masque-style: square + soft shadow)"] },
+        { value = "shadow",  text = L["Shadow (dark rounded rim)"] },
         { value = "rounded", text = L["Rounded icon (masked corners)"] },
         { value = "square",  text = L["Square (black edge)"] },
         { value = "accent",  text = L["Square (accent edge)"] },
@@ -436,16 +396,11 @@ function mod:GetOptions()
         { value = "minimal", text = L["Minimal (icon only)"] },
     }
 
-    local waText
-    if getMSQ() then
-        waText = L["|cffaaaaaaMasque detected: WeakAuras icons are set to the exact \"Masque: Shadow 1\" skin automatically. (Action bars use VuloClassicUI's own skin — Masque doesn't touch Blizzard bars.)|r"]
-    else
-        waText = L["|cffaaaaaaWeakAuras icons get VuloClassicUI's own rim. For the exact Masque Shadow 1 look on auras, enable Masque + Masque_Shadow — it'll be applied automatically.|r"]
-    end
+    local waText = L["|cffaaaaaaWeakAuras icons get the same dark rounded rim as the bars. Re-open this panel or /reload if a new aura isn't skinned yet.|r"]
 
     return {
         { type = "header", text = L["Button Skin"] },
-        { type = "desc", text = L["|cffaaaaaaShadow-1 look for the action bars — no Masque required. Cropped icons with a soft black drop-shadow.|r"] },
+        { type = "desc", text = L["|cffaaaaaaBuilt-in dark drop-shadow skin for the action bars. Cropped icons with a soft black rounded rim.|r"] },
 
         { type = "dropdown", label = L["Style"],
           tooltip = L["Pick how the action buttons look. Rounded/Circle use an icon mask; Minimal is just the cropped icon."],

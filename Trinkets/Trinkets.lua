@@ -3,7 +3,6 @@
 Trinkets = { }
 
 local _G, math, tonumber, string, type, pairs, ipairs, table, select = _G, math, tonumber, string, type, pairs, ipairs, table, select
-local Masque = LibStub("Masque", true)
 
 local IsClassic = WOW_PROJECT_ID >= WOW_PROJECT_CLASSIC
 local IsVanillaClassic = WOW_PROJECT_ID == WOW_PROJECT_CLASSIC
@@ -296,17 +295,6 @@ end
 
 function Trinkets.Initialize()
 	local options = TrinketsOptions
-	-- Set Trinkets Skin
-	if (Masque and not Trinkets.MasqueGroup) then
-		local group = Masque:Group("Trinkets")
-		Trinkets.MasqueGroup = group
-		group:AddButton(Trinkets_Trinket0)
-		group:AddButton(Trinkets_Trinket1)
-		for i = 1, 30 do
-			_G["Trinkets_Menu"..i]:SetFrameLevel(2)
-			group:AddButton(_G["Trinkets_Menu"..i])
-		end
-	end
 	options.KeepDocked = options.KeepDocked or "ON" -- new option for 2.1
 	options.Notify = options.Notify or "OFF" -- 2.1
 	options.DisableToggle = options.DisableToggle or "OFF" -- new option for 2.2
