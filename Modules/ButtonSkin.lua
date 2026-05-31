@@ -40,27 +40,47 @@ local ICON_CROP = { 0.08, 0.92, 0.08, 0.92 }
 -- Shipped under Media\Masks\ so they load reliably in the Classic client.
 local MASK_ROUNDED = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\csquare_mask.tga"  -- rounded square
 local MASK_CIRCLE  = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\circle_mask.tga"
-local SHADOW_GLOW  = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\shadow_glow.tga"   -- Masque "Shadow" glow
+local SHADOW_GLOW  = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\shadow_glow.tga"      -- Masque "Shadow" hollow ring
+local SHADOW_BACK  = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\shadow_backdrop.tga"  -- Masque "Shadow" filled rounded backdrop
 
 -- How far the soft shadow bleeds out past the button edge (px)
 local SHADOW_INSET = 4
 
--- The Masque "Shadow 1" texture is a HOLLOW rounded border (transparent centre,
--- soft dark rounded edge — verified: centre alpha 0, edge alpha ~165-221). To
--- make it show we lay it OVER the icon edge so the dark rounded ring sits on the
--- icon's outer ~12%, leaving the middle visible. That IS the Shadow look.
--- `outset` pushes the ring slightly past the icon edge for a touch of bleed.
+-- The Masque "Shadow 1" look = a FILLED dark rounded backdrop bleeding out
+-- behind the icon (verified: Backdrop.tga centre alpha 255, corners 0) + a
+-- HOLLOW dark rounded ring laid OVER the icon edge (Normal.tga centre 0, edge
+-- ~165-221). Together they give the dark rim + depth of the real skin.
+-- `outset` is how far the backdrop bleeds past the icon edge (px).
 local function attachShadow(frame, anchor, store, outset)
     if not frame or not anchor then return end
     store = store or frame
-    outset = outset or 2
+    outset = outset or 4
+
+    -- Filled dark rounded backdrop behind the icon (depth + dark rim)
+    if not store._vcuiBack then
+        local back = frame:CreateTexture(nil, "BACKGROUND", nil, -6)
+        back:SetPoint("TOPLEFT",     anchor, "TOPLEFT",     -outset,  outset)
+        back:SetPoint("BOTTOMRIGHT", anchor, "BOTTOMRIGHT",  outset, -outset)
+        back:SetTexture(SHADOW_BACK)
+        back:SetVertexColor(0.03, 0.03, 0.04, 1)   -- near-black, slightly cool
+        store._vcuiBack = back
+    end
+
+    -- Hollow dark rounded ring over the icon edge — drawn twice for a crisper,
+    -- stronger edge (the texture maxes at ~87% alpha, so one pass is soft).
     if not store._vcuiRing then
-        local ring = frame:CreateTexture(nil, "OVERLAY", nil, 6)
-        ring:SetPoint("TOPLEFT",     anchor, "TOPLEFT",     -outset,  outset)
-        ring:SetPoint("BOTTOMRIGHT", anchor, "BOTTOMRIGHT",  outset, -outset)
-        ring:SetTexture(SHADOW_GLOW)
-        ring:SetVertexColor(0, 0, 0, 1)
-        store._vcuiRing = ring
+        local r1 = frame:CreateTexture(nil, "OVERLAY", nil, 6)
+        r1:SetPoint("TOPLEFT",     anchor, "TOPLEFT",     -2,  2)
+        r1:SetPoint("BOTTOMRIGHT", anchor, "BOTTOMRIGHT",  2, -2)
+        r1:SetTexture(SHADOW_GLOW)
+        r1:SetVertexColor(0, 0, 0, 1)
+        store._vcuiRing = r1
+
+        local r2 = frame:CreateTexture(nil, "OVERLAY", nil, 7)
+        r2:SetAllPoints(r1)
+        r2:SetTexture(SHADOW_GLOW)
+        r2:SetVertexColor(0, 0, 0, 1)
+        store._vcuiRing2 = r2
     end
 end
 
@@ -147,13 +167,16 @@ local function applyStyle(button)
     -- Always crop away the icon's built-in border ring
     if icon and icon.SetTexCoord then icon:SetTexCoord(unpack(ICON_CROP)) end
 
-    -- Dark backdrop behind the icon
+    -- Eckiger Fallback-Backdrop nur ohne Shadow-Style
     if button._vcuiBg then
-        button._vcuiBg:SetShown(st.bg and true or false)
+        button._vcuiBg:SetShown((st.bg and not st.shadow) and true or false)
     end
 
-    -- Masque "Shadow" ring (rounded dark edge over the icon)
-    if button._vcuiRing then button._vcuiRing:SetShown(st.shadow and true or false) end
+    -- Masque "Shadow": filled rounded backdrop + dark ring over the icon edge
+    local showShadow = st.shadow and true or false
+    if button._vcuiBack  then button._vcuiBack:SetShown(showShadow) end
+    if button._vcuiRing  then button._vcuiRing:SetShown(showShadow) end
+    if button._vcuiRing2 then button._vcuiRing2:SetShown(showShadow) end
 
     -- Shape mask (rounded / circle) on icon + backdrop
     if icon then
