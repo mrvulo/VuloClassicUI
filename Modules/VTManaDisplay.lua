@@ -23,11 +23,11 @@ local mod = ns:RegisterModule("vtmanadisplay", {
     },
 })
 
--- Class tabs: only classes that actually have tools get a tab.
--- Tab id is the lowercase class token; label is a raw English key (translated live).
-mod.tabs = {
-    { id = "priest", label = "Priest" },
-}
+-- When more than one class has tools, define mod.tabs here (one entry per
+-- class) and the UI shows a tab bar. With a single class we skip tabs and
+-- show its options directly (organized by spec headers like "Shadow").
+-- e.g. to add Mage later:
+--   mod.tabs = { { id = "priest", label = "Priest" }, { id = "mage", label = "Mage" } }
 
 local VT_SPELL_ID_BASE = 34914  -- Vampiric Touch base (TBC)
 local SHADOW_SCHOOL    = 32
@@ -261,7 +261,8 @@ local function priestOptions()
 end
 
 function mod:GetOptions(tabId)
-    if tabId == "priest" or tabId == nil then
+    -- With a single tab the UI uses the "default" path, so accept it here too.
+    if tabId == "priest" or tabId == "default" or tabId == nil then
         return priestOptions()
     end
     return {
