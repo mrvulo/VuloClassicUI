@@ -34,7 +34,10 @@ local mod = ns:RegisterModule("swingtimer", {
         showText        = true,      -- show the remaining-time number
         onlyWhileActive = true,      -- hide the frame unless you're swinging
         colorPreset     = "blue",    -- matches the reference screenshot
-        texture         = "Blizzard",-- LibSharedMedia statusbar name
+        texture         = "Blizzard",-- foreground (fill) statusbar texture
+        bgTexture       = "Blizzard",-- background statusbar texture
+        fillAlpha       = 1.0,       -- foreground transparency (0..1)
+        bgAlpha         = 0.9,       -- background transparency (0..1)
     },
 })
 
@@ -62,15 +65,20 @@ local function barColor()
     return COLOR_PRESETS[mod.db.colorPreset] or COLOR_PRESETS.blue
 end
 
--- Resolve the chosen statusbar texture via LibSharedMedia (falls back to the
--- bundled neutral bar if LSM or the chosen texture is unavailable).
-local function fillTexture()
-    if ns.LSM and mod.db.texture then
-        local t = ns.LSM:Fetch("statusbar", mod.db.texture, true)
-        if t then return t end
+-- Resolve a statusbar texture by LibSharedMedia name. IMPORTANT: we read from
+-- the HashTable directly instead of LSM:Fetch — Fetch honours a global texture
+-- override (set by some skin addons), which would make every choice resolve to
+-- the same texture. HashTable always returns exactly the chosen one.
+local function lsmStatusbar(name)
+    if ns.LSM and name then
+        local hash = ns.LSM:HashTable("statusbar")
+        local path = hash and hash[name]
+        if path and path ~= "" then return path end
     end
     return TEX_FILL
 end
+local function fillTexture() return lsmStatusbar(mod.db.texture) end
+local function bgTexture()   return lsmStatusbar(mod.db.bgTexture) end
 
 -- Dropdown values: every statusbar texture registered with LibSharedMedia.
 local function textureValues()
@@ -87,9 +95,11 @@ local function textureValues()
     return vals
 end
 
--- Apply the chosen texture + colour to a bar (robust: also re-set on the
--- texture object and disable tiling so narrow LSM textures don't repeat).
+-- Apply the foreground (fill) + background textures, colours and transparency
+-- to a bar. Robust: re-set on the texture object and disable tiling so narrow
+-- LSM textures don't repeat.
 local function applyBarTexture(bar)
+    -- Foreground (fill)
     local path = fillTexture()
     bar:SetStatusBarTexture(path)
     local t = bar:GetStatusBarTexture()
@@ -99,7 +109,15 @@ local function applyBarTexture(bar)
         if t.SetVertTile  then t:SetVertTile(false)  end
     end
     local c = barColor()
-    bar:SetStatusBarColor(c.r, c.g, c.b, 1)
+    bar:SetStatusBarColor(c.r, c.g, c.b, mod.db.fillAlpha or 1)
+
+    -- Background
+    if bar.bg then
+        bar.bg:SetTexture(bgTexture())
+        if bar.bg.SetHorizTile then bar.bg:SetHorizTile(false) end
+        if bar.bg.SetVertTile  then bar.bg:SetVertTile(false)  end
+        bar.bg:SetVertexColor(0.10, 0.10, 0.12, mod.db.bgAlpha or 0.9)
+    end
 end
 
 local playerGUID
@@ -524,11 +542,30 @@ function mod:GetOptions()
         set = function(_, v) mod.db.colorPreset = v; applyDisplay() end,
     })
     table.insert(items, {
-        type = "dropdown", label = L["Bar texture"],
+        type = "dropdown", label = L["Foreground texture"],
         width = 240,
         values = textureValues(),
         get = function() return mod.db.texture end,
         set = function(_, v) mod.db.texture = v; applyDisplay() end,
+    })
+    table.insert(items, {
+        type = "slider", label = L["Foreground transparency"],
+        min = 0, max = 100, step = 5,
+        get = function() return math.floor((mod.db.fillAlpha or 1) * 100 + 0.5) end,
+        set = function(_, v) mod.db.fillAlpha = v / 100; applyDisplay() end,
+    })
+    table.insert(items, {
+        type = "dropdown", label = L["Background texture"],
+        width = 240,
+        values = textureValues(),
+        get = function() return mod.db.bgTexture end,
+        set = function(_, v) mod.db.bgTexture = v; applyDisplay() end,
+    })
+    table.insert(items, {
+        type = "slider", label = L["Background transparency"],
+        min = 0, max = 100, step = 5,
+        get = function() return math.floor((mod.db.bgAlpha or 0.9) * 100 + 0.5) end,
+        set = function(_, v) mod.db.bgAlpha = v / 100; applyDisplay() end,
     })
 
     table.insert(items, { type = "spacer", height = 6 })
@@ -559,6 +596,13 @@ end
 -- Slash test
 -- =========================================================
 SLASH_VCUISWING1 = "/swingtest"
-SlashCmdList.VCUISWING = function()
+SlashCmdList.VCUISWING = function(msg)
+    if msg == "debug" then
+        local override = (ns.LSM and ns.LSM.GetGlobal) and ns.LSM:GetGlobal("statusbar")
+        ns:Print(string.format("SwingTimer fg '%s' -> %s", tostring(mod.db.texture), tostring(fillTexture())))
+        ns:Print(string.format("SwingTimer bg '%s' -> %s", tostring(mod.db.bgTexture), tostring(bgTexture())))
+        ns:Print(string.format("LSM statusbar global override = %s", tostring(override)))
+        return
+    end
     setUnlocked(not mod.db.unlocked)
 end
