@@ -512,7 +512,7 @@ ns:RegisterLocale("deDE", {
     -- =====================================================
     -- QueueTimer
     -- =====================================================
-    ["Queue Timer"] = "Warteschlangen-Timer",
+    ["Queue Timer"] = "Queue-Timer",
     ["Shows a countdown on the PvP/PvE queue pop dialog. Optional sound warning at 5 seconds."] = "Zeigt einen Countdown im PvP-/PvE-Warteschlangen-Dialog. Optional Soundwarnung bei 5 Sekunden.",
     ["Queue expires in"] = "Warteschlange läuft ab in",
     ["|cff00c0ffQueueTimer:|r "] = "|cff00c0ffWarteschlangen-Timer:|r ",
@@ -601,7 +601,7 @@ ns:RegisterLocale("deDE", {
     ["|cffff8800waiting for Blizzard_InspectUI|r"] = "|cffff8800wartet auf Blizzard_InspectUI|r",
     ["|cffaaaaaaWhat the fix does: tracks active inspects with a timestamp, calls ClearInspectPlayer() on close + on timeout. Prevents a stuck state from blocking all subsequent inspects.|r"] = "|cffaaaaaaWas der Fix macht: verfolgt aktive Inspects mit einem Timestamp, ruft ClearInspectPlayer() beim Schließen + bei Timeout auf. Verhindert, dass ein hängender Status alle weiteren Inspects blockiert.|r",
 
-    ["ItemRack Protected Fix"] = "ItemRack-Protected-Fix",
+    ["ItemRack Protected Fix"] = "ItemRack",
     ["Catches the Anniversary ADDON_ACTION_BLOCKED crash when ItemRack tries to auto-equip an item on the character model."] = "Fängt den Anniversary ADDON_ACTION_BLOCKED-Crash ab, wenn ItemRack versucht, ein Item auf dem Charaktermodell automatisch anzulegen.",
     ["|cffffff00[VuloClassicUI]|r ItemRack auto-equip on character model blocked (Anniversary protection). Please use drag & drop directly into the equipment slot."] = "|cffffff00[VuloClassicUI]|r ItemRack-Auto-Anlegen auf Charaktermodell blockiert (Anniversary-Schutz). Bitte Drag & Drop direkt in den Ausrüstungs-Slot nutzen.",
     ["Chat message on first block"] = "Chatnachricht beim ersten Block",
@@ -612,7 +612,7 @@ ns:RegisterLocale("deDE", {
     ["|cff66ff66Hook active|r"] = "|cff66ff66Hook aktiv|r",
     ["waiting for ItemRack"] = "wartet auf ItemRack",
 
-    ["LFG Browse Nil Fix"] = "LFG-Browse-Nil-Fix",
+    ["LFG Browse Nil Fix"] = "LFG-Browse",
     ["Catches Lua errors in the Anniversary Group Finder (LFGBrowseSearchEntry_Update with stale resultIDs). Prevents chat spam and broken browse lists."] = "Fängt Lua-Fehler im Anniversary-Gruppenfinder ab (LFGBrowseSearchEntry_Update mit veralteten resultIDs). Verhindert Chat-Spam und kaputte Browse-Listen.",
     ["|cffffff00[VuloClassicUI]|r Blizzard LFG browse error caught (stale entry skipped)."] = "|cffffff00[VuloClassicUI]|r Blizzard-LFG-Browse-Fehler abgefangen (veralteter Eintrag übersprungen).",
     ["Chat message on first error"] = "Chatnachricht beim ersten Fehler",
@@ -620,7 +620,7 @@ ns:RegisterLocale("deDE", {
     ["This fix wraps Blizzard's |cffffffffLFGBrowseSearchEntry_Update|r function in a protected call (xpcall). When the entry crashes due to a stale resultID (\"searchResultInfo nil\"), the error is swallowed — Blizzard's next refresh automatically cleans up the list entry."] = "Dieser Fix umhüllt Blizzards |cffffffffLFGBrowseSearchEntry_Update|r-Funktion mit einem geschützten Aufruf (xpcall). Wenn der Eintrag wegen einer veralteten resultID (\"searchResultInfo nil\") abstürzt, wird der Fehler unterdrückt — Blizzards nächstes Refresh räumt den Listeneintrag automatisch auf.",
     ["waiting for Blizzard_GroupFinder_VanillaStyle"] = "wartet auf Blizzard_GroupFinder_VanillaStyle",
 
-    ["Guild News Nil Fix"] = "Gildennews-Nil-Fix",
+    ["Guild News Nil Fix"] = "Gildennews",
     ["Catches Lua errors in guild news entries (typically \"formatString\" or \"GuildUtil\") and replaces broken entries with a fallback text instead of letting the whole panel break."] = "Fängt Lua-Fehler in Gildennews-Einträgen ab (meist \"formatString\" oder \"GuildUtil\") und ersetzt kaputte Einträge mit einem Fallback-Text, statt das ganze Panel zerbrechen zu lassen.",
     ["|cffff8080Invalid guild news entry|r"] = "|cffff8080Ungültiger Gildennews-Eintrag|r",
     ["|cffffff00[VuloClassicUI]|r Blizzard guild news error caught (fallback applied)."] = "|cffffff00[VuloClassicUI]|r Blizzard-Gildennews-Fehler abgefangen (Fallback angewendet).",
@@ -628,7 +628,7 @@ ns:RegisterLocale("deDE", {
     ["This fix wraps Blizzard's |cffffffffGuildNewsButton_SetNews|r function in a protected call (xpcall). When an entry throws a known error (\"formatString\" or \"GuildUtil\"), the entry is replaced with a fallback text \"Invalid guild news entry\" — the panel remains usable."] = "Dieser Fix umhüllt Blizzards |cffffffffGuildNewsButton_SetNews|r-Funktion mit einem geschützten Aufruf (xpcall). Wenn ein Eintrag einen bekannten Fehler wirft (\"formatString\" oder \"GuildUtil\"), wird der Eintrag durch einen Fallback-Text \"Ungültiger Gildennews-Eintrag\" ersetzt — das Panel bleibt benutzbar.",
     ["waiting for Blizzard_Communities"] = "wartet auf Blizzard_Communities",
 
-    ["Auction Price Fix"] = "Auktions-Preis-Fix",
+    ["Auction Price Fix"] = "Auktions-Preis",
     ["Fixes a nil error in the German auction house UI (PriceDropdown not defined)."] = "Behebt einen Nil-Fehler im deutschen Auktionshaus-UI (PriceDropdown nicht definiert).",
     ["This fix addresses a known bug in the German WoW localization: the auction house UI references a \"PriceDropdown\" element that was never defined, which causes Lua errors when opening the auction house."] = "Dieser Fix behebt einen bekannten Bug der deutschen WoW-Lokalisierung: das Auktionshaus-UI referenziert ein \"PriceDropdown\"-Element, das nie definiert wurde, was beim Öffnen des Auktionshauses Lua-Fehler verursacht.",
     ["|cffaaaaaaCurrent locale: %s|r"] = "|cffaaaaaaAktuelle Sprache: %s|r",

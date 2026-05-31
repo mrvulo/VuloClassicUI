@@ -817,7 +817,7 @@ end
 -- =========================================================
 function UI:CreatePowerButton(parent, config)
     local b = CreateFrame("Button", nil, parent)
-    b:SetSize(16, 16)
+    b:SetSize(config.size or 14, config.size or 14)
 
     -- Power icon (white pixels = visible, black = transparent thanks to alpha channel)
     local icon = b:CreateTexture(nil, "ARTWORK")

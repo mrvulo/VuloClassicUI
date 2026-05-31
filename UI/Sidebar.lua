@@ -105,21 +105,17 @@ local function createModuleRow(parent, key, mod)
 
     -- Module icon (left)
     local icon = row:CreateTexture(nil, "ARTWORK")
-    icon:SetSize(18, 18)
+    icon:SetSize(16, 16)
     icon:SetPoint("LEFT", row, "LEFT", 8, 0)
     icon:SetTexture(MODULE_ICONS[key] or MODULE_ICON_FALLBACK)
     icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)  -- crop default border
     row.icon = icon
 
-    -- Label (after icon)
-    local label = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    label:SetPoint("LEFT", icon, "RIGHT", 8, 0)
-    label:SetText(L[mod.name])  -- mod.name is a raw English key; translate live
-    row.label = label
-
     -- Power button on the right (toggle) - unless module marks itself as noToggle
+    local power
     if not mod.noToggle then
-        local power = UI:CreatePowerButton(row, {
+        power = UI:CreatePowerButton(row, {
+            size = 13,
             get = function() return mod.db and mod.db.enabled end,
             set = function(v)
                 ns:ToggleModule(key, v)
@@ -130,6 +126,19 @@ local function createModuleRow(parent, key, mod)
         power:SetPoint("RIGHT", row, "RIGHT", -8, 0)
         row.power = power
     end
+
+    -- Label (between icon and power button) — truncates instead of overlapping
+    local label = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    label:SetPoint("LEFT", icon, "RIGHT", 7, 0)
+    if power then
+        label:SetPoint("RIGHT", power, "LEFT", -6, 0)
+    else
+        label:SetPoint("RIGHT", row, "RIGHT", -8, 0)
+    end
+    label:SetJustifyH("LEFT")
+    label:SetWordWrap(false)  -- single line, truncates with "..." if too long
+    label:SetText(L[mod.name])  -- mod.name is a raw English key; translate live
+    row.label = label
 
     row:SetScript("OnClick", function()
         UI:ShowModulePage(key)
