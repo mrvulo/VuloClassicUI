@@ -254,8 +254,16 @@ local function onCombatEnd()
     scheduleDurabilityCheck()
 end
 
+-- Only these subevents ever produce combat text. Reading just the subevent
+-- first lets the hot path bail on the overwhelming majority of events
+-- (damage / healing / periodic / aura) before the full 18-value destructure.
+local CLEU_WANTED = {
+    SPELL_INTERRUPT = true, SPELL_DISPEL = true, SPELL_STOLEN = true,
+    SWING_MISSED    = true, RANGE_MISSED = true, SPELL_MISSED = true,
+}
 local function onCLEU()
     if not mod._enabled then return end
+    if not CLEU_WANTED[select(2, CombatLogGetCurrentEventInfo())] then return end
     if not playerGUID then
         playerGUID = UnitGUID("player")
         if not playerGUID then return end

@@ -94,12 +94,15 @@ local function onCLEU()
         if not playerGUID then return end
     end
 
-    local _, subEvent, _, sourceGUID, _, _, _, destGUID, _, _, _,
-          _, spellName, _, amount, _, school = CombatLogGetCurrentEventInfo()
-
+    -- Cheap pre-filter: read only source + subevent, bail before the full
+    -- destructure for anything that isn't our tracked event from us.
+    local _, subEvent, _, sourceGUID = CombatLogGetCurrentEventInfo()
     if sourceGUID ~= playerGUID then return end
     local kind = TRACKED_EVENTS[subEvent]
     if not kind then return end
+
+    local _, _, _, _, _, _, _, destGUID, _, _, _,
+          _, spellName, _, amount, _, school = CombatLogGetCurrentEventInfo()
 
     if kind == "apply" then
         if spellName == vtSpellName then

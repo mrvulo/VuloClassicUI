@@ -361,7 +361,13 @@ local function create()
         end,
     })
 
-    frame:SetScript("OnUpdate", function(self)
+    -- Throttle to ~50 fps: smooth enough for the spark/text, but caps the cost
+    -- on high-refresh monitors (and it only runs while the bars are visible).
+    local acc = 0
+    frame:SetScript("OnUpdate", function(self, elapsed)
+        acc = acc + (elapsed or 0)
+        if acc < 0.02 then return end
+        acc = 0
         local t = GetTime()
         if mod.db.unlocked or previewActive then
             -- demo loop so the bars animate (positioning / settings preview)
