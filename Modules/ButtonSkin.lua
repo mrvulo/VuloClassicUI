@@ -33,18 +33,19 @@ local EXTRA_PREFIXES = { "PetActionButton", "StanceButton" }
 
 local ICON_CROP = { 0.08, 0.92, 0.08, 0.92 }
 
--- Bundled textures (rounded-square / circular masks + the soft shadow glow).
--- Shipped under Media\Masks\ so they load reliably in the Classic client.
+-- Bundled mask textures (shipped under Media\Masks\, load reliably in Classic).
 local MASK_ROUNDED = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\csquare_mask.tga"  -- rounded square
 local MASK_CIRCLE  = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\circle_mask.tga"
+local MASK_SQUARE  = "Interface\\Buttons\\WHITE8X8"                                      -- plain square
 
--- How far the dark rounded rim sticks out past the icon (px)
-local RIM_OUTSET = 4
+-- How far the dark rim sticks out past the frame (px) + how many px the icon's
+-- MASK is inset so the icon reads smaller than the frame and the dark backdrop
+-- shows as a rim all around it (the real shadow look — icon smaller than frame).
+-- We shrink the icon via the mask size, NOT by re-anchoring the icon, because
+-- masks survive Blizzard's/WeakAuras' updates while re-anchoring gets reset.
+local RIM_OUTSET  = 2
+local ICON_SHRINK = 5
 
--- The rim: a solid near-black texture at full FRAME size + a few px, rounded
--- with the curved-square mask. Masks survive Blizzard's/WeakAuras' button
--- updates (re-anchoring the icon does not — it just gets reset), so the icon
--- is masked to the same shape and the rim wraps it as a clean dark border.
 local function attachShadow(frame, store, outset)
     if not frame then return end
     store = store or frame
@@ -123,37 +124,38 @@ local function lockNormalTexture(button)
     end)
 end
 
--- Lazily create the button's reusable mask texture (anchored to the icon)
-local function ensureMask(button, icon)
+-- Lazily create the button's reusable icon mask texture
+local function ensureMask(button)
     if not button._vcuiMask and button.CreateMaskTexture then
-        local m = button:CreateMaskTexture()
-        m:SetAllPoints(icon)
-        button._vcuiMask = m
+        button._vcuiMask = button:CreateMaskTexture()
     end
     return button._vcuiMask
 end
 
--- Turn the rounded/circular mask on or off for both the icon and its backdrop,
--- so the whole button silhouette gets the shape (not just the icon art).
-local function setMasked(button, icon, on, maskTex)
+-- Mask the icon. `inset` shrinks the mask inside the icon, so the icon reads
+-- smaller than its frame and the dark backdrop shows as a rim around it (the
+-- real shadow look — done via mask size, which survives game updates).
+local function setMasked(button, icon, on, maskTex, inset)
     if on then
-        local m = ensureMask(button, icon)
+        local m = ensureMask(button)
         if not m then return end
+        m:ClearAllPoints()
+        inset = inset or 0
+        if inset > 0 then
+            m:SetPoint("TOPLEFT",     icon, "TOPLEFT",      inset, -inset)
+            m:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", -inset,  inset)
+        else
+            m:SetAllPoints(icon)
+        end
         m:SetTexture(maskTex, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
         m:Show()
         if not button._vcuiMaskOn then
             if icon.AddMaskTexture then pcall(icon.AddMaskTexture, icon, m) end
-            if button._vcuiBg and button._vcuiBg.AddMaskTexture then
-                pcall(button._vcuiBg.AddMaskTexture, button._vcuiBg, m)
-            end
             button._vcuiMaskOn = true
         end
     elseif button._vcuiMaskOn and button._vcuiMask then
         local m = button._vcuiMask
         if icon.RemoveMaskTexture then pcall(icon.RemoveMaskTexture, icon, m) end
-        if button._vcuiBg and button._vcuiBg.RemoveMaskTexture then
-            pcall(button._vcuiBg.RemoveMaskTexture, button._vcuiBg, m)
-        end
         m:Hide()
         button._vcuiMaskOn = false
     end
@@ -175,11 +177,12 @@ local function applyStyle(button)
     -- Shadow style: dark rounded rim (masked backdrop) behind the icon
     if button._vcuiBack then button._vcuiBack:SetShown(st.shadow and true or false) end
 
-    -- Mask the icon to the same rounded shape as the rim. Masks survive
-    -- Blizzard's button updates, unlike re-anchoring/inset which gets reset.
+    -- Icon mask. Shadow = square mask inset a few px (icon reads smaller, the
+    -- rounded backdrop shows as a rim around it). Rounded/Circle = full mask.
     if icon then
-        local maskTex = st.mask or (st.shadow and MASK_ROUNDED) or nil
-        setMasked(button, icon, maskTex ~= nil, maskTex)
+        local maskTex = st.mask or (st.shadow and MASK_SQUARE) or nil
+        local inset   = st.shadow and ICON_SHRINK or 0
+        setMasked(button, icon, maskTex ~= nil, maskTex, inset)
     end
 
     -- Border
@@ -285,10 +288,11 @@ local function styleWAIcon(region)
 
     if region._vcuiBack then region._vcuiBack:SetShown(st.shadow and true or false) end
 
-    -- Mask the icon (rounded square for Shadow, or the chosen mask). Masks
-    -- survive WeakAuras' updates; re-anchoring the icon does not.
-    local maskTex = st.mask or (st.shadow and MASK_ROUNDED) or nil
-    setMasked(region, icon, maskTex ~= nil, maskTex)
+    -- Square mask inset for Shadow (icon reads smaller, rounded backdrop = rim);
+    -- full mask for Rounded/Circle. Mask size survives WeakAuras' updates.
+    local maskTex = st.mask or (st.shadow and MASK_SQUARE) or nil
+    local inset   = st.shadow and ICON_SHRINK or 0
+    setMasked(region, icon, maskTex ~= nil, maskTex, inset)
 end
 
 local function skinWAById(id)
