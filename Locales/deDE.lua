@@ -675,6 +675,7 @@ ns:RegisterLocale("deDE", {
     ["Durability Warning"] = "Haltbarkeitswarnung",
     ["Low durability after combat exit."] = "Niedrige Haltbarkeit nach Kampfende.",
     ["Global Defaults"] = "Globale Standardwerte",
+    ["Per-Event Customization"] = "Pro-Ereignis-Anpassung",
     ["Font for our combat text engine. Also used for Blizzard's mob FCT (DAMAGE_TEXT_FONT) when enabled below."] = "Schriftart für unsere Kampftext-Engine. Wird auch für Blizzards Mob-FCT (DAMAGE_TEXT_FONT) verwendet, wenn unten aktiviert.",
     ["Also apply font to Blizzard mob FCT"] = "Schriftart auch auf Blizzard-Mob-FCT anwenden",
     ["Additionally sets DAMAGE_TEXT_FONT globally - changes the font of the damage numbers above mobs/pets. Requires /reload to take effect."] = "Setzt zusätzlich DAMAGE_TEXT_FONT global - ändert die Schriftart der Schadenszahlen über Mobs/Pets. Erfordert /reload zur Wirkung.",

@@ -465,7 +465,6 @@ end
 local function eventSection(key, label, previewText)
     local function ev() return mod.db.events[key] end
     return {
-        { type = "header", text = label },
         { type = "group", layout = "row", gap = 6,
           items = {
               { type = "toggle", label = L["Enabled"],
@@ -580,82 +579,83 @@ function mod:GetOptions()
           end },
     }
 
-    -- Per-event sections
-    local function appendSection(secItems)
-        for _, it in ipairs(secItems) do table.insert(items, it) end
-    end
-    appendSection({{ type = "spacer", height = 8 }})
-    appendSection(eventSection("combatStart",    L["+Combat"],        L["+Combat"]))
-    appendSection({{ type = "spacer", height = 4 }})
-    appendSection(eventSection("combatEnd",      L["-Combat"],        L["-Combat"]))
-    appendSection({{ type = "spacer", height = 4 }})
-    appendSection(eventSection("spellInterrupt", L["Interrupted"],    L["Interrupted: Frostbolt"]))
-    appendSection({{ type = "spacer", height = 4 }})
-    appendSection(eventSection("dispels",        L["Dispelled/Purged"], L["Dispelled: Curse"]))
-    appendSection({{ type = "spacer", height = 4 }})
-    appendSection(eventSection("missed",         L["Parried/Dodged/Missed"], L["Parried"]))
-    appendSection({{ type = "spacer", height = 4 }})
-    appendSection(eventSection("lowDurability",  L["Low Durability"], L["LOW DURABILITY"]))
-    -- Threshold slider directly under low durability section
-    table.insert(items, { type = "slider", label = L["Durability Threshold (%)"],
+    -- Per-event customization — each event is a collapsed section (click to expand)
+    table.insert(items, { type = "spacer", height = 8 })
+    table.insert(items, { type = "header", text = L["Per-Event Customization"] })
+    table.insert(items, { type = "section", title = L["+Combat"],        collapsed = true,
+        items = eventSection("combatStart",    L["+Combat"],        L["+Combat"]) })
+    table.insert(items, { type = "section", title = L["-Combat"],        collapsed = true,
+        items = eventSection("combatEnd",      L["-Combat"],        L["-Combat"]) })
+    table.insert(items, { type = "section", title = L["Interrupted"],    collapsed = true,
+        items = eventSection("spellInterrupt", L["Interrupted"],    L["Interrupted: Frostbolt"]) })
+    table.insert(items, { type = "section", title = L["Dispelled/Purged"], collapsed = true,
+        items = eventSection("dispels",        L["Dispelled/Purged"], L["Dispelled: Curse"]) })
+    table.insert(items, { type = "section", title = L["Parried/Dodged/Missed"], collapsed = true,
+        items = eventSection("missed",         L["Parried/Dodged/Missed"], L["Parried"]) })
+
+    -- Low durability section includes its threshold slider
+    local lowDuraItems = eventSection("lowDurability", L["Low Durability"], L["LOW DURABILITY"])
+    table.insert(lowDuraItems, { type = "slider", label = L["Durability Threshold (%)"],
         min = 5, max = 50, step = 1,
         tooltip = L["Warning appears when at least one equipped item is below this value (after combat exit)."],
         get = function() return mod.db.durabilityThreshold or 15 end,
         set = function(_, v)
             mod.db.durabilityThreshold = v
-            _wasLowDurability = false  -- reset so re-trigger is possible
+            _wasLowDurability = false
             scheduleDurabilityCheck()
         end })
+    table.insert(items, { type = "section", title = L["Low Durability"], collapsed = true, items = lowDuraItems })
 
-    -- Engine FCT + position section
-    table.insert(items, { type = "spacer", height = 8 })
-    table.insert(items, { type = "header", text = L["Engine FCT (above mob/pet)"] })
-    table.insert(items, { type = "toggle", label = L["Sharper hit indicator font (Friz Quadrata)"],
-        get = function() return mod.db.sharpFonts end,
-        set = function(_, v) mod.db.sharpFonts = v; applySharpFonts() end })
-    table.insert(items, { type = "slider", label = L["Engine FCT Scale"],
-        min = 1.0, max = 2.5, step = 0.1,
-        tooltip = L["Damage numbers above mob/pet — bitmap scaling."],
-        get = function() return mod.db.worldTextScale end,
-        set = function(_, v) mod.db.worldTextScale = v; applyWorldTextScale() end })
+    -- Engine FCT (collapsed)
+    table.insert(items, { type = "section", title = L["Engine FCT (above mob/pet)"], collapsed = true, items = {
+        { type = "toggle", label = L["Sharper hit indicator font (Friz Quadrata)"],
+          get = function() return mod.db.sharpFonts end,
+          set = function(_, v) mod.db.sharpFonts = v; applySharpFonts() end },
+        { type = "slider", label = L["Engine FCT Scale"],
+          min = 1.0, max = 2.5, step = 0.1,
+          tooltip = L["Damage numbers above mob/pet — bitmap scaling."],
+          get = function() return mod.db.worldTextScale end,
+          set = function(_, v) mod.db.worldTextScale = v; applyWorldTextScale() end },
+    } })
 
-    table.insert(items, { type = "spacer", height = 8 })
-    table.insert(items, { type = "header", text = L["Position"] })
-    table.insert(items, { type = "toggle", label = L["Center"],
-        tooltip = L["Keeps the horizontal position and only centers vertically in the screen center."],
-        get = function() return mod.db.centerOnScreen end,
-        set = function(_, v)
-            local prev = mod.db.centerOnScreen
-            mod.db.centerOnScreen = v
-            local ct = container
-            if v and not prev and ct then
-                local fcx = ct:GetCenter()
-                local px  = UIParent:GetCenter()
-                if fcx and px then mod.db.x = fcx - px; mod.db.y = 0 end
-            elseif not v and prev and ct then
-                local anchor = _G.PlayerFrameHealthBar or _G.PlayerFrame
-                local fcx, fcy = ct:GetCenter()
-                if anchor and fcx and fcy then
-                    local acx, atop = anchor:GetCenter(), anchor:GetTop()
-                    if acx and atop then
-                        mod.db.x = fcx - acx
-                        mod.db.y = fcy - atop - 25
-                    end
-                end
-            end
-            applyMoverPosition()
-        end })
-    table.insert(items, { type = "group", layout = "row", gap = 8,
-        items = {
-            { type = "button", label = L["Unlock / Position"], width = 200,
-              onClick = function() setUnlocked(not mod.db.unlocked) end },
-            { type = "button", label = L["Reset Position"], width = 180,
-              onClick = function()
-                  mod.db.x = 0; mod.db.y = 0
-                  applyMoverPosition()
-              end },
+    -- Position (collapsed)
+    table.insert(items, { type = "section", title = L["Position"], collapsed = true, items = {
+        { type = "toggle", label = L["Center"],
+          tooltip = L["Keeps the horizontal position and only centers vertically in the screen center."],
+          get = function() return mod.db.centerOnScreen end,
+          set = function(_, v)
+              local prev = mod.db.centerOnScreen
+              mod.db.centerOnScreen = v
+              local ct = container
+              if v and not prev and ct then
+                  local fcx = ct:GetCenter()
+                  local px  = UIParent:GetCenter()
+                  if fcx and px then mod.db.x = fcx - px; mod.db.y = 0 end
+              elseif not v and prev and ct then
+                  local anchor = _G.PlayerFrameHealthBar or _G.PlayerFrame
+                  local fcx, fcy = ct:GetCenter()
+                  if anchor and fcx and fcy then
+                      local acx, atop = anchor:GetCenter(), anchor:GetTop()
+                      if acx and atop then
+                          mod.db.x = fcx - acx
+                          mod.db.y = fcy - atop - 25
+                      end
+                  end
+              end
+              applyMoverPosition()
+          end },
+        { type = "group", layout = "row", gap = 8,
+          items = {
+              { type = "button", label = L["Unlock / Position"], width = 200,
+                onClick = function() setUnlocked(not mod.db.unlocked) end },
+              { type = "button", label = L["Reset Position"], width = 180,
+                onClick = function()
+                    mod.db.x = 0; mod.db.y = 0
+                    applyMoverPosition()
+                end },
+          },
         },
-    })
+    } })
 
     return items
 end
