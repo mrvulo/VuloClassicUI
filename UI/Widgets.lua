@@ -180,6 +180,40 @@ function UI:CreateDescription(parent, text)
     return fs
 end
 
+-- Collapsible section header: [+]/[-] box + label + underline, whole row clickable.
+function UI:CreateCollapsibleHeader(parent, text, expanded, onClick)
+    local b = CreateFrame("Button", nil, parent)
+    b:SetSize(480, 24)
+
+    -- Expand/collapse box
+    local box = b:CreateTexture(nil, "ARTWORK")
+    box:SetSize(16, 16)
+    box:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 0, 3)
+    box:SetTexture(expanded and "Interface\\Buttons\\UI-Panel-MinimizeButton-Up"
+                            or  "Interface\\Buttons\\UI-Panel-ExpandButton-Up")
+    -- These two textures look most like - / + ; fall back to a tinted tick if missing.
+
+    -- Label
+    local fs = b:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    fs:SetPoint("BOTTOMLEFT", box, "BOTTOMRIGHT", 5, 3)
+    fs:SetText(string.upper(text or ""))
+    fs:SetTextColor(0.92, 0.90, 0.96)
+    b._label = fs
+
+    -- Accent underline
+    local line = b:CreateTexture(nil, "ARTWORK")
+    line:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 0, 0)
+    line:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -10, 0)
+    line:SetHeight(1)
+    line:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 0.22)
+
+    b:SetScript("OnClick", function() if onClick then onClick() end end)
+    b:SetScript("OnEnter", function() fs:SetTextColor(1, 1, 1) end)
+    b:SetScript("OnLeave", function() fs:SetTextColor(0.92, 0.90, 0.96) end)
+
+    return b
+end
+
 -- =========================================================
 -- Toggle Switch (EUI style: switch left/right with purple accent)
 -- =========================================================

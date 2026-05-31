@@ -77,12 +77,45 @@ local function estimateHeight(item)
     return 26
 end
 
-local function placeItem(parent, item, y)
+-- Collapsible-section state, keyed by "<moduleKey>/<tab>/<title>"
+UI.sectionCollapsed = UI.sectionCollapsed or {}
+
+local placeItem  -- forward declaration (placeSection calls back into it)
+
+local function placeSection(parent, section, y)
+    local title    = section.title or "Section"
+    local stateKey = (UI._currentBuildKey or "?") .. "/" .. (UI.currentTab or "") .. "/" .. title
+
+    -- Resolve collapsed state: runtime override, else the section's default
+    local collapsed = UI.sectionCollapsed[stateKey]
+    if collapsed == nil then collapsed = section.collapsed and true or false end
+
+    y = y - 10  -- breathing room above
+
+    local hdr = UI:CreateCollapsibleHeader(parent, title, not collapsed, function()
+        UI.sectionCollapsed[stateKey] = not collapsed
+        UI:BuildOptionsPage(UI._currentBuildKey, UI.currentTab)
+    end)
+    hdr:SetPoint("TOPLEFT", parent, "TOPLEFT", CONTENT_PADDING, y)
+    y = y - 26
+
+    if not collapsed then
+        for _, sub in ipairs(section.items or {}) do
+            y = placeItem(parent, sub, y)
+        end
+    end
+    return y
+end
+
+placeItem = function(parent, item, y)
     if item.type == "spacer" then
         return y - (item.height or 8)
     end
     if item.type == "group" then
         return UI:PlaceGroup(parent, item, y)
+    end
+    if item.type == "section" then
+        return placeSection(parent, item, y)
     end
     if item.type == "header" then
         -- Header gets extra breathing room above for clear section separation
@@ -173,6 +206,7 @@ function UI:BuildOptionsPage(key, tabId)
     local parent = f.scrollChild
     clearChildren(parent)
     parent:SetWidth((f.scroll:GetWidth() or 540) - 8)
+    UI._currentBuildKey = key  -- for collapsible-section state keys
 
     local y = -8
 
