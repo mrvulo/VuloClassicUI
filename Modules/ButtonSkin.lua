@@ -49,7 +49,7 @@ local TEX_BORDER   = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\Normal.tga
 -- small icons, too thin on big ones). RIM_OUTSET is a small fixed bleed for the
 -- soft shadow past the frame edge. Shrinking via the mask survives game updates.
 local RIM_OUTSET  = 2
-local SHRINK_PCT  = 0.13
+local SHRINK_PCT  = 0.12   -- icon shows at ~76% of the frame (reference proportion)
 
 -- The shadow layers behind the icon: filled dark backdrop + black rounded
 -- border with a soft drop-shadow (the real "Shadow" look), both bleeding a
@@ -298,19 +298,38 @@ local function styleWAIcon(region)
     local icon = region.icon
     if not icon then return end
 
-    attachShadow(region, region, 3)             -- create backdrop once (outward rim)
+    attachShadow(region, region, 1)             -- create backdrop once
     local st = currentStyle(true)               -- WeakAuras style
 
     local showShadow = st.shadow and true or false
-    if region._vcuiBack then region._vcuiBack:SetShown(showShadow) end
+    -- Reference construction: grey filled backdrop + black rounded border behind
+    -- a square icon shrunk to ~76%, so a grey inner margin + black outer border
+    -- frame the icon. The textures themselves provide the rounded shape/shadow.
+    if region._vcuiBack then
+        region._vcuiBack:SetShown(showShadow)
+        region._vcuiBack:SetVertexColor(0.3, 0.3, 0.3, 1)   -- grey fill
+    end
     if region._vcuiRing then region._vcuiRing:SetShown(showShadow) end
 
-    -- WeakAuras: do NOT shrink the icon — keep it the same size as the cooldown
-    -- frame so the cooldown/GCD sweep lines up with the icon (no overhanging
-    -- "GCD background"). The rim comes from the dark backdrop bleeding outward.
-    -- Shadow rounds the corners; Rounded/Circle use their mask.
-    local maskTex = st.mask or (st.shadow and MASK_ROUNDED) or nil
-    setMasked(region, icon, maskTex ~= nil, maskTex, 0)
+    local maskTex = st.mask or (st.shadow and MASK_SQUARE) or nil
+    local pct     = st.shadow and SHRINK_PCT or 0
+    setMasked(region, icon, maskTex ~= nil, maskTex, pct)
+
+    -- Keep the cooldown the same size as the shrunk icon (the sweep/number sit
+    -- on the icon, no overhanging GCD background).
+    if region.cooldown and region.cooldown.ClearAllPoints then
+        local cd = region.cooldown
+        cd:ClearAllPoints()
+        if pct > 0 then
+            local w = icon:GetWidth() or 0
+            if w < 1 then w = region:GetWidth() or 32 end
+            local inset = math.max(1, w * pct)
+            cd:SetPoint("TOPLEFT",     icon, "TOPLEFT",      inset, -inset)
+            cd:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", -inset,  inset)
+        else
+            cd:SetAllPoints(icon)
+        end
+    end
 
     -- Hide WeakAuras' own "Border" sub-regions — our rim replaces them, and a
     -- second light border on top looks wrong. (Border subregions are the ones
