@@ -21,8 +21,9 @@ local mod = ns:RegisterModule("buttonskin", {
     description = "Masque_Shadow-style skin for action buttons: black, rounded, soft drop-shadow. Lightweight Masque alternative with several styles.",
     defaults = {
         enabled       = true,
-        style         = "shadow",  -- shadow | accent | rounded | circle | minimal
+        style         = "shadow",  -- shadow | rounded | square | accent | circle | minimal
         skinPetStance = true,      -- also skin pet + stance buttons
+        skinWeakAuras = true,      -- also add the shadow to WeakAuras icons (no Masque)
     },
 })
 
@@ -233,13 +234,10 @@ local function refreshAll()
     end)
 end
 
--- =========================================================
--- Masque integration (preferred when Masque is installed)
--- When Masque is present we register Blizzard's action buttons with it and
--- let Masque skin them with a real skin (e.g. "Masque: Shadow 1"), exactly
--- like WeakAuras already does for its icons. This gives both the same look.
--- =========================================================
--- Resolve Masque lazily — it's a separate addon and may load after us.
+-- Resolve Masque lazily, only to *detect* it (we don't depend on it).
+-- If Masque is present, WeakAuras skins its own icons through Masque, so we
+-- leave WeakAuras alone to avoid double-skinning. Our bars are always skinned
+-- by us regardless (Masque doesn't touch Blizzard's default bars anyway).
 local MSQ
 local msqChecked = false
 local function ensureMSQ()
@@ -251,56 +249,37 @@ local function ensureMSQ()
     return MSQ
 end
 
-local MASQUE_SKIN = "Masque: Shadow 1"
-local msqBars, msqExtra   -- Masque group objects
+-- =========================================================
+-- WeakAuras icon skinning (only when Masque is NOT installed)
+-- =========================================================
+local function skinWAIcon(region)
+    if not region or region._vcuiWASkinned then return end
+    local icon = region.icon
+    if not icon then return end
+    region._vcuiWASkinned = true
 
-local function getBarGroup()
-    if not msqBars then msqBars = MSQ:Group("VuloClassicUI", "Action Bars") end
-    return msqBars
-end
-local function getExtraGroup()
-    if not msqExtra then msqExtra = MSQ:Group("VuloClassicUI", "Pet & Stance") end
-    return msqExtra
-end
-
--- Push a skin onto our groups (used once for the default, or from the button)
-local function applyMasqueSkin(skinID)
-    if not MSQ then return end
-    local g1 = getBarGroup()
-    if g1 and g1.__Set then pcall(g1.__Set, g1, "SkinID", skinID) end
-    if msqExtra and msqExtra.__Set then pcall(msqExtra.__Set, msqExtra, "SkinID", skinID) end
+    -- Soft black drop-shadow behind the icon (same texture as the bars)
+    local shadow = region:CreateTexture(nil, "BACKGROUND", nil, -8)
+    shadow:SetPoint("TOPLEFT",     region, "TOPLEFT",     -SHADOW_INSET,  SHADOW_INSET)
+    shadow:SetPoint("BOTTOMRIGHT", region, "BOTTOMRIGHT",  SHADOW_INSET, -SHADOW_INSET)
+    shadow:SetTexture(SHADOW_GLOW)
+    shadow:SetVertexColor(0, 0, 0, 1)
+    region._vcuiWAShadow = shadow
 end
 
-local function addPrefixToGroup(group, prefix)
-    for i = 1, 12 do
-        local b = _G[prefix .. i]
-        if b and not b._vcuiMSQ then
-            b._vcuiMSQ = true
-            pcall(group.AddButton, group, b, nil, "Action")
+local function skinAllWAIcons()
+    if not mod._enabled or not mod.db then return end
+    if not mod.db.skinWeakAuras then return end
+    if ensureMSQ() then return end                 -- WeakAuras uses Masque itself
+    if not (WeakAuras and WeakAuras.GetRegion) then return end
+    local saved = _G.WeakAurasSaved
+    if not (saved and saved.displays) then return end
+
+    for id in pairs(saved.displays) do
+        local ok, region = pcall(WeakAuras.GetRegion, id)
+        if ok and region and region.regionType == "icon" then
+            skinWAIcon(region)
         end
-    end
-end
-
-local function registerMasque()
-    if not ensureMSQ() or not mod._enabled or not mod.db then return end
-
-    local bars = getBarGroup()
-    for _, prefix in ipairs(BAR_PREFIXES) do
-        addPrefixToGroup(bars, prefix)
-    end
-
-    if mod.db.skinPetStance then
-        local extra = getExtraGroup()
-        for _, prefix in ipairs(EXTRA_PREFIXES) do
-            addPrefixToGroup(extra, prefix)
-        end
-    end
-
-    -- One-time: default our groups to Shadow 1 so the look shows up instantly.
-    -- After this the user can freely pick any skin in Masque; we never re-force it.
-    if not mod.db.masqueSkinApplied then
-        mod.db.masqueSkinApplied = true
-        applyMasqueSkin(MASQUE_SKIN)
     end
 end
 
@@ -309,29 +288,21 @@ end
 -- =========================================================
 local hookInstalled = false
 
+local function skinEverything()
+    skinAll()
+    skinAllWAIcons()
+end
+
 function mod:OnEnable()
     if not mod.db then return end
 
-    -- ---- Masque path: hand the buttons to Masque, it does the skinning ----
-    if ensureMSQ() then
-        if C_Timer and C_Timer.After then
-            C_Timer.After(0.5, registerMasque)
-            C_Timer.After(2.0, registerMasque)
-        else
-            registerMasque()
-        end
-        ns:RegisterEvent("PLAYER_ENTERING_WORLD",   registerMasque)
-        ns:RegisterEvent("UPDATE_SHAPESHIFT_FORMS", registerMasque)
-        ns:RegisterEvent("PET_BAR_UPDATE",          registerMasque)
-        return
-    end
-
-    -- ---- Fallback path: our own lightweight skin (no Masque installed) ----
+    -- Skin our own way (no Masque dependency). Deferred so all frames exist.
     if C_Timer and C_Timer.After then
-        C_Timer.After(0.5, skinAll)
-        C_Timer.After(2.0, skinAll)
+        C_Timer.After(0.5, skinEverything)
+        C_Timer.After(2.0, skinEverything)
+        C_Timer.After(5.0, skinAllWAIcons)   -- WeakAuras often loads late
     else
-        skinAll()
+        skinEverything()
     end
 
     -- Blizzard rebuilds NormalTexture on button updates — re-hide it after.
@@ -346,23 +317,14 @@ function mod:OnEnable()
         end
     end
 
-    -- Re-skin when bars show/refresh
-    ns:RegisterEvent("PLAYER_ENTERING_WORLD",     skinAll)
+    -- Re-skin when bars / auras show or refresh
+    ns:RegisterEvent("PLAYER_ENTERING_WORLD",     skinEverything)
     ns:RegisterEvent("UPDATE_SHAPESHIFT_FORMS",   skinAll)
     ns:RegisterEvent("PET_BAR_UPDATE",            skinAll)
 end
 
 function mod:OnDisable()
-    if ensureMSQ() then
-        ns:UnregisterEvent("PLAYER_ENTERING_WORLD",   registerMasque)
-        ns:UnregisterEvent("UPDATE_SHAPESHIFT_FORMS", registerMasque)
-        ns:UnregisterEvent("PET_BAR_UPDATE",          registerMasque)
-        -- Masque keeps managing the buttons until /reload (avoids enable/disable
-        -- state churn); Masque's own group toggle can hard-disable if wanted.
-        return
-    end
-
-    ns:UnregisterEvent("PLAYER_ENTERING_WORLD",   skinAll)
+    ns:UnregisterEvent("PLAYER_ENTERING_WORLD",   skinEverything)
     ns:UnregisterEvent("UPDATE_SHAPESHIFT_FORMS", skinAll)
     ns:UnregisterEvent("PET_BAR_UPDATE",          skinAll)
     -- Note: existing skins stay until /reload (we don't tear down the borders
@@ -372,39 +334,7 @@ end
 -- =========================================================
 -- Options
 -- =========================================================
-local function openMasque()
-    if SlashCmdList and SlashCmdList["MASQUE"] then
-        SlashCmdList["MASQUE"]("")
-    elseif _G.Masque and _G.Masque.ToggleOptions then
-        pcall(_G.Masque.ToggleOptions)
-    end
-end
-
 function mod:GetOptions()
-    -- ---- Masque present: drive the real Masque_Shadow skin ----
-    if ensureMSQ() then
-        return {
-            { type = "header", text = L["Button Skin"] },
-            { type = "desc", text = L["|cffaaaaaaMasque detected. Your action bars are registered with Masque and skinned with \"Masque: Shadow 1\" — the same texture WeakAuras uses, so both match.|r"] },
-
-            { type = "button", label = L["Open Masque"], primary = true,
-              tooltip = L["Open Masque to pick a different skin or tweak the groups (VuloClassicUI / Action Bars & Pet & Stance)."],
-              onClick = openMasque },
-
-            { type = "button", label = L["Reset bars to Shadow 1"],
-              tooltip = L["Force the action-bar groups back to the \"Masque: Shadow 1\" skin."],
-              onClick = function() applyMasqueSkin(MASQUE_SKIN) end },
-
-            { type = "toggle", label = L["Also skin pet & stance buttons"],
-              get = function() return mod.db.skinPetStance end,
-              set = function(_, v) mod.db.skinPetStance = v; registerMasque() end },
-
-            { type = "spacer", height = 6 },
-            { type = "desc", text = L["|cffaaaaaaWeakAuras icons: open Masque, set the \"WeakAuras\" group to \"Masque: Shadow 1\" for the exact same look.|r"] },
-        }
-    end
-
-    -- ---- No Masque: our own lightweight skin with style presets ----
     local STYLE_VALUES = {
         { value = "shadow",  text = L["Shadow (Masque-style: square + soft shadow)"] },
         { value = "rounded", text = L["Rounded icon (masked corners)"] },
@@ -414,9 +344,16 @@ function mod:GetOptions()
         { value = "minimal", text = L["Minimal (icon only)"] },
     }
 
+    local waText
+    if ensureMSQ() then
+        waText = L["|cffaaaaaaWeakAuras icons are handled by Masque (installed). To skin them with VuloClassicUI instead, uninstall Masque — then this toggle takes over.|r"]
+    else
+        waText = L["|cffaaaaaaWeakAuras icons get the same soft shadow. Re-open this panel or /reload if a new aura isn't skinned yet.|r"]
+    end
+
     return {
         { type = "header", text = L["Button Skin"] },
-        { type = "desc", text = L["|cffaaaaaaA clean skin for the action buttons — cropped icons, a thin border and a dark backdrop. Lightweight alternative to Masque + Masque_Shadow.|r"] },
+        { type = "desc", text = L["|cffaaaaaaShadow-1 look for the action bars — no Masque required. Cropped icons with a soft black drop-shadow.|r"] },
 
         { type = "dropdown", label = L["Style"],
           tooltip = L["Pick how the action buttons look. Rounded/Circle use an icon mask; Minimal is just the cropped icon."],
@@ -429,9 +366,13 @@ function mod:GetOptions()
           get = function() return mod.db.skinPetStance end,
           set = function(_, v) mod.db.skinPetStance = v; skinAll() end },
 
+        { type = "toggle", label = L["Also skin WeakAuras icons"],
+          get = function() return mod.db.skinWeakAuras end,
+          set = function(_, v) mod.db.skinWeakAuras = v; skinAllWAIcons() end },
+
         { type = "spacer", height = 6 },
-        { type = "desc", text = L["|cffaaaaaaInstall Masque + Masque_Shadow for the full textured look on bars and WeakAuras.|r"] },
+        { type = "desc", text = waText },
         { type = "spacer", height = 4 },
-        { type = "desc", text = L["|cffaaaaaaNote: turning the skin off fully reverts after a /reload. Works on Blizzard's default bars; if you use another action-bar addon, let it handle skinning instead.|r"] },
+        { type = "desc", text = L["|cffaaaaaaNote: turning the skin off fully reverts after a /reload.|r"] },
     }
 end
