@@ -19,11 +19,6 @@ local mod = ns:RegisterModule("combattext", {
         showCombatState     = true,   -- combatStart + combatEnd
         showCombatLog       = true,   -- spellInterrupt + dispels + missed
         showDurability      = true,   -- lowDurability
-        -- Event filter (legacy boolean flags — migrated into events[].enabled)
-        combatState    = true,
-        spellInterrupt = true,
-        dispels        = true,
-        missed         = true,
         -- Font (global) — path as value
         fontFace       = "Interface\\AddOns\\VuloClassicUI\\Media\\Fonts\\Expressway.TTF",
         -- Change DAMAGE_TEXT_FONT (Blizzard's mob FCT) at the same time as fontFace

@@ -36,18 +36,6 @@ function ns:RunCharacterPanelInit()
     -- We rebuild it here locally.
     local addon = {}
 
-    -- =========================================================
-    -- Debug
-    -- =========================================================
-    local DEBUG = false
-    local oPrint = print
-
-    local function dprint(...)
-        if not DEBUG then return end
-        local msg = strjoin(" ", tostringall(...))
-        oPrint("|cff6600ccBetterCharacterPanel|r: " .. string.format("%.2f", GetTime()) .. " :", msg)
-    end
-
 -- =========================================================
 -- Constants / Layout
 -- =========================================================

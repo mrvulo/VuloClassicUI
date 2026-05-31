@@ -43,22 +43,22 @@ local function createCustomFontStrings(dialog)
     dialog.customLabel = dialog:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     dialog.customLabel:SetPoint("TOP", dialog.label or dialog.text, "TOP", 0, 0)
     dialog.customLabel:SetText(L["Queue expires in"])
-    local f, _, fl = dialog.customLabel:GetFont(); dialog.customLabel:SetFont(f, 15, "OUTLINE")
+    local f = dialog.customLabel:GetFont(); dialog.customLabel:SetFont(f, 15, "OUTLINE")
     dialog.customLabel:SetWidth(maxWidth)
 
     dialog.timerLabel = dialog:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     dialog.timerLabel:SetPoint("TOP", dialog.customLabel, "BOTTOM", 0, -44)
-    f, _, fl = dialog.timerLabel:GetFont(); dialog.timerLabel:SetFont(f, 24, "OUTLINE")
+    f = dialog.timerLabel:GetFont(); dialog.timerLabel:SetFont(f, 24, "OUTLINE")
     dialog.timerLabel:SetWidth(maxWidth)
 
     dialog.bgLabel = dialog:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     dialog.bgLabel:SetPoint("TOP", dialog.timerLabel, "BOTTOM", 0, -4)
-    f, _, fl = dialog.bgLabel:GetFont(); dialog.bgLabel:SetFont(f, 15, "OUTLINE")
+    f = dialog.bgLabel:GetFont(); dialog.bgLabel:SetFont(f, 15, "OUTLINE")
     dialog.bgLabel:SetWidth(maxWidth)
 
     dialog.statusTextLabel = dialog:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     dialog.statusTextLabel:SetPoint("TOP", dialog.bgLabel, "BOTTOM", 0, -3)
-    f, _, fl = dialog.statusTextLabel:GetFont(); dialog.statusTextLabel:SetFont(f, 11, "OUTLINE")
+    f = dialog.statusTextLabel:GetFont(); dialog.statusTextLabel:SetFont(f, 11, "OUTLINE")
     dialog.statusTextLabel:SetWidth(maxWidth)
 
     dialog.queueTimerLabels = true
