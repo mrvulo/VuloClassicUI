@@ -317,19 +317,30 @@ local function styleWAIcon(region)
 
     attachShadow(region, region, 1)             -- create backdrop once
     local st = currentStyle(true)               -- WeakAuras style
-
     local showShadow = st.shadow and true or false
-    -- Reference construction: grey filled backdrop + black rounded border behind
-    -- a square icon shrunk to ~76%, so a grey inner margin + black outer border
-    -- frame the icon. The textures themselves provide the rounded shape/shadow.
-    if region._vcuiBack then
-        region._vcuiBack:SetShown(showShadow)
-        region._vcuiBack:SetVertexColor(0.06, 0.06, 0.07, 1)   -- dark, near-black fill
+
+    -- Reference construction (icon 32 / backdrop 42 / base 36): the icon is only
+    -- shrunk a little (~89%) and the dark backdrop + border bleed OUTWARD (~117%)
+    -- past the frame to form the rim + soft shadow. A bit wider + darker here.
+    local WA_SHRINK = 0.08    -- icon ~84% (a touch more inset than the 89% reference)
+    local WA_RIM    = 0.12    -- backdrop/border bleed outward (a bit wider than 117%)
+
+    local w = (icon and icon:GetWidth()) or 0
+    if w < 1 then w = (region.GetWidth and region:GetWidth()) or 32 end
+    local out = w * WA_RIM
+
+    for _, t in ipairs({ region._vcuiBack, region._vcuiRing }) do
+        if t then
+            t:SetShown(showShadow)
+            t:ClearAllPoints()
+            t:SetPoint("TOPLEFT",     region, "TOPLEFT",     -out,  out)
+            t:SetPoint("BOTTOMRIGHT", region, "BOTTOMRIGHT",  out, -out)
+        end
     end
-    if region._vcuiRing then region._vcuiRing:SetShown(showShadow) end
+    if region._vcuiBack then region._vcuiBack:SetVertexColor(0.02, 0.02, 0.03, 1) end  -- near-black
 
     local maskTex = st.mask or (st.shadow and MASK_SQUARE) or nil
-    local pct     = st.shadow and SHRINK_PCT or 0
+    local pct     = st.shadow and WA_SHRINK or 0
     setMasked(region, icon, maskTex ~= nil, maskTex, pct)
 
     -- Size the cooldown to the masked icon (reference uses Cooldown = icon size).
@@ -341,7 +352,7 @@ local function styleWAIcon(region)
         hooksecurefunc(region.cooldown, "SetCooldown", function(self)
             if not (mod._enabled and mod.db and mod.db.skinWeakAuras) then return end
             local s = currentStyle(true)
-            insetCooldown(region, icon, s.shadow and SHRINK_PCT or 0)
+            insetCooldown(region, icon, s.shadow and WA_SHRINK or 0)
         end)
     end
 
