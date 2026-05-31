@@ -315,20 +315,14 @@ local function styleWAIcon(region)
     local pct     = st.shadow and SHRINK_PCT or 0
     setMasked(region, icon, maskTex ~= nil, maskTex, pct)
 
-    -- Keep the cooldown the same size as the shrunk icon (the sweep/number sit
-    -- on the icon, no overhanging GCD background).
-    if region.cooldown and region.cooldown.ClearAllPoints then
+    -- The cooldown frame stays full size (WeakAuras keeps re-anchoring it, so we
+    -- can't reliably shrink it to the 76% icon). Instead make its sweep + bling
+    -- transparent so nothing overhangs the icon — the countdown number stays.
+    if pct > 0 and region.cooldown then
         local cd = region.cooldown
-        cd:ClearAllPoints()
-        if pct > 0 then
-            local w = icon:GetWidth() or 0
-            if w < 1 then w = region:GetWidth() or 32 end
-            local inset = math.max(1, w * pct)
-            cd:SetPoint("TOPLEFT",     icon, "TOPLEFT",      inset, -inset)
-            cd:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", -inset,  inset)
-        else
-            cd:SetAllPoints(icon)
-        end
+        if cd.SetSwipeColor then pcall(cd.SetSwipeColor, cd, 0, 0, 0, 0) end
+        if cd.SetDrawBling  then pcall(cd.SetDrawBling,  cd, false) end
+        if cd.SetDrawEdge   then pcall(cd.SetDrawEdge,   cd, false) end
     end
 
     -- Hide WeakAuras' own "Border" sub-regions — our rim replaces them, and a
