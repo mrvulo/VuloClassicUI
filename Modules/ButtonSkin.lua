@@ -48,7 +48,7 @@ local SHADOW_INSET = 4
 
 -- How many px the icon shrinks so the dark backdrop shows as a rim all around
 -- it (the real Masque "Shadow" look — icon smaller than the frame).
-local ICON_INSET = 5
+local ICON_INSET = 6
 
 -- Shrink (or restore) the icon inside its frame so the backdrop forms a rim.
 local function setIconInset(frame, icon, px)
