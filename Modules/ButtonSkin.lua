@@ -234,29 +234,15 @@ local function refreshAll()
     end)
 end
 
--- Resolve Masque lazily, only to *detect* it (we don't depend on it).
--- If Masque is present, WeakAuras skins its own icons through Masque, so we
--- leave WeakAuras alone to avoid double-skinning. Our bars are always skinned
--- by us regardless (Masque doesn't touch Blizzard's default bars anyway).
-local MSQ
-local msqChecked = false
-local function ensureMSQ()
-    if not msqChecked then
-        msqChecked = true
-        MSQ = (LibStub and LibStub("Masque", true)) or nil
-        mod.hasMasque = MSQ ~= nil
-    end
-    return MSQ
-end
-
 -- =========================================================
--- WeakAuras icon skinning (only when Masque is NOT installed)
+-- WeakAuras icon skinning (always — works with or without Masque).
+-- The shadow sits behind the outer `region` frame, which is the icon's
+-- bounding box in both Masque and non-Masque modes, so it lines up either way.
 -- =========================================================
 local function skinWAIcon(region)
-    if not region or region._vcuiWASkinned then return end
-    local icon = region.icon
-    if not icon then return end
-    region._vcuiWASkinned = true
+    if not region or region.regionType ~= "icon" then return end
+    if region._vcuiWAShadow then return end
+    if not region.icon then return end
 
     -- Soft black drop-shadow behind the icon (same texture as the bars)
     local shadow = region:CreateTexture(nil, "BACKGROUND", nil, -8)
@@ -267,20 +253,41 @@ local function skinWAIcon(region)
     region._vcuiWAShadow = shadow
 end
 
+local function skinWAById(id)
+    if not (WeakAuras and WeakAuras.GetRegion) then return end
+    local ok, region = pcall(WeakAuras.GetRegion, id)
+    if ok and region then skinWAIcon(region) end
+end
+
+-- Scan all currently-existing icon regions (lazy: only auras that exist now)
 local function skinAllWAIcons()
-    if not mod._enabled or not mod.db then return end
-    if not mod.db.skinWeakAuras then return end
-    if ensureMSQ() then return end                 -- WeakAuras uses Masque itself
+    if not mod._enabled or not mod.db or not mod.db.skinWeakAuras then return end
     if not (WeakAuras and WeakAuras.GetRegion) then return end
     local saved = _G.WeakAurasSaved
     if not (saved and saved.displays) then return end
-
-    for id in pairs(saved.displays) do
-        local ok, region = pcall(WeakAuras.GetRegion, id)
-        if ok and region and region.regionType == "icon" then
-            skinWAIcon(region)
+    for id, data in pairs(saved.displays) do
+        if type(data) == "table" and data.regionType == "icon" then
+            skinWAById(id)
         end
     end
+end
+
+-- Hook WeakAuras.Add so future / edited / re-loaded icon auras get skinned too.
+-- (Private is not reachable externally; Add is the public per-aura entry point.)
+local waHooked = false
+local function hookWeakAuras()
+    if waHooked or not (WeakAuras and WeakAuras.Add) then return end
+    waHooked = true
+    hooksecurefunc(WeakAuras, "Add", function(data)
+        if not (mod._enabled and mod.db and mod.db.skinWeakAuras) then return end
+        if type(data) ~= "table" or data.regionType ~= "icon" or not data.id then return end
+        local id = data.id
+        if C_Timer and C_Timer.After then
+            C_Timer.After(0.05, function() skinWAById(id) end)  -- let the region build
+        else
+            skinWAById(id)
+        end
+    end)
 end
 
 -- =========================================================
@@ -305,6 +312,9 @@ function mod:OnEnable()
         skinEverything()
     end
 
+    -- Catch future / edited / lazily-built WeakAuras icons
+    hookWeakAuras()
+
     -- Blizzard rebuilds NormalTexture on button updates — re-hide it after.
     if not hookInstalled then
         hookInstalled = true
@@ -321,12 +331,16 @@ function mod:OnEnable()
     ns:RegisterEvent("PLAYER_ENTERING_WORLD",     skinEverything)
     ns:RegisterEvent("UPDATE_SHAPESHIFT_FORMS",   skinAll)
     ns:RegisterEvent("PET_BAR_UPDATE",            skinAll)
+    ns:RegisterEvent("PLAYER_REGEN_DISABLED",     skinAllWAIcons)  -- procs appearing in combat
+    ns:RegisterEvent("PLAYER_REGEN_ENABLED",      skinAllWAIcons)
 end
 
 function mod:OnDisable()
     ns:UnregisterEvent("PLAYER_ENTERING_WORLD",   skinEverything)
     ns:UnregisterEvent("UPDATE_SHAPESHIFT_FORMS", skinAll)
     ns:UnregisterEvent("PET_BAR_UPDATE",          skinAll)
+    ns:UnregisterEvent("PLAYER_REGEN_DISABLED",   skinAllWAIcons)
+    ns:UnregisterEvent("PLAYER_REGEN_ENABLED",    skinAllWAIcons)
     -- Note: existing skins stay until /reload (we don't tear down the borders
     -- to avoid touching buttons in combat). A /reload fully removes them.
 end
@@ -344,12 +358,7 @@ function mod:GetOptions()
         { value = "minimal", text = L["Minimal (icon only)"] },
     }
 
-    local waText
-    if ensureMSQ() then
-        waText = L["|cffaaaaaaWeakAuras icons are handled by Masque (installed). To skin them with VuloClassicUI instead, uninstall Masque — then this toggle takes over.|r"]
-    else
-        waText = L["|cffaaaaaaWeakAuras icons get the same soft shadow. Re-open this panel or /reload if a new aura isn't skinned yet.|r"]
-    end
+    local waText = L["|cffaaaaaaWeakAuras icons get the same soft shadow. If Masque also skins them you may see a double edge — disable Masque's WeakAuras group then.|r"]
 
     return {
         { type = "header", text = L["Button Skin"] },
