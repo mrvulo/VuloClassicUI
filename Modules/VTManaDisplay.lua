@@ -1,16 +1,17 @@
 -- =========================================================
--- VuloClassicUI / Modules / VTManaDisplay
--- Tracks how much mana the player has given to the group with
--- Vampiric Touch (5% of shadow damage per tick, per mana user).
--- Reset on combat start. Only active for priests.
+-- VuloClassicUI / Modules / VTManaDisplay (Class Specific)
+-- Container module for class-specific tools, organized by class tabs.
+-- Currently: Priest → Shadow → Vampiric Touch mana tracker
+--   (tracks 5% of shadow damage per tick given back to the group as mana).
+-- Built to be extended: add a class to CLASS_TABS to give it its own tab.
 -- =========================================================
 local _, ns = ...
 local L = ns.L
 
 local mod = ns:RegisterModule("vtmanadisplay", {
-    name        = "VT Mana Display",
+    name        = "Class Specific",
     group       = "QoL",
-    description = "Live display of how much mana you've given to the group with Vampiric Touch. Reset on combat start. Only active for priests.",
+    description = "Class-specific tools, grouped by class. Currently includes the Priest Vampiric Touch mana tracker (Shadow).",
     defaults    = {
         enabled    = true,
         showFrame  = true,
@@ -21,6 +22,12 @@ local mod = ns:RegisterModule("vtmanadisplay", {
         unlocked   = false,
     },
 })
+
+-- Class tabs: only classes that actually have tools get a tab.
+-- Tab id is the lowercase class token; label is a raw English key (translated live).
+mod.tabs = {
+    { id = "priest", label = "Priest" },
+}
 
 local VT_SPELL_ID_BASE = 34914  -- Vampiric Touch base (TBC)
 local SHADOW_SCHOOL    = 32
@@ -198,46 +205,66 @@ end
 -- =========================================================
 -- Options
 -- =========================================================
-function mod:GetOptions()
-    return {
-        { type = "header", text = L["VT Mana Display"] },
+-- Priest tab: Shadow → Vampiric Touch mana tracker
+local function priestOptions()
+    local isPriest = select(2, UnitClass("player")) == "PRIEST"
+    local items = {
+        { type = "header", text = L["Shadow"] },
         { type = "desc",
-          text = L["|cffaaaaaaShows live how much mana you've given to the group with Vampiric Touch (5% of shadow damage per tick, per mana user).|n|cffffffffReset automatically on combat start.|r|nOnly active for priests.|r"] },
+          text = L["|cffaaaaaaVampiric Touch mana tracker — shows live how much mana you've given to the group (5% of shadow damage per tick, per mana user).|n|cffffffffReset automatically on combat start.|r|r"] },
+    }
 
-        { type = "toggle", label = L["Show frame"],
-          get = function() return mod.db.showFrame end,
-          set = function(_, v)
-              mod.db.showFrame = v
-              if cFrame then if v then cFrame:Show() else cFrame:Hide() end end
-          end },
+    if not isPriest then
+        table.insert(items, { type = "spacer", height = 6 })
+        table.insert(items, { type = "desc",
+            text = L["|cffff8800These tools are only active while playing a Priest.|r"] })
+    end
 
-        { type = "toggle", label = L["Print to chat at combat end"],
-          tooltip = L["Writes a summary in chat after each fight."],
-          get = function() return mod.db.showInChat end,
-          set = function(_, v) mod.db.showInChat = v end },
+    table.insert(items, { type = "spacer", height = 4 })
+    table.insert(items, { type = "toggle", label = L["Show frame"],
+        get = function() return mod.db.showFrame end,
+        set = function(_, v)
+            mod.db.showFrame = v
+            if cFrame then if v then cFrame:Show() else cFrame:Hide() end end
+        end })
 
-        { type = "slider", label = L["Font size"],
-          min = 8, max = 32, step = 1,
-          get = function() return mod.db.fontSize end,
-          set = function(_, v)
-              mod.db.fontSize = v
-              if cFrame and cFrame.text then
-                  cFrame.text:SetFont("Fonts\\FRIZQT__.TTF", v, "OUTLINE")
-              end
-          end },
+    table.insert(items, { type = "toggle", label = L["Print to chat at combat end"],
+        tooltip = L["Writes a summary in chat after each fight."],
+        get = function() return mod.db.showInChat end,
+        set = function(_, v) mod.db.showInChat = v end })
 
-        { type = "group", layout = "row", gap = 8,
-          items = {
-              { type = "button", label = L["Unlock / Position"], width = 200,
-                onClick = function() setUnlocked(not mod.db.unlocked) end },
-              { type = "button", label = L["Reset manually"], width = 200,
-                onClick = function()
-                    totalMana = 0
-                    lastTick  = 0
-                    updateFrame()
-                    ns:Print(L["VT mana reset."])
-                end },
-          },
+    table.insert(items, { type = "slider", label = L["Font size"],
+        min = 8, max = 32, step = 1,
+        get = function() return mod.db.fontSize end,
+        set = function(_, v)
+            mod.db.fontSize = v
+            if cFrame and cFrame.text then
+                cFrame.text:SetFont("Fonts\\FRIZQT__.TTF", v, "OUTLINE")
+            end
+        end })
+
+    table.insert(items, { type = "group", layout = "row", gap = 8,
+        items = {
+            { type = "button", label = L["Unlock / Position"], width = 200,
+              onClick = function() setUnlocked(not mod.db.unlocked) end },
+            { type = "button", label = L["Reset manually"], width = 200,
+              onClick = function()
+                  totalMana = 0
+                  lastTick  = 0
+                  updateFrame()
+                  ns:Print(L["VT mana reset."])
+              end },
         },
+    })
+
+    return items
+end
+
+function mod:GetOptions(tabId)
+    if tabId == "priest" or tabId == nil then
+        return priestOptions()
+    end
+    return {
+        { type = "desc", text = L["|cffaaaaaaNo tools for this class yet.|r"] },
     }
 end

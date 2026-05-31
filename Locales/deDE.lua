@@ -745,6 +745,11 @@ ns:RegisterLocale("deDE", {
     -- VTManaDisplay
     -- =====================================================
     ["VT Mana Display"] = "VT-Mana-Anzeige",
+    ["Class Specific"] = "Klassenspezifisch",
+    ["Class-specific tools, grouped by class. Currently includes the Priest Vampiric Touch mana tracker (Shadow)."] = "Klassenspezifische Tools, nach Klasse gruppiert. Aktuell enthalten: der Priester Vampirberührungs-Mana-Tracker (Schatten).",
+    ["|cffaaaaaaVampiric Touch mana tracker — shows live how much mana you've given to the group (5% of shadow damage per tick, per mana user).|n|cffffffffReset automatically on combat start.|r|r"] = "|cffaaaaaaVampirberührungs-Mana-Tracker — zeigt live, wie viel Mana du der Gruppe gegeben hast (5% des Schattenschadens pro Tick, pro Mana-Nutzer).|n|cffffffffWird bei Kampfbeginn automatisch zurückgesetzt.|r|r",
+    ["|cffff8800These tools are only active while playing a Priest.|r"] = "|cffff8800Diese Tools sind nur aktiv, wenn du einen Priester spielst.|r",
+    ["|cffaaaaaaNo tools for this class yet.|r"] = "|cffaaaaaaNoch keine Tools für diese Klasse.|r",
     ["Live display of how much mana you've given to the group with Vampiric Touch. Reset on combat start. Only active for priests."] = "Live-Anzeige, wie viel Mana du der Gruppe mit Vampirberührung gegeben hast. Zurücksetzen bei Kampfbeginn. Nur für Priester aktiv.",
     ["|cff9b6cffVT Mana:|r %d"] = "|cff9b6cffVT-Mana:|r %d",
     ["|cff9b6cffVT Mana:|r 0"] = "|cff9b6cffVT-Mana:|r 0",
