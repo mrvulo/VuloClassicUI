@@ -43,12 +43,13 @@ local MASK_SQUARE  = "Interface\\Buttons\\WHITE8X8"                             
 local TEX_BACKDROP = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\Backdrop.tga"      -- filled rounded fill
 local TEX_BORDER   = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\Normal.tga"        -- black rounded border + soft shadow
 
--- How far the rim/shadow bleeds out past the frame (px) + how many px the
--- icon's MASK is inset so the icon reads smaller than the frame and the dark
--- backdrop shows as a rim. We shrink via the mask (survives game updates),
--- not by re-anchoring the icon (which gets reset).
+-- The rim is created by insetting the icon's MASK (icon reads smaller, the dark
+-- backdrop shows around it). The inset is a FRACTION of the icon size so the
+-- rim looks the same on small and large icons (a fixed px rim is too thick on
+-- small icons, too thin on big ones). RIM_OUTSET is a small fixed bleed for the
+-- soft shadow past the frame edge. Shrinking via the mask survives game updates.
 local RIM_OUTSET  = 2
-local ICON_SHRINK = 3
+local SHRINK_PCT  = 0.11
 
 -- The shadow layers behind the icon: filled dark backdrop + black rounded
 -- border with a soft drop-shadow (the real "Shadow" look), both bleeding a
@@ -140,16 +141,20 @@ local function ensureMask(button)
     return button._vcuiMask
 end
 
--- Mask the icon. `inset` shrinks the mask inside the icon, so the icon reads
--- smaller than its frame and the dark backdrop shows as a rim around it (the
--- real shadow look — done via mask size, which survives game updates).
-local function setMasked(button, icon, on, maskTex, inset)
+-- Mask the icon. `pct` insets the mask by that fraction of the icon size, so
+-- the icon reads smaller and the dark backdrop shows as a rim around it. Using
+-- a fraction keeps the rim proportional on small and large icons. Done via mask
+-- size (survives game updates), not by re-anchoring the icon.
+local function setMasked(button, icon, on, maskTex, pct)
     if on then
         local m = ensureMask(button)
         if not m then return end
         m:ClearAllPoints()
-        inset = inset or 0
-        if inset > 0 then
+        pct = pct or 0
+        if pct > 0 then
+            local w = icon:GetWidth() or 0
+            if w < 1 then w = (button.GetWidth and button:GetWidth()) or 32 end
+            local inset = math.max(1, w * pct)
             m:SetPoint("TOPLEFT",     icon, "TOPLEFT",      inset, -inset)
             m:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", -inset,  inset)
         else
@@ -191,8 +196,8 @@ local function applyStyle(button)
     -- backdrop shows as a rim around it). Rounded/Circle = full mask.
     if icon then
         local maskTex = st.mask or (st.shadow and MASK_SQUARE) or nil
-        local inset   = st.shadow and ICON_SHRINK or 0
-        setMasked(button, icon, maskTex ~= nil, maskTex, inset)
+        local pct     = st.shadow and SHRINK_PCT or 0
+        setMasked(button, icon, maskTex ~= nil, maskTex, pct)
     end
 
     -- Border
@@ -303,8 +308,8 @@ local function styleWAIcon(region)
     -- Square mask inset for Shadow (icon reads smaller, textured backdrop = rim);
     -- full mask for Rounded/Circle. Mask size survives WeakAuras' updates.
     local maskTex = st.mask or (st.shadow and MASK_SQUARE) or nil
-    local inset   = st.shadow and ICON_SHRINK or 0
-    setMasked(region, icon, maskTex ~= nil, maskTex, inset)
+    local pct     = st.shadow and SHRINK_PCT or 0
+    setMasked(region, icon, maskTex ~= nil, maskTex, pct)
 
     -- Hide WeakAuras' own "Border" sub-regions — our rim replaces them, and a
     -- second light border on top looks wrong. (Border subregions are the ones
