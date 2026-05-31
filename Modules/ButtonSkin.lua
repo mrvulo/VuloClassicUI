@@ -54,33 +54,26 @@ local SHADOW_INSET = 4
 local function attachShadow(frame, anchor, store, outset)
     if not frame or not anchor then return end
     store = store or frame
-    outset = outset or 4
+    outset = outset or 3
 
-    -- Filled dark rounded backdrop behind the icon (depth + dark rim)
+    -- Filled dark rounded backdrop behind the icon (clean dark rim + depth)
     if not store._vcuiBack then
         local back = frame:CreateTexture(nil, "BACKGROUND", nil, -6)
         back:SetPoint("TOPLEFT",     anchor, "TOPLEFT",     -outset,  outset)
         back:SetPoint("BOTTOMRIGHT", anchor, "BOTTOMRIGHT",  outset, -outset)
         back:SetTexture(SHADOW_BACK)
-        back:SetVertexColor(0.03, 0.03, 0.04, 1)   -- near-black, slightly cool
+        back:SetVertexColor(0.04, 0.04, 0.05, 1)   -- near-black
         store._vcuiBack = back
     end
 
-    -- Hollow dark rounded ring over the icon edge — drawn twice for a crisper,
-    -- stronger edge (the texture maxes at ~87% alpha, so one pass is soft).
+    -- One hollow dark rounded ring over the icon edge for a defined rounded edge
     if not store._vcuiRing then
-        local r1 = frame:CreateTexture(nil, "OVERLAY", nil, 6)
-        r1:SetPoint("TOPLEFT",     anchor, "TOPLEFT",     -2,  2)
-        r1:SetPoint("BOTTOMRIGHT", anchor, "BOTTOMRIGHT",  2, -2)
-        r1:SetTexture(SHADOW_GLOW)
-        r1:SetVertexColor(0, 0, 0, 1)
-        store._vcuiRing = r1
-
-        local r2 = frame:CreateTexture(nil, "OVERLAY", nil, 7)
-        r2:SetAllPoints(r1)
-        r2:SetTexture(SHADOW_GLOW)
-        r2:SetVertexColor(0, 0, 0, 1)
-        store._vcuiRing2 = r2
+        local ring = frame:CreateTexture(nil, "OVERLAY", nil, 6)
+        ring:SetPoint("TOPLEFT",     anchor, "TOPLEFT",     -1,  1)
+        ring:SetPoint("BOTTOMRIGHT", anchor, "BOTTOMRIGHT",  1, -1)
+        ring:SetTexture(SHADOW_GLOW)
+        ring:SetVertexColor(0, 0, 0, 1)
+        store._vcuiRing = ring
     end
 end
 
@@ -192,9 +185,8 @@ local function applyStyle(button)
 
     -- Masque "Shadow": filled rounded backdrop + dark ring over the icon edge
     local showShadow = st.shadow and true or false
-    if button._vcuiBack  then button._vcuiBack:SetShown(showShadow) end
-    if button._vcuiRing  then button._vcuiRing:SetShown(showShadow) end
-    if button._vcuiRing2 then button._vcuiRing2:SetShown(showShadow) end
+    if button._vcuiBack then button._vcuiBack:SetShown(showShadow) end
+    if button._vcuiRing then button._vcuiRing:SetShown(showShadow) end
 
     -- Shape mask (rounded / circle) on icon + backdrop
     if icon then
@@ -291,24 +283,31 @@ local function refreshAll()
 end
 
 -- =========================================================
--- WeakAuras icon skinning (always — works with or without Masque).
--- The shadow sits behind the outer `region` frame, which is the icon's
--- bounding box in both Masque and non-Masque modes, so it lines up either way.
+-- WeakAuras icon skinning (always — works with or without Masque). Uses the
+-- SAME style as the bars (shadow / rounded / square / circle / minimal), so the
+-- style dropdown drives both. The shadow/mask anchor to region.icon, which
+-- spans the visible area in both Masque and non-Masque modes.
 -- =========================================================
-local function skinWAIcon(region)
+local function styleWAIcon(region)
     if not region or region.regionType ~= "icon" then return end
-    if region._vcuiRing then return end
     local icon = region.icon
     if not icon then return end
-    -- Anchor to the icon itself (it spans the visible area in both Masque and
-    -- non-Masque modes), so the ring lines up with what you actually see.
-    attachShadow(region, icon, region)
+
+    attachShadow(region, icon, region)          -- create parts once
+    local st = currentStyle()
+
+    local showShadow = st.shadow and true or false
+    if region._vcuiBack then region._vcuiBack:SetShown(showShadow) end
+    if region._vcuiRing then region._vcuiRing:SetShown(showShadow) end
+
+    -- rounded / circle icon mask (idempotent)
+    setMasked(region, icon, st.mask ~= nil, st.mask)
 end
 
 local function skinWAById(id)
     if not (WeakAuras and WeakAuras.GetRegion) then return end
     local ok, region = pcall(WeakAuras.GetRegion, id)
-    if ok and region then skinWAIcon(region) end
+    if ok and region then styleWAIcon(region) end
 end
 
 -- Scan all currently-existing icon regions (lazy: only auras that exist now)
@@ -421,7 +420,7 @@ function mod:GetOptions()
           width = 260,
           values = STYLE_VALUES,
           get = function() return mod.db.style or "shadow" end,
-          set = function(_, v) mod.db.style = v; refreshAll() end },
+          set = function(_, v) mod.db.style = v; refreshAll(); skinAllWAIcons() end },
 
         { type = "toggle", label = L["Also skin pet & stance buttons"],
           get = function() return mod.db.skinPetStance end,
