@@ -87,6 +87,21 @@ local function textureValues()
     return vals
 end
 
+-- Apply the chosen texture + colour to a bar (robust: also re-set on the
+-- texture object and disable tiling so narrow LSM textures don't repeat).
+local function applyBarTexture(bar)
+    local path = fillTexture()
+    bar:SetStatusBarTexture(path)
+    local t = bar:GetStatusBarTexture()
+    if t then
+        if t.SetTexture   then t:SetTexture(path)    end
+        if t.SetHorizTile then t:SetHorizTile(false) end
+        if t.SetVertTile  then t:SetVertTile(false)  end
+    end
+    local c = barColor()
+    bar:SetStatusBarColor(c.r, c.g, c.b, 1)
+end
+
 local playerGUID
 local dualWield = false
 
@@ -97,6 +112,7 @@ local oh = { start = 0, dur = 0, active = false }
 local frame          -- container (movable)
 local mhBar, ohBar   -- the two StatusBars
 local eventFrame
+local previewActive, previewExpire = false, 0  -- short demo when settings change
 
 -- =========================================================
 -- Swing math
@@ -109,12 +125,14 @@ end
 local function resetMH()
     local mainSpeed = UnitAttackSpeed("player")
     if not mainSpeed or mainSpeed <= 0 then return end
+    previewActive = false  -- real swing supersedes a settings preview
     mh.start, mh.dur, mh.active = GetTime(), mainSpeed, true
 end
 
 local function resetOH()
     local _, offSpeed = UnitAttackSpeed("player")
     if not offSpeed or offSpeed <= 0 then return end
+    previewActive = false
     oh.start, oh.dur, oh.active = GetTime(), offSpeed, true
 end
 
@@ -242,10 +260,8 @@ local function layout()
     ohBar:SetHeight(h)
     ohBar:SetShown(showOH)
 
-    local c = barColor()
-    local tex = fillTexture()
-    mhBar:SetStatusBarTexture(tex); mhBar:SetStatusBarColor(c.r, c.g, c.b, 1)
-    ohBar:SetStatusBarTexture(tex); ohBar:SetStatusBarColor(c.r, c.g, c.b, 1)
+    applyBarTexture(mhBar)
+    applyBarTexture(ohBar)
     for _, b in ipairs({ mhBar, ohBar }) do
         b.spark:SetHeight(h + 6)
         b.gloss:ClearAllPoints()
@@ -259,8 +275,35 @@ end
 local function applyVisibility()
     if not frame then return end
     if mod.db.unlocked then frame:Show(); return end
+    if previewActive then frame:Show(); return end
     if not mod.db.onlyWhileActive then frame:Show(); return end
     if mh.active or oh.active then frame:Show() else frame:Hide() end
+end
+
+-- Briefly show animated demo bars so a settings change is visible even when
+-- you're not currently attacking. Skipped in combat (the real bars show then)
+-- and when the test/unlock mover is active (those bars are already visible).
+local function startPreview()
+    if not frame then return end
+    if mod.db.unlocked then return end
+    if InCombatLockdown and InCombatLockdown() then return end
+    local t = GetTime()
+    if previewActive then
+        previewExpire = t + 4  -- keep extending while the user tweaks settings
+        return
+    end
+    if mh.active or oh.active then return end  -- real bars already showing (attacking)
+    mh.start, mh.dur, mh.active = t, 2.6, true
+    oh.start, oh.dur, oh.active = t, 1.8, true
+    previewActive = true
+    previewExpire = t + 4
+    frame:Show()
+end
+
+-- Apply a display change (layout) and show a short preview if hidden.
+local function applyDisplay()
+    layout()
+    startPreview()
 end
 
 -- =========================================================
@@ -290,15 +333,20 @@ local function create()
 
     frame:SetScript("OnUpdate", function(self)
         local t = GetTime()
-        if mod.db.unlocked then
-            -- demo loop so the bars animate while positioning
+        if mod.db.unlocked or previewActive then
+            -- demo loop so the bars animate (positioning / settings preview)
             if t - mh.start >= mh.dur then mh.start = t end
             if t - oh.start >= oh.dur then oh.start = t end
+        end
+        if previewActive and t > previewExpire then
+            previewActive = false
+            mh.active, oh.active = false, false
+            applyVisibility()
         end
         updateBar(mhBar, mh, t)
         if ohBar:IsShown() then updateBar(ohBar, oh, t) end
         -- Auto-hide once both hands have expired (covers a missed leave-combat)
-        if not mod.db.unlocked and mod.db.onlyWhileActive
+        if not mod.db.unlocked and not previewActive and mod.db.onlyWhileActive
            and not mh.active and not oh.active then
             self:Hide()
         end
@@ -448,12 +496,12 @@ function mod:GetOptions()
     table.insert(items, {
         type = "toggle", label = L["Show off-hand bar (while dual-wielding)"],
         get = function() return mod.db.showOffHand end,
-        set = function(_, v) mod.db.showOffHand = v; layout() end,
+        set = function(_, v) mod.db.showOffHand = v; applyDisplay() end,
     })
     table.insert(items, {
         type = "toggle", label = L["Show time remaining"],
         get = function() return mod.db.showText end,
-        set = function(_, v) mod.db.showText = v; layout() end,
+        set = function(_, v) mod.db.showText = v; applyDisplay() end,
     })
     table.insert(items, {
         type = "toggle", label = L["Only show while attacking"],
@@ -473,14 +521,14 @@ function mod:GetOptions()
             { value = "red",    text = L["Red"] },
         },
         get = function() return mod.db.colorPreset end,
-        set = function(_, v) mod.db.colorPreset = v; layout() end,
+        set = function(_, v) mod.db.colorPreset = v; applyDisplay() end,
     })
     table.insert(items, {
         type = "dropdown", label = L["Bar texture"],
         width = 240,
         values = textureValues(),
         get = function() return mod.db.texture end,
-        set = function(_, v) mod.db.texture = v; layout() end,
+        set = function(_, v) mod.db.texture = v; applyDisplay() end,
     })
 
     table.insert(items, { type = "spacer", height = 6 })
@@ -489,19 +537,19 @@ function mod:GetOptions()
         type = "slider", label = L["Width"],
         min = 100, max = 400, step = 5,
         get = function() return mod.db.width end,
-        set = function(_, v) mod.db.width = v; layout() end,
+        set = function(_, v) mod.db.width = v; applyDisplay() end,
     })
     table.insert(items, {
         type = "slider", label = L["Height"],
         min = 10, max = 36, step = 1,
         get = function() return mod.db.height end,
-        set = function(_, v) mod.db.height = v; layout() end,
+        set = function(_, v) mod.db.height = v; applyDisplay() end,
     })
     table.insert(items, {
         type = "slider", label = L["Gap between bars"],
         min = 0, max = 12, step = 1,
         get = function() return mod.db.gap end,
-        set = function(_, v) mod.db.gap = v; layout() end,
+        set = function(_, v) mod.db.gap = v; applyDisplay() end,
     })
 
     return items
