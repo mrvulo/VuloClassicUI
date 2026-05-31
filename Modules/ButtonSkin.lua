@@ -311,6 +311,23 @@ local function styleWAIcon(region)
     local pct     = st.shadow and SHRINK_PCT or 0
     setMasked(region, icon, maskTex ~= nil, maskTex, pct)
 
+    -- The icon mask makes the icon read smaller, but the cooldown frame (the
+    -- GCD/cooldown sweep) is still full size and overhangs it. Inset the
+    -- cooldown to match the shrunk icon so they line up.
+    if region.cooldown and region.cooldown.ClearAllPoints then
+        local cd = region.cooldown
+        cd:ClearAllPoints()
+        local w = icon:GetWidth() or 0
+        if w < 1 then w = region:GetWidth() or 32 end
+        local inset = (pct > 0) and math.max(1, w * pct) or 0
+        if inset > 0 then
+            cd:SetPoint("TOPLEFT",     icon, "TOPLEFT",      inset, -inset)
+            cd:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", -inset,  inset)
+        else
+            cd:SetAllPoints(icon)
+        end
+    end
+
     -- Hide WeakAuras' own "Border" sub-regions — our rim replaces them, and a
     -- second light border on top looks wrong. (Border subregions are the ones
     -- exposing a SetBorderColor method; we leave Background/Glow/etc. alone.)
