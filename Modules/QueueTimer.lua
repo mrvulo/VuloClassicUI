@@ -76,8 +76,10 @@ local function setExpiresText(timeRemaining, dialog, pvp)
         dialog.label:SetText("")
         dialog.timerLabel:SetText(timerText)
         if dialog.instanceInfo.name and (dialog.instanceInfo:IsShown() or pvp) then
-            dialog.bgLabel:SetText(dialog.instanceInfo.name:GetText())
-            dialog.statusTextLabel:SetText(dialog.instanceInfo.statusText:GetText())
+            dialog.bgLabel:SetText(dialog.instanceInfo.name:GetText() or "")
+            -- statusText sub-region isn't present on every dialog variant — guard it
+            local st = dialog.instanceInfo.statusText
+            dialog.statusTextLabel:SetText((st and st:GetText()) or "")
         else
             dialog.bgLabel:SetText("")
             dialog.statusTextLabel:SetText("")

@@ -270,9 +270,13 @@ local function onCLEU()
         and destGUID == playerGUID then
         local realMissType
         if subEvent == "SWING_MISSED" then
+            -- SWING_MISSED payload: missType(12), isOffHand(13), amount(14)
             realMissType = select(12, CombatLogGetCurrentEventInfo())
         else
-            realMissType = missType
+            -- SPELL_MISSED / RANGE_MISSED payload: spellId(12), spellName(13),
+            -- spellSchool(14), missType(15). The earlier destructure read the
+            -- wrong field, so spell/ranged misses always showed "Missed".
+            realMissType = select(15, CombatLogGetCurrentEventInfo())
         end
         local label = realMissType or "Missed"
         if label == "PARRY"  then label = L["Parried"]

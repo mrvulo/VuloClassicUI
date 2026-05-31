@@ -77,6 +77,7 @@ local function castbarOnUpdate(self, elapsed)
     end
     local now = GetTime()
     local total = self.endTime - self.startTime
+    if total <= 0 then total = 0.01 end  -- guard: instant casts give startTime == endTime
     local progress
     if self.channeling then
         progress = (self.endTime - now) / total
