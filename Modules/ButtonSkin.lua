@@ -49,7 +49,7 @@ local TEX_BORDER   = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\Normal.tga
 -- small icons, too thin on big ones). RIM_OUTSET is a small fixed bleed for the
 -- soft shadow past the frame edge. Shrinking via the mask survives game updates.
 local RIM_OUTSET  = 2
-local SHRINK_PCT  = 0.11
+local SHRINK_PCT  = 0.13
 
 -- The shadow layers behind the icon: filled dark backdrop + black rounded
 -- border with a soft drop-shadow (the real "Shadow" look), both bleeding a
