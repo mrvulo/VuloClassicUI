@@ -797,11 +797,11 @@ end
 --   "up", "down", "left", "right" -> built-in Blizzard arrows
 --   "Interface\\..."              -> any texture
 -- =========================================================
+-- Clean triangle arrows: one "Arrow-Up-Up" texture, flipped/rotated per direction.
+-- tc form: {ULx,ULy, LLx,LLy, URx,URy, LRx,LRy} for rotations, or {l,r,t,b} for simple flips.
 local BUILTIN_ICONS = {
-    up    = { tex = "Interface\\Buttons\\UI-ScrollBar-ScrollUpButton-Up",   tc = {0.25, 0.75, 0.25, 0.75} },
-    down  = { tex = "Interface\\Buttons\\UI-ScrollBar-ScrollDownButton-Up", tc = {0.25, 0.75, 0.25, 0.75} },
-    left  = { tex = "Interface\\Buttons\\UI-SpellbookIcon-PrevPage-Up",     tc = {0.10, 0.90, 0.10, 0.90} },
-    right = { tex = "Interface\\Buttons\\UI-SpellbookIcon-NextPage-Up",     tc = {0.10, 0.90, 0.10, 0.90} },
+    up    = { tex = "Interface\\Buttons\\Arrow-Up-Up", tc = {0, 1, 0, 1} },
+    down  = { tex = "Interface\\Buttons\\Arrow-Up-Up", tc = {0, 1, 1, 0} },   -- vertical flip
 }
 
 function UI:CreateIconButton(parent, config)
@@ -826,9 +826,9 @@ function UI:CreateIconButton(parent, config)
     borders[3]:SetPoint("TOPLEFT", b, "TOPLEFT"); borders[3]:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT"); borders[3]:SetWidth(1)
     borders[4]:SetPoint("TOPRIGHT", b, "TOPRIGHT"); borders[4]:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT"); borders[4]:SetWidth(1)
 
-    -- Icon texture
+    -- Icon texture (slightly larger, centered)
     local icon = b:CreateTexture(nil, "ARTWORK")
-    icon:SetSize((config.width or 24) - 8, (config.height or 24) - 8)
+    icon:SetSize((config.width or 24) - 10, (config.height or 24) - 10)
     icon:SetPoint("CENTER", b, "CENTER", 0, 0)
     icon:SetVertexColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
 
