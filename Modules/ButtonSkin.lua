@@ -279,15 +279,43 @@ local function refreshAll()
 end
 
 -- =========================================================
--- WeakAuras icon skinning (always — works with or without Masque). Uses the
--- SAME style as the bars (shadow / rounded / square / circle / minimal), so the
--- style dropdown drives both. The shadow/mask anchor to region.icon, which
--- spans the visible area in both Masque and non-Masque modes.
+-- WeakAuras icon skinning.
+-- If Masque is installed, WeakAuras skins its own icons through it, and that's
+-- the only way to get the EXACT "Masque: Shadow 1" look (Masque resizes the
+-- icon to 32 inside a 42 frame — we can't replicate that without it). So when
+-- Masque is present we just force the "WeakAuras" Masque group to Shadow 1 and
+-- skip our own skin (would double up). Without Masque we use our own mask rim,
+-- matching the action bars (style dropdown drives both).
 -- =========================================================
+local MSQ
+local msqChecked = false
+local function getMSQ()
+    if not msqChecked then
+        msqChecked = true
+        MSQ = (LibStub and LibStub("Masque", true)) or nil
+    end
+    return MSQ
+end
+
+-- Is Masque actively skinning this WeakAuras region? (then leave it alone)
+local function isMasqueSkinned(region)
+    local g = region.MSQGroup
+    return g and g.db and not g.db.Disabled and g.db.SkinID and g.db.SkinID ~= "Blizzard"
+end
+
+-- Force WeakAuras' Masque group to "Masque: Shadow 1" (sub-groups inherit it)
+local function applyWAMasqueShadow()
+    local m = getMSQ()
+    if not m or not m.GetSkin or not m:GetSkin("Masque: Shadow 1") then return end
+    local g = m:Group("WeakAuras")
+    if g and g.__Set then pcall(g.__Set, g, "SkinID", "Masque: Shadow 1") end
+end
+
 local function styleWAIcon(region)
     if not region or region.regionType ~= "icon" then return end
     local icon = region.icon
     if not icon then return end
+    if isMasqueSkinned(region) then return end  -- Masque handles it
 
     attachShadow(region, region)                -- create backdrop once
     local st = currentStyle()
@@ -350,11 +378,14 @@ end
 function mod:OnEnable()
     if not mod.db then return end
 
+    -- If Masque is present, point WeakAuras' group at Shadow 1 for the exact look
+    applyWAMasqueShadow()
+
     -- Skin our own way (no Masque dependency). Deferred so all frames exist.
     if C_Timer and C_Timer.After then
         C_Timer.After(0.5, skinEverything)
-        C_Timer.After(2.0, skinEverything)
-        C_Timer.After(5.0, skinAllWAIcons)   -- WeakAuras often loads late
+        C_Timer.After(2.0, function() applyWAMasqueShadow(); skinEverything() end)
+        C_Timer.After(5.0, function() applyWAMasqueShadow(); skinAllWAIcons() end)
     else
         skinEverything()
     end
@@ -405,7 +436,12 @@ function mod:GetOptions()
         { value = "minimal", text = L["Minimal (icon only)"] },
     }
 
-    local waText = L["|cffaaaaaaWeakAuras icons get the same soft shadow. If Masque also skins them you may see a double edge — disable Masque's WeakAuras group then.|r"]
+    local waText
+    if getMSQ() then
+        waText = L["|cffaaaaaaMasque detected: WeakAuras icons are set to the exact \"Masque: Shadow 1\" skin automatically. (Action bars use VuloClassicUI's own skin — Masque doesn't touch Blizzard bars.)|r"]
+    else
+        waText = L["|cffaaaaaaWeakAuras icons get VuloClassicUI's own rim. For the exact Masque Shadow 1 look on auras, enable Masque + Masque_Shadow — it'll be applied automatically.|r"]
+    end
 
     return {
         { type = "header", text = L["Button Skin"] },
