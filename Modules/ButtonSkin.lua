@@ -23,6 +23,7 @@ local mod = ns:RegisterModule("buttonskin", {
         skinPetStance = true,      -- also skin pet + stance buttons
         skinBars      = true,      -- skin the action bars
         skinWeakAuras = true,      -- skin WeakAuras icons
+        hideWABorder  = true,      -- hide WeakAuras' own border subregions when skinning
     },
 })
 
@@ -304,6 +305,17 @@ local function styleWAIcon(region)
     local maskTex = st.mask or (st.shadow and MASK_SQUARE) or nil
     local inset   = st.shadow and ICON_SHRINK or 0
     setMasked(region, icon, maskTex ~= nil, maskTex, inset)
+
+    -- Hide WeakAuras' own "Border" sub-regions — our rim replaces them, and a
+    -- second light border on top looks wrong. (Border subregions are the ones
+    -- exposing a SetBorderColor method; we leave Background/Glow/etc. alone.)
+    if mod.db.hideWABorder and region.subRegions then
+        for _, sub in ipairs(region.subRegions) do
+            if type(sub) == "table" and sub.SetBorderColor and sub.Hide then
+                sub:Hide()
+            end
+        end
+    end
 end
 
 local function skinWAById(id)
@@ -443,6 +455,10 @@ function mod:GetOptions()
           values = STYLE_VALUES,
           get = function() return mod.db.waStyle or "shadow" end,
           set = function(_, v) mod.db.waStyle = v; skinAllWAIcons() end },
+        { type = "toggle", label = L["Hide WeakAuras' own border"],
+          tooltip = L["Hides the light border WeakAuras draws on icons, so only our dark rim shows. /reload to fully restore it."],
+          get = function() return mod.db.hideWABorder end,
+          set = function(_, v) mod.db.hideWABorder = v; skinAllWAIcons() end },
 
         { type = "spacer", height = 6 },
         { type = "desc", text = L["|cffaaaaaaNote: turning a skin off fully reverts after a /reload.|r"] },

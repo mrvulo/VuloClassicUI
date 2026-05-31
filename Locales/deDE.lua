@@ -733,6 +733,8 @@ ns:RegisterLocale("deDE", {
     ["Skin WeakAuras icons"] = "WeakAuras-Icons skinnen",
     ["WeakAuras style"] = "WeakAuras-Stil",
     ["Style for WeakAuras icons, independent of the action bars."] = "Stil für WeakAuras-Icons, unabhängig von den Aktionsleisten.",
+    ["Hide WeakAuras' own border"] = "WeakAuras-eigenen Rahmen ausblenden",
+    ["Hides the light border WeakAuras draws on icons, so only our dark rim shows. /reload to fully restore it."] = "Blendet den hellen Rahmen aus, den WeakAuras auf Icons zeichnet, sodass nur unser dunkler Rand zu sehen ist. /reload stellt ihn vollständig wieder her.",
     ["Pick how the action buttons look. Rounded/Circle use an icon mask; Minimal is just the cropped icon."] = "Wähle das Aussehen der Aktionsbuttons. Abgerundet/Kreis nutzen eine Icon-Maske; Minimal ist nur das gecroppte Icon.",
     ["Shadow (dark rounded rim)"] = "Shadow (dunkler abgerundeter Rand)",
     ["Rounded icon (masked corners)"] = "Rundes Icon (maskierte Ecken)",
