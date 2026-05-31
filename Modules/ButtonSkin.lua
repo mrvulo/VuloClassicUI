@@ -50,12 +50,15 @@ local SHADOW_INSET = 4
 --   mask   = mask texture (rounds the icon + backdrop) or nil
 --   shadow = soft black drop-shadow glow behind the button (Masque_Shadow look)
 local STYLES = {
-    shadow  = { border = nil,      bg = true,  mask = MASK_ROUNDED, shadow = true  },  -- Masque_Shadow: black, rounded, soft shadow
-    rounded = { border = nil,      bg = true,  mask = MASK_ROUNDED, shadow = false },  -- rounded, no shadow
-    square  = { border = "black",  bg = true,  mask = nil,          shadow = false },  -- classic square, black edge
-    accent  = { border = "accent", bg = true,  mask = nil,          shadow = false },  -- square, purple edge
-    circle  = { border = nil,      bg = true,  mask = MASK_CIRCLE,  shadow = true  },  -- circular + shadow
-    minimal = { border = nil,      bg = false, mask = nil,          shadow = false },  -- cropped icon only
+    -- Default: the real Masque_Shadow look. Square cropped icon + a soft black
+    -- rounded shadow bleeding out past the edge (its rounded corners make the
+    -- square button read as gently rounded). No icon mask = rock-solid.
+    shadow   = { border = nil,      bg = true,  mask = nil,          shadow = true  },  -- Masque_Shadow (square + soft shadow)
+    rounded  = { border = nil,      bg = true,  mask = MASK_ROUNDED, shadow = true  },  -- icon corners actually masked round
+    square   = { border = "black",  bg = true,  mask = nil,          shadow = false },  -- crisp square, black 1px edge
+    accent   = { border = "accent", bg = true,  mask = nil,          shadow = false },  -- square, purple edge
+    circle   = { border = nil,      bg = true,  mask = MASK_CIRCLE,  shadow = true  },  -- circular + shadow
+    minimal  = { border = nil,      bg = false, mask = nil,          shadow = false },  -- cropped icon only
 }
 
 local function currentStyle()
@@ -277,8 +280,8 @@ end
 -- =========================================================
 function mod:GetOptions()
     local STYLE_VALUES = {
-        { value = "shadow",  text = L["Shadow (black, rounded, soft shadow)"] },
-        { value = "rounded", text = L["Rounded (no shadow)"] },
+        { value = "shadow",  text = L["Shadow (Masque-style: square + soft shadow)"] },
+        { value = "rounded", text = L["Rounded icon (masked corners)"] },
         { value = "square",  text = L["Square (black edge)"] },
         { value = "accent",  text = L["Square (accent edge)"] },
         { value = "circle",  text = L["Circle"] },

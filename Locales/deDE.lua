@@ -732,6 +732,8 @@ ns:RegisterLocale("deDE", {
     ["Off = black edge (classic Shadow look). On = purple accent border matching the UI."] = "Aus = schwarzer Rand (klassischer Shadow-Look). An = violetter Akzent-Rand passend zur UI.",
     ["Style"] = "Stil",
     ["Pick how the action buttons look. Rounded/Circle use an icon mask; Minimal is just the cropped icon."] = "Wähle das Aussehen der Aktionsbuttons. Abgerundet/Kreis nutzen eine Icon-Maske; Minimal ist nur das gecroppte Icon.",
+    ["Shadow (Masque-style: square + soft shadow)"] = "Shadow (Masque-Stil: eckig + weicher Schatten)",
+    ["Rounded icon (masked corners)"] = "Rundes Icon (maskierte Ecken)",
     ["Shadow (black, rounded, soft shadow)"] = "Shadow (schwarz, abgerundet, weicher Schatten)",
     ["Rounded (no shadow)"] = "Abgerundet (ohne Schatten)",
     ["Square (black edge)"] = "Eckig (schwarzer Rand)",
