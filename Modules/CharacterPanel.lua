@@ -77,6 +77,7 @@ function mod:OnEnable()
     end
 end
 
+function mod:GetOptions()
     -- Refresh the open character panel so toggles take effect immediately
     local function refreshPanel()
         if ns.RefreshCharacterPanel then ns.RefreshCharacterPanel() end
