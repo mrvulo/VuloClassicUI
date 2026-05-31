@@ -36,6 +36,14 @@ function ns:RunCharacterPanelInit()
     -- We rebuild it here locally.
     local addon = {}
 
+    -- Read CharacterPanel module settings (the toggles on its options page).
+    local cpMod = ns.modules and ns.modules.characterpanel
+    local function cpOpt(key, default)
+        local d = cpMod and cpMod.db
+        if d and d[key] ~= nil then return d[key] end
+        return default
+    end
+
 -- =========================================================
 -- Constants / Layout
 -- =========================================================
@@ -75,7 +83,7 @@ if ENABLE_AMMO and INVSLOT_AMMO then
 	buttonLayout[INVSLOT_AMMO] = "right"
 end
 
-local RINGS_ENCH = true
+local RINGS_ENCH = cpOpt("ringsEnchantable", true)
 
 local enchantableSlots = {
 	[INVSLOT_HEAD] = true,
@@ -180,8 +188,11 @@ end
 local function ProcessEnchantText(enchantText)
 	if not enchantText then return enchantText end
 
-	for seek, replacement in pairsByKeys(enchantReplacementTable) do
-		enchantText = enchantText:gsub(seek, replacement)
+	-- Only abbreviate when the "shorten enchant text" toggle is on
+	if cpOpt("shortenEnchants", true) then
+		for seek, replacement in pairsByKeys(enchantReplacementTable) do
+			enchantText = enchantText:gsub(seek, replacement)
+		end
 	end
 
 	enchantText = enchantText:gsub("%s+", " "):gsub("^%s+", ""):gsub("%s+$", "")
@@ -554,6 +565,8 @@ local function UpdateAdditionalDisplay(button, unit)
 			end
 		end
 
+		-- "Show item level per slot" toggle
+		if not cpOpt("showItemLevel", true) then itemiLvlText = "" end
 		f.ilvlDisplay:SetText(itemiLvlText)
 
 		UpdateQualityBorder(button, unit, slot, itemLink)
@@ -579,7 +592,8 @@ local function UpdateAdditionalDisplay(button, unit)
 			f.enchantDisplay:SetText(enchantText)
 		end
 
-		local textures = itemLink and GetSocketTextures(unit, slot) or {}
+		-- Socket display honours the "Show sockets" toggle
+		local textures = (cpOpt("showSockets", true) and itemLink and GetSocketTextures(unit, slot)) or {}
 
 		for i = 1, NUM_SOCKET_TEXTURES do
 			local t = f.socketDisplay[i]
@@ -718,6 +732,12 @@ local function UpdatePlayerAvgIlvlDisplay()
 
 	if not PaperDollFrame or not PaperDollFrame.avgIlvlDisplay then return end
 
+	-- "Show average item level" toggle — hide the display when off
+	if not cpOpt("showAvgItemLevel", true) then
+		PaperDollFrame.avgIlvlDisplay:SetText("")
+		return
+	end
+
 	local ilvl = GetUnitAverageItemLevelTBC("player")
 	local avgQuality = GetUnitAverageItemQualityTBC("player")
 
@@ -822,6 +842,9 @@ local function UpdateCharacterPanel()
 		UpdatePlayerAvgIlvlDisplay()
 	end
 end
+
+-- Exposed so the options toggles can refresh the open panel immediately
+ns.RefreshCharacterPanel = UpdateCharacterPanel
 
 -- =========================================================
 -- Events

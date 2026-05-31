@@ -77,24 +77,28 @@ function mod:OnEnable()
     end
 end
 
-function mod:GetOptions()
+    -- Refresh the open character panel so toggles take effect immediately
+    local function refreshPanel()
+        if ns.RefreshCharacterPanel then ns.RefreshCharacterPanel() end
+    end
+
     return {
         { type = "header", text = L["Display"] },
         { type = "checkbox", label = L["Show item level per slot"],
           get = function() return mod.db.showItemLevel end,
-          set = function(_, v) mod.db.showItemLevel = v end },
+          set = function(_, v) mod.db.showItemLevel = v; refreshPanel() end },
         { type = "checkbox", label = L["Show average item level"],
           get = function() return mod.db.showAvgItemLevel end,
-          set = function(_, v) mod.db.showAvgItemLevel = v end },
+          set = function(_, v) mod.db.showAvgItemLevel = v; refreshPanel() end },
         { type = "checkbox", label = L["Show sockets"],
           get = function() return mod.db.showSockets end,
-          set = function(_, v) mod.db.showSockets = v end },
+          set = function(_, v) mod.db.showSockets = v; refreshPanel() end },
         { type = "checkbox", label = L["Shorten enchant text (DE/EN)"],
           tooltip = L["Example: 'Stamina' -> 'Stam', 'Ausdauer' -> 'Ausd'."],
           get = function() return mod.db.shortenEnchants end,
-          set = function(_, v) mod.db.shortenEnchants = v end },
+          set = function(_, v) mod.db.shortenEnchants = v; refreshPanel() end },
         { type = "checkbox", label = L["Treat rings as enchantable"],
-          tooltip = L["Also shows enchant text on rings (TBC: some professions can enchant rings)."],
+          tooltip = L["Also shows enchant text on rings (TBC: some professions can enchant rings). /reload required."],
           get = function() return mod.db.ringsEnchantable end,
           set = function(_, v) mod.db.ringsEnchantable = v end },
 

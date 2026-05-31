@@ -730,7 +730,7 @@ ns:RegisterLocale("deDE", {
     ["Shorten enchant text (DE/EN)"] = "Verzauberungstext kürzen (DE/EN)",
     ["Example: 'Stamina' -> 'Stam', 'Ausdauer' -> 'Ausd'."] = "Beispiel: 'Stamina' -> 'Stam', 'Ausdauer' -> 'Ausd'.",
     ["Treat rings as enchantable"] = "Ringe als verzauberbar behandeln",
-    ["Also shows enchant text on rings (TBC: some professions can enchant rings)."] = "Zeigt auch Verzauberungstext auf Ringen (TBC: einige Berufe können Ringe verzaubern).",
+    ["Also shows enchant text on rings (TBC: some professions can enchant rings). /reload required."] = "Zeigt auch Verzauberungstext auf Ringen (TBC: einige Berufe können Ringe verzaubern). /reload erforderlich.",
     ["Text Size"] = "Textgröße",
     ["Item Level Text Size"] = "Item-Level-Textgröße",
     ["Font size of the item level number on each item slot. Takes effect immediately when the character panel is open."] = "Schriftgröße der Item-Level-Zahl auf jedem Item-Slot. Wirkt sofort, wenn das Charakterfenster geöffnet ist.",
