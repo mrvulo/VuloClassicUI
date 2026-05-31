@@ -426,7 +426,7 @@ function UI:CreateMainFrame()
             end
             UI:BuildOptionsPage(UI.currentModule)
             UI:RefreshSidebarStates()
-            ns:Print(L["Module '%s' reset."], mod.name)
+            ns:Print(L["Module '%s' reset."], L[mod.name])
         end,
     })
     resetBtn:SetPoint("LEFT", bottomBar, "LEFT", 10, 0)

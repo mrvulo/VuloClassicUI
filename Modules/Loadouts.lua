@@ -528,7 +528,7 @@ local function createMinimapButton()
 
     mmBtn:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-        GameTooltip:AddLine("|cff9b6cffLoadouts|r")
+        GameTooltip:AddLine("|cff9b6cff" .. L["Loadouts"] .. "|r")
         GameTooltip:AddLine(L["Left-click: switch set"],   1, 1, 1)
         GameTooltip:AddLine(L["Right-click: settings"],    1, 1, 1)
         GameTooltip:AddLine(L["Drag: reposition"],         0.6, 0.6, 0.6)

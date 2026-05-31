@@ -6,6 +6,7 @@
 local _, ns = ...
 ns.UI = ns.UI or {}
 local UI = ns.UI
+local L = ns.L
 
 -- =========================================================
 -- Helper: white 1px pixel as background texture
@@ -540,7 +541,7 @@ local function openPopup(button, config)
         item:SetPoint("TOPLEFT",  p, "TOPLEFT",   2, -((i - 1) * itemHeight + 2))
         item:SetPoint("TOPRIGHT", p, "TOPRIGHT", -2, -((i - 1) * itemHeight + 2))
 
-        item._text:SetText(opt.text)
+        item._text:SetText(L[opt.text])  -- translate option text (no-op if already localized)
         if opt.value == config.get(button) then
             item._check:Show()
             item._text:SetTextColor(1, 1, 1)
@@ -551,7 +552,7 @@ local function openPopup(button, config)
 
         item:SetScript("OnClick", function()
             config.set(button, opt.value)
-            if button._setText then button._setText(opt.text) end
+            if button._setText then button._setText(L[opt.text]) end
             closeActivePopup()
         end)
 
@@ -638,7 +639,7 @@ function UI:CreateDropdown(parent, config)
         local current = config.get(btn)
         for _, opt in ipairs(config.values or {}) do
             if opt.value == current then
-                setText(opt.text)
+                setText(L[opt.text])
                 return
             end
         end
