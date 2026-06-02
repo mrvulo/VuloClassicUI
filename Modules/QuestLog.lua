@@ -170,10 +170,11 @@ local function applyTheme()
     local dark = (mod.db.theme == "dark")
     if QLF._vcuiRegs then
         for _, r in ipairs(QLF._vcuiRegs) do
-            -- Strip the gold cast, then the tint alone defines the tone.
-            if r.SetDesaturated then r:SetDesaturated(true) end
+            -- Parchment keeps the natural warm grain (like Leatrix); only the
+            -- dark theme desaturates and tints the surface dark.
+            if r.SetDesaturated then r:SetDesaturated(dark) end
             if dark then r:SetVertexColor(0.16, 0.15, 0.14, 1)
-            else        r:SetVertexColor(0.96, 0.89, 0.73, 1) end  -- warm light parchment
+            else        r:SetVertexColor(0.92, 0.84, 0.64, 1) end  -- warm parchment
         end
     end
     if dark then lightenDetailText() end
