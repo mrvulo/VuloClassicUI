@@ -378,64 +378,88 @@ local function skinWAById(id)
     if not (WeakAuras and WeakAuras.GetRegion) then return end
     local ok, region = pcall(WeakAuras.GetRegion, id)
     if ok and region then styleWAIcon(region) end
-    -- Also skin any currently-active CLONES (one aura showing multiple icons).
-    -- GetRegion(id) only returns the base region, so these were missed before.
-    if WeakAuras.clones and type(WeakAuras.clones[id]) == "table" then
-        for _, cloneRegion in pairs(WeakAuras.clones[id]) do
-            if type(cloneRegion) == "table" then pcall(styleWAIcon, cloneRegion) end
-        end
+end
+
+-- WeakAuras re-parents an anchored region to its ANCHOR frame (nameplate, target
+-- frame, screen, ...) — not always WeakAurasFrame — and dynamic-group CLONES are
+-- not returned by WeakAuras.GetRegion(id). Its internal region tables (Private.*)
+-- aren't reachable from an external addon, so we instead walk the real anchor
+-- frames and skin any icon region we find. styleWAIcon self-filters on
+-- regionType, so calling it on non-icon frames is harmless.
+local function skinFrameTree(frame, depth)
+    if not frame or depth > 6 then return end
+    if frame.regionType == "icon" and frame.icon then
+        pcall(styleWAIcon, frame)
+    end
+    if frame.GetChildren then
+        local kids = { frame:GetChildren() }
+        for i = 1, #kids do skinFrameTree(kids[i], depth + 1) end
     end
 end
 
--- Scan all currently-existing icon regions (lazy: only auras that exist now)
+local function skinNameplates()
+    if not (C_NamePlate and C_NamePlate.GetNamePlates) then return end
+    local plates = C_NamePlate.GetNamePlates()
+    if not plates then return end
+    for _, plate in ipairs(plates) do skinFrameTree(plate, 0) end
+end
+
+-- Scan + skin all currently-existing icon regions: base regions via the public
+-- GetRegion, plus anchored/cloned regions via the anchor-frame walk.
 local function skinAllWAIcons()
     if not mod._enabled or not mod.db or not mod.db.skinWeakAuras then return end
-    if not (WeakAuras and WeakAuras.GetRegion) then return end
-    local saved = _G.WeakAurasSaved
-    if not (saved and saved.displays) then return end
-    for id, data in pairs(saved.displays) do
-        if type(data) == "table" and data.regionType == "icon" then
-            skinWAById(id)
+    if WeakAuras and WeakAuras.GetRegion then
+        local saved = _G.WeakAurasSaved
+        if saved and saved.displays then
+            for id, data in pairs(saved.displays) do
+                if type(data) == "table" and data.regionType == "icon" then
+                    skinWAById(id)
+                end
+            end
         end
+    end
+    skinFrameTree(_G.WeakAurasFrame, 0)
+    skinFrameTree(_G.TargetFrame, 0)
+    skinFrameTree(_G.FocusFrame, 0)
+    skinNameplates()
+end
+
+-- Targeted re-skins for unit-anchored auras as the unit's frame appears.
+local function onNamePlateAdded(_, unit)
+    if not (mod._enabled and mod.db and mod.db.skinWeakAuras) then return end
+    if not (unit and C_NamePlate and C_NamePlate.GetNamePlateForUnit) then return end
+    if C_Timer and C_Timer.After then
+        C_Timer.After(0.05, function()  -- let WeakAuras attach its region first
+            local plate = C_NamePlate.GetNamePlateForUnit(unit)
+            if plate then skinFrameTree(plate, 0) end
+        end)
+    end
+end
+local function onTargetChanged()
+    if not (mod._enabled and mod.db and mod.db.skinWeakAuras) then return end
+    if C_Timer and C_Timer.After then
+        C_Timer.After(0.05, function() skinFrameTree(_G.TargetFrame, 0) end)
     end
 end
 
 -- Hook WeakAuras.Add so future / edited / re-loaded icon auras get skinned too.
--- (Private is not reachable externally; Add is the public per-aura entry point.)
+-- (WeakAuras' region tables live under its private namespace which isn't reachable
+-- from here; Add is the public per-aura entry point. Anchored/cloned regions are
+-- handled by the anchor-frame walk in skinAllWAIcons + the nameplate/target events.)
 local waHooked = false
 local function hookWeakAuras()
-    if waHooked or not WeakAuras then return end
+    if waHooked or not (WeakAuras and WeakAuras.Add) then return end
     waHooked = true
-
-    -- Primary, most reliable catch: WeakAuras calls regionTypes.icon.modify() for
-    -- EVERY icon region it builds — including dynamic-group CLONES (one aura that
-    -- shows multiple instances), which GetRegion(id) never returns. That gap was
-    -- why some auras had no rim.
-    if WeakAuras.regionTypes and WeakAuras.regionTypes.icon
-       and type(WeakAuras.regionTypes.icon.modify) == "function" then
-        hooksecurefunc(WeakAuras.regionTypes.icon, "modify", function(_, region)
-            if not (mod._enabled and mod.db and mod.db.skinWeakAuras) then return end
-            if C_Timer and C_Timer.After then
-                C_Timer.After(0, function() pcall(styleWAIcon, region) end)  -- after sizing
-            else
-                pcall(styleWAIcon, region)
-            end
-        end)
-    end
-
-    -- Fallback for the base region on definition / edit / reload.
-    if WeakAuras.Add then
-        hooksecurefunc(WeakAuras, "Add", function(data)
-            if not (mod._enabled and mod.db and mod.db.skinWeakAuras) then return end
-            if type(data) ~= "table" or data.regionType ~= "icon" or not data.id then return end
-            local id = data.id
-            if C_Timer and C_Timer.After then
-                C_Timer.After(0.05, function() skinWAById(id) end)  -- let the region build
-            else
-                skinWAById(id)
-            end
-        end)
-    end
+    hooksecurefunc(WeakAuras, "Add", function(data)
+        if not (mod._enabled and mod.db and mod.db.skinWeakAuras) then return end
+        if type(data) ~= "table" or data.regionType ~= "icon" or not data.id then return end
+        local id = data.id
+        if C_Timer and C_Timer.After then
+            C_Timer.After(0.05, function() skinWAById(id) end)  -- let the region build
+        else
+            skinWAById(id)
+        end
+    end)
 end
 
 -- =========================================================
@@ -481,6 +505,10 @@ function mod:OnEnable()
     ns:RegisterEvent("PET_BAR_UPDATE",            skinAll)
     ns:RegisterEvent("PLAYER_REGEN_DISABLED",     skinAllWAIcons)  -- procs appearing in combat
     ns:RegisterEvent("PLAYER_REGEN_ENABLED",      skinAllWAIcons)
+    -- Unit-anchored WeakAuras live on the unit's frame, not WeakAurasFrame —
+    -- skin them as the target / nameplate appears.
+    ns:RegisterEvent("PLAYER_TARGET_CHANGED",     onTargetChanged)
+    ns:RegisterEvent("NAME_PLATE_UNIT_ADDED",     onNamePlateAdded)
 end
 
 function mod:OnDisable()
@@ -489,6 +517,8 @@ function mod:OnDisable()
     ns:UnregisterEvent("PET_BAR_UPDATE",          skinAll)
     ns:UnregisterEvent("PLAYER_REGEN_DISABLED",   skinAllWAIcons)
     ns:UnregisterEvent("PLAYER_REGEN_ENABLED",    skinAllWAIcons)
+    ns:UnregisterEvent("PLAYER_TARGET_CHANGED",   onTargetChanged)
+    ns:UnregisterEvent("NAME_PLATE_UNIT_ADDED",   onNamePlateAdded)
     -- Note: existing skins stay until /reload (we don't tear down the borders
     -- to avoid touching buttons in combat). A /reload fully removes them.
 end
