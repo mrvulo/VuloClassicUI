@@ -47,6 +47,15 @@ local FRAMES = {
         extraHide   = { "TradeSkillHorizontalBarLeft" },
         detailTex   = { "TradeSkillDetailScrollFrameTop", "TradeSkillDetailScrollFrameBottom" },
         hideRegions = { 4, 5, 8 },
+        repos = function(f)
+            local inv    = _G.TradeSkillInvSlotDropdown
+            local sub    = _G.TradeSkillSubClassDropdown
+            local search = _G.TradeSearchInputBox
+            local anchor = _G.TradeSkillFrameAvailableFilterCheckButtonText
+            if inv then inv:ClearAllPoints(); inv:SetPoint("TOPLEFT", f, "TOPLEFT", 550, -42) end
+            if inv and sub then sub:ClearAllPoints(); sub:SetPoint("RIGHT", inv, "LEFT", -10, 0) end
+            if search and anchor then search:ClearAllPoints(); search:SetPoint("LEFT", anchor, "RIGHT", 30, 0) end
+        end,
     },
     {
         addon       = "Blizzard_CraftUI",
@@ -65,6 +74,10 @@ local FRAMES = {
         costFmt     = "Craft%dCost",   -- craft rows carry a cost sub-element
         detailTex   = { "CraftDetailScrollFrameTop", "CraftDetailScrollFrameBottom" },
         hideRegions = { 4, 5, 9, 10 },
+        repos = function(f)
+            local dd = f.Dropdown
+            if dd then dd:ClearAllPoints(); dd:SetPoint("TOPLEFT", f, "TOPLEFT", 550, -42) end
+        end,
     },
 }
 
@@ -187,6 +200,9 @@ local function setupFrame(cfg)
                 local e = _G[n]
                 if e then if e.SetSize then e:SetSize(1, 1) end; if e.Hide then e:Hide() end end
             end
+
+            -- Reposition the filter dropdowns / search box for the wider frame
+            if cfg.repos then cfg.repos(f) end
 
             -- Parchment background: two slices of the bundled image fill the
             -- whole frame at ~1:1 (left = list, right = detail).
