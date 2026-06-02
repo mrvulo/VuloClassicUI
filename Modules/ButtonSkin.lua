@@ -378,6 +378,13 @@ local function skinWAById(id)
     if not (WeakAuras and WeakAuras.GetRegion) then return end
     local ok, region = pcall(WeakAuras.GetRegion, id)
     if ok and region then styleWAIcon(region) end
+    -- Also skin any currently-active CLONES (one aura showing multiple icons).
+    -- GetRegion(id) only returns the base region, so these were missed before.
+    if WeakAuras.clones and type(WeakAuras.clones[id]) == "table" then
+        for _, cloneRegion in pairs(WeakAuras.clones[id]) do
+            if type(cloneRegion) == "table" then pcall(styleWAIcon, cloneRegion) end
+        end
+    end
 end
 
 -- Scan all currently-existing icon regions (lazy: only auras that exist now)
@@ -397,18 +404,38 @@ end
 -- (Private is not reachable externally; Add is the public per-aura entry point.)
 local waHooked = false
 local function hookWeakAuras()
-    if waHooked or not (WeakAuras and WeakAuras.Add) then return end
+    if waHooked or not WeakAuras then return end
     waHooked = true
-    hooksecurefunc(WeakAuras, "Add", function(data)
-        if not (mod._enabled and mod.db and mod.db.skinWeakAuras) then return end
-        if type(data) ~= "table" or data.regionType ~= "icon" or not data.id then return end
-        local id = data.id
-        if C_Timer and C_Timer.After then
-            C_Timer.After(0.05, function() skinWAById(id) end)  -- let the region build
-        else
-            skinWAById(id)
-        end
-    end)
+
+    -- Primary, most reliable catch: WeakAuras calls regionTypes.icon.modify() for
+    -- EVERY icon region it builds — including dynamic-group CLONES (one aura that
+    -- shows multiple instances), which GetRegion(id) never returns. That gap was
+    -- why some auras had no rim.
+    if WeakAuras.regionTypes and WeakAuras.regionTypes.icon
+       and type(WeakAuras.regionTypes.icon.modify) == "function" then
+        hooksecurefunc(WeakAuras.regionTypes.icon, "modify", function(_, region)
+            if not (mod._enabled and mod.db and mod.db.skinWeakAuras) then return end
+            if C_Timer and C_Timer.After then
+                C_Timer.After(0, function() pcall(styleWAIcon, region) end)  -- after sizing
+            else
+                pcall(styleWAIcon, region)
+            end
+        end)
+    end
+
+    -- Fallback for the base region on definition / edit / reload.
+    if WeakAuras.Add then
+        hooksecurefunc(WeakAuras, "Add", function(data)
+            if not (mod._enabled and mod.db and mod.db.skinWeakAuras) then return end
+            if type(data) ~= "table" or data.regionType ~= "icon" or not data.id then return end
+            local id = data.id
+            if C_Timer and C_Timer.After then
+                C_Timer.After(0.05, function() skinWAById(id) end)  -- let the region build
+            else
+                skinWAById(id)
+            end
+        end)
+    end
 end
 
 -- =========================================================
