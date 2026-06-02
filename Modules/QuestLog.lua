@@ -37,17 +37,22 @@ local enlarged = false
 -- =========================================================
 -- Title formatting: "[15+] Title (1234)"
 -- =========================================================
+-- In TBC 2.5.5, GetQuestLogTitle returns suggestedGroup as a localized TAG
+-- STRING ("Dungeon", "Gruppe", "Heroisch", ...) — NOT a number. Handle both.
+local function diffTag(suggestedGroup)
+    if not (mod.db.difficulty and suggestedGroup) then return "" end
+    if type(suggestedGroup) == "string" and suggestedGroup ~= "" then
+        return " (" .. suggestedGroup .. ")"
+    elseif type(suggestedGroup) == "number" and suggestedGroup > 0 then
+        return " (+)"
+    end
+    return ""
+end
+
 local function formatTitle(title, level, suggestedGroup, questID)
-    local prefix = ""
-    if mod.db.levels and level and level > 0 then
-        local plus = (mod.db.difficulty and suggestedGroup and suggestedGroup > 0) and "+" or ""
-        prefix = format("[%d%s] ", level, plus)
-    end
-    local idTag = ""
-    if mod.db.questIDs and questID and questID > 0 then
-        idTag = format(" |cff808080(%d)|r", questID)
-    end
-    return prefix .. title .. idTag
+    local prefix = (mod.db.levels and level and level > 0) and format("[%d] ", level) or ""
+    local idTag  = (mod.db.questIDs and questID and questID > 0) and format(" |cff808080(%d)|r", questID) or ""
+    return prefix .. title .. diffTag(suggestedGroup) .. idTag
 end
 
 -- Levels on the quest list (hooked onto QuestLog_Update)
@@ -201,12 +206,13 @@ local function enlarge()
 
         -- stretch the four parchment quadrants to fill the bigger frame
         local W, H = 714, 487 + tall
+        -- Stretch each parchment quadrant to cover a quarter of the bigger frame.
+        -- Keep the original TexCoord (overriding it showed dark atlas regions).
         local function fillQuad(r, point)
             if not (r and r.ClearAllPoints) then return end
             r:ClearAllPoints()
             r:SetPoint(point, QLF, point, 0, 0)
             r:SetSize(W / 2 + 1, H / 2 + 1)
-            if r.SetTexCoord then pcall(r.SetTexCoord, r, 0, 1, 0, 1) end
             r:Show()
         end
         local regs = { QLF:GetRegions() }
