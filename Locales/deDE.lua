@@ -33,10 +33,8 @@ ns:RegisterLocale("deDE", {
     ["|cff9b6cffBlocked this session: %d|r"] = "|cff9b6cffDiese Sitzung geblockt: %d|r",
 
     -- =====================================================
-    -- Sidebar search + /vcui help
+    -- /vcui help
     -- =====================================================
-    ["Search…"] = "Suchen…",
-    ["No matches."] = "Keine Treffer.",
     ["VuloClassicUI — commands:"] = "VuloClassicUI — Befehle:",
     ["open the options window"] = "Optionsfenster öffnen",
     ["jump to that module's page"] = "zur Seite dieses Moduls springen",

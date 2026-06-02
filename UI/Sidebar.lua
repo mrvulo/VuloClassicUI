@@ -229,21 +229,10 @@ function UI:PopulateSidebar()
 
     rebuildBuckets()
 
-    -- Search filter (set by the sidebar search box). Matches module name, key or group.
-    local filter = UI._sidebarFilter or ""
-    local function moduleMatches(key, mod)
-        if filter == "" then return true end
-        local name = (L[mod.name] or mod.name or ""):lower()
-        return name:find(filter, 1, true)
-            or tostring(key):lower():find(filter, 1, true)
-            or (mod.group or ""):lower():find(filter, 1, true)
-    end
-
     local y = 0
-    local anyShown = false
 
-    -- "Overview" entry at the very top → opens the dashboard (hidden while searching)
-    if filter == "" then
+    -- "Overview" entry at the very top → opens the dashboard
+    do
         local row = CreateFrame("Button", nil, parent)
         row:SetHeight(ROW_HEIGHT)
         row:SetPoint("TOPLEFT",  parent, "TOPLEFT",  0, -y)
@@ -291,51 +280,26 @@ function UI:PopulateSidebar()
         local moduleKeys = UI.sidebarGroupBuckets[groupName]
         local hidden = UI.sidebarHiddenGroups and UI.sidebarHiddenGroups[groupName]
         if moduleKeys and #moduleKeys > 0 and not hidden then
-            -- Apply the search filter to this group's modules
-            local visibleKeys = {}
+            -- Group header
+            local header = createGroupHeader(parent, groupName)
+            header:SetPoint("TOPLEFT",  parent, "TOPLEFT",   0, -y)
+            header:SetPoint("TOPRIGHT", parent, "TOPRIGHT",  0, -y)
+            table.insert(UI._sidebarChildren, header)
+            y = y + GROUP_HEADER_H
+
+            -- Module rows
             for _, key in ipairs(moduleKeys) do
                 local mod = ns.modules[key]
-                if mod and moduleMatches(key, mod) then
-                    visibleKeys[#visibleKeys + 1] = key
-                end
+                local row = createModuleRow(parent, key, mod)
+                row:SetPoint("TOPLEFT",  parent, "TOPLEFT",   0, -y)
+                row:SetPoint("TOPRIGHT", parent, "TOPRIGHT",  0, -y)
+                table.insert(UI._sidebarChildren, row)
+                UI.sidebarButtons[key] = row
+                y = y + ROW_HEIGHT
             end
 
-            if #visibleKeys > 0 then
-                -- Group header
-                local header = createGroupHeader(parent, groupName)
-                header:SetPoint("TOPLEFT",  parent, "TOPLEFT",   0, -y)
-                header:SetPoint("TOPRIGHT", parent, "TOPRIGHT",  0, -y)
-                table.insert(UI._sidebarChildren, header)
-                y = y + GROUP_HEADER_H
-
-                -- Module rows
-                for _, key in ipairs(visibleKeys) do
-                    local mod = ns.modules[key]
-                    local row = createModuleRow(parent, key, mod)
-                    row:SetPoint("TOPLEFT",  parent, "TOPLEFT",   0, -y)
-                    row:SetPoint("TOPRIGHT", parent, "TOPRIGHT",  0, -y)
-                    table.insert(UI._sidebarChildren, row)
-                    UI.sidebarButtons[key] = row
-                    y = y + ROW_HEIGHT
-                    anyShown = true
-                end
-
-                y = y + GROUP_GAP
-            end
+            y = y + GROUP_GAP
         end
-    end
-
-    -- "No matches" hint when a search filters everything out
-    if filter ~= "" and not anyShown then
-        local hintFrame = CreateFrame("Frame", nil, parent)
-        hintFrame:SetHeight(ROW_HEIGHT)
-        hintFrame:SetPoint("TOPLEFT",  parent, "TOPLEFT",  0, -y)
-        hintFrame:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, -y)
-        local hint = hintFrame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-        hint:SetPoint("LEFT", hintFrame, "LEFT", 10, 0)
-        hint:SetText(L["No matches."])
-        table.insert(UI._sidebarChildren, hintFrame)
-        y = y + ROW_HEIGHT
     end
 
     parent:SetHeight(math.max(y + 10, 100))
