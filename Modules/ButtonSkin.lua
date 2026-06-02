@@ -90,7 +90,11 @@ local STYLES = {
     accent   = { border = "accent", bg = true,  mask = nil,          shadow = false },  -- square, purple edge
     circle   = { border = nil,      bg = true,  mask = MASK_CIRCLE,  shadow = false },  -- circular
     minimal  = { border = nil,      bg = false, mask = nil,          shadow = false },  -- cropped icon only
+    -- Minimal Dark (SUI-style): keep Blizzard's border but desaturate + darken it
+    minimaldark = { border = nil,   bg = false, mask = nil,          shadow = false, darkenNormal = true },
 }
+
+local DARK_TINT = 0.12   -- "minimaldark" border tint (SUI uses ~0.15; a touch darker)
 
 -- Style for the action bars (key="style") or WeakAuras (key="waStyle")
 local function currentStyle(forWA)
@@ -119,6 +123,25 @@ local function hideNormalTexture(button)
     if slot then slot:SetAlpha(0) end
 end
 
+-- Per-style handling of Blizzard's gold border: most styles hide it (we draw our
+-- own), but "minimaldark" keeps it and just desaturates + darkens it (SUI-style).
+local function applyNormalTexture(button)
+    if not currentStyle().darkenNormal then
+        hideNormalTexture(button)
+        return
+    end
+    local nt = (button.GetNormalTexture and button:GetNormalTexture())
+            or getRegion(button, "NormalTexture", button.NormalTexture)
+    if nt then
+        if button._vcuiNTOrig then nt:SetTexture(button._vcuiNTOrig) end  -- restore after a hide-style
+        nt:SetAlpha(1)
+        if nt.SetDesaturated then nt:SetDesaturated(true) end
+        nt:SetVertexColor(DARK_TINT, DARK_TINT, DARK_TINT, 1)
+    end
+    local slot = getRegion(button, "SlotBackground", button.SlotBackground)
+    if slot then slot:SetAlpha(0) end
+end
+
 -- Blizzard re-applies the NormalTexture on state changes and this client has
 -- no reliable global ActionButton_Update, so hook each button's setter once.
 local function lockNormalTexture(button)
@@ -126,10 +149,7 @@ local function lockNormalTexture(button)
     button._vcuiNTHook = true
     hooksecurefunc(button, "SetNormalTexture", function(self)
         if mod._enabled and self._vcuiSkinned then
-            local n = self.GetNormalTexture and self:GetNormalTexture()
-            if n and n.GetAlpha and n:GetAlpha() ~= 0 then
-                n:SetTexture(nil); n:SetAlpha(0)
-            end
+            applyNormalTexture(self)  -- re-hide or re-darken per the active style
         end
     end)
 end
@@ -219,12 +239,21 @@ local function applyStyle(button)
             button._vcuiBorder:Hide()
         end
     end
+
+    -- Gold border: hide it, or (minimaldark) keep it desaturated + darkened
+    applyNormalTexture(button)
 end
 
 local function skinButton(button)
     if not button then return end
     if not button._vcuiSkinned then
         button._vcuiSkinned = true
+
+        -- Capture the default gold-border texture while it's still set, so the
+        -- "minimaldark" style can darken it instead of hiding it (and restore it
+        -- when switching back to that style from a hide-style).
+        local nt0 = button.GetNormalTexture and button:GetNormalTexture()
+        if nt0 and nt0.GetTexture then button._vcuiNTOrig = nt0:GetTexture() end
 
         -- Dark rounded rim (masked backdrop) one size larger than the icon,
         -- created once here and shown/hidden per style in applyStyle.
@@ -253,8 +282,7 @@ local function skinButton(button)
         button._vcuiBorder = border
     end
 
-    hideNormalTexture(button)
-    applyStyle(button)
+    applyStyle(button)  -- also sets the gold-border state (hide or darken) per style
 end
 
 -- =========================================================
@@ -287,7 +315,6 @@ local function refreshAll()
     if not mod._enabled or not mod.db then return end
     forEachButton(function(b)
         if b._vcuiSkinned then
-            hideNormalTexture(b)
             applyStyle(b)
         end
     end)
@@ -553,7 +580,7 @@ function mod:OnEnable()
         if _G.ActionButton_Update then
             hooksecurefunc("ActionButton_Update", function(button)
                 if mod._enabled and button and button._vcuiSkinned then
-                    hideNormalTexture(button)
+                    applyNormalTexture(button)
                 end
             end)
         end
@@ -598,6 +625,7 @@ function mod:GetOptions()
         { value = "accent",  text = L["Square (accent edge)"] },
         { value = "circle",  text = L["Circle"] },
         { value = "minimal", text = L["Minimal (icon only)"] },
+        { value = "minimaldark", text = L["Minimal Dark (darkened Blizzard border)"] },
     }
 
     return {

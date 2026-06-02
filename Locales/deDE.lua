@@ -823,6 +823,7 @@ ns:RegisterLocale("deDE", {
     ["Square (accent edge)"] = "Eckig (Akzent-Rand)",
     ["Circle"] = "Kreis",
     ["Minimal (icon only)"] = "Minimal (nur Icon)",
+    ["Minimal Dark (darkened Blizzard border)"] = "Minimal Dunkel (abgedunkelter Blizzard-Rahmen)",
     ["|cffaaaaaaNote: turning a skin off fully reverts after a /reload.|r"] = "|cffaaaaaaHinweis: Einen Skin ausschalten wird nach /reload vollständig rückgängig gemacht.|r",
     ["Also skin pet & stance buttons"] = "Auch Begleiter- & Haltungs-Buttons skinnen",
     ["Enhances the character panel: iLvL per slot, socket display, shortened enchant text."] = "Erweitert das Charakterfenster: iLvL pro Slot, Sockel-Anzeige, gekürzter Verzauberungstext.",
