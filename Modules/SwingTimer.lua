@@ -15,15 +15,28 @@
 local _, ns = ...
 local L = ns.L
 
+-- Melee classes (TBC): the swing timer defaults ON for these, OFF for pure
+-- casters (Mage / Priest / Warlock). Users can still toggle it per character.
+local MELEE_CLASSES = {
+    WARRIOR = true, ROGUE = true, PALADIN = true,
+    SHAMAN  = true, DRUID = true, HUNTER  = true,
+}
+local function isMeleeClass()
+    local _, classFile = UnitClass("player")
+    if not classFile then return true end  -- class not known yet (file load): default on; the OnEnable migration re-checks once it is
+    return MELEE_CLASSES[classFile] == true
+end
+
 -- group "_hidden": no own sidebar entry. The options live as a section inside
--- the Player Castbar module (see PlayerCastbar:GetOptions). The timer itself
--- runs for every class (the off-hand bar simply only shows while dual-wielding).
+-- the Player Castbar module (see PlayerCastbar:GetOptions). Defaults ON for
+-- melee classes and OFF for pure casters; the off-hand bar only shows while
+-- dual-wielding. Users can still toggle it per character.
 local mod = ns:RegisterModule("swingtimer", {
     name        = "Swing Timer",
     group       = "_hidden",
     description = "Weapon swing timer for your melee auto-attacks (any melee class). Shows a main-hand bar and, while dual-wielding, an off-hand bar.",
     defaults = {
-        enabled         = true,
+        enabled         = isMeleeClass(),  -- ON for melee classes, OFF for casters
         width           = 200,
         height          = 18,
         gap             = 3,
@@ -486,6 +499,23 @@ end
 -- Lifecycle
 -- =========================================================
 function mod:OnEnable()
+    -- One-time: re-apply the class-based default (melee = on, caster = off) for
+    -- profiles created before this became class-dependent. Runs once; after that
+    -- the user's own toggle sticks.
+    if not mod.db._meleeDefaultApplied then
+        mod.db._meleeDefaultApplied = true
+        mod.db.enabled = isMeleeClass()
+        if not mod.db.enabled then
+            -- Caster: switch the module off cleanly. Deferred so the core's
+            -- _enabled flag (set right after OnEnable returns) gets reset —
+            -- otherwise a later manual re-enable would be a no-op.
+            if C_Timer and C_Timer.After then
+                C_Timer.After(0, function() if ns.SafeDisable then ns:SafeDisable(mod) end end)
+            end
+            return
+        end
+    end
+
     playerGUID = UnitGUID("player")
     -- Migrate old/removed texture choices (e.g. "Blizzard") to a bundled one
     if not isBundledTexture(mod.db.texture)   then mod.db.texture   = DEFAULT_TEXTURE end
