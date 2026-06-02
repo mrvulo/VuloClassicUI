@@ -779,6 +779,8 @@ ns:RegisterLocale("deDE", {
     ["Action Bars"] = "Aktionsleisten",
     ["Skin the action bars"] = "Aktionsleisten skinnen",
     ["Bar style"] = "Leisten-Stil",
+    ["Bar icon size"] = "Icon-Größe der Leisten",
+    ["How much of the button the icon fills in Shadow style. Higher = bigger icons with a thinner rim."] = "Wie viel des Buttons das Icon im Shadow-Stil ausfüllt. Höher = größere Icons mit dünnerem Rand.",
     ["WeakAuras Icons"] = "WeakAuras-Icons",
     ["Skin WeakAuras icons"] = "WeakAuras-Icons skinnen",
     ["WeakAuras style"] = "WeakAuras-Stil",

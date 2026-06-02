@@ -22,6 +22,7 @@ local mod = ns:RegisterModule("buttonskin", {
         waStyle       = "shadow",  -- WeakAuras icons: same set, configured separately
         skinPetStance = true,      -- also skin pet + stance buttons
         skinBars      = true,      -- skin the action bars
+        barIconSize   = 90,        -- shadow style: icon fills this % of the button (rest = rim)
         skinWeakAuras = true,      -- skin WeakAuras icons
         hideWABorder  = true,      -- hide WeakAuras' own border subregions when skinning
     },
@@ -49,7 +50,7 @@ local TEX_BORDER   = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\Normal.tga
 -- small icons, too thin on big ones). RIM_OUTSET is a small fixed bleed for the
 -- soft shadow past the frame edge. Shrinking via the mask survives game updates.
 local RIM_OUTSET  = 2
-local SHRINK_PCT  = 0.12   -- icon shows at ~76% of the frame (reference proportion)
+-- (icon shrink for the shadow style is configurable via mod.db.barIconSize)
 
 -- The shadow layers behind the icon: filled dark backdrop + black rounded
 -- border with a soft drop-shadow (the real "Shadow" look), both bleeding a
@@ -196,7 +197,11 @@ local function applyStyle(button)
     -- backdrop shows as a rim around it). Rounded/Circle = full mask.
     if icon then
         local maskTex = st.mask or (st.shadow and MASK_SQUARE) or nil
-        local pct     = st.shadow and SHRINK_PCT or 0
+        -- Shadow: shrink the icon so the dark backdrop reads as a rim. The icon
+        -- fills mod.db.barIconSize % of the button; the inset per side is half
+        -- the remainder. Bigger barIconSize => bigger icon, thinner rim.
+        local size = tonumber(mod.db.barIconSize) or 90
+        local pct  = st.shadow and ((100 - size) / 200) or 0
         setMasked(button, icon, maskTex ~= nil, maskTex, pct)
     end
 
@@ -610,6 +615,11 @@ function mod:GetOptions()
           values = STYLE_VALUES,
           get = function() return mod.db.style or "shadow" end,
           set = function(_, v) mod.db.style = v; refreshAll() end },
+        { type = "slider", label = L["Bar icon size"],
+          tooltip = L["How much of the button the icon fills in Shadow style. Higher = bigger icons with a thinner rim."],
+          min = 76, max = 100, step = 2,
+          get = function() return mod.db.barIconSize or 90 end,
+          set = function(_, v) mod.db.barIconSize = v; refreshAll() end },
         { type = "toggle", label = L["Also skin pet & stance buttons"],
           get = function() return mod.db.skinPetStance end,
           set = function(_, v) mod.db.skinPetStance = v; skinAll() end },
