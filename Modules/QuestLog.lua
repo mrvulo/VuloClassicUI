@@ -6,9 +6,9 @@
 --   * a theme choice: Parchment or Dark
 --
 -- TBC 2.5.5 has no C_QuestLog.GetInfo (Shadowlands+), so this uses the classic
--- QuestLogFrame / GetQuestLogTitle / QuestLog_Update API. The frame is given a
--- single tiled Blizzard parchment background (no foreign assets), which the
--- theme then tints. Everything is guarded.
+-- QuestLogFrame / GetQuestLogTitle / QuestLog_Update API. The frame's own
+-- parchment regions are retextured with a neutral Blizzard parchment (no foreign
+-- assets), which the theme then tints. Everything is guarded.
 -- =========================================================
 local _, ns = ...
 local L = ns.L
@@ -31,10 +31,11 @@ local GetNumQuestLogEntries = GetNumQuestLogEntries
 local GetQuestLogSelection  = GetQuestLogSelection
 local format                = string.format
 
--- A tileable Blizzard parchment (present in the client even though TBC has no
--- achievements UI). Used as a single background so the enlarged frame fills
--- seamlessly and the dark theme has one surface to tint.
-local PARCHMENT = "Interface\\AchievementFrame\\UI-GuildAchievement-Parchment-Horizontal"
+-- A neutral (already-desaturated) Blizzard parchment. We retexture the quest
+-- log's own parchment regions with it so the theme can tint it to any tone
+-- without an orange cast, and the enlarged frame fills the same way Blizzard's
+-- pieces do. No foreign assets.
+local PARCHMENT = "Interface\\AchievementFrame\\UI-GuildAchievement-Parchment-Horizontal-Desaturated"
 
 local hooked   = false
 local enlarged = false
@@ -114,7 +115,10 @@ local function installHooks()
 end
 
 -- =========================================================
--- Single tiled parchment background (replaces Blizzard's mismatched pieces)
+-- Background: retexture the quest log's OWN parchment regions (3-6).
+-- This is the approach the reference addons use for the enlarged frame: keep
+-- Blizzard's regions (so the list area on the left keeps its parchment) and
+-- just swap the image + tint, instead of hiding them and overlaying our own.
 -- =========================================================
 local function setupBg()
     if bgDone then return end
@@ -122,45 +126,40 @@ local function setupBg()
     if not QLF then return end
     bgDone = true
     pcall(function()
-        -- Hide Blizzard's background pieces (the parchment quadrants on the
-        -- classic quest log are regions 3-6; the frame border/title are others).
         local regs = { QLF:GetRegions() }
+        local q = {}
         for i = 3, 6 do
-            if regs[i] and regs[i].GetObjectType and regs[i]:GetObjectType() == "Texture" then
-                regs[i]:Hide()
+            local r = regs[i]
+            if r and r.GetObjectType and r:GetObjectType() == "Texture" then q[i] = r end
+        end
+
+        if enlarged and q[3] and q[4] then
+            -- Two big quadrants fill the whole enlarged frame (list + detail);
+            -- the bottom pair isn't needed once the top pair is tall enough.
+            q[3]:SetSize(512, 512)
+            q[3]:SetTexture(PARCHMENT)
+            q[3]:SetTexCoord(0, 1, 0, 1)
+
+            q[4]:ClearAllPoints()
+            q[4]:SetPoint("TOPLEFT", q[3], "TOPRIGHT", 0, 0)
+            q[4]:SetSize(256, 512)
+            q[4]:SetTexture(PARCHMENT)
+            q[4]:SetTexCoord(0, 1, 0, 1)
+
+            if q[5] then q[5]:Hide() end
+            if q[6] then q[6]:Hide() end
+            QLF._vcuiRegs = { q[3], q[4] }
+        else
+            -- Normal size: retexture every quadrant in place.
+            local list = {}
+            for i = 3, 6 do
+                if q[i] then
+                    q[i]:SetTexture(PARCHMENT)
+                    q[i]:SetTexCoord(0, 1, 0, 1)
+                    list[#list + 1] = q[i]
+                end
             end
-        end
-
-        -- Reach almost to the gold border (the border art sits above this in a
-        -- higher layer, so a small inset closes the gap without covering it).
-        local function cover(t)
-            t:ClearAllPoints()
-            t:SetPoint("TOPLEFT",     QLF, "TOPLEFT",      4, -4)
-            t:SetPoint("BOTTOMRIGHT", QLF, "BOTTOMRIGHT", -4,  4)
-        end
-
-        -- Solid colour base first, so the frame is never see-through even if the
-        -- parchment texture ever fails to load.
-        local base = QLF._vcuiBgColor
-        if not base then base = QLF:CreateTexture(nil, "BACKGROUND", nil, 0); QLF._vcuiBgColor = base end
-        cover(base)
-
-        -- Parchment texture over the base.
-        local bg = QLF._vcuiBg
-        if not bg then bg = QLF:CreateTexture(nil, "BACKGROUND", nil, 1); QLF._vcuiBg = bg end
-        cover(bg)
-        bg:SetTexture(PARCHMENT)
-
-        -- Subtle vertical divider between the list and the detail pane, so the
-        -- two areas read as separate panels again (lost when we flattened the bg).
-        if _G.QuestLogListScrollFrame then
-            local div = QLF._vcuiDiv
-            if not div then div = QLF:CreateTexture(nil, "ARTWORK"); QLF._vcuiDiv = div end
-            div:ClearAllPoints()
-            div:SetPoint("TOP",    _G.QuestLogListScrollFrame, "TOPRIGHT",    15,  6)
-            div:SetPoint("BOTTOM", _G.QuestLogListScrollFrame, "BOTTOMRIGHT", 15, -6)
-            div:SetWidth(2)
-            div:Show()
+            QLF._vcuiRegs = list
         end
     end)
 end
@@ -168,21 +167,13 @@ end
 local function applyTheme()
     local QLF = _G.QuestLogFrame
     if not QLF then return end
-    local base, bg = QLF._vcuiBgColor, QLF._vcuiBg
     local dark = (mod.db.theme == "dark")
-    if base then
-        if dark then base:SetColorTexture(0.11, 0.10, 0.09, 1)
-        else        base:SetColorTexture(0.86, 0.78, 0.60, 1) end
-    end
-    if bg then
-        if bg.SetDesaturated then bg:SetDesaturated(dark) end
-        if dark then bg:SetVertexColor(0.17, 0.16, 0.15, 1)
-        else        bg:SetVertexColor(0.96, 0.88, 0.70, 1) end  -- warm parchment tone
-    end
-    local div = QLF._vcuiDiv
-    if div then
-        if dark then div:SetColorTexture(1, 1, 1, 0.10)
-        else        div:SetColorTexture(0, 0, 0, 0.22) end
+    if QLF._vcuiRegs then
+        for _, r in ipairs(QLF._vcuiRegs) do
+            -- The texture is neutral/desaturated, so the tint IS the look.
+            if dark then r:SetVertexColor(0.16, 0.15, 0.14, 1)
+            else        r:SetVertexColor(0.95, 0.87, 0.70, 1) end  -- warm light parchment
+        end
     end
     if dark then lightenDetailText() end
     if _G.QuestLog_Update then pcall(_G.QuestLog_Update) end
