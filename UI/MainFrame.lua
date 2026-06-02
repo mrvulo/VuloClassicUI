@@ -341,9 +341,37 @@ function UI:CreateMainFrame()
     sidebarSep:SetPoint("BOTTOMLEFT", sidebar, "BOTTOMRIGHT", 0, 0)
     sidebarSep:SetWidth(1)
 
+    -- Search box at the top of the sidebar (filters the module list below)
+    local search
+    local okSB = pcall(function()
+        search = CreateFrame("EditBox", nil, sidebar, "SearchBoxTemplate")
+    end)
+    if not okSB or not search then
+        search = CreateFrame("EditBox", nil, sidebar, "InputBoxTemplate")
+        search:SetTextInsets(8, 8, 0, 0)
+    end
+    search:SetPoint("TOPLEFT",  sidebar, "TOPLEFT",   10, -8)
+    search:SetPoint("TOPRIGHT", sidebar, "TOPRIGHT", -10, -8)
+    search:SetHeight(20)
+    search:SetAutoFocus(false)
+    if search.Instructions then search.Instructions:SetText(L["Search…"]) end
+    search:HookScript("OnTextChanged", function(self)
+        ns.UI._sidebarFilter = (self:GetText() or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
+        if ns.UI._searchTimer then ns.UI._searchTimer:Cancel() end
+        if C_Timer and C_Timer.NewTimer then
+            ns.UI._searchTimer = C_Timer.NewTimer(0.12, function()
+                if ns.UI.PopulateSidebar then ns.UI:PopulateSidebar() end
+            end)
+        elseif ns.UI.PopulateSidebar then
+            ns.UI:PopulateSidebar()
+        end
+    end)
+    search:HookScript("OnEscapePressed", function(self) self:SetText(""); self:ClearFocus() end)
+    f.sidebarSearch = search
+
     -- Sidebar ScrollFrame (for long module lists)
     local sidebarScroll = CreateFrame("ScrollFrame", nil, sidebar, "UIPanelScrollFrameTemplate")
-    sidebarScroll:SetPoint("TOPLEFT",     sidebar, "TOPLEFT",     6, -6)
+    sidebarScroll:SetPoint("TOPLEFT",     sidebar, "TOPLEFT",     6, -32)  -- below the search box
     sidebarScroll:SetPoint("BOTTOMRIGHT", sidebar, "BOTTOMRIGHT", -14, 6)
     local sidebarContent = CreateFrame("Frame", nil, sidebarScroll)
     sidebarContent:SetSize(SIDEBAR_WIDTH - 22, 10)

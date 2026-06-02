@@ -22,7 +22,9 @@ local mod = ns:RegisterModule("spamfilter", {
         hide          = true,   -- swallow their chat messages
         autoIgnore    = false,  -- also add them to the ignore list (~50 slot limit)
         scanMessage   = false,  -- also match against the message text, not just the name
+        blockLinks    = false,  -- also hide messages that contain a web link
         extraKeywords = "",     -- comma-separated extra keywords
+        whitelist     = "",     -- comma-separated names that are never filtered
     },
 })
 
@@ -119,13 +121,64 @@ end
 
 mod._blocked = 0  -- session counter (shown in options)
 
+-- Whitelist: names that are never filtered (cached set, rebuilt on change).
+local cachedWhitelist
+local function buildWhitelist()
+    local set = {}
+    for n in tostring(mod.db and mod.db.whitelist or ""):gmatch("[^,]+") do
+        n = normalize(n)
+        if n ~= "" then set[n] = true end
+    end
+    cachedWhitelist = set
+    return set
+end
+local function isWhitelisted(name)
+    local set = cachedWhitelist or buildWhitelist()
+    return set[normalize(name)] == true
+end
+
+-- Toggle a name on/off the whitelist (used by /vcui spam <name>).
+function mod.ToggleWhitelist(name)
+    if not (name and name ~= "" and mod.db) then return end
+    local key = normalize(name)
+    if key == "" then return end
+    local kept, removed = {}, false
+    for n in tostring(mod.db.whitelist or ""):gmatch("[^,]+") do
+        local t = n:gsub("^%s+", ""):gsub("%s+$", "")
+        if normalize(t) == key then removed = true else kept[#kept + 1] = t end
+    end
+    if not removed then kept[#kept + 1] = name end
+    mod.db.whitelist = table.concat(kept, ", ")
+    buildWhitelist()
+    if removed then
+        ns:Print(string.format(L["Spam filter: '%s' removed from the whitelist."], name))
+    else
+        ns:Print(string.format(L["Spam filter: '%s' added to the whitelist (never filtered)."], name))
+    end
+end
+
+-- Web-link detection for the optional link blocker.
+local TLDS = { "com","net","org","io","gg","ru","xyz","info","vip","club","online","shop","site","top","live","biz" }
+local function hasLink(s)
+    s = (s or ""):lower()
+    if s:find("https?://") or s:find("www%.") then return true end
+    for _, tld in ipairs(TLDS) do
+        if s:find("[%w%-]%." .. tld .. "%f[%A]") then return true end  -- domain.tld at a word boundary
+    end
+    return false
+end
+
 -- Chat message filter: return true to swallow the message.
 local function chatFilter(_, _, msg, author)
     if not (mod._enabled and mod.db) then return false end
     local name = author and author:gsub("%-.*$", "") or ""   -- drop -Realm
-    local hit = matches(name) or (mod.db.scanMessage and matches(msg))
+    if isWhitelisted(name) then return false end
+    local nameHit = matches(name)
+    local hit = nameHit
+        or (mod.db.scanMessage and matches(msg))
+        or (mod.db.blockLinks and hasLink(msg))
     if not hit then return false end
-    maybeIgnore(author)
+    if nameHit then maybeIgnore(author) end  -- only ignore confirmed spammer names
     mod._blocked = mod._blocked + 1
     if mod.db.hide then return true end
     return false
@@ -142,6 +195,7 @@ local installed = false
 
 function mod:OnEnable()
     buildKeywords()
+    buildWhitelist()
     if installed then return end
     installed = true
     if ChatFrame_AddMessageEventFilter then
@@ -184,6 +238,12 @@ function mod:GetOptions()
         get = function() return mod.db.scanMessage end,
         set = function(_, v) mod.db.scanMessage = v end,
     })
+    table.insert(items, {
+        type = "toggle", label = L["Block messages with web links"],
+        tooltip = L["Hides any message containing a web link (http://, www., domain.tld) in the filtered channels. Whitelisted names are exempt. Opt-in — can catch the occasional legit link."],
+        get = function() return mod.db.blockLinks end,
+        set = function(_, v) mod.db.blockLinks = v end,
+    })
 
     table.insert(items, { type = "spacer", height = 6 })
     table.insert(items, { type = "header", text = L["Keywords"] })
@@ -193,6 +253,16 @@ function mod:GetOptions()
         type = "editbox", label = L["Extra keywords"],
         get = function() return mod.db.extraKeywords or "" end,
         set = function(_, v) mod.db.extraKeywords = v or ""; buildKeywords() end,
+    })
+
+    table.insert(items, { type = "spacer", height = 6 })
+    table.insert(items, { type = "header", text = L["Whitelist"] })
+    table.insert(items, { type = "desc",
+        text = L["|cffaaaaaaNames here are never filtered. Comma-separated, or use |r|cff9b6cff/vcui spam <name>|r|cffaaaaaa to toggle one.|r"] })
+    table.insert(items, {
+        type = "editbox", label = L["Never filter these names"],
+        get = function() return mod.db.whitelist or "" end,
+        set = function(_, v) mod.db.whitelist = v or ""; buildWhitelist() end,
     })
 
     table.insert(items, { type = "spacer", height = 6 })

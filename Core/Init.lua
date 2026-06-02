@@ -25,10 +25,31 @@ end)
 -- =========================================================
 -- Slash commands
 -- =========================================================
+local function printVcuiHelp()
+    local A = "|cff9b6cff"
+    ns:Print(L["VuloClassicUI — commands:"])
+    ns:Print(A .. "/vcui|r, /vulo — " .. L["open the options window"])
+    ns:Print(A .. "/vcui <module>|r — " .. L["jump to that module's page"])
+    ns:Print(A .. "/vcui modules|r — " .. L["list all modules with on/off state"])
+    ns:Print(A .. "/vcui spam <name>|r — " .. L["toggle a name on/off the spam-filter whitelist"])
+    ns:Print(A .. "/vcui goldreset|r — " .. L["reset the gold tracker session"])
+    ns:Print(A .. "/vcui debug|r, " .. A .. "/vcui reset|r")
+    ns:Print(A .. "/rl|r, /reloadui — " .. L["reload the UI"])
+    ns:Print(A .. "/lo|r, /loadout — " .. L["gear loadouts"])
+    ns:Print(A .. "/idtip|r — " .. L["tooltip IDs page"])
+    ns:Print(A .. "/dcp|r — " .. L["cooldown pulse page"])
+    ns:Print(A .. "/scttest|r — " .. L["castbar test"])
+    ns:Print(A .. "/swingtest|r — " .. L["swing timer test/mover"])
+    ns:Print(A .. "/vcuiwa|r — " .. L["WeakAuras skin diagnostics"])
+    ns:Print(A .. "/inspectreset|r — " .. L["fix a stuck inspect"])
+    ns:Print(A .. "/trinket|r — " .. L["trinket panel"])
+end
+
 SLASH_VULOCLASSICUI1 = "/vcui"
 SLASH_VULOCLASSICUI2 = "/vulo"
 SlashCmdList["VULOCLASSICUI"] = function(msg)
-    msg = (msg or ""):lower():match("^%s*(.-)%s*$")
+    local raw = (msg or ""):match("^%s*(.-)%s*$")
+    msg = raw:lower()
 
     -- Defensive: if UI is not loaded yet, show a clear message
     if not ns.UI or not ns.UI.ToggleMainFrame then
@@ -66,6 +87,20 @@ SlashCmdList["VULOCLASSICUI"] = function(msg)
                 ns:Print(L["Gold Tracker not active."])
             end
 
+        elseif msg == "help" or msg == "?" then
+            printVcuiHelp()
+
+        elseif msg == "spam" or msg:match("^spam%s") then
+            local arg = raw:match("^%S+%s+(.-)$")
+            local sf = ns.modules and ns.modules.spamfilter
+            if not (sf and sf.ToggleWhitelist) then
+                ns:Print(L["Spam filter not available."])
+            elseif not arg or arg == "" then
+                ns:Print(L["Usage: /vcui spam <name> — toggle a name on/off the spam-filter whitelist."])
+            else
+                sf.ToggleWhitelist(arg)
+            end
+
         elseif ns.modules[msg] then
             if not ns.UI.mainFrame or not ns.UI.mainFrame:IsShown() then
                 ns.UI:ToggleMainFrame()
@@ -73,7 +108,7 @@ SlashCmdList["VULOCLASSICUI"] = function(msg)
             ns.UI:ShowModulePage(msg)
 
         else
-            ns:Print(L["Commands: /vcui (options) | /vcui <module> | /vcui modules | /vcui goldreset | /vcui debug | /vcui reset"])
+            ns:Print(L["Type |cff9b6cff/vcui help|r for the full command list."])
         end
     end)
 

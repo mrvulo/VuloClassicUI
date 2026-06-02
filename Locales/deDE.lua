@@ -23,7 +23,38 @@ ns:RegisterLocale("deDE", {
     ["Keywords"] = "Stichwörter",
     ["|cffaaaaaaBuilt-in: casino / asino / gasino / kasino. Add your own below, comma-separated (look-alike letters are handled automatically).|r"] = "|cffaaaaaaEingebaut: casino / asino / gasino / kasino. Eigene unten ergänzen, mit Komma getrennt (ähnlich aussehende Buchstaben werden automatisch behandelt).|r",
     ["Extra keywords"] = "Zusätzliche Stichwörter",
+    ["Block messages with web links"] = "Nachrichten mit Web-Links blocken",
+    ["Hides any message containing a web link (http://, www., domain.tld) in the filtered channels. Whitelisted names are exempt. Opt-in — can catch the occasional legit link."] = "Blendet jede Nachricht mit einem Web-Link aus (http://, www., domain.tld) in den gefilterten Channels. Whitelist-Namen sind ausgenommen. Optional — kann mal einen legitimen Link erwischen.",
+    ["Whitelist"] = "Whitelist",
+    ["|cffaaaaaaNames here are never filtered. Comma-separated, or use |r|cff9b6cff/vcui spam <name>|r|cffaaaaaa to toggle one.|r"] = "|cffaaaaaaNamen hier werden nie gefiltert. Mit Komma getrennt, oder |r|cff9b6cff/vcui spam <Name>|r|cffaaaaaa zum Umschalten.|r",
+    ["Never filter these names"] = "Diese Namen nie filtern",
+    ["Spam filter: '%s' removed from the whitelist."] = "Spam-Filter: '%s' von der Whitelist entfernt.",
+    ["Spam filter: '%s' added to the whitelist (never filtered)."] = "Spam-Filter: '%s' zur Whitelist hinzugefügt (wird nie gefiltert).",
     ["|cff9b6cffBlocked this session: %d|r"] = "|cff9b6cffDiese Sitzung geblockt: %d|r",
+
+    -- =====================================================
+    -- Sidebar search + /vcui help
+    -- =====================================================
+    ["Search…"] = "Suchen…",
+    ["No matches."] = "Keine Treffer.",
+    ["VuloClassicUI — commands:"] = "VuloClassicUI — Befehle:",
+    ["open the options window"] = "Optionsfenster öffnen",
+    ["jump to that module's page"] = "zur Seite dieses Moduls springen",
+    ["list all modules with on/off state"] = "alle Module mit An/Aus-Status auflisten",
+    ["toggle a name on/off the spam-filter whitelist"] = "Namen auf der Spam-Filter-Whitelist umschalten",
+    ["reset the gold tracker session"] = "Gold-Tracker-Sitzung zurücksetzen",
+    ["reload the UI"] = "UI neu laden",
+    ["gear loadouts"] = "Ausrüstungs-Sets",
+    ["tooltip IDs page"] = "Tooltip-IDs-Seite",
+    ["cooldown pulse page"] = "Cooldown-Pulse-Seite",
+    ["castbar test"] = "Castbar-Test",
+    ["swing timer test/mover"] = "Swingtimer-Test/Verschieben",
+    ["WeakAuras skin diagnostics"] = "WeakAuras-Skin-Diagnose",
+    ["fix a stuck inspect"] = "hängendes Inspizieren reparieren",
+    ["trinket panel"] = "Schmuck-Panel",
+    ["Type |cff9b6cff/vcui help|r for the full command list."] = "Tippe |cff9b6cff/vcui help|r für die komplette Befehlsliste.",
+    ["Spam filter not available."] = "Spam-Filter nicht verfügbar.",
+    ["Usage: /vcui spam <name> — toggle a name on/off the spam-filter whitelist."] = "Benutzung: /vcui spam <Name> — Namen auf der Spam-Filter-Whitelist umschalten.",
 
     -- =====================================================
     -- Swing Timer
