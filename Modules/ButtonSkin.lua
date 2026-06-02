@@ -22,7 +22,7 @@ local mod = ns:RegisterModule("buttonskin", {
         waStyle       = "shadow",  -- WeakAuras icons: same set, configured separately
         skinPetStance = true,      -- also skin pet + stance buttons
         skinBars      = true,      -- skin the action bars
-        barIconSize   = 90,        -- shadow style: icon fills this % of the button (rest = rim)
+        barIconSize   = 88,        -- shadow style: icon fills this % of the button (rest = rim)
         skinWeakAuras = true,      -- skin WeakAuras icons
         hideWABorder  = true,      -- hide WeakAuras' own border subregions when skinning
     },
@@ -49,7 +49,7 @@ local TEX_BORDER   = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\Normal.tga
 -- rim looks the same on small and large icons (a fixed px rim is too thick on
 -- small icons, too thin on big ones). RIM_OUTSET is a small fixed bleed for the
 -- soft shadow past the frame edge. Shrinking via the mask survives game updates.
-local RIM_OUTSET  = 2
+local RIM_OUTSET  = 3   -- outward bleed of the rounded dark backdrop (~117% like the reference)
 -- (icon shrink for the shadow style is configurable via mod.db.barIconSize)
 
 -- The shadow layers behind the icon: filled dark backdrop + black rounded
