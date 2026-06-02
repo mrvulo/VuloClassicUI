@@ -33,6 +33,24 @@ ns:RegisterLocale("deDE", {
     ["|cff9b6cffBlocked this session: %d|r"] = "|cff9b6cffDiese Sitzung geblockt: %d|r",
 
     -- =====================================================
+    -- Quest Log
+    -- =====================================================
+    ["Quest Log"] = "Questlog",
+    ["Enhances the quest log: quest levels + difficulty (and optional quest IDs) in the titles, a larger frame, and a Parchment or Dark theme."] = "Verbessert das Questlog: Quest-Level + Schwierigkeit (optional Quest-IDs) im Titel, größeres Fenster und Pergament- oder Dunkel-Design.",
+    ["|cffaaaaaaShows quest levels (and optionally IDs) in the quest log, can enlarge it, and lets you pick a Parchment or Dark look.|r"] = "|cffaaaaaaZeigt Quest-Level (optional IDs) im Questlog, kann es vergrößern und bietet Pergament- oder Dunkel-Look zur Auswahl.|r",
+    ["Titles"] = "Titel",
+    ["Show quest levels"] = "Quest-Level anzeigen",
+    ["Mark group/elite quests with +"] = "Gruppen-/Elite-Quests mit + markieren",
+    ["Show quest IDs"] = "Quest-IDs anzeigen",
+    ["Frame"] = "Fenster",
+    ["Larger quest log"] = "Größeres Questlog",
+    ["Enlarges the quest log so more quests are visible with the detail pane beside the list. /reload to fully apply or revert."] = "Vergrößert das Questlog, sodass mehr Quests sichtbar sind und das Detailfenster neben der Liste steht. /reload zum vollständigen Anwenden oder Zurücksetzen.",
+    ["Theme"] = "Design",
+    ["Parchment (default)"] = "Pergament (Standard)",
+    ["Dark"] = "Dunkel",
+    ["Quest log size changed. /reload recommended."] = "Questlog-Größe geändert. /reload empfohlen.",
+
+    -- =====================================================
     -- /vcui help
     -- =====================================================
     ["VuloClassicUI — commands:"] = "VuloClassicUI — Befehle:",

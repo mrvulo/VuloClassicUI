@@ -30,6 +30,7 @@ local MODULE_ICONS = {
     autoitembuy        = "Interface\\Icons\\INV_Misc_Coin_01",
     goldtracker        = "Interface\\Icons\\INV_Misc_Coin_05",
     spamfilter         = "Interface\\Icons\\Spell_Holy_Silence",
+    questlog           = "Interface\\Icons\\INV_Misc_Book_09",
     vtmanadisplay      = "Interface\\Icons\\Spell_Shadow_ShadowWordPain",
     combattext         = "Interface\\Icons\\Ability_Warrior_BattleShout",
     loadouts           = "Interface\\Icons\\INV_Chest_Chain",
