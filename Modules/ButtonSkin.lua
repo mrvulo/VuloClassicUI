@@ -478,6 +478,25 @@ local function onTargetChanged()
     end
 end
 
+-- Cheap real-time catch for dynamic-group CLONES that pop in/out with buffs
+-- (e.g. a per-player Fear Ward / raid-cooldown list). SCREEN-anchored WeakAuras
+-- live under WeakAurasFrame, so we only walk that — and debounce, since UNIT_AURA
+-- fires a lot.
+local _waSoonPending = false
+local function skinWAFrameOnly()
+    if not (mod._enabled and mod.db and mod.db.skinWeakAuras) then return end
+    skinFrameTree(_G.WeakAurasFrame, 0)
+end
+local function skinWASoon()
+    if _waSoonPending or not (mod._enabled and mod.db and mod.db.skinWeakAuras) then return end
+    if not (C_Timer and C_Timer.After) then return end
+    _waSoonPending = true
+    C_Timer.After(0.25, function()
+        _waSoonPending = false
+        skinWAFrameOnly()
+    end)
+end
+
 -- Hook WeakAuras.Add so future / edited / re-loaded icon auras get skinned too.
 -- (WeakAuras' region tables live under its private namespace which isn't reachable
 -- from here; Add is the public per-aura entry point. Anchored/cloned regions are
@@ -545,6 +564,9 @@ function mod:OnEnable()
     -- skin them as the target / nameplate appears.
     ns:RegisterEvent("PLAYER_TARGET_CHANGED",     onTargetChanged)
     ns:RegisterEvent("NAME_PLATE_UNIT_ADDED",     onNamePlateAdded)
+    -- Dynamic-group clones (Fear Ward list, raid CDs, ...) pop in with buffs —
+    -- cheap debounced WeakAurasFrame re-skin on aura changes.
+    ns:RegisterEvent("UNIT_AURA",                 skinWASoon)
 end
 
 function mod:OnDisable()
@@ -555,6 +577,7 @@ function mod:OnDisable()
     ns:UnregisterEvent("PLAYER_REGEN_ENABLED",    skinAllWAIcons)
     ns:UnregisterEvent("PLAYER_TARGET_CHANGED",   onTargetChanged)
     ns:UnregisterEvent("NAME_PLATE_UNIT_ADDED",   onNamePlateAdded)
+    ns:UnregisterEvent("UNIT_AURA",               skinWASoon)
     -- Note: existing skins stay until /reload (we don't tear down the borders
     -- to avoid touching buttons in combat). A /reload fully removes them.
 end
