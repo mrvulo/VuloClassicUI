@@ -131,10 +131,12 @@ local function setupBg()
             end
         end
 
+        -- Reach almost to the gold border (the border art sits above this in a
+        -- higher layer, so a small inset closes the gap without covering it).
         local function cover(t)
             t:ClearAllPoints()
-            t:SetPoint("TOPLEFT",     QLF, "TOPLEFT",      10, -10)
-            t:SetPoint("BOTTOMRIGHT", QLF, "BOTTOMRIGHT", -10,  10)
+            t:SetPoint("TOPLEFT",     QLF, "TOPLEFT",      4, -4)
+            t:SetPoint("BOTTOMRIGHT", QLF, "BOTTOMRIGHT", -4,  4)
         end
 
         -- Solid colour base first, so the frame is never see-through even if the
@@ -148,6 +150,18 @@ local function setupBg()
         if not bg then bg = QLF:CreateTexture(nil, "BACKGROUND", nil, 1); QLF._vcuiBg = bg end
         cover(bg)
         bg:SetTexture(PARCHMENT)
+
+        -- Subtle vertical divider between the list and the detail pane, so the
+        -- two areas read as separate panels again (lost when we flattened the bg).
+        if _G.QuestLogListScrollFrame then
+            local div = QLF._vcuiDiv
+            if not div then div = QLF:CreateTexture(nil, "ARTWORK"); QLF._vcuiDiv = div end
+            div:ClearAllPoints()
+            div:SetPoint("TOP",    _G.QuestLogListScrollFrame, "TOPRIGHT",    15,  6)
+            div:SetPoint("BOTTOM", _G.QuestLogListScrollFrame, "BOTTOMRIGHT", 15, -6)
+            div:SetWidth(2)
+            div:Show()
+        end
     end)
 end
 
@@ -163,7 +177,12 @@ local function applyTheme()
     if bg then
         if bg.SetDesaturated then bg:SetDesaturated(dark) end
         if dark then bg:SetVertexColor(0.17, 0.16, 0.15, 1)
-        else        bg:SetVertexColor(1, 1, 1, 1) end
+        else        bg:SetVertexColor(0.96, 0.88, 0.70, 1) end  -- warm parchment tone
+    end
+    local div = QLF._vcuiDiv
+    if div then
+        if dark then div:SetColorTexture(1, 1, 1, 0.10)
+        else        div:SetColorTexture(0, 0, 0, 0.22) end
     end
     if dark then lightenDetailText() end
     if _G.QuestLog_Update then pcall(_G.QuestLog_Update) end
