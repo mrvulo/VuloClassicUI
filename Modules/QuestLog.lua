@@ -6,9 +6,9 @@
 --   * a theme choice: Parchment or Dark
 --
 -- TBC 2.5.5 has no C_QuestLog.GetInfo (Shadowlands+), so this uses the classic
--- QuestLogFrame / GetQuestLogTitle / QuestLog_Update API. The frame's own
--- parchment regions are retextured with a neutral Blizzard parchment (no foreign
--- assets), which the theme then tints. Everything is guarded.
+-- QuestLogFrame / GetQuestLogTitle / QuestLog_Update API. The frame's parchment
+-- regions are filled with a parchment image bundled in Media\textures, which the
+-- theme then tints. Everything is guarded.
 -- =========================================================
 local _, ns = ...
 local L = ns.L
@@ -31,11 +31,10 @@ local GetNumQuestLogEntries = GetNumQuestLogEntries
 local GetQuestLogSelection  = GetQuestLogSelection
 local format                = string.format
 
--- A Blizzard parchment that is present in TBC 2.5.5 (the -Desaturated variant is
--- not). We retexture the quest log's own parchment regions with it and remove
--- the gold cast at runtime via SetDesaturated, so the theme tint defines the
--- tone with no orange. No foreign assets.
-local PARCHMENT = "Interface\\AchievementFrame\\UI-GuildAchievement-Parchment-Horizontal"
+-- Parchment image bundled with the addon (Media\textures). It's a single atlas
+-- whose top half holds the quest-log parchment; we map two slices of it across
+-- the enlarged frame (left = list, right = detail) at ~1:1 so it fills cleanly.
+local PARCHMENT = "Interface\\AddOns\\VuloClassicUI\\Media\\textures\\questlog-parchment"
 
 local hooked   = false
 local enlarged = false
@@ -134,31 +133,27 @@ local function setupBg()
         end
 
         if enlarged and q[3] and q[4] then
-            -- Two big quadrants fill the whole enlarged frame (list + detail);
-            -- the bottom pair isn't needed once the top pair is tall enough.
-            q[3]:SetSize(512, 512)
+            -- Map two slices of the bundled parchment across the enlarged frame
+            -- at ~1:1 (left covers the list, right covers the detail); the bottom
+            -- pair isn't needed once the taller top pair covers everything.
             q[3]:SetTexture(PARCHMENT)
-            q[3]:SetTexCoord(0, 1, 0, 1)
+            q[3]:SetTexCoord(0.25, 0.75, 0, 0.5)
+            q[3]:SetSize(512, 512)
 
             q[4]:ClearAllPoints()
             q[4]:SetPoint("TOPLEFT", q[3], "TOPRIGHT", 0, 0)
-            q[4]:SetSize(256, 512)
             q[4]:SetTexture(PARCHMENT)
-            q[4]:SetTexCoord(0, 1, 0, 1)
+            q[4]:SetTexCoord(0.75, 1, 0, 0.5)
+            q[4]:SetSize(256, 512)
 
             if q[5] then q[5]:Hide() end
             if q[6] then q[6]:Hide() end
             QLF._vcuiRegs = { q[3], q[4] }
         else
-            -- Normal size: retexture every quadrant in place.
+            -- Not enlarged: leave Blizzard's own parchment in place; just keep
+            -- handles so the dark theme can still tint the surface.
             local list = {}
-            for i = 3, 6 do
-                if q[i] then
-                    q[i]:SetTexture(PARCHMENT)
-                    q[i]:SetTexCoord(0, 1, 0, 1)
-                    list[#list + 1] = q[i]
-                end
-            end
+            for i = 3, 6 do if q[i] then list[#list + 1] = q[i] end end
             QLF._vcuiRegs = list
         end
     end)
@@ -170,11 +165,11 @@ local function applyTheme()
     local dark = (mod.db.theme == "dark")
     if QLF._vcuiRegs then
         for _, r in ipairs(QLF._vcuiRegs) do
-            -- Parchment keeps the natural warm grain (like Leatrix); only the
-            -- dark theme desaturates and tints the surface dark.
+            -- Parchment shows the bundled image as-is; only the dark theme
+            -- desaturates and tints the surface dark.
             if r.SetDesaturated then r:SetDesaturated(dark) end
             if dark then r:SetVertexColor(0.16, 0.15, 0.14, 1)
-            else        r:SetVertexColor(0.92, 0.84, 0.64, 1) end  -- warm parchment
+            else        r:SetVertexColor(1, 1, 1, 1) end
         end
     end
     if dark then lightenDetailText() end
