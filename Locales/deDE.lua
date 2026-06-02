@@ -10,6 +10,22 @@ local _, ns = ...
 
 ns:RegisterLocale("deDE", {
     -- =====================================================
+    -- Spam Filter
+    -- =====================================================
+    ["Spam Filter"] = "Spam-Filter",
+    ["Hide (and optionally ignore) chat spammers whose names spell 'casino' & co. with look-alike letters."] = "Blendet Chat-Spammer aus (optional auch ignorieren), deren Namen 'casino' & Co. mit ähnlich aussehenden Buchstaben schreiben.",
+    ["|cffaaaaaaHides chat from gold/casino spammers whose names use look-alike letters (e.g. Gãsïnô, Casinòbâbe). The name is folded to plain letters, then matched against the keywords below. Applies to whisper, channels, say and yell — not guild/party/raid.|r"] = "|cffaaaaaaBlendet Chat von Gold-/Casino-Spammern aus, deren Namen ähnlich aussehende Buchstaben nutzen (z.B. Gãsïnô, Casinòbâbe). Der Name wird auf normale Buchstaben reduziert und gegen die Stichwörter unten geprüft. Gilt für Flüstern, Channels, Sagen und Schreien — nicht Gilde/Gruppe/Schlachtzug.|r",
+    ["Hide their chat messages"] = "Ihre Chat-Nachrichten ausblenden",
+    ["Also add them to your ignore list"] = "Zusätzlich auf die Ignorieren-Liste setzen",
+    ["Adds matched senders to /ignore too. The ignore list holds only ~50 names and spammers keep changing names, so hiding is usually enough — leave this off unless you want it."] = "Setzt erkannte Absender zusätzlich auf /ignore. Die Ignorieren-Liste fasst nur ~50 Namen und Spammer wechseln ständig den Namen — Ausblenden reicht meist. Nur einschalten wenn gewünscht.",
+    ["Also match the message text"] = "Auch den Nachrichtentext prüfen",
+    ["Also checks the message body for the keywords, not just the sender's name. Catches more spam but can have false positives."] = "Prüft auch den Nachrichtentext auf die Stichwörter, nicht nur den Absendernamen. Fängt mehr Spam, kann aber Fehltreffer haben.",
+    ["Keywords"] = "Stichwörter",
+    ["|cffaaaaaaBuilt-in: casino / asino / gasino / kasino. Add your own below, comma-separated (look-alike letters are handled automatically).|r"] = "|cffaaaaaaEingebaut: casino / asino / gasino / kasino. Eigene unten ergänzen, mit Komma getrennt (ähnlich aussehende Buchstaben werden automatisch behandelt).|r",
+    ["Extra keywords"] = "Zusätzliche Stichwörter",
+    ["|cff9b6cffBlocked this session: %d|r"] = "|cff9b6cffDiese Sitzung geblockt: %d|r",
+
+    -- =====================================================
     -- Swing Timer
     -- =====================================================
     ["Swing Timer"] = "Waffen-Swingtimer",

@@ -60,6 +60,7 @@ Modules\QueueTimer.lua
 Modules\TooltipIDs.lua
 Modules\AutoItemBuy.lua
 Modules\GoldTracker.lua
+Modules\SpamFilter.lua
 Modules\VTManaDisplay.lua
 Modules\CombatText.lua
 Modules\Loadouts.lua
