@@ -31,11 +31,11 @@ local GetNumQuestLogEntries = GetNumQuestLogEntries
 local GetQuestLogSelection  = GetQuestLogSelection
 local format                = string.format
 
--- A neutral (already-desaturated) Blizzard parchment. We retexture the quest
--- log's own parchment regions with it so the theme can tint it to any tone
--- without an orange cast, and the enlarged frame fills the same way Blizzard's
--- pieces do. No foreign assets.
-local PARCHMENT = "Interface\\AchievementFrame\\UI-GuildAchievement-Parchment-Horizontal-Desaturated"
+-- A Blizzard parchment that is present in TBC 2.5.5 (the -Desaturated variant is
+-- not). We retexture the quest log's own parchment regions with it and remove
+-- the gold cast at runtime via SetDesaturated, so the theme tint defines the
+-- tone with no orange. No foreign assets.
+local PARCHMENT = "Interface\\AchievementFrame\\UI-GuildAchievement-Parchment-Horizontal"
 
 local hooked   = false
 local enlarged = false
@@ -170,9 +170,10 @@ local function applyTheme()
     local dark = (mod.db.theme == "dark")
     if QLF._vcuiRegs then
         for _, r in ipairs(QLF._vcuiRegs) do
-            -- The texture is neutral/desaturated, so the tint IS the look.
+            -- Strip the gold cast, then the tint alone defines the tone.
+            if r.SetDesaturated then r:SetDesaturated(true) end
             if dark then r:SetVertexColor(0.16, 0.15, 0.14, 1)
-            else        r:SetVertexColor(0.95, 0.87, 0.70, 1) end  -- warm light parchment
+            else        r:SetVertexColor(0.96, 0.89, 0.73, 1) end  -- warm light parchment
         end
     end
     if dark then lightenDetailText() end
