@@ -136,6 +136,7 @@ end
 -- =========================================================
 local FILTER_EVENTS = {
     "CHAT_MSG_WHISPER", "CHAT_MSG_CHANNEL", "CHAT_MSG_SAY", "CHAT_MSG_YELL",
+    "CHAT_MSG_EMOTE", "CHAT_MSG_TEXT_EMOTE",  -- /emote spam
 }
 local installed = false
 
@@ -163,7 +164,7 @@ function mod:GetOptions()
 
     table.insert(items, { type = "header", text = L["Spam Filter"] })
     table.insert(items, { type = "desc",
-        text = L["|cffaaaaaaHides chat from gold/casino spammers whose names use look-alike letters (e.g. Gãsïnô, Casinòbâbe). The name is folded to plain letters, then matched against the keywords below. Applies to whisper, channels, say and yell — not guild/party/raid.|r"] })
+        text = L["|cffaaaaaaHides chat from gold/casino spammers whose names use look-alike letters (e.g. Gãsïnô, Casinòbâbe). The name is folded to plain letters, then matched against the keywords below. Applies to whisper, channels, say, yell and emotes — not guild/party/raid.|r"] })
 
     table.insert(items, { type = "spacer", height = 6 })
     table.insert(items, {
