@@ -387,7 +387,7 @@ end
 -- frames and skin any icon region we find. styleWAIcon self-filters on
 -- regionType, so calling it on non-icon frames is harmless.
 local function skinFrameTree(frame, depth)
-    if not frame or depth > 6 then return end
+    if not frame or depth > 10 then return end
     if frame.regionType == "icon" and frame.icon then
         pcall(styleWAIcon, frame)
     end
@@ -397,15 +397,10 @@ local function skinFrameTree(frame, depth)
     end
 end
 
-local function skinNameplates()
-    if not (C_NamePlate and C_NamePlate.GetNamePlates) then return end
-    local plates = C_NamePlate.GetNamePlates()
-    if not plates then return end
-    for _, plate in ipairs(plates) do skinFrameTree(plate, 0) end
-end
-
 -- Scan + skin all currently-existing icon regions: base regions via the public
--- GetRegion, plus anchored/cloned regions via the anchor-frame walk.
+-- GetRegion, plus everything else (anchored, cloned, dynamic-group children) by
+-- walking the whole on-screen frame tree once. Runs only on timers / combat /
+-- target changes, never per frame, and styleWAIcon self-filters + is idempotent.
 local function skinAllWAIcons()
     if not mod._enabled or not mod.db or not mod.db.skinWeakAuras then return end
     if WeakAuras and WeakAuras.GetRegion then
@@ -418,10 +413,7 @@ local function skinAllWAIcons()
             end
         end
     end
-    skinFrameTree(_G.WeakAurasFrame, 0)
-    skinFrameTree(_G.TargetFrame, 0)
-    skinFrameTree(_G.FocusFrame, 0)
-    skinNameplates()
+    skinFrameTree(UIParent, 0)
 end
 
 -- Targeted re-skins for unit-anchored auras as the unit's frame appears.
@@ -576,4 +568,48 @@ function mod:GetOptions()
         { type = "spacer", height = 6 },
         { type = "desc", text = L["|cffaaaaaaNote: turning a skin off fully reverts after a /reload.|r"] },
     }
+end
+
+-- =========================================================
+-- Debug: /vcuiwa — report every shown WeakAuras icon region, whether it is
+-- skinned, and (for unskinned ones) its parent chain + any styleWAIcon error.
+-- Running it also skins anything it finds unskinned, on the spot.
+-- =========================================================
+SLASH_VCUIWA1 = "/vcuiwa"
+SlashCmdList.VCUIWA = function()
+    local shown, skinned = 0, 0
+    local unskinned = {}
+    local function chain(f)
+        local parts, n = {}, 0
+        while f and n < 7 do
+            parts[#parts + 1] = (f.GetName and f:GetName())
+                or ("{" .. tostring(f.regionType or (f.GetObjectType and f:GetObjectType())) .. "}")
+            f = f.GetParent and f:GetParent()
+            n = n + 1
+        end
+        return table.concat(parts, " < ")
+    end
+    local function walk(f, d)
+        if not f or d > 12 then return end
+        if f.regionType == "icon" and f.icon and f.IsShown and f:IsShown() then
+            shown = shown + 1
+            if f._vcuiRing then
+                skinned = skinned + 1
+            else
+                local ok, err = pcall(styleWAIcon, f)
+                unskinned[#unskinned + 1] = chain(f) .. (ok and "" or (" |cffff5555ERR " .. tostring(err) .. "|r"))
+            end
+        end
+        if f.GetChildren then
+            local kids = { f:GetChildren() }
+            for i = 1, #kids do walk(kids[i], d + 1) end
+        end
+    end
+    walk(UIParent, 0)
+    ns:Print(string.format("WeakAuras icons: shown=%d skinned=%d unskinned=%d (enabled=%s skinWA=%s)",
+        shown, skinned, #unskinned, tostring(mod._enabled), tostring(mod.db and mod.db.skinWeakAuras)))
+    for i = 1, math.min(#unskinned, 10) do
+        ns:Print("  " .. unskinned[i])
+    end
+    if #unskinned == 0 and shown > 0 then ns:Print("All shown WeakAuras icons are skinned.") end
 end
