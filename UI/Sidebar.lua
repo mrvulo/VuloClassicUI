@@ -31,6 +31,7 @@ local MODULE_ICONS = {
     goldtracker        = "Interface\\Icons\\INV_Misc_Coin_05",
     spamfilter         = "Interface\\Icons\\Spell_Holy_Silence",
     questlog           = "Interface\\Icons\\INV_Misc_Book_09",
+    professionwindow   = "Interface\\Icons\\Trade_Tailoring",
     vtmanadisplay      = "Interface\\Icons\\Spell_Shadow_ShadowWordPain",
     combattext         = "Interface\\Icons\\Ability_Warrior_BattleShout",
     loadouts           = "Interface\\Icons\\INV_Chest_Chain",

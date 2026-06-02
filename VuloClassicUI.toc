@@ -62,6 +62,7 @@ Modules\AutoItemBuy.lua
 Modules\GoldTracker.lua
 Modules\SpamFilter.lua
 Modules\QuestLog.lua
+Modules\ProfessionWindow.lua
 Modules\VTManaDisplay.lua
 Modules\CombatText.lua
 Modules\Loadouts.lua

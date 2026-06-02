@@ -51,6 +51,16 @@ ns:RegisterLocale("deDE", {
     ["Quest log size changed. /reload recommended."] = "Questlog-Größe geändert. /reload empfohlen.",
 
     -- =====================================================
+    -- Profession Window
+    -- =====================================================
+    ["Profession Window"] = "Berufe-Fenster",
+    ["Enlarges and themes the profession windows (Tradeskill & Craft) to match the quest log: the detail pane sits beside the recipe list, with a Parchment or Dark theme."] = "Vergrößert und gestaltet die Berufe-Fenster (Beruf & Handwerk) passend zum Questlog: das Detailfenster steht neben der Rezeptliste, mit Pergament- oder Dunkel-Design.",
+    ["|cffaaaaaaEnlarges the Tradeskill and Craft windows so the detail sits beside the recipe list, with a Parchment or Dark look.|r"] = "|cffaaaaaaVergrößert die Berufe- und Handwerksfenster, sodass das Detailfenster neben der Rezeptliste steht – mit Pergament- oder Dunkel-Look.|r",
+    ["Larger profession window"] = "Größeres Berufe-Fenster",
+    ["Enlarges the profession windows so more recipes are visible with the detail pane beside the list. /reload to fully apply or revert."] = "Vergrößert die Berufe-Fenster, sodass mehr Rezepte sichtbar sind und das Detailfenster neben der Liste steht. /reload zum vollständigen Anwenden oder Zurücksetzen.",
+    ["Profession window size changed. /reload recommended."] = "Berufe-Fenster-Größe geändert. /reload empfohlen.",
+
+    -- =====================================================
     -- /vcui help
     -- =====================================================
     ["VuloClassicUI — commands:"] = "VuloClassicUI — Befehle:",
