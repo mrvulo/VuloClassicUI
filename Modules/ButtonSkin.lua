@@ -374,26 +374,69 @@ local function styleWAIcon(region)
     end
 end
 
+-- Aurabars carry their spell icon in region.iconFrame / region.icon — rim that
+-- the same way as a plain icon. (No cooldown-swipe handling: aurabars show the
+-- remaining time on the bar, not as a swipe on the icon.)
+local function styleWAAuraBarIcon(region)
+    local icon  = region and region.icon
+    local frame = region and region.iconFrame
+    if not (icon and frame) then return end
+
+    attachShadow(frame, region, 1)
+    local st = currentStyle(true)
+    local showShadow = st.shadow and true or false
+
+    local w = (icon.GetWidth and icon:GetWidth()) or 0
+    if w < 1 then w = (frame.GetWidth and frame:GetWidth()) or 20 end
+    local out = w * 0.12
+
+    for _, t in ipairs({ region._vcuiBack, region._vcuiRing }) do
+        if t then
+            t:SetShown(showShadow)
+            t:ClearAllPoints()
+            t:SetPoint("TOPLEFT",     frame, "TOPLEFT",     -out,  out)
+            t:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT",  out, -out)
+        end
+    end
+    if region._vcuiBack then region._vcuiBack:SetVertexColor(0.02, 0.02, 0.03, 1) end
+
+    local maskTex = st.mask or (st.shadow and MASK_SQUARE) or nil
+    local pct     = st.shadow and 0.08 or 0
+    setMasked(frame, icon, maskTex ~= nil, maskTex, pct)
+end
+
+-- Dispatch a WeakAuras region to the right skinner by its type.
+local function skinWARegion(region)
+    if type(region) ~= "table" then return end
+    local rt = region.regionType
+    if rt == "icon" then
+        styleWAIcon(region)
+    elseif rt == "aurabar" then
+        styleWAAuraBarIcon(region)
+    end
+end
+
 local function skinWAById(id)
     if not (WeakAuras and WeakAuras.GetRegion) then return end
     local ok, region = pcall(WeakAuras.GetRegion, id)
-    if ok and region then styleWAIcon(region) end
+    if ok then skinWARegion(region) end
 end
 
 -- WeakAuras re-parents an anchored region to its ANCHOR frame (nameplate, target
 -- frame, screen, ...) — not always WeakAurasFrame — and dynamic-group CLONES are
 -- not returned by WeakAuras.GetRegion(id). Its internal region tables (Private.*)
--- aren't reachable from an external addon, so we instead walk the real anchor
--- frames and skin any icon region we find. styleWAIcon self-filters on
--- regionType, so calling it on non-icon frames is harmless.
+-- aren't reachable from an external addon, so we walk the on-screen frame tree
+-- and skin any WeakAuras region we find. Robust against forbidden/odd Blizzard
+-- frames whose GetChildren raises (e.g. CommunitiesAddDialog).
 local function skinFrameTree(frame, depth)
     if not frame or depth > 10 then return end
-    if frame.regionType == "icon" and frame.icon then
-        pcall(styleWAIcon, frame)
-    end
-    if frame.GetChildren then
-        local kids = { frame:GetChildren() }
-        for i = 1, #kids do skinFrameTree(kids[i], depth + 1) end
+    if frame.IsForbidden and frame:IsForbidden() then return end
+    local rt = frame.regionType
+    if rt == "icon" or rt == "aurabar" then pcall(skinWARegion, frame) end
+    if not frame.GetChildren then return end
+    local packed = { pcall(frame.GetChildren, frame) }  -- packed[1]=ok, rest=children
+    if packed[1] then
+        for i = 2, #packed do skinFrameTree(packed[i], depth + 1) end
     end
 end
 
@@ -407,7 +450,8 @@ local function skinAllWAIcons()
         local saved = _G.WeakAurasSaved
         if saved and saved.displays then
             for id, data in pairs(saved.displays) do
-                if type(data) == "table" and data.regionType == "icon" then
+                if type(data) == "table"
+                   and (data.regionType == "icon" or data.regionType == "aurabar") then
                     skinWAById(id)
                 end
             end
@@ -589,27 +633,34 @@ SlashCmdList.VCUIWA = function()
         end
         return table.concat(parts, " < ")
     end
+    local types = {}
     local function walk(f, d)
         if not f or d > 12 then return end
-        if f.regionType == "icon" and f.icon and f.IsShown and f:IsShown() then
+        if f.IsForbidden and f:IsForbidden() then return end
+        local rt = f.regionType
+        if (rt == "icon" or rt == "aurabar") and f.icon and f.IsShown and f:IsShown() then
+            types[rt] = (types[rt] or 0) + 1
             shown = shown + 1
             if f._vcuiRing then
                 skinned = skinned + 1
             else
-                local ok, err = pcall(styleWAIcon, f)
-                unskinned[#unskinned + 1] = chain(f) .. (ok and "" or (" |cffff5555ERR " .. tostring(err) .. "|r"))
+                local ok, err = pcall(skinWARegion, f)
+                unskinned[#unskinned + 1] = rt .. " @ " .. chain(f)
+                    .. (ok and "" or (" |cffff5555ERR " .. tostring(err) .. "|r"))
             end
         end
-        if f.GetChildren then
-            local kids = { f:GetChildren() }
-            for i = 1, #kids do walk(kids[i], d + 1) end
+        if not f.GetChildren then return end
+        local packed = { pcall(f.GetChildren, f) }
+        if packed[1] then
+            for i = 2, #packed do walk(packed[i], d + 1) end
         end
     end
     walk(UIParent, 0)
-    ns:Print(string.format("WeakAuras icons: shown=%d skinned=%d unskinned=%d (enabled=%s skinWA=%s)",
-        shown, skinned, #unskinned, tostring(mod._enabled), tostring(mod.db and mod.db.skinWeakAuras)))
-    for i = 1, math.min(#unskinned, 10) do
+    ns:Print(string.format("WeakAuras regions: shown=%d skinned=%d unskinned=%d (icon=%d aurabar=%d) enabled=%s skinWA=%s",
+        shown, skinned, #unskinned, types.icon or 0, types.aurabar or 0,
+        tostring(mod._enabled), tostring(mod.db and mod.db.skinWeakAuras)))
+    for i = 1, math.min(#unskinned, 12) do
         ns:Print("  " .. unskinned[i])
     end
-    if #unskinned == 0 and shown > 0 then ns:Print("All shown WeakAuras icons are skinned.") end
+    if #unskinned == 0 and shown > 0 then ns:Print("All shown WeakAuras icon/aurabar regions are skinned.") end
 end
