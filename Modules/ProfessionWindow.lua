@@ -28,7 +28,7 @@ local mod = ns:RegisterModule("professionwindow", {
 -- Same bundled parchment the quest log uses (atlas: top half is the parchment).
 local PARCHMENT = "Interface\\AddOns\\VuloClassicUI\\Media\\textures\\questlog-parchment"
 
-local TALL, EXTRA = 73, 19
+local TALL = 73
 
 -- Per-frame configuration. The two profession frames share one structure but
 -- use different element names; this table captures the differences.
@@ -383,21 +383,23 @@ local function setupFrame(cfg)
             local title = _G[cfg.title]
             if title then title:ClearAllPoints(); title:SetPoint("TOP", f, "TOP", 0, -18) end
 
-            -- Recipe list to full height
+            -- Recipe list: a touch shorter than the frame so the last row keeps
+            -- a clear margin above the bottom buttons.
+            local listH = 336 + TALL - 32
             local list = _G[cfg.list]
             if list then
                 list:ClearAllPoints()
                 list:SetPoint("TOPLEFT", f, "TOPLEFT", 25, -75)
-                list:SetSize(295, 336 + TALL)
+                list:SetSize(295, listH)
             end
 
-            -- Reposition existing rows (+ their cost column, if any)
-            local displayed = _G[cfg.displayed] or 0
+            -- Reposition the client's original rows (+ their cost column, if any)
+            local old = _G[cfg.displayed] or 0
             if cfg.costFmt then
                 local c1, b1 = _G[cfg.costFmt:format(1)], _G[cfg.rowFmt:format(1)]
                 if c1 and b1 then c1:ClearAllPoints(); c1:SetPoint("RIGHT", b1, "RIGHT", -30, 0) end
             end
-            for i = 2, displayed do
+            for i = 2, old do
                 local b, prev = _G[cfg.rowFmt:format(i)], _G[cfg.rowFmt:format(i - 1)]
                 if b and prev then b:ClearAllPoints(); b:SetPoint("TOPLEFT", prev, "BOTTOMLEFT", 0, 1) end
                 if cfg.costFmt then
@@ -406,10 +408,14 @@ local function setupFrame(cfg)
                 end
             end
 
-            -- Create extra rows so the taller list is filled
-            local old = displayed
-            _G[cfg.displayed] = old + EXTRA
-            for i = old + 1, _G[cfg.displayed] do
+            -- Fit the displayed row count to the list height so rows never spill
+            -- into the button row (independent of the client's default count).
+            local rowH = 16
+            local b1 = _G[cfg.rowFmt:format(1)]
+            if b1 and b1.GetHeight and (b1:GetHeight() or 0) > 0 then rowH = b1:GetHeight() end
+            local fitRows = math.max(1, math.floor((listH - 2) / rowH))
+
+            for i = old + 1, fitRows do
                 local prev = _G[cfg.rowFmt:format(i - 1)]
                 if not _G[cfg.rowFmt:format(i)] and prev then
                     local b = CreateFrame("Button", cfg.rowFmt:format(i), f, cfg.rowTemplate)
@@ -421,6 +427,12 @@ local function setupFrame(cfg)
                     end
                 end
             end
+            -- Hide any default rows beyond the fit (if the client showed more).
+            for i = fitRows + 1, old do
+                local b = _G[cfg.rowFmt:format(i)]
+                if b then b:Hide() end
+            end
+            _G[cfg.displayed] = fitRows
 
             -- Highlight bar spans the wider list
             if cfg.highlight and _G[cfg.highlight] then
