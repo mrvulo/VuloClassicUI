@@ -61,6 +61,28 @@ ns:RegisterLocale("deDE", {
     ["Profession window size changed. /reload recommended."] = "Berufe-Fenster-Größe geändert. /reload empfohlen.",
 
     -- =====================================================
+    -- Disenchant Queue
+    -- =====================================================
+    ["Disenchant Queue"] = "Entzauber-Queue",
+    ["For enchanters: a window with one button that disenchants your bag items one click each, auto-advancing through the queue (no casting + picking each item by hand)."] = "Für Verzauberer: ein Fenster mit einem Knopf, der deine Taschen-Gegenstände mit je einem Klick entzaubert und sich automatisch durch die Queue arbeitet (kein manuelles Zaubern + Anklicken pro Gegenstand).",
+    ["%d item(s) to disenchant"] = "%d Gegenstände zum Entzaubern",
+    ["|cff888888Nothing to disenchant.|r"] = "|cff888888Nichts zum Entzaubern.|r",
+    ["You need the Enchanting profession (Disenchant) to use this."] = "Du brauchst den Beruf Verzauberkunst (Entzaubern) dafür.",
+    ["This module is disabled."] = "Dieses Modul ist deaktiviert.",
+    ["Disenchant"] = "Entzaubern",
+    ["Skip"] = "Überspringen",
+    ["Disenchanting…"] = "Entzaubere…",
+    ["|cffaaaaaaA window with one button that disenchants your bag items one click each and auto-advances through the queue. WoW does not allow fully unattended disenchanting, so this is one click per item — but you never have to cast and pick each item by hand again.|r"] = "|cffaaaaaaEin Fenster mit einem Knopf, der deine Taschen-Gegenstände mit je einem Klick entzaubert und automatisch zum nächsten springt. WoW erlaubt keine vollautomatische Entzauberung, also ist es ein Klick pro Gegenstand – aber du musst nie wieder pro Gegenstand zaubern und anklicken.|r",
+    ["|cff1eff00You know Disenchant.|r"] = "|cff1eff00Du beherrschst Entzaubern.|r",
+    ["|cffff5555You are not an enchanter — this tool will do nothing.|r"] = "|cffff5555Du bist kein Verzauberer – dieses Werkzeug tut nichts.|r",
+    ["Open disenchant queue"] = "Entzauber-Queue öffnen",
+    ["|cff888888Also: /disenchant or /entzaubern|r"] = "|cff888888Auch: /disenchant oder /entzaubern|r",
+    ["Quality range"] = "Qualitätsbereich",
+    ["Lowest quality"] = "Niedrigste Qualität",
+    ["Highest quality"] = "Höchste Qualität",
+    ["|cff888888Only weapons and armour are listed. Each item is shown before you click, so you always see what you are about to disenchant.|r"] = "|cff888888Nur Waffen und Rüstung werden gelistet. Jeder Gegenstand wird vor dem Klick angezeigt – du siehst also immer, was du gleich entzauberst.|r",
+
+    -- =====================================================
     -- /vcui help
     -- =====================================================
     ["VuloClassicUI — commands:"] = "VuloClassicUI — Befehle:",

@@ -32,6 +32,7 @@ local MODULE_ICONS = {
     spamfilter         = "Interface\\Icons\\Spell_Holy_Silence",
     questlog           = "Interface\\Icons\\INV_Misc_Book_09",
     professionwindow   = "Interface\\Icons\\Trade_Tailoring",
+    disenchantqueue    = "Interface\\Icons\\INV_Enchant_Disenchant",
     vtmanadisplay      = "Interface\\Icons\\Spell_Shadow_ShadowWordPain",
     combattext         = "Interface\\Icons\\Ability_Warrior_BattleShout",
     loadouts           = "Interface\\Icons\\INV_Chest_Chain",
