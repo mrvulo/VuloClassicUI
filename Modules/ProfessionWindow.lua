@@ -164,11 +164,11 @@ local function refreshList(cfg)
             local name, skillType, numAvailable = cfg.info(btn:GetID())
             local sb = btn._vcuiStarBtn
             if name and skillType and skillType ~= "header" then
-                sb:Show()
+                -- Only favourites show a star; other rows stay clean.
                 if mod.db.favorites[name] then
-                    sb._tex:SetDesaturated(false); sb._tex:SetAlpha(1)
+                    sb:Show(); sb._tex:SetDesaturated(false); sb._tex:SetAlpha(1)
                 else
-                    sb._tex:SetDesaturated(true);  sb._tex:SetAlpha(0.30)
+                    sb:Hide()
                 end
                 if mod.db.counts and numAvailable and numAvailable > 0 then
                     local txt = btn:GetText()
@@ -466,7 +466,7 @@ function mod:GetOptions()
               if _G.TradeSkillFrame and _G.TradeSkillFrame:IsShown() and _G.TradeSkillFrame_Update then pcall(_G.TradeSkillFrame_Update) end
               if _G.CraftFrame and _G.CraftFrame:IsShown() and _G.CraftFrame_Update then pcall(_G.CraftFrame_Update) end
           end },
-        { type = "desc", text = L["|cff888888Click a recipe's star (or right-click the recipe) to favourite it — the star turns gold.|r"] },
+        { type = "desc", text = L["|cff888888Right-click a recipe to favourite it (a gold star appears). Click the star to remove it.|r"] },
 
         { type = "spacer", height = 6 },
         { type = "header", text = L["Auction value"] },
