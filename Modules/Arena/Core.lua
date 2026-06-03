@@ -185,6 +185,7 @@ local function ensureDragOverlay()
         local s = ns:Clamp((mod.db.scale or 1.0) + (delta > 0 and 0.05 or -0.05), 0.5, 2.0)
         mod.db.scale = s
         applyToOwner()
+        dragOverlay:SetScale(s)   -- keep the mover in the owner's coordinate scale
         if moverOverlay and moverOverlay.title then
             moverOverlay.title:SetText(string.format(L["|cff9b6cffArenaFrames Unlock|r  |cffaaaaaa(Scale: %.2f)|r"], s))
         end
@@ -203,6 +204,9 @@ function mod:UpdateDragOverlay()
     local p = mod.db.pos or { point = "CENTER", relPoint = "CENTER", x = 0, y = 0 }
     dragOverlay:ClearAllPoints()
     dragOverlay:SetPoint(p.point or "CENTER", UIParent, p.relPoint or "CENTER", p.x or 0, p.y or 0)
+    -- Match the owner's scale so dragging maps 1:1 (otherwise the frames land
+    -- offset from where you dropped the mover).
+    dragOverlay:SetScale(mod.db.scale or 1.0)
 end
 
 -- =========================================================
@@ -290,8 +294,12 @@ local function showTestArenaFrames(show)
             local nameText = H.GetNameText(frame)
             if nameText then nameText:SetText(L["ArenaPlayer"] .. i) end
         else
-            -- When "hiding" don't call :Hide(), otherwise it re-registers
-            -- Instead refresh the owner
+            -- Hide phantom test frames that have no real arena unit (e.g. in a
+            -- battleground, or after closing the config outside an arena). Real
+            -- arena frames (with a unit) are left for Blizzard to manage.
+            if not (UnitExists and UnitExists("arena" .. i)) and not ns:InCombat() then
+                frame:Hide()
+            end
         end
     end)
     if not show then
@@ -336,6 +344,14 @@ function mod:Refresh()
     applyToOwner()
     if self:RefreshAll() then
         applyAllFonts()
+    end
+
+    -- Safety net: when not configuring (unlocked), never leave a frame showing
+    -- without a real arena unit -> kills lingering test/phantom frames in BGs.
+    if not unlocked and not ns:InCombat() then
+        H.ForEach(function(frame, i)
+            if not (UnitExists and UnitExists("arena" .. i)) then frame:Hide() end
+        end)
     end
     -- Sometimes the frames arrive delayed
     if C_Timer and C_Timer.After then
