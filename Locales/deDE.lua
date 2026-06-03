@@ -83,6 +83,17 @@ ns:RegisterLocale("deDE", {
     ["|cff888888Only weapons and armour are listed. Each item is shown before you click, so you always see what you are about to disenchant.|r"] = "|cff888888Nur Waffen und Rüstung werden gelistet. Jeder Gegenstand wird vor dem Klick angezeigt – du siehst also immer, was du gleich entzauberst.|r",
 
     -- =====================================================
+    -- Sidebar pages (grouped modules)
+    -- =====================================================
+    ["Enabled"] = "Aktiviert",
+    ["Windows & Professions"] = "Fenster & Berufe",
+    ["Quest log, profession windows and the disenchant queue, all in one place."] = "Questlog, Berufe-Fenster und Entzauber-Queue – alles an einem Ort.",
+    ["Gold & Vendors"] = "Gold & Händler",
+    ["Gold tracking and automatic buying at vendors."] = "Gold-Verfolgung und automatischer Einkauf bei Händlern.",
+    ["Chat & Tooltips"] = "Chat & Tooltips",
+    ["Chat spam filter and tooltip IDs."] = "Chat-Spamfilter und Tooltip-IDs.",
+
+    -- =====================================================
     -- /vcui help
     -- =====================================================
     ["VuloClassicUI — commands:"] = "VuloClassicUI — Befehle:",

@@ -218,7 +218,8 @@ function UI:CreateMainFrame()
         local results = {}
         for _, key in ipairs(ns.moduleOrder or {}) do
             local m = ns.modules[key]
-            if m and m.GetOptions then
+            -- Skip page members: their options are indexed once via their page.
+            if m and m.GetOptions and not m._pageMember then
                 local tabIds = {}
                 if m.tabs then
                     for _, t in ipairs(m.tabs) do table.insert(tabIds, t.id) end

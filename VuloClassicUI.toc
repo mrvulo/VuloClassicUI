@@ -64,6 +64,7 @@ Modules\SpamFilter.lua
 Modules\QuestLog.lua
 Modules\ProfessionWindow.lua
 Modules\DisenchantQueue.lua
+Modules\Pages.lua
 Modules\VTManaDisplay.lua
 Modules\CombatText.lua
 Modules\Loadouts.lua
