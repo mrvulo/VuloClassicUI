@@ -353,7 +353,7 @@ local function buildPriceBlock()
         -- GameFontNormal = the gold label font Auctionator's crafting info uses.
         local fs = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
         if prev then fs:SetPoint("BOTTOMLEFT", prev, "TOPLEFT", 0, 3)
-        else         fs:SetPoint("BOTTOMLEFT", detail, "BOTTOMLEFT", 4, 6) end
+        else         fs:SetPoint("BOTTOMLEFT", detail, "BOTTOMLEFT", 16, 22) end
         fs:SetJustifyH("LEFT")
         return fs
     end
