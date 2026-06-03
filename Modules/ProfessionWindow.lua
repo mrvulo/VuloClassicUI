@@ -52,7 +52,9 @@ local FRAMES = {
         expand      = "TradeSkillExpandTabLeft",
         extraHide   = { "TradeSkillHorizontalBarLeft" },
         detailTex   = { "TradeSkillDetailScrollFrameTop", "TradeSkillDetailScrollFrameBottom" },
-        hideRegions = { 4, 5, 8 },
+        -- regions 9/10 are the horizontal bars (barLeft/barRight); on the taller
+        -- frame they sit across the recipe text, so hide them too.
+        hideRegions = { 4, 5, 8, 9, 10 },
         repos = function(f)
             local inv    = _G.TradeSkillInvSlotDropdown
             local sub    = _G.TradeSkillSubClassDropdown
