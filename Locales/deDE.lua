@@ -81,6 +81,13 @@ ns:RegisterLocale("deDE", {
     ["Lowest quality"] = "Niedrigste Qualität",
     ["Highest quality"] = "Höchste Qualität",
     ["|cff888888Only weapons and armour are listed. Each item is shown before you click, so you always see what you are about to disenchant.|r"] = "|cff888888Nur Waffen und Rüstung werden gelistet. Jeder Gegenstand wird vor dem Klick angezeigt – du siehst also immer, was du gleich entzauberst.|r",
+    ["Ignore"] = "Ignorieren",
+    ["Skip this item for now (it comes back next time)."] = "Diesen Gegenstand vorerst überspringen (kommt nächstes Mal wieder).",
+    ["Never disenchant this item (add it to the ignore list)."] = "Diesen Gegenstand nie entzaubern (zur Ignorier-Liste hinzufügen).",
+    ["Ignored items"] = "Ignorierte Gegenstände",
+    ["|cff888888No ignored items yet. Use the Ignore button in the window to protect an item.|r"] = "|cff888888Noch keine ignorierten Gegenstände. Nutze den Ignorieren-Knopf im Fenster, um einen Gegenstand zu schützen.|r",
+    ["|cff888888Click an entry to remove it from the ignore list.|r"] = "|cff888888Klicke einen Eintrag an, um ihn aus der Ignorier-Liste zu entfernen.|r",
+    ["Clear ignore list"] = "Ignorier-Liste leeren",
 
     -- =====================================================
     -- Sidebar pages (grouped modules)

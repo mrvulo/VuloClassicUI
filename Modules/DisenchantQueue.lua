@@ -30,6 +30,7 @@ local mod = ns:RegisterModule("disenchantqueue", {
         minQuality = 2,   -- 2 Uncommon, 3 Rare, 4 Epic
         maxQuality = 3,
         point      = nil, -- saved window position { p, x, y }
+        ignore     = {},  -- [itemID] = itemLink — never queue these (persistent)
     },
 })
 
@@ -83,7 +84,7 @@ local function findNext()
         for slot = 1, numSlots(bag) do
             if not sessionIgnore[bag .. "-" .. slot] then
                 local itemID, quality, link, icon, locked = containerInfo(bag, slot)
-                if eligible(itemID, quality, locked) then
+                if eligible(itemID, quality, locked) and not mod.db.ignore[itemID] then
                     return { bag = bag, slot = slot, itemID = itemID, link = link, icon = icon }
                 end
             end
@@ -98,7 +99,7 @@ local function countRemaining()
         for slot = 1, numSlots(bag) do
             if not sessionIgnore[bag .. "-" .. slot] then
                 local itemID, quality, _, _, locked = containerInfo(bag, slot)
-                if eligible(itemID, quality, locked) then n = n + 1 end
+                if eligible(itemID, quality, locked) and not mod.db.ignore[itemID] then n = n + 1 end
             end
         end
     end
@@ -148,7 +149,7 @@ local function buildWindow()
     if win then return win end
 
     local f = CreateFrame("Frame", "VuloClassicUIDisenchantWindow", UIParent, "BackdropTemplate")
-    f:SetSize(280, 150)
+    f:SetSize(280, 184)
     f:SetFrameStrata("HIGH")
     f:SetClampedToScreen(true)
     f:SetBackdrop({
@@ -202,8 +203,8 @@ local function buildWindow()
     -- the secure cast button (visible main action)
     local cast = CreateFrame("Button", "VuloClassicUIDisenchantButton", f,
         "UIPanelButtonTemplate, SecureActionButtonTemplate")
-    cast:SetSize(150, 26)
-    cast:SetPoint("BOTTOMLEFT", 12, 12)
+    cast:SetSize(256, 28)
+    cast:SetPoint("BOTTOMLEFT", 12, 46)
     cast:SetText(L["Disenchant"])
     cast:RegisterForClicks("LeftButtonUp")
     cast:SetAttribute("type", "spell")
@@ -216,15 +217,38 @@ local function buildWindow()
     end)
     f.cast = cast
 
-    -- skip current (insecure; just ignores this slot for the session)
+    local function tip(button, textKey)
+        button:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_TOP")
+            GameTooltip:SetText(L[textKey], 1, 1, 1, 1, true)
+            GameTooltip:Show()
+        end)
+        button:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    end
+
+    -- skip current for this session only (it returns next time)
     local skip = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-    skip:SetSize(96, 26)
-    skip:SetPoint("LEFT", cast, "RIGHT", 6, 0)
+    skip:SetSize(124, 24)
+    skip:SetPoint("BOTTOMLEFT", 12, 12)
     skip:SetText(L["Skip"])
     skip:SetScript("OnClick", function()
         if current then sessionIgnore[current.bag .. "-" .. current.slot] = true end
         loadNext()
     end)
+    tip(skip, "Skip this item for now (it comes back next time).")
+
+    -- permanently ignore the current item type (never list it again)
+    local ignore = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+    ignore:SetSize(124, 24)
+    ignore:SetPoint("BOTTOMRIGHT", -12, 12)
+    ignore:SetText(L["Ignore"])
+    ignore:SetScript("OnClick", function()
+        if current and current.itemID then
+            mod.db.ignore[current.itemID] = current.link or true
+        end
+        loadNext()
+    end)
+    tip(ignore, "Never disenchant this item (add it to the ignore list).")
 
     -- events: advance the queue when bags change, retry after combat
     f:RegisterEvent("BAG_UPDATE_DELAYED")
@@ -283,8 +307,16 @@ local QUALITY_VALUES = {
     { value = 4, text = "|cffa335ee" .. (_G.ITEM_QUALITY4_DESC or "Epic") .. "|r" },
 }
 
+-- Re-render the currently shown options page (so the ignore list updates live).
+local function refreshOptions()
+    local UI = ns.UI
+    if UI and UI.BuildOptionsPage and UI.currentModule then
+        UI:BuildOptionsPage(UI.currentModule, UI.currentTab or "default")
+    end
+end
+
 function mod:GetOptions()
-    return {
+    local opts = {
         { type = "header", text = L["Disenchant Queue"] },
         { type = "desc", text = L["|cffaaaaaaA window with one button that disenchants your bag items one click each and auto-advances through the queue. WoW does not allow fully unattended disenchanting, so this is one click per item — but you never have to cast and pick each item by hand again.|r"] },
 
@@ -314,5 +346,35 @@ function mod:GetOptions()
               if win and win:IsShown() then loadNext() end
           end },
         { type = "desc", text = L["|cff888888Only weapons and armour are listed. Each item is shown before you click, so you always see what you are about to disenchant.|r"] },
+
+        { type = "spacer", height = 8 },
+        { type = "header", text = L["Ignored items"] },
     }
+
+    -- Persistent ignore list (protect items you still need)
+    local ids = {}
+    for id in pairs(mod.db.ignore) do ids[#ids + 1] = id end
+    table.sort(ids)
+
+    if #ids == 0 then
+        opts[#opts + 1] = { type = "desc", text = L["|cff888888No ignored items yet. Use the Ignore button in the window to protect an item.|r"] }
+    else
+        opts[#opts + 1] = { type = "desc", text = L["|cff888888Click an entry to remove it from the ignore list.|r"] }
+        for _, id in ipairs(ids) do
+            local link  = mod.db.ignore[id]
+            local label = (type(link) == "string" and link) or ("item:" .. tostring(id))
+            opts[#opts + 1] = {
+                type = "button", width = 240, label = "|cffff5555x|r  " .. label,
+                onClick = function() mod.db.ignore[id] = nil; refreshOptions() end,
+            }
+        end
+        opts[#opts + 1] = { type = "spacer", height = 4 }
+        opts[#opts + 1] = { type = "button", width = 160, label = L["Clear ignore list"],
+            onClick = function()
+                if wipe then wipe(mod.db.ignore) else mod.db.ignore = {} end
+                refreshOptions()
+            end }
+    end
+
+    return opts
 end
