@@ -429,8 +429,8 @@ local function installDetailInfo()
             local key = d[2]
             local b = CreateFrame("Button", nil, _G.TradeSkillFrame, "UIPanelButtonTemplate")
             b:SetSize(82, 20)
-            if prev then b:SetPoint("LEFT", prev, "RIGHT", 4, 0)
-            else b:SetPoint("TOPLEFT", _G.TradeSkillListScrollFrame, "BOTTOMLEFT", 0, -6) end
+            if prev then b:SetPoint("LEFT", prev, "RIGHT", 26, 0)
+            else b:SetPoint("TOPLEFT", _G.TradeSkillListScrollFrame, "BOTTOMLEFT", 12, -3) end
             b:SetText(d[1])
             local function refresh()
                 local on = mod.db[key]
