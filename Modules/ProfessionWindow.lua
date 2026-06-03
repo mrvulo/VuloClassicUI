@@ -426,8 +426,8 @@ local function installDetailInfo()
         -- {label, dbKey, gap, width}: gap = x from the list (1st) or from the
         -- prev button. Smaller gaps pull a button further left.
         local defs = {
-            { L["Source"],   "showSource",     -6, 102 },
-            { L["Levels"],   "showThresholds", 6,  96 },
+            { L["Source"],   "showSource",     -2, 102 },
+            { L["Levels"],   "showThresholds", 2,  96 },
             { L["Skill-up"], "showSkillup",    0,  96 },
         }
         local prev
