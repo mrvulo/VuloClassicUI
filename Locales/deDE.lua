@@ -62,7 +62,7 @@ ns:RegisterLocale("deDE", {
     ["Recipes"] = "Rezepte",
     ["Show craftable count"] = "Herstellbare Anzahl anzeigen",
     ["Shows how many of each recipe you can make right now, like [12]."] = "Zeigt, wie oft du jedes Rezept gerade herstellen kannst, z. B. [12].",
-    ["|cff888888Right-click a recipe to favourite it (a gold star appears). Click the star to remove it.|r"] = "|cff888888Rechtsklick auf ein Rezept favorisiert es (goldener Stern erscheint). Klick auf den Stern entfernt ihn wieder.|r",
+    ["|cff888888Click a recipe's star (or right-click the recipe) to favourite it — the star turns gold.|r"] = "|cff888888Klicke den Stern eines Rezepts (oder Rechtsklick aufs Rezept), um es zu favorisieren – der Stern wird golden.|r",
     ["Favourite (click to toggle)"] = "Favorit (Klick zum Umschalten)",
     ["Auction value"] = "Auktionswert",
     ["Show auction value & profit"] = "Auktionswert & Gewinn anzeigen",

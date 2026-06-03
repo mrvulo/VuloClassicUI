@@ -115,7 +115,7 @@ end
 -- =========================================================
 -- Recipe list: craftable count "[N]" + right-click favourite star
 -- =========================================================
-local STAR = "Interface\\TargetingFrame\\UI-RaidTargetingIcons"
+local STAR = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_1"  -- the single yellow star
 
 local function enhanceRow(btn, cfg)
     if btn._vcuiStarBtn then return end
@@ -123,12 +123,11 @@ local function enhanceRow(btn, cfg)
     -- An always-visible star on each recipe row: dim when not a favourite, gold
     -- when it is. Click the star (or right-click the row) to toggle.
     local sb = CreateFrame("Button", nil, btn)
-    sb:SetSize(13, 13)
+    sb:SetSize(14, 14)
     sb:SetPoint("RIGHT", btn, "RIGHT", -2, 0)
     local tex = sb:CreateTexture(nil, "OVERLAY")
     tex:SetAllPoints()
-    tex:SetTexture(STAR)
-    tex:SetTexCoord(0, 0.25, 0, 0.25)   -- yellow star raid marker
+    tex:SetTexture(STAR)   -- full single-icon file, no cropping
     sb._tex = tex
     btn._vcuiStarBtn = sb
 
@@ -164,11 +163,12 @@ local function refreshList(cfg)
             local name, skillType, numAvailable = cfg.info(btn:GetID())
             local sb = btn._vcuiStarBtn
             if name and skillType and skillType ~= "header" then
-                -- Only favourites show a star; other rows stay clean.
+                -- Star on every recipe row: faint when not a favourite, gold when it is.
+                sb:Show()
                 if mod.db.favorites[name] then
-                    sb:Show(); sb._tex:SetDesaturated(false); sb._tex:SetAlpha(1)
+                    sb._tex:SetDesaturated(false); sb._tex:SetAlpha(1)
                 else
-                    sb:Hide()
+                    sb._tex:SetDesaturated(true);  sb._tex:SetAlpha(0.35)
                 end
                 if mod.db.counts and numAvailable and numAvailable > 0 then
                     local txt = btn:GetText()
@@ -225,6 +225,7 @@ local function buildPriceBlock()
         if prev then fs:SetPoint("BOTTOMLEFT", prev, "TOPLEFT", 0, 2)
         else         fs:SetPoint("BOTTOMLEFT", detail, "BOTTOMLEFT", 4, 6) end
         fs:SetJustifyH("LEFT")
+        fs:SetShadowColor(0, 0, 0, 0)   -- no drop shadow -> crisp on parchment
         return fs
     end
     priceFS.profit = line(nil)
@@ -466,7 +467,7 @@ function mod:GetOptions()
               if _G.TradeSkillFrame and _G.TradeSkillFrame:IsShown() and _G.TradeSkillFrame_Update then pcall(_G.TradeSkillFrame_Update) end
               if _G.CraftFrame and _G.CraftFrame:IsShown() and _G.CraftFrame_Update then pcall(_G.CraftFrame_Update) end
           end },
-        { type = "desc", text = L["|cff888888Right-click a recipe to favourite it (a gold star appears). Click the star to remove it.|r"] },
+        { type = "desc", text = L["|cff888888Click a recipe's star (or right-click the recipe) to favourite it — the star turns gold.|r"] },
 
         { type = "spacer", height = 6 },
         { type = "header", text = L["Auction value"] },
