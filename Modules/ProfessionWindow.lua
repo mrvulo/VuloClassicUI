@@ -350,11 +350,11 @@ local function buildPriceBlock()
     if not (f and detail) then return end
     priceFS = {}
     local function line(prev)
-        local fs = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        if prev then fs:SetPoint("BOTTOMLEFT", prev, "TOPLEFT", 0, 2)
+        -- GameFontNormal = the gold label font Auctionator's crafting info uses.
+        local fs = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        if prev then fs:SetPoint("BOTTOMLEFT", prev, "TOPLEFT", 0, 3)
         else         fs:SetPoint("BOTTOMLEFT", detail, "BOTTOMLEFT", 4, 6) end
         fs:SetJustifyH("LEFT")
-        fs:SetShadowColor(0, 0, 0, 0)   -- no drop shadow -> crisp on parchment
         return fs
     end
     -- stacked bottom-up; empty lines collapse so hidden rows take no space
@@ -375,13 +375,8 @@ local function updateDetailInfo()
     buildPriceBlock()
     if not priceFS then return end
 
-    -- text colour follows the theme (dark surface -> light text)
-    local dark = (mod.db.theme == "dark")
-    local tr, tg, tb = dark and 0.92 or 0.15, dark and 0.90 or 0.12, dark and 0.84 or 0.08
-    for _, k in ipairs({ "value", "cost", "skillup", "thresholds", "source" }) do
-        priceFS[k]:SetTextColor(tr, tg, tb)
-    end
-
+    -- Labels keep GameFontNormal's gold colour (Auctionator style); values carry
+    -- their own embedded colour codes.
     local idx = GetTradeSkillSelectionIndex and GetTradeSkillSelectionIndex()
     if not idx or idx < 1 then clearPrices(); return end
 
