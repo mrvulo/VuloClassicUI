@@ -332,8 +332,10 @@ local function thresholdText(recipe)
 end
 
 local function skillupText(recipe)
-    if not recipe then return nil end
-    local _, rank = GetTradeSkillLine and GetTradeSkillLine()
+    if not (recipe and GetTradeSkillLine) then return nil end
+    -- NOTE: must NOT write `GetTradeSkillLine and GetTradeSkillLine()` — the
+    -- `and` collapses the multi-return to one value, so rank would be nil.
+    local _, rank = GetTradeSkillLine()
     if not rank then return nil end
     local diff = _G.CraftLib:GetRecipeDifficulty(recipe, rank)
     return L["Skill-up"] .. ": " .. (DIFF_COL[diff] or "|cffffffff") .. L[diff] .. "|r"
