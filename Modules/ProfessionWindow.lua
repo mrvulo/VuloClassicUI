@@ -42,6 +42,7 @@ local FRAMES = {
         rowFmt      = "TradeSkillSkill%d",
         rowTemplate = "TradeSkillSkillButtonTemplate",
         displayed   = "TRADE_SKILLS_DISPLAYED",
+        scrollBar   = "TradeSkillListScrollFrameScrollBar",
         updateHook  = "TradeSkillFrame_Update",
         info        = function(idx) return GetTradeSkillInfo(idx) end,  -- name, type, numAvailable
         priceCapable = true,   -- recipes produce a sellable item -> show value/profit
@@ -74,6 +75,7 @@ local FRAMES = {
         rowFmt      = "Craft%d",
         rowTemplate = "CraftButtonTemplate",
         displayed   = "CRAFTS_DISPLAYED",
+        scrollBar   = "CraftListScrollFrameScrollBar",
         updateHook  = "CraftFrame_Update",
         info        = function(idx) local n, _, t, a = GetCraftInfo(idx); return n, t, a end,
         highlight   = "CraftHighlightFrame",
@@ -205,10 +207,18 @@ local function refreshList(cfg)
     end
 
     local displayed = _G[cfg.displayed] or 0
+    -- Pull the favourite stars further in when a scrollbar is showing, so they
+    -- don't sit crammed at the far right edge (e.g. First Aid's long list).
+    local sbShown   = cfg.scrollBar and _G[cfg.scrollBar] and _G[cfg.scrollBar]:IsShown()
+    local starInset = sbShown and -34 or -16
     for i = 1, displayed do
         local btn = _G[cfg.rowFmt:format(i)]
         if btn and btn:IsShown() then
             enhanceRow(btn, cfg)
+            if btn._vcuiStarBtn then
+                btn._vcuiStarBtn:ClearAllPoints()
+                btn._vcuiStarBtn:SetPoint("RIGHT", btn, "RIGHT", starInset, 0)
+            end
             if btn._vcuiBoxes then for _, r in ipairs(btn._vcuiBoxes) do r:Hide() end end
             local name, skillType, numAvailable = cfg.info(btn:GetID())
             local sb = btn._vcuiStarBtn
