@@ -16,9 +16,11 @@ local mod = ns:RegisterModule("professionwindow", {
     group       = "QoL",
     description = "Enlarges and themes the profession windows (Tradeskill & Craft) to match the quest log: the detail pane sits beside the recipe list, with a Parchment or Dark theme.",
     defaults = {
-        enabled = true,
-        larger  = true,        -- enlarge the frames (detail beside the list)
-        theme   = "parchment", -- "parchment" | "dark"
+        enabled   = true,
+        larger    = true,        -- enlarge the frames (detail beside the list)
+        theme     = "parchment", -- "parchment" | "dark"
+        counts    = true,        -- show "[N] craftable" after each recipe
+        favorites = {},          -- [recipeName] = true (right-click a recipe)
     },
 })
 
@@ -39,6 +41,8 @@ local FRAMES = {
         rowFmt      = "TradeSkillSkill%d",
         rowTemplate = "TradeSkillSkillButtonTemplate",
         displayed   = "TRADE_SKILLS_DISPLAYED",
+        updateHook  = "TradeSkillFrame_Update",
+        info        = function(idx) return GetTradeSkillInfo(idx) end,  -- name, type, numAvailable
         highlight   = "TradeSkillHighlightFrame",
         cancel      = "TradeSkillCancelButton",
         create      = "TradeSkillCreateButton",
@@ -66,6 +70,8 @@ local FRAMES = {
         rowFmt      = "Craft%d",
         rowTemplate = "CraftButtonTemplate",
         displayed   = "CRAFTS_DISPLAYED",
+        updateHook  = "CraftFrame_Update",
+        info        = function(idx) local n, _, t, a = GetCraftInfo(idx); return n, t, a end,
         highlight   = "CraftHighlightFrame",
         cancel      = "CraftCancelButton",
         create      = "CraftCreateButton",
@@ -102,6 +108,68 @@ local function applyTheme(cfg)
         if dark then r:SetVertexColor(0.16, 0.15, 0.14, 1)
         else        r:SetVertexColor(1, 1, 1, 1) end
     end
+end
+
+-- =========================================================
+-- Recipe list: craftable count "[N]" + right-click favourite star
+-- =========================================================
+local STAR = "Interface\\TargetingFrame\\UI-RaidTargetingIcons"
+
+local function enhanceRow(btn, cfg)
+    if btn._vcuiEnhanced then return end
+    btn._vcuiEnhanced = true
+
+    local star = btn:CreateTexture(nil, "OVERLAY")
+    star:SetTexture(STAR)
+    star:SetTexCoord(0, 0.25, 0, 0.25)   -- the yellow star raid marker
+    star:SetSize(12, 12)
+    star:SetPoint("RIGHT", btn, "RIGHT", -3, 0)
+    star:Hide()
+    btn._vcuiStar = star
+
+    -- Right-click toggles favourite (left-click still selects as usual).
+    btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    btn:HookScript("OnClick", function(self, mouseButton)
+        if mouseButton ~= "RightButton" then return end
+        local name, skillType = cfg.info(self:GetID())
+        if name and name ~= "" and skillType ~= "header" then
+            local fav = mod.db.favorites
+            fav[name] = (not fav[name]) and true or nil
+            if _G[cfg.updateHook] then pcall(_G[cfg.updateHook]) end
+        end
+    end)
+end
+
+local function refreshList(cfg)
+    if not mod._enabled then return end
+    local displayed = _G[cfg.displayed] or 0
+    for i = 1, displayed do
+        local btn = _G[cfg.rowFmt:format(i)]
+        if btn and btn:IsShown() then
+            enhanceRow(btn, cfg)
+            local name, skillType, numAvailable = cfg.info(btn:GetID())
+            if name and skillType and skillType ~= "header" then
+                if mod.db.favorites[name] then btn._vcuiStar:Show() else btn._vcuiStar:Hide() end
+                if mod.db.counts and numAvailable and numAvailable > 0 then
+                    local txt = btn:GetText()
+                    -- Blizzard re-sets the plain name each update, so append once.
+                    if txt and not txt:find("%[%d+%]%s*$") then
+                        btn:SetText(txt .. "  |cffffffff[" .. numAvailable .. "]|r")
+                    end
+                end
+            else
+                btn._vcuiStar:Hide()
+            end
+        end
+    end
+end
+
+local function installListEnhancements(cfg)
+    if cfg._listHooked then return end
+    if not _G[cfg.updateHook] then return end
+    cfg._listHooked = true
+    hooksecurefunc(cfg.updateHook, function() refreshList(cfg) end)
+    refreshList(cfg)
 end
 
 -- =========================================================
@@ -221,6 +289,7 @@ local function setupFrame(cfg)
     end
 
     applyTheme(cfg)
+    installListEnhancements(cfg)   -- count + favourites work with or without enlarge
 end
 
 -- =========================================================
@@ -269,5 +338,17 @@ function mod:GetOptions()
           },
           get = function() return mod.db.theme end,
           set = function(_, v) mod.db.theme = v; for _, cfg in ipairs(FRAMES) do applyTheme(cfg) end end },
+
+        { type = "spacer", height = 6 },
+        { type = "header", text = L["Recipes"] },
+        { type = "toggle", label = L["Show craftable count"],
+          tooltip = L["Shows how many of each recipe you can make right now, like [12]."],
+          get = function() return mod.db.counts end,
+          set = function(_, v)
+              mod.db.counts = v
+              if _G.TradeSkillFrame and _G.TradeSkillFrame:IsShown() and _G.TradeSkillFrame_Update then pcall(_G.TradeSkillFrame_Update) end
+              if _G.CraftFrame and _G.CraftFrame:IsShown() and _G.CraftFrame_Update then pcall(_G.CraftFrame_Update) end
+          end },
+        { type = "desc", text = L["|cff888888Right-click a recipe to mark it as a favourite (gold star).|r"] },
     }
 end

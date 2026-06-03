@@ -59,6 +59,10 @@ ns:RegisterLocale("deDE", {
     ["Larger profession window"] = "Größeres Berufe-Fenster",
     ["Enlarges the profession windows so more recipes are visible with the detail pane beside the list. /reload to fully apply or revert."] = "Vergrößert die Berufe-Fenster, sodass mehr Rezepte sichtbar sind und das Detailfenster neben der Liste steht. /reload zum vollständigen Anwenden oder Zurücksetzen.",
     ["Profession window size changed. /reload recommended."] = "Berufe-Fenster-Größe geändert. /reload empfohlen.",
+    ["Recipes"] = "Rezepte",
+    ["Show craftable count"] = "Herstellbare Anzahl anzeigen",
+    ["Shows how many of each recipe you can make right now, like [12]."] = "Zeigt, wie oft du jedes Rezept gerade herstellen kannst, z. B. [12].",
+    ["|cff888888Right-click a recipe to mark it as a favourite (gold star).|r"] = "|cff888888Rechtsklick auf ein Rezept setzt einen Favoriten (goldener Stern).|r",
 
     -- =====================================================
     -- Disenchant Queue
