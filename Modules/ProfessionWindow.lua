@@ -202,6 +202,16 @@ local function refreshList(cfg)
                     end
                 end
             end
+            -- The recipe list scroll frame carries border textures (fileID
+            -- 130969) that draw a frame/box around the list. Hide them too.
+            local list = _G[cfg.list]
+            if list then
+                for _, r in ipairs({ list:GetRegions() }) do
+                    if r.GetObjectType and r:GetObjectType() == "Texture" then
+                        st.bars[#st.bars + 1] = r
+                    end
+                end
+            end
         end
         for _, r in ipairs(st.bars) do r:Hide() end
     end
