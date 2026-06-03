@@ -116,27 +116,39 @@ end
 local STAR = "Interface\\TargetingFrame\\UI-RaidTargetingIcons"
 
 local function enhanceRow(btn, cfg)
-    if btn._vcuiEnhanced then return end
-    btn._vcuiEnhanced = true
+    if btn._vcuiStarBtn then return end
 
-    local star = btn:CreateTexture(nil, "OVERLAY")
-    star:SetTexture(STAR)
-    star:SetTexCoord(0, 0.25, 0, 0.25)   -- the yellow star raid marker
-    star:SetSize(12, 12)
-    star:SetPoint("RIGHT", btn, "RIGHT", -3, 0)
-    star:Hide()
-    btn._vcuiStar = star
+    -- An always-visible star on each recipe row: dim when not a favourite, gold
+    -- when it is. Click the star (or right-click the row) to toggle.
+    local sb = CreateFrame("Button", nil, btn)
+    sb:SetSize(13, 13)
+    sb:SetPoint("RIGHT", btn, "RIGHT", -2, 0)
+    local tex = sb:CreateTexture(nil, "OVERLAY")
+    tex:SetAllPoints()
+    tex:SetTexture(STAR)
+    tex:SetTexCoord(0, 0.25, 0, 0.25)   -- yellow star raid marker
+    sb._tex = tex
+    btn._vcuiStarBtn = sb
 
-    -- Right-click toggles favourite (left-click still selects as usual).
-    btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-    btn:HookScript("OnClick", function(self, mouseButton)
-        if mouseButton ~= "RightButton" then return end
-        local name, skillType = cfg.info(self:GetID())
+    local function toggle()
+        local name, skillType = cfg.info(btn:GetID())
         if name and name ~= "" and skillType ~= "header" then
-            local fav = mod.db.favorites
-            fav[name] = (not fav[name]) and true or nil
+            mod.db.favorites[name] = (not mod.db.favorites[name]) and true or nil
             if _G[cfg.updateHook] then pcall(_G[cfg.updateHook]) end
         end
+    end
+    sb:SetScript("OnClick", toggle)
+    sb:SetScript("OnEnter", function()
+        GameTooltip:SetOwner(sb, "ANCHOR_RIGHT")
+        GameTooltip:SetText(L["Favourite (click to toggle)"], 1, 1, 1)
+        GameTooltip:Show()
+    end)
+    sb:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+    -- Right-click anywhere on the row also toggles (left-click still selects).
+    btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    btn:HookScript("OnClick", function(_, mouseButton)
+        if mouseButton == "RightButton" then toggle() end
     end)
 end
 
@@ -148,8 +160,14 @@ local function refreshList(cfg)
         if btn and btn:IsShown() then
             enhanceRow(btn, cfg)
             local name, skillType, numAvailable = cfg.info(btn:GetID())
+            local sb = btn._vcuiStarBtn
             if name and skillType and skillType ~= "header" then
-                if mod.db.favorites[name] then btn._vcuiStar:Show() else btn._vcuiStar:Hide() end
+                sb:Show()
+                if mod.db.favorites[name] then
+                    sb._tex:SetDesaturated(false); sb._tex:SetAlpha(1)
+                else
+                    sb._tex:SetDesaturated(true);  sb._tex:SetAlpha(0.30)
+                end
                 if mod.db.counts and numAvailable and numAvailable > 0 then
                     local txt = btn:GetText()
                     -- Blizzard re-sets the plain name each update, so append once.
@@ -158,7 +176,7 @@ local function refreshList(cfg)
                     end
                 end
             else
-                btn._vcuiStar:Hide()
+                sb:Hide()
             end
         end
     end
@@ -349,6 +367,6 @@ function mod:GetOptions()
               if _G.TradeSkillFrame and _G.TradeSkillFrame:IsShown() and _G.TradeSkillFrame_Update then pcall(_G.TradeSkillFrame_Update) end
               if _G.CraftFrame and _G.CraftFrame:IsShown() and _G.CraftFrame_Update then pcall(_G.CraftFrame_Update) end
           end },
-        { type = "desc", text = L["|cff888888Right-click a recipe to mark it as a favourite (gold star).|r"] },
+        { type = "desc", text = L["|cff888888Click a recipe's star (or right-click the recipe) to favourite it — the star turns gold.|r"] },
     }
 end

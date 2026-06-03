@@ -62,7 +62,8 @@ ns:RegisterLocale("deDE", {
     ["Recipes"] = "Rezepte",
     ["Show craftable count"] = "Herstellbare Anzahl anzeigen",
     ["Shows how many of each recipe you can make right now, like [12]."] = "Zeigt, wie oft du jedes Rezept gerade herstellen kannst, z. B. [12].",
-    ["|cff888888Right-click a recipe to mark it as a favourite (gold star).|r"] = "|cff888888Rechtsklick auf ein Rezept setzt einen Favoriten (goldener Stern).|r",
+    ["|cff888888Click a recipe's star (or right-click the recipe) to favourite it — the star turns gold.|r"] = "|cff888888Klicke den Stern eines Rezepts (oder Rechtsklick aufs Rezept), um es zu favorisieren – der Stern wird golden.|r",
+    ["Favourite (click to toggle)"] = "Favorit (Klick zum Umschalten)",
 
     -- =====================================================
     -- Disenchant Queue
