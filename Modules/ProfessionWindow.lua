@@ -138,11 +138,18 @@ local function enhanceRow(btn, cfg)
     -- textures keep a texture path, so they're left alone.
     btn._vcuiBoxes = {}
     for _, r in ipairs({ btn:GetRegions() }) do
-        if r.GetObjectType and r:GetObjectType() == "Texture" and r.GetTexture and not r:GetTexture() then
-            btn._vcuiBoxes[#btn._vcuiBoxes + 1] = r
-            r:Hide()
+        if r.GetObjectType and r:GetObjectType() == "Texture" then
+            local t = r.GetTexture and r:GetTexture()
+            -- textureless overlays, OR the rounded highlight/selection box
+            -- (UI-QuestTitleHighlight, fileID 130835 on this client). The
+            -- selected recipe stays visible via its bold/white text.
+            if not t or t == 130835 or (type(t) == "string" and t:lower():find("highlight")) then
+                btn._vcuiBoxes[#btn._vcuiBoxes + 1] = r
+                r:Hide()
+            end
         end
     end
+    if btn.SetHighlightTexture then btn:SetHighlightTexture("") end
 
     local function toggle()
         local name, skillType = cfg.info(btn:GetID())
