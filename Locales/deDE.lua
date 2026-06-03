@@ -36,7 +36,7 @@ ns:RegisterLocale("deDE", {
     -- Quest Log
     -- =====================================================
     ["Quest Log"] = "Questlog",
-    ["Enhances the quest log: quest levels + difficulty (and optional quest IDs) in the titles, a larger frame, and a Parchment or Dark theme."] = "Verbessert das Questlog: Quest-Level + Schwierigkeit (optional Quest-IDs) im Titel, größeres Fenster und Pergament- oder Dunkel-Design.",
+    ["Enhances the quest log: quest levels (and optional quest IDs) in the titles, a larger frame, and a Parchment or Dark theme."] = "Verbessert das Questlog: Quest-Level (optional Quest-IDs) im Titel, größeres Fenster und Pergament- oder Dunkel-Design.",
     ["|cffaaaaaaShows quest levels (and optionally IDs) in the quest log, can enlarge it, and lets you pick a Parchment or Dark look.|r"] = "|cffaaaaaaZeigt Quest-Level (optional IDs) im Questlog, kann es vergrößern und bietet Pergament- oder Dunkel-Look zur Auswahl.|r",
     ["Titles"] = "Titel",
     ["Show quest levels"] = "Quest-Level anzeigen",
