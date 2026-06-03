@@ -126,7 +126,7 @@ local function enhanceRow(btn, cfg)
     -- when it is. Click the star (or right-click the row) to toggle.
     local sb = CreateFrame("Button", nil, btn)
     sb:SetSize(14, 14)
-    sb:SetPoint("RIGHT", btn, "RIGHT", -2, 0)
+    sb:SetPoint("RIGHT", btn, "RIGHT", -16, 0)
     local tex = sb:CreateTexture(nil, "OVERLAY")
     tex:SetAllPoints()
     tex:SetTexture(STAR)   -- full single-icon file, no cropping
