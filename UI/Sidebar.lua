@@ -43,6 +43,7 @@ local MODULE_ICONS = {
     fixlfgbrowsenil    = "Interface\\Icons\\INV_Misc_GroupLooking",
     fixguildnews       = "Interface\\Icons\\INV_Scroll_03",
     fixauctiondropdown = "Interface\\Icons\\INV_Misc_Coin_02",
+    fixbindsocket      = "Interface\\Icons\\INV_Misc_Gem_Diamond_02",
 }
 local MODULE_ICON_FALLBACK = "Interface\\Icons\\INV_Misc_Gear_01"
 

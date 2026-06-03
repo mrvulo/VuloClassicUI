@@ -74,6 +74,16 @@ ns:RegisterLocale("deDE", {
     ["Profit"] = "Gewinn",
 
     -- =====================================================
+    -- Bind-on-Socket Fix
+    -- =====================================================
+    ["Bind-on-Socket Fix"] = "Sockel-Bindung-Fix",
+    ["Re-adds the missing BIND_SOCKET confirmation dialog so socketing a gem that binds the item no longer throws a Lua error (Anniversary client)."] = "Fügt den fehlenden BIND_SOCKET-Bestätigungsdialog wieder hinzu, damit das Einsetzen eines bindenden Steins keinen Lua-Fehler mehr auslöst (Anniversary-Client).",
+    ["Socketing this gem will bind the item to you. Continue?"] = "Diesen Stein einzusetzen bindet den Gegenstand an dich. Fortfahren?",
+    ["The Anniversary client is missing the |cffffffffBIND_SOCKET|r confirmation dialog. Socketing a gem that would bind the item then throws \"Dialog BIND_SOCKET does not exist\" and aborts. This re-adds the dialog so socketing works."] = "Dem Anniversary-Client fehlt der |cffffffffBIND_SOCKET|r-Bestätigungsdialog. Das Einsetzen eines Steins, der den Gegenstand bindet, wirft dann \"Dialog BIND_SOCKET does not exist\" und bricht ab. Dies fügt den Dialog wieder hinzu, damit das Sockeln funktioniert.",
+    ["|cff66ff66Dialog defined|r"] = "|cff66ff66Dialog definiert|r",
+    ["not defined yet"] = "noch nicht definiert",
+
+    -- =====================================================
     -- Disenchant Queue
     -- =====================================================
     ["Disenchant Queue"] = "Entzauber-Queue",
