@@ -157,6 +157,35 @@ end
 
 local function refreshList(cfg)
     if not mod._enabled then return end
+
+    -- Hide leftover thin horizontal divider bars that sit across the recipe text
+    -- on the enlarged frame. The region index varies by client and Blizzard
+    -- re-shows them on every update, so scan once then re-hide each refresh.
+    local st = states[cfg.frame]
+    if st then
+        if not st.barsScanned then
+            st.barsScanned = true
+            st.bars = {}
+            local f = _G[cfg.frame]
+            if f then
+                local ftop = f:GetTop()
+                for _, r in ipairs({ f:GetRegions() }) do
+                    if r.GetObjectType and r:GetObjectType() == "Texture" and r.GetHeight then
+                        local h, w = r:GetHeight() or 0, r:GetWidth() or 0
+                        local top  = r.GetTop and r:GetTop()
+                        -- thin + wide = a horizontal divider bar; skip the tall
+                        -- parchment/vertical borders and the title area at the top
+                        local nearTop = (ftop and top and (ftop - top) < 45)
+                        if h > 0 and h <= 20 and w >= 100 and not nearTop then
+                            st.bars[#st.bars + 1] = r
+                        end
+                    end
+                end
+            end
+        end
+        for _, r in ipairs(st.bars) do r:Hide() end
+    end
+
     local displayed = _G[cfg.displayed] or 0
     for i = 1, displayed do
         local btn = _G[cfg.rowFmt:format(i)]
