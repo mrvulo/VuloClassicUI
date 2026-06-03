@@ -423,18 +423,18 @@ local function installDetailInfo()
 
     -- CraftLib toggle buttons just under the list (only if CraftLib is present)
     if hasCraftLib() and _G.TradeSkillListScrollFrame then
-        -- {label, dbKey, gap}: gap = x from the list (1st) or from the prev button.
-        -- Smaller gaps pull a button further left.
+        -- {label, dbKey, gap, width}: gap = x from the list (1st) or from the
+        -- prev button. Smaller gaps pull a button further left.
         local defs = {
-            { L["Source"],   "showSource",     -12 },
-            { L["Levels"],   "showThresholds", 14 },
-            { L["Skill-up"], "showSkillup",    8 },
+            { L["Source"],   "showSource",     -10, 102 },
+            { L["Levels"],   "showThresholds", 8,   96 },
+            { L["Skill-up"], "showSkillup",    2,   96 },
         }
         local prev
         for _, d in ipairs(defs) do
             local key = d[2]
             local b = CreateFrame("Button", nil, _G.TradeSkillFrame, "UIPanelButtonTemplate")
-            b:SetSize(96, 20)
+            b:SetSize(d[4] or 96, 20)
             if prev then b:SetPoint("LEFT", prev, "RIGHT", d[3], 0)
             else b:SetPoint("TOPLEFT", _G.TradeSkillListScrollFrame, "BOTTOMLEFT", d[3], -1) end
             b:SetText(d[1])
