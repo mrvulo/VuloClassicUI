@@ -385,7 +385,7 @@ local function setupFrame(cfg)
 
             -- Recipe list: a touch shorter than the frame so the last row keeps
             -- a clear margin above the bottom buttons.
-            local listH = 336 + TALL - 16
+            local listH = 336 + TALL
             local list = _G[cfg.list]
             if list then
                 list:ClearAllPoints()
