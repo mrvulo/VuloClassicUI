@@ -93,9 +93,9 @@ local function createCard(parent, key, mod)
     if not mod.noToggle then
         power = UI:CreatePowerButton(card, {
             size = 16,
-            get  = function() return mod.db and mod.db.enabled end,
+            get  = mod.toggleGet or function() return mod.db and mod.db.enabled end,
             set  = function(v)
-                ns:ToggleModule(key, v)
+                if mod.toggleSet then mod.toggleSet(v) else ns:ToggleModule(key, v) end
                 if card._refresh then card._refresh() end
                 UI:RefreshSidebarStates()
             end,
@@ -106,7 +106,8 @@ local function createCard(parent, key, mod)
     end
 
     local function refresh()
-        local enabled = mod.db and mod.db.enabled
+        local enabled
+        if mod.toggleGet then enabled = mod.toggleGet() else enabled = mod.db and mod.db.enabled end
         if enabled then
             icon:SetDesaturated(false); icon:SetAlpha(1)
             name:SetTextColor(1, 1, 1)

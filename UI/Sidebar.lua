@@ -82,7 +82,9 @@ local function highlightSelected()
 
         -- Dim the icon + label of disabled modules so on/off is readable at a glance
         local mod = ns.modules[key]
-        local enabled = mod and mod.db and mod.db.enabled
+        local enabled
+        if mod and mod.toggleGet then enabled = mod.toggleGet()
+        else enabled = mod and mod.db and mod.db.enabled end
         if btn.icon then
             if enabled then
                 btn.icon:SetDesaturated(false)
@@ -136,8 +138,8 @@ local function createModuleRow(parent, key, mod)
     if not mod.noToggle then
         power = UI:CreatePowerButton(row, {
             size = 13,
-            get = function() return mod.db and mod.db.enabled end,
-            set = function(v)
+            get = mod.toggleGet or function() return mod.db and mod.db.enabled end,
+            set = mod.toggleSet or function(v)
                 ns:ToggleModule(key, v)
                 UI:RefreshSidebarStates()
             end,

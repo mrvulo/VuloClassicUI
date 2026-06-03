@@ -83,15 +83,36 @@ local PAGES = {
     },
 }
 
+-- Master on/off for a page: "on" if any member is enabled; setting toggles all.
+local function pageToggleGet(members)
+    return function()
+        for _, k in ipairs(members) do
+            local m = ns.modules[k]
+            if m and m.db and m.db.enabled then return true end
+        end
+        return false
+    end
+end
+
+local function pageToggleSet(members)
+    return function(v)
+        for _, k in ipairs(members) do ns:ToggleModule(k, v) end
+        if ns.UI and ns.UI.RefreshSidebarStates then ns.UI:RefreshSidebarStates() end
+    end
+end
+
 for _, page in ipairs(PAGES) do
-    ns:RegisterModule(page.key, {
+    local def = ns:RegisterModule(page.key, {
         name        = page.name,
         group       = "QoL",
-        noToggle    = true,        -- enabling/disabling happens per member inside
         description = page.desc,
         defaults    = { enabled = true },
         GetOptions  = makeGetOptions(page.members),
     })
+    -- A master power button that enables/disables all of the page's members.
+    def.toggleGet = pageToggleGet(page.members)
+    def.toggleSet = pageToggleSet(page.members)
+
     -- Expose the page icon to the sidebar registry, and hide its members.
     if ns.MODULE_ICONS then ns.MODULE_ICONS[page.key] = page.icon end
     for _, mk in ipairs(page.members) do
