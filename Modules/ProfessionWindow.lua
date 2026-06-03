@@ -133,6 +133,17 @@ local function enhanceRow(btn, cfg)
     sb._tex = tex
     btn._vcuiStarBtn = sb
 
+    -- Some rows carry textureless, solid overlay textures that render as a box
+    -- around the text (e.g. from a movable-frame addon). Hide those; real icon
+    -- textures keep a texture path, so they're left alone.
+    btn._vcuiBoxes = {}
+    for _, r in ipairs({ btn:GetRegions() }) do
+        if r.GetObjectType and r:GetObjectType() == "Texture" and r.GetTexture and not r:GetTexture() then
+            btn._vcuiBoxes[#btn._vcuiBoxes + 1] = r
+            r:Hide()
+        end
+    end
+
     local function toggle()
         local name, skillType = cfg.info(btn:GetID())
         if name and name ~= "" and skillType ~= "header" then
@@ -191,6 +202,7 @@ local function refreshList(cfg)
         local btn = _G[cfg.rowFmt:format(i)]
         if btn and btn:IsShown() then
             enhanceRow(btn, cfg)
+            if btn._vcuiBoxes then for _, r in ipairs(btn._vcuiBoxes) do r:Hide() end end
             local name, skillType, numAvailable = cfg.info(btn:GetID())
             local sb = btn._vcuiStarBtn
             if name and skillType and skillType ~= "header" then
