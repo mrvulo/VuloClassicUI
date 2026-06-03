@@ -64,6 +64,14 @@ ns:RegisterLocale("deDE", {
     ["Shows how many of each recipe you can make right now, like [12]."] = "Zeigt, wie oft du jedes Rezept gerade herstellen kannst, z. B. [12].",
     ["|cff888888Click a recipe's star (or right-click the recipe) to favourite it — the star turns gold.|r"] = "|cff888888Klicke den Stern eines Rezepts (oder Rechtsklick aufs Rezept), um es zu favorisieren – der Stern wird golden.|r",
     ["Favourite (click to toggle)"] = "Favorit (Klick zum Umschalten)",
+    ["Auction value"] = "Auktionswert",
+    ["Show auction value & profit"] = "Auktionswert & Gewinn anzeigen",
+    ["On the selected recipe, shows the crafted item's auction value, material cost and profit, using Auctionator's price data."] = "Zeigt beim ausgewählten Rezept den Auktionswert des hergestellten Gegenstands, die Materialkosten und den Gewinn – anhand der Preisdaten von Auctionator.",
+    ["|cff1eff00Auctionator found — prices from its data.|r"] = "|cff1eff00Auctionator gefunden – Preise aus dessen Daten.|r",
+    ["|cffff5555Auctionator not found. Install Auctionator to get price data.|r"] = "|cffff5555Auctionator nicht gefunden. Installiere Auctionator für Preisdaten.|r",
+    ["AH value"] = "AH-Wert",
+    ["Material cost"] = "Materialkosten",
+    ["Profit"] = "Gewinn",
 
     -- =====================================================
     -- Disenchant Queue

@@ -21,6 +21,7 @@ local mod = ns:RegisterModule("professionwindow", {
         theme     = "parchment", -- "parchment" | "dark"
         counts    = true,        -- show "[N] craftable" after each recipe
         favorites = {},          -- [recipeName] = true (right-click a recipe)
+        prices    = true,        -- show AH value / cost / profit (needs Auctionator)
     },
 })
 
@@ -43,6 +44,7 @@ local FRAMES = {
         displayed   = "TRADE_SKILLS_DISPLAYED",
         updateHook  = "TradeSkillFrame_Update",
         info        = function(idx) return GetTradeSkillInfo(idx) end,  -- name, type, numAvailable
+        priceCapable = true,   -- recipes produce a sellable item -> show value/profit
         highlight   = "TradeSkillHighlightFrame",
         cancel      = "TradeSkillCancelButton",
         create      = "TradeSkillCreateButton",
@@ -191,6 +193,102 @@ local function installListEnhancements(cfg)
 end
 
 -- =========================================================
+-- Auction value + profit (TradeSkill only; needs Auctionator for prices)
+-- =========================================================
+local AUC_ID = "VuloClassicUI"
+
+local function hasAuctionator()
+    local a = _G.Auctionator
+    return a and a.API and a.API.v1 and a.API.v1.GetAuctionPriceByItemID and true or false
+end
+
+local function aucPrice(itemID)
+    if not itemID or not hasAuctionator() then return nil end
+    local ok, price = pcall(_G.Auctionator.API.v1.GetAuctionPriceByItemID, AUC_ID, itemID)
+    if ok and type(price) == "number" then return price end
+    return nil
+end
+
+local function linkToID(link)
+    return link and tonumber(link:match("item:(%d+)")) or nil
+end
+
+local priceFS, priceHooked
+
+local function buildPriceBlock()
+    if priceFS then return end
+    local f, detail = _G.TradeSkillFrame, _G.TradeSkillDetailScrollFrame
+    if not (f and detail) then return end
+    priceFS = {}
+    local function line(prev)
+        local fs = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        if prev then fs:SetPoint("BOTTOMLEFT", prev, "TOPLEFT", 0, 2)
+        else         fs:SetPoint("BOTTOMLEFT", detail, "BOTTOMLEFT", 4, 6) end
+        fs:SetJustifyH("LEFT")
+        return fs
+    end
+    priceFS.profit = line(nil)
+    priceFS.cost   = line(priceFS.profit)
+    priceFS.value  = line(priceFS.cost)
+end
+
+local function clearPrices()
+    if priceFS then priceFS.value:SetText(""); priceFS.cost:SetText(""); priceFS.profit:SetText("") end
+end
+
+local function coin(c) return GetCoinTextureString and GetCoinTextureString(c) or (math.floor((c or 0) / 10000) .. "g") end
+
+local function updatePrices()
+    if not mod.db.prices or not hasAuctionator() then clearPrices(); return end
+    buildPriceBlock()
+    if not priceFS then return end
+
+    -- value/cost colour follows the theme (dark surface -> light text)
+    local dark = (mod.db.theme == "dark")
+    local tr, tg, tb = dark and 0.92 or 0.15, dark and 0.90 or 0.12, dark and 0.84 or 0.08
+    priceFS.value:SetTextColor(tr, tg, tb)
+    priceFS.cost:SetTextColor(tr, tg, tb)
+
+    local idx = GetTradeSkillSelectionIndex and GetTradeSkillSelectionIndex()
+    if not idx or idx < 1 then clearPrices(); return end
+
+    local craftedID = linkToID(GetTradeSkillItemLink and GetTradeSkillItemLink(idx))
+    local minMade = 1
+    if GetTradeSkillNumMade then local a = GetTradeSkillNumMade(idx); if a and a > 0 then minMade = a end end
+    local value = aucPrice(craftedID)
+
+    local cost, known = 0, true
+    local n = (GetTradeSkillNumReagents and GetTradeSkillNumReagents(idx)) or 0
+    for r = 1, n do
+        local _, _, needed = GetTradeSkillReagentInfo(idx, r)
+        local p = aucPrice(linkToID(GetTradeSkillReagentItemLink(idx, r)))
+        if p then cost = cost + p * (needed or 1) else known = false end
+    end
+
+    if value then priceFS.value:SetText(L["AH value"] .. ": " .. coin(value * minMade))
+    else          priceFS.value:SetText(L["AH value"] .. ": |cff888888?|r") end
+
+    if n > 0 and known then priceFS.cost:SetText(L["Material cost"] .. ": " .. coin(cost))
+    else                    priceFS.cost:SetText(L["Material cost"] .. ": |cff888888?|r") end
+
+    if value and known and n > 0 then
+        local profit = value * minMade - cost
+        if profit >= 0 then priceFS.profit:SetText(L["Profit"] .. ": |cff20ff20" .. coin(profit) .. "|r")
+        else                priceFS.profit:SetText(L["Profit"] .. ": |cffff5555-" .. coin(-profit) .. "|r") end
+    else
+        priceFS.profit:SetText("")
+    end
+end
+
+local function installPrices()
+    if priceHooked then return end
+    if not _G.TradeSkillFrame_SetSelection then return end
+    priceHooked = true
+    hooksecurefunc("TradeSkillFrame_SetSelection", updatePrices)
+    updatePrices()
+end
+
+-- =========================================================
 -- Enlarge + parchment background (runs once per frame)
 -- =========================================================
 local function setupFrame(cfg)
@@ -308,6 +406,7 @@ local function setupFrame(cfg)
 
     applyTheme(cfg)
     installListEnhancements(cfg)   -- count + favourites work with or without enlarge
+    if cfg.priceCapable then installPrices() end
 end
 
 -- =========================================================
@@ -368,5 +467,18 @@ function mod:GetOptions()
               if _G.CraftFrame and _G.CraftFrame:IsShown() and _G.CraftFrame_Update then pcall(_G.CraftFrame_Update) end
           end },
         { type = "desc", text = L["|cff888888Click a recipe's star (or right-click the recipe) to favourite it — the star turns gold.|r"] },
+
+        { type = "spacer", height = 6 },
+        { type = "header", text = L["Auction value"] },
+        { type = "toggle", label = L["Show auction value & profit"],
+          tooltip = L["On the selected recipe, shows the crafted item's auction value, material cost and profit, using Auctionator's price data."],
+          get = function() return mod.db.prices end,
+          set = function(_, v)
+              mod.db.prices = v
+              if _G.TradeSkillFrame and _G.TradeSkillFrame:IsShown() and updatePrices then updatePrices() end
+          end },
+        { type = "desc", text = hasAuctionator()
+            and L["|cff1eff00Auctionator found — prices from its data.|r"]
+            or  L["|cffff5555Auctionator not found. Install Auctionator to get price data.|r"] },
     }
 end
