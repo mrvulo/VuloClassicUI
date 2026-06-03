@@ -22,6 +22,9 @@ local mod = ns:RegisterModule("professionwindow", {
         counts    = true,        -- show "[N] craftable" after each recipe
         favorites = {},          -- [recipeName] = true (right-click a recipe)
         prices    = true,        -- show AH value / cost / profit (needs Auctionator)
+        showSource     = true,   -- CraftLib: where the recipe comes from
+        showThresholds = true,   -- CraftLib: orange/yellow/green/grey skill levels
+        showSkillup    = true,   -- CraftLib: skill-up chance colour at your skill
     },
 })
 
@@ -285,6 +288,62 @@ end
 
 local priceFS, priceHooked
 
+local function coin(c) return GetCoinTextureString and GetCoinTextureString(c) or (math.floor((c or 0) / 10000) .. "g") end
+
+-- =========================================================
+-- CraftLib (optional): recipe source, skill thresholds, skill-up colour.
+-- =========================================================
+local function hasCraftLib()
+    local c = _G.CraftLib
+    return (c and c.GetRecipeByItemId and c.IsReady and c:IsReady()) and true or false
+end
+
+local function selectedCraftRecipe()
+    if not hasCraftLib() then return nil end
+    local idx = GetTradeSkillSelectionIndex and GetTradeSkillSelectionIndex()
+    if not idx or idx < 1 then return nil end
+    local id = linkToID(GetTradeSkillItemLink and GetTradeSkillItemLink(idx))
+    if not id then return nil end
+    local ok, recipe = pcall(_G.CraftLib.GetRecipeByItemId, _G.CraftLib, id)
+    return ok and recipe or nil
+end
+
+local SOURCE_LABELS = {
+    trainer = "Trainer", vendor = "Vendor", drop = "Drop", reputation = "Reputation",
+    quest = "Quest", starter = "Starter", discovery = "Discovery", world_drop = "World drop",
+}
+local DIFF_COL = { orange = "|cffff8040", yellow = "|cffffff00", green = "|cff40c040", gray = "|cff909090" }
+
+local function sourceText(recipe)
+    local s = recipe and recipe.source
+    if not s then return nil end
+    local who  = s.npcName or s.zone or s.faction or ""
+    local cost = s.trainingCost and (" " .. coin(s.trainingCost)) or ""
+    return L["Source"] .. ": |cffffffff" .. L[SOURCE_LABELS[s.type] or "Source"]
+        .. (who ~= "" and (" - " .. who) or "") .. cost .. "|r"
+end
+
+local function thresholdText(recipe)
+    local r = recipe and recipe.skillRange
+    if not r then return nil end
+    return L["Levels"] .. ": " .. DIFF_COL.orange .. (r.orange or 0) .. "|r " .. DIFF_COL.yellow
+        .. (r.yellow or 0) .. "|r " .. DIFF_COL.green .. (r.green or 0) .. "|r " .. DIFF_COL.gray
+        .. (r.gray or 0) .. "|r"
+end
+
+local function skillupText(recipe)
+    if not recipe then return nil end
+    local _, rank = GetTradeSkillLine and GetTradeSkillLine()
+    if not rank then return nil end
+    local diff = _G.CraftLib:GetRecipeDifficulty(recipe, rank)
+    return L["Skill-up"] .. ": " .. (DIFF_COL[diff] or "|cffffffff") .. L[diff] .. "|r"
+end
+
+-- =========================================================
+-- Detail info block (auction value/profit + CraftLib lines), bottom of detail
+-- =========================================================
+local DETAIL_KEYS = { "value", "cost", "profit", "skillup", "thresholds", "source" }
+
 local function buildPriceBlock()
     if priceFS then return end
     local f, detail = _G.TradeSkillFrame, _G.TradeSkillDetailScrollFrame
@@ -298,65 +357,97 @@ local function buildPriceBlock()
         fs:SetShadowColor(0, 0, 0, 0)   -- no drop shadow -> crisp on parchment
         return fs
     end
-    priceFS.profit = line(nil)
-    priceFS.cost   = line(priceFS.profit)
-    priceFS.value  = line(priceFS.cost)
+    -- stacked bottom-up; empty lines collapse so hidden rows take no space
+    priceFS.profit     = line(nil)
+    priceFS.cost       = line(priceFS.profit)
+    priceFS.value      = line(priceFS.cost)
+    priceFS.skillup    = line(priceFS.value)
+    priceFS.thresholds = line(priceFS.skillup)
+    priceFS.source     = line(priceFS.thresholds)
 end
 
 local function clearPrices()
-    if priceFS then priceFS.value:SetText(""); priceFS.cost:SetText(""); priceFS.profit:SetText("") end
+    if not priceFS then return end
+    for _, k in ipairs(DETAIL_KEYS) do priceFS[k]:SetText("") end
 end
 
-local function coin(c) return GetCoinTextureString and GetCoinTextureString(c) or (math.floor((c or 0) / 10000) .. "g") end
-
-local function updatePrices()
-    if not mod.db.prices or not hasAuctionator() then clearPrices(); return end
+local function updateDetailInfo()
     buildPriceBlock()
     if not priceFS then return end
 
-    -- value/cost colour follows the theme (dark surface -> light text)
+    -- text colour follows the theme (dark surface -> light text)
     local dark = (mod.db.theme == "dark")
     local tr, tg, tb = dark and 0.92 or 0.15, dark and 0.90 or 0.12, dark and 0.84 or 0.08
-    priceFS.value:SetTextColor(tr, tg, tb)
-    priceFS.cost:SetTextColor(tr, tg, tb)
+    for _, k in ipairs({ "value", "cost", "skillup", "thresholds", "source" }) do
+        priceFS[k]:SetTextColor(tr, tg, tb)
+    end
 
     local idx = GetTradeSkillSelectionIndex and GetTradeSkillSelectionIndex()
     if not idx or idx < 1 then clearPrices(); return end
 
-    local craftedID = linkToID(GetTradeSkillItemLink and GetTradeSkillItemLink(idx))
-    local minMade = 1
-    if GetTradeSkillNumMade then local a = GetTradeSkillNumMade(idx); if a and a > 0 then minMade = a end end
-    local value = aucPrice(craftedID)
-
-    local cost, known = 0, true
-    local n = (GetTradeSkillNumReagents and GetTradeSkillNumReagents(idx)) or 0
-    for r = 1, n do
-        local _, _, needed = GetTradeSkillReagentInfo(idx, r)
-        local p = aucPrice(linkToID(GetTradeSkillReagentItemLink(idx, r)))
-        if p then cost = cost + p * (needed or 1) else known = false end
-    end
-
-    if value then priceFS.value:SetText(L["AH value"] .. ": " .. coin(value * minMade))
-    else          priceFS.value:SetText(L["AH value"] .. ": |cff888888?|r") end
-
-    if n > 0 and known then priceFS.cost:SetText(L["Material cost"] .. ": " .. coin(cost))
-    else                    priceFS.cost:SetText(L["Material cost"] .. ": |cff888888?|r") end
-
-    if value and known and n > 0 then
-        local profit = value * minMade - cost
-        if profit >= 0 then priceFS.profit:SetText(L["Profit"] .. ": |cff20ff20" .. coin(profit) .. "|r")
-        else                priceFS.profit:SetText(L["Profit"] .. ": |cffff5555-" .. coin(-profit) .. "|r") end
+    -- Auction value / material cost / profit (needs Auctionator)
+    if mod.db.prices and hasAuctionator() then
+        local craftedID = linkToID(GetTradeSkillItemLink and GetTradeSkillItemLink(idx))
+        local minMade = 1
+        if GetTradeSkillNumMade then local a = GetTradeSkillNumMade(idx); if a and a > 0 then minMade = a end end
+        local value = aucPrice(craftedID)
+        local cost, known = 0, true
+        local n = (GetTradeSkillNumReagents and GetTradeSkillNumReagents(idx)) or 0
+        for r = 1, n do
+            local _, _, needed = GetTradeSkillReagentInfo(idx, r)
+            local p = aucPrice(linkToID(GetTradeSkillReagentItemLink(idx, r)))
+            if p then cost = cost + p * (needed or 1) else known = false end
+        end
+        if value then priceFS.value:SetText(L["AH value"] .. ": " .. coin(value * minMade))
+        else          priceFS.value:SetText(L["AH value"] .. ": |cff888888?|r") end
+        if n > 0 and known then priceFS.cost:SetText(L["Material cost"] .. ": " .. coin(cost))
+        else                    priceFS.cost:SetText(L["Material cost"] .. ": |cff888888?|r") end
+        if value and known and n > 0 then
+            local profit = value * minMade - cost
+            if profit >= 0 then priceFS.profit:SetText(L["Profit"] .. ": |cff20ff20" .. coin(profit) .. "|r")
+            else                priceFS.profit:SetText(L["Profit"] .. ": |cffff5555-" .. coin(-profit) .. "|r") end
+        else
+            priceFS.profit:SetText("")
+        end
     else
-        priceFS.profit:SetText("")
+        priceFS.value:SetText(""); priceFS.cost:SetText(""); priceFS.profit:SetText("")
     end
+
+    -- CraftLib lines (need CraftLib); toggled by the bottom buttons
+    local cr = selectedCraftRecipe()
+    priceFS.skillup:SetText((mod.db.showSkillup and skillupText(cr)) or "")
+    priceFS.thresholds:SetText((mod.db.showThresholds and thresholdText(cr)) or "")
+    priceFS.source:SetText((mod.db.showSource and sourceText(cr)) or "")
 end
 
-local function installPrices()
+local function installDetailInfo()
     if priceHooked then return end
     if not _G.TradeSkillFrame_SetSelection then return end
     priceHooked = true
-    hooksecurefunc("TradeSkillFrame_SetSelection", updatePrices)
-    updatePrices()
+    hooksecurefunc("TradeSkillFrame_SetSelection", updateDetailInfo)
+
+    -- CraftLib toggle buttons just under the list (only if CraftLib is present)
+    if hasCraftLib() and _G.TradeSkillListScrollFrame then
+        local defs = { { L["Source"], "showSource" }, { L["Levels"], "showThresholds" }, { L["Skill-up"], "showSkillup" } }
+        local prev
+        for _, d in ipairs(defs) do
+            local key = d[2]
+            local b = CreateFrame("Button", nil, _G.TradeSkillFrame, "UIPanelButtonTemplate")
+            b:SetSize(82, 20)
+            if prev then b:SetPoint("LEFT", prev, "RIGHT", 4, 0)
+            else b:SetPoint("TOPLEFT", _G.TradeSkillListScrollFrame, "BOTTOMLEFT", 0, -6) end
+            b:SetText(d[1])
+            local function refresh()
+                local on = mod.db[key]
+                b:GetFontString():SetTextColor(on and 1 or 0.6, on and 0.82 or 0.6, on and 0 or 0.6)
+            end
+            b:SetScript("OnClick", function() mod.db[key] = not mod.db[key]; refresh(); updateDetailInfo() end)
+            refresh()
+            prev = b
+        end
+    end
+
+    updateDetailInfo()
 end
 
 -- =========================================================
@@ -489,7 +580,7 @@ local function setupFrame(cfg)
 
     applyTheme(cfg)
     installListEnhancements(cfg)   -- count + favourites work with or without enlarge
-    if cfg.priceCapable then installPrices() end
+    if cfg.priceCapable then installDetailInfo() end
 end
 
 -- =========================================================
@@ -558,10 +649,17 @@ function mod:GetOptions()
           get = function() return mod.db.prices end,
           set = function(_, v)
               mod.db.prices = v
-              if _G.TradeSkillFrame and _G.TradeSkillFrame:IsShown() and updatePrices then updatePrices() end
+              if _G.TradeSkillFrame and _G.TradeSkillFrame:IsShown() and updateDetailInfo then updateDetailInfo() end
           end },
         { type = "desc", text = hasAuctionator()
             and L["|cff1eff00Auctionator found — prices from its data.|r"]
             or  L["|cffff5555Auctionator not found. Install Auctionator to get price data.|r"] },
+
+        { type = "spacer", height = 6 },
+        { type = "header", text = L["Recipe info (CraftLib)"] },
+        { type = "desc", text = L["|cffaaaaaaThree buttons under the recipe list toggle extra info on the selected recipe: source (where to learn/get it), skill levels (orange/yellow/green/grey) and your skill-up chance.|r"] },
+        { type = "desc", text = hasCraftLib()
+            and L["|cff1eff00CraftLib found — recipe source & levels available.|r"]
+            or  L["|cffff5555CraftLib not found. Install CraftLib to show recipe source & levels.|r"] },
     }
 end
