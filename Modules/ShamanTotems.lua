@@ -171,6 +171,8 @@ local function createRow(totem)
     row:SetScript("PostClick", function(self, button)
         if button == "RightButton" then showTotemMenu(self.totem) end
     end)
+    -- Hover a slot to open the icon picker (also reachable via right-click).
+    row:HookScript("OnEnter", function(self) showTotemMenu(self.totem) end)
 
     -- WeakAura-style soft drop shadow behind the icon
     row.shadow = row:CreateTexture(nil, "BACKGROUND", nil, -1)
@@ -418,35 +420,83 @@ local function refresh()
     end
 end
 
--- Right-click picker: choose which totem this element's button casts.
+-- Icon flyout: hovering (or right-clicking) a slot opens a column of totem ICONS
+-- to pick from. It hides itself when the mouse leaves both it and the slot.
+local flyout
 showTotemMenu = function(t)
     local d = db()
+    local names = knownTotemsFor(t.key)
+    if #names == 0 then if flyout then flyout:Hide() end return end
     local set = d.sets[d.activeSet] or { fire = "", earth = "", water = "", air = "" }
     d.sets[d.activeSet] = set
-    local entries = {
-        { title = true, text = L[t.label] },
-        { text = L["(auto: last cast)"],
-          checked = function() return (set[t.key] or "") == "" end,
-          func = function() set[t.key] = ""; applyButtonSpells(); refresh() end },
-    }
-    local names = knownTotemsFor(t.key)
-    if #names == 0 then
-        entries[#entries + 1] = { text = L["|cff888888(cast a totem to add it here)|r"], disabled = true }
-    else
-        for _, name in ipairs(names) do
-            local _, _, icon = GetSpellInfo(name)
-            local label = name
-            if icon then
-                label = string.format("|T%s:18:18:0:0:64:64:5:59:5:59|t  %s", tostring(icon), name)
-            end
-            entries[#entries + 1] = {
-                text    = label,
-                checked = function() return set[t.key] == name end,
-                func    = function() set[t.key] = name; applyButtonSpells(); refresh() end,
-            }
+
+    if not flyout then
+        flyout = CreateFrame("Frame", "VCUI_TotemFlyout", UIParent, BackdropTemplateMixin and "BackdropTemplate")
+        flyout:SetFrameStrata("DIALOG")
+        flyout:SetClampedToScreen(true)
+        if flyout.SetBackdrop then
+            flyout:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8",
+                edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
+            flyout:SetBackdropColor(0.05, 0.05, 0.08, 0.92)
+            flyout:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
         end
+        flyout.btns = {}
+        flyout:Hide()
+        flyout:SetScript("OnUpdate", function(self)
+            if not self:IsMouseOver() and not (self.anchor and self.anchor:IsMouseOver()) then
+                self:Hide()
+            end
+        end)
     end
-    ns:ShowPopupMenu(entries, rows[t.key])
+
+    local size, pad = math.max(28, d.iconSize), 4
+    for i, name in ipairs(names) do
+        local b = flyout.btns[i]
+        if not b then
+            b = CreateFrame("Button", nil, flyout)
+            b.icon = b:CreateTexture(nil, "ARTWORK")
+            b.icon:SetPoint("TOPLEFT", 3, -3); b.icon:SetPoint("BOTTOMRIGHT", -3, 3)
+            b.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+            b.frame = b:CreateTexture(nil, "BORDER")
+            b.frame:SetTexture("Interface\\Buttons\\UI-Quickslot2")
+            b.frame:SetAllPoints(b)
+            b.sel = b:CreateTexture(nil, "OVERLAY")
+            b.sel:SetTexture("Interface\\Buttons\\CheckButtonHilight")
+            b.sel:SetBlendMode("ADD"); b.sel:SetAllPoints(b); b.sel:Hide()
+            b:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
+            b:SetScript("OnClick", function(self)
+                local dd = db()
+                local s = dd.sets[dd.activeSet] or { fire = "", earth = "", water = "", air = "" }
+                dd.sets[dd.activeSet] = s
+                s[self.elementKey] = self.totemName
+                applyButtonSpells(); refresh()
+                flyout:Hide()
+            end)
+            flyout.btns[i] = b
+        end
+        local _, _, icon = GetSpellInfo(name)
+        b.icon:SetTexture(icon)
+        b.totemName  = name
+        b.elementKey = t.key
+        b.sel:SetShown(set[t.key] == name)
+        b:SetSize(size, size)
+        b:ClearAllPoints()
+        b:SetPoint("TOP", flyout, "TOP", 0, -(pad + (i - 1) * (size + 2)))
+        b:Show()
+    end
+    for i = #names + 1, #flyout.btns do flyout.btns[i]:Hide() end
+
+    flyout:SetSize(size + pad * 2, #names * (size + 2) - 2 + pad * 2)
+    flyout.anchor = rows[t.key]
+    flyout:ClearAllPoints()
+    if d.layout == "icons" then
+        -- horizontal bar: drop the column straight down from the slot
+        flyout:SetPoint("TOP", rows[t.key], "BOTTOM", 0, 1)
+    else
+        -- vertical bar: open the column to the right so it can't cover other slots
+        flyout:SetPoint("LEFT", rows[t.key], "RIGHT", -1, 0)
+    end
+    flyout:Show()
 end
 
 local function onUpdate(self, elapsed)
@@ -565,6 +615,21 @@ local function deleteActiveSet()
     applyButtonSpells()
 end
 
+-- Rename the active set to a custom name (e.g. "PvP", "Magma", "Burst").
+local function renameActiveSet(newName)
+    local d = db()
+    newName = tostring(newName or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    if newName == "" then return end
+    local old = d.activeSet
+    if newName == old or d.sets[newName] then return end  -- empty / unchanged / taken
+    d.sets[newName] = d.sets[old]
+    d.sets[old]     = nil
+    for i, n in ipairs(d.setOrder) do
+        if n == old then d.setOrder[i] = newName; break end
+    end
+    d.activeSet = newName
+end
+
 -- Re-render the current options page (keeps the active class tab).
 local function rebuildOptions()
     if ns.UI and ns.UI.BuildOptionsPage then
@@ -581,7 +646,7 @@ local function getOptions()
     local isShaman = select(2, UnitClass("player")) == "SHAMAN"
     local items = {
         { type = "header", text = L["Totem Bar"] },
-        { type = "desc",   text = L["|cffaaaaaa|cffffffffLeft-click|r an icon to (re)cast that element's totem, |cffffffffright-click|r to pick which totem, |cffffffffmiddle-click|r to recall all totems. The icon border is green while the totem is up and red just before it expires.|r"] },
+        { type = "desc",   text = L["|cffaaaaaa|cffffffffLeft-click|r an icon to (re)cast that element's totem, |cffffffffhover|r a slot to pick which totem from the icon list, |cffffffffmiddle-click|r to recall all totems. The icon border turns red just before the totem expires.|r"] },
     }
     if not isShaman then
         items[#items + 1] = { type = "spacer", height = 4 }
@@ -596,6 +661,9 @@ local function getOptions()
         values = setValues,
         get = function() return d.activeSet end,
         set = function(_, v) d.activeSet = v; applyButtonSpells(); refresh(); rebuildOptions() end }
+    items[#items + 1] = { type = "editbox", label = L["Set name"], width = 280,
+        get = function() return d.activeSet end,
+        set = function(_, v) renameActiveSet(v); applyButtonSpells(); refresh(); rebuildOptions() end }
     items[#items + 1] = { type = "group", layout = "row", gap = 8, items = {
         { type = "button", label = L["New set"], width = 150,
           onClick = function() newSet(); rebuildOptions() end },

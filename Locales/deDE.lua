@@ -1008,10 +1008,11 @@ ns:RegisterLocale("deDE", {
     -- Shaman Totem Timer (Class Specific -> Shaman)
     -- =====================================================
     ["Totem Bar"] = "Totem-Leiste",
-    ["|cffaaaaaa|cffffffffLeft-click|r an icon to (re)cast that element's totem, |cffffffffright-click|r to pick which totem, |cffffffffmiddle-click|r to recall all totems. The icon border is green while the totem is up and red just before it expires.|r"] = "|cffaaaaaa|cffffffffLinksklick|r = Totem des Elements (neu) stellen, |cffffffffRechtsklick|r = Totem wählen, |cffffffffMittelklick|r = alle Totems einsammeln. Der Icon-Rahmen ist grün solange das Totem steht und rot kurz bevor es ausläuft.|r",
+    ["|cffaaaaaa|cffffffffLeft-click|r an icon to (re)cast that element's totem, |cffffffffhover|r a slot to pick which totem from the icon list, |cffffffffmiddle-click|r to recall all totems. The icon border turns red just before the totem expires.|r"] = "|cffaaaaaa|cffffffffLinksklick|r = Totem des Elements (neu) stellen, |cffffffffmit der Maus über einen Slot|r = Totem aus der Icon-Liste wählen, |cffffffffMittelklick|r = alle Totems einsammeln. Der Icon-Rahmen wird rot kurz bevor das Totem ausläuft.|r",
     ["|cffff8800Only active while playing a Shaman.|r"] = "|cffff8800Nur aktiv, wenn du einen Schamanen spielst.|r",
     ["Totem set"] = "Totem-Set",
     ["Active set"] = "Aktives Set",
+    ["Set name"] = "Set-Name",
     ["New set"] = "Neues Set",
     ["Delete set"] = "Set löschen",
     ["(auto: last cast)"] = "(auto: zuletzt gestellt)",
