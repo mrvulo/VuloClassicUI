@@ -466,7 +466,9 @@ showTotemMenu = function(t)
     for i, name in ipairs(names) do
         local b = flyout.btns[i]
         if not b then
-            b = CreateFrame("Button", nil, flyout)
+            b = CreateFrame("Button", nil, flyout, "SecureActionButtonTemplate")
+            b:RegisterForClicks("AnyUp", "AnyDown")
+            b:SetAttribute("*type1", "spell")  -- clicking an icon CASTS that totem
             b.icon = b:CreateTexture(nil, "ARTWORK")
             b.icon:SetPoint("TOPLEFT", 3, -3); b.icon:SetPoint("BOTTOMRIGHT", -3, 3)
             b.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
@@ -477,7 +479,10 @@ showTotemMenu = function(t)
             b.sel:SetTexture("Interface\\Buttons\\CheckButtonHilight")
             b.sel:SetBlendMode("ADD"); b.sel:SetAllPoints(b); b.sel:Hide()
             b:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
-            b:SetScript("OnClick", function(self)
+            -- the secure click casts it; PostClick also remembers it as this
+            -- element's choice so left-clicking the slot recasts the same totem.
+            b:SetScript("PostClick", function(self, button, down)
+                if down then return end
                 local dd = db()
                 local s = dd.sets[dd.activeSet] or { fire = "", earth = "", water = "", air = "" }
                 dd.sets[dd.activeSet] = s
@@ -487,10 +492,13 @@ showTotemMenu = function(t)
             end)
             flyout.btns[i] = b
         end
-        local _, _, icon = GetSpellInfo(name)
+        local _, _, icon, _, _, _, id = GetSpellInfo(name)
         b.icon:SetTexture(icon or "Interface\\Icons\\INV_Misc_QuestionMark")
         b.totemName  = name
         b.elementKey = t.key
+        if not (InCombatLockdown and InCombatLockdown()) then
+            b:SetAttribute("*spell1", id or name)  -- secure attrs only settable out of combat
+        end
         b.sel:SetShown(set[t.key] == name)
         b:SetSize(size, size)
         b:ClearAllPoints()
