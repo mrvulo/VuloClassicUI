@@ -1,6 +1,6 @@
 -- =========================================================
 -- VuloClassicUI / Modules / Loadouts
--- ItemRack-style equipment set manager.
+-- Equipment set manager.
 -- Save current gear as a named "loadout" and quickly swap between sets.
 --
 -- Equipping in Anniversary is restricted (AutoEquipCursorItem is protected),
@@ -714,7 +714,7 @@ local function startSpecPolling()
 end
 
 -- =========================================================
--- Character-frame sidebar (ItemRack-style)
+-- Character-frame sidebar (loadout buttons)
 -- =========================================================
 local sidebar
 local sidebarSetButtons = {}
