@@ -236,6 +236,16 @@ local function GetItemLevelTBC(itemLink)
 	return select(4, GetItemInfo(itemLink))
 end
 
+local function GetWeaponSubClass(itemLink)
+	if not itemLink then return nil, nil end
+	if _G.GetItemInfoInstant then
+		local _, _, _, _, _, classID, subClassID = GetItemInfoInstant(itemLink)
+		return classID, subClassID
+	end
+	local _, _, _, _, _, _, _, _, _, _, _, classID, subClassID = GetItemInfo(itemLink)
+	return classID, subClassID
+end
+
 local function CanEnchantSlot(unit, slot)
 	if not enchantableSlots[slot] then
 		return false
@@ -247,6 +257,19 @@ local function CanEnchantSlot(unit, slot)
 
 		local equipLoc = GetEquipLoc(link)
 		if equipLoc == "INVTYPE_HOLDABLE" then
+			return false
+		end
+	end
+
+	if slot == INVSLOT_RANGED then
+		local link = GetInventoryItemLink(unit, slot)
+		if not link then return false end
+
+		-- Only bows (2), guns (3) and crossbows (18) can take a scope.
+		-- Wands (19), thrown (16), relics etc. can't be enchanted, so don't
+		-- nag with "No Ench" on them.
+		local classID, subClassID = GetWeaponSubClass(link)
+		if classID ~= 2 or not (subClassID == 2 or subClassID == 3 or subClassID == 18) then
 			return false
 		end
 	end
