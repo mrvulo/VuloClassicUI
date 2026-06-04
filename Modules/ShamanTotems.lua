@@ -155,7 +155,8 @@ local function applyButtonSpells()
     for _, t in ipairs(TOTEMS) do
         local row = rows[t.key]
         if row then
-            row:SetAttribute("spell", castableName(buttonSpell(t), t.key) or "")
+            local name = castableName(buttonSpell(t), t.key)
+            row:SetAttribute("macrotext", name and ("/cast " .. name) or "")
         end
     end
 end
@@ -181,12 +182,11 @@ end
 -- ---------------------------------------------------------
 local function createRow(totem)
     local row = CreateFrame("Button", "VCUI_TotemBtn_" .. totem.key, container, "SecureActionButtonTemplate")
-    row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-    row:SetAttribute("type", "spell")    -- left-click casts this element's totem (spell)
-    -- MINIMAL TEST: no type2/type3/unit, cast by NAME -- mirrors a /cast <name> macro.
+    row:RegisterForClicks("LeftButtonUp")
+    row:SetAttribute("type", "macro")    -- MACRO TEST: most reliable secure cast (/cast <name>)
     row:SetScript("PostClick", function(self, button)
         ns:Print("Klick "..tostring(button).." -> "..self.totem.key
-            .." spell="..tostring(self:GetAttribute("spell")))
+            .." macro="..tostring(self:GetAttribute("macrotext")))
         if button == "RightButton" then showTotemMenu(self.totem) end
     end)
     -- NOTE: hover-to-open temporarily disabled while we confirm the click reaches
