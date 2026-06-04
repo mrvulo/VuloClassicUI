@@ -255,10 +255,8 @@ local function applyLayout()
 
     local active = {}
     for _, t in ipairs(TOTEMS) do
-        if d[t.toggle] then active[#active + 1] = t end
+        if rows[t.key] then active[#active + 1] = t end
     end
-
-    for _, row in pairs(rows) do row:Hide() end
 
     if #active == 0 then
         container:SetSize(1, 1)
@@ -285,8 +283,6 @@ local function applyLayout()
             row.time:ClearAllPoints()
             row.time:SetPoint("BOTTOM", row, "BOTTOM", 0, 1)
             row.time:SetFont(FONT, d.fontSize, "OUTLINE")
-
-            row:Show()
         end
         container:SetSize(#active * s + (#active - 1) * d.spacing, s)
     else -- bars
@@ -320,8 +316,6 @@ local function applyLayout()
             row.time:ClearAllPoints()
             row.time:SetPoint("RIGHT", row, "RIGHT", -3, 0)
             row.time:SetFont(FONT, d.fontSize, "OUTLINE")
-
-            row:Show()
         end
         container:SetSize(iconW + w, #active * h + (#active - 1) * d.spacing)
     end
@@ -543,8 +537,13 @@ local function build()
     container:SetPoint("CENTER", UIParent, "CENTER", db().x, db().y)
     container:SetFrameStrata("MEDIUM")
 
+    -- Only create the ENABLED elements. We never Show()/Hide() a secure button
+    -- from insecure code (that taints it and blocks the protected cast), so we
+    -- simply don't create the ones you've turned off. Toggling needs a /reload.
     for _, t in ipairs(TOTEMS) do
-        rows[t.key] = createRow(t)
+        if db()[t.toggle] then
+            rows[t.key] = createRow(t)
+        end
     end
 
     container.mover = ns:CreateMover(container, {
