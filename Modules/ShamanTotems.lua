@@ -168,6 +168,7 @@ local function createRow(totem)
     row:SetAttribute("type", "spell")    -- left/any click casts this element's totem (spell)
     row:SetAttribute("type2", "")         -- right-click: no cast -> opens the totem picker
     row:SetAttribute("type3", "spell")    -- middle-click: Totemic Call / recall all (spell3)
+    row:SetAttribute("unit", "none")     -- totems self-cast: don't aim the spell at your target
     row:SetScript("PostClick", function(self, button)
         if button == "RightButton" then showTotemMenu(self.totem) end
     end)
@@ -572,6 +573,21 @@ local function applyPending()
     end
 end
 
+-- Debug: /run VCUI_TotemDebug()  -> prints each slot's secure cast state.
+function VCUI_TotemDebug()
+    for _, t in ipairs(TOTEMS) do
+        local row = rows[t.key]
+        if not row then
+            ns:Print(t.key .. ": no row")
+        else
+            ns:Print(string.format("%s | spell=[%s] type=[%s] unit=[%s] shown=%s mouse=%s w=%.0f",
+                t.key, tostring(row:GetAttribute("spell")), tostring(row:GetAttribute("type")),
+                tostring(row:GetAttribute("unit")), tostring(row:IsShown()),
+                tostring(row:IsMouseEnabled()), row:GetWidth() or 0))
+        end
+    end
+end
+
 local function onEnable()
     ensureDB()
     build()
@@ -579,6 +595,7 @@ local function onEnable()
     ns:RegisterEvent("PLAYER_TOTEM_UPDATE",   learnActiveTotems)
     ns:RegisterEvent("PLAYER_ENTERING_WORLD", refresh)
     ns:RegisterEvent("PLAYER_REGEN_ENABLED",  applyPending)
+    ns:RegisterEvent("SPELLS_CHANGED",        function() applyButtonSpells() end)
     learnActiveTotems()
     refresh()
 end
