@@ -190,7 +190,9 @@ local function createRow(totem)
     row.border:SetTexture("Interface\\Buttons\\UI-Quickslot2")
 
     row.cd = CreateFrame("Cooldown", nil, row, "CooldownFrameTemplate")
-    row.cd:SetDrawEdge(true)
+    row.cd:SetDrawEdge(false)
+    if row.cd.SetDrawSwipe then row.cd:SetDrawSwipe(false) end   -- no swipe overlay (the timer text is the countdown)
+    if row.cd.SetDrawBling then row.cd:SetDrawBling(false) end   -- no end-flash (it flickered when a totem hit 0)
     if row.cd.SetHideCountdownNumbers then row.cd:SetHideCountdownNumbers(true) end
     row.cd:Hide()
 
@@ -334,9 +336,15 @@ local function updateRow(row, preview)
     end
     row.icon:SetTexture(icon or t.icon)
 
+    -- remaining time; 0 once the totem is gone or has expired
+    local remaining = 0
     if have and duration and duration > 0 then
-        local remaining = (startTime + duration) - GetTime()
+        remaining = (startTime + duration) - GetTime()
         if remaining < 0 then remaining = 0 end
+    end
+
+    -- treat <= 0 as "down" so there's no bright "0.0" frame before it dims
+    if have and remaining > 0 then
         local frac = remaining / duration
         if frac > 1 then frac = 1 end
         local warn = remaining <= d.warnSeconds
@@ -370,8 +378,7 @@ local function updateRow(row, preview)
         end
 
         if d.layout == "icons" then
-            row.cd:SetCooldown(startTime, duration)
-            row.cd:Show()
+            row.cd:Hide()  -- no cooldown swipe; the number is the countdown
         else
             local fw = d.barWidth * frac
             if fw < 1 then fw = 1 end
