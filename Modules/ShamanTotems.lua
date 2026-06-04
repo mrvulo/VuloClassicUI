@@ -156,7 +156,9 @@ local function applyButtonSpells()
         local row = rows[t.key]
         if row then
             local name = castableName(buttonSpell(t), t.key)
-            row:SetAttribute("macrotext", name and ("/cast " .. name) or "")
+            local id   = name and select(7, GetSpellInfo(name))  -- numeric spell ID
+            row:SetAttribute("*spell1", id or name)
+            row:SetAttribute("*spell3", TOTEMIC_CALL_ID)
         end
     end
 end
@@ -182,17 +184,16 @@ end
 -- ---------------------------------------------------------
 local function createRow(totem)
     local row = CreateFrame("Button", "VCUI_TotemBtn_" .. totem.key, container, "SecureActionButtonTemplate")
-    row:RegisterForClicks("LeftButtonUp")
-    row:SetAttribute("type", "macro")    -- MACRO TEST: most reliable secure cast (/cast <name>)
-    row:SetScript("PostClick", function(self, button)
-        ns:Print("Klick "..tostring(button).." prot="..tostring(self:IsProtected())
-            .." combat="..tostring(InCombatLockdown())
-            .." macro="..tostring(self:GetAttribute("macrotext")))
-        if button == "RightButton" then showTotemMenu(self.totem) end
+    row:RegisterForClicks("AnyUp", "AnyDown")
+    -- IMPORTANT: the 2.5.5 client only fires the protected cast through the "*"
+    -- wildcard attributes (*type1/*spell1), NOT plain type/spell. (Verified vs
+    -- TotemTimers, which uses the same form.)
+    row:SetAttribute("*type1", "spell")  -- left-click: cast this element's totem (*spell1)
+    row:SetAttribute("*type3", "spell")  -- middle-click: Totemic Call / recall all (*spell3)
+    -- (no *type2 -> right-click casts nothing; it opens the picker below)
+    row:SetScript("PostClick", function(self, button, down)
+        if button == "RightButton" and not down then showTotemMenu(self.totem) end
     end)
-    -- NOTE: hover-to-open temporarily disabled while we confirm the click reaches
-    -- the button. Picker is on right-click for now.
-    -- row:HookScript("OnEnter", function(self) showTotemMenu(self.totem) end)
 
     -- WeakAura-style soft drop shadow behind the icon
     row.shadow = row:CreateTexture(nil, "BACKGROUND", nil, -1)
