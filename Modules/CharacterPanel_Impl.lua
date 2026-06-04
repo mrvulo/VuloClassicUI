@@ -140,9 +140,10 @@ local enchantReplacementTable = {
 	["Verteidigung"] = "Vert",
 	["Abhärtung"] = "Abh",
 
+	["Kritische Zaubertrefferwertung"] = "Crit",
+	["kritische Zaubertrefferwertung"] = "Crit",
 	["Zauberkritische Trefferwertung"] = "Crit",
 	["zauberkritische Trefferwertung"] = "Crit",
-	["kritische Zaubertrefferwertung"] = "Crit",
 	["kritische Trefferwertung"] = "Crit",
 	["Zauberschaden und Heilung sowie Zaubertrefferwertung"] = "Spell Hit",
 	["Zaubermacht und Zaubertrefferwertung"] = "Spell Hit",
@@ -155,6 +156,8 @@ local enchantReplacementTable = {
 
 	["Kritische Trefferwertung"] = "Crit",
 	["Kritischer Trefferwert"] = "Crit",
+	["Kritischer"] = "Crit",
+	["Kritische"] = "Crit",
 	["Kritisch"] = "Crit",
 	["Tempo"] = "Haste",
 	["Zaubertrefferwertung"] = "Hit",
