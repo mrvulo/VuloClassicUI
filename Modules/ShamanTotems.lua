@@ -176,12 +176,9 @@ local function createRow(totem)
     row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
     row.icon:SetTexture(totem.icon)
 
-    -- thin dark border around the icon (WeakAura look)
-    row.border = CreateFrame("Frame", nil, row, BackdropTemplateMixin and "BackdropTemplate")
-    if row.border.SetBackdrop then
-        row.border:SetBackdrop({ edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1.2 })
-        row.border:SetBackdropBorderColor(0, 0, 0, 1)
-    end
+    -- action-bar style border around the icon (tinted by state in updateRow)
+    row.border = row:CreateTexture(nil, "OVERLAY")
+    row.border:SetTexture("Interface\\Buttons\\UI-Quickslot2")
 
     row.cd = CreateFrame("Cooldown", nil, row, "CooldownFrameTemplate")
     row.cd:SetDrawEdge(true)
@@ -210,8 +207,8 @@ local function createRow(totem)
     -- shadow + border follow the icon's size/position
     row.shadow:SetPoint("TOPLEFT", row.icon, "TOPLEFT", -5, 5)
     row.shadow:SetPoint("BOTTOMRIGHT", row.icon, "BOTTOMRIGHT", 5, -5)
-    row.border:SetPoint("TOPLEFT", row.icon, "TOPLEFT", -1, 1)
-    row.border:SetPoint("BOTTOMRIGHT", row.icon, "BOTTOMRIGHT", 1, -1)
+    row.border:SetPoint("TOPLEFT", row.icon, "TOPLEFT", -3, 3)
+    row.border:SetPoint("BOTTOMRIGHT", row.icon, "BOTTOMRIGHT", 3, -3)
 
     row.totem  = totem
     row.warned = false
@@ -340,12 +337,10 @@ local function updateRow(row, preview)
 
         row.icon:SetDesaturated(false)
         row.icon:SetVertexColor(1, 1, 1)
-        if row.border.SetBackdropBorderColor then
-            if warn then
-                row.border:SetBackdropBorderColor(WARN_COLOR[1], WARN_COLOR[2], WARN_COLOR[3], 1)
-            else
-                row.border:SetBackdropBorderColor(0.20, 1.0, 0.20, 1)  -- active = green
-            end
+        if warn then
+            row.border:SetVertexColor(1, 0.4, 0.4)  -- expiring
+        else
+            row.border:SetVertexColor(1, 1, 1)       -- active = normal/bright
         end
 
         if remaining < 10 then
@@ -382,9 +377,7 @@ local function updateRow(row, preview)
         row.warned = false
         row.icon:SetDesaturated(true)
         row.icon:SetVertexColor(0.55, 0.55, 0.55)
-        if row.border.SetBackdropBorderColor then
-            row.border:SetBackdropBorderColor(0, 0, 0, 1)  -- inactive = dark
-        end
+        row.border:SetVertexColor(0.55, 0.55, 0.55)  -- not down = dimmed
         row.time:SetText("")
         row.time:Hide()
         if d.layout == "icons" then
@@ -429,8 +422,13 @@ showTotemMenu = function(t)
         entries[#entries + 1] = { text = L["|cff888888(cast a totem to add it here)|r"], disabled = true }
     else
         for _, name in ipairs(names) do
+            local _, _, icon = GetSpellInfo(name)
+            local label = name
+            if icon then
+                label = string.format("|T%s:18:18:0:0:64:64:5:59:5:59|t  %s", tostring(icon), name)
+            end
             entries[#entries + 1] = {
-                text    = name,
+                text    = label,
                 checked = function() return set[t.key] == name end,
                 func    = function() set[t.key] = name; applyButtonSpells(); refresh() end,
             }
@@ -617,7 +615,7 @@ local function getOptions()
     items[#items + 1] = { type = "toggle", label = L["Sound before a totem expires"],
         get = function() return d.expirySound end,
         set = function(_, v) d.expirySound = v end }
-    items[#items + 1] = { type = "toggle", label = L["Shadow border (WeakAura style)"],
+    items[#items + 1] = { type = "toggle", label = L["Icon border (action-bar style)"],
         get = function() return d.shadowBorder end,
         set = function(_, v) d.shadowBorder = v; applyLayout(); refresh() end }
     items[#items + 1] = { type = "slider", label = L["Warning (seconds left)"],

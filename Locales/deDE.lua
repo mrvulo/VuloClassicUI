@@ -1018,7 +1018,7 @@ ns:RegisterLocale("deDE", {
     ["|cff888888(cast a totem to add it here)|r"] = "|cff888888(stelle ein Totem, um es hier hinzuzufügen)|r",
     ["Shown elements"] = "Angezeigte Elemente",
     ["Sound before a totem expires"] = "Ton bevor ein Totem ausläuft",
-    ["Shadow border (WeakAura style)"] = "Schatten-Rahmen (WeakAura-Stil)",
+    ["Icon border (action-bar style)"] = "Icon-Rahmen (Action-Leisten-Stil)",
     ["Fire"]  = "Feuer",
     ["Earth"] = "Erde",
     ["Water"] = "Wasser",
