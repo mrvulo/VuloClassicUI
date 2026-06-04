@@ -185,7 +185,8 @@ local function createRow(totem)
     row:RegisterForClicks("LeftButtonUp")
     row:SetAttribute("type", "macro")    -- MACRO TEST: most reliable secure cast (/cast <name>)
     row:SetScript("PostClick", function(self, button)
-        ns:Print("Klick "..tostring(button).." -> "..self.totem.key
+        ns:Print("Klick "..tostring(button).." prot="..tostring(self:IsProtected())
+            .." combat="..tostring(InCombatLockdown())
             .." macro="..tostring(self:GetAttribute("macrotext")))
         if button == "RightButton" then showTotemMenu(self.totem) end
     end)
