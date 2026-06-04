@@ -48,7 +48,6 @@ local FRAMES = {
         scrollBar   = "TradeSkillListScrollFrameScrollBar",
         updateHook  = "TradeSkillFrame_Update",
         info        = function(idx) return GetTradeSkillInfo(idx) end,  -- name, type, numAvailable
-        priceCapable = true,   -- recipes produce a sellable item -> show value/profit
         highlight   = "TradeSkillHighlightFrame",
         cancel      = "TradeSkillCancelButton",
         create      = "TradeSkillCreateButton",
@@ -341,7 +340,7 @@ local function thresholdText(recipe)
 end
 
 local function skillupText(recipe, rank)
-    if not (recipe and rank) then return nil end
+    if not (recipe and rank and _G.CraftLib and _G.CraftLib.GetRecipeDifficulty) then return nil end
     local diff = _G.CraftLib:GetRecipeDifficulty(recipe, rank)
     return L["Skill-up"] .. ": " .. (DIFF_COL[diff] or "|cffffffff") .. L[diff] .. "|r"
 end
