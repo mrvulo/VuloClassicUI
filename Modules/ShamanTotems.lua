@@ -188,7 +188,8 @@ local function createRow(totem)
     row:SetAttribute("type", "spell")    -- left/any click casts this element's totem (spell)
     row:SetAttribute("type2", "")         -- right-click: no cast -> opens the totem picker
     row:SetAttribute("type3", "spell")    -- middle-click: Totemic Call / recall all (spell3)
-    row:SetAttribute("unit", "none")     -- totems self-cast: don't aim the spell at your target
+    -- no "unit" attribute: totems are placed at your feet (self-cast); setting a
+    -- unit makes the secure cast aim the spell and the totem never drops.
     row:SetScript("PostClick", function(self, button)
         ns:Print("Klick "..tostring(button).." -> "..self.totem.key
             .." spell="..tostring(self:GetAttribute("spell")))
