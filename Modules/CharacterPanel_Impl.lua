@@ -52,6 +52,10 @@ local NUM_SOCKET_TEXTURES = 4
 local ILVL_FONT_SIZE = 11
 local ILVL_Y_OFFSET  = 4
 
+-- Per-slot vertical nudges for the enchant text (positive = up, negative = down)
+local WRIST_ENCH_Y   = -8   -- wrist enchant text a bit lower
+local WEAPON_ENCH_Y  = 6    -- weapon enchant text a bit higher
+
 local SOCKET_SIZE = 11
 local SOCKET_GAP  = 2
 local SOCKET_Y_GAP = -1
@@ -503,7 +507,11 @@ local function positionLeft(button)
 	f.ilvlDisplay:SetPoint("CENTER", button, "CENTER", 0, ILVL_Y_OFFSET)
 
 	f.enchantDisplay:ClearAllPoints()
-	f.enchantDisplay:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -7)
+	local enchY = -7
+	if button:GetID() == INVSLOT_WRIST then
+		enchY = enchY + WRIST_ENCH_Y
+	end
+	f.enchantDisplay:SetPoint("TOPLEFT", f, "TOPLEFT", 10, enchY)
 
 	f.durabilityDisplay:ClearAllPoints()
 	f.durabilityDisplay:SetWidth(2.3)
@@ -552,9 +560,9 @@ local function positionCenter(button)
 	f.enchantDisplay:ClearAllPoints()
 
 	if button:GetID() == INVSLOT_MAINHAND then
-		f.enchantDisplay:SetPoint("BOTTOMRIGHT", button, "BOTTOMLEFT", -5, 0)
+		f.enchantDisplay:SetPoint("BOTTOMRIGHT", button, "BOTTOMLEFT", -5, WEAPON_ENCH_Y)
 	else
-		f.enchantDisplay:SetPoint("BOTTOMLEFT", button, "BOTTOMRIGHT", 5, 0)
+		f.enchantDisplay:SetPoint("BOTTOMLEFT", button, "BOTTOMRIGHT", 5, WEAPON_ENCH_Y)
 	end
 end
 
