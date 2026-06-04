@@ -194,6 +194,9 @@ local function createRow(totem)
     row:SetScript("PostClick", function(self, button, down)
         if button == "RightButton" and not down then showTotemMenu(self.totem) end
     end)
+    -- Hover a slot to open the icon picker (it opens away from the slot so it
+    -- can't sit on top of it and eat the click).
+    row:HookScript("OnEnter", function(self) showTotemMenu(self.totem) end)
 
     -- WeakAura-style soft drop shadow behind the icon
     row.shadow = row:CreateTexture(nil, "BACKGROUND", nil, -1)
@@ -444,7 +447,6 @@ showTotemMenu = function(t)
     if not flyout then
         flyout = CreateFrame("Frame", "VCUI_TotemFlyout", UIParent, BackdropTemplateMixin and "BackdropTemplate")
         flyout:SetFrameStrata("DIALOG")
-        flyout:SetClampedToScreen(true)
         if flyout.SetBackdrop then
             flyout:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8",
                 edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
@@ -500,12 +502,25 @@ showTotemMenu = function(t)
     flyout:SetSize(size + pad * 2, #names * (size + 2) - 2 + pad * 2)
     flyout.anchor = rows[t.key]
     flyout:ClearAllPoints()
+    local slot = rows[t.key]
     if d.layout == "icons" then
-        -- horizontal bar: drop the column straight down from the slot
-        flyout:SetPoint("TOP", rows[t.key], "BOTTOM", 0, 1)
+        -- horizontal bar: open downward, or upward if the slot sits low on screen
+        local _, sy = slot:GetCenter()
+        local h = UIParent:GetHeight()
+        if sy and h and sy < h * 0.5 then
+            flyout:SetPoint("BOTTOM", slot, "TOP", 0, 0)
+        else
+            flyout:SetPoint("TOP", slot, "BOTTOM", 0, 0)
+        end
     else
-        -- vertical bar: open the column to the right so it can't cover other slots
-        flyout:SetPoint("LEFT", rows[t.key], "RIGHT", -1, 0)
+        -- vertical bar: open to the right, or left if the slot sits on the screen's right
+        local sx = slot:GetCenter()
+        local w = UIParent:GetWidth()
+        if sx and w and sx > w * 0.5 then
+            flyout:SetPoint("RIGHT", slot, "LEFT", 0, 0)
+        else
+            flyout:SetPoint("LEFT", slot, "RIGHT", 0, 0)
+        end
     end
     flyout:Show()
 end
@@ -579,45 +594,6 @@ local function applyPending()
         applyLayout()
         applyButtonSpells()
     end
-end
-
--- Debug: /run VCUI_TotemDebug()  -> prints each slot's secure cast state.
-function VCUI_TotemDebug()
-    for _, t in ipairs(TOTEMS) do
-        local row = rows[t.key]
-        if not row then
-            ns:Print(t.key .. ": no row")
-        else
-            ns:Print(string.format("%s | spell=[%s] type=[%s] unit=[%s] shown=%s mouse=%s w=%.0f",
-                t.key, tostring(row:GetAttribute("spell")), tostring(row:GetAttribute("type")),
-                tostring(row:GetAttribute("unit")), tostring(row:IsShown()),
-                tostring(row:IsMouseEnabled()), row:GetWidth() or 0))
-        end
-    end
-end
-
--- Isolation test: a PRISTINE standalone secure button (parented to UIParent, no
--- container, no OnUpdate, never touched again). If THIS casts, our problem is the
--- addon environment (taint); if it doesn't, a bare secure button can't cast here.
-function VCUI_TotemTest()
-    if not _G.VuloTotemTestA then
-        local id = 2484  -- Earthbind Totem (you confirmed /cast works for it)
-        -- A: bare Secure + *type1/*spell1 (TotemTimers' attribute form, red, left)
-        local a = CreateFrame("Button", "VuloTotemTestA", UIParent, "SecureActionButtonTemplate")
-        a:SetSize(72, 72); a:SetPoint("CENTER", UIParent, "CENTER", -70, 150)
-        a:RegisterForClicks("AnyUp", "AnyDown")
-        a:SetAttribute("*type1", "spell"); a:SetAttribute("*spell1", id)
-        local ta = a:CreateTexture(nil, "BACKGROUND"); ta:SetAllPoints(); ta:SetColorTexture(1, 0, 0, 0.7)
-        a:SetScript("PostClick", function() ns:Print("A (*type1, bare) Klick") end)
-        -- B: ActionButtonTemplate + Secure + *type1/*spell1 (full TotemTimers recipe, right)
-        local b = CreateFrame("CheckButton", "VuloTotemTestB", UIParent, "ActionButtonTemplate, SecureActionButtonTemplate")
-        b:SetSize(72, 72); b:SetPoint("CENTER", UIParent, "CENTER", 70, 150)
-        b:RegisterForClicks("AnyUp", "AnyDown")
-        b:SetAttribute("*type1", "spell"); b:SetAttribute("*spell1", id)
-        local tb = b:CreateTexture(nil, "OVERLAY"); tb:SetAllPoints(); tb:SetColorTexture(0, 1, 0, 0.4)
-        b:SetScript("PostClick", function() ns:Print("B (*type1, ActionButton) Klick") end)
-    end
-    ns:Print("LINKS rot = bare+*type1, RECHTS gruen = ActionButtonTemplate+*type1 (TotemTimers-Rezept). BEIDE klicken - welcher stellt Erdbindung?")
 end
 
 local function onEnable()
