@@ -595,6 +595,23 @@ function VCUI_TotemDebug()
     end
 end
 
+-- Isolation test: a PRISTINE standalone secure button (parented to UIParent, no
+-- container, no OnUpdate, never touched again). If THIS casts, our problem is the
+-- addon environment (taint); if it doesn't, a bare secure button can't cast here.
+function VCUI_TotemTest()
+    if _G.VuloTotemTest then _G.VuloTotemTest:Show() else
+        local b = CreateFrame("Button", "VuloTotemTest", UIParent, "SecureActionButtonTemplate")
+        b:SetSize(72, 72)
+        b:SetPoint("CENTER", UIParent, "CENTER", 0, 140)
+        b:RegisterForClicks("LeftButtonUp")
+        b:SetAttribute("type", "macro")
+        b:SetAttribute("macrotext", "/cast " .. (GetSpellInfo(2484) or "Totem der Erdbindung"))
+        local t = b:CreateTexture(nil, "BACKGROUND"); t:SetAllPoints(); t:SetColorTexture(1, 0, 0, 0.7)
+        b:SetScript("PostClick", function() ns:Print("Test-Klick kam an (pristine button)") end)
+    end
+    ns:Print("Roten Kasten (Bildschirmmitte, etwas hoch) ANKLICKEN -> kommt das Erdbindungs-Totem?")
+end
+
 local function onEnable()
     ensureDB()
     build()
