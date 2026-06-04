@@ -195,10 +195,23 @@ end
 -- Reads UnitAura duration/expiration (caster = player), matched by name
 -- so every rank is covered. No Mastery/Pandemic API exists in 2.5.5.
 -- =========================================================
+-- base = approximate base damage over the full duration; coef = spell-power
+-- coefficient over the full duration. Exact values barely matter: the
+-- "is a recast stronger now?" check is relative (each DoT vs its OWN snapshot),
+-- so base/coef only weight spell power against % buffs when the two move in
+-- opposite directions. Rough TBC values.
 local dotDefs = {
-    { key = "swp", id = 589,   toggle = "showSWP", color = { 0.62, 0.40, 0.94 } }, -- Shadow Word: Pain
-    { key = "vt",  id = 34917, toggle = "showVT",  color = { 0.85, 0.30, 0.85 } }, -- Vampiric Touch
-    { key = "dp",  id = 2944,  toggle = "showDP",  color = { 0.40, 0.78, 0.36 } }, -- Devouring Plague (Undead)
+    { key = "swp", id = 589,   toggle = "showSWP", color = { 0.62, 0.40, 0.94 }, base = 1236, coef = 1.10 }, -- Shadow Word: Pain
+    { key = "vt",  id = 34917, toggle = "showVT",  color = { 0.85, 0.30, 0.85 }, base = 850,  coef = 1.00 }, -- Vampiric Touch
+    { key = "dp",  id = 2944,  toggle = "showDP",  color = { 0.40, 0.78, 0.36 }, base = 1216, coef = 1.00 }, -- Devouring Plague (Undead)
+}
+
+-- Caster-side TEMPORARY % spell-damage buffs that snapshot onto a DoT at cast.
+-- Target debuffs (Shadow Weaving / Misery) are dynamic -> NOT here. Constant
+-- modifiers (Shadowform / Darkness) cancel out in the comparison -> also skip.
+-- spellId -> multiplier. Extend as needed.
+local DOT_DMG_BUFFS = {
+    [34457] = 1.03, [34459] = 1.03, [34460] = 1.03,  -- Ferocious Inspiration (+3%)
 }
 local DOT_WARN_COLOR = { 1.0, 0.25, 0.25 }
 local DOT_BAR_TEX    = "Interface\\Buttons\\WHITE8X8"
@@ -210,22 +223,41 @@ local dotsRows     = {}
 local dotsThrottle = 0
 
 local DOT_GREEN     = { 0.20, 1.00, 0.20 }
-local dotsSnapshots = {}  -- destGUID..dotKey -> shadow spell power snapshotted at cast
+local dotsSnapshots = {}  -- destGUID..dotKey -> damage-estimate snapshot at cast
 
 -- Shadow spell power right now (6 = shadow school index for GetSpellBonusDamage).
 local function dotsCurrentPower()
     return (GetSpellBonusDamage and GetSpellBonusDamage(6)) or 0
 end
 
+-- Product of active caster-side % spell-damage buffs (1.0 if none).
+local function dotsDamageMult()
+    local m = 1
+    for i = 1, 40 do
+        local name, _, _, _, _, _, _, _, _, spellId = UnitAura("player", i, "HELPFUL")
+        if not name then break end
+        local b = spellId and DOT_DMG_BUFFS[spellId]
+        if b then m = m * b end
+    end
+    return m
+end
+
+-- Estimated DoT damage = (base + spellpower * coef) * % damage multiplier.
+-- AffDots-style: snapshot this at cast, then compare to the live value.
+local function dotsFactor(dot, sp, mult)
+    return (dot.base + sp * dot.coef) * mult
+end
+
 -- Would recasting this DoT on the current target hit harder than the value it
--- snapshotted at cast? TBC DoTs freeze spell power (and buffs) on cast, so a
--- buff/proc that came up afterwards means a fresh cast deals more damage.
-local function dotsBetter(dot)
+-- snapshotted at cast? TBC DoTs freeze spell power AND caster % buffs on cast,
+-- so if either is higher now a fresh cast deals more damage. (0.5% margin
+-- avoids flicker from rounding.)
+local function dotsBetter(dot, sp, mult)
     local guid = UnitGUID("target")
     if not guid then return false end
     local snap = dotsSnapshots[guid .. dot.key]
     if not snap then return false end
-    return dotsCurrentPower() > snap + 0.5
+    return dotsFactor(dot, sp, mult) > snap * 1.005
 end
 
 -- Record the spell-power snapshot when we (re)apply a tracked DoT, and drop it
@@ -241,7 +273,8 @@ local function dotsOnCLEU()
     if not (apply or remove) then return end
     for _, dot in ipairs(dotDefs) do
         if dot.name and spellName == dot.name then
-            dotsSnapshots[destGUID .. dot.key] = apply and dotsCurrentPower() or nil
+            dotsSnapshots[destGUID .. dot.key] =
+                apply and dotsFactor(dot, dotsCurrentPower(), dotsDamageMult()) or nil
             return
         end
     end
@@ -386,7 +419,7 @@ local function dotsApplyLayout()
     end
 end
 
-local function dotsUpdateRow(row, hasTarget, preview)
+local function dotsUpdateRow(row, hasTarget, preview, sp, mult)
     local db  = mod.db.dots
     local dot = row.dot
     local dur, exp
@@ -404,7 +437,7 @@ local function dotsUpdateRow(row, hasTarget, preview)
         local frac = remaining / dur
         if frac > 1 then frac = 1 end
         local warn   = remaining <= db.warnSeconds
-        local better = (hasTarget and not preview) and dotsBetter(dot) or false
+        local better = (hasTarget and not preview) and dotsBetter(dot, sp, mult) or false
 
         if remaining < 10 then
             row.time:SetText(string.format("%.1f", remaining))
@@ -489,9 +522,10 @@ local function dotsRefresh()
     end
 
     dotsContainer:Show()
+    local sp, mult = dotsCurrentPower(), dotsDamageMult()
     for _, dot in ipairs(dotDefs) do
         local row = dotsRows[dot.key]
-        if row and row:IsShown() then dotsUpdateRow(row, true, false) end
+        if row and row:IsShown() then dotsUpdateRow(row, true, false, sp, mult) end
     end
 end
 
