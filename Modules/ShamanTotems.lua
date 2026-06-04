@@ -146,16 +146,19 @@ local function castableName(name, key)
     return name
 end
 
--- Push the cast spell onto each secure button (out of combat only).
+-- Push the cast spell onto each secure button (out of combat only). We cast by
+-- spell ID (a number), not by name: the Anniversary client is unreliable casting
+-- totems by name, and the working Disenchant button + TotemTimers both use IDs.
 local function applyButtonSpells()
     if InCombatLockdown and InCombatLockdown() then pendingAttr = true; return end
     pendingAttr = false
-    local recall = GetSpellInfo(TOTEMIC_CALL_ID) or ""
     for _, t in ipairs(TOTEMS) do
         local row = rows[t.key]
         if row then
-            row:SetAttribute("spell", castableName(buttonSpell(t), t.key) or "")
-            row:SetAttribute("spell3", recall)
+            local name = castableName(buttonSpell(t), t.key)
+            local id   = name and select(7, GetSpellInfo(name))  -- ID of the rank you know
+            row:SetAttribute("spell", id or name or "")
+            row:SetAttribute("spell3", TOTEMIC_CALL_ID)
         end
     end
 end
