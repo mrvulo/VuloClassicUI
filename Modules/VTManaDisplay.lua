@@ -25,7 +25,7 @@ local mod = ns:RegisterModule("vtmanadisplay", {
             layout      = "bars",   -- "bars" | "icons"
             showSWP     = true,
             showVT      = true,
-            showDP      = true,
+            showDP      = false,  -- Undead only; off by default
             warnSeconds = 3,
             colorText   = true,
             barWidth    = 150,
@@ -197,8 +197,8 @@ end
 -- =========================================================
 local dotDefs = {
     { key = "swp", id = 589,   toggle = "showSWP", color = { 0.62, 0.40, 0.94 } }, -- Shadow Word: Pain
-    { key = "vt",  id = 34914, toggle = "showVT",  color = { 0.85, 0.30, 0.85 } }, -- Vampiric Touch
-    { key = "dp",  id = 2944,  toggle = "showDP",  color = { 0.40, 0.78, 0.36 } }, -- Devouring Plague
+    { key = "vt",  id = 34917, toggle = "showVT",  color = { 0.85, 0.30, 0.85 } }, -- Vampiric Touch
+    { key = "dp",  id = 2944,  toggle = "showDP",  color = { 0.40, 0.78, 0.36 } }, -- Devouring Plague (Undead)
 }
 local DOT_WARN_COLOR = { 1.0, 0.25, 0.25 }
 local DOT_BAR_TEX    = "Interface\\Buttons\\WHITE8X8"
@@ -208,6 +208,40 @@ local DOT_FONT       = "Fonts\\FRIZQT__.TTF"
 local dotsContainer
 local dotsRows     = {}
 local dotsThrottle = 0
+
+local DOT_GREEN     = { 0.20, 1.00, 0.20 }
+local dotsSnapshots = {}  -- destGUID..dotKey -> shadow spell power snapshotted at cast
+
+-- Shadow spell power right now (6 = shadow school index for GetSpellBonusDamage).
+local function dotsCurrentPower()
+    return (GetSpellBonusDamage and GetSpellBonusDamage(6)) or 0
+end
+
+-- Would recasting this DoT on the current target hit harder than the value it
+-- snapshotted at cast? TBC DoTs freeze spell power (and buffs) on cast, so a
+-- buff/proc that came up afterwards means a fresh cast deals more damage.
+local function dotsBetter(dot)
+    local guid = UnitGUID("target")
+    if not guid then return false end
+    local snap = dotsSnapshots[guid .. dot.key]
+    if not snap then return false end
+    return dotsCurrentPower() > snap + 0.5
+end
+
+-- Record the spell-power snapshot whenever we (re)apply a tracked DoT.
+local function dotsOnCLEU()
+    if not playerGUID then return end
+    local _, sub, _, srcGUID, _, _, _, destGUID, _, _, _, _, spellName =
+        CombatLogGetCurrentEventInfo()
+    if srcGUID ~= playerGUID then return end
+    if sub ~= "SPELL_AURA_APPLIED" and sub ~= "SPELL_AURA_REFRESH" then return end
+    for _, dot in ipairs(dotDefs) do
+        if dot.name and spellName == dot.name then
+            dotsSnapshots[destGUID .. dot.key] = dotsCurrentPower()
+            return
+        end
+    end
+end
 
 local function dotsRefreshSpellData()
     for _, dot in ipairs(dotDefs) do
@@ -246,6 +280,10 @@ local function dotsCreateRow(dot)
         row.cd:SetHideCountdownNumbers(true)  -- we draw our own timer text
     end
     row.cd:Hide()
+
+    row.glow = row:CreateTexture(nil, "BACKGROUND")
+    row.glow:SetTexture(DOT_BAR_TEX)
+    row.glow:Hide()
 
     row.bg = row:CreateTexture(nil, "BACKGROUND")
     row.bg:SetTexture(DOT_BAR_TEX)
@@ -293,7 +331,10 @@ local function dotsApplyLayout()
 
             row.icon:ClearAllPoints(); row.icon:SetAllPoints(row); row.icon:Show()
             row.cd:ClearAllPoints(); row.cd:SetAllPoints(row)
-            row.bg:Hide(); row.fill:Hide(); row.spark:Hide()
+            row.glow:ClearAllPoints()
+            row.glow:SetPoint("TOPLEFT", row, "TOPLEFT", -2, 2)
+            row.glow:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 2, -2)
+            row.bg:Hide(); row.fill:Hide(); row.spark:Hide(); row.glow:Hide()
 
             row.time:ClearAllPoints()
             row.time:SetPoint("BOTTOM", row, "BOTTOM", 0, 1)
@@ -317,6 +358,7 @@ local function dotsApplyLayout()
             row.icon:Show()
 
             row.cd:Hide()
+            row.glow:Hide()
 
             row.bg:ClearAllPoints()
             row.bg:SetPoint("TOPLEFT", row, "TOPLEFT", iconW + 1, 0)
@@ -357,7 +399,8 @@ local function dotsUpdateRow(row, hasTarget, preview)
         if remaining < 0 then remaining = 0 end
         local frac = remaining / dur
         if frac > 1 then frac = 1 end
-        local warn = remaining <= db.warnSeconds
+        local warn   = remaining <= db.warnSeconds
+        local better = (hasTarget and not preview) and dotsBetter(dot) or false
 
         if remaining < 10 then
             row.time:SetText(string.format("%.1f", remaining))
@@ -365,7 +408,9 @@ local function dotsUpdateRow(row, hasTarget, preview)
             row.time:SetText(string.format("%d", remaining + 0.5))
         end
         row.time:Show()
-        if db.colorText and warn then
+        if db.colorText and better then
+            row.time:SetTextColor(DOT_GREEN[1], DOT_GREEN[2], DOT_GREEN[3])
+        elseif db.colorText and warn then
             row.time:SetTextColor(DOT_WARN_COLOR[1], DOT_WARN_COLOR[2], DOT_WARN_COLOR[3])
         else
             row.time:SetTextColor(1, 1, 1)
@@ -376,11 +421,22 @@ local function dotsUpdateRow(row, hasTarget, preview)
         if db.layout == "icons" then
             row.cd:SetCooldown(exp - dur, dur)
             row.cd:Show()
+            if better then
+                row.glow:SetVertexColor(DOT_GREEN[1], DOT_GREEN[2], DOT_GREEN[3], 1)
+                row.glow:Show()
+            elseif warn then
+                row.glow:SetVertexColor(DOT_WARN_COLOR[1], DOT_WARN_COLOR[2], DOT_WARN_COLOR[3], 1)
+                row.glow:Show()
+            else
+                row.glow:Hide()
+            end
         else
             local fw = db.barWidth * frac
             if fw < 1 then fw = 1 end
             row.fill:SetWidth(fw)
-            if warn then
+            if better then
+                row.fill:SetVertexColor(DOT_GREEN[1], DOT_GREEN[2], DOT_GREEN[3], 0.9)
+            elseif warn then
                 row.fill:SetVertexColor(DOT_WARN_COLOR[1], DOT_WARN_COLOR[2], DOT_WARN_COLOR[3], 0.9)
             else
                 row.fill:SetVertexColor(dot.color[1], dot.color[2], dot.color[3], 0.9)
@@ -395,6 +451,7 @@ local function dotsUpdateRow(row, hasTarget, preview)
         row.time:Hide()
         row.icon:SetDesaturated(true)
         row.icon:SetVertexColor(0.5, 0.5, 0.5)
+        row.glow:Hide()
         if db.layout == "icons" then
             row.cd:Hide()
         else
@@ -532,6 +589,7 @@ function mod:OnEnable()
 
     dotsBuild()
     dotsContainer:SetScript("OnUpdate", dotsOnUpdate)
+    ns:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", dotsOnCLEU)
     ns:RegisterEvent("SPELLS_CHANGED",        dotsRefreshSpellData)
     ns:RegisterEvent("PLAYER_TARGET_CHANGED", dotsRefresh)
     ns:RegisterEvent("PLAYER_ENTERING_WORLD", dotsRefresh)
@@ -547,6 +605,7 @@ function mod:OnDisable()
     if cFrame then cFrame:Hide() end
 
     -- Shadow DoT tracker
+    ns:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED", dotsOnCLEU)
     ns:UnregisterEvent("SPELLS_CHANGED",        dotsRefreshSpellData)
     ns:UnregisterEvent("PLAYER_TARGET_CHANGED", dotsRefresh)
     ns:UnregisterEvent("PLAYER_ENTERING_WORLD", dotsRefresh)
@@ -618,7 +677,7 @@ local function priestOptions()
     table.insert(items, { type = "spacer", height = 10 })
     table.insert(items, { type = "header", text = L["Shadow DoT Tracker"] })
     table.insert(items, { type = "desc",
-        text = L["|cffaaaaaaTracks your own Shadow Word: Pain, Vampiric Touch and Devouring Plague on the current target. Choose bars or icons; the bar/icon turns red shortly before the DoT expires.|r"] })
+        text = L["|cffaaaaaaTracks your Shadow DoTs on the target. |cff44ff44Green|r = a buff is up that makes it hit harder if you recast now (TBC snapshot); |cffff4444red|r = about to expire.|r"] })
 
     table.insert(items, { type = "dropdown", label = L["Layout"],
         values = {

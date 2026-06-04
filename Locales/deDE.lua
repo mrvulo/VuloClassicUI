@@ -981,7 +981,7 @@ ns:RegisterLocale("deDE", {
     -- Shadow DoTs
     -- =====================================================
     ["Shadow DoT Tracker"] = "Schatten-DoT-Tracker",
-    ["|cffaaaaaaTracks your own Shadow Word: Pain, Vampiric Touch and Devouring Plague on the current target. Choose bars or icons; the bar/icon turns red shortly before the DoT expires.|r"] = "|cffaaaaaaVerfolgt deine eigenen DoTs (Schattenwort: Schmerz, Vampirberührung, Zehrende Plage) auf dem aktuellen Ziel. Wähle Balken oder Symbole; der Balken/das Symbol wird rot, kurz bevor der DoT ausläuft.|r",
+    ["|cffaaaaaaTracks your Shadow DoTs on the target. |cff44ff44Green|r = a buff is up that makes it hit harder if you recast now (TBC snapshot); |cffff4444red|r = about to expire.|r"] = "|cffaaaaaaVerfolgt deine Schatten-DoTs auf dem Ziel. |cff44ff44Grün|r = ein Buff ist aktiv, der bei Neu-Cast mehr Schaden bringt (TBC-Snapshot); |cffff4444rot|r = läuft gleich aus.|r",
     ["Bars"] = "Balken",
     ["Icons"] = "Symbole",
     ["Shadow Word: Pain"] = "Schattenwort: Schmerz",
