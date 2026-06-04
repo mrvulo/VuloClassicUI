@@ -185,33 +185,19 @@ local enchantReplacementTable = {
 	["+"] = "",
 }
 
-local function pairsByKeys(t, f)
-	local a = {}
-
-	for n in pairs(t) do
-		table.insert(a, n)
-	end
-
-	table.sort(a, function(a, b)
-		return #a > #b
-	end)
-
-	local i = 0
-
-	return function()
-		i = i + 1
-		if a[i] == nil then return nil end
-		return a[i], t[a[i]]
-	end
-end
+-- Replacement order, precomputed once (longest key first). The table is static,
+-- so there's no need to rebuild + sort it on every ProcessEnchantText call.
+local enchantOrder = {}
+for k in pairs(enchantReplacementTable) do enchantOrder[#enchantOrder + 1] = k end
+table.sort(enchantOrder, function(a, b) return #a > #b end)
 
 local function ProcessEnchantText(enchantText)
 	if not enchantText then return enchantText end
 
 	-- Only abbreviate when the "shorten enchant text" toggle is on
 	if cpOpt("shortenEnchants", true) then
-		for seek, replacement in pairsByKeys(enchantReplacementTable) do
-			enchantText = enchantText:gsub(seek, replacement)
+		for _, seek in ipairs(enchantOrder) do
+			enchantText = enchantText:gsub(seek, enchantReplacementTable[seek])
 		end
 	end
 
@@ -506,11 +492,17 @@ function cpMod.restyleAllText()
 	end
 end
 
--- An empty gem socket shows a socketing-frame texture instead of a gem icon.
-local function IsEmptySocketTexture(tex)
-	if not tex then return false end
-	tex = tostring(tex)
-	return tex:find("EmptySocket") ~= nil or tex:find("ItemSocketingFrame") ~= nil
+-- Detect an empty gem socket via the item link's gem fields.
+-- This is locale- AND fileID-independent: in 2.5.5 texture:GetTexture()
+-- returns a numeric fileID (not a path), so matching the texture path does
+-- not work. Socket display index i maps to the i-th gem field of the link
+-- (item:itemID:enchant:gem1:gem2:gem3:gem4:...).
+local function SocketIsEmpty(itemLink, index)
+	if not itemLink or not index then return false end
+	local itemString = itemLink:match("item[%-?%d:]+")
+	if not itemString then return false end
+	local gemID = select(3 + index, strsplit(":", itemString))
+	return gemID == nil or gemID == "" or gemID == "0"
 end
 
 local function CreateAdditionalDisplayForButton(button)
@@ -710,7 +702,7 @@ local function UpdateAdditionalDisplay(button, unit)
 				t:SetTexture(textures[i])
 				t:SetVertexColor(1, 1, 1)
 				t:Show()
-				if cpOpt("markEmptySockets", true) and IsEmptySocketTexture(textures[i]) then
+				if cpOpt("markEmptySockets", true) and SocketIsEmpty(itemLink, i) then
 					ring:Show()
 				else
 					ring:Hide()

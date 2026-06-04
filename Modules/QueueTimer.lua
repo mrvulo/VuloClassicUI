@@ -223,8 +223,16 @@ end
 -- =========================================================
 -- Lifecycle
 -- =========================================================
+-- Register events only once. Re-enabling the module must not add a second set
+-- of handlers (that would fire queue pops / sounds twice). The handlers below
+-- all gate on mod._enabled, so disabling them is handled by the flag alone.
+local eventsRegistered = false
+
 function mod:OnEnable()
     installHooks()
+
+    if eventsRegistered then return end
+    eventsRegistered = true
 
     ns:RegisterEvent("LFG_PROPOSAL_SHOW",      function()
         if not mod._enabled then return end

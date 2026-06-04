@@ -116,7 +116,7 @@ local function startCast(unit, channeling)
         name, _, texture, startTime, endTime = UnitCastingInfo(unit)
     end
 
-    if not name then cb:Hide(); return end
+    if not name or not startTime or not endTime then cb:Hide(); return end
 
     cb.startTime = startTime / 1000
     cb.endTime   = endTime   / 1000

@@ -228,16 +228,20 @@ local function dotsBetter(dot)
     return dotsCurrentPower() > snap + 0.5
 end
 
--- Record the spell-power snapshot whenever we (re)apply a tracked DoT.
+-- Record the spell-power snapshot when we (re)apply a tracked DoT, and drop it
+-- again when the DoT falls off (or the target dies). Keeps dotsSnapshots from
+-- growing unbounded and prevents stale snapshots on recycled GUIDs.
 local function dotsOnCLEU()
     if not playerGUID then return end
     local _, sub, _, srcGUID, _, _, _, destGUID, _, _, _, _, spellName =
         CombatLogGetCurrentEventInfo()
     if srcGUID ~= playerGUID then return end
-    if sub ~= "SPELL_AURA_APPLIED" and sub ~= "SPELL_AURA_REFRESH" then return end
+    local apply  = (sub == "SPELL_AURA_APPLIED" or sub == "SPELL_AURA_REFRESH")
+    local remove = (sub == "SPELL_AURA_REMOVED")
+    if not (apply or remove) then return end
     for _, dot in ipairs(dotDefs) do
         if dot.name and spellName == dot.name then
-            dotsSnapshots[destGUID .. dot.key] = dotsCurrentPower()
+            dotsSnapshots[destGUID .. dot.key] = apply and dotsCurrentPower() or nil
             return
         end
     end

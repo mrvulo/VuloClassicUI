@@ -753,6 +753,12 @@ function mod:OnEnable()
         GameTooltip:HookScript("OnTooltipSetUnit", onPlayerTooltipUnit)
     end
 
+    -- Register these lazy/one-shot events only once: re-enabling the module
+    -- must not append duplicate ADDON_LOADED/PLAYER_LOGIN handlers (which would
+    -- re-run scanAddonTooltips and re-install hooks). Handlers gate on _enabled.
+    if mod._lazyEventsHooked then return end
+    mod._lazyEventsHooked = true
+
     -- Achievement/Collection/Garrison frames are loaded lazily
     ns:RegisterEvent("ADDON_LOADED", function(_, addonName)
         if not mod._enabled then return end

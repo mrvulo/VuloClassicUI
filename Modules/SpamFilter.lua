@@ -69,8 +69,13 @@ local DEFAULT_KEYWORDS = { "asino", "casino", "kasino", "gasino" }
 -- normalize(str) -> ascii-lower, letters only, look-alikes folded
 local function normalize(s)
     if not s or s == "" then return "" end
-    for from, to in pairs(CONFUSABLES) do
-        s = s:gsub(from, to)
+    -- Only fold look-alikes when the text actually contains non-ASCII bytes.
+    -- CONFUSABLES keys are all multi-byte UTF-8, so on plain-ASCII text (the
+    -- common case) none can match — skip ~110 gsub passes per chat line.
+    if s:find("[\128-\255]") then
+        for from, to in pairs(CONFUSABLES) do
+            s = s:gsub(from, to)
+        end
     end
     s = s:lower()
     s = s:gsub("[^a-z]", "")

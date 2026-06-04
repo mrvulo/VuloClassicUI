@@ -12,7 +12,7 @@ function ns:Print(msg, ...)
 end
 
 function ns:Debug(msg, ...)
-    if not ns.db or not ns.db.global.debug then return end
+    if not (ns.db and ns.db.global) or not ns.db.global.debug then return end
     if select("#", ...) > 0 then
         msg = string.format(msg, ...)
     end

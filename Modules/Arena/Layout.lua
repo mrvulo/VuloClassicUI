@@ -15,6 +15,9 @@ local H = mod.helpers
 local function applyLayout()
     local owner = H.GetOwner()
     if not owner then return end
+    -- ArenaEnemyFrames are secure frames; moving them in combat is blocked
+    -- and taints them. Skip now and re-apply on PLAYER_REGEN_ENABLED.
+    if InCombatLockdown() then return end
 
     local order   = mod.db.slotOrder   or { 1, 2, 3, 4, 5 }
     local spacing = mod.db.slotSpacing or 6
@@ -67,6 +70,12 @@ local function hookLayout()
             applyLayout()
         end)
     end
+
+    -- Re-apply once combat ends: frames that updated mid-combat were skipped
+    -- by the InCombatLockdown guard in applyLayout.
+    ns:RegisterEvent("PLAYER_REGEN_ENABLED", function()
+        if mod._enabled then applyLayout() end
+    end)
 end
 
 -- =========================================================
