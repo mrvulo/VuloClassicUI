@@ -190,6 +190,11 @@ local function createRow(totem)
     row:SetAttribute("type3", "spell")    -- middle-click: Totemic Call / recall all (spell3)
     row:SetAttribute("unit", "none")     -- totems self-cast: don't aim the spell at your target
     row:SetScript("PostClick", function(self, button)
+        if VCUI_TotemClickDebug then
+            ns:Print("Klick "..tostring(button).." -> "..self.totem.key
+                .." spell="..tostring(self:GetAttribute("spell"))
+                .." type="..tostring(self:GetAttribute("type")))
+        end
         if button == "RightButton" then showTotemMenu(self.totem) end
     end)
     -- Hover a slot to open the icon picker (also reachable via right-click).
