@@ -190,15 +190,13 @@ local function createRow(totem)
     row:SetAttribute("type3", "spell")    -- middle-click: Totemic Call / recall all (spell3)
     row:SetAttribute("unit", "none")     -- totems self-cast: don't aim the spell at your target
     row:SetScript("PostClick", function(self, button)
-        if VCUI_TotemClickDebug then
-            ns:Print("Klick "..tostring(button).." -> "..self.totem.key
-                .." spell="..tostring(self:GetAttribute("spell"))
-                .." type="..tostring(self:GetAttribute("type")))
-        end
+        ns:Print("Klick "..tostring(button).." -> "..self.totem.key
+            .." spell="..tostring(self:GetAttribute("spell")))
         if button == "RightButton" then showTotemMenu(self.totem) end
     end)
-    -- Hover a slot to open the icon picker (also reachable via right-click).
-    row:HookScript("OnEnter", function(self) showTotemMenu(self.totem) end)
+    -- NOTE: hover-to-open temporarily disabled while we confirm the click reaches
+    -- the button. Picker is on right-click for now.
+    -- row:HookScript("OnEnter", function(self) showTotemMenu(self.totem) end)
 
     -- WeakAura-style soft drop shadow behind the icon
     row.shadow = row:CreateTexture(nil, "BACKGROUND", nil, -1)
