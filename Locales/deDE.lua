@@ -980,14 +980,10 @@ ns:RegisterLocale("deDE", {
     -- =====================================================
     -- Shadow DoTs
     -- =====================================================
-    ["Shadow DoTs"] = "Schatten-DoTs",
-    ["Shadow Priest DoT tracker: Shadow Word: Pain, Vampiric Touch and Devouring Plague on your target, as bars or icons, with a refresh-soon warning."] = "Schatten-Priester-DoT-Tracker: Schattenwort: Schmerz, Vampirberührung und Zehrende Plage auf deinem Ziel – als Balken oder Symbole, mit Auffrischungs-Warnung.",
     ["Shadow DoT Tracker"] = "Schatten-DoT-Tracker",
     ["|cffaaaaaaTracks your own Shadow Word: Pain, Vampiric Touch and Devouring Plague on the current target. Choose bars or icons; the bar/icon turns red shortly before the DoT expires.|r"] = "|cffaaaaaaVerfolgt deine eigenen DoTs (Schattenwort: Schmerz, Vampirberührung, Zehrende Plage) auf dem aktuellen Ziel. Wähle Balken oder Symbole; der Balken/das Symbol wird rot, kurz bevor der DoT ausläuft.|r",
-    ["|cffff8800Only active while playing a Priest.|r"] = "|cffff8800Nur aktiv, wenn du einen Priester spielst.|r",
     ["Bars"] = "Balken",
     ["Icons"] = "Symbole",
-    ["Tracked DoTs"] = "Verfolgte DoTs",
     ["Shadow Word: Pain"] = "Schattenwort: Schmerz",
     ["Vampiric Touch"] = "Vampirberührung",
     ["Devouring Plague"] = "Zehrende Plage",

@@ -20,6 +20,23 @@ local mod = ns:RegisterModule("vtmanadisplay", {
         y          = -220,
         fontSize   = 14,
         unlocked   = false,
+        -- Shadow DoT tracker (Priest → Shadow)
+        dots = {
+            layout      = "bars",   -- "bars" | "icons"
+            showSWP     = true,
+            showVT      = true,
+            showDP      = true,
+            warnSeconds = 3,
+            colorText   = true,
+            barWidth    = 150,
+            barHeight   = 18,
+            iconSize    = 32,
+            spacing     = 3,
+            fontSize    = 12,
+            x           = 250,
+            y           = 0,
+            unlocked    = false,
+        },
     },
 })
 
@@ -172,6 +189,302 @@ local function setUnlocked(state)
 end
 
 -- =========================================================
+-- Shadow DoT tracker (Priest → Shadow)
+-- Tracks YOUR Shadow Word: Pain / Vampiric Touch / Devouring Plague
+-- on the current target, as bars or icons, with a refresh warning.
+-- Reads UnitAura duration/expiration (caster = player), matched by name
+-- so every rank is covered. No Mastery/Pandemic API exists in 2.5.5.
+-- =========================================================
+local dotDefs = {
+    { key = "swp", id = 589,   toggle = "showSWP", color = { 0.62, 0.40, 0.94 } }, -- Shadow Word: Pain
+    { key = "vt",  id = 34914, toggle = "showVT",  color = { 0.85, 0.30, 0.85 } }, -- Vampiric Touch
+    { key = "dp",  id = 2944,  toggle = "showDP",  color = { 0.40, 0.78, 0.36 } }, -- Devouring Plague
+}
+local DOT_WARN_COLOR = { 1.0, 0.25, 0.25 }
+local DOT_BAR_TEX    = "Interface\\Buttons\\WHITE8X8"
+local DOT_SPARK_TEX  = "Interface\\CastingBar\\UI-CastingBar-Spark"
+local DOT_FONT       = "Fonts\\FRIZQT__.TTF"
+
+local dotsContainer
+local dotsRows     = {}
+local dotsThrottle = 0
+
+local function dotsRefreshSpellData()
+    for _, dot in ipairs(dotDefs) do
+        local n, _, icon = GetSpellInfo(dot.id)
+        dot.name = n
+        dot.icon = icon
+        if dotsRows[dot.key] and icon then
+            dotsRows[dot.key].icon:SetTexture(icon)
+        end
+    end
+end
+
+-- Find the player's own debuff by name; verify caster == "player".
+local function dotsFindAura(unit, name)
+    if not name then return nil end
+    for i = 1, 40 do
+        local aName, _, _, _, dur, exp, source = UnitAura(unit, i, "HARMFUL")
+        if not aName then return nil end
+        if aName == name and source == "player" then
+            return dur, exp
+        end
+    end
+    return nil
+end
+
+local function dotsCreateRow(dot)
+    local row = CreateFrame("Frame", nil, dotsContainer)
+
+    row.icon = row:CreateTexture(nil, "ARTWORK")
+    row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    if dot.icon then row.icon:SetTexture(dot.icon) end
+
+    row.cd = CreateFrame("Cooldown", nil, row, "CooldownFrameTemplate")
+    row.cd:SetDrawEdge(true)
+    if row.cd.SetHideCountdownNumbers then
+        row.cd:SetHideCountdownNumbers(true)  -- we draw our own timer text
+    end
+    row.cd:Hide()
+
+    row.bg = row:CreateTexture(nil, "BACKGROUND")
+    row.bg:SetTexture(DOT_BAR_TEX)
+    row.bg:SetVertexColor(0.08, 0.08, 0.08, 0.85)
+
+    row.fill = row:CreateTexture(nil, "ARTWORK")
+    row.fill:SetTexture(DOT_BAR_TEX)
+    row.fill:SetVertexColor(dot.color[1], dot.color[2], dot.color[3], 0.9)
+
+    row.spark = row:CreateTexture(nil, "OVERLAY")
+    row.spark:SetTexture(DOT_SPARK_TEX)
+    row.spark:SetBlendMode("ADD")
+    row.spark:SetWidth(16)
+
+    row.time = row:CreateFontString(nil, "OVERLAY")
+    row.time:SetFont(DOT_FONT, mod.db.dots.fontSize, "OUTLINE")
+
+    row.dot = dot
+    return row
+end
+
+local function dotsApplyLayout()
+    if not dotsContainer then return end
+    local db = mod.db.dots
+
+    local active = {}
+    for _, dot in ipairs(dotDefs) do
+        if db[dot.toggle] then active[#active + 1] = dot end
+    end
+
+    for _, row in pairs(dotsRows) do row:Hide() end
+
+    if #active == 0 then
+        dotsContainer:SetSize(1, 1)
+        return
+    end
+
+    if db.layout == "icons" then
+        local s = db.iconSize
+        for i, dot in ipairs(active) do
+            local row = dotsRows[dot.key]
+            row:ClearAllPoints()
+            row:SetSize(s, s)
+            row:SetPoint("LEFT", dotsContainer, "LEFT", (i - 1) * (s + db.spacing), 0)
+
+            row.icon:ClearAllPoints(); row.icon:SetAllPoints(row); row.icon:Show()
+            row.cd:ClearAllPoints(); row.cd:SetAllPoints(row)
+            row.bg:Hide(); row.fill:Hide(); row.spark:Hide()
+
+            row.time:ClearAllPoints()
+            row.time:SetPoint("BOTTOM", row, "BOTTOM", 0, 1)
+            row.time:SetFont(DOT_FONT, db.fontSize, "OUTLINE")
+
+            row:Show()
+        end
+        dotsContainer:SetSize(#active * s + (#active - 1) * db.spacing, s)
+    else -- bars
+        local h, w = db.barHeight, db.barWidth
+        local iconW = h
+        for i, dot in ipairs(active) do
+            local row = dotsRows[dot.key]
+            row:ClearAllPoints()
+            row:SetSize(iconW + w, h)
+            row:SetPoint("TOPLEFT", dotsContainer, "TOPLEFT", 0, -(i - 1) * (h + db.spacing))
+
+            row.icon:ClearAllPoints()
+            row.icon:SetSize(h, h)
+            row.icon:SetPoint("LEFT", row, "LEFT", 0, 0)
+            row.icon:Show()
+
+            row.cd:Hide()
+
+            row.bg:ClearAllPoints()
+            row.bg:SetPoint("TOPLEFT", row, "TOPLEFT", iconW + 1, 0)
+            row.bg:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 0, 0)
+            row.bg:Show()
+
+            row.fill:ClearAllPoints()
+            row.fill:SetPoint("LEFT", row, "LEFT", iconW + 1, 0)
+            row.fill:SetSize(w, h)
+            row.fill:Show()
+
+            row.spark:SetHeight(h + 6)
+
+            row.time:ClearAllPoints()
+            row.time:SetPoint("RIGHT", row, "RIGHT", -3, 0)
+            row.time:SetFont(DOT_FONT, db.fontSize, "OUTLINE")
+
+            row:Show()
+        end
+        dotsContainer:SetSize(iconW + w, #active * h + (#active - 1) * db.spacing)
+    end
+end
+
+local function dotsUpdateRow(row, hasTarget, preview)
+    local db  = mod.db.dots
+    local dot = row.dot
+    local dur, exp
+
+    if preview then
+        dur = 10
+        exp = GetTime() + (dot.key == "vt" and 7 or 10)
+    elseif hasTarget then
+        dur, exp = dotsFindAura("target", dot.name)
+    end
+
+    if dur and exp and dur > 0 then
+        local remaining = exp - GetTime()
+        if remaining < 0 then remaining = 0 end
+        local frac = remaining / dur
+        if frac > 1 then frac = 1 end
+        local warn = remaining <= db.warnSeconds
+
+        if remaining < 10 then
+            row.time:SetText(string.format("%.1f", remaining))
+        else
+            row.time:SetText(string.format("%d", remaining + 0.5))
+        end
+        row.time:Show()
+        if db.colorText and warn then
+            row.time:SetTextColor(DOT_WARN_COLOR[1], DOT_WARN_COLOR[2], DOT_WARN_COLOR[3])
+        else
+            row.time:SetTextColor(1, 1, 1)
+        end
+
+        row.icon:SetDesaturated(false)
+        row.icon:SetVertexColor(1, 1, 1)
+        if db.layout == "icons" then
+            row.cd:SetCooldown(exp - dur, dur)
+            row.cd:Show()
+        else
+            local fw = db.barWidth * frac
+            if fw < 1 then fw = 1 end
+            row.fill:SetWidth(fw)
+            if warn then
+                row.fill:SetVertexColor(DOT_WARN_COLOR[1], DOT_WARN_COLOR[2], DOT_WARN_COLOR[3], 0.9)
+            else
+                row.fill:SetVertexColor(dot.color[1], dot.color[2], dot.color[3], 0.9)
+            end
+            row.fill:Show()
+            row.spark:ClearAllPoints()
+            row.spark:SetPoint("CENTER", row.fill, "RIGHT", 0, 0)
+            if frac > 0.02 and frac < 0.99 then row.spark:Show() else row.spark:Hide() end
+        end
+    else
+        row.time:SetText("")
+        row.time:Hide()
+        row.icon:SetDesaturated(true)
+        row.icon:SetVertexColor(0.5, 0.5, 0.5)
+        if db.layout == "icons" then
+            row.cd:Hide()
+        else
+            row.fill:Hide()
+            row.spark:Hide()
+        end
+    end
+end
+
+local function dotsTargetValid()
+    return UnitExists("target")
+        and UnitCanAttack("player", "target")
+        and not UnitIsDead("target")
+end
+
+local function dotsRefresh()
+    if not dotsContainer then return end
+
+    if mod.db.dots.unlocked then
+        dotsContainer:Show()
+        for _, dot in ipairs(dotDefs) do
+            local row = dotsRows[dot.key]
+            if row and row:IsShown() then dotsUpdateRow(row, false, true) end
+        end
+        return
+    end
+
+    if not dotsTargetValid() then
+        dotsContainer:Hide()
+        return
+    end
+
+    dotsContainer:Show()
+    for _, dot in ipairs(dotDefs) do
+        local row = dotsRows[dot.key]
+        if row and row:IsShown() then dotsUpdateRow(row, true, false) end
+    end
+end
+
+local function dotsOnUpdate(self, elapsed)
+    dotsThrottle = dotsThrottle + elapsed
+    if dotsThrottle < 0.1 then return end
+    dotsThrottle = 0
+    if not mod._enabled then return end
+    dotsRefresh()
+end
+
+local function dotsBuild()
+    if dotsContainer then return end
+
+    dotsContainer = CreateFrame("Frame", "VCUI_ShadowDots", UIParent)
+    dotsContainer:SetSize(150, 60)
+    dotsContainer:SetPoint("CENTER", UIParent, "CENTER", mod.db.dots.x, mod.db.dots.y)
+    dotsContainer:SetFrameStrata("MEDIUM")
+
+    for _, dot in ipairs(dotDefs) do
+        dotsRows[dot.key] = dotsCreateRow(dot)
+    end
+
+    dotsContainer.mover = ns:CreateMover(dotsContainer, {
+        label  = L["|cffffffffSHADOW DOTS|r"],
+        db     = mod.db.dots,
+        width  = 160,
+        height = 50,
+        onMove = function(x, y)
+            ns:Print(string.format(L["Shadow DoTs: x=%.0f, y=%.0f"], x, y))
+        end,
+    })
+
+    dotsRefreshSpellData()
+    dotsApplyLayout()
+end
+
+local function dotsSetUnlocked(state)
+    mod.db.dots.unlocked = state
+    if not dotsContainer then dotsBuild() end
+    if state then
+        dotsContainer:Show()
+        dotsContainer.mover:Show()
+        dotsApplyLayout()
+        dotsRefresh()
+        ns:Print(L["Shadow DoTs mover active. |cff9b6cffDrag|r or |cff9b6cffarrow keys|r (SHIFT = 5px)."])
+    else
+        dotsContainer.mover:Hide()
+        dotsRefresh()
+        ns:Print(L["Shadow DoTs mover disabled."])
+    end
+end
+
+-- =========================================================
 -- Lifecycle
 -- =========================================================
 function mod:OnEnable()
@@ -203,6 +516,26 @@ function mod:OnEnable()
     ns:RegisterEvent("PLAYER_REGEN_ENABLED",        reportChat)
     ns:RegisterEvent("PLAYER_ENTERING_WORLD",       resetCombat)
     ns:RegisterEvent("SPELLS_CHANGED",              refreshSpell)
+
+    -- Shadow DoT tracker: migrate the old standalone "shadowdots" module
+    if ns.db and ns.db.profile and ns.db.profile.modules then
+        local oldDots = ns.db.profile.modules.shadowdots
+        if oldDots then
+            for k, v in pairs(oldDots) do
+                if k ~= "enabled" and mod.db.dots[k] ~= nil then
+                    mod.db.dots[k] = v
+                end
+            end
+            ns.db.profile.modules.shadowdots = nil
+        end
+    end
+
+    dotsBuild()
+    dotsContainer:SetScript("OnUpdate", dotsOnUpdate)
+    ns:RegisterEvent("SPELLS_CHANGED",        dotsRefreshSpellData)
+    ns:RegisterEvent("PLAYER_TARGET_CHANGED", dotsRefresh)
+    ns:RegisterEvent("PLAYER_ENTERING_WORLD", dotsRefresh)
+    dotsRefresh()
 end
 
 function mod:OnDisable()
@@ -212,6 +545,16 @@ function mod:OnDisable()
     ns:UnregisterEvent("PLAYER_ENTERING_WORLD",       resetCombat)
     ns:UnregisterEvent("SPELLS_CHANGED",              refreshSpell)
     if cFrame then cFrame:Hide() end
+
+    -- Shadow DoT tracker
+    ns:UnregisterEvent("SPELLS_CHANGED",        dotsRefreshSpellData)
+    ns:UnregisterEvent("PLAYER_TARGET_CHANGED", dotsRefresh)
+    ns:UnregisterEvent("PLAYER_ENTERING_WORLD", dotsRefresh)
+    if dotsContainer then
+        dotsContainer:SetScript("OnUpdate", nil)
+        if dotsContainer.mover then dotsContainer.mover:Hide() end
+        dotsContainer:Hide()
+    end
 end
 
 -- =========================================================
@@ -265,6 +608,75 @@ local function priestOptions()
                   lastTick  = 0
                   updateFrame()
                   ns:Print(L["VT mana reset."])
+              end },
+        },
+    })
+
+    -- -----------------------------------------------------
+    -- Shadow DoT tracker
+    -- -----------------------------------------------------
+    table.insert(items, { type = "spacer", height = 10 })
+    table.insert(items, { type = "header", text = L["Shadow DoT Tracker"] })
+    table.insert(items, { type = "desc",
+        text = L["|cffaaaaaaTracks your own Shadow Word: Pain, Vampiric Touch and Devouring Plague on the current target. Choose bars or icons; the bar/icon turns red shortly before the DoT expires.|r"] })
+
+    table.insert(items, { type = "dropdown", label = L["Layout"],
+        values = {
+            { value = "bars",  text = L["Bars"]  },
+            { value = "icons", text = L["Icons"] },
+        },
+        get = function() return mod.db.dots.layout end,
+        set = function(_, v) mod.db.dots.layout = v; dotsApplyLayout(); dotsRefresh() end })
+
+    table.insert(items, { type = "toggle", label = L["Shadow Word: Pain"],
+        get = function() return mod.db.dots.showSWP end,
+        set = function(_, v) mod.db.dots.showSWP = v; dotsApplyLayout(); dotsRefresh() end })
+    table.insert(items, { type = "toggle", label = L["Vampiric Touch"],
+        get = function() return mod.db.dots.showVT end,
+        set = function(_, v) mod.db.dots.showVT = v; dotsApplyLayout(); dotsRefresh() end })
+    table.insert(items, { type = "toggle", label = L["Devouring Plague"],
+        get = function() return mod.db.dots.showDP end,
+        set = function(_, v) mod.db.dots.showDP = v; dotsApplyLayout(); dotsRefresh() end })
+
+    table.insert(items, { type = "slider", label = L["Warning (seconds left)"],
+        min = 1, max = 6, step = 1,
+        get = function() return mod.db.dots.warnSeconds end,
+        set = function(_, v) mod.db.dots.warnSeconds = v end })
+    table.insert(items, { type = "slider", label = L["Bar width"],
+        min = 80, max = 300, step = 5,
+        get = function() return mod.db.dots.barWidth end,
+        set = function(_, v) mod.db.dots.barWidth = v; dotsApplyLayout(); dotsRefresh() end })
+    table.insert(items, { type = "slider", label = L["Bar height"],
+        min = 10, max = 36, step = 1,
+        get = function() return mod.db.dots.barHeight end,
+        set = function(_, v) mod.db.dots.barHeight = v; dotsApplyLayout(); dotsRefresh() end })
+    table.insert(items, { type = "slider", label = L["Icon size"],
+        min = 18, max = 56, step = 1,
+        get = function() return mod.db.dots.iconSize end,
+        set = function(_, v) mod.db.dots.iconSize = v; dotsApplyLayout(); dotsRefresh() end })
+    table.insert(items, { type = "slider", label = L["Spacing"],
+        min = 0, max = 12, step = 1,
+        get = function() return mod.db.dots.spacing end,
+        set = function(_, v) mod.db.dots.spacing = v; dotsApplyLayout(); dotsRefresh() end })
+    table.insert(items, { type = "slider", label = L["Font size"],
+        min = 8, max = 24, step = 1,
+        get = function() return mod.db.dots.fontSize end,
+        set = function(_, v) mod.db.dots.fontSize = v; dotsApplyLayout(); dotsRefresh() end })
+    table.insert(items, { type = "toggle", label = L["Color the timer text"],
+        get = function() return mod.db.dots.colorText end,
+        set = function(_, v) mod.db.dots.colorText = v end })
+
+    table.insert(items, { type = "group", layout = "row", gap = 8,
+        items = {
+            { type = "button", label = L["Unlock / Position"], width = 200,
+              onClick = function() dotsSetUnlocked(not mod.db.dots.unlocked) end },
+            { type = "button", label = L["Reset position"], width = 200,
+              onClick = function()
+                  mod.db.dots.x, mod.db.dots.y = 250, 0
+                  if dotsContainer then
+                      dotsContainer:ClearAllPoints()
+                      dotsContainer:SetPoint("CENTER", UIParent, "CENTER", mod.db.dots.x, mod.db.dots.y)
+                  end
               end },
         },
     })
