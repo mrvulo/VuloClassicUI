@@ -176,8 +176,9 @@ local function createRow(totem)
     row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
     row.icon:SetTexture(totem.icon)
 
-    -- action-bar style border around the icon (tinted by state in updateRow)
-    row.border = row:CreateTexture(nil, "OVERLAY")
+    -- action-bar style metal border BEHIND the icon, so the icon shows on top and
+    -- only the slot frame rim is visible around it (tinted by state in updateRow)
+    row.border = row:CreateTexture(nil, "BORDER")
     row.border:SetTexture("Interface\\Buttons\\UI-Quickslot2")
 
     row.cd = CreateFrame("Cooldown", nil, row, "CooldownFrameTemplate")
@@ -243,8 +244,13 @@ local function applyLayout()
             row:SetSize(s, s)
             row:SetPoint("LEFT", container, "LEFT", (i - 1) * (s + d.spacing), 0)
 
-            row.icon:ClearAllPoints(); row.icon:SetAllPoints(row); row.icon:Show()
-            row.cd:ClearAllPoints(); row.cd:SetAllPoints(row)
+            -- inset the icon when the frame is on, so the metal border rim shows
+            local inset = d.shadowBorder and 3 or 0
+            row.icon:ClearAllPoints()
+            row.icon:SetPoint("TOPLEFT", row, "TOPLEFT", inset, -inset)
+            row.icon:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", -inset, inset)
+            row.icon:Show()
+            row.cd:ClearAllPoints(); row.cd:SetAllPoints(row.icon)
             row.bg:Hide(); row.fill:Hide(); row.spark:Hide()
 
             row.time:ClearAllPoints()
