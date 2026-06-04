@@ -26,6 +26,7 @@ local TOTEM_DEFAULTS = {
     warnSeconds = 5,
     colorText   = true,
     expirySound = true,
+    shadowBorder = true,
     barWidth    = 150,
     barHeight   = 22,
     iconSize    = 36,
@@ -58,9 +59,10 @@ local FONT        = "Fonts\\FRIZQT__.TTF"
 local EXPIRE_SOUND = 567458  -- same alert used by the queue timer
 
 local container
-local rows        = {}
-local throttle    = 0
-local pendingAttr = false  -- secure attr update queued for end of combat
+local rows         = {}
+local throttle     = 0
+local pendingAttr  = false  -- secure attr update queued for end of combat
+local showTotemMenu         -- forward decl (defined after refresh)
 
 -- ---------------------------------------------------------
 -- Settings (created with defaults on first use)
@@ -96,7 +98,7 @@ local function applyButtonSpells()
     pendingAttr = false
     for _, t in ipairs(TOTEMS) do
         local row = rows[t.key]
-        if row then row:SetAttribute("spell", buttonSpell(t) or "") end
+        if row then row:SetAttribute("spell1", buttonSpell(t) or "") end
     end
 end
 
@@ -120,12 +122,29 @@ end
 -- ---------------------------------------------------------
 local function createRow(totem)
     local row = CreateFrame("Button", "VCUI_TotemBtn_" .. totem.key, container, "SecureActionButtonTemplate")
-    row:RegisterForClicks("AnyUp")
-    row:SetAttribute("type", "spell")
+    row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    row:SetAttribute("type1", "spell")  -- left-click casts (spell1 set later, out of combat)
+    row:SetAttribute("type2", "")        -- right-click: no cast -> opens the totem picker
+    row:SetScript("PostClick", function(self, button)
+        if button == "RightButton" then showTotemMenu(self.totem) end
+    end)
+
+    -- WeakAura-style soft drop shadow behind the icon
+    row.shadow = row:CreateTexture(nil, "BACKGROUND", nil, -1)
+    row.shadow:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
+    row.shadow:SetBlendMode("BLEND")
+    row.shadow:SetVertexColor(0, 0, 0, 0.7)
 
     row.icon = row:CreateTexture(nil, "ARTWORK")
     row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
     row.icon:SetTexture(totem.icon)
+
+    -- thin dark border around the icon (WeakAura look)
+    row.border = CreateFrame("Frame", nil, row, BackdropTemplateMixin and "BackdropTemplate")
+    if row.border.SetBackdrop then
+        row.border:SetBackdrop({ edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1.2 })
+        row.border:SetBackdropBorderColor(0, 0, 0, 1)
+    end
 
     row.cd = CreateFrame("Cooldown", nil, row, "CooldownFrameTemplate")
     row.cd:SetDrawEdge(true)
@@ -150,6 +169,12 @@ local function createRow(totem)
 
     -- a subtle hover highlight so it reads as clickable
     row:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
+
+    -- shadow + border follow the icon's size/position
+    row.shadow:SetPoint("TOPLEFT", row.icon, "TOPLEFT", -5, 5)
+    row.shadow:SetPoint("BOTTOMRIGHT", row.icon, "BOTTOMRIGHT", 5, -5)
+    row.border:SetPoint("TOPLEFT", row.icon, "TOPLEFT", -1, 1)
+    row.border:SetPoint("BOTTOMRIGHT", row.icon, "BOTTOMRIGHT", 1, -1)
 
     row.totem  = totem
     row.warned = false
@@ -230,6 +255,15 @@ local function applyLayout()
             row:Show()
         end
         container:SetSize(iconW + w, #active * h + (#active - 1) * d.spacing)
+    end
+
+    -- WeakAura-style shadow + border per icon (runs out of combat -> safe)
+    for _, t in ipairs(active) do
+        local row = rows[t.key]
+        if row then
+            row.shadow:SetShown(d.shadowBorder)
+            row.border:SetShown(d.shadowBorder)
+        end
     end
 end
 
@@ -330,6 +364,36 @@ local function refresh()
         local row = rows[t.key]
         if row and row:IsShown() then updateRow(row, preview) end
     end
+end
+
+-- Right-click picker: choose which totem this element's button casts.
+showTotemMenu = function(t)
+    local d = db()
+    local set = d.sets[d.activeSet] or { fire = "", earth = "", water = "", air = "" }
+    d.sets[d.activeSet] = set
+    local entries = {
+        { title = true, text = L[t.label] },
+        { text = L["(auto: last cast)"],
+          checked = function() return (set[t.key] or "") == "" end,
+          func = function() set[t.key] = ""; applyButtonSpells(); refresh() end },
+    }
+    local names = {}
+    if d.learned[t.key] then
+        for name in pairs(d.learned[t.key]) do names[#names + 1] = name end
+    end
+    table.sort(names)
+    if #names == 0 then
+        entries[#entries + 1] = { text = L["|cff888888(cast a totem to add it here)|r"], disabled = true }
+    else
+        for _, name in ipairs(names) do
+            entries[#entries + 1] = {
+                text    = name,
+                checked = function() return set[t.key] == name end,
+                func    = function() set[t.key] = name; applyButtonSpells(); refresh() end,
+            }
+        end
+    end
+    ns:ShowPopupMenu(entries, rows[t.key])
 end
 
 local function onUpdate(self, elapsed)
@@ -448,22 +512,6 @@ local function deleteActiveSet()
     applyButtonSpells()
 end
 
--- Dropdown values for an element: "(auto)" + the totems learned for it.
-local function totemValuesFor(t)
-    local d = db()
-    local vals = { { value = "", text = L["(auto: last cast)"] } }
-    local learned = d.learned[t.key]
-    if learned then
-        local names = {}
-        for name in pairs(learned) do names[#names + 1] = name end
-        table.sort(names)
-        for _, name in ipairs(names) do
-            vals[#vals + 1] = { value = name, text = name }
-        end
-    end
-    return vals
-end
-
 -- Re-render the current options page (keeps the active class tab).
 local function rebuildOptions()
     if ns.UI and ns.UI.BuildOptionsPage then
@@ -480,7 +528,7 @@ local function getOptions()
     local isShaman = select(2, UnitClass("player")) == "SHAMAN"
     local items = {
         { type = "header", text = L["Totem Bar"] },
-        { type = "desc",   text = L["|cffaaaaaaClickable totem bar: one click recasts the element's totem. Totems are learned from what you cast; pick a different one per element or switch sets below. A warning shows (and optionally a sound plays) before a totem expires.|r"] },
+        { type = "desc",   text = L["|cffaaaaaa|cffffffffLeft-click|r an icon to (re)cast that element's totem, |cffffffffright-click|r to pick which totem. Totems are learned from what you cast. A warning (and optional sound) plays before a totem expires.|r"] },
     }
     if not isShaman then
         items[#items + 1] = { type = "spacer", height = 4 }
@@ -501,19 +549,6 @@ local function getOptions()
         { type = "button", label = L["Delete set"], width = 150,
           onClick = function() deleteActiveSet(); rebuildOptions() end },
     } }
-
-    -- Per-element totem choice (for the active set)
-    items[#items + 1] = { type = "header", text = L["Totem per element"] }
-    for _, t in ipairs(TOTEMS) do
-        items[#items + 1] = { type = "dropdown", label = L[t.label],
-            values = totemValuesFor(t),
-            get = function() local s = d.sets[d.activeSet]; return (s and s[t.key]) or "" end,
-            set = function(_, v)
-                d.sets[d.activeSet] = d.sets[d.activeSet] or { fire="", earth="", water="", air="" }
-                d.sets[d.activeSet][t.key] = v
-                applyButtonSpells(); refresh()
-            end }
-    end
 
     -- Which elements to show
     items[#items + 1] = { type = "header", text = L["Shown elements"] }
@@ -539,6 +574,9 @@ local function getOptions()
     items[#items + 1] = { type = "toggle", label = L["Sound before a totem expires"],
         get = function() return d.expirySound end,
         set = function(_, v) d.expirySound = v end }
+    items[#items + 1] = { type = "toggle", label = L["Shadow border (WeakAura style)"],
+        get = function() return d.shadowBorder end,
+        set = function(_, v) d.shadowBorder = v; applyLayout(); refresh() end }
     items[#items + 1] = { type = "slider", label = L["Warning (seconds left)"],
         min = 1, max = 15, step = 1,
         get = function() return d.warnSeconds end,
