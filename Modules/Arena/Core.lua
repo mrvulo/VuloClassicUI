@@ -269,6 +269,9 @@ local function setUnlocked(state)
         mod:ShowTestFrames(false)
         ns:Print(L["Unlock disabled."])
     end
+    -- Unlocking must release the BG unit watch (so all test frames show);
+    -- locking re-applies it. Defined later -> reach it through mod.
+    if mod.ApplyBGUnitWatch then mod.ApplyBGUnitWatch() end
 end
 
 mod.SetUnlocked = setUnlocked
@@ -314,6 +317,42 @@ end
 mod.ShowTestFrames = showTestArenaFrames
 
 -- =========================================================
+-- Battleground: show only frames that have a real enemy unit
+-- (e.g. flag carriers); empty slots auto-hide. RegisterUnitWatch is
+-- Blizzard's own secure show/hide-by-unit driver, so it works during
+-- combat and doesn't taint the frame. Scoped to battlegrounds; arenas
+-- keep Blizzard's default behaviour. Skipped while unlocked (config).
+-- =========================================================
+local bgWatchActive = false
+local function applyBGUnitWatch()
+    -- (Un)registering a unit watch is blocked while in combat.
+    if InCombatLockdown and InCombatLockdown() then return end
+
+    local inBG = false
+    if IsInInstance then
+        local _, instanceType = IsInInstance()
+        inBG = (instanceType == "pvp")  -- "pvp" = battleground
+    end
+
+    local want = inBG and not unlocked
+    if want == bgWatchActive then return end
+    bgWatchActive = want
+
+    H.ForEach(function(frame)
+        if want then
+            -- Blizzard already sets the secure "unit" attribute; only attach the
+            -- watch. Never SetAttribute here -> that would taint the frame.
+            if RegisterUnitWatch and frame:GetAttribute("unit") then
+                pcall(RegisterUnitWatch, frame)
+            end
+        elseif UnregisterUnitWatch then
+            pcall(UnregisterUnitWatch, frame)
+        end
+    end)
+end
+mod.ApplyBGUnitWatch = applyBGUnitWatch
+
+-- =========================================================
 -- Lifecycle (called from init)
 -- =========================================================
 function mod:OnEnableCore()
@@ -334,6 +373,7 @@ function mod:OnEnableCore()
     end)
     ns:RegisterEvent("PLAYER_REGEN_ENABLED", function()
         if pendingApply then pendingApply = false; mod:Refresh() end
+        applyBGUnitWatch()  -- (re)apply now that combat ended (blocked in combat)
     end)
 
     self:Refresh()
@@ -353,10 +393,14 @@ function mod:Refresh()
             if not (UnitExists and UnitExists("arena" .. i)) then frame:Hide() end
         end)
     end
+
+    -- Battlegrounds: only keep frames with a real enemy (e.g. flag carriers).
+    applyBGUnitWatch()
+
     -- Sometimes the frames arrive delayed
     if C_Timer and C_Timer.After then
         C_Timer.After(0, function() applyToOwner() end)
-        C_Timer.After(1, function() applyToOwner(); self:RefreshAll() end)
+        C_Timer.After(1, function() applyToOwner(); self:RefreshAll(); applyBGUnitWatch() end)
     end
 end
 
