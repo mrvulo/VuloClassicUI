@@ -320,7 +320,11 @@ end
 -- ---------------------------------------------------------
 local function refresh()
     if not container then return end
-    container:Show()
+    -- The container parents secure buttons, so Show() is protected in combat.
+    -- Only ever show it out of combat; it then stays shown across the fight.
+    if not container:IsShown() and not (InCombatLockdown and InCombatLockdown()) then
+        container:Show()
+    end
     local preview = db().unlocked
     for _, t in ipairs(TOTEMS) do
         local row = rows[t.key]
