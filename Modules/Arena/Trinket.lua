@@ -168,17 +168,33 @@ mod:OnArenaFramesReady(function(frame, i)
     applyToFrame(frame, i)
 end)
 
-ns:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", function()
+-- Named handler so the (very hot) combat log can be registered only while
+-- inside an arena. Otherwise it would fire a pcall for every combat-log line
+-- in raids / dungeons / the open world, even though this only shows in arenas.
+local function onCLEU()
     if not mod._enabled or not mod.db.trinketEnabled then return end
     onCombatLog()
-end)
+end
+
+local cleuActive = false
+local function setCombatLog(active)
+    if active == cleuActive then return end
+    cleuActive = active
+    if active then
+        ns:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", onCLEU)
+    else
+        ns:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED", onCLEU)
+    end
+end
 
 ns:RegisterEvent("PLAYER_ENTERING_WORLD", function()
-    -- On zone change away from arena -> reset
+    local inArena = false
     if IsInInstance then
         local _, instanceType = IsInInstance()
-        if instanceType ~= "arena" then resetAllCDs() end
+        inArena = (instanceType == "arena")
     end
+    if not inArena then resetAllCDs() end  -- left the arena -> clear
+    setCombatLog(inArena)
 end)
 ns:RegisterEvent("ARENA_OPPONENT_UPDATE", function(_, _, eventType)
     -- "seen" = new opponents; reset on match start

@@ -268,15 +268,34 @@ end
 -- =========================================================
 -- Lifecycle
 -- =========================================================
-ns:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", function()
+-- Named handler so the (very hot) combat log can be registered only while
+-- inside an arena. Otherwise it would fire a pcall for every combat-log line
+-- in raids / dungeons / the open world, even though DR only shows in arenas.
+local function onCLEU()
     if not mod._enabled or not mod.db.drEnabled then return end
-    ensureUpdater()
     onCombatLog()
-end)
+end
+
+local cleuActive = false
+local function setCombatLog(active)
+    if active == cleuActive then return end
+    cleuActive = active
+    if active then
+        ns:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", onCLEU)
+    else
+        ns:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED", onCLEU)
+    end
+end
 
 ns:RegisterEvent("PLAYER_ENTERING_WORLD", function()
     resetAll()
-    ensureUpdater()
+    local inArena = false
+    if IsInInstance then
+        local _, instanceType = IsInInstance()
+        inArena = (instanceType == "arena")
+    end
+    if inArena then ensureUpdater() end
+    setCombatLog(inArena)
 end)
 
 -- =========================================================
