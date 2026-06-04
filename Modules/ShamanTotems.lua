@@ -209,12 +209,8 @@ local function createRow(totem)
     row.border = row:CreateTexture(nil, "BORDER")
     row.border:SetTexture("Interface\\Buttons\\UI-Quickslot2")
 
-    row.cd = CreateFrame("Cooldown", nil, row, "CooldownFrameTemplate")
-    row.cd:SetDrawEdge(false)
-    if row.cd.SetDrawSwipe then row.cd:SetDrawSwipe(false) end   -- no swipe overlay (the timer text is the countdown)
-    if row.cd.SetDrawBling then row.cd:SetDrawBling(false) end   -- no end-flash (it flickered when a totem hit 0)
-    if row.cd.SetHideCountdownNumbers then row.cd:SetHideCountdownNumbers(true) end
-    row.cd:Hide()
+    -- (no Cooldown frame: hiding a child frame every tick from insecure code
+    --  taints the secure button and blocks its cast; the timer text is enough)
 
     row.bg = row:CreateTexture(nil, "BACKGROUND")
     row.bg:SetTexture(BAR_TEX)
@@ -278,7 +274,6 @@ local function applyLayout()
             row.icon:SetPoint("TOPLEFT", row, "TOPLEFT", inset, -inset)
             row.icon:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", -inset, inset)
             row.icon:Show()
-            row.cd:ClearAllPoints(); row.cd:SetAllPoints(row.icon)
             row.bg:Hide(); row.fill:Hide(); row.spark:Hide()
 
             row.time:ClearAllPoints()
@@ -299,8 +294,6 @@ local function applyLayout()
             row.icon:SetSize(h, h)
             row.icon:SetPoint("LEFT", row, "LEFT", 0, 0)
             row.icon:Show()
-
-            row.cd:Hide()
 
             row.bg:ClearAllPoints()
             row.bg:SetPoint("TOPLEFT", row, "TOPLEFT", iconW + 1, 0)
@@ -391,9 +384,7 @@ local function updateRow(row, preview)
             row.time:SetTextColor(1, 1, 1)
         end
 
-        if d.layout == "icons" then
-            row.cd:Hide()  -- no cooldown swipe; the number is the countdown
-        else
+        if d.layout ~= "icons" then  -- bars: fill + spark (icons just show the number)
             local fw = d.barWidth * frac
             if fw < 1 then fw = 1 end
             row.fill:SetWidth(fw)
@@ -415,9 +406,7 @@ local function updateRow(row, preview)
         row.border:SetVertexColor(0.55, 0.55, 0.55)  -- not down = dimmed
         row.time:SetText("")
         row.time:Hide()
-        if d.layout == "icons" then
-            row.cd:Hide()
-        else
+        if d.layout ~= "icons" then
             row.fill:Hide()
             row.spark:Hide()
         end
