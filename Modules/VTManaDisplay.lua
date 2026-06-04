@@ -55,6 +55,13 @@ mod.tabs = {
     { id = "warrior", label = "Warrior" },
 }
 
+-- Pluggable per-class tools. Other files (e.g. ShamanTotems) register here,
+-- keyed by class token ("SHAMAN"). Each tool: { onEnable, onDisable, getOptions }.
+mod.classTools = {}
+function mod:RegisterClassTool(classToken, def)
+    self.classTools[classToken] = def
+end
+
 local VT_SPELL_ID_BASE = 34914  -- Vampiric Touch base (TBC)
 local SHADOW_SCHOOL    = 32
 
@@ -596,8 +603,15 @@ function mod:OnEnable()
         end
     end
 
-    -- Priests only
+    -- Run any registered per-class tool for this class (e.g. Shaman totems)
     local _, class = UnitClass("player")
+    local tool = mod.classTools and mod.classTools[class]
+    if tool and tool.onEnable then
+        local ok, err = pcall(tool.onEnable)
+        if not ok then ns:Print(L["|cffff5555Class tool error:|r %s"], tostring(err)) end
+    end
+
+    -- Priest tools only
     if class ~= "PRIEST" then return end
 
     playerGUID  = UnitGUID("player")
@@ -652,6 +666,11 @@ function mod:OnDisable()
         if dotsContainer.mover then dotsContainer.mover:Hide() end
         dotsContainer:Hide()
     end
+
+    -- Per-class tool teardown
+    local _, class = UnitClass("player")
+    local tool = mod.classTools and mod.classTools[class]
+    if tool and tool.onDisable then pcall(tool.onDisable) end
 end
 
 -- =========================================================
@@ -784,6 +803,11 @@ end
 function mod:GetOptions(tabId)
     if tabId == "priest" or tabId == "default" or tabId == nil then
         return priestOptions()
+    end
+    -- Pluggable class tools (tabId is the lowercase class id, e.g. "shaman")
+    local tool = self.classTools and self.classTools[tabId and tabId:upper() or ""]
+    if tool and tool.getOptions then
+        return tool.getOptions()
     end
     -- Other classes: placeholder until tools exist for them
     return {

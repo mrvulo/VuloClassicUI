@@ -1003,4 +1003,21 @@ ns:RegisterLocale("deDE", {
     ["Adds a red ring around item sockets that have no gem."] = "Zeigt einen roten Ring um Item-Sockel ohne Stein.",
     ["Text shadow (instead of outline)"] = "Text-Schatten (statt Outline)",
     ["Cleaner text with a drop shadow instead of a thick outline."] = "Sauberer Text mit Schatten statt dickem Outline.",
+
+    -- =====================================================
+    -- Shaman Totem Timer (Class Specific -> Shaman)
+    -- =====================================================
+    ["Totem Timer"] = "Totem-Timer",
+    ["|cffaaaaaaShows the remaining time of your four totems as bars or icons, with a warning when one is about to expire. The display hides itself while no totem is down.|r"] = "|cffaaaaaaZeigt die Restzeit deiner vier Totems als Balken oder Symbole, mit Warnung wenn eins gleich ausläuft. Die Anzeige blendet sich aus, solange kein Totem steht.|r",
+    ["|cffff8800Only active while playing a Shaman.|r"] = "|cffff8800Nur aktiv, wenn du einen Schamanen spielst.|r",
+    ["Tracked totems"] = "Verfolgte Totems",
+    ["Fire"]  = "Feuer",
+    ["Earth"] = "Erde",
+    ["Water"] = "Wasser",
+    ["Air"]   = "Luft",
+    ["|cffffffffTOTEMS|r"] = "|cffffffffTOTEMS|r",
+    ["Totems: x=%.0f, y=%.0f"] = "Totems: x=%.0f, y=%.0f",
+    ["Totem timer mover active. |cff9b6cffDrag|r or |cff9b6cffarrow keys|r (SHIFT = 5px)."] = "Totem-Timer-Mover aktiv. |cff9b6cffZiehen|r oder |cff9b6cffPfeiltasten|r (SHIFT = 5px).",
+    ["Totem timer mover disabled."] = "Totem-Timer-Mover deaktiviert.",
+    ["|cffff5555Class tool error:|r %s"] = "|cffff5555Klassen-Tool-Fehler:|r %s",
 })
