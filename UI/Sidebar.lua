@@ -39,7 +39,6 @@ local MODULE_ICONS = {
     slotpicker         = "Interface\\Icons\\INV_Misc_Bag_08",
     trinkets           = "Interface\\Icons\\INV_Misc_Gem_Variety_01",
     fixinspect         = "Interface\\Icons\\INV_Misc_Spyglass_02",
-    fixitemrack        = "Interface\\Icons\\INV_Misc_Wrench_01",
     fixlfgbrowsenil    = "Interface\\Icons\\INV_Misc_GroupLooking",
     fixguildnews       = "Interface\\Icons\\INV_Scroll_03",
     fixauctiondropdown = "Interface\\Icons\\INV_Misc_Coin_02",

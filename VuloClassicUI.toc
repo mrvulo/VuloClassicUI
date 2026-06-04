@@ -72,7 +72,6 @@ Modules\SlotPicker.lua
 Modules\FixAuctionDropdown.lua
 Modules\FixGuildNewsNil.lua
 Modules\FixLFGBrowseNil.lua
-Modules\FixItemRackProtected.lua
 Modules\FixInspect.lua
 Modules\FixBindSocket.lua
 

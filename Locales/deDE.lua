@@ -765,7 +765,7 @@ ns:RegisterLocale("deDE", {
     ["Item '%s' removed."] = "Item '%s' entfernt.",
 
     -- =====================================================
-    -- Bug Fix modules (FixInspect, FixItemRack, FixLFG, FixGuildNews, FixAuction)
+    -- Bug Fix modules (FixInspect, FixLFG, FixGuildNews, FixAuction)
     -- =====================================================
     ["Inspect Fix"] = "Inspect-Fix",
     ["Fixes stuck inspect bugs (no player inspect possible after a faulty close/timeout). Auto-reset after 8s + cleanup when InspectFrame closes + /inspectreset slash command."] = "Behebt hängende Inspect-Bugs (kein Spieler-Inspect möglich nach fehlerhaftem Schließen/Timeout). Auto-Reset nach 8s + Cleanup beim Schließen des InspectFrames + /inspectreset Slash-Befehl.",
@@ -791,16 +791,8 @@ ns:RegisterLocale("deDE", {
     ["|cffff8800waiting for Blizzard_InspectUI|r"] = "|cffff8800wartet auf Blizzard_InspectUI|r",
     ["|cffaaaaaaWhat the fix does: tracks active inspects with a timestamp, calls ClearInspectPlayer() on close + on timeout. Prevents a stuck state from blocking all subsequent inspects.|r"] = "|cffaaaaaaWas der Fix macht: verfolgt aktive Inspects mit einem Timestamp, ruft ClearInspectPlayer() beim Schließen + bei Timeout auf. Verhindert, dass ein hängender Status alle weiteren Inspects blockiert.|r",
 
-    ["ItemRack Protected Fix"] = "ItemRack",
-    ["Catches the Anniversary ADDON_ACTION_BLOCKED crash when ItemRack tries to auto-equip an item on the character model."] = "Fängt den Anniversary ADDON_ACTION_BLOCKED-Crash ab, wenn ItemRack versucht, ein Item auf dem Charaktermodell automatisch anzulegen.",
-    ["|cffffff00[VuloClassicUI]|r ItemRack auto-equip on character model blocked (Anniversary protection). Please use drag & drop directly into the equipment slot."] = "|cffffff00[VuloClassicUI]|r ItemRack-Auto-Anlegen auf Charaktermodell blockiert (Anniversary-Schutz). Bitte Drag & Drop direkt in den Ausrüstungs-Slot nutzen.",
-    ["Chat message on first block"] = "Chatnachricht beim ersten Block",
-    ["Shows a message once per session when ItemRack's auto-equip was blocked."] = "Zeigt einmal pro Session eine Nachricht, wenn ItemRacks Auto-Anlegen blockiert wurde.",
-    ["This fix replaces ItemRack's |cffffffffCharacterModelFrame:OnMouseUp|r hook with a wrapper. When you hold an item on the cursor and click on the character model, ItemRack would call the protected |cffffffffAutoEquipCursorItem()|r — Anniversary blocks that. Instead we clear the cursor (item goes back to inventory) and avoid the crash."] = "Dieser Fix ersetzt ItemRacks |cffffffffCharacterModelFrame:OnMouseUp|r-Hook mit einem Wrapper. Wenn du ein Item auf dem Cursor hältst und auf das Charaktermodell klickst, würde ItemRack das geschützte |cffffffffAutoEquipCursorItem()|r aufrufen — Anniversary blockiert das. Stattdessen leeren wir den Cursor (Item geht zurück ins Inventar) und vermeiden den Crash.",
-    ["|cffaaaaaaTip: Drag & dropping items directly into the equipment slot still works normally.|r"] = "|cffaaaaaaTipp: Drag & Drop von Items direkt in den Ausrüstungs-Slot funktioniert weiterhin normal.|r",
     ["|cffaaaaaaStatus: %s|r"] = "|cffaaaaaaStatus: %s|r",
     ["|cff66ff66Hook active|r"] = "|cff66ff66Hook aktiv|r",
-    ["waiting for ItemRack"] = "wartet auf ItemRack",
 
     ["LFG Browse Nil Fix"] = "LFG-Browse",
     ["Catches Lua errors in the Anniversary Group Finder (LFGBrowseSearchEntry_Update with stale resultIDs). Prevents chat spam and broken browse lists."] = "Fängt Lua-Fehler im Anniversary-Gruppenfinder ab (LFGBrowseSearchEntry_Update mit veralteten resultIDs). Verhindert Chat-Spam und kaputte Browse-Listen.",
