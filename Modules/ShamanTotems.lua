@@ -113,18 +113,20 @@ end
 -- merged with any learned-by-casting names. Used by the right-click picker.
 local function knownTotemsFor(key)
     local out, seen = {}, {}
+    -- only add a totem we can actually show an icon for (no empty squares)
+    local function add(name)
+        if not name or name == "" or seen[name] then return end
+        if not select(3, GetSpellInfo(name)) then return end  -- no icon -> skip
+        seen[name] = true
+        out[#out + 1] = name
+    end
     for _, id in ipairs(TOTEM_IDS[key] or {}) do
         local name = GetSpellInfo(id)
-        if name and GetSpellInfo(name) and not seen[name] then
-            seen[name] = true
-            out[#out + 1] = name
-        end
+        if name and GetSpellInfo(name) then add(name) end       -- known by name
     end
     local learned = db().learned and db().learned[key]
     if learned then
-        for name in pairs(learned) do
-            if not seen[name] then seen[name] = true; out[#out + 1] = name end
-        end
+        for name in pairs(learned) do add(name) end             -- learned by casting
     end
     table.sort(out)
     return out
@@ -335,7 +337,7 @@ local function updateRow(row, preview)
         local sIcon = spell and select(3, GetSpellInfo(spell))
         icon = sIcon or t.icon
     end
-    row.icon:SetTexture(icon or t.icon)
+    row.icon:SetTexture(icon or t.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
 
     -- remaining time; 0 once the totem is gone or has expired
     local remaining = 0
@@ -483,7 +485,7 @@ showTotemMenu = function(t)
             flyout.btns[i] = b
         end
         local _, _, icon = GetSpellInfo(name)
-        b.icon:SetTexture(icon)
+        b.icon:SetTexture(icon or "Interface\\Icons\\INV_Misc_QuestionMark")
         b.totemName  = name
         b.elementKey = t.key
         b.sel:SetShown(set[t.key] == name)
