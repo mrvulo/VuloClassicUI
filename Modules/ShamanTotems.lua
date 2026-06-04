@@ -52,6 +52,17 @@ local TOTEMS = {
 local SLOT_KEY = {}
 for _, t in ipairs(TOTEMS) do SLOT_KEY[t.slot] = t.key end
 
+-- Representative spell ID per totem, so the picker can list the totems you KNOW
+-- without you having to cast each one first. (TBC data from SUI's _TotemIcons.)
+-- "Known" is checked by name lookup (GetSpellInfo by name = nil if not learned).
+local TOTEM_IDS = {
+    fire  = { 3599, 1535, 8187, 8227, 8181, 30706, 2894 },        -- Searing, Fire Nova, Magma, Flametongue, Frost Resist, Totem of Wrath, Fire Elemental
+    earth = { 2484, 5730, 8071, 31634, 8143, 2062 },              -- Earthbind, Stoneclaw, Stoneskin, Strength of Earth, Tremor, Earth Elemental
+    water = { 5394, 5675, 16190, 8166, 8170, 8184 },              -- Healing Stream, Mana Spring, Mana Tide, Poison Cleansing, Disease Cleansing, Fire Resist
+    air   = { 8512, 8835, 8177, 10595, 15107, 6495, 25908, 3738 },-- Windfury, Grace of Air, Grounding, Nature Resist, Windwall, Sentry, Tranquil Air, Wrath of Air
+}
+local TOTEMIC_CALL_ID = 36936  -- "Totemic Call" (recall all totems) — middle-click
+
 local WARN_COLOR  = { 1.0, 0.25, 0.25 }
 local BAR_TEX     = "Interface\\Buttons\\WHITE8X8"
 local SPARK_TEX   = "Interface\\CastingBar\\UI-CastingBar-Spark"
@@ -92,13 +103,38 @@ local function buttonSpell(t)
     return d.lastCast[t.key]
 end
 
+-- All totems of an element the player KNOWS (resolved to the highest-rank name),
+-- merged with any learned-by-casting names. Used by the right-click picker.
+local function knownTotemsFor(key)
+    local out, seen = {}, {}
+    for _, id in ipairs(TOTEM_IDS[key] or {}) do
+        local name = GetSpellInfo(id)
+        if name and GetSpellInfo(name) and not seen[name] then
+            seen[name] = true
+            out[#out + 1] = name
+        end
+    end
+    local learned = db().learned and db().learned[key]
+    if learned then
+        for name in pairs(learned) do
+            if not seen[name] then seen[name] = true; out[#out + 1] = name end
+        end
+    end
+    table.sort(out)
+    return out
+end
+
 -- Push the cast spell onto each secure button (out of combat only).
 local function applyButtonSpells()
     if InCombatLockdown and InCombatLockdown() then pendingAttr = true; return end
     pendingAttr = false
+    local recall = GetSpellInfo(TOTEMIC_CALL_ID) or ""
     for _, t in ipairs(TOTEMS) do
         local row = rows[t.key]
-        if row then row:SetAttribute("spell1", buttonSpell(t) or "") end
+        if row then
+            row:SetAttribute("spell1", buttonSpell(t) or "")
+            row:SetAttribute("spell3", recall)
+        end
     end
 end
 
@@ -122,9 +158,10 @@ end
 -- ---------------------------------------------------------
 local function createRow(totem)
     local row = CreateFrame("Button", "VCUI_TotemBtn_" .. totem.key, container, "SecureActionButtonTemplate")
-    row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-    row:SetAttribute("type1", "spell")  -- left-click casts (spell1 set later, out of combat)
-    row:SetAttribute("type2", "")        -- right-click: no cast -> opens the totem picker
+    row:RegisterForClicks("LeftButtonUp", "RightButtonUp", "MiddleButtonUp")
+    row:SetAttribute("type1", "spell")   -- left-click casts this element's totem (spell1)
+    row:SetAttribute("type2", "")         -- right-click: no cast -> opens the totem picker
+    row:SetAttribute("type3", "spell")    -- middle-click: Totemic Call / recall all (spell3)
     row:SetScript("PostClick", function(self, button)
         if button == "RightButton" then showTotemMenu(self.totem) end
     end)
@@ -303,6 +340,13 @@ local function updateRow(row, preview)
 
         row.icon:SetDesaturated(false)
         row.icon:SetVertexColor(1, 1, 1)
+        if row.border.SetBackdropBorderColor then
+            if warn then
+                row.border:SetBackdropBorderColor(WARN_COLOR[1], WARN_COLOR[2], WARN_COLOR[3], 1)
+            else
+                row.border:SetBackdropBorderColor(0.20, 1.0, 0.20, 1)  -- active = green
+            end
+        end
 
         if remaining < 10 then
             row.time:SetText(string.format("%.1f", remaining))
@@ -338,6 +382,9 @@ local function updateRow(row, preview)
         row.warned = false
         row.icon:SetDesaturated(true)
         row.icon:SetVertexColor(0.55, 0.55, 0.55)
+        if row.border.SetBackdropBorderColor then
+            row.border:SetBackdropBorderColor(0, 0, 0, 1)  -- inactive = dark
+        end
         row.time:SetText("")
         row.time:Hide()
         if d.layout == "icons" then
@@ -377,11 +424,7 @@ showTotemMenu = function(t)
           checked = function() return (set[t.key] or "") == "" end,
           func = function() set[t.key] = ""; applyButtonSpells(); refresh() end },
     }
-    local names = {}
-    if d.learned[t.key] then
-        for name in pairs(d.learned[t.key]) do names[#names + 1] = name end
-    end
-    table.sort(names)
+    local names = knownTotemsFor(t.key)
     if #names == 0 then
         entries[#entries + 1] = { text = L["|cff888888(cast a totem to add it here)|r"], disabled = true }
     else
@@ -528,7 +571,7 @@ local function getOptions()
     local isShaman = select(2, UnitClass("player")) == "SHAMAN"
     local items = {
         { type = "header", text = L["Totem Bar"] },
-        { type = "desc",   text = L["|cffaaaaaa|cffffffffLeft-click|r an icon to (re)cast that element's totem, |cffffffffright-click|r to pick which totem. Totems are learned from what you cast. A warning (and optional sound) plays before a totem expires.|r"] },
+        { type = "desc",   text = L["|cffaaaaaa|cffffffffLeft-click|r an icon to (re)cast that element's totem, |cffffffffright-click|r to pick which totem, |cffffffffmiddle-click|r to recall all totems. The icon border is green while the totem is up and red just before it expires.|r"] },
     }
     if not isShaman then
         items[#items + 1] = { type = "spacer", height = 4 }

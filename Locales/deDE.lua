@@ -1008,7 +1008,7 @@ ns:RegisterLocale("deDE", {
     -- Shaman Totem Timer (Class Specific -> Shaman)
     -- =====================================================
     ["Totem Bar"] = "Totem-Leiste",
-    ["|cffaaaaaa|cffffffffLeft-click|r an icon to (re)cast that element's totem, |cffffffffright-click|r to pick which totem. Totems are learned from what you cast. A warning (and optional sound) plays before a totem expires.|r"] = "|cffaaaaaa|cffffffffLinksklick|r auf ein Icon stellt das Totem des Elements (neu), |cffffffffRechtsklick|r wählt welches Totem. Totems werden aus deinen Casts gelernt. Eine Warnung (und optional ein Ton) erscheint, bevor ein Totem ausläuft.|r",
+    ["|cffaaaaaa|cffffffffLeft-click|r an icon to (re)cast that element's totem, |cffffffffright-click|r to pick which totem, |cffffffffmiddle-click|r to recall all totems. The icon border is green while the totem is up and red just before it expires.|r"] = "|cffaaaaaa|cffffffffLinksklick|r = Totem des Elements (neu) stellen, |cffffffffRechtsklick|r = Totem wählen, |cffffffffMittelklick|r = alle Totems einsammeln. Der Icon-Rahmen ist grün solange das Totem steht und rot kurz bevor es ausläuft.|r",
     ["|cffff8800Only active while playing a Shaman.|r"] = "|cffff8800Nur aktiv, wenn du einen Schamanen spielst.|r",
     ["Totem set"] = "Totem-Set",
     ["Active set"] = "Aktives Set",
