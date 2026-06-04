@@ -102,6 +102,13 @@ ns:RegisterLocale("deDE", {
     ["not defined yet"] = "noch nicht definiert",
 
     -- =====================================================
+    -- Combat Indicator (FixCombatGlow)
+    -- =====================================================
+    ["Combat Indicator"] = "Kampf-Anzeige",
+    ["Restores the missing 'in combat' glow on the Player frame (Anniversary default-UI bug). Pulses a red glow around your portrait while you are in combat."] = "Stellt den fehlenden 'im Kampf'-Glow am Spielerframe wieder her (Anniversary-Default-UI-Bug). Pulsierender roter Glow um dein Portrait, solange du im Kampf bist.",
+    ["|cffaaaaaaThe default Player frame on Anniversary no longer shows when you are in combat. This restores it: a red glow pulses around your portrait while you are in combat.|r"] = "|cffaaaaaaDer Standard-Spielerframe auf Anniversary zeigt nicht mehr an, wenn du im Kampf bist. Dies stellt es wieder her: ein roter Glow pulsiert um dein Portrait, solange du im Kampf bist.|r",
+
+    -- =====================================================
     -- Disenchant Queue
     -- =====================================================
     ["Disenchant Queue"] = "Entzauber-Queue",

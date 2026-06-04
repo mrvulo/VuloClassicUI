@@ -43,6 +43,7 @@ local MODULE_ICONS = {
     fixguildnews       = "Interface\\Icons\\INV_Scroll_03",
     fixauctiondropdown = "Interface\\Icons\\INV_Misc_Coin_02",
     fixbindsocket      = "Interface\\Icons\\INV_Misc_Gem_Diamond_02",
+    fixcombatglow      = "Interface\\Icons\\Ability_Warrior_Challange",
 }
 local MODULE_ICON_FALLBACK = "Interface\\Icons\\INV_Misc_Gear_01"
 

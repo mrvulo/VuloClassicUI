@@ -74,6 +74,7 @@ Modules\FixGuildNewsNil.lua
 Modules\FixLFGBrowseNil.lua
 Modules\FixInspect.lua
 Modules\FixBindSocket.lua
+Modules\FixCombatGlow.lua
 
 # --- Trinkets engine (external code) + VCUI wrapper in Modules/Trinkets.lua ---
 Trinkets\TrinketsGlobals.lua
