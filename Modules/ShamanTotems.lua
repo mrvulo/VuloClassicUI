@@ -132,6 +132,20 @@ local function knownTotemsFor(key)
     return out
 end
 
+-- Reduce a (possibly rank-suffixed) totem name like "Healing Stream Totem V" to
+-- its rank-less, castable base name. CastSpellByName(base) casts the highest rank
+-- you know; the ranked DISPLAY name from GetTotemInfo is NOT a castable string.
+local function castableName(name, key)
+    if not name or name == "" then return name end
+    for _, id in ipairs(TOTEM_IDS[key] or {}) do
+        local base = GetSpellInfo(id)
+        if base and (name == base or name:find(base, 1, true) == 1) then
+            return base
+        end
+    end
+    return name
+end
+
 -- Push the cast spell onto each secure button (out of combat only).
 local function applyButtonSpells()
     if InCombatLockdown and InCombatLockdown() then pendingAttr = true; return end
@@ -140,7 +154,7 @@ local function applyButtonSpells()
     for _, t in ipairs(TOTEMS) do
         local row = rows[t.key]
         if row then
-            row:SetAttribute("spell", buttonSpell(t) or "")
+            row:SetAttribute("spell", castableName(buttonSpell(t), t.key) or "")
             row:SetAttribute("spell3", recall)
         end
     end
@@ -153,6 +167,7 @@ local function learnActiveTotems()
     for _, t in ipairs(TOTEMS) do
         local have, name = GetTotemInfo(t.slot)
         if have and name and name ~= "" then
+            name = castableName(name, t.key)  -- store the rank-less, castable name
             if d.lastCast[t.key] ~= name then d.lastCast[t.key] = name; changed = true end
             d.learned[t.key] = d.learned[t.key] or {}
             if not d.learned[t.key][name] then d.learned[t.key][name] = true; changed = true end
