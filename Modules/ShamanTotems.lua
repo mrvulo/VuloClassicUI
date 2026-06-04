@@ -100,7 +100,13 @@ local function buttonSpell(t)
     local set = d.sets[d.activeSet]
     local chosen = set and set[t.key]
     if chosen and chosen ~= "" then return chosen end
-    return d.lastCast[t.key]
+    if d.lastCast[t.key] then return d.lastCast[t.key] end
+    -- fall back to the first totem of this element the player knows, so a click
+    -- always casts something even before you pick one.
+    for _, id in ipairs(TOTEM_IDS[t.key] or {}) do
+        local name = GetSpellInfo(id)
+        if name and GetSpellInfo(name) then return name end
+    end
 end
 
 -- All totems of an element the player KNOWS (resolved to the highest-rank name),
@@ -132,7 +138,7 @@ local function applyButtonSpells()
     for _, t in ipairs(TOTEMS) do
         local row = rows[t.key]
         if row then
-            row:SetAttribute("spell1", buttonSpell(t) or "")
+            row:SetAttribute("spell", buttonSpell(t) or "")
             row:SetAttribute("spell3", recall)
         end
     end
@@ -159,7 +165,7 @@ end
 local function createRow(totem)
     local row = CreateFrame("Button", "VCUI_TotemBtn_" .. totem.key, container, "SecureActionButtonTemplate")
     row:RegisterForClicks("LeftButtonUp", "RightButtonUp", "MiddleButtonUp")
-    row:SetAttribute("type1", "spell")   -- left-click casts this element's totem (spell1)
+    row:SetAttribute("type", "spell")    -- left/any click casts this element's totem (spell)
     row:SetAttribute("type2", "")         -- right-click: no cast -> opens the totem picker
     row:SetAttribute("type3", "spell")    -- middle-click: Totemic Call / recall all (spell3)
     row:SetScript("PostClick", function(self, button)
