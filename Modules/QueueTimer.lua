@@ -69,25 +69,33 @@ local function setExpiresText(timeRemaining, dialog, pvp)
     local color = secs > 20 and "20ff20" or secs > 10 and "ffff00" or "ff0000"
     local timerText = format("|cff%s%s|r", color, SecondsToTime(secs))
 
+    -- Battleground / arena name. Reliable in TBC via GetBattlefieldStatus;
+    -- the dialog's own instanceInfo.name is empty on the Anniversary client.
+    local bgName = ""
+    if pvp and bgId and GetBattlefieldStatus then
+        local _, mapName = GetBattlefieldStatus(bgId)
+        bgName = mapName or ""
+    end
+
     createCustomFontStrings(dialog)
     if dialog.instanceInfo then
         dialog.customLabel:SetPoint("TOP", dialog.label, "TOP", 0, 0)
         dialog.instanceInfo:SetAlpha(0)
         dialog.label:SetText("")
         dialog.timerLabel:SetText(timerText)
-        if dialog.instanceInfo.name and (dialog.instanceInfo:IsShown() or pvp) then
-            dialog.bgLabel:SetText(dialog.instanceInfo.name:GetText() or "")
-            -- statusText sub-region isn't present on every dialog variant — guard it
-            local st = dialog.instanceInfo.statusText
-            dialog.statusTextLabel:SetText((st and st:GetText()) or "")
-        else
-            dialog.bgLabel:SetText("")
-            dialog.statusTextLabel:SetText("")
+        if bgName == "" and dialog.instanceInfo.name and (dialog.instanceInfo:IsShown() or pvp) then
+            bgName = dialog.instanceInfo.name:GetText() or ""
         end
+        dialog.bgLabel:SetText(bgName)
+        -- statusText sub-region isn't present on every dialog variant — guard it
+        local st = dialog.instanceInfo.statusText
+        dialog.statusTextLabel:SetText((st and st:GetText()) or "")
     else
         dialog.customLabel:SetPoint("TOP", dialog.text, "TOP", 0, 0)
         dialog.text:SetText("")
         dialog.timerLabel:SetText(timerText)
+        dialog.bgLabel:SetText(bgName)
+        dialog.statusTextLabel:SetText("")
     end
 end
 
