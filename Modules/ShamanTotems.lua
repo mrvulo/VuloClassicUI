@@ -599,17 +599,23 @@ end
 -- container, no OnUpdate, never touched again). If THIS casts, our problem is the
 -- addon environment (taint); if it doesn't, a bare secure button can't cast here.
 function VCUI_TotemTest()
-    if _G.VuloTotemTest then _G.VuloTotemTest:Show() else
-        local b = CreateFrame("Button", "VuloTotemTest", UIParent, "SecureActionButtonTemplate")
-        b:SetSize(72, 72)
-        b:SetPoint("CENTER", UIParent, "CENTER", 0, 140)
+    if not _G.VuloTotemTestA then
+        local id = 2484  -- Earthbind Totem (you confirmed /cast works for it)
+        -- A: bare SecureActionButtonTemplate + type=spell (red, left)
+        local a = CreateFrame("Button", "VuloTotemTestA", UIParent, "SecureActionButtonTemplate")
+        a:SetSize(72, 72); a:SetPoint("CENTER", UIParent, "CENTER", -70, 150)
+        a:RegisterForClicks("LeftButtonUp")
+        a:SetAttribute("type", "spell"); a:SetAttribute("unit", "none"); a:SetAttribute("spell", id)
+        local ta = a:CreateTexture(nil, "BACKGROUND"); ta:SetAllPoints(); ta:SetColorTexture(1, 0, 0, 0.7)
+        a:SetScript("PostClick", function() ns:Print("A (nackt+spell) Klick") end)
+        -- B: UIPanelButtonTemplate + Secure (the Disenchant recipe) (gray button, right)
+        local b = CreateFrame("Button", "VuloTotemTestB", UIParent, "UIPanelButtonTemplate, SecureActionButtonTemplate")
+        b:SetSize(80, 40); b:SetPoint("CENTER", UIParent, "CENTER", 70, 150); b:SetText("TEST B")
         b:RegisterForClicks("LeftButtonUp")
-        b:SetAttribute("type", "macro")
-        b:SetAttribute("macrotext", "/cast " .. (GetSpellInfo(2484) or "Totem der Erdbindung"))
-        local t = b:CreateTexture(nil, "BACKGROUND"); t:SetAllPoints(); t:SetColorTexture(1, 0, 0, 0.7)
-        b:SetScript("PostClick", function() ns:Print("Test-Klick kam an (pristine button)") end)
+        b:SetAttribute("type", "spell"); b:SetAttribute("unit", "none"); b:SetAttribute("spell", id)
+        b:SetScript("PostClick", function() ns:Print("B (UIPanel+spell) Klick") end)
     end
-    ns:Print("Roten Kasten (Bildschirmmitte, etwas hoch) ANKLICKEN -> kommt das Erdbindungs-Totem?")
+    ns:Print("LINKS roter Kasten = nackt+spell, RECHTS grauer Knopf = UIPanel+spell. BEIDE anklicken - welcher stellt Erdbindung?")
 end
 
 local function onEnable()
