@@ -13,10 +13,12 @@ local mod = ns:RegisterModule("characterpanel", {
     defaults = {
         showItemLevel       = true,
         showSockets         = true,
+        markEmptySockets    = true,
         shortenEnchants     = true,
         ringsEnchantable    = true,
         showAvgItemLevel    = true,
         itemLevelSize       = 11,
+        textShadow          = true,
     },
 })
 
@@ -94,6 +96,17 @@ function mod:GetOptions()
         { type = "checkbox", label = L["Show sockets"],
           get = function() return mod.db.showSockets end,
           set = function(_, v) mod.db.showSockets = v; refreshPanel() end },
+        { type = "checkbox", label = L["Mark empty sockets"],
+          tooltip = L["Adds a red ring around item sockets that have no gem."],
+          get = function() return mod.db.markEmptySockets end,
+          set = function(_, v) mod.db.markEmptySockets = v; refreshPanel() end },
+        { type = "checkbox", label = L["Text shadow (instead of outline)"],
+          tooltip = L["Cleaner text with a drop shadow instead of a thick outline."],
+          get = function() return mod.db.textShadow end,
+          set = function(_, v)
+              mod.db.textShadow = v
+              if mod.restyleAllText then mod.restyleAllText() end
+          end },
         { type = "checkbox", label = L["Shorten enchant text (DE/EN)"],
           tooltip = L["Example: 'Stamina' -> 'Stam', 'Ausdauer' -> 'Ausd'."],
           get = function() return mod.db.shortenEnchants end,

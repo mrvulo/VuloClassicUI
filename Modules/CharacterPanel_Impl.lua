@@ -463,18 +463,68 @@ local function AnchorSocketsBelowCentered(ilvlFS, textures)
 	end
 end
 
+-- =========================================================
+-- Text style (drop shadow vs. outline) + empty-socket helper
+-- =========================================================
+local function StyleText(fs, size)
+	if not fs then return end
+	if cpOpt("textShadow", true) then
+		fs:SetFont(STANDARD_TEXT_FONT, size, "")
+		fs:SetShadowColor(0, 0, 0, 1)
+		fs:SetShadowOffset(1, -1)
+	else
+		fs:SetFont(STANDARD_TEXT_FONT, size, "OUTLINE")
+		fs:SetShadowColor(0, 0, 0, 0)
+		fs:SetShadowOffset(0, 0)
+	end
+end
+
+-- Re-apply the current style to an existing font string, keeping its size.
+local function RestyleText(fs)
+	if not fs or not fs.GetFont then return end
+	local file, size = fs:GetFont()
+	if not file then return end
+	if cpOpt("textShadow", true) then
+		fs:SetFont(file, size, "")
+		fs:SetShadowColor(0, 0, 0, 1)
+		fs:SetShadowOffset(1, -1)
+	else
+		fs:SetFont(file, size, "OUTLINE")
+		fs:SetShadowColor(0, 0, 0, 0)
+		fs:SetShadowOffset(0, 0)
+	end
+end
+
+-- Live toggle: walk the slot displays and re-apply the text style.
+function cpMod.restyleAllText()
+	local pdi = _G.PaperDollItemsFrame
+	if pdi and pdi.GetChildren then
+		for _, child in ipairs({ pdi:GetChildren() }) do
+			if child.ilvlDisplay    then RestyleText(child.ilvlDisplay)    end
+			if child.enchantDisplay then RestyleText(child.enchantDisplay) end
+		end
+	end
+end
+
+-- An empty gem socket shows a socketing-frame texture instead of a gem icon.
+local function IsEmptySocketTexture(tex)
+	if not tex then return false end
+	tex = tostring(tex)
+	return tex:find("EmptySocket") ~= nil or tex:find("ItemSocketingFrame") ~= nil
+end
+
 local function CreateAdditionalDisplayForButton(button)
 	local parent = button:GetParent()
 	local f = CreateFrame("Frame", nil, parent)
 	f:SetWidth(100)
 
 	f.ilvlDisplay = f:CreateFontString(nil, "OVERLAY")
-	f.ilvlDisplay:SetFont(STANDARD_TEXT_FONT, ILVL_FONT_SIZE, "OUTLINE")
+	StyleText(f.ilvlDisplay, ILVL_FONT_SIZE)
 	f.ilvlDisplay:SetJustifyH("CENTER")
 	f.ilvlDisplay:SetJustifyV("MIDDLE")
 
 	f.enchantDisplay = f:CreateFontString(nil, "OVERLAY")
-	f.enchantDisplay:SetFont(STANDARD_TEXT_FONT, 9, "OUTLINE")
+	StyleText(f.enchantDisplay, 9)
 	f.enchantDisplay:SetTextColor(0, 1, 0, 1)
 
 	f.durabilityDisplay = CreateFrame("StatusBar", nil, f)
@@ -487,11 +537,21 @@ local function CreateAdditionalDisplayForButton(button)
 	f.durabilityDisplay:SetOrientation("VERTICAL")
 
 	f.socketDisplay = {}
+	f.socketRing = {}
 
 	for i = 1, NUM_SOCKET_TEXTURES do
 		f.socketDisplay[i] = f:CreateTexture(nil, "OVERLAY")
 		f.socketDisplay[i]:SetWidth(SOCKET_SIZE)
 		f.socketDisplay[i]:SetHeight(SOCKET_SIZE)
+
+		-- Red glow ring shown around empty (ungemmed) sockets
+		f.socketRing[i] = f:CreateTexture(nil, "ARTWORK")
+		f.socketRing[i]:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
+		f.socketRing[i]:SetBlendMode("ADD")
+		f.socketRing[i]:SetVertexColor(1, 0.1, 0.1, 1)
+		f.socketRing[i]:SetPoint("TOPLEFT", f.socketDisplay[i], "TOPLEFT", -4, 4)
+		f.socketRing[i]:SetPoint("BOTTOMRIGHT", f.socketDisplay[i], "BOTTOMRIGHT", 4, -4)
+		f.socketRing[i]:Hide()
 	end
 
 	return f
@@ -644,13 +704,20 @@ local function UpdateAdditionalDisplay(button, unit)
 
 		for i = 1, NUM_SOCKET_TEXTURES do
 			local t = f.socketDisplay[i]
+			local ring = f.socketRing[i]
 
 			if textures[i] then
 				t:SetTexture(textures[i])
 				t:SetVertexColor(1, 1, 1)
 				t:Show()
+				if cpOpt("markEmptySockets", true) and IsEmptySocketTexture(textures[i]) then
+					ring:Show()
+				else
+					ring:Hide()
+				end
 			else
 				t:Hide()
+				if ring then ring:Hide() end
 			end
 		end
 

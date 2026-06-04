@@ -996,4 +996,12 @@ ns:RegisterLocale("deDE", {
     ["Shadow DoTs: x=%.0f, y=%.0f"] = "Schatten-DoTs: x=%.0f, y=%.0f",
     ["Shadow DoTs mover active. |cff9b6cffDrag|r or |cff9b6cffarrow keys|r (SHIFT = 5px)."] = "Schatten-DoTs-Mover aktiv. |cff9b6cffZiehen|r oder |cff9b6cffPfeiltasten|r (SHIFT = 5px).",
     ["Shadow DoTs mover disabled."] = "Schatten-DoTs-Mover deaktiviert.",
+
+    -- =====================================================
+    -- Character Panel (extra)
+    -- =====================================================
+    ["Mark empty sockets"] = "Leere Sockel markieren",
+    ["Adds a red ring around item sockets that have no gem."] = "Zeigt einen roten Ring um Item-Sockel ohne Stein.",
+    ["Text shadow (instead of outline)"] = "Text-Schatten (statt Outline)",
+    ["Cleaner text with a drop shadow instead of a thick outline."] = "Sauberer Text mit Schatten statt dickem Outline.",
 })
