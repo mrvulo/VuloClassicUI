@@ -155,10 +155,7 @@ local function applyButtonSpells()
     for _, t in ipairs(TOTEMS) do
         local row = rows[t.key]
         if row then
-            local name = castableName(buttonSpell(t), t.key)
-            local id   = name and select(7, GetSpellInfo(name))  -- ID of the rank you know
-            row:SetAttribute("spell", id or name or "")
-            row:SetAttribute("spell3", TOTEMIC_CALL_ID)
+            row:SetAttribute("spell", castableName(buttonSpell(t), t.key) or "")
         end
     end
 end
@@ -184,12 +181,9 @@ end
 -- ---------------------------------------------------------
 local function createRow(totem)
     local row = CreateFrame("Button", "VCUI_TotemBtn_" .. totem.key, container, "SecureActionButtonTemplate")
-    row:RegisterForClicks("LeftButtonUp", "RightButtonUp", "MiddleButtonUp")
-    row:SetAttribute("type", "spell")    -- left/any click casts this element's totem (spell)
-    row:SetAttribute("type2", "")         -- right-click: no cast -> opens the totem picker
-    row:SetAttribute("type3", "spell")    -- middle-click: Totemic Call / recall all (spell3)
-    -- no "unit" attribute: totems are placed at your feet (self-cast); setting a
-    -- unit makes the secure cast aim the spell and the totem never drops.
+    row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    row:SetAttribute("type", "spell")    -- left-click casts this element's totem (spell)
+    -- MINIMAL TEST: no type2/type3/unit, cast by NAME -- mirrors a /cast <name> macro.
     row:SetScript("PostClick", function(self, button)
         ns:Print("Klick "..tostring(button).." -> "..self.totem.key
             .." spell="..tostring(self:GetAttribute("spell")))
