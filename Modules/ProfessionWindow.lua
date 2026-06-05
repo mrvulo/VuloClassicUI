@@ -20,7 +20,9 @@ local mod = ns:RegisterModule("professionwindow", {
         larger    = true,        -- enlarge the frames (detail beside the list)
         theme     = "parchment", -- "parchment" | "dark"
         counts    = true,        -- show "[N] craftable" after each recipe
+        bankmats  = true,        -- detail: craftable count incl. bank + what's missing
         favorites = {},          -- [recipeName] = true (right-click a recipe)
+        bank      = {},          -- [charKey] = { [itemID] = count }  (cached at the bank)
         prices    = true,        -- show AH value / cost / profit (needs Auctionator)
         showSource     = true,   -- CraftLib: where the recipe comes from
         showThresholds = true,   -- CraftLib: orange/yellow/green/grey skill levels
@@ -288,6 +290,70 @@ end
 local function coin(c) return GetCoinTextureString and GetCoinTextureString(c) or (math.floor((c or 0) / 10000) .. "g") end
 
 -- =========================================================
+-- Reagent counting: bags come live from the tradeskill API (playerReagentCount);
+-- bank mats are cached per character whenever the bank is open, so the true
+-- craftable count and "what's missing" still work away from the bank.
+-- =========================================================
+local function charKey()
+    return (UnitName("player") or "?") .. " - " .. (GetRealmName() or "?")
+end
+
+-- Container API moved to C_Container on newer clients; support both.
+local function cSlots(bag)
+    if C_Container and C_Container.GetContainerNumSlots then return C_Container.GetContainerNumSlots(bag) end
+    return GetContainerNumSlots and GetContainerNumSlots(bag) or 0
+end
+local function cItemID(bag, slot)
+    if C_Container and C_Container.GetContainerItemID then return C_Container.GetContainerItemID(bag, slot) end
+    return GetContainerItemID and GetContainerItemID(bag, slot)
+end
+local function cItemCount(bag, slot)
+    if C_Container and C_Container.GetContainerItemInfo then
+        local info = C_Container.GetContainerItemInfo(bag, slot)
+        return (info and info.stackCount) or 0
+    end
+    if GetContainerItemInfo then local _, c = GetContainerItemInfo(bag, slot); return c or 0 end
+    return 0
+end
+
+-- Bank container IDs in TBC: -1 (main bank) + 5..11 (bank bags). Only readable
+-- while the bank window is open, so we snapshot them into the saved cache.
+local BANK_BAGS = { -1, 5, 6, 7, 8, 9, 10, 11 }
+local function scanBank()
+    if not (mod._enabled and mod.db) then return end
+    local counts = {}
+    for _, bag in ipairs(BANK_BAGS) do
+        for slot = 1, (cSlots(bag) or 0) do
+            local id = cItemID(bag, slot)
+            if id then counts[id] = (counts[id] or 0) + cItemCount(bag, slot) end
+        end
+    end
+    mod.db.bank = mod.db.bank or {}
+    mod.db.bank[charKey()] = counts
+end
+
+local function bankCount(itemID)
+    if not (itemID and mod.db and mod.db.bank) then return 0 end
+    local c = mod.db.bank[charKey()]
+    return (c and c[itemID]) or 0
+end
+
+-- Snapshot the bank while it's open (and keep it fresh on bag moves).
+local bankWatcher = CreateFrame("Frame")
+local bankOpen = false
+bankWatcher:RegisterEvent("BANKFRAME_OPENED")
+bankWatcher:RegisterEvent("BANKFRAME_CLOSED")
+bankWatcher:SetScript("OnEvent", function(_, event)
+    if event == "BANKFRAME_OPENED" then
+        bankOpen = true; scanBank(); bankWatcher:RegisterEvent("BAG_UPDATE")
+    elseif event == "BANKFRAME_CLOSED" then
+        bankOpen = false; scanBank(); bankWatcher:UnregisterEvent("BAG_UPDATE")
+    elseif event == "BAG_UPDATE" and bankOpen then
+        scanBank()
+    end
+end)
+
+-- =========================================================
 -- CraftLib (optional): recipe source, skill thresholds, skill-up colour.
 -- =========================================================
 local function hasCraftLib()
@@ -350,7 +416,7 @@ end
 -- Parameterised by a per-frame config so it serves both TradeSkillFrame (with
 -- prices) and CraftFrame / enchanting (CraftLib info only, no sellable item).
 -- =========================================================
-local DETAIL_KEYS = { "value", "cost", "profit", "skillup", "thresholds", "source" }
+local DETAIL_KEYS = { "missing", "craftable", "value", "cost", "profit", "skillup", "thresholds", "source" }
 
 local function buildBlock(dcfg)
     if dcfg._fs then return end
@@ -366,7 +432,9 @@ local function buildBlock(dcfg)
         return t
     end
     -- stacked bottom-up; empty lines collapse so hidden rows take no space
-    fs.profit     = line(nil)
+    fs.missing    = line(nil)
+    fs.craftable  = line(fs.missing)
+    fs.profit     = line(fs.craftable)
     fs.cost       = line(fs.profit)
     fs.value      = line(fs.cost)
     fs.skillup    = line(fs.value)
@@ -387,6 +455,32 @@ local function updateDetail(dcfg)
 
     local idx = dcfg.sel()
     if not idx or idx < 1 then clearBlock(dcfg); return end
+
+    -- True craftable count (bags via the API + cached bank mats) and, when you
+    -- can't make even one, exactly what's missing.
+    if mod.db.bankmats then
+        local n = dcfg.numReagents(idx) or 0
+        if n > 0 then
+            local canMake, missing = math.huge, {}
+            for r = 1, n do
+                local rname, _, needed, haveBags = dcfg.reagentInfo(idx, r)
+                needed = needed or 0
+                if needed > 0 then
+                    local have = (haveBags or 0) + bankCount(linkToID(dcfg.reagentLink(idx, r)))
+                    local per  = math.floor(have / needed)
+                    if per < canMake then canMake = per end
+                    if have < needed then missing[#missing + 1] = (needed - have) .. "x " .. (rname or "?") end
+                end
+            end
+            if canMake == math.huge then canMake = 0 end
+            fs.craftable:SetText(L["Craftable"] .. ": |cffffffff" .. canMake .. "|r")
+            fs.missing:SetText(#missing > 0 and (L["Missing"] .. ": |cffff7777" .. table.concat(missing, ", ") .. "|r") or "")
+        else
+            fs.craftable:SetText(""); fs.missing:SetText("")
+        end
+    else
+        fs.craftable:SetText(""); fs.missing:SetText("")
+    end
 
     -- Auction value / material cost / profit (frames with a sellable item only,
     -- and only with Auctionator)
@@ -684,6 +778,10 @@ function mod:GetOptions()
               if _G.TradeSkillFrame and _G.TradeSkillFrame:IsShown() and _G.TradeSkillFrame_Update then pcall(_G.TradeSkillFrame_Update) end
               if _G.CraftFrame and _G.CraftFrame:IsShown() and _G.CraftFrame_Update then pcall(_G.CraftFrame_Update) end
           end },
+        { type = "toggle", label = L["Craftable count incl. bank + missing mats"],
+          tooltip = L["On the selected recipe, shows how many you can craft counting your bank mats too, and lists what's still missing. Bank mats are remembered from your last visit to the bank."],
+          get = function() return mod.db.bankmats end,
+          set = function(_, v) mod.db.bankmats = v; refreshAllDetails() end },
         { type = "desc", text = L["|cff888888Click a recipe's star (or right-click the recipe) to favourite it — the star turns gold.|r"] },
 
         { type = "spacer", height = 6 },
