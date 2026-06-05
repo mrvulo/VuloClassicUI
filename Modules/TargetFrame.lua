@@ -24,6 +24,7 @@ local mod = ns:RegisterModule("targetframe", {
         threatNumeric = true,   -- numeric threat % above the frame
         threatGlow    = true,   -- tint the frame border by threat status
         rareElite     = true,   -- winged Rare-Elite border for rare-elite mobs
+        classIcon     = true,   -- class crest on player targets
         focus         = true,   -- apply all of the above to the Focus frame too
     },
 })
@@ -157,8 +158,46 @@ local function updateIndicator(frame)
     if next(pulsing) then pulseDriver:Show() else pulseDriver:Hide() end
 end
 
+-- ---------------------------------------------------------
+-- Class icon (players only) — the target's class crest on the frame
+-- ---------------------------------------------------------
+local classIcons = {}  -- [frame] = texture
+local function ensureClassIcon(frame)
+    if classIcons[frame] then return classIcons[frame] end
+    local tex = frame:CreateTexture(nil, "OVERLAY")
+    tex:SetSize(22, 22)
+    local portrait = _G[(frame:GetName() or "") .. "Portrait"]
+    if portrait then tex:SetPoint("CENTER", portrait, "TOPLEFT", 7, -7)
+    else tex:SetPoint("TOPLEFT", frame, "TOPLEFT", 6, -6) end
+    tex:Hide()
+    classIcons[frame] = tex
+    return tex
+end
+
+local function updateClassIcon(frame)
+    local tex = classIcons[frame]
+    if not tex then return end
+    local unit    = unitForFrame(frame)
+    local isFocus = (frame == _G.FocusFrame)
+    if mod._enabled and mod.db.classIcon and (not isFocus or mod.db.focus)
+        and unit and UnitExists(unit) and UnitIsPlayer(unit) then
+        local _, class = UnitClass(unit)
+        local coords = class and CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS[class]
+        if coords then
+            tex:SetTexture("Interface\\TargetingFrame\\UI-Classes-Circles")
+            tex:SetTexCoord(coords[1], coords[2], coords[3], coords[4])
+            tex:Show()
+            return
+        end
+    end
+    tex:Hide()
+end
+
 local function updateAll()
-    for frame in pairs(indicators) do updateIndicator(frame) end
+    for frame in pairs(indicators) do
+        updateIndicator(frame)
+        updateClassIcon(frame)
+    end
 end
 
 -- ---------------------------------------------------------
@@ -246,7 +285,8 @@ local function ensureSetup()
 
     -- One indicator per frame.
     createIndicator(_G.TargetFrame)
-    if _G.FocusFrame then createIndicator(_G.FocusFrame) end
+    ensureClassIcon(_G.TargetFrame)
+    if _G.FocusFrame then createIndicator(_G.FocusFrame); ensureClassIcon(_G.FocusFrame) end
 
     -- Drive threat updates off the native events, unit-filtered.
     for frame, ind in pairs(indicators) do
@@ -263,7 +303,7 @@ local function ensureSetup()
                     ind:RegisterEvent("UNIT_THREAT_LIST_UPDATE")
                 end
             end
-            ind:SetScript("OnEvent", function(self) updateIndicator(self.frame) end)
+            ind:SetScript("OnEvent", function(self) updateIndicator(self.frame); updateClassIcon(self.frame) end)
         end
     end
 
@@ -321,6 +361,7 @@ function mod:OnDisable()
         ind:Hide()
         pulsing[frame] = nil
         local b = borderTexOf(frame); if b then b:SetVertexColor(1, 1, 1) end
+        if classIcons[frame] then classIcons[frame]:Hide() end
     end
     refreshHealth()  -- restore the default % text
     -- Hooks stay installed but are gated by mod._enabled; a /reload fully reverts.
@@ -359,6 +400,10 @@ function mod:GetOptions()
           tooltip = L["Shows the winged silver-dragon Rare-Elite border on rare-elite mobs."],
           get = function() return mod.db.rareElite end,
           set = function(_, v) mod.db.rareElite = v; apply() end },
+        { type = "toggle", label = L["Class icon on player targets"],
+          tooltip = L["Shows the target's class crest on the frame when you target a player."],
+          get = function() return mod.db.classIcon end,
+          set = function(_, v) mod.db.classIcon = v; apply() end },
 
         { type = "spacer", height = 6 },
         { type = "toggle", label = L["Also apply to the Focus frame"],

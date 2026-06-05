@@ -539,6 +539,8 @@ ns:RegisterLocale("deDE", {
     ["Classification"] = "Einstufung",
     ["Rare-Elite border"] = "Selten-Elite-Rahmen",
     ["Shows the winged silver-dragon Rare-Elite border on rare-elite mobs."] = "Zeigt den geflügelten Silberdrachen-Rahmen (Selten-Elite) bei Selten-Elite-Gegnern.",
+    ["Class icon on player targets"] = "Klassen-Icon bei Spieler-Zielen",
+    ["Shows the target's class crest on the frame when you target a player."] = "Zeigt das Klassen-Symbol des Ziels am Frame, wenn du einen Spieler anvisierst.",
     ["Also apply to the Focus frame"] = "Auch auf das Fokus-Fenster anwenden",
     ["Health"] = "Leben",
     ["Show real NPC health"] = "Echte NPC-HP anzeigen",
