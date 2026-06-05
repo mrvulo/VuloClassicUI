@@ -164,19 +164,33 @@ end
 local classIcons = {}  -- [frame] = texture
 local function ensureClassIcon(frame)
     if classIcons[frame] then return classIcons[frame] end
-    local tex = frame:CreateTexture(nil, "OVERLAY")
-    tex:SetSize(22, 22)
-    local portrait = _G[(frame:GetName() or "") .. "Portrait"]
-    if portrait then tex:SetPoint("CENTER", portrait, "TOPLEFT", 7, -7)
-    else tex:SetPoint("TOPLEFT", frame, "TOPLEFT", 6, -6) end
-    tex:Hide()
-    classIcons[frame] = tex
-    return tex
+    local fname = frame:GetName() or ""
+    -- Host on the texture frame + raised level so the badge draws IN FRONT of the
+    -- metal border (a plain texture on the frame ends up behind it).
+    local host  = _G[fname .. "TextureFrame"] or frame
+    local badge = CreateFrame("Frame", nil, host)
+    badge:SetSize(26, 26)
+    badge:SetFrameLevel((host:GetFrameLevel() or 0) + 5)
+    local portrait = _G[fname .. "Portrait"]
+    if portrait then badge:SetPoint("CENTER", portrait, "TOPLEFT", 8, -2)
+    else badge:SetPoint("TOPLEFT", frame, "TOPLEFT", 10, -10) end
+
+    badge.icon = badge:CreateTexture(nil, "ARTWORK")
+    badge.icon:SetPoint("CENTER")
+    badge.icon:SetSize(17, 17)
+
+    badge.ring = badge:CreateTexture(nil, "OVERLAY")  -- gold ornate ring
+    badge.ring:SetTexture("Interface\\Common\\RingBorder")
+    badge.ring:SetAllPoints(badge)
+
+    badge:Hide()
+    classIcons[frame] = badge
+    return badge
 end
 
 local function updateClassIcon(frame)
-    local tex = classIcons[frame]
-    if not tex then return end
+    local badge = classIcons[frame]
+    if not badge then return end
     local unit    = unitForFrame(frame)
     local isFocus = (frame == _G.FocusFrame)
     if mod._enabled and mod.db.classIcon and (not isFocus or mod.db.focus)
@@ -184,13 +198,13 @@ local function updateClassIcon(frame)
         local _, class = UnitClass(unit)
         local coords = class and CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS[class]
         if coords then
-            tex:SetTexture("Interface\\TargetingFrame\\UI-Classes-Circles")
-            tex:SetTexCoord(coords[1], coords[2], coords[3], coords[4])
-            tex:Show()
+            badge.icon:SetTexture("Interface\\TargetingFrame\\UI-Classes-Circles")
+            badge.icon:SetTexCoord(coords[1], coords[2], coords[3], coords[4])
+            badge:Show()
             return
         end
     end
-    tex:Hide()
+    badge:Hide()
 end
 
 local function updateAll()
