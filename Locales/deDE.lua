@@ -178,6 +178,8 @@ ns:RegisterLocale("deDE", {
     -- Swing Timer
     -- =====================================================
     ["Swing Timer"] = "Waffen-Swingtimer",
+    ["MH"] = "MH",  -- main-hand bar label (the abbreviation is the same in German)
+    ["OH"] = "OH",  -- off-hand bar label
     ["Weapon swing timer for your melee auto-attacks (any melee class). Shows a main-hand bar and, while dual-wielding, an off-hand bar."] = "Waffen-Swingtimer für deine Nahkampf-Autoangriffe (jede Nahkampfklasse). Zeigt eine Waffenhand-Leiste und beim beidhändigen Kämpfen eine Nebenhand-Leiste.",
     ["|cffaaaaaaShows when your next melee auto-attack lands (any melee class). The off-hand bar only appears while dual-wielding. The bar fills up toward the swing; the number is the time left.|r"] = "|cffaaaaaaZeigt, wann dein nächster Nahkampf-Autoangriff trifft (jede Nahkampfklasse). Die Nebenhand-Leiste erscheint nur beim beidhändigen Kämpfen. Die Leiste füllt sich bis zum Schlag; die Zahl ist die verbleibende Zeit.|r",
     ["Enable swing timer"] = "Swingtimer aktivieren",
