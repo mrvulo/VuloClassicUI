@@ -43,6 +43,7 @@ Modules\Profiles.lua
 Modules\Minimap.lua
 Modules\FontBars.lua
 Modules\PlayerCastbar.lua
+Modules\TargetFrame.lua
 Modules\SwingTimer.lua
 Modules\CooldownPulse.lua
 Modules\Arena\Init.lua

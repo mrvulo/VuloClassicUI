@@ -20,6 +20,7 @@ local MODULE_ICONS = {
     minimap            = "Interface\\Icons\\INV_Misc_Map_01",
     fontbars           = "Interface\\Icons\\INV_Misc_Note_01",
     playercastbar      = "Interface\\Icons\\Spell_Holy_MagicalSentry",
+    targetframe        = "Interface\\Icons\\Ability_Hunter_MarkedForDeath",
     cooldownpulse      = "Interface\\Icons\\Spell_Nature_TimeStop",
     arenaframes        = "Interface\\Icons\\Achievement_Arena_2v2_1",
     characterpanel     = "Interface\\Icons\\INV_Chest_Plate06",

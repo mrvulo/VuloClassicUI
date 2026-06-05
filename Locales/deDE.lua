@@ -528,6 +528,19 @@ ns:RegisterLocale("deDE", {
     ["Hide TargetFrame background"] = "TargetFrame-Hintergrund ausblenden",
     ["Permanently hides the dark background element of the TargetFrame."] = "Blendet das dunkle Hintergrundelement des TargetFrames dauerhaft aus.",
 
+    -- Target Frame module
+    ["Target Frame"] = "Zielfenster",
+    ["|cffaaaaaaAdds the modern Target/Focus frame extras the default Anniversary UI is missing - all cosmetic, no taint.|r"] = "|cffaaaaaaFügt dem Ziel-/Fokus-Fenster die modernen Extras hinzu, die das Standard-Anniversary-UI weglässt – rein kosmetisch, kein Taint.|r",
+    ["Threat"] = "Bedrohung",
+    ["Numeric threat %"] = "Bedrohung in %",
+    ["Shows your threat percentage on the target (and focus) above the frame, coloured by threat status."] = "Zeigt deinen Bedrohungswert in % über dem Ziel- (und Fokus-)Fenster, eingefärbt nach Bedrohungsstatus.",
+    ["Threat glow"] = "Bedrohungs-Glow",
+    ["Glows the target (and focus) frame in yellow/orange/red as your threat rises."] = "Lässt das Ziel- (und Fokus-)Fenster gelb/orange/rot leuchten, wenn deine Bedrohung steigt.",
+    ["Classification"] = "Einstufung",
+    ["Rare-Elite border"] = "Selten-Elite-Rahmen",
+    ["Shows the winged silver-dragon Rare-Elite border on rare-elite mobs."] = "Zeigt den geflügelten Silberdrachen-Rahmen (Selten-Elite) bei Selten-Elite-Gegnern.",
+    ["Also apply to the Focus frame"] = "Auch auf das Fokus-Fenster anwenden",
+
     -- =====================================================
     -- PlayerCastbar
     -- =====================================================
