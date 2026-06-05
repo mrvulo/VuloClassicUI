@@ -24,21 +24,23 @@ local function ensureGlow()
     local pf = _G.PlayerFrame
     if not pf then return nil end
 
+    -- A round ring that hugs the circular portrait (the old square glow stuck
+    -- out and read as rectangular).
     glow = pf:CreateTexture(nil, "OVERLAY")
-    glow:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
+    glow:SetTexture("Interface\\COMMON\\RingBorder")
     glow:SetBlendMode("ADD")
-    glow:SetVertexColor(1, 0.15, 0.15, 1)
+    glow:SetVertexColor(1, 0.18, 0.18, 1)
 
     local portrait = _G.PlayerPortrait
     if portrait then
         glow:SetPoint("CENTER", portrait, "CENTER", 0, 0)
         local w, h = portrait:GetSize()
-        if not w or w == 0 then w, h = 60, 60 end
-        glow:SetSize(w * 1.9, h * 1.9)
+        if not w or w == 0 then w, h = 56, 56 end
+        glow:SetSize(w * 1.32, h * 1.32)  -- ring sits on the portrait's metal rim, not beyond
     else
         -- Fallback: roughly over the portrait area of the player frame
         glow:SetPoint("CENTER", pf, "TOPLEFT", 40, -25)
-        glow:SetSize(110, 110)
+        glow:SetSize(74, 74)
     end
 
     -- Subtle pulse so the combat state is noticeable
