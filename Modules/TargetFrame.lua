@@ -20,12 +20,28 @@ local mod = ns:RegisterModule("targetframe", {
     description = "Adds a numeric threat %, a coloured threat glow and the winged Rare-Elite border to the Target and Focus frames - the bits the default Anniversary UI leaves out.",
     defaults = {
         enabled       = true,
+        realHealth    = true,   -- show the real HP value for NPCs (default shows %)
         threatNumeric = true,   -- numeric threat % above the frame
-        threatGlow    = true,   -- coloured threat glow around the frame
+        threatGlow    = true,   -- tint the frame border by threat status
         rareElite     = true,   -- winged Rare-Elite border for rare-elite mobs
         focus         = true,   -- apply all of the above to the Focus frame too
     },
 })
+
+-- The frame's border ("classification") texture. On the 2.5.5 Classic frame this
+-- is <Frame>TextureFrameTexture; older paths used frame.borderTexture.
+local function borderTexOf(frame)
+    if frame.borderTexture then return frame.borderTexture end
+    local name = frame.GetName and frame:GetName()
+    return name and _G[name .. "TextureFrameTexture"]
+end
+
+-- Short HP like 120, 3.4k, 1.2m
+local function abbrev(v)
+    if v >= 1e6 then return string.format("%.1fm", v / 1e6)
+    elseif v >= 1e4 then return string.format("%.1fk", v / 1e3)
+    else return tostring(v) end
+end
 
 -- Threat status colours (fallback if GetThreatStatusColor is ever missing).
 local THREAT_COLOR = { [0] = { 0.69, 0.69, 0.69 }, [1] = { 1, 1, 0.47 }, [2] = { 1, 0.6, 0 }, [3] = { 1, 0, 0 } }
@@ -74,14 +90,6 @@ local function createIndicator(frame)
     border:SetTexCoord(0, 0.765625, 0, 0.5625)
     border:SetAllPoints(ind)
 
-    -- Frame-wide glow (the targeting-frame flash, tinted by threat colour).
-    ind.glow = frame:CreateTexture(nil, "BACKGROUND")
-    ind.glow:SetTexture("Interface\\TargetingFrame\\UI-TargetingFrame-Flash")
-    ind.glow:SetTexCoord(0, 0.9453125, 0, 0.7265625)
-    ind.glow:SetPoint("TOPLEFT", -5, -2)
-    ind.glow:SetSize(242, 93)
-    ind.glow:Hide()
-
     indicators[frame] = ind
     return ind
 end
@@ -117,16 +125,16 @@ local function updateIndicator(frame)
             ind:Hide()
         end
 
-        -- Glow
-        if glowOn and status and status > 0 then
-            ind.glow:SetVertexColor(r, g, b)
-            ind.glow:Show()
-        else
-            ind.glow:Hide()
+        -- Glow = tint the frame's metal border by threat colour (aligned, no blob)
+        local border = borderTexOf(frame)
+        if border then
+            if glowOn and status and status > 0 then border:SetVertexColor(r, g, b)
+            else border:SetVertexColor(1, 1, 1) end
         end
     else
         ind:Hide()
-        ind.glow:Hide()
+        local border = borderTexOf(frame)
+        if border then border:SetVertexColor(1, 1, 1) end
     end
 end
 
@@ -145,7 +153,7 @@ local function applyClassification(frame, lock)
     if frame == _G.FocusFrame and not mod.db.focus then return end
     local unit = unitForFrame(frame)
     if not lock and unit and UnitExists(unit) and UnitClassification(unit) == "rareelite" then
-        local border = frame.borderTexture
+        local border = borderTexOf(frame)
         if border and border.SetTexture then border:SetTexture(RARE_ELITE_TEX) end
     end
 end
@@ -162,9 +170,42 @@ local function refreshClassification()
 end
 
 -- ---------------------------------------------------------
+-- Real NPC health text (the default obfuscates NPCs to a %, but UnitHealth
+-- already returns the true value on 2.5.5 — we just rewrite the bar text).
+-- ---------------------------------------------------------
+local function healthUnitFor(bar)
+    if bar == _G.TargetFrameHealthBar then return "target" end
+    if bar == _G.FocusFrameHealthBar  then return "focus"  end
+    return nil
+end
+
+local function applyRealHealth(bar)
+    if not (mod._enabled and mod.db.realHealth) then return end
+    local unit = healthUnitFor(bar)
+    if not unit then return end
+    if unit == "focus" and not mod.db.focus then return end
+    if not UnitExists(unit) then return end
+    -- Enemy players (and their summons) stay percentage-obfuscated — unchangeable.
+    if UnitIsPlayer(unit) and not (UnitIsUnit(unit, "player") or UnitInParty(unit)
+        or UnitInRaid(unit) or UnitIsFriend("player", unit)) then
+        return
+    end
+    local cur, max = UnitHealth(unit), UnitHealthMax(unit)
+    if not (cur and max and max > 0) then return end
+    local ts = bar.TextString or (bar.GetName and _G[(bar:GetName() or "") .. "TextString"])
+    if ts then ts:SetText(abbrev(cur) .. " / " .. abbrev(max)) end
+end
+
+local function refreshHealth()
+    if not _G.TextStatusBar_UpdateTextString then return end
+    if _G.TargetFrameHealthBar then pcall(_G.TextStatusBar_UpdateTextString, _G.TargetFrameHealthBar) end
+    if _G.FocusFrameHealthBar  then pcall(_G.TextStatusBar_UpdateTextString, _G.FocusFrameHealthBar)  end
+end
+
+-- ---------------------------------------------------------
 -- Lifecycle
 -- ---------------------------------------------------------
-local hooked = false
+local hooked, realHealthHooked = false, false
 
 local function ensureSetup()
     if not _G.TargetFrame then return end
@@ -204,29 +245,48 @@ local function ensureSetup()
             end
         end
     end
+
+    -- Real NPC health: rewrite the health-bar text with the true value.
+    if not realHealthHooked and _G.TextStatusBar_UpdateTextString then
+        realHealthHooked = true
+        hooksecurefunc("TextStatusBar_UpdateTextString", applyRealHealth)
+    end
 end
 
 function mod:OnEnable()
     ensureSetup()
-    ns:RegisterEvent("PLAYER_ENTERING_WORLD", function() ensureSetup(); updateAll(); refreshClassification() end)
+    ns:RegisterEvent("PLAYER_ENTERING_WORLD", function()
+        ensureSetup(); updateAll(); refreshClassification(); refreshHealth()
+    end)
     updateAll()
     refreshClassification()
+    refreshHealth()
 end
 
 function mod:OnDisable()
-    for _, ind in pairs(indicators) do ind:Hide(); if ind.glow then ind.glow:Hide() end end
-    -- The Rare-Elite hook stays installed but is gated by mod._enabled; a /reload
-    -- fully restores the default borders.
+    for frame, ind in pairs(indicators) do
+        ind:Hide()
+        local b = borderTexOf(frame); if b then b:SetVertexColor(1, 1, 1) end
+    end
+    refreshHealth()  -- restore the default % text
+    -- Hooks stay installed but are gated by mod._enabled; a /reload fully reverts.
 end
 
 -- ---------------------------------------------------------
 -- Options
 -- ---------------------------------------------------------
 function mod:GetOptions()
-    local function apply() updateAll(); refreshClassification() end
+    local function apply() updateAll(); refreshClassification(); refreshHealth() end
     return {
         { type = "header", text = L["Target Frame"] },
         { type = "desc",   text = L["|cffaaaaaaAdds the modern Target/Focus frame extras the default Anniversary UI is missing - all cosmetic, no taint.|r"] },
+
+        { type = "spacer", height = 6 },
+        { type = "header", text = L["Health"] },
+        { type = "toggle", label = L["Show real NPC health"],
+          tooltip = L["Shows the true health value on NPCs instead of the obfuscated percentage (enemy players stay %)."],
+          get = function() return mod.db.realHealth end,
+          set = function(_, v) mod.db.realHealth = v; apply() end },
 
         { type = "spacer", height = 6 },
         { type = "header", text = L["Threat"] },

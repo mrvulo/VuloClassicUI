@@ -540,6 +540,9 @@ ns:RegisterLocale("deDE", {
     ["Rare-Elite border"] = "Selten-Elite-Rahmen",
     ["Shows the winged silver-dragon Rare-Elite border on rare-elite mobs."] = "Zeigt den geflügelten Silberdrachen-Rahmen (Selten-Elite) bei Selten-Elite-Gegnern.",
     ["Also apply to the Focus frame"] = "Auch auf das Fokus-Fenster anwenden",
+    ["Health"] = "Leben",
+    ["Show real NPC health"] = "Echte NPC-HP anzeigen",
+    ["Shows the true health value on NPCs instead of the obfuscated percentage (enemy players stay %)."] = "Zeigt bei NPCs den echten Lebenswert statt der verschleierten Prozentanzeige (feindliche Spieler bleiben %).",
 
     -- =====================================================
     -- PlayerCastbar
