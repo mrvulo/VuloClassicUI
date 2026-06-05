@@ -65,6 +65,16 @@ end
 -- ---------------------------------------------------------
 local indicators = {}  -- [frame] = indicator
 
+-- Border pulse while at full aggro (status 3): oscillate the border colour
+-- red <-> light red on a single shared OnUpdate.
+local pulsing = {}     -- [frame] = border texture
+local pulseDriver = CreateFrame("Frame")
+pulseDriver:Hide()
+pulseDriver:SetScript("OnUpdate", function()
+    local g = 0.30 - 0.30 * math.cos(GetTime() * 6)  -- 0 .. 0.6, ~1s period
+    for _, border in pairs(pulsing) do border:SetVertexColor(1, g, g) end
+end)
+
 local function createIndicator(frame)
     if indicators[frame] then return indicators[frame] end
 
@@ -125,17 +135,26 @@ local function updateIndicator(frame)
             ind:Hide()
         end
 
-        -- Glow = tint the frame's metal border by threat colour (aligned, no blob)
+        -- Glow = tint the frame's metal border by threat colour; pulse at full aggro
         local border = borderTexOf(frame)
         if border then
-            if glowOn and status and status > 0 then border:SetVertexColor(r, g, b)
-            else border:SetVertexColor(1, 1, 1) end
+            if glowOn and status and status >= 3 then
+                pulsing[frame] = border            -- pulse red (driver animates it)
+            elseif glowOn and status and status > 0 then
+                pulsing[frame] = nil
+                border:SetVertexColor(r, g, b)     -- static yellow / orange
+            else
+                pulsing[frame] = nil
+                border:SetVertexColor(1, 1, 1)
+            end
         end
     else
         ind:Hide()
+        pulsing[frame] = nil
         local border = borderTexOf(frame)
         if border then border:SetVertexColor(1, 1, 1) end
     end
+    if next(pulsing) then pulseDriver:Show() else pulseDriver:Hide() end
 end
 
 local function updateAll()
@@ -297,8 +316,10 @@ function mod:OnEnable()
 end
 
 function mod:OnDisable()
+    pulseDriver:Hide()
     for frame, ind in pairs(indicators) do
         ind:Hide()
+        pulsing[frame] = nil
         local b = borderTexOf(frame); if b then b:SetVertexColor(1, 1, 1) end
     end
     refreshHealth()  -- restore the default % text
