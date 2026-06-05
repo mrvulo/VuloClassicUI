@@ -197,9 +197,13 @@ local function applyRealHealth(bar)
 end
 
 local function refreshHealth()
-    if not _G.TextStatusBar_UpdateTextString then return end
-    if _G.TargetFrameHealthBar then pcall(_G.TextStatusBar_UpdateTextString, _G.TargetFrameHealthBar) end
-    if _G.FocusFrameHealthBar  then pcall(_G.TextStatusBar_UpdateTextString, _G.FocusFrameHealthBar)  end
+    local function up(bar)
+        if not bar then return end
+        if bar.UpdateTextString then pcall(bar.UpdateTextString, bar)
+        elseif _G.TextStatusBar_UpdateTextString then pcall(_G.TextStatusBar_UpdateTextString, bar) end
+    end
+    up(_G.TargetFrameHealthBar)
+    up(_G.FocusFrameHealthBar)
 end
 
 -- ---------------------------------------------------------
@@ -246,10 +250,28 @@ local function ensureSetup()
         end
     end
 
-    -- Real NPC health: rewrite the health-bar text with the true value.
-    if not realHealthHooked and _G.TextStatusBar_UpdateTextString then
-        realHealthHooked = true
-        hooksecurefunc("TextStatusBar_UpdateTextString", applyRealHealth)
+    -- Real NPC health: rewrite the bar text with the true value. On the
+    -- Anniversary client the text is set by the bar's TextStatusBarMixin method,
+    -- so hook that on the bar directly; fall back to the global on older paths.
+    if not realHealthHooked then
+        local hb = _G.TargetFrameHealthBar
+        local function hookBar(bar)
+            if not bar then return end
+            if bar.UpdateTextStringWithValues then
+                hooksecurefunc(bar, "UpdateTextStringWithValues", function(self) applyRealHealth(self) end)
+            end
+            if bar.UpdateTextString then
+                hooksecurefunc(bar, "UpdateTextString", function(self) applyRealHealth(self) end)
+            end
+        end
+        if hb and (hb.UpdateTextStringWithValues or hb.UpdateTextString) then
+            realHealthHooked = true
+            hookBar(hb)
+            hookBar(_G.FocusFrameHealthBar)
+        elseif _G.TextStatusBar_UpdateTextString then
+            realHealthHooked = true
+            hooksecurefunc("TextStatusBar_UpdateTextString", applyRealHealth)
+        end
     end
 end
 
