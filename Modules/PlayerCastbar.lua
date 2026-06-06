@@ -299,8 +299,12 @@ function Blizzard:Enable()
             end
             local dur = cstartMS and (cendMS - cstartMS) / 1000
             local count = tickCountFor(cname, dur, cTrade)
-            if count then bz_showTicks(self, count) else bz_hideAllTicks(self) end
-            bz_showClip(self, dur)
+            if count then
+                bz_showTicks(self, count)
+                bz_showClip(self, dur)
+            else
+                bz_hideAllTicks(self)  -- also hides the clip marker
+            end
             bz_setChannelColor(self, true)
             return
         end
@@ -614,8 +618,12 @@ local function c_startCast(isChannel)
         c_applyColor({ r = 1, g = 1, b = 1, a = 1 })  -- white = no multiplication
         local cdur  = sMS and eMS and (eMS - sMS) / 1000
         local count = tickCountFor(name, cdur, cTrade)
-        if count then c_showTicks(count) else c_hideAllTicks() end
-        c_showClip(cdur)
+        if count then
+            c_showTicks(count)
+            c_showClip(cdur)
+        else
+            c_hideAllTicks()  -- also hides the clip marker
+        end
         cFrame.spark:Hide()
     else
         -- Normal cast: yellow texture, no tint
