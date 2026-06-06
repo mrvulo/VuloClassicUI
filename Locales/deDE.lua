@@ -569,6 +569,8 @@ ns:RegisterLocale("deDE", {
     ["Show cast timer"] = "Cast-Timer anzeigen",
     ["Show channel ticks"] = "Channel-Ticks anzeigen",
     ["Shows vertical lines at tick points (Mind Flay, Drain Soul, Hellfire, etc.)"] = "Zeigt vertikale Linien an den Tick-Punkten (Gedankenschinden, Seelenentzug, Höllenfeuer usw.)",
+    ["Show clip window"] = "Clip-Fenster anzeigen",
+    ["Shades the last bit of a channel (your latency) so you know when to recast and clip without losing the last tick - great for Mind Flay."] = "Hebt das letzte Stück eines Channels hervor (deine Latenz), damit du weißt, wann du neu wirken/clippen kannst, ohne den letzten Tick zu verlieren – ideal für Gedankenschinden.",
     ["VUI Style: Position & Size"] = "VUI-Stil: Position & Größe",
     ["Unlock / Test"] = "Entsperren / Test",
     ["Center Position"] = "Position zentrieren",

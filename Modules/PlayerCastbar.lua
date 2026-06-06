@@ -17,6 +17,7 @@ local mod = ns:RegisterModule("playercastbar", {
         -- Shared defaults
         showTimeText  = true,
         showTicks     = true,
+        showClipMarker = true,             -- latency clip window on channels
         showSpellName = true,
         showIcon      = true,
         -- Custom mode: size & position
@@ -194,6 +195,32 @@ local function bz_hideAllTicks(bar)
         o.ticks[i]:Hide()
         o.ticks[i]:ClearAllPoints()
     end
+    if o.clip then o.clip:Hide() end
+end
+
+-- Latency "clip window": a shaded zone at the channel's completion end. The bar
+-- drains toward the left, so the last latency-worth of the channel sits at the
+-- left edge - recast as the fill enters it to clip without losing the last tick.
+local function bz_showClip(bar, duration)
+    local o = bar and bar._vcui_overlay
+    if not o then return end
+    if not (mod.db.showClipMarker and duration and duration > 0) then
+        if o.clip then o.clip:Hide() end
+        return
+    end
+    if not o.clip then
+        o.clip = o:CreateTexture(nil, "ARTWORK", nil, 1)
+        o.clip:SetColorTexture(1, 0.82, 0.20, 0.30)
+    end
+    local barW = bar:GetWidth(); if not barW or barW <= 1 then barW = FALLBACK_W end
+    local barH = bar:GetHeight(); if not barH or barH <= 1 then barH = FALLBACK_H end
+    local lag  = (select(4, GetNetStats()) or 0) / 1000  -- world latency, seconds
+    local frac = lag / duration
+    if frac < 0.03 then frac = 0.03 elseif frac > 0.5 then frac = 0.5 end
+    o.clip:ClearAllPoints()
+    o.clip:SetPoint("LEFT", o, "LEFT", 0, 3)
+    o.clip:SetSize(barW * frac, barH)
+    o.clip:Show()
 end
 
 local function bz_showTicks(bar, count)
@@ -258,8 +285,10 @@ function Blizzard:Enable()
             else
                 o.timeText:SetText("")
             end
-            local count = tickCountFor(cname, cstartMS and (cendMS - cstartMS) / 1000)
+            local dur = cstartMS and (cendMS - cstartMS) / 1000
+            local count = tickCountFor(cname, dur)
             if count then bz_showTicks(self, count) else bz_hideAllTicks(self) end
+            bz_showClip(self, dur)
             bz_setChannelColor(self, true)
             return
         end
@@ -786,6 +815,12 @@ function mod:GetOptions()
         tooltip = L["Shows vertical lines at tick points (Mind Flay, Drain Soul, Hellfire, etc.)"],
         get = function() return mod.db.showTicks end,
         set = function(_, v) mod.db.showTicks = v end,
+    })
+    table.insert(items, {
+        type = "toggle", label = L["Show clip window"],
+        tooltip = L["Shades the last bit of a channel (your latency) so you know when to recast and clip without losing the last tick - great for Mind Flay."],
+        get = function() return mod.db.showClipMarker end,
+        set = function(_, v) mod.db.showClipMarker = v end,
     })
 
     -- Mode-specific options
