@@ -349,6 +349,30 @@ local function c_hideAllTicks()
         cFrame.ticks[i]:Hide()
         cFrame.ticks[i]:ClearAllPoints()
     end
+    if cFrame.clip then cFrame.clip:Hide() end
+end
+
+-- Latency clip window for the custom bar (it drains toward the left, so the
+-- window sits at the left edge). Recast as the fill enters it to clip cleanly.
+local function c_showClip(duration)
+    if not (cFrame and cFrame.bar) then return end
+    if not (mod.db.showClipMarker and duration and duration > 0) then
+        if cFrame.clip then cFrame.clip:Hide() end
+        return
+    end
+    if not cFrame.clip then
+        cFrame.clip = cFrame.bar:CreateTexture(nil, "ARTWORK", nil, 1)
+        cFrame.clip:SetColorTexture(1, 0.82, 0.20, 0.30)
+    end
+    local barW = cFrame.bar:GetWidth(); if not barW or barW <= 1 then barW = mod.db.width or 240 end
+    local barH = cFrame.bar:GetHeight(); if not barH or barH <= 1 then barH = mod.db.height or 18 end
+    local lag  = (select(4, GetNetStats()) or 0) / 1000
+    local frac = lag / duration
+    if frac < 0.03 then frac = 0.03 elseif frac > 0.5 then frac = 0.5 end
+    cFrame.clip:ClearAllPoints()
+    cFrame.clip:SetPoint("LEFT", cFrame.bar, "LEFT", 0, 0)
+    cFrame.clip:SetSize(barW * frac, barH)
+    cFrame.clip:Show()
 end
 
 local function c_showTicks(count)
@@ -575,8 +599,10 @@ local function c_startCast(isChannel)
         cFrame.bar:SetStatusBarTexture(TEX_CHANNEL)
         if cFrame._applyMask then cFrame._applyMask() end
         c_applyColor({ r = 1, g = 1, b = 1, a = 1 })  -- white = no multiplication
-        local count = tickCountFor(name, sMS and eMS and (eMS - sMS) / 1000)
+        local cdur  = sMS and eMS and (eMS - sMS) / 1000
+        local count = tickCountFor(name, cdur)
         if count then c_showTicks(count) else c_hideAllTicks() end
+        c_showClip(cdur)
         cFrame.spark:Hide()
     else
         -- Normal cast: yellow texture, no tint
@@ -705,6 +731,7 @@ local function c_setUnlocked(state)
         cFrame.setIconShown(mod.db.showIcon)
         c_applyColor(mod.db.castColor)
         c_showTicks(3)
+        c_showClip(3)  -- preview the clip window too (fake 3s channel)
         -- Show mover overlay on top
         cFrame.mover:Show()
         ns:Print(L["Castbar mover active. |cff9b6cffDrag purple box|r or use |cff9b6cffarrow keys|r (SHIFT = 5px). Click 'Unlock / Test' again to finish."])
