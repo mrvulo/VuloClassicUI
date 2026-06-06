@@ -216,7 +216,7 @@ local function bz_showClip(bar, duration)
     local barH = bar:GetHeight(); if not barH or barH <= 1 then barH = FALLBACK_H end
     local lag  = (select(4, GetNetStats()) or 0) / 1000  -- world latency, seconds
     local frac = lag / duration
-    if frac < 0.03 then frac = 0.03 elseif frac > 0.5 then frac = 0.5 end
+    if frac < 0.05 then frac = 0.05 elseif frac > 0.5 then frac = 0.5 end
     o.clip:ClearAllPoints()
     o.clip:SetPoint("LEFT", o, "LEFT", 0, 3)
     o.clip:SetSize(barW * frac, barH)
@@ -361,14 +361,15 @@ local function c_showClip(duration)
         return
     end
     if not cFrame.clip then
-        cFrame.clip = cFrame.bar:CreateTexture(nil, "ARTWORK", nil, 1)
-        cFrame.clip:SetColorTexture(1, 0.82, 0.20, 0.30)
+        -- OVERLAY (sublevel below the ticks) so it sits ON the fill, not behind it
+        cFrame.clip = cFrame.bar:CreateTexture(nil, "OVERLAY", nil, 6)
+        cFrame.clip:SetColorTexture(1, 0.82, 0.20, 0.35)
     end
     local barW = cFrame.bar:GetWidth(); if not barW or barW <= 1 then barW = mod.db.width or 240 end
     local barH = cFrame.bar:GetHeight(); if not barH or barH <= 1 then barH = mod.db.height or 18 end
     local lag  = (select(4, GetNetStats()) or 0) / 1000
     local frac = lag / duration
-    if frac < 0.03 then frac = 0.03 elseif frac > 0.5 then frac = 0.5 end
+    if frac < 0.05 then frac = 0.05 elseif frac > 0.5 then frac = 0.5 end
     cFrame.clip:ClearAllPoints()
     cFrame.clip:SetPoint("LEFT", cFrame.bar, "LEFT", 0, 0)
     cFrame.clip:SetSize(barW * frac, barH)
