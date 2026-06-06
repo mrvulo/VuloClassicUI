@@ -76,11 +76,23 @@ local CHANNEL_TICKS = {
     ["Pfeilhagel"]           = 6,
 }
 
--- Tick count for a channel: the explicit table first, else ~1 tick/second
--- (the fallback other cast bars use for any unlisted channel).
-local function tickCountFor(name, duration)
+-- Channels that are NOT tick spells -> never draw ticks, so the ~1/s fallback
+-- doesn't turn Fishing / First Aid / professions into a barcode.
+local NO_TICKS = {
+    ["Fishing"] = true,       ["Angeln"] = true,
+    ["First Aid"] = true,     ["Erste Hilfe"] = true,
+    ["Disenchant"] = true,    ["Entzaubern"] = true,
+    ["Hearthstone"] = true,   ["Ruhestein"] = true,
+    ["Astral Recall"] = true, ["Astralruf"] = true,
+}
+
+-- Tick count for a channel: explicit table first; never for excluded/tradeskill
+-- channels; else ~1 tick/second (the fallback other cast bars use).
+local function tickCountFor(name, duration, isTradeSkill)
+    if name and NO_TICKS[name] then return nil end
     local c = name and CHANNEL_TICKS[name]
     if c then return c end
+    if isTradeSkill then return nil end  -- fishing, crafting, gathering, etc.
     if duration and duration >= 1.5 then
         local n = math.floor(duration + 0.5)
         return n > 30 and 30 or n
@@ -276,7 +288,7 @@ function Blizzard:Enable()
             return
         end
 
-        local cname, _, _, cstartMS, cendMS = UnitChannelInfo("player")
+        local cname, _, _, cstartMS, cendMS, cTrade = UnitChannelInfo("player")
         if cname and cendMS then
             local remaining = (cendMS - (GetTime() * 1000)) / 1000
             if remaining < 0 then remaining = 0 end
@@ -286,7 +298,7 @@ function Blizzard:Enable()
                 o.timeText:SetText("")
             end
             local dur = cstartMS and (cendMS - cstartMS) / 1000
-            local count = tickCountFor(cname, dur)
+            local count = tickCountFor(cname, dur, cTrade)
             if count then bz_showTicks(self, count) else bz_hideAllTicks(self) end
             bz_showClip(self, dur)
             bz_setChannelColor(self, true)
@@ -386,7 +398,7 @@ local function c_showTicks(count)
     local barH = cFrame.bar:GetHeight()
     if not barW or barW <= 1 then barW = mod.db.width or 240 end
     if not barH or barH <= 1 then barH = mod.db.height or 18 end
-    local tickH = math.max(4, barH + 2)
+    local tickH = barH  -- flush with the bar reads cleaner than overhanging
 
     for i = 1, linesToDraw do
         local t = cFrame.ticks[i]
@@ -396,7 +408,7 @@ local function c_showTicks(count)
             t:SetWidth(2)
             cFrame.ticks[i] = t
         end
-        t:SetColorTexture(1, 1, 1, 1)
+        t:SetColorTexture(1, 1, 1, 0.7)  -- soft white: visible on both the green fill and the drained part
         t:SetHeight(tickH)
         t:ClearAllPoints()
         t:SetPoint("CENTER", cFrame.bar, "LEFT", barW * (i / count), 0)
@@ -580,9 +592,9 @@ end
 
 local function c_startCast(isChannel)
     c_create()
-    local name, _, icon, sMS, eMS
+    local name, _, icon, sMS, eMS, cTrade
     if isChannel then
-        name, _, icon, sMS, eMS = UnitChannelInfo("player")
+        name, _, icon, sMS, eMS, cTrade = UnitChannelInfo("player")
     else
         name, _, icon, sMS, eMS = UnitCastingInfo("player")
     end
@@ -601,7 +613,7 @@ local function c_startCast(isChannel)
         if cFrame._applyMask then cFrame._applyMask() end
         c_applyColor({ r = 1, g = 1, b = 1, a = 1 })  -- white = no multiplication
         local cdur  = sMS and eMS and (eMS - sMS) / 1000
-        local count = tickCountFor(name, cdur)
+        local count = tickCountFor(name, cdur, cTrade)
         if count then c_showTicks(count) else c_hideAllTicks() end
         c_showClip(cdur)
         cFrame.spark:Hide()
