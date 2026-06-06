@@ -75,6 +75,18 @@ local CHANNEL_TICKS = {
     ["Pfeilhagel"]           = 6,
 }
 
+-- Tick count for a channel: the explicit table first, else ~1 tick/second
+-- (the fallback other cast bars use for any unlisted channel).
+local function tickCountFor(name, duration)
+    local c = name and CHANNEL_TICKS[name]
+    if c then return c end
+    if duration and duration >= 1.5 then
+        local n = math.floor(duration + 0.5)
+        return n > 30 and 30 or n
+    end
+    return nil
+end
+
 -- =========================================================================
 -- =========================================================================
 -- MODE 1: BLIZZARD (original castbar extended)
@@ -195,9 +207,8 @@ local function bz_showTicks(bar, count)
     local barH = bar:GetHeight()
     if not barW or barW <= 1 then barW = FALLBACK_W end
     if not barH or barH <= 1 then barH = FALLBACK_H end
-    local tickH = math.max(6, barH - 4)
+    local tickH = barH  -- full height reads cleaner
 
-    local c = mod.db.accentColor or { r = 0.75, g = 0.35, b = 1.00 }
     for i = 1, linesToDraw do
         local t = o.ticks[i]
         if not t then
@@ -205,7 +216,7 @@ local function bz_showTicks(bar, count)
             t:SetWidth(2)
             o.ticks[i] = t
         end
-        t:SetColorTexture(c.r, c.g, c.b, 0.85)
+        t:SetColorTexture(1, 1, 1, 0.9)  -- white contrasts with the purple/green channel fill
         t:SetHeight(tickH)
         t:ClearAllPoints()
         t:SetPoint("CENTER", o, "LEFT", barW * (i / count), 3)
@@ -238,7 +249,7 @@ function Blizzard:Enable()
             return
         end
 
-        local cname, _, _, _, cendMS = UnitChannelInfo("player")
+        local cname, _, _, cstartMS, cendMS = UnitChannelInfo("player")
         if cname and cendMS then
             local remaining = (cendMS - (GetTime() * 1000)) / 1000
             if remaining < 0 then remaining = 0 end
@@ -247,7 +258,7 @@ function Blizzard:Enable()
             else
                 o.timeText:SetText("")
             end
-            local count = CHANNEL_TICKS[cname]
+            local count = tickCountFor(cname, cstartMS and (cendMS - cstartMS) / 1000)
             if count then bz_showTicks(self, count) else bz_hideAllTicks(self) end
             bz_setChannelColor(self, true)
             return
@@ -535,7 +546,7 @@ local function c_startCast(isChannel)
         cFrame.bar:SetStatusBarTexture(TEX_CHANNEL)
         if cFrame._applyMask then cFrame._applyMask() end
         c_applyColor({ r = 1, g = 1, b = 1, a = 1 })  -- white = no multiplication
-        local count = CHANNEL_TICKS[name]
+        local count = tickCountFor(name, sMS and eMS and (eMS - sMS) / 1000)
         if count then c_showTicks(count) else c_hideAllTicks() end
         cFrame.spark:Hide()
     else
