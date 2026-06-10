@@ -618,9 +618,12 @@ local inspectFail  = {}                -- guid -> expiry: recently failed, don't
 local INSPECT_CACHE_TIME = 60          -- seconds cache per player
 local INSPECT_FAIL_TIME  = 30          -- seconds until retry after failure (out of range)
 local INSPECT_THROTTLE   = 1.0
+local INSPECT_PARTIAL_TIME = 5         -- short cache while item data is still loading
 local lastInspectTime    = 0
 local pendingInspectGUID = nil
 local pendingInspectUnit = nil
+local recomputeGUID      = nil         -- guid whose ilvl was incomplete (items still loading)
+local recomputeUnit      = nil
 
 local function getCachedInspect(guid)
     local d = inspectCache[guid]
@@ -646,9 +649,13 @@ local function requestInspect(unit)
     if NotifyInspect then NotifyInspect(unit) end
 end
 
+-- Returns (ilvl, complete). complete is false when an equipped slot has an
+-- item link but its level is not in the client cache yet (GetItemInfo nil) --
+-- that item is excluded, so the average is too low until it finishes loading.
+-- An empty slot (nil link, e.g. off-hand with a 2H) is NOT incomplete.
 local function computeAverageILvl(unit)
-    if not GetInventoryItemLink then return 0 end
-    local total, count = 0, 0
+    if not GetInventoryItemLink then return 0, true end
+    local total, count, missing = 0, 0, 0
     -- 1-18 = equip slots, skip Shirt (4) and Tabard (19)
     for slot = 1, 18 do
         if slot ~= 4 then
@@ -660,18 +667,20 @@ local function computeAverageILvl(unit)
                     if ok then ilvl = lvl end
                 end
                 if not ilvl then
-                    local _, _, _, lvl = GetItemInfo(link)
+                    local _, _, _, lvl = GetItemInfo(link)  -- also queues an async load if uncached
                     ilvl = lvl
                 end
                 if ilvl and ilvl > 0 then
                     total = total + ilvl
                     count = count + 1
+                else
+                    missing = missing + 1
                 end
             end
         end
     end
-    if count == 0 then return 0 end
-    return math.floor(total / count + 0.5)
+    if count == 0 then return 0, missing == 0 end
+    return math.floor(total / count + 0.5), missing == 0
 end
 
 local function computeTalents(isInspect)
@@ -700,16 +709,49 @@ local function onInspectReady(_, guid)
     if not unit or not UnitExists(unit) then return end
 
     local talents = computeTalents(true)
-    local ilvl    = computeAverageILvl(unit)
+    local ilvl, complete = computeAverageILvl(unit)
     inspectCache[guid] = {
         talents = talents, ilvl = ilvl,
-        expiry  = GetTime() + INSPECT_CACHE_TIME,
+        -- Don't lock in an incomplete (too-low) value for the full cache time --
+        -- keep recomputing as item data streams in (GET_ITEM_INFO_RECEIVED).
+        expiry  = GetTime() + (complete and INSPECT_CACHE_TIME or INSPECT_PARTIAL_TIME),
     }
+    if complete then
+        recomputeGUID, recomputeUnit = nil, nil
+    else
+        recomputeGUID, recomputeUnit = guid, unit
+    end
     -- Re-render tooltip immediately (SetUnit triggers all hooks again)
     if GameTooltip and GameTooltip:IsShown() then
         local _, ttUnit = GameTooltip:GetUnit()
         if ttUnit and UnitGUID(ttUnit) == guid then
             GameTooltip:SetUnit(ttUnit)
+        end
+    end
+end
+
+-- Fires when a previously-uncached item's data arrives from the server. While
+-- an inspected player's ilvl was still incomplete, recompute it -- once every
+-- equipped item resolves, lock in the full value and refresh the tooltip.
+local function onItemInfoReceived()
+    if not recomputeGUID then return end
+    local unit = recomputeUnit
+    if not unit or not UnitExists(unit) or UnitGUID(unit) ~= recomputeGUID then
+        recomputeGUID, recomputeUnit = nil, nil  -- unit gone; keep last value
+        return
+    end
+    local ilvl, complete = computeAverageILvl(unit)
+    local d = inspectCache[recomputeGUID]
+    if d then
+        d.ilvl = ilvl
+        if complete then d.expiry = GetTime() + INSPECT_CACHE_TIME end
+    end
+    if complete then
+        local g = recomputeGUID
+        recomputeGUID, recomputeUnit = nil, nil
+        if GameTooltip and GameTooltip:IsShown() then
+            local _, ttUnit = GameTooltip:GetUnit()
+            if ttUnit and UnitGUID(ttUnit) == g then GameTooltip:SetUnit(ttUnit) end
         end
     end
 end
@@ -746,6 +788,7 @@ function mod:OnEnable()
     -- is the working path in Anniversary — TooltipDataProcessor doesn't fire)
     ns:RegisterEvent("INSPECT_READY",         onInspectReady)
     ns:RegisterEvent("INSPECT_TALENT_READY",  onInspectReady)
+    ns:RegisterEvent("GET_ITEM_INFO_RECEIVED", onItemInfoReceived)
     -- Guard flag: HookScript appends on every call -> on toggle off->on
     -- onPlayerTooltipUnit would otherwise register twice + tooltip lines doubled.
     if GameTooltip and GameTooltip.HookScript and not mod._tooltipHooked then
@@ -863,6 +906,7 @@ function mod:OnDisable()
     -- UnregisterEvent would otherwise throw and abort SafeDisable.
     pcall(ns.UnregisterEvent, ns, "INSPECT_READY",        onInspectReady)
     pcall(ns.UnregisterEvent, ns, "INSPECT_TALENT_READY", onInspectReady)
+    pcall(ns.UnregisterEvent, ns, "GET_ITEM_INFO_RECEIVED", onItemInfoReceived)
 end
 
 local function kindCheckbox(kind)
