@@ -74,6 +74,7 @@ local rows         = {}
 local throttle     = 0
 local pendingAttr  = false  -- secure attr update queued for end of combat
 local showTotemMenu         -- forward decl (defined after refresh)
+local rebuildFlyouts        -- forward decl (defined with the flyout code)
 
 -- ---------------------------------------------------------
 -- Settings (created with defaults on first use)
@@ -436,37 +437,50 @@ end
 
 -- Icon flyout: hovering (or right-clicking) a slot opens a column of totem ICONS
 -- to pick from. It hides itself when the mouse leaves both it and the slot.
-local flyout
-showTotemMenu = function(t)
+--
+-- Combat-safe design: ONE flyout per element, fully pre-built OUT of combat
+-- (button size/anchors/cast attributes are protected operations on secure
+-- buttons). Hovering then only touches the plain parent frame (SetPoint/Show)
+-- and textures — both legal in combat — so the picker works while fighting.
+local flyouts = {}  -- element key -> pre-built flyout frame
+
+local function ensureFlyout(key)
+    local fl = flyouts[key]
+    if fl then return fl end
+    fl = CreateFrame("Frame", "VCUI_TotemFlyout_" .. key, UIParent, BackdropTemplateMixin and "BackdropTemplate")
+    fl:SetFrameStrata("DIALOG")
+    if fl.SetBackdrop then
+        fl:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8",
+            edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
+        fl:SetBackdropColor(0.05, 0.05, 0.08, 0.92)
+        fl:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
+    end
+    fl.btns  = {}
+    fl.count = 0
+    fl:Hide()
+    fl:SetScript("OnUpdate", function(self)
+        if not self:IsMouseOver() and not (self.anchor and self.anchor:IsMouseOver()) then
+            self:Hide()
+        end
+    end)
+    flyouts[key] = fl
+    return fl
+end
+
+-- (Re)build one element's flyout: secure buttons + size/anchors/attributes.
+-- Protected operations -> out of combat only; callers defer via pendingAttr.
+local function rebuildFlyout(t)
+    if InCombatLockdown and InCombatLockdown() then pendingAttr = true; return end
+    local fl = ensureFlyout(t.key)
     local d = db()
     local names = knownTotemsFor(t.key)
-    if #names == 0 then if flyout then flyout:Hide() end return end
-    local set = d.sets[d.activeSet] or { fire = "", earth = "", water = "", air = "" }
-    d.sets[d.activeSet] = set
-
-    if not flyout then
-        flyout = CreateFrame("Frame", "VCUI_TotemFlyout", UIParent, BackdropTemplateMixin and "BackdropTemplate")
-        flyout:SetFrameStrata("DIALOG")
-        if flyout.SetBackdrop then
-            flyout:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8",
-                edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
-            flyout:SetBackdropColor(0.05, 0.05, 0.08, 0.92)
-            flyout:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
-        end
-        flyout.btns = {}
-        flyout:Hide()
-        flyout:SetScript("OnUpdate", function(self)
-            if not self:IsMouseOver() and not (self.anchor and self.anchor:IsMouseOver()) then
-                self:Hide()
-            end
-        end)
-    end
+    fl.count = #names
 
     local size, pad = math.max(28, d.iconSize), 4
     for i, name in ipairs(names) do
-        local b = flyout.btns[i]
+        local b = fl.btns[i]
         if not b then
-            b = CreateFrame("Button", nil, flyout, "SecureActionButtonTemplate")
+            b = CreateFrame("Button", nil, fl, "SecureActionButtonTemplate")
             b:RegisterForClicks("AnyUp", "AnyDown")
             b:SetAttribute("*type1", "spell")  -- clicking an icon CASTS that totem
             b.icon = b:CreateTexture(nil, "ARTWORK")
@@ -488,49 +502,81 @@ showTotemMenu = function(t)
                 dd.sets[dd.activeSet] = s
                 s[self.elementKey] = self.totemName
                 applyButtonSpells(); refresh()
-                flyout:Hide()
+                self:GetParent():Hide()
             end)
-            flyout.btns[i] = b
+            fl.btns[i] = b
         end
         local _, _, icon, _, _, _, id = GetSpellInfo(name)
         b.icon:SetTexture(icon or "Interface\\Icons\\INV_Misc_QuestionMark")
         b.totemName  = name
         b.elementKey = t.key
-        if not (InCombatLockdown and InCombatLockdown()) then
-            b:SetAttribute("*spell1", id or name)  -- secure attrs only settable out of combat
-        end
-        b.sel:SetShown(set[t.key] == name)
+        b:SetAttribute("*spell1", id or name)
         b:SetSize(size, size)
         b:ClearAllPoints()
-        b:SetPoint("TOP", flyout, "TOP", 0, -(pad + (i - 1) * (size + 2)))
+        b:SetPoint("TOP", fl, "TOP", 0, -(pad + (i - 1) * (size + 2)))
         b:Show()
     end
-    for i = #names + 1, #flyout.btns do flyout.btns[i]:Hide() end
+    for i = #names + 1, #fl.btns do fl.btns[i]:Hide() end
 
-    flyout:SetSize(size + pad * 2, #names * (size + 2) - 2 + pad * 2)
-    flyout.anchor = rows[t.key]
-    flyout:ClearAllPoints()
+    fl:SetSize(size + pad * 2, math.max(1, #names * (size + 2) - 2 + pad * 2))
+end
+
+-- Pre-build every element's flyout (login / end of combat / spell changes).
+rebuildFlyouts = function()
+    for _, t in ipairs(TOTEMS) do
+        if rows[t.key] then rebuildFlyout(t) end
+    end
+end
+
+showTotemMenu = function(t)
+    -- Out of combat: rebuild fresh (new ranks/totems/sizes). In combat the
+    -- pre-built secure layout is used as-is — only insecure ops below.
+    if not (InCombatLockdown and InCombatLockdown()) then
+        rebuildFlyout(t)
+    end
+    local fl = flyouts[t.key]
+    if not fl or fl.count == 0 then
+        if fl then fl:Hide() end
+        return
+    end
+
+    local d = db()
+    local set = d.sets[d.activeSet] or { fire = "", earth = "", water = "", air = "" }
+    d.sets[d.activeSet] = set
+
+    -- Selection highlight (textures are not protected, fine in combat)
+    for i = 1, fl.count do
+        local b = fl.btns[i]
+        if b then b.sel:SetShown(set[t.key] == b.totemName) end
+    end
+
+    -- Hide any other open flyout, then anchor + show this one (plain frame)
+    for key, other in pairs(flyouts) do
+        if key ~= t.key and other:IsShown() then other:Hide() end
+    end
     local slot = rows[t.key]
+    fl.anchor = slot
+    fl:ClearAllPoints()
     if d.layout == "icons" then
         -- horizontal bar: open downward, or upward if the slot sits low on screen
         local _, sy = slot:GetCenter()
         local h = UIParent:GetHeight()
         if sy and h and sy < h * 0.5 then
-            flyout:SetPoint("BOTTOM", slot, "TOP", 0, 0)
+            fl:SetPoint("BOTTOM", slot, "TOP", 0, 0)
         else
-            flyout:SetPoint("TOP", slot, "BOTTOM", 0, 0)
+            fl:SetPoint("TOP", slot, "BOTTOM", 0, 0)
         end
     else
         -- vertical bar: open to the right, or left if the slot sits on the screen's right
         local sx = slot:GetCenter()
         local w = UIParent:GetWidth()
         if sx and w and sx > w * 0.5 then
-            flyout:SetPoint("RIGHT", slot, "LEFT", 0, 0)
+            fl:SetPoint("RIGHT", slot, "LEFT", 0, 0)
         else
-            flyout:SetPoint("LEFT", slot, "RIGHT", 0, 0)
+            fl:SetPoint("LEFT", slot, "RIGHT", 0, 0)
         end
     end
-    flyout:Show()
+    fl:Show()
 end
 
 local function onUpdate(self, elapsed)
@@ -601,6 +647,7 @@ local function applyPending()
     if pendingAttr then
         applyLayout()
         applyButtonSpells()
+        rebuildFlyouts()  -- refresh the pre-built combat-safe pickers
     end
 end
 
@@ -611,9 +658,10 @@ local function onEnable()
     ns:RegisterEvent("PLAYER_TOTEM_UPDATE",   learnActiveTotems)
     ns:RegisterEvent("PLAYER_ENTERING_WORLD", refresh)
     ns:RegisterEvent("PLAYER_REGEN_ENABLED",  applyPending)
-    ns:RegisterEvent("SPELLS_CHANGED",        function() applyButtonSpells() end)
+    ns:RegisterEvent("SPELLS_CHANGED",        function() applyButtonSpells(); rebuildFlyouts() end)
     learnActiveTotems()
     refresh()
+    rebuildFlyouts()  -- pre-build so the picker also works in combat
 end
 
 local function onDisable()
