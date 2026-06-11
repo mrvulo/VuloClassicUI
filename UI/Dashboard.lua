@@ -48,6 +48,9 @@ local function createCard(parent, key, mod)
     local card = CreateFrame("Button", nil, parent, BackdropTemplateMixin and "BackdropTemplate")
     card:SetSize(CARD_W, CARD_H)
 
+    local UIW = ns.UI
+    local borderDark = ns.COLORS.borderDark or ns.COLORS.border
+
     if card.SetBackdrop then
         card:SetBackdrop({
             bgFile   = "Interface\\Buttons\\WHITE8X8",
@@ -55,35 +58,68 @@ local function createCard(parent, key, mod)
             edgeSize = 1,
             insets   = { left = 1, right = 1, top = 1, bottom = 1 },
         })
-        card:SetBackdropColor(0.10, 0.10, 0.13, 0.95)
-        card:SetBackdropBorderColor(ns.COLORS.border.r, ns.COLORS.border.g, ns.COLORS.border.b, 1)
+        card:SetBackdropColor(0.09, 0.09, 0.115, 0.95)
+        card:SetBackdropBorderColor(borderDark.r, borderDark.g, borderDark.b, 1)
     end
 
-    -- Hover highlight
+    -- Subtle vertical gradient over the card body (lighter towards the top)
+    local gloss = card:CreateTexture(nil, "BORDER")
+    gloss:SetPoint("TOPLEFT", card, "TOPLEFT", 1, -1)
+    gloss:SetPoint("BOTTOMRIGHT", card, "BOTTOMRIGHT", -1, 1)
+    UIW.SetGradient(gloss, "VERTICAL",
+        0.085, 0.085, 0.105, 1,
+        0.125, 0.125, 0.155, 1)
+
+    -- Accent edge on the left while the module is enabled
+    local edge = card:CreateTexture(nil, "ARTWORK")
+    edge:SetPoint("TOPLEFT", card, "TOPLEFT", 1, -1)
+    edge:SetPoint("BOTTOMLEFT", card, "BOTTOMLEFT", 1, 1)
+    edge:SetWidth(3)
+    edge:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 0.9)
+    card.edge = edge
+
+    -- Hover: accent border + soft highlight
     local hl = card:CreateTexture(nil, "HIGHLIGHT")
     hl:SetAllPoints(card)
-    hl:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 0.10)
+    hl:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 0.06)
+    card:HookScript("OnEnter", function(self)
+        if self.SetBackdropBorderColor then
+            self:SetBackdropBorderColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 0.9)
+        end
+    end)
+    card:HookScript("OnLeave", function(self)
+        if self.SetBackdropBorderColor then
+            self:SetBackdropBorderColor(borderDark.r, borderDark.g, borderDark.b, 1)
+        end
+    end)
 
     -- Icon
     local icon = card:CreateTexture(nil, "ARTWORK")
     icon:SetSize(34, 34)
-    icon:SetPoint("LEFT", card, "LEFT", 10, 0)
+    icon:SetPoint("LEFT", card, "LEFT", 11, 0)
     icon:SetTexture(ns:GetModuleIcon(key))
     icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
     card.icon = icon
 
     -- Name
     local name = card:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    name:SetPoint("TOPLEFT", icon, "TOPRIGHT", 10, -1)
+    UIW.Font(name, 12)
+    name:SetPoint("TOPLEFT", icon, "TOPRIGHT", 10, -2)
     name:SetPoint("RIGHT", card, "RIGHT", -44, 0)
     name:SetJustifyH("LEFT")
     name:SetWordWrap(false)
     name:SetText(L[mod.name])
     card.nameFS = name
 
-    -- Status text (small, under name)
+    -- Status: small colored dot + text under the name
+    local dot = card:CreateTexture(nil, "OVERLAY")
+    dot:SetSize(6, 6)
+    dot:SetPoint("TOPLEFT", name, "BOTTOMLEFT", 1, -7)
+    card.dot = dot
+
     local status = card:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    status:SetPoint("TOPLEFT", name, "BOTTOMLEFT", 0, -3)
+    UIW.Font(status, 10)
+    status:SetPoint("LEFT", dot, "RIGHT", 4, 0)
     status:SetPoint("RIGHT", card, "RIGHT", -44, 0)
     status:SetJustifyH("LEFT")
     card.statusFS = status
@@ -111,13 +147,17 @@ local function createCard(parent, key, mod)
         if enabled then
             icon:SetDesaturated(false); icon:SetAlpha(1)
             name:SetTextColor(1, 1, 1)
-            status:SetText(L["|cff66bb66Active|r"])
-            card:SetBackdropBorderColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 0.5)
+            dot:SetColorTexture(0.36, 0.78, 0.36, 1)
+            status:SetText(L["Active"])
+            status:SetTextColor(0.55, 0.78, 0.55)
+            edge:Show()
         else
             icon:SetDesaturated(true); icon:SetAlpha(0.45)
             name:SetTextColor(ns.COLORS.textMuted.r, ns.COLORS.textMuted.g, ns.COLORS.textMuted.b)
-            status:SetText(L["|cff888888Disabled|r"])
-            card:SetBackdropBorderColor(ns.COLORS.border.r, ns.COLORS.border.g, ns.COLORS.border.b, 1)
+            dot:SetColorTexture(0.42, 0.42, 0.48, 1)
+            status:SetText(L["Disabled"])
+            status:SetTextColor(ns.COLORS.textMuted.r, ns.COLORS.textMuted.g, ns.COLORS.textMuted.b)
+            edge:Hide()
         end
         if power and power._refresh then power._refresh() end
     end
@@ -166,6 +206,7 @@ function UI:ShowDashboard()
 
     -- Title + summary
     local title = parent:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    UI.Font(title, 16)
     title:SetPoint("TOPLEFT", parent, "TOPLEFT", PAD, y)
     title:SetText(L["Overview"])
     title:SetTextColor(0.92, 0.90, 0.96)
@@ -182,7 +223,8 @@ function UI:ShowDashboard()
     end
 
     local summary = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    summary:SetPoint("LEFT", title, "RIGHT", 12, 0)
+    UI.Font(summary, 11)
+    summary:SetPoint("LEFT", title, "RIGHT", 12, -1)
     summary:SetText(string.format(L["%d of %d modules active"], active, total))
     summary:SetTextColor(ns.COLORS.textDim.r, ns.COLORS.textDim.g, ns.COLORS.textDim.b)
     table.insert(UI._dashChildren, summary)
@@ -214,11 +256,12 @@ function UI:ShowDashboard()
     for _, g in ipairs(order) do
         local keys = buckets[g]
         if keys and #keys > 0 then
-            -- Group label
+            -- Group label (muted — accent is reserved for active states)
             local hdr = parent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+            UI.Font(hdr, 10)
             hdr:SetPoint("TOPLEFT", parent, "TOPLEFT", PAD, y)
             hdr:SetText(string.upper(L[g]))
-            hdr:SetTextColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
+            hdr:SetTextColor(ns.COLORS.sectionHdr.r, ns.COLORS.sectionHdr.g, ns.COLORS.sectionHdr.b)
             table.insert(UI._dashChildren, hdr)
             y = y - 20
 

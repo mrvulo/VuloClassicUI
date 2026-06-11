@@ -36,8 +36,18 @@ function UI:CreateMainFrame()
     f:RegisterForDrag("LeftButton")
     f:Hide()
 
-    -- Clean backdrop without tooltip look
-    UI:StyleBackdrop(f, { bg = ns.COLORS.bg, border = ns.COLORS.border })
+    -- Clean backdrop without tooltip look: near-black chrome + soft drop shadow
+    UI:StyleBackdrop(f, { bg = ns.COLORS.bg, border = ns.COLORS.borderDark or ns.COLORS.border })
+    UI:CreateShadow(f)
+
+    -- Brand line: thin accent strip across the very top, fading out to the right
+    local brand = f:CreateTexture(nil, "BORDER", nil, 1)
+    brand:SetPoint("TOPLEFT",  f, "TOPLEFT",  1, -1)
+    brand:SetPoint("TOPRIGHT", f, "TOPRIGHT", -1, -1)
+    brand:SetHeight(2)
+    UI.SetGradient(brand, "HORIZONTAL",
+        ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 1.0,
+        ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 0.10)
 
     -- Position from DB (with full nil-chain guard)
     local pos = (ns.db and ns.db.profile and ns.db.profile.ui and ns.db.profile.ui.mainFramePos)
@@ -72,11 +82,15 @@ function UI:CreateMainFrame()
         end
     end)
 
-    -- Title background (slightly darker)
-    UI.SetColorBG(titleBar, 0.04, 0.04, 0.05, 1)
+    -- Title background: subtle vertical gradient (lighter towards the top)
+    local tbBG = UI.SetColorBG(titleBar, 0.04, 0.04, 0.05, 1)
+    UI.SetGradient(tbBG, "VERTICAL",
+        0.045, 0.045, 0.06, 1,
+        0.085, 0.085, 0.11, 1)
 
     -- Title: icon (V from logo) + "uloClassicUI" text + version + CPU
     local title = titleBar:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    UI.Font(title, 15)
     title:SetText("|cff9b6cffuloClassicUI|r")
     local _, titleFontSize = title:GetFont()
     local iconSize = (titleFontSize or 14) + 4
@@ -89,11 +103,14 @@ function UI:CreateMainFrame()
     title:SetPoint("LEFT", titleIcon, "RIGHT", 1, 0)
 
     local version = titleBar:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    UI.Font(version, 10)
     version:SetPoint("LEFT", title, "RIGHT", 8, -1)
     version:SetText("v" .. ns.VERSION)
+    version:SetTextColor(ns.COLORS.textMuted.r, ns.COLORS.textMuted.g, ns.COLORS.textMuted.b)
 
     -- CPU usage (refresh every 2s while frame is visible)
     local cpuText = titleBar:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    UI.Font(cpuText, 10)
     cpuText:SetPoint("LEFT", version, "RIGHT", 10, 0)
     cpuText:SetText("")
 
@@ -163,10 +180,15 @@ function UI:CreateMainFrame()
         if cpuTicker then cpuTicker:Cancel(); cpuTicker = nil end
     end)
 
-    -- Close button (right)
+    -- Close button (right, full title bar height, red hover like a desktop app)
     local closeBtn = CreateFrame("Button", nil, titleBar)
-    closeBtn:SetSize(28, 28)
-    closeBtn:SetPoint("RIGHT", titleBar, "RIGHT", -8, 0)
+    closeBtn:SetSize(38, TITLEBAR_H - 3)
+    closeBtn:SetPoint("TOPRIGHT", titleBar, "TOPRIGHT", -1, -3)
+
+    local closeBG = closeBtn:CreateTexture(nil, "BACKGROUND")
+    closeBG:SetAllPoints(closeBtn)
+    closeBG:SetColorTexture(0.78, 0.16, 0.16, 1)
+    closeBG:Hide()
 
     -- =========================================================
     -- Search box (between CPU text and close button)
@@ -175,13 +197,20 @@ function UI:CreateMainFrame()
     searchBox:SetSize(200, 20)
     searchBox:SetPoint("RIGHT", closeBtn, "LEFT", -8, 0)
     searchBox:SetAutoFocus(false)
-    searchBox:SetFontObject("GameFontHighlightSmall")
+    searchBox:SetFont(UI.FONT_PATH, 11, "")
     searchBox:SetMaxLetters(60)
-    searchBox:SetTextInsets(8, 8, 0, 0)
+    searchBox:SetTextInsets(24, 8, 0, 0)
 
     local sbBg = searchBox:CreateTexture(nil, "BACKGROUND")
     sbBg:SetAllPoints(searchBox)
-    sbBg:SetColorTexture(0.05, 0.05, 0.07, 0.95)
+    sbBg:SetColorTexture(0.04, 0.04, 0.055, 0.95)
+
+    -- Magnifier icon on the left
+    local sbIcon = searchBox:CreateTexture(nil, "OVERLAY")
+    sbIcon:SetSize(12, 12)
+    sbIcon:SetPoint("LEFT", searchBox, "LEFT", 7, 0)
+    sbIcon:SetTexture("Interface\\Common\\UI-Searchbox-Icon")
+    sbIcon:SetVertexColor(0.55, 0.55, 0.62)
 
     local sbBorder = CreateFrame("Frame", nil, searchBox, BackdropTemplateMixin and "BackdropTemplate")
     sbBorder:SetAllPoints(searchBox)
@@ -190,9 +219,25 @@ function UI:CreateMainFrame()
         sbBorder:SetBackdropBorderColor(ns.COLORS.border.r, ns.COLORS.border.g, ns.COLORS.border.b, 1)
     end
 
+    -- Accent border while the search box has focus
+    searchBox:HookScript("OnEditFocusGained", function()
+        if sbBorder.SetBackdropBorderColor then
+            sbBorder:SetBackdropBorderColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 1)
+        end
+        sbIcon:SetVertexColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
+    end)
+    searchBox:HookScript("OnEditFocusLost", function()
+        if sbBorder.SetBackdropBorderColor then
+            sbBorder:SetBackdropBorderColor(ns.COLORS.border.r, ns.COLORS.border.g, ns.COLORS.border.b, 1)
+        end
+        sbIcon:SetVertexColor(0.55, 0.55, 0.62)
+    end)
+
     local placeholder = searchBox:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
-    placeholder:SetPoint("LEFT", searchBox, "LEFT", 8, 0)
+    UI.Font(placeholder, 11)
+    placeholder:SetPoint("LEFT", searchBox, "LEFT", 24, 0)
     placeholder:SetText(L["Search settings..."])
+    placeholder:SetTextColor(0.45, 0.45, 0.52)
 
     -- Result dropdown below the search box
     local searchDD = CreateFrame("Frame", nil, f)
@@ -202,6 +247,7 @@ function UI:CreateMainFrame()
     searchDD:SetFrameLevel(300)
     searchDD:Hide()
 
+    UI:CreateShadow(searchDD)
     local ddBg = searchDD:CreateTexture(nil, "BACKGROUND")
     ddBg:SetAllPoints(searchDD)
     ddBg:SetColorTexture(0.05, 0.05, 0.07, 0.98)
@@ -266,6 +312,7 @@ function UI:CreateMainFrame()
                 row:SetPoint("LEFT", searchDD, "LEFT", 4, 0)
                 row:SetPoint("RIGHT", searchDD, "RIGHT", -4, 0)
                 row.text = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+                UI.Font(row.text, 11)
                 row.text:SetPoint("LEFT", row, "LEFT", 6, 0)
                 row.text:SetPoint("RIGHT", row, "RIGHT", -6, 0)
                 row.text:SetJustifyH("LEFT")
@@ -313,11 +360,17 @@ function UI:CreateMainFrame()
     closeText:SetPoint("CENTER", closeBtn, "CENTER", 0, 0)
     closeText:SetText("×")
     closeText:SetTextColor(0.7, 0.7, 0.7)
-    -- Set font size explicitly (GameFontNormalLarge is ~16, we want 24)
+    -- Set font size explicitly (GameFontNormalLarge is ~16, we want 20)
     local font, _, flags = closeText:GetFont()
-    if font then closeText:SetFont(font, 24, flags or "") end
-    closeBtn:SetScript("OnEnter", function() closeText:SetTextColor(1, 0.3, 0.3) end)
-    closeBtn:SetScript("OnLeave", function() closeText:SetTextColor(0.7, 0.7, 0.7) end)
+    if font then closeText:SetFont(font, 20, flags or "") end
+    closeBtn:SetScript("OnEnter", function()
+        closeBG:Show()
+        closeText:SetTextColor(1, 1, 1)
+    end)
+    closeBtn:SetScript("OnLeave", function()
+        closeBG:Hide()
+        closeText:SetTextColor(0.7, 0.7, 0.7)
+    end)
     closeBtn:SetScript("OnClick", function() f:Hide() end)
 
     -- Separator line below title
@@ -402,7 +455,10 @@ function UI:CreateMainFrame()
     bottomBar:SetPoint("BOTTOMLEFT",  f, "BOTTOMLEFT",  0, 0)
     bottomBar:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, 0)
     bottomBar:SetHeight(BOTTOMBAR_H)
-    UI.SetColorBG(bottomBar, 0.04, 0.04, 0.05, 1)
+    local bbBG = UI.SetColorBG(bottomBar, 0.04, 0.04, 0.05, 1)
+    UI.SetGradient(bbBG, "VERTICAL",
+        0.075, 0.075, 0.095, 1,
+        0.045, 0.045, 0.06, 1)
 
     local bottomSep = f:CreateTexture(nil, "ARTWORK")
     bottomSep:SetColorTexture(ns.COLORS.border.r, ns.COLORS.border.g, ns.COLORS.border.b, 1)
@@ -497,8 +553,16 @@ function UI:BuildTabsForModule(key)
         tab:SetHeight(ROW_H)
 
         local text = tab:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        UI.Font(text, 12)
         text:SetPoint("CENTER", tab, "CENTER", 0, 0)
         text:SetText(L[tabDef.label])  -- raw English key → translate live
+
+        -- Subtle accent fill behind the active tab
+        local activeBG = tab:CreateTexture(nil, "BACKGROUND")
+        activeBG:SetAllPoints(tab)
+        activeBG:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 0.08)
+        activeBG:Hide()
+        tab._activeBG = activeBG
 
         local tabW = math.max(60, (text:GetStringWidth() or 40) + 24)
         tab:SetWidth(tabW)
@@ -556,9 +620,11 @@ function UI:ShowTab(tabId)
     for _, tab in ipairs(f.tabs) do
         if tab._tabId == tabId then
             tab._underline:Show()
+            if tab._activeBG then tab._activeBG:Show() end
             tab._text:SetTextColor(1, 1, 1)
         else
             tab._underline:Hide()
+            if tab._activeBG then tab._activeBG:Hide() end
             local c = ns.COLORS.textDim
             tab._text:SetTextColor(c.r, c.g, c.b)
         end

@@ -36,9 +36,12 @@ local function createMenuFrame()
             edgeSize = 1,
             insets   = { left = 1, right = 1, top = 1, bottom = 1 },
         })
-        _menuFrame:SetBackdropColor(0.05, 0.05, 0.08, 0.95)
-        _menuFrame:SetBackdropBorderColor(0.4, 0.3, 0.6, 1)
+        _menuFrame:SetBackdropColor(0.06, 0.06, 0.08, 0.98)
+        local bd = (ns.COLORS and ns.COLORS.borderDark) or { r = 0.02, g = 0.02, b = 0.03 }
+        _menuFrame:SetBackdropBorderColor(bd.r, bd.g, bd.b, 1)
     end
+    -- Soft drop shadow (UI helpers exist by the time a menu is first opened)
+    if ns.UI and ns.UI.CreateShadow then ns.UI:CreateShadow(_menuFrame) end
     -- ESC closes
     tinsert(UISpecialFrames, "VCUI_SharedPopupMenu")
     return _menuFrame
@@ -50,15 +53,18 @@ local function getMenuButton(idx)
     btn = CreateFrame("Button", nil, _menuFrame)
     btn:SetHeight(20)
 
-    -- Checkmark (left)
+    local ac = (ns.COLORS and ns.COLORS.accent) or { r = 0.608, g = 0.424, b = 1 }
+
+    -- Check indicator (left): small accent square, matches the dropdown widget
     btn.check = btn:CreateTexture(nil, "OVERLAY")
-    btn.check:SetTexture("Interface\\Buttons\\UI-CheckBox-Check")
-    btn.check:SetSize(14, 14)
-    btn.check:SetPoint("LEFT", btn, "LEFT", 4, 0)
+    btn.check:SetSize(6, 6)
+    btn.check:SetPoint("LEFT", btn, "LEFT", 8, 0)
+    btn.check:SetColorTexture(ac.r, ac.g, ac.b, 1)
     btn.check:Hide()
 
     -- Label
     btn.text = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    if ns.UI and ns.UI.Font then ns.UI.Font(btn.text, 11) end
     btn.text:SetPoint("LEFT", btn, "LEFT", 22, 0)
     btn.text:SetPoint("RIGHT", btn, "RIGHT", -10, 0)
     btn.text:SetJustifyH("LEFT")
@@ -66,7 +72,7 @@ local function getMenuButton(idx)
     -- Hover highlight
     btn.hl = btn:CreateTexture(nil, "BACKGROUND")
     btn.hl:SetAllPoints(btn)
-    btn.hl:SetColorTexture(0.4, 0.3, 0.6, 0.3)
+    btn.hl:SetColorTexture(ac.r, ac.g, ac.b, 0.22)
     btn.hl:Hide()
 
     btn:SetScript("OnEnter", function(self)
@@ -100,7 +106,8 @@ function ns:ShowPopupMenu(entries, anchor)
         elseif entry.title then
             btn:SetHeight(20)
             btn.text:SetText(entry.text or "")
-            btn.text:SetTextColor(1, 0.82, 0)
+            local ac = (ns.COLORS and ns.COLORS.accent) or { r = 0.608, g = 0.424, b = 1 }
+            btn.text:SetTextColor(ac.r, ac.g, ac.b)
             btn:EnableMouse(false)
             btn:SetScript("OnClick", nil)
         else

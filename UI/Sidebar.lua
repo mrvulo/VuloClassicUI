@@ -105,10 +105,12 @@ local function createModuleRow(parent, key, mod)
     local row = CreateFrame("Button", nil, parent)
     row:SetHeight(ROW_HEIGHT)
 
-    -- Selected background (transparent when not selected)
+    -- Selected background: accent gradient fading out to the right
     local bg = row:CreateTexture(nil, "BACKGROUND")
     bg:SetAllPoints(row)
-    bg:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 0.18)
+    ns.UI.SetGradient(bg, "HORIZONTAL",
+        ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 0.26,
+        ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 0.02)
     bg:Hide()
     row.bg = bg
 
@@ -124,7 +126,7 @@ local function createModuleRow(parent, key, mod)
     -- Hover
     local hover = row:CreateTexture(nil, "HIGHLIGHT")
     hover:SetAllPoints(row)
-    hover:SetColorTexture(1, 1, 1, 0.05)
+    hover:SetColorTexture(1, 1, 1, 0.04)
 
     -- Module icon (left)
     local icon = row:CreateTexture(nil, "ARTWORK")
@@ -152,6 +154,7 @@ local function createModuleRow(parent, key, mod)
 
     -- Label (between icon and power button) — truncates instead of overlapping
     local label = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    ns.UI.Font(label, 12)
     label:SetPoint("LEFT", icon, "RIGHT", 7, 0)
     if power then
         label:SetPoint("RIGHT", power, "LEFT", -6, 0)
@@ -174,19 +177,23 @@ local function createGroupHeader(parent, groupName)
     local h = CreateFrame("Frame", nil, parent)
     h:SetHeight(GROUP_HEADER_H)
 
-    -- Uppercase, slightly smaller — reads as a section label
+    -- Uppercase, slightly smaller — reads as a section label (muted, not accent:
+    -- the accent color is reserved for selection/active states)
     local fs = h:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    ns.UI.Font(fs, 10)
     fs:SetPoint("BOTTOMLEFT", h, "BOTTOMLEFT", 8, 4)
     fs:SetText(string.upper(L[groupName]))
-    local c = ns.COLORS.accent
+    local c = ns.COLORS.sectionHdr
     fs:SetTextColor(c.r, c.g, c.b)
 
-    -- Thin separator line under the header
+    -- Thin separator line under the header, fading out to the right
     local line = h:CreateTexture(nil, "ARTWORK")
     line:SetPoint("BOTTOMLEFT", h, "BOTTOMLEFT", 8, 0)
     line:SetPoint("BOTTOMRIGHT", h, "BOTTOMRIGHT", -8, 0)
     line:SetHeight(1)
-    line:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 0.25)
+    ns.UI.SetGradient(line, "HORIZONTAL",
+        0.32, 0.32, 0.38, 0.45,
+        0.32, 0.32, 0.38, 0.0)
 
     return h
 end
@@ -247,7 +254,9 @@ function UI:PopulateSidebar()
 
         local bg = row:CreateTexture(nil, "BACKGROUND")
         bg:SetAllPoints(row)
-        bg:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 0.18)
+        ns.UI.SetGradient(bg, "HORIZONTAL",
+            ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 0.26,
+            ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 0.02)
         bg:Hide()
         row.bg = bg
 
@@ -270,6 +279,7 @@ function UI:PopulateSidebar()
         icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
 
         local label = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+        ns.UI.Font(label, 12)
         label:SetPoint("LEFT", icon, "RIGHT", 7, 0)
         label:SetText(L["Overview"])
 

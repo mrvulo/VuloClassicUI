@@ -9,6 +9,45 @@ local UI = ns.UI
 local L = ns.L
 
 -- =========================================================
+-- Design helpers: shared UI font, gradients, drop shadows
+-- =========================================================
+local FONT_PATH = "Interface\\AddOns\\VuloClassicUI\\Media\\Fonts\\Expressway.TTF"
+UI.FONT_PATH = FONT_PATH
+
+-- Apply the addon UI font to a FontString (or EditBox)
+function UI.Font(fs, size, flags)
+    fs:SetFont(FONT_PATH, size or 12, flags or "")
+    return fs
+end
+
+-- Cross-client gradient on a texture.
+-- (r1,g1,b1,a1) = bottom/left color, (r2,g2,b2,a2) = top/right color.
+function UI.SetGradient(tex, orient, r1, g1, b1, a1, r2, g2, b2, a2)
+    tex:SetTexture("Interface\\Buttons\\WHITE8X8")
+    if tex.SetGradient and CreateColor then
+        tex:SetGradient(orient, CreateColor(r1, g1, b1, a1), CreateColor(r2, g2, b2, a2))
+    elseif tex.SetGradientAlpha then
+        tex:SetGradientAlpha(orient, r1, g1, b1, a1, r2, g2, b2, a2)
+    else
+        tex:SetColorTexture((r1 + r2) / 2, (g1 + g2) / 2, (b1 + b2) / 2, ((a1 or 1) + (a2 or 1)) / 2)
+    end
+end
+
+-- Soft drop shadow: layered translucent black rings around the frame
+function UI:CreateShadow(frame)
+    if frame._vcShadow then return end
+    frame._vcShadow = {}
+    local layers = { { 1, 0.45 }, { 3, 0.28 }, { 5, 0.15 }, { 7, 0.07 } }
+    for i, l in ipairs(layers) do
+        local t = frame:CreateTexture(nil, "BACKGROUND", nil, -8 + (i - 1))
+        t:SetPoint("TOPLEFT",     frame, "TOPLEFT",     -l[1],  l[1])
+        t:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT",  l[1], -l[1])
+        t:SetColorTexture(0, 0, 0, l[2])
+        frame._vcShadow[i] = t
+    end
+end
+
+-- =========================================================
 -- Helper: white 1px pixel as background texture
 -- =========================================================
 
@@ -157,23 +196,27 @@ function UI:CreateHeader(parent, text)
     -- Header label (uppercase, bright)
     local fs = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     fs:SetPoint("BOTTOMLEFT", tick, "BOTTOMRIGHT", 7, -1)
+    UI.Font(fs, 12)
     fs:SetText(string.upper(text or ""))
     fs:SetTextColor(0.92, 0.90, 0.96)
     fs:SetJustifyH("LEFT")
     f._label = fs
 
-    -- Thin accent underline spanning the row, fading to the right
+    -- Thin accent underline spanning the row, fading out to the right
     local line = f:CreateTexture(nil, "ARTWORK")
     line:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 0, 0)
     line:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -10, 0)
     line:SetHeight(1)
-    line:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 0.22)
+    UI.SetGradient(line, "HORIZONTAL",
+        ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 0.40,
+        ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 0.0)
 
     return f
 end
 
 function UI:CreateDescription(parent, text)
     local fs = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    UI.Font(fs, 11)
     fs:SetText(text or "")
     local c = ns.COLORS.textDim
     fs:SetTextColor(c.r, c.g, c.b)
@@ -181,32 +224,36 @@ function UI:CreateDescription(parent, text)
     return fs
 end
 
--- Collapsible section header: [+]/[-] box + label + underline, whole row clickable.
+-- Collapsible section header: chevron + label + underline, whole row clickable.
 function UI:CreateCollapsibleHeader(parent, text, expanded, onClick)
     local b = CreateFrame("Button", nil, parent)
     b:SetSize(480, 24)
 
-    -- Expand/collapse box
+    -- Chevron: points down when expanded, right when collapsed
     local box = b:CreateTexture(nil, "ARTWORK")
-    box:SetSize(16, 16)
-    box:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 0, 3)
-    box:SetTexture(expanded and "Interface\\Buttons\\UI-Panel-MinimizeButton-Up"
-                            or  "Interface\\Buttons\\UI-Panel-ExpandButton-Up")
-    -- These two textures look most like - / + ; fall back to a tinted tick if missing.
+    box:SetSize(12, 12)
+    box:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 0, 5)
+    box:SetTexture("Interface\\Buttons\\UI-ScrollBar-ScrollDownButton-Up")
+    box:SetTexCoord(0.25, 0.75, 0.30, 0.80)
+    box:SetVertexColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
+    if not expanded and box.SetRotation then box:SetRotation(math.pi / 2) end
 
     -- Label
     local fs = b:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    fs:SetPoint("BOTTOMLEFT", box, "BOTTOMRIGHT", 5, 3)
+    fs:SetPoint("BOTTOMLEFT", box, "BOTTOMRIGHT", 6, 1)
+    UI.Font(fs, 12)
     fs:SetText(string.upper(text or ""))
     fs:SetTextColor(0.92, 0.90, 0.96)
     b._label = fs
 
-    -- Accent underline
+    -- Accent underline fading out to the right
     local line = b:CreateTexture(nil, "ARTWORK")
     line:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 0, 0)
     line:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -10, 0)
     line:SetHeight(1)
-    line:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 0.22)
+    UI.SetGradient(line, "HORIZONTAL",
+        ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 0.40,
+        ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 0.0)
 
     b:SetScript("OnClick", function() if onClick then onClick() end end)
     b:SetScript("OnEnter", function() fs:SetTextColor(1, 1, 1) end)
@@ -223,9 +270,10 @@ function UI:CreateToggle(parent, config)
 
     -- Label on the left
     local label = container:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    UI.Font(label, 12)
     label:SetText(config.label or "")
     label:SetPoint("LEFT", container, "LEFT", 0, 0)
-    label:SetTextColor(1, 1, 1)
+    label:SetTextColor(0.95, 0.95, 0.97)
 
     -- Switch on the right (Button)
     local switchW, switchH = 36, 18
@@ -254,13 +302,18 @@ function UI:CreateToggle(parent, config)
     track:SetAllPoints(btn)
     track:SetColorTexture(ns.COLORS.toggleOff.r, ns.COLORS.toggleOff.g, ns.COLORS.toggleOff.b, 1)
 
-    -- Knob
-    local knob = btn:CreateTexture(nil, "ARTWORK")
-    knob:SetSize(switchH - 4, switchH - 4)
-    knob:SetColorTexture(1, 1, 1, 1)
+    -- Knob (with a soft shadow behind it)
+    local knobShadow = btn:CreateTexture(nil, "ARTWORK", nil, 1)
+    knobShadow:SetSize(switchH - 2, switchH - 2)
+    knobShadow:SetColorTexture(0, 0, 0, 0.30)
 
-    -- Border (very thin)
-    local borderColor = ns.COLORS.border
+    local knob = btn:CreateTexture(nil, "ARTWORK", nil, 2)
+    knob:SetSize(switchH - 6, switchH - 6)
+    knob:SetColorTexture(1, 1, 1, 1)
+    knobShadow:SetPoint("CENTER", knob, "CENTER", 0, -1)
+
+    -- Border (very thin, dark for crisp contrast)
+    local borderColor = ns.COLORS.borderDark or ns.COLORS.border
     local borders = {}
     for i = 1, 4 do
         local b = btn:CreateTexture(nil, "BORDER")
@@ -276,12 +329,14 @@ function UI:CreateToggle(parent, config)
         local state = config.get(btn) and true or false
         if state then
             track:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 1)
+            knob:SetColorTexture(1, 1, 1, 1)
             knob:ClearAllPoints()
-            knob:SetPoint("RIGHT", btn, "RIGHT", -2, 0)
+            knob:SetPoint("RIGHT", btn, "RIGHT", -3, 0)
         else
             track:SetColorTexture(ns.COLORS.toggleOff.r, ns.COLORS.toggleOff.g, ns.COLORS.toggleOff.b, 1)
+            knob:SetColorTexture(0.72, 0.72, 0.78, 1)
             knob:ClearAllPoints()
-            knob:SetPoint("LEFT", btn, "LEFT", 2, 0)
+            knob:SetPoint("LEFT", btn, "LEFT", 3, 0)
         end
     end
 
@@ -331,9 +386,9 @@ function UI:CreateSlider(parent, config)
     if s.Low  then s.Low:SetText("") end  -- hide min text (clean)
     if s.High then s.High:SetText("") end
     if s.Text then
+        UI.Font(s.Text, 12)
         s.Text:SetText(config.label or "")
-        local c = ns.COLORS.text
-        s.Text:SetTextColor(c.r, c.g, c.b)
+        s.Text:SetTextColor(0.95, 0.95, 0.97)
     end
 
     local accent = ns.COLORS.accent
@@ -383,6 +438,7 @@ function UI:CreateSlider(parent, config)
         fill:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -1, 1)
         fill:SetColorTexture(0.14, 0.14, 0.16, 1)
         local txt = b:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+        UI.Font(txt, 12)
         txt:SetPoint("CENTER", b, "CENTER", 0, 1)
         txt:SetText(label)
         b:SetScript("OnEnter", function() border:SetColorTexture(accent.r, accent.g, accent.b, 1) end)
@@ -399,6 +455,7 @@ function UI:CreateSlider(parent, config)
     minusBtn:SetPoint("LEFT", s, "RIGHT", 8, 0)
 
     local valueText = s:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    UI.Font(valueText, 11)
     valueText:SetPoint("LEFT", minusBtn, "RIGHT", 4, 0)
     valueText:SetWidth(36)
     valueText:SetJustifyH("CENTER")
@@ -456,10 +513,11 @@ local function ensurePopupFrame()
     p:EnableMouse(true)
     p:Hide()
 
-    -- Background
+    -- Drop shadow + background
+    UI:CreateShadow(p)
     local bg = p:CreateTexture(nil, "BACKGROUND")
     bg:SetAllPoints(p)
-    bg:SetColorTexture(0.08, 0.08, 0.10, 0.98)
+    bg:SetColorTexture(0.07, 0.07, 0.09, 0.99)
     p._bg = bg
 
     -- Border (purple)
@@ -527,6 +585,7 @@ local function openPopup(button, config)
             item._check = check
 
             local fs = item:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+            UI.Font(fs, 12)
             fs:SetPoint("LEFT", item, "LEFT", 18, 0)
             fs:SetPoint("RIGHT", item, "RIGHT", -8, 0)
             fs:SetJustifyH("LEFT")
@@ -544,10 +603,10 @@ local function openPopup(button, config)
         item._text:SetText(L[opt.text])  -- translate option text (no-op if already localized)
         if opt.value == config.get(button) then
             item._check:Show()
-            item._text:SetTextColor(1, 1, 1)
+            item._text:SetTextColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
         else
             item._check:Hide()
-            item._text:SetTextColor(0.85, 0.85, 0.85)
+            item._text:SetTextColor(0.88, 0.88, 0.90)
         end
 
         item:SetScript("OnClick", function()
@@ -570,10 +629,10 @@ function UI:CreateDropdown(parent, config)
     -- Optional label on top
     if config.label then
         local label = container:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        UI.Font(label, 12)
         label:SetPoint("TOPLEFT", container, "TOPLEFT", 0, 0)
         label:SetText(config.label)
-        local c = ns.COLORS.text
-        label:SetTextColor(c.r, c.g, c.b)
+        label:SetTextColor(0.95, 0.95, 0.97)
         container._label = label
     end
 
@@ -606,6 +665,7 @@ function UI:CreateDropdown(parent, config)
 
     -- Current value text
     local valueText = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    UI.Font(valueText, 12)
     valueText:SetPoint("LEFT",  btn, "LEFT",   8, 0)
     valueText:SetPoint("RIGHT", btn, "RIGHT", -22, 0)
     valueText:SetJustifyH("LEFT")
@@ -683,17 +743,17 @@ function UI:CreateEditBox(parent, config)
     local label, eb
     if config.label and config.label ~= "" then
         label = container:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        UI.Font(label, 12)
         label:SetPoint("LEFT", container, "LEFT", 0, 0)
         label:SetText(config.label)
-        local c = ns.COLORS.text
-        label:SetTextColor(c.r, c.g, c.b)
+        label:SetTextColor(0.95, 0.95, 0.97)
     end
 
     -- Edit field (rectangular, custom style — NO InputBoxTemplate)
     eb = CreateFrame("EditBox", nil, container)
     eb:SetHeight(22)
     eb:SetAutoFocus(false)
-    eb:SetFontObject("ChatFontNormal")
+    eb:SetFont(FONT_PATH, 12, "")
     eb:SetTextInsets(8, 8, 0, 0)  -- inner padding left/right
     eb:SetText(tostring(config.get(eb) or ""))
 
@@ -772,7 +832,7 @@ function UI:CreateButton(parent, config)
     -- BG
     local bg = b:CreateTexture(nil, "BACKGROUND")
     bg:SetAllPoints(b)
-    bg:SetColorTexture(0.15, 0.15, 0.18, 1)
+    bg:SetColorTexture(0.13, 0.13, 0.16, 1)
 
     -- Border (thin)
     local borderColor = ns.COLORS.border
@@ -787,24 +847,31 @@ function UI:CreateButton(parent, config)
     borders[3]:SetPoint("TOPLEFT", b, "TOPLEFT"); borders[3]:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT"); borders[3]:SetWidth(1)
     borders[4]:SetPoint("TOPRIGHT", b, "TOPRIGHT"); borders[4]:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT"); borders[4]:SetWidth(1)
 
+    local function setBorder(c, a)
+        for _, bt in ipairs(borders) do bt:SetColorTexture(c.r, c.g, c.b, a or 1) end
+    end
+
     -- Text
     local text = b:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    UI.Font(text, 12)
     text:SetPoint("CENTER", b, "CENTER", 0, 0)
     text:SetText(config.label or "")
-    local tc = ns.COLORS.text
-    text:SetTextColor(tc.r, tc.g, tc.b)
+    text:SetTextColor(0.95, 0.95, 0.97)
 
     -- Accent variant (primary button)
     if config.primary then
         bg:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 1)
+        setBorder(ns.COLORS.accent)
+        text:SetTextColor(1, 1, 1)
     end
 
-    -- Hover effect
+    -- Hover effect (accent border for secondary buttons)
     b:SetScript("OnEnter", function()
         if config.primary then
             bg:SetColorTexture(ns.COLORS.accent.r * 1.15, ns.COLORS.accent.g * 1.15, ns.COLORS.accent.b * 1.15, 1)
         else
-            bg:SetColorTexture(0.22, 0.22, 0.26, 1)
+            bg:SetColorTexture(0.19, 0.19, 0.23, 1)
+            setBorder(ns.COLORS.accent, 0.8)
         end
         if config.tooltip then
             GameTooltip:SetOwner(b, "ANCHOR_RIGHT")
@@ -816,9 +883,18 @@ function UI:CreateButton(parent, config)
         if config.primary then
             bg:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 1)
         else
-            bg:SetColorTexture(0.15, 0.15, 0.18, 1)
+            bg:SetColorTexture(0.13, 0.13, 0.16, 1)
+            setBorder(ns.COLORS.border)
         end
         GameTooltip:Hide()
+    end)
+
+    -- Subtle press feedback: nudge the label 1px down
+    b:SetScript("OnMouseDown", function()
+        text:SetPoint("CENTER", b, "CENTER", 0, -1)
+    end)
+    b:SetScript("OnMouseUp", function()
+        text:SetPoint("CENTER", b, "CENTER", 0, 0)
     end)
 
     b:SetScript("OnClick", function(self)
