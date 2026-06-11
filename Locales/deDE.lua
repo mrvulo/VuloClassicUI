@@ -370,6 +370,13 @@ ns:RegisterLocale("deDE", {
     ["Visibility"] = "Sichtbarkeit",
     ["Text Sizes"] = "Textgrößen",
     ["Character"] = "Charakter",
+    ["World"] = "Welt",
+    ["Auto-select single gossip option"] = "Einzelne NPC-Dialogoption automatisch wählen",
+    ["Skips NPC dialog windows that only have a single option. Hold SHIFT to temporarily bypass."] = "Überspringt NPC-Dialoge mit nur einer Option. SHIFT halten, um es kurzzeitig zu umgehen.",
+    ["Faster auto-loot"] = "Schnelleres Auto-Looten",
+    ["Loots all items at once when auto-loot applies, instead of one by one."] = "Lootet alle Gegenstände auf einmal statt nacheinander, wenn Auto-Loot greift.",
+    ["Max camera zoom"] = "Maximaler Kamerazoom",
+    ["Raises the maximum camera zoom-out distance far beyond the default."] = "Erhöht die maximale Kamera-Entfernung weit über den Standardwert hinaus.",
 
     -- =====================================================
     -- Sidebar group labels

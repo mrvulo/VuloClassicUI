@@ -18,6 +18,10 @@ local mod = ns:RegisterModule("miscqol", {
         autoAcceptRes         = true,
         autoAcceptSummon      = false,
         autoReleasePvP        = true,
+        -- World
+        autoGossip            = false,
+        fasterLoot            = true,
+        maxCameraZoom         = false,
         -- Vendor
         autoSellJunk          = true,
         autoRepair            = true,
@@ -44,6 +48,7 @@ local GetContainerNumSlots  = (C_Container and C_Container.GetContainerNumSlots)
 local GetContainerItemInfo  = (C_Container and C_Container.GetContainerItemInfo)  or _G.GetContainerItemInfo
 local UseContainerItem      = (C_Container and C_Container.UseContainerItem)      or _G.UseContainerItem
 local GetContainerItemLink  = (C_Container and C_Container.GetContainerItemLink)  or _G.GetContainerItemLink
+local GetCVarBool           = (C_CVar and C_CVar.GetCVarBool)                     or _G.GetCVarBool
 
 -- =========================================================
 -- Helpers
@@ -261,13 +266,76 @@ local function onQuestComplete()
     end
 end
 
+-- Soulstone / Reincarnation / self-res available? Then never auto-release.
+local function hasSelfRes()
+    if C_DeathInfo and C_DeathInfo.GetSelfResurrectOptions then
+        local ok, t = pcall(C_DeathInfo.GetSelfResurrectOptions)
+        if ok and type(t) == "table" then return #t > 0 end
+    end
+    if HasSoulstone then return HasSoulstone() ~= nil end
+    return false
+end
+
 local function onPlayerDead()
     if not mod.db.autoReleasePvP then return end
     if not IsInInstance then return end
+    if hasSelfRes() then return end
     local _, instanceType = IsInInstance()
     if instanceType == "pvp" or instanceType == "arena" then
         if RepopMe then RepopMe() end
     end
+end
+
+-- =========================================================
+-- World: gossip automation, faster loot, max camera zoom
+-- =========================================================
+
+-- Single-option gossip without quests -> select it (hold SHIFT to skip)
+local function onGossipShow()
+    if not mod.db.autoGossip then return end
+    if IsShiftKeyDown and IsShiftKeyDown() then return end
+    if not C_GossipInfo or not C_GossipInfo.GetOptions then return end
+    local active    = (C_GossipInfo.GetNumActiveQuests and C_GossipInfo.GetNumActiveQuests()) or 0
+    local available = (C_GossipInfo.GetNumAvailableQuests and C_GossipInfo.GetNumAvailableQuests()) or 0
+    if active > 0 or available > 0 then return end
+    local opts = C_GossipInfo.GetOptions()
+    if type(opts) ~= "table" or #opts ~= 1 then return end
+    local opt = opts[1]
+    -- Modern API selects by gossipOptionID; older builds by list index
+    if type(opt) == "table" and opt.gossipOptionID and C_GossipInfo.SelectOption then
+        C_GossipInfo.SelectOption(opt.gossipOptionID)
+    elseif C_GossipInfo.SelectOptionByIndex then
+        C_GossipInfo.SelectOptionByIndex(1)
+    elseif C_GossipInfo.SelectOption then
+        C_GossipInfo.SelectOption(1)
+    end
+end
+
+-- Faster auto-loot: grab all slots at once instead of Blizzard's
+-- one-item-at-a-time crawl. Only acts when auto-loot actually applies
+-- (CVar XOR held auto-loot modifier key), so manual looting is untouched.
+local _lastFastLoot = 0
+local function onLootReady()
+    if not mod.db.fasterLoot then return end
+    local now = GetTime() or 0
+    if (now - _lastFastLoot) < 0.3 then return end  -- LOOT_READY can fire repeatedly
+    _lastFastLoot = now
+    local cvarAuto  = GetCVarBool and GetCVarBool("autoLootDefault") and true or false
+    local modifier  = IsModifiedClick and IsModifiedClick("AUTOLOOTTOGGLE") and true or false
+    if cvarAuto == modifier then return end  -- auto-loot not active for this window
+    if not GetNumLootItems or not LootSlot then return end
+    for i = GetNumLootItems(), 1, -1 do
+        LootSlot(i)
+    end
+end
+
+local CAMERA_CVAR    = "cameraDistanceMaxZoomFactor"
+local CAMERA_MAX     = 3.4   -- client clamps if its cap is lower
+local CAMERA_DEFAULT = 1.9
+
+local function applyMaxCameraZoom()
+    if not SetCVar then return end
+    pcall(SetCVar, CAMERA_CVAR, mod.db.maxCameraZoom and CAMERA_MAX or CAMERA_DEFAULT)
 end
 
 -- =========================================================
@@ -401,6 +469,7 @@ local function applyAllVisibility()
     applyMailTextSize()
     applyQuestTextSize()
     applyBookTextSize()
+    applyMaxCameraZoom()
 end
 
 -- =========================================================
@@ -420,6 +489,8 @@ function mod:OnEnable()
     ns:RegisterEvent("QUEST_PROGRESS",        onQuestProgress)
     ns:RegisterEvent("QUEST_COMPLETE",        onQuestComplete)
     ns:RegisterEvent("PLAYER_DEAD",           onPlayerDead)
+    ns:RegisterEvent("GOSSIP_SHOW",           onGossipShow)
+    ns:RegisterEvent("LOOT_READY",            onLootReady)
     ns:RegisterEvent("PLAYER_LOGIN",          onPlayerLogin)
 
     if ns.isInitialised then
@@ -446,7 +517,13 @@ function mod:OnDisable()
     ns:UnregisterEvent("QUEST_PROGRESS",        onQuestProgress)
     ns:UnregisterEvent("QUEST_COMPLETE",        onQuestComplete)
     ns:UnregisterEvent("PLAYER_DEAD",           onPlayerDead)
+    ns:UnregisterEvent("GOSSIP_SHOW",           onGossipShow)
+    ns:UnregisterEvent("LOOT_READY",            onLootReady)
     ns:UnregisterEvent("PLAYER_LOGIN",          onPlayerLogin)
+    -- Module off -> hand the camera distance back to the game default
+    if mod.db.maxCameraZoom and SetCVar then
+        pcall(SetCVar, CAMERA_CVAR, CAMERA_DEFAULT)
+    end
 end
 
 -- =========================================================
@@ -480,6 +557,16 @@ function mod:GetOptions()
             L["Automatically clicks 'Accept' on warlock/stone summon popups."]),
         tgl("autoReleasePvP",    L["Auto-release spirit in PvP/Arena"],
             L["Releases instantly on death in BG or arena."]),
+
+        { type = "spacer", height = 6 },
+        { type = "header", text = L["World"] },
+        tgl("autoGossip",        L["Auto-select single gossip option"],
+            L["Skips NPC dialog windows that only have a single option. Hold SHIFT to temporarily bypass."]),
+        tgl("fasterLoot",        L["Faster auto-loot"],
+            L["Loots all items at once when auto-loot applies, instead of one by one."]),
+        tgl("maxCameraZoom",     L["Max camera zoom"],
+            L["Raises the maximum camera zoom-out distance far beyond the default."],
+            applyMaxCameraZoom),
 
         { type = "spacer", height = 6 },
         { type = "header", text = L["Vendor"] },
