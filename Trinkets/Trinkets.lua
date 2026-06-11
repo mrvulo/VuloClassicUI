@@ -651,6 +651,11 @@ end
 --[[ Window Movement ]]--
 
 function Trinkets.MainFrame_OnMouseUp(self)
+	-- Secure-Frame (UseItem-Buttons): Move-/Layout-Aufrufe sind im Kampf
+	-- geblockt, und pcall schluckt den ADDON_ACTION_BLOCKED-Ping NICHT
+	-- (das ist kein Lua-Error, sondern das Taint-System). Im Kampf komplett
+	-- raus — bewegen/umklappen geht dann eben erst nach dem Kampf.
+	if InCombatLockdown() then return end
 	local arg1 = GetMouseButtonClicked()
 	if arg1 == "LeftButton" then
 		pcall(self.StopMovingOrSizing, self)
@@ -667,10 +672,10 @@ function Trinkets.MainFrame_OnMouseUp(self)
 end
 
 function Trinkets.MainFrame_OnMouseDown(self)
+	if InCombatLockdown() then return end
 	if GetMouseButtonClicked() == "LeftButton" and TrinketsOptions.Locked == "OFF" then
 		-- Secure-Frame: StartMoving wird vom WoW-Security geblockt (UseItem-Buttons).
-		-- pcall um den action-blocked-Ping zu schlucken; Drag funktioniert dann nicht,
-		-- aber Frame ist via Locked-Toggle eh ge-locked oder über Options positionierbar.
+		-- pcall fängt den Lua-Error, falls der Frame gerade protected ist.
 		pcall(self.StartMoving, self)
 	end
 end
@@ -802,6 +807,9 @@ end
 --[[ Docking ]]
 
 function Trinkets.MenuFrame_OnMouseDown(button)
+	-- Wie beim MainFrame: im Kampf keine Move-Aufrufe auf dem Secure-Frame
+	-- (pcall verhindert den ADDON_ACTION_BLOCKED-Ping nicht).
+	if InCombatLockdown() then return end
 	if button == "LeftButton" and TrinketsOptions.Locked == "OFF" then
 		pcall(Trinkets_MenuFrame.StartMoving, Trinkets_MenuFrame)
 		if TrinketsOptions.KeepDocked == "ON" then
@@ -811,6 +819,7 @@ function Trinkets.MenuFrame_OnMouseDown(button)
 end
 
 function Trinkets.MenuFrame_OnMouseUp(button)
+	if InCombatLockdown() then return end
 	if button == "LeftButton" then
 		Trinkets.StopTimer("DockingMenu")
 		pcall(Trinkets_MenuFrame.StopMovingOrSizing, Trinkets_MenuFrame)
