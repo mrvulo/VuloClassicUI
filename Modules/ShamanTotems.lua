@@ -184,8 +184,25 @@ end
 -- Row creation (a secure button with icon + timer visuals)
 -- ---------------------------------------------------------
 local function createRow(totem)
-    local row = CreateFrame("Button", "VCUI_TotemBtn_" .. totem.key, container, "SecureActionButtonTemplate")
+    -- SecureHandlerEnterLeaveTemplate: hovering must open the flyout via a
+    -- SECURE snippet — the flyout parents protected cast buttons, so insecure
+    -- code may not move/show it in combat (protection propagates to parents).
+    local row = CreateFrame("Button", "VCUI_TotemBtn_" .. totem.key, container,
+        "SecureActionButtonTemplate,SecureHandlerEnterLeaveTemplate")
     row:RegisterForClicks("AnyUp", "AnyDown")
+    row:SetAttribute("_onenter", [=[
+        for i = 1, 4 do
+            local o = self:GetFrameRef("fly" .. i)
+            if o then o:Hide() end
+        end
+        local fl = self:GetFrameRef("flyout")
+        if fl then
+            fl:ClearAllPoints()
+            fl:SetPoint(self:GetAttribute("flypoint") or "LEFT", self,
+                        self:GetAttribute("flyrelpoint") or "RIGHT", 0, 0)
+            fl:Show()
+        end
+    ]=])
     -- IMPORTANT: the 2.5.5 client only fires the protected cast through the "*"
     -- wildcard attributes (*type1/*spell1), NOT plain type/spell. (Verified vs
     -- TotemTimers, which uses the same form.)
@@ -447,7 +464,12 @@ local flyouts = {}  -- element key -> pre-built flyout frame
 local function ensureFlyout(key)
     local fl = flyouts[key]
     if fl then return fl end
-    fl = CreateFrame("Frame", "VCUI_TotemFlyout_" .. key, UIParent, BackdropTemplateMixin and "BackdropTemplate")
+    -- SecureHandlerBaseTemplate: makes the flyout an explicitly protected
+    -- handler, so the rows' secure _onenter snippets can show/move it in
+    -- combat and it can secure-wrap its buttons' clicks (hide after cast).
+    fl = CreateFrame("Frame", "VCUI_TotemFlyout_" .. key, UIParent,
+        BackdropTemplateMixin and "SecureHandlerBaseTemplate,BackdropTemplate"
+                               or "SecureHandlerBaseTemplate")
     fl:SetFrameStrata("DIALOG")
     if fl.SetBackdrop then
         fl:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8",
@@ -459,6 +481,10 @@ local function ensureFlyout(key)
     fl.count = 0
     fl:Hide()
     fl:SetScript("OnUpdate", function(self)
+        -- Auto-hide on mouse-out: only out of combat (Hide on a protected
+        -- frame is blocked in combat — there it closes via the secure click
+        -- wrap or when another slot's _onenter hides it).
+        if InCombatLockdown and InCombatLockdown() then return end
         if not self:IsMouseOver() and not (self.anchor and self.anchor:IsMouseOver()) then
             self:Hide()
         end
@@ -493,8 +519,13 @@ local function rebuildFlyout(t)
             b.sel:SetTexture("Interface\\Buttons\\CheckButtonHilight")
             b.sel:SetBlendMode("ADD"); b.sel:SetAllPoints(b); b.sel:Hide()
             b:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
-            -- the secure click casts it; PostClick also remembers it as this
-            -- element's choice so left-clicking the slot recasts the same totem.
+            -- the secure click casts it; the secure wrap hides the flyout
+            -- after the cast (legal in combat, unlike an insecure Hide).
+            fl:WrapScript(b, "OnClick", [=[
+                if not down then self:GetParent():Hide() end
+            ]=])
+            -- PostClick (insecure) remembers the pick as this element's choice
+            -- so left-clicking the slot recasts the same totem.
             b:SetScript("PostClick", function(self, button, down)
                 if down then return end
                 local dd = db()
@@ -502,7 +533,6 @@ local function rebuildFlyout(t)
                 dd.sets[dd.activeSet] = s
                 s[self.elementKey] = self.totemName
                 applyButtonSpells(); refresh()
-                self:GetParent():Hide()
             end)
             fl.btns[i] = b
         end
@@ -519,24 +549,58 @@ local function rebuildFlyout(t)
     for i = #names + 1, #fl.btns do fl.btns[i]:Hide() end
 
     fl:SetSize(size + pad * 2, math.max(1, #names * (size + 2) - 2 + pad * 2))
+
+    -- Wire the slot for the secure _onenter snippet: which side to open on
+    -- (depends on layout + screen half) and the frame ref to this flyout.
+    local slot = rows[t.key]
+    if slot then
+        local p, rp = "LEFT", "RIGHT"
+        if d.layout == "icons" then
+            local _, sy = slot:GetCenter()
+            local h = UIParent:GetHeight()
+            if sy and h and sy < h * 0.5 then p, rp = "BOTTOM", "TOP" else p, rp = "TOP", "BOTTOM" end
+        else
+            local sx = slot:GetCenter()
+            local w = UIParent:GetWidth()
+            if sx and w and sx > w * 0.5 then p, rp = "RIGHT", "LEFT" else p, rp = "LEFT", "RIGHT" end
+        end
+        slot:SetAttribute("flypoint", p)
+        slot:SetAttribute("flyrelpoint", rp)
+        slot:SetFrameRef("flyout", fl)
+    end
 end
 
 -- Pre-build every element's flyout (login / end of combat / spell changes).
 rebuildFlyouts = function()
+    if InCombatLockdown and InCombatLockdown() then pendingAttr = true; return end
     for _, t in ipairs(TOTEMS) do
         if rows[t.key] then rebuildFlyout(t) end
+    end
+    -- Every slot gets refs to ALL flyouts so its _onenter can close the others
+    for _, t in ipairs(TOTEMS) do
+        local slot = rows[t.key]
+        if slot then
+            for i, t2 in ipairs(TOTEMS) do
+                if flyouts[t2.key] then
+                    slot:SetFrameRef("fly" .. i, flyouts[t2.key])
+                end
+            end
+        end
     end
 end
 
 showTotemMenu = function(t)
-    -- Out of combat: rebuild fresh (new ranks/totems/sizes). In combat the
-    -- pre-built secure layout is used as-is — only insecure ops below.
-    if not (InCombatLockdown and InCombatLockdown()) then
-        rebuildFlyout(t)
+    -- The flyout frame is protected (it parents secure cast buttons), so ALL
+    -- show/move calls on it run in the slots' secure _onenter snippet — in
+    -- combat AND out. This insecure part only refreshes content/markers.
+    local inCombat = InCombatLockdown and InCombatLockdown()
+    if not inCombat then
+        rebuildFlyout(t)  -- fresh ranks/totems/sizes + side attributes
     end
     local fl = flyouts[t.key]
-    if not fl or fl.count == 0 then
-        if fl then fl:Hide() end
+    if not fl then return end
+    if fl.count == 0 then
+        if not inCombat then fl:Hide() end
         return
     end
 
@@ -550,33 +614,7 @@ showTotemMenu = function(t)
         if b then b.sel:SetShown(set[t.key] == b.totemName) end
     end
 
-    -- Hide any other open flyout, then anchor + show this one (plain frame)
-    for key, other in pairs(flyouts) do
-        if key ~= t.key and other:IsShown() then other:Hide() end
-    end
-    local slot = rows[t.key]
-    fl.anchor = slot
-    fl:ClearAllPoints()
-    if d.layout == "icons" then
-        -- horizontal bar: open downward, or upward if the slot sits low on screen
-        local _, sy = slot:GetCenter()
-        local h = UIParent:GetHeight()
-        if sy and h and sy < h * 0.5 then
-            fl:SetPoint("BOTTOM", slot, "TOP", 0, 0)
-        else
-            fl:SetPoint("TOP", slot, "BOTTOM", 0, 0)
-        end
-    else
-        -- vertical bar: open to the right, or left if the slot sits on the screen's right
-        local sx = slot:GetCenter()
-        local w = UIParent:GetWidth()
-        if sx and w and sx > w * 0.5 then
-            fl:SetPoint("RIGHT", slot, "LEFT", 0, 0)
-        else
-            fl:SetPoint("LEFT", slot, "RIGHT", 0, 0)
-        end
-    end
-    fl:Show()
+    fl.anchor = rows[t.key]  -- for the out-of-combat auto-hide check
 end
 
 local function onUpdate(self, elapsed)
