@@ -391,6 +391,29 @@ ns:RegisterLocale("deDE", {
     ["Off (default frame)"] = "Aus (Standard-Rahmen)",
 
     -- =====================================================
+    -- Vulslot (action bar / macro / keybinding snapshots)
+    -- =====================================================
+    ["Vulslot"] = "Vulslot",
+    ["Saves named snapshots of your action bars, macros and keybindings, and restores them with one click."] = "Speichert benannte Schnappschüsse deiner Aktionsleisten, Makros und Tastenbelegungen und stellt sie mit einem Klick wieder her.",
+    ["|cffaaaaaaSaves your complete bar setup (all action slots, macros, keybindings) as a named profile and restores it with one click — e.g. PvP and Raid layouts, or to copy a setup to a twink (account-wide storage).|r"] = "|cffaaaaaaSpeichert dein komplettes Leisten-Setup (alle Aktionsslots, Makros, Tastenbelegungen) als benanntes Profil und stellt es mit einem Klick wieder her — z. B. PvP- und Raid-Layout, oder um ein Setup auf einen Twink zu übertragen (accountweite Speicherung).|r",
+    ["Load"] = "Laden",
+    ["Save current setup"] = "Aktuelles Setup speichern",
+    ["Please enter a profile name first."] = "Bitte zuerst einen Profilnamen eingeben.",
+    ["|cff888888No profiles saved yet.|r"] = "|cff888888Noch keine Profile gespeichert.|r",
+    ["Also restore macros"] = "Auch Makros wiederherstellen",
+    ["Rewrites saved macros by name (existing ones are updated, missing ones created)."] = "Schreibt gespeicherte Makros per Name zurück (vorhandene werden aktualisiert, fehlende neu erstellt).",
+    ["Also restore keybindings"] = "Auch Tastenbelegungen wiederherstellen",
+    ["Load profile"] = "Profil laden",
+    ["Overwrite with current setup"] = "Mit aktuellem Setup überschreiben",
+    ["Replaces the selected profile with your current bars/macros/bindings."] = "Ersetzt das gewählte Profil durch deine aktuellen Leisten/Makros/Tasten.",
+    ["Vulslot profile '%s' saved."] = "Vulslot-Profil '%s' gespeichert.",
+    ["Vulslot profile '%s' deleted."] = "Vulslot-Profil '%s' gelöscht.",
+    ["Not in combat — Vulslot can't change bars while fighting."] = "Nicht im Kampf — Vulslot kann Leisten im Kampf nicht ändern.",
+    ["Note: profile '%s' was saved on another class (%s)."] = "Hinweis: Profil '%s' wurde auf einer anderen Klasse gespeichert (%s).",
+    ["Vulslot '%s' loaded: %d slots set, %d cleared, |cffff8800%d skipped|r (unknown spell / missing item or macro)."] = "Vulslot '%s' geladen: %d Slots gesetzt, %d geleert, |cffff8800%d übersprungen|r (unbekannter Zauber / fehlendes Item oder Makro).",
+    ["Vulslot '%s' loaded: %d slots set, %d cleared."] = "Vulslot '%s' geladen: %d Slots gesetzt, %d geleert.",
+
+    -- =====================================================
     -- FlightTimer (taxi flight duration bar)
     -- =====================================================
     ["Flight Timer"] = "Flugzeit",

@@ -70,6 +70,7 @@ Modules\Pages.lua
 Modules\VTManaDisplay.lua
 Modules\LazyVulo.lua
 Modules\FlightTimer.lua
+Modules\Vulslot.lua
 Modules\ShamanTotems.lua
 Modules\CombatText.lua
 Modules\Loadouts.lua
