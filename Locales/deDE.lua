@@ -379,6 +379,32 @@ ns:RegisterLocale("deDE", {
     ["Raises the maximum camera zoom-out distance far beyond the default."] = "Erhöht die maximale Kamera-Entfernung weit über den Standardwert hinaus.",
 
     -- =====================================================
+    -- LazyVulo (Apexis Relic minigame helper)
+    -- =====================================================
+    ["LazyVulo"] = "LazyVulo",
+    ["Apexis Relic memory minigame helper (Ogri'la dailies): record the flashing color sequence, always see what to click next."] = "Helfer für das Apexis-Relikt-Memory-Minispiel (Ogri'la-Dailies): Zeichne die Farbsequenz auf und sieh immer, was als Nächstes zu klicken ist.",
+    ["Green relic"] = "Grünes Relikt",
+    ["Yellow relic"] = "Gelbes Relikt",
+    ["Blue relic"] = "Blaues Relikt",
+    ["Red relic"] = "Rotes Relikt",
+    ["Left click: remove this entry.\nRight click: remove this and all later entries."] = "Linksklick: diesen Eintrag entfernen.\nRechtsklick: diesen und alle späteren Einträge entfernen.",
+    ["Click to record this color."] = "Klicken, um diese Farbe aufzuzeichnen.",
+    ["Hotkey: %s"] = "Hotkey: %s",
+    ["LazyVulo is disabled."] = "LazyVulo ist deaktiviert.",
+    ["|cffaaaaaaHelper for the Apexis Relic memory minigame (Ogri'la dailies). Record the flashing sequence with the buttons or hotkeys; the first icon is always your next click. Correct clicks are consumed automatically, wrong clicks are restored.|r"] = "|cffaaaaaaHelfer für das Apexis-Relikt-Memory-Minispiel (Ogri'la-Dailies). Zeichne die Blink-Sequenz mit den Buttons oder Hotkeys auf; das erste Icon ist immer dein nächster Klick. Richtige Klicks werden automatisch verbraucht, falsche wiederhergestellt.|r",
+    ["|cffaaaaaaOpen manually with /lazyvulo or /lv.|r"] = "|cffaaaaaaManuell öffnen mit /lazyvulo oder /lv.|r",
+    ["Auto-show at the Apexis Relic"] = "Am Apexis-Relikt automatisch öffnen",
+    ["Opens the window automatically when you start the relic minigame."] = "Öffnet das Fenster automatisch, wenn du das Relikt-Minispiel startest.",
+    ["Enable hotkeys while the window is shown"] = "Hotkeys aktivieren, solange das Fenster offen ist",
+    ["Disable hotkeys while in combat"] = "Hotkeys im Kampf deaktivieren",
+    ["Hands the keys back to your action bars while you are in combat."] = "Gibt die Tasten im Kampf an deine Aktionsleisten zurück.",
+    ["Show help tooltips"] = "Hilfe-Tooltips anzeigen",
+    ["Window scale"] = "Fenster-Skalierung",
+    ["Hotkeys"] = "Hotkeys",
+    ["|cffaaaaaaOne key per color (e.g. G, Y, B, R or NUMPAD1). Empty = no hotkey.|r"] = "|cffaaaaaaEine Taste pro Farbe (z. B. G, Y, B, R oder NUMPAD1). Leer = kein Hotkey.|r",
+    ["Show window"] = "Fenster anzeigen",
+
+    -- =====================================================
     -- Sidebar group labels
     -- =====================================================
     ["Global"] = "Global",

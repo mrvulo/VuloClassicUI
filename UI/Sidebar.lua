@@ -35,6 +35,7 @@ local MODULE_ICONS = {
     professionwindow   = "Interface\\Icons\\Trade_Tailoring",
     disenchantqueue    = "Interface\\Icons\\INV_Enchant_Disenchant",
     vtmanadisplay      = "Interface\\Icons\\Spell_Shadow_ShadowWordPain",
+    lazyvulo           = "Interface\\Icons\\Spell_Fire_BlueFlameRing",
     combattext         = "Interface\\Icons\\Ability_Warrior_BattleShout",
     loadouts           = "Interface\\Icons\\INV_Chest_Chain",
     slotpicker         = "Interface\\Icons\\INV_Misc_Bag_08",
