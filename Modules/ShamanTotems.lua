@@ -461,6 +461,19 @@ end
 -- and textures — both legal in combat — so the picker works while fighting.
 local flyouts = {}  -- element key -> pre-built flyout frame
 
+-- Set a secure frame ref with every known mechanism (this client lacks the
+-- template :SetFrameRef method; the global is the standard path; the raw
+-- frameref attribute is what both do internally).
+local function setSecureRef(owner, label, target)
+    if SecureHandlerSetFrameRef then
+        SecureHandlerSetFrameRef(owner, label, target)
+    elseif owner.SetFrameRef then
+        owner:SetFrameRef(label, target)
+    elseif GetFrameHandle then
+        owner:SetAttribute("frameref-" .. label, GetFrameHandle(target))
+    end
+end
+
 local function ensureFlyout(key)
     local fl = flyouts[key]
     if fl then return fl end
@@ -569,11 +582,7 @@ local function rebuildFlyout(t)
         end
         slot:SetAttribute("flypoint", p)
         slot:SetAttribute("flyrelpoint", rp)
-        if SecureHandlerSetFrameRef then
-            SecureHandlerSetFrameRef(slot, "flyout", fl)
-        elseif slot.SetFrameRef then
-            slot:SetFrameRef("flyout", fl)
-        end
+        setSecureRef(slot, "flyout", fl)
     end
 end
 
@@ -589,11 +598,7 @@ rebuildFlyouts = function()
         if slot then
             for i, t2 in ipairs(TOTEMS) do
                 if flyouts[t2.key] then
-                    if SecureHandlerSetFrameRef then
-                        SecureHandlerSetFrameRef(slot, "fly" .. i, flyouts[t2.key])
-                    elseif slot.SetFrameRef then
-                        slot:SetFrameRef("fly" .. i, flyouts[t2.key])
-                    end
+                    setSecureRef(slot, "fly" .. i, flyouts[t2.key])
                 end
             end
         end
