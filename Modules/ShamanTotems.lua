@@ -521,9 +521,12 @@ local function rebuildFlyout(t)
             b:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
             -- the secure click casts it; the secure wrap hides the flyout
             -- after the cast (legal in combat, unlike an insecure Hide).
-            fl:WrapScript(b, "OnClick", [=[
-                if not down then self:GetParent():Hide() end
-            ]=])
+            -- Global form: the template method is missing in this client.
+            if SecureHandlerWrapScript then
+                SecureHandlerWrapScript(b, "OnClick", fl, [=[
+                    if not down then self:GetParent():Hide() end
+                ]=])
+            end
             -- PostClick (insecure) remembers the pick as this element's choice
             -- so left-clicking the slot recasts the same totem.
             b:SetScript("PostClick", function(self, button, down)
@@ -566,7 +569,11 @@ local function rebuildFlyout(t)
         end
         slot:SetAttribute("flypoint", p)
         slot:SetAttribute("flyrelpoint", rp)
-        slot:SetFrameRef("flyout", fl)
+        if SecureHandlerSetFrameRef then
+            SecureHandlerSetFrameRef(slot, "flyout", fl)
+        elseif slot.SetFrameRef then
+            slot:SetFrameRef("flyout", fl)
+        end
     end
 end
 
@@ -582,7 +589,11 @@ rebuildFlyouts = function()
         if slot then
             for i, t2 in ipairs(TOTEMS) do
                 if flyouts[t2.key] then
-                    slot:SetFrameRef("fly" .. i, flyouts[t2.key])
+                    if SecureHandlerSetFrameRef then
+                        SecureHandlerSetFrameRef(slot, "fly" .. i, flyouts[t2.key])
+                    elseif slot.SetFrameRef then
+                        slot:SetFrameRef("fly" .. i, flyouts[t2.key])
+                    end
                 end
             end
         end
