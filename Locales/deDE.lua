@@ -379,6 +379,18 @@ ns:RegisterLocale("deDE", {
     ["Raises the maximum camera zoom-out distance far beyond the default."] = "Erhöht die maximale Kamera-Entfernung weit über den Standardwert hinaus.",
 
     -- =====================================================
+    -- EliteVuloFrame (elite dragon border on the player frame)
+    -- =====================================================
+    ["EliteVuloFrame"] = "EliteVuloFrame",
+    ["Gives your player frame the elite dragon border (elite, rare-elite or rare style)."] = "Verpasst deinem Spielerfenster den Elite-Drachenrahmen (Elite, Selten-Elite oder Selten).",
+    ["|cffaaaaaaPuts the golden elite dragon (or the rare variants) around your player portrait — the look elite mobs have on the target frame.|r"] = "|cffaaaaaaLegt den goldenen Elite-Drachen (oder die Selten-Varianten) um dein Spielerporträt — der Look, den Elite-Mobs im Zielfenster haben.|r",
+    ["Frame style"] = "Rahmen-Stil",
+    ["Elite (golden dragon)"] = "Elite (goldener Drache)",
+    ["Rare-Elite (silver dragon)"] = "Selten-Elite (silberner Drache)",
+    ["Rare (silver)"] = "Selten (silber)",
+    ["Off (default frame)"] = "Aus (Standard-Rahmen)",
+
+    -- =====================================================
     -- LazyVulo (Apexis Relic minigame helper)
     -- =====================================================
     ["LazyVulo"] = "LazyVulo",
