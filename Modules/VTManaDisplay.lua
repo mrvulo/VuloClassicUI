@@ -28,6 +28,7 @@ local mod = ns:RegisterModule("vtmanadisplay", {
             showDP      = false,  -- Undead only; off by default
             warnSeconds = 3,
             colorText   = true,
+            showGain    = true,   -- "+12%" recast-gain readout next to the timer
             barWidth    = 150,
             barHeight   = 18,
             iconSize    = 32,
@@ -255,16 +256,17 @@ local function dotsFactor(dot, sp, mult)
     return (dot.base + sp * dot.coef) * mult
 end
 
--- Would recasting this DoT on the current target hit harder than the value it
--- snapshotted at cast? TBC DoTs freeze spell power AND caster % buffs on cast,
--- so if either is higher now a fresh cast deals more damage. (0.5% margin
--- avoids flicker from rounding.)
-local function dotsBetter(dot, sp, mult)
+-- How much would a recast on the current target gain (in %) vs. the value the
+-- running DoT snapshotted at cast? TBC DoTs freeze spell power AND caster
+-- % buffs on cast, so with a spell-power proc up a fresh cast deals more.
+-- Returns a percentage (+14 = recast hits 14% harder, -8 = the running DoT
+-- is 8% stronger than a fresh cast would be), or nil without a snapshot.
+local function dotsGain(dot, sp, mult)
     local guid = UnitGUID("target")
-    if not guid then return false end
+    if not guid then return nil end
     local snap = dotsSnapshots[guid .. dot.key]
-    if not snap then return false end
-    return dotsFactor(dot, sp, mult) > snap * 1.005
+    if not snap or snap <= 0 then return nil end
+    return (dotsFactor(dot, sp, mult) / snap - 1) * 100
 end
 
 -- Record the spell-power snapshot when we (re)apply a tracked DoT, and drop it
@@ -345,6 +347,11 @@ local function dotsCreateRow(dot)
     row.time = row:CreateFontString(nil, "OVERLAY")
     row.time:SetFont(DOT_FONT, mod.db.dots.fontSize, "OUTLINE")
 
+    -- Recast-gain readout ("+12%"): how much harder a fresh cast would hit
+    row.pct = row:CreateFontString(nil, "OVERLAY")
+    row.pct:SetFont(DOT_FONT, mod.db.dots.fontSize, "OUTLINE")
+    row.pct:Hide()
+
     row.dot = dot
     return row
 end
@@ -384,6 +391,10 @@ local function dotsApplyLayout()
             row.time:SetPoint("BOTTOM", row, "BOTTOM", 0, 1)
             row.time:SetFont(DOT_FONT, db.fontSize, "OUTLINE")
 
+            row.pct:ClearAllPoints()
+            row.pct:SetPoint("BOTTOM", row, "TOP", 0, 2)
+            row.pct:SetFont(DOT_FONT, db.fontSize - 1, "OUTLINE")
+
             row:Show()
         end
         dotsContainer:SetSize(#active * s + (#active - 1) * db.spacing, s)
@@ -420,6 +431,10 @@ local function dotsApplyLayout()
             row.time:SetPoint("RIGHT", row, "RIGHT", -3, 0)
             row.time:SetFont(DOT_FONT, db.fontSize, "OUTLINE")
 
+            row.pct:ClearAllPoints()
+            row.pct:SetPoint("LEFT", row, "LEFT", iconW + 4, 0)
+            row.pct:SetFont(DOT_FONT, db.fontSize - 1, "OUTLINE")
+
             row:Show()
         end
         dotsContainer:SetSize(iconW + w, #active * h + (#active - 1) * db.spacing)
@@ -443,8 +458,14 @@ local function dotsUpdateRow(row, hasTarget, preview, sp, mult)
         if remaining < 0 then remaining = 0 end
         local frac = remaining / dur
         if frac > 1 then frac = 1 end
-        local warn   = remaining <= db.warnSeconds
-        local better = (hasTarget and not preview) and dotsBetter(dot, sp, mult) or false
+        local warn = remaining <= db.warnSeconds
+        local gain
+        if preview then
+            gain = 12  -- sample value while positioning
+        elseif hasTarget and sp then
+            gain = dotsGain(dot, sp, mult)
+        end
+        local better = (gain and gain > 0.5) and true or false
 
         if remaining < 10 then
             row.time:SetText(string.format("%.1f", remaining))
@@ -458,6 +479,20 @@ local function dotsUpdateRow(row, hasTarget, preview, sp, mult)
             row.time:SetTextColor(DOT_WARN_COLOR[1], DOT_WARN_COLOR[2], DOT_WARN_COLOR[3])
         else
             row.time:SetTextColor(1, 1, 1)
+        end
+
+        -- "+12%" = a fresh cast right now hits 12% harder than the running DoT
+        -- (spell-power/damage procs vs. its snapshot). Negative = keep the DoT.
+        if db.showGain and gain and math.abs(gain) >= 1 then
+            row.pct:SetText(string.format("%+.0f%%", gain))
+            if gain > 0 then
+                row.pct:SetTextColor(DOT_GREEN[1], DOT_GREEN[2], DOT_GREEN[3])
+            else
+                row.pct:SetTextColor(0.62, 0.62, 0.68)
+            end
+            row.pct:Show()
+        else
+            row.pct:Hide()
         end
 
         row.icon:SetDesaturated(false)
@@ -493,6 +528,7 @@ local function dotsUpdateRow(row, hasTarget, preview, sp, mult)
     else
         row.time:SetText("")
         row.time:Hide()
+        row.pct:Hide()
         row.icon:SetDesaturated(true)
         row.icon:SetVertexColor(0.5, 0.5, 0.5)
         row.glow:Hide()
@@ -781,6 +817,13 @@ local function priestOptions()
     table.insert(items, { type = "toggle", label = L["Color the timer text"],
         get = function() return mod.db.dots.colorText end,
         set = function(_, v) mod.db.dots.colorText = v end })
+    table.insert(items, { type = "toggle", label = L["Show recast gain %"],
+        tooltip = L["Shows how much harder a fresh cast would hit right now (e.g. +12% with a spell power proc up). Negative values mean the running DoT snapshotted stronger — keep it."],
+        get = function() return mod.db.dots.showGain end,
+        set = function(_, v)
+            mod.db.dots.showGain = v
+            dotsRefresh()
+        end })
 
     table.insert(items, { type = "group", layout = "row", gap = 8,
         items = {

@@ -1024,6 +1024,8 @@ ns:RegisterLocale("deDE", {
     ["Bar height"] = "Balkenhöhe",
     ["Spacing"] = "Abstand",
     ["Color the timer text"] = "Timer-Text einfärben",
+    ["Show recast gain %"] = "Neucast-Gewinn in % anzeigen",
+    ["Shows how much harder a fresh cast would hit right now (e.g. +12% with a spell power proc up). Negative values mean the running DoT snapshotted stronger — keep it."] = "Zeigt, wie viel härter ein Neucast jetzt treffen würde (z. B. +12% bei aktivem Zaubermacht-Proc). Negative Werte heißen: Der laufende DoT hat stärker gesnapshottet — laufen lassen.",
     ["|cffffffffSHADOW DOTS|r"] = "|cffffffffSCHATTEN-DOTS|r",
     ["Shadow DoTs: x=%.0f, y=%.0f"] = "Schatten-DoTs: x=%.0f, y=%.0f",
     ["Shadow DoTs mover active. |cff9b6cffDrag|r or |cff9b6cffarrow keys|r (SHIFT = 5px)."] = "Schatten-DoTs-Mover aktiv. |cff9b6cffZiehen|r oder |cff9b6cffPfeiltasten|r (SHIFT = 5px).",
