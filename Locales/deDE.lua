@@ -391,6 +391,25 @@ ns:RegisterLocale("deDE", {
     ["Off (default frame)"] = "Aus (Standard-Rahmen)",
 
     -- =====================================================
+    -- FlightTimer (taxi flight duration bar)
+    -- =====================================================
+    ["Flight Timer"] = "Flugzeit",
+    ["Shows a progress bar with the duration of taxi flights. Unknown routes are learned on the first flight."] = "Zeigt eine Fortschrittsleiste mit der Dauer von Flugrouten. Unbekannte Routen werden beim ersten Flug gelernt.",
+    ["|cffaaaaaaShows a bar with destination and remaining time while on a taxi. The first flight of a route counts up and is saved; from then on you get a countdown.|r"] = "|cffaaaaaaZeigt während des Flugs eine Leiste mit Ziel und Restzeit. Der erste Flug einer Route zählt hoch und wird gespeichert; danach gibt es einen Countdown.|r",
+    ["(learning)"] = "(lernt)",
+    ["Flight: %s (%s)"] = "Flug: %s (%s)",
+    ["Print flight time to chat"] = "Flugzeit im Chat ausgeben",
+    ["After landing, prints the measured flight time."] = "Gibt nach der Landung die gemessene Flugzeit aus.",
+    ["Reset learned times"] = "Gelernte Zeiten zurücksetzen",
+    ["Deletes all saved route durations."] = "Löscht alle gespeicherten Routen-Zeiten.",
+    ["Learned flight times reset."] = "Gelernte Flugzeiten zurückgesetzt.",
+    ["|cffaaaaaaLearned routes: %d|r"] = "|cffaaaaaaGelernte Routen: %d|r",
+    ["|cffffffffFLIGHT TIME|r"] = "|cffffffffFLUGZEIT|r",
+    ["Flight timer: x=%.0f, y=%.0f"] = "Flugzeit: x=%.0f, y=%.0f",
+    ["Flight timer mover active. |cff9b6cffDrag|r or |cff9b6cffarrow keys|r (SHIFT = 5px)."] = "Flugzeit-Mover aktiv. |cff9b6cffZiehen|r oder |cff9b6cffPfeiltasten|r (SHIFT = 5px).",
+    ["Flight timer mover disabled."] = "Flugzeit-Mover deaktiviert.",
+
+    -- =====================================================
     -- LazyVulo (Apexis Relic minigame helper)
     -- =====================================================
     ["LazyVulo"] = "LazyVulo",
