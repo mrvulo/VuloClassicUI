@@ -513,17 +513,77 @@ end
 -- =========================================================
 -- Tabs are built for the current module. Default: a single tab "Settings".
 -- Modules can define mod.tabs = { {id="general", label="General"}, ... }.
+
+-- Tab buttons are pooled: frames are never garbage-collected, so each
+-- module switch must reuse them instead of abandoning the old ones.
+UI._tabPool = UI._tabPool or {}
+
+function UI:ReleaseTabs()
+    local f = UI.mainFrame
+    if not f or not f.tabs then return end
+    for _, tab in ipairs(f.tabs) do
+        tab:Hide()
+        tab:ClearAllPoints()
+        table.insert(UI._tabPool, tab)
+    end
+    f.tabs = {}
+end
+
+local function acquireTab(parentBar)
+    local tab = table.remove(UI._tabPool)
+    if tab then
+        tab:SetParent(parentBar)
+        return tab
+    end
+
+    tab = CreateFrame("Button", nil, parentBar)
+    tab:SetHeight(28)
+
+    local text = tab:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    UI.Font(text, 12)
+    text:SetPoint("CENTER", tab, "CENTER", 0, 0)
+    tab._text = text
+
+    local activeBG = tab:CreateTexture(nil, "BACKGROUND")
+    activeBG:SetAllPoints(tab)
+    activeBG:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 0.08)
+    activeBG:Hide()
+    tab._activeBG = activeBG
+
+    local underline = tab:CreateTexture(nil, "OVERLAY")
+    underline:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 1)
+    underline:SetHeight(2)
+    underline:SetPoint("BOTTOMLEFT",  tab, "BOTTOMLEFT", 6, 0)
+    underline:SetPoint("BOTTOMRIGHT", tab, "BOTTOMRIGHT", -6, 0)
+    underline:Hide()
+    tab._underline = underline
+
+    -- Scripts installed once; they read self._tabId (set per configure)
+    tab:SetScript("OnEnter", function(self)
+        if UI.currentTab ~= self._tabId then
+            self._text:SetTextColor(1, 1, 1)
+        end
+    end)
+    tab:SetScript("OnLeave", function(self)
+        if UI.currentTab ~= self._tabId then
+            local c = ns.COLORS.textDim
+            self._text:SetTextColor(c.r, c.g, c.b)
+        end
+    end)
+    tab:SetScript("OnClick", function(self)
+        UI:ShowTab(self._tabId)
+    end)
+
+    return tab
+end
+
 function UI:BuildTabsForModule(key)
     local f = UI.mainFrame
     if not f then return end
     local mod = ns.modules[key]
 
-    -- Remove old tabs
-    for _, tab in ipairs(f.tabs) do
-        tab:Hide()
-        tab:SetParent(nil)
-    end
-    f.tabs = {}
+    -- Old tabs go back into the pool
+    UI:ReleaseTabs()
 
     -- Resolve tab definitions
     local tabs = (mod and mod.tabs) or { { id = "default", label = L["Settings"] } }
@@ -549,22 +609,14 @@ function UI:BuildTabsForModule(key)
     local availW = (f.tabBar:GetWidth() or 600) - 16
 
     for i, tabDef in ipairs(tabs) do
-        local tab = CreateFrame("Button", nil, f.tabBar)
+        local tab = acquireTab(f.tabBar)
         tab:SetHeight(ROW_H)
+        tab._tabId = tabDef.id
+        tab._text:SetText(L[tabDef.label])  -- raw English key → translate live
+        tab._underline:Hide()
+        tab._activeBG:Hide()
 
-        local text = tab:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-        UI.Font(text, 12)
-        text:SetPoint("CENTER", tab, "CENTER", 0, 0)
-        text:SetText(L[tabDef.label])  -- raw English key → translate live
-
-        -- Subtle accent fill behind the active tab
-        local activeBG = tab:CreateTexture(nil, "BACKGROUND")
-        activeBG:SetAllPoints(tab)
-        activeBG:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 0.08)
-        activeBG:Hide()
-        tab._activeBG = activeBG
-
-        local tabW = math.max(60, (text:GetStringWidth() or 40) + 24)
+        local tabW = math.max(60, (tab._text:GetStringWidth() or 40) + 24)
         tab:SetWidth(tabW)
 
         -- Wrap to next row if this tab would overflow
@@ -572,34 +624,10 @@ function UI:BuildTabsForModule(key)
             row = row + 1
             x = 12
         end
+        tab:ClearAllPoints()
         tab:SetPoint("TOPLEFT", f.tabBar, "TOPLEFT", x, -(row * ROW_H) - 2)
         x = x + tabW + 4
-
-        local underline = tab:CreateTexture(nil, "OVERLAY")
-        underline:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 1)
-        underline:SetHeight(2)
-        underline:SetPoint("BOTTOMLEFT",  tab, "BOTTOMLEFT", 6, 0)
-        underline:SetPoint("BOTTOMRIGHT", tab, "BOTTOMRIGHT", -6, 0)
-        underline:Hide()
-
-        tab._underline = underline
-        tab._text      = text
-        tab._tabId     = tabDef.id
-
-        tab:SetScript("OnEnter", function()
-            if UI.currentTab ~= tabDef.id then
-                text:SetTextColor(1, 1, 1)
-            end
-        end)
-        tab:SetScript("OnLeave", function()
-            if UI.currentTab ~= tabDef.id then
-                local c = ns.COLORS.textDim
-                text:SetTextColor(c.r, c.g, c.b)
-            end
-        end)
-        tab:SetScript("OnClick", function()
-            UI:ShowTab(tabDef.id)
-        end)
+        tab:Show()
 
         table.insert(f.tabs, tab)
     end

@@ -127,15 +127,23 @@ end
 
 -- =========================================================
 -- Tooltip helper
+-- Handlers are installed ONCE and read the LIVE config: option widgets
+-- are pooled and reconfigured (frames are never garbage-collected), so
+-- per-config HookScripts would stack up on every reuse.
 -- =========================================================
-local function attachTooltip(frame, text)
+local function tooltipShow(self)
+    local cfg = self._vcConfig
+    local text = cfg and cfg.tooltip
     if not text then return end
-    frame:HookScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText(text, 1, 1, 1, 1, true)
-        GameTooltip:Show()
-    end)
-    frame:HookScript("OnLeave", function() GameTooltip:Hide() end)
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:SetText(text, 1, 1, 1, 1, true)
+    GameTooltip:Show()
+end
+local function tooltipHide() GameTooltip:Hide() end
+
+local function attachTooltip(frame)
+    frame:SetScript("OnEnter", tooltipShow)
+    frame:SetScript("OnLeave", tooltipHide)
 end
 
 -- =========================================================
@@ -183,6 +191,10 @@ end
 -- =========================================================
 -- Header (section heading in EUI style: uppercase, dimmed)
 -- =========================================================
+local function headerSetup(f, item)
+    f._label:SetText(string.upper(item.text or ""))
+end
+
 function UI:CreateHeader(parent, text)
     local f = CreateFrame("Frame", nil, parent)
     f:SetSize(480, 22)
@@ -197,7 +209,6 @@ function UI:CreateHeader(parent, text)
     local fs = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     fs:SetPoint("BOTTOMLEFT", tick, "BOTTOMRIGHT", 7, -1)
     UI.Font(fs, 12)
-    fs:SetText(string.upper(text or ""))
     fs:SetTextColor(0.92, 0.90, 0.96)
     fs:SetJustifyH("LEFT")
     f._label = fs
@@ -211,20 +222,58 @@ function UI:CreateHeader(parent, text)
         ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 0.40,
         ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 0.0)
 
+    f._vcType  = "header"
+    f._vcSetup = headerSetup
+    headerSetup(f, { text = text })
     return f
 end
 
+-- Description: a wrapper frame around the FontString so the widget can be
+-- pooled like every other option widget (regions alone can't be re-pooled
+-- cleanly across parents).
+local function descSetup(f, item)
+    f._fs:SetText(item.text or "")
+end
+
 function UI:CreateDescription(parent, text)
-    local fs = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    local f = CreateFrame("Frame", nil, parent)
+    f:SetSize(480, 20)
+
+    local fs = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     UI.Font(fs, 11)
-    fs:SetText(text or "")
+    fs:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
     local c = ns.COLORS.textDim
     fs:SetTextColor(c.r, c.g, c.b)
     fs:SetJustifyH("LEFT")
-    return fs
+    f._fs = fs
+
+    -- Width drives the wrap; the frame then adopts the wrapped text height
+    function f:SetDescWidth(w)
+        self._fs:SetWidth(w)
+        local _, h = self._fs:GetSize()
+        self:SetSize(w, math.max(18, (h or 18)))
+    end
+    function f:GetDescHeight()
+        local _, h = self._fs:GetSize()
+        return h or 18
+    end
+
+    f._vcType  = "desc"
+    f._vcSetup = descSetup
+    descSetup(f, { text = text })
+    return f
 end
 
 -- Collapsible section header: chevron + label + underline, whole row clickable.
+local function collapsibleSetup(b, title, expanded, onClick)
+    b._label:SetText(string.upper(title or ""))
+    b._label:SetTextColor(0.92, 0.90, 0.96)
+    if b._chevron.SetRotation then
+        b._chevron:SetRotation(expanded and 0 or (math.pi / 2))
+    end
+    b._vcOnClick = onClick
+end
+
 function UI:CreateCollapsibleHeader(parent, text, expanded, onClick)
     local b = CreateFrame("Button", nil, parent)
     b:SetSize(480, 24)
@@ -236,14 +285,12 @@ function UI:CreateCollapsibleHeader(parent, text, expanded, onClick)
     box:SetTexture("Interface\\Buttons\\UI-ScrollBar-ScrollDownButton-Up")
     box:SetTexCoord(0.25, 0.75, 0.30, 0.80)
     box:SetVertexColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
-    if not expanded and box.SetRotation then box:SetRotation(math.pi / 2) end
+    b._chevron = box
 
     -- Label
     local fs = b:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     fs:SetPoint("BOTTOMLEFT", box, "BOTTOMRIGHT", 6, 1)
     UI.Font(fs, 12)
-    fs:SetText(string.upper(text or ""))
-    fs:SetTextColor(0.92, 0.90, 0.96)
     b._label = fs
 
     -- Accent underline fading out to the right
@@ -255,47 +302,81 @@ function UI:CreateCollapsibleHeader(parent, text, expanded, onClick)
         ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 0.40,
         ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 0.0)
 
-    b:SetScript("OnClick", function() if onClick then onClick() end end)
-    b:SetScript("OnEnter", function() fs:SetTextColor(1, 1, 1) end)
-    b:SetScript("OnLeave", function() fs:SetTextColor(0.92, 0.90, 0.96) end)
+    b:SetScript("OnClick", function(self) if self._vcOnClick then self._vcOnClick() end end)
+    b:SetScript("OnEnter", function(self) self._label:SetTextColor(1, 1, 1) end)
+    b:SetScript("OnLeave", function(self) self._label:SetTextColor(0.92, 0.90, 0.96) end)
 
+    b._vcType  = "collapsible"
+    b._vcSetup = collapsibleSetup
+    collapsibleSetup(b, text, expanded, onClick)
     return b
 end
 
 -- =========================================================
 -- Toggle Switch (EUI style: switch left/right with purple accent)
 -- =========================================================
+local TOGGLE_W, TOGGLE_H = 36, 18
+
+local function toggleRefresh(container)
+    local cfg, btn = container._vcConfig, container._switch
+    if not cfg then return end
+    local knob, track = container._knob, container._track
+    local state = cfg.get(btn) and true or false
+    if state then
+        track:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 1)
+        knob:SetColorTexture(1, 1, 1, 1)
+        knob:ClearAllPoints()
+        knob:SetPoint("RIGHT", btn, "RIGHT", -3, 0)
+    else
+        track:SetColorTexture(ns.COLORS.toggleOff.r, ns.COLORS.toggleOff.g, ns.COLORS.toggleOff.b, 1)
+        knob:SetColorTexture(0.72, 0.72, 0.78, 1)
+        knob:ClearAllPoints()
+        knob:SetPoint("LEFT", btn, "LEFT", 3, 0)
+    end
+end
+
+local function toggleFlip(container)
+    local cfg = container._vcConfig
+    if not cfg then return end
+    local newState = not (cfg.get(container._switch) and true or false)
+    cfg.set(container._switch, newState)
+    toggleRefresh(container)
+end
+
+local function toggleSetup(container, config)
+    container._vcConfig = config
+    local label = container._label
+    label:SetText(config.label or "")
+
+    -- Container width: explicitly set, or fixed at 360 so switches end up in one column
+    -- (labels of different lengths would otherwise shift the switch X position)
+    if config.width then
+        container:SetSize(config.width, 22)
+    else
+        local labelW = label:GetStringWidth() or 0
+        container:SetSize(math.max(labelW + 16 + TOGGLE_W, 360), 22)
+    end
+    toggleRefresh(container)
+end
+
 function UI:CreateToggle(parent, config)
     local container = CreateFrame("Frame", nil, parent)
 
     -- Label on the left
     local label = container:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     UI.Font(label, 12)
-    label:SetText(config.label or "")
     label:SetPoint("LEFT", container, "LEFT", 0, 0)
     label:SetTextColor(0.95, 0.95, 0.97)
 
     -- Switch on the right (Button)
-    local switchW, switchH = 36, 18
     local btn = CreateFrame("Button", nil, container)
-    btn:SetSize(switchW, switchH)
+    btn:SetSize(TOGGLE_W, TOGGLE_H)
     btn:SetPoint("RIGHT", container, "RIGHT", 0, 0)
 
     -- Constrain the label so it truncates instead of running under the switch
     label:SetPoint("RIGHT", btn, "LEFT", -8, 0)
     label:SetJustifyH("LEFT")
     label:SetWordWrap(false)
-
-    -- Container width: explicitly set, or fixed at 360 so switches end up in one column
-    -- (labels of different lengths would otherwise shift the switch X position)
-    local explicitW = config.width
-    if explicitW then
-        container:SetSize(explicitW, 22)
-    else
-        local labelW = label:GetStringWidth() or 0
-        local needed = labelW + 16 + switchW
-        container:SetSize(math.max(needed, 360), 22)
-    end
 
     -- BG track
     local track = btn:CreateTexture(nil, "BACKGROUND")
@@ -304,11 +385,11 @@ function UI:CreateToggle(parent, config)
 
     -- Knob (with a soft shadow behind it)
     local knobShadow = btn:CreateTexture(nil, "ARTWORK", nil, 1)
-    knobShadow:SetSize(switchH - 2, switchH - 2)
+    knobShadow:SetSize(TOGGLE_H - 2, TOGGLE_H - 2)
     knobShadow:SetColorTexture(0, 0, 0, 0.30)
 
     local knob = btn:CreateTexture(nil, "ARTWORK", nil, 2)
-    knob:SetSize(switchH - 6, switchH - 6)
+    knob:SetSize(TOGGLE_H - 6, TOGGLE_H - 6)
     knob:SetColorTexture(1, 1, 1, 1)
     knobShadow:SetPoint("CENTER", knob, "CENTER", 0, -1)
 
@@ -325,45 +406,24 @@ function UI:CreateToggle(parent, config)
     borders[3]:SetPoint("TOPLEFT", btn, "TOPLEFT"); borders[3]:SetPoint("BOTTOMLEFT", btn, "BOTTOMLEFT"); borders[3]:SetWidth(1)
     borders[4]:SetPoint("TOPRIGHT", btn, "TOPRIGHT"); borders[4]:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT"); borders[4]:SetWidth(1)
 
-    local function refresh()
-        local state = config.get(btn) and true or false
-        if state then
-            track:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 1)
-            knob:SetColorTexture(1, 1, 1, 1)
-            knob:ClearAllPoints()
-            knob:SetPoint("RIGHT", btn, "RIGHT", -3, 0)
-        else
-            track:SetColorTexture(ns.COLORS.toggleOff.r, ns.COLORS.toggleOff.g, ns.COLORS.toggleOff.b, 1)
-            knob:SetColorTexture(0.72, 0.72, 0.78, 1)
-            knob:ClearAllPoints()
-            knob:SetPoint("LEFT", btn, "LEFT", 3, 0)
-        end
-    end
+    container._switch = btn
+    container._label  = label
+    container._knob   = knob
+    container._track  = track
 
-    btn:SetScript("OnClick", function()
-        local newState = not (config.get(btn) and true or false)
-        config.set(btn, newState)
-        refresh()
-    end)
+    btn:SetScript("OnClick", function(self) toggleFlip(self:GetParent()) end)
 
     -- Convenience: entire container is clickable
     container:EnableMouse(true)
     container:SetScript("OnMouseUp", function(self, button)
-        if button == "LeftButton" then
-            local newState = not (config.get(btn) and true or false)
-            config.set(btn, newState)
-            refresh()
-        end
+        if button == "LeftButton" then toggleFlip(self) end
     end)
+    attachTooltip(container)
 
-    refresh()
-
-    attachTooltip(container, config.tooltip)
     container._vcType   = "toggle"
-    container._vcConfig = config
-    container._switch   = btn
-    container._label    = label
-    container._refresh  = refresh
+    container._vcSetup  = toggleSetup
+    container._refresh  = function() toggleRefresh(container) end
+    toggleSetup(container, config)
     return container
 end
 
@@ -375,25 +435,54 @@ end
 -- =========================================================
 -- Slider (purple accent, value display on the right)
 -- =========================================================
+local function sliderUpdateFill(s, v)
+    local sMin, sMax = s._min or 0, s._max or 100
+    local frac = 0
+    if sMax > sMin then frac = (v - sMin) / (sMax - sMin) end
+    frac = math.max(0, math.min(1, frac))
+    local w = (s._trackBg:GetWidth() or s:GetWidth() or 200) * frac
+    s._trackFill:SetWidth(math.max(0.001, w))
+end
+
+local function sliderSetup(s, config)
+    s._vcConfig = config
+    s._min  = config.min or 0
+    s._max  = config.max or 100
+    s._step = config.step or 1
+
+    -- Guard: SetMinMaxValues/SetValue fire OnValueChanged — during a
+    -- (re)configure that must not write through config.set().
+    s._configuring = true
+    s:SetWidth(config.width or 200)
+    s:SetMinMaxValues(s._min, s._max)
+    s:SetValueStep(s._step)
+    if s.Text then s.Text:SetText(config.label or "") end
+    local v = config.get(s) or s._min
+    s:SetValue(v)
+    s._valueText:SetText(string.format("%g", v))
+    sliderUpdateFill(s, v)
+    s._configuring = false
+
+    -- Re-fill once the track has its real width (next frame)
+    if C_Timer and C_Timer.After then
+        C_Timer.After(0, function()
+            if s:IsShown() then sliderUpdateFill(s, s:GetValue() or s._min) end
+        end)
+    end
+end
+
 function UI:CreateSlider(parent, config)
     local s = CreateFrame("Slider", nil, parent, "OptionsSliderTemplate")
-    s:SetWidth(config.width or 200)
-    s:SetMinMaxValues(config.min or 0, config.max or 100)
-    s:SetValueStep(config.step or 1)
     s:SetObeyStepOnDrag(true)
-    s:SetValue(config.get(s) or config.min or 0)
 
     if s.Low  then s.Low:SetText("") end  -- hide min text (clean)
     if s.High then s.High:SetText("") end
     if s.Text then
         UI.Font(s.Text, 12)
-        s.Text:SetText(config.label or "")
         s.Text:SetTextColor(0.95, 0.95, 0.97)
     end
 
     local accent = ns.COLORS.accent
-    local sMin = config.min or 0
-    local sMax = config.max or 100
 
     -- Modern track: dark base bar + accent progress fill, drawn over the
     -- plain Blizzard template track. A slim white thumb sits on top.
@@ -408,14 +497,8 @@ function UI:CreateSlider(parent, config)
     trackFill:SetPoint("LEFT", trackBg, "LEFT", 0, 0)
     trackFill:SetColorTexture(accent.r, accent.g, accent.b, 0.95)
 
-    local function updateFill(v)
-        local frac = 0
-        if sMax > sMin then frac = (v - sMin) / (sMax - sMin) end
-        frac = math.max(0, math.min(1, frac))
-        local w = (trackBg:GetWidth() or (config.width or 200)) * frac
-        trackFill:SetWidth(math.max(0.001, w))
-    end
-    s._updateFill = updateFill
+    s._trackBg, s._trackFill = trackBg, trackFill
+    s._updateFill = function(v) sliderUpdateFill(s, v) end
 
     -- Slimmer accent thumb
     local thumb = s:GetThumbTexture()
@@ -425,8 +508,6 @@ function UI:CreateSlider(parent, config)
     end
 
     -- Value display + clickable ± buttons (SHIFT = 5x step)
-    local stepSize = config.step or 1
-
     local function makeStepButton(label, dir)
         local b = CreateFrame("Button", nil, s)
         b:SetSize(16, 16)
@@ -446,7 +527,7 @@ function UI:CreateSlider(parent, config)
         b:RegisterForClicks("LeftButtonUp")
         b:SetScript("OnClick", function()
             local mult = IsShiftKeyDown() and 5 or 1
-            s:SetValue(s:GetValue() + dir * stepSize * mult)
+            s:SetValue(s:GetValue() + dir * (s._step or 1) * mult)
         end)
         return b
     end
@@ -459,31 +540,27 @@ function UI:CreateSlider(parent, config)
     valueText:SetPoint("LEFT", minusBtn, "RIGHT", 4, 0)
     valueText:SetWidth(36)
     valueText:SetJustifyH("CENTER")
-    local current = config.get(s) or 0
-    valueText:SetText(string.format("%g", current))
+    s._valueText = valueText
 
     local plusBtn = makeStepButton("+", 1)
     plusBtn:SetPoint("LEFT", valueText, "RIGHT", 4, 0)
 
     s:SetScript("OnValueChanged", function(self, v)
-        if config.step and config.step >= 1 then
+        local cfg = self._vcConfig
+        if not cfg then return end
+        if cfg.step and cfg.step >= 1 then
             v = math.floor(v + 0.5)
         end
-        valueText:SetText(string.format("%g", v))
-        updateFill(v)
-        config.set(self, v)
+        self._valueText:SetText(string.format("%g", v))
+        sliderUpdateFill(self, v)
+        if self._configuring then return end
+        cfg.set(self, v)
     end)
 
-    -- Initial fill (defer one frame so the track has its real width)
-    updateFill(config.get(s) or sMin)
-    if C_Timer and C_Timer.After then
-        C_Timer.After(0, function() updateFill(s:GetValue() or sMin) end)
-    end
-
-    attachTooltip(s, config.tooltip)
-    s._vcType   = "slider"
-    s._vcConfig = config
-    s._valueText = valueText
+    attachTooltip(s)
+    s._vcType  = "slider"
+    s._vcSetup = sliderSetup
+    sliderSetup(s, config)
     return s
 end
 
@@ -622,29 +699,37 @@ local function openPopup(button, config)
     p:Show()
 end
 
+local function dropdownSetup(container, config)
+    container._vcConfig = config
+    container:SetSize(config.width or 160, config.label and 46 or 26)
+    local btn, label = container._button, container._label
+    btn:ClearAllPoints()
+    if config.label then
+        label:SetText(config.label)
+        label:Show()
+        btn:SetPoint("BOTTOMLEFT",  container, "BOTTOMLEFT",  0, 0)
+        btn:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", 0, 0)
+    else
+        label:Hide()
+        btn:SetAllPoints(container)
+    end
+    btn._refresh()
+end
+
 function UI:CreateDropdown(parent, config)
     local container = CreateFrame("Frame", nil, parent)
-    container:SetSize(config.width or 160, config.label and 46 or 26)
 
-    -- Optional label on top
-    if config.label then
-        local label = container:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-        UI.Font(label, 12)
-        label:SetPoint("TOPLEFT", container, "TOPLEFT", 0, 0)
-        label:SetText(config.label)
-        label:SetTextColor(0.95, 0.95, 0.97)
-        container._label = label
-    end
+    -- Label on top (always created; shown only when configured)
+    local label = container:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    UI.Font(label, 12)
+    label:SetPoint("TOPLEFT", container, "TOPLEFT", 0, 0)
+    label:SetTextColor(0.95, 0.95, 0.97)
+    container._label = label
 
     -- Actual button
     local btn = CreateFrame("Button", nil, container)
     btn:SetHeight(26)
-    if config.label then
-        btn:SetPoint("BOTTOMLEFT",  container, "BOTTOMLEFT",  0, 0)
-        btn:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", 0, 0)
-    else
-        btn:SetAllPoints(container)
-    end
+    container._button = btn
 
     -- BG
     local bg = btn:CreateTexture(nil, "BACKGROUND")
@@ -696,8 +781,10 @@ function UI:CreateDropdown(parent, config)
     btn._setText = setText
 
     local function refresh()
-        local current = config.get(btn)
-        for _, opt in ipairs(config.values or {}) do
+        local cfg = container._vcConfig
+        if not cfg then return end
+        local current = cfg.get(btn)
+        for _, opt in ipairs(cfg.values or {}) do
             if opt.value == current then
                 setText(L[opt.text])
                 return
@@ -706,10 +793,18 @@ function UI:CreateDropdown(parent, config)
         setText(tostring(current or ""))
     end
     btn._refresh = refresh
-    refresh()
 
-    btn:SetScript("OnEnter", function() setHovered(true) end)
+    btn:SetScript("OnEnter", function(self)
+        setHovered(true)
+        local cfg = container._vcConfig
+        if cfg and cfg.tooltip then
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:SetText(cfg.tooltip, 1, 1, 1, 1, true)
+            GameTooltip:Show()
+        end
+    end)
     btn:SetScript("OnLeave", function()
+        GameTooltip:Hide()
         if not (activePopup and activePopup:IsShown() and activePopup._owner == btn) then
             setHovered(false)
         end
@@ -720,42 +815,65 @@ function UI:CreateDropdown(parent, config)
             closeActivePopup()
         else
             closeActivePopup()
-            openPopup(self, config)
+            openPopup(self, container._vcConfig or {})
             setHovered(true)
         end
     end)
 
-    attachTooltip(btn, config.tooltip)
-    container._vcType   = "dropdown"
-    container._vcConfig = config
-    container._button   = btn
+    container._vcType  = "dropdown"
+    container._vcSetup = dropdownSetup
+    dropdownSetup(container, config)
     return container
 end
 
 -- =========================================================
 -- EditBox
 -- =========================================================
+local function editboxSetup(container, config)
+    container._vcConfig = config
+    local label, eb = container._labelFS, container._editBox
+
+    if config.label and config.label ~= "" then
+        label:SetText(config.label)
+        label:Show()
+        local labelW = label:GetStringWidth() or 0
+        local totalW = config.width or (labelW + 12 + 140)
+        local editW  = config.editWidth or (totalW - labelW - 12)
+        if editW < 40 then editW = 40 end
+        container:SetWidth(labelW + 12 + editW)
+        eb:ClearAllPoints()
+        eb:SetPoint("LEFT", label, "RIGHT", 12, 0)
+        eb:SetWidth(editW)
+    else
+        label:Hide()
+        container:SetWidth(config.width or 160)
+        eb:ClearAllPoints()
+        eb:SetPoint("LEFT", container, "LEFT", 0, 0)
+        eb:SetWidth(config.width or 160)
+    end
+
+    eb:ClearFocus()
+    eb:SetText(tostring(config.get(eb) or ""))
+end
+
 function UI:CreateEditBox(parent, config)
     local container = CreateFrame("Frame", nil, parent)
     container:SetHeight(26)
 
-    -- Label to the LEFT of the edit field (instead of above)
-    local label, eb
-    if config.label and config.label ~= "" then
-        label = container:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-        UI.Font(label, 12)
-        label:SetPoint("LEFT", container, "LEFT", 0, 0)
-        label:SetText(config.label)
-        label:SetTextColor(0.95, 0.95, 0.97)
-    end
+    -- Label to the LEFT of the edit field (always created; hidden if unused)
+    local label = container:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    UI.Font(label, 12)
+    label:SetPoint("LEFT", container, "LEFT", 0, 0)
+    label:SetTextColor(0.95, 0.95, 0.97)
+    container._labelFS = label
 
     -- Edit field (rectangular, custom style — NO InputBoxTemplate)
-    eb = CreateFrame("EditBox", nil, container)
+    local eb = CreateFrame("EditBox", nil, container)
     eb:SetHeight(22)
     eb:SetAutoFocus(false)
     eb:SetFont(FONT_PATH, 12, "")
     eb:SetTextInsets(8, 8, 0, 0)  -- inner padding left/right
-    eb:SetText(tostring(config.get(eb) or ""))
+    container._editBox = eb
 
     -- Background (dark purple tinted)
     local bg = eb:CreateTexture(nil, "BACKGROUND")
@@ -790,49 +908,53 @@ function UI:CreateEditBox(parent, config)
         end
     end)
 
-    if label then
-        -- config.width = desired TOTAL width (label + gap + editbox)
-        local labelW = label:GetStringWidth() or 0
-        local totalW = config.width or (labelW + 12 + 140)
-        local editW  = config.editWidth or (totalW - labelW - 12)
-        if editW < 40 then editW = 40 end
-
-        container:SetWidth(labelW + 12 + editW)
-        eb:SetPoint("LEFT", label, "RIGHT", 12, 0)
-        eb:SetWidth(editW)
-    else
-        -- No label: edit field fills the container
-        container:SetWidth(config.width or 160)
-        eb:SetPoint("LEFT",  container, "LEFT",  0, 0)
-        eb:SetWidth(config.width or 160)
-    end
-
     eb:SetScript("OnEnterPressed", function(self)
+        local cfg = container._vcConfig
+        if not cfg then self:ClearFocus(); return end
         local v = self:GetText()
-        if config.numeric then v = tonumber(v) end
-        config.set(self, v)
+        if cfg.numeric then v = tonumber(v) end
+        cfg.set(self, v)
         self:ClearFocus()
     end)
     eb:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
 
-    attachTooltip(container, config.tooltip)
-    container._vcType   = "editbox"
-    container._vcConfig = config
-    container._editBox  = eb
+    attachTooltip(container)
+    container._vcType  = "editbox"
+    container._vcSetup = editboxSetup
+    editboxSetup(container, config)
     return container
 end
 
 -- =========================================================
 -- Button (clean, with accent hover)
 -- =========================================================
+local function buttonApplyIdle(b)
+    local cfg = b._vcConfig
+    if cfg and cfg.primary then
+        b._bg:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 1)
+        b._setBorder(ns.COLORS.accent)
+        b._textFS:SetTextColor(1, 1, 1)
+    else
+        b._bg:SetColorTexture(0.13, 0.13, 0.16, 1)
+        b._setBorder(ns.COLORS.border)
+        b._textFS:SetTextColor(0.95, 0.95, 0.97)
+    end
+end
+
+local function buttonSetup(b, config)
+    b._vcConfig = config
+    b:SetSize(config.width or 120, config.height or 24)
+    b._textFS:SetText(config.label or "")
+    buttonApplyIdle(b)
+end
+
 function UI:CreateButton(parent, config)
     local b = CreateFrame("Button", nil, parent)
-    b:SetSize(config.width or 120, config.height or 24)
 
     -- BG
     local bg = b:CreateTexture(nil, "BACKGROUND")
     bg:SetAllPoints(b)
-    bg:SetColorTexture(0.13, 0.13, 0.16, 1)
+    b._bg = bg
 
     -- Border (thin)
     local borderColor = ns.COLORS.border
@@ -847,7 +969,7 @@ function UI:CreateButton(parent, config)
     borders[3]:SetPoint("TOPLEFT", b, "TOPLEFT"); borders[3]:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT"); borders[3]:SetWidth(1)
     borders[4]:SetPoint("TOPRIGHT", b, "TOPRIGHT"); borders[4]:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT"); borders[4]:SetWidth(1)
 
-    local function setBorder(c, a)
+    b._setBorder = function(c, a)
         for _, bt in ipairs(borders) do bt:SetColorTexture(c.r, c.g, c.b, a or 1) end
     end
 
@@ -855,55 +977,44 @@ function UI:CreateButton(parent, config)
     local text = b:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     UI.Font(text, 12)
     text:SetPoint("CENTER", b, "CENTER", 0, 0)
-    text:SetText(config.label or "")
-    text:SetTextColor(0.95, 0.95, 0.97)
-
-    -- Accent variant (primary button)
-    if config.primary then
-        bg:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 1)
-        setBorder(ns.COLORS.accent)
-        text:SetTextColor(1, 1, 1)
-    end
+    b._textFS = text
 
     -- Hover effect (accent border for secondary buttons)
-    b:SetScript("OnEnter", function()
-        if config.primary then
+    b:SetScript("OnEnter", function(self)
+        local cfg = self._vcConfig
+        if cfg and cfg.primary then
             bg:SetColorTexture(ns.COLORS.accent.r * 1.15, ns.COLORS.accent.g * 1.15, ns.COLORS.accent.b * 1.15, 1)
         else
             bg:SetColorTexture(0.19, 0.19, 0.23, 1)
-            setBorder(ns.COLORS.accent, 0.8)
+            self._setBorder(ns.COLORS.accent, 0.8)
         end
-        if config.tooltip then
-            GameTooltip:SetOwner(b, "ANCHOR_RIGHT")
-            GameTooltip:SetText(config.tooltip, 1, 1, 1, 1, true)
+        if cfg and cfg.tooltip then
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:SetText(cfg.tooltip, 1, 1, 1, 1, true)
             GameTooltip:Show()
         end
     end)
-    b:SetScript("OnLeave", function()
-        if config.primary then
-            bg:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 1)
-        else
-            bg:SetColorTexture(0.13, 0.13, 0.16, 1)
-            setBorder(ns.COLORS.border)
-        end
+    b:SetScript("OnLeave", function(self)
+        buttonApplyIdle(self)
         GameTooltip:Hide()
     end)
 
     -- Subtle press feedback: nudge the label 1px down
-    b:SetScript("OnMouseDown", function()
-        text:SetPoint("CENTER", b, "CENTER", 0, -1)
+    b:SetScript("OnMouseDown", function(self)
+        self._textFS:SetPoint("CENTER", self, "CENTER", 0, -1)
     end)
-    b:SetScript("OnMouseUp", function()
-        text:SetPoint("CENTER", b, "CENTER", 0, 0)
+    b:SetScript("OnMouseUp", function(self)
+        self._textFS:SetPoint("CENTER", self, "CENTER", 0, 0)
     end)
 
     b:SetScript("OnClick", function(self)
-        if config.onClick then config.onClick(self) end
+        local cfg = self._vcConfig
+        if cfg and cfg.onClick then cfg.onClick(self) end
     end)
 
-    b._vcType   = "button"
-    b._vcConfig = config
-    b._textFS   = text
+    b._vcType  = "button"
+    b._vcSetup = buttonSetup
+    buttonSetup(b, config)
     return b
 end
 
@@ -920,9 +1031,26 @@ local BUILTIN_ICONS = {
     down  = { tex = "Interface\\Buttons\\Arrow-Up-Up", tc = {0, 1, 1, 0} },   -- vertical flip
 }
 
+local function iconButtonSetup(b, config)
+    b._vcConfig = config
+    b:SetSize(config.width or 24, config.height or 24)
+    local icon = b._icon
+    icon:SetSize((config.width or 24) - 10, (config.height or 24) - 10)
+    icon:SetVertexColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
+
+    local iconKey = config.icon
+    local builtin = iconKey and BUILTIN_ICONS[iconKey]
+    if builtin then
+        icon:SetTexture(builtin.tex)
+        icon:SetTexCoord(unpack(builtin.tc))
+    else
+        icon:SetTexCoord(0, 1, 0, 1)
+        if iconKey then icon:SetTexture(iconKey) end
+    end
+end
+
 function UI:CreateIconButton(parent, config)
     local b = CreateFrame("Button", nil, parent)
-    b:SetSize(config.width or 24, config.height or 24)
 
     -- Background
     local bg = b:CreateTexture(nil, "BACKGROUND")
@@ -944,26 +1072,17 @@ function UI:CreateIconButton(parent, config)
 
     -- Icon texture (slightly larger, centered)
     local icon = b:CreateTexture(nil, "ARTWORK")
-    icon:SetSize((config.width or 24) - 10, (config.height or 24) - 10)
     icon:SetPoint("CENTER", b, "CENTER", 0, 0)
-    icon:SetVertexColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
-
-    local iconKey = config.icon
-    local builtin = iconKey and BUILTIN_ICONS[iconKey]
-    if builtin then
-        icon:SetTexture(builtin.tex)
-        icon:SetTexCoord(unpack(builtin.tc))
-    elseif iconKey then
-        icon:SetTexture(iconKey)
-    end
+    b._icon = icon
 
     -- Hover
-    b:SetScript("OnEnter", function()
+    b:SetScript("OnEnter", function(self)
         bg:SetColorTexture(0.22, 0.22, 0.26, 1)
         icon:SetVertexColor(1, 1, 1)
-        if config.tooltip then
-            GameTooltip:SetOwner(b, "ANCHOR_RIGHT")
-            GameTooltip:SetText(config.tooltip, 1, 1, 1, 1, true)
+        local cfg = self._vcConfig
+        if cfg and cfg.tooltip then
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:SetText(cfg.tooltip, 1, 1, 1, 1, true)
             GameTooltip:Show()
         end
     end)
@@ -973,10 +1092,13 @@ function UI:CreateIconButton(parent, config)
         GameTooltip:Hide()
     end)
     b:SetScript("OnClick", function(self)
-        if config.onClick then config.onClick(self) end
+        local cfg = self._vcConfig
+        if cfg and cfg.onClick then cfg.onClick(self) end
     end)
 
-    b._vcType = "iconbutton"
+    b._vcType  = "iconbutton"
+    b._vcSetup = iconButtonSetup
+    iconButtonSetup(b, config)
     return b
 end
 

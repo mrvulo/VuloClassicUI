@@ -23,10 +23,15 @@ local GROUP_ORDER = { "Global", "Unit Frames", "PvP", "QoL", "UI Reskin", "Bugfi
 local HIDDEN_GROUPS = { ["_hidden"] = true, ["Account"] = true, ["Core"] = true }
 
 local function clearDashboard(parent)
-    -- Clear module-page leftovers from the shared scroll child — but KEEP the
-    -- pooled dashboard container: its cards/headers are reused on every visit
-    -- (WoW frames are never garbage-collected; recreating ~40 cards per visit
-    -- would leak memory permanently).
+    -- Module pages leave POOLED option widgets on the shared scroll child:
+    -- route the clear through the OptionsBuilder so they are released back
+    -- into their pools (it also keeps our persistent dashboard container,
+    -- merely hiding it — ShowDashboard re-shows it right after).
+    if UI.ClearOptionsChildren then
+        UI.ClearOptionsChildren(parent)
+        return
+    end
+    -- Fallback (OptionsBuilder not loaded yet): old detach behaviour
     for _, child in ipairs({ parent:GetChildren() }) do
         if child ~= UI._dashContainer then
             child:Hide()
@@ -185,11 +190,8 @@ function UI:ShowDashboard()
 
     -- Hide the tab bar; content fills the whole right pane (like a no-tab module)
     if f.tabBar then f.tabBar:Hide() end
-    -- Remove any leftover tab buttons
-    if f.tabs then
-        for _, tab in ipairs(f.tabs) do tab:Hide(); tab:SetParent(nil) end
-        f.tabs = {}
-    end
+    -- Leftover tab buttons go back into the pool
+    if UI.ReleaseTabs then UI:ReleaseTabs() end
     f.content:ClearAllPoints()
     f.content:SetPoint("TOPLEFT",     f.sidebar, "TOPRIGHT",  1, 0)
     f.content:SetPoint("BOTTOMRIGHT", f,         "BOTTOMRIGHT", 0, 44)

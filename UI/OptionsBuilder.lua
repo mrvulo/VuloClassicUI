@@ -22,12 +22,52 @@ local L = ns.L
 local CONTENT_PADDING = 14
 local SECTION_GAP     = 12
 
+-- =========================================================
+-- Widget pooling
+-- WoW frames are never garbage-collected, so rebuilding a page must not
+-- create fresh widgets each time. On clear, widgets go back into
+-- type-keyed pools (parked under a hidden host); on build they are
+-- reconfigured via their _vcSetup instead of recreated.
+-- =========================================================
+local poolHost = CreateFrame("Frame")
+poolHost:Hide()
+local pools = {}
+
+local function acquire(vctype, parent)
+    local p = pools[vctype]
+    local w = p and table.remove(p)
+    if w then
+        w:SetParent(parent)
+        w:Show()
+    end
+    return w
+end
+
+local function release(w)
+    local t = w._vcType
+    if not t or not w._vcSetup then return false end
+    w:Hide()
+    w:ClearAllPoints()
+    w:SetParent(poolHost)
+    pools[t] = pools[t] or {}
+    table.insert(pools[t], w)
+    return true
+end
+
+-- Clears a page: pooled widgets are released for reuse; the dashboard's
+-- persistent container is only hidden; anything else detaches as before.
 local function clearChildren(parent)
     local kids = { parent:GetChildren() }
     for _, k in ipairs(kids) do
-        k:Hide()
-        k:SetParent(nil)
-        k:ClearAllPoints()
+        if not release(k) then
+            if k == UI._dashContainer then
+                k:Hide()
+            else
+                k:Hide()
+                k:SetParent(nil)
+                k:ClearAllPoints()
+            end
+        end
     end
     local regions = { parent:GetRegions() }
     for _, r in ipairs(regions) do
@@ -36,30 +76,61 @@ local function clearChildren(parent)
         r:ClearAllPoints()
     end
 end
+UI.ClearOptionsChildren = clearChildren  -- shared with the dashboard
+
+-- Acquire a pooled widget of the type or create a fresh one
+local function obtain(vctype, parent, item, factory)
+    local w = acquire(vctype, parent)
+    if w then
+        w:_vcSetup(item)
+        return w
+    end
+    return factory()
+end
 
 local function createWidget(parent, item)
     local t = item.type
     if t == "header" then
-        return UI:CreateHeader(parent, item.text or ""), 26, 480
+        local w = obtain("header", parent, item, function()
+            return UI:CreateHeader(parent, item.text or "")
+        end)
+        return w, 26, 480
     elseif t == "desc" then
-        local fs = UI:CreateDescription(parent, item.text or "")
-        fs:SetWidth(item.width or 480)
-        local _, h = fs:GetSize()
-        return fs, math.max(20, (h or 18) + 4), item.width or 480
+        local w = obtain("desc", parent, item, function()
+            return UI:CreateDescription(parent, item.text or "")
+        end)
+        w:SetDescWidth(item.width or 480)
+        return w, math.max(20, w:GetDescHeight() + 4), item.width or 480
     elseif t == "checkbox" or t == "toggle" then
-        local w = UI:CreateToggle(parent, item)
+        local w = obtain("toggle", parent, item, function()
+            return UI:CreateToggle(parent, item)
+        end)
         return w, 26, w:GetWidth() or 260
     elseif t == "slider" then
-        return UI:CreateSlider(parent, item), 38, 280
+        local w = obtain("slider", parent, item, function()
+            return UI:CreateSlider(parent, item)
+        end)
+        return w, 38, 280
     elseif t == "dropdown" then
-        return UI:CreateDropdown(parent, item), item.label and 50 or 32, item.width or 200
+        local w = obtain("dropdown", parent, item, function()
+            return UI:CreateDropdown(parent, item)
+        end)
+        return w, item.label and 50 or 32, item.width or 200
     elseif t == "editbox" then
-        local w = UI:CreateEditBox(parent, item)
+        local w = obtain("editbox", parent, item, function()
+            return UI:CreateEditBox(parent, item)
+        end)
         return w, 28, w:GetWidth() or 160
     elseif t == "button" then
-        return UI:CreateButton(parent, item), 30, item.width or 120
+        local w = obtain("button", parent, item, function()
+            return UI:CreateButton(parent, item)
+        end)
+        return w, 30, item.width or 120
     elseif t == "iconbutton" then
-        return UI:CreateIconButton(parent, item), 28, item.width or 28
+        local w = obtain("iconbutton", parent, item, function()
+            return UI:CreateIconButton(parent, item)
+        end)
+        return w, 28, item.width or 28
     end
     return nil, 0, 0
 end
@@ -92,10 +163,16 @@ local function placeSection(parent, section, y)
 
     y = y - 10  -- breathing room above
 
-    local hdr = UI:CreateCollapsibleHeader(parent, title, not collapsed, function()
+    local onClick = function()
         UI.sectionCollapsed[stateKey] = not collapsed
         UI:BuildOptionsPage(UI._currentBuildKey, UI.currentTab)
-    end)
+    end
+    local hdr = acquire("collapsible", parent)
+    if hdr then
+        hdr:_vcSetup(title, not collapsed, onClick)
+    else
+        hdr = UI:CreateCollapsibleHeader(parent, title, not collapsed, onClick)
+    end
     hdr:SetPoint("TOPLEFT", parent, "TOPLEFT", CONTENT_PADDING, y)
     y = y - 26
 
@@ -212,13 +289,15 @@ function UI:BuildOptionsPage(key, tabId)
 
     -- Module description on top (small, dim) — mod.description is a raw English key
     if mod.description and mod.description ~= "" then
-        local desc = UI:CreateDescription(parent, L[mod.description])
-        desc:SetPoint("TOPLEFT", parent, "TOPLEFT", CONTENT_PADDING, y)
         local pw = parent:GetWidth()
         if not pw or pw < 100 then pw = 540 end
-        desc:SetWidth(pw - 2 * CONTENT_PADDING)
-        local _, descH = desc:GetSize()
-        y = y - math.max(20, (descH or 18) + 8)
+        local desc = createWidget(parent, {
+            type  = "desc",
+            text  = L[mod.description],
+            width = pw - 2 * CONTENT_PADDING,
+        })
+        desc:SetPoint("TOPLEFT", parent, "TOPLEFT", CONTENT_PADDING, y)
+        y = y - math.max(20, desc:GetDescHeight() + 8)
     end
 
     -- Fetch options, optionally with tabId
