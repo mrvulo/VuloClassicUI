@@ -626,6 +626,7 @@ local function ftStop(recordIt)
         end
     end
     ftFlight = nil
+    ftDB().inFlight = nil  -- persisted reload-resume marker
     if ftBar then ftBar:Hide() end
 end
 
@@ -678,6 +679,9 @@ local function ftOnTakeTaxi(slot)
         -- measured time first, shipped default as fallback
         known = ftDB().times[key] or ftDefaultTime(src, dst),
     }
+    -- Persist for /reload mid-flight: epoch-stamped so the elapsed time
+    -- keeps running while the UI is away (the flight itself continues).
+    ftDB().inFlight = { src = src, dst = dst, key = key, start = time() }
 
     -- /vcuiflug: dump exactly what the resolver sees (route DB debugging)
     if ftDB().debug then
@@ -721,6 +725,29 @@ local function ftOnControlGained()
 end
 
 local function ftOnWorldEnter()
+    -- Resume after /reload mid-flight: restore the bar with the elapsed
+    -- time reconstructed from the persisted epoch departure stamp.
+    local saved = ftDB().inFlight
+    if not ftFlight and saved then
+        if UnitOnTaxi("player") then
+            local elapsed = math.max(0, time() - (saved.start or time()))
+            ftFlight = {
+                src   = saved.src,
+                dst   = saved.dst,
+                key   = saved.key,
+                t0    = GetTime() - elapsed,
+                known = ftDB().times[saved.key] or ftDefaultTime(saved.src, saved.dst),
+            }
+            ftBuildBar()
+            ftBar.label:SetText(ftShort(saved.dst))
+            ftBar:Show()
+        else
+            -- Landed (or logged out) while the UI was away: the true landing
+            -- moment is unknown -> discard instead of recording a wrong time.
+            ftDB().inFlight = nil
+        end
+    end
+
     if ftFlight and not UnitOnTaxi("player") then
         local dur = GetTime() - ftFlight.t0
         ftStop(dur > 5)
