@@ -189,6 +189,7 @@ local function createGroupHeader(parent, groupName)
     fs:SetText(string.upper(L[groupName]))
     local c = ns.COLORS.sectionHdr
     fs:SetTextColor(c.r, c.g, c.b)
+    h._label = fs
 
     -- Thin separator line under the header, fading out to the right
     local line = h:CreateTexture(nil, "ARTWORK")
@@ -235,65 +236,69 @@ function UI:PopulateSidebar()
     if not f then return end
     local parent = f.sidebarContent
 
-    -- Clean up old children
+    -- Frames are POOLED and reused across opens: WoW frames are never
+    -- garbage-collected, so recreating ~40 rows on every open would leak
+    -- memory permanently. Hide everything, then re-show what's needed.
     if UI._sidebarChildren then
-        for _, c in ipairs(UI._sidebarChildren) do
-            c:Hide()
-            c:SetParent(nil)
-        end
+        for _, c in ipairs(UI._sidebarChildren) do c:Hide() end
     end
     UI._sidebarChildren = {}
-    UI.sidebarButtons   = {}
+    UI._sidebarHeaders  = UI._sidebarHeaders or {}
+    UI.sidebarButtons   = UI.sidebarButtons or {}
 
     rebuildBuckets()
 
     local y = 0
 
-    -- "Overview" entry at the very top → opens the dashboard
+    -- "Overview" entry at the very top → opens the dashboard (built once)
     do
-        local row = CreateFrame("Button", nil, parent)
-        row:SetHeight(ROW_HEIGHT)
+        local row = UI._dashRow
+        if not row then
+            row = CreateFrame("Button", nil, parent)
+            row:SetHeight(ROW_HEIGHT)
+
+            local bg = row:CreateTexture(nil, "BACKGROUND")
+            bg:SetAllPoints(row)
+            ns.UI.SetGradient(bg, "HORIZONTAL",
+                ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 0.26,
+                ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 0.02)
+            bg:Hide()
+            row.bg = bg
+
+            local accentBar = row:CreateTexture(nil, "ARTWORK")
+            accentBar:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 0)
+            accentBar:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 0, 0)
+            accentBar:SetWidth(3)
+            accentBar:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 1)
+            accentBar:Hide()
+            row.accentBar = accentBar
+
+            local hover = row:CreateTexture(nil, "HIGHLIGHT")
+            hover:SetAllPoints(row)
+            hover:SetColorTexture(1, 1, 1, 0.05)
+
+            local icon = row:CreateTexture(nil, "ARTWORK")
+            icon:SetSize(16, 16)
+            icon:SetPoint("LEFT", row, "LEFT", 8, 0)
+            icon:SetTexture("Interface\\Icons\\INV_Misc_Book_03")
+            icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+
+            local label = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+            ns.UI.Font(label, 12)
+            label:SetPoint("LEFT", icon, "RIGHT", 7, 0)
+            row.label = label
+
+            row:SetScript("OnClick", function()
+                if UI.ShowDashboard then UI:ShowDashboard() end
+            end)
+            UI._dashRow = row
+        end
+        row.label:SetText(L["Overview"])  -- re-set: locale can change live
+        row:ClearAllPoints()
         row:SetPoint("TOPLEFT",  parent, "TOPLEFT",  0, -y)
         row:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, -y)
-
-        local bg = row:CreateTexture(nil, "BACKGROUND")
-        bg:SetAllPoints(row)
-        ns.UI.SetGradient(bg, "HORIZONTAL",
-            ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 0.26,
-            ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 0.02)
-        bg:Hide()
-        row.bg = bg
-
-        local accentBar = row:CreateTexture(nil, "ARTWORK")
-        accentBar:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 0)
-        accentBar:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 0, 0)
-        accentBar:SetWidth(3)
-        accentBar:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 1)
-        accentBar:Hide()
-        row.accentBar = accentBar
-
-        local hover = row:CreateTexture(nil, "HIGHLIGHT")
-        hover:SetAllPoints(row)
-        hover:SetColorTexture(1, 1, 1, 0.05)
-
-        local icon = row:CreateTexture(nil, "ARTWORK")
-        icon:SetSize(16, 16)
-        icon:SetPoint("LEFT", row, "LEFT", 8, 0)
-        icon:SetTexture("Interface\\Icons\\INV_Misc_Book_03")
-        icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-
-        local label = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-        ns.UI.Font(label, 12)
-        label:SetPoint("LEFT", icon, "RIGHT", 7, 0)
-        label:SetText(L["Overview"])
-
-        row:SetScript("OnClick", function()
-            if UI.ShowDashboard then UI:ShowDashboard() end
-        end)
-
-        UI._sidebarChildren = UI._sidebarChildren or {}
+        row:Show()
         table.insert(UI._sidebarChildren, row)
-        UI._dashRow = row
         y = y + ROW_HEIGHT + GROUP_GAP
     end
 
@@ -301,21 +306,34 @@ function UI:PopulateSidebar()
         local moduleKeys = UI.sidebarGroupBuckets[groupName]
         local hidden = UI.sidebarHiddenGroups and UI.sidebarHiddenGroups[groupName]
         if moduleKeys and #moduleKeys > 0 and not hidden then
-            -- Group header
-            local header = createGroupHeader(parent, groupName)
+            -- Group header (pooled per group name)
+            local header = UI._sidebarHeaders[groupName]
+            if not header then
+                header = createGroupHeader(parent, groupName)
+                UI._sidebarHeaders[groupName] = header
+            end
+            if header._label then header._label:SetText(string.upper(L[groupName])) end
+            header:ClearAllPoints()
             header:SetPoint("TOPLEFT",  parent, "TOPLEFT",   0, -y)
             header:SetPoint("TOPRIGHT", parent, "TOPRIGHT",  0, -y)
+            header:Show()
             table.insert(UI._sidebarChildren, header)
             y = y + GROUP_HEADER_H
 
-            -- Module rows
+            -- Module rows (pooled per module key)
             for _, key in ipairs(moduleKeys) do
                 local mod = ns.modules[key]
-                local row = createModuleRow(parent, key, mod)
+                local row = UI.sidebarButtons[key]
+                if not row then
+                    row = createModuleRow(parent, key, mod)
+                    UI.sidebarButtons[key] = row
+                end
+                row.label:SetText(L[mod.name])
+                row:ClearAllPoints()
                 row:SetPoint("TOPLEFT",  parent, "TOPLEFT",   0, -y)
                 row:SetPoint("TOPRIGHT", parent, "TOPRIGHT",  0, -y)
+                row:Show()
                 table.insert(UI._sidebarChildren, row)
-                UI.sidebarButtons[key] = row
                 y = y + ROW_HEIGHT
             end
 

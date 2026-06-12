@@ -112,43 +112,10 @@ local TRACKED_EVENTS = {
     SPELL_PERIODIC_DAMAGE = "damage",
 }
 
-local function onCLEU()
-    if not vtSpellName then return end
-    if not playerGUID then
-        playerGUID = UnitGUID("player")
-        if not playerGUID then return end
-    end
-
-    -- Cheap pre-filter: read only source + subevent, bail before the full
-    -- destructure for anything that isn't our tracked event from us.
-    local _, subEvent, _, sourceGUID = CombatLogGetCurrentEventInfo()
-    if sourceGUID ~= playerGUID then return end
-    local kind = TRACKED_EVENTS[subEvent]
-    if not kind then return end
-
-    local _, _, _, _, _, _, _, destGUID, _, _, _,
-          _, spellName, _, amount, _, school = CombatLogGetCurrentEventInfo()
-
-    if kind == "apply" then
-        if spellName == vtSpellName then
-            vtTargets[destGUID] = true
-            lastTick = 0
-        end
-    elseif kind == "remove" then
-        if spellName == vtSpellName then
-            vtTargets[destGUID] = nil
-            totalMana = totalMana + lastTick
-            updateFrame()
-        end
-    else -- "damage"
-        if vtTargets[destGUID] and amount and amount > 0 and school == SHADOW_SCHOOL then
-            local mana = amount * 0.05
-            totalMana = totalMana + mana
-            lastTick  = mana
-            updateFrame()
-        end
-    end
-end
+-- NOTE: combat-log handling lives in onCombatLog further down — ONE shared
+-- handler for VT mana AND the DoT snapshots. The combat log is the hottest
+-- event there is; two separate handlers would destructure every log line
+-- twice (dispatch + CombatLogGetCurrentEventInfo each).
 
 -- =========================================================
 -- Frame + mover
@@ -239,7 +206,15 @@ local function dotsCurrentPower()
 end
 
 -- Product of active caster-side % spell-damage buffs (1.0 if none).
+-- Cached: scanning 40 player buffs 10x/second from OnUpdate is wasted work —
+-- the value only changes on UNIT_AURA("player"), so recompute it there.
+local dotsMultCache = 1
+
 local function dotsDamageMult()
+    return dotsMultCache
+end
+
+local function dotsRecomputeMult()
     local m = 1
     for i = 1, 40 do
         local name, _, _, _, _, _, _, _, _, spellId = UnitAura("player", i, "HELPFUL")
@@ -247,7 +222,11 @@ local function dotsDamageMult()
         local b = spellId and DOT_DMG_BUFFS[spellId]
         if b then m = m * b end
     end
-    return m
+    dotsMultCache = m
+end
+
+local function dotsOnUnitAura(_, unit)
+    if unit == "player" then dotsRecomputeMult() end
 end
 
 -- Estimated DoT damage = (base + spellpower * coef) * % damage multiplier.
@@ -269,48 +248,93 @@ local function dotsGain(dot, sp, mult)
     return (dotsFactor(dot, sp, mult) / snap - 1) * 100
 end
 
--- Record the spell-power snapshot when we (re)apply a tracked DoT, and drop it
--- again when the DoT falls off (or the target dies). Keeps dotsSnapshots from
--- growing unbounded and prevents stale snapshots on recycled GUIDs.
-local function dotsOnCLEU()
-    if not playerGUID then return end
-    local _, sub, _, srcGUID, _, _, _, destGUID, _, _, _, _, spellName =
-        CombatLogGetCurrentEventInfo()
-    if srcGUID ~= playerGUID then return end
-    local apply  = (sub == "SPELL_AURA_APPLIED" or sub == "SPELL_AURA_REFRESH")
-    local remove = (sub == "SPELL_AURA_REMOVED")
-    if not (apply or remove) then return end
-    for _, dot in ipairs(dotDefs) do
-        if dot.name and spellName == dot.name then
-            dotsSnapshots[destGUID .. dot.key] =
-                apply and dotsFactor(dot, dotsCurrentPower(), dotsDamageMult()) or nil
-            return
+-- ONE combat-log handler for both trackers. VT mana: count shadow damage on
+-- VT'd targets (5% -> mana). DoT snapshots: record the spell-power estimate
+-- when a tracked DoT is (re)applied, drop it when it falls off — keeps
+-- dotsSnapshots from growing unbounded and avoids stale recycled GUIDs.
+local function onCombatLog()
+    if not playerGUID then
+        playerGUID = UnitGUID("player")
+        if not playerGUID then return end
+    end
+
+    -- Cheap pre-filter: read only subevent + source, bail before the full
+    -- destructure for anything that isn't ours.
+    local _, subEvent, _, sourceGUID = CombatLogGetCurrentEventInfo()
+    if sourceGUID ~= playerGUID then return end
+
+    local kind   = vtSpellName and TRACKED_EVENTS[subEvent]
+    local apply  = (subEvent == "SPELL_AURA_APPLIED" or subEvent == "SPELL_AURA_REFRESH")
+    local remove = (subEvent == "SPELL_AURA_REMOVED")
+    if not kind and not apply and not remove then return end
+
+    local _, _, _, _, _, _, _, destGUID, _, _, _,
+          _, spellName, _, amount, _, school = CombatLogGetCurrentEventInfo()
+
+    -- VT mana tracking
+    if kind == "apply" then
+        if spellName == vtSpellName then
+            vtTargets[destGUID] = true
+            lastTick = 0
+        end
+    elseif kind == "remove" then
+        if spellName == vtSpellName then
+            vtTargets[destGUID] = nil
+            totalMana = totalMana + lastTick
+            updateFrame()
+        end
+    elseif kind then -- "damage"
+        if vtTargets[destGUID] and amount and amount > 0 and school == SHADOW_SCHOOL then
+            local mana = amount * 0.05
+            totalMana = totalMana + mana
+            lastTick  = mana
+            updateFrame()
+        end
+    end
+
+    -- DoT snapshots
+    if apply or remove then
+        for _, dot in ipairs(dotDefs) do
+            if dot.name and spellName == dot.name then
+                dotsSnapshots[destGUID .. dot.key] =
+                    apply and dotsFactor(dot, dotsCurrentPower(), dotsDamageMult()) or nil
+                return
+            end
         end
     end
 end
 
+local dotsWanted  = {}   -- spell name -> true (the DoTs we track)
+local dotsAuraDur = {}   -- spell name -> duration   (refreshed per scan)
+local dotsAuraExp = {}   -- spell name -> expiration
+
 local function dotsRefreshSpellData()
+    for k in pairs(dotsWanted) do dotsWanted[k] = nil end
     for _, dot in ipairs(dotDefs) do
         local n, _, icon = GetSpellInfo(dot.id)
         dot.name = n
         dot.icon = icon
+        if n then dotsWanted[n] = true end
         if dotsRows[dot.key] and icon then
             dotsRows[dot.key].icon:SetTexture(icon)
         end
     end
 end
 
--- Find the player's own debuff by name; verify caster == "player".
-local function dotsFindAura(unit, name)
-    if not name then return nil end
+-- ONE pass over the target's debuffs for ALL tracked DoTs (instead of one
+-- 40-slot scan per row per tick). Results land in the reused name-keyed
+-- tables — no per-tick table allocations, no GC churn.
+local function dotsScanTarget()
+    for k in pairs(dotsAuraDur) do dotsAuraDur[k] = nil end
+    for k in pairs(dotsAuraExp) do dotsAuraExp[k] = nil end
     for i = 1, 40 do
-        local aName, _, _, _, dur, exp, source = UnitAura(unit, i, "HARMFUL")
-        if not aName then return nil end
-        if aName == name and source == "player" then
-            return dur, exp
+        local aName, _, _, _, dur, exp, source = UnitAura("target", i, "HARMFUL")
+        if not aName then break end
+        if source == "player" and dotsWanted[aName] then
+            dotsAuraDur[aName] = dur
+            dotsAuraExp[aName] = exp
         end
     end
-    return nil
 end
 
 local function dotsCreateRow(dot)
@@ -449,8 +473,8 @@ local function dotsUpdateRow(row, hasTarget, preview, sp, mult)
     if preview then
         dur = 10
         exp = GetTime() + (dot.key == "vt" and 7 or 10)
-    elseif hasTarget then
-        dur, exp = dotsFindAura("target", dot.name)
+    elseif hasTarget and dot.name then
+        dur, exp = dotsAuraDur[dot.name], dotsAuraExp[dot.name]
     end
 
     if dur and exp and dur > 0 then
@@ -565,6 +589,7 @@ local function dotsRefresh()
     end
 
     dotsContainer:Show()
+    dotsScanTarget()  -- one debuff pass for all rows
     local sp, mult = dotsCurrentPower(), dotsDamageMult()
     for _, dot in ipairs(dotDefs) do
         local row = dotsRows[dot.key]
@@ -656,7 +681,7 @@ function mod:OnEnable()
     createFrame()
     if mod.db.showFrame then cFrame:Show() else cFrame:Hide() end
 
-    ns:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", onCLEU)
+    ns:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", onCombatLog)
     ns:RegisterEvent("PLAYER_REGEN_DISABLED",       resetCombat)
     ns:RegisterEvent("PLAYER_REGEN_ENABLED",        reportChat)
     ns:RegisterEvent("PLAYER_ENTERING_WORLD",       resetCombat)
@@ -677,15 +702,16 @@ function mod:OnEnable()
 
     dotsBuild()
     dotsContainer:SetScript("OnUpdate", dotsOnUpdate)
-    ns:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", dotsOnCLEU)
+    ns:RegisterEvent("UNIT_AURA",             dotsOnUnitAura)
     ns:RegisterEvent("SPELLS_CHANGED",        dotsRefreshSpellData)
     ns:RegisterEvent("PLAYER_TARGET_CHANGED", dotsRefresh)
     ns:RegisterEvent("PLAYER_ENTERING_WORLD", dotsRefresh)
+    dotsRecomputeMult()
     dotsRefresh()
 end
 
 function mod:OnDisable()
-    ns:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED", onCLEU)
+    ns:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED", onCombatLog)
     ns:UnregisterEvent("PLAYER_REGEN_DISABLED",       resetCombat)
     ns:UnregisterEvent("PLAYER_REGEN_ENABLED",        reportChat)
     ns:UnregisterEvent("PLAYER_ENTERING_WORLD",       resetCombat)
@@ -693,7 +719,7 @@ function mod:OnDisable()
     if cFrame then cFrame:Hide() end
 
     -- Shadow DoT tracker
-    ns:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED", dotsOnCLEU)
+    ns:UnregisterEvent("UNIT_AURA",             dotsOnUnitAura)
     ns:UnregisterEvent("SPELLS_CHANGED",        dotsRefreshSpellData)
     ns:UnregisterEvent("PLAYER_TARGET_CHANGED", dotsRefresh)
     ns:UnregisterEvent("PLAYER_ENTERING_WORLD", dotsRefresh)

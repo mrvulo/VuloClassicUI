@@ -708,6 +708,16 @@ local function onInspectReady(_, guid)
     pendingInspectUnit = nil
     if not unit or not UnitExists(unit) then return end
 
+    -- Prune expired entries while we're here — the cache would otherwise
+    -- grow for the whole session (one entry per player ever moused over).
+    local now = GetTime()
+    for g, d in pairs(inspectCache) do
+        if d.expiry <= now then inspectCache[g] = nil end
+    end
+    for g, exp in pairs(inspectFail) do
+        if exp <= now then inspectFail[g] = nil end
+    end
+
     local talents = computeTalents(true)
     local ilvl, complete = computeAverageILvl(unit)
     inspectCache[guid] = {

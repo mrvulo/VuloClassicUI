@@ -22,23 +22,23 @@ UI.DASHBOARD_KEY = "__dashboard__"
 local GROUP_ORDER = { "Global", "Unit Frames", "PvP", "QoL", "UI Reskin", "Bugfixes" }
 local HIDDEN_GROUPS = { ["_hidden"] = true, ["Account"] = true, ["Core"] = true }
 
-UI._dashChildren = {}
-
 local function clearDashboard(parent)
-    -- Clear ALL children + regions of the scroll child, not just our tracked
-    -- cards — the previous module's content frames live here too and would
-    -- otherwise overlap the dashboard.
+    -- Clear module-page leftovers from the shared scroll child — but KEEP the
+    -- pooled dashboard container: its cards/headers are reused on every visit
+    -- (WoW frames are never garbage-collected; recreating ~40 cards per visit
+    -- would leak memory permanently).
     for _, child in ipairs({ parent:GetChildren() }) do
-        child:Hide()
-        child:SetParent(nil)
-        child:ClearAllPoints()
+        if child ~= UI._dashContainer then
+            child:Hide()
+            child:SetParent(nil)
+            child:ClearAllPoints()
+        end
     end
     for _, r in ipairs({ parent:GetRegions() }) do
         if r.SetText then r:SetText("") end
         r:Hide()
         r:ClearAllPoints()
     end
-    UI._dashChildren = {}
 end
 
 -- =========================================================
@@ -202,15 +202,39 @@ function UI:ShowDashboard()
     -- Reflect selection in the sidebar (deselect all module rows)
     if UI.RefreshSidebarStates then UI:RefreshSidebarStates() end
 
+    -- Persistent container: cards/headers live inside and are reused. Module
+    -- pages orphan it from the scroll child (SetParent(nil)) — re-adopt it.
+    local cont = UI._dashContainer
+    if not cont then
+        cont = CreateFrame("Frame", nil, parent)
+        UI._dashContainer = cont
+        UI._dashCards     = {}
+        UI._dashHeaders   = {}
+
+        cont.title = cont:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+        UI.Font(cont.title, 16)
+        cont.title:SetTextColor(0.92, 0.90, 0.96)
+
+        cont.summary = cont:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        UI.Font(cont.summary, 11)
+        cont.summary:SetPoint("LEFT", cont.title, "RIGHT", 12, -1)
+        cont.summary:SetTextColor(ns.COLORS.textDim.r, ns.COLORS.textDim.g, ns.COLORS.textDim.b)
+    end
+    cont:SetParent(parent)
+    cont:ClearAllPoints()
+    cont:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, 0)
+    cont:SetPoint("RIGHT", parent, "RIGHT", 0, 0)
+    cont:Show()
+
+    -- Hide pooled pieces from the previous visit, then re-lay-out
+    for _, c in pairs(UI._dashCards) do c:Hide() end
+    for _, h in pairs(UI._dashHeaders) do h:Hide() end
+
     local y = -10
 
-    -- Title + summary
-    local title = parent:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    UI.Font(title, 16)
-    title:SetPoint("TOPLEFT", parent, "TOPLEFT", PAD, y)
-    title:SetText(L["Overview"])
-    title:SetTextColor(0.92, 0.90, 0.96)
-    table.insert(UI._dashChildren, title)
+    cont.title:ClearAllPoints()
+    cont.title:SetPoint("TOPLEFT", cont, "TOPLEFT", PAD, y)
+    cont.title:SetText(L["Overview"])
 
     -- Count active modules
     local total, active = 0, 0
@@ -221,13 +245,7 @@ function UI:ShowDashboard()
             if m.db and m.db.enabled then active = active + 1 end
         end
     end
-
-    local summary = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    UI.Font(summary, 11)
-    summary:SetPoint("LEFT", title, "RIGHT", 12, -1)
-    summary:SetText(string.format(L["%d of %d modules active"], active, total))
-    summary:SetTextColor(ns.COLORS.textDim.r, ns.COLORS.textDim.g, ns.COLORS.textDim.b)
-    table.insert(UI._dashChildren, summary)
+    cont.summary:SetText(string.format(L["%d of %d modules active"], active, total))
 
     y = y - 30
 
@@ -252,29 +270,38 @@ function UI:ShowDashboard()
         if not seen[g] then table.insert(order, g) end
     end
 
-    -- Render each group: a section label, then a grid of cards
+    -- Render each group: a section label, then a grid of cards (all pooled)
     for _, g in ipairs(order) do
         local keys = buckets[g]
         if keys and #keys > 0 then
-            -- Group label (muted — accent is reserved for active states)
-            local hdr = parent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-            UI.Font(hdr, 10)
-            hdr:SetPoint("TOPLEFT", parent, "TOPLEFT", PAD, y)
+            local hdr = UI._dashHeaders[g]
+            if not hdr then
+                hdr = cont:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+                UI.Font(hdr, 10)
+                hdr:SetTextColor(ns.COLORS.sectionHdr.r, ns.COLORS.sectionHdr.g, ns.COLORS.sectionHdr.b)
+                UI._dashHeaders[g] = hdr
+            end
             hdr:SetText(string.upper(L[g]))
-            hdr:SetTextColor(ns.COLORS.sectionHdr.r, ns.COLORS.sectionHdr.g, ns.COLORS.sectionHdr.b)
-            table.insert(UI._dashChildren, hdr)
+            hdr:ClearAllPoints()
+            hdr:SetPoint("TOPLEFT", cont, "TOPLEFT", PAD, y)
+            hdr:Show()
             y = y - 20
 
-            -- Cards grid
             for i, key in ipairs(keys) do
                 local mod = ns.modules[key]
-                local card = createCard(parent, key, mod)
+                local card = UI._dashCards[key]
+                if not card then
+                    card = createCard(cont, key, mod)
+                    UI._dashCards[key] = card
+                end
+                if card._refresh then card._refresh() end
                 local col = (i - 1) % COLS
                 local row = math.floor((i - 1) / COLS)
-                card:SetPoint("TOPLEFT", parent, "TOPLEFT",
+                card:ClearAllPoints()
+                card:SetPoint("TOPLEFT", cont, "TOPLEFT",
                     PAD + col * (CARD_W + CARD_GAP_X),
                     y - row * (CARD_H + CARD_GAP_Y))
-                table.insert(UI._dashChildren, card)
+                card:Show()
             end
 
             local rows = math.ceil(#keys / COLS)
@@ -282,5 +309,6 @@ function UI:ShowDashboard()
         end
     end
 
+    cont:SetHeight(math.max(-y + 20, 100))
     parent:SetHeight(math.max(-y + 20, 100))
 end
