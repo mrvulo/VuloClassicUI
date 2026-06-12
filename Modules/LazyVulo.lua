@@ -43,15 +43,25 @@ local REPRISAL_ID   = 40065
 local SELF_FLAGS    = 0x511  -- mine + friendly + player-controlled + player
 
 local RELIC_COLORS = {
-    { label = "Green relic",  icon = "Interface\\Icons\\Spell_Shadow_AntiMagicShell" },
-    { label = "Yellow relic", icon = "Interface\\Icons\\Spell_Holy_Retribution"     },
-    { label = "Blue relic",   icon = "Interface\\Icons\\Spell_Fire_BlueFlameRing"   },
-    { label = "Red relic",    icon = "Interface\\Icons\\Spell_Fire_Burnout"         },
+    { label = "Green relic",  r = 0.10, g = 0.85, b = 0.15 },
+    { label = "Yellow relic", r = 1.00, g = 0.85, b = 0.10 },
+    { label = "Blue relic",   r = 0.15, g = 0.45, b = 1.00 },
+    { label = "Red relic",    r = 0.95, g = 0.15, b = 0.10 },
+}
+
+-- Record buttons as a 2x2 grid mirroring the in-game crystal layout:
+-- top-left RED, top-right GREEN, bottom-left BLUE, bottom-right YELLOW.
+-- (keyed by color index: 1=green 2=yellow 3=blue 4=red)
+local RECORD_POS = {
+    [4] = { 60, 42 },   -- red    -> top-left
+    [1] = { 94, 42 },   -- green  -> top-right
+    [3] = { 60,  8 },   -- blue   -> bottom-left
+    [2] = { 94,  8 },   -- yellow -> bottom-right
 }
 
 local MAX_SHOWN = 12   -- queue icons drawn (overflow shows "+N")
 local FRAME_W   = 184
-local FRAME_H   = 138
+local FRAME_H   = 166
 
 -- =========================================================
 -- State
@@ -164,18 +174,27 @@ local function attachHelpTooltip(btn)
     btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
 end
 
+-- Plain color square with a thin dark rim (clearer than spell icons)
 local function makeIconButton(parent, name, size)
     local b = CreateFrame("Button", name, parent)
     b:SetSize(size, size)
+    b.rim = b:CreateTexture(nil, "BACKGROUND")
+    b.rim:SetAllPoints(b)
+    b.rim:SetColorTexture(0.02, 0.02, 0.03, 1)
     b.tex = b:CreateTexture(nil, "ARTWORK")
-    b.tex:SetAllPoints(b)
-    b.tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    b.tex:SetPoint("TOPLEFT", b, "TOPLEFT", 1, -1)
+    b.tex:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -1, 1)
     local hl = b:CreateTexture(nil, "HIGHLIGHT")
     hl:SetAllPoints(b)
-    hl:SetColorTexture(1, 1, 1, 0.15)
+    hl:SetColorTexture(1, 1, 1, 0.18)
     b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     attachHelpTooltip(b)
     return b
+end
+
+local function setButtonColor(b, colorIndex)
+    local c = RELIC_COLORS[colorIndex]
+    if c then b.tex:SetColorTexture(c.r, c.g, c.b, 1) end
 end
 
 local function onQueueClick(self, button)
@@ -262,21 +281,22 @@ local function buildFrame()
     f.overflow:SetPoint("TOPLEFT", f, "TOPLEFT", 8 + 6 * 26, -68)
     f.overflow:SetText("")
 
-    -- Record buttons (the four relic colors)
+    -- Record buttons: 2x2 grid in the in-game crystal arrangement
     for i, c in ipairs(RELIC_COLORS) do
         local b = makeIconButton(f, "VCUI_LazyVuloRecord" .. i, 30)
-        b:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 23 + (i - 1) * 36, 8)
-        b.tex:SetTexture(c.icon)
+        local pos = RECORD_POS[i]
+        b:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", pos[1], pos[2])
+        setButtonColor(b, i)
         b.toolHeader = L[c.label]
         b:SetScript("OnClick", function() recordColor(i) end)
         f["record" .. i] = b
     end
 
-    -- Separator above the record row
+    -- Separator above the record grid
     local sep = f:CreateTexture(nil, "ARTWORK")
     sep:SetColorTexture(ns.COLORS.border.r, ns.COLORS.border.g, ns.COLORS.border.b, 0.6)
-    sep:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 6, 44)
-    sep:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -6, 44)
+    sep:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 6, 78)
+    sep:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -6, 78)
     sep:SetHeight(1)
 
     -- Watch Introspection refreshes while shown (0.1s poll, like a HOT tick)
@@ -339,7 +359,7 @@ updateQueue = function()
     for i = 1, MAX_SHOWN do
         local b, color = f.slots[i], queue[i]
         if color then
-            b.tex:SetTexture(RELIC_COLORS[color].icon)
+            setButtonColor(b, color)
             b.toolHeader = L[RELIC_COLORS[color].label]
             b:Show()
         else
