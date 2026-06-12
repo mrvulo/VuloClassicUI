@@ -511,6 +511,21 @@ local function ftShort(name)
     return name:match("^(.-),") or name
 end
 
+-- Default duration from the shipped route database (FlightTimesDB.lua).
+-- German client names are mapped to the English keys; locally learned
+-- times always win over these defaults.
+local function ftDefaultTime(src, dst)
+    local db = ns.FLIGHT_TIMES
+    if not db then return nil end
+    local faction = UnitFactionGroup and UnitFactionGroup("player")
+    local routes = faction and db[faction]
+    if not routes then return nil end
+    local de = ns.FLIGHT_NODE_DE or {}
+    local s = ftShort(src); s = de[s] or s
+    local d = ftShort(dst); d = de[d] or d
+    return routes[s] and routes[s][d] or nil
+end
+
 local FT_INSET = 4   -- fill sits inside the tooltip border
 
 local function ftSetFill(frac)
@@ -659,7 +674,8 @@ local function ftOnTakeTaxi(slot)
         dst   = dst,
         key   = key,
         t0    = GetTime(),
-        known = ftDB().times[key],
+        -- measured time first, shipped default as fallback
+        known = ftDB().times[key] or ftDefaultTime(src, dst),
     }
 
     ftBuildBar()
