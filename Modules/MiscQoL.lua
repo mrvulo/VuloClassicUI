@@ -511,53 +511,72 @@ local function ftShort(name)
     return name:match("^(.-),") or name
 end
 
+local FT_INSET = 4   -- fill sits inside the tooltip border
+
 local function ftSetFill(frac)
     frac = math.max(0, math.min(1, frac or 0))
-    local w = (ftDB().barWidth - 2) * frac
-    ftBar.fill:SetWidth(math.max(1, w))
+    local w = (ftDB().barWidth - FT_INSET * 2) * frac
+    if w < 1 then
+        ftBar.fill:Hide()
+        ftBar.spark:Hide()
+    else
+        ftBar.fill:SetWidth(w)
+        ftBar.fill:Show()
+        if frac > 0.02 and frac < 0.98 then
+            ftBar.spark:Show()
+        else
+            ftBar.spark:Hide()
+        end
+    end
 end
 
 local function ftBuildBar()
     if ftBar then return ftBar end
     local d = ftDB()
 
-    ftBar = CreateFrame("Frame", "VCUI_FlightTimer", UIParent)
+    -- InFlight-style: tooltip border + dark backdrop, glossy blue fill
+    ftBar = CreateFrame("Frame", "VCUI_FlightTimer", UIParent,
+        BackdropTemplateMixin and "BackdropTemplate")
     ftBar:SetSize(d.barWidth, d.barHeight)
     ftBar:SetPoint("CENTER", UIParent, "CENTER", d.x, d.y)
     ftBar:SetFrameStrata("MEDIUM")
     ftBar:Hide()
 
-    ftBar.bg = ftBar:CreateTexture(nil, "BACKGROUND")
-    ftBar.bg:SetAllPoints(ftBar)
-    ftBar.bg:SetColorTexture(0.06, 0.06, 0.08, 0.9)
-
-    ftBar.fill = ftBar:CreateTexture(nil, "ARTWORK")
-    ftBar.fill:SetPoint("TOPLEFT", ftBar, "TOPLEFT", 1, -1)
-    ftBar.fill:SetPoint("BOTTOMLEFT", ftBar, "BOTTOMLEFT", 1, 1)
-    ftBar.fill:SetWidth(1)
-    ftBar.fill:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 0.9)
-
-    local bc = ns.COLORS.borderDark or { r = 0.02, g = 0.02, b = 0.03 }
-    for _, side in ipairs({ "TOP", "BOTTOM", "LEFT", "RIGHT" }) do
-        local t = ftBar:CreateTexture(nil, "BORDER")
-        t:SetColorTexture(bc.r, bc.g, bc.b, 1)
-        if side == "TOP" or side == "BOTTOM" then
-            t:SetPoint(side .. "LEFT"); t:SetPoint(side .. "RIGHT"); t:SetHeight(1)
-        else
-            t:SetPoint("TOP" .. side); t:SetPoint("BOTTOM" .. side); t:SetWidth(1)
-        end
+    if ftBar.SetBackdrop then
+        ftBar:SetBackdrop({
+            bgFile   = "Interface\\Tooltips\\UI-Tooltip-Background",
+            edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+            tile = true, tileSize = 16, edgeSize = 12,
+            insets = { left = 3, right = 3, top = 3, bottom = 3 },
+        })
+        ftBar:SetBackdropColor(0.04, 0.04, 0.10, 0.85)
+        ftBar:SetBackdropBorderColor(0.85, 0.85, 0.90, 1)
     end
 
+    ftBar.fill = ftBar:CreateTexture(nil, "ARTWORK")
+    ftBar.fill:SetPoint("TOPLEFT", ftBar, "TOPLEFT", FT_INSET, -FT_INSET)
+    ftBar.fill:SetPoint("BOTTOMLEFT", ftBar, "BOTTOMLEFT", FT_INSET, FT_INSET)
+    ftBar.fill:SetTexture("Interface\\AddOns\\VuloClassicUI\\Media\\textures\\glass.tga")
+    ftBar.fill:SetVertexColor(0.35, 0.50, 0.80, 0.95)
+    ftBar.fill:Hide()
+
+    ftBar.spark = ftBar:CreateTexture(nil, "OVERLAY")
+    ftBar.spark:SetTexture("Interface\\CastingBar\\UI-CastingBar-Spark")
+    ftBar.spark:SetBlendMode("ADD")
+    ftBar.spark:SetSize(14, d.barHeight + 8)
+    ftBar.spark:SetPoint("CENTER", ftBar.fill, "RIGHT", 0, 0)
+    ftBar.spark:Hide()
+
     ftBar.label = ftBar:CreateFontString(nil, "OVERLAY")
-    ftBar.label:SetFont(FT_FONT, 11, "OUTLINE")
-    ftBar.label:SetPoint("LEFT", ftBar, "LEFT", 5, 0)
-    ftBar.label:SetPoint("RIGHT", ftBar, "RIGHT", -52, 0)
+    ftBar.label:SetFont(FT_FONT, 12, "OUTLINE")
+    ftBar.label:SetPoint("LEFT", ftBar, "LEFT", 7, 0)
+    ftBar.label:SetPoint("RIGHT", ftBar, "RIGHT", -84, 0)
     ftBar.label:SetJustifyH("LEFT")
     ftBar.label:SetWordWrap(false)
 
     ftBar.time = ftBar:CreateFontString(nil, "OVERLAY")
-    ftBar.time:SetFont(FT_FONT, 11, "OUTLINE")
-    ftBar.time:SetPoint("RIGHT", ftBar, "RIGHT", -5, 0)
+    ftBar.time:SetFont(FT_FONT, 12, "OUTLINE")
+    ftBar.time:SetPoint("RIGHT", ftBar, "RIGHT", -7, 0)
     ftBar.time:SetJustifyH("RIGHT")
 
     ftBar.mover = ns:CreateMover(ftBar, {
@@ -574,7 +593,9 @@ local function ftBuildBar()
 end
 
 local function ftApplySize()
-    if ftBar then ftBar:SetSize(ftDB().barWidth, ftDB().barHeight) end
+    if not ftBar then return end
+    ftBar:SetSize(ftDB().barWidth, ftDB().barHeight)
+    ftBar.spark:SetSize(14, ftDB().barHeight + 8)
 end
 
 local function ftStop(recordIt)
@@ -609,17 +630,13 @@ local function ftOnUpdate(_, elapsed)
     end
 
     if ftFlight.known and ftFlight.known > 0 then
-        -- Known route: the bar DRAINS towards arrival
-        local remaining = ftFlight.known - elapsedT
-        if remaining < 0 then remaining = 0 end
-        ftSetFill(remaining / ftFlight.known)
-        ftBar.fill:SetAlpha(0.9)
-        ftBar.time:SetText(ftFmt(remaining))
+        -- Known route: bar fills towards arrival, "elapsed / total" readout
+        ftSetFill(elapsedT / ftFlight.known)
+        ftBar.time:SetText(ftFmt(math.min(elapsedT, ftFlight.known)) .. " / " .. ftFmt(ftFlight.known))
     else
-        -- Learning flight: no total yet -> full bar with a soft pulse
-        ftSetFill(1)
-        ftBar.fill:SetAlpha(0.45 + 0.25 * math.sin(GetTime() * 4))
-        ftBar.time:SetText(ftFmt(elapsedT) .. " " .. L["(learning)"])
+        -- Learning flight: no total yet -> empty bar, counting "1:58 / ?"
+        ftSetFill(0)
+        ftBar.time:SetText(ftFmt(elapsedT) .. " / ?")
     end
 end
 
@@ -647,9 +664,12 @@ local function ftOnTakeTaxi(slot)
 
     ftBuildBar()
     ftBar.label:SetText(ftShort(dst))
-    ftBar.time:SetText(ftFlight.known and ftFmt(ftFlight.known) or L["(learning)"])
-    ftBar.fill:SetAlpha(0.9)
-    ftSetFill(ftFlight.known and 1 or 1)
+    if ftFlight.known then
+        ftBar.time:SetText("0:00 / " .. ftFmt(ftFlight.known))
+    else
+        ftBar.time:SetText("0:00 / ?")
+    end
+    ftSetFill(0)
     ftBar:Show()
 
     -- The click can fail (no money, combat...): if we never took off,
@@ -681,9 +701,8 @@ local function ftSetUnlocked(state)
     ftBuildBar()
     if state then
         ftBar.label:SetText(L["Flight Timer"])
-        ftBar.time:SetText("1:23")
-        ftBar.fill:SetAlpha(0.9)
-        ftSetFill(0.45)
+        ftBar.time:SetText("1:58 / 5:05")
+        ftSetFill(0.4)
         ftBar:Show()
         ftBar.mover:Show()
         ns:Print(L["Flight timer mover active. |cff9b6cffDrag|r or |cff9b6cffarrow keys|r (SHIFT = 5px)."])
