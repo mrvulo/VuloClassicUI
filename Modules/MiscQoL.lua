@@ -508,7 +508,8 @@ end
 
 local function ftShort(name)
     if not name then return "?" end
-    return name:match("^(.-),") or name
+    local short = name:match("^%s*(.-)%s*,") or name
+    return (short:gsub("^%s+", ""):gsub("%s+$", ""))
 end
 
 -- Default duration from the shipped route database (FlightTimesDB.lua).
@@ -678,6 +679,20 @@ local function ftOnTakeTaxi(slot)
         known = ftDB().times[key] or ftDefaultTime(src, dst),
     }
 
+    -- /vcuiflug: dump exactly what the resolver sees (route DB debugging)
+    if ftDB().debug then
+        local de = ns.FLIGHT_NODE_DE or {}
+        local s = ftShort(src); local se = de[s] or s
+        local d2 = ftShort(dst); local de2 = de[d2] or d2
+        local fac = (UnitFactionGroup and UnitFactionGroup("player")) or "?"
+        local hit = ns.FLIGHT_TIMES and ns.FLIGHT_TIMES[fac]
+            and ns.FLIGHT_TIMES[fac][se] and ns.FLIGHT_TIMES[fac][se][de2]
+        ns:Print("Flugdebug: src='" .. tostring(src) .. "' -> '" .. s .. "' -> '" .. se
+            .. "' | dst='" .. tostring(dst) .. "' -> '" .. d2 .. "' -> '" .. de2
+            .. "' | " .. fac .. " | DB=" .. tostring(hit)
+            .. " | gelernt=" .. tostring(ftDB().times[key]))
+    end
+
     ftBuildBar()
     ftBar.label:SetText(ftShort(dst))
     if ftFlight.known then
@@ -727,6 +742,15 @@ local function ftSetUnlocked(state)
         if not (ftFlight and UnitOnTaxi("player")) then ftBar:Hide() end
         ns:Print(L["Flight timer mover disabled."])
     end
+end
+
+-- Debug toggle for the route resolver (prints details on each taxi click)
+SLASH_VCUIFLUG1 = "/vcuiflug"
+SlashCmdList.VCUIFLUG = function()
+    local d = mod.db and mod.db.flight
+    if not d then return end
+    d.debug = not d.debug
+    ns:Print("Flugdebug: " .. (d.debug and "AN — nimm einen Flug, dann steht die Auflösung im Chat." or "aus"))
 end
 
 local ftTaxiHooked = false
