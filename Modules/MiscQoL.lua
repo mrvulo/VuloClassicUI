@@ -38,6 +38,17 @@ local mod = ns:RegisterModule("miscqol", {
         mailTextSize          = 13,
         questTextSize         = 14,
         bookTextSize          = 14,
+        -- Flight timer (taxi duration bar)
+        flight = {
+            enabled    = true,
+            chatReport = false,
+            barWidth   = 240,
+            barHeight  = 18,
+            x          = 0,
+            y          = 280,
+            unlocked   = false,
+            times      = {},   -- "source @ destination" -> seconds (learned)
+        },
     },
 })
 
@@ -473,6 +484,239 @@ local function applyAllVisibility()
 end
 
 -- =========================================================
+-- Flight timer: progress bar for taxi flights (gryphon & co.)
+-- Hooks TakeTaxiNode for source/destination, learns each route's
+-- duration and shows a DRAINING countdown bar on known routes.
+-- Strictly taxi-only: visibility is tied to UnitOnTaxi, so it can
+-- never stick around while you ride your own mount.
+-- =========================================================
+local FT_FONT = "Fonts\\FRIZQT__.TTF"
+local ftBar
+local ftFlight            -- { src, dst, key, t0, known } while flying
+local ftThrottle = 0
+
+local function ftDB() return mod.db.flight end
+
+local function ftFmt(s)
+    s = math.max(0, math.floor(s + 0.5))
+    return string.format("%d:%02d", math.floor(s / 60), s % 60)
+end
+
+local function ftRouteKey(src, dst)
+    return (src or "?") .. " @ " .. (dst or "?")
+end
+
+local function ftShort(name)
+    if not name then return "?" end
+    return name:match("^(.-),") or name
+end
+
+local function ftSetFill(frac)
+    frac = math.max(0, math.min(1, frac or 0))
+    local w = (ftDB().barWidth - 2) * frac
+    ftBar.fill:SetWidth(math.max(1, w))
+end
+
+local function ftBuildBar()
+    if ftBar then return ftBar end
+    local d = ftDB()
+
+    ftBar = CreateFrame("Frame", "VCUI_FlightTimer", UIParent)
+    ftBar:SetSize(d.barWidth, d.barHeight)
+    ftBar:SetPoint("CENTER", UIParent, "CENTER", d.x, d.y)
+    ftBar:SetFrameStrata("MEDIUM")
+    ftBar:Hide()
+
+    ftBar.bg = ftBar:CreateTexture(nil, "BACKGROUND")
+    ftBar.bg:SetAllPoints(ftBar)
+    ftBar.bg:SetColorTexture(0.06, 0.06, 0.08, 0.9)
+
+    ftBar.fill = ftBar:CreateTexture(nil, "ARTWORK")
+    ftBar.fill:SetPoint("TOPLEFT", ftBar, "TOPLEFT", 1, -1)
+    ftBar.fill:SetPoint("BOTTOMLEFT", ftBar, "BOTTOMLEFT", 1, 1)
+    ftBar.fill:SetWidth(1)
+    ftBar.fill:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 0.9)
+
+    local bc = ns.COLORS.borderDark or { r = 0.02, g = 0.02, b = 0.03 }
+    for _, side in ipairs({ "TOP", "BOTTOM", "LEFT", "RIGHT" }) do
+        local t = ftBar:CreateTexture(nil, "BORDER")
+        t:SetColorTexture(bc.r, bc.g, bc.b, 1)
+        if side == "TOP" or side == "BOTTOM" then
+            t:SetPoint(side .. "LEFT"); t:SetPoint(side .. "RIGHT"); t:SetHeight(1)
+        else
+            t:SetPoint("TOP" .. side); t:SetPoint("BOTTOM" .. side); t:SetWidth(1)
+        end
+    end
+
+    ftBar.label = ftBar:CreateFontString(nil, "OVERLAY")
+    ftBar.label:SetFont(FT_FONT, 11, "OUTLINE")
+    ftBar.label:SetPoint("LEFT", ftBar, "LEFT", 5, 0)
+    ftBar.label:SetPoint("RIGHT", ftBar, "RIGHT", -52, 0)
+    ftBar.label:SetJustifyH("LEFT")
+    ftBar.label:SetWordWrap(false)
+
+    ftBar.time = ftBar:CreateFontString(nil, "OVERLAY")
+    ftBar.time:SetFont(FT_FONT, 11, "OUTLINE")
+    ftBar.time:SetPoint("RIGHT", ftBar, "RIGHT", -5, 0)
+    ftBar.time:SetJustifyH("RIGHT")
+
+    ftBar.mover = ns:CreateMover(ftBar, {
+        label  = L["|cffffffffFLIGHT TIME|r"],
+        db     = ftDB(),
+        width  = 240,
+        height = 30,
+        onMove = function(x, y)
+            ns:Print(string.format(L["Flight timer: x=%.0f, y=%.0f"], x, y))
+        end,
+    })
+
+    return ftBar
+end
+
+local function ftApplySize()
+    if ftBar then ftBar:SetSize(ftDB().barWidth, ftDB().barHeight) end
+end
+
+local function ftStop(recordIt)
+    if not ftFlight then return end
+    local dur = GetTime() - ftFlight.t0
+    -- Only record plausible flights (a cancelled click is shorter than 5s)
+    if recordIt and dur > 5 then
+        ftDB().times[ftFlight.key] = math.floor(dur + 0.5)
+        if ftDB().chatReport then
+            ns:Print(L["Flight: %s (%s)"], ftFmt(dur),
+                ftShort(ftFlight.src) .. " > " .. ftShort(ftFlight.dst))
+        end
+    end
+    ftFlight = nil
+    if ftBar then ftBar:Hide() end
+end
+
+local function ftOnUpdate(_, elapsed)
+    ftThrottle = ftThrottle + elapsed
+    if ftThrottle < 0.1 then return end
+    ftThrottle = 0
+    if ftDB().unlocked then return end  -- preview owns the bar
+    if not ftFlight then return end
+
+    local elapsedT = GetTime() - ftFlight.t0
+
+    -- Hard taxi check: the moment we're not on a taxi anymore (landed,
+    -- own mount, whatever) the bar goes away. 3s grace for boarding.
+    if elapsedT > 3 and not UnitOnTaxi("player") then
+        ftStop(elapsedT > 5)
+        return
+    end
+
+    if ftFlight.known and ftFlight.known > 0 then
+        -- Known route: the bar DRAINS towards arrival
+        local remaining = ftFlight.known - elapsedT
+        if remaining < 0 then remaining = 0 end
+        ftSetFill(remaining / ftFlight.known)
+        ftBar.fill:SetAlpha(0.9)
+        ftBar.time:SetText(ftFmt(remaining))
+    else
+        -- Learning flight: no total yet -> full bar with a soft pulse
+        ftSetFill(1)
+        ftBar.fill:SetAlpha(0.45 + 0.25 * math.sin(GetTime() * 4))
+        ftBar.time:SetText(ftFmt(elapsedT) .. " " .. L["(learning)"])
+    end
+end
+
+local function ftOnTakeTaxi(slot)
+    if not mod._enabled or not ftDB().enabled then return end
+    if not slot or not TaxiNodeName then return end
+    local dst = TaxiNodeName(slot)
+    if not dst or dst == "" then return end
+    local src
+    for i = 1, (NumTaxiNodes and NumTaxiNodes() or 0) do
+        if TaxiNodeGetType(i) == "CURRENT" then
+            src = TaxiNodeName(i)
+            break
+        end
+    end
+
+    local key = ftRouteKey(src, dst)
+    ftFlight = {
+        src   = src,
+        dst   = dst,
+        key   = key,
+        t0    = GetTime(),
+        known = ftDB().times[key],
+    }
+
+    ftBuildBar()
+    ftBar.label:SetText(ftShort(dst))
+    ftBar.time:SetText(ftFlight.known and ftFmt(ftFlight.known) or L["(learning)"])
+    ftBar.fill:SetAlpha(0.9)
+    ftSetFill(ftFlight.known and 1 or 1)
+    ftBar:Show()
+
+    -- The click can fail (no money, combat...): if we never took off,
+    -- discard the pending flight again.
+    if C_Timer and C_Timer.After then
+        C_Timer.After(2, function()
+            if ftFlight and ftFlight.key == key and not UnitOnTaxi("player") then
+                ftStop(false)
+            end
+        end)
+    end
+end
+
+local function ftOnControlGained()
+    if ftFlight and not UnitOnTaxi("player") then
+        ftStop(true)
+    end
+end
+
+local function ftOnWorldEnter()
+    if ftFlight and not UnitOnTaxi("player") then
+        local dur = GetTime() - ftFlight.t0
+        ftStop(dur > 5)
+    end
+end
+
+local function ftSetUnlocked(state)
+    ftDB().unlocked = state
+    ftBuildBar()
+    if state then
+        ftBar.label:SetText(L["Flight Timer"])
+        ftBar.time:SetText("1:23")
+        ftBar.fill:SetAlpha(0.9)
+        ftSetFill(0.45)
+        ftBar:Show()
+        ftBar.mover:Show()
+        ns:Print(L["Flight timer mover active. |cff9b6cffDrag|r or |cff9b6cffarrow keys|r (SHIFT = 5px)."])
+    else
+        ftBar.mover:Hide()
+        if not (ftFlight and UnitOnTaxi("player")) then ftBar:Hide() end
+        ns:Print(L["Flight timer mover disabled."])
+    end
+end
+
+local ftTaxiHooked = false
+local function ftInit()
+    -- Migration: the standalone "flighttimer" module was folded into General
+    if ns.db and ns.db.profile and ns.db.profile.modules then
+        local old = ns.db.profile.modules.flighttimer
+        if old then
+            local fl = ftDB()
+            for k, v in pairs(old) do
+                if k ~= "enabled" and fl[k] ~= nil then fl[k] = v end
+            end
+            ns.db.profile.modules.flighttimer = nil
+        end
+    end
+
+    ftBuildBar()
+    ftBar:SetScript("OnUpdate", ftOnUpdate)
+    if not ftTaxiHooked and type(TakeTaxiNode) == "function" then
+        ftTaxiHooked = true  -- hooksecurefunc is permanent; gated on flags
+        hooksecurefunc("TakeTaxiNode", ftOnTakeTaxi)
+    end
+end
+
+-- =========================================================
 -- Lifecycle
 -- =========================================================
 local function onPlayerLogin()
@@ -492,6 +736,9 @@ function mod:OnEnable()
     ns:RegisterEvent("GOSSIP_SHOW",           onGossipShow)
     ns:RegisterEvent("LOOT_READY",            onLootReady)
     ns:RegisterEvent("PLAYER_LOGIN",          onPlayerLogin)
+    ns:RegisterEvent("PLAYER_CONTROL_GAINED", ftOnControlGained)
+    ns:RegisterEvent("PLAYER_ENTERING_WORLD", ftOnWorldEnter)
+    ftInit()
 
     if ns.isInitialised then
         applyAllVisibility()
@@ -520,6 +767,13 @@ function mod:OnDisable()
     ns:UnregisterEvent("GOSSIP_SHOW",           onGossipShow)
     ns:UnregisterEvent("LOOT_READY",            onLootReady)
     ns:UnregisterEvent("PLAYER_LOGIN",          onPlayerLogin)
+    ns:UnregisterEvent("PLAYER_CONTROL_GAINED", ftOnControlGained)
+    ns:UnregisterEvent("PLAYER_ENTERING_WORLD", ftOnWorldEnter)
+    ftFlight = nil
+    if ftBar then
+        if ftBar.mover then ftBar.mover:Hide() end
+        ftBar:Hide()
+    end
     -- Module off -> hand the camera distance back to the game default
     if mod.db.maxCameraZoom and SetCVar then
         pcall(SetCVar, CAMERA_CVAR, CAMERA_DEFAULT)
@@ -579,6 +833,38 @@ function mod:GetOptions()
             applyMaxStackButton),
 
         { type = "spacer", height = 6 },
+        { type = "section", title = L["Flight Timer"], collapsed = true, items = {
+            { type = "toggle", label = L["Show flight time bar"],
+              tooltip = L["Shows destination and remaining time while on a taxi. The first flight of a route is learned, then you get a draining countdown."],
+              get = function() return mod.db.flight.enabled end,
+              set = function(_, v)
+                  mod.db.flight.enabled = v
+                  if not v then ftStop(false) end
+              end },
+            { type = "toggle", label = L["Print flight time to chat"],
+              tooltip = L["After landing, prints the measured flight time."],
+              get = function() return mod.db.flight.chatReport end,
+              set = function(_, v) mod.db.flight.chatReport = v end },
+            { type = "slider", label = L["Bar width"],
+              min = 140, max = 400, step = 5,
+              get = function() return mod.db.flight.barWidth end,
+              set = function(_, v) mod.db.flight.barWidth = v; ftApplySize() end },
+            { type = "slider", label = L["Bar height"],
+              min = 12, max = 30, step = 1,
+              get = function() return mod.db.flight.barHeight end,
+              set = function(_, v) mod.db.flight.barHeight = v; ftApplySize() end },
+            { type = "group", layout = "row", gap = 8, items = {
+                { type = "button", label = L["Unlock / Position"], width = 200,
+                  onClick = function() ftSetUnlocked(not mod.db.flight.unlocked) end },
+                { type = "button", label = L["Reset learned times"], width = 200,
+                  tooltip = L["Deletes all saved route durations."],
+                  onClick = function()
+                      mod.db.flight.times = {}
+                      ns:Print(L["Learned flight times reset."])
+                  end },
+            } },
+        } },
+
         { type = "section", title = L["Visibility"], collapsed = true, items = {
             tgl("hideErrors",        L["Hide UI error messages"],
                 L["Hides the red error messages in the screen center."],

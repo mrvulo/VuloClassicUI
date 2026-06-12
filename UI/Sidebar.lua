@@ -37,7 +37,6 @@ local MODULE_ICONS = {
     disenchantqueue    = "Interface\\Icons\\INV_Enchant_Disenchant",
     vtmanadisplay      = "Interface\\Icons\\Spell_Shadow_ShadowWordPain",
     lazyvulo           = "Interface\\Icons\\Spell_Fire_BlueFlameRing",
-    flighttimer        = "Interface\\Icons\\Ability_Mount_Gryphon_01",
     vulslot            = "Interface\\Icons\\INV_Scroll_05",
     combattext         = "Interface\\Icons\\Ability_Warrior_BattleShout",
     loadouts           = "Interface\\Icons\\INV_Chest_Chain",

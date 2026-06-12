@@ -417,6 +417,8 @@ ns:RegisterLocale("deDE", {
     -- FlightTimer (taxi flight duration bar)
     -- =====================================================
     ["Flight Timer"] = "Flugzeit",
+    ["Show flight time bar"] = "Flugzeitbalken anzeigen",
+    ["Shows destination and remaining time while on a taxi. The first flight of a route is learned, then you get a draining countdown."] = "Zeigt Ziel und Restzeit während des Taxi-Flugs. Der erste Flug einer Route wird gelernt, danach gibt es einen ablaufenden Countdown.",
     ["Shows a progress bar with the duration of taxi flights. Unknown routes are learned on the first flight."] = "Zeigt eine Fortschrittsleiste mit der Dauer von Flugrouten. Unbekannte Routen werden beim ersten Flug gelernt.",
     ["|cffaaaaaaShows a bar with destination and remaining time while on a taxi. The first flight of a route counts up and is saved; from then on you get a countdown.|r"] = "|cffaaaaaaZeigt während des Flugs eine Leiste mit Ziel und Restzeit. Der erste Flug einer Route zählt hoch und wird gespeichert; danach gibt es einen Countdown.|r",
     ["(learning)"] = "(lernt)",
