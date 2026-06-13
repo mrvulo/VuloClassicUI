@@ -108,7 +108,7 @@ local function db() return mod.db end
 -- Per-group visibility conditions (all default off). While a group is unlocked
 -- for positioning (or global edit mode is on) it always shows so it can be dragged.
 local function barVisible(group)
-    if ns:IsMoverEditMode() or group.unlocked then return true end
+    if ns:IsMoverEditMode("cooldownmanager") or group.unlocked then return true end
     if group.onlyInCombat and not inCombat then return false end
     if group.hideMounted and IsMounted and IsMounted() then return false end
     if group.onlyInInstance and IsInInstance and not IsInInstance() then return false end
@@ -525,6 +525,7 @@ local function ensureBar(group)
         onMove   = function(x, y) group.x, group.y = x, y; group.anchorTo = nil end,
         applyPos = function() positionBar(group) end,   -- arrows/popup respect the anchor
         editPreview = function() refreshAll() end,        -- show the bar while editing
+        scope    = "cooldownmanager",                     -- the CDM button edits only these
     })
 
     barOf[group] = bar
@@ -895,11 +896,11 @@ local function setUnlocked(group, state)
     end
 end
 
--- Edit mode is now global (Core/Mover.lua): it shows EVERY VCUI mover at once
--- and is hooked to Blizzard's Edit Mode where present. /cdedit toggles it.
+-- /cdedit toggles edit mode for the cooldown bars ONLY (scope). The global
+-- "Unlock Mode" entry in Global moves every VuloUI window.
 SLASH_VCUICDEDIT1 = "/cdedit"
 SlashCmdList["VCUICDEDIT"] = function()
-    ns:SetMoversEditMode(not ns:IsMoverEditMode())
+    ns:SetMoversEditMode(not ns:IsMoverEditMode("cooldownmanager"), "cooldownmanager")
 end
 
 -- =========================================================
@@ -988,13 +989,16 @@ function mod:GetOptions()
           text = L["|cffaaaaaaMovable cooldown bars grouped however you like — e.g. one for procs/buffs, one for defensive cooldowns, one for offensives. Pick or create a group below, then add spells/trinkets to it.|r"] },
         { type = "spacer", height = 4 },
 
-        -- Global edit mode: unlock EVERY VuloUI window at once. Also auto-toggles
-        -- with Blizzard's Edit Mode where present (Anniversary).
+        -- Edit mode for the COOLDOWN BARS only (scoped). The "Unlock Mode" entry
+        -- in Global moves every VuloUI window at once.
         { type = "button", width = 360, primary = true,
-          label = ns:IsMoverEditMode() and L["Stop editing — lock all windows"]
-                                       or  L["Edit mode — move all VuloUI windows"],
-          tooltip = L["Unlocks every movable VuloUI window at once (cooldown bars, combat text, trackers …) so you can drag them. Arrow keys fine-tune; right-click a purple box for X/Y. Also opens with Blizzard's Edit Mode."],
-          onClick = function() ns:SetMoversEditMode(not ns:IsMoverEditMode()); rebuildPage() end },
+          label = ns:IsMoverEditMode("cooldownmanager") and L["Stop editing — lock the cooldown bars"]
+                                                         or  L["Edit mode — move the cooldown bars"],
+          tooltip = L["Unlocks just the cooldown bars so you can drag them. Arrow keys fine-tune; right-click a purple box for X/Y. (To move ALL VuloUI windows, use 'Unlock Mode' in Global.)"],
+          onClick = function()
+              ns:SetMoversEditMode(not ns:IsMoverEditMode("cooldownmanager"), "cooldownmanager")
+              rebuildPage()
+          end },
         { type = "spacer", height = 6 },
 
         { type = "header", text = L["Groups"] },

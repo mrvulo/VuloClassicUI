@@ -20,8 +20,16 @@
 -- =========================================================
 local _, ns = ...
 
-ns._movers    = ns._movers or {}      -- every mover created via ns:CreateMover
-ns._moverEdit = ns._moverEdit or false
+ns._movers          = ns._movers or {}      -- every mover created via ns:CreateMover
+ns._moverEditGlobal = ns._moverEditGlobal or false
+ns._moverEditScopes = ns._moverEditScopes or {}  -- per-module edit, e.g. ["cooldownmanager"]
+
+-- Should THIS mover be draggable right now? Global edit, or its own scope.
+local function moverShouldEdit(mover)
+    if ns._moverEditGlobal then return true end
+    local sc = mover.opts and mover.opts.scope
+    return (sc and ns._moverEditScopes[sc]) and true or false
+end
 
 -- ---------------------------------------------------------
 -- Positioning. Modules with their own anchoring pass opts.applyPos; everything
@@ -204,7 +212,7 @@ function ns:CreateMover(target, opts)
     mover:SetPropagateKeyboardInput(true)
     mover:SetScript("OnKeyDown", function(self, key)
         -- only the last-hovered ("active") box reacts, so arrow keys nudge one
-        if not (ns._moverEdit or db.unlocked) or ns._activeMover ~= self then
+        if not (moverShouldEdit(self) or db.unlocked) or ns._activeMover ~= self then
             self:SetPropagateKeyboardInput(true)
             return
         end
@@ -237,23 +245,36 @@ end
 -- ---------------------------------------------------------
 -- Global edit mode: show / hide EVERY registered mover at once
 -- ---------------------------------------------------------
-function ns:SetMoversEditMode(state)
+-- scope nil -> GLOBAL edit (every window). scope given -> just that module's.
+function ns:SetMoversEditMode(state, scope)
     state = state and true or false
-    if ns._moverEdit == state then return end
-    ns._moverEdit = state
+    if scope then
+        if (ns._moverEditScopes[scope] or false) == state then return end
+        ns._moverEditScopes[scope] = state or nil
+    else
+        if ns._moverEditGlobal == state then return end
+        ns._moverEditGlobal = state
+        if not state then wipe(ns._moverEditScopes) end
+    end
     for _, mover in ipairs(ns._movers) do
         local opts = mover.opts
-        if opts.editPreview then pcall(opts.editPreview, state) end
-        if state then
+        local edit = moverShouldEdit(mover)
+        if opts.editPreview then pcall(opts.editPreview, edit) end
+        if edit then
             mover:Show()
         elseif not (opts.db and opts.db.unlocked) then
             mover:Hide()
         end
     end
-    if not state and popup then popup:Hide() end
+    if popup and not ns._moverEditGlobal and not next(ns._moverEditScopes) then popup:Hide() end
 end
 
-function ns:IsMoverEditMode() return ns._moverEdit end
+-- scope nil -> is GLOBAL edit on?  scope given -> global OR that scope on.
+function ns:IsMoverEditMode(scope)
+    if ns._moverEditGlobal then return true end
+    if scope then return ns._moverEditScopes[scope] == true end
+    return false
+end
 
 -- Hook Blizzard's Edit Mode (Anniversary) so it toggles ours too.
 function ns:HookBlizzardEditMode()
