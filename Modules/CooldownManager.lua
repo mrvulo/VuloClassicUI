@@ -768,16 +768,19 @@ function mod:GetOptions()
                 { value = "none",   text = L["None"] },
             },
             get = function() return group.auraStyle end,
-            set = function(_, v) group.auraStyle = v; refreshAll() end }
-        displayItems[#displayItems + 1] = { type = "dropdown", label = L["Highlight color"], width = 220,
-            values = {
-                { value = "yellow", text = L["Yellow"] }, { value = "gold",   text = L["Gold"] },
-                { value = "green",  text = L["Green"]  }, { value = "purple", text = L["Purple"] },
-                { value = "red",    text = L["Red"]    }, { value = "blue",   text = L["Blue"] },
-                { value = "white",  text = L["White"]  },
-            },
-            get = function() return group.auraColor end,
-            set = function(_, v) group.auraColor = v; refreshAll() end }
+            set = function(_, v) group.auraStyle = v; refreshAll() end,
+            -- gear -> extra settings (highlight color)
+            subOptions = {
+                { type = "dropdown", label = L["Highlight color"], width = 220,
+                  values = {
+                      { value = "yellow", text = L["Yellow"] }, { value = "gold",   text = L["Gold"] },
+                      { value = "green",  text = L["Green"]  }, { value = "purple", text = L["Purple"] },
+                      { value = "red",    text = L["Red"]    }, { value = "blue",   text = L["Blue"] },
+                      { value = "white",  text = L["White"]  },
+                  },
+                  get = function() return group.auraColor end,
+                  set = function(_, v) group.auraColor = v; refreshAll() end },
+            } }
     else
         displayItems[#displayItems + 1] = { type = "toggle", label = L["Only show while on cooldown"],
             tooltip = L["Hides ready icons; they reappear when on cooldown."],

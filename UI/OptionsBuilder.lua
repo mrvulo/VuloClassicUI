@@ -184,6 +184,50 @@ local function makePanel(parent)
     return p
 end
 
+-- =========================================================
+-- Per-row icons: eye = help/info (shows the option's tooltip), gear = extra
+-- settings (toggles an inline expansion of item.subOptions).
+-- =========================================================
+local ICON_INFO = "Interface\\Common\\help-i"
+local ICON_GEAR = "Interface\\Buttons\\UI-OptionsButton"
+UI.rowExpanded = UI.rowExpanded or {}
+
+local function makeRowIcon(parent)
+    local b = acquire("rowicon", parent)
+    if b then return b end
+    b = CreateFrame("Button", nil, parent)
+    b._vcType  = "rowicon"
+    b._vcSetup = function() end
+    b:SetSize(15, 15)
+    b.icon = b:CreateTexture(nil, "ARTWORK")
+    b.icon:SetAllPoints(b)
+    b:SetScript("OnEnter", function(self)
+        self.icon:SetVertexColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
+        if self._tip then
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:SetText(self._tip, 1, 1, 1, 1, true)
+            GameTooltip:Show()
+        end
+    end)
+    b:SetScript("OnLeave", function(self)
+        self.icon:SetVertexColor(0.55, 0.55, 0.63)
+        GameTooltip:Hide()
+    end)
+    b:SetScript("OnClick", function(self) if self._onClick then self._onClick() end end)
+    return b
+end
+
+local function setRowIcon(b, tex, tip, onClick, level)
+    b.icon:SetTexture(tex)
+    b.icon:SetTexCoord(0, 1, 0, 1)
+    b.icon:SetVertexColor(0.55, 0.55, 0.63)
+    b._tip = tip
+    b._onClick = onClick
+    b:SetFrameLevel(level)
+    b:Show()
+    return b
+end
+
 local placeItem, placeItemList  -- forward (mutual recursion via sections)
 
 local function placeColumns(parent, run, y)
@@ -205,14 +249,23 @@ local function placeColumns(parent, run, y)
         p:SetFrameLevel(base + 1)
         p:Show()
 
+        -- eye = info: shows the option's help tooltip
+        local lead = 0
+        if item.tooltip then
+            local e = setRowIcon(makeRowIcon(parent), ICON_INFO, item.tooltip, nil, base + 5)
+            e:ClearAllPoints()
+            e:SetPoint("LEFT", parent, "TOPLEFT", cellX + 8, cellY - (ROW_H - 4) / 2)
+            lead = 19
+        end
+
         local widget = createWidget(parent, item)
         if widget then
-            widget:SetWidth(colW - 16)
+            widget:SetWidth(colW - 16 - lead)
             widget:SetFrameLevel(base + 4)
             local wh = widget:GetHeight() or 22
             widget:ClearAllPoints()
             widget:SetPoint("TOPLEFT", parent, "TOPLEFT",
-                cellX + 8, cellY - math.floor(((ROW_H - 4) - wh) / 2))
+                cellX + 8 + lead, cellY - math.floor(((ROW_H - 4) - wh) / 2))
         end
     end
     return y - math.ceil(n / 2) * ROW_H
@@ -246,6 +299,9 @@ local function placeSection(parent, section, y)
     return y
 end
 
+-- Full-width rows that get a card + (optional) gear/eye icons
+local CARD_TYPES = { toggle = true, checkbox = true, dropdown = true, editbox = true, slider = true }
+
 placeItem = function(parent, item, y)
     if item.type == "spacer" then
         return y - (item.height or 8)
@@ -263,12 +319,10 @@ placeItem = function(parent, item, y)
     local widget, h = createWidget(parent, item)
     if not widget then return y end
 
-    local xOff = CONTENT_PADDING
-    local yOff = y
-    if item.type == "slider" then
-        -- full-width card behind the slider
-        local availW = (parent:GetWidth() or 540) - 2 * CONTENT_PADDING
-        local base = parent:GetFrameLevel()
+    local base   = parent:GetFrameLevel()
+    local availW = (parent:GetWidth() or 540) - 2 * CONTENT_PADDING
+
+    if CARD_TYPES[item.type] then
         local p = makePanel(parent)
         p:ClearAllPoints()
         p:SetPoint("TOPLEFT", parent, "TOPLEFT", CONTENT_PADDING, y)
@@ -276,27 +330,63 @@ placeItem = function(parent, item, y)
         p:SetFrameLevel(base + 1)
         p:Show()
         widget:SetFrameLevel(base + 4)
-        xOff = CONTENT_PADDING + 10
-        yOff = y - 14
+
+        local key = (UI._currentBuildKey or "?") .. "/" .. (UI.currentTab or "")
+            .. "/r/" .. tostring(item.label or item.text or item)
+        local expanded = UI.rowExpanded[key]
+
+        -- right-aligned icon cluster: gear (extra settings) then eye (info)
+        local iconRight = CONTENT_PADDING + availW - 6
+        local nIcons = (item.subOptions and 1 or 0) + (item.tooltip and 1 or 0)
+        if item.subOptions then
+            local g = setRowIcon(makeRowIcon(parent), ICON_GEAR, L["Extra settings"], function()
+                UI.rowExpanded[key] = not expanded
+                UI:BuildOptionsPage(UI._currentBuildKey, UI.currentTab)
+            end, base + 5)
+            g:ClearAllPoints(); g:SetPoint("TOPRIGHT", parent, "TOPLEFT", iconRight, y - 7)
+            iconRight = iconRight - 21
+        end
+        if item.tooltip then
+            local e = setRowIcon(makeRowIcon(parent), ICON_INFO, item.tooltip, nil, base + 5)
+            e:ClearAllPoints(); e:SetPoint("TOPRIGHT", parent, "TOPLEFT", iconRight, y - 7)
+            iconRight = iconRight - 21
+        end
+
+        local yOff = y
+        if item.type == "slider" then
+            yOff = y - 14
+        else
+            -- fill the row up to the icon cluster so the control right-aligns
+            widget:SetWidth(math.max(120, availW - 20 - nIcons * 21))
+        end
+        widget:SetPoint("TOPLEFT", parent, "TOPLEFT", CONTENT_PADDING + 10, yOff)
+
+        y = y - h
+        if expanded and item.subOptions then
+            y = placeItemList(parent, item.subOptions, y)
+        end
+        return y
     end
 
-    widget:SetPoint("TOPLEFT", parent, "TOPLEFT", xOff, yOff)
+    -- non-carded rows (buttons, icon buttons, header, desc)
+    widget:SetPoint("TOPLEFT", parent, "TOPLEFT", CONTENT_PADDING, y)
     return y - h
 end
 
--- Gather runs of consecutive compact controls into 2-column rows; everything
--- else is placed full-width. Used at the top level and inside sections.
+-- Gather runs of consecutive compact controls into 2-column rows. Items with
+-- extra settings (subOptions) break out to full-width rows (with the gear).
 placeItemList = function(parent, items, y)
     local i = 1
     while i <= #items do
-        if COMPACT[items[i].type] then
+        local it = items[i]
+        if COMPACT[it.type] and not it.subOptions then
             local run = {}
-            while items[i] and COMPACT[items[i].type] do
+            while items[i] and COMPACT[items[i].type] and not items[i].subOptions do
                 run[#run + 1] = items[i]; i = i + 1
             end
             y = placeColumns(parent, run, y)
         else
-            y = placeItem(parent, items[i], y)
+            y = placeItem(parent, it, y)
             i = i + 1
         end
     end

@@ -415,6 +415,7 @@ ns:RegisterLocale("deDE", {
     ["|cffaaaaaaIcons appear only while their buff/proc is on you; the bar is empty otherwise. Add the BUFF (e.g. Clearcasting) by name or ID.|r"] = "|cffaaaaaaIcons erscheinen nur, solange ihr Buff/Proc auf dir aktiv ist; sonst ist die Leiste leer. Füge den BUFF (z. B. Gedankenblitz-Proc) per Name oder ID hinzu.|r",
     ["|cffaaaaaaIcons show the cooldown of each spell/trinket.|r"] = "|cffaaaaaaIcons zeigen den Cooldown jedes Zaubers/Schmuckstücks.|r",
     ["Size & offsets"] = "Größe & Versatz",
+    ["Extra settings"] = "Mehr Einstellungen",
     ["Highlight"] = "Hervorhebung",
     ["Proc glow (animated)"] = "Proc-Glow (animiert)",
     ["Glow"] = "Leuchten",
