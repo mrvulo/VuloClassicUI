@@ -72,6 +72,7 @@ local function db() return mod.db end
 local function defaultGroup(name)
     return {
         name           = name or L["Cooldowns"],
+        mode           = "cooldown",   -- "cooldown" | "aura" (buffs/procs)
         entries        = {},
         iconSize       = 40,
         spacing        = 4,
@@ -101,6 +102,9 @@ local function ensureGroups()
         end
         d.groups[1] = g
         d.entries = nil
+    end
+    for _, g in ipairs(d.groups) do
+        g.mode = g.mode or "cooldown"   -- older groups predate aura mode
     end
     if d.selected < 1 then d.selected = 1 end
     if d.selected > #d.groups then d.selected = #d.groups end
@@ -161,7 +165,22 @@ local function groupHas(group, kind, id)
     return false
 end
 
-local relayoutGroup, refreshAll  -- forward
+local relayoutGroup, refreshGroup, refreshAll, layoutIcons  -- forward
+
+-- Player buff snapshot, rebuilt once per refresh (name + spellID keyed) so
+-- aura groups don't scan 40 buffs per icon. UnitAura spellId is the 10th
+-- return in 2.5.5 (same as VTManaDisplay relies on).
+local auraByName, auraByID = {}, {}
+local function scanPlayerAuras()
+    wipe(auraByName); wipe(auraByID)
+    for i = 1, 40 do
+        local name, _, count, _, duration, expiration, _, _, _, sid = UnitAura("player", i, "HELPFUL")
+        if not name then break end
+        local rec = { dur = duration, exp = expiration, count = count }
+        auraByName[name] = rec
+        if sid then auraByID[sid] = rec end
+    end
+end
 
 local function addEntry(group, input)
     if not group then return false end
@@ -212,6 +231,13 @@ local function makeIcon(bar, i)
     f.text:SetShadowColor(0, 0, 0, 1)
     f.text:SetShadowOffset(1, -1)
 
+    -- stack count (aura mode) in the bottom-right corner
+    f.stack = f.textHost:CreateFontString(nil, "OVERLAY")
+    f.stack:SetFont(FONT, 13, "OUTLINE")
+    f.stack:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -1, 1)
+    f.stack:SetTextColor(1, 0.95, 0.6)
+    f.stack:Hide()
+
     f.flash = f.textHost:CreateTexture(nil, "OVERLAY")
     f.flash:SetTexture("Interface\\Cooldown\\star4")
     f.flash:SetBlendMode("ADD")
@@ -260,28 +286,12 @@ local function ensureBar(group)
     return bar
 end
 
-relayoutGroup = function(group)
+-- Position an ordered list of icon frames in the group's grid (positive
+-- bounding box, cell order flipped for LEFT/UP growth).
+layoutIcons = function(group, list)
     local bar = ensureBar(group)
     local size, pad = group.iconSize, group.spacing
-    local entries = group.entries
-    local icons = bar._icons
-
-    for i, e in ipairs(entries) do
-        local f = icons[i]
-        if not f then f = makeIcon(bar, i); icons[i] = f end
-        local _, icon = entryInfo(e)
-        f.tex:SetTexture(icon or "Interface\\Icons\\INV_Misc_QuestionMark")
-        f.text:SetFont(FONT, math.max(8, math.floor(size * 0.4)), "OUTLINE")
-        f.entry = e
-        f.prevRemain = 0
-        f.flashT = nil
-        f:SetSize(size, size)
-        f:Show()
-    end
-    for i = #entries + 1, #icons do icons[i]:Hide() end
-
-    -- positive bounding box, flip cell order for LEFT/UP
-    local count  = #entries
+    local count  = #list
     local perRow = math.max(1, group.perRow)
     local horiz  = (group.growth == "RIGHT" or group.growth == "LEFT")
     local posN   = math.min(math.max(count, 1), perRow)
@@ -297,12 +307,43 @@ relayoutGroup = function(group)
         local rowi = horiz and line or pos
         if group.growth == "LEFT" then col  = (totalCols - 1) - col end
         if group.growth == "UP"   then rowi = (totalRows - 1) - rowi end
-        local f = icons[i]
+        local f = list[i]
         f:ClearAllPoints()
         f:SetPoint("TOPLEFT", bar, "TOPLEFT", col * step, -rowi * step)
     end
     bar:SetSize(totalCols * size + (totalCols - 1) * pad,
                 totalRows * size + (totalRows - 1) * pad)
+end
+
+relayoutGroup = function(group)
+    local bar = ensureBar(group)
+    local size = group.iconSize
+    local entries = group.entries
+    local icons = bar._icons
+
+    for i, e in ipairs(entries) do
+        local f = icons[i]
+        if not f then f = makeIcon(bar, i); icons[i] = f end
+        local ename, icon = entryInfo(e)
+        f.tex:SetTexture(icon or "Interface\\Icons\\INV_Misc_QuestionMark")
+        f.text:SetFont(FONT, math.max(8, math.floor(size * 0.4)), "OUTLINE")
+        f.entry     = e
+        f.entryName = ename
+        f.prevRemain = 0
+        f.flashT = nil
+        f:SetSize(size, size)
+        f:Show()
+    end
+    for i = #entries + 1, #icons do icons[i]:Hide() end
+
+    if group.mode == "aura" then
+        -- visibility + packing happen per refresh (only active procs show)
+        refreshGroup(group, GetTime())
+    else
+        local all = {}
+        for i = 1, #entries do all[i] = icons[i] end
+        if #all == 0 then bar:SetSize(size, size) else layoutIcons(group, all) end
+    end
 end
 
 local function updateIcon(group, f, now)
@@ -359,10 +400,67 @@ local function updateIcon(group, f, now)
     end
 end
 
-local function refreshGroup(group, now)
+-- Aura mode: the icon is only ever shown while the buff/proc is active.
+-- Draw a draining sweep for the remaining time + stacks.
+local function updateAuraIcon(group, f, rec, now)
+    f.tex:SetDesaturated(false)
+    f.tex:SetVertexColor(1, 1, 1)
+    if rec.exp and rec.dur and rec.dur > 0 then
+        f.cd:SetCooldown(rec.exp - rec.dur, rec.dur)
+        local remain = rec.exp - now
+        if group.showText and remain > 0 then
+            if remain >= 60 then
+                f.text:SetText(math.floor(remain / 60 + 0.5) .. "m")
+            elseif remain >= 10 then
+                f.text:SetText(string.format("%d", remain))
+            else
+                f.text:SetText(string.format("%.1f", remain))
+            end
+            f.text:SetTextColor(remain <= 3 and 1 or 1, remain <= 3 and 0.4 or 1, remain <= 3 and 0.4 or 1)
+            f.text:Show()
+        else
+            f.text:Hide()
+        end
+    else
+        f.cd:Clear()       -- permanent / no timed duration
+        f.text:Hide()
+    end
+    if rec.count and rec.count > 1 then
+        f.stack:SetText(rec.count); f.stack:Show()
+    else
+        f.stack:Hide()
+    end
+end
+
+refreshGroup = function(group, now)
     local bar = barOf[group]
     if not bar then return end
     local icons = bar._icons
+
+    if group.mode == "aura" then
+        scanPlayerAuras()
+        local active = {}
+        for i = 1, #group.entries do
+            local f = icons[i]
+            if f then
+                local e = f.entry
+                local rec = (e and auraByID[e.id]) or (f.entryName and auraByName[f.entryName])
+                if rec then
+                    active[#active + 1] = f
+                    f._rec = rec
+                    f:Show()
+                else
+                    f.stack:Hide()
+                    f:Hide()
+                end
+            end
+        end
+        layoutIcons(group, active)          -- pack only the active procs
+        for _, f in ipairs(active) do updateAuraIcon(group, f, f._rec, now) end
+        return
+    end
+
+    -- cooldown mode
     for i = 1, #group.entries do
         local f = icons[i]
         if f and (f:IsShown() or group.onlyOnCooldown) then
@@ -377,6 +475,10 @@ refreshAll = function()
     for _, group in ipairs(db().groups) do
         refreshGroup(group, now)
     end
+end
+
+local function onUnitAura(_, unit)
+    if unit == "player" then refreshAll() end
 end
 
 -- Rebuild every bar: hide all, then (re)lay-out each current group.
@@ -425,6 +527,7 @@ function mod:OnEnable()
     ns:RegisterEvent("BAG_UPDATE_COOLDOWN",   refreshAll)
     ns:RegisterEvent("PLAYER_ENTERING_WORLD", refreshAll)
     ns:RegisterEvent("SPELLS_CHANGED",        rebuildBars)
+    ns:RegisterEvent("UNIT_AURA",             onUnitAura)  -- snappy proc show/hide
 end
 
 function mod:OnDisable()
@@ -432,6 +535,7 @@ function mod:OnDisable()
     ns:UnregisterEvent("BAG_UPDATE_COOLDOWN",   refreshAll)
     ns:UnregisterEvent("PLAYER_ENTERING_WORLD", refreshAll)
     ns:UnregisterEvent("SPELLS_CHANGED",        rebuildBars)
+    ns:UnregisterEvent("UNIT_AURA",             onUnitAura)
     if driver then driver:Hide() end
     for _, b in ipairs(allBars) do
         if b.mover then b.mover:Hide() end
@@ -500,6 +604,17 @@ function mod:GetOptions()
               rebuildBars(); rebuildPage()
           end },
     } }
+    items[#items + 1] = { type = "dropdown", label = L["Group type"], width = 280,
+        values = {
+            { value = "cooldown", text = L["Cooldowns"] },
+            { value = "aura",     text = L["Buffs & Procs (only show while active)"] },
+        },
+        get = function() return group.mode end,
+        set = function(_, v) group.mode = v; rebuildBars(); rebuildPage() end }
+    items[#items + 1] = { type = "desc",
+        text = (group.mode == "aura")
+            and L["|cffaaaaaaIcons appear only while their buff/proc is on you; the bar is empty otherwise. Add the BUFF (e.g. Clearcasting) by name or ID.|r"]
+            or  L["|cffaaaaaaIcons show the cooldown of each spell/trinket.|r"] }
     items[#items + 1] = { type = "spacer", height = 6 }
 
     -- Add entry
@@ -561,19 +676,21 @@ function mod:GetOptions()
     -- Display
     items[#items + 1] = { type = "spacer", height = 6 }
     items[#items + 1] = { type = "header", text = L["Display"] }
-    items[#items + 1] = { type = "toggle", label = L["Only show while on cooldown"],
-        tooltip = L["Hides ready icons; they reappear when on cooldown."],
-        get = function() return group.onlyOnCooldown end,
-        set = function(_, v) group.onlyOnCooldown = v; relayoutGroup(group); refreshAll() end }
     items[#items + 1] = { type = "toggle", label = L["Show countdown text"],
         get = function() return group.showText end,
         set = function(_, v) group.showText = v; refreshAll() end }
-    items[#items + 1] = { type = "toggle", label = L["Dim icon while on cooldown"],
-        get = function() return group.desaturate end,
-        set = function(_, v) group.desaturate = v; refreshAll() end }
-    items[#items + 1] = { type = "toggle", label = L["Flash when ready"],
-        get = function() return group.readyFlash end,
-        set = function(_, v) group.readyFlash = v end }
+    if group.mode ~= "aura" then
+        items[#items + 1] = { type = "toggle", label = L["Only show while on cooldown"],
+            tooltip = L["Hides ready icons; they reappear when on cooldown."],
+            get = function() return group.onlyOnCooldown end,
+            set = function(_, v) group.onlyOnCooldown = v; relayoutGroup(group); refreshAll() end }
+        items[#items + 1] = { type = "toggle", label = L["Dim icon while on cooldown"],
+            get = function() return group.desaturate end,
+            set = function(_, v) group.desaturate = v; refreshAll() end }
+        items[#items + 1] = { type = "toggle", label = L["Flash when ready"],
+            get = function() return group.readyFlash end,
+            set = function(_, v) group.readyFlash = v end }
+    end
 
     items[#items + 1] = { type = "spacer", height = 6 }
     items[#items + 1] = { type = "button", label = L["Unlock / Position"], width = 200,
