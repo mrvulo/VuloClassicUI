@@ -99,9 +99,28 @@ local function defaultGroup(name)
         desaturate     = true,
         readyFlash     = true,
         unlocked       = false,
-        x              = 0,
+        anchorTo       = nil,      -- id of another group's bar to anchor to (nil = free)
+        anchorSide     = "BELOW",  -- BELOW | ABOVE | LEFT | RIGHT of the target
+        x              = 0,        -- free: center offset from screen; anchored: fine-tune offset
         y              = -160,
     }
+end
+
+-- Stable per-group id so anchors survive renames / reordering.
+local function ensureGroupIDs()
+    local d = db()
+    d.nextId = d.nextId or 1
+    for _, g in ipairs(d.groups) do
+        if not g.id then g.id = d.nextId; d.nextId = d.nextId + 1 end
+    end
+end
+
+local function newGroupID()
+    local d = db()
+    d.nextId = (d.nextId or 1)
+    local id = d.nextId
+    d.nextId = id + 1
+    return id
 end
 
 -- Migration from the old single-bar layout + ensure one group always exists.
@@ -125,7 +144,9 @@ local function ensureGroups()
         g.auraColor = g.auraColor or "yellow"
         if g.showStacks == nil then g.showStacks = true end
         if g.reagentItem == nil then g.reagentItem = 0 end
+        g.anchorSide = g.anchorSide or "BELOW"
     end
+    ensureGroupIDs()
     if d.selected < 1 then d.selected = 1 end
     if d.selected > #d.groups then d.selected = #d.groups end
 end
@@ -393,12 +414,64 @@ local function ensureBar(group)
         db     = group,   -- per-group x/y/unlocked live here
         width  = 150,
         height = 34,
-        onMove = function(x, y) group.x, group.y = x, y end,
+        -- a manual drag writes an absolute screen position, so it detaches
+        -- the bar from any anchor (drag = free; fine-tune anchored = sliders)
+        onMove = function(x, y) group.x, group.y = x, y; group.anchorTo = nil end,
     })
 
     barOf[group] = bar
     allBars[#allBars + 1] = bar
     return bar
+end
+
+-- =========================================================
+-- Bar anchoring (chain bars to each other; they then follow automatically)
+-- =========================================================
+local function groupByID(id)
+    if not id then return nil end
+    for _, g in ipairs(db().groups) do if g.id == id then return g end end
+    return nil
+end
+
+local function anchorTargetBar(group)
+    local g = groupByID(group.anchorTo)
+    if g and g ~= group then return barOf[g] end
+    return nil
+end
+
+-- Would anchoring `group` to `targetId` create a loop? Walk the target's own
+-- anchor chain; if we arrive back at `group`, it would cycle.
+local function wouldCycle(group, targetId)
+    local seen, cur = {}, groupByID(targetId)
+    while cur do
+        if cur == group then return true end
+        if seen[cur] then break end
+        seen[cur] = true
+        cur = groupByID(cur.anchorTo)
+    end
+    return false
+end
+
+local ANCHOR_SIDES = {
+    BELOW = { "TOP", "BOTTOM" },
+    ABOVE = { "BOTTOM", "TOP" },
+    LEFT  = { "RIGHT", "LEFT" },
+    RIGHT = { "LEFT", "RIGHT" },
+}
+
+local function positionBar(group)
+    local bar = barOf[group]
+    if not bar then return end
+    bar:ClearAllPoints()
+    local target = anchorTargetBar(group)
+    local side = ANCHOR_SIDES[group.anchorSide or "BELOW"]
+    if target and side then
+        -- anchored: x/y act as a fine-tune offset from the chosen edge
+        bar:SetPoint(side[1], target, side[2], group.x or 0, group.y or 0)
+    else
+        -- free: x/y is the offset from the screen centre
+        bar:SetPoint("CENTER", UIParent, "CENTER", group.x or 0, group.y or -160)
+    end
 end
 
 -- Position an ordered list of icon frames in the group's grid (positive
@@ -640,6 +713,7 @@ end
 -- Rebuild every bar: hide all, then (re)lay-out each current group.
 local function rebuildBars()
     rebuildKnownSpells()
+    ensureGroupIDs()
     for _, b in ipairs(allBars) do b:Hide() end
     for _, group in ipairs(db().groups) do
         local bar = ensureBar(group)
@@ -647,6 +721,8 @@ local function rebuildBars()
         if bar.mover and bar.mover.label then bar.mover.label:SetText(group.name) end
         relayoutGroup(group)
     end
+    -- position after every bar exists, so anchors can target any other bar
+    for _, group in ipairs(db().groups) do positionBar(group) end
     refreshAll()
 end
 
@@ -734,7 +810,9 @@ function mod:GetOptions()
               set = function(_, v) d.selected = v; rebuildPage() end },
             { type = "button", label = L["New group"], width = 120, primary = true,
               onClick = function()
-                  d.groups[#d.groups + 1] = defaultGroup(string.format(L["Group %d"], #d.groups + 1))
+                  local g = defaultGroup(string.format(L["Group %d"], #d.groups + 1))
+                  g.id = newGroupID()
+                  d.groups[#d.groups + 1] = g
                   d.selected = #d.groups
                   rebuildBars(); rebuildPage()
               end },
@@ -756,6 +834,10 @@ function mod:GetOptions()
           onClick = function()
               local bar = barOf[group]
               if bar then bar:Hide(); if bar.mover then bar.mover:Hide() end end
+              -- detach any bars anchored to the one being deleted
+              for _, g in ipairs(d.groups) do
+                  if g.anchorTo == group.id then g.anchorTo = nil end
+              end
               table.remove(d.groups, d.selected)
               if d.selected > #d.groups then d.selected = #d.groups end
               rebuildBars(); rebuildPage()
@@ -821,6 +903,47 @@ function mod:GetOptions()
     items[#items + 1] = { type = "spacer", height = 4 }
     items[#items + 1] = { type = "button", label = L["Unlock / Position"], width = 200,
         onClick = function() setUnlocked(group, not group.unlocked) end }
+
+    -- Anchor this bar to another group's bar (it then follows + fine-tune offset)
+    do
+        local anchorVals = { { value = 0, text = L["None (free)"] } }
+        for _, g in ipairs(d.groups) do
+            if g ~= group then anchorVals[#anchorVals + 1] = { value = g.id, text = g.name } end
+        end
+        local anchorItems = {
+            { type = "dropdown", label = L["Anchor to bar"], width = 240,
+              tooltip = L["Pin this bar to another group's bar — it then moves with it. Drag the bar to detach."],
+              values = anchorVals,
+              get = function() return group.anchorTo or 0 end,
+              set = function(_, v)
+                  if v == 0 then
+                      group.anchorTo = nil
+                  elseif wouldCycle(group, v) then
+                      ns:Print(L["Cooldown Manager: can't anchor there — it would loop."])
+                  else
+                      group.anchorTo = v
+                      group.x, group.y = 0, 0   -- snap adjacent, then fine-tune
+                  end
+                  positionBar(group); rebuildPage()
+              end },
+        }
+        if group.anchorTo then
+            anchorItems[#anchorItems + 1] = { type = "dropdown", label = L["Side"], width = 200,
+                values = {
+                    { value = "BELOW", text = L["Below"] }, { value = "ABOVE", text = L["Above"] },
+                    { value = "LEFT",  text = L["Left of"] }, { value = "RIGHT", text = L["Right of"] },
+                },
+                get = function() return group.anchorSide or "BELOW" end,
+                set = function(_, v) group.anchorSide = v; positionBar(group) end }
+            anchorItems[#anchorItems + 1] = { type = "slider", label = L["X offset"], min = -200, max = 200, step = 1,
+                get = function() return group.x or 0 end,
+                set = function(_, v) group.x = v; positionBar(group) end }
+            anchorItems[#anchorItems + 1] = { type = "slider", label = L["Y offset"], min = -200, max = 200, step = 1,
+                get = function() return group.y or 0 end,
+                set = function(_, v) group.y = v; positionBar(group) end }
+        end
+        items[#items + 1] = { type = "section", title = L["Anchor"], collapsed = true, items = anchorItems }
+    end
 
     -- Layout (collapsed by default -> short, fast page)
     items[#items + 1] = { type = "section", title = L["Layout"], collapsed = true, items = {
