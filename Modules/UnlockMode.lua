@@ -21,15 +21,11 @@ local function rebuild()
     end
 end
 
--- Blizzard BLOCKS addons from starting Edit Mode directly: EnterEditMode calls
--- the protected TargetUnit() internally, so an addon-triggered call taints and
--- is forbidden. Instead we open the game menu (allowed) where the user picks
--- "Edit Mode" themselves — that runs in Blizzard's secure context. Our OnShow
--- hook then flips global edit mode on so our windows are draggable in it too.
-local function openBlizzEdit()
-    if _G.VuloClassicUIMainFrame then _G.VuloClassicUIMainFrame:Hide() end
-    if _G.ToggleGameMenu then ToggleGameMenu() end
-end
+-- NOTE: we can't open Blizzard's Edit Mode (or even the game menu) from a
+-- button — both call protected functions internally (TargetUnit /
+-- SpellStopCasting), so an addon-triggered call taints and is FORBIDDEN. The
+-- user must open Edit Mode themselves (Esc -> Edit Mode); our EditModeManager
+-- OnShow hook then turns global edit mode on automatically.
 
 function mod:GetOptions()
     local on = ns:IsMoverEditMode()
@@ -46,10 +42,8 @@ function mod:GetOptions()
               rebuild()
           end },
         { type = "spacer", height = 4 },
-        { type = "button", width = 360,
-          label = L["Open game menu for Blizzard's Edit Mode"],
-          tooltip = L["Blizzard blocks addons from starting Edit Mode directly (it would taint). This opens the game menu — pick 'Edit Mode' there. Our windows then appear in it automatically."],
-          onClick = openBlizzEdit },
+        { type = "desc",
+          text = L["|cffaaaaaaFor Blizzard's own Edit Mode: open it yourself via the game menu (|cffffffffEsc → Edit Mode|r). Blizzard blocks addons from starting it. Once it's open, your VuloUI windows appear in it automatically.|r"] },
         { type = "spacer", height = 8 },
         { type = "desc",
           text = L["|cff888888• Drag a purple box to move that window.|n• Hover a box, then use the arrow keys to fine-tune (SHIFT = 5px).|n• Right-click a box for exact X / Y.|n• |cffffffff/cdedit|r toggles this too.|r"] },

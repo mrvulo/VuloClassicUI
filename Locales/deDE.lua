@@ -473,6 +473,7 @@ ns:RegisterLocale("deDE", {
     ["Show stacks"] = "Stapel anzeigen",
     ["  |cffaa5555(other class)|r"] = "  |cffaa5555(andere Klasse)|r",
     ["Unlock Mode"] = "Bearbeiten-Modus",
+    ["|cffaaaaaaFor Blizzard's own Edit Mode: open it yourself via the game menu (|cffffffffEsc → Edit Mode|r). Blizzard blocks addons from starting it. Once it's open, your VuloUI windows appear in it automatically.|r"] = "|cffaaaaaaFür Blizzards eigenen Bearbeitungsmodus: öffne ihn selbst über das Spielmenü (|cffffffffEsc → Bearbeitungsmodus|r). Blizzard verhindert, dass Addons ihn starten. Sobald er offen ist, erscheinen deine VuloUI-Fenster automatisch darin.|r",
     ["Open Blizzard's Edit Mode"] = "Blizzards Bearbeitungsmodus öffnen",
     ["Open game menu for Blizzard's Edit Mode"] = "Spielmenü für Blizzards Bearbeitungsmodus öffnen",
     ["Blizzard blocks addons from starting Edit Mode directly (it would taint). This opens the game menu — pick 'Edit Mode' there. Our windows then appear in it automatically."] = "Blizzard verhindert, dass Addons den Bearbeitungsmodus direkt starten (würde Taint verursachen). Das öffnet das Spielmenü – dort „Bearbeitungsmodus\" wählen. Unsere Fenster erscheinen dann automatisch darin.",
