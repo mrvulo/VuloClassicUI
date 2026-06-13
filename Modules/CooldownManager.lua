@@ -53,6 +53,10 @@ end
 local GCD_MAX = 1.5
 local FONT = "Fonts\\FRIZQT__.TTF"
 
+-- Custom reorder arrows (white chevrons, tinted by the icon button)
+local ARROW_LEFT  = "Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\arrow_left.tga"
+local ARROW_RIGHT = "Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\arrow_right.tga"
+
 -- Icon-shape masks (square = plain white = no visible mask)
 local MASK_ROUNDED = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\csquare_mask.tga"
 local MASK_CIRCLE  = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\circle_mask.tga"
@@ -1054,7 +1058,6 @@ function mod:GetOptions()
     if #group.entries == 0 then
         trackedItems[1] = { type = "desc", text = L["|cff888888Nothing in this group yet.|r"] }
     else
-        local horiz = (group.growth == "RIGHT" or group.growth == "LEFT")
         local n = #group.entries
         for i, e in ipairs(group.entries) do
             local nm, icon = entryInfo(e)
@@ -1065,7 +1068,7 @@ function mod:GetOptions()
 
             trackedItems[#trackedItems + 1] = { type = "group", layout = "row", gap = 6, items = {
                 { type = "desc", text = label, width = 300 },
-                { type = "iconbutton", icon = (horiz and "left" or "up"), width = 28, height = 28, iconInset = 8,
+                { type = "iconbutton", icon = ARROW_LEFT, width = 28, height = 28, iconInset = 7,
                   tooltip = L["Move earlier"],
                   onClick = function()
                       if i > 1 then
@@ -1073,7 +1076,7 @@ function mod:GetOptions()
                           relayoutGroup(group); rebuildPage()
                       end
                   end },
-                { type = "iconbutton", icon = (horiz and "right" or "down"), width = 28, height = 28, iconInset = 8,
+                { type = "iconbutton", icon = ARROW_RIGHT, width = 28, height = 28, iconInset = 7,
                   tooltip = L["Move later"],
                   onClick = function()
                       if i < n then
