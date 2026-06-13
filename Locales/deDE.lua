@@ -511,6 +511,7 @@ ns:RegisterLocale("deDE", {
     -- =====================================================
     ["Global"] = "Global",
     ["Unit Frames"] = "Einheitenfenster",
+    ["HUD"] = "HUD",
     ["PvP"] = "PvP",
     ["QoL"] = "Komfort",
     ["UI Reskin"] = "UI-Reskin",

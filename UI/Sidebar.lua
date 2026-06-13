@@ -60,7 +60,7 @@ function ns:GetModuleIcon(key)
 end
 
 UI.sidebarButtons     = {}
-UI.sidebarGroupOrder  = { "Global", "Unit Frames", "PvP", "QoL", "UI Reskin", "Bugfixes" }  -- desired order
+UI.sidebarGroupOrder  = { "Global", "Unit Frames", "HUD", "PvP", "QoL", "UI Reskin", "Bugfixes" }  -- desired order
 UI.sidebarHiddenGroups = { ["_hidden"] = true, ["Account"] = true, ["Core"] = true }  -- not shown in sidebar
 UI.sidebarGroupBuckets = {}
 

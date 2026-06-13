@@ -12,7 +12,7 @@ local L = ns.L
 
 local mod = ns:RegisterModule("cooldownmanager", {
     name        = "Cooldown Manager",
-    group       = "QoL",
+    group       = "HUD",
     description = "Movable cooldown bars grouped however you like (procs, defensives, offensives ...) — like the retail cooldown manager.",
     defaults    = {
         enabled  = true,

@@ -11,7 +11,7 @@ local L = ns.L
 
 local mod = ns:RegisterModule("combattext", {
     name        = "Combat Text",
-    group       = "QoL",
+    group       = "HUD",
     description = "Custom floating combat text engine with configurable events, color, size and position.",
     defaults    = {
         enabled        = true,
