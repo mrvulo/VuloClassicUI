@@ -71,6 +71,18 @@ function mod:RegisterClassTool(classToken, def)
     self.classTools[classToken] = def
 end
 
+-- Per-class DoT sets live in their own file (Modules/Classes/<Class>.lua) and
+-- register here at load. The DoT *engine* (rendering, snapshots, options) is
+-- shared below — class files only contribute data, so nothing is duplicated.
+local DOT_SETS     = {}   -- classToken -> { dot defs }
+local DOT_SET_META = {}   -- classToken -> { desc = "..." }
+local dotDefs      = {}   -- the active set, chosen by class in OnEnable
+
+function mod:RegisterDotSet(classToken, dots, meta)
+    DOT_SETS[classToken] = dots
+    if meta then DOT_SET_META[classToken] = meta end
+end
+
 local VT_SPELL_ID_BASE = 34914  -- Vampiric Touch base (TBC)
 local SHADOW_SCHOOL    = 32
 
@@ -178,34 +190,13 @@ end
 -- Reads UnitAura duration/expiration (caster = player), matched by name
 -- so every rank is covered. No Mastery/Pandemic API exists in 2.5.5.
 -- =========================================================
--- base = approximate base damage over the full duration; coef = spell-power
--- coefficient over the full duration; school = GetSpellBonusDamage index
--- (6 = Shadow, 3 = Fire). Exact values barely matter: the "is a recast
--- stronger now?" check is relative (each DoT vs its OWN snapshot), so
--- base/coef only weight spell power against % buffs when the two move in
--- opposite directions. Rough TBC values.
---
--- One DoT set per class; the player's set is chosen at enable. Keys are
--- unique across classes so snapshots / rows never collide.
-local DOT_SETS = {
-    PRIEST = {
-        { key = "swp", id = 589,   toggle = "showSWP", label = "Shadow Word: Pain", school = 6, color = { 0.62, 0.40, 0.94 }, base = 1236, coef = 1.10 },
-        { key = "vt",  id = 34917, toggle = "showVT",  label = "Vampiric Touch",     school = 6, color = { 0.85, 0.30, 0.85 }, base = 850,  coef = 1.00 },
-        { key = "dp",  id = 2944,  toggle = "showDP",  label = "Devouring Plague",   school = 6, color = { 0.40, 0.78, 0.36 }, base = 1216, coef = 1.00 },
-    },
-    WARLOCK = {
-        { key = "corr",   id = 172,   toggle = "showCorruption", label = "Corruption",          school = 6, color = { 0.55, 0.35, 0.85 }, base = 900,  coef = 0.94 },
-        { key = "coa",    id = 980,   toggle = "showCoA",        label = "Curse of Agony",      school = 6, color = { 0.45, 0.30, 0.70 }, base = 1356, coef = 1.20 },
-        { key = "ua",     id = 30108, toggle = "showUA",         label = "Unstable Affliction", school = 6, color = { 0.72, 0.42, 0.96 }, base = 1050, coef = 1.20 },
-        { key = "siphon", id = 18265, toggle = "showSiphon",     label = "Siphon Life",         school = 6, color = { 0.40, 0.66, 0.42 }, base = 630,  coef = 1.00 },
-        { key = "immo",   id = 348,   toggle = "showImmolate",   label = "Immolate",            school = 3, color = { 0.92, 0.46, 0.20 }, base = 615,  coef = 0.65 },
-        { key = "codoom", id = 603,   toggle = "showCoDoom",     label = "Curse of Doom",       school = 6, color = { 0.72, 0.22, 0.22 }, base = 4200, coef = 2.00 },
-    },
-}
-
--- Active set for the player's class (assigned in OnEnable). Defaults to the
--- Priest set so option builders have something before login resolves.
-local dotDefs = DOT_SETS.PRIEST
+-- DoT defs (base / coef / school / color / toggle) live in the per-class
+-- files and arrive via mod:RegisterDotSet. base = approx base damage over the
+-- full duration; coef = spell-power coefficient over the full duration;
+-- school = GetSpellBonusDamage index (6 = Shadow, 3 = Fire). Exact values
+-- barely matter — the "is a recast stronger now?" check is relative (each DoT
+-- vs its OWN snapshot), so base/coef only weight spell power against % buffs.
+-- DOT_SETS / dotDefs are declared up top next to the registration API.
 
 -- Caster-side TEMPORARY % spell-damage buffs that snapshot onto a DoT at cast.
 -- Target debuffs (Shadow Weaving / Misery) are dynamic -> NOT here. Constant
@@ -701,8 +692,8 @@ function mod:OnEnable()
 
     -- Pick the DoT set for this class. VT mana stays Priest-only; the DoT
     -- tracker runs for any class that has a set (Priest + Warlock).
-    dotDefs = DOT_SETS[class]
-    local hasDots  = dotDefs ~= nil
+    local hasDots  = DOT_SETS[class] ~= nil
+    dotDefs = DOT_SETS[class] or {}
     local isPriest = class == "PRIEST"
     if not isPriest and not hasDots then return end
 
@@ -914,30 +905,36 @@ local function priestOptions()
     return items
 end
 
--- Warlock tab: Affliction / Destruction DoT tracker
-local function warlockOptions()
-    local items = {
-        { type = "header", text = L["Warlock"] },
-        { type = "desc",
-          text = L["|cffaaaaaaTracks your Warlock DoTs (Corruption, Curse of Agony, Unstable Affliction, Siphon Life, Immolate, Curse of Doom) on the target, with the same recast-snapshot readout as the Priest tracker.|r"] },
-    }
-    appendDotTracker(items, "WARLOCK")
-    return items
-end
+-- Tab id -> display label (from mod.tabs), for generic class option headers.
+local TAB_LABEL = {}
+for _, t in ipairs(mod.tabs) do TAB_LABEL[t.id] = t.label end
 
 function mod:GetOptions(tabId)
     if tabId == "priest" or tabId == "default" or tabId == nil then
         return priestOptions()
     end
-    if tabId == "warlock" then
-        return warlockOptions()
-    end
-    -- Pluggable class tools (tabId is the lowercase class id, e.g. "shaman")
-    local tool = self.classTools and self.classTools[tabId and tabId:upper() or ""]
+
+    local classToken = tabId and tabId:upper() or ""
+
+    -- A custom class tool (e.g. the Shaman totem bar) supplies its own options.
+    local tool = self.classTools and self.classTools[classToken]
     if tool and tool.getOptions then
         return tool.getOptions()
     end
-    -- Other classes: placeholder until tools exist for them
+
+    -- Any class that registered a DoT set gets the generic DoT tracker page.
+    if DOT_SETS[classToken] then
+        local label = TAB_LABEL[tabId] or classToken
+        local items = { { type = "header", text = L[label] or label } }
+        local meta = DOT_SET_META[classToken]
+        if meta and meta.desc then
+            table.insert(items, { type = "desc", text = meta.desc })
+        end
+        appendDotTracker(items, classToken)
+        return items
+    end
+
+    -- Nothing class-specific yet.
     return {
         { type = "header", text = L["No tools yet"] },
         { type = "desc", text = L["|cffaaaaaaNo class-specific tools for this class yet. Got an idea? Let me know!|r"] },

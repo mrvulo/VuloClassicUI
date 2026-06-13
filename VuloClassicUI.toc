@@ -70,6 +70,9 @@ Modules\ProfessionWindow.lua
 Modules\DisenchantQueue.lua
 Modules\Pages.lua
 Modules\VTManaDisplay.lua
+# Per-class data files — plug into the Class Specific module above
+Modules\Classes\Priest.lua
+Modules\Classes\Warlock.lua
 Modules\LazyVulo.lua
 Modules\Vulslot.lua
 Modules\CooldownManager.lua
