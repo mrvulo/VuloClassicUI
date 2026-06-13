@@ -403,7 +403,14 @@ placeItem = function(parent, item, y)
         return y - h - CARD_GAP
     end
 
-    -- headers / descriptions: no card
+    -- descriptions / tips: breathing room above and below so the text never
+    -- hugs the card it follows
+    if item.type == "desc" then
+        widget:SetPoint("TOPLEFT", parent, "TOPLEFT", CONTENT_PADDING, y - 5)
+        return y - h - 10
+    end
+
+    -- headers: no card
     widget:SetPoint("TOPLEFT", parent, "TOPLEFT", CONTENT_PADDING, y)
     return y - h
 end
@@ -446,41 +453,43 @@ function UI:PlaceGroup(parent, group, y)
     if layout == "row" then
         -- create + measure all items first, so a button/toggle-only row can be
         -- centred (input/dropdown rows stay left-aligned, which reads better)
-        local placed, totalW, maxH = {}, 0, 0
+        local placed, totalW = {}, 0
         local gap = group.gap or 8
-        local centerable = true
         for i, item in ipairs(items) do
             local widget, h, w = createWidget(parent, item)
             if widget then
                 placed[#placed + 1] = { widget = widget, w = w, h = h, item = item }
                 totalW = totalW + w + (i > 1 and gap or 0)
-                if h > maxH then maxH = h end
-            end
-            local t = item.type
-            if not (t == "button" or t == "iconbutton" or t == "toggle"
-                    or t == "checkbox" or t == "spacer") then
-                centerable = false
             end
         end
 
+        -- card height + true vertical centring use the ACTUAL widget heights
+        -- (the createWidget row estimate differs from e.g. a 26px button)
+        local maxWH = 0
+        for _, p in ipairs(placed) do
+            p.wh = p.widget:GetHeight() or p.h
+            if p.wh > maxWH then maxWH = p.wh end
+        end
+        local PAD   = 7
+        local cardH = maxWH + PAD * 2
+
         -- left-aligned by default (grows rightward as items are added);
         -- a group can opt into centering with align = "center"
-        local startX = CONTENT_PADDING + (panel and 8 or 0)
+        local startX = CONTENT_PADDING + 10
         if group.align == "center" then
-            startX = CONTENT_PADDING + math.max(panel and 8 or 0,
-                math.floor((availW - totalW) / 2))
+            startX = CONTENT_PADDING + math.max(10, math.floor((availW - totalW) / 2))
         end
 
         local cursorX = startX
         for _, p in ipairs(placed) do
             if panel then p.widget:SetFrameLevel(base + 4) end
-            local yo = y - (panel and 4 or 0) - math.floor((maxH - p.h) / 2)
+            local yo = y - PAD - math.floor((maxWH - p.wh) / 2)
             if p.item.type == "slider" then yo = y - 14 end
             p.widget:SetPoint("TOPLEFT", parent, "TOPLEFT", cursorX, yo)
             cursorX = cursorX + p.w + gap
         end
-        if panel then panel:SetSize(availW, maxH + 8) end
-        return y - maxH - (panel and 8 or 0)
+        if panel then panel:SetSize(availW, cardH) end
+        return y - cardH - CARD_GAP
 
     elseif layout == "columns" then
         local cols       = group.columns or 2
