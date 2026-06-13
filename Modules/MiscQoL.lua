@@ -782,6 +782,15 @@ end
 
 local ftTaxiHooked = false
 local function ftInit()
+    -- The shipped route database lives in a separate file added to the .toc.
+    -- /reload does NOT re-read the .toc, so right after an update the file is
+    -- absent until the game is fully restarted -> every shipped time shows "?".
+    -- Detect that and tell the user once instead of failing silently.
+    if not ns.FLIGHT_TIMES and not ns._flightDBWarned then
+        ns._flightDBWarned = true
+        ns:Print(L["|cffff8800Flight route database not loaded.|r Fully restart WoW (a /reload is not enough after an update) so the flight times work."])
+    end
+
     -- Migration: the standalone "flighttimer" module was folded into General
     if ns.db and ns.db.profile and ns.db.profile.modules then
         local old = ns.db.profile.modules.flighttimer

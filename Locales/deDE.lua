@@ -417,6 +417,7 @@ ns:RegisterLocale("deDE", {
     -- FlightTimer (taxi flight duration bar)
     -- =====================================================
     ["Flight Timer"] = "Flugzeit",
+    ["|cffff8800Flight route database not loaded.|r Fully restart WoW (a /reload is not enough after an update) so the flight times work."] = "|cffff8800Flugrouten-Datenbank nicht geladen.|r Starte WoW komplett neu (ein /reload reicht nach einem Update nicht), damit die Flugzeiten funktionieren.",
     ["Show flight time bar"] = "Flugzeitbalken anzeigen",
     ["Shows destination and remaining time while on a taxi. The first flight of a route is learned, then you get a draining countdown."] = "Zeigt Ziel und Restzeit während des Taxi-Flugs. Der erste Flug einer Route wird gelernt, danach gibt es einen ablaufenden Countdown.",
     ["Shows a progress bar with the duration of taxi flights. Unknown routes are learned on the first flight."] = "Zeigt eine Fortschrittsleiste mit der Dauer von Flugrouten. Unbekannte Routen werden beim ersten Flug gelernt.",
