@@ -398,10 +398,8 @@ placeItem = function(parent, item, y)
         p:Show()
         widget:SetFrameLevel(base + 4)
         local wh = widget:GetHeight() or 24
-        local ww = widget:GetWidth() or 120
         widget:SetPoint("TOPLEFT", parent, "TOPLEFT",
-            CONTENT_PADDING + math.max(10, math.floor((availW - ww) / 2)),
-            y - math.floor((h - wh) / 2))
+            CONTENT_PADDING + 10, y - math.floor((h - wh) / 2))
         return y - h - CARD_GAP
     end
 
@@ -465,8 +463,10 @@ function UI:PlaceGroup(parent, group, y)
             end
         end
 
+        -- left-aligned by default (grows rightward as items are added);
+        -- a group can opt into centering with align = "center"
         local startX = CONTENT_PADDING + (panel and 8 or 0)
-        if group.align == "center" or (centerable and group.align ~= "left") then
+        if group.align == "center" then
             startX = CONTENT_PADDING + math.max(panel and 8 or 0,
                 math.floor((availW - totalW) / 2))
         end
