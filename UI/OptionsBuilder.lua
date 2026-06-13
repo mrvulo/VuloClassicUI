@@ -382,7 +382,23 @@ placeItem = function(parent, item, y)
         return y
     end
 
-    -- non-carded rows (buttons, icon buttons, header, desc)
+    -- standalone buttons sit on their own card too, so nothing floats
+    -- frameless next to the carded rows
+    if item.type == "button" or item.type == "iconbutton" then
+        local p = makePanel(parent)
+        p:ClearAllPoints()
+        p:SetPoint("TOPLEFT", parent, "TOPLEFT", CONTENT_PADDING, y)
+        p:SetSize(availW, h)
+        p:SetFrameLevel(base + 1)
+        p:Show()
+        widget:SetFrameLevel(base + 4)
+        local wh = widget:GetHeight() or 24
+        widget:SetPoint("TOPLEFT", parent, "TOPLEFT",
+            CONTENT_PADDING + 10, y - math.floor((h - wh) / 2))
+        return y - h
+    end
+
+    -- headers / descriptions: no card
     widget:SetPoint("TOPLEFT", parent, "TOPLEFT", CONTENT_PADDING, y)
     return y - h
 end
