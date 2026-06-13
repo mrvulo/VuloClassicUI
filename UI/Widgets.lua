@@ -18,6 +18,14 @@ UI.FONT_PATH = FONT_PATH
 local MASK_ROUNDED = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\csquare_mask.tga"
 local MASK_CIRCLE  = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\circle_mask.tga"
 
+-- Strip "(...)" hints from option chrome (labels, dropdown values) for a clean,
+-- uncluttered look. The full text still lives in the help tooltip.
+function UI.StripParens(s)
+    if type(s) ~= "string" then return s end
+    return (s:gsub("%s*%b()", ""):gsub("%s+$", ""))
+end
+local clean = UI.StripParens
+
 -- Apply the addon UI font to a FontString (or EditBox)
 function UI.Font(fs, size, flags)
     fs:SetFont(FONT_PATH, size or 12, flags or "")
@@ -196,7 +204,7 @@ end
 -- Header (section heading in EUI style: uppercase, dimmed)
 -- =========================================================
 local function headerSetup(f, item)
-    f._label:SetText(string.upper(item.text or ""))
+    f._label:SetText(string.upper(clean(item.text) or ""))
     if item.subtitle and item.subtitle ~= "" then
         f._sub:SetText(item.subtitle)
         f._sub:Show()
@@ -365,7 +373,7 @@ end
 local function toggleSetup(container, config)
     container._vcConfig = config
     local label = container._label
-    label:SetText(config.label or "")
+    label:SetText(clean(config.label) or "")
 
     -- Container width: explicitly set, or fixed at 360 so switches end up in one column
     -- (labels of different lengths would otherwise shift the switch X position)
@@ -478,7 +486,7 @@ local function sliderSetup(s, config)
     s:SetWidth(config.width or 200)
     s:SetMinMaxValues(s._min, s._max)
     s:SetValueStep(s._step)
-    if s.Text then s.Text:SetText(config.label or "") end
+    if s.Text then s.Text:SetText(clean(config.label) or "") end
     local v = config.get(s) or s._min
     s:SetValue(v)
     s._valueText:SetText(string.format("%g", v))
@@ -699,7 +707,7 @@ local function openPopup(button, config)
         item:SetPoint("TOPLEFT",  p, "TOPLEFT",   2, -((i - 1) * itemHeight + 2))
         item:SetPoint("TOPRIGHT", p, "TOPRIGHT", -2, -((i - 1) * itemHeight + 2))
 
-        item._text:SetText(L[opt.text])  -- translate option text (no-op if already localized)
+        item._text:SetText(clean(L[opt.text]))  -- translate + drop "(...)" hints
         if opt.value == config.get(button) then
             item._check:Show()
             item._text:SetTextColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
@@ -729,13 +737,14 @@ local function dropdownSetup(container, config)
     local btn, label = container._button, container._label
     btn:ClearAllPoints(); label:ClearAllPoints()
     if config.label then
-        label:SetText(config.label)
+        label:SetText(clean(config.label))
         label:Show()
+        label:SetWidth(0)  -- auto-size to text
         label:SetPoint("LEFT", container, "LEFT", 0, 0)
-        local btnW = config.ddWidth or 132
-        btn:SetSize(btnW, 24)
+        -- button fills the rest of the row up to the right edge (wide value box)
+        btn:SetHeight(24)
+        btn:SetPoint("LEFT", label, "RIGHT", 10, 0)
         btn:SetPoint("RIGHT", container, "RIGHT", 0, 0)
-        label:SetPoint("RIGHT", btn, "LEFT", -8, 0)
         container:SetSize(config.width or 240, 28)
     else
         label:Hide()
@@ -785,6 +794,7 @@ function UI:CreateDropdown(parent, config)
     valueText:SetPoint("LEFT",  btn, "LEFT",   8, 0)
     valueText:SetPoint("RIGHT", btn, "RIGHT", -22, 0)
     valueText:SetJustifyH("LEFT")
+    valueText:SetWordWrap(false)  -- single line, truncate instead of wrapping
 
     -- V-arrow on the right
     local arrow = btn:CreateTexture(nil, "OVERLAY")
@@ -808,7 +818,7 @@ function UI:CreateDropdown(parent, config)
     end
     btn._setHovered = setHovered
 
-    local function setText(text) valueText:SetText(text or "") end
+    local function setText(text) valueText:SetText(clean(text) or "") end
     btn._setText = setText
 
     local function refresh()
@@ -869,7 +879,7 @@ local function editboxSetup(container, config)
     label:SetJustifyH("LEFT"); label:SetWordWrap(false)
 
     if config.label and config.label ~= "" then
-        label:SetText(config.label)
+        label:SetText(clean(config.label))
         label:Show()
         label:SetPoint("LEFT", container, "LEFT", 0, 0)
         local editW = config.editWidth or 130
@@ -987,7 +997,7 @@ end
 local function buttonSetup(b, config)
     b._vcConfig = config
     b:SetSize(config.width or 120, config.height or 24)
-    b._textFS:SetText(config.label or "")
+    b._textFS:SetText(clean(config.label) or "")
     buttonApplyIdle(b)
 end
 

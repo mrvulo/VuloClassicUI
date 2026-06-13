@@ -239,13 +239,16 @@ local function placeColumns(parent, run, y)
         local item  = run[idx]
         local col   = (idx - 1) % 2
         local row   = math.floor((idx - 1) / 2)
-        local cellX = CONTENT_PADDING + col * (colW + COL_GAP)
+        -- a lone trailing item (odd count) spans the full width
+        local fullW = (idx == n) and (n % 2 == 1)
+        local cellX = CONTENT_PADDING + (fullW and 0 or col * (colW + COL_GAP))
         local cellY = y - row * ROW_H
+        local cellW = fullW and availW or colW
 
         local p = makePanel(parent)
         p:ClearAllPoints()
         p:SetPoint("TOPLEFT", parent, "TOPLEFT", cellX, cellY)
-        p:SetSize(colW, ROW_H - 4)
+        p:SetSize(cellW, ROW_H - 4)
         p:SetFrameLevel(base + 1)
         p:Show()
 
@@ -260,7 +263,7 @@ local function placeColumns(parent, run, y)
 
         local widget = createWidget(parent, item)
         if widget then
-            widget:SetWidth(colW - 16 - lead)
+            widget:SetWidth(cellW - 16 - lead)
             widget:SetFrameLevel(base + 4)
             local wh = widget:GetHeight() or 22
             widget:ClearAllPoints()
