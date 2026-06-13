@@ -53,6 +53,17 @@ end
 local GCD_MAX = 1.5
 local FONT = "Fonts\\FRIZQT__.TTF"
 
+-- Icon-shape masks (square = plain white = no visible mask)
+local MASK_ROUNDED = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\csquare_mask.tga"
+local MASK_CIRCLE  = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\circle_mask.tga"
+local MASK_SQUARE  = "Interface\\Buttons\\WHITE8X8"
+
+local function shapeMask(shape)
+    if shape == "circle"  then return MASK_CIRCLE  end
+    if shape == "rounded" then return MASK_ROUNDED end
+    return MASK_SQUARE
+end
+
 -- Whole-second countdown (no decimals); minutes above 60s.
 local function fmtRemain(remain)
     if remain >= 60 then return math.floor(remain / 60 + 0.5) .. "m" end
@@ -75,8 +86,22 @@ local barOf   = {}
 local allBars = {}   -- every bar ever created (for blanket hide on rebuild)
 local throttle = 0
 local driver
+local inCombat = false
 
 local function db() return mod.db end
+
+-- Per-group visibility conditions (all default off). While a group is unlocked
+-- for positioning it always shows so it can be dragged.
+local function barVisible(group)
+    if group.unlocked then return true end
+    if group.onlyInCombat and not inCombat then return false end
+    if group.hideMounted and IsMounted and IsMounted() then return false end
+    if group.onlyInInstance and IsInInstance and not IsInInstance() then return false end
+    local hasTarget = UnitExists("target")
+    if group.hideNoTarget and not hasTarget then return false end
+    if group.hideNoEnemy and not (hasTarget and UnitCanAttack("player", "target")) then return false end
+    return true
+end
 
 -- =========================================================
 -- Groups
@@ -98,6 +123,15 @@ local function defaultGroup(name)
         showReagents   = false,  -- each spell's OWN reagent count (Soul Shard, Infernal Stone, ...)
         desaturate     = true,
         readyFlash     = true,
+        iconShape      = "square",  -- square | rounded | circle
+        iconZoom       = 0.08,      -- texcoord crop (0 = full icon)
+        swipeAlpha     = 0.8,       -- cooldown sweep darkness
+        -- visibility conditions (all default off = always shown)
+        onlyInCombat   = false,
+        hideNoTarget   = false,
+        hideNoEnemy    = false,
+        hideMounted    = false,
+        onlyInInstance = false,
         unlocked       = false,
         anchorTo       = nil,      -- id of another group's bar to anchor to (nil = free)
         anchorSide     = "BELOW",  -- BELOW | ABOVE | LEFT | RIGHT of the target
@@ -146,6 +180,9 @@ local function ensureGroups()
         if g.showReagents == nil then g.showReagents = (g.reagentItem or 0) > 0 end
         g.reagentItem = nil   -- replaced by per-spell auto-detection
         g.anchorSide = g.anchorSide or "BELOW"
+        g.iconShape  = g.iconShape or "square"
+        if g.iconZoom   == nil then g.iconZoom   = 0.08 end
+        if g.swipeAlpha == nil then g.swipeAlpha = 0.8 end
     end
     ensureGroupIDs()
     if d.selected < 1 then d.selected = 1 end
@@ -354,6 +391,13 @@ local function makeIcon(bar, i)
     f.tex:SetPoint("TOPLEFT", f, "TOPLEFT", 1, -1)
     f.tex:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -1, 1)
     f.tex:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+
+    -- icon-shape mask (texture set per group in relayoutGroup)
+    if f.CreateMaskTexture and f.tex.AddMaskTexture then
+        f.mask = f:CreateMaskTexture()
+        f.mask:SetAllPoints(f.tex)
+        f.tex:AddMaskTexture(f.mask)
+    end
 
     f.border = f:CreateTexture(nil, "BACKGROUND")
     f.border:SetAllPoints(f)
@@ -568,6 +612,12 @@ relayoutGroup = function(group)
         if not f then f = makeIcon(bar, i); icons[i] = f end
         local ename, icon = entryInfo(e)
         f.tex:SetTexture(icon or "Interface\\Icons\\INV_Misc_QuestionMark")
+        local z = group.iconZoom or 0.08
+        f.tex:SetTexCoord(z, 1 - z, z, 1 - z)
+        if f.mask then
+            f.mask:SetTexture(shapeMask(group.iconShape), "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+        end
+        if f.cd.SetSwipeColor then f.cd:SetSwipeColor(0, 0, 0, group.swipeAlpha or 0.8) end
         f.text:SetFont(FONT, math.max(8, math.floor(size * 0.4)), "OUTLINE")
         f.entry     = e
         f.entryName = ename
@@ -757,10 +807,20 @@ refreshAll = function()
     for _, group in ipairs(groups) do
         refreshGroup(group, now)
     end
+    -- visibility conditions: show/hide the whole bar
+    for _, group in ipairs(groups) do
+        local bar = barOf[group]
+        if bar then bar:SetShown(barVisible(group)) end
+    end
 end
 
 local function onUnitAura(_, unit)
     if unit == "player" then refreshAll() end
+end
+
+local function onCombat(_, event)
+    inCombat = (event == "PLAYER_REGEN_DISABLED")
+    refreshAll()
 end
 
 -- Rebuild every bar: hide all, then (re)lay-out each current group.
@@ -808,6 +868,7 @@ function mod:OnEnable()
             refreshAll()
         end)
     end
+    inCombat = InCombatLockdown() and true or false
     driver:Show()
     rebuildBars()
     ns:RegisterEvent("SPELL_UPDATE_COOLDOWN", refreshAll)
@@ -815,6 +876,9 @@ function mod:OnEnable()
     ns:RegisterEvent("PLAYER_ENTERING_WORLD", refreshAll)
     ns:RegisterEvent("SPELLS_CHANGED",        rebuildBars)
     ns:RegisterEvent("UNIT_AURA",             onUnitAura)  -- snappy proc show/hide
+    ns:RegisterEvent("PLAYER_REGEN_DISABLED", onCombat)    -- visibility conditions
+    ns:RegisterEvent("PLAYER_REGEN_ENABLED",  onCombat)
+    ns:RegisterEvent("PLAYER_TARGET_CHANGED", refreshAll)
 end
 
 function mod:OnDisable()
@@ -823,6 +887,9 @@ function mod:OnDisable()
     ns:UnregisterEvent("PLAYER_ENTERING_WORLD", refreshAll)
     ns:UnregisterEvent("SPELLS_CHANGED",        rebuildBars)
     ns:UnregisterEvent("UNIT_AURA",             onUnitAura)
+    ns:UnregisterEvent("PLAYER_REGEN_DISABLED", onCombat)
+    ns:UnregisterEvent("PLAYER_REGEN_ENABLED",  onCombat)
+    ns:UnregisterEvent("PLAYER_TARGET_CHANGED", refreshAll)
     if driver then driver:Hide() end
     for _, b in ipairs(allBars) do
         if b.mover then b.mover:Hide() end
@@ -1025,6 +1092,39 @@ function mod:GetOptions()
           },
           get = function() return group.growth end,
           set = function(_, v) group.growth = v; relayoutGroup(group) end },
+        { type = "dropdown", label = L["Icon shape"], width = 220,
+          values = {
+              { value = "square",  text = L["Square"]  },
+              { value = "rounded", text = L["Rounded"] },
+              { value = "circle",  text = L["Circle"]  },
+          },
+          get = function() return group.iconShape or "square" end,
+          set = function(_, v) group.iconShape = v; relayoutGroup(group) end },
+        { type = "slider", label = L["Icon zoom"], min = 0, max = 0.30, step = 0.01,
+          get = function() return group.iconZoom or 0.08 end,
+          set = function(_, v) group.iconZoom = v; relayoutGroup(group) end },
+        { type = "slider", label = L["Cooldown swipe darkness"], min = 0, max = 1, step = 0.05,
+          get = function() return group.swipeAlpha or 0.8 end,
+          set = function(_, v) group.swipeAlpha = v; relayoutGroup(group) end },
+    } }
+
+    -- Visibility conditions (collapsed)
+    items[#items + 1] = { type = "section", title = L["Visibility"], collapsed = true, items = {
+        { type = "toggle", label = L["Only in combat"],
+          get = function() return group.onlyInCombat end,
+          set = function(_, v) group.onlyInCombat = v; refreshAll() end },
+        { type = "toggle", label = L["Only with a target"],
+          get = function() return group.hideNoTarget end,
+          set = function(_, v) group.hideNoTarget = v; refreshAll() end },
+        { type = "toggle", label = L["Only with an attackable target"],
+          get = function() return group.hideNoEnemy end,
+          set = function(_, v) group.hideNoEnemy = v; refreshAll() end },
+        { type = "toggle", label = L["Hide while mounted"],
+          get = function() return group.hideMounted end,
+          set = function(_, v) group.hideMounted = v; refreshAll() end },
+        { type = "toggle", label = L["Only in instances"],
+          get = function() return group.onlyInInstance end,
+          set = function(_, v) group.onlyInInstance = v; refreshAll() end },
     } }
 
     -- Display (collapsed by default)
