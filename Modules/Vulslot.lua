@@ -245,6 +245,18 @@ function mod:GetOptions()
         values[#values + 1] = { value = n, text = n .. suffix }
     end
 
+    local function doSave()
+        local n = newName:gsub("^%s+", ""):gsub("%s+$", "")
+        if n == "" then
+            ns:Print(L["Please enter a profile name first."])
+            return
+        end
+        saveProfile(n)
+        newName  = ""
+        selected = n
+        rebuildPage()
+    end
+
     local items = {
         { type = "header", text = L["Vulslot"] },
         { type = "desc",
@@ -254,20 +266,12 @@ function mod:GetOptions()
         { type = "header", text = L["Save"] },
         { type = "group", layout = "row", gap = 8, items = {
             { type = "editbox", label = L["Name"], width = 260, editWidth = 180,
+              commitOnFocusLost = true,
               get = function() return newName end,
-              set = function(_, v) newName = tostring(v or "") end },
+              set = function(_, v) newName = tostring(v or "") end,
+              onEnter = function() doSave() end },
             { type = "button", label = L["Save current setup"], width = 180, primary = true,
-              onClick = function()
-                  local n = newName:gsub("^%s+", ""):gsub("%s+$", "")
-                  if n == "" then
-                      ns:Print(L["Please enter a profile name first."])
-                      return
-                  end
-                  saveProfile(n)
-                  newName  = ""
-                  selected = n
-                  rebuildPage()
-              end },
+              onClick = function() doSave() end },
         } },
         { type = "spacer", height = 8 },
 

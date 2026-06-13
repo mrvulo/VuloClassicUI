@@ -906,6 +906,15 @@ function UI:CreateEditBox(parent, config)
         if self._borderFrame and self._borderFrame.SetBackdropBorderColor then
             self._borderFrame:SetBackdropBorderColor(borderColor.r, borderColor.g, borderColor.b, borderColor.a or 1)
         end
+        -- Commit the typed value on focus loss too, so clicking an adjacent
+        -- button (which steals focus before its OnClick) sees the new value.
+        -- Opt-in: setters with heavy rebuild side effects shouldn't fire here.
+        local cfg = container._vcConfig
+        if cfg and cfg.commitOnFocusLost then
+            local v = self:GetText()
+            if cfg.numeric then v = tonumber(v) end
+            cfg.set(self, v)
+        end
     end)
 
     eb:SetScript("OnEnterPressed", function(self)
@@ -915,6 +924,7 @@ function UI:CreateEditBox(parent, config)
         if cfg.numeric then v = tonumber(v) end
         cfg.set(self, v)
         self:ClearFocus()
+        if cfg.onEnter then cfg.onEnter(v) end   -- e.g. submit/add on Enter
     end)
     eb:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
 

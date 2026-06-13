@@ -617,16 +617,20 @@ function mod:GetOptions()
             or  L["|cffaaaaaaIcons show the cooldown of each spell/trinket.|r"] }
     items[#items + 1] = { type = "spacer", height = 6 }
 
-    -- Add entry
+    -- Add entry (commit on focus loss so clicking Add works without Enter;
+    -- Enter in the box also submits directly)
+    local function doAdd()
+        local txt = addInput:gsub("^%s+", ""):gsub("%s+$", "")
+        if txt ~= "" and addEntry(group, txt) then addInput = ""; rebuildPage() end
+    end
     items[#items + 1] = { type = "group", layout = "row", gap = 8, items = {
         { type = "editbox", label = L["Add (name / ID)"], width = 280, editWidth = 190,
+          commitOnFocusLost = true,
           get = function() return addInput end,
-          set = function(_, v) addInput = tostring(v or "") end },
+          set = function(_, v) addInput = tostring(v or "") end,
+          onEnter = function() doAdd() end },
         { type = "button", label = L["Add"], width = 80, primary = true,
-          onClick = function()
-              local txt = addInput:gsub("^%s+", ""):gsub("%s+$", "")
-              if txt ~= "" and addEntry(group, txt) then addInput = ""; rebuildPage() end
-          end },
+          onClick = doAdd },
     } }
     items[#items + 1] = { type = "spacer", height = 4 }
 
