@@ -679,6 +679,9 @@ local function ftBuildBar()
         onMove = function(x, y)
             ns:Print(string.format(L["Flight timer: x=%.0f, y=%.0f"], x, y))
         end,
+        editPreview = function(show)
+            if show then ftBar:Show() elseif not ftFlight then ftBar:Hide() end
+        end,
     })
 
     return ftBar

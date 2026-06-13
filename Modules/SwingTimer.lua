@@ -317,7 +317,7 @@ end
 
 local function applyVisibility()
     if not frame then return end
-    if mod.db.unlocked then frame:Show(); return end
+    if mod.db.unlocked or ns:IsMoverEditMode() then frame:Show(); return end
     if previewActive then frame:Show(); return end
     if not mod.db.onlyWhileActive then frame:Show(); return end
     if mh.active or oh.active then frame:Show() else frame:Hide() end
@@ -372,6 +372,7 @@ local function create()
         onMove = function(x, y)
             ns:Print(format(L["Swing Timer position: x=%.0f, y=%.0f"], x, y))
         end,
+        editPreview = function() applyVisibility() end,
     })
 
     -- Throttle to ~50 fps: smooth enough for the spark/text, but caps the cost

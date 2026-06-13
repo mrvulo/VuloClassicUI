@@ -445,7 +445,7 @@ local function refresh()
     if not container:IsShown() and not (InCombatLockdown and InCombatLockdown()) then
         container:Show()
     end
-    local preview = db().unlocked
+    local preview = db().unlocked or ns:IsMoverEditMode()
     for _, t in ipairs(TOTEMS) do
         local row = rows[t.key]
         if row and row:IsShown() then updateRow(row, preview) end
@@ -668,6 +668,7 @@ local function build()
         onMove = function(x, y)
             ns:Print(string.format(L["Totems: x=%.0f, y=%.0f"], x, y))
         end,
+        editPreview = function() refresh() end,
     })
 
     applyLayout()

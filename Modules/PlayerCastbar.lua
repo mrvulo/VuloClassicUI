@@ -358,6 +358,7 @@ end
 local Custom = {}
 local cFrame
 local castInfo
+local c_showTestContent   -- forward (used by the mover's editPreview)
 
 local function c_hideAllTicks()
     if not cFrame or not cFrame.ticks then return end
@@ -444,6 +445,10 @@ local function c_create()
         height = math.max(60, mod.db.height + 40),
         onMove = function(x, y)
             ns:Print(string.format(L["Castbar position: x=%.0f, y=%.0f"], x, y))
+        end,
+        editPreview = function(show)
+            if show then c_showTestContent()
+            elseif not castInfo and not mod.db.unlocked then cFrame:Hide() end
         end,
     })
 
@@ -543,7 +548,7 @@ local function c_create()
     cFrame:SetScript("OnUpdate", function(self, elapsed)
         if not castInfo then
             -- Keep visible in unlock mode, otherwise hide
-            if not mod.db.unlocked then self:Hide() end
+            if not (mod.db.unlocked or ns:IsMoverEditMode()) then self:Hide() end
             return
         end
         local nowMS = GetTime() * 1000
@@ -552,7 +557,7 @@ local function c_create()
             castInfo.fadeTimer = (castInfo.fadeTimer or 0) - elapsed
             if castInfo.fadeTimer <= 0 then
                 castInfo = nil
-                if not mod.db.unlocked then self:Hide() end
+                if not (mod.db.unlocked or ns:IsMoverEditMode()) then self:Hide() end
                 return
             end
             self:SetAlpha(castInfo.fadeTimer / 0.5)
@@ -738,21 +743,25 @@ local function c_applyLayout()
     cFrame.spark:SetHeight(mod.db.height + 8)
 end
 
+-- Fill the castbar with fake cast content (used by Unlock/Test and edit mode).
+c_showTestContent = function()
+    cFrame:Show()
+    cFrame:SetAlpha(1)
+    cFrame.bar:SetValue(0.7)
+    cFrame.nameText:SetText(L["|cff9b6cffMind Flay|r"])
+    cFrame.timeText:SetText("1.5 / 2.0")
+    cFrame.icon:SetTexture("Interface\\Icons\\Spell_Nature_Earthbind")
+    cFrame.setIconShown(mod.db.showIcon)
+    c_applyColor(mod.db.castColor)
+    c_showTicks(3)
+    c_showClip(3)  -- preview the clip window too (fake 3s channel)
+end
+
 local function c_setUnlocked(state)
     mod.db.unlocked = state
     c_create()
     if state then
-        -- Show the castbar itself with test content
-        cFrame:Show()
-        cFrame:SetAlpha(1)
-        cFrame.bar:SetValue(0.7)
-        cFrame.nameText:SetText(L["|cff9b6cffMind Flay|r"])
-        cFrame.timeText:SetText("1.5 / 2.0")
-        cFrame.icon:SetTexture("Interface\\Icons\\Spell_Nature_Earthbind")
-        cFrame.setIconShown(mod.db.showIcon)
-        c_applyColor(mod.db.castColor)
-        c_showTicks(3)
-        c_showClip(3)  -- preview the clip window too (fake 3s channel)
+        c_showTestContent()
         -- Show mover overlay on top
         cFrame.mover:Show()
         ns:Print(L["Castbar mover active. |cff9b6cffDrag purple box|r or use |cff9b6cffarrow keys|r (SHIFT = 5px). Click 'Unlock / Test' again to finish."])

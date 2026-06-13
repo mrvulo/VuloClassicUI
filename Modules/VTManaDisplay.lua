@@ -164,6 +164,9 @@ local function createFrame()
         onMove = function(x, y)
             ns:Print(string.format(L["VT mana frame: x=%.0f, y=%.0f"], x, y))
         end,
+        editPreview = function(show)
+            if show then cFrame:Show() elseif not mod.db.showFrame then cFrame:Hide() end
+        end,
     })
 
     return cFrame
@@ -592,7 +595,7 @@ end
 local function dotsRefresh()
     if not dotsContainer then return end
 
-    if mod.db.dots.unlocked then
+    if mod.db.dots.unlocked or ns:IsMoverEditMode() then
         dotsContainer:Show()
         for _, dot in ipairs(dotDefs) do
             local row = dotsRows[dot.key]
@@ -643,6 +646,7 @@ local function dotsBuild()
         onMove = function(x, y)
             ns:Print(string.format(L["Shadow DoTs: x=%.0f, y=%.0f"], x, y))
         end,
+        editPreview = function() dotsRefresh() end,   -- show DoT preview while editing
     })
 
     dotsRefreshSpellData()
