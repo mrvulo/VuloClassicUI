@@ -95,6 +95,7 @@ local function defaultGroup(name)
         onlyOnCooldown = false,
         showText       = true,
         showStacks     = true,   -- stack-count number on stacking buffs/procs
+        reagentItem    = 0,      -- item whose count shows as the stack on spells (e.g. Soul Shard); 0 = off
         desaturate     = true,
         readyFlash     = true,
         unlocked       = false,
@@ -123,6 +124,7 @@ local function ensureGroups()
         g.auraStyle = g.auraStyle or "glow"
         g.auraColor = g.auraColor or "yellow"
         if g.showStacks == nil then g.showStacks = true end
+        if g.reagentItem == nil then g.reagentItem = 0 end
     end
     if d.selected < 1 then d.selected = 1 end
     if d.selected > #d.groups then d.selected = #d.groups end
@@ -246,6 +248,25 @@ local function scanPlayerAuras()
         local rec = { dur = duration, exp = expiration, count = count }
         auraByName[name] = rec
         if sid then auraByID[sid] = rec end
+    end
+end
+
+-- The number drawn in the icon corner. A configured reagent count (e.g. Soul
+-- Shards for Soul Fire) on SPELL icons takes precedence; otherwise the live
+-- aura stack count (only when >1). Gated by the per-group "Show stacks" eye.
+local function applyStack(group, f)
+    if not group.showStacks then f.stack:Hide(); return end
+    local e = f.entry
+    if group.reagentItem and group.reagentItem > 0 and e and e.kind == "spell" then
+        f.stack:SetText((GetItemCount and GetItemCount(group.reagentItem)) or 0)
+        f.stack:Show()
+        return
+    end
+    local rec = (e and auraByID[e.id]) or (f.entryName and auraByName[f.entryName])
+    if rec and rec.count and rec.count > 1 then
+        f.stack:SetText(rec.count); f.stack:Show()
+    else
+        f.stack:Hide()
     end
 end
 
@@ -499,18 +520,9 @@ local function updateIcon(group, f, now)
         end
     end
 
-    -- stack count: some tracked spells/procs stack while running (read from the
-    -- shared player-aura snapshot; auras are scanned in refreshAll when needed)
-    if group.showStacks and f.entryName then
-        local rec = (auraByID[e.id]) or auraByName[f.entryName]
-        if rec and rec.count and rec.count > 1 then
-            f.stack:SetText(rec.count); f.stack:Show()
-        else
-            f.stack:Hide()
-        end
-    else
-        f.stack:Hide()
-    end
+    -- stack / reagent number (e.g. Soul Shards on Soul Fire). The shared aura
+    -- snapshot is scanned in refreshAll when needed; reagent counts poll bags.
+    applyStack(group, f)
 end
 
 -- Border / glow highlight for active aura icons
@@ -565,11 +577,7 @@ local function updateAuraIcon(group, f, rec, now)
         f.cd:Clear()       -- permanent / no timed duration
         f.text:Hide()
     end
-    if group.showStacks and rec.count and rec.count > 1 then
-        f.stack:SetText(rec.count); f.stack:Show()
-    else
-        f.stack:Hide()
-    end
+    applyStack(group, f)
 end
 
 refreshGroup = function(group, now)
@@ -616,7 +624,8 @@ refreshAll = function()
     -- cooldown group that shows stack counts on its tracked spells)
     local needAuras = false
     for _, g in ipairs(groups) do
-        if g.mode == "aura" or g.showStacks then needAuras = true; break end
+        local reagent = g.reagentItem and g.reagentItem > 0
+        if g.mode == "aura" or (g.showStacks and not reagent) then needAuras = true; break end
     end
     if needAuras then scanPlayerAuras() end
     for _, group in ipairs(groups) do
@@ -841,6 +850,14 @@ function mod:GetOptions()
         { type = "toggle", style = "eye", label = L["Show stacks"],
           get = function() return group.showStacks ~= false end,
           set = function(_, v) group.showStacks = v; refreshAll() end },
+        { type = "dropdown", label = L["Reagent count"], width = 220,
+          tooltip = L["Shows an item's count as the stack number on spell icons — e.g. Soul Shards on Soul Fire. Needs 'Show stacks' on."],
+          values = {
+              { value = 0,    text = L["None"] },
+              { value = 6265, text = L["Soul Shard"] },
+          },
+          get = function() return group.reagentItem or 0 end,
+          set = function(_, v) group.reagentItem = v; refreshAll() end },
     }
     if group.mode == "aura" then
         displayItems[#displayItems + 1] = { type = "dropdown", label = L["Highlight"], width = 220,
