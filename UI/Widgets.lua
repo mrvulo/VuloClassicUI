@@ -1109,12 +1109,13 @@ end
 -- =========================================================
 -- Clean triangle arrows: one "Arrow-Up-Up" texture, flipped/rotated per direction.
 -- tc form: {ULx,ULy, LLx,LLy, URx,URy, LRx,LRy} for rotations, or {l,r,t,b} for simple flips.
+-- Our own clean chevron arrows (white + alpha, tinted by the icon button)
+local ARROW_DIR = "Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\"
 local BUILTIN_ICONS = {
-    up    = { tex = "Interface\\Buttons\\Arrow-Up-Up", tc = {0, 1, 0, 1} },
-    down  = { tex = "Interface\\Buttons\\Arrow-Up-Up", tc = {0, 1, 1, 0} },   -- vertical flip
-    -- 90° rotations of the up arrow (8-value texcoord form)
-    left  = { tex = "Interface\\Buttons\\Arrow-Up-Up", tc = {1,0, 0,0, 1,1, 0,1} },
-    right = { tex = "Interface\\Buttons\\Arrow-Up-Up", tc = {0,1, 1,1, 0,0, 1,0} },
+    up    = { tex = ARROW_DIR .. "arrow_up.tga",    tc = {0, 1, 0, 1} },
+    down  = { tex = ARROW_DIR .. "arrow_down.tga",  tc = {0, 1, 0, 1} },
+    left  = { tex = ARROW_DIR .. "arrow_left.tga",  tc = {0, 1, 0, 1} },
+    right = { tex = ARROW_DIR .. "arrow_right.tga", tc = {0, 1, 0, 1} },
 }
 
 local function iconButtonSetup(b, config)
