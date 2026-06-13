@@ -195,11 +195,16 @@ function ns:CreateMover(target, opts)
         if button == "RightButton" then showMoverPopup(self) end
     end)
 
+    -- Hovering a box makes it the ACTIVE one — arrow keys then nudge only it
+    -- (several movers are visible at once in edit mode, so we must single one out).
+    mover:SetScript("OnEnter", function(self) ns._activeMover = self end)
+
     -- Keyboard — arrow keys 1px, SHIFT 5px (while editing OR individually unlocked)
     mover:EnableKeyboard(true)
     mover:SetPropagateKeyboardInput(true)
     mover:SetScript("OnKeyDown", function(self, key)
-        if not (ns._moverEdit or db.unlocked) then
+        -- only the last-hovered ("active") box reacts, so arrow keys nudge one
+        if not (ns._moverEdit or db.unlocked) or ns._activeMover ~= self then
             self:SetPropagateKeyboardInput(true)
             return
         end
