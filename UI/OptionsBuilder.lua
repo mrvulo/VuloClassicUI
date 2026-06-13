@@ -115,7 +115,7 @@ local function createWidget(parent, item)
         local w = obtain("dropdown", parent, item, function()
             return UI:CreateDropdown(parent, item)
         end)
-        return w, item.label and 50 or 32, item.width or 200
+        return w, item.label and 30 or 28, item.width or 200
     elseif t == "editbox" then
         local w = obtain("editbox", parent, item, function()
             return UI:CreateEditBox(parent, item)
@@ -142,7 +142,7 @@ local function estimateHeight(item)
     elseif t == "header" then return 26
     elseif t == "desc"   then return 22
     elseif t == "slider" then return 38
-    elseif t == "dropdown" then return item.label and 50 or 32
+    elseif t == "dropdown" then return item.label and 30 or 28
     elseif t == "editbox" then return 28
     end
     return 26
@@ -151,13 +151,66 @@ end
 -- Collapsible-section state, keyed by "<moduleKey>/<tab>/<title>"
 UI.sectionCollapsed = UI.sectionCollapsed or {}
 
-local placeItem  -- forward declaration (placeSection calls back into it)
+-- =========================================================
+-- Layout: consecutive compact controls (toggle/dropdown/editbox) auto-arrange
+-- into a two-column grid of subtle "card" rows; headers, sliders, groups,
+-- sections and buttons span the full width on their own row.
+-- =========================================================
+local COMPACT = { toggle = true, checkbox = true, dropdown = true, editbox = true }
+local COL_GAP = 12
+local ROW_H   = 32
+
+-- Pooled row panel (rides the widget pool via _vcType / _vcSetup)
+local function makePanel(parent)
+    local p = acquire("panel", parent)
+    if p then return p end
+    p = CreateFrame("Frame", nil, parent)
+    p._vcType  = "panel"
+    p._vcSetup = function() end
+    p.bg = p:CreateTexture(nil, "BACKGROUND")
+    p.bg:SetAllPoints(p)
+    p.bg:SetColorTexture(0.105, 0.105, 0.135, 0.55)
+    return p
+end
+
+local placeItem, placeItemList  -- forward (mutual recursion via sections)
+
+local function placeColumns(parent, run, y)
+    local availW = (parent:GetWidth() or 540) - 2 * CONTENT_PADDING
+    local colW   = math.floor((availW - COL_GAP) / 2)
+    local base   = parent:GetFrameLevel()
+    local n      = #run
+    for idx = 1, n do
+        local item  = run[idx]
+        local col   = (idx - 1) % 2
+        local row   = math.floor((idx - 1) / 2)
+        local cellX = CONTENT_PADDING + col * (colW + COL_GAP)
+        local cellY = y - row * ROW_H
+
+        local p = makePanel(parent)
+        p:ClearAllPoints()
+        p:SetPoint("TOPLEFT", parent, "TOPLEFT", cellX, cellY)
+        p:SetSize(colW, ROW_H - 4)
+        p:SetFrameLevel(base + 1)
+        p:Show()
+
+        local widget = createWidget(parent, item)
+        if widget then
+            widget:SetWidth(colW - 16)
+            widget:SetFrameLevel(base + 4)
+            local wh = widget:GetHeight() or 22
+            widget:ClearAllPoints()
+            widget:SetPoint("TOPLEFT", parent, "TOPLEFT",
+                cellX + 8, cellY - math.floor(((ROW_H - 4) - wh) / 2))
+        end
+    end
+    return y - math.ceil(n / 2) * ROW_H
+end
 
 local function placeSection(parent, section, y)
     local title    = section.title or "Section"
     local stateKey = (UI._currentBuildKey or "?") .. "/" .. (UI.currentTab or "") .. "/" .. title
 
-    -- Resolve collapsed state: runtime override, else the section's default
     local collapsed = UI.sectionCollapsed[stateKey]
     if collapsed == nil then collapsed = section.collapsed and true or false end
 
@@ -177,9 +230,7 @@ local function placeSection(parent, section, y)
     y = y - 26
 
     if not collapsed then
-        for _, sub in ipairs(section.items or {}) do
-            y = placeItem(parent, sub, y)
-        end
+        y = placeItemList(parent, section.items or {}, y)
     end
     return y
 end
@@ -195,8 +246,7 @@ placeItem = function(parent, item, y)
         return placeSection(parent, item, y)
     end
     if item.type == "header" then
-        -- Header gets extra breathing room above for clear section separation
-        y = y - 10
+        y = y - 12  -- breathing room above section labels
     end
 
     local widget, h = createWidget(parent, item)
@@ -208,6 +258,25 @@ placeItem = function(parent, item, y)
 
     widget:SetPoint("TOPLEFT", parent, "TOPLEFT", xOff, yOff)
     return y - h
+end
+
+-- Gather runs of consecutive compact controls into 2-column rows; everything
+-- else is placed full-width. Used at the top level and inside sections.
+placeItemList = function(parent, items, y)
+    local i = 1
+    while i <= #items do
+        if COMPACT[items[i].type] then
+            local run = {}
+            while items[i] and COMPACT[items[i].type] do
+                run[#run + 1] = items[i]; i = i + 1
+            end
+            y = placeColumns(parent, run, y)
+        else
+            y = placeItem(parent, items[i], y)
+            i = i + 1
+        end
+    end
+    return y
 end
 
 function UI:PlaceGroup(parent, group, y)
@@ -307,9 +376,7 @@ function UI:BuildOptionsPage(key, tabId)
     end
     items = items or {}
 
-    for _, item in ipairs(items) do
-        y = placeItem(parent, item, y)
-    end
+    y = placeItemList(parent, items, y)
 
     local totalHeight = math.max(400, math.abs(y) + 20)
     parent:SetHeight(totalHeight)

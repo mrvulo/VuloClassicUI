@@ -193,6 +193,13 @@ end
 -- =========================================================
 local function headerSetup(f, item)
     f._label:SetText(string.upper(item.text or ""))
+    if item.subtitle and item.subtitle ~= "" then
+        f._sub:SetText(item.subtitle)
+        f._sub:Show()
+    else
+        f._sub:SetText("")
+        f._sub:Hide()
+    end
 end
 
 function UI:CreateHeader(parent, text)
@@ -205,13 +212,21 @@ function UI:CreateHeader(parent, text)
     tick:SetSize(3, 12)
     tick:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 1)
 
-    -- Header label (uppercase, bright)
+    -- Header label (uppercase, dimmed — section label, like the reference)
     local fs = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     fs:SetPoint("BOTTOMLEFT", tick, "BOTTOMRIGHT", 7, -1)
-    UI.Font(fs, 12)
-    fs:SetTextColor(0.92, 0.90, 0.96)
+    UI.Font(fs, 11)
+    fs:SetTextColor(0.62, 0.60, 0.70)
     fs:SetJustifyH("LEFT")
     f._label = fs
+
+    -- Optional muted subtitle hint after the label ("one per slot")
+    local sub = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    sub:SetPoint("LEFT", fs, "RIGHT", 6, 0)
+    UI.Font(sub, 10)
+    sub:SetTextColor(0.40, 0.40, 0.48)
+    sub:Hide()
+    f._sub = sub
 
     -- Thin accent underline spanning the row, fading out to the right
     local line = f:CreateTexture(nil, "ARTWORK")
@@ -699,19 +714,27 @@ local function openPopup(button, config)
     p:Show()
 end
 
+-- Inline layout: label on the LEFT, the dropdown button on the RIGHT (fixed
+-- width). The container is the row -- SetWidth() on it reflows everything, so
+-- the OptionsBuilder can drop it straight into a two-column grid.
 local function dropdownSetup(container, config)
     container._vcConfig = config
-    container:SetSize(config.width or 160, config.label and 46 or 26)
     local btn, label = container._button, container._label
-    btn:ClearAllPoints()
+    btn:ClearAllPoints(); label:ClearAllPoints()
     if config.label then
         label:SetText(config.label)
         label:Show()
-        btn:SetPoint("BOTTOMLEFT",  container, "BOTTOMLEFT",  0, 0)
-        btn:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", 0, 0)
+        label:SetPoint("LEFT", container, "LEFT", 0, 0)
+        local btnW = config.ddWidth or 132
+        btn:SetSize(btnW, 24)
+        btn:SetPoint("RIGHT", container, "RIGHT", 0, 0)
+        label:SetPoint("RIGHT", btn, "LEFT", -8, 0)
+        container:SetSize(config.width or 240, 28)
     else
         label:Hide()
-        btn:SetAllPoints(container)
+        btn:SetPoint("TOPLEFT", container, "TOPLEFT", 0, 0)
+        btn:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", 0, 0)
+        container:SetSize(config.width or 160, 26)
     end
     btn._refresh()
 end
@@ -719,16 +742,17 @@ end
 function UI:CreateDropdown(parent, config)
     local container = CreateFrame("Frame", nil, parent)
 
-    -- Label on top (always created; shown only when configured)
+    -- Label on the left (always created; shown only when configured)
     local label = container:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     UI.Font(label, 12)
-    label:SetPoint("TOPLEFT", container, "TOPLEFT", 0, 0)
+    label:SetJustifyH("LEFT")
+    label:SetWordWrap(false)
     label:SetTextColor(0.95, 0.95, 0.97)
     container._label = label
 
     -- Actual button
     local btn = CreateFrame("Button", nil, container)
-    btn:SetHeight(26)
+    btn:SetHeight(24)
     container._button = btn
 
     -- BG
@@ -829,27 +853,29 @@ end
 -- =========================================================
 -- EditBox
 -- =========================================================
+-- Inline: label LEFT, edit field RIGHT (fixed width). SetWidth() on the
+-- container reflows it for the two-column grid.
 local function editboxSetup(container, config)
     container._vcConfig = config
     local label, eb = container._labelFS, container._editBox
+    eb:ClearAllPoints(); label:ClearAllPoints()
+    label:SetJustifyH("LEFT"); label:SetWordWrap(false)
 
     if config.label and config.label ~= "" then
         label:SetText(config.label)
         label:Show()
-        local labelW = label:GetStringWidth() or 0
-        local totalW = config.width or (labelW + 12 + 140)
-        local editW  = config.editWidth or (totalW - labelW - 12)
-        if editW < 40 then editW = 40 end
-        container:SetWidth(labelW + 12 + editW)
-        eb:ClearAllPoints()
-        eb:SetPoint("LEFT", label, "RIGHT", 12, 0)
+        label:SetPoint("LEFT", container, "LEFT", 0, 0)
+        local editW = config.editWidth or 130
+        eb:SetPoint("RIGHT", container, "RIGHT", 0, 0)
         eb:SetWidth(editW)
+        label:SetPoint("RIGHT", eb, "LEFT", -10, 0)
+        local labelW = label:GetStringWidth() or 80
+        container:SetWidth(config.width or (labelW + 14 + editW))
     else
         label:Hide()
-        container:SetWidth(config.width or 160)
-        eb:ClearAllPoints()
         eb:SetPoint("LEFT", container, "LEFT", 0, 0)
         eb:SetWidth(config.width or 160)
+        container:SetWidth(config.width or 160)
     end
 
     eb:ClearFocus()
