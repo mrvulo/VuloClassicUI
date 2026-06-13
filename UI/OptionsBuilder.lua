@@ -160,7 +160,9 @@ local COMPACT = { toggle = true, checkbox = true, dropdown = true, editbox = tru
 local COL_GAP = 12
 local ROW_H   = 32
 
--- Pooled row panel (rides the widget pool via _vcType / _vcSetup)
+-- Pooled row panel (rides the widget pool via _vcType / _vcSetup).
+-- A raised "card": fill slightly lighter than the content bg + a thin border,
+-- so each option row reads as its own panel like the reference design.
 local function makePanel(parent)
     local p = acquire("panel", parent)
     if p then return p end
@@ -169,7 +171,16 @@ local function makePanel(parent)
     p._vcSetup = function() end
     p.bg = p:CreateTexture(nil, "BACKGROUND")
     p.bg:SetAllPoints(p)
-    p.bg:SetColorTexture(0.105, 0.105, 0.135, 0.55)
+    p.bg:SetColorTexture(0.125, 0.125, 0.155, 0.95)
+    for _, s in ipairs({ "TOP", "BOTTOM", "LEFT", "RIGHT" }) do
+        local t = p:CreateTexture(nil, "BORDER")
+        t:SetColorTexture(0.22, 0.22, 0.28, 1)
+        if s == "TOP" or s == "BOTTOM" then
+            t:SetPoint(s .. "LEFT"); t:SetPoint(s .. "RIGHT"); t:SetHeight(1)
+        else
+            t:SetPoint("TOP" .. s); t:SetPoint("BOTTOM" .. s); t:SetWidth(1)
+        end
+    end
     return p
 end
 
@@ -254,7 +265,20 @@ placeItem = function(parent, item, y)
 
     local xOff = CONTENT_PADDING
     local yOff = y
-    if item.type == "slider" then yOff = y - 14 end
+    if item.type == "slider" then
+        -- full-width card behind the slider
+        local availW = (parent:GetWidth() or 540) - 2 * CONTENT_PADDING
+        local base = parent:GetFrameLevel()
+        local p = makePanel(parent)
+        p:ClearAllPoints()
+        p:SetPoint("TOPLEFT", parent, "TOPLEFT", CONTENT_PADDING, y)
+        p:SetSize(availW, h)
+        p:SetFrameLevel(base + 1)
+        p:Show()
+        widget:SetFrameLevel(base + 4)
+        xOff = CONTENT_PADDING + 10
+        yOff = y - 14
+    end
 
     widget:SetPoint("TOPLEFT", parent, "TOPLEFT", xOff, yOff)
     return y - h
@@ -282,21 +306,34 @@ end
 function UI:PlaceGroup(parent, group, y)
     local layout = group.layout or "row"
     local items  = group.items or {}
+    local availW = (parent:GetWidth() or 540) - 2 * CONTENT_PADDING
+    local base   = parent:GetFrameLevel()
+
+    -- Full-width card behind the whole group row
+    local panel = (group.noCard ~= true) and makePanel(parent) or nil
+    if panel then
+        panel:ClearAllPoints()
+        panel:SetPoint("TOPLEFT", parent, "TOPLEFT", CONTENT_PADDING, y)
+        panel:SetFrameLevel(base + 1)
+        panel:Show()
+    end
 
     if layout == "row" then
-        local cursorX = CONTENT_PADDING
+        local cursorX = CONTENT_PADDING + (panel and 8 or 0)
         local maxH = 0
         for _, item in ipairs(items) do
             local widget, h, w = createWidget(parent, item)
             if widget then
-                local yo = y
+                if panel then widget:SetFrameLevel(base + 4) end
+                local yo = y - (panel and 4 or 0)
                 if item.type == "slider" then yo = y - 14 end
                 widget:SetPoint("TOPLEFT", parent, "TOPLEFT", cursorX, yo)
                 cursorX = cursorX + w + (group.gap or 8)
                 if h > maxH then maxH = h end
             end
         end
-        return y - maxH
+        if panel then panel:SetSize(availW, maxH + 8) end
+        return y - maxH - (panel and 8 or 0)
 
     elseif layout == "columns" then
         local cols       = group.columns or 2
@@ -317,8 +354,9 @@ function UI:PlaceGroup(parent, group, y)
                 end
                 local widget = createWidget(parent, ri)
                 if widget then
-                    local xo = CONTENT_PADDING + (i - 1) * colWidth
-                    widget:SetPoint("TOPLEFT", parent, "TOPLEFT", xo, curY)
+                    if panel then widget:SetFrameLevel(base + 4) end
+                    local xo = CONTENT_PADDING + (panel and 6 or 0) + (i - 1) * colWidth
+                    widget:SetPoint("TOPLEFT", parent, "TOPLEFT", xo, curY - (panel and 4 or 0))
                 end
             end
             curY = curY - rowMaxH
@@ -334,9 +372,11 @@ function UI:PlaceGroup(parent, group, y)
         end
         if #rowItems > 0 then flushRow() end
 
+        if panel then panel:SetSize(availW, (y - curY) + 8); curY = curY - 8 end
         return curY
     end
 
+    if panel then panel:Hide() end  -- unknown layout: no card
     return y
 end
 
