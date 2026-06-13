@@ -171,10 +171,10 @@ local function makePanel(parent)
     p._vcSetup = function() end
     p.bg = p:CreateTexture(nil, "BACKGROUND")
     p.bg:SetAllPoints(p)
-    p.bg:SetColorTexture(0.125, 0.125, 0.155, 0.95)
+    p.bg:SetColorTexture(0.075, 0.075, 0.095, 0.9)   -- subtle, like the mockup row
     for _, s in ipairs({ "TOP", "BOTTOM", "LEFT", "RIGHT" }) do
         local t = p:CreateTexture(nil, "BORDER")
-        t:SetColorTexture(0.22, 0.22, 0.28, 1)
+        t:SetColorTexture(0.15, 0.15, 0.19, 1)       -- thin, low-key border
         if s == "TOP" or s == "BOTTOM" then
             t:SetPoint(s .. "LEFT"); t:SetPoint(s .. "RIGHT"); t:SetHeight(1)
         else

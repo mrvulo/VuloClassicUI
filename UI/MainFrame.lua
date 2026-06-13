@@ -17,9 +17,9 @@ local L = ns.L
 ns.UI = ns.UI or {}
 local UI = ns.UI
 
-local FRAME_WIDTH   = 820
-local FRAME_HEIGHT  = 540
-local SIDEBAR_WIDTH = 200
+local FRAME_WIDTH   = 960
+local FRAME_HEIGHT  = 620
+local SIDEBAR_WIDTH = 210
 local TITLEBAR_H    = 32
 local BOTTOMBAR_H   = 44
 local TABBAR_H      = 32

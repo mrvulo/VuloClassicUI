@@ -14,6 +14,10 @@ local L = ns.L
 local FONT_PATH = "Interface\\AddOns\\VuloClassicUI\\Media\\Fonts\\Expressway.TTF"
 UI.FONT_PATH = FONT_PATH
 
+-- Rounded-corner masks (used for the pill toggle switch)
+local MASK_ROUNDED = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\csquare_mask.tga"
+local MASK_CIRCLE  = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\circle_mask.tga"
+
 -- Apply the addon UI font to a FontString (or EditBox)
 function UI.Font(fs, size, flags)
     fs:SetFont(FONT_PATH, size or 12, flags or "")
@@ -393,33 +397,36 @@ function UI:CreateToggle(parent, config)
     label:SetJustifyH("LEFT")
     label:SetWordWrap(false)
 
-    -- BG track
+    -- Rounded pill track (csquare mask rounds the corners into a pill)
     local track = btn:CreateTexture(nil, "BACKGROUND")
     track:SetAllPoints(btn)
     track:SetColorTexture(ns.COLORS.toggleOff.r, ns.COLORS.toggleOff.g, ns.COLORS.toggleOff.b, 1)
+    if btn.CreateMaskTexture then
+        local tm = btn:CreateMaskTexture()
+        tm:SetAllPoints(track)
+        tm:SetTexture(MASK_ROUNDED, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+        track:AddMaskTexture(tm)
+    end
 
-    -- Knob (with a soft shadow behind it)
+    -- Round knob (circle mask) with a soft shadow
     local knobShadow = btn:CreateTexture(nil, "ARTWORK", nil, 1)
     knobShadow:SetSize(TOGGLE_H - 2, TOGGLE_H - 2)
     knobShadow:SetColorTexture(0, 0, 0, 0.30)
 
     local knob = btn:CreateTexture(nil, "ARTWORK", nil, 2)
-    knob:SetSize(TOGGLE_H - 6, TOGGLE_H - 6)
+    knob:SetSize(TOGGLE_H - 4, TOGGLE_H - 4)
     knob:SetColorTexture(1, 1, 1, 1)
     knobShadow:SetPoint("CENTER", knob, "CENTER", 0, -1)
-
-    -- Border (very thin, dark for crisp contrast)
-    local borderColor = ns.COLORS.borderDark or ns.COLORS.border
-    local borders = {}
-    for i = 1, 4 do
-        local b = btn:CreateTexture(nil, "BORDER")
-        b:SetColorTexture(borderColor.r, borderColor.g, borderColor.b, 1)
-        borders[i] = b
+    if btn.CreateMaskTexture then
+        local km = btn:CreateMaskTexture()
+        km:SetAllPoints(knob)
+        km:SetTexture(MASK_CIRCLE, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+        knob:AddMaskTexture(km)
+        local sm = btn:CreateMaskTexture()
+        sm:SetAllPoints(knobShadow)
+        sm:SetTexture(MASK_CIRCLE, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+        knobShadow:AddMaskTexture(sm)
     end
-    borders[1]:SetPoint("TOPLEFT", btn, "TOPLEFT"); borders[1]:SetPoint("TOPRIGHT", btn, "TOPRIGHT"); borders[1]:SetHeight(1)
-    borders[2]:SetPoint("BOTTOMLEFT", btn, "BOTTOMLEFT"); borders[2]:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT"); borders[2]:SetHeight(1)
-    borders[3]:SetPoint("TOPLEFT", btn, "TOPLEFT"); borders[3]:SetPoint("BOTTOMLEFT", btn, "BOTTOMLEFT"); borders[3]:SetWidth(1)
-    borders[4]:SetPoint("TOPRIGHT", btn, "TOPRIGHT"); borders[4]:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT"); borders[4]:SetWidth(1)
 
     container._switch = btn
     container._label  = label
