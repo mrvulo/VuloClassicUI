@@ -173,13 +173,26 @@ local function makeIcon(i)
     f.cd = CreateFrame("Cooldown", nil, f, "CooldownFrameTemplate")
     f.cd:SetAllPoints(f.tex)
     f.cd:SetDrawEdge(true)
+    -- Suppress the Cooldown widget's OWN countdown numbers every which way
+    -- (the method is missing on some 2.5.5 builds) so they can't double up
+    -- with ours and read as a blur.
     if f.cd.SetHideCountdownNumbers then f.cd:SetHideCountdownNumbers(true) end
+    f.cd.noCooldownCount = true   -- OmniCC opt-out
 
-    f.text = f:CreateFontString(nil, "OVERLAY")
+    -- The countdown number sits on its OWN frame ABOVE the cooldown frame.
+    -- Otherwise the cooldown (a child frame) draws over our text and the
+    -- translucent sweep bleeds through it -> the number looks washed out.
+    f.textHost = CreateFrame("Frame", nil, f)
+    f.textHost:SetAllPoints(f)
+    f.textHost:SetFrameLevel(f.cd:GetFrameLevel() + 5)
+
+    f.text = f.textHost:CreateFontString(nil, "OVERLAY")
     f.text:SetFont(FONT, 16, "OUTLINE")
-    f.text:SetPoint("CENTER", f, "CENTER", 0, 0)
+    f.text:SetPoint("CENTER", f.textHost, "CENTER", 0, 0)
+    f.text:SetShadowColor(0, 0, 0, 1)
+    f.text:SetShadowOffset(1, -1)
 
-    f.flash = f:CreateTexture(nil, "OVERLAY")
+    f.flash = f.textHost:CreateTexture(nil, "OVERLAY")
     f.flash:SetTexture("Interface\\Cooldown\\star4")
     f.flash:SetBlendMode("ADD")
     f.flash:SetPoint("CENTER", f, "CENTER", 0, 0)
