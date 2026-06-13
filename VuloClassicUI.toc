@@ -57,6 +57,7 @@ Modules\Arena\Castbar.lua
 Modules\CharacterPanel.lua
 Modules\CharacterPanel_Impl.lua
 Modules\ButtonSkin.lua
+Modules\FriendList.lua
 Modules\FlightTimesDB.lua
 Modules\MiscQoL.lua
 Modules\QueueTimer.lua

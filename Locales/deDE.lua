@@ -416,6 +416,24 @@ ns:RegisterLocale("deDE", {
     ["|cffaaaaaaIcons show the cooldown of each spell/trinket.|r"] = "|cffaaaaaaIcons zeigen den Cooldown jedes Zaubers/Schmuckstücks.|r",
     ["Size & offsets"] = "Größe & Versatz",
     ["Extra settings"] = "Mehr Einstellungen",
+
+    -- =====================================================
+    -- FriendList (friends list reskin)
+    -- =====================================================
+    ["Friends List"] = "Freundesliste",
+    ["Class-coloured friend names, class icons, faction accent and optional auto-accept for Battle.net invites."] = "Freundesnamen in Klassenfarbe, Klassen-Icons, Fraktions-Akzent und optionales Auto-Annehmen von Battle.net-Anfragen.",
+    ["Class color names"] = "Namen in Klassenfarbe",
+    ["Colors each online friend's name by their class."] = "Färbt den Namen jedes Online-Freundes nach seiner Klasse.",
+    ["Show class icons"] = "Klassen-Icons anzeigen",
+    ["Shows a class icon next to online WoW friends (in-game and Battle.net)."] = "Zeigt ein Klassen-Icon neben Online-WoW-Freunden (im Spiel und Battle.net).",
+    ["Class icon style"] = "Klassen-Icon-Stil",
+    ["Circles"] = "Kreise",
+    ["Squares"] = "Quadrate",
+    ["Faction accent on realm line"] = "Fraktions-Akzent in der Realm-Zeile",
+    ["Tints the realm/zone line red (Horde) or blue (Alliance)."] = "Färbt die Realm-/Zonen-Zeile rot (Horde) oder blau (Allianz).",
+    ["Invites"] = "Einladungen",
+    ["Auto-accept Battle.net friend invites"] = "Battle.net-Freundschaftsanfragen automatisch annehmen",
+    ["Automatically accepts incoming Battle.net friend requests."] = "Nimmt eingehende Battle.net-Freundschaftsanfragen automatisch an.",
     ["Highlight"] = "Hervorhebung",
     ["Proc glow (animated)"] = "Proc-Glow (animiert)",
     ["Glow"] = "Leuchten",

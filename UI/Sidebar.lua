@@ -27,6 +27,7 @@ local MODULE_ICONS = {
     arenaframes        = "Interface\\Icons\\Achievement_Arena_2v2_1",
     characterpanel     = "Interface\\Icons\\INV_Chest_Plate06",
     buttonskin         = "Interface\\Icons\\INV_Misc_EngGizmos_27",
+    friendlist         = "Interface\\Icons\\INV_Misc_GroupLooking",
     miscqol            = "Interface\\Icons\\Trade_BlackSmithing",
     queuetimer         = "Interface\\Icons\\INV_Misc_PocketWatch_01",
     tooltipids         = "Interface\\Icons\\INV_Misc_QuestionMark",
