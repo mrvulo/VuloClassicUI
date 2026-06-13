@@ -20,12 +20,20 @@ local mod = ns:RegisterModule("vtmanadisplay", {
         y          = -220,
         fontSize   = 14,
         unlocked   = false,
-        -- Shadow DoT tracker (Priest → Shadow)
+        -- DoT tracker (Priest → Shadow, Warlock → Affliction/Destruction)
         dots = {
             layout      = "bars",   -- "bars" | "icons"
+            -- Priest
             showSWP     = true,
             showVT      = true,
             showDP      = false,  -- Undead only; off by default
+            -- Warlock
+            showCorruption = true,
+            showCoA        = true,
+            showUA         = true,
+            showSiphon     = true,
+            showImmolate   = true,
+            showCoDoom     = false,  -- long/niche; off by default
             warnSeconds = 3,
             colorText   = true,
             showGain    = true,   -- "+12%" recast-gain readout next to the timer
@@ -171,15 +179,33 @@ end
 -- so every rank is covered. No Mastery/Pandemic API exists in 2.5.5.
 -- =========================================================
 -- base = approximate base damage over the full duration; coef = spell-power
--- coefficient over the full duration. Exact values barely matter: the
--- "is a recast stronger now?" check is relative (each DoT vs its OWN snapshot),
--- so base/coef only weight spell power against % buffs when the two move in
+-- coefficient over the full duration; school = GetSpellBonusDamage index
+-- (6 = Shadow, 3 = Fire). Exact values barely matter: the "is a recast
+-- stronger now?" check is relative (each DoT vs its OWN snapshot), so
+-- base/coef only weight spell power against % buffs when the two move in
 -- opposite directions. Rough TBC values.
-local dotDefs = {
-    { key = "swp", id = 589,   toggle = "showSWP", color = { 0.62, 0.40, 0.94 }, base = 1236, coef = 1.10 }, -- Shadow Word: Pain
-    { key = "vt",  id = 34917, toggle = "showVT",  color = { 0.85, 0.30, 0.85 }, base = 850,  coef = 1.00 }, -- Vampiric Touch
-    { key = "dp",  id = 2944,  toggle = "showDP",  color = { 0.40, 0.78, 0.36 }, base = 1216, coef = 1.00 }, -- Devouring Plague (Undead)
+--
+-- One DoT set per class; the player's set is chosen at enable. Keys are
+-- unique across classes so snapshots / rows never collide.
+local DOT_SETS = {
+    PRIEST = {
+        { key = "swp", id = 589,   toggle = "showSWP", label = "Shadow Word: Pain", school = 6, color = { 0.62, 0.40, 0.94 }, base = 1236, coef = 1.10 },
+        { key = "vt",  id = 34917, toggle = "showVT",  label = "Vampiric Touch",     school = 6, color = { 0.85, 0.30, 0.85 }, base = 850,  coef = 1.00 },
+        { key = "dp",  id = 2944,  toggle = "showDP",  label = "Devouring Plague",   school = 6, color = { 0.40, 0.78, 0.36 }, base = 1216, coef = 1.00 },
+    },
+    WARLOCK = {
+        { key = "corr",   id = 172,   toggle = "showCorruption", label = "Corruption",          school = 6, color = { 0.55, 0.35, 0.85 }, base = 900,  coef = 0.94 },
+        { key = "coa",    id = 980,   toggle = "showCoA",        label = "Curse of Agony",      school = 6, color = { 0.45, 0.30, 0.70 }, base = 1356, coef = 1.20 },
+        { key = "ua",     id = 30108, toggle = "showUA",         label = "Unstable Affliction", school = 6, color = { 0.72, 0.42, 0.96 }, base = 1050, coef = 1.20 },
+        { key = "siphon", id = 18265, toggle = "showSiphon",     label = "Siphon Life",         school = 6, color = { 0.40, 0.66, 0.42 }, base = 630,  coef = 1.00 },
+        { key = "immo",   id = 348,   toggle = "showImmolate",   label = "Immolate",            school = 3, color = { 0.92, 0.46, 0.20 }, base = 615,  coef = 0.65 },
+        { key = "codoom", id = 603,   toggle = "showCoDoom",     label = "Curse of Doom",       school = 6, color = { 0.72, 0.22, 0.22 }, base = 4200, coef = 2.00 },
+    },
 }
+
+-- Active set for the player's class (assigned in OnEnable). Defaults to the
+-- Priest set so option builders have something before login resolves.
+local dotDefs = DOT_SETS.PRIEST
 
 -- Caster-side TEMPORARY % spell-damage buffs that snapshot onto a DoT at cast.
 -- Target debuffs (Shadow Weaving / Misery) are dynamic -> NOT here. Constant
@@ -200,9 +226,9 @@ local dotsThrottle = 0
 local DOT_GREEN     = { 0.20, 1.00, 0.20 }
 local dotsSnapshots = {}  -- destGUID..dotKey -> damage-estimate snapshot at cast
 
--- Shadow spell power right now (6 = shadow school index for GetSpellBonusDamage).
-local function dotsCurrentPower()
-    return (GetSpellBonusDamage and GetSpellBonusDamage(6)) or 0
+-- Spell power right now for a given school (6 = Shadow, 3 = Fire).
+local function dotsCurrentPower(school)
+    return (GetSpellBonusDamage and GetSpellBonusDamage(school or 6)) or 0
 end
 
 -- Product of active caster-side % spell-damage buffs (1.0 if none).
@@ -229,10 +255,11 @@ local function dotsOnUnitAura(_, unit)
     if unit == "player" then dotsRecomputeMult() end
 end
 
--- Estimated DoT damage = (base + spellpower * coef) * % damage multiplier.
+-- Estimated DoT damage = (base + spellpower[school] * coef) * % damage mult.
 -- AffDots-style: snapshot this at cast, then compare to the live value.
-local function dotsFactor(dot, sp, mult)
-    return (dot.base + sp * dot.coef) * mult
+-- Spell power is read per the DoT's own school (Shadow vs Fire).
+local function dotsFactor(dot, mult)
+    return (dot.base + dotsCurrentPower(dot.school) * dot.coef) * mult
 end
 
 -- How much would a recast on the current target gain (in %) vs. the value the
@@ -240,12 +267,12 @@ end
 -- % buffs on cast, so with a spell-power proc up a fresh cast deals more.
 -- Returns a percentage (+14 = recast hits 14% harder, -8 = the running DoT
 -- is 8% stronger than a fresh cast would be), or nil without a snapshot.
-local function dotsGain(dot, sp, mult)
+local function dotsGain(dot, mult)
     local guid = UnitGUID("target")
     if not guid then return nil end
     local snap = dotsSnapshots[guid .. dot.key]
     if not snap or snap <= 0 then return nil end
-    return (dotsFactor(dot, sp, mult) / snap - 1) * 100
+    return (dotsFactor(dot, mult) / snap - 1) * 100
 end
 
 -- ONE combat-log handler for both trackers. VT mana: count shadow damage on
@@ -297,7 +324,7 @@ local function onCombatLog()
         for _, dot in ipairs(dotDefs) do
             if dot.name and spellName == dot.name then
                 dotsSnapshots[destGUID .. dot.key] =
-                    apply and dotsFactor(dot, dotsCurrentPower(), dotsDamageMult()) or nil
+                    apply and dotsFactor(dot, dotsDamageMult()) or nil
                 return
             end
         end
@@ -465,7 +492,7 @@ local function dotsApplyLayout()
     end
 end
 
-local function dotsUpdateRow(row, hasTarget, preview, sp, mult)
+local function dotsUpdateRow(row, hasTarget, preview, mult)
     local db  = mod.db.dots
     local dot = row.dot
     local dur, exp
@@ -486,8 +513,8 @@ local function dotsUpdateRow(row, hasTarget, preview, sp, mult)
         local gain
         if preview then
             gain = 12  -- sample value while positioning
-        elseif hasTarget and sp then
-            gain = dotsGain(dot, sp, mult)
+        elseif hasTarget then
+            gain = dotsGain(dot, mult)
         end
         local better = (gain and gain > 0.5) and true or false
 
@@ -590,10 +617,10 @@ local function dotsRefresh()
 
     dotsContainer:Show()
     dotsScanTarget()  -- one debuff pass for all rows
-    local sp, mult = dotsCurrentPower(), dotsDamageMult()
+    local mult = dotsDamageMult()
     for _, dot in ipairs(dotDefs) do
         local row = dotsRows[dot.key]
-        if row and row:IsShown() then dotsUpdateRow(row, true, false, sp, mult) end
+        if row and row:IsShown() then dotsUpdateRow(row, true, false, mult) end
     end
 end
 
@@ -618,7 +645,7 @@ local function dotsBuild()
     end
 
     dotsContainer.mover = ns:CreateMover(dotsContainer, {
-        label  = L["|cffffffffSHADOW DOTS|r"],
+        label  = L["|cffffffffDOTS|r"],
         db     = mod.db.dots,
         width  = 160,
         height = 50,
@@ -672,42 +699,53 @@ function mod:OnEnable()
         if not ok then ns:Print(L["|cffff5555Class tool error:|r %s"], tostring(err)) end
     end
 
-    -- Priest tools only
-    if class ~= "PRIEST" then return end
+    -- Pick the DoT set for this class. VT mana stays Priest-only; the DoT
+    -- tracker runs for any class that has a set (Priest + Warlock).
+    dotDefs = DOT_SETS[class]
+    local hasDots  = dotDefs ~= nil
+    local isPriest = class == "PRIEST"
+    if not isPriest and not hasDots then return end
 
-    playerGUID  = UnitGUID("player")
-    vtSpellName = GetSpellInfo(VT_SPELL_ID_BASE)
+    playerGUID = UnitGUID("player")
 
-    createFrame()
-    if mod.db.showFrame then cFrame:Show() else cFrame:Hide() end
-
-    ns:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", onCombatLog)
-    ns:RegisterEvent("PLAYER_REGEN_DISABLED",       resetCombat)
-    ns:RegisterEvent("PLAYER_REGEN_ENABLED",        reportChat)
-    ns:RegisterEvent("PLAYER_ENTERING_WORLD",       resetCombat)
-    ns:RegisterEvent("SPELLS_CHANGED",              refreshSpell)
-
-    -- Shadow DoT tracker: migrate the old standalone "shadowdots" module
-    if ns.db and ns.db.profile and ns.db.profile.modules then
-        local oldDots = ns.db.profile.modules.shadowdots
-        if oldDots then
-            for k, v in pairs(oldDots) do
-                if k ~= "enabled" and mod.db.dots[k] ~= nil then
-                    mod.db.dots[k] = v
-                end
-            end
-            ns.db.profile.modules.shadowdots = nil
-        end
+    -- Priest: Vampiric Touch mana frame
+    if isPriest then
+        vtSpellName = GetSpellInfo(VT_SPELL_ID_BASE)
+        createFrame()
+        if mod.db.showFrame then cFrame:Show() else cFrame:Hide() end
+        ns:RegisterEvent("PLAYER_REGEN_DISABLED", resetCombat)
+        ns:RegisterEvent("PLAYER_REGEN_ENABLED",  reportChat)
+        ns:RegisterEvent("PLAYER_ENTERING_WORLD", resetCombat)
+        ns:RegisterEvent("SPELLS_CHANGED",        refreshSpell)
     end
 
-    dotsBuild()
-    dotsContainer:SetScript("OnUpdate", dotsOnUpdate)
-    ns:RegisterEvent("UNIT_AURA",             dotsOnUnitAura)
-    ns:RegisterEvent("SPELLS_CHANGED",        dotsRefreshSpellData)
-    ns:RegisterEvent("PLAYER_TARGET_CHANGED", dotsRefresh)
-    ns:RegisterEvent("PLAYER_ENTERING_WORLD", dotsRefresh)
-    dotsRecomputeMult()
-    dotsRefresh()
+    -- DoT tracker (Priest + Warlock). The combat-log handler also feeds the
+    -- VT mana counter, so it's registered whenever either system is active.
+    if hasDots then
+        ns:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", onCombatLog)
+
+        -- migrate the old standalone "shadowdots" module
+        if ns.db and ns.db.profile and ns.db.profile.modules then
+            local oldDots = ns.db.profile.modules.shadowdots
+            if oldDots then
+                for k, v in pairs(oldDots) do
+                    if k ~= "enabled" and mod.db.dots[k] ~= nil then
+                        mod.db.dots[k] = v
+                    end
+                end
+                ns.db.profile.modules.shadowdots = nil
+            end
+        end
+
+        dotsBuild()
+        dotsContainer:SetScript("OnUpdate", dotsOnUpdate)
+        ns:RegisterEvent("UNIT_AURA",             dotsOnUnitAura)
+        ns:RegisterEvent("SPELLS_CHANGED",        dotsRefreshSpellData)
+        ns:RegisterEvent("PLAYER_TARGET_CHANGED", dotsRefresh)
+        ns:RegisterEvent("PLAYER_ENTERING_WORLD", dotsRefresh)
+        dotsRecomputeMult()
+        dotsRefresh()
+    end
 end
 
 function mod:OnDisable()
@@ -738,7 +776,88 @@ end
 -- =========================================================
 -- Options
 -- =========================================================
--- Priest tab: Shadow → Vampiric Touch mana tracker
+local CLASS_NAME = { PRIEST = L["Priest"], WARLOCK = L["Warlock"] }
+
+-- Shared DoT-tracker options, built for a specific class' DoT set. Used by
+-- both the Priest and Warlock tabs. The tracker only RUNS for the player's
+-- own class, so a note is shown when viewing another class' tab.
+local function appendDotTracker(items, forClass)
+    table.insert(items, { type = "spacer", height = 10 })
+    table.insert(items, { type = "header", text = L["DoT Tracker"] })
+    table.insert(items, { type = "desc",
+        text = L["|cffaaaaaaTracks your DoTs on the target. |cff44ff44Green|r = a buff is up that makes it hit harder if you recast now (TBC snapshot); |cffff4444red|r = about to expire.|r"] })
+
+    if select(2, UnitClass("player")) ~= forClass then
+        table.insert(items, { type = "desc",
+            text = string.format(L["|cffff8800Only active while playing a %s.|r"], CLASS_NAME[forClass] or forClass) })
+    end
+
+    table.insert(items, { type = "dropdown", label = L["Layout"],
+        values = {
+            { value = "bars",  text = L["Bars"]  },
+            { value = "icons", text = L["Icons"] },
+        },
+        get = function() return mod.db.dots.layout end,
+        set = function(_, v) mod.db.dots.layout = v; dotsApplyLayout(); dotsRefresh() end })
+
+    -- One toggle per DoT in this class' set
+    for _, dot in ipairs(DOT_SETS[forClass] or {}) do
+        local toggleKey = dot.toggle
+        table.insert(items, { type = "toggle", label = L[dot.label],
+            get = function() return mod.db.dots[toggleKey] end,
+            set = function(_, v) mod.db.dots[toggleKey] = v; dotsApplyLayout(); dotsRefresh() end })
+    end
+
+    table.insert(items, { type = "slider", label = L["Warning (seconds left)"],
+        min = 1, max = 6, step = 1,
+        get = function() return mod.db.dots.warnSeconds end,
+        set = function(_, v) mod.db.dots.warnSeconds = v end })
+    table.insert(items, { type = "slider", label = L["Bar width"],
+        min = 80, max = 300, step = 5,
+        get = function() return mod.db.dots.barWidth end,
+        set = function(_, v) mod.db.dots.barWidth = v; dotsApplyLayout(); dotsRefresh() end })
+    table.insert(items, { type = "slider", label = L["Bar height"],
+        min = 10, max = 36, step = 1,
+        get = function() return mod.db.dots.barHeight end,
+        set = function(_, v) mod.db.dots.barHeight = v; dotsApplyLayout(); dotsRefresh() end })
+    table.insert(items, { type = "slider", label = L["Icon size"],
+        min = 18, max = 56, step = 1,
+        get = function() return mod.db.dots.iconSize end,
+        set = function(_, v) mod.db.dots.iconSize = v; dotsApplyLayout(); dotsRefresh() end })
+    table.insert(items, { type = "slider", label = L["Spacing"],
+        min = 0, max = 12, step = 1,
+        get = function() return mod.db.dots.spacing end,
+        set = function(_, v) mod.db.dots.spacing = v; dotsApplyLayout(); dotsRefresh() end })
+    table.insert(items, { type = "slider", label = L["Font size"],
+        min = 8, max = 24, step = 1,
+        get = function() return mod.db.dots.fontSize end,
+        set = function(_, v) mod.db.dots.fontSize = v; dotsApplyLayout(); dotsRefresh() end })
+    table.insert(items, { type = "toggle", label = L["Color the timer text"],
+        get = function() return mod.db.dots.colorText end,
+        set = function(_, v) mod.db.dots.colorText = v end })
+    table.insert(items, { type = "toggle", label = L["Show recast gain %"],
+        tooltip = L["Shows how much harder a fresh cast would hit right now (e.g. +12% with a spell power proc up). Negative values mean the running DoT snapshotted stronger — keep it."],
+        get = function() return mod.db.dots.showGain end,
+        set = function(_, v) mod.db.dots.showGain = v; dotsRefresh() end })
+
+    table.insert(items, { type = "group", layout = "row", gap = 8,
+        items = {
+            { type = "button", label = L["Unlock / Position"], width = 200,
+              onClick = function() dotsSetUnlocked(not mod.db.dots.unlocked) end },
+            { type = "button", label = L["Reset position"], width = 200,
+              onClick = function()
+                  mod.db.dots.x, mod.db.dots.y = 250, 0
+                  if dotsContainer then
+                      dotsContainer:ClearAllPoints()
+                      dotsContainer:SetPoint("CENTER", UIParent, "CENTER", mod.db.dots.x, mod.db.dots.y)
+                  end
+              end },
+        },
+    })
+    return items
+end
+
+-- Priest tab: Shadow → Vampiric Touch mana tracker + DoT tracker
 local function priestOptions()
     local isPriest = select(2, UnitClass("player")) == "PRIEST"
     local items = {
@@ -790,88 +909,28 @@ local function priestOptions()
         },
     })
 
-    -- -----------------------------------------------------
-    -- Shadow DoT tracker
-    -- -----------------------------------------------------
-    table.insert(items, { type = "spacer", height = 10 })
-    table.insert(items, { type = "header", text = L["Shadow DoT Tracker"] })
-    table.insert(items, { type = "desc",
-        text = L["|cffaaaaaaTracks your Shadow DoTs on the target. |cff44ff44Green|r = a buff is up that makes it hit harder if you recast now (TBC snapshot); |cffff4444red|r = about to expire.|r"] })
+    -- Shadow DoT tracker (shared engine, Priest set)
+    appendDotTracker(items, "PRIEST")
+    return items
+end
 
-    table.insert(items, { type = "dropdown", label = L["Layout"],
-        values = {
-            { value = "bars",  text = L["Bars"]  },
-            { value = "icons", text = L["Icons"] },
-        },
-        get = function() return mod.db.dots.layout end,
-        set = function(_, v) mod.db.dots.layout = v; dotsApplyLayout(); dotsRefresh() end })
-
-    table.insert(items, { type = "toggle", label = L["Shadow Word: Pain"],
-        get = function() return mod.db.dots.showSWP end,
-        set = function(_, v) mod.db.dots.showSWP = v; dotsApplyLayout(); dotsRefresh() end })
-    table.insert(items, { type = "toggle", label = L["Vampiric Touch"],
-        get = function() return mod.db.dots.showVT end,
-        set = function(_, v) mod.db.dots.showVT = v; dotsApplyLayout(); dotsRefresh() end })
-    table.insert(items, { type = "toggle", label = L["Devouring Plague"],
-        get = function() return mod.db.dots.showDP end,
-        set = function(_, v) mod.db.dots.showDP = v; dotsApplyLayout(); dotsRefresh() end })
-
-    table.insert(items, { type = "slider", label = L["Warning (seconds left)"],
-        min = 1, max = 6, step = 1,
-        get = function() return mod.db.dots.warnSeconds end,
-        set = function(_, v) mod.db.dots.warnSeconds = v end })
-    table.insert(items, { type = "slider", label = L["Bar width"],
-        min = 80, max = 300, step = 5,
-        get = function() return mod.db.dots.barWidth end,
-        set = function(_, v) mod.db.dots.barWidth = v; dotsApplyLayout(); dotsRefresh() end })
-    table.insert(items, { type = "slider", label = L["Bar height"],
-        min = 10, max = 36, step = 1,
-        get = function() return mod.db.dots.barHeight end,
-        set = function(_, v) mod.db.dots.barHeight = v; dotsApplyLayout(); dotsRefresh() end })
-    table.insert(items, { type = "slider", label = L["Icon size"],
-        min = 18, max = 56, step = 1,
-        get = function() return mod.db.dots.iconSize end,
-        set = function(_, v) mod.db.dots.iconSize = v; dotsApplyLayout(); dotsRefresh() end })
-    table.insert(items, { type = "slider", label = L["Spacing"],
-        min = 0, max = 12, step = 1,
-        get = function() return mod.db.dots.spacing end,
-        set = function(_, v) mod.db.dots.spacing = v; dotsApplyLayout(); dotsRefresh() end })
-    table.insert(items, { type = "slider", label = L["Font size"],
-        min = 8, max = 24, step = 1,
-        get = function() return mod.db.dots.fontSize end,
-        set = function(_, v) mod.db.dots.fontSize = v; dotsApplyLayout(); dotsRefresh() end })
-    table.insert(items, { type = "toggle", label = L["Color the timer text"],
-        get = function() return mod.db.dots.colorText end,
-        set = function(_, v) mod.db.dots.colorText = v end })
-    table.insert(items, { type = "toggle", label = L["Show recast gain %"],
-        tooltip = L["Shows how much harder a fresh cast would hit right now (e.g. +12% with a spell power proc up). Negative values mean the running DoT snapshotted stronger — keep it."],
-        get = function() return mod.db.dots.showGain end,
-        set = function(_, v)
-            mod.db.dots.showGain = v
-            dotsRefresh()
-        end })
-
-    table.insert(items, { type = "group", layout = "row", gap = 8,
-        items = {
-            { type = "button", label = L["Unlock / Position"], width = 200,
-              onClick = function() dotsSetUnlocked(not mod.db.dots.unlocked) end },
-            { type = "button", label = L["Reset position"], width = 200,
-              onClick = function()
-                  mod.db.dots.x, mod.db.dots.y = 250, 0
-                  if dotsContainer then
-                      dotsContainer:ClearAllPoints()
-                      dotsContainer:SetPoint("CENTER", UIParent, "CENTER", mod.db.dots.x, mod.db.dots.y)
-                  end
-              end },
-        },
-    })
-
+-- Warlock tab: Affliction / Destruction DoT tracker
+local function warlockOptions()
+    local items = {
+        { type = "header", text = L["Warlock"] },
+        { type = "desc",
+          text = L["|cffaaaaaaTracks your Warlock DoTs (Corruption, Curse of Agony, Unstable Affliction, Siphon Life, Immolate, Curse of Doom) on the target, with the same recast-snapshot readout as the Priest tracker.|r"] },
+    }
+    appendDotTracker(items, "WARLOCK")
     return items
 end
 
 function mod:GetOptions(tabId)
     if tabId == "priest" or tabId == "default" or tabId == nil then
         return priestOptions()
+    end
+    if tabId == "warlock" then
+        return warlockOptions()
     end
     -- Pluggable class tools (tabId is the lowercase class id, e.g. "shaman")
     local tool = self.classTools and self.classTools[tabId and tabId:upper() or ""]
