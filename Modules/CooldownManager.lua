@@ -463,14 +463,32 @@ end
 -- =========================================================
 -- Bar anchoring (chain bars to each other; they then follow automatically)
 -- =========================================================
+-- Blizzard frames a bar can pin to (2.5.5 has no Edit Mode, so we offer the
+-- common unit frames + minimap directly). Only listed if they exist.
+local ANCHOR_FRAMES = {
+    { frame = "PlayerFrame", label = L["Player Frame"] },
+    { frame = "TargetFrame", label = L["Target Frame"] },
+    { frame = "FocusFrame",  label = L["Focus Frame"] },
+    { frame = "PetFrame",    label = L["Pet Frame"] },
+    { frame = "Minimap",     label = L["Minimap"] },
+}
+
 local function groupByID(id)
     if not id then return nil end
     for _, g in ipairs(db().groups) do if g.id == id then return g end end
     return nil
 end
 
-local function anchorTargetBar(group)
-    local g = groupByID(group.anchorTo)
+-- The frame this group anchors to: a Blizzard frame ("f:PlayerFrame") or
+-- another group's bar (numeric id). nil = free / not anchored.
+local function anchorTargetFrame(group)
+    local a = group.anchorTo
+    if not a then return nil end
+    if type(a) == "string" then
+        local fname = a:match("^f:(.+)$")
+        return fname and _G[fname] or nil
+    end
+    local g = groupByID(a)
     if g and g ~= group then return barOf[g] end
     return nil
 end
@@ -499,7 +517,7 @@ local function positionBar(group)
     local bar = barOf[group]
     if not bar then return end
     bar:ClearAllPoints()
-    local target = anchorTargetBar(group)
+    local target = anchorTargetFrame(group)
     local side = ANCHOR_SIDES[group.anchorSide or "BELOW"]
     if target and side then
         -- anchored: x/y act as a fine-tune offset from the chosen edge
@@ -943,22 +961,30 @@ function mod:GetOptions()
     -- Anchor this bar to another group's bar (it then follows + fine-tune offset)
     do
         local anchorVals = { { value = 0, text = L["None (free)"] } }
+        for _, f in ipairs(ANCHOR_FRAMES) do
+            if _G[f.frame] then anchorVals[#anchorVals + 1] = { value = "f:" .. f.frame, text = f.label } end
+        end
         for _, g in ipairs(d.groups) do
             if g ~= group then anchorVals[#anchorVals + 1] = { value = g.id, text = g.name } end
         end
         local anchorItems = {
-            { type = "dropdown", label = L["Anchor to bar"], width = 240,
-              tooltip = L["Pin this bar to another group's bar — it then moves with it. Drag the bar to detach."],
+            { type = "dropdown", label = L["Anchor to"], width = 240,
+              tooltip = L["Pin this bar to a unit frame, the minimap, or another group's bar — it then moves with it. Drag the bar to detach."],
               values = anchorVals,
               get = function() return group.anchorTo or 0 end,
               set = function(_, v)
+                  local prev = group.anchorTo
                   if v == 0 then
                       group.anchorTo = nil
+                  elseif type(v) == "string" then
+                      group.anchorTo = v          -- Blizzard frame, no cycle possible
                   elseif wouldCycle(group, v) then
                       ns:Print(L["Cooldown Manager: can't anchor there — it would loop."])
                   else
                       group.anchorTo = v
-                      group.x, group.y = 0, 0   -- snap adjacent, then fine-tune
+                  end
+                  if group.anchorTo and group.anchorTo ~= prev then
+                      group.x, group.y = 0, 0     -- snap adjacent, then fine-tune
                   end
                   positionBar(group); rebuildPage()
               end },
