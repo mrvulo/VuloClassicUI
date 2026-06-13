@@ -94,6 +94,7 @@ local function defaultGroup(name)
         growth         = "RIGHT",
         onlyOnCooldown = false,
         showText       = true,
+        showStacks     = true,   -- stack-count number on stacking buffs/procs
         desaturate     = true,
         readyFlash     = true,
         unlocked       = false,
@@ -121,6 +122,7 @@ local function ensureGroups()
         g.mode      = g.mode or "cooldown"   -- older groups predate aura mode
         g.auraStyle = g.auraStyle or "glow"
         g.auraColor = g.auraColor or "yellow"
+        if g.showStacks == nil then g.showStacks = true end
     end
     if d.selected < 1 then d.selected = 1 end
     if d.selected > #d.groups then d.selected = #d.groups end
@@ -134,6 +136,25 @@ end
 -- =========================================================
 -- Entry resolution
 -- =========================================================
+-- Resolve a (localized) spell NAME to its spellID by scanning the spellbook.
+-- 2.5.5's GetSpellInfo(name) frequently returns NO spellID (7th value), so a
+-- typed name like "Feuerbrunst" (Conflagrate) wouldn't resolve otherwise.
+local function spellIDByName(name)
+    if not name or name == "" or not GetSpellBookItemName then return nil end
+    local lname = name:lower()
+    local i = 1
+    while true do
+        local sname = GetSpellBookItemName(i, "spell")
+        if not sname then break end
+        if sname:lower() == lname then
+            local _, sid = GetSpellBookItemInfo(i, "spell")
+            if sid then return sid end
+        end
+        i = i + 1
+    end
+    return nil
+end
+
 local function resolveInput(text)
     if not text or text == "" then return nil end
     local sid = text:match("|Hspell:(%d+)")
@@ -147,10 +168,15 @@ local function resolveInput(text)
         if GetItemInfo(num) then return "item", num end
         return nil
     end
-    if GetSpellInfo(text) then
-        local id = select(7, GetSpellInfo(text))
-        if id then return "spell", id end
+
+    -- by name: prefer a real spellID (GetSpellInfo's 7th, else spellbook scan);
+    -- if neither yields one, fall back to the NAME itself — GetSpellInfo and
+    -- GetSpellCooldown both accept a name in 2.5.5, so tracking still works.
+    local sName, _, _, _, _, _, sId = GetSpellInfo(text)
+    if sName then
+        return "spell", sId or spellIDByName(sName) or sName
     end
+
     local _, link = GetItemInfo(text)
     if link then
         local id = tonumber(link:match("item:(%d+)"))
@@ -388,6 +414,7 @@ relayoutGroup = function(group)
 
     if group.mode == "aura" then
         -- visibility + packing happen per refresh (only active procs show)
+        scanPlayerAuras()
         refreshGroup(group, GetTime())
     else
         local all = {}
@@ -441,6 +468,19 @@ local function updateIcon(group, f, now)
             f.flash:SetSize(s, s)
             f.flash:SetAlpha(0.9 * (1 - p))
         end
+    end
+
+    -- stack count: some tracked spells/procs stack while running (read from the
+    -- shared player-aura snapshot; auras are scanned in refreshAll when needed)
+    if group.showStacks and f.entryName then
+        local rec = (auraByID[e.id]) or auraByName[f.entryName]
+        if rec and rec.count and rec.count > 1 then
+            f.stack:SetText(rec.count); f.stack:Show()
+        else
+            f.stack:Hide()
+        end
+    else
+        f.stack:Hide()
     end
 end
 
@@ -496,7 +536,7 @@ local function updateAuraIcon(group, f, rec, now)
         f.cd:Clear()       -- permanent / no timed duration
         f.text:Hide()
     end
-    if rec.count and rec.count > 1 then
+    if group.showStacks and rec.count and rec.count > 1 then
         f.stack:SetText(rec.count); f.stack:Show()
     else
         f.stack:Hide()
@@ -509,7 +549,6 @@ refreshGroup = function(group, now)
     local icons = bar._icons
 
     if group.mode == "aura" then
-        scanPlayerAuras()
         local active = {}
         for i = 1, #group.entries do
             local f = icons[i]
@@ -543,7 +582,15 @@ end
 refreshAll = function()
     if not mod._enabled then return end
     local now = GetTime()
-    for _, group in ipairs(db().groups) do
+    local groups = db().groups
+    -- one shared aura scan if any group needs aura data (aura mode, or a
+    -- cooldown group that shows stack counts on its tracked spells)
+    local needAuras = false
+    for _, g in ipairs(groups) do
+        if g.mode == "aura" or g.showStacks then needAuras = true; break end
+    end
+    if needAuras then scanPlayerAuras() end
+    for _, group in ipairs(groups) do
         refreshGroup(group, now)
     end
 end
@@ -758,6 +805,9 @@ function mod:GetOptions()
         { type = "toggle", label = L["Show countdown text"],
           get = function() return group.showText end,
           set = function(_, v) group.showText = v; refreshAll() end },
+        { type = "toggle", style = "eye", label = L["Show stacks"],
+          get = function() return group.showStacks ~= false end,
+          set = function(_, v) group.showStacks = v; refreshAll() end },
     }
     if group.mode == "aura" then
         displayItems[#displayItems + 1] = { type = "dropdown", label = L["Highlight"], width = 220,

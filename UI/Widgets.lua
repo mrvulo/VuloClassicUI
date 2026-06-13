@@ -345,6 +345,8 @@ end
 -- Toggle Switch (EUI style: switch left/right with purple accent)
 -- =========================================================
 local TOGGLE_W, TOGGLE_H = 36, 18
+local EYE_ON  = "Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\eye.tga"
+local EYE_OFF = "Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\eye_off.tga"
 
 local function setTrackColor(container, r, g, b)
     for _, t in ipairs(container._trackParts) do t:SetColorTexture(r, g, b, 1) end
@@ -353,8 +355,20 @@ end
 local function toggleRefresh(container)
     local cfg, btn = container._vcConfig, container._switch
     if not cfg then return end
-    local knob = container._knob
     local state = cfg.get(btn) and true or false
+
+    -- Eye variant: open eye = on (accent), closed eye = off (grey).
+    if container._eye then
+        container._eye:SetTexture(state and EYE_ON or EYE_OFF)
+        if state then
+            container._eye:SetVertexColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 1)
+        else
+            container._eye:SetVertexColor(0.45, 0.45, 0.50, 1)
+        end
+        return
+    end
+
+    local knob = container._knob
     if state then
         setTrackColor(container, ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
         knob:SetColorTexture(1, 1, 1, 1)
@@ -412,36 +426,46 @@ function UI:CreateToggle(parent, config)
     label:SetJustifyH("LEFT")
     label:SetWordWrap(false)
 
-    -- Rectangular track + thin border
-    local track = btn:CreateTexture(nil, "BACKGROUND")
-    track:SetAllPoints(btn)
-    track:SetColorTexture(ns.COLORS.toggleOff.r, ns.COLORS.toggleOff.g, ns.COLORS.toggleOff.b, 1)
-    container._trackParts = { track }
-
-    local borderColor = ns.COLORS.borderDark or ns.COLORS.border
-    for _, s in ipairs({ "TOP", "BOTTOM", "LEFT", "RIGHT" }) do
-        local bd = btn:CreateTexture(nil, "BORDER")
-        bd:SetColorTexture(borderColor.r, borderColor.g, borderColor.b, 1)
-        if s == "TOP" or s == "BOTTOM" then
-            bd:SetPoint(s .. "LEFT"); bd:SetPoint(s .. "RIGHT"); bd:SetHeight(1)
-        else
-            bd:SetPoint("TOP" .. s); bd:SetPoint("BOTTOM" .. s); bd:SetWidth(1)
-        end
-    end
-
-    -- Square knob with a soft shadow
-    local knobShadow = btn:CreateTexture(nil, "ARTWORK", nil, 1)
-    knobShadow:SetSize(TOGGLE_H - 4, TOGGLE_H - 4)
-    knobShadow:SetColorTexture(0, 0, 0, 0.30)
-
-    local knob = btn:CreateTexture(nil, "ARTWORK", nil, 2)
-    knob:SetSize(TOGGLE_H - 6, TOGGLE_H - 6)
-    knob:SetColorTexture(1, 1, 1, 1)
-    knobShadow:SetPoint("CENTER", knob, "CENTER", 0, 0)
-
     container._switch = btn
     container._label  = label
-    container._knob   = knob
+
+    if config.style == "eye" then
+        -- Eye variant: a single show/hide eye glyph instead of the switch.
+        btn:SetSize(22, 16)
+        local eye = btn:CreateTexture(nil, "ARTWORK")
+        eye:SetPoint("CENTER", btn, "CENTER", 0, 0)
+        eye:SetSize(22, 16)
+        container._eye = eye
+    else
+        -- Rectangular track + thin border
+        local track = btn:CreateTexture(nil, "BACKGROUND")
+        track:SetAllPoints(btn)
+        track:SetColorTexture(ns.COLORS.toggleOff.r, ns.COLORS.toggleOff.g, ns.COLORS.toggleOff.b, 1)
+        container._trackParts = { track }
+
+        local borderColor = ns.COLORS.borderDark or ns.COLORS.border
+        for _, s in ipairs({ "TOP", "BOTTOM", "LEFT", "RIGHT" }) do
+            local bd = btn:CreateTexture(nil, "BORDER")
+            bd:SetColorTexture(borderColor.r, borderColor.g, borderColor.b, 1)
+            if s == "TOP" or s == "BOTTOM" then
+                bd:SetPoint(s .. "LEFT"); bd:SetPoint(s .. "RIGHT"); bd:SetHeight(1)
+            else
+                bd:SetPoint("TOP" .. s); bd:SetPoint("BOTTOM" .. s); bd:SetWidth(1)
+            end
+        end
+
+        -- Square knob with a soft shadow
+        local knobShadow = btn:CreateTexture(nil, "ARTWORK", nil, 1)
+        knobShadow:SetSize(TOGGLE_H - 4, TOGGLE_H - 4)
+        knobShadow:SetColorTexture(0, 0, 0, 0.30)
+
+        local knob = btn:CreateTexture(nil, "ARTWORK", nil, 2)
+        knob:SetSize(TOGGLE_H - 6, TOGGLE_H - 6)
+        knob:SetColorTexture(1, 1, 1, 1)
+        knobShadow:SetPoint("CENTER", knob, "CENTER", 0, 0)
+
+        container._knob = knob
+    end
 
     btn:SetScript("OnClick", function(self) toggleFlip(self:GetParent()) end)
 
