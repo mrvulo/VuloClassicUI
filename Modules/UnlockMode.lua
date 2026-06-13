@@ -21,6 +21,26 @@ local function rebuild()
     end
 end
 
+-- Open Blizzard's own Edit Mode (Anniversary client). Our OnShow hook then
+-- flips global edit mode on, so every VuloUI window is draggable in it too.
+local function openBlizzEdit()
+    if InCombatLockdown and InCombatLockdown() then
+        ns:Print(L["Can't open Edit Mode in combat."]); return
+    end
+    if not _G.EditModeManagerFrame then
+        local load = (C_AddOns and C_AddOns.LoadAddOn) or _G.LoadAddOn
+        if load then pcall(load, "Blizzard_EditMode") end
+    end
+    local emf = _G.EditModeManagerFrame
+    if not emf then
+        ns:Print(L["This client has no Blizzard Edit Mode."]); return
+    end
+    if _G.VuloClassicUIMainFrame then _G.VuloClassicUIMainFrame:Hide() end  -- clear the canvas
+    if emf.EnterEditMode then emf:EnterEditMode()
+    elseif _G.ShowUIPanel then ShowUIPanel(emf)
+    else emf:Show() end
+end
+
 function mod:GetOptions()
     local on = ns:IsMoverEditMode()
     local items = {
@@ -35,6 +55,11 @@ function mod:GetOptions()
               ns:SetMoversEditMode(not ns:IsMoverEditMode())
               rebuild()
           end },
+        { type = "spacer", height = 4 },
+        { type = "button", width = 360,
+          label = L["Open Blizzard's Edit Mode"],
+          tooltip = L["Opens Blizzard's own Edit Mode (closes this window first). Our windows show up in it too."],
+          onClick = openBlizzEdit },
         { type = "spacer", height = 8 },
         { type = "desc",
           text = L["|cff888888• Drag a purple box to move that window.|n• Hover a box, then use the arrow keys to fine-tune (SHIFT = 5px).|n• Right-click a box for exact X / Y.|n• |cffffffff/cdedit|r toggles this too.|r"] },
