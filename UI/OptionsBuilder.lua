@@ -157,8 +157,10 @@ UI.sectionCollapsed = UI.sectionCollapsed or {}
 -- sections and buttons span the full width on their own row.
 -- =========================================================
 local COMPACT = { toggle = true, checkbox = true, dropdown = true, editbox = true }
-local COL_GAP = 12
-local ROW_H   = 32
+local COL_GAP  = 14
+local ROW_H    = 38          -- vertical pitch of a card row
+local CARD_GAP = 8           -- empty space between stacked cards
+local CARD_H   = ROW_H - CARD_GAP
 
 -- Pooled row panel (rides the widget pool via _vcType / _vcSetup).
 -- A raised "card": fill slightly lighter than the content bg + a thin border,
@@ -262,7 +264,7 @@ local function placeColumns(parent, run, y)
         local p = makePanel(parent)
         p:ClearAllPoints()
         p:SetPoint("TOPLEFT", parent, "TOPLEFT", cellX, cellY)
-        p:SetSize(cellW, ROW_H - 4)
+        p:SetSize(cellW, CARD_H)
         p:SetFrameLevel(base + 1)
         p:Show()
 
@@ -271,18 +273,18 @@ local function placeColumns(parent, run, y)
         if item.tooltip then
             local e = setRowIcon(makeRowIcon(parent), ICON_INFO, item.tooltip, nil, base + 5)
             e:ClearAllPoints()
-            e:SetPoint("LEFT", parent, "TOPLEFT", cellX + 8, cellY - (ROW_H - 4) / 2)
-            lead = 19
+            e:SetPoint("LEFT", parent, "TOPLEFT", cellX + 10, cellY - CARD_H / 2)
+            lead = 22
         end
 
         local widget = createWidget(parent, item)
         if widget then
-            widget:SetWidth(cellW - 16 - lead)
+            widget:SetWidth(cellW - 20 - lead)
             widget:SetFrameLevel(base + 4)
             local wh = widget:GetHeight() or 22
             widget:ClearAllPoints()
             widget:SetPoint("TOPLEFT", parent, "TOPLEFT",
-                cellX + 8 + lead, cellY - math.floor(((ROW_H - 4) - wh) / 2))
+                cellX + 10 + lead, cellY - math.floor((CARD_H - wh) / 2))
         end
     end
     return y - math.ceil(n / 2) * ROW_H
@@ -378,7 +380,7 @@ placeItem = function(parent, item, y)
         end
         widget:SetPoint("TOPLEFT", parent, "TOPLEFT", CONTENT_PADDING + 10, yOff)
 
-        y = y - h
+        y = y - h - CARD_GAP
         if expanded and item.subOptions then
             y = placeItemList(parent, item.subOptions, y)
         end
@@ -400,7 +402,7 @@ placeItem = function(parent, item, y)
         widget:SetPoint("TOPLEFT", parent, "TOPLEFT",
             CONTENT_PADDING + math.max(10, math.floor((availW - ww) / 2)),
             y - math.floor((h - wh) / 2))
-        return y - h
+        return y - h - CARD_GAP
     end
 
     -- headers / descriptions: no card
