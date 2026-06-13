@@ -410,47 +410,32 @@ function UI:CreateToggle(parent, config)
     label:SetJustifyH("LEFT")
     label:SetWordWrap(false)
 
-    -- True pill track: circle end-caps + a middle rectangle (all one colour).
-    -- A stretched rounded-square mask only half-rounds; round caps give a real pill.
-    local cap = TOGGLE_H
-    local lcap = btn:CreateTexture(nil, "BACKGROUND")
-    lcap:SetSize(cap, cap); lcap:SetPoint("LEFT", btn, "LEFT", 0, 0)
-    local rcap = btn:CreateTexture(nil, "BACKGROUND")
-    rcap:SetSize(cap, cap); rcap:SetPoint("RIGHT", btn, "RIGHT", 0, 0)
-    local mid = btn:CreateTexture(nil, "BACKGROUND")
-    mid:SetPoint("LEFT", lcap, "CENTER", 0, 0)
-    mid:SetPoint("RIGHT", rcap, "CENTER", 0, 0)
-    mid:SetPoint("TOP", btn, "TOP", 0, 0)
-    mid:SetPoint("BOTTOM", btn, "BOTTOM", 0, 0)
-    if btn.CreateMaskTexture then
-        for _, c in ipairs({ lcap, rcap }) do
-            local m = btn:CreateMaskTexture()
-            m:SetAllPoints(c)
-            m:SetTexture(MASK_CIRCLE, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
-            c:AddMaskTexture(m)
+    -- Rectangular track + thin border
+    local track = btn:CreateTexture(nil, "BACKGROUND")
+    track:SetAllPoints(btn)
+    track:SetColorTexture(ns.COLORS.toggleOff.r, ns.COLORS.toggleOff.g, ns.COLORS.toggleOff.b, 1)
+    container._trackParts = { track }
+
+    local borderColor = ns.COLORS.borderDark or ns.COLORS.border
+    for _, s in ipairs({ "TOP", "BOTTOM", "LEFT", "RIGHT" }) do
+        local bd = btn:CreateTexture(nil, "BORDER")
+        bd:SetColorTexture(borderColor.r, borderColor.g, borderColor.b, 1)
+        if s == "TOP" or s == "BOTTOM" then
+            bd:SetPoint(s .. "LEFT"); bd:SetPoint(s .. "RIGHT"); bd:SetHeight(1)
+        else
+            bd:SetPoint("TOP" .. s); bd:SetPoint("BOTTOM" .. s); bd:SetWidth(1)
         end
     end
-    container._trackParts = { lcap, rcap, mid }
 
-    -- Round knob (circle mask) with a soft shadow
+    -- Square knob with a soft shadow
     local knobShadow = btn:CreateTexture(nil, "ARTWORK", nil, 1)
-    knobShadow:SetSize(TOGGLE_H - 2, TOGGLE_H - 2)
+    knobShadow:SetSize(TOGGLE_H - 4, TOGGLE_H - 4)
     knobShadow:SetColorTexture(0, 0, 0, 0.30)
 
     local knob = btn:CreateTexture(nil, "ARTWORK", nil, 2)
-    knob:SetSize(TOGGLE_H - 4, TOGGLE_H - 4)
+    knob:SetSize(TOGGLE_H - 6, TOGGLE_H - 6)
     knob:SetColorTexture(1, 1, 1, 1)
-    knobShadow:SetPoint("CENTER", knob, "CENTER", 0, -1)
-    if btn.CreateMaskTexture then
-        local km = btn:CreateMaskTexture()
-        km:SetAllPoints(knob)
-        km:SetTexture(MASK_CIRCLE, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
-        knob:AddMaskTexture(km)
-        local sm = btn:CreateMaskTexture()
-        sm:SetAllPoints(knobShadow)
-        sm:SetTexture(MASK_CIRCLE, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
-        knobShadow:AddMaskTexture(sm)
-    end
+    knobShadow:SetPoint("CENTER", knob, "CENTER", 0, 0)
 
     container._switch = btn
     container._label  = label
@@ -545,11 +530,11 @@ function UI:CreateSlider(parent, config)
     s._trackBg, s._trackFill = trackBg, trackFill
     s._updateFill = function(v) sliderUpdateFill(s, v) end
 
-    -- Slimmer accent thumb
+    -- Square accent thumb
     local thumb = s:GetThumbTexture()
     if thumb then
         thumb:SetColorTexture(0.95, 0.95, 1.0, 1)
-        thumb:SetSize(8, 16)
+        thumb:SetSize(14, 14)
     end
 
     -- Value display + clickable ± buttons (SHIFT = 5x step)
