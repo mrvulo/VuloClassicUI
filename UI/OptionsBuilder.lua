@@ -396,8 +396,10 @@ placeItem = function(parent, item, y)
         p:Show()
         widget:SetFrameLevel(base + 4)
         local wh = widget:GetHeight() or 24
+        local ww = widget:GetWidth() or 120
         widget:SetPoint("TOPLEFT", parent, "TOPLEFT",
-            CONTENT_PADDING + 10, y - math.floor((h - wh) / 2))
+            CONTENT_PADDING + math.max(10, math.floor((availW - ww) / 2)),
+            y - math.floor((h - wh) / 2))
         return y - h
     end
 
@@ -442,18 +444,38 @@ function UI:PlaceGroup(parent, group, y)
     end
 
     if layout == "row" then
-        local cursorX = CONTENT_PADDING + (panel and 8 or 0)
-        local maxH = 0
-        for _, item in ipairs(items) do
+        -- create + measure all items first, so a button/toggle-only row can be
+        -- centred (input/dropdown rows stay left-aligned, which reads better)
+        local placed, totalW, maxH = {}, 0, 0
+        local gap = group.gap or 8
+        local centerable = true
+        for i, item in ipairs(items) do
             local widget, h, w = createWidget(parent, item)
             if widget then
-                if panel then widget:SetFrameLevel(base + 4) end
-                local yo = y - (panel and 4 or 0)
-                if item.type == "slider" then yo = y - 14 end
-                widget:SetPoint("TOPLEFT", parent, "TOPLEFT", cursorX, yo)
-                cursorX = cursorX + w + (group.gap or 8)
+                placed[#placed + 1] = { widget = widget, w = w, h = h, item = item }
+                totalW = totalW + w + (i > 1 and gap or 0)
                 if h > maxH then maxH = h end
             end
+            local t = item.type
+            if not (t == "button" or t == "iconbutton" or t == "toggle"
+                    or t == "checkbox" or t == "spacer") then
+                centerable = false
+            end
+        end
+
+        local startX = CONTENT_PADDING + (panel and 8 or 0)
+        if group.align == "center" or (centerable and group.align ~= "left") then
+            startX = CONTENT_PADDING + math.max(panel and 8 or 0,
+                math.floor((availW - totalW) / 2))
+        end
+
+        local cursorX = startX
+        for _, p in ipairs(placed) do
+            if panel then p.widget:SetFrameLevel(base + 4) end
+            local yo = y - (panel and 4 or 0) - math.floor((maxH - p.h) / 2)
+            if p.item.type == "slider" then yo = y - 14 end
+            p.widget:SetPoint("TOPLEFT", parent, "TOPLEFT", cursorX, yo)
+            cursorX = cursorX + p.w + gap
         end
         if panel then panel:SetSize(availW, maxH + 8) end
         return y - maxH - (panel and 8 or 0)
