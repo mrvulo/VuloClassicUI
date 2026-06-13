@@ -142,7 +142,7 @@ local function defaultGroup(name)
         readyFlash     = true,
         iconShape      = "square",  -- square | rounded | circle
         iconZoom       = 0.08,      -- texcoord crop (0 = full icon)
-        swipeAlpha     = 0.8,       -- cooldown sweep darkness
+        swipeAlpha     = 0.6,       -- cooldown sweep darkness (0 = none)
         -- visibility conditions (all default off = always shown)
         onlyInCombat   = false,
         hideNoTarget   = false,
@@ -641,7 +641,11 @@ relayoutGroup = function(group)
         if f.mask then
             f.mask:SetTexture(shapeMask(group.iconShape), "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
         end
-        if f.cd.SetSwipeColor then f.cd:SetSwipeColor(0, 0, 0, group.swipeAlpha or 0.8) end
+        -- cooldown swipe transparency. SetSwipeColor's alpha can be a no-op in
+        -- 2.5.5, so we also dim the whole cooldown frame (always reliable):
+        -- 0 = no dark overlay at all (just the icon + countdown number).
+        if f.cd.SetSwipeColor then f.cd:SetSwipeColor(0, 0, 0, 1) end
+        f.cd:SetAlpha(group.swipeAlpha or 0.8)
         f.text:SetFont(FONT, math.max(8, math.floor(size * 0.4)), "OUTLINE")
         -- stack / reagent number position, size, colour
         local si = STACK_INSETS[group.stackPos or "BOTTOMRIGHT"] or STACK_INSETS.BOTTOMRIGHT
