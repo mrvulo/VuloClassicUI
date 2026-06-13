@@ -552,8 +552,17 @@ function mod:GetOptions()
         },
 
         { type = "spacer", height = 6 },
-        { type = "header", text = L["Global Defaults"] },
-        -- Font dropdown (adopts the VuloUI pattern)
+        { type = "button", label = L["Test (all events)"], width = 200,
+          onClick = function()
+              spawnEvent("combatStart",    L["+Combat"])
+              C_Timer.After(0.4, function() spawnEvent("spellInterrupt", L["Interrupted: Frostbolt"]) end)
+              C_Timer.After(0.8, function() spawnEvent("dispels",        L["Dispelled: Curse"]) end)
+              C_Timer.After(1.2, function() spawnEvent("missed",         L["Parried"]) end)
+          end },
+    }
+
+    -- Global defaults (collapsed -> short, quick page)
+    table.insert(items, { type = "section", title = L["Global Defaults"], collapsed = true, items = {
         { type = "dropdown", label = L["Font"],
           tooltip = L["Font for our combat text engine. Also used for Blizzard's mob FCT (DAMAGE_TEXT_FONT) when enabled below."],
           values = FONT_VALUES,
@@ -586,14 +595,7 @@ function mod:GetOptions()
           min = 20, max = 200, step = 5,
           get = function() return mod.db.scrollDistance end,
           set = function(_, v) mod.db.scrollDistance = v end },
-        { type = "button", label = L["Test (all events)"], width = 200,
-          onClick = function()
-              spawnEvent("combatStart",    L["+Combat"])
-              C_Timer.After(0.4, function() spawnEvent("spellInterrupt", L["Interrupted: Frostbolt"]) end)
-              C_Timer.After(0.8, function() spawnEvent("dispels",        L["Dispelled: Curse"]) end)
-              C_Timer.After(1.2, function() spawnEvent("missed",         L["Parried"]) end)
-          end },
-    }
+    } })
 
     -- Per-event customization — each event is a collapsed section (click to expand)
     table.insert(items, { type = "spacer", height = 8 })

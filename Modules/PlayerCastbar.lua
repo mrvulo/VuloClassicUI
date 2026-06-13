@@ -897,38 +897,31 @@ function mod:GetOptions()
                 if cFrame then cFrame.setIconShown(v) end
             end,
         })
-        table.insert(items, {
-            type = "slider", label = L["Width"],
-            min = 120, max = 400, step = 5,
-            get = function() return mod.db.width end,
-            set = function(_, v) mod.db.width = v; c_applyLayout() end,
-        })
-        table.insert(items, {
-            type = "slider", label = L["Height"],
-            min = 12, max = 36, step = 1,
-            get = function() return mod.db.height end,
-            set = function(_, v) mod.db.height = v; c_applyLayout() end,
-        })
-        table.insert(items, {
-            type = "slider", label = L["Icon Size"],
-            min = 16, max = 48, step = 1,
-            get = function() return mod.db.iconSize end,
-            set = function(_, v) mod.db.iconSize = v; c_applyLayout() end,
-        })
-        table.insert(items, {
-            type = "slider", label = L["Icon X Offset"],
-            min = -100, max = 100, step = 1,
-            tooltip = L["Moves the icon horizontally. Negative = left, positive = right."],
-            get = function() return mod.db.iconX or 0 end,
-            set = function(_, v) mod.db.iconX = v; c_applyLayout() end,
-        })
-        table.insert(items, {
-            type = "slider", label = L["Icon Y Offset"],
-            min = -50, max = 50, step = 1,
-            tooltip = L["Moves the icon vertically. Positive = up, negative = down."],
-            get = function() return mod.db.iconY or 0 end,
-            set = function(_, v) mod.db.iconY = v; c_applyLayout() end,
-        })
+        -- Fine tuning (collapsed -> short page; expand to adjust sizes)
+        table.insert(items, { type = "section", title = L["Size & offsets"], collapsed = true, items = {
+            { type = "slider", label = L["Width"],
+              min = 120, max = 400, step = 5,
+              get = function() return mod.db.width end,
+              set = function(_, v) mod.db.width = v; c_applyLayout() end },
+            { type = "slider", label = L["Height"],
+              min = 12, max = 36, step = 1,
+              get = function() return mod.db.height end,
+              set = function(_, v) mod.db.height = v; c_applyLayout() end },
+            { type = "slider", label = L["Icon Size"],
+              min = 16, max = 48, step = 1,
+              get = function() return mod.db.iconSize end,
+              set = function(_, v) mod.db.iconSize = v; c_applyLayout() end },
+            { type = "slider", label = L["Icon X Offset"],
+              min = -100, max = 100, step = 1,
+              tooltip = L["Moves the icon horizontally. Negative = left, positive = right."],
+              get = function() return mod.db.iconX or 0 end,
+              set = function(_, v) mod.db.iconX = v; c_applyLayout() end },
+            { type = "slider", label = L["Icon Y Offset"],
+              min = -50, max = 50, step = 1,
+              tooltip = L["Moves the icon vertically. Positive = up, negative = down."],
+              get = function() return mod.db.iconY or 0 end,
+              set = function(_, v) mod.db.iconY = v; c_applyLayout() end },
+        } })
     end
 
     -- Swing Timer lives in its own hidden module; its options are embedded here
