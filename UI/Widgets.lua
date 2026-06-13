@@ -1010,8 +1010,11 @@ end
 
 local function buttonSetup(b, config)
     b._vcConfig = config
-    b:SetSize(config.width or 120, config.height or 24)
     b._textFS:SetText(clean(config.label) or "")
+    -- grow to fit the label so long (German) text never spills over the edge
+    local w = config.width or 120
+    local tw = (b._textFS:GetStringWidth() or 0) + 22
+    b:SetSize(math.max(w, tw), config.height or 24)
     buttonApplyIdle(b)
 end
 

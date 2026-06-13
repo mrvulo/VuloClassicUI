@@ -125,7 +125,7 @@ local function createWidget(parent, item)
         local w = obtain("button", parent, item, function()
             return UI:CreateButton(parent, item)
         end)
-        return w, 30, item.width or 120
+        return w, 30, (w:GetWidth() or item.width or 120)
     elseif t == "iconbutton" then
         local w = obtain("iconbutton", parent, item, function()
             return UI:CreateIconButton(parent, item)
