@@ -238,6 +238,25 @@ local function makeIcon(bar, i)
     f.glow:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 5, -5)
     f.glow:Hide()
 
+    -- animated spell-activation "proc" glow (the golden shimmer border)
+    f.proc = f:CreateTexture(nil, "OVERLAY")
+    f.proc:SetTexture("Interface\\SpellActivationOverlay\\IconAlert")
+    f.proc:SetTexCoord(0.00781250, 0.50781250, 0.27734375, 0.52734375)
+    f.proc:SetBlendMode("ADD")
+    f.proc:SetPoint("CENTER", f, "CENTER", 0, 0)
+    f.proc:Hide()
+    if f.proc.CreateAnimationGroup then
+        local ok, ag = pcall(function() return f.proc:CreateAnimationGroup() end)
+        if ok and ag then
+            ag:SetLooping("REPEAT")
+            local a1 = ag:CreateAnimation("Alpha")
+            a1:SetFromAlpha(1.0); a1:SetToAlpha(0.45); a1:SetDuration(0.55); a1:SetOrder(1)
+            local a2 = ag:CreateAnimation("Alpha")
+            a2:SetFromAlpha(0.45); a2:SetToAlpha(1.0); a2:SetDuration(0.55); a2:SetOrder(2)
+            f.procAnim = ag
+        end
+    end
+
     f.cd = CreateFrame("Cooldown", nil, f, "CooldownFrameTemplate")
     f.cd:SetAllPoints(f.tex)
     f.cd:SetDrawEdge(true)
@@ -357,6 +376,10 @@ relayoutGroup = function(group)
         f.flashT = nil
         f.border:SetColorTexture(0, 0, 0, 1)  -- reset; aura refresh restyles
         f.glow:Hide()
+        if f.proc then
+            f.proc:Hide(); f.proc:SetSize(size * 1.4, size * 1.4)
+            if f.procAnim and f.procAnim:IsPlaying() then f.procAnim:Stop() end
+        end
         f.stack:Hide()
         f:SetSize(size, size)
         f:Show()
@@ -422,15 +445,32 @@ local function updateIcon(group, f, now)
 end
 
 -- Border / glow highlight for active aura icons
+local function stopProc(f)
+    if f.proc then
+        f.proc:Hide()
+        if f.procAnim and f.procAnim:IsPlaying() then f.procAnim:Stop() end
+    end
+end
+
 local function applyAuraStyle(group, f)
     local style = group.auraStyle or "glow"
     local c = AURA_COLORS[group.auraColor or "yellow"] or AURA_COLORS.yellow
-    if style == "glow" then
+    if style == "proc" then
+        f.glow:Hide(); f.border:SetColorTexture(0, 0, 0, 1)
+        if f.proc then
+            f.proc:SetVertexColor(c[1], c[2], c[3], 1)
+            f.proc:Show()
+            if f.procAnim and not f.procAnim:IsPlaying() then f.procAnim:Play() end
+        end
+    elseif style == "glow" then
+        stopProc(f)
         f.glow:SetVertexColor(c[1], c[2], c[3], 0.9); f.glow:Show()
         f.border:SetColorTexture(0, 0, 0, 1)
     elseif style == "border" then
+        stopProc(f)
         f.glow:Hide(); f.border:SetColorTexture(c[1], c[2], c[3], 1)
     else
+        stopProc(f)
         f.glow:Hide(); f.border:SetColorTexture(0, 0, 0, 1)
     end
 end
@@ -722,6 +762,7 @@ function mod:GetOptions()
     if group.mode == "aura" then
         displayItems[#displayItems + 1] = { type = "dropdown", label = L["Highlight"], width = 220,
             values = {
+                { value = "proc",   text = L["Proc glow (animated)"] },
                 { value = "glow",   text = L["Glow"] },
                 { value = "border", text = L["Colored border"] },
                 { value = "none",   text = L["None"] },

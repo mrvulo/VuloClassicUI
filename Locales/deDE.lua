@@ -416,6 +416,7 @@ ns:RegisterLocale("deDE", {
     ["|cffaaaaaaIcons show the cooldown of each spell/trinket.|r"] = "|cffaaaaaaIcons zeigen den Cooldown jedes Zaubers/Schmuckstücks.|r",
     ["Size & offsets"] = "Größe & Versatz",
     ["Highlight"] = "Hervorhebung",
+    ["Proc glow (animated)"] = "Proc-Glow (animiert)",
     ["Glow"] = "Leuchten",
     ["Colored border"] = "Farbiger Rand",
     ["Highlight color"] = "Hervorhebungsfarbe",
