@@ -30,6 +30,8 @@ local mod = ns:RegisterModule("miscqol", {
         hideErrors            = false,
         hideZoneText          = false,
         hidePortraitNumbers   = false,
+        crispHitNumbers       = true,
+        hitNumberSize         = 22,
         hideKeybindText       = false,
         hideMacroText         = false,
         hideStackCount        = false,
@@ -395,6 +397,34 @@ local function applyHidePortraitNumbers()
     end
 end
 
+-- Hit indicators (the damage/heal number that flashes on a portrait) blur
+-- because Blizzard's combat-feedback animation SCALES the font up over time
+-- (fractional pixel sizes). Re-font crisply at a fixed size, then freeze
+-- SetFont/SetTextHeight so the animation can't rescale it -- only the alpha
+-- fade remains. Restoring the captured originals turns it back to default.
+local function applyHitNumberFont(fs, on, size)
+    if not fs then return end
+    if on then
+        if not fs._vcOrigSetFont then
+            fs._vcOrigSetFont       = fs.SetFont
+            fs._vcOrigSetTextHeight = fs.SetTextHeight
+        end
+        pcall(fs._vcOrigSetFont, fs, "Fonts\\FRIZQT__.TTF", size, "THICKOUTLINE")
+        fs.SetFont       = function() end
+        fs.SetTextHeight = function() end
+    elseif fs._vcOrigSetFont then
+        fs.SetFont       = fs._vcOrigSetFont
+        fs.SetTextHeight = fs._vcOrigSetTextHeight
+    end
+end
+
+local function applyCrispHitNumbers()
+    local on   = mod.db.crispHitNumbers
+    local size = mod.db.hitNumberSize or 22
+    applyHitNumberFont(_G.PlayerHitIndicator, on, size)
+    applyHitNumberFont(_G.PetHitIndicator,    on, size)
+end
+
 local BUTTON_PREFIXES = {
     "ActionButton", "MultiBarBottomLeftButton", "MultiBarBottomRightButton",
     "MultiBarLeftButton", "MultiBarRightButton", "BonusActionButton",
@@ -473,6 +503,7 @@ local function applyAllVisibility()
     applyHideErrors()
     applyHideZoneText()
     applyHidePortraitNumbers()
+    applyCrispHitNumbers()
     applyHideKeybindText()
     applyHideMacroText()
     applyHideStackCount()
@@ -1015,6 +1046,14 @@ function mod:GetOptions()
             tgl("hidePortraitNumbers", L["Hide level numbers on portrait"],
                 L["Hides the level display on the Player/Target/Pet portrait."],
                 applyHidePortraitNumbers),
+            tgl("crispHitNumbers", L["Crisp portrait hit numbers"],
+                L["Renders the damage/heal numbers that flash on the Player/Pet portrait with a fixed, sharp font instead of Blizzard's blurry growing animation."],
+                applyCrispHitNumbers),
+            { type = "slider", label = L["Hit number size"],
+              min = 14, max = 36, step = 1,
+              tooltip = L["Font size of the portrait hit numbers (when 'Crisp' is on)."],
+              get = function() return mod.db.hitNumberSize end,
+              set = function(_, v) mod.db.hitNumberSize = v; applyCrispHitNumbers() end },
             tgl("hideKeybindText",   L["Hide keybind text on action buttons"],
                 L["Hides the small key labels (1, F1, etc.) on the action buttons."],
                 applyHideKeybindText),
