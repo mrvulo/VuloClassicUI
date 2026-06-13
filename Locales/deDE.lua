@@ -474,6 +474,8 @@ ns:RegisterLocale("deDE", {
     ["  |cffaa5555(other class)|r"] = "  |cffaa5555(andere Klasse)|r",
     ["Unlock Mode"] = "Bearbeiten-Modus",
     ["Open Blizzard's Edit Mode"] = "Blizzards Bearbeitungsmodus öffnen",
+    ["Open game menu for Blizzard's Edit Mode"] = "Spielmenü für Blizzards Bearbeitungsmodus öffnen",
+    ["Blizzard blocks addons from starting Edit Mode directly (it would taint). This opens the game menu — pick 'Edit Mode' there. Our windows then appear in it automatically."] = "Blizzard verhindert, dass Addons den Bearbeitungsmodus direkt starten (würde Taint verursachen). Das öffnet das Spielmenü – dort „Bearbeitungsmodus\" wählen. Unsere Fenster erscheinen dann automatisch darin.",
     ["Opens Blizzard's own Edit Mode (closes this window first). Our windows show up in it too."] = "Öffnet Blizzards eigenen Bearbeitungsmodus (schließt vorher dieses Fenster). Unsere Fenster erscheinen darin ebenfalls.",
     ["Can't open Edit Mode in combat."] = "Bearbeitungsmodus kann im Kampf nicht geöffnet werden.",
     ["This client has no Blizzard Edit Mode."] = "Dieser Client hat keinen Blizzard-Bearbeitungsmodus.",

@@ -21,24 +21,14 @@ local function rebuild()
     end
 end
 
--- Open Blizzard's own Edit Mode (Anniversary client). Our OnShow hook then
--- flips global edit mode on, so every VuloUI window is draggable in it too.
+-- Blizzard BLOCKS addons from starting Edit Mode directly: EnterEditMode calls
+-- the protected TargetUnit() internally, so an addon-triggered call taints and
+-- is forbidden. Instead we open the game menu (allowed) where the user picks
+-- "Edit Mode" themselves — that runs in Blizzard's secure context. Our OnShow
+-- hook then flips global edit mode on so our windows are draggable in it too.
 local function openBlizzEdit()
-    if InCombatLockdown and InCombatLockdown() then
-        ns:Print(L["Can't open Edit Mode in combat."]); return
-    end
-    if not _G.EditModeManagerFrame then
-        local load = (C_AddOns and C_AddOns.LoadAddOn) or _G.LoadAddOn
-        if load then pcall(load, "Blizzard_EditMode") end
-    end
-    local emf = _G.EditModeManagerFrame
-    if not emf then
-        ns:Print(L["This client has no Blizzard Edit Mode."]); return
-    end
-    if _G.VuloClassicUIMainFrame then _G.VuloClassicUIMainFrame:Hide() end  -- clear the canvas
-    if emf.EnterEditMode then emf:EnterEditMode()
-    elseif _G.ShowUIPanel then ShowUIPanel(emf)
-    else emf:Show() end
+    if _G.VuloClassicUIMainFrame then _G.VuloClassicUIMainFrame:Hide() end
+    if _G.ToggleGameMenu then ToggleGameMenu() end
 end
 
 function mod:GetOptions()
@@ -57,8 +47,8 @@ function mod:GetOptions()
           end },
         { type = "spacer", height = 4 },
         { type = "button", width = 360,
-          label = L["Open Blizzard's Edit Mode"],
-          tooltip = L["Opens Blizzard's own Edit Mode (closes this window first). Our windows show up in it too."],
+          label = L["Open game menu for Blizzard's Edit Mode"],
+          tooltip = L["Blizzard blocks addons from starting Edit Mode directly (it would taint). This opens the game menu — pick 'Edit Mode' there. Our windows then appear in it automatically."],
           onClick = openBlizzEdit },
         { type = "spacer", height = 8 },
         { type = "desc",
