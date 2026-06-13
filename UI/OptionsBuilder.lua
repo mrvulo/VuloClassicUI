@@ -188,8 +188,8 @@ end
 -- Per-row icons: eye = help/info (shows the option's tooltip), gear = extra
 -- settings (toggles an inline expansion of item.subOptions).
 -- =========================================================
-local ICON_INFO = "Interface\\Common\\help-i"
-local ICON_GEAR = "Interface\\Buttons\\UI-OptionsButton"
+local ICON_INFO = "Interface\\Icons\\INV_Misc_Eye_01"   -- eye = info/help
+local ICON_GEAR = "Interface\\Icons\\Trade_Engineering" -- gear = extra settings
 UI.rowExpanded = UI.rowExpanded or {}
 
 local function makeRowIcon(parent)
@@ -198,11 +198,13 @@ local function makeRowIcon(parent)
     b = CreateFrame("Button", nil, parent)
     b._vcType  = "rowicon"
     b._vcSetup = function() end
-    b:SetSize(15, 15)
+    b:SetSize(16, 16)
     b.icon = b:CreateTexture(nil, "ARTWORK")
     b.icon:SetAllPoints(b)
+    b.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)  -- crop the icon border
     b:SetScript("OnEnter", function(self)
-        self.icon:SetVertexColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
+        self.icon:SetVertexColor(1, 1, 1)
+        self:SetSize(18, 18)
         if self._tip then
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
             GameTooltip:SetText(self._tip, 1, 1, 1, 1, true)
@@ -210,7 +212,8 @@ local function makeRowIcon(parent)
         end
     end)
     b:SetScript("OnLeave", function(self)
-        self.icon:SetVertexColor(0.55, 0.55, 0.63)
+        self.icon:SetVertexColor(0.85, 0.85, 0.9)
+        self:SetSize(16, 16)
         GameTooltip:Hide()
     end)
     b:SetScript("OnClick", function(self) if self._onClick then self._onClick() end end)
@@ -219,8 +222,8 @@ end
 
 local function setRowIcon(b, tex, tip, onClick, level)
     b.icon:SetTexture(tex)
-    b.icon:SetTexCoord(0, 1, 0, 1)
-    b.icon:SetVertexColor(0.55, 0.55, 0.63)
+    b.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    b.icon:SetVertexColor(0.85, 0.85, 0.9)
     b._tip = tip
     b._onClick = onClick
     b:SetFrameLevel(level)

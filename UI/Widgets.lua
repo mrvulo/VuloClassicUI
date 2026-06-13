@@ -344,18 +344,22 @@ end
 -- =========================================================
 local TOGGLE_W, TOGGLE_H = 36, 18
 
+local function setTrackColor(container, r, g, b)
+    for _, t in ipairs(container._trackParts) do t:SetColorTexture(r, g, b, 1) end
+end
+
 local function toggleRefresh(container)
     local cfg, btn = container._vcConfig, container._switch
     if not cfg then return end
-    local knob, track = container._knob, container._track
+    local knob = container._knob
     local state = cfg.get(btn) and true or false
     if state then
-        track:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 1)
+        setTrackColor(container, ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
         knob:SetColorTexture(1, 1, 1, 1)
         knob:ClearAllPoints()
         knob:SetPoint("RIGHT", btn, "RIGHT", -3, 0)
     else
-        track:SetColorTexture(ns.COLORS.toggleOff.r, ns.COLORS.toggleOff.g, ns.COLORS.toggleOff.b, 1)
+        setTrackColor(container, ns.COLORS.toggleOff.r, ns.COLORS.toggleOff.g, ns.COLORS.toggleOff.b)
         knob:SetColorTexture(0.72, 0.72, 0.78, 1)
         knob:ClearAllPoints()
         knob:SetPoint("LEFT", btn, "LEFT", 3, 0)
@@ -405,16 +409,27 @@ function UI:CreateToggle(parent, config)
     label:SetJustifyH("LEFT")
     label:SetWordWrap(false)
 
-    -- Rounded pill track (csquare mask rounds the corners into a pill)
-    local track = btn:CreateTexture(nil, "BACKGROUND")
-    track:SetAllPoints(btn)
-    track:SetColorTexture(ns.COLORS.toggleOff.r, ns.COLORS.toggleOff.g, ns.COLORS.toggleOff.b, 1)
+    -- True pill track: circle end-caps + a middle rectangle (all one colour).
+    -- A stretched rounded-square mask only half-rounds; round caps give a real pill.
+    local cap = TOGGLE_H
+    local lcap = btn:CreateTexture(nil, "BACKGROUND")
+    lcap:SetSize(cap, cap); lcap:SetPoint("LEFT", btn, "LEFT", 0, 0)
+    local rcap = btn:CreateTexture(nil, "BACKGROUND")
+    rcap:SetSize(cap, cap); rcap:SetPoint("RIGHT", btn, "RIGHT", 0, 0)
+    local mid = btn:CreateTexture(nil, "BACKGROUND")
+    mid:SetPoint("LEFT", lcap, "CENTER", 0, 0)
+    mid:SetPoint("RIGHT", rcap, "CENTER", 0, 0)
+    mid:SetPoint("TOP", btn, "TOP", 0, 0)
+    mid:SetPoint("BOTTOM", btn, "BOTTOM", 0, 0)
     if btn.CreateMaskTexture then
-        local tm = btn:CreateMaskTexture()
-        tm:SetAllPoints(track)
-        tm:SetTexture(MASK_ROUNDED, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
-        track:AddMaskTexture(tm)
+        for _, c in ipairs({ lcap, rcap }) do
+            local m = btn:CreateMaskTexture()
+            m:SetAllPoints(c)
+            m:SetTexture(MASK_CIRCLE, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+            c:AddMaskTexture(m)
+        end
     end
+    container._trackParts = { lcap, rcap, mid }
 
     -- Round knob (circle mask) with a soft shadow
     local knobShadow = btn:CreateTexture(nil, "ARTWORK", nil, 1)
@@ -439,7 +454,6 @@ function UI:CreateToggle(parent, config)
     container._switch = btn
     container._label  = label
     container._knob   = knob
-    container._track  = track
 
     btn:SetScript("OnClick", function(self) toggleFlip(self:GetParent()) end)
 
