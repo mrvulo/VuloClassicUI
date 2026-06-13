@@ -1062,14 +1062,19 @@ function mod:GetOptions()
 
             items[#items + 1] = { type = "group", layout = "row", gap = 6, items = {
                 { type = "desc", text = label, width = 250 },
-                { type = "iconbutton", icon = ICON_GEAR, width = 24,
+                { type = "iconbutton", icon = ICON_GEAR, width = 26, height = 26,
                   tooltip = L["Reorder / remove"],
-                  onClick = function() expandedEntry = (expandedEntry == e) and nil or e; rebuildPage() end },
+                  onClick = function()
+                      -- NB: explicit if/else — `cond and nil or e` returns e
+                      -- even when cond is true, so the gear never closed.
+                      if expandedEntry == e then expandedEntry = nil else expandedEntry = e end
+                      rebuildPage()
+                  end },
             } }
 
             if expandedEntry == e then
                 items[#items + 1] = { type = "group", layout = "row", gap = 6, items = {
-                    { type = "iconbutton", icon = (horiz and "left" or "up"), width = 30,
+                    { type = "iconbutton", icon = (horiz and "left" or "up"), width = 26, height = 26,
                       tooltip = L["Move earlier"],
                       onClick = function()
                           if i > 1 then
@@ -1077,7 +1082,7 @@ function mod:GetOptions()
                               relayoutGroup(group); rebuildPage()
                           end
                       end },
-                    { type = "iconbutton", icon = (horiz and "right" or "down"), width = 30,
+                    { type = "iconbutton", icon = (horiz and "right" or "down"), width = 26, height = 26,
                       tooltip = L["Move later"],
                       onClick = function()
                           if i < n then
@@ -1085,7 +1090,7 @@ function mod:GetOptions()
                               relayoutGroup(group); rebuildPage()
                           end
                       end },
-                    { type = "button", label = L["Remove"], width = 120,
+                    { type = "button", label = L["Remove"], width = 120, height = 26,
                       onClick = function()
                           if expandedEntry == e then expandedEntry = nil end
                           table.remove(group.entries, i); relayoutGroup(group); rebuildPage()
