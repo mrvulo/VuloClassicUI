@@ -39,6 +39,7 @@ UI\OptionsBuilder.lua
 
 # --- Modules (order doesn't matter, each registers itself) ---
 Modules\GlobalSettings.lua
+Modules\UnlockMode.lua
 Modules\Profiles.lua
 Modules\Minimap.lua
 Modules\FontBars.lua

@@ -16,6 +16,7 @@ local GROUP_GAP      = 8
 -- Unknown keys fall back to MODULE_ICON_FALLBACK.
 local MODULE_ICONS = {
     globalsettings     = "Interface\\Icons\\Trade_Engineering",
+    unlockmode         = "Interface\\Icons\\INV_Misc_Wrench_01",
     profiles           = "Interface\\Icons\\INV_Misc_Note_03",
     minimap            = "Interface\\Icons\\INV_Misc_Map_01",
     fontbars           = "Interface\\Icons\\INV_Misc_Note_01",
