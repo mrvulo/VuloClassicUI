@@ -291,12 +291,15 @@ function UI:CreateDescription(parent, text)
     return f
 end
 
--- Collapsible section header: chevron + label + underline, whole row clickable.
+-- Collapsible section header: gear ("more settings") + label + underline.
+-- Whole row clickable; the gear lights up (accent) while expanded.
 local function collapsibleSetup(b, title, expanded, onClick)
     b._label:SetText(string.upper(title or ""))
     b._label:SetTextColor(0.92, 0.90, 0.96)
-    if b._chevron.SetRotation then
-        b._chevron:SetRotation(expanded and 0 or (math.pi / 2))
+    if expanded then
+        b._chevron:SetVertexColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
+    else
+        b._chevron:SetVertexColor(0.6, 0.6, 0.68)
     end
     b._vcOnClick = onClick
 end
@@ -305,12 +308,11 @@ function UI:CreateCollapsibleHeader(parent, text, expanded, onClick)
     local b = CreateFrame("Button", nil, parent)
     b:SetSize(480, 24)
 
-    -- Chevron: points down when expanded, right when collapsed
+    -- Gear icon = "more settings"; tinted accent when the section is open
     local box = b:CreateTexture(nil, "ARTWORK")
-    box:SetSize(12, 12)
-    box:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 0, 5)
-    box:SetTexture("Interface\\Buttons\\UI-ScrollBar-ScrollDownButton-Up")
-    box:SetTexCoord(0.25, 0.75, 0.30, 0.80)
+    box:SetSize(14, 14)
+    box:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 0, 4)
+    box:SetTexture("Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\gear.tga")
     box:SetVertexColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
     b._chevron = box
 
