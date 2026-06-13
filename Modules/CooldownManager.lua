@@ -207,6 +207,31 @@ local function groupHas(group, kind, id)
     return false
 end
 
+-- Which spells the CURRENT character actually has. Cooldown groups live in an
+-- account-wide profile, so without this a Warlock's spells would render (stuck
+-- "ready") on a Hunter. Matched by NAME so every rank counts. Rebuilt on login
+-- / SPELLS_CHANGED. Items are never filtered (equipped trinkets don't count in
+-- bags, and gear is shared between characters anyway).
+local knownSpells = {}   -- lowercased spell name -> true
+local function rebuildKnownSpells()
+    wipe(knownSpells)
+    if not GetSpellBookItemName then return end
+    local i = 1
+    while true do
+        local sname = GetSpellBookItemName(i, "spell")
+        if not sname then break end
+        knownSpells[sname:lower()] = true
+        i = i + 1
+    end
+end
+
+local function entryUsable(e)
+    if e.kind ~= "spell" then return true end
+    if not next(knownSpells) then rebuildKnownSpells() end
+    local name = entryInfo(e)
+    return name ~= nil and knownSpells[name:lower()] == true
+end
+
 local relayoutGroup, refreshGroup, refreshAll, layoutIcons  -- forward
 
 -- Player buff snapshot, rebuilt once per refresh (name + spellID keyed) so
@@ -407,8 +432,9 @@ relayoutGroup = function(group)
             if f.procAnim and f.procAnim:IsPlaying() then f.procAnim:Stop() end
         end
         f.stack:Hide()
+        f.usable = entryUsable(e)
         f:SetSize(size, size)
-        f:Show()
+        if f.usable then f:Show() else f:Hide() end
     end
     for i = #entries + 1, #icons do icons[i]:Hide() end
 
@@ -418,7 +444,10 @@ relayoutGroup = function(group)
         refreshGroup(group, GetTime())
     else
         local all = {}
-        for i = 1, #entries do all[i] = icons[i] end
+        for i = 1, #entries do
+            local f = icons[i]
+            if f.usable then all[#all + 1] = f else f:Hide() end
+        end
         if #all == 0 then bar:SetSize(size, size) else layoutIcons(group, all) end
     end
 end
@@ -573,7 +602,7 @@ refreshGroup = function(group, now)
     -- cooldown mode
     for i = 1, #group.entries do
         local f = icons[i]
-        if f and (f:IsShown() or group.onlyOnCooldown) then
+        if f and f.usable and (f:IsShown() or group.onlyOnCooldown) then
             updateIcon(group, f, now)
         end
     end
@@ -601,6 +630,7 @@ end
 
 -- Rebuild every bar: hide all, then (re)lay-out each current group.
 local function rebuildBars()
+    rebuildKnownSpells()
     for _, b in ipairs(allBars) do b:Hide() end
     for _, group in ipairs(db().groups) do
         local bar = ensureBar(group)
@@ -760,6 +790,9 @@ function mod:GetOptions()
         for i, e in ipairs(group.entries) do
             local name = (entryInfo(e)) or ("#" .. e.id)
             local kindTag = e.kind == "item" and L["  |cff888888(item)|r"] or ""
+            if e.kind == "spell" and not entryUsable(e) then
+                kindTag = kindTag .. L["  |cffaa5555(other class)|r"]
+            end
             items[#items + 1] = { type = "group", layout = "row", gap = 6, items = {
                 { type = "button", label = "X", width = 28,
                   onClick = function() table.remove(group.entries, i); relayoutGroup(group); rebuildPage() end },

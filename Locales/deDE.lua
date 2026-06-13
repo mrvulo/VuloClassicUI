@@ -471,6 +471,7 @@ ns:RegisterLocale("deDE", {
     ["Hides ready icons; they reappear when on cooldown."] = "Versteckt bereite Icons; sie erscheinen wieder, sobald sie auf Cooldown sind.",
     ["Show countdown text"] = "Countdown-Text anzeigen",
     ["Show stacks"] = "Stapel anzeigen",
+    ["  |cffaa5555(other class)|r"] = "  |cffaa5555(andere Klasse)|r",
     ["Dim icon while on cooldown"] = "Icon während Cooldown abdunkeln",
     ["Flash when ready"] = "Aufleuchten wenn bereit",
     ["|cffffffffCOOLDOWNS|r"] = "|cffffffffCOOLDOWNS|r",
