@@ -1112,6 +1112,9 @@ end
 local BUILTIN_ICONS = {
     up    = { tex = "Interface\\Buttons\\Arrow-Up-Up", tc = {0, 1, 0, 1} },
     down  = { tex = "Interface\\Buttons\\Arrow-Up-Up", tc = {0, 1, 1, 0} },   -- vertical flip
+    -- 90° rotations of the up arrow (8-value texcoord form)
+    left  = { tex = "Interface\\Buttons\\Arrow-Up-Up", tc = {1,0, 0,0, 1,1, 0,1} },
+    right = { tex = "Interface\\Buttons\\Arrow-Up-Up", tc = {0,1, 1,1, 0,0, 1,0} },
 }
 
 local function iconButtonSetup(b, config)

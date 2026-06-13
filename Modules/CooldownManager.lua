@@ -53,6 +53,8 @@ end
 local GCD_MAX = 1.5
 local FONT = "Fonts\\FRIZQT__.TTF"
 
+local ICON_GEAR = "Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\gear.tga"
+
 -- Icon-shape masks (square = plain white = no visible mask)
 local MASK_ROUNDED = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\csquare_mask.tga"
 local MASK_CIRCLE  = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\circle_mask.tga"
@@ -63,6 +65,17 @@ local function shapeMask(shape)
     if shape == "rounded" then return MASK_ROUNDED end
     return MASK_SQUARE
 end
+
+-- Corner -> { anchor point, x inset, y inset } for the stack/reagent number.
+local STACK_INSETS = {
+    BOTTOMRIGHT = { "BOTTOMRIGHT", -1,  1 },
+    BOTTOMLEFT  = { "BOTTOMLEFT",   1,  1 },
+    TOPRIGHT    = { "TOPRIGHT",    -1, -1 },
+    TOPLEFT     = { "TOPLEFT",      1, -1 },
+    TOP         = { "TOP",          0, -1 },
+    BOTTOM      = { "BOTTOM",       0,  1 },
+    CENTER      = { "CENTER",       0,  0 },
+}
 
 -- Whole-second countdown (no decimals); minutes above 60s.
 local function fmtRemain(remain)
@@ -121,6 +134,9 @@ local function defaultGroup(name)
         showText       = true,
         showStacks     = true,   -- stack-count number on stacking buffs/procs
         showReagents   = false,  -- each spell's OWN reagent count (Soul Shard, Infernal Stone, ...)
+        stackPos       = "BOTTOMRIGHT",          -- corner for the stack/reagent number
+        stackSize      = 13,                     -- stack/reagent font size
+        stackColor     = { r = 1, g = 0.95, b = 0.6 },
         desaturate     = true,
         readyFlash     = true,
         iconShape      = "square",  -- square | rounded | circle
@@ -183,6 +199,9 @@ local function ensureGroups()
         g.iconShape  = g.iconShape or "square"
         if g.iconZoom   == nil then g.iconZoom   = 0.08 end
         if g.swipeAlpha == nil then g.swipeAlpha = 0.8 end
+        g.stackPos   = g.stackPos or "BOTTOMRIGHT"
+        if g.stackSize  == nil then g.stackSize  = 13 end
+        if type(g.stackColor) ~= "table" then g.stackColor = { r = 1, g = 0.95, b = 0.6 } end
     end
     ensureGroupIDs()
     if d.selected < 1 then d.selected = 1 end
@@ -619,6 +638,13 @@ relayoutGroup = function(group)
         end
         if f.cd.SetSwipeColor then f.cd:SetSwipeColor(0, 0, 0, group.swipeAlpha or 0.8) end
         f.text:SetFont(FONT, math.max(8, math.floor(size * 0.4)), "OUTLINE")
+        -- stack / reagent number position, size, colour
+        local si = STACK_INSETS[group.stackPos or "BOTTOMRIGHT"] or STACK_INSETS.BOTTOMRIGHT
+        f.stack:ClearAllPoints()
+        f.stack:SetPoint(si[1], f, si[1], si[2], si[3])
+        f.stack:SetFont(FONT, group.stackSize or 13, "OUTLINE")
+        local sc = group.stackColor or { r = 1, g = 0.95, b = 0.6 }
+        f.stack:SetTextColor(sc.r or 1, sc.g or 0.95, sc.b or 0.6)
         f.entry     = e
         f.entryName = ename
         f.prevRemain = 0
@@ -901,9 +927,27 @@ end
 -- Options
 -- =========================================================
 local addInput = ""
+local expandedEntry        -- which tracked entry's gear is open (entry table ref)
 
 local function rebuildPage()
     if ns.UI and ns.UI.BuildOptionsPage then ns.UI:BuildOptionsPage("cooldownmanager") end
+end
+
+local function openColorPicker(getCurrent, setNew)
+    local c = getCurrent() or { r = 1, g = 1, b = 1 }
+    local function apply()
+        local r, g, b = ColorPickerFrame:GetColorRGB()
+        setNew({ r = r, g = g, b = b })
+    end
+    local info = {
+        r = c.r, g = c.g, b = c.b, opacity = false,
+        swatchFunc = apply, cancelFunc = function(prev) if prev then setNew(prev) end end,
+    }
+    if ColorPickerFrame.SetupColorPickerAndShow then
+        ColorPickerFrame:SetupColorPickerAndShow(info)
+    elseif _G.OpenColorPicker then
+        _G.OpenColorPicker(info)
+    end
 end
 
 function mod:GetOptions()
@@ -994,29 +1038,53 @@ function mod:GetOptions()
     } }
     items[#items + 1] = { type = "spacer", height = 4 }
 
-    -- Tracked list
+    -- Tracked list: icon + name + a gear that reveals reorder / remove.
+    -- The reorder arrows follow the bar's orientation (←/→ horizontal, ↑/↓ vertical).
     items[#items + 1] = { type = "header", text = L["Tracked"] }
     if #group.entries == 0 then
         items[#items + 1] = { type = "desc", text = L["|cff888888Nothing in this group yet.|r"] }
     else
+        local horiz = (group.growth == "RIGHT" or group.growth == "LEFT")
+        local n = #group.entries
         for i, e in ipairs(group.entries) do
-            local name = (entryInfo(e)) or ("#" .. e.id)
-            local kindTag = e.kind == "item" and L["  |cff888888(item)|r"] or ""
-            if e.kind == "spell" and not entryUsable(e) then
-                kindTag = kindTag .. L["  |cffaa5555(other class)|r"]
-            end
+            local nm, icon = entryInfo(e)
+            local label = (icon and ("|T" .. icon .. ":16:16:0:0:64:64:5:59:5:59|t  ") or "")
+                .. (nm or ("#" .. tostring(e.id)))
+            if e.kind == "item" then label = label .. L["  |cff888888(item)|r"] end
+            if e.kind == "spell" and not entryUsable(e) then label = label .. L["  |cffaa5555(other class)|r"] end
+
             items[#items + 1] = { type = "group", layout = "row", gap = 6, items = {
-                { type = "button", label = "X", width = 28,
-                  onClick = function() table.remove(group.entries, i); relayoutGroup(group); rebuildPage() end },
-                { type = "button", label = L["Up"], width = 44,
-                  onClick = function()
-                      if i > 1 then
-                          group.entries[i], group.entries[i-1] = group.entries[i-1], group.entries[i]
-                          relayoutGroup(group); rebuildPage()
-                      end
-                  end },
-                { type = "desc", text = name .. kindTag, width = 220 },
+                { type = "desc", text = label, width = 250 },
+                { type = "iconbutton", icon = ICON_GEAR, width = 24,
+                  tooltip = L["Reorder / remove"],
+                  onClick = function() expandedEntry = (expandedEntry == e) and nil or e; rebuildPage() end },
             } }
+
+            if expandedEntry == e then
+                items[#items + 1] = { type = "group", layout = "row", gap = 6, items = {
+                    { type = "iconbutton", icon = (horiz and "left" or "up"), width = 30,
+                      tooltip = L["Move earlier"],
+                      onClick = function()
+                          if i > 1 then
+                              group.entries[i], group.entries[i-1] = group.entries[i-1], group.entries[i]
+                              relayoutGroup(group); rebuildPage()
+                          end
+                      end },
+                    { type = "iconbutton", icon = (horiz and "right" or "down"), width = 30,
+                      tooltip = L["Move later"],
+                      onClick = function()
+                          if i < n then
+                              group.entries[i], group.entries[i+1] = group.entries[i+1], group.entries[i]
+                              relayoutGroup(group); rebuildPage()
+                          end
+                      end },
+                    { type = "button", label = L["Remove"], width = 120,
+                      onClick = function()
+                          if expandedEntry == e then expandedEntry = nil end
+                          table.remove(group.entries, i); relayoutGroup(group); rebuildPage()
+                      end },
+                } }
+            end
         end
     end
 
@@ -1139,6 +1207,22 @@ function mod:GetOptions()
           tooltip = L["Shows each spell's OWN reagent count — Soul Shards on Soul Fire, Infernal Stone on Inferno, etc. Spells without a reagent show nothing. Needs 'Show stacks' on."],
           get = function() return group.showReagents end,
           set = function(_, v) group.showReagents = v; refreshAll() end },
+        { type = "dropdown", label = L["Stack / reagent position"], width = 220,
+          values = {
+              { value = "BOTTOMRIGHT", text = L["Bottom right"] }, { value = "BOTTOMLEFT", text = L["Bottom left"] },
+              { value = "TOPRIGHT",    text = L["Top right"]    }, { value = "TOPLEFT",    text = L["Top left"]    },
+              { value = "CENTER",      text = L["Center"]       },
+          },
+          get = function() return group.stackPos or "BOTTOMRIGHT" end,
+          set = function(_, v) group.stackPos = v; relayoutGroup(group) end },
+        { type = "slider", label = L["Stack / reagent size"], min = 8, max = 24, step = 1,
+          get = function() return group.stackSize or 13 end,
+          set = function(_, v) group.stackSize = v; relayoutGroup(group) end },
+        { type = "button", label = L["Stack / reagent color..."], width = 180,
+          onClick = function()
+              openColorPicker(function() return group.stackColor end,
+                  function(c) group.stackColor = c; relayoutGroup(group) end)
+          end },
     }
     if group.mode == "aura" then
         displayItems[#displayItems + 1] = { type = "dropdown", label = L["Highlight"], width = 220,
