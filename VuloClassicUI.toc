@@ -71,6 +71,7 @@ Modules\Pages.lua
 Modules\VTManaDisplay.lua
 Modules\LazyVulo.lua
 Modules\Vulslot.lua
+Modules\CooldownManager.lua
 Modules\ShamanTotems.lua
 Modules\CombatText.lua
 Modules\Loadouts.lua

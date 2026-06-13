@@ -23,6 +23,7 @@ local MODULE_ICONS = {
     targetframe        = "Interface\\Icons\\Ability_Hunter_MarkedForDeath",
     elitevuloframe     = "Interface\\Icons\\INV_Misc_Head_Dragon_Bronze",
     cooldownpulse      = "Interface\\Icons\\Spell_Nature_TimeStop",
+    cooldownmanager    = "Interface\\Icons\\Spell_Holy_BorrowedTime",
     arenaframes        = "Interface\\Icons\\Achievement_Arena_2v2_1",
     characterpanel     = "Interface\\Icons\\INV_Chest_Plate06",
     buttonskin         = "Interface\\Icons\\INV_Misc_EngGizmos_27",

@@ -391,6 +391,36 @@ ns:RegisterLocale("deDE", {
     ["Off (default frame)"] = "Aus (Standard-Rahmen)",
 
     -- =====================================================
+    -- CooldownManager (retail-style cooldown bar)
+    -- =====================================================
+    ["Cooldown Manager"] = "Cooldown-Manager",
+    ["A row of icons that shows the cooldowns of spells and trinkets you choose — like the retail cooldown manager."] = "Eine Icon-Reihe, die die Cooldowns von selbst gewählten Zaubern und Schmuckstücken zeigt — wie der Cooldown-Manager in Retail.",
+    ["|cffaaaaaaA row of icons showing the cooldowns of the spells and trinkets you add. Type a spell/item name or ID below, shift-click a spell from your spellbook into the box, or unlock the bar and drag spells/items onto it.|r"] = "|cffaaaaaaEine Icon-Reihe mit den Cooldowns der von dir hinzugefügten Zauber und Schmuckstücke. Tippe unten einen Zauber-/Gegenstandsnamen oder eine ID ein, shift-klicke einen Zauber aus dem Zauberbuch ins Feld, oder entsperre die Leiste und zieh Zauber/Gegenstände darauf.|r",
+    ["Cooldown Manager: '%s' is not a known spell or item."] = "Cooldown-Manager: '%s' ist kein bekannter Zauber oder Gegenstand.",
+    ["Cooldown Manager: already tracking that."] = "Cooldown-Manager: wird bereits verfolgt.",
+    ["Cooldown Manager: added %s."] = "Cooldown-Manager: %s hinzugefügt.",
+    ["Add (name / ID)"] = "Hinzufügen (Name / ID)",
+    ["Tracked"] = "Verfolgt",
+    ["|cff888888Nothing tracked yet.|r"] = "|cff888888Noch nichts verfolgt.|r",
+    ["  |cff888888(item)|r"] = "  |cff888888(Gegenstand)|r",
+    ["Up"] = "Hoch",
+    ["Icons per row"] = "Icons pro Reihe",
+    ["Growth direction"] = "Wachstumsrichtung",
+    ["Right"] = "Rechts",
+    ["Left"] = "Links",
+    ["Down"] = "Runter",
+    ["Up (direction)"] = "Hoch",
+    ["Only show while on cooldown"] = "Nur während Cooldown anzeigen",
+    ["Hides ready icons; they reappear when on cooldown."] = "Versteckt bereite Icons; sie erscheinen wieder, sobald sie auf Cooldown sind.",
+    ["Show countdown text"] = "Countdown-Text anzeigen",
+    ["Dim icon while on cooldown"] = "Icon während Cooldown abdunkeln",
+    ["Flash when ready"] = "Aufleuchten wenn bereit",
+    ["|cffffffffCOOLDOWNS|r"] = "|cffffffffCOOLDOWNS|r",
+    ["Cooldowns: x=%.0f, y=%.0f"] = "Cooldowns: x=%.0f, y=%.0f",
+    ["Cooldown Manager unlocked. Drag spells/items onto the bar to add. |cff9b6cffDrag|r the bar to move."] = "Cooldown-Manager entsperrt. Zieh Zauber/Gegenstände auf die Leiste zum Hinzufügen. |cff9b6cffZiehen|r zum Verschieben.",
+    ["Cooldown Manager locked."] = "Cooldown-Manager gesperrt.",
+
+    -- =====================================================
     -- Vulslot (action bar / macro / keybinding snapshots)
     -- =====================================================
     ["Vulslot"] = "Vulslot",
