@@ -379,13 +379,14 @@ local function toggleSetup(container, config)
     local label = container._label
     label:SetText(clean(config.label) or "")
 
-    -- Container width: explicitly set, or fixed at 360 so switches end up in one column
-    -- (labels of different lengths would otherwise shift the switch X position)
+    -- Width: explicit, else size to content (label + switch). The two-column
+    -- page layout overrides this via SetWidth, so a compact default keeps
+    -- toggles inside group rows from eating the whole row.
     if config.width then
         container:SetSize(config.width, 22)
     else
         local labelW = label:GetStringWidth() or 0
-        container:SetSize(math.max(labelW + 16 + TOGGLE_W, 360), 22)
+        container:SetSize(math.max(labelW + 12 + TOGGLE_W, 90), 22)
     end
     toggleRefresh(container)
 end
