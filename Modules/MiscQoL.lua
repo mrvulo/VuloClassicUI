@@ -506,25 +506,70 @@ local function ftRouteKey(src, dst)
     return (src or "?") .. " @ " .. (dst or "?")
 end
 
+-- Valid English node names, harvested once from the shipped DB. Lets us
+-- recognise the node segment directly on English clients and pick the node
+-- (not the zone) out of a multi-part name.
+local ftNodeSet
+local function ftEnglishNodes()
+    if ftNodeSet then return ftNodeSet end
+    ftNodeSet = {}
+    local db = ns.FLIGHT_TIMES
+    if db then
+        for _, routes in pairs(db) do
+            for src, dsts in pairs(routes) do
+                ftNodeSet[src] = src
+                for dst in pairs(dsts) do ftNodeSet[dst] = dst end
+            end
+        end
+    end
+    return ftNodeSet
+end
+
+-- Resolve a raw client taxi name to (germanNodeName, englishKey).
+-- The client formats the CURRENT node as "Zone, Node, Faction" but a
+-- DESTINATION as "Node, Zone" -- so taking the part before the first comma
+-- grabs the zone for sources. Instead test EVERY comma-separated segment
+-- against the German->English map and the English node set (case-insensitive,
+-- since client casing varies e.g. "das Dunkle Portal") and pick the segment
+-- that is an actual flight node.
+local function ftResolve(raw)
+    if not raw then return "?", nil end
+    local de = ns.FLIGHT_NODE_DE or {}
+    local en = ftEnglishNodes()
+    local segs = {}
+    for s in (raw .. ","):gmatch("%s*(.-)%s*,") do
+        if s ~= "" then segs[#segs + 1] = s end
+    end
+    -- pass 1: exact (German map, then English node set)
+    for _, s in ipairs(segs) do
+        if de[s] then return s, de[s] end
+        if en[s] then return s, en[s] end
+    end
+    -- pass 2: case-insensitive
+    for _, s in ipairs(segs) do
+        local l = s:lower()
+        for k, v in pairs(de) do if k:lower() == l then return s, v end end
+        for k, v in pairs(en) do if k:lower() == l then return s, v end end
+    end
+    -- nothing matched: keep the first segment for display, no DB key
+    return segs[1] or raw, nil
+end
+
+-- Short, human-readable node name for display (German node, no zone suffix).
 local function ftShort(name)
-    if not name then return "?" end
-    local short = name:match("^%s*(.-)%s*,") or name
-    return (short:gsub("^%s+", ""):gsub("%s+$", ""))
+    return (ftResolve(name))
 end
 
 -- Default duration from the shipped route database (FlightTimesDB.lua).
--- German client names are mapped to the English keys; locally learned
--- times always win over these defaults.
 local function ftDefaultTime(src, dst)
     local db = ns.FLIGHT_TIMES
     if not db then return nil end
     local faction = UnitFactionGroup and UnitFactionGroup("player")
     local routes = faction and db[faction]
     if not routes then return nil end
-    local de = ns.FLIGHT_NODE_DE or {}
-    local s = ftShort(src); s = de[s] or s
-    local d = ftShort(dst); d = de[d] or d
-    return routes[s] and routes[s][d] or nil
+    local _, s = ftResolve(src)
+    local _, d = ftResolve(dst)
+    return s and d and routes[s] and routes[s][d] or nil
 end
 
 local FT_INSET = 4   -- fill sits inside the tooltip border
@@ -685,14 +730,13 @@ local function ftOnTakeTaxi(slot)
 
     -- /vcuiflug: dump exactly what the resolver sees (route DB debugging)
     if ftDB().debug then
-        local de = ns.FLIGHT_NODE_DE or {}
-        local s = ftShort(src); local se = de[s] or s
-        local d2 = ftShort(dst); local de2 = de[d2] or d2
+        local s, se = ftResolve(src)
+        local d2, de2 = ftResolve(dst)
         local fac = (UnitFactionGroup and UnitFactionGroup("player")) or "?"
-        local hit = ns.FLIGHT_TIMES and ns.FLIGHT_TIMES[fac]
+        local hit = se and de2 and ns.FLIGHT_TIMES and ns.FLIGHT_TIMES[fac]
             and ns.FLIGHT_TIMES[fac][se] and ns.FLIGHT_TIMES[fac][se][de2]
-        ns:Print("Flugdebug: src='" .. tostring(src) .. "' -> '" .. s .. "' -> '" .. se
-            .. "' | dst='" .. tostring(dst) .. "' -> '" .. d2 .. "' -> '" .. de2
+        ns:Print("Flugdebug: src='" .. tostring(src) .. "' -> '" .. s .. "' -> '" .. tostring(se)
+            .. "' | dst='" .. tostring(dst) .. "' -> '" .. d2 .. "' -> '" .. tostring(de2)
             .. "' | " .. fac .. " | DB=" .. tostring(hit)
             .. " | gelernt=" .. tostring(ftDB().times[key]))
     end
