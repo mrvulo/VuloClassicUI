@@ -53,6 +53,18 @@ end
 local GCD_MAX = 1.5
 local FONT = "Fonts\\FRIZQT__.TTF"
 
+-- Whole-second countdown (no decimals); minutes above 60s.
+local function fmtRemain(remain)
+    if remain >= 60 then return math.floor(remain / 60 + 0.5) .. "m" end
+    return tostring(math.ceil(remain))
+end
+
+local AURA_COLORS = {
+    yellow = { 1, 0.85, 0.10 }, gold = { 1, 0.70, 0.20 }, green = { 0.25, 1, 0.35 },
+    purple = { 0.70, 0.40, 1 }, red = { 1, 0.25, 0.25 }, blue = { 0.35, 0.60, 1 },
+    white  = { 1, 1, 1 },
+}
+
 -- =========================================================
 -- State
 -- =========================================================
@@ -73,6 +85,8 @@ local function defaultGroup(name)
     return {
         name           = name or L["Cooldowns"],
         mode           = "cooldown",   -- "cooldown" | "aura" (buffs/procs)
+        auraStyle      = "glow",       -- "glow" | "border" | "none"
+        auraColor      = "yellow",
         entries        = {},
         iconSize       = 40,
         spacing        = 4,
@@ -104,7 +118,9 @@ local function ensureGroups()
         d.entries = nil
     end
     for _, g in ipairs(d.groups) do
-        g.mode = g.mode or "cooldown"   -- older groups predate aura mode
+        g.mode      = g.mode or "cooldown"   -- older groups predate aura mode
+        g.auraStyle = g.auraStyle or "glow"
+        g.auraColor = g.auraColor or "yellow"
     end
     if d.selected < 1 then d.selected = 1 end
     if d.selected > #d.groups then d.selected = #d.groups end
@@ -213,6 +229,14 @@ local function makeIcon(bar, i)
     f.border = f:CreateTexture(nil, "BACKGROUND")
     f.border:SetAllPoints(f)
     f.border:SetColorTexture(0, 0, 0, 1)
+
+    -- soft proc glow ring (aura mode); the 5px overhang shows around the icon
+    f.glow = f:CreateTexture(nil, "BACKGROUND", nil, -2)
+    f.glow:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
+    f.glow:SetBlendMode("ADD")
+    f.glow:SetPoint("TOPLEFT", f, "TOPLEFT", -5, 5)
+    f.glow:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 5, -5)
+    f.glow:Hide()
 
     f.cd = CreateFrame("Cooldown", nil, f, "CooldownFrameTemplate")
     f.cd:SetAllPoints(f.tex)
@@ -331,6 +355,9 @@ relayoutGroup = function(group)
         f.entryName = ename
         f.prevRemain = 0
         f.flashT = nil
+        f.border:SetColorTexture(0, 0, 0, 1)  -- reset; aura refresh restyles
+        f.glow:Hide()
+        f.stack:Hide()
         f:SetSize(size, size)
         f:Show()
     end
@@ -357,13 +384,7 @@ local function updateIcon(group, f, now)
         local remain = start + duration - now
         f.cd:SetCooldown(start, duration)
         if group.showText then
-            if remain >= 60 then
-                f.text:SetText(math.floor(remain / 60 + 0.5) .. "m")
-            elseif remain >= 10 then
-                f.text:SetText(string.format("%d", remain))
-            else
-                f.text:SetText(string.format("%.1f", remain))
-            end
+            f.text:SetText(fmtRemain(remain))
             if remain <= 3 then f.text:SetTextColor(1, 0.4, 0.4)
             else f.text:SetTextColor(1, 1, 1) end
             f.text:Show()
@@ -400,23 +421,33 @@ local function updateIcon(group, f, now)
     end
 end
 
+-- Border / glow highlight for active aura icons
+local function applyAuraStyle(group, f)
+    local style = group.auraStyle or "glow"
+    local c = AURA_COLORS[group.auraColor or "yellow"] or AURA_COLORS.yellow
+    if style == "glow" then
+        f.glow:SetVertexColor(c[1], c[2], c[3], 0.9); f.glow:Show()
+        f.border:SetColorTexture(0, 0, 0, 1)
+    elseif style == "border" then
+        f.glow:Hide(); f.border:SetColorTexture(c[1], c[2], c[3], 1)
+    else
+        f.glow:Hide(); f.border:SetColorTexture(0, 0, 0, 1)
+    end
+end
+
 -- Aura mode: the icon is only ever shown while the buff/proc is active.
 -- Draw a draining sweep for the remaining time + stacks.
 local function updateAuraIcon(group, f, rec, now)
     f.tex:SetDesaturated(false)
     f.tex:SetVertexColor(1, 1, 1)
+    applyAuraStyle(group, f)
     if rec.exp and rec.dur and rec.dur > 0 then
         f.cd:SetCooldown(rec.exp - rec.dur, rec.dur)
         local remain = rec.exp - now
         if group.showText and remain > 0 then
-            if remain >= 60 then
-                f.text:SetText(math.floor(remain / 60 + 0.5) .. "m")
-            elseif remain >= 10 then
-                f.text:SetText(string.format("%d", remain))
-            else
-                f.text:SetText(string.format("%.1f", remain))
-            end
-            f.text:SetTextColor(remain <= 3 and 1 or 1, remain <= 3 and 0.4 or 1, remain <= 3 and 0.4 or 1)
+            f.text:SetText(fmtRemain(remain))
+            if remain <= 3 then f.text:SetTextColor(1, 0.4, 0.4)
+            else f.text:SetTextColor(1, 1, 1) end
             f.text:Show()
         else
             f.text:Hide()
@@ -657,48 +688,68 @@ function mod:GetOptions()
         end
     end
 
-    -- Layout
-    items[#items + 1] = { type = "spacer", height = 8 }
-    items[#items + 1] = { type = "header", text = L["Layout"] }
-    items[#items + 1] = { type = "slider", label = L["Icon size"], min = 20, max = 64, step = 1,
-        get = function() return group.iconSize end,
-        set = function(_, v) group.iconSize = v; relayoutGroup(group) end }
-    items[#items + 1] = { type = "slider", label = L["Spacing"], min = 0, max = 16, step = 1,
-        get = function() return group.spacing end,
-        set = function(_, v) group.spacing = v; relayoutGroup(group) end }
-    items[#items + 1] = { type = "slider", label = L["Icons per row"], min = 1, max = 20, step = 1,
-        get = function() return group.perRow end,
-        set = function(_, v) group.perRow = v; relayoutGroup(group) end }
-    items[#items + 1] = { type = "dropdown", label = L["Growth direction"], width = 220,
-        values = {
-            { value = "RIGHT", text = L["Right"] }, { value = "LEFT", text = L["Left"] },
-            { value = "DOWN",  text = L["Down"]  }, { value = "UP",   text = L["Up"]   },
-        },
-        get = function() return group.growth end,
-        set = function(_, v) group.growth = v; relayoutGroup(group) end }
+    -- Position button stays visible (the key action when setting up)
+    items[#items + 1] = { type = "spacer", height = 4 }
+    items[#items + 1] = { type = "button", label = L["Unlock / Position"], width = 200,
+        onClick = function() setUnlocked(group, not group.unlocked) end }
 
-    -- Display
-    items[#items + 1] = { type = "spacer", height = 6 }
-    items[#items + 1] = { type = "header", text = L["Display"] }
-    items[#items + 1] = { type = "toggle", label = L["Show countdown text"],
-        get = function() return group.showText end,
-        set = function(_, v) group.showText = v; refreshAll() end }
-    if group.mode ~= "aura" then
-        items[#items + 1] = { type = "toggle", label = L["Only show while on cooldown"],
+    -- Layout (collapsed by default -> short, fast page)
+    items[#items + 1] = { type = "section", title = L["Layout"], collapsed = true, items = {
+        { type = "slider", label = L["Icon size"], min = 20, max = 64, step = 1,
+          get = function() return group.iconSize end,
+          set = function(_, v) group.iconSize = v; relayoutGroup(group) end },
+        { type = "slider", label = L["Spacing"], min = 0, max = 16, step = 1,
+          get = function() return group.spacing end,
+          set = function(_, v) group.spacing = v; relayoutGroup(group) end },
+        { type = "slider", label = L["Icons per row"], min = 1, max = 20, step = 1,
+          get = function() return group.perRow end,
+          set = function(_, v) group.perRow = v; relayoutGroup(group) end },
+        { type = "dropdown", label = L["Growth direction"], width = 220,
+          values = {
+              { value = "RIGHT", text = L["Right"] }, { value = "LEFT", text = L["Left"] },
+              { value = "DOWN",  text = L["Down"]  }, { value = "UP",   text = L["Up"]   },
+          },
+          get = function() return group.growth end,
+          set = function(_, v) group.growth = v; relayoutGroup(group) end },
+    } }
+
+    -- Display (collapsed by default)
+    local displayItems = {
+        { type = "toggle", label = L["Show countdown text"],
+          get = function() return group.showText end,
+          set = function(_, v) group.showText = v; refreshAll() end },
+    }
+    if group.mode == "aura" then
+        displayItems[#displayItems + 1] = { type = "dropdown", label = L["Highlight"], width = 220,
+            values = {
+                { value = "glow",   text = L["Glow"] },
+                { value = "border", text = L["Colored border"] },
+                { value = "none",   text = L["None"] },
+            },
+            get = function() return group.auraStyle end,
+            set = function(_, v) group.auraStyle = v; refreshAll() end }
+        displayItems[#displayItems + 1] = { type = "dropdown", label = L["Highlight color"], width = 220,
+            values = {
+                { value = "yellow", text = L["Yellow"] }, { value = "gold",   text = L["Gold"] },
+                { value = "green",  text = L["Green"]  }, { value = "purple", text = L["Purple"] },
+                { value = "red",    text = L["Red"]    }, { value = "blue",   text = L["Blue"] },
+                { value = "white",  text = L["White"]  },
+            },
+            get = function() return group.auraColor end,
+            set = function(_, v) group.auraColor = v; refreshAll() end }
+    else
+        displayItems[#displayItems + 1] = { type = "toggle", label = L["Only show while on cooldown"],
             tooltip = L["Hides ready icons; they reappear when on cooldown."],
             get = function() return group.onlyOnCooldown end,
             set = function(_, v) group.onlyOnCooldown = v; relayoutGroup(group); refreshAll() end }
-        items[#items + 1] = { type = "toggle", label = L["Dim icon while on cooldown"],
+        displayItems[#displayItems + 1] = { type = "toggle", label = L["Dim icon while on cooldown"],
             get = function() return group.desaturate end,
             set = function(_, v) group.desaturate = v; refreshAll() end }
-        items[#items + 1] = { type = "toggle", label = L["Flash when ready"],
+        displayItems[#displayItems + 1] = { type = "toggle", label = L["Flash when ready"],
             get = function() return group.readyFlash end,
             set = function(_, v) group.readyFlash = v end }
     end
-
-    items[#items + 1] = { type = "spacer", height = 6 }
-    items[#items + 1] = { type = "button", label = L["Unlock / Position"], width = 200,
-        onClick = function() setUnlocked(group, not group.unlocked) end }
+    items[#items + 1] = { type = "section", title = L["Display"], collapsed = true, items = displayItems }
 
     return items
 end
