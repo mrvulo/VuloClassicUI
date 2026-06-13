@@ -1,10 +1,13 @@
 -- =========================================================
 -- VuloClassicUI / Modules / CombatText
--- Custom scrolling combat text engine.
--- Anniversary disabled Blizzard's old player FCT, hence custom:
---   - FontString pool, animated scroll + fade
---   - CLEU + REGEN events trigger spawnMessage
--- Additionally: WorldTextScale (engine FCT above mob/pet) stays.
+-- Two on-screen systems sharing one position:
+--   1. NOTIFICATIONS (combatStart / combatEnd / lowDurability)
+--      flash in place and stack vertically, centred on the anchor.
+--      lowDurability is persistent (stays until the gear is repaired).
+--      A Preview mode shows all three at once for styling/positioning.
+--   2. SCROLLING combat-log text (interrupts / dispels / misses)
+--      floats upward and fades, like classic FCT.
+-- Anniversary disabled Blizzard's old player FCT, hence the custom engine.
 -- =========================================================
 local _, ns = ...
 local L = ns.L
@@ -12,7 +15,7 @@ local L = ns.L
 local mod = ns:RegisterModule("combattext", {
     name        = "Combat Text",
     group       = "HUD",
-    description = "Custom floating combat text engine with configurable events, color, size and position.",
+    description = "Flashing combat notifications (with live preview) plus a scrolling combat-log text engine.",
     defaults    = {
         enabled        = true,
         -- Master categories (quick on/off, do NOT override per-event enabled)
@@ -24,13 +27,14 @@ local mod = ns:RegisterModule("combattext", {
         -- Change DAMAGE_TEXT_FONT (Blizzard's mob FCT) at the same time as fontFace
         applyToMobFCT  = true,
         -- Per-event customization (color, size, outline, shadow + shadowColor + shadowOffset)
+        -- The three notification events also carry an editable `text`.
         events = {
-            combatStart    = { enabled = true, color = { r = 1.0, g = 0.4, b = 0.4 }, size = 0, outline = true,  shadow = true, shadowColor = { r = 0, g = 0, b = 0 }, shadowX = 2, shadowY = -2 },
-            combatEnd      = { enabled = true, color = { r = 0.6, g = 0.9, b = 0.6 }, size = 0, outline = true,  shadow = true, shadowColor = { r = 0, g = 0, b = 0 }, shadowX = 2, shadowY = -2 },
+            combatStart    = { enabled = true, text = "", color = { r = 0.93, g = 0.26, b = 0.0 }, size = 0, outline = true, shadow = true, shadowColor = { r = 0, g = 0, b = 0 }, shadowX = 2, shadowY = -2 },
+            combatEnd      = { enabled = true, text = "", color = { r = 0.6, g = 0.9, b = 0.6 }, size = 0, outline = true, shadow = true, shadowColor = { r = 0, g = 0, b = 0 }, shadowX = 2, shadowY = -2 },
             spellInterrupt = { enabled = true, color = { r = 1.0, g = 1.0, b = 0.3 }, size = 0, outline = true,  shadow = true, shadowColor = { r = 0, g = 0, b = 0 }, shadowX = 2, shadowY = -2 },
             dispels        = { enabled = true, color = { r = 0.6, g = 0.9, b = 1.0 }, size = 0, outline = true,  shadow = true, shadowColor = { r = 0, g = 0, b = 0 }, shadowX = 2, shadowY = -2 },
             missed         = { enabled = true, color = { r = 1.0, g = 0.7, b = 0.2 }, size = 0, outline = true,  shadow = true, shadowColor = { r = 0, g = 0, b = 0 }, shadowX = 2, shadowY = -2 },
-            lowDurability  = { enabled = true, color = { r = 1.0, g = 0.3, b = 0.3 }, size = 0, outline = true,  shadow = true, shadowColor = { r = 0, g = 0, b = 0 }, shadowX = 2, shadowY = -2 },
+            lowDurability  = { enabled = true, text = "", color = { r = 1.0, g = 0.3, b = 0.3 }, size = 0, outline = true, shadow = true, shadowColor = { r = 0, g = 0, b = 0 }, shadowX = 2, shadowY = -2 },
         },
         -- Low durability threshold (percent)
         durabilityThreshold = 15,
@@ -42,7 +46,9 @@ local mod = ns:RegisterModule("combattext", {
         color          = { r = 1, g = 1, b = 0 },
         scrollDuration = 2.0,
         scrollDistance = 80,
-        fontOutline    = true,
+        flashDuration  = 1.5,           -- notification flash fade time
+        fontOutlineMode = "THICKOUTLINE", -- NONE | OUTLINE | THICKOUTLINE
+        fontOutline    = true,          -- legacy fallback for fontOutlineMode
         fontShadow     = true,
         shadowX        = 2,
         shadowY        = -2,
@@ -55,15 +61,25 @@ local mod = ns:RegisterModule("combattext", {
 })
 
 -- =========================================================
--- Custom scrolling text engine
+-- Shared state + forward declarations (resolve def-order cycles)
 -- =========================================================
-local container       -- anchor frame
+local container       -- anchor frame (both systems centre on it)
 local moverFrame      -- mover for position
 local POOL_SIZE = 20
 local fontStringPool = {}
-local activeMessages = {}
+local activeMessages = {}   -- scrolling messages
+local notifyFrames   = {}   -- key -> flash/persistent notification frame
+local isPreview      = false
 
--- Available fonts (Expressway + Blizzard built-ins, always available)
+local NOTIFY_TYPES   = { "combatStart", "combatEnd", "lowDurability" }
+local NOTIFY_SET     = { combatStart = true, combatEnd = true, lowDurability = true }
+local NOTIFY_SPACING = 6
+
+local showNotify, hideNotify, doCheckDurability, scheduleDurabilityCheck
+
+-- =========================================================
+-- Fonts
+-- =========================================================
 local EXPRESSWAY_PATH = "Interface\\AddOns\\VuloClassicUI\\Media\\Fonts\\Expressway.TTF"
 local FONT_VALUES = {
     { value = EXPRESSWAY_PATH,         text = L["Expressway (Default)"] },
@@ -79,10 +95,20 @@ local function getActiveFontPath()
     return EXPRESSWAY_PATH
 end
 
+-- Resolve an outline override (per-event boolean, explicit string, or nil ->
+-- the global dropdown) into a SetFont flag string.
+local function resolveOutline(outlineOverride)
+    local mode
+    if type(outlineOverride) == "string" then mode = outlineOverride
+    elseif outlineOverride == true       then mode = "THICKOUTLINE"
+    elseif outlineOverride == false      then mode = "NONE"
+    else mode = mod.db.fontOutlineMode or (mod.db.fontOutline and "THICKOUTLINE" or "OUTLINE") end
+    return (mode == "NONE") and "" or mode
+end
+
 local function applyStyleToFS(fs, size, outlineOverride, shadowOverride, shadowColor, shadowX, shadowY)
-    local outline = (outlineOverride ~= nil) and outlineOverride or mod.db.fontOutline
-    local shadow  = (shadowOverride  ~= nil) and shadowOverride  or mod.db.fontShadow
-    local flags = outline and "THICKOUTLINE" or ""
+    local shadow = (shadowOverride ~= nil) and shadowOverride or mod.db.fontShadow
+    local flags  = resolveOutline(outlineOverride)
     fs:SetFont(getActiveFontPath(), size or mod.db.fontSize or 18, flags)
     if shadow then
         local sc = shadowColor or { r = 0, g = 0, b = 0 }
@@ -93,26 +119,25 @@ local function applyStyleToFS(fs, size, outlineOverride, shadowOverride, shadowC
     end
 end
 
+-- =========================================================
+-- Scrolling engine
+-- =========================================================
 local function createContainer()
     if container then return container end
     container = CreateFrame("Frame", "VCUI_CombatTextContainer", UIParent)
     container:SetSize(200, 1)
     container:SetFrameStrata("HIGH")
     container:Show()
-    -- Pre-create FontStrings (pool)
     for i = 1, POOL_SIZE do
         local fs = container:CreateFontString(nil, "OVERLAY")
         applyStyleToFS(fs)
         fs:Hide()
         table.insert(fontStringPool, fs)
     end
-    -- OnUpdate is attached on demand (see spawnEvent) and detaches itself
-    -- when no messages are animating — so it costs nothing while idle.
     return container
 end
 
--- Animates active messages; self-detaches when the list empties (perf: no
--- per-frame work when there's no combat text on screen).
+-- Animates active scroll messages; self-detaches when the list empties.
 local function animateMessages(self, elapsed)
     for i = #activeMessages, 1, -1 do
         local m = activeMessages[i]
@@ -130,7 +155,7 @@ local function animateMessages(self, elapsed)
         end
     end
     if #activeMessages == 0 then
-        self:SetScript("OnUpdate", nil)  -- nothing left to animate → go idle
+        self:SetScript("OnUpdate", nil)
     end
 end
 
@@ -150,12 +175,6 @@ local function reAnchorContainer()
     end
 end
 
-local function applyFontToPool()
-    local size = mod.db.fontSize or 18
-    for _, fs in ipairs(fontStringPool) do applyStyleToFS(fs, size) end
-    for _, m in ipairs(activeMessages) do applyStyleToFS(m.fs, size) end
-end
-
 -- Mapping event key -> master category toggle
 local EVENT_CATEGORY = {
     combatStart    = "showCombatState",
@@ -166,11 +185,11 @@ local EVENT_CATEGORY = {
     lowDurability  = "showDurability",
 }
 
-local function spawnEvent(eventKey, text)
+local function spawnScroll(eventKey, text)
     if not text or text == "" then return end
+    if isPreview then return end
     local ev = mod.db.events and mod.db.events[eventKey]
     if not ev or ev.enabled == false then return end
-    -- Master category filter (quick on/off)
     local cat = EVENT_CATEGORY[eventKey]
     if cat and mod.db[cat] == false then return end
     createContainer()
@@ -179,7 +198,6 @@ local function spawnEvent(eventKey, text)
         local oldest = table.remove(activeMessages, 1)
         if oldest then fs = oldest.fs else return end
     end
-    -- Per-event style: size override + outline + shadow + shadowColor + offsets
     local sz = (ev.size and ev.size > 0) and ev.size or nil
     applyStyleToFS(fs, sz, ev.outline, ev.shadow, ev.shadowColor, ev.shadowX, ev.shadowY)
     fs:SetText(text)
@@ -194,47 +212,186 @@ local function spawnEvent(eventKey, text)
         dur = mod.db.scrollDuration or 2.0,
         dist = mod.db.scrollDistance or 80,
     })
-    -- Wake the animator (it detaches itself again when idle)
     container:SetScript("OnUpdate", animateMessages)
 end
 
 -- =========================================================
--- Event handlers
+-- Notification engine (flash + stack, centred on the container)
+-- =========================================================
+local FALLBACK_TEXT = {
+    combatStart   = L["+Combat"],
+    combatEnd     = L["-Combat"],
+    lowDurability = L["LOW DURABILITY"],
+}
+
+local function notifyText(key)
+    local ev = mod.db.events and mod.db.events[key]
+    if ev and ev.text and ev.text ~= "" then return ev.text end
+    return FALLBACK_TEXT[key] or ""
+end
+
+local function getNotifyFrame(key)
+    if notifyFrames[key] then return notifyFrames[key] end
+    createContainer()
+    local f = CreateFrame("Frame", nil, container)
+    f:SetSize(200, 30)
+    f:Hide()
+    local fs = f:CreateFontString(nil, "OVERLAY")
+    fs:SetAllPoints(f)
+    fs:SetJustifyH("CENTER")
+    fs:SetJustifyV("MIDDLE")
+    f.text = fs
+    f.gen  = 0
+    notifyFrames[key] = f
+    return f
+end
+
+-- Style + size a notification frame to its text. Outline follows the global
+-- dropdown (pass nil), shadow stays per-event.
+local function styleNotify(f, key)
+    local ev = mod.db.events and mod.db.events[key] or {}
+    local sz = (ev.size and ev.size > 0) and ev.size or (mod.db.fontSize or 18)
+    applyStyleToFS(f.text, sz, nil, ev.shadow, ev.shadowColor, ev.shadowX, ev.shadowY)
+    f.text:SetText(notifyText(key))
+    local c = ev.color or { r = 1, g = 1, b = 1 }
+    f.text:SetTextColor(c.r or 1, c.g or 1, c.b or 1, 1)
+    local w = math.max(f.text:GetStringWidth() or 0, 50)
+    local h = math.max(f.text:GetStringHeight() or 0, 14)
+    f:SetSize(w + 6, h + 2)
+end
+
+-- Stack the visible notifications as a vertically-centred block.
+local function arrangeNotify()
+    if not container then return end
+    local visible, totalH = {}, 0
+    for _, k in ipairs(NOTIFY_TYPES) do
+        local f = notifyFrames[k]
+        if f and f:IsShown() then
+            visible[#visible + 1] = f
+            totalH = totalH + f:GetHeight()
+        end
+    end
+    if #visible == 0 then return end
+    totalH = totalH + NOTIFY_SPACING * (#visible - 1)
+    local cursor = totalH / 2
+    for _, f in ipairs(visible) do
+        local h = f:GetHeight()
+        f:ClearAllPoints()
+        f:SetPoint("CENTER", container, "CENTER", 0, cursor - h / 2)
+        cursor = cursor - h - NOTIFY_SPACING
+    end
+end
+
+showNotify = function(key)
+    if not mod._enabled or isPreview then return end
+    local ev = mod.db.events and mod.db.events[key]
+    if not ev or ev.enabled == false then return end
+    local cat = EVENT_CATEGORY[key]
+    if cat and mod.db[cat] == false then return end
+    createContainer()
+    local f = getNotifyFrame(key)
+    styleNotify(f, key)
+    if UIFrameFadeRemoveFrame then UIFrameFadeRemoveFrame(f) end
+    f:SetAlpha(1)
+    f:Show()
+    arrangeNotify()
+    if key ~= "lowDurability" then
+        -- transient flash -> fade out and hide
+        f.gen = f.gen + 1
+        local myGen = f.gen
+        local dur = mod.db.flashDuration or 1.5
+        if UIFrameFadeOut then UIFrameFadeOut(f, dur, 1, 0) end
+        C_Timer.After(dur, function()
+            if f.gen == myGen and not isPreview then
+                f:Hide()
+                arrangeNotify()
+            end
+        end)
+    end
+end
+
+hideNotify = function(key)
+    local f = notifyFrames[key]
+    if not f then return end
+    if UIFrameFadeRemoveFrame then UIFrameFadeRemoveFrame(f) end
+    f:Hide()
+    arrangeNotify()
+end
+
+local function applyFontToNotify()
+    for k, f in pairs(notifyFrames) do
+        if f.text then styleNotify(f, k) end
+    end
+    arrangeNotify()
+end
+
+-- ── Preview (Options page) ──────────────────────────────────────────────
+local function showPreview()
+    if not mod.db then return end
+    createContainer()
+    isPreview = true
+    for _, k in ipairs(NOTIFY_TYPES) do
+        local f = getNotifyFrame(k)
+        if UIFrameFadeRemoveFrame then UIFrameFadeRemoveFrame(f) end
+        styleNotify(f, k)
+        f:SetAlpha(1)
+        f:Show()
+    end
+    arrangeNotify()
+end
+
+local function hidePreview()
+    isPreview = false
+    for _, k in ipairs(NOTIFY_TYPES) do
+        local f = notifyFrames[k]
+        if f then
+            if UIFrameFadeRemoveFrame then UIFrameFadeRemoveFrame(f) end
+            f:Hide()
+        end
+    end
+    arrangeNotify()
+    -- restore the real persistent low-durability state
+    if not InCombatLockdown() then scheduleDurabilityCheck() end
+end
+
+local function isPreviewOn() return isPreview end
+
+local function applyFontToPool()
+    local size = mod.db.fontSize or 18
+    for _, fs in ipairs(fontStringPool) do applyStyleToFS(fs, size) end
+    for _, m in ipairs(activeMessages) do applyStyleToFS(m.fs, size) end
+end
+
+-- =========================================================
+-- Durability (persistent notification while out of combat)
 -- =========================================================
 local playerGUID
-
--- Equipment slots for durability check
 local EQUIP_SLOTS = { 1, 2, 3, 5, 6, 7, 8, 9, 10, 15, 16, 17, 18 }
 local _durabilityPending = false
-local _wasLowDurability  = false
 
-local function doCheckDurability()
+doCheckDurability = function()
     if not mod._enabled or not mod.db then return end
+    if isPreview then return end
     local ev = mod.db.events and mod.db.events.lowDurability
-    if not ev or ev.enabled == false then return end
-    -- Don't warn in combat (comes after REGEN_ENABLED)
-    if InCombatLockdown() then return end
+    if not ev or ev.enabled == false or mod.db.showDurability == false then
+        hideNotify("lowDurability"); return
+    end
+    if InCombatLockdown() then hideNotify("lowDurability"); return end
 
     local threshold = (mod.db.durabilityThreshold or 15) / 100
     local hasLow = false
     for _, slot in ipairs(EQUIP_SLOTS) do
         local current, maximum = GetInventoryItemDurability(slot)
-        if current and maximum and maximum > 0 then
-            if (current / maximum) < threshold then
-                hasLow = true
-                break
-            end
+        if current and maximum and maximum > 0 and (current / maximum) < threshold then
+            hasLow = true
+            break
         end
     end
 
-    -- Edge-triggered: only spawn if previously OK and now low (no spam)
-    if hasLow and not _wasLowDurability then
-        spawnEvent("lowDurability", L["LOW DURABILITY"])
-    end
-    _wasLowDurability = hasLow
+    if hasLow then showNotify("lowDurability") else hideNotify("lowDurability") end
 end
 
-local function scheduleDurabilityCheck()
+scheduleDurabilityCheck = function()
     if _durabilityPending then return end
     _durabilityPending = true
     C_Timer.After(0.5, function()
@@ -243,20 +400,23 @@ local function scheduleDurabilityCheck()
     end)
 end
 
+-- =========================================================
+-- Combat events
+-- =========================================================
 local function onCombatStart()
     if not mod._enabled then return end
-    spawnEvent("combatStart", L["+Combat"])
+    hideNotify("lowDurability")   -- never warn during combat
+    showNotify("combatStart")
 end
+
 local function onCombatEnd()
     if not mod._enabled then return end
-    spawnEvent("combatEnd", L["-Combat"])
-    -- Check durability after combat exit
+    showNotify("combatEnd")
     scheduleDurabilityCheck()
 end
 
 -- Only these subevents ever produce combat text. Reading just the subevent
--- first lets the hot path bail on the overwhelming majority of events
--- (damage / healing / periodic / aura) before the full 18-value destructure.
+-- first lets the hot path bail before the full 18-value destructure.
 local CLEU_WANTED = {
     SPELL_INTERRUPT = true, SPELL_DISPEL = true, SPELL_STOLEN = true,
     SWING_MISSED    = true, RANGE_MISSED = true, SPELL_MISSED = true,
@@ -273,21 +433,17 @@ local function onCLEU()
           = CombatLogGetCurrentEventInfo()
 
     if subEvent == "SPELL_INTERRUPT" and sourceGUID == playerGUID then
-        spawnEvent("spellInterrupt", L["Interrupted: "] .. (extraSpellName or spellName or "?"))
+        spawnScroll("spellInterrupt", L["Interrupted: "] .. (extraSpellName or spellName or "?"))
     elseif subEvent == "SPELL_DISPEL" and sourceGUID == playerGUID then
-        spawnEvent("dispels", L["Dispelled: "] .. (extraSpellName or "?"))
+        spawnScroll("dispels", L["Dispelled: "] .. (extraSpellName or "?"))
     elseif subEvent == "SPELL_STOLEN" and sourceGUID == playerGUID then
-        spawnEvent("dispels", L["Purged: "] .. (extraSpellName or "?"))
+        spawnScroll("dispels", L["Purged: "] .. (extraSpellName or "?"))
     elseif (subEvent == "SWING_MISSED" or subEvent == "RANGE_MISSED" or subEvent == "SPELL_MISSED")
         and destGUID == playerGUID then
         local realMissType
         if subEvent == "SWING_MISSED" then
-            -- SWING_MISSED payload: missType(12), isOffHand(13), amount(14)
             realMissType = select(12, CombatLogGetCurrentEventInfo())
         else
-            -- SPELL_MISSED / RANGE_MISSED payload: spellId(12), spellName(13),
-            -- spellSchool(14), missType(15). The earlier destructure read the
-            -- wrong field, so spell/ranged misses always showed "Missed".
             realMissType = select(15, CombatLogGetCurrentEventInfo())
         end
         local label = realMissType or "Missed"
@@ -297,7 +453,7 @@ local function onCLEU()
         elseif label == "BLOCK" then label = L["Blocked"]
         elseif label == "ABSORB" then label = L["Absorbed"]
         end
-        spawnEvent("missed", label)
+        spawnScroll("missed", label)
     end
 end
 
@@ -326,7 +482,7 @@ local function applySharpFonts()
     end
 end
 
--- Blizzard mob FCT font (DAMAGE_TEXT_FONT global + CombatTextFont) — like VuloUI
+-- Blizzard mob FCT font (DAMAGE_TEXT_FONT global + CombatTextFont)
 local function applyDamageTextFont()
     if not mod.db or mod.db.applyToMobFCT == false then return end
     local path = getActiveFontPath()
@@ -343,7 +499,7 @@ local function applyWorldTextScale()
 end
 
 -- =========================================================
--- Mover (for position of the custom engine)
+-- Mover (position of both systems)
 -- =========================================================
 local function applyMoverPosition()
     if moverFrame then
@@ -356,6 +512,7 @@ local function applyMoverPosition()
         end
     end
     reAnchorContainer()
+    arrangeNotify()
 end
 
 local function createMover()
@@ -421,9 +578,12 @@ local function setUnlocked(state)
     applyMoverPosition()
     if state then
         moverFrame:Show()
+        -- show the notifications too so the user sees what they're positioning
+        showPreview()
         ns:Print(L["Combat Text mover active. Drag or arrow keys (SHIFT=5px)."])
     else
         moverFrame:Hide()
+        hidePreview()
     end
 end
 
@@ -431,7 +591,7 @@ end
 -- Lifecycle
 -- =========================================================
 function mod:OnEnable()
-    if not mod.db then return end  -- defensive: DB not initialized
+    if not mod.db then return end
     playerGUID = UnitGUID("player")
     createContainer()
     reAnchorContainer()
@@ -444,7 +604,6 @@ function mod:OnEnable()
     ns:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", onCLEU)
     ns:RegisterEvent("UPDATE_INVENTORY_DURABILITY", scheduleDurabilityCheck)
 
-    -- Initial durability check (delayed, so inventory is loaded)
     C_Timer.After(2.0, scheduleDurabilityCheck)
 end
 
@@ -453,8 +612,10 @@ function mod:OnDisable()
     ns:UnregisterEvent("PLAYER_REGEN_ENABLED",  onCombatEnd)
     ns:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED", onCLEU)
     ns:UnregisterEvent("UPDATE_INVENTORY_DURABILITY", scheduleDurabilityCheck)
+    hidePreview()
+    for _, f in pairs(notifyFrames) do f:Hide() end
     if container then container:Hide() end
-    if moverFrame then moverFrame:Hide() end  -- don't leave the mover orphaned
+    if moverFrame then moverFrame:Hide() end
 end
 
 -- =========================================================
@@ -478,60 +639,106 @@ local function openColorPicker(getCurrent, setNew)
     end
 end
 
-local function eventSection(key, label, previewText)
+-- Auto-stop the preview when the options window closes.
+local function ensurePreviewAutoStop()
+    local f = _G.VuloClassicUIMainFrame
+    if f and not f._vcCTPreviewHooked then
+        f._vcCTPreviewHooked = true
+        f:HookScript("OnHide", function() hidePreview() end)
+    end
+end
+
+-- key:       events table key
+-- previewText: text shown by the Test button (scroll events only)
+-- opts:      { notify = bool (flash, editable text, no outline toggle) }
+local function eventSection(key, previewText, opts)
+    opts = opts or {}
     local function ev() return mod.db.events[key] end
-    return {
-        { type = "group", layout = "row", gap = 6,
-          items = {
-              { type = "toggle", label = L["Enabled"],
-                get = function() return ev().enabled end,
-                set = function(_, v) ev().enabled = v end },
-              { type = "button", label = L["Text color..."], width = 110,
-                onClick = function()
-                    openColorPicker(function() return ev().color end,
-                        function(c) ev().color = c end)
-                end },
-              { type = "button", label = L["Shadow color..."], width = 130,
-                onClick = function()
-                    openColorPicker(function() return ev().shadowColor end,
-                        function(c) ev().shadowColor = c end)
-                end },
-              { type = "button", label = L["Test"], width = 70,
-                onClick = function() spawnEvent(key, previewText) end },
-          },
-        },
-        { type = "slider", label = L["Font Size (0 = global)"],
-          min = 0, max = 32, step = 1,
-          get = function() return ev().size or 0 end,
-          set = function(_, v) ev().size = v end },
-        { type = "group", layout = "row", gap = 8,
-          items = {
-              { type = "toggle", label = L["Outline"],
-                get = function() return ev().outline end,
-                set = function(_, v) ev().outline = v end },
-              { type = "toggle", label = L["Shadow"],
-                get = function() return ev().shadow end,
-                set = function(_, v) ev().shadow = v end },
-          },
-        },
-        { type = "slider", label = L["Shadow X Offset"],
-          min = -10, max = 10, step = 1,
-          get = function() return ev().shadowX or 2 end,
-          set = function(_, v) ev().shadowX = v end },
-        { type = "slider", label = L["Shadow Y Offset"],
-          min = -10, max = 10, step = 1,
-          get = function() return ev().shadowY or -2 end,
-          set = function(_, v) ev().shadowY = v end },
+    local items = {}
+
+    if opts.notify then
+        items[#items + 1] = { type = "editbox", label = L["Text"],
+            width = 280, editWidth = 170, commitOnFocusLost = true,
+            get = function() return notifyText(key) end,
+            set = function(_, v) ev().text = v; applyFontToNotify() end }
+    end
+
+    -- Row 1: Enabled + colour buttons + Test
+    local row = {
+        { type = "toggle", label = L["Enabled"],
+          get = function() return ev().enabled end,
+          set = function(_, v) ev().enabled = v end },
+        { type = "button", label = L["Text color..."], width = 110,
+          onClick = function()
+              openColorPicker(function() return ev().color end,
+                  function(c) ev().color = c; applyFontToNotify() end)
+          end },
+        { type = "button", label = L["Shadow color..."], width = 130,
+          onClick = function()
+              openColorPicker(function() return ev().shadowColor end,
+                  function(c) ev().shadowColor = c; applyFontToNotify() end)
+          end },
+        { type = "button", label = L["Test"], width = 70,
+          onClick = function()
+              if opts.notify then showNotify(key) else spawnScroll(key, previewText) end
+          end },
     }
+    items[#items + 1] = { type = "group", layout = "row", gap = 6, items = row }
+
+    items[#items + 1] = { type = "slider", label = L["Font Size (0 = global)"],
+        min = 0, max = 32, step = 1,
+        get = function() return ev().size or 0 end,
+        set = function(_, v) ev().size = v; applyFontToNotify() end }
+
+    -- Outline toggle only for scroll events; notifications follow the global dropdown.
+    local toggles = {
+        { type = "toggle", label = L["Shadow"],
+          get = function() return ev().shadow end,
+          set = function(_, v) ev().shadow = v; applyFontToNotify() end },
+    }
+    if not opts.notify then
+        table.insert(toggles, 1, { type = "toggle", label = L["Outline"],
+            get = function() return ev().outline end,
+            set = function(_, v) ev().outline = v end })
+    end
+    items[#items + 1] = { type = "group", layout = "row", gap = 8, items = toggles }
+
+    items[#items + 1] = { type = "slider", label = L["Shadow X Offset"],
+        min = -10, max = 10, step = 1,
+        get = function() return ev().shadowX or 2 end,
+        set = function(_, v) ev().shadowX = v; applyFontToNotify() end }
+    items[#items + 1] = { type = "slider", label = L["Shadow Y Offset"],
+        min = -10, max = 10, step = 1,
+        get = function() return ev().shadowY or -2 end,
+        set = function(_, v) ev().shadowY = v; applyFontToNotify() end }
+    return items
 end
 
 function mod:GetOptions()
+    ensurePreviewAutoStop()
+
     local items = {
         { type = "header", text = L["Combat Text"] },
         { type = "desc",
-          text = L["|cffaaaaaaCustom scrolling text engine above the player. Anniversary disabled Blizzard's old player FCT. Each event can have its own color + size + outline/shadow.|r"] },
+          text = L["|cffaaaaaaNotifications (+/- Combat, Low Durability) flash centred and stack; combat-log events (interrupts, dispels, misses) scroll upward. Use Preview to position and style them.|r"] },
 
-        -- Master categories (quick on/off — do not override per-event, but add a filter on top)
+        -- Preview + master test
+        { type = "spacer", height = 4 },
+        { type = "group", layout = "row", gap = 8, items = {
+            { type = "toggle", label = L["Show Preview"],
+              tooltip = L["Shows all three notification messages on screen so you can position and style them. Turns off automatically when you close this window."],
+              get = function() return isPreviewOn() end,
+              set = function(_, v) if v then showPreview() else hidePreview() end end },
+            { type = "button", label = L["Test (all events)"], width = 170,
+              onClick = function()
+                  showNotify("combatStart")
+                  C_Timer.After(0.4, function() spawnScroll("spellInterrupt", L["Interrupted: Frostbolt"]) end)
+                  C_Timer.After(0.8, function() spawnScroll("dispels",        L["Dispelled: Curse"]) end)
+                  C_Timer.After(1.2, function() spawnScroll("missed",         L["Parried"]) end)
+              end },
+        } },
+
+        -- Master categories
         { type = "spacer", height = 6 },
         { type = "header", text = L["Categories (Quick on/off)"] },
         { type = "group", layout = "row", gap = 8,
@@ -547,21 +754,12 @@ function mod:GetOptions()
               { type = "toggle", label = L["Durability Warning"],
                 tooltip = L["Low durability after combat exit."],
                 get = function() return mod.db.showDurability ~= false end,
-                set = function(_, v) mod.db.showDurability = v end },
+                set = function(_, v) mod.db.showDurability = v; scheduleDurabilityCheck() end },
           },
         },
-
-        { type = "spacer", height = 6 },
-        { type = "button", label = L["Test (all events)"], width = 200,
-          onClick = function()
-              spawnEvent("combatStart",    L["+Combat"])
-              C_Timer.After(0.4, function() spawnEvent("spellInterrupt", L["Interrupted: Frostbolt"]) end)
-              C_Timer.After(0.8, function() spawnEvent("dispels",        L["Dispelled: Curse"]) end)
-              C_Timer.After(1.2, function() spawnEvent("missed",         L["Parried"]) end)
-          end },
     }
 
-    -- Global defaults (collapsed -> short, quick page)
+    -- Global defaults (collapsed)
     table.insert(items, { type = "section", title = L["Global Defaults"], collapsed = true, items = {
         { type = "dropdown", label = L["Font"],
           tooltip = L["Font for our combat text engine. Also used for Blizzard's mob FCT (DAMAGE_TEXT_FONT) when enabled below."],
@@ -569,9 +767,8 @@ function mod:GetOptions()
           get = function() return getActiveFontPath() end,
           set = function(_, v)
               mod.db.fontFace = v
-              applyFontToPool()
-              applySharpFonts()
-              applyDamageTextFont()
+              applyFontToPool(); applyFontToNotify()
+              applySharpFonts(); applyDamageTextFont()
           end },
         { type = "toggle", label = L["Also apply font to Blizzard mob FCT"],
           tooltip = L["Additionally sets DAMAGE_TEXT_FONT globally - changes the font of the damage numbers above mobs/pets. Requires /reload to take effect."],
@@ -580,13 +777,23 @@ function mod:GetOptions()
         { type = "slider", label = L["Default Font Size"],
           min = 10, max = 32, step = 1,
           get = function() return mod.db.fontSize end,
-          set = function(_, v) mod.db.fontSize = v; applyFontToPool() end },
-        { type = "toggle", label = L["Default: Thick Outline"],
-          get = function() return mod.db.fontOutline end,
-          set = function(_, v) mod.db.fontOutline = v end },
+          set = function(_, v) mod.db.fontSize = v; applyFontToPool(); applyFontToNotify() end },
+        { type = "dropdown", label = L["Outline Style"],
+          values = {
+              { value = "NONE",         text = L["None"] },
+              { value = "OUTLINE",      text = L["Outline"] },
+              { value = "THICKOUTLINE", text = L["Thick Outline"] },
+          },
+          get = function() return mod.db.fontOutlineMode or "THICKOUTLINE" end,
+          set = function(_, v) mod.db.fontOutlineMode = v; applyFontToPool(); applyFontToNotify() end },
         { type = "toggle", label = L["Default: Shadow"],
           get = function() return mod.db.fontShadow end,
-          set = function(_, v) mod.db.fontShadow = v end },
+          set = function(_, v) mod.db.fontShadow = v; applyFontToNotify() end },
+        { type = "slider", label = L["Flash Duration (sec.)"],
+          min = 0.5, max = 5.0, step = 0.1,
+          tooltip = L["How long the +/- Combat flash stays before fading."],
+          get = function() return mod.db.flashDuration or 1.5 end,
+          set = function(_, v) mod.db.flashDuration = v end },
         { type = "slider", label = L["Scroll Duration (sec.)"],
           min = 0.5, max = 5.0, step = 0.1,
           get = function() return mod.db.scrollDuration end,
@@ -597,32 +804,31 @@ function mod:GetOptions()
           set = function(_, v) mod.db.scrollDistance = v end },
     } })
 
-    -- Per-event customization — each event is a collapsed section (click to expand)
+    -- Notifications (flash + stack, editable text)
     table.insert(items, { type = "spacer", height = 8 })
-    table.insert(items, { type = "header", text = L["Per-Event Customization"] })
-    table.insert(items, { type = "section", title = L["+Combat"],        collapsed = true,
-        items = eventSection("combatStart",    L["+Combat"],        L["+Combat"]) })
-    table.insert(items, { type = "section", title = L["-Combat"],        collapsed = true,
-        items = eventSection("combatEnd",      L["-Combat"],        L["-Combat"]) })
-    table.insert(items, { type = "section", title = L["Interrupted"],    collapsed = true,
-        items = eventSection("spellInterrupt", L["Interrupted"],    L["Interrupted: Frostbolt"]) })
-    table.insert(items, { type = "section", title = L["Dispelled/Purged"], collapsed = true,
-        items = eventSection("dispels",        L["Dispelled/Purged"], L["Dispelled: Curse"]) })
-    table.insert(items, { type = "section", title = L["Parried/Dodged/Missed"], collapsed = true,
-        items = eventSection("missed",         L["Parried/Dodged/Missed"], L["Parried"]) })
+    table.insert(items, { type = "header", text = L["Notifications (flash & stack)"] })
+    table.insert(items, { type = "section", title = L["+Combat"], collapsed = true,
+        items = eventSection("combatStart", nil, { notify = true }) })
+    table.insert(items, { type = "section", title = L["-Combat"], collapsed = true,
+        items = eventSection("combatEnd", nil, { notify = true }) })
 
-    -- Low durability section includes its threshold slider
-    local lowDuraItems = eventSection("lowDurability", L["Low Durability"], L["LOW DURABILITY"])
+    local lowDuraItems = eventSection("lowDurability", nil, { notify = true })
     table.insert(lowDuraItems, { type = "slider", label = L["Durability Threshold (%)"],
         min = 5, max = 50, step = 1,
         tooltip = L["Warning appears when at least one equipped item is below this value (after combat exit)."],
         get = function() return mod.db.durabilityThreshold or 15 end,
-        set = function(_, v)
-            mod.db.durabilityThreshold = v
-            _wasLowDurability = false
-            scheduleDurabilityCheck()
-        end })
+        set = function(_, v) mod.db.durabilityThreshold = v; scheduleDurabilityCheck() end })
     table.insert(items, { type = "section", title = L["Low Durability"], collapsed = true, items = lowDuraItems })
+
+    -- Scrolling combat-log events
+    table.insert(items, { type = "spacer", height = 8 })
+    table.insert(items, { type = "header", text = L["Combat Log (scrolling)"] })
+    table.insert(items, { type = "section", title = L["Interrupted"], collapsed = true,
+        items = eventSection("spellInterrupt", L["Interrupted: Frostbolt"]) })
+    table.insert(items, { type = "section", title = L["Dispelled/Purged"], collapsed = true,
+        items = eventSection("dispels", L["Dispelled: Curse"]) })
+    table.insert(items, { type = "section", title = L["Parried/Dodged/Missed"], collapsed = true,
+        items = eventSection("missed", L["Parried"]) })
 
     -- Engine FCT (collapsed)
     table.insert(items, { type = "section", title = L["Engine FCT (above mob/pet)"], collapsed = true, items = {
