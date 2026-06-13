@@ -737,7 +737,8 @@ local function ftOnTakeTaxi(slot)
             and ns.FLIGHT_TIMES[fac][se] and ns.FLIGHT_TIMES[fac][se][de2]
         ns:Print("Flugdebug: src='" .. tostring(src) .. "' -> '" .. s .. "' -> '" .. tostring(se)
             .. "' | dst='" .. tostring(dst) .. "' -> '" .. d2 .. "' -> '" .. tostring(de2)
-            .. "' | " .. fac .. " | DB=" .. tostring(hit)
+            .. "' | " .. fac .. " | DBgeladen=" .. tostring(ns.FLIGHT_TIMES ~= nil)
+            .. " | DB=" .. tostring(hit)
             .. " | gelernt=" .. tostring(ftDB().times[key]))
     end
 
