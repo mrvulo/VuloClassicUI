@@ -53,8 +53,6 @@ end
 local GCD_MAX = 1.5
 local FONT = "Fonts\\FRIZQT__.TTF"
 
-local ICON_GEAR = "Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\gear.tga"
-
 -- Icon-shape masks (square = plain white = no visible mask)
 local MASK_ROUNDED = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\csquare_mask.tga"
 local MASK_CIRCLE  = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\circle_mask.tga"
@@ -938,7 +936,6 @@ end
 -- Options
 -- =========================================================
 local addInput = ""
-local expandedEntry        -- which tracked entry's gear is open (entry table ref)
 
 local function rebuildPage()
     if ns.UI and ns.UI.BuildOptionsPage then ns.UI:BuildOptionsPage("cooldownmanager") end
@@ -1049,60 +1046,49 @@ function mod:GetOptions()
     } }
     items[#items + 1] = { type = "spacer", height = 4 }
 
-    -- Tracked list: icon + name + a gear that reveals reorder / remove.
-    -- The reorder arrows follow the bar's orientation (←/→ horizontal, ↑/↓ vertical).
-    items[#items + 1] = { type = "header", text = L["Tracked"] }
+    -- Tracked list: a collapsible "Tracked" section (its gear shows/hides the
+    -- whole list). Each row has the icon + name and ALWAYS-visible move/remove
+    -- controls — no per-entry expand, so nothing can get stuck open. Arrows
+    -- follow the bar's orientation (←/→ horizontal, ↑/↓ vertical).
+    local trackedItems = {}
     if #group.entries == 0 then
-        items[#items + 1] = { type = "desc", text = L["|cff888888Nothing in this group yet.|r"] }
+        trackedItems[1] = { type = "desc", text = L["|cff888888Nothing in this group yet.|r"] }
     else
         local horiz = (group.growth == "RIGHT" or group.growth == "LEFT")
         local n = #group.entries
         for i, e in ipairs(group.entries) do
             local nm, icon = entryInfo(e)
-            local label = (icon and ("|T" .. icon .. ":16:16:0:0:64:64:5:59:5:59|t  ") or "")
+            local label = (icon and ("|T" .. icon .. ":18:18:0:0:64:64:5:59:5:59|t  ") or "")
                 .. (nm or ("#" .. tostring(e.id)))
             if e.kind == "item" then label = label .. L["  |cff888888(item)|r"] end
             if e.kind == "spell" and not entryUsable(e) then label = label .. L["  |cffaa5555(other class)|r"] end
 
-            items[#items + 1] = { type = "group", layout = "row", gap = 6, items = {
-                { type = "desc", text = label, width = 250 },
-                { type = "iconbutton", icon = ICON_GEAR, width = 26, height = 26,
-                  tooltip = L["Reorder / remove"],
+            trackedItems[#trackedItems + 1] = { type = "group", layout = "row", gap = 6, items = {
+                { type = "desc", text = label, width = 300 },
+                { type = "iconbutton", icon = (horiz and "left" or "up"), width = 28, height = 28, iconInset = 8,
+                  tooltip = L["Move earlier"],
                   onClick = function()
-                      -- NB: explicit if/else — `cond and nil or e` returns e
-                      -- even when cond is true, so the gear never closed.
-                      if expandedEntry == e then expandedEntry = nil else expandedEntry = e end
-                      rebuildPage()
+                      if i > 1 then
+                          group.entries[i], group.entries[i-1] = group.entries[i-1], group.entries[i]
+                          relayoutGroup(group); rebuildPage()
+                      end
+                  end },
+                { type = "iconbutton", icon = (horiz and "right" or "down"), width = 28, height = 28, iconInset = 8,
+                  tooltip = L["Move later"],
+                  onClick = function()
+                      if i < n then
+                          group.entries[i], group.entries[i+1] = group.entries[i+1], group.entries[i]
+                          relayoutGroup(group); rebuildPage()
+                      end
+                  end },
+                { type = "button", label = L["Remove"], width = 110, height = 28,
+                  onClick = function()
+                      table.remove(group.entries, i); relayoutGroup(group); rebuildPage()
                   end },
             } }
-
-            if expandedEntry == e then
-                items[#items + 1] = { type = "group", layout = "row", gap = 6, items = {
-                    { type = "iconbutton", icon = (horiz and "left" or "up"), width = 26, height = 26,
-                      tooltip = L["Move earlier"],
-                      onClick = function()
-                          if i > 1 then
-                              group.entries[i], group.entries[i-1] = group.entries[i-1], group.entries[i]
-                              relayoutGroup(group); rebuildPage()
-                          end
-                      end },
-                    { type = "iconbutton", icon = (horiz and "right" or "down"), width = 26, height = 26,
-                      tooltip = L["Move later"],
-                      onClick = function()
-                          if i < n then
-                              group.entries[i], group.entries[i+1] = group.entries[i+1], group.entries[i]
-                              relayoutGroup(group); rebuildPage()
-                          end
-                      end },
-                    { type = "button", label = L["Remove"], width = 120, height = 26,
-                      onClick = function()
-                          if expandedEntry == e then expandedEntry = nil end
-                          table.remove(group.entries, i); relayoutGroup(group); rebuildPage()
-                      end },
-                } }
-            end
         end
     end
+    items[#items + 1] = { type = "section", title = L["Tracked"], collapsed = false, items = trackedItems }
 
     -- Position button stays visible (the key action when setting up)
     items[#items + 1] = { type = "spacer", height = 4 }

@@ -1121,7 +1121,8 @@ local function iconButtonSetup(b, config)
     b._vcConfig = config
     b:SetSize(config.width or 24, config.height or 24)
     local icon = b._icon
-    icon:SetSize((config.width or 24) - 10, (config.height or 24) - 10)
+    local inset = config.iconInset or 10   -- smaller inset = larger glyph
+    icon:SetSize((config.width or 24) - inset, (config.height or 24) - inset)
     icon:SetVertexColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
 
     local iconKey = config.icon
