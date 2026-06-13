@@ -474,7 +474,7 @@ ns:RegisterLocale("deDE", {
     ["  |cffaa5555(other class)|r"] = "  |cffaa5555(andere Klasse)|r",
     ["Edit mode — unlock all bars to move"] = "Bearbeiten — alle Leisten zum Verschieben entsperren",
     ["Stop editing — lock all bars"] = "Bearbeiten beenden — alle Leisten sperren",
-    ["Unlocks every cooldown bar at once so you can drag them all into place. Anchoring is set per group in 'Anchor'."] = "Entsperrt alle Cooldown-Leisten gleichzeitig, damit du sie alle platzieren kannst. Ankern stellst du pro Gruppe unter „Verankerung\" ein.",
+    ["Unlocks every cooldown bar at once so you can drag them all into place. Also opens automatically with Blizzard's Edit Mode. Anchoring is set per group in 'Anchor'."] = "Entsperrt alle Cooldown-Leisten gleichzeitig, damit du sie alle platzieren kannst. Öffnet sich auch automatisch mit Blizzards Bearbeitungsmodus. Ankern stellst du pro Gruppe unter „Verankerung\" ein.",
     ["Cooldown edit mode |cff44ff44ON|r — drag any bar to move it. Toggle again to lock."] = "Cooldown-Bearbeiten |cff44ff44AN|r — zieh eine Leiste zum Verschieben. Nochmal umschalten zum Sperren.",
     ["Cooldown edit mode |cffff5555OFF|r — all bars locked."] = "Cooldown-Bearbeiten |cffff5555AUS|r — alle Leisten gesperrt.",
     ["Hide cooldowns under (sec)"] = "Cooldowns ausblenden unter (Sek.)",

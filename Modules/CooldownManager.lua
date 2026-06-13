@@ -102,13 +102,14 @@ local allBars = {}   -- every bar ever created (for blanket hide on rebuild)
 local throttle = 0
 local driver
 local inCombat = false
+local editMode = false   -- transient: all bars draggable (our edit mode / Blizzard's)
 
 local function db() return mod.db end
 
 -- Per-group visibility conditions (all default off). While a group is unlocked
--- for positioning it always shows so it can be dragged.
+-- for positioning (or global edit mode is on) it always shows so it can be dragged.
 local function barVisible(group)
-    if group.unlocked then return true end
+    if editMode or group.unlocked then return true end
     if group.onlyInCombat and not inCombat then return false end
     if group.hideMounted and IsMounted and IsMounted() then return false end
     if group.onlyInInstance and IsInInstance and not IsInInstance() then return false end
@@ -893,38 +894,51 @@ local function setUnlocked(group, state)
     end
 end
 
--- True if ANY group's bar is currently unlocked (edit mode active).
-local function anyUnlocked()
+-- Global edit mode: every bar becomes draggable at once (transient — NOT
+-- persisted like the per-group "unlocked" flag). Driven by our own button /
+-- /cdedit AND, when present, hooked to Blizzard's Edit Mode (Anniversary).
+local function setEditMode(state)
+    state = state and true or false
+    if editMode == state then return end
+    editMode = state
     for _, g in ipairs(db().groups) do
-        if g.unlocked then return true end
-    end
-    return false
-end
-
--- 2.5.5 has no Blizzard Edit Mode, so this is our own: unlock/lock EVERY bar
--- at once for free dragging (anchoring stays in the per-group options).
-local function setAllUnlocked(state)
-    for _, g in ipairs(db().groups) do
-        g.unlocked = state
         local bar = ensureBar(g)
-        bar:EnableMouse(state)
+        local show = state or g.unlocked
+        bar:EnableMouse(show)
         if bar.mover then
-            if state then bar.mover:Show() else bar.mover:Hide() end
+            if show then bar.mover:Show() else bar.mover:Hide() end
         end
     end
+    refreshAll()
     if state then
         ns:Print(L["Cooldown edit mode |cff44ff44ON|r — drag any bar to move it. Toggle again to lock."])
     else
         ns:Print(L["Cooldown edit mode |cffff5555OFF|r — all bars locked."])
     end
-    refreshAll()
 end
 
 -- /cdedit toggles the edit mode without opening the options window.
 SLASH_VCUICDEDIT1 = "/cdedit"
 SlashCmdList["VCUICDEDIT"] = function()
     if not mod._enabled then return end
-    setAllUnlocked(not anyUnlocked())
+    setEditMode(not editMode)
+end
+
+-- If the client has Blizzard's Edit Mode (Anniversary), mirror it: entering it
+-- shows our bar movers too, leaving it hides them. Pure cosmetic frames (no
+-- secure/protected widgets) so this never taints the Edit Mode system.
+local function tryHookEditMode()
+    local emf = _G.EditModeManagerFrame
+    if not emf or emf._vcCDMHooked then return emf ~= nil end
+    emf._vcCDMHooked = true
+    emf:HookScript("OnShow", function() if mod._enabled then setEditMode(true)  end end)
+    emf:HookScript("OnHide", function() if mod._enabled then setEditMode(false) end end)
+    return true
+end
+
+-- Blizzard_EditMode may load on demand; hook it as soon as it appears.
+local function onAddonLoaded(_, name)
+    if name == "Blizzard_EditMode" then tryHookEditMode() end
 end
 
 -- =========================================================
@@ -952,6 +966,8 @@ function mod:OnEnable()
     ns:RegisterEvent("PLAYER_REGEN_DISABLED", onCombat)    -- visibility conditions
     ns:RegisterEvent("PLAYER_REGEN_ENABLED",  onCombat)
     ns:RegisterEvent("PLAYER_TARGET_CHANGED", refreshAll)
+    ns:RegisterEvent("ADDON_LOADED",          onAddonLoaded)
+    tryHookEditMode()  -- if Blizzard's Edit Mode is already loaded
 end
 
 function mod:OnDisable()
@@ -963,6 +979,7 @@ function mod:OnDisable()
     ns:UnregisterEvent("PLAYER_REGEN_DISABLED", onCombat)
     ns:UnregisterEvent("PLAYER_REGEN_ENABLED",  onCombat)
     ns:UnregisterEvent("PLAYER_TARGET_CHANGED", refreshAll)
+    ns:UnregisterEvent("ADDON_LOADED",          onAddonLoaded)
     if driver then driver:Hide() end
     for _, b in ipairs(allBars) do
         if b.mover then b.mover:Hide() end
@@ -1013,12 +1030,13 @@ function mod:GetOptions()
           text = L["|cffaaaaaaMovable cooldown bars grouped however you like — e.g. one for procs/buffs, one for defensive cooldowns, one for offensives. Pick or create a group below, then add spells/trinkets to it.|r"] },
         { type = "spacer", height = 4 },
 
-        -- Edit mode: unlock EVERY bar at once (2.5.5 has no Blizzard Edit Mode)
+        -- Edit mode: unlock EVERY bar at once. Also auto-toggles with Blizzard's
+        -- Edit Mode where present (Anniversary).
         { type = "button", width = 340, primary = true,
-          label = anyUnlocked() and L["Stop editing — lock all bars"]
-                                 or  L["Edit mode — unlock all bars to move"],
-          tooltip = L["Unlocks every cooldown bar at once so you can drag them all into place. Anchoring is set per group in 'Anchor'."],
-          onClick = function() setAllUnlocked(not anyUnlocked()); rebuildPage() end },
+          label = editMode and L["Stop editing — lock all bars"]
+                            or  L["Edit mode — unlock all bars to move"],
+          tooltip = L["Unlocks every cooldown bar at once so you can drag them all into place. Also opens automatically with Blizzard's Edit Mode. Anchoring is set per group in 'Anchor'."],
+          onClick = function() setEditMode(not editMode); rebuildPage() end },
         { type = "spacer", height = 6 },
 
         { type = "header", text = L["Groups"] },
