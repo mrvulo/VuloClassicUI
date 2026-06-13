@@ -318,12 +318,15 @@ local relayoutGroup, refreshGroup, refreshAll, layoutIcons  -- forward
 -- aura groups don't scan 40 buffs per icon. UnitAura spellId is the 10th
 -- return in 2.5.5 (same as VTManaDisplay relies on).
 local auraByName, auraByID = {}, {}
+local recPool = {}   -- reused rec tables (per slot) -> no per-tick allocation
 local function scanPlayerAuras()
     wipe(auraByName); wipe(auraByID)
     for i = 1, 40 do
         local name, _, count, _, duration, expiration, _, _, _, sid = UnitAura("player", i, "HELPFUL")
         if not name then break end
-        local rec = { dur = duration, exp = expiration, count = count }
+        local rec = recPool[i]
+        if not rec then rec = {}; recPool[i] = rec end
+        rec.dur, rec.exp, rec.count = duration, expiration, count
         auraByName[name] = rec
         if sid then auraByID[sid] = rec end
     end
@@ -831,12 +834,12 @@ refreshAll = function()
     end
     if needAuras then scanPlayerAuras() end
     for _, group in ipairs(groups) do
-        refreshGroup(group, now)
-    end
-    -- visibility conditions: show/hide the whole bar
-    for _, group in ipairs(groups) do
         local bar = barOf[group]
-        if bar then bar:SetShown(barVisible(group)) end
+        local vis = barVisible(group)
+        if bar then bar:SetShown(vis) end
+        -- hidden bars skip the per-icon work entirely (cooldown sweeps keep
+        -- animating on their own; they're re-synced when shown again)
+        if vis then refreshGroup(group, now) end
     end
 end
 
