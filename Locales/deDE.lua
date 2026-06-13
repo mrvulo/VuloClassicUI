@@ -472,6 +472,8 @@ ns:RegisterLocale("deDE", {
     ["Show countdown text"] = "Countdown-Text anzeigen",
     ["Show stacks"] = "Stapel anzeigen",
     ["  |cffaa5555(other class)|r"] = "  |cffaa5555(andere Klasse)|r",
+    ["Hide cooldowns under (sec)"] = "Cooldowns ausblenden unter (Sek.)",
+    ["Cooldowns at or below this are ignored. 1.5 hides the global cooldown; raise it to also hide short cooldowns; 0 shows everything."] = "Cooldowns bis zu diesem Wert werden ignoriert. 1,5 blendet den globalen Cooldown aus; höher stellen blendet auch kurze Cooldowns aus; 0 zeigt alles.",
     ["Reorder / remove"] = "Sortieren / entfernen",
     ["Move earlier"] = "Nach vorne",
     ["Move later"] = "Nach hinten",

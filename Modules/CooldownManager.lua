@@ -130,6 +130,7 @@ local function defaultGroup(name)
         spacing        = 4,
         perRow         = 12,
         growth         = "RIGHT",
+        minDuration    = 1.5,    -- hide cooldowns at/under this (1.5 = GCD); 0 = show all
         onlyOnCooldown = false,
         showText       = true,
         showStacks     = true,   -- stack-count number on stacking buffs/procs
@@ -200,6 +201,7 @@ local function ensureGroups()
         if g.iconZoom   == nil then g.iconZoom   = 0.08 end
         if g.swipeAlpha == nil then g.swipeAlpha = 0.8 end
         g.stackPos   = g.stackPos or "BOTTOMRIGHT"
+        if g.minDuration == nil then g.minDuration = 1.5 end
         if g.stackSize  == nil then g.stackSize  = 13 end
         if type(g.stackColor) ~= "table" then g.stackColor = { r = 1, g = 0.95, b = 0.6 } end
     end
@@ -683,7 +685,9 @@ local function updateIcon(group, f, now)
     local e = f.entry
     if not e then return end
     local start, duration, enabled = entryCooldown(e)
-    local onCD = enabled ~= 0 and duration and duration > GCD_MAX
+    -- ignore the global cooldown (and any short CD under the group's threshold)
+    local minDur = group.minDuration or GCD_MAX
+    local onCD = enabled ~= 0 and duration and duration > minDur
         and start and (start + duration - now) > 0
 
     if onCD then
@@ -1250,6 +1254,11 @@ function mod:GetOptions()
                   set = function(_, v) group.auraColor = v; refreshAll() end },
             } }
     else
+        displayItems[#displayItems + 1] = { type = "slider", label = L["Hide cooldowns under (sec)"],
+            min = 0, max = 5, step = 0.5,
+            tooltip = L["Cooldowns at or below this are ignored. 1.5 hides the global cooldown; raise it to also hide short cooldowns; 0 shows everything."],
+            get = function() return group.minDuration or 1.5 end,
+            set = function(_, v) group.minDuration = v; refreshAll() end }
         displayItems[#displayItems + 1] = { type = "toggle", label = L["Only show while on cooldown"],
             tooltip = L["Hides ready icons; they reappear when on cooldown."],
             get = function() return group.onlyOnCooldown end,
