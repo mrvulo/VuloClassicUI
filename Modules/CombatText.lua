@@ -807,10 +807,20 @@ function mod:GetOptions()
     -- Notifications (flash + stack, editable text)
     table.insert(items, { type = "spacer", height = 8 })
     table.insert(items, { type = "header", text = L["Notifications (flash & stack)"] })
-    table.insert(items, { type = "section", title = L["+Combat"], collapsed = true,
-        items = eventSection("combatStart", nil, { notify = true }) })
-    table.insert(items, { type = "section", title = L["-Combat"], collapsed = true,
-        items = eventSection("combatEnd", nil, { notify = true }) })
+
+    -- One "Combat" section holding both the enter (+) and exit (−) messages.
+    -- Literal labels so it reads "Combat" in every locale (the on-screen text
+    -- defaults stay localized via the editable Text fields below).
+    local combatItems = { { type = "header", text = "+ Combat" } }
+    for _, it in ipairs(eventSection("combatStart", nil, { notify = true })) do
+        combatItems[#combatItems + 1] = it
+    end
+    combatItems[#combatItems + 1] = { type = "spacer", height = 8 }
+    combatItems[#combatItems + 1] = { type = "header", text = "− Combat" }
+    for _, it in ipairs(eventSection("combatEnd", nil, { notify = true })) do
+        combatItems[#combatItems + 1] = it
+    end
+    table.insert(items, { type = "section", title = "Combat", collapsed = true, items = combatItems })
 
     local lowDuraItems = eventSection("lowDurability", nil, { notify = true })
     table.insert(lowDuraItems, { type = "slider", label = L["Durability Threshold (%)"],
