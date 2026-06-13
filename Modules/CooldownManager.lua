@@ -1088,12 +1088,11 @@ function mod:GetOptions()
             } }
         end
     end
-    items[#items + 1] = { type = "section", title = L["Tracked"], collapsed = false, items = trackedItems }
-
-    -- Position button stays visible (the key action when setting up)
-    items[#items + 1] = { type = "spacer", height = 4 }
-    items[#items + 1] = { type = "button", label = L["Unlock / Position"], width = 200,
+    -- Unlock / position lives INSIDE the section, so it collapses with it
+    trackedItems[#trackedItems + 1] = { type = "spacer", height = 4 }
+    trackedItems[#trackedItems + 1] = { type = "button", label = L["Unlock / Position"], width = 200,
         onClick = function() setUnlocked(group, not group.unlocked) end }
+    items[#items + 1] = { type = "section", title = L["Tracked"], collapsed = false, items = trackedItems }
 
     -- Anchor this bar to another group's bar (it then follows + fine-tune offset)
     do
