@@ -95,7 +95,7 @@ local function defaultGroup(name)
         onlyOnCooldown = false,
         showText       = true,
         showStacks     = true,   -- stack-count number on stacking buffs/procs
-        reagentItem    = 0,      -- item whose count shows as the stack on spells (e.g. Soul Shard); 0 = off
+        showReagents   = false,  -- each spell's OWN reagent count (Soul Shard, Infernal Stone, ...)
         desaturate     = true,
         readyFlash     = true,
         unlocked       = false,
@@ -143,7 +143,8 @@ local function ensureGroups()
         g.auraStyle = g.auraStyle or "glow"
         g.auraColor = g.auraColor or "yellow"
         if g.showStacks == nil then g.showStacks = true end
-        if g.reagentItem == nil then g.reagentItem = 0 end
+        if g.showReagents == nil then g.showReagents = (g.reagentItem or 0) > 0 end
+        g.reagentItem = nil   -- replaced by per-spell auto-detection
         g.anchorSide = g.anchorSide or "BELOW"
     end
     ensureGroupIDs()
@@ -272,16 +273,51 @@ local function scanPlayerAuras()
     end
 end
 
--- The number drawn in the icon corner. A configured reagent count (e.g. Soul
--- Shards for Soul Fire) on SPELL icons takes precedence; otherwise the live
--- aura stack count (only when >1). Gated by the per-group "Show stacks" eye.
+-- Spells that consume a reagent: base spell id -> reagent item id. Resolved to
+-- the localized NAME at runtime, so it's locale-independent and covers every
+-- rank. Spells NOT listed (e.g. Howl of Terror) show no reagent.
+local SPELL_REAGENT_IDS = {
+    -- Soul Shard (6265)
+    [6353]  = 6265,  -- Soul Fire
+    [17877] = 6265,  -- Shadowburn
+    [29858] = 6265,  -- Soulshatter
+    [697]   = 6265,  -- Summon Voidwalker
+    [712]   = 6265,  -- Summon Succubus
+    [691]   = 6265,  -- Summon Felhunter
+    [30146] = 6265,  -- Summon Felguard
+    [6201]  = 6265,  -- Create Healthstone
+    [693]   = 6265,  -- Create Soulstone
+    [2362]  = 6265,  -- Create Spellstone
+    [6366]  = 6265,  -- Create Firestone
+    [29893] = 6265,  -- Ritual of Souls
+    -- Infernal Stone (5565)
+    [1122]  = 5565,  -- Inferno
+    -- Demonic Figurine (18796)
+    [18540] = 18796, -- Ritual of Doom
+}
+local reagentByName = {}   -- localized spell name -> reagent item id
+local function buildReagentMap()
+    wipe(reagentByName)
+    for spellID, itemID in pairs(SPELL_REAGENT_IDS) do
+        local n = GetSpellInfo(spellID)
+        if n then reagentByName[n] = itemID end
+    end
+end
+
+-- The number drawn in the icon corner. For a spell that actually consumes a
+-- reagent (Soul Shards on Soul Fire, Infernal Stone on Inferno) that reagent's
+-- count is shown; otherwise the live aura stack count (>1). Gated by the
+-- per-group "Show stacks" eye.
 local function applyStack(group, f)
     if not group.showStacks then f.stack:Hide(); return end
     local e = f.entry
-    if group.reagentItem and group.reagentItem > 0 and e and e.kind == "spell" then
-        f.stack:SetText((GetItemCount and GetItemCount(group.reagentItem)) or 0)
-        f.stack:Show()
-        return
+    if group.showReagents and e and e.kind == "spell" then
+        local itemID = f.entryName and reagentByName[f.entryName]
+        if itemID then
+            f.stack:SetText((GetItemCount and GetItemCount(itemID)) or 0)
+            f.stack:Show()
+            return
+        end
     end
     local rec = (e and auraByID[e.id]) or (f.entryName and auraByName[f.entryName])
     if rec and rec.count and rec.count > 1 then
@@ -697,8 +733,7 @@ refreshAll = function()
     -- cooldown group that shows stack counts on its tracked spells)
     local needAuras = false
     for _, g in ipairs(groups) do
-        local reagent = g.reagentItem and g.reagentItem > 0
-        if g.mode == "aura" or (g.showStacks and not reagent) then needAuras = true; break end
+        if g.mode == "aura" or g.showStacks then needAuras = true; break end
     end
     if needAuras then scanPlayerAuras() end
     for _, group in ipairs(groups) do
@@ -713,6 +748,7 @@ end
 -- Rebuild every bar: hide all, then (re)lay-out each current group.
 local function rebuildBars()
     rebuildKnownSpells()
+    buildReagentMap()
     ensureGroupIDs()
     for _, b in ipairs(allBars) do b:Hide() end
     for _, group in ipairs(db().groups) do
@@ -973,14 +1009,10 @@ function mod:GetOptions()
         { type = "toggle", style = "eye", label = L["Show stacks"],
           get = function() return group.showStacks ~= false end,
           set = function(_, v) group.showStacks = v; refreshAll() end },
-        { type = "dropdown", label = L["Reagent count"], width = 220,
-          tooltip = L["Shows an item's count as the stack number on spell icons — e.g. Soul Shards on Soul Fire. Needs 'Show stacks' on."],
-          values = {
-              { value = 0,    text = L["None"] },
-              { value = 6265, text = L["Soul Shard"] },
-          },
-          get = function() return group.reagentItem or 0 end,
-          set = function(_, v) group.reagentItem = v; refreshAll() end },
+        { type = "toggle", label = L["Show reagent counts"],
+          tooltip = L["Shows each spell's OWN reagent count — Soul Shards on Soul Fire, Infernal Stone on Inferno, etc. Spells without a reagent show nothing. Needs 'Show stacks' on."],
+          get = function() return group.showReagents end,
+          set = function(_, v) group.showReagents = v; refreshAll() end },
     }
     if group.mode == "aura" then
         displayItems[#displayItems + 1] = { type = "dropdown", label = L["Highlight"], width = 220,
