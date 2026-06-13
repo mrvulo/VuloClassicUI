@@ -188,8 +188,14 @@ end
 -- Per-row icons: eye = help/info (shows the option's tooltip), gear = extra
 -- settings (toggles an inline expansion of item.subOptions).
 -- =========================================================
-local ICON_INFO = "Interface\\Icons\\INV_Misc_Eye_01"   -- eye = info/help
-local ICON_GEAR = "Interface\\Icons\\Trade_Engineering" -- gear = extra settings
+local ICON_INFO = "Interface\\Icons\\INV_Misc_Eye_01"     -- eye = info/help
+local ICON_GEAR = "Interface\\Buttons\\UI-OptionsButton"  -- gear = extra settings
+-- per-texture display: crop the icon border + desaturate spell icons to a
+-- clean monochrome look (UI-OptionsButton is already a flat grey cog).
+local ICON_CFG = {
+    [ICON_INFO] = { crop = true,  desat = true },
+    [ICON_GEAR] = { crop = false, desat = false },
+}
 UI.rowExpanded = UI.rowExpanded or {}
 
 local function makeRowIcon(parent)
@@ -201,9 +207,8 @@ local function makeRowIcon(parent)
     b:SetSize(16, 16)
     b.icon = b:CreateTexture(nil, "ARTWORK")
     b.icon:SetAllPoints(b)
-    b.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)  -- crop the icon border
     b:SetScript("OnEnter", function(self)
-        self.icon:SetVertexColor(1, 1, 1)
+        self.icon:SetVertexColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
         self:SetSize(18, 18)
         if self._tip then
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -212,7 +217,7 @@ local function makeRowIcon(parent)
         end
     end)
     b:SetScript("OnLeave", function(self)
-        self.icon:SetVertexColor(0.85, 0.85, 0.9)
+        self.icon:SetVertexColor(0.62, 0.62, 0.70)
         self:SetSize(16, 16)
         GameTooltip:Hide()
     end)
@@ -221,9 +226,12 @@ local function makeRowIcon(parent)
 end
 
 local function setRowIcon(b, tex, tip, onClick, level)
+    local cfg = ICON_CFG[tex] or {}
     b.icon:SetTexture(tex)
-    b.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-    b.icon:SetVertexColor(0.85, 0.85, 0.9)
+    b.icon:SetTexCoord(cfg.crop and 0.10 or 0, cfg.crop and 0.90 or 1,
+                       cfg.crop and 0.10 or 0, cfg.crop and 0.90 or 1)
+    b.icon:SetDesaturated(cfg.desat and true or false)
+    b.icon:SetVertexColor(0.62, 0.62, 0.70)
     b._tip = tip
     b._onClick = onClick
     b:SetFrameLevel(level)
