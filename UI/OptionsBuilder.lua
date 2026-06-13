@@ -161,6 +161,7 @@ local COL_GAP  = 14
 local ROW_H    = 38          -- vertical pitch of a card row
 local CARD_GAP = 8           -- empty space between stacked cards
 local CARD_H   = ROW_H - CARD_GAP
+local CARD_VPAD = 11         -- vertical breathing room inside button/group cards
 
 -- Pooled row panel (rides the widget pool via _vcType / _vcSetup).
 -- A raised "card": fill slightly lighter than the content bg + a thin border,
@@ -390,17 +391,17 @@ placeItem = function(parent, item, y)
     -- standalone buttons sit on their own card too, so nothing floats
     -- frameless next to the carded rows
     if item.type == "button" or item.type == "iconbutton" then
+        local wh    = widget:GetHeight() or 24
+        local cardH = wh + CARD_VPAD * 2
         local p = makePanel(parent)
         p:ClearAllPoints()
         p:SetPoint("TOPLEFT", parent, "TOPLEFT", CONTENT_PADDING, y)
-        p:SetSize(availW, h)
+        p:SetSize(availW, cardH)
         p:SetFrameLevel(base + 1)
         p:Show()
         widget:SetFrameLevel(base + 4)
-        local wh = widget:GetHeight() or 24
-        widget:SetPoint("TOPLEFT", parent, "TOPLEFT",
-            CONTENT_PADDING + 10, y - math.floor((h - wh) / 2))
-        return y - h - CARD_GAP
+        widget:SetPoint("TOPLEFT", parent, "TOPLEFT", CONTENT_PADDING + 10, y - CARD_VPAD)
+        return y - cardH - CARD_GAP
     end
 
     -- descriptions / tips: breathing room above and below so the text never
@@ -470,7 +471,7 @@ function UI:PlaceGroup(parent, group, y)
             p.wh = p.widget:GetHeight() or p.h
             if p.wh > maxWH then maxWH = p.wh end
         end
-        local PAD   = 7
+        local PAD   = CARD_VPAD
         local cardH = maxWH + PAD * 2
 
         -- left-aligned by default (grows rightward as items are added);
