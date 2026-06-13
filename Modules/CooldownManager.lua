@@ -893,6 +893,40 @@ local function setUnlocked(group, state)
     end
 end
 
+-- True if ANY group's bar is currently unlocked (edit mode active).
+local function anyUnlocked()
+    for _, g in ipairs(db().groups) do
+        if g.unlocked then return true end
+    end
+    return false
+end
+
+-- 2.5.5 has no Blizzard Edit Mode, so this is our own: unlock/lock EVERY bar
+-- at once for free dragging (anchoring stays in the per-group options).
+local function setAllUnlocked(state)
+    for _, g in ipairs(db().groups) do
+        g.unlocked = state
+        local bar = ensureBar(g)
+        bar:EnableMouse(state)
+        if bar.mover then
+            if state then bar.mover:Show() else bar.mover:Hide() end
+        end
+    end
+    if state then
+        ns:Print(L["Cooldown edit mode |cff44ff44ON|r — drag any bar to move it. Toggle again to lock."])
+    else
+        ns:Print(L["Cooldown edit mode |cffff5555OFF|r — all bars locked."])
+    end
+    refreshAll()
+end
+
+-- /cdedit toggles the edit mode without opening the options window.
+SLASH_VCUICDEDIT1 = "/cdedit"
+SlashCmdList["VCUICDEDIT"] = function()
+    if not mod._enabled then return end
+    setAllUnlocked(not anyUnlocked())
+end
+
 -- =========================================================
 -- Lifecycle
 -- =========================================================
@@ -977,6 +1011,14 @@ function mod:GetOptions()
         { type = "header", text = L["Cooldown Manager"] },
         { type = "desc",
           text = L["|cffaaaaaaMovable cooldown bars grouped however you like — e.g. one for procs/buffs, one for defensive cooldowns, one for offensives. Pick or create a group below, then add spells/trinkets to it.|r"] },
+        { type = "spacer", height = 4 },
+
+        -- Edit mode: unlock EVERY bar at once (2.5.5 has no Blizzard Edit Mode)
+        { type = "button", width = 340, primary = true,
+          label = anyUnlocked() and L["Stop editing — lock all bars"]
+                                 or  L["Edit mode — unlock all bars to move"],
+          tooltip = L["Unlocks every cooldown bar at once so you can drag them all into place. Anchoring is set per group in 'Anchor'."],
+          onClick = function() setAllUnlocked(not anyUnlocked()); rebuildPage() end },
         { type = "spacer", height = 6 },
 
         { type = "header", text = L["Groups"] },
