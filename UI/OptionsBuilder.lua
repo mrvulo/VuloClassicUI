@@ -188,12 +188,15 @@ end
 -- Per-row icons: eye = help/info (shows the option's tooltip), gear = extra
 -- settings (toggles an inline expansion of item.subOptions).
 -- =========================================================
-local ICON_INFO = "Interface\\Icons\\INV_Misc_Eye_01"     -- eye = info/help
-local ICON_GEAR = "Interface\\Buttons\\UI-OptionsButton"  -- gear = extra settings
--- per-texture display: crop the icon border + desaturate spell icons to a
--- clean monochrome look (UI-OptionsButton is already a flat grey cog).
+-- Custom row icons. Drop your TGA files here (see chat instructions); until
+-- then WoW shows a placeholder box. They fall back to clean Blizzard textures
+-- only if you delete the files. Path = Interface\AddOns\VuloClassicUI\Media\Icons
+local ICON_DIR  = "Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\"
+local ICON_INFO = ICON_DIR .. "eye.tga"      -- eye = info/help
+local ICON_GEAR = ICON_DIR .. "gear.tga"     -- gear = extra settings
+-- custom icons are clean line art: no crop, no desaturate
 local ICON_CFG = {
-    [ICON_INFO] = { crop = true,  desat = true },
+    [ICON_INFO] = { crop = false, desat = false },
     [ICON_GEAR] = { crop = false, desat = false },
 }
 UI.rowExpanded = UI.rowExpanded or {}
