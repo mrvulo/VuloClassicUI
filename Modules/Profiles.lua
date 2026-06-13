@@ -94,6 +94,32 @@ function mod:GetOptions()
     table.insert(items, { type = "spacer", height = 12 })
 
     -- =========================================================
+    -- Section: Per-class quick setup
+    -- =========================================================
+    table.insert(items, { type = "header", text = L["Per-class profile (quick setup)"] })
+    table.insert(items, {
+        type = "desc",
+        text = L["|cffaaaaaaOne click: makes a profile named after your class (copied from the current one) and loads it for this class automatically. Run it once on each character — every class then keeps its own cooldown bars, frames and settings.|r"],
+    })
+    table.insert(items, {
+        type = "button", primary = true, width = 320,
+        label = string.format(L["Set up a %s profile"], CLASS_LABELS[myClass] or myClass),
+        onClick = function()
+            local pname = CLASS_LABELS[myClass] or myClass
+            if not ns:ProfileExists(pname) then
+                ns:CreateProfile(pname, ns:GetActiveProfileName())
+            end
+            ns:SwitchProfile(pname)
+            ns:AssignClassToProfile(myClass, pname)
+            ns:Print(L["'%s' is now the %s profile. |cffffff00/reload|r to apply."],
+                pname, CLASS_LABELS[myClass] or myClass)
+            refreshUI()
+        end,
+    })
+
+    table.insert(items, { type = "spacer", height = 12 })
+
+    -- =========================================================
     -- Section: Create Profile
     -- =========================================================
     table.insert(items, { type = "header", text = L["Create New Profile"] })
