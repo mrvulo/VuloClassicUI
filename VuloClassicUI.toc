@@ -21,6 +21,7 @@ Core\Locale.lua
 Core\Utils.lua
 Core\Database.lua
 Core\Modules.lua
+Core\Container.lua
 Core\Events.lua
 Core\MediaRegistry.lua
 Core\Mover.lua
@@ -98,7 +99,8 @@ Trinkets\TrinketsQueue.lua
 Trinkets\TrinketsQueue.xml
 Modules\Trinkets.lua
 
-# --- QoL container (LAST module: consolidates all QoL modules into tabs) ---
+# --- Group containers (LAST: each consolidates its group into tabbed entries) ---
+Modules\Bugfixes.lua
 Modules\QoL.lua
 
 # --- Init (loaded last, kicks off everything) ---

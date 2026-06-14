@@ -18,6 +18,7 @@ local MODULE_ICONS = {
     globalsettings     = "Interface\\Icons\\Trade_Engineering",
     unlockmode         = "Interface\\Icons\\INV_Misc_Wrench_01",
     qol                = "Interface\\Icons\\INV_Misc_Gear_08",
+    bugfixes           = "Interface\\Icons\\Ability_Repair",
     profiles           = "Interface\\Icons\\INV_Misc_Note_03",
     minimap            = "Interface\\Icons\\INV_Misc_Map_01",
     fontbars           = "Interface\\Icons\\INV_Misc_Note_01",
