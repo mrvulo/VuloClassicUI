@@ -7,8 +7,9 @@
 --   * At file load (this file is listed LAST so every sub-module is already
 --     registered) we collect the QoL modules into mod.tabs and stamp each with
 --     parentTab = "qol" so the sidebar hides them (UI/Sidebar.lua skips it).
---   * GetOptions(tabId) delegates to the picked sub-module, prepending its
---     description + an "Enabled" toggle (the sidebar power button is gone).
+--   * GetOptions(tabId) delegates to the picked sub-module (prepending its
+--     description). Each tab carries its own power button (UI:BuildTabsForModule),
+--     so per-module enable/disable lives on the tab itself.
 --   * UI:BuildOptionsPage redirects a hidden sub-module's refresh calls to
 --     this container + the right tab, so their rebuildPage keeps working.
 -- =========================================================
@@ -52,16 +53,8 @@ function mod:GetOptions(tabId)
     local items = {}
     if sub.description and sub.description ~= "" then
         items[#items + 1] = { type = "desc", text = L[sub.description] }
+        items[#items + 1] = { type = "spacer", height = 6 }
     end
-    if not sub.noToggle then
-        items[#items + 1] = { type = "toggle", label = L["Enabled"],
-            get = function() return sub.db and sub.db.enabled end,
-            set = function(_, v)
-                ns:ToggleModule(tabId, v)
-                if ns.UI then ns.UI:BuildOptionsPage("qol", tabId) end
-            end }
-    end
-    items[#items + 1] = { type = "spacer", height = 6 }
 
     -- guard: a broken sub-module GetOptions must not take down the whole page
     local ok, subItems = pcall(function() return sub:GetOptions() end)

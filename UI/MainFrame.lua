@@ -574,6 +574,30 @@ local function acquireTab(parentBar)
         UI:ShowTab(self._tabId)
     end)
 
+    -- Optional power button (only shown for consolidated sub-modules, e.g. the
+    -- QoL container's tabs). Reads tab._powerKey so the pooled frame can serve
+    -- any module. Its own OnClick consumes the click, so the tab won't switch.
+    tab._power = UI:CreatePowerButton(tab, {
+        size = 12,
+        get  = function()
+            local m = tab._powerKey and ns.modules[tab._powerKey]
+            return m and m.db and m.db.enabled
+        end,
+        set  = function(v)
+            local pk = tab._powerKey
+            if not pk then return end
+            ns:ToggleModule(pk, v)
+            -- if this tab is the one on screen, rebuild its options
+            if UI.currentTab == pk and UI.currentModule then
+                UI:BuildOptionsPage(UI.currentModule, pk)
+            end
+        end,
+        tooltip = L["Enable/disable module"],
+    })
+    tab._power:SetPoint("LEFT", tab, "LEFT", 6, 0)
+    tab._power:SetFrameLevel(tab:GetFrameLevel() + 2)
+    tab._power:Hide()
+
     return tab
 end
 
@@ -616,7 +640,24 @@ function UI:BuildTabsForModule(key)
         tab._underline:Hide()
         tab._activeBG:Hide()
 
-        local tabW = math.max(60, (tab._text:GetStringWidth() or 40) + 24)
+        -- Power button: only when this tab IS a consolidated sub-module
+        -- (its id is a real module key parented to this container). Normal
+        -- multi-tab modules (general/tracked/…) get no power button.
+        local sub = ns.modules[tabDef.id]
+        local showPower = sub and sub.parentTab == key and not sub.noToggle
+        tab._text:ClearAllPoints()
+        if showPower then
+            tab._powerKey = tabDef.id
+            tab._text:SetPoint("CENTER", tab, "CENTER", 9, 0)  -- room for power on the left
+            tab._power:Show()
+            tab._power._refresh()
+        else
+            tab._powerKey = nil
+            tab._text:SetPoint("CENTER", tab, "CENTER", 0, 0)
+            tab._power:Hide()
+        end
+
+        local tabW = math.max(60, (tab._text:GetStringWidth() or 40) + 24 + (showPower and 18 or 0))
         tab:SetWidth(tabW)
 
         -- Wrap to next row if this tab would overflow
