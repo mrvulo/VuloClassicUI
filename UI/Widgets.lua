@@ -1010,9 +1010,12 @@ end
 local function buttonApplyIdle(b)
     local cfg = b._vcConfig
     if cfg and cfg.primary then
-        b._bg:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 1)
-        b._setBorder(ns.COLORS.accent)
-        b._textFS:SetTextColor(1, 1, 1)
+        -- Accent outline style: dark fill, accent-coloured border + text
+        -- (matches the footer "Done" look — not a solid fill).
+        local a = ns.COLORS.accent
+        b._bg:SetColorTexture(0.13, 0.13, 0.16, 1)
+        b._setBorder(a, 0.70)
+        b._textFS:SetTextColor(a.r, a.g, a.b, 0.95)
     else
         b._bg:SetColorTexture(0.13, 0.13, 0.16, 1)
         b._setBorder(ns.COLORS.border)
@@ -1066,7 +1069,11 @@ function UI:CreateButton(parent, config)
     b:SetScript("OnEnter", function(self)
         local cfg = self._vcConfig
         if cfg and cfg.primary then
-            bg:SetColorTexture(ns.COLORS.accent.r * 1.15, ns.COLORS.accent.g * 1.15, ns.COLORS.accent.b * 1.15, 1)
+            -- accent outline: faint accent fill, border + text up to full accent
+            local a = ns.COLORS.accent
+            bg:SetColorTexture(a.r * 0.16, a.g * 0.16, a.b * 0.16, 1)
+            self._setBorder(a, 1)
+            self._textFS:SetTextColor(a.r, a.g, a.b, 1)
         else
             bg:SetColorTexture(0.19, 0.19, 0.23, 1)
             self._setBorder(ns.COLORS.accent, 0.8)
