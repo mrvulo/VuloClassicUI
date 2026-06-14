@@ -651,6 +651,9 @@ ns:RegisterLocale("deDE", {
     ["|cff888888CPU: measuring...|r"] = "|cff888888CPU: messe...|r",
     ["|cff888888CPU: %.2f ms/s |cff666666(VCUI: %.2f)|r|r"] = "|cff888888CPU: %.2f ms/s |cff666666(VCUI: %.2f)|r|r",
     ["Enable/disable module"] = "Modul aktivieren/deaktivieren",
+    ["Module enabled"] = "Modul aktiviert",
+    ["Quality of Life: modules restored."] = "Lebensqualität: Module wiederhergestellt.",
+    ["Quality of Life: all modules off. /reload recommended."] = "Lebensqualität: alle Module aus. /reload empfohlen.",
 
     -- =====================================================
     -- Core / Init / Database / Slash commands

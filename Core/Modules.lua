@@ -73,7 +73,7 @@ function ns:SafeDisable(mod)
     mod._enabled = false
 end
 
-function ns:ToggleModule(key, state)
+function ns:ToggleModule(key, state, silent)
     local mod = ns.modules[key]
     if not mod then return end
     mod.db.enabled = state and true or false
@@ -81,7 +81,10 @@ function ns:ToggleModule(key, state)
         ns:SafeEnable(mod)
     else
         ns:SafeDisable(mod)
-        -- Many hooks can't be removed at runtime -> recommend ReloadUI
-        ns:Print(L["Module '%s' disabled. /reload recommended for full effect."], mod.name)
+        -- Many hooks can't be removed at runtime -> recommend ReloadUI.
+        -- silent: bulk callers (e.g. the QoL master switch) print one summary.
+        if not silent then
+            ns:Print(L["Module '%s' disabled. /reload recommended for full effect."], mod.name)
+        end
     end
 end
