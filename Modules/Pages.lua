@@ -18,7 +18,7 @@ local function enableToggle(key, m)
     return {
         type  = "toggle",
         label = L["Enabled"],
-        get   = function() return m.db and m.db.enabled end,
+        get   = function() return ns:IsModuleEnabled(key) end,
         set   = function(_, v) ns:ToggleModule(key, v) end,
     }
 end
@@ -87,8 +87,7 @@ local PAGES = {
 local function pageToggleGet(members)
     return function()
         for _, k in ipairs(members) do
-            local m = ns.modules[k]
-            if m and m.db and m.db.enabled then return true end
+            if ns:IsModuleEnabled(k) then return true end
         end
         return false
     end

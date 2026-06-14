@@ -702,7 +702,7 @@ function mod:GetOptions()
         -- ---- Display Settings -------------------------------------------
         { type = "section", title = L["Display Settings"], collapsed = false, items = {
             { type = "toggle", label = L["Enable Combat Messages"],
-              get = function() return mod.db.enabled end,
+              get = function() return ns:IsModuleEnabled("combattext") end,
               set = function(_, v) if ns.ToggleModule then ns:ToggleModule("combattext", v) end end },
             { type = "toggle", label = L["Show Preview"],
               get = function() return isPreviewOn() end,

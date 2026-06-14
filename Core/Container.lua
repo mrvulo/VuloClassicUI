@@ -58,8 +58,7 @@ function ns:MakeGroupContainer(opts)
     -- "On" if at least one sub-module is enabled.
     function mod.toggleGet()
         for _, key in ipairs(mod.subKeys) do
-            local sub = ns.modules[key]
-            if sub and sub.db and sub.db.enabled then return true end
+            if ns:IsModuleEnabled(key) then return true end
         end
         return false
     end
@@ -68,23 +67,27 @@ function ns:MakeGroupContainer(opts)
     -- module's state so switching back ON restores exactly that (instead of
     -- force-enabling modules that were intentionally off).
     function mod.toggleSet(v)
-        mod.db = mod.db or {}
+        -- per-character saved-state memory (enable is a per-char preference)
+        local store
+        if VuloClassicUICharDB then
+            VuloClassicUICharDB.containerSaved = VuloClassicUICharDB.containerSaved or {}
+            store = VuloClassicUICharDB.containerSaved
+        end
         if v then
-            local saved = mod.db._savedStates
+            local saved = store and store[opts.key]
             for _, key in ipairs(mod.subKeys) do
                 local want = (saved == nil) and true or (saved[key] and true or false)
                 ns:ToggleModule(key, want, true)   -- silent: one summary below
             end
-            mod.db._savedStates = nil
+            if store then store[opts.key] = nil end
             ns:Print(L["%s: modules restored."], L[opts.name])
         else
             local saved = {}
             for _, key in ipairs(mod.subKeys) do
-                local sub = ns.modules[key]
-                saved[key] = (sub and sub.db and sub.db.enabled) and true or false
+                saved[key] = ns:IsModuleEnabled(key)
                 ns:ToggleModule(key, false, true)  -- silent: one summary below
             end
-            mod.db._savedStates = saved
+            if store then store[opts.key] = saved end
             ns:Print(L["%s: all modules off. /reload recommended."], L[opts.name])
         end
         -- reflect the new state in the sidebar + the open options page
@@ -110,7 +113,7 @@ function ns:MakeGroupContainer(opts)
         -- Enable/disable switch first, so every tab opens with its on/off control.
         items[#items + 1] = {
             type = "toggle", label = L["Module enabled"],
-            get = function() return sub.db and sub.db.enabled end,
+            get = function() return ns:IsModuleEnabled(tabId) end,
             set = function(_, v)
                 ns:ToggleModule(tabId, v)
                 if ns.UI then

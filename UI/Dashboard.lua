@@ -134,7 +134,7 @@ local function createCard(parent, key, mod)
     if not mod.noToggle then
         power = UI:CreatePowerButton(card, {
             size = 16,
-            get  = mod.toggleGet or function() return mod.db and mod.db.enabled end,
+            get  = mod.toggleGet or function() return ns:IsModuleEnabled(key) end,
             set  = function(v)
                 if mod.toggleSet then mod.toggleSet(v) else ns:ToggleModule(key, v) end
                 if card._refresh then card._refresh() end
@@ -148,7 +148,7 @@ local function createCard(parent, key, mod)
 
     local function refresh()
         local enabled
-        if mod.toggleGet then enabled = mod.toggleGet() else enabled = mod.db and mod.db.enabled end
+        if mod.toggleGet then enabled = mod.toggleGet() else enabled = ns:IsModuleEnabled(key) end
         if enabled then
             icon:SetDesaturated(false); icon:SetAlpha(1)
             name:SetTextColor(1, 1, 1)
@@ -244,7 +244,7 @@ function UI:ShowDashboard()
         local m = ns.modules[key]
         if m and not (HIDDEN_GROUPS[m.group or "Core"]) and not m.noToggle then
             total = total + 1
-            if m.db and m.db.enabled then active = active + 1 end
+            if (m.toggleGet and m.toggleGet()) or ns:IsModuleEnabled(key) then active = active + 1 end
         end
     end
     cont.summary:SetText(string.format(L["%d of %d modules active"], active, total))

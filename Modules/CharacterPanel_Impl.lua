@@ -18,7 +18,7 @@ initFrame:RegisterEvent("PLAYER_LOGIN")
 initFrame:SetScript("OnEvent", function(self)
     self:UnregisterAllEvents()
     local mod = ns.modules and ns.modules.characterpanel
-    if not mod or not mod.db or not mod.db.enabled then
+    if not mod or not ns:IsModuleEnabled("characterpanel") then
         return
     end
     -- Module is active -> the rest of this file runs as initialization

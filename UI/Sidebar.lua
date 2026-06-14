@@ -94,7 +94,7 @@ local function highlightSelected()
         local mod = ns.modules[key]
         local enabled
         if mod and mod.toggleGet then enabled = mod.toggleGet()
-        else enabled = mod and mod.db and mod.db.enabled end
+        else enabled = mod and ns:IsModuleEnabled(key) end
         if btn.icon then
             if enabled then
                 btn.icon:SetDesaturated(false)
@@ -150,7 +150,7 @@ local function createModuleRow(parent, key, mod)
     if not mod.noToggle then
         power = UI:CreatePowerButton(row, {
             size = 13,
-            get = mod.toggleGet or function() return mod.db and mod.db.enabled end,
+            get = mod.toggleGet or function() return ns:IsModuleEnabled(key) end,
             set = mod.toggleSet or function(v)
                 ns:ToggleModule(key, v)
                 UI:RefreshSidebarStates()

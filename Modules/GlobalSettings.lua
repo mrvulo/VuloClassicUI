@@ -128,8 +128,7 @@ local function generalOptions()
         { type = "toggle", label = L["Show Minimap Button"],
           tooltip = L["Toggle the VuloClassicUI button on the minimap."],
           get = function()
-              local m = ns.modules and ns.modules.minimap
-              return m and m.db and m.db.enabled
+              return ns:IsModuleEnabled("minimap")
           end,
           set = function(_, v)
               if ns.ToggleModule then ns:ToggleModule("minimap", v) end

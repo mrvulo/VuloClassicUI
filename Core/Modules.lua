@@ -38,10 +38,32 @@ end
 -- =========================================================
 -- Called in Init.lua after DB is initialized.
 -- =========================================================
+-- =========================================================
+-- Per-character enable override.
+-- The "is this module on?" preference lives PER CHARACTER in
+-- VuloClassicUICharDB.modEnabled[key], falling back to the shared profile
+-- default (mod.db.enabled) when the character has never toggled it. So turning
+-- a module off only affects the current character; all other settings stay
+-- shared via the profile.
+-- =========================================================
+function ns:IsModuleEnabled(key)
+    local mod = ns.modules[key]
+    if not mod then return false end
+    local ov = VuloClassicUICharDB and VuloClassicUICharDB.modEnabled
+    if ov and ov[key] ~= nil then return ov[key] end
+    return (mod.db and mod.db.enabled) and true or false
+end
+
+function ns:SetModuleEnabledPref(key, state)
+    if not VuloClassicUICharDB then return end
+    VuloClassicUICharDB.modEnabled = VuloClassicUICharDB.modEnabled or {}
+    VuloClassicUICharDB.modEnabled[key] = state and true or false
+end
+
 function ns:EnableModules()
     for _, key in ipairs(ns.moduleOrder) do
         local mod = ns.modules[key]
-        if mod.db and mod.db.enabled then
+        if mod and ns:IsModuleEnabled(key) then
             ns:SafeEnable(mod)
         end
     end
@@ -76,8 +98,9 @@ end
 function ns:ToggleModule(key, state, silent)
     local mod = ns.modules[key]
     if not mod then return end
-    mod.db.enabled = state and true or false
-    if mod.db.enabled then
+    state = state and true or false
+    ns:SetModuleEnabledPref(key, state)   -- per-character, not the shared profile
+    if state then
         ns:SafeEnable(mod)
     else
         ns:SafeDisable(mod)

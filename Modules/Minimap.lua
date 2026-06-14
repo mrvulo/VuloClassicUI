@@ -171,8 +171,8 @@ function mod:ShowDropdown(anchor)
             local capturedKey, capturedMod = key, m
             table.insert(entries, {
                 text     = L[capturedMod.name],  -- raw key → translate live
-                checked  = function() return capturedMod.db.enabled end,
-                func     = function() ns:ToggleModule(capturedKey, not capturedMod.db.enabled) end,
+                checked  = function() return ns:IsModuleEnabled(capturedKey) end,
+                func     = function() ns:ToggleModule(capturedKey, not ns:IsModuleEnabled(capturedKey)) end,
                 keepOpen = true,
             })
         end

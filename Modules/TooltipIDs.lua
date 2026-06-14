@@ -104,8 +104,7 @@ mod.kindOrder  = kindOrder
 -- Helpers
 -- =========================================================
 local function isEnabled(kind)
-    if not mod._enabled then return false end
-    if not mod.db.enabled then return false end
+    if not mod._enabled then return false end   -- runtime flag = per-character effective state
     return mod.db[kind] and true or false
 end
 

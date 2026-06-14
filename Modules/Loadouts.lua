@@ -1626,7 +1626,7 @@ function mod:GetOptions()
         { type = "section", title = L["Slot Picker"], collapsed = false, items = {
             { type = "desc", text = L["|cffaaaaaaRight-click an equipment slot in the character window to see all compatible items from your bags and click one to equip it.|r"] },
             { type = "toggle", label = L["Enable slot picker"],
-              get = function() local sp = ns.modules and ns.modules.slotpicker; return sp and sp.db and sp.db.enabled end,
+              get = function() return ns:IsModuleEnabled("slotpicker") end,
               set = function(_, v) if ns.ToggleModule then ns:ToggleModule("slotpicker", v) end end },
             { type = "dropdown", label = L["Activation modifier"],
               tooltip = L["Choose which key combination opens the item picker when you click an equipment slot."],

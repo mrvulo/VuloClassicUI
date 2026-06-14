@@ -500,13 +500,13 @@ end
 -- Lifecycle
 -- =========================================================
 function mod:OnEnable()
-    -- One-time: re-apply the class-based default (melee = on, caster = off) for
-    -- profiles created before this became class-dependent. Runs once; after that
-    -- the user's own toggle sticks.
-    if not mod.db._meleeDefaultApplied then
-        mod.db._meleeDefaultApplied = true
-        mod.db.enabled = isMeleeClass()
-        if not mod.db.enabled then
+    -- One-time PER CHARACTER: melee classes default the swing timer ON, casters
+    -- OFF. Once the user toggles it on this character, that per-char choice sticks.
+    local pref = VuloClassicUICharDB and VuloClassicUICharDB.modEnabled
+    if not (pref and pref.swingtimer ~= nil) then
+        local on = isMeleeClass()
+        ns:SetModuleEnabledPref("swingtimer", on)
+        if not on then
             -- Caster: switch the module off cleanly. Deferred so the core's
             -- _enabled flag (set right after OnEnable returns) gets reset —
             -- otherwise a later manual re-enable would be a no-op.
@@ -544,7 +544,7 @@ function mod:GetOptions()
         text = L["|cffaaaaaaShows when your next melee auto-attack lands (any melee class). The off-hand bar only appears while dual-wielding. The bar fills up toward the swing; the number is the time left.|r"] })
 
     table.insert(items, { type = "toggle", label = L["Enable swing timer"],
-        get = function() return mod.db.enabled end,
+        get = function() return ns:IsModuleEnabled("swingtimer") end,
         set = function(_, v) if ns.ToggleModule then ns:ToggleModule("swingtimer", v) end end })
 
     table.insert(items, { type = "spacer", height = 6 })

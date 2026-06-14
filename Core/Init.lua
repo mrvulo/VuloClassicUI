@@ -76,7 +76,7 @@ SlashCmdList["VULOCLASSICUI"] = function(msg)
             ns:Print(L["Registered modules:"])
             for _, key in ipairs(ns.moduleOrder) do
                 local m = ns.modules[key]
-                ns:Print("  - %s (%s) [%s]", m.name, key, (m.db and m.db.enabled) and L["ON"] or L["off"])
+                ns:Print("  - %s (%s) [%s]", m.name, key, ns:IsModuleEnabled(key) and L["ON"] or L["off"])
             end
 
         elseif msg == "goldreset" then
