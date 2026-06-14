@@ -211,8 +211,10 @@ end
 -- =========================================================
 local function rebuildBuckets()
     UI.sidebarGroupBuckets = {}
-    for _, key in ipairs(ns.moduleOrder) do
+    local origIndex = {}   -- registration order, used as a stable-sort tiebreaker
+    for i, key in ipairs(ns.moduleOrder) do
         local mod = ns.modules[key]
+        origIndex[key] = i
         if not mod.parentTab then   -- consolidated sub-modules show as tabs, not rows
             local g = mod.group or "Core"
             if not UI.sidebarGroupBuckets[g] then
@@ -220,6 +222,17 @@ local function rebuildBuckets()
             end
             table.insert(UI.sidebarGroupBuckets[g], key)
         end
+    end
+
+    -- Stable sort each bucket by optional mod.sidebarOrder (lower = higher up);
+    -- ties fall back to registration order so unset modules keep their place.
+    for _, bucket in pairs(UI.sidebarGroupBuckets) do
+        table.sort(bucket, function(a, b)
+            local oa = ns.modules[a].sidebarOrder or 0
+            local ob = ns.modules[b].sidebarOrder or 0
+            if oa ~= ob then return oa < ob end
+            return origIndex[a] < origIndex[b]
+        end)
     end
 
     -- Groups not in the order list get appended at the end

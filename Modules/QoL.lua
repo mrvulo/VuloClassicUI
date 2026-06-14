@@ -20,6 +20,7 @@ local mod = ns:RegisterModule("qol", {
     name        = "Quality of Life",
     group       = "QoL",
     noToggle    = true,
+    sidebarOrder = -10,  -- float above "Class Specific" in the QoL group
     description = "",   -- per-tab description is shown instead
     defaults    = { enabled = true },
 })
