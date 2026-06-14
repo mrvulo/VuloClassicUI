@@ -190,7 +190,12 @@ function Trinkets.PickupContainerItem(bagID, slotIndex)
 end
 
 function Trinkets.GetItemCooldown(itemID)
-	return C_Container.GetItemCooldown(itemID)
+	-- 2.5.5 has the GLOBAL GetItemCooldown; C_Container.GetItemCooldown is
+	-- retail-only and nil here (would crash the cooldown watch loops).
+	if C_Container and C_Container.GetItemCooldown then
+		return C_Container.GetItemCooldown(itemID)
+	end
+	return GetItemCooldown(itemID)
 end
 
 -- scan inventory and build MenuFrame

@@ -300,6 +300,7 @@ local function build()
     end
     catcher:SetScript("OnClick", function() f._cancel() end)
 
+    picker = f   -- store the singleton (the guard at the top relies on this)
     return f
 end
 
