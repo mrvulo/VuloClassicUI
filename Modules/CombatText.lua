@@ -52,11 +52,19 @@ local mod = ns:RegisterModule("combattext", {
         fontShadow     = true,
         shadowX        = 2,
         shadowY        = -2,
-        -- Position
+        -- Position / anchor system
         x              = 0,
-        y              = 0,
+        y              = 180,   -- above screen centre by default
         unlocked       = false,
-        centerOnScreen = false,
+        centerOnScreen = false,   -- legacy (superseded by the anchor fields)
+        anchorTo       = "UIParent",   -- target frame ("Anchored To")
+        anchorFrom     = "CENTER",     -- point on our text block ("Anchor From")
+        anchorPoint    = "CENTER",     -- point on the target ("To Frame's")
+        strata         = "HIGH",
+        -- Spacing between stacked notifications
+        messageSpacing = 6,
+        -- Global text shadow colour
+        shadowColor    = { r = 0, g = 0, b = 0 },
     },
 })
 
@@ -111,7 +119,7 @@ local function applyStyleToFS(fs, size, outlineOverride, shadowOverride, shadowC
     local flags  = resolveOutline(outlineOverride)
     fs:SetFont(getActiveFontPath(), size or mod.db.fontSize or 18, flags)
     if shadow then
-        local sc = shadowColor or { r = 0, g = 0, b = 0 }
+        local sc = shadowColor or mod.db.shadowColor or { r = 0, g = 0, b = 0 }
         fs:SetShadowColor(sc.r or 0, sc.g or 0, sc.b or 0, 1)
         fs:SetShadowOffset(shadowX or mod.db.shadowX or 2, shadowY or mod.db.shadowY or -2)
     else
@@ -159,6 +167,18 @@ local function animateMessages(self, elapsed)
     end
 end
 
+-- Anchor targets offered in the "Anchored To" dropdown.
+local ANCHOR_FRAMES = {
+    { value = "UIParent",    text = L["Screen (UIParent)"] },
+    { value = "PlayerFrame", text = L["Player Frame"] },
+    { value = "TargetFrame", text = L["Target Frame"] },
+    { value = "Minimap",     text = L["Minimap"] },
+}
+local function anchorTargetFrame()
+    return _G[mod.db.anchorTo or "UIParent"] or UIParent
+end
+
+-- legacy helper, kept for the (now hidden) drag mover
 local function getAnchor()
     if mod.db.centerOnScreen then return UIParent end
     return _G.PlayerFrameHealthBar or _G.PlayerFrame or UIParent
@@ -166,13 +186,10 @@ end
 
 local function reAnchorContainer()
     if not container then return end
-    local anchor = getAnchor()
     container:ClearAllPoints()
-    if mod.db.centerOnScreen then
-        container:SetPoint("CENTER", anchor, "CENTER", mod.db.x or 0, mod.db.y or 0)
-    else
-        container:SetPoint("BOTTOM", anchor, "TOP", mod.db.x or 0, 25 + (mod.db.y or 0))
-    end
+    container:SetPoint(mod.db.anchorFrom or "CENTER", anchorTargetFrame(),
+        mod.db.anchorPoint or "CENTER", mod.db.x or 0, mod.db.y or 0)
+    container:SetFrameStrata(mod.db.strata or "HIGH")
 end
 
 -- Mapping event key -> master category toggle
@@ -199,7 +216,7 @@ local function spawnScroll(eventKey, text)
         if oldest then fs = oldest.fs else return end
     end
     local sz = (ev.size and ev.size > 0) and ev.size or nil
-    applyStyleToFS(fs, sz, ev.outline, ev.shadow, ev.shadowColor, ev.shadowX, ev.shadowY)
+    applyStyleToFS(fs, sz, nil, nil, nil, nil, nil)  -- font/outline/shadow are global
     fs:SetText(text)
     local c = ev.color or mod.db.color or { r = 1, g = 1, b = 1 }
     fs:SetTextColor(c.r or 1, c.g or 1, c.b or 1, 1)
@@ -246,12 +263,12 @@ local function getNotifyFrame(key)
     return f
 end
 
--- Style + size a notification frame to its text. Outline follows the global
--- dropdown (pass nil), shadow stays per-event.
+-- Style + size a notification frame to its text. Font, outline and shadow all
+-- follow the global Font Settings (pass nil); only the colour is per-event.
 local function styleNotify(f, key)
     local ev = mod.db.events and mod.db.events[key] or {}
     local sz = (ev.size and ev.size > 0) and ev.size or (mod.db.fontSize or 18)
-    applyStyleToFS(f.text, sz, nil, ev.shadow, ev.shadowColor, ev.shadowX, ev.shadowY)
+    applyStyleToFS(f.text, sz, nil, nil, nil, nil, nil)
     f.text:SetText(notifyText(key))
     local c = ev.color or { r = 1, g = 1, b = 1 }
     f.text:SetTextColor(c.r or 1, c.g or 1, c.b or 1, 1)
@@ -272,13 +289,14 @@ local function arrangeNotify()
         end
     end
     if #visible == 0 then return end
-    totalH = totalH + NOTIFY_SPACING * (#visible - 1)
+    local spacing = mod.db.messageSpacing or NOTIFY_SPACING
+    totalH = totalH + spacing * (#visible - 1)
     local cursor = totalH / 2
     for _, f in ipairs(visible) do
         local h = f:GetHeight()
         f:ClearAllPoints()
         f:SetPoint("CENTER", container, "CENTER", 0, cursor - h / 2)
-        cursor = cursor - h - NOTIFY_SPACING
+        cursor = cursor - h - spacing
     end
 end
 
@@ -621,14 +639,6 @@ end
 -- =========================================================
 -- Options
 -- =========================================================
-local function openColorPicker(getCurrent, setNew)
-    local c = getCurrent() or { r = 1, g = 1, b = 1 }
-    ns:ShowColorPicker({
-        r = c.r or 1, g = c.g or 1, b = c.b or 1,
-        onChange = function(r, g, b) setNew({ r = r, g = g, b = b }) end,
-    })
-end
-
 -- Auto-stop the preview when the options window closes.
 local function ensurePreviewAutoStop()
     local f = _G.VuloClassicUIMainFrame
@@ -638,87 +648,142 @@ local function ensurePreviewAutoStop()
     end
 end
 
--- key:       events table key
--- previewText: text shown by the Test button (scroll events only)
--- opts:      { notify = bool (flash, editable text, no outline toggle) }
-local function eventSection(key, previewText, opts)
-    opts = opts or {}
-    local function ev() return mod.db.events[key] end
-    local items = {}
-
-    if opts.notify then
-        items[#items + 1] = { type = "editbox", label = L["Text"],
-            width = 280, editWidth = 170, commitOnFocusLost = true,
-            get = function() return notifyText(key) end,
-            set = function(_, v) ev().text = v; applyFontToNotify() end }
+-- Per-message section: [Enabled | Color] (+ editable Text for notifications).
+local function eventColorSet(key)
+    return function(r, g, b)
+        mod.db.events[key].color = { r = r, g = g, b = b }
+        applyFontToNotify()
     end
-
-    -- Row 1: Enabled + colour buttons + Test
-    local row = {
+end
+local function msgSection(key, title, hasText)
+    -- Consecutive compact items auto-arrange into two filled columns:
+    -- [Enabled | Color], then (Text) full-width on its own row.
+    local secItems = {
         { type = "toggle", label = L["Enabled"],
-          get = function() return ev().enabled end,
-          set = function(_, v) ev().enabled = v end },
-        { type = "button", label = L["Text color..."], width = 110,
-          onClick = function()
-              openColorPicker(function() return ev().color end,
-                  function(c) ev().color = c; applyFontToNotify() end)
-          end },
-        { type = "button", label = L["Shadow color..."], width = 130,
-          onClick = function()
-              openColorPicker(function() return ev().shadowColor end,
-                  function(c) ev().shadowColor = c; applyFontToNotify() end)
-          end },
-        { type = "button", label = L["Test"], width = 70,
-          onClick = function()
-              if opts.notify then showNotify(key) else spawnScroll(key, previewText) end
-          end },
+          get = function() return mod.db.events[key].enabled end,
+          set = function(_, v) mod.db.events[key].enabled = v; applyFontToNotify() end },
+        { type = "color", label = L["Color"],
+          get = function() return mod.db.events[key].color end,
+          set = eventColorSet(key) },
     }
-    items[#items + 1] = { type = "group", layout = "row", gap = 6, items = row }
-
-    items[#items + 1] = { type = "slider", label = L["Font Size (0 = global)"],
-        min = 0, max = 32, step = 1,
-        get = function() return ev().size or 0 end,
-        set = function(_, v) ev().size = v; applyFontToNotify() end }
-
-    -- Outline toggle only for scroll events; notifications follow the global dropdown.
-    local toggles = {
-        { type = "toggle", label = L["Shadow"],
-          get = function() return ev().shadow end,
-          set = function(_, v) ev().shadow = v; applyFontToNotify() end },
-    }
-    if not opts.notify then
-        table.insert(toggles, 1, { type = "toggle", label = L["Outline"],
-            get = function() return ev().outline end,
-            set = function(_, v) ev().outline = v end })
+    if hasText then
+        secItems[#secItems + 1] = { type = "editbox", label = L["Text"],
+            editWidth = 220, commitOnFocusLost = true,
+            get = function() return notifyText(key) end,
+            set = function(_, v) mod.db.events[key].text = v; applyFontToNotify() end }
     end
-    items[#items + 1] = { type = "group", layout = "row", gap = 8, items = toggles }
-
-    items[#items + 1] = { type = "slider", label = L["Shadow X Offset"],
-        min = -10, max = 10, step = 1,
-        get = function() return ev().shadowX or 2 end,
-        set = function(_, v) ev().shadowX = v; applyFontToNotify() end }
-    items[#items + 1] = { type = "slider", label = L["Shadow Y Offset"],
-        min = -10, max = 10, step = 1,
-        get = function() return ev().shadowY or -2 end,
-        set = function(_, v) ev().shadowY = v; applyFontToNotify() end }
-    return items
+    return { type = "section", title = title, collapsed = false, items = secItems }
 end
 
 function mod:GetOptions()
     ensurePreviewAutoStop()
+    local SLW = 180
 
-    local items = {
-        { type = "header", text = L["Combat Text"] },
-        { type = "desc",
-          text = L["|cffaaaaaaNotifications (+/- Combat, Low Durability) flash centred and stack; combat-log events (interrupts, dispels, misses) scroll upward. Use Preview to position and style them.|r"] },
+    local function reapplyFont()
+        applyFontToPool(); applyFontToNotify(); applySharpFonts(); applyDamageTextFont()
+    end
 
-        -- Preview + master test
-        { type = "spacer", height = 4 },
-        { type = "group", layout = "row", gap = 8, items = {
+    local STRATA = {}
+    for _, s in ipairs({ "BACKGROUND", "LOW", "MEDIUM", "HIGH", "DIALOG", "FULLSCREEN", "FULLSCREEN_DIALOG", "TOOLTIP" }) do
+        STRATA[#STRATA + 1] = { value = s, text = s }
+    end
+    local POINTS = {}
+    for _, p in ipairs({ "CENTER", "TOP", "BOTTOM", "LEFT", "RIGHT", "TOPLEFT", "TOPRIGHT", "BOTTOMLEFT", "BOTTOMRIGHT" }) do
+        POINTS[#POINTS + 1] = { value = p, text = p }
+    end
+
+    local lowDura = msgSection("lowDurability", L["Low Durability Warning"], true)
+    lowDura.items[#lowDura.items + 1] = { type = "slider", label = L["Threshold (%)"],
+        min = 5, max = 50, step = 1,
+        get = function() return mod.db.durabilityThreshold or 15 end,
+        set = function(_, v) mod.db.durabilityThreshold = v; scheduleDurabilityCheck() end }
+
+    return {
+        -- ---- Display Settings -------------------------------------------
+        { type = "section", title = L["Display Settings"], collapsed = false, items = {
+            { type = "toggle", label = L["Enable Combat Messages"],
+              get = function() return mod.db.enabled end,
+              set = function(_, v) if ns.ToggleModule then ns:ToggleModule("combattext", v) end end },
             { type = "toggle", label = L["Show Preview"],
-              tooltip = L["Shows all three notification messages on screen so you can position and style them. Turns off automatically when you close this window."],
               get = function() return isPreviewOn() end,
               set = function(_, v) if v then showPreview() else hidePreview() end end },
+            { type = "group", layout = "columns", columns = 2, items = {
+                { type = "slider", label = L["Fade Duration"], min = 0.5, max = 5.0, step = 0.1, width = SLW,
+                  get = function() return mod.db.flashDuration or 1.5 end,
+                  set = function(_, v) mod.db.flashDuration = v; mod.db.scrollDuration = v end },
+                { type = "slider", label = L["Message Spacing"], min = 0, max = 20, step = 1, width = SLW,
+                  get = function() return mod.db.messageSpacing or 6 end,
+                  set = function(_, v) mod.db.messageSpacing = v; arrangeNotify() end },
+            } },
+        } },
+
+        -- ---- Position Settings ------------------------------------------
+        { type = "section", title = L["Position Settings"], collapsed = false, items = {
+            { type = "dropdown", label = L["Anchored To"], values = ANCHOR_FRAMES,
+              get = function() return mod.db.anchorTo or "UIParent" end,
+              set = function(_, v) mod.db.anchorTo = v; applyMoverPosition() end },
+            { type = "dropdown", label = L["Strata"], values = STRATA,
+              get = function() return mod.db.strata or "HIGH" end,
+              set = function(_, v) mod.db.strata = v; reAnchorContainer() end },
+            { type = "dropdown", label = L["Anchor From"], values = POINTS,
+              get = function() return mod.db.anchorFrom or "CENTER" end,
+              set = function(_, v) mod.db.anchorFrom = v; applyMoverPosition() end },
+            { type = "dropdown", label = L["To Frame's"], values = POINTS,
+              get = function() return mod.db.anchorPoint or "CENTER" end,
+              set = function(_, v) mod.db.anchorPoint = v; applyMoverPosition() end },
+            { type = "group", layout = "columns", columns = 2, items = {
+                { type = "slider", label = L["X Offset"], min = -800, max = 800, step = 1, width = SLW,
+                  get = function() return mod.db.x or 0 end,
+                  set = function(_, v) mod.db.x = v; applyMoverPosition() end },
+                { type = "slider", label = L["Y Offset"], min = -800, max = 800, step = 1, width = SLW,
+                  get = function() return mod.db.y or 0 end,
+                  set = function(_, v) mod.db.y = v; applyMoverPosition() end },
+            } },
+        } },
+
+        -- ---- Font Settings ----------------------------------------------
+        { type = "section", title = L["Font Settings"], collapsed = false, items = {
+            { type = "dropdown", label = L["Font"], values = FONT_VALUES,
+              get = function() return getActiveFontPath() end,
+              set = function(_, v) mod.db.fontFace = v; reapplyFont() end },
+            { type = "dropdown", label = L["Outline"],
+              values = {
+                  { value = "NONE",         text = L["None"] },
+                  { value = "OUTLINE",      text = L["Outline"] },
+                  { value = "THICKOUTLINE", text = L["Thick Outline"] },
+              },
+              get = function() return mod.db.fontOutlineMode or "THICKOUTLINE" end,
+              set = function(_, v) mod.db.fontOutlineMode = v; reapplyFont() end },
+            { type = "group", layout = "columns", columns = 2, items = {
+                { type = "slider", label = L["Font Size"], min = 10, max = 32, step = 1, width = SLW,
+                  get = function() return mod.db.fontSize end,
+                  set = function(_, v) mod.db.fontSize = v; reapplyFont() end },
+            } },
+            { type = "toggle", label = L["Enable Shadow"],
+              get = function() return mod.db.fontShadow end,
+              set = function(_, v) mod.db.fontShadow = v; reapplyFont() end },
+            { type = "color", label = L["Shadow Color"],
+              get = function() return mod.db.shadowColor end,
+              set = function(r, g, b) mod.db.shadowColor = { r = r, g = g, b = b }; reapplyFont() end },
+            { type = "group", layout = "columns", columns = 2, items = {
+                { type = "slider", label = L["Shadow X"], min = -10, max = 10, step = 1, width = SLW,
+                  get = function() return mod.db.shadowX or 2 end,
+                  set = function(_, v) mod.db.shadowX = v; reapplyFont() end },
+                { type = "slider", label = L["Shadow Y"], min = -10, max = 10, step = 1, width = SLW,
+                  get = function() return mod.db.shadowY or -2 end,
+                  set = function(_, v) mod.db.shadowY = v; reapplyFont() end },
+            } },
+        } },
+
+        -- ---- Per-message ------------------------------------------------
+        msgSection("combatStart", L["Enter Combat Message"], true),
+        msgSection("combatEnd",   L["Exit Combat Message"], true),
+        lowDura,
+        msgSection("spellInterrupt", L["Interrupted"], false),
+        msgSection("dispels",        L["Dispelled/Purged"], false),
+        msgSection("missed",         L["Parried/Dodged/Missed"], false),
+
+        { type = "group", layout = "row", gap = 8, items = {
             { type = "button", label = L["Test (all events)"], width = 170,
               onClick = function()
                   showNotify("combatStart")
@@ -727,159 +792,5 @@ function mod:GetOptions()
                   C_Timer.After(1.2, function() spawnScroll("missed",         L["Parried"]) end)
               end },
         } },
-
-        -- Master categories
-        { type = "spacer", height = 6 },
-        { type = "header", text = L["Categories (Quick on/off)"] },
-        { type = "group", layout = "row", gap = 8,
-          items = {
-              { type = "toggle", label = L["Combat State (+/- Combat)"],
-                tooltip = L["Combat start and combat end messages."],
-                get = function() return mod.db.showCombatState ~= false end,
-                set = function(_, v) mod.db.showCombatState = v end },
-              { type = "toggle", label = L["Combat Log Events"],
-                tooltip = L["Interrupts, dispels, misses (Parry/Dodge/Block)."],
-                get = function() return mod.db.showCombatLog ~= false end,
-                set = function(_, v) mod.db.showCombatLog = v end },
-              { type = "toggle", label = L["Durability Warning"],
-                tooltip = L["Low durability after combat exit."],
-                get = function() return mod.db.showDurability ~= false end,
-                set = function(_, v) mod.db.showDurability = v; scheduleDurabilityCheck() end },
-          },
-        },
     }
-
-    -- Global defaults (collapsed)
-    table.insert(items, { type = "section", title = L["Global Defaults"], collapsed = true, items = {
-        { type = "dropdown", label = L["Font"],
-          tooltip = L["Font for our combat text engine. Also used for Blizzard's mob FCT (DAMAGE_TEXT_FONT) when enabled below."],
-          values = FONT_VALUES,
-          get = function() return getActiveFontPath() end,
-          set = function(_, v)
-              mod.db.fontFace = v
-              applyFontToPool(); applyFontToNotify()
-              applySharpFonts(); applyDamageTextFont()
-          end },
-        { type = "toggle", label = L["Also apply font to Blizzard mob FCT"],
-          tooltip = L["Additionally sets DAMAGE_TEXT_FONT globally - changes the font of the damage numbers above mobs/pets. Requires /reload to take effect."],
-          get = function() return mod.db.applyToMobFCT ~= false end,
-          set = function(_, v) mod.db.applyToMobFCT = v; applyDamageTextFont() end },
-        { type = "slider", label = L["Default Font Size"],
-          min = 10, max = 32, step = 1,
-          get = function() return mod.db.fontSize end,
-          set = function(_, v) mod.db.fontSize = v; applyFontToPool(); applyFontToNotify() end },
-        { type = "dropdown", label = L["Outline Style"],
-          values = {
-              { value = "NONE",         text = L["None"] },
-              { value = "OUTLINE",      text = L["Outline"] },
-              { value = "THICKOUTLINE", text = L["Thick Outline"] },
-          },
-          get = function() return mod.db.fontOutlineMode or "THICKOUTLINE" end,
-          set = function(_, v) mod.db.fontOutlineMode = v; applyFontToPool(); applyFontToNotify() end },
-        { type = "toggle", label = L["Default: Shadow"],
-          get = function() return mod.db.fontShadow end,
-          set = function(_, v) mod.db.fontShadow = v; applyFontToNotify() end },
-        { type = "slider", label = L["Flash Duration (sec.)"],
-          min = 0.5, max = 5.0, step = 0.1,
-          tooltip = L["How long the +/- Combat flash stays before fading."],
-          get = function() return mod.db.flashDuration or 1.5 end,
-          set = function(_, v) mod.db.flashDuration = v end },
-        { type = "slider", label = L["Scroll Duration (sec.)"],
-          min = 0.5, max = 5.0, step = 0.1,
-          get = function() return mod.db.scrollDuration end,
-          set = function(_, v) mod.db.scrollDuration = v end },
-        { type = "slider", label = L["Scroll Distance (px)"],
-          min = 20, max = 200, step = 5,
-          get = function() return mod.db.scrollDistance end,
-          set = function(_, v) mod.db.scrollDistance = v end },
-    } })
-
-    -- Notifications (flash + stack, editable text)
-    table.insert(items, { type = "spacer", height = 8 })
-    table.insert(items, { type = "header", text = L["Notifications (flash & stack)"] })
-
-    -- One "Combat" section holding both the enter (+) and exit (−) messages.
-    -- Literal labels so it reads "Combat" in every locale (the on-screen text
-    -- defaults stay localized via the editable Text fields below).
-    local combatItems = { { type = "header", text = "+ Combat" } }
-    for _, it in ipairs(eventSection("combatStart", nil, { notify = true })) do
-        combatItems[#combatItems + 1] = it
-    end
-    combatItems[#combatItems + 1] = { type = "spacer", height = 8 }
-    combatItems[#combatItems + 1] = { type = "header", text = "− Combat" }
-    for _, it in ipairs(eventSection("combatEnd", nil, { notify = true })) do
-        combatItems[#combatItems + 1] = it
-    end
-    table.insert(items, { type = "section", title = "Combat", collapsed = true, items = combatItems })
-
-    local lowDuraItems = eventSection("lowDurability", nil, { notify = true })
-    table.insert(lowDuraItems, { type = "slider", label = L["Durability Threshold (%)"],
-        min = 5, max = 50, step = 1,
-        tooltip = L["Warning appears when at least one equipped item is below this value (after combat exit)."],
-        get = function() return mod.db.durabilityThreshold or 15 end,
-        set = function(_, v) mod.db.durabilityThreshold = v; scheduleDurabilityCheck() end })
-    table.insert(items, { type = "section", title = L["Low Durability"], collapsed = true, items = lowDuraItems })
-
-    -- Scrolling combat-log events
-    table.insert(items, { type = "spacer", height = 8 })
-    table.insert(items, { type = "header", text = L["Combat Log (scrolling)"] })
-    table.insert(items, { type = "section", title = L["Interrupted"], collapsed = true,
-        items = eventSection("spellInterrupt", L["Interrupted: Frostbolt"]) })
-    table.insert(items, { type = "section", title = L["Dispelled/Purged"], collapsed = true,
-        items = eventSection("dispels", L["Dispelled: Curse"]) })
-    table.insert(items, { type = "section", title = L["Parried/Dodged/Missed"], collapsed = true,
-        items = eventSection("missed", L["Parried"]) })
-
-    -- Engine FCT (collapsed)
-    table.insert(items, { type = "section", title = L["Engine FCT (above mob/pet)"], collapsed = true, items = {
-        { type = "toggle", label = L["Sharper hit indicator font (Friz Quadrata)"],
-          get = function() return mod.db.sharpFonts end,
-          set = function(_, v) mod.db.sharpFonts = v; applySharpFonts() end },
-        { type = "slider", label = L["Engine FCT Scale"],
-          min = 1.0, max = 2.5, step = 0.1,
-          tooltip = L["Damage numbers above mob/pet — bitmap scaling."],
-          get = function() return mod.db.worldTextScale end,
-          set = function(_, v) mod.db.worldTextScale = v; applyWorldTextScale() end },
-    } })
-
-    -- Position (collapsed)
-    table.insert(items, { type = "section", title = L["Position"], collapsed = true, items = {
-        { type = "toggle", label = L["Center"],
-          tooltip = L["Keeps the horizontal position and only centers vertically in the screen center."],
-          get = function() return mod.db.centerOnScreen end,
-          set = function(_, v)
-              local prev = mod.db.centerOnScreen
-              mod.db.centerOnScreen = v
-              local ct = container
-              if v and not prev and ct then
-                  local fcx = ct:GetCenter()
-                  local px  = UIParent:GetCenter()
-                  if fcx and px then mod.db.x = fcx - px; mod.db.y = 0 end
-              elseif not v and prev and ct then
-                  local anchor = _G.PlayerFrameHealthBar or _G.PlayerFrame
-                  local fcx, fcy = ct:GetCenter()
-                  if anchor and fcx and fcy then
-                      local acx, atop = anchor:GetCenter(), anchor:GetTop()
-                      if acx and atop then
-                          mod.db.x = fcx - acx
-                          mod.db.y = fcy - atop - 25
-                      end
-                  end
-              end
-              applyMoverPosition()
-          end },
-        { type = "group", layout = "row", gap = 8,
-          items = {
-              { type = "button", label = L["Unlock / Position"], width = 200,
-                onClick = function() setUnlocked(not mod.db.unlocked) end },
-              { type = "button", label = L["Reset Position"], width = 180,
-                onClick = function()
-                    mod.db.x = 0; mod.db.y = 0
-                    applyMoverPosition()
-                end },
-          },
-        },
-    } })
-
-    return items
 end
