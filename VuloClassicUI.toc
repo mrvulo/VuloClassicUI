@@ -98,5 +98,8 @@ Trinkets\TrinketsQueue.lua
 Trinkets\TrinketsQueue.xml
 Modules\Trinkets.lua
 
+# --- QoL container (LAST module: consolidates all QoL modules into tabs) ---
+Modules\QoL.lua
+
 # --- Init (loaded last, kicks off everything) ---
 Core\Init.lua

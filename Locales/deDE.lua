@@ -631,6 +631,9 @@ ns:RegisterLocale("deDE", {
     ["HUD"] = "HUD",
     ["PvP"] = "PvP",
     ["QoL"] = "Komfort",
+    ["Quality of Life"] = "Lebensqualität",
+    ["|cffaaaaaaPick a tab above.|r"] = "|cffaaaaaaWähle oben einen Tab.|r",
+    ["|cffff5555This tab failed to load.|r"] = "|cffff5555Dieser Tab konnte nicht geladen werden.|r",
     ["UI Reskin"] = "UI-Reskin",
     ["Bugfixes"] = "Bug-Fixes",
 

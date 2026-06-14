@@ -17,6 +17,7 @@ local GROUP_GAP      = 8
 local MODULE_ICONS = {
     globalsettings     = "Interface\\Icons\\Trade_Engineering",
     unlockmode         = "Interface\\Icons\\INV_Misc_Wrench_01",
+    qol                = "Interface\\Icons\\INV_Misc_Gear_08",
     profiles           = "Interface\\Icons\\INV_Misc_Note_03",
     minimap            = "Interface\\Icons\\INV_Misc_Map_01",
     fontbars           = "Interface\\Icons\\INV_Misc_Note_01",
@@ -212,11 +213,13 @@ local function rebuildBuckets()
     UI.sidebarGroupBuckets = {}
     for _, key in ipairs(ns.moduleOrder) do
         local mod = ns.modules[key]
-        local g = mod.group or "Core"
-        if not UI.sidebarGroupBuckets[g] then
-            UI.sidebarGroupBuckets[g] = {}
+        if not mod.parentTab then   -- consolidated sub-modules show as tabs, not rows
+            local g = mod.group or "Core"
+            if not UI.sidebarGroupBuckets[g] then
+                UI.sidebarGroupBuckets[g] = {}
+            end
+            table.insert(UI.sidebarGroupBuckets[g], key)
         end
-        table.insert(UI.sidebarGroupBuckets[g], key)
     end
 
     -- Groups not in the order list get appended at the end

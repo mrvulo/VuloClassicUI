@@ -57,7 +57,7 @@ local function getVendorItems(vendorName)
 end
 
 local function refreshUI()
-    if ns.UI and ns.UI.currentModule == "autoitembuy" then
+    if ns.UI and ns.UI.IsModuleActive and ns.UI:IsModuleActive("autoitembuy") then
         ns.UI:BuildOptionsPage("autoitembuy", "default")
     end
 end

@@ -540,9 +540,25 @@ end
 -- =========================================================
 -- Main function
 -- =========================================================
+-- True if a module's options are currently on screen — directly, or as the
+-- active tab of a container it was consolidated into (parentTab).
+function UI:IsModuleActive(key)
+    if UI.currentModule == key then return true end
+    local m = ns.modules[key]
+    return (m and m.parentTab and UI.currentModule == m.parentTab
+            and UI.currentTab == key) and true or false
+end
+
 function UI:BuildOptionsPage(key, tabId)
     local f = UI.mainFrame
     if not f then return end
+    -- A consolidated sub-module redirects to its container + its own tab, so
+    -- the sub-module's rebuildPage("itskey") calls keep working.
+    local m0 = ns.modules[key]
+    if m0 and m0.parentTab then
+        tabId = key
+        key   = m0.parentTab
+    end
     local mod = ns.modules[key]
     if not mod then return end
 
