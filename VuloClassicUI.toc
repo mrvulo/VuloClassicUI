@@ -33,6 +33,7 @@ Locales\deDE.lua
 
 # --- UI Framework ---
 UI\Widgets.lua
+Core\ColorPicker.lua
 UI\MainFrame.lua
 UI\Sidebar.lua
 UI\Dashboard.lua

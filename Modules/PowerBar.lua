@@ -34,6 +34,7 @@ local mod = ns:RegisterModule("powerbar", {
         textAnchor = "CENTER",       -- LEFT | CENTER | RIGHT
         textX      = 0,              -- text horizontal offset
         textY      = 0,              -- text vertical offset
+        textColor  = { r = 1, g = 1, b = 1 },
     },
 })
 
@@ -101,6 +102,8 @@ local function applyFont()
     else
         barText:SetFont(STANDARD_TEXT_FONT, mod.db.fontSize, "OUTLINE")
     end
+    local c = mod.db.textColor or { r = 1, g = 1, b = 1 }
+    barText:SetTextColor(c.r or 1, c.g or 1, c.b or 1)
 end
 
 local function currentColor()
@@ -339,9 +342,14 @@ function mod:GetOptions()
                   get = function() return mod.db.textAnchor end,
                   set = function(_, v) mod.db.textAnchor = v; applyText() end },
             } },
-            { type = "slider", label = L["Font size"], min = 8, max = 24, step = 1,
-              get = function() return mod.db.fontSize end,
-              set = function(_, v) mod.db.fontSize = v; applyFont() end },
+            { type = "group", layout = "row", gap = 8, items = {
+                { type = "slider", label = L["Font size"], min = 8, max = 24, step = 1, width = SLW,
+                  get = function() return mod.db.fontSize end,
+                  set = function(_, v) mod.db.fontSize = v; applyFont() end },
+                { type = "color", label = L["Text color"], width = 160,
+                  get = function() return mod.db.textColor end,
+                  set = function(r, g, b) mod.db.textColor = { r = r, g = g, b = b }; applyFont() end },
+            } },
             { type = "group", layout = "row", gap = 8, items = {
                 { type = "slider", label = L["Text offset X"], min = -100, max = 100, step = 1, width = SLW,
                   get = function() return mod.db.textX end,

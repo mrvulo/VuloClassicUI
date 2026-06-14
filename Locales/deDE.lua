@@ -670,7 +670,15 @@ ns:RegisterLocale("deDE", {
     ["Text offset X"] = "Text-Versatz X",
     ["Text offset Y"] = "Text-Versatz Y",
     ["Border thickness (px)"] = "Randdicke (px)",
+    ["Text color"] = "Textfarbe",
     ["Unlock / Move"] = "Entsperren / Bewegen",
+
+    -- Colour picker
+    ["Color Picker"] = "Farbauswahl",
+    ["New"] = "Neu",
+    ["Prev"] = "Vorher",
+    ["Hex#"] = "Hex#",
+    ["OK"] = "OK",
     ["|cffffffffPOWER BAR|r\n|cffaaaaaaDrag or arrow keys|r"] = "|cffffffffRESSOURCENLEISTE|r\n|cffaaaaaaZiehen oder Pfeiltasten|r",
     ["Power Bar mover active. |cff9b6cffDrag the purple box|r or use |cff9b6cffarrow keys|r (SHIFT = 5px). Click 'Unlock / Move' again to finish."] = "Ressourcenleiste-Mover aktiv. |cff9b6cffZiehe das lila Kästchen|r oder nutze die |cff9b6cffPfeiltasten|r (SHIFT = 5px). Klicke erneut auf 'Entsperren / Bewegen' zum Beenden.",
     ["Power Bar mover disabled."] = "Ressourcenleiste-Mover deaktiviert.",

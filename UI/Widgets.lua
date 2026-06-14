@@ -1245,3 +1245,62 @@ function UI:CreatePowerButton(parent, config)
     b._refresh = refresh
     return b
 end
+
+-- =========================================================
+-- Colour swatch (label + clickable colour box -> opens ns:ShowColorPicker)
+-- config: { label, get -> {r,g,b} (or {r=,g=,b=}), set(r,g,b), width }
+-- =========================================================
+function UI:CreateColorSwatch(parent, config)
+    local b = CreateFrame("Button", nil, parent)
+
+    local label = b:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    UI.Font(label, 12); label:SetTextColor(0.95, 0.95, 0.97)
+    label:SetPoint("LEFT", b, "LEFT", 0, 0)
+    label:SetJustifyH("LEFT"); label:SetWordWrap(false)
+    b._label = label
+
+    local sw = CreateFrame("Button", nil, b)
+    sw:SetSize(38, 16)
+    sw:SetPoint("RIGHT", b, "RIGHT", 0, 0)
+    local border = sw:CreateTexture(nil, "BACKGROUND"); border:SetAllPoints(); border:SetColorTexture(0, 0, 0, 0.8)
+    local fill = sw:CreateTexture(nil, "ARTWORK"); fill:SetPoint("TOPLEFT", 1, -1); fill:SetPoint("BOTTOMRIGHT", -1, 1)
+    b._fill = fill
+    label:SetPoint("RIGHT", sw, "LEFT", -8, 0)
+
+    local function curRGB()
+        local cfg = b._vcConfig
+        local c = cfg and cfg.get and cfg.get()
+        if not c then return 1, 1, 1 end
+        return c.r or c[1] or 1, c.g or c[2] or 1, c.b or c[3] or 1
+    end
+    local function refresh()
+        local r, g, bl = curRGB(); fill:SetColorTexture(r, g, bl, 1)
+    end
+    local function open()
+        local r, g, bl = curRGB()
+        ns:ShowColorPicker({ r = r, g = g, b = bl, onChange = function(nr, ng, nb)
+            local cfg = b._vcConfig
+            if cfg and cfg.set then cfg.set(nr, ng, nb) end
+            fill:SetColorTexture(nr, ng, nb, 1)
+        end })
+    end
+    b:SetScript("OnClick", open)
+    sw:SetScript("OnClick", open)
+    sw:SetScript("OnEnter", function() border:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 1) end)
+    sw:SetScript("OnLeave", function() border:SetColorTexture(0, 0, 0, 0.8) end)
+
+    b._refresh = refresh
+    b._vcType  = "color"
+    b._vcSetup = function(self, cfg)
+        self._vcConfig = cfg
+        self._label:SetText(clean(cfg.label) or "")
+        if cfg.width then
+            self:SetSize(cfg.width, 22)
+        else
+            self:SetSize(math.max((self._label:GetStringWidth() or 0) + 12 + 38, 120), 22)
+        end
+        refresh()
+    end
+    b._vcSetup(b, config)
+    return b
+end

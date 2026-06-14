@@ -121,6 +121,11 @@ local function createWidget(parent, item)
             return UI:CreateEditBox(parent, item)
         end)
         return w, 28, w:GetWidth() or 160
+    elseif t == "color" then
+        local w = obtain("color", parent, item, function()
+            return UI:CreateColorSwatch(parent, item)
+        end)
+        return w, 26, w:GetWidth() or 200
     elseif t == "button" then
         local w = obtain("button", parent, item, function()
             return UI:CreateButton(parent, item)
@@ -144,6 +149,7 @@ local function estimateHeight(item)
     elseif t == "slider" then return 38
     elseif t == "dropdown" then return item.label and 30 or 28
     elseif t == "editbox" then return 28
+    elseif t == "color" then return 26
     end
     return 26
 end
@@ -156,7 +162,7 @@ UI.sectionCollapsed = UI.sectionCollapsed or {}
 -- into a two-column grid of subtle "card" rows; headers, sliders, groups,
 -- sections and buttons span the full width on their own row.
 -- =========================================================
-local COMPACT = { toggle = true, checkbox = true, dropdown = true, editbox = true }
+local COMPACT = { toggle = true, checkbox = true, dropdown = true, editbox = true, color = true }
 local COL_GAP  = 14
 local ROW_H    = 38          -- vertical pitch of a card row
 local CARD_GAP = 8           -- empty space between stacked cards
@@ -320,7 +326,7 @@ local function placeSection(parent, section, y)
 end
 
 -- Full-width rows that get a card + (optional) gear/eye icons
-local CARD_TYPES = { toggle = true, checkbox = true, dropdown = true, editbox = true, slider = true }
+local CARD_TYPES = { toggle = true, checkbox = true, dropdown = true, editbox = true, slider = true, color = true }
 
 placeItem = function(parent, item, y)
     if item.type == "spacer" then

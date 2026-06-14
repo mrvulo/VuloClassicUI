@@ -957,19 +957,10 @@ end
 
 local function openColorPicker(getCurrent, setNew)
     local c = getCurrent() or { r = 1, g = 1, b = 1 }
-    local function apply()
-        local r, g, b = ColorPickerFrame:GetColorRGB()
-        setNew({ r = r, g = g, b = b })
-    end
-    local info = {
-        r = c.r, g = c.g, b = c.b, opacity = false,
-        swatchFunc = apply, cancelFunc = function(prev) if prev then setNew(prev) end end,
-    }
-    if ColorPickerFrame.SetupColorPickerAndShow then
-        ColorPickerFrame:SetupColorPickerAndShow(info)
-    elseif _G.OpenColorPicker then
-        _G.OpenColorPicker(info)
-    end
+    ns:ShowColorPicker({
+        r = c.r or 1, g = c.g or 1, b = c.b or 1,
+        onChange = function(r, g, b) setNew({ r = r, g = g, b = b }) end,
+    })
 end
 
 function mod:GetOptions()
