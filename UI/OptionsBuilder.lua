@@ -519,7 +519,11 @@ function UI:PlaceGroup(parent, group, y)
                 if widget then
                     if panel then widget:SetFrameLevel(base + 4) end
                     local xo = CONTENT_PADDING + (panel and 6 or 0) + (i - 1) * colWidth
-                    widget:SetPoint("TOPLEFT", parent, "TOPLEFT", xo, curY - (panel and 4 or 0))
+                    -- a slider carries its label above the track, so it needs the
+                    -- same downward nudge the card/row layouts use — otherwise it
+                    -- sits too high with empty space below it in the card.
+                    local yo = (ri.type == "slider") and (curY - 14) or (curY - (panel and 4 or 0))
+                    widget:SetPoint("TOPLEFT", parent, "TOPLEFT", xo, yo)
                 end
             end
             curY = curY - rowMaxH
@@ -529,7 +533,9 @@ function UI:PlaceGroup(parent, group, y)
 
         for _, item in ipairs(items) do
             table.insert(rowItems, item)
-            local eh = estimateHeight(item)
+            -- The slider estimate (38) over-counts the hidden min/max text area;
+            -- 30 keeps the card snug so the slider ends up vertically centred.
+            local eh = (item.type == "slider") and 30 or estimateHeight(item)
             if eh > rowMaxH then rowMaxH = eh end
             if #rowItems >= cols then flushRow() end
         end
