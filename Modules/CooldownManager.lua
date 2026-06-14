@@ -250,7 +250,10 @@ local function resolveInput(text)
     if num then
         if GetSpellInfo(num) then return "spell", num end
         if GetItemInfo(num) then return "item", num end
-        return nil
+        -- 2.5.5: trinket-proc / aura spell IDs (e.g. 33662 "Arcane Energy")
+        -- often aren't resolvable via GetSpellInfo, but aura groups still match
+        -- them by UnitAura's spellID. Accept the raw number as a spell ID.
+        return "spell", num
     end
 
     -- by name: prefer a real spellID (GetSpellInfo's 7th, else spellbook scan);
@@ -272,7 +275,9 @@ end
 local function entryInfo(e)
     if e.kind == "spell" then
         local name, _, icon = GetSpellInfo(e.id)
-        return name, icon
+        -- proc/aura IDs GetSpellInfo can't resolve fall back to the name/icon
+        -- cached the first time the aura was seen live (see refreshGroup).
+        return name or e.savedName, icon or e.savedIcon
     else
         local name = GetItemInfo(e.id)
         return name, (GetItemIcon and GetItemIcon(e.id))
@@ -326,11 +331,11 @@ local recPool = {}   -- reused rec tables (per slot) -> no per-tick allocation
 local function scanPlayerAuras()
     wipe(auraByName); wipe(auraByID)
     for i = 1, 40 do
-        local name, _, count, _, duration, expiration, _, _, _, sid = UnitAura("player", i, "HELPFUL")
+        local name, icon, count, _, duration, expiration, _, _, _, sid = UnitAura("player", i, "HELPFUL")
         if not name then break end
         local rec = recPool[i]
         if not rec then rec = {}; recPool[i] = rec end
-        rec.dur, rec.exp, rec.count = duration, expiration, count
+        rec.dur, rec.exp, rec.count, rec.icon, rec.name = duration, expiration, count, icon, name
         auraByName[name] = rec
         if sid then auraByID[sid] = rec end
     end
@@ -661,6 +666,7 @@ relayoutGroup = function(group)
         f.stack:SetTextColor(sc.r or 1, sc.g or 0.95, sc.b or 0.6)
         f.entry     = e
         f.entryName = ename
+        f._auraIconTex = nil   -- force the aura refresh to re-apply the live icon
         f.prevRemain = 0
         f.flashT = nil
         f.border:SetColorTexture(0, 0, 0, 1)  -- reset; aura refresh restyles
@@ -814,6 +820,16 @@ refreshGroup = function(group, now)
                 if rec then
                     active[#active + 1] = f
                     f._rec = rec
+                    -- procs whose spell ID GetSpellInfo can't resolve start with
+                    -- the "?" icon; show the live aura icon instead, and remember
+                    -- name/icon once so the options list reads correctly too.
+                    if e then
+                        if rec.name and not e.savedName then e.savedName = rec.name end
+                        if rec.icon and not e.savedIcon then e.savedIcon = rec.icon end
+                    end
+                    if rec.icon and f._auraIconTex ~= rec.icon then
+                        f.tex:SetTexture(rec.icon); f._auraIconTex = rec.icon
+                    end
                     f:Show()
                 else
                     f.stack:Hide()
