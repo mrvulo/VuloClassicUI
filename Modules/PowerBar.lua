@@ -299,81 +299,71 @@ end
 -- Options
 -- =========================================================
 function mod:GetOptions()
-    local items = {}
+    local SLW = 180   -- slider track width that fits two-per-row
+    return {
+        { type = "desc",
+          text = L["|cffaaaaaaResource bar that follows your class automatically (Mana / Rage / Energy). Druids switch with their form: Bear = Rage, Cat = Energy, otherwise Mana.|r"] },
 
-    table.insert(items, { type = "desc",
-        text = L["|cffaaaaaaResource bar that follows your class automatically (Mana / Rage / Energy). Druids switch with their form: Bear = Rage, Cat = Energy, otherwise Mana.|r"] })
-
-    table.insert(items, {
-        type = "group", layout = "row", gap = 8,
-        items = {
+        -- top action buttons
+        { type = "group", layout = "row", gap = 8, items = {
             { type = "button", label = L["Unlock / Move"], width = 130,
               onClick = function() setUnlocked(not mod.db.unlocked) end },
             { type = "button", label = L["Center Position"], width = 150,
               onClick = function() mod.db.x, mod.db.y = 0, -200; applyPos() end },
-        },
-    })
+        } },
 
-    table.insert(items, { type = "spacer", height = 6 })
-    table.insert(items, { type = "header", text = L["Size"] })
-    table.insert(items, {
-        type = "slider", label = L["Width"], min = 80, max = 600, step = 2,
-        get = function() return mod.db.width end,
-        set = function(_, v) mod.db.width = v; applySize() end,
-    })
-    table.insert(items, {
-        type = "slider", label = L["Height"], min = 6, max = 60, step = 1,
-        get = function() return mod.db.height end,
-        set = function(_, v) mod.db.height = v; applySize() end,
-    })
+        -- ---- Size --------------------------------------------------------
+        { type = "section", title = L["Size"], collapsed = false, items = {
+            { type = "group", layout = "row", gap = 8, items = {
+                { type = "slider", label = L["Width"], min = 80, max = 600, step = 2, width = SLW,
+                  get = function() return mod.db.width end,
+                  set = function(_, v) mod.db.width = v; applySize() end },
+                { type = "slider", label = L["Height"], min = 6, max = 60, step = 1, width = SLW,
+                  get = function() return mod.db.height end,
+                  set = function(_, v) mod.db.height = v; applySize() end },
+            } },
+        } },
 
-    table.insert(items, { type = "spacer", height = 6 })
-    table.insert(items, { type = "header", text = L["Text"] })
-    table.insert(items, {
-        type = "dropdown", label = L["Bar text"], width = 240, values = textModeValues(),
-        get = function() return mod.db.textMode end,
-        set = function(_, v) mod.db.textMode = v; updateValue() end,
-    })
-    table.insert(items, {
-        type = "slider", label = L["Font size"], min = 8, max = 24, step = 1,
-        get = function() return mod.db.fontSize end,
-        set = function(_, v) mod.db.fontSize = v; applyFont() end,
-    })
-    table.insert(items, {
-        type = "dropdown", label = L["Text position"], width = 240,
-        values = {
-            { value = "LEFT",   text = L["Left"] },
-            { value = "CENTER", text = L["Center"] },
-            { value = "RIGHT",  text = L["Right"] },
-        },
-        get = function() return mod.db.textAnchor end,
-        set = function(_, v) mod.db.textAnchor = v; applyText() end,
-    })
-    table.insert(items, {
-        type = "slider", label = L["Text offset X"], min = -100, max = 100, step = 1,
-        get = function() return mod.db.textX end,
-        set = function(_, v) mod.db.textX = v; applyText() end,
-    })
-    table.insert(items, {
-        type = "slider", label = L["Text offset Y"], min = -50, max = 50, step = 1,
-        get = function() return mod.db.textY end,
-        set = function(_, v) mod.db.textY = v; applyText() end,
-    })
+        -- ---- Text --------------------------------------------------------
+        { type = "section", title = L["Text"], collapsed = false, items = {
+            { type = "group", layout = "row", gap = 8, items = {
+                { type = "dropdown", label = L["Bar text"], width = 300, values = textModeValues(),
+                  get = function() return mod.db.textMode end,
+                  set = function(_, v) mod.db.textMode = v; updateValue() end },
+                { type = "dropdown", label = L["Text position"], width = 300,
+                  values = {
+                      { value = "LEFT",   text = L["Left"] },
+                      { value = "CENTER", text = L["Center"] },
+                      { value = "RIGHT",  text = L["Right"] },
+                  },
+                  get = function() return mod.db.textAnchor end,
+                  set = function(_, v) mod.db.textAnchor = v; applyText() end },
+            } },
+            { type = "slider", label = L["Font size"], min = 8, max = 24, step = 1,
+              get = function() return mod.db.fontSize end,
+              set = function(_, v) mod.db.fontSize = v; applyFont() end },
+            { type = "group", layout = "row", gap = 8, items = {
+                { type = "slider", label = L["Text offset X"], min = -100, max = 100, step = 1, width = SLW,
+                  get = function() return mod.db.textX end,
+                  set = function(_, v) mod.db.textX = v; applyText() end },
+                { type = "slider", label = L["Text offset Y"], min = -50, max = 50, step = 1, width = SLW,
+                  get = function() return mod.db.textY end,
+                  set = function(_, v) mod.db.textY = v; applyText() end },
+            } },
+        } },
 
-    table.insert(items, { type = "spacer", height = 6 })
-    table.insert(items, { type = "header", text = L["Appearance"] })
-    table.insert(items, {
-        type = "slider", label = L["Border thickness (px)"], min = 0, max = 4, step = 1,
-        get = function() return mod.db.borderSize end,
-        set = function(_, v) mod.db.borderSize = v; applyBorder() end,
-    })
-    table.insert(items, {
-        type = "dropdown", label = L["Bar texture"], width = 240, values = textureValues(),
-        get = function() return mod.db.texture end,
-        set = function(_, v) mod.db.texture = v; applyAppearance() end,
-    })
-    table.insert(items, { type = "desc",
-        text = L["|cffaaaaaaThe bar colour follows your current power type automatically (Mana = blue, Rage = red, Energy = yellow).|r"] })
-
-    return items
+        -- ---- Appearance --------------------------------------------------
+        { type = "section", title = L["Appearance"], collapsed = false, items = {
+            { type = "group", layout = "row", gap = 8, items = {
+                { type = "slider", label = L["Border thickness (px)"], min = 0, max = 4, step = 1, width = SLW,
+                  get = function() return mod.db.borderSize end,
+                  set = function(_, v) mod.db.borderSize = v; applyBorder() end },
+                { type = "dropdown", label = L["Bar texture"], width = 300, values = textureValues(),
+                  get = function() return mod.db.texture end,
+                  set = function(_, v) mod.db.texture = v; applyAppearance() end },
+            } },
+            { type = "desc",
+              text = L["|cffaaaaaaThe bar colour follows your current power type automatically (Mana = blue, Rage = red, Energy = yellow).|r"] },
+        } },
+    }
 end
