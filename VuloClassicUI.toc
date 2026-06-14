@@ -48,6 +48,7 @@ Modules\PlayerCastbar.lua
 Modules\TargetFrame.lua
 Modules\EliteVuloFrame.lua
 Modules\SwingTimer.lua
+Modules\PowerBar.lua
 Modules\CooldownPulse.lua
 Modules\Arena\Init.lua
 Modules\Arena\Core.lua

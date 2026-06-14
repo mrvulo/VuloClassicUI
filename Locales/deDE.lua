@@ -656,6 +656,23 @@ ns:RegisterLocale("deDE", {
     ["%s: modules restored."] = "%s: Module wiederhergestellt.",
     ["%s: all modules off. /reload recommended."] = "%s: alle Module aus. /reload empfohlen.",
 
+    -- Power Bar (HUD)
+    ["Power Bar"] = "Ressourcenleiste",
+    ["A movable resource bar for your character. The power type follows your class automatically (Mana / Rage / Energy) — and for Druids it switches with your form: Bear = Rage, Cat = Energy, otherwise Mana."] = "Eine bewegliche Ressourcenleiste für deinen Charakter. Der Energietyp folgt automatisch deiner Klasse (Mana / Wut / Energie) — und beim Druiden wechselt er mit der Form: Bär = Wut, Katze = Energie, sonst Mana.",
+    ["No text"] = "Kein Text",
+    ["Current value"] = "Aktueller Wert",
+    ["Current / Max"] = "Aktuell / Max",
+    ["Percent"] = "Prozent",
+    ["Current / Max (%)"] = "Aktuell / Max (%)",
+    ["Bar text"] = "Leistentext",
+    ["Bar texture"] = "Leistentextur",
+    ["Unlock / Move"] = "Entsperren / Bewegen",
+    ["|cffffffffPOWER BAR|r\n|cffaaaaaaDrag or arrow keys|r"] = "|cffffffffRESSOURCENLEISTE|r\n|cffaaaaaaZiehen oder Pfeiltasten|r",
+    ["Power Bar mover active. |cff9b6cffDrag the purple box|r or use |cff9b6cffarrow keys|r (SHIFT = 5px). Click 'Unlock / Move' again to finish."] = "Ressourcenleiste-Mover aktiv. |cff9b6cffZiehe das lila Kästchen|r oder nutze die |cff9b6cffPfeiltasten|r (SHIFT = 5px). Klicke erneut auf 'Entsperren / Bewegen' zum Beenden.",
+    ["Power Bar mover disabled."] = "Ressourcenleiste-Mover deaktiviert.",
+    ["|cffaaaaaaResource bar that follows your class automatically (Mana / Rage / Energy). Druids switch with their form: Bear = Rage, Cat = Energy, otherwise Mana.|r"] = "|cffaaaaaaRessourcenleiste, die automatisch deiner Klasse folgt (Mana / Wut / Energie). Druiden wechseln mit der Form: Bär = Wut, Katze = Energie, sonst Mana.|r",
+    ["|cffaaaaaaThe bar colour follows your current power type automatically (Mana = blue, Rage = red, Energy = yellow).|r"] = "|cffaaaaaaDie Leistenfarbe folgt automatisch deinem aktuellen Energietyp (Mana = blau, Wut = rot, Energie = gelb).|r",
+
     -- =====================================================
     -- Core / Init / Database / Slash commands
     -- =====================================================
