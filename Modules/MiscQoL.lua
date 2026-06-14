@@ -955,6 +955,57 @@ function mod:OnDisable()
 end
 
 -- =========================================================
+-- Macro Factory — one click builds a ready-to-use, language-independent macro
+-- (per character). The user then drags it from /macro onto the action bar.
+-- =========================================================
+-- Healing potions, best tier first; the macro bakes in whichever you carry.
+local POTION_IDS = { 22829, 13446, 3928, 1710, 929, 118 }
+local function potionBody()
+    for _, id in ipairs(POTION_IDS) do
+        if (GetItemCount and GetItemCount(id) or 0) > 0 then
+            local n = GetItemInfo(id)
+            if n then return "#showtooltip\n/use " .. n end
+        end
+    end
+    return nil
+end
+
+local MACRO_DEFS = {
+    { name = "VCUI Trinket1", icon = "Interface\\Icons\\INV_Jewelry_Necklace_07",
+      label = L["Trinket 1"], body = "#showtooltip 13\n/use 13" },
+    { name = "VCUI Trinket2", icon = "Interface\\Icons\\INV_Jewelry_Necklace_11",
+      label = L["Trinket 2"], body = "#showtooltip 14\n/use 14" },
+    { name = "VCUI Trinkets", icon = "Interface\\Icons\\INV_Jewelry_Necklace_24",
+      label = L["Both trinkets"], body = "#showtooltip 13\n/use 13\n/use 14" },
+    { name = "VCUI Focus", icon = "Interface\\Icons\\Ability_Hunter_MasterMarksman",
+      label = L["Set focus"], body = "/focus" },
+    { name = "VCUI Potion", icon = "Interface\\Icons\\INV_Potion_54",
+      label = L["Healing potion"], body = potionBody },
+}
+
+local function makeMacro(def)
+    if InCombatLockdown and InCombatLockdown() then
+        ns:Print(L["Macro Factory: can't create macros in combat."]); return
+    end
+    local body = (type(def.body) == "function") and def.body() or def.body
+    if not body or body == "" then
+        ns:Print(L["Macro Factory: nothing to build (e.g. no healing potion in your bags)."]); return
+    end
+    local existing = GetMacroIndexByName and GetMacroIndexByName(def.name) or 0
+    if existing and existing > 0 then
+        EditMacro(existing, def.name, def.icon, body)
+        ns:Print(L["Macro '%s' updated — drag it from |cffffffff/macro|r onto your action bar."], def.name)
+    elseif CreateMacro then
+        local ok = pcall(CreateMacro, def.name, def.icon, body, true)  -- per-character
+        if ok then
+            ns:Print(L["Macro '%s' created — open |cffffffff/macro|r and drag it onto your action bar."], def.name)
+        else
+            ns:Print(L["Macro Factory: couldn't create it (character macro slots full?)."])
+        end
+    end
+end
+
+-- =========================================================
 -- Options
 -- =========================================================
 function mod:GetOptions()
@@ -969,10 +1020,30 @@ function mod:GetOptions()
         }
     end
 
+    -- Macro Factory buttons, laid out 3 per row
+    local macroItems = {
+        { type = "desc",
+          text = L["|cffaaaaaaOne click builds a ready-made macro (per character). Then open |cffffffff/macro|r and drag it onto your action bar. Works on any client — uses item slots / IDs, no English needed.|r"] },
+    }
+    do
+        local row = {}
+        for i, def in ipairs(MACRO_DEFS) do
+            row[#row + 1] = { type = "button", label = def.label, width = 130,
+                onClick = function() makeMacro(def) end }
+            if #row == 3 or i == #MACRO_DEFS then
+                macroItems[#macroItems + 1] = { type = "group", layout = "row", gap = 6, items = row }
+                row = {}
+            end
+        end
+    end
+
     return {
         { type = "header", text = L["General - Auto Actions"] },
         { type = "desc",
           text = L["|cffaaaaaaSimple on/off switches for common QoL actions. Take effect immediately, no /reload needed.|r"] },
+
+        { type = "spacer", height = 6 },
+        { type = "section", title = L["Macro Factory"], collapsed = false, items = macroItems },
 
         { type = "header", text = L["Character"] },
         tgl("autoAcceptQuest",   L["Auto-accept quests"],
