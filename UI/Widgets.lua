@@ -1260,7 +1260,7 @@ function UI:CreateColorSwatch(parent, config)
     b._label = label
 
     local sw = CreateFrame("Button", nil, b)
-    sw:SetSize(38, 16)
+    sw:SetSize(18, 18)   -- square colour box
     sw:SetPoint("RIGHT", b, "RIGHT", 0, 0)
     local border = sw:CreateTexture(nil, "BACKGROUND"); border:SetAllPoints(); border:SetColorTexture(0, 0, 0, 0.8)
     local fill = sw:CreateTexture(nil, "ARTWORK"); fill:SetPoint("TOPLEFT", 1, -1); fill:SetPoint("BOTTOMRIGHT", -1, 1)
@@ -1297,7 +1297,7 @@ function UI:CreateColorSwatch(parent, config)
         if cfg.width then
             self:SetSize(cfg.width, 22)
         else
-            self:SetSize(math.max((self._label:GetStringWidth() or 0) + 12 + 38, 120), 22)
+            self:SetSize(math.max((self._label:GetStringWidth() or 0) + 12 + 18, 120), 22)
         end
         refresh()
     end
