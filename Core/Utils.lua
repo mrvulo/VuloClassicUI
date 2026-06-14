@@ -29,6 +29,27 @@ function ns:Clamp(v, lo, hi)
     return v
 end
 
+-- =========================================================
+-- Pixel-perfect helpers
+-- 1 physical pixel == (768 / physicalScreenHeight) coord units at scale 1.0.
+-- Divided by a frame's effective scale, that is the size of one physical pixel
+-- in THAT frame's coordinate space — use it for crisp N-pixel borders.
+-- =========================================================
+function ns:Pixel(frame, n)
+    local _, physH = GetPhysicalScreenSize()
+    if not physH or physH <= 0 then physH = 1080 end
+    local es = (frame and frame.GetEffectiveScale and frame:GetEffectiveScale()) or 1
+    if es <= 0 then es = 1 end
+    return (n or 1) * (768 / physH) / es
+end
+
+-- Snap a value to the nearest whole physical pixel (in the frame's coord space).
+function ns:PixelSnap(value, frame)
+    local px = ns:Pixel(frame, 1)
+    if px <= 0 then return value end
+    return math.floor(value / px + 0.5) * px
+end
+
 -- Safe deep copy (for defaults -> DB)
 function ns:DeepCopy(t)
     if type(t) ~= "table" then return t end

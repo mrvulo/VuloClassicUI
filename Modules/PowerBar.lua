@@ -21,15 +21,19 @@ local mod = ns:RegisterModule("powerbar", {
     group       = "HUD",
     description = "A movable resource bar for your character. The power type follows your class automatically (Mana / Rage / Energy) — and for Druids it switches with your form: Bear = Rage, Cat = Energy, otherwise Mana.",
     defaults = {
-        enabled  = true,
-        width    = 220,
-        height   = 20,
-        x        = 0,
-        y        = -200,
-        unlocked = false,
-        texture  = "Atrocity",
-        textMode = "currentmax",   -- none | current | currentmax | percent | full
-        fontSize = 12,
+        enabled    = true,
+        width      = 220,
+        height     = 20,
+        x          = 0,
+        y          = -200,
+        unlocked   = false,
+        texture    = "Atrocity",
+        textMode   = "currentmax",   -- none | current | currentmax | percent | full
+        fontSize   = 12,
+        borderSize = 1,              -- border thickness in physical pixels (0 = off)
+        textAnchor = "CENTER",       -- LEFT | CENTER | RIGHT
+        textX      = 0,              -- text horizontal offset
+        textY      = 0,              -- text vertical offset
     },
 })
 
@@ -88,7 +92,7 @@ end
 -- =========================================================
 -- Frame
 -- =========================================================
-local frame, bar, barText
+local frame, bar, barText, borderEdges
 
 local function applyFont()
     if not barText then return end
@@ -114,14 +118,56 @@ local function applyAppearance()
     applyFont()
 end
 
+-- Pixel-perfect border: 4 edge textures drawn just OUTSIDE the frame, each
+-- exactly mod.db.borderSize physical pixels thick (0 = hidden). Edges follow
+-- the frame corners, so they auto-track size changes.
+local function applyBorder()
+    if not frame or not borderEdges then return end
+    local n = mod.db.borderSize or 0
+    if n <= 0 then
+        for _, t in pairs(borderEdges) do t:Hide() end
+        return
+    end
+    local th = ns:Pixel(frame, n)
+    local c  = ns.COLORS.borderDark or { r = 0, g = 0, b = 0 }
+    local top, bot, lft, rgt = borderEdges.top, borderEdges.bot, borderEdges.lft, borderEdges.rgt
+    for _, t in pairs(borderEdges) do t:SetColorTexture(c.r, c.g, c.b, 1); t:Show() end
+    top:ClearAllPoints(); top:SetPoint("BOTTOMLEFT", frame, "TOPLEFT", -th, 0); top:SetPoint("BOTTOMRIGHT", frame, "TOPRIGHT", th, 0); top:SetHeight(th)
+    bot:ClearAllPoints(); bot:SetPoint("TOPLEFT", frame, "BOTTOMLEFT", -th, 0); bot:SetPoint("TOPRIGHT", frame, "BOTTOMRIGHT", th, 0); bot:SetHeight(th)
+    lft:ClearAllPoints(); lft:SetPoint("TOPRIGHT", frame, "TOPLEFT", 0, 0); lft:SetPoint("BOTTOMRIGHT", frame, "BOTTOMLEFT", 0, 0); lft:SetWidth(th)
+    rgt:ClearAllPoints(); rgt:SetPoint("TOPLEFT", frame, "TOPRIGHT", 0, 0); rgt:SetPoint("BOTTOMLEFT", frame, "BOTTOMRIGHT", 0, 0); rgt:SetWidth(th)
+end
+
 local function applySize()
-    if frame then frame:SetSize(mod.db.width, mod.db.height) end
+    if not frame then return end
+    -- snap to whole physical pixels so the bar + border stay crisp
+    frame:SetSize(ns:PixelSnap(mod.db.width, frame), ns:PixelSnap(mod.db.height, frame))
+    applyBorder()
 end
 
 local function applyPos()
     if not frame then return end
     frame:ClearAllPoints()
-    frame:SetPoint("CENTER", UIParent, "CENTER", mod.db.x or 0, mod.db.y or 0)
+    frame:SetPoint("CENTER", UIParent, "CENTER",
+        ns:PixelSnap(mod.db.x or 0, frame), ns:PixelSnap(mod.db.y or 0, frame))
+end
+
+-- Text position: anchor (LEFT/CENTER/RIGHT) + fine X/Y offset.
+local function applyText()
+    if not barText or not bar then return end
+    barText:ClearAllPoints()
+    local anchor = mod.db.textAnchor or "CENTER"
+    local ox, oy = mod.db.textX or 0, mod.db.textY or 0
+    if anchor == "LEFT" then
+        barText:SetPoint("LEFT", bar, "LEFT", 4 + ox, oy)
+        barText:SetJustifyH("LEFT")
+    elseif anchor == "RIGHT" then
+        barText:SetPoint("RIGHT", bar, "RIGHT", -4 + ox, oy)
+        barText:SetJustifyH("RIGHT")
+    else
+        barText:SetPoint("CENTER", bar, "CENTER", ox, oy)
+        barText:SetJustifyH("CENTER")
+    end
 end
 
 local function updateValue()
@@ -151,16 +197,13 @@ local function updatePowerType()
     updateValue()
 end
 
-local function addBorder(f)
-    local function edge()
-        local t = f:CreateTexture(nil, "BORDER")
-        t:SetColorTexture(0, 0, 0, 0.9)
-        return t
+local function createBorder()
+    borderEdges = {}
+    for _, side in ipairs({ "top", "bot", "lft", "rgt" }) do
+        local t = frame:CreateTexture(nil, "OVERLAY")
+        t:SetColorTexture(0, 0, 0, 1)
+        borderEdges[side] = t
     end
-    local top = edge(); top:SetPoint("TOPLEFT", f, "TOPLEFT", -1, 1); top:SetPoint("TOPRIGHT", f, "TOPRIGHT", 1, 1); top:SetHeight(1)
-    local bot = edge(); bot:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", -1, -1); bot:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 1, -1); bot:SetHeight(1)
-    local lft = edge(); lft:SetPoint("TOPLEFT", f, "TOPLEFT", -1, 1); lft:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", -1, -1); lft:SetWidth(1)
-    local rgt = edge(); rgt:SetPoint("TOPRIGHT", f, "TOPRIGHT", 1, 1); rgt:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 1, -1); rgt:SetWidth(1)
 end
 
 local function build()
@@ -174,16 +217,15 @@ local function build()
     bg:SetAllPoints(frame)
     bg:SetColorTexture(0.05, 0.05, 0.06, 0.85)
 
+    -- fill the whole frame; the border sits just outside it
     bar = CreateFrame("StatusBar", nil, frame)
-    bar:SetPoint("TOPLEFT", frame, "TOPLEFT", 1, -1)
-    bar:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -1, 1)
+    bar:SetAllPoints(frame)
     bar:SetMinMaxValues(0, 1)
     bar:SetValue(1)
 
-    addBorder(frame)
+    createBorder()
 
     barText = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    barText:SetPoint("CENTER", bar, "CENTER", 0, 0)
     applyFont()
 
     frame.mover = ns:CreateMover(frame, {
@@ -191,7 +233,11 @@ local function build()
         db     = mod.db,
         width  = math.max(mod.db.width + 20, 140),
         height = math.max(mod.db.height + 24, 44),
+        onMove = function() applyPos() end,   -- re-snap to the pixel grid after a drag
     })
+
+    applyBorder()
+    applyText()
     return frame
 end
 
@@ -293,9 +339,34 @@ function mod:GetOptions()
         get = function() return mod.db.fontSize end,
         set = function(_, v) mod.db.fontSize = v; applyFont() end,
     })
+    table.insert(items, {
+        type = "dropdown", label = L["Text position"], width = 240,
+        values = {
+            { value = "LEFT",   text = L["Left"] },
+            { value = "CENTER", text = L["Center"] },
+            { value = "RIGHT",  text = L["Right"] },
+        },
+        get = function() return mod.db.textAnchor end,
+        set = function(_, v) mod.db.textAnchor = v; applyText() end,
+    })
+    table.insert(items, {
+        type = "slider", label = L["Text offset X"], min = -100, max = 100, step = 1,
+        get = function() return mod.db.textX end,
+        set = function(_, v) mod.db.textX = v; applyText() end,
+    })
+    table.insert(items, {
+        type = "slider", label = L["Text offset Y"], min = -50, max = 50, step = 1,
+        get = function() return mod.db.textY end,
+        set = function(_, v) mod.db.textY = v; applyText() end,
+    })
 
     table.insert(items, { type = "spacer", height = 6 })
     table.insert(items, { type = "header", text = L["Appearance"] })
+    table.insert(items, {
+        type = "slider", label = L["Border thickness (px)"], min = 0, max = 4, step = 1,
+        get = function() return mod.db.borderSize end,
+        set = function(_, v) mod.db.borderSize = v; applyBorder() end,
+    })
     table.insert(items, {
         type = "dropdown", label = L["Bar texture"], width = 240, values = textureValues(),
         get = function() return mod.db.texture end,
