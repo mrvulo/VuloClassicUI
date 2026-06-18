@@ -18,6 +18,9 @@ local mod = ns:RegisterModule("miscqol", {
         autoAcceptRes         = true,
         autoAcceptSummon      = false,
         autoReleasePvP        = true,
+        -- Protection: block invites / trades from non-guild, non-friend players
+        blockStrangerInvites  = false,
+        blockStrangerTrades   = false,
         -- World
         autoGossip            = false,
         fasterLoot            = true,
@@ -891,6 +894,82 @@ local function ftInit()
 end
 
 -- =========================================================
+-- Block invites / trades from strangers (not guild, not on the friends list)
+-- =========================================================
+local function normName(name)
+    if not name or name == "" then return nil end
+    name = name:match("^([^-]+)") or name   -- strip a trailing "-Realm"
+    return name:lower()
+end
+
+local trustedNames = {}        -- normalized name -> true (friends + guild)
+local guildRosterLoaded = false  -- becomes true once GUILD_ROSTER_UPDATE has fired
+local function rebuildTrusted()
+    wipe(trustedNames)
+    if C_FriendList and C_FriendList.GetNumFriends then
+        for i = 1, (C_FriendList.GetNumFriends() or 0) do
+            local info = C_FriendList.GetFriendInfoByIndex(i)
+            local nm = info and normName(info.name)
+            if nm then trustedNames[nm] = true end
+        end
+    end
+    if IsInGuild and IsInGuild() and GetGuildRosterInfo then
+        for i = 1, (GetNumGuildMembers and GetNumGuildMembers() or 0) do
+            local nm = normName(GetGuildRosterInfo(i))
+            if nm then trustedNames[nm] = true end
+        end
+    end
+end
+-- only scan while the feature is on (GUILD_ROSTER_UPDATE fires a lot)
+local function maybeRebuild()
+    if mod.db.blockStrangerInvites or mod.db.blockStrangerTrades then rebuildTrusted() end
+end
+local function onGuildRoster()
+    guildRosterLoaded = true
+    maybeRebuild()
+end
+
+local function isStranger(name)
+    local nm = normName(name)
+    if not nm then return false end   -- unknown -> never block
+    -- In a guild but the roster hasn't arrived yet -> fail open (request it and
+    -- allow), so we never decline a real guildmate before the roster loads.
+    if IsInGuild and IsInGuild() and not guildRosterLoaded then
+        if GuildRoster then GuildRoster() end
+        return false
+    end
+    return not trustedNames[nm]
+end
+
+local function onPartyInvite(_, name)
+    if not mod.db.blockStrangerInvites or not name or name == "" then return end
+    if isStranger(name) then
+        if DeclineGroup then DeclineGroup() end
+        if StaticPopup_Hide then StaticPopup_Hide("PARTY_INVITE") end
+        ns:Print(L["|cffffd200[QoL]|r Blocked group invite from %s (not guild/friend)."], name)
+    end
+end
+
+-- Trades open a window for both parties (no accept popup), so we must skip the
+-- ones the player started themselves — hooking InitiateTrade flags those.
+local userInitiatedTrade = false
+local function checkTrade()
+    if not mod.db.blockStrangerTrades then return end
+    if userInitiatedTrade then userInitiatedTrade = false; return end
+    local partner = TradeFrameRecipientNameText and TradeFrameRecipientNameText:GetText()
+    if partner and partner ~= "" and isStranger(partner) then
+        if CancelTrade then CancelTrade() end
+        ns:Print(L["|cffffd200[QoL]|r Blocked trade from %s (not guild/friend)."], partner)
+    end
+end
+local function onTradeShow()
+    if not mod.db.blockStrangerTrades then return end
+    -- defer one frame so the recipient name field is populated
+    if C_Timer and C_Timer.After then C_Timer.After(0, checkTrade) else checkTrade() end
+end
+local function onTradeClosed() userInitiatedTrade = false end
+
+-- =========================================================
 -- Lifecycle
 -- =========================================================
 local function onPlayerLogin()
@@ -912,6 +991,18 @@ function mod:OnEnable()
     ns:RegisterEvent("PLAYER_LOGIN",          onPlayerLogin)
     ns:RegisterEvent("PLAYER_CONTROL_GAINED", ftOnControlGained)
     ns:RegisterEvent("PLAYER_ENTERING_WORLD", ftOnWorldEnter)
+    -- Block strangers (invites + trades)
+    ns:RegisterEvent("PARTY_INVITE_REQUEST",  onPartyInvite)
+    ns:RegisterEvent("TRADE_SHOW",            onTradeShow)
+    ns:RegisterEvent("TRADE_CLOSED",          onTradeClosed)
+    ns:RegisterEvent("FRIENDLIST_UPDATE",     maybeRebuild)
+    ns:RegisterEvent("GUILD_ROSTER_UPDATE",   onGuildRoster)
+    if InitiateTrade and not mod._tradeHooked then
+        mod._tradeHooked = true
+        hooksecurefunc("InitiateTrade", function() userInitiatedTrade = true end)
+    end
+    if GuildRoster then GuildRoster() end
+    rebuildTrusted()
     ftInit()
 
     if ns.isInitialised then
@@ -943,6 +1034,11 @@ function mod:OnDisable()
     ns:UnregisterEvent("PLAYER_LOGIN",          onPlayerLogin)
     ns:UnregisterEvent("PLAYER_CONTROL_GAINED", ftOnControlGained)
     ns:UnregisterEvent("PLAYER_ENTERING_WORLD", ftOnWorldEnter)
+    ns:UnregisterEvent("PARTY_INVITE_REQUEST",  onPartyInvite)
+    ns:UnregisterEvent("TRADE_SHOW",            onTradeShow)
+    ns:UnregisterEvent("TRADE_CLOSED",          onTradeClosed)
+    ns:UnregisterEvent("FRIENDLIST_UPDATE",     maybeRebuild)
+    ns:UnregisterEvent("GUILD_ROSTER_UPDATE",   onGuildRoster)
     ftFlight = nil
     if ftBar then
         if ftBar.mover then ftBar.mover:Hide() end
@@ -1066,6 +1162,15 @@ function mod:GetOptions()
         tgl("maxCameraZoom",     L["Max camera zoom"],
             L["Raises the maximum camera zoom-out distance far beyond the default."],
             applyMaxCameraZoom),
+
+        { type = "spacer", height = 6 },
+        { type = "header", text = L["Protection"] },
+        tgl("blockStrangerInvites", L["Block group invites from strangers"],
+            L["Auto-declines party/raid invites from players who are not in your guild or on your friends list."],
+            maybeRebuild),
+        tgl("blockStrangerTrades",  L["Block trades from strangers"],
+            L["Auto-closes trade windows opened by players who are not in your guild or on your friends list. Trades you start yourself are not affected."],
+            maybeRebuild),
 
         { type = "spacer", height = 6 },
         { type = "header", text = L["Vendor"] },

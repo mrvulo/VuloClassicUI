@@ -703,6 +703,15 @@ ns:RegisterLocale("deDE", {
     ["Low Durability Warning"] = "Haltbarkeits-Warnung",
     ["Threshold (%)"] = "Schwellwert (%)",
     ["Color"] = "Farbe",
+
+    -- QoL: block strangers
+    ["Protection"] = "Schutz",
+    ["Block group invites from strangers"] = "Gruppen-Einladungen von Fremden blocken",
+    ["Auto-declines party/raid invites from players who are not in your guild or on your friends list."] = "Lehnt Gruppen-/Schlachtzug-Einladungen von Spielern automatisch ab, die nicht in deiner Gilde oder auf deiner Freundesliste sind.",
+    ["Block trades from strangers"] = "Handel von Fremden blocken",
+    ["Auto-closes trade windows opened by players who are not in your guild or on your friends list. Trades you start yourself are not affected."] = "Schließt Handelsfenster automatisch, die von Spielern geöffnet werden, die nicht in deiner Gilde oder auf deiner Freundesliste sind. Selbst gestartete Trades sind nicht betroffen.",
+    ["|cffffd200[QoL]|r Blocked group invite from %s (not guild/friend)."] = "|cffffd200[QoL]|r Gruppen-Einladung von %s geblockt (nicht Gilde/Freund).",
+    ["|cffffd200[QoL]|r Blocked trade from %s (not guild/friend)."] = "|cffffd200[QoL]|r Handel von %s geblockt (nicht Gilde/Freund).",
     ["|cffffffffPOWER BAR|r\n|cffaaaaaaDrag or arrow keys|r"] = "|cffffffffRESSOURCENLEISTE|r\n|cffaaaaaaZiehen oder Pfeiltasten|r",
     ["Power Bar mover active. |cff9b6cffDrag the purple box|r or use |cff9b6cffarrow keys|r (SHIFT = 5px). Click 'Unlock / Move' again to finish."] = "Ressourcenleiste-Mover aktiv. |cff9b6cffZiehe das lila Kästchen|r oder nutze die |cff9b6cffPfeiltasten|r (SHIFT = 5px). Klicke erneut auf 'Entsperren / Bewegen' zum Beenden.",
     ["Power Bar mover disabled."] = "Ressourcenleiste-Mover deaktiviert.",
