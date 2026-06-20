@@ -21,6 +21,7 @@ local mod = ns:RegisterModule("vulmail", {
         keepFree    = 0,      -- keep this many free bag slots
         openSpeed   = 0.35,   -- seconds between mail actions (server throttle)
         verbose     = true,   -- print a looted summary
+        recipients  = true,   -- recipient dropdown on the Send tab
     },
 })
 
@@ -44,6 +45,12 @@ local L = {
     O_KEEP      = "Keep this many bag slots free",
     O_SPEED     = "Speed (seconds between actions)",
     O_VERBOSE   = "Print a looted summary",
+    O_RECIP     = "Recipient dropdown on the Send tab",
+    MB_RECENT   = "Recently mailed",
+    MB_CHARS    = "Your characters",
+    MB_FRIENDS  = "Friends",
+    MB_GUILD    = "Guild",
+    MB_EMPTY    = "No contacts yet",
 }
 if GetLocale() == "deDE" then
     L.OPEN_ALL    = "Alle öffnen"
@@ -58,6 +65,12 @@ if GetLocale() == "deDE" then
     L.O_KEEP      = "So viele Taschenplätze frei lassen"
     L.O_SPEED     = "Tempo (Sekunden zwischen Aktionen)"
     L.O_VERBOSE   = "Beute-Zusammenfassung ausgeben"
+    L.O_RECIP     = "Empfänger-Dropdown im Versenden-Tab"
+    L.MB_RECENT   = "Zuletzt gemailt"
+    L.MB_CHARS    = "Deine Charaktere"
+    L.MB_FRIENDS  = "Freunde"
+    L.MB_GUILD    = "Gilde"
+    L.MB_EMPTY    = "Noch keine Kontakte"
 end
 
 -- ---------------------------------------------------------
@@ -222,6 +235,115 @@ function mod._onError(_, arg1, arg2)
 end
 
 -- ---------------------------------------------------------
+-- Recipient book on the Send tab: recently mailed + your own characters
+-- (recorded account-wide) + live friends + guild. Click a name to fill it in.
+-- ---------------------------------------------------------
+local sendButton
+local sendHooked
+
+local function mailStore()
+    if not VuloClassicUIDB then return nil end
+    -- top-level (account-wide) so it survives profile switches and ApplyDefaults
+    VuloClassicUIDB.mailBook = VuloClassicUIDB.mailBook or { alts = {}, recent = {} }
+    return VuloClassicUIDB.mailBook
+end
+
+local function recordAlt()
+    local s = mailStore(); if not s then return end
+    local name, realm = UnitName("player"), GetRealmName()
+    local faction = UnitFactionGroup("player")
+    if not name or not realm then return end
+    for _, a in ipairs(s.alts) do
+        if a.name == name and a.realm == realm then return end
+    end
+    s.alts[#s.alts + 1] = { name = name, realm = realm, faction = faction }
+    table.sort(s.alts, function(a, b) return a.name < b.name end)
+end
+
+local function recordRecent(recipient)
+    local s = mailStore(); if not s then return end
+    recipient = recipient and strtrim(recipient) or ""
+    if recipient == "" then return end
+    for i = #s.recent, 1, -1 do if s.recent[i] == recipient then table.remove(s.recent, i) end end
+    table.insert(s.recent, 1, recipient)
+    for i = #s.recent, 13, -1 do table.remove(s.recent, i) end
+end
+
+local function fillRecipient(name)
+    if not SendMailNameEditBox then return end
+    SendMailNameEditBox:SetText(name)
+    if SendMailSubjectEditBox then SendMailSubjectEditBox:SetFocus() end
+end
+
+local function addNames(entries, titleText, names, cap)
+    if #names == 0 then return end
+    if #entries > 0 then entries[#entries + 1] = { separator = true } end
+    entries[#entries + 1] = { title = true, text = titleText }
+    for i = 1, (cap and math.min(#names, cap) or #names) do
+        local n = names[i]
+        entries[#entries + 1] = { text = n, func = function() fillRecipient(n) end }
+    end
+end
+
+local function buildRecipientMenu()
+    local s = mailStore() or { alts = {}, recent = {} }
+    local entries = {}
+    local me, myRealm, myFaction = UnitName("player"), GetRealmName(), UnitFactionGroup("player")
+
+    addNames(entries, L.MB_RECENT, s.recent)
+
+    local chars = {}
+    for _, a in ipairs(s.alts) do
+        if a.name ~= me and a.realm == myRealm and a.faction == myFaction then chars[#chars + 1] = a.name end
+    end
+    addNames(entries, L.MB_CHARS, chars)
+
+    local friends = {}
+    local nF = (C_FriendList and C_FriendList.GetNumFriends and C_FriendList.GetNumFriends())
+        or (GetNumFriends and GetNumFriends()) or 0
+    for i = 1, nF do
+        local info = C_FriendList and C_FriendList.GetFriendInfoByIndex and C_FriendList.GetFriendInfoByIndex(i)
+        local fname = (info and info.name) or (GetFriendInfo and GetFriendInfo(i))
+        if fname then friends[#friends + 1] = fname end
+    end
+    addNames(entries, L.MB_FRIENDS, friends)
+
+    if IsInGuild and IsInGuild() then
+        local guild = {}
+        local n = (GetNumGuildMembers and GetNumGuildMembers()) or 0
+        for i = 1, n do
+            local gname, _, _, _, _, _, _, _, online = GetGuildRosterInfo(i)
+            if gname and online then
+                gname = gname:match("^[^%-]+") or gname
+                if gname ~= me then guild[#guild + 1] = gname end
+            end
+        end
+        table.sort(guild)
+        addNames(entries, L.MB_GUILD, guild, 30)
+    end
+
+    if #entries == 0 then entries[#entries + 1] = { disabled = true, text = L.MB_EMPTY } end
+    return entries
+end
+
+local function createSendButton()
+    if sendButton or not SendMailFrame or not SendMailNameEditBox then return end
+    sendButton = CreateFrame("Button", "VulMailToButton", SendMailFrame)
+    sendButton:SetSize(24, 24)
+    sendButton:SetPoint("LEFT", SendMailNameEditBox, "RIGHT", 0, 1)
+    sendButton:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIcon-ScrollDown-Up")
+    sendButton:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Round")
+    sendButton:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIcon-ScrollDown-Down")
+    sendButton:SetFrameLevel(sendButton:GetFrameLevel() + 1)
+    sendButton:SetScript("OnClick", function(self) ns:ShowPopupMenu(buildRecipientMenu(), self) end)
+end
+
+local function applySendButton()
+    createSendButton()
+    if sendButton then sendButton:SetShown(mod.db.recipients ~= false) end
+end
+
+-- ---------------------------------------------------------
 -- Button on the inbox
 -- ---------------------------------------------------------
 local function createButton()
@@ -240,6 +362,7 @@ end
 
 local function onMailShow()
     createButton()
+    applySendButton()
     if OpenAllMail then OpenAllMail:Hide() end
     if button then button:Show() end
 end
@@ -256,6 +379,12 @@ end
 -- ---------------------------------------------------------
 function mod:OnEnable()
     createButton()
+    recordAlt()
+    applySendButton()
+    if not sendHooked and SendMail then
+        hooksecurefunc("SendMail", function(recipient) recordRecent(recipient) end)
+        sendHooked = true
+    end
     ns:RegisterEvent("MAIL_SHOW", onMailShow)
     ns:RegisterEvent("MAIL_CLOSED", onMailClosed)
     if button then button:Show() end
@@ -266,6 +395,7 @@ function mod:OnDisable()
     ns:UnregisterEvent("MAIL_SHOW", onMailShow)
     ns:UnregisterEvent("MAIL_CLOSED", onMailClosed)
     if button then button:Hide() end
+    if sendButton then sendButton:Hide() end
     if OpenAllMail then OpenAllMail:Show() end
 end
 
@@ -281,6 +411,9 @@ function mod:GetOptions()
         { type = "toggle", label = L.O_VERBOSE,
           get = function() return mod.db.verbose end,
           set = function(_, v) mod.db.verbose = v end },
+        { type = "toggle", label = L.O_RECIP,
+          get = function() return mod.db.recipients end,
+          set = function(_, v) mod.db.recipients = v; applySendButton() end },
         { type = "slider", label = L.O_KEEP, min = 0, max = 12, step = 1,
           get = function() return mod.db.keepFree or 0 end,
           set = function(_, v) mod.db.keepFree = v end },
