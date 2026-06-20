@@ -1,7 +1,7 @@
 -- =========================================================
 -- VuloClassicUI / Modules / VulTraining
--- "What's training": adds a tab to the Blizzard spell book that lists the
--- abilities you can still learn from your class trainer, grouped by level.
+-- Adds a tab to the Blizzard spell book that lists the abilities you can still
+-- learn from your class trainer, grouped by level.
 -- The game only exposes this data at the trainer, so we scan it on TRAINER_SHOW
 -- and cache it per class (account-wide).
 --
