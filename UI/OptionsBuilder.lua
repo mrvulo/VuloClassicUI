@@ -201,7 +201,7 @@ end
 -- then WoW shows a placeholder box. They fall back to clean Blizzard textures
 -- only if you delete the files. Path = Interface\AddOns\VuloClassicUI\Media\Icons
 local ICON_DIR  = "Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\"
-local ICON_INFO = ICON_DIR .. "eye.tga"      -- eye = info/help
+local ICON_INFO = ICON_DIR .. "info.tga"     -- "i" = info/help (eye is only for show/hide toggles)
 local ICON_GEAR = ICON_DIR .. "gear.tga"     -- gear = extra settings
 -- custom icons are clean line art: no crop, no desaturate
 local ICON_CFG = {
