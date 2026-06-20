@@ -446,8 +446,9 @@ local function onCLEU()
         playerGUID = UnitGUID("player")
         if not playerGUID then return end
     end
+    -- single fetch; arg12/arg15 carry the miss type for swing vs spell/range
     local _, subEvent, _, sourceGUID, _, _, _, destGUID, _, _, _,
-          _, spellName, _, extraSpellId, extraSpellName, _, missType
+          arg12, spellName, _, arg15, extraSpellName
           = CombatLogGetCurrentEventInfo()
 
     if subEvent == "SPELL_INTERRUPT" and sourceGUID == playerGUID then
@@ -458,12 +459,8 @@ local function onCLEU()
         spawnScroll("dispels", L["Purged: "] .. (extraSpellName or "?"))
     elseif (subEvent == "SWING_MISSED" or subEvent == "RANGE_MISSED" or subEvent == "SPELL_MISSED")
         and destGUID == playerGUID then
-        local realMissType
-        if subEvent == "SWING_MISSED" then
-            realMissType = select(12, CombatLogGetCurrentEventInfo())
-        else
-            realMissType = select(15, CombatLogGetCurrentEventInfo())
-        end
+        -- missType: slot 12 (SWING) or 15 (SPELL/RANGE), already captured above
+        local realMissType = (subEvent == "SWING_MISSED") and arg12 or arg15
         local label = realMissType or "Missed"
         if label == "PARRY"  then label = L["Parried"]
         elseif label == "DODGE" then label = L["Dodged"]

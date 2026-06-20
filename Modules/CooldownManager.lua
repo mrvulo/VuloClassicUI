@@ -811,7 +811,9 @@ refreshGroup = function(group, now)
     local icons = bar._icons
 
     if group.mode == "aura" then
-        local active = {}
+        local active = group._activeBuf or {}   -- reuse buffer; no per-tick {} alloc
+        wipe(active)
+        group._activeBuf = active
         for i = 1, #group.entries do
             local f = icons[i]
             if f then
@@ -837,7 +839,19 @@ refreshGroup = function(group, now)
                 end
             end
         end
-        layoutIcons(group, active)          -- pack only the active procs
+        -- only re-pack when the active set (count + order) actually changed
+        local prev, same = group._activePrev, false
+        if prev and #prev == #active then
+            same = true
+            for j = 1, #active do if prev[j] ~= active[j] then same = false; break end end
+        end
+        if not same then
+            layoutIcons(group, active)          -- pack only the active procs
+            prev = group._activePrev or {}
+            wipe(prev)
+            for j = 1, #active do prev[j] = active[j] end
+            group._activePrev = prev
+        end
         for _, f in ipairs(active) do updateAuraIcon(group, f, f._rec, now) end
         return
     end

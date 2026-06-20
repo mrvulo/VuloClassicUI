@@ -134,13 +134,18 @@ local function getPetActionIndexByName(name)
     return nil
 end
 
+-- cached by the raw editbox string so the 0.05s OnUpdate doesn't rebuild the
+-- ignore set every tick; only re-parses when the string actually changes
+local _ignoredCache, _ignoredRaw
 local function parseIgnoredSpells()
-    local set = {}
     local raw = mod.db.ignoredSpells or ""
+    if _ignoredCache and _ignoredRaw == raw then return _ignoredCache end
+    local set = {}
     for _, v in ipairs({ strsplit(",", raw) }) do
         local trimmed = strtrim(v)
         if trimmed ~= "" then set[trimmed] = true end
     end
+    _ignoredCache, _ignoredRaw = set, raw
     return set
 end
 
@@ -400,6 +405,7 @@ local function setupEvents()
             end
 
         elseif event == "COMBAT_LOG_EVENT_UNFILTERED" then
+            if not UnitExists("pet") then return end   -- this branch only tracks pet casts
             local _, e, _, _, _, sourceFlags, _, _, _, _, _, spellID = CombatLogGetCurrentEventInfo()
             if e == "SPELL_CAST_SUCCESS" and sourceFlags and spellID then
                 local isPet = (bit.band(sourceFlags, COMBATLOG_OBJECT_TYPE_PET or 0) ~= 0)

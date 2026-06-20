@@ -174,12 +174,16 @@ function mod:OnEnable()
     -- ADDON_LOADED for Blizzard_InspectUI (lazy-loaded the first time Inspect is opened)
     if not installFrame then
         installFrame = CreateFrame("Frame")
-        installFrame:RegisterEvent("ADDON_LOADED")
-        installFrame:SetScript("OnEvent", function(_, _, addonName)
+        installFrame:SetScript("OnEvent", function(self, _, addonName)
             if addonName == "Blizzard_InspectUI" then
                 hookInspectFrame()
+                self:UnregisterEvent("ADDON_LOADED")  -- one-shot
             end
         end)
+    end
+    -- (re-)arm the one-shot only while the inspect UI hasn't loaded yet
+    if not (IsAddOnLoaded and IsAddOnLoaded("Blizzard_InspectUI")) then
+        installFrame:RegisterEvent("ADDON_LOADED")
     end
 
     -- INSPECT_READY clearing

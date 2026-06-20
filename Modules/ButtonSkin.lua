@@ -559,6 +559,23 @@ local function skinEverything()
     skinAllWAIcons()
 end
 
+-- Coalesce bursty re-skin events into a single deferred pass: PET_BAR_UPDATE
+-- fires many times/sec for Hunter/Warlock pets in combat, and instance
+-- transitions can fire several PLAYER_ENTERING_WORLD in a row.
+local _skinAllPending, _skinEvtPending
+local function skinAllSoon()
+    if not (C_Timer and C_Timer.After) then return skinAll() end
+    if _skinAllPending then return end
+    _skinAllPending = true
+    C_Timer.After(0.1, function() _skinAllPending = false; if mod._enabled then skinAll() end end)
+end
+local function skinEverythingSoon()
+    if not (C_Timer and C_Timer.After) then return skinEverything() end
+    if _skinEvtPending then return end
+    _skinEvtPending = true
+    C_Timer.After(0.2, function() _skinEvtPending = false; if mod._enabled then skinEverything() end end)
+end
+
 function mod:OnEnable()
     if not mod.db then return end
 
@@ -587,9 +604,9 @@ function mod:OnEnable()
     end
 
     -- Re-skin when bars / auras show or refresh
-    ns:RegisterEvent("PLAYER_ENTERING_WORLD",     skinEverything)
-    ns:RegisterEvent("UPDATE_SHAPESHIFT_FORMS",   skinAll)
-    ns:RegisterEvent("PET_BAR_UPDATE",            skinAll)
+    ns:RegisterEvent("PLAYER_ENTERING_WORLD",     skinEverythingSoon)
+    ns:RegisterEvent("UPDATE_SHAPESHIFT_FORMS",   skinAllSoon)
+    ns:RegisterEvent("PET_BAR_UPDATE",            skinAllSoon)
     ns:RegisterEvent("PLAYER_REGEN_DISABLED",     skinAllWAIcons)  -- procs appearing in combat
     ns:RegisterEvent("PLAYER_REGEN_ENABLED",      skinAllWAIcons)
     -- Unit-anchored WeakAuras live on the unit's frame, not WeakAurasFrame —
@@ -602,9 +619,9 @@ function mod:OnEnable()
 end
 
 function mod:OnDisable()
-    ns:UnregisterEvent("PLAYER_ENTERING_WORLD",   skinEverything)
-    ns:UnregisterEvent("UPDATE_SHAPESHIFT_FORMS", skinAll)
-    ns:UnregisterEvent("PET_BAR_UPDATE",          skinAll)
+    ns:UnregisterEvent("PLAYER_ENTERING_WORLD",   skinEverythingSoon)
+    ns:UnregisterEvent("UPDATE_SHAPESHIFT_FORMS", skinAllSoon)
+    ns:UnregisterEvent("PET_BAR_UPDATE",          skinAllSoon)
     ns:UnregisterEvent("PLAYER_REGEN_DISABLED",   skinAllWAIcons)
     ns:UnregisterEvent("PLAYER_REGEN_ENABLED",    skinAllWAIcons)
     ns:UnregisterEvent("PLAYER_TARGET_CHANGED",   onTargetChanged)
