@@ -357,6 +357,7 @@ ns:RegisterLocale("deDE", {
     ["Font"] = "Schriftart",
     ["Font Sizes"] = "Schriftgrößen",
     ["Font size"] = "Schriftgröße",
+    ["Font Size"] = "Schriftgröße",
     ["Font Size (0 = global)"] = "Schriftgröße (0 = global)",
     ["Default Font Size"] = "Standard-Schriftgröße",
     ["Outline"] = "Kontur",
