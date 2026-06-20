@@ -268,9 +268,9 @@ local function equipLoadout(name)
                     local ok = ns:EquipBagItemToSlot(bag, bagSlot, slot)
                     if not ok and UseContainerItem then
                         -- Fallback for non-paired slots if cursor method failed
-                        pcall(UseContainerItem, bag, bagSlot)
+                        ok = pcall(UseContainerItem, bag, bagSlot)
                     end
-                    swapped = swapped + 1
+                    if ok then swapped = swapped + 1 else missing = missing + 1 end
                 else
                     missing = missing + 1
                 end
@@ -588,8 +588,9 @@ end
 local function getFormName(formIdx)
     if formIdx == 0 then return L["No Form"] end
     if GetShapeshiftFormInfo then
-        local _, name = pcall(GetShapeshiftFormInfo, formIdx)
-        if type(name) == "string" and name ~= "" then return name end
+        -- returns (icon, name, ...); pcall prepends ok, so the name is the 3rd value
+        local ok, _icon, fname = pcall(GetShapeshiftFormInfo, formIdx)
+        if ok and type(fname) == "string" and fname ~= "" then return fname end
     end
     return string.format(L["Form %d"], formIdx)
 end

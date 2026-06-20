@@ -156,7 +156,9 @@ local function restyleButton(button)
 
     -- realm/zone line: faction text accent + inline note ---------------------
     if button.info then
-        if on and mod.db.factionAccent and faction then
+        if on and mod.db.factionAccent then
+            -- no 'and faction': a recycled row whose faction is now nil must hit
+            -- the else and reset, not keep a stale red/blue tint
             if faction == "Horde" then button.info:SetTextColor(0.92, 0.36, 0.36)
             elseif faction == "Alliance" then button.info:SetTextColor(0.45, 0.60, 0.98)
             else button.info:SetTextColor(0.69, 0.69, 0.69) end

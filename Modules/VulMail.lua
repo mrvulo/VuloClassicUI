@@ -296,7 +296,7 @@ local function buildRecipientMenu()
     for _, a in ipairs(s.alts) do
         if a.name ~= me and a.realm == myRealm and a.faction == myFaction then chars[#chars + 1] = a.name end
     end
-    addNames(entries, L.MB_CHARS, chars)
+    addNames(entries, L.MB_CHARS, chars, 30)
 
     local friends = {}
     local nF = (C_FriendList and C_FriendList.GetNumFriends and C_FriendList.GetNumFriends())
@@ -306,9 +306,12 @@ local function buildRecipientMenu()
         local fname = (info and info.name) or (GetFriendInfo and GetFriendInfo(i))
         if fname then friends[#friends + 1] = fname end
     end
-    addNames(entries, L.MB_FRIENDS, friends)
+    addNames(entries, L.MB_FRIENDS, friends, 30)
 
     if IsInGuild and IsInGuild() then
+        -- ask for a fresh roster (async); this open uses cached data, next is fresh
+        if C_GuildInfo and C_GuildInfo.GuildRoster then C_GuildInfo.GuildRoster()
+        elseif GuildRoster then GuildRoster() end
         local guild = {}
         local n = (GetNumGuildMembers and GetNumGuildMembers()) or 0
         for i = 1, n do

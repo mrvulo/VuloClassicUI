@@ -265,21 +265,25 @@ end
 -- =========================================================
 local ev
 local function registerEvents()
-    if ev then return end
-    ev = CreateFrame("Frame")
+    -- create the frame once, but ALWAYS (re)register — OnDisable clears events
+    -- with UnregisterAllEvents, so an early-return here would leave the bar dead
+    -- after a disable/enable cycle.
+    if not ev then
+        ev = CreateFrame("Frame")
+        ev:SetScript("OnEvent", function(_, event)
+            if event == "UNIT_DISPLAYPOWER" then
+                updatePowerType()
+            elseif event == "PLAYER_ENTERING_WORLD" then
+                applyAppearance(); updateValue()
+            else
+                updateValue()
+            end
+        end)
+    end
     ev:RegisterUnitEvent("UNIT_POWER_FREQUENT", "player")
     ev:RegisterUnitEvent("UNIT_MAXPOWER", "player")
     ev:RegisterUnitEvent("UNIT_DISPLAYPOWER", "player")
     ev:RegisterEvent("PLAYER_ENTERING_WORLD")
-    ev:SetScript("OnEvent", function(_, event)
-        if event == "UNIT_DISPLAYPOWER" then
-            updatePowerType()
-        elseif event == "PLAYER_ENTERING_WORLD" then
-            applyAppearance(); updateValue()
-        else
-            updateValue()
-        end
-    end)
 end
 
 -- =========================================================

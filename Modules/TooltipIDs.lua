@@ -699,6 +699,9 @@ local function computeTalents(isInspect)
 end
 
 local function onInspectReady(_, guid)
+    -- ignore a stale async result for an inspect we didn't request (would
+    -- otherwise cache pendingInspectUnit's gear under another player's GUID)
+    if guid and pendingInspectGUID and guid ~= pendingInspectGUID then return end
     guid = guid or pendingInspectGUID
     if not guid then return end
     inspectFail[guid] = nil  -- successful -> clear negative cache

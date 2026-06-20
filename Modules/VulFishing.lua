@@ -270,7 +270,7 @@ local function actionHandler()
     if InCombatLockdown() then return end
     local k = chosenKey()
     if not k then ClearOverrideBindings(owner); return end
-    if IsKeyDown(k) then return end          -- never rebind while the key is held
+    if IsKeyDown and IsKeyDown(k) then return end  -- never rebind while held (guarded: API may be absent)
     ClearOverrideBindings(owner)
     if UnitIsDeadOrGhost("player") then return end
 
