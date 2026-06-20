@@ -9,13 +9,9 @@
 ## SavedVariablesPerCharacter: VuloClassicUICharDB, TrinketsPerOptions, TrinketsQueue
 ## IconTexture: Interface\AddOns\VuloClassicUI\Media\Icons\vui4
 ## Category: VuloUI
-
-# --- Libraries (loaded first so everything can access them) ---
 Libs\LibStub\LibStub.lua
 Libs\CallbackHandler-1.0\CallbackHandler-1.0.lua
 Libs\LibSharedMedia-3.0\LibSharedMedia-3.0.lua
-
-# --- Core ---
 Core\Namespace.lua
 Core\Locale.lua
 Core\Utils.lua
@@ -26,20 +22,14 @@ Core\Events.lua
 Core\MediaRegistry.lua
 Core\Mover.lua
 Core\PopupMenu.lua
-
-# --- Locales (must load AFTER Core\Locale.lua, BEFORE modules) ---
 Locales\enUS.lua
 Locales\deDE.lua
-
-# --- UI Framework ---
 UI\Widgets.lua
 Core\ColorPicker.lua
 UI\MainFrame.lua
 UI\Sidebar.lua
 UI\Dashboard.lua
 UI\OptionsBuilder.lua
-
-# --- Modules (order doesn't matter, each registers itself) ---
 Modules\GlobalSettings.lua
 Modules\UnlockMode.lua
 Modules\Profiles.lua
@@ -75,7 +65,6 @@ Modules\QuestLog.lua
 Modules\ProfessionWindow.lua
 Modules\DisenchantQueue.lua
 Modules\Pages.lua
-# VulTraining: spell-book trainer tab (data shim + per-class spell tables load first)
 Modules\VulTraining\VTData.lua
 Modules\VulTraining\Classes\Druid.lua
 Modules\VulTraining\Classes\Hunter.lua
@@ -88,7 +77,6 @@ Modules\VulTraining\Classes\Warlock.lua
 Modules\VulTraining\Classes\Warrior.lua
 Modules\VulTraining.lua
 Modules\VTManaDisplay.lua
-# Per-class data files — plug into the Class Specific module above
 Modules\Classes\Priest.lua
 Modules\Classes\Warlock.lua
 Modules\Classes\Shaman.lua
@@ -104,8 +92,6 @@ Modules\FixLFGBrowseNil.lua
 Modules\FixInspect.lua
 Modules\FixBindSocket.lua
 Modules\FixCombatGlow.lua
-
-# --- Trinkets engine (external code) + VCUI wrapper in Modules/Trinkets.lua ---
 Trinkets\TrinketsGlobals.lua
 Trinkets\Trinkets.lua
 Trinkets\Trinkets.xml
@@ -114,10 +100,6 @@ Trinkets\TrinketsOpt.xml
 Trinkets\TrinketsQueue.lua
 Trinkets\TrinketsQueue.xml
 Modules\Trinkets.lua
-
-# --- Group containers (LAST: each consolidates its group into tabbed entries) ---
 Modules\Bugfixes.lua
 Modules\QoL.lua
-
-# --- Init (loaded last, kicks off everything) ---
 Core\Init.lua
