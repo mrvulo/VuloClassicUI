@@ -73,6 +73,17 @@ Modules\QuestLog.lua
 Modules\ProfessionWindow.lua
 Modules\DisenchantQueue.lua
 Modules\Pages.lua
+# VulTraining: spell-book trainer tab (data shim + per-class spell tables load first)
+Modules\VulTraining\VTData.lua
+Modules\VulTraining\Classes\Druid.lua
+Modules\VulTraining\Classes\Hunter.lua
+Modules\VulTraining\Classes\Mage.lua
+Modules\VulTraining\Classes\Paladin.lua
+Modules\VulTraining\Classes\Priest.lua
+Modules\VulTraining\Classes\Rogue.lua
+Modules\VulTraining\Classes\Shaman.lua
+Modules\VulTraining\Classes\Warlock.lua
+Modules\VulTraining\Classes\Warrior.lua
 Modules\VulTraining.lua
 Modules\VTManaDisplay.lua
 # Per-class data files — plug into the Class Specific module above

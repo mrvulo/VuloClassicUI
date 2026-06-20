@@ -1,275 +1,486 @@
 -- =========================================================
 -- VuloClassicUI / Modules / VulTraining
--- Adds a tab to the Blizzard spell book that lists the abilities you can still
--- learn from your class trainer, grouped by level.
--- The game only exposes this data at the trainer, so we scan it on TRAINER_SHOW
--- and cache it per class (account-wide).
---
--- The spell-book tab is a normal button on the side; selecting it shows an
--- opaque list panel ON TOP of the spell grid (we never touch the secure spell
--- buttons, so there is no taint). Registered as a QoL sub-module so it has an
--- on/off entry in the Quality of Life tabs.
+-- Adds a tab to the Blizzard spell book listing every ability you can learn
+-- from your class trainer, grouped by status (available now / coming soon /
+-- not yet / missing requirement or talent / already known) and coloured by
+-- level. Data is built from per-class spell tables (Modules/VulTraining/Classes),
+-- so it works without visiting a trainer. Registered as a QoL sub-module.
 -- =========================================================
 local _, ns = ...
-local L = ns.L
 
 local mod = ns:RegisterModule("vultraining", {
     name        = "VulTraining",
     group       = "QoL",
-    description = "Adds a tab to your spell book listing the abilities you can still learn from your class trainer (grouped by level). Open your trainer once to fill / refresh the list.",
-    defaults = {
-        enabled = true,
-        classes = {},   -- classFile -> { { name, rank, level, avail, icon }, ... }
-    },
+    description = "Adds a tab to your spell book that lists the abilities you can still learn from your class trainer, grouped by level. Open the book icon below the spell schools.",
+    defaults    = { enabled = true },
 })
 
-local floor = math.floor
-local function classKey()
-    local _, k = UnitClass("player")
-    return k or "UNKNOWN"
+local format, strlower, strfind, sort = string.format, string.lower, string.find, table.sort
+local tinsert, wipe, ipairs, pairs = table.insert, wipe, ipairs, pairs
+
+-- ---------------------------------------------------------
+-- Localization (English default, German overrides for this client)
+-- ---------------------------------------------------------
+local L = {
+    AVAILABLE     = "Available Now",
+    MISSINGREQS   = "Available but Missing Requirements",
+    NEXTLEVEL     = "Coming Soon",
+    NOTLEVEL      = "Not Yet Available",
+    MISSINGTALENT = "Missing Required Talents",
+    KNOWN         = "Already Known",
+    LEVEL_FORMAT  = "Level %s",
+    COST_FORMAT   = "Cost: %s",
+    TAB_TEXT      = "What can I train?",
+    NO_RESULTS    = "No results found",
+    OPTION_DESC   = "|cffaaaaaaAdds a tab to your spell book (the book icon on the side, below the spell schools) listing every ability you can still learn from your class trainer — grouped by status and coloured by level. No need to visit a trainer.|r",
+}
+local locOverrides = {
+    deDE = {
+        AVAILABLE     = "Jetzt verfügbar",
+        MISSINGREQS   = "Verfügbar, aber fehlende Anforderungen",
+        NEXTLEVEL     = "Demnächst",
+        NOTLEVEL      = "Noch nicht verfügbar",
+        MISSINGTALENT = "Fehlende Talente",
+        KNOWN         = "Bereits bekannt",
+        LEVEL_FORMAT  = "Level %s",
+        COST_FORMAT   = "Kosten: %s",
+        TAB_TEXT      = "Was kann ich Lernen?",
+        NO_RESULTS    = "Keine Ergebnisse gefunden",
+        OPTION_DESC   = "|cffaaaaaaFügt deinem Zauberbuch einen Tab hinzu (das Buch-Symbol an der Seite, unter den Zauberschulen), der alle noch beim Klassenlehrer lernbaren Fähigkeiten auflistet — nach Status gruppiert und nach Stufe gefärbt. Kein Lehrerbesuch nötig.|r",
+    },
+}
+do
+    local o = locOverrides[GetLocale()]
+    if o then for k, v in pairs(o) do L[k] = v end end
 end
 
--- =========================================================
--- Scan the class trainer (current + future abilities)
--- =========================================================
-local function scanTrainer()
-    if not GetNumTrainerServices then return end
-    if IsTradeskillTrainer and IsTradeskillTrainer() then return end  -- skip profession trainers
+-- ---------------------------------------------------------
+-- Constants
+-- ---------------------------------------------------------
+local MAX_ROWS, ROW_HEIGHT = 22, 14
+local SKILL_LINE_TAB = (MAX_SKILLLINE_TABS or 8) - 1
+local SPELLBOOK_SPELL = BOOKTYPE_SPELL or "spell"
+local PARENS = PARENS_TEMPLATE or "(%s)"
+local MEDIA = "Interface\\AddOns\\VuloClassicUI\\Media\\VulTraining\\"
+local TEX_LEFT, TEX_RIGHT, TEX_HL = MEDIA .. "page-left", MEDIA .. "page-right", MEDIA .. "row-highlight"
+local TAB_ICON = "Interface\\Icons\\INV_Misc_QuestionMark"
+local CLOSE = FONT_COLOR_CODE_CLOSE
+local COMINGSOON = "|cff82c5ff"
 
-    local getF, setF = GetTrainerServiceTypeFilter, SetTrainerServiceTypeFilter
-    local fa, fu, fs
-    if getF then fa, fu, fs = getF("available"), getF("unavailable"), getF("used") end
-    if setF then setF("available", 1); setF("unavailable", 1); setF("used", 0) end
+-- ---------------------------------------------------------
+-- Spell info cache (force-loads spell data so name/icon/subtext are present)
+-- ---------------------------------------------------------
+local spellInfoCache = {}
+local function cacheSpell(spell, level, done)
+    local id = spell.id
+    if spellInfoCache[id] then done(true); return end
 
-    local list = {}
-    for i = 1, (GetNumTrainerServices() or 0) do
-        local name, rank, category = GetTrainerServiceInfo(i)
-        if name and name ~= "" and category ~= "header" and category ~= "used" then
-            list[#list + 1] = {
-                name  = name,
-                rank  = rank,
-                level = (GetTrainerServiceLevelReq and GetTrainerServiceLevelReq(i)) or 0,
-                avail = (category == "available"),
-                icon  = (GetTrainerServiceIcon and GetTrainerServiceIcon(i)) or nil,
-            }
-        end
+    local function finalize(si)
+        if spellInfoCache[id] then done(true); return end
+        local name = (si and si:GetSpellName()) or GetSpellInfo(id)
+        if not name then done(true); return end
+        local subText = (si and si.GetSpellSubtext and si:GetSpellSubtext())
+            or (GetSpellSubtext and GetSpellSubtext(id)) or ""
+        local fSub = (subText and subText ~= "") and format(PARENS, subText) or ""
+        local fullName = (fSub ~= "") and (name .. " " .. fSub) or name
+        spellInfoCache[id] = {
+            id = id, name = name, subText = subText, formattedSubText = fSub,
+            icon = select(3, GetSpellInfo(id)), cost = spell.cost, level = level,
+            formattedLevel = format(L.LEVEL_FORMAT, level), formattedFullName = fullName,
+            searchText = strlower(fullName), tooltipId = id,
+            link = format("|cff71d5ff|Hspell:%d:0|h[%s]|h|r", id, name),
+        }
+        done(false)
     end
 
-    if setF then setF("available", fa and 1 or 0); setF("unavailable", fu and 1 or 0); setF("used", fs and 1 or 0) end
-
-    if #list > 0 then
-        mod.db.classes = mod.db.classes or {}
-        mod.db.classes[classKey()] = list
-        if mod._populate and mod._listShown then mod._populate() end
-    end
-end
-
--- =========================================================
--- Spell-book tab + list panel
--- =========================================================
-local QUESTION = "Interface\\Icons\\INV_Misc_QuestionMark"
-local rows = {}      -- row pool
-
--- Build the flat row list (headers + entries) from the cached data.
-local function buildRows()
-    local data = mod.db.classes and mod.db.classes[classKey()]
-    local out = {}
-    if not data or #data == 0 then
-        out[#out + 1] = { header = L["|cffffd200Open your class trainer once to fill this list.|r"] }
-        return out
-    end
-    local lvl = (UnitLevel and UnitLevel("player")) or 0
-    local avail, upcoming = {}, {}
-    for _, e in ipairs(data) do
-        if e.avail or e.level <= lvl then avail[#avail + 1] = e else upcoming[#upcoming + 1] = e end
-    end
-    table.sort(avail, function(a, b) return (a.name or "") < (b.name or "") end)
-    table.sort(upcoming, function(a, b)
-        if a.level ~= b.level then return a.level < b.level end
-        return (a.name or "") < (b.name or "")
-    end)
-    if #avail > 0 then
-        out[#out + 1] = { header = "|cff44ff44" .. L["Available now"] .. "|r" }
-        for _, e in ipairs(avail) do out[#out + 1] = e end
-    end
-    if #upcoming > 0 then
-        out[#out + 1] = { header = "|cff9b6cff" .. L["Upcoming"] .. "|r", gap = (#avail > 0) }
-        local lastLvl
-        for _, e in ipairs(upcoming) do
-            if e.level ~= lastLvl then
-                lastLvl = e.level
-                out[#out + 1] = { sub = string.format(L["Level %d"], e.level) }
-            end
-            out[#out + 1] = e
-        end
-    end
-    return out
-end
-
-local function makeRow(parent, i)
-    local r = CreateFrame("Frame", nil, parent)
-    r:SetHeight(20)
-    r.icon = r:CreateTexture(nil, "ARTWORK")
-    r.icon:SetSize(16, 16)
-    r.icon:SetPoint("LEFT", r, "LEFT", 4, 0)
-    r.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-    r.text = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    r.text:SetPoint("LEFT", r.icon, "RIGHT", 6, 0)
-    r.text:SetPoint("RIGHT", r, "RIGHT", -6, 0)
-    r.text:SetJustifyH("LEFT")
-    if ns.UI and ns.UI.Font then ns.UI.Font(r.text, 12) end
-    rows[i] = r
-    return r
-end
-
-local function populate()
-    local child = mod._scrollChild
-    if not child then return end
-    local items = buildRows()
-    local y = -4
-    for i, it in ipairs(items) do
-        local r = rows[i] or makeRow(child, i)
-        r:ClearAllPoints()
-        r:SetPoint("TOPLEFT",  child, "TOPLEFT",  0, y)
-        r:SetPoint("TOPRIGHT", child, "TOPRIGHT", 0, y)
-        if it.header then
-            r.icon:Hide()
-            r.text:ClearAllPoints(); r.text:SetPoint("LEFT", r, "LEFT", 6, 0); r.text:SetPoint("RIGHT", r, "RIGHT", -6, 0)
-            r.text:SetText(it.header)
-            y = y - 22
-        elseif it.sub then
-            r.icon:Hide()
-            r.text:ClearAllPoints(); r.text:SetPoint("LEFT", r, "LEFT", 10, 0); r.text:SetPoint("RIGHT", r, "RIGHT", -6, 0)
-            r.text:SetText("|cffbbbbbb" .. it.sub .. "|r")
-            y = y - 18
-        else
-            r.icon:Show(); r.icon:SetTexture(it.icon or QUESTION)
-            r.text:ClearAllPoints(); r.text:SetPoint("LEFT", r.icon, "RIGHT", 6, 0); r.text:SetPoint("RIGHT", r, "RIGHT", -6, 0)
-            local rank = (it.rank and it.rank ~= "") and (" |cff888888(" .. it.rank .. ")|r") or ""
-            r.text:SetText((it.name or "?") .. rank)
-            y = y - 20
-        end
-        r:Show()
-    end
-    for i = #items + 1, #rows do rows[i]:Hide() end
-    child:SetHeight(math.max(1, -y + 4))
-end
-mod._populate = populate
-
-local function setListShown(on)
-    mod._listShown = on
-    if mod._list then mod._list:SetShown(on) end
-    if mod._tab then mod._tab:SetChecked(on) end
-    if on then
-        -- our tab is exclusive: visually deselect the real skill-line tabs
-        for i = 1, 8 do local t = _G["SpellBookSkillLineTab" .. i]; if t and t.SetChecked then t:SetChecked(false) end end
-        populate()
-    end
-end
-
-local built = false
-local function buildUI()
-    if built or not SpellBookFrame then return end
-    built = true
-
-    -- opaque list panel over the spell grid (anchored to the grid corners)
-    local f = CreateFrame("Frame", "VulTrainingBook", SpellBookFrame)
-    f:SetFrameLevel(SpellBookFrame:GetFrameLevel() + 20)   -- above the spell buttons
-    f:EnableMouse(true)
-    if SpellButton1 and SpellButton12 then
-        f:SetPoint("TOPLEFT",     SpellButton1,  "TOPLEFT",     -6, 8)
-        f:SetPoint("BOTTOMRIGHT", SpellButton12, "BOTTOMRIGHT",  8, -8)
+    if Spell and Spell.CreateFromSpellID then
+        local si = Spell:CreateFromSpellID(id)
+        si:ContinueOnSpellLoad(function()
+            if RunNextFrame then RunNextFrame(function() finalize(si) end) else finalize(si) end
+        end)
     else
-        f:SetPoint("TOPLEFT",     SpellBookFrame, "TOPLEFT",     22, -78)
-        f:SetPoint("BOTTOMRIGHT", SpellBookFrame, "BOTTOMRIGHT", -42, 82)
+        finalize(nil)
     end
-    local bg = f:CreateTexture(nil, "BACKGROUND"); bg:SetAllPoints(); bg:SetColorTexture(0.05, 0.06, 0.08, 0.97)
-    local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    title:SetPoint("TOP", f, "TOP", 0, -6); title:SetText("VulTraining")
-    if ns.UI and ns.UI.Font then ns.UI.Font(title, 14) end
+end
 
-    local scroll = CreateFrame("ScrollFrame", nil, f)
-    scroll:SetPoint("TOPLEFT", f, "TOPLEFT", 6, -28)
-    scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -6, 6)
-    scroll:EnableMouseWheel(true)
-    scroll:SetScript("OnMouseWheel", function(self, d)
-        local cur = self:GetVerticalScroll()
-        local maxs = self:GetVerticalScrollRange()
-        self:SetVerticalScroll(math.max(0, math.min(maxs, cur - d * 24)))
+-- ---------------------------------------------------------
+-- Known-ability checks
+-- ---------------------------------------------------------
+local function isPreviouslyLearned(spellId)
+    local map = ns.VTData and ns.VTData.overriddenSpellsMap
+    if not map or not map[spellId] then return false end
+    local spellIndex, knownIndex = 0, 0
+    for i, otherId in ipairs(map[spellId]) do
+        if otherId == spellId then spellIndex = i end
+        if IsSpellKnown(otherId) or IsPlayerSpell(otherId) then knownIndex = i end
+    end
+    return spellIndex <= knownIndex
+end
+local function isAbilityKnown(spellId)
+    return IsSpellKnown(spellId) or IsPlayerSpell(spellId) or isPreviouslyLearned(spellId)
+end
+
+-- ---------------------------------------------------------
+-- Categories
+-- ---------------------------------------------------------
+local categories = {
+    { key = "available",     name = L.AVAILABLE,     color = GREEN_FONT_COLOR_CODE,  hideLevel = true },
+    { key = "missingReqs",   name = L.MISSINGREQS,   color = ORANGE_FONT_COLOR_CODE, hideLevel = true },
+    { key = "nextLevel",     name = L.NEXTLEVEL,     color = COMINGSOON },
+    { key = "notLevel",      name = L.NOTLEVEL,      color = RED_FONT_COLOR_CODE },
+    { key = "missingTalent", name = L.MISSINGTALENT, color = "|cffffffff", nameSort = true },
+    { key = "known",         name = L.KNOWN,         color = GRAY_FONT_COLOR_CODE, hideLevel = true, nameSort = true },
+}
+local categoryByKey = {}
+for _, cat in ipairs(categories) do
+    cat.spells = {}
+    cat.isHeader = true
+    cat.formattedName = (cat.color or "") .. cat.name .. CLOSE
+    categoryByKey[cat.key] = cat
+end
+
+local function byLevelThenName(a, b)
+    if a.level == b.level then return a.name < b.name end
+    return a.level < b.level
+end
+local function byNameThenLevel(a, b)
+    if a.name == b.name then return a.level < b.level end
+    return a.name < b.name
+end
+
+-- ---------------------------------------------------------
+-- Build + filter the flat render list (mod._data)
+-- ---------------------------------------------------------
+mod._data = {}
+mod._filter = ""
+local categoryData = {}
+
+local function buildCategorizedData(playerLevel, isLevelUp)
+    for _, cat in ipairs(categories) do wipe(cat.spells) end
+    wipe(categoryData)
+
+    local function levelColor(spell)
+        local lvl = spell.level
+        if isLevelUp then lvl = lvl - 1 end
+        return GetQuestDifficultyColor(lvl)
+    end
+
+    local sbl = ns.VTData and ns.VTData.SpellsByLevel
+    if not sbl then return end
+    for level, spells in pairs(sbl) do
+        for _, spell in ipairs(spells) do
+            local info = spellInfoCache[spell.id]
+            if info then
+                local key
+                if isAbilityKnown(spell.id) then
+                    key = "known"
+                elseif spell.requiredTalentId and not isAbilityKnown(spell.requiredTalentId) then
+                    key = "missingTalent"
+                elseif level > playerLevel then
+                    key = (level <= playerLevel + 2) and "nextLevel" or "notLevel"
+                else
+                    local hasReqs = true
+                    if spell.requiredIds then
+                        for _, r in ipairs(spell.requiredIds) do hasReqs = hasReqs and isAbilityKnown(r) end
+                    end
+                    key = hasReqs and "available" or "missingReqs"
+                end
+                local cat = categoryByKey[key]
+                if cat then tinsert(cat.spells, info) end
+            end
+        end
+    end
+
+    for _, cat in ipairs(categories) do
+        if #cat.spells > 0 then
+            sort(cat.spells, cat.nameSort and byNameThenLevel or byLevelThenName)
+            for _, s in ipairs(cat.spells) do
+                s.levelColor = levelColor(s)
+                s.hideLevel = cat.hideLevel
+            end
+            tinsert(categoryData, cat)
+        end
+    end
+end
+
+local function matchesFilter(text)
+    if mod._filter == "" then return true end
+    return strfind(text, mod._filter, 1, true) ~= nil
+end
+
+local function applyFilter()
+    wipe(mod._data)
+    for _, cat in ipairs(categoryData) do
+        local matched = {}
+        for _, s in ipairs(cat.spells) do
+            if matchesFilter(s.searchText) then tinsert(matched, s) end
+        end
+        if #matched > 0 then
+            tinsert(mod._data, cat)
+            for _, s in ipairs(matched) do tinsert(mod._data, s) end
+        end
+    end
+    if #mod._data == 0 and mod._filter ~= "" then
+        tinsert(mod._data, { isHeader = true, formattedName = L.NO_RESULTS })
+    end
+end
+
+local function rebuild()
+    buildCategorizedData(UnitLevel("player"))
+    applyFilter()
+    if mod._frame and mod._frame:IsVisible() then mod.Update(true) end
+end
+
+-- ---------------------------------------------------------
+-- Rendering
+-- ---------------------------------------------------------
+local function setRowSpell(row, spell)
+    if spell == nil then
+        row.currentSpell = nil
+        row:Hide()
+        return
+    elseif spell.isHeader then
+        row.spell:Hide()
+        row.header:Show()
+        row.header:SetText(spell.formattedName)
+        row:SetID(0)
+        row.highlight:SetTexture(nil)
+    else
+        local rs = row.spell
+        row.header:Hide()
+        row.highlight:SetTexture(TEX_HL)
+        rs:Show()
+        rs.label:SetText(spell.name)
+        rs.subLabel:SetText(spell.formattedSubText)
+        if not spell.hideLevel then
+            rs.level:Show()
+            rs.level:SetText(spell.formattedLevel)
+            local c = spell.levelColor
+            if c then rs.level:SetTextColor(c.r, c.g, c.b) end
+        else
+            rs.level:Hide()
+        end
+        rs.icon:SetTexture(spell.icon)
+    end
+    row.currentSpell = spell
+    row:Show()
+end
+
+local lastOffset = -1
+function mod.Update(force)
+    local frame = mod._frame
+    if not frame then return end
+    local offset = FauxScrollFrame_GetOffset(frame.scrollBar)
+    if offset == lastOffset and not force then return end
+    for i, row in ipairs(frame.rows) do
+        setRowSpell(row, mod._data[i + offset])
+    end
+    FauxScrollFrame_Update(frame.scrollBar, #mod._data, MAX_ROWS, ROW_HEIGHT,
+        nil, nil, nil, nil, nil, nil, true)
+    lastOffset = offset
+end
+
+-- ---------------------------------------------------------
+-- Frame / spell-book tab
+-- ---------------------------------------------------------
+local function createFrame()
+    if mod._frame or not SpellBookFrame then return end
+
+    local frame = CreateFrame("Frame", "VulTrainingFrame", SpellBookFrame)
+    frame:SetPoint("TOPLEFT", SpellBookFrame, "TOPLEFT", 0, 0)
+    frame:SetPoint("BOTTOMRIGHT", SpellBookFrame, "BOTTOMRIGHT", 0, 0)
+    frame:SetFrameStrata("HIGH")
+
+    local left = frame:CreateTexture(nil, "ARTWORK")
+    left:SetTexture(TEX_LEFT); left:SetWidth(256); left:SetHeight(512)
+    left:SetPoint("TOPLEFT", frame)
+    local right = frame:CreateTexture(nil, "ARTWORK")
+    right:SetTexture(TEX_RIGHT); right:SetWidth(128); right:SetHeight(512)
+    right:SetPoint("TOPRIGHT", frame)
+
+    local search = CreateFrame("EditBox", "$parentSearch", frame, "SearchBoxTemplate")
+    search:SetSize(124, 32)
+    search:SetPoint("TOPLEFT", frame, "TOPLEFT", 81, -34)
+    search:SetScript("OnTextChanged", function(self)
+        if SearchBoxTemplate_OnTextChanged then SearchBoxTemplate_OnTextChanged(self) end
+        local old = mod._filter
+        mod._filter = strlower(self:GetText())
+        if mod._filter ~= old then
+            applyFilter()
+            if frame:IsVisible() then mod.Update(true) end
+        end
     end)
-    local child = CreateFrame("Frame", nil, scroll)
-    child:SetSize(1, 1)
-    scroll:SetScrollChild(child)
-    child:SetWidth(300)
-    mod._scrollChild = child
-    f:SetScript("OnSizeChanged", function(_, w) if child then child:SetWidth(math.max(1, (w or 320) - 16)) end end)
+    frame:Hide()
+    mod._frame = frame
 
-    f:Hide()
-    mod._list = f
-
-    -- side tab button
-    local tab = CreateFrame("CheckButton", "VulTrainingTab", SpellBookFrame)
-    tab:SetSize(32, 32)
-    local icon = tab:CreateTexture(nil, "ARTWORK"); icon:SetAllPoints(); icon:SetTexture("Interface\\Icons\\INV_Misc_Book_09"); icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-    tab:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square")
-    local chk = tab:CreateTexture(nil, "OVERLAY"); chk:SetAllPoints(); chk:SetTexture("Interface\\Buttons\\CheckButtonHilight"); chk:SetBlendMode("ADD")
-    tab:SetCheckedTexture(chk)
-    tab:SetScript("OnClick", function() setListShown(not mod._listShown) end)
-    tab:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_LEFT"); GameTooltip:SetText("VulTraining"); GameTooltip:Show()
+    -- scroll list
+    local scrollBar = CreateFrame("ScrollFrame", "$parentScrollBar", frame, "FauxScrollFrameTemplate")
+    scrollBar:SetPoint("TOPLEFT", 0, -75)
+    scrollBar:SetPoint("BOTTOMRIGHT", -65, 81)
+    scrollBar:SetScript("OnVerticalScroll", function(self, offset)
+        FauxScrollFrame_OnVerticalScroll(self, offset, ROW_HEIGHT, function() mod.Update() end)
     end)
-    tab:SetScript("OnLeave", GameTooltip_Hide)
+    scrollBar:SetScript("OnShow", function()
+        if not mod._hasShown then rebuild(); mod._hasShown = true end
+        mod.Update(true)
+    end)
+    frame.scrollBar = scrollBar
+
+    -- rows
+    local rows = {}
+    for i = 1, MAX_ROWS do
+        local row = CreateFrame("Button", "$parentRow" .. i, frame)
+        row:SetHeight(ROW_HEIGHT)
+        row:EnableMouse(true)
+        row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+        row:SetScript("OnEnter", function(self)
+            local s = self.currentSpell
+            if not s or s.isHeader then return end
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            if s.tooltipId then GameTooltip:SetSpellByID(s.tooltipId) end
+            if s.cost and s.cost > 0 then
+                GameTooltip:AddLine(format(L.COST_FORMAT, GetCoinTextureString(s.cost)))
+            end
+            GameTooltip:Show()
+        end)
+        row:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        row:SetScript("OnClick", function(self, button)
+            local s = self.currentSpell
+            if button == "LeftButton" and IsShiftKeyDown() and s and s.link then
+                local w = ChatEdit_GetActiveWindow()
+                if w then w:Insert(s.link) else ChatFrame_OpenChat(s.link) end
+            end
+        end)
+
+        local highlight = row:CreateTexture("$parentHighlight", "HIGHLIGHT")
+        highlight:SetAllPoints()
+
+        local spell = CreateFrame("Frame", "$parentSpell", row)
+        spell:SetPoint("LEFT", row, "LEFT")
+        spell:SetPoint("TOP", row, "TOP")
+        spell:SetPoint("BOTTOM", row, "BOTTOM")
+
+        local icon = spell:CreateTexture(nil, "OVERLAY")
+        icon:SetPoint("TOPLEFT", spell)
+        icon:SetPoint("BOTTOMLEFT", spell)
+        icon:SetWidth(ROW_HEIGHT)
+
+        local label = spell:CreateFontString("$parentLabel", "OVERLAY", "GameFontNormal")
+        label:SetPoint("TOPLEFT", spell, "TOPLEFT", ROW_HEIGHT + 4, 0)
+        label:SetPoint("BOTTOM", spell)
+        label:SetJustifyV("MIDDLE"); label:SetJustifyH("LEFT")
+
+        local subLabel = spell:CreateFontString("$parentSubLabel", "OVERLAY", "NewSubSpellFont")
+        subLabel:SetJustifyH("LEFT")
+        subLabel:SetPoint("TOPLEFT", label, "TOPRIGHT", 2, 0)
+        subLabel:SetPoint("BOTTOM", label)
+
+        local level = spell:CreateFontString("$parentLevel", "OVERLAY", "GameFontWhite")
+        level:SetPoint("TOPRIGHT", spell, -4, 0)
+        level:SetPoint("BOTTOM", spell)
+        level:SetJustifyH("RIGHT"); level:SetJustifyV("MIDDLE")
+        subLabel:SetPoint("RIGHT", level, "LEFT")
+        subLabel:SetJustifyV("MIDDLE")
+
+        local header = row:CreateFontString("$parentHeader", "OVERLAY", "GameFontWhite")
+        header:SetAllPoints()
+        header:SetJustifyV("MIDDLE"); header:SetJustifyH("CENTER")
+
+        spell.label, spell.subLabel, spell.icon, spell.level = label, subLabel, icon, level
+        row.highlight, row.header, row.spell = highlight, header, spell
+
+        if rows[i - 1] == nil then
+            row:SetPoint("TOPLEFT", frame, 26, -78)
+        else
+            row:SetPoint("TOPLEFT", rows[i - 1], "BOTTOMLEFT", 0, -2)
+        end
+        row:SetPoint("RIGHT", scrollBar)
+        rows[i] = row
+    end
+    frame.rows = rows
+
+    -- repurpose a spare skill-line tab as our tab
+    local tab = _G["SpellBookSkillLineTab" .. SKILL_LINE_TAB]
     mod._tab = tab
 
-    -- clicking any real skill-line tab leaves our view
-    for i = 1, 8 do
-        local t = _G["SpellBookSkillLineTab" .. i]
-        if t and t.HookScript then t:HookScript("OnClick", function() if mod._listShown then setListShown(false) end end) end
+    local function onTabs()
+        if not tab then return end
+        if mod._enabled == false then
+            tab:Hide()
+            if SpellBookFrame.selectedSkillLine == SKILL_LINE_TAB then frame:Hide() end
+            return
+        end
+        tab:SetNormalTexture(TAB_ICON)
+        tab.tooltip = L.TAB_TEXT
+        tab:Show()
+        if SpellBookFrame.selectedSkillLine == SKILL_LINE_TAB then
+            tab:SetChecked(true)
+            frame:Show()
+            if ShowAllSpellRanksCheckbox then ShowAllSpellRanksCheckbox:Hide() end
+        else
+            tab:SetChecked(false)
+            frame:Hide()
+            local _, class = UnitClass("player")
+            if ShowAllSpellRanksCheckbox and class ~= "ROGUE" and class ~= "WARRIOR" then
+                ShowAllSpellRanksCheckbox:Show()
+            end
+        end
     end
-
-    local function refreshTab()
-        if not mod._tab then return end
-        local n = (GetNumSpellTabs and GetNumSpellTabs()) or 0
-        local anchor = n > 0 and _G["SpellBookSkillLineTab" .. n]
-        tab:ClearAllPoints()
-        if anchor then tab:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -22)
-        else tab:SetPoint("TOPRIGHT", SpellBookFrame, "TOPRIGHT", -2, -44) end
-        local onSpellPage = ((SpellBookFrame.bookType or "spell") == (BOOKTYPE_SPELL or "spell"))
-        tab:SetShown(onSpellPage and (mod._enabled ~= false))
-        if (not onSpellPage) and mod._listShown then setListShown(false) end
+    local function onUpdate()
+        if SpellBookFrame.bookType ~= SPELLBOOK_SPELL then
+            frame:Hide()
+        elseif mod._enabled ~= false and SpellBookFrame.selectedSkillLine == SKILL_LINE_TAB then
+            frame:Show()
+        end
     end
-    mod._refreshTab = refreshTab
-    if SpellBookFrame_UpdateSkillLineTabs then hooksecurefunc("SpellBookFrame_UpdateSkillLineTabs", refreshTab) end
-    if SpellBookFrame_Update then hooksecurefunc("SpellBookFrame_Update", refreshTab) end
-
-    SpellBookFrame:HookScript("OnShow", function() setListShown(false); refreshTab() end)
-    SpellBookFrame:HookScript("OnHide", function() setListShown(false) end)
-    refreshTab()
+    if SpellBookFrame.UpdateSkillLineTabs then hooksecurefunc(SpellBookFrame, "UpdateSkillLineTabs", onTabs) end
+    if SpellBookFrame.Update then hooksecurefunc(SpellBookFrame, "Update", onUpdate) end
 end
 
--- =========================================================
+local function cacheAllSpells()
+    local sbl = ns.VTData and ns.VTData.SpellsByLevel
+    if not sbl then return end
+    for level, spells in pairs(sbl) do
+        for _, spell in ipairs(spells) do
+            cacheSpell(spell, level, function(fromCache)
+                if not fromCache and mod._frame then rebuild() end
+            end)
+        end
+    end
+end
+
+-- ---------------------------------------------------------
 -- Lifecycle
--- =========================================================
+-- ---------------------------------------------------------
+local function onLevelOrLearn()
+    rebuild()
+end
+
 function mod:OnEnable()
-    ns:RegisterEvent("TRAINER_SHOW", scanTrainer)
-    buildUI()
-    if mod._refreshTab then mod._refreshTab() end
+    if not mod._built then
+        createFrame()
+        cacheAllSpells()
+        rebuild()
+        mod._built = true
+    end
+    ns:RegisterEvent("PLAYER_LEVEL_UP", onLevelOrLearn)
+    ns:RegisterEvent("LEARNED_SPELL_IN_SKILL_LINE", onLevelOrLearn)
+    ns:RegisterEvent("LEARNED_SPELL_IN_TAB", onLevelOrLearn)
+    if mod._tab and SpellBookFrame and SpellBookFrame.UpdateSkillLineTabs and SpellBookFrame:IsVisible() then
+        SpellBookFrame:UpdateSkillLineTabs()
+    end
 end
 
 function mod:OnDisable()
-    ns:UnregisterEvent("TRAINER_SHOW", scanTrainer)
-    setListShown(false)
+    ns:UnregisterEvent("PLAYER_LEVEL_UP", onLevelOrLearn)
+    ns:UnregisterEvent("LEARNED_SPELL_IN_SKILL_LINE", onLevelOrLearn)
+    ns:UnregisterEvent("LEARNED_SPELL_IN_TAB", onLevelOrLearn)
+    if mod._frame then mod._frame:Hide() end
     if mod._tab then mod._tab:Hide() end
 end
 
--- =========================================================
--- Options (just the on/off entry — the list lives in the spell book)
--- =========================================================
 function mod:GetOptions()
     return {
-        { type = "desc",
-          text = L["|cffaaaaaaAdds a tab to your spell book (the book icon on the side, below the spell schools) that lists the abilities you can still learn from your class trainer, grouped by level.|r"] },
-        { type = "desc",
-          text = L["|cffaaaaaaOpen your class trainer once to fill or refresh the list.|r"] },
+        { type = "desc", text = L.OPTION_DESC },
     }
 end
