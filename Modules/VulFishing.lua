@@ -19,10 +19,12 @@ local mod = ns:RegisterModule("vulfishing", {
         autoLoot     = true,   -- temp auto-loot while the bobber is out
         softInteract = true,   -- one-key reel via soft-target interact
         equipPole    = false,  -- auto-equip a fishing pole from bags
+        soundBoost   = false,  -- boost effect/master volume while fishing so the bite is clear
+        soundBG      = false,  -- also keep sound playing while the game is in the background
     },
 })
 
-local pairs, ipairs = pairs, ipairs
+local pairs, ipairs, wipe = pairs, ipairs, wipe
 
 -- ---------------------------------------------------------
 -- Localization
@@ -37,6 +39,9 @@ local L = {
     SOFT        = "One-key reel (soft-target interact)",
     SOFT_TT     = "While the bobber is out, the same key interacts with it to reel in. Needs soft-target interaction, which is enabled only while fishing and restored afterwards.",
     EQUIP       = "Auto-equip a fishing pole if none is worn",
+    SOUND       = "Boost fishing sound (hear the bite clearly)",
+    SOUND_TT    = "While the bobber is out, maxes effect + master volume and dims music/ambience so the splash is easy to hear. Restored when you reel in.",
+    SOUND_BG    = "Keep sound audible when the game is in the background",
     PRESS       = "Press the key for fishing  (ESC to cancel)",
     KEY_SET     = "Fishing key set to: %s",
     KEY_CLEARED = "Fishing key cleared.",
@@ -52,6 +57,9 @@ if GetLocale() == "deDE" then
     L.SOFT      = "Ein-Tasten-Einholen (Soft-Target)"
     L.SOFT_TT   = "Während der Bobber draußen ist, holt dieselbe Taste ihn ein. Braucht Soft-Target-Interaktion — wird nur beim Angeln aktiviert und danach wiederhergestellt."
     L.EQUIP     = "Angel automatisch anlegen, wenn keine ausgerüstet ist"
+    L.SOUND     = "Angel-Sound verstärken (Biss klar hören)"
+    L.SOUND_TT  = "Während der Bobber draußen ist, werden Effekt- + Master-Lautstärke maximiert und Musik/Ambiente abgesenkt, damit das Platschen gut hörbar ist. Wird beim Einholen wiederhergestellt."
+    L.SOUND_BG  = "Sound auch hörbar, wenn das Spiel im Hintergrund läuft"
     L.PRESS     = "Drücke die Taste fürs Angeln  (ESC = abbrechen)"
     L.KEY_SET   = "Angel-Taste gesetzt auf: %s"
     L.KEY_CLEARED = "Angel-Taste gelöscht."
@@ -74,6 +82,8 @@ local LURE_ENCHANTS = { [263] = true, [264] = true, [265] = true, [266] = true, 
 local FISHING_NAME = PROFESSIONS_FISHING or (GetSpellInfo and GetSpellInfo(7620)) or "Fishing"
 
 local FISH_CVARS = { SoftTargetInteract = "3", SoftTargetInteractRange = "15", SoftTargetInteractRangeIsHard = "0" }
+-- while fishing: max out effect + master volume and dim music/ambience so the bite stands out
+local SOUND_CVARS = { Sound_MasterVolume = "1", Sound_SFXVolume = "1", Sound_MusicVolume = "0", Sound_AmbienceVolume = "0" }
 
 -- ---------------------------------------------------------
 -- Secure binding owner + macro button
@@ -132,21 +142,24 @@ end
 -- Temp CVars (soft-target interact + auto-loot while fishing)
 -- ---------------------------------------------------------
 local cvarCache, cvarsActive = {}, false
+local function applyCVar(k, v)
+    if cvarCache[k] == nil then cvarCache[k] = GetCVar(k) end
+    SetCVar(k, v)
+end
 local function setFishCVars()
     if cvarsActive then return end
     cvarsActive = true
-    if mod.db.softInteract then
-        for k, v in pairs(FISH_CVARS) do cvarCache[k] = GetCVar(k); SetCVar(k, v) end
-    end
-    if mod.db.autoLoot then cvarCache.autoLootDefault = GetCVar("autoLootDefault"); SetCVar("autoLootDefault", "1") end
+    wipe(cvarCache)
+    if mod.db.softInteract then for k, v in pairs(FISH_CVARS) do applyCVar(k, v) end end
+    if mod.db.autoLoot then applyCVar("autoLootDefault", "1") end
+    if mod.db.soundBoost then for k, v in pairs(SOUND_CVARS) do applyCVar(k, v) end end
+    if mod.db.soundBG then applyCVar("Sound_EnableSoundWhenGameIsInBG", "1") end
 end
 local function restoreFishCVars()
     if not cvarsActive then return end
     cvarsActive = false
-    for k in pairs(FISH_CVARS) do
-        if cvarCache[k] ~= nil then SetCVar(k, cvarCache[k]); cvarCache[k] = nil end
-    end
-    if cvarCache.autoLootDefault ~= nil then SetCVar("autoLootDefault", cvarCache.autoLootDefault); cvarCache.autoLootDefault = nil end
+    for k, v in pairs(cvarCache) do if v ~= nil then SetCVar(k, v) end end
+    wipe(cvarCache)
 end
 
 -- ---------------------------------------------------------
@@ -322,5 +335,11 @@ function mod:GetOptions()
         { type = "toggle", label = L.EQUIP,
           get = function() return mod.db.equipPole end,
           set = function(_, v) mod.db.equipPole = v; actionHandler() end },
+        { type = "toggle", label = L.SOUND, tooltip = L.SOUND_TT,
+          get = function() return mod.db.soundBoost end,
+          set = function(_, v) mod.db.soundBoost = v end },
+        { type = "toggle", label = L.SOUND_BG,
+          get = function() return mod.db.soundBG end,
+          set = function(_, v) mod.db.soundBG = v end },
     }
 end
