@@ -113,24 +113,32 @@ end
 -- =========================================================
 -- Lifecycle
 -- =========================================================
-function mod:OnEnable()
-    installHooks()
-
-    ns:RegisterEvent("PLAYER_ENTERING_WORLD", function()
-        applyAll()
-        hideTargetBackground()
-        if C_Timer and C_Timer.After then
-            C_Timer.After(0, function() applyAll(); hideTargetBackground() end)
-            C_Timer.After(1, function() applyAll(); hideTargetBackground() end)
-        end
-    end)
-    ns:RegisterEvent("PLAYER_TARGET_CHANGED", function()
-        applyAll(); hideTargetBackground()
-    end)
-    ns:RegisterEvent("UNIT_PET", function() applyAll() end)
-
+-- named handlers so OnDisable can unregister them, and re-enable doesn't stack
+-- duplicate anonymous closures (ns:RegisterEvent doesn't dedupe)
+local function fbOnPEW()
     applyAll()
     hideTargetBackground()
+    if C_Timer and C_Timer.After then
+        C_Timer.After(0, function() applyAll(); hideTargetBackground() end)
+        C_Timer.After(1, function() applyAll(); hideTargetBackground() end)
+    end
+end
+local function fbOnTarget() applyAll(); hideTargetBackground() end
+local function fbOnPet() applyAll() end
+
+function mod:OnEnable()
+    installHooks()
+    ns:RegisterEvent("PLAYER_ENTERING_WORLD", fbOnPEW)
+    ns:RegisterEvent("PLAYER_TARGET_CHANGED", fbOnTarget)
+    ns:RegisterEvent("UNIT_PET", fbOnPet)
+    applyAll()
+    hideTargetBackground()
+end
+
+function mod:OnDisable()
+    ns:UnregisterEvent("PLAYER_ENTERING_WORLD", fbOnPEW)
+    ns:UnregisterEvent("PLAYER_TARGET_CHANGED", fbOnTarget)
+    ns:UnregisterEvent("UNIT_PET", fbOnPet)
 end
 
 -- =========================================================
