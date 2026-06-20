@@ -44,7 +44,7 @@ local locOverrides = {
         KNOWN         = "Bereits bekannt",
         LEVEL_FORMAT  = "Level %s",
         COST_FORMAT   = "Kosten: %s",
-        TAB_TEXT      = "Was kann ich Lernen?",
+        TAB_TEXT      = "Was kann ich lernen?",
         NO_RESULTS    = "Keine Ergebnisse gefunden",
         OPTION_DESC   = "|cffaaaaaaFügt deinem Zauberbuch einen Tab hinzu (das Buch-Symbol an der Seite, unter den Zauberschulen), der alle noch beim Klassenlehrer lernbaren Fähigkeiten auflistet — nach Status gruppiert und nach Stufe gefärbt. Kein Lehrerbesuch nötig.|r",
     },
