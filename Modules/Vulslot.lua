@@ -156,12 +156,21 @@ local function restoreSlot(slot, saved, counts)
 end
 
 local function restoreBindings(list)
-    local n = 0
-    for _, b in ipairs(list or {}) do
-        -- exact restore for this command: drop its current keys first
+    list = list or {}
+    -- Pass 1 (free): clear each managed command's CURRENT keys *and* every key the
+    -- snapshot wants — whoever currently holds it. This makes the restore exact
+    -- and order-independent: nothing foreign keeps a snapshot key, and no managed
+    -- command keeps a stale extra key. (Keys outside the snapshot are left alone.)
+    for _, b in ipairs(list) do
         local c1, c2 = GetBindingKey(b.command)
         if c1 then SetBinding(c1) end
         if c2 then SetBinding(c2) end
+        if b.k1 then SetBinding(b.k1) end
+        if b.k2 then SetBinding(b.k2) end
+    end
+    -- Pass 2 (bind): apply the snapshot's key -> command map onto the now-free keys
+    local n = 0
+    for _, b in ipairs(list) do
         if b.k1 then SetBinding(b.k1, b.command) end
         if b.k2 then SetBinding(b.k2, b.command) end
         n = n + 1
