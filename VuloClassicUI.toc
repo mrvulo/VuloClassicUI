@@ -73,6 +73,7 @@ Modules\QuestLog.lua
 Modules\ProfessionWindow.lua
 Modules\DisenchantQueue.lua
 Modules\Pages.lua
+Modules\VulTraining.lua
 Modules\VTManaDisplay.lua
 # Per-class data files — plug into the Class Specific module above
 Modules\Classes\Priest.lua

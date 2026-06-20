@@ -712,6 +712,14 @@ ns:RegisterLocale("deDE", {
     ["Auto-closes trade windows opened by players who are not in your guild or on your friends list. Trades you start yourself are not affected."] = "Schließt Handelsfenster automatisch, die von Spielern geöffnet werden, die nicht in deiner Gilde oder auf deiner Freundesliste sind. Selbst gestartete Trades sind nicht betroffen.",
     ["|cffffd200[QoL]|r Blocked group invite from %s (not guild/friend)."] = "|cffffd200[QoL]|r Gruppen-Einladung von %s geblockt (nicht Gilde/Freund).",
     ["|cffffd200[QoL]|r Blocked trade from %s (not guild/friend)."] = "|cffffd200[QoL]|r Handel von %s geblockt (nicht Gilde/Freund).",
+
+    -- VulTraining
+    ["Lists the abilities you can still learn from your class trainer, grouped by level. Open your trainer once to fill / refresh the list."] = "Listet die Fähigkeiten auf, die du noch bei deinem Klassenlehrer lernen kannst, nach Stufe gruppiert. Öffne einmal deinen Lehrer, um die Liste zu füllen / zu aktualisieren.",
+    ["|cffaaaaaaAbilities you can still learn from your class trainer. Open your trainer once to fill or refresh this list.|r"] = "|cffaaaaaaFähigkeiten, die du noch bei deinem Klassenlehrer lernen kannst. Öffne einmal deinen Lehrer, um diese Liste zu füllen oder zu aktualisieren.|r",
+    ["|cffffd200No data yet — open your class trainer once.|r"] = "|cffffd200Noch keine Daten — öffne einmal deinen Klassenlehrer.|r",
+    ["Available now"] = "Jetzt verfügbar",
+    ["Upcoming"] = "Demnächst",
+    ["|cff9b6cffLevel %d|r"] = "|cff9b6cffStufe %d|r",
     ["|cffffffffPOWER BAR|r\n|cffaaaaaaDrag or arrow keys|r"] = "|cffffffffRESSOURCENLEISTE|r\n|cffaaaaaaZiehen oder Pfeiltasten|r",
     ["Power Bar mover active. |cff9b6cffDrag the purple box|r or use |cff9b6cffarrow keys|r (SHIFT = 5px). Click 'Unlock / Move' again to finish."] = "Ressourcenleiste-Mover aktiv. |cff9b6cffZiehe das lila Kästchen|r oder nutze die |cff9b6cffPfeiltasten|r (SHIFT = 5px). Klicke erneut auf 'Entsperren / Bewegen' zum Beenden.",
     ["Power Bar mover disabled."] = "Ressourcenleiste-Mover deaktiviert.",
