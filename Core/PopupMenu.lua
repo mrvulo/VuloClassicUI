@@ -122,11 +122,17 @@ function ns:ShowPopupMenu(entries, anchor)
                 btn:EnableMouse(true)
                 btn._clickable = true
                 btn:RegisterForClicks("LeftButtonUp")
-                local fn       = entry.func
-                local keepOpen = entry.keepOpen
+                local fn        = entry.func
+                local keepOpen  = entry.keepOpen
+                local checkedFn = entry.checked
                 btn:SetScript("OnClick", function()
                     if not keepOpen then menu:Hide() end
                     if fn then fn() end
+                    -- keepOpen items must re-evaluate their checkmark in place
+                    if keepOpen and checkedFn then
+                        local ok, isChecked = pcall(checkedFn)
+                        btn.check:SetShown(ok and isChecked)
+                    end
                 end)
             end
             -- Checkmark
@@ -163,10 +169,12 @@ function ns:ShowPopupMenu(entries, anchor)
         menu:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
     end
 
-    -- Toggle: clicking same anchor again closes
-    if menu:IsShown() then
+    -- Toggle: clicking the SAME anchor again closes; a different anchor moves it
+    if menu:IsShown() and menu._openAnchor == anchor then
         menu:Hide()
+        menu._openAnchor = nil
     else
+        menu._openAnchor = anchor
         menu:Show()
     end
 end

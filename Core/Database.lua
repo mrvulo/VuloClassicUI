@@ -256,11 +256,15 @@ function ns:GetMyClassKey() return getClassKey() end
 function ns:MigrateLegacyDBs()
     if ns.db.global.migratedLegacy then return end
 
-    local defaultProfile = VuloClassicUIDB.profiles[DEFAULT_PROFILE]
+    -- Import into the ACTIVE profile (the one the player is actually on, and
+    -- that every mod.db is linked to) — not the hard-coded Default, which the
+    -- live modules may never load. Runs after LoadProfile, so ns.db.profile is set.
+    local target = ns.db and ns.db.profile
+    if not target or not target.modules then return end
 
     if VuloFontBarsDB and ns.modules.fontbars then
         local src = VuloFontBarsDB
-        local dst = defaultProfile.modules.fontbars
+        local dst = target.modules.fontbars
         if src.healthSize      then dst.healthSize      = src.healthSize end
         if src.powerSize       then dst.powerSize       = src.powerSize end
         if src.petFeedbackSize then dst.petFeedbackSize = src.petFeedbackSize end
@@ -270,7 +274,7 @@ function ns:MigrateLegacyDBs()
 
     if ArenaEnemyEditDB and ns.modules.arenaframes then
         local src = ArenaEnemyEditDB
-        local dst = defaultProfile.modules.arenaframes
+        local dst = target.modules.arenaframes
         if src.pos        then dst.pos        = src.pos end
         if src.scale      then dst.scale      = src.scale end
         if src.healthSize then dst.healthSize = src.healthSize end
@@ -280,7 +284,7 @@ function ns:MigrateLegacyDBs()
 
     if BetterBlizzQueueDB and ns.modules.queuetimer then
         local src = BetterBlizzQueueDB
-        local dst = defaultProfile.modules.queuetimer
+        local dst = target.modules.queuetimer
         if src.queueTimerAudio   ~= nil then dst.queueTimerAudio   = src.queueTimerAudio end
         if src.queueTimerWarning ~= nil then dst.queueTimerWarning = src.queueTimerWarning end
         if src.hideOtherTimers   ~= nil then dst.hideOtherTimers   = src.hideOtherTimers end
@@ -289,7 +293,7 @@ function ns:MigrateLegacyDBs()
 
     if idTipConfig and ns.modules.tooltipids then
         local src = idTipConfig
-        local dst = defaultProfile.modules.tooltipids
+        local dst = target.modules.tooltipids
         if src.enabled ~= nil then dst.enabled = src.enabled end
         local idTipKinds = ns.modules.tooltipids.kinds
         if idTipKinds then

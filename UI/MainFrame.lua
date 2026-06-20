@@ -263,6 +263,7 @@ function UI:CreateMainFrame()
         query = query:lower()
         local results = {}
         for _, key in ipairs(ns.moduleOrder or {}) do
+            if #results >= 20 then break end   -- stop scanning further modules once full
             local m = ns.modules[key]
             -- Skip page members: their options are indexed once via their page.
             if m and m.GetOptions and not m._pageMember then
@@ -279,11 +280,11 @@ function UI:CreateMainFrame()
                             for _, item in ipairs(list) do
                                 local label = (item.label or item.text or ""):lower()
                                 if label ~= "" and label:find(query, 1, true) then
+                                    if #results >= 20 then return true end
                                     table.insert(results, {
                                         modName = L[m.name], modKey = key,
                                         tabId = tid, label = item.label or item.text,
                                     })
-                                    if #results >= 20 then return true end
                                 end
                                 if item.items then
                                     if scan(item.items) then return true end

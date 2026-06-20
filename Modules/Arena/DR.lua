@@ -173,11 +173,18 @@ local function updateDRDisplay(unit)
         icon:ClearAllPoints()
         icon:SetPoint("LEFT", container, "LEFT", x, 0)
 
-        -- Texture: first registered spell of the category
-        for spellId, cat in pairs(DR_SPELLS) do
-            if cat == entry.cat then
-                local _, _, iconTex = GetSpellInfo(spellId)
-                if iconTex then icon.icon:SetTexture(iconTex); break end
+        -- Texture: resolved once per icon from a cached category->spell map,
+        -- instead of rescanning DR_SPELLS + GetSpellInfo every 0.5s tick
+        if not icon._texSet then
+            mod._drCatFirst = mod._drCatFirst or (function()
+                local t = {}
+                for sid, c in pairs(DR_SPELLS) do if not t[c] then t[c] = sid end end
+                return t
+            end)()
+            local sid = mod._drCatFirst[entry.cat]
+            if sid then
+                local _, _, iconTex = GetSpellInfo(sid)
+                if iconTex then icon.icon:SetTexture(iconTex); icon._texSet = true end
             end
         end
 

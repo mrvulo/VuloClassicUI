@@ -65,7 +65,11 @@ function ns:ApplyDefaults(target, defaults)
     if type(target) ~= "table" then target = {} end
     for k, v in pairs(defaults) do
         if type(v) == "table" then
-            target[k] = ns:ApplyDefaults(target[k], v)
+            -- only recurse into a table/nil slot; never clobber a saved scalar
+            -- with a fresh table (would silently drop the user's value)
+            if target[k] == nil or type(target[k]) == "table" then
+                target[k] = ns:ApplyDefaults(target[k], v)
+            end
         elseif target[k] == nil then
             target[k] = v
         end

@@ -25,7 +25,9 @@ local CLASS_ICON_TCOORDS = CLASS_ICON_TCOORDS or {
     ["DEMONHUNTER"] = { 0.73, 0.97, 0.5,  0.75 },
 }
 
-local CLASS_ICON_TEXTURE = "Interface\\WorldStateFrame\\Icons-Classes"
+-- This atlas is the one CLASS_ICON_TCOORDS is cut for (the WorldStateFrame
+-- texture uses a different grid, which offset every class symbol).
+local CLASS_ICON_TEXTURE = "Interface\\Glues\\CharacterCreate\\UI-CharacterCreate-Classes"
 
 -- =========================================================
 -- Get class color

@@ -244,7 +244,10 @@ function UI:ShowDashboard()
         local m = ns.modules[key]
         if m and not (HIDDEN_GROUPS[m.group or "Core"]) and not m.noToggle then
             total = total + 1
-            if (m.toggleGet and m.toggleGet()) or ns:IsModuleEnabled(key) then active = active + 1 end
+            -- mirror the card's exclusive logic: a custom toggleGet wins outright
+            local enabled
+            if m.toggleGet then enabled = m.toggleGet() else enabled = ns:IsModuleEnabled(key) end
+            if enabled then active = active + 1 end
         end
     end
     cont.summary:SetText(string.format(L["%d of %d modules active"], active, total))

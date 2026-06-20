@@ -131,6 +131,7 @@ local function startCast(unit, channeling)
         cb:SetStatusBarColor(1.0, 0.7, 0.0)
     end
 
+    cb._hideToken = (cb._hideToken or 0) + 1   -- invalidate any pending interrupt-hide
     cb:Show()
     cb:SetScript("OnUpdate", castbarOnUpdate)
 end
@@ -145,8 +146,11 @@ local function stopCast(unit, interrupted)
     if interrupted then
         cb:SetStatusBarColor(1, 0, 0)
         cb.text:SetText(L["INTERRUPTED"])
+        cb._hideToken = (cb._hideToken or 0) + 1
+        local token = cb._hideToken
         if C_Timer and C_Timer.After then
-            C_Timer.After(0.7, function() cb:Hide() end)
+            -- only hide if no new cast started in the meantime (token still ours)
+            C_Timer.After(0.7, function() if cb._hideToken == token then cb:Hide() end end)
         else
             cb:Hide()
         end
