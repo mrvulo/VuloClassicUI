@@ -118,8 +118,9 @@ local function onUpdate(elapsed)
             setExpiresText(GetBattlefieldPortExpiration(bgId), PVPReadyDialog, true)
             updateFrame.timer = 1
         end
-    elseif proposalTimeLeft then
-        proposalTimeLeft = proposalTimeLeft - elapsed
+    elseif proposalTimeLeft and pveQueuePopTime then
+        -- derive from the fixed start time instead of decrementing per frame
+        proposalTimeLeft = 40 - (GetTime() - pveQueuePopTime)
         if mod.db.queueTimerWarning then
             if proposalTimeLeft <= 6 and not soundPlayed then
                 PlaySoundFile(567458, "master")
@@ -128,7 +129,11 @@ local function onUpdate(elapsed)
                 soundPlayed = true
             end
         end
-        if proposalTimeLeft <= 0 then proposalTimeLeft = 40 end
+        if proposalTimeLeft <= 0 then
+            -- window elapsed: restart the display loop from now
+            pveQueuePopTime = GetTime()
+            proposalTimeLeft = 40
+        end
         setExpiresText(proposalTimeLeft, LFGDungeonReadyDialog)
     end
 end
@@ -155,26 +160,27 @@ end
 local function handleDungeonReadyDialog()
     local proposalExists, _, _, _, _, _, _, hasResponded = GetLFGProposal()
     if proposalExists and not hasResponded then
-        if not pveQueuePopTime then
-            proposalTimeLeft = 40
-        else
-            local timeElapsed = GetTime() - pveQueuePopTime
-            proposalTimeLeft = proposalTimeLeft - timeElapsed
-            if proposalTimeLeft < 0 or proposalTimeLeft > 40 then proposalTimeLeft = 40 end
-        end
+        -- pveQueuePopTime is the single fixed start time; remaining time is
+        -- DERIVED from it (onUpdate reads the same source), so a re-fired
+        -- LFG_PROPOSAL_SHOW no longer subtracts the elapsed window a 2nd time.
+        local firstShow = not pveQueuePopTime
+        if firstShow then pveQueuePopTime = GetTime() end
 
+        proposalTimeLeft = 40 - (GetTime() - pveQueuePopTime)
+        if proposalTimeLeft < 0 then proposalTimeLeft = 0 end
         setExpiresText(proposalTimeLeft, LFGDungeonReadyDialog)
         isPveQueueActive = true
         startUpdateFrame()
-        pveQueuePopTime = GetTime()
 
-        if dungeonQueuedTime then
-            local timeWaited = GetTime() - dungeonQueuedTime
-            printMsg(timeWaited < 1 and L["Dungeon queue popped instantly!"] or format(L["Dungeon queue popped after %s"], SecondsToTime(timeWaited)))
-        else
-            printMsg(L["Dungeon queue popped."])
+        if firstShow then
+            if dungeonQueuedTime then
+                local timeWaited = GetTime() - dungeonQueuedTime
+                printMsg(timeWaited < 1 and L["Dungeon queue popped instantly!"] or format(L["Dungeon queue popped after %s"], SecondsToTime(timeWaited)))
+            else
+                printMsg(L["Dungeon queue popped."])
+            end
+            dungeonQueuedTime = nil
         end
-        dungeonQueuedTime = nil
     end
 end
 
