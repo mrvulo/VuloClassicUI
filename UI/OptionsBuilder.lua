@@ -381,6 +381,10 @@ placeItem = function(parent, item, y)
         local yOff = y
         if item.type == "slider" then
             yOff = y - 14
+            -- stretch the track across the card, leaving room for the ± value
+            -- stepper that sits to the right of the slider frame (~100px)
+            widget:SetWidth(math.max(120, availW - 130 - nIcons * 21))
+            if widget._updateFill then widget._updateFill(widget:GetValue() or 0) end
         else
             -- fill the row up to the icon cluster so the control right-aligns
             widget:SetWidth(math.max(120, availW - 20 - nIcons * 21))
