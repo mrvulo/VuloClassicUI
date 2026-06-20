@@ -88,8 +88,9 @@ local function installPatch()
             return
         end
 
-        -- Pass other errors through
-        error(errText)
+        -- Pass other errors through (level 0: keep the original message/location
+        -- instead of re-stamping this wrapper's file:line onto a Blizzard error)
+        error(errText, 0)
     end
 
     wrappedAlready = true
@@ -104,9 +105,10 @@ function mod:OnEnable()
     if not installFrame then
         installFrame = CreateFrame("Frame")
         installFrame:RegisterEvent("ADDON_LOADED")
-        installFrame:SetScript("OnEvent", function(_, _, addonName)
+        installFrame:SetScript("OnEvent", function(self, _, addonName)
             if addonName == "Blizzard_Communities" then
                 installPatch()
+                self:UnregisterEvent("ADDON_LOADED")  -- one-shot; don't keep listening
             end
         end)
     end

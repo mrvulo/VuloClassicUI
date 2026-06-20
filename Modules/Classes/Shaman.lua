@@ -707,6 +707,13 @@ local function applyPending()
     end
 end
 
+-- named upvalue so it can actually be unregistered (Events.lua matches by
+-- identity; an inline closure would leak + keep firing after disable)
+local function onSpellsChanged()
+    applyButtonSpells()
+    rebuildFlyouts()
+end
+
 local function onEnable()
     ensureDB()
     build()
@@ -714,7 +721,7 @@ local function onEnable()
     ns:RegisterEvent("PLAYER_TOTEM_UPDATE",   learnActiveTotems)
     ns:RegisterEvent("PLAYER_ENTERING_WORLD", refresh)
     ns:RegisterEvent("PLAYER_REGEN_ENABLED",  applyPending)
-    ns:RegisterEvent("SPELLS_CHANGED",        function() applyButtonSpells(); rebuildFlyouts() end)
+    ns:RegisterEvent("SPELLS_CHANGED",        onSpellsChanged)
     learnActiveTotems()
     refresh()
     rebuildFlyouts()  -- pre-build so the picker also works in combat
@@ -724,6 +731,7 @@ local function onDisable()
     ns:UnregisterEvent("PLAYER_TOTEM_UPDATE",   learnActiveTotems)
     ns:UnregisterEvent("PLAYER_ENTERING_WORLD", refresh)
     ns:UnregisterEvent("PLAYER_REGEN_ENABLED",  applyPending)
+    ns:UnregisterEvent("SPELLS_CHANGED",        onSpellsChanged)
     if container then
         container:SetScript("OnUpdate", nil)
         if container.mover then container.mover:Hide() end

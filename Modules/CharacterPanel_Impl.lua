@@ -197,7 +197,7 @@ local function ProcessEnchantText(enchantText)
 	-- Only abbreviate when the "shorten enchant text" toggle is on
 	if cpOpt("shortenEnchants", true) then
 		for _, seek in ipairs(enchantOrder) do
-			enchantText = enchantText:gsub(seek, enchantReplacementTable[seek])
+			enchantText = enchantText:gsub((seek:gsub("(%W)", "%%%1")), enchantReplacementTable[seek])
 		end
 	end
 

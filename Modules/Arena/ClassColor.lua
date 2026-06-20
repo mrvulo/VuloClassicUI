@@ -186,7 +186,9 @@ mod:AddOptionsSection("classcolor", function()
             get = function() return mod.db.classColorHealth end,
             set = function(_, v)
                 mod.db.classColorHealth = v
-                if v then applyAll() else restoreAll() end
+                -- blanket-restore then re-apply still-enabled features, so
+                -- turning one toggle off no longer clobbers the others
+                if v then applyAll() else restoreAll(); applyAll() end
             end,
         },
         {
@@ -200,7 +202,9 @@ mod:AddOptionsSection("classcolor", function()
             get = function() return mod.db.classIconPortrait end,
             set = function(_, v)
                 mod.db.classIconPortrait = v
-                if v then applyAll() else restoreAll() end
+                -- blanket-restore then re-apply still-enabled features, so
+                -- turning one toggle off no longer clobbers the others
+                if v then applyAll() else restoreAll(); applyAll() end
             end,
         },
     }

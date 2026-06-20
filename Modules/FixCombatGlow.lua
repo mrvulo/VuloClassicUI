@@ -58,7 +58,7 @@ end
 local function update()
     local g = ensureGlow()
     if not g then return end
-    if mod._enabled and UnitAffectingCombat and UnitAffectingCombat("player") then
+    if UnitAffectingCombat and UnitAffectingCombat("player") then
         g:Show()
         if g.anim then g.anim:Play() end
     else

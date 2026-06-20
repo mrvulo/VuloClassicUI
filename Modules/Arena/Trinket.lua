@@ -16,7 +16,8 @@ local TRINKET_SPELLS = {
     [42292] = 120,  -- PvP Trinket (Gladiator/Arena/Honor)
     [7744]  = 120,  -- Will of the Forsaken (Undead)
     [59752] = 120,  -- Will to Survive / Every Man for Himself (Human, retail)
-    [20594] = 120,  -- Stoneform (Dwarf) - actually Bleed/Disease/Poison removal, but shares CD-like
+    -- NOTE: Stoneform (20594) is a Dwarf racial that does NOT share the PvP
+    -- trinket cooldown, so it must not be tracked here (false trinket display).
 }
 
 -- Icons for the trinkets (atlas doesn't work everywhere in TBC, so TexturePath)

@@ -876,8 +876,10 @@ local function onUnitAura(_, unit)
     if unit == "player" then refreshAll() end
 end
 
-local function onCombat(_, event)
-    inCombat = (event == "PLAYER_REGEN_DISABLED")
+local function onCombat()
+    -- Read live combat state, not the event arg: ns:RegisterEvent dispatches
+    -- (event, ...) so the old `(_, event)` put the name in `_` and left event nil.
+    inCombat = not not UnitAffectingCombat("player")
     refreshAll()
 end
 

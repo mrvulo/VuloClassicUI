@@ -58,8 +58,9 @@ local function installPatch()
             return
         end
 
-        -- Pass other errors through so BugSack & co. see them
-        error(errText)
+        -- Pass other errors through so BugSack & co. see them (level 0: keep the
+        -- original message/location, don't re-stamp this wrapper's file:line)
+        error(errText, 0)
     end
 
     wrappedAlready = true
