@@ -78,10 +78,10 @@ Modules\VTManaDisplay.lua
 # Per-class data files — plug into the Class Specific module above
 Modules\Classes\Priest.lua
 Modules\Classes\Warlock.lua
+Modules\Classes\Shaman.lua
 Modules\LazyVulo.lua
 Modules\Vulslot.lua
 Modules\CooldownManager.lua
-Modules\ShamanTotems.lua
 Modules\CombatText.lua
 Modules\Loadouts.lua
 Modules\SlotPicker.lua

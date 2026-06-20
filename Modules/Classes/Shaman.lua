@@ -1,7 +1,8 @@
 -- =========================================================
--- VuloClassicUI / Modules / ShamanTotems
--- Shaman totem bar — plugs into the "Class Specific" module (Shaman tab).
--- Like TotemTimer but cleaner / easier to configure:
+-- VuloClassicUI / Modules / Classes / Shaman
+-- Shaman-specific code for the "Class Specific" module (Shaman tab) — the
+-- counterpart to Classes/Priest and Classes/Warlock. Where those contribute
+-- DoT data, the Shaman registers a full class tool: a totem bar.
 --   * timer bars or icons for the 4 elements (Fire/Earth/Water/Air)
 --   * the icons are clickable SECURE buttons -> one click recasts the totem
 --   * totems are learned automatically from what you cast (per element)

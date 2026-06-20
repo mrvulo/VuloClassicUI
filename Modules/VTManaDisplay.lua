@@ -64,7 +64,7 @@ mod.tabs = {
     { id = "warrior", label = "Warrior" },
 }
 
--- Pluggable per-class tools. Other files (e.g. ShamanTotems) register here,
+-- Pluggable per-class tools. Other files (e.g. Classes/Shaman) register here,
 -- keyed by class token ("SHAMAN"). Each tool: { onEnable, onDisable, getOptions }.
 mod.classTools = {}
 function mod:RegisterClassTool(classToken, def)
@@ -771,7 +771,7 @@ end
 -- =========================================================
 -- Options
 -- =========================================================
-local CLASS_NAME = { PRIEST = L["Priest"], WARLOCK = L["Warlock"] }
+local CLASS_NAME = { PRIEST = L["Priest"], WARLOCK = L["Warlock"], SHAMAN = L["Shaman"] }
 
 -- Shared DoT-tracker options, built for a specific class' DoT set. Used by
 -- both the Priest and Warlock tabs. The tracker only RUNS for the player's
