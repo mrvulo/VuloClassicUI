@@ -1,0 +1,326 @@
+-- =========================================================
+-- VuloClassicUI / Modules / VulFishing
+-- One-key fishing. A single chosen key dynamically casts Fishing, reels in the
+-- bobber (soft-target interact), and applies a lure when one is missing — all
+-- via override bindings on a secure button, so it stays taint-safe. While the
+-- bobber is out it temporarily enables soft-target interaction + auto-loot.
+-- Registered as a QoL sub-module.
+-- =========================================================
+local _, ns = ...
+
+local mod = ns:RegisterModule("vulfishing", {
+    name        = "Fishing",
+    group       = "QoL",
+    description = "One-key fishing: one key casts, reels and applies a lure, and auto-loots your catch.",
+    defaults = {
+        enabled      = true,
+        key          = "",     -- chosen key token, e.g. "BUTTON4" or "SHIFT-F"
+        lure         = true,   -- auto-apply a lure when missing
+        autoLoot     = true,   -- temp auto-loot while the bobber is out
+        softInteract = true,   -- one-key reel via soft-target interact
+        equipPole    = false,  -- auto-equip a fishing pole from bags
+    },
+})
+
+local pairs, ipairs = pairs, ipairs
+
+-- ---------------------------------------------------------
+-- Localization
+-- ---------------------------------------------------------
+local L = {
+    DESC        = "|cffaaaaaaOne key does it all: cast, reel in, and apply a lure — then auto-loots. Set a key below, face some water, and press it.|r",
+    SET_KEY     = "Set fishing key",
+    KEY_IS      = "Fishing key: %s  —  click to change",
+    CLEAR_KEY   = "Clear key",
+    LURE        = "Auto-apply a lure when the pole has none",
+    AUTOLOOT    = "Auto-loot while fishing",
+    SOFT        = "One-key reel (soft-target interact)",
+    SOFT_TT     = "While the bobber is out, the same key interacts with it to reel in. Needs soft-target interaction, which is enabled only while fishing and restored afterwards.",
+    EQUIP       = "Auto-equip a fishing pole if none is worn",
+    PRESS       = "Press the key for fishing  (ESC to cancel)",
+    KEY_SET     = "Fishing key set to: %s",
+    KEY_CLEARED = "Fishing key cleared.",
+    IN_COMBAT   = "Can't change the fishing key in combat.",
+}
+if GetLocale() == "deDE" then
+    L.DESC      = "|cffaaaaaaEine Taste macht alles: auswerfen, einholen und Köder anlegen — danach Auto-Plündern. Unten eine Taste festlegen, aufs Wasser schauen, drücken.|r"
+    L.SET_KEY   = "Angel-Taste festlegen"
+    L.KEY_IS    = "Angel-Taste: %s  —  zum Ändern klicken"
+    L.CLEAR_KEY = "Taste löschen"
+    L.LURE      = "Köder automatisch anlegen, wenn die Angel keinen hat"
+    L.AUTOLOOT  = "Auto-Plündern während des Angelns"
+    L.SOFT      = "Ein-Tasten-Einholen (Soft-Target)"
+    L.SOFT_TT   = "Während der Bobber draußen ist, holt dieselbe Taste ihn ein. Braucht Soft-Target-Interaktion — wird nur beim Angeln aktiviert und danach wiederhergestellt."
+    L.EQUIP     = "Angel automatisch anlegen, wenn keine ausgerüstet ist"
+    L.PRESS     = "Drücke die Taste fürs Angeln  (ESC = abbrechen)"
+    L.KEY_SET   = "Angel-Taste gesetzt auf: %s"
+    L.KEY_CLEARED = "Angel-Taste gelöscht."
+    L.IN_COMBAT = "Angel-Taste kann im Kampf nicht geändert werden."
+end
+
+-- ---------------------------------------------------------
+-- Data
+-- ---------------------------------------------------------
+local FISHING_POLES = {
+    [6256] = true, [6365] = true, [6366] = true, [6367] = true, [12225] = true,
+    [19022] = true, [19970] = true, [25978] = true,
+}
+local FISHING_SPELLS = {
+    [7620] = true, [7731] = true, [7732] = true, [18248] = true, [33095] = true,
+}
+-- best -> worst, by fishing bonus
+local LURES = { 6533, 6532, 7307, 6811, 6530, 6529 }
+local LURE_ENCHANTS = { [263] = true, [264] = true, [265] = true, [266] = true, [3868] = true, [4225] = true }
+local FISHING_NAME = PROFESSIONS_FISHING or (GetSpellInfo and GetSpellInfo(7620)) or "Fishing"
+
+local FISH_CVARS = { SoftTargetInteract = "3", SoftTargetInteractRange = "15", SoftTargetInteractRangeIsHard = "0" }
+
+-- ---------------------------------------------------------
+-- Secure binding owner + macro button
+-- ---------------------------------------------------------
+local owner = CreateFrame("Frame", "VulFishOwner", UIParent)
+local macroBtn = CreateFrame("Button", "VulFishMacroButton", UIParent, "SecureActionButtonTemplate")
+macroBtn:SetAttribute("type", "macro")
+macroBtn:RegisterForClicks("AnyUp", "AnyDown")
+
+local midFishing = false
+
+-- ---------------------------------------------------------
+-- Helpers
+-- ---------------------------------------------------------
+local function isFishingSpell(spellID)
+    if FISHING_SPELLS[spellID] then return true end
+    local n = spellID and GetSpellInfo(spellID)
+    return n ~= nil and n == FISHING_NAME
+end
+
+local function poleEquipped()
+    local id = GetInventoryItemID("player", 16)
+    return id ~= nil and FISHING_POLES[id] == true
+end
+
+local function poleInBags()
+    for bag = 0, 4 do
+        local slots = GetContainerNumSlots and GetContainerNumSlots(bag) or 0
+        for slot = 1, slots do
+            local id = GetContainerItemID and GetContainerItemID(bag, slot)
+            if id and FISHING_POLES[id] then
+                local name = GetItemInfo(id)
+                if name then return name end
+            end
+        end
+    end
+end
+
+local function hasLure()
+    local has, _, _, enchID = GetWeaponEnchantInfo()
+    if not has then return false end
+    if enchID == nil then return true end         -- can't read id: assume the pole enchant is a lure
+    return LURE_ENCHANTS[enchID] == true
+end
+
+local function bestOwnedLure()
+    for _, id in ipairs(LURES) do
+        if (GetItemCount and GetItemCount(id) or 0) > 0 then
+            local name = GetItemInfo(id)
+            if name then return name end
+        end
+    end
+end
+
+-- ---------------------------------------------------------
+-- Temp CVars (soft-target interact + auto-loot while fishing)
+-- ---------------------------------------------------------
+local cvarCache, cvarsActive = {}, false
+local function setFishCVars()
+    if cvarsActive then return end
+    cvarsActive = true
+    if mod.db.softInteract then
+        for k, v in pairs(FISH_CVARS) do cvarCache[k] = GetCVar(k); SetCVar(k, v) end
+    end
+    if mod.db.autoLoot then cvarCache.autoLootDefault = GetCVar("autoLootDefault"); SetCVar("autoLootDefault", "1") end
+end
+local function restoreFishCVars()
+    if not cvarsActive then return end
+    cvarsActive = false
+    for k in pairs(FISH_CVARS) do
+        if cvarCache[k] ~= nil then SetCVar(k, cvarCache[k]); cvarCache[k] = nil end
+    end
+    if cvarCache.autoLootDefault ~= nil then SetCVar("autoLootDefault", cvarCache.autoLootDefault); cvarCache.autoLootDefault = nil end
+end
+
+-- ---------------------------------------------------------
+-- Action handler: pick what the key does right now
+-- ---------------------------------------------------------
+local function chosenKey()
+    return (mod.db.key ~= "" and mod.db.key) or nil
+end
+
+local function actionHandler()
+    if InCombatLockdown() then return end
+    local k = chosenKey()
+    if not k then ClearOverrideBindings(owner); return end
+    if IsKeyDown(k) then return end          -- never rebind while the key is held
+    ClearOverrideBindings(owner)
+    if UnitIsDeadOrGhost("player") then return end
+
+    -- reel in while a bobber is out
+    if midFishing then
+        if mod.db.softInteract then
+            SetOverrideBinding(owner, true, k, "INTERACTMOUSEOVER")
+        else
+            SetOverrideBindingSpell(owner, true, k, FISHING_NAME)
+        end
+        return
+    end
+
+    -- equip a pole if asked and none is worn
+    if mod.db.equipPole and not poleEquipped() then
+        local pole = poleInBags()
+        if pole then
+            macroBtn:SetAttribute("macrotext", "/equip " .. pole)
+            SetOverrideBindingClick(owner, true, k, "VulFishMacroButton")
+            return
+        end
+    end
+
+    -- apply a lure if missing
+    if mod.db.lure and not hasLure() then
+        local lure = bestOwnedLure()
+        if lure then
+            macroBtn:SetAttribute("macrotext", "/use " .. lure .. "\n/use 16")
+            SetOverrideBindingClick(owner, true, k, "VulFishMacroButton")
+            return
+        end
+    end
+
+    -- default: cast
+    SetOverrideBindingSpell(owner, true, k, FISHING_NAME)
+end
+mod._apply = actionHandler
+
+-- ---------------------------------------------------------
+-- Throttled re-evaluation (reacts to lure applied, pole swapped, etc.)
+-- ---------------------------------------------------------
+local accum = 0
+owner:SetScript("OnUpdate", function(_, elapsed)
+    if not mod._enabled or not mod.db then return end
+    accum = accum + elapsed
+    if accum < 0.3 then return end
+    accum = 0
+    if chosenKey() then actionHandler() end
+end)
+
+-- ---------------------------------------------------------
+-- Events
+-- ---------------------------------------------------------
+local function onChannelStart(_, unit, _, spellID)
+    if unit ~= "player" or not isFishingSpell(spellID) then return end
+    midFishing = true
+    setFishCVars()
+    actionHandler()
+end
+local function onChannelStop(_, unit, _, spellID)
+    if unit ~= "player" or not isFishingSpell(spellID) then return end
+    midFishing = false
+    restoreFishCVars()
+    actionHandler()
+end
+local function onFailed(_, unit, _, spellID)
+    if unit ~= "player" or not isFishingSpell(spellID) then return end
+    midFishing = false
+    restoreFishCVars()
+    actionHandler()
+end
+local function onRegenEnabled() actionHandler() end
+local function onInvChanged() if not midFishing then actionHandler() end end
+
+-- ---------------------------------------------------------
+-- Key capture
+-- ---------------------------------------------------------
+local capture
+local function refreshKey(k)
+    capture:Hide()
+    if k then
+        mod.db.key = k
+        ns:Print(L.KEY_SET:format(k))
+        actionHandler()
+    end
+end
+local function startCapture()
+    if InCombatLockdown() then ns:Print(L.IN_COMBAT); return end
+    if not capture then
+        capture = CreateFrame("Frame", "VulFishCapture", UIParent)
+        capture:SetAllPoints(UIParent)
+        capture:SetFrameStrata("FULLSCREEN_DIALOG")
+        capture:EnableKeyboard(true); capture:EnableMouse(true); capture:EnableMouseWheel(true)
+        local bg = capture:CreateTexture(nil, "BACKGROUND"); bg:SetAllPoints(); bg:SetColorTexture(0, 0, 0, 0.55)
+        local fs = capture:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
+        fs:SetPoint("CENTER"); fs:SetText(L.PRESS)
+        local SKIP = { LSHIFT = 1, RSHIFT = 1, LCTRL = 1, RCTRL = 1, LALT = 1, RALT = 1, UNKNOWN = 1 }
+        capture:SetScript("OnKeyDown", function(_, key)
+            if key == "ESCAPE" then refreshKey(nil); return end
+            if SKIP[key] then return end
+            local pre = ""
+            if IsControlKeyDown() then pre = pre .. "CTRL-" end
+            if IsAltKeyDown() then pre = pre .. "ALT-" end
+            if IsShiftKeyDown() then pre = pre .. "SHIFT-" end
+            refreshKey(pre .. key)
+        end)
+        local MB = { MiddleButton = "BUTTON3", Button4 = "BUTTON4", Button5 = "BUTTON5" }
+        capture:SetScript("OnMouseDown", function(_, btn) if MB[btn] then refreshKey(MB[btn]) end end)
+        capture:SetScript("OnMouseWheel", function(_, d) refreshKey(d > 0 and "MOUSEWHEELUP" or "MOUSEWHEELDOWN") end)
+    end
+    capture:Show()
+    capture:SetPropagateKeyboardInput(false)
+end
+
+-- ---------------------------------------------------------
+-- Lifecycle
+-- ---------------------------------------------------------
+function mod:OnEnable()
+    ns:RegisterEvent("UNIT_SPELLCAST_CHANNEL_START", onChannelStart)
+    ns:RegisterEvent("UNIT_SPELLCAST_CHANNEL_STOP", onChannelStop)
+    ns:RegisterEvent("UNIT_SPELLCAST_FAILED", onFailed)
+    ns:RegisterEvent("UNIT_SPELLCAST_FAILED_QUIET", onFailed)
+    ns:RegisterEvent("PLAYER_REGEN_ENABLED", onRegenEnabled)
+    ns:RegisterEvent("UNIT_INVENTORY_CHANGED", onInvChanged)
+    ns:RegisterEvent("PLAYER_EQUIPMENT_CHANGED", onInvChanged)
+    actionHandler()
+end
+
+function mod:OnDisable()
+    ns:UnregisterEvent("UNIT_SPELLCAST_CHANNEL_START", onChannelStart)
+    ns:UnregisterEvent("UNIT_SPELLCAST_CHANNEL_STOP", onChannelStop)
+    ns:UnregisterEvent("UNIT_SPELLCAST_FAILED", onFailed)
+    ns:UnregisterEvent("UNIT_SPELLCAST_FAILED_QUIET", onFailed)
+    ns:UnregisterEvent("PLAYER_REGEN_ENABLED", onRegenEnabled)
+    ns:UnregisterEvent("UNIT_INVENTORY_CHANGED", onInvChanged)
+    ns:UnregisterEvent("PLAYER_EQUIPMENT_CHANGED", onInvChanged)
+    restoreFishCVars()
+    if not InCombatLockdown() then ClearOverrideBindings(owner) end
+end
+
+function mod:GetOptions()
+    local keyLabel = (mod.db.key ~= "") and L.KEY_IS:format(mod.db.key) or L.SET_KEY
+    return {
+        { type = "desc", text = L.DESC },
+        { type = "group", layout = "row", gap = 8, items = {
+            { type = "button", label = keyLabel, width = 260, onClick = startCapture },
+            { type = "button", label = L.CLEAR_KEY, width = 120,
+              onClick = function() mod.db.key = ""; ns:Print(L.KEY_CLEARED); actionHandler() end },
+        } },
+        { type = "toggle", label = L.SOFT, tooltip = L.SOFT_TT,
+          get = function() return mod.db.softInteract end,
+          set = function(_, v) mod.db.softInteract = v; actionHandler() end },
+        { type = "toggle", label = L.LURE,
+          get = function() return mod.db.lure end,
+          set = function(_, v) mod.db.lure = v; actionHandler() end },
+        { type = "toggle", label = L.AUTOLOOT,
+          get = function() return mod.db.autoLoot end,
+          set = function(_, v) mod.db.autoLoot = v end },
+        { type = "toggle", label = L.EQUIP,
+          get = function() return mod.db.equipPole end,
+          set = function(_, v) mod.db.equipPole = v; actionHandler() end },
+    }
+end

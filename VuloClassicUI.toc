@@ -64,6 +64,7 @@ Modules\ButtonSkin.lua
 Modules\FriendList.lua
 Modules\FlightTimesDB.lua
 Modules\MiscQoL.lua
+Modules\VulFishing.lua
 Modules\QueueTimer.lua
 Modules\TooltipIDs.lua
 Modules\AutoItemBuy.lua
