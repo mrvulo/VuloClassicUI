@@ -591,7 +591,11 @@ end
 
 -- Short, human-readable node name for display (German node, no zone suffix).
 local function ftShort(name)
-    return (ftResolve(name))
+    local s = (ftResolve(name))
+    -- the German client returns node names with a lowercase leading article
+    -- (e.g. "das Dunkle Portal"); capitalize the first letter for display only
+    if s and s ~= "" then s = (s:gsub("^%a", string.upper)) end
+    return s
 end
 
 -- Default duration from the shipped route database (FlightTimesDB.lua).
