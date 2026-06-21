@@ -1,0 +1,498 @@
+-- =========================================================
+-- VuloClassicUI / Modules / VulLFG
+-- A "group board": scans the LFG / World / General / Trade / guild chat for
+-- group-forming messages, matches them to a Classic or TBC instance, and shows
+-- them grouped by dungeon in a movable window. Open via /vlfg or the minimap
+-- button; click a line to whisper, right-click for invite / who.
+--
+-- Lean by design: instance names + level ranges come from the client's own LFG
+-- activity database (localized for free), keywords are a single precompiled
+-- word->key map (O(words) per message), rows are pooled, and stale requests are
+-- pruned lazily. Classic + TBC dungeons/raids only.
+-- =========================================================
+local _, ns = ...
+
+local mod = ns:RegisterModule("vullfg", {
+    name        = "Group Board",
+    group       = "QoL",
+    description = "Scans chat for people forming groups and lists them by Classic/TBC instance in a window (/vlfg or the minimap button).",
+    defaults = {
+        enabled    = true,
+        window     = 20,     -- minutes a request stays listed
+        minimap    = true,   -- show the minimap button
+        mmAngle    = 200,    -- minimap button position (degrees)
+        scanWorld  = true,   -- General/Trade/World/LookingForGroup channels
+        scanGuild  = true,
+        scanSay    = true,   -- say/yell
+        point      = nil,    -- saved window position
+    },
+})
+
+local floor, format, strlower, strfind, strsplit = math.floor, string.format, string.lower, string.find, strsplit
+local tinsert, wipe, ipairs, pairs = table.insert, wipe, ipairs, pairs
+local GetTime, GetActivity = GetTime, (C_LFGList and C_LFGList.GetActivityInfoTable)
+local ACCENT = ns.COLORS and ns.COLORS.accent or { r = 0.608, g = 0.424, b = 1 }
+
+-- ---------------------------------------------------------
+-- Localization
+-- ---------------------------------------------------------
+local L = {
+    TITLE = "Group Board", EMPTY = "No groups forming right now.",
+    CAT_CD = "Classic Dungeons", CAT_CR = "Classic Raids",
+    CAT_BD = "Burning Crusade Dungeons", CAT_BR = "Burning Crusade Raids",
+    WHISPER = "Whisper", INVITE = "Invite", WHO = "Who", IGNORE = "Ignore",
+    OPT_WINDOW = "Keep requests for (minutes)", OPT_MINIMAP = "Show minimap button",
+    OPT_WORLD = "Scan world / trade / LFG channels", OPT_GUILD = "Scan guild chat",
+    OPT_SAY = "Scan say / yell", SLASH = "/vlfg toggles the group board.",
+    HEROIC = "H", JUST_NOW = "now",
+}
+if GetLocale() == "deDE" then
+    L.TITLE = "Gruppensuche"; L.EMPTY = "Gerade sucht niemand eine Gruppe."
+    L.CAT_CD = "Classic-Dungeons"; L.CAT_CR = "Classic-Schlachtzüge"
+    L.CAT_BD = "BC-Dungeons"; L.CAT_BR = "BC-Schlachtzüge"
+    L.WHISPER = "Flüstern"; L.INVITE = "Einladen"; L.WHO = "Wer"; L.IGNORE = "Ignorieren"
+    L.OPT_WINDOW = "Anfragen behalten für (Minuten)"; L.OPT_MINIMAP = "Minimap-Knopf zeigen"
+    L.OPT_WORLD = "Welt-/Handels-/LFG-Channels scannen"; L.OPT_GUILD = "Gildenchat scannen"
+    L.OPT_SAY = "Sagen/Schreien scannen"; L.SLASH = "/vlfg öffnet die Gruppensuche."
+    L.HEROIC = "H"; L.JUST_NOW = "jetzt"
+end
+
+-- ---------------------------------------------------------
+-- Instance data (Classic + TBC). id = LFG activity id (for the localized name
+-- + level range); cat = cd/cr/bd/br; abbr = curated chat keywords. The localized
+-- client name is added as a keyword automatically, so German names match too.
+-- ---------------------------------------------------------
+local CAT_ORDER = { "cd", "cr", "bd", "br" }
+local CAT_NAME = { cd = L.CAT_CD, cr = L.CAT_CR, bd = L.CAT_BD, br = L.CAT_BR }
+
+local DUNGEONS = {
+    -- Classic dungeons
+    { key="RFC",  id=798, cat="cd", abbr="rfc ragefire chasm" },
+    { key="WC",   id=796, cat="cd", abbr="wc wailing caverns" },
+    { key="DM",   id=799, cat="cd", abbr="vc deadmines deadmine dm defias" },
+    { key="SFK",  id=800, cat="cd", abbr="sfk shadowfang" },
+    { key="STK",  id=802, cat="cd", abbr="stockade stockades stocks" },
+    { key="BFD",  id=801, cat="cd", abbr="bfd blackfathom fathom" },
+    { key="GNO",  id=803, cat="cd", abbr="gno gnomeregan gnome" },
+    { key="RFK",  id=804, cat="cd", abbr="rfk razorfen kraul kraul" },
+    { key="SM",   id=805, cat="cd", abbr="sm scarlet monastery graveyard library armory cathedral smg sml sma smc", zone=189 },
+    { key="RFD",  id=806, cat="cd", abbr="rfd razorfen downs downs" },
+    { key="ULD",  id=807, cat="cd", abbr="uld uldaman" },
+    { key="ZF",   id=808, cat="cd", abbr="zf zulfarrak farrak" },
+    { key="MAR",  id=809, cat="cd", abbr="mar maraudon maru" },
+    { key="ST",   id=810, cat="cd", abbr="st sunken temple atalhakkar" },
+    { key="BRD",  id=811, cat="cd", abbr="brd blackrock depths depths" },
+    { key="DML",  id=813, cat="cd", abbr="dire diremaul dme dmw dmn tribute", zone=429 },
+    { key="LBRS", id=812, cat="cd", abbr="lbrs lower spire" },
+    { key="UBRS", id=837, cat="cd", abbr="ubrs upper spire" },
+    { key="STR",  id=816, cat="cd", abbr="strat stratholme baron ud undead living" },
+    { key="SCH",  id=797, cat="cd", abbr="sch scholo scholomance" },
+    -- Classic raids
+    { key="ZG",   id=836, cat="cr", abbr="zg zulgurub gurub" },
+    { key="ONY",  id=838, cat="cr", abbr="ony onyxia" },
+    { key="MC",   id=839, cat="cr", abbr="mc molten core" },
+    { key="BWL",  id=840, cat="cr", abbr="bwl blackwing lair" },
+    { key="AQ20", id=842, cat="cr", abbr="aq20 ruins aqr" },
+    { key="AQ40", id=843, cat="cr", abbr="aq40 temple aqt" },
+    { key="NAXX", id=841, cat="cr", abbr="naxx naxxramas" },
+    -- TBC dungeons (normal + heroic share one entry)
+    { key="RAMPS",id=913, cat="bd", abbr="ramps ramparts hellfire ramp" },
+    { key="BF",   id=912, cat="bd", abbr="bf blood furnace bloodfurnace" },
+    { key="SP",   id=909, cat="bd", abbr="sp slave pens slave" },
+    { key="UB",   id=911, cat="bd", abbr="ub underbog bog" },
+    { key="MT",   id=904, cat="bd", abbr="mt mana tombs manatombs" },
+    { key="AC",   id=903, cat="bd", abbr="ac crypts crypt auchenai" },
+    { key="SETH", id=905, cat="bd", abbr="seth sethekk" },
+    { key="SL",   id=906, cat="bd", abbr="sl shadow labyrinth labs labyrinth" },
+    { key="SV",   id=910, cat="bd", abbr="sv steamvault steam" },
+    { key="MECH", id=916, cat="bd", abbr="mech mechanar" },
+    { key="BOT",  id=918, cat="bd", abbr="bot botanica" },
+    { key="ARC",  id=915, cat="bd", abbr="arc arcatraz" },
+    { key="OHB",  id=908, cat="bd", abbr="ohb hillsbrad durnholde escape" },
+    { key="BM",   id=907, cat="bd", abbr="bm morass blackmorass" },
+    { key="SH",   id=914, cat="bd", abbr="sh shattered shatteredhalls" },
+    { key="MGT",  id=917, cat="bd", abbr="mgt magisters terrace" },
+    -- TBC raids
+    { key="KARA", id=844, cat="br", abbr="kara karazhan kz" },
+    { key="GL",   id=846, cat="br", abbr="gruul gruuls gl" },
+    { key="MAG",  id=845, cat="br", abbr="mag magtheridon magth" },
+    { key="SSC",  id=848, cat="br", abbr="ssc serpentshrine vashj" },
+    { key="EYE",  id=847, cat="br", abbr="tk tempest eye kael" },
+    { key="HYJAL",id=849, cat="br", abbr="hyjal mh" },
+    { key="BT",   id=850, cat="br", abbr="bt blacktemple illidan" },
+    { key="SWP",  id=852, cat="br", abbr="swp sunwell plateau" },
+    { key="ZA",   id=851, cat="br", abbr="za zulaman aman" },
+}
+local byKey = {}
+for _, d in ipairs(DUNGEONS) do byKey[d.key] = d end
+
+-- search-intent + heroic keywords
+local SEARCH = "lfg lfm lf lf1m lf2m lf3m lf4m lf5m group grp need lf dps heal heals healer healers tank tanks dd boost run runs wts wtb"
+    .. " suche sucht suchen gesucht such gruppe grp brauche heiler dd go"
+local HEROIC = { h=true, hc=true, heroic=true, hero=true, ["hero"]=true, hcc=true }
+
+-- ---------------------------------------------------------
+-- Build the keyword map (word -> { key, ... }). Done once, after activity data
+-- is queryable. Values are lists because a word (e.g. "dm") can hit > 1 instance.
+-- ---------------------------------------------------------
+local tagList = {}        -- word -> { key, ... }
+local searchWords = {}    -- word -> true
+local levelText = {}      -- key -> "(60-70)"
+local nameOf = {}         -- key -> localized name
+local built = false
+
+local function addTag(word, key)
+    if not word or #word < 2 then return end
+    local t = tagList[word]
+    if not t then t = {}; tagList[word] = t end
+    for _, k in ipairs(t) do if k == key then return end end
+    t[#t + 1] = key
+end
+
+local function buildTags()
+    if built then return end
+    for word in (SEARCH):gmatch("%S+") do searchWords[word] = true end
+    for _, d in ipairs(DUNGEONS) do
+        -- name + level from the client's LFG activity DB (localized)
+        local name, lo, hi
+        if d.zone and GetRealZoneText then name = GetRealZoneText(d.zone) end
+        if GetActivity then
+            local info = GetActivity(d.id)
+            if info then
+                if not name or name == "" then
+                    name = (info.shortName ~= "" and info.shortName) or info.fullName
+                    if name then name = name:gsub("%s*%b()%s*$", "") end  -- strip "(Heroic)" etc.
+                end
+                lo, hi = info.minLevel, info.maxLevel
+            end
+        end
+        name = (name and name ~= "" and name) or d.key
+        nameOf[d.key] = name
+        if lo and hi and lo > 0 then levelText[d.key] = (lo == hi) and format(" |cff808080(%d)|r", lo) or format(" |cff808080(%d-%d)|r", lo, hi) end
+        -- curated abbreviations
+        for word in (d.abbr or ""):gmatch("%S+") do addTag(strlower(word), d.key) end
+        -- the localized name's words (so "todesminen" / "shattrath" match)
+        for word in strlower(name):gmatch("[%a]+") do
+            if #word >= 4 then addTag(word, d.key) end
+        end
+    end
+    built = true
+end
+
+-- ---------------------------------------------------------
+-- Message parsing
+-- ---------------------------------------------------------
+local function words(msg)
+    -- lowercase, punctuation -> space, split; cheap (no heavy fuzzing)
+    local norm = strlower(msg):gsub("[%p%c]", " ")
+    local out, seen = {}, {}
+    for w in norm:gmatch("%S+") do if not seen[w] then seen[w] = true; out[#out + 1] = w end end
+    return out
+end
+
+-- requests[key] = { [sender] = { msg, time, channel, heroic } }
+local requests = {}
+
+local function handleMessage(msg, sender, fromWorld)
+    if not msg or not sender or sender == "" then return end
+    if sender == (UnitName and UnitName("player")) then return end
+    local hits, hasSearch, hasHeroic
+    for _, w in ipairs(words(msg)) do
+        if searchWords[w] then hasSearch = true end
+        if HEROIC[w] then hasHeroic = true end
+        local keys = tagList[w]
+        if keys then
+            hits = hits or {}
+            for _, k in ipairs(keys) do hits[k] = true end
+        end
+    end
+    if not hits then return end
+    -- world/LFG channels are group-forming by nature; elsewhere require intent
+    if not fromWorld and not hasSearch then return end
+    local now = GetTime()
+    for k in pairs(hits) do
+        requests[k] = requests[k] or {}
+        requests[k][sender] = { msg = msg, time = now, channel = fromWorld, heroic = hasHeroic }
+    end
+    if mod._frame and mod._frame:IsShown() then mod._refreshSoon() end
+end
+
+-- ---------------------------------------------------------
+-- Prune + counts
+-- ---------------------------------------------------------
+local function prune()
+    local cutoff = GetTime() - (mod.db.window or 20) * 60
+    for k, byS in pairs(requests) do
+        for s, r in pairs(byS) do if r.time < cutoff then byS[s] = nil end end
+    end
+end
+
+local function timeAgo(t)
+    local s = floor(GetTime() - t)
+    if s < 60 then return L.JUST_NOW end
+    return floor(s / 60) .. "m"
+end
+
+-- ---------------------------------------------------------
+-- Window
+-- ---------------------------------------------------------
+local rows = {}
+local function getRow(parent, i)
+    local r = rows[i]
+    if r then return r end
+    r = CreateFrame("Button", nil, parent)
+    r:SetHeight(16)
+    r:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    r.left = r:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    r.left:SetPoint("LEFT", r, "LEFT", 4, 0)
+    r.left:SetJustifyH("LEFT")
+    if ns.UI and ns.UI.Font then ns.UI.Font(r.left, 12) end
+    r.right = r:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    r.right:SetPoint("RIGHT", r, "RIGHT", -4, 0)
+    r.right:SetJustifyH("RIGHT")
+    if ns.UI and ns.UI.Font then ns.UI.Font(r.right, 11) end
+    r.msg = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    r.msg:SetPoint("LEFT", r.left, "RIGHT", 8, 0)
+    r.msg:SetPoint("RIGHT", r.right, "LEFT", -8, 0)
+    r.msg:SetJustifyH("LEFT")
+    if ns.UI and ns.UI.Font then ns.UI.Font(r.msg, 11) end
+    local hl = r:CreateTexture(nil, "HIGHLIGHT"); hl:SetAllPoints(); hl:SetColorTexture(1, 1, 1, 0.06)
+    r:SetScript("OnClick", function(self, button)
+        if not self._sender then return end
+        if button == "RightButton" then
+            ns:ShowPopupMenu({
+                { title = true, text = self._sender:gsub("%-.*", "") },
+                { text = L.WHISPER, func = function() ChatFrame_SendTell(self._sender) end },
+                { text = L.INVITE,  func = function() if InviteUnit then InviteUnit(self._sender) end end },
+                { text = L.WHO,     func = function() if SendWho then SendWho('n-"' .. self._sender:gsub("%-.*", "") .. '"') end end },
+            }, self)
+        else
+            ChatFrame_SendTell(self._sender)
+        end
+    end)
+    rows[i] = r
+    return r
+end
+
+local function refresh()
+    local f = mod._frame
+    if not f or not f:IsShown() then return end
+    prune()
+    local child = f.child
+    local i, y, total = 0, -4, 0
+
+    local function header(text)
+        i = i + 1; local r = getRow(child, i)
+        r:ClearAllPoints(); r:SetPoint("TOPLEFT", child, "TOPLEFT", 0, y); r:SetPoint("RIGHT", child, "RIGHT", 0, 0)
+        r:SetHeight(18); r:Disable(); r._sender = nil
+        r.left:SetText("|cff" .. format("%02x%02x%02x", ACCENT.r*255, ACCENT.g*255, ACCENT.b*255) .. text .. "|r")
+        r.right:SetText(""); r.msg:SetText("")
+        r:Show(); y = y - 19
+    end
+
+    for _, cat in ipairs(CAT_ORDER) do
+        local catPrinted = false
+        for _, d in ipairs(DUNGEONS) do
+            if d.cat == cat and requests[d.key] then
+                -- gather this dungeon's senders
+                local list = {}
+                for s, rq in pairs(requests[d.key]) do list[#list + 1] = { s = s, rq = rq } end
+                if #list > 0 then
+                    table.sort(list, function(a, b) return a.rq.time > b.rq.time end)
+                    if not catPrinted then header(CAT_NAME[cat] or cat); catPrinted = true end
+                    -- dungeon sub-header
+                    i = i + 1; local h = getRow(child, i)
+                    h:ClearAllPoints(); h:SetPoint("TOPLEFT", child, "TOPLEFT", 8, y); h:SetPoint("RIGHT", child, "RIGHT", 0, 0)
+                    h:SetHeight(16); h:Disable(); h._sender = nil
+                    h.left:SetText(format("|cffffd200%s|r%s", nameOf[d.key] or d.key, levelText[d.key] or ""))
+                    h.right:SetText("|cff888888" .. #list .. "|r"); h.msg:SetText("")
+                    h:Show(); y = y - 16
+                    -- request rows
+                    for _, e in ipairs(list) do
+                        i = i + 1; local r = getRow(child, i)
+                        r:ClearAllPoints(); r:SetPoint("TOPLEFT", child, "TOPLEFT", 18, y); r:SetPoint("RIGHT", child, "RIGHT", -2, 0)
+                        r:SetHeight(15); r:Enable(); r._sender = e.s
+                        local nm = e.s:gsub("%-.*", "")
+                        r.left:SetText((e.rq.heroic and "|cffff8800[" .. L.HEROIC .. "]|r " or "") .. nm)
+                        r.right:SetText(timeAgo(e.rq.time))
+                        r.msg:SetText(e.rq.msg)
+                        r:Show(); y = y - 15
+                        total = total + 1
+                    end
+                end
+            end
+        end
+    end
+
+    for j = i + 1, #rows do rows[j]:Hide() end
+    if total == 0 then
+        i = i + 1; local r = getRow(child, i)
+        r:ClearAllPoints(); r:SetPoint("TOPLEFT", child, "TOPLEFT", 8, -8); r:Disable(); r._sender = nil
+        r.left:SetText("|cff888888" .. L.EMPTY .. "|r"); r.right:SetText(""); r.msg:SetText(""); r:Show()
+        y = y - 20
+    end
+    child:SetHeight(math.max(1, -y + 4))
+    f.title:SetText(format("%s  |cff888888(%d)|r", L.TITLE, total))
+end
+
+-- throttle refreshes triggered by incoming chat
+local refreshPending
+function mod._refreshSoon()
+    if refreshPending then return end
+    refreshPending = true
+    if C_Timer and C_Timer.After then
+        C_Timer.After(0.3, function() refreshPending = false; refresh() end)
+    else refreshPending = false; refresh() end
+end
+
+local function buildWindow()
+    if mod._frame then return end
+    local f = CreateFrame("Frame", "VulLFGFrame", UIParent)
+    f:SetSize(440, 420)
+    f:SetFrameStrata("HIGH")
+    f:SetClampedToScreen(true)
+    f:SetMovable(true); f:EnableMouse(true); f:RegisterForDrag("LeftButton")
+    f:SetScript("OnDragStart", f.StartMoving)
+    f:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        local p, _, rp, x, yy = self:GetPoint()
+        mod.db.point = { p, rp, x, yy }
+    end)
+    if mod.db.point then f:SetPoint(mod.db.point[1], UIParent, mod.db.point[2], mod.db.point[3], mod.db.point[4])
+    else f:SetPoint("CENTER") end
+    f:Hide()
+    local bg = f:CreateTexture(nil, "BACKGROUND"); bg:SetAllPoints(); bg:SetColorTexture(0.06, 0.06, 0.08, 0.97)
+    local b = {}
+    for i = 1, 4 do local t = f:CreateTexture(nil, "BORDER"); t:SetColorTexture(ACCENT.r, ACCENT.g, ACCENT.b, 1); b[i] = t end
+    b[1]:SetPoint("TOPLEFT"); b[1]:SetPoint("TOPRIGHT"); b[1]:SetHeight(1)
+    b[2]:SetPoint("BOTTOMLEFT"); b[2]:SetPoint("BOTTOMRIGHT"); b[2]:SetHeight(1)
+    b[3]:SetPoint("TOPLEFT"); b[3]:SetPoint("BOTTOMLEFT"); b[3]:SetWidth(1)
+    b[4]:SetPoint("TOPRIGHT"); b[4]:SetPoint("BOTTOMRIGHT"); b[4]:SetWidth(1)
+
+    f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    f.title:SetPoint("TOP", f, "TOP", 0, -8); f.title:SetText(L.TITLE)
+    if ns.UI and ns.UI.Font then ns.UI.Font(f.title, 14) end
+
+    local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
+    close:SetPoint("TOPRIGHT", f, "TOPRIGHT", -2, -2)
+    close:SetScript("OnClick", function() f:Hide() end)
+
+    local scroll = CreateFrame("ScrollFrame", nil, f)
+    scroll:SetPoint("TOPLEFT", f, "TOPLEFT", 6, -28)
+    scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -6, 8)
+    scroll:EnableMouseWheel(true)
+    scroll:SetScript("OnMouseWheel", function(self, d)
+        local cur, maxs = self:GetVerticalScroll(), self:GetVerticalScrollRange()
+        self:SetVerticalScroll(math.max(0, math.min(maxs, cur - d * 28)))
+    end)
+    local child = CreateFrame("Frame", nil, scroll); child:SetSize(1, 1); scroll:SetScrollChild(child)
+    child:SetWidth(420)
+    f.child = child
+    f:SetScript("OnSizeChanged", function(_, w) if child then child:SetWidth(math.max(1, (w or 440) - 20)) end end)
+    f:SetScript("OnShow", refresh)
+    mod._frame = f
+end
+
+function mod:Toggle()
+    buildWindow()
+    if mod._frame:IsShown() then mod._frame:Hide() else buildTags(); mod._frame:Show() end
+end
+
+-- ---------------------------------------------------------
+-- Minimap button
+-- ---------------------------------------------------------
+local function buildMinimap()
+    if mod._mm or not Minimap then return end
+    local b = CreateFrame("Button", "VulLFGMinimapButton", Minimap)
+    b:SetSize(31, 31); b:SetFrameStrata("MEDIUM"); b:SetFrameLevel(8)
+    local overlay = b:CreateTexture(nil, "OVERLAY"); overlay:SetSize(53, 53)
+    overlay:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder"); overlay:SetPoint("TOPLEFT")
+    local icon = b:CreateTexture(nil, "ARTWORK"); icon:SetSize(19, 19); icon:SetPoint("CENTER", -1, 1)
+    icon:SetTexture("Interface\\LFGFrame\\BattlenetWorking0")  -- a magnifier-ish LFG icon
+    icon:SetTexture("Interface\\GossipFrame\\BattleMasterGossipIcon")
+    b.icon = icon
+    local function place()
+        local a = (mod.db.mmAngle or 200)
+        local rad = a * math.pi / 180
+        b:SetPoint("CENTER", Minimap, "CENTER", 80 * math.cos(rad), 80 * math.sin(rad))
+    end
+    place()
+    b:RegisterForDrag("LeftButton")
+    b:SetScript("OnDragStart", function() b:SetScript("OnUpdate", function()
+        local mx, my = Minimap:GetCenter(); local px, py = GetCursorPosition(); local s = Minimap:GetEffectiveScale()
+        px, py = px / s, py / s
+        mod.db.mmAngle = math.deg(math.atan2(py - my, px - mx)); place()
+    end) end)
+    b:SetScript("OnDragStop", function() b:SetScript("OnUpdate", nil) end)
+    b:RegisterForClicks("LeftButtonUp")
+    b:SetScript("OnClick", function() mod:Toggle() end)
+    b:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_LEFT"); GameTooltip:SetText(L.TITLE)
+        GameTooltip:AddLine(L.SLASH, 0.7, 0.7, 0.7); GameTooltip:Show()
+    end)
+    b:SetScript("OnLeave", GameTooltip_Hide)
+    mod._mm = b
+end
+
+-- ---------------------------------------------------------
+-- Chat scanning
+-- ---------------------------------------------------------
+local function isWorldChannel(cn)
+    return strfind(cn, "lookingforgroup") or strfind(cn, "suchenachgruppe")
+        or strfind(cn, "world") or strfind(cn, "welt")
+        or strfind(cn, "general") or strfind(cn, "allgemein")
+        or strfind(cn, "trade") or strfind(cn, "handel")
+end
+
+local function onChannel(_, text, sender, _, channel)
+    if mod.db.scanWorld == false then return end
+    local cn = channel and strlower(channel:gsub("[%s%d]", "")) or ""
+    handleMessage(text, sender, isWorldChannel(cn) and true or false)
+end
+local function onGuild(_, text, sender) if mod.db.scanGuild ~= false then handleMessage(text, sender, false) end end
+local function onSay(_, text, sender) if mod.db.scanSay ~= false then handleMessage(text, sender, false) end end
+
+-- ---------------------------------------------------------
+-- Lifecycle
+-- ---------------------------------------------------------
+function mod:OnEnable()
+    buildTags()
+    ns:RegisterEvent("CHAT_MSG_CHANNEL", onChannel)
+    ns:RegisterEvent("CHAT_MSG_GUILD", onGuild)
+    ns:RegisterEvent("CHAT_MSG_SAY", onSay)
+    ns:RegisterEvent("CHAT_MSG_YELL", onSay)
+    if mod.db.minimap ~= false then buildMinimap() end
+    if mod._mm then mod._mm:SetShown(mod.db.minimap ~= false) end
+    if not mod._prune and C_Timer and C_Timer.NewTicker then
+        mod._prune = C_Timer.NewTicker(30, function()
+            if mod._frame and mod._frame:IsShown() then refresh() end
+        end)
+    end
+end
+
+function mod:OnDisable()
+    ns:UnregisterEvent("CHAT_MSG_CHANNEL", onChannel)
+    ns:UnregisterEvent("CHAT_MSG_GUILD", onGuild)
+    ns:UnregisterEvent("CHAT_MSG_SAY", onSay)
+    ns:UnregisterEvent("CHAT_MSG_YELL", onSay)
+    if mod._mm then mod._mm:Hide() end
+    if mod._frame then mod._frame:Hide() end
+end
+
+SLASH_VULLFG1 = "/vlfg"
+SLASH_VULLFG2 = "/lfgboard"
+SlashCmdList.VULLFG = function() mod:Toggle() end
+
+function mod:GetOptions()
+    return {
+        { type = "desc", text = "|cffaaaaaa" .. L.SLASH .. "|r" },
+        { type = "slider", label = L.OPT_WINDOW, min = 5, max = 60, step = 5,
+          get = function() return mod.db.window or 20 end, set = function(_, v) mod.db.window = v end },
+        { type = "toggle", label = L.OPT_MINIMAP,
+          get = function() return mod.db.minimap end,
+          set = function(_, v) mod.db.minimap = v; if v then buildMinimap() end; if mod._mm then mod._mm:SetShown(v) end end },
+        { type = "toggle", label = L.OPT_WORLD, get = function() return mod.db.scanWorld end, set = function(_, v) mod.db.scanWorld = v end },
+        { type = "toggle", label = L.OPT_GUILD, get = function() return mod.db.scanGuild end, set = function(_, v) mod.db.scanGuild = v end },
+        { type = "toggle", label = L.OPT_SAY,   get = function() return mod.db.scanSay ~= false end, set = function(_, v) mod.db.scanSay = v end },
+    }
+end
