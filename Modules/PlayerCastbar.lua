@@ -645,6 +645,9 @@ local function c_stopCast(success)
     c_applyColor(success and mod.db.successColor or mod.db.failColor)
     c_hideAllTicks()
     cFrame.spark:Hide()
+    -- snap to the completed state so the bar reads full (cast) / empty (channel)
+    -- instead of fading from wherever the last OnUpdate frame happened to land
+    if success then cFrame.bar:SetValue(castInfo.isChannel and 0 or 1) end
     castInfo.fadeOut = true
     castInfo.fadeTimer = 0.5
 end
