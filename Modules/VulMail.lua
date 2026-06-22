@@ -19,7 +19,7 @@ local mod = ns:RegisterModule("vulmail", {
         attachments = true,   -- take item attachments
         gold        = true,   -- take money
         keepFree    = 0,      -- keep this many free bag slots
-        openSpeed   = 0.35,   -- seconds between mail actions (server throttle)
+        openSpeed   = 0.15,   -- seconds between mail actions (server throttle)
         verbose     = true,   -- print a looted summary
         recipients  = true,   -- recipient dropdown on the Send tab
     },
@@ -117,7 +117,7 @@ pump:SetScript("OnUpdate", function(self, e)
     if self.t <= 0 then self:Hide(); step() end
 end)
 local function schedule()
-    pump.t = mod.db and mod.db.openSpeed or 0.35
+    pump.t = mod.db and mod.db.openSpeed or 0.15
     pump:Show()
 end
 
@@ -127,15 +127,18 @@ function step()
 
     if waiting then
         local items, gold = countItemsAndMoney()
+        -- on a confirmed change, advance and process the NEXT take immediately:
+        -- the throttle gap already elapsed while we waited for this confirmation,
+        -- so we don't add a second full wait per attachment (that ~doubled the time)
         if gold ~= lastGold then
-            waiting = false; idx = idx - 1; aIdx = ATTACH_MAX; return schedule()
+            waiting = false; idx = idx - 1; aIdx = ATTACH_MAX; return step()
         elseif items ~= lastItems then
             waiting = false; aIdx = aIdx - 1
             if lastFinal then lastFinal = false; idx = idx - 1; aIdx = ATTACH_MAX end
-            return schedule()
+            return step()
         else
             waitTries = waitTries + 1
-            if waitTries > 15 then          -- watchdog: take silently failed, force advance
+            if waitTries * (mod.db.openSpeed or 0.15) > 3 then  -- ~3s watchdog: take failed, force advance
                 waiting = false; waitTries = 0
                 idx = idx - 1; aIdx = ATTACH_MAX
                 return schedule()
@@ -420,8 +423,8 @@ function mod:GetOptions()
         { type = "slider", label = L.O_KEEP, min = 0, max = 12, step = 1,
           get = function() return mod.db.keepFree or 0 end,
           set = function(_, v) mod.db.keepFree = v end },
-        { type = "slider", label = L.O_SPEED, min = 0.1, max = 1.0, step = 0.05,
-          get = function() return mod.db.openSpeed or 0.35 end,
+        { type = "slider", label = L.O_SPEED, min = 0.05, max = 1.0, step = 0.05,
+          get = function() return mod.db.openSpeed or 0.15 end,
           set = function(_, v) mod.db.openSpeed = v end },
     }
 end
