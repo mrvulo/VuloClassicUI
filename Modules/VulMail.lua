@@ -106,7 +106,7 @@ end
 -- State machine
 -- ---------------------------------------------------------
 local button
-local idx, aIdx, waiting, lastItems, lastGold, lastFinal, invFull, running, override, waitTries
+local idx, aIdx, waiting, lastItems, lastGold, lastFinal, invFull, running, override, waitTries, waitStart
 local startGold, startItems
 local step, processCurrent, finish, openAll
 
@@ -137,9 +137,10 @@ function step()
             if lastFinal then lastFinal = false; idx = idx - 1; aIdx = ATTACH_MAX end
             return step()
         else
-            waitTries = waitTries + 1
-            if waitTries * (mod.db.openSpeed or 0.15) > 3 then  -- ~3s watchdog: take failed, force advance
-                waiting = false; waitTries = 0
+            -- time-based watchdog: only give up if the take genuinely stalled
+            -- (robust whether step() is driven by the timer or MAIL_INBOX_UPDATE)
+            if GetTime() - (waitStart or 0) > 3 then
+                waiting = false
                 idx = idx - 1; aIdx = ATTACH_MAX
                 return schedule()
             end
@@ -177,7 +178,7 @@ function processCurrent()
     if aIdx > 0 and takeItems and not invFull then
         lastItems, lastGold = countItemsAndMoney()
         TakeInboxItem(idx, aIdx)
-        waiting = true
+        waiting = true; waitStart = GetTime()
         -- is this the final thing to take from this mail?
         local a2 = aIdx - 1
         while a2 > 0 and not GetInboxItemLink(idx, a2) do a2 = a2 - 1 end
@@ -186,7 +187,7 @@ function processCurrent()
     elseif takeGold and money > 0 then
         lastItems, lastGold = countItemsAndMoney()
         TakeInboxMoney(idx)
-        waiting = true
+        waiting = true; waitStart = GetTime()
         return schedule()
     else
         idx = idx - 1; aIdx = ATTACH_MAX; return step()
@@ -194,9 +195,22 @@ function processCurrent()
 end
 
 function finish()
-    running = false
     pump:Hide()
+    local shown, total = GetInboxNumItems()
+    -- more mail than is currently loaded: refresh and keep going automatically,
+    -- so a full inbox (>50) opens completely in one click (bounded retries)
+    if total and shown and total > shown and not invFull and (mod._continues or 0) < 12 then
+        mod._continues = (mod._continues or 0) + 1
+        waiting = false
+        mod._awaitRefresh = true
+        CheckInbox()           -- mod._onInbox reopens once the inbox has refreshed
+        return
+    end
+    running = false
+    mod._continues = nil
+    mod._awaitRefresh = nil
     ns:UnregisterEvent("UI_ERROR_MESSAGE", mod._onError)
+    ns:UnregisterEvent("MAIL_INBOX_UPDATE", mod._onInbox)
     if button then button:SetText(L.OPEN_ALL); button:Enable() end
     if InboxFrame_Update then InboxFrame_Update() end
 
@@ -209,23 +223,36 @@ function finish()
         end
     end
     if invFull then ns:Print(L.BAGS_FULL) end
-    local shown, total = GetInboxNumItems()
-    if total and shown and total > shown then ns:Print(L.MORE_MAIL) end
 end
 
 function openAll(isRecursive)
     if running and not isRecursive then return end
-    idx = (GetInboxNumItems())
+    idx = (GetInboxNumItems()) or 0
     aIdx = ATTACH_MAX
-    invFull = false; waiting = false; lastFinal = false; waitTries = 0
-    if not isRecursive then override = IsShiftKeyDown() end
-    if not idx or idx == 0 then return end
-    running = true
-    startGold = GetMoney()
-    startItems = (select(1, countItemsAndMoney()))
-    if button then button:SetText(L.IN_PROGRESS); button:Disable() end
-    ns:RegisterEvent("UI_ERROR_MESSAGE", mod._onError)
+    invFull = false; waiting = false; lastFinal = false; waitStart = nil
+    if not isRecursive then
+        override = IsShiftKeyDown()
+        if idx == 0 then return end
+        running = true
+        startGold = GetMoney()
+        startItems = (select(1, countItemsAndMoney()))
+        mod._continues = 0
+        if button then button:SetText(L.IN_PROGRESS); button:Disable() end
+        -- confirm each take off MAIL_INBOX_UPDATE (server-paced + reliable);
+        -- the pump timer is only a fallback. Registered once per session.
+        ns:RegisterEvent("UI_ERROR_MESSAGE", mod._onError)
+        ns:RegisterEvent("MAIL_INBOX_UPDATE", mod._onInbox)
+    end
     step()
+end
+
+function mod._onInbox()
+    if not running then return end
+    if mod._awaitRefresh then
+        mod._awaitRefresh = false
+        return openAll(true)   -- reopen from the now-larger inbox
+    end
+    if waiting then step() end  -- a take just confirmed -> advance immediately
 end
 
 function mod._onError(_, arg1, arg2)
