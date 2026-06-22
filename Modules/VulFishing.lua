@@ -19,6 +19,7 @@ local mod = ns:RegisterModule("vulfishing", {
         autoLoot     = true,   -- temp auto-loot while the bobber is out
         softInteract = true,   -- one-key reel via soft-target interact
         equipPole    = false,  -- auto-equip a fishing pole from bags
+        quietErrors  = true,   -- hide the reel's "unknown unit / out of range" spam
         soundBoost   = false,  -- boost effect/master volume while fishing so the bite is clear
         soundBG      = false,  -- also keep sound playing while the game is in the background
         soundLevel   = 100,    -- 0-100 % volume to boost to while fishing
@@ -41,6 +42,7 @@ local L = {
     SOFT        = "One-key reel (soft-target interact)",
     SOFT_TT     = "While the bobber is out, the same key interacts with it to reel in. Needs soft-target interaction, which is enabled only while fishing and restored afterwards.",
     EQUIP       = "Auto-equip a fishing pole if none is worn",
+    QUIET       = "Hide the reel error spam while fishing",
     SOUND       = "Boost fishing sound (hear the bite clearly)",
     SOUND_TT    = "While the bobber is out, maxes effect + master volume and dims music/ambience so the splash is easy to hear. Restored when you reel in.",
     SOUND_BG    = "Keep sound audible when the game is in the background",
@@ -63,6 +65,7 @@ if GetLocale() == "deDE" then
     L.SOFT      = "Ein-Tasten-Einholen (Soft-Target)"
     L.SOFT_TT   = "Während der Bobber draußen ist, holt dieselbe Taste ihn ein. Braucht Soft-Target-Interaktion — wird nur beim Angeln aktiviert und danach wiederhergestellt."
     L.EQUIP     = "Angel automatisch anlegen, wenn keine ausgerüstet ist"
+    L.QUIET     = "Reel-Fehlermeldungen beim Angeln ausblenden"
     L.SOUND     = "Angel-Sound verstärken (Biss klar hören)"
     L.SOUND_TT  = "Während der Bobber draußen ist, werden Effekt- + Master-Lautstärke maximiert und Musik/Ambiente abgesenkt, damit das Platschen gut hörbar ist. Wird beim Einholen wiederhergestellt."
     L.SOUND_BG  = "Sound auch hörbar, wenn das Spiel im Hintergrund läuft"
@@ -330,21 +333,36 @@ end)
 -- ---------------------------------------------------------
 -- Events
 -- ---------------------------------------------------------
+-- Mute the cast/interact error spam ("Unknown unit" / "Out of range") that the
+-- one-key reel (INTERACTMOUSEOVER) throws when the bobber isn't the soft target.
+local errQuiet = false
+local function setQuiet(on)
+    if not UIErrorsFrame then return end
+    on = (on and mod.db.quietErrors ~= false) or false
+    if on == errQuiet then return end
+    errQuiet = on
+    if on then UIErrorsFrame:UnregisterEvent("UI_ERROR_MESSAGE")
+    else UIErrorsFrame:RegisterEvent("UI_ERROR_MESSAGE") end
+end
+
 local function onChannelStart(_, unit, _, spellID)
     if unit ~= "player" or not isFishingSpell(spellID) then return end
     midFishing = true
+    setQuiet(true)
     setFishCVars()
     actionHandler()
 end
 local function onChannelStop(_, unit, _, spellID)
     if unit ~= "player" or not isFishingSpell(spellID) then return end
     midFishing = false
+    setQuiet(false)
     restoreFishCVars()
     actionHandler()
 end
 local function onFailed(_, unit, _, spellID)
     if unit ~= "player" or not isFishingSpell(spellID) then return end
     midFishing = false
+    setQuiet(false)
     restoreFishCVars()
     actionHandler()
 end
@@ -414,6 +432,7 @@ function mod:OnDisable()
     ns:UnregisterEvent("PLAYER_REGEN_ENABLED", onRegenEnabled)
     ns:UnregisterEvent("UNIT_INVENTORY_CHANGED", onInvChanged)
     ns:UnregisterEvent("PLAYER_EQUIPMENT_CHANGED", onInvChanged)
+    setQuiet(false)
     restoreFishCVars()
     if not InCombatLockdown() then ClearOverrideBindings(owner) end
 end
@@ -439,6 +458,9 @@ function mod:GetOptions()
         { type = "toggle", label = L.EQUIP,
           get = function() return mod.db.equipPole end,
           set = function(_, v) mod.db.equipPole = v; actionHandler() end },
+        { type = "toggle", label = L.QUIET,
+          get = function() return mod.db.quietErrors ~= false end,
+          set = function(_, v) mod.db.quietErrors = v; if not v then setQuiet(false) end end },
         { type = "toggle", label = L.SOUND, tooltip = L.SOUND_TT,
           get = function() return mod.db.soundBoost end,
           set = function(_, v) mod.db.soundBoost = v end },
