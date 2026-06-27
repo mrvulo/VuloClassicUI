@@ -6,6 +6,7 @@
 -- Reset after ~15-18 seconds without a new cast of the same category.
 -- =========================================================
 local _, ns = ...
+if ns.isEra then return end  -- Classic Era has no arenas; skip the whole module
 local L = ns.L
 local mod = ns.ArenaModule
 

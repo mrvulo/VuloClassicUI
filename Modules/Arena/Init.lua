@@ -4,6 +4,7 @@
 -- Submodules (Core, Layout, ClassColor, Trinket, DR, Castbar) extend mod.
 -- =========================================================
 local _, ns = ...
+if ns.isEra then return end  -- Classic Era has no arenas; skip the whole module
 local L = ns.L
 
 local mod = ns:RegisterModule("arenaframes", {

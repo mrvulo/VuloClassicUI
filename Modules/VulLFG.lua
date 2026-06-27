@@ -62,7 +62,8 @@ end
 -- + level range); cat = cd/cr/bd/br; abbr = curated chat keywords. The localized
 -- client name is added as a keyword automatically, so German names match too.
 -- ---------------------------------------------------------
-local CAT_ORDER = { "cd", "cr", "bd", "br" }
+-- bd/br are TBC categories; on Classic Era only the Classic dungeon/raid groups exist.
+local CAT_ORDER = ns.isEra and { "cd", "cr" } or { "cd", "cr", "bd", "br" }
 local CAT_NAME = { cd = L.CAT_CD, cr = L.CAT_CR, bd = L.CAT_BD, br = L.CAT_BR }
 
 local DUNGEONS = {
@@ -126,6 +127,13 @@ local DUNGEONS = {
 local byKey = {}
 for _, d in ipairs(DUNGEONS) do byKey[d.key] = d end
 
+-- Active instance list for this client. On Classic Era the TBC instances (bd/br)
+-- don't exist (their LFG activity ids are absent), so drop them everywhere.
+local ACTIVE = {}
+for _, d in ipairs(DUNGEONS) do
+    if not (ns.isEra and (d.cat == "bd" or d.cat == "br")) then ACTIVE[#ACTIVE + 1] = d end
+end
+
 -- search-intent + heroic keywords
 local SEARCH = "lfg lfm lf lf1m lf2m lf3m lf4m lf5m group grp need lf dps heal heals healer healers tank tanks dd boost run runs wts wtb"
     .. " suche sucht suchen gesucht such gruppe grp brauche heiler dd go"
@@ -152,7 +160,7 @@ end
 local function buildTags()
     if built then return end
     for word in (SEARCH):gmatch("%S+") do searchWords[word] = true end
-    for _, d in ipairs(DUNGEONS) do
+    for _, d in ipairs(ACTIVE) do
         -- name + level from the client's LFG activity DB (localized)
         local name, lo, hi
         if d.zone and GetRealZoneText then name = GetRealZoneText(d.zone) end
@@ -292,7 +300,7 @@ local function refresh()
 
     for _, cat in ipairs(CAT_ORDER) do
         local catPrinted = false
-        for _, d in ipairs(DUNGEONS) do
+        for _, d in ipairs(ACTIVE) do
             if d.cat == cat and requests[d.key] then
                 -- gather this dungeon's senders
                 local list = {}

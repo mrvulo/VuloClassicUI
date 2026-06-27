@@ -5,6 +5,7 @@
 -- We override that with mod.db.slotOrder and mod.db.slotSpacing.
 -- =========================================================
 local _, ns = ...
+if ns.isEra then return end  -- Classic Era has no arenas; skip the whole module
 local L = ns.L
 local mod = ns.ArenaModule
 local H = mod.helpers

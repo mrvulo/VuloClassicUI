@@ -1,6 +1,6 @@
-## Interface: 20505
+## Interface: 11508
 ## Title: |cff9b6cffVuloClassicUI|r
-## Notes: Modular UI suite for TBC Classic Anniversary
+## Notes: Modular UI suite for Classic Era / Anniversary
 ## Author: Vulo
 ## Version: 1.14.0
 ## X-Wago-ID: rN4kojGD
@@ -9,6 +9,7 @@
 ## SavedVariablesPerCharacter: VuloClassicUICharDB, TrinketsPerOptions, TrinketsQueue
 ## IconTexture: Interface\AddOns\VuloClassicUI\Media\Icons\vui4
 ## Category: VuloUI
+# NOTE: file list must stay in sync with VuloClassicUI.toc (the BCC/TBC variant).
 Libs\LibStub\LibStub.lua
 Libs\CallbackHandler-1.0\CallbackHandler-1.0.lua
 Libs\LibSharedMedia-3.0\LibSharedMedia-3.0.lua

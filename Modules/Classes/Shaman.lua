@@ -62,7 +62,15 @@ local TOTEM_IDS = {
     water = { 5394, 5675, 16190, 8166, 8170, 8184 },              -- Healing Stream, Mana Spring, Mana Tide, Poison Cleansing, Disease Cleansing, Fire Resist
     air   = { 8512, 8835, 8177, 10595, 15107, 6495, 25908, 3738 },-- Windfury, Grace of Air, Grounding, Nature Resist, Windwall, Sentry, Tranquil Air, Wrath of Air
 }
-local TOTEMIC_CALL_ID = 36936  -- "Totemic Call" (recall all totems) — middle-click
+-- "Totemic Call" / "Totemic Recall" (recall all totems) — middle-click.
+-- Both TBC and Classic Era use 36936; resolve the known id at apply time so it
+-- stays correct across clients and no-ops cleanly if the shaman hasn't learned it.
+local TOTEMIC_CALL_IDS = { 36936 }
+local function totemicRecallSpell()
+    for _, id in ipairs(TOTEMIC_CALL_IDS) do
+        if GetSpellInfo(id) and (not IsSpellKnown or IsSpellKnown(id)) then return id end
+    end
+end
 
 local WARN_COLOR  = { 1.0, 0.25, 0.25 }
 local BAR_TEX     = "Interface\\Buttons\\WHITE8X8"
@@ -160,7 +168,7 @@ local function applyButtonSpells()
             local name = castableName(buttonSpell(t), t.key)
             local id   = name and select(7, GetSpellInfo(name))  -- numeric spell ID
             row:SetAttribute("*spell1", id or name)
-            row:SetAttribute("*spell3", TOTEMIC_CALL_ID)
+            row:SetAttribute("*spell3", totemicRecallSpell())
         end
     end
 end

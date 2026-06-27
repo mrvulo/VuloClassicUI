@@ -4,6 +4,7 @@
 -- Detects the cast via COMBAT_LOG_EVENT_UNFILTERED and shows icon + timer.
 -- =========================================================
 local _, ns = ...
+if ns.isEra then return end  -- Classic Era has no arenas; skip the whole module
 local L = ns.L
 local mod = ns.ArenaModule
 local H = mod.helpers

@@ -156,7 +156,9 @@ end
 -- ---------------------------------------------------------
 local cvarCache, cvarsActive = {}, false
 local function applyCVar(k, v)
-    if cvarCache[k] == nil then cvarCache[k] = GetCVar(k) end
+    local cur = GetCVar(k)
+    if cur == nil then return end          -- CVar doesn't exist on this client (e.g. Classic Era lacks soft-target) -> skip, never SetCVar an unknown name
+    if cvarCache[k] == nil then cvarCache[k] = cur end
     SetCVar(k, v)
 end
 local function setFishCVars()

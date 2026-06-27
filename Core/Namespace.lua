@@ -13,6 +13,16 @@ local _metaGet = (C_AddOns and C_AddOns.GetAddOnMetadata) or _G.GetAddOnMetadata
 ns.VERSION   = (_metaGet and _metaGet(addonName, "Version")) or "?"
 ns.PREFIX    = "|cff9b6cffVuloClassicUI|r"
 
+-- Client/version detection. WOW_PROJECT_* may be nil on very old clients, so guard.
+local _proj = _G.WOW_PROJECT_ID
+ns.isEra       = (_proj ~= nil and _proj == _G.WOW_PROJECT_CLASSIC)                    -- Classic Era / Vanilla (1.15.x)
+ns.isBCC       = (_proj ~= nil and _proj == _G.WOW_PROJECT_BURNING_CRUSADE_CLASSIC)    -- TBC Classic / Anniversary (2.5.x)
+ns.isWrath     = (_proj ~= nil and _proj == _G.WOW_PROJECT_WRATH_CLASSIC)
+ns.isCata      = (_proj ~= nil and _proj == _G.WOW_PROJECT_CATACLYSM_CLASSIC)
+ns.isClassic   = (ns.isEra or ns.isBCC or ns.isWrath or ns.isCata)                    -- any non-retail flavor
+-- If WOW_PROJECT_ID is missing entirely, assume the build we ship for (BCC) so nothing self-disables wrongly.
+if _proj == nil then ns.isBCC, ns.isClassic = true, true end
+
 -- Color escape codes for strings (FontStrings, Tooltip lines, ns:Print)
 ns.C = {
     accent = "|cff9b6cff",

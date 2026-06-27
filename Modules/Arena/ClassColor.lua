@@ -3,6 +3,7 @@
 -- Class-colored health bar, class icon instead of portrait, name in class color.
 -- =========================================================
 local _, ns = ...
+if ns.isEra then return end  -- Classic Era has no arenas; skip the whole module
 local L = ns.L
 local mod = ns.ArenaModule
 local H = mod.helpers
