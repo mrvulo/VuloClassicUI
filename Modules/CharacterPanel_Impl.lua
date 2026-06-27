@@ -6,8 +6,11 @@
 local _, ns = ...
 local L = ns.L
 
-local isTBC = (WOW_PROJECT_ID == WOW_PROJECT_BURNING_CRUSADE_CLASSIC)
-if not isTBC then
+-- Runs on BCC/Anniversary and Classic Era: the PaperDoll hooks
+-- (PaperDollItemSlotButton_Update / InspectPaperDollItemSlotButton_Update) and the
+-- slot frames exist on both. Sockets simply scan empty on Era (no gems in Vanilla),
+-- and ring enchants (TBC+) are suppressed below. Other flavors are not supported.
+if not (ns.isBCC or ns.isEra) then
     return
 end
 
@@ -87,7 +90,9 @@ if ENABLE_AMMO and INVSLOT_AMMO then
 	buttonLayout[INVSLOT_AMMO] = "right"
 end
 
-local RINGS_ENCH = cpOpt("ringsEnchantable", true)
+-- Ring enchanting only exists from TBC onward; on Classic Era never treat rings
+-- as enchantable, otherwise every ring would falsely show the red "No Ench".
+local RINGS_ENCH = cpOpt("ringsEnchantable", true) and not ns.isEra
 
 local enchantableSlots = {
 	[INVSLOT_HEAD] = true,
