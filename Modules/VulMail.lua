@@ -152,7 +152,7 @@ function step()
 end
 
 function processCurrent()
-    local sender, subject, money, cod, _, itemCount, _, _, _, _, isGM = select(3, GetInboxHeaderInfo(idx))
+    local _, _, money, cod, _, itemCount, _, _, _, _, isGM = select(3, GetInboxHeaderInfo(idx))
     money = money or 0
     cod = cod or 0
 

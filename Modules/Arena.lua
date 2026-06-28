@@ -1140,7 +1140,7 @@ end
 -- Combat log: detect trinket cast
 -- =========================================================
 local function onCombatLog()
-    local _, subevent, _, sourceGUID, _, sourceFlags, _, _, _, _, _, spellId =
+    local _, subevent, _, sourceGUID, _, _, _, _, _, _, _, spellId =
         CombatLogGetCurrentEventInfo()
 
     if subevent ~= "SPELL_CAST_SUCCESS" then return end

@@ -67,7 +67,6 @@ local function getItemCooldown(itemID)
                    or (C_Container and C_Container.GetContainerNumSlots and C_Container.GetContainerNumSlots(bag))
                    or 0
         for slot = 1, slots do
-            local link
             if _G.GetContainerItemID then
                 if GetContainerItemID(bag, slot) == itemID then
                     return getContainerItemCooldown(bag, slot)

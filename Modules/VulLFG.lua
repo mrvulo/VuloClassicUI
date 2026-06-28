@@ -29,7 +29,7 @@ local mod = ns:RegisterModule("vullfg", {
 })
 
 local floor, format, strlower, strfind, strsplit = math.floor, string.format, string.lower, string.find, strsplit
-local tinsert, wipe, ipairs, pairs = table.insert, wipe, ipairs, pairs
+local wipe, ipairs, pairs = wipe, ipairs, pairs
 local GetTime, GetActivity = GetTime, (C_LFGList and C_LFGList.GetActivityInfoTable)
 local ACCENT = ns.COLORS and ns.COLORS.accent or { r = 0.608, g = 0.424, b = 1 }
 

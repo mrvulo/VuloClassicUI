@@ -72,7 +72,6 @@ local mod = ns:RegisterModule("combattext", {
 -- Shared state + forward declarations (resolve def-order cycles)
 -- =========================================================
 local container       -- anchor frame (both systems centre on it)
-local moverFrame      -- mover for position
 local POOL_SIZE = 20
 local fontStringPool = {}
 local activeMessages = {}   -- scrolling messages
@@ -80,7 +79,6 @@ local notifyFrames   = {}   -- key -> flash/persistent notification frame
 local isPreview      = false
 
 local NOTIFY_TYPES   = { "combatStart", "combatEnd", "lowDurability" }
-local NOTIFY_SET     = { combatStart = true, combatEnd = true, lowDurability = true }
 local NOTIFY_SPACING = 6
 
 local showNotify, hideNotify, doCheckDurability, scheduleDurabilityCheck
@@ -176,12 +174,6 @@ local ANCHOR_FRAMES = {
 }
 local function anchorTargetFrame()
     return _G[mod.db.anchorTo or "UIParent"] or UIParent
-end
-
--- legacy helper, kept for the (now hidden) drag mover
-local function getAnchor()
-    if mod.db.centerOnScreen then return UIParent end
-    return _G.PlayerFrameHealthBar or _G.PlayerFrame or UIParent
 end
 
 local function reAnchorContainer()

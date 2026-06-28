@@ -134,7 +134,10 @@ local function build()
 
     -- Toolbar: above the movers (DIALOG > HIGH) so its controls are clickable.
     toolbar = CreateFrame("Frame", "VCUIEditToolbar", UIParent)
-    toolbar:SetSize(820, 64)
+    -- wide enough that the grid-size slider's value + / - steppers clear the
+    -- right-hand Layouts / Reset buttons (left cluster anchors left, right cluster
+    -- anchors right, so the extra width separates them)
+    toolbar:SetSize(960, 64)
     toolbar:SetPoint("TOP", UIParent, "TOP", 0, -140)
     toolbar:SetFrameStrata("DIALOG")
     toolbar:SetClampedToScreen(true)

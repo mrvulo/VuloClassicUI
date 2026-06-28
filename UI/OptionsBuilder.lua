@@ -20,7 +20,6 @@ local UI = ns.UI
 local L = ns.L
 
 local CONTENT_PADDING = 14
-local SECTION_GAP     = 12
 
 -- =========================================================
 -- Widget pooling

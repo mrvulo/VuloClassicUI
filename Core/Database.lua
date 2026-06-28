@@ -40,11 +40,6 @@ local DEFAULT_PROFILE = "Default"
 -- =========================================================
 -- Helpers
 -- =========================================================
-local function getCharKey()
-    local name, realm = UnitName("player"), GetRealmName()
-    return (name or "?") .. " - " .. (realm or "?")
-end
-
 local function getClassKey()
     local _, class = UnitClass("player")
     return class or "UNKNOWN"
