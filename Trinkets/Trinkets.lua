@@ -1209,7 +1209,7 @@ function Trinkets.Notify(msg)
 end
 
 function Trinkets.CooldownUpdate()
-	local inv, bag, slot, start, duration, name, remain
+	local start, duration, name, remain
 	for i in pairs(TrinketsPerOptions.ItemsUsed) do
 		start, duration = Trinkets.GetItemCooldown(i)
 		if start and TrinketsPerOptions.ItemsUsed[i] < 3 then

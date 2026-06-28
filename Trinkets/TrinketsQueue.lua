@@ -324,7 +324,7 @@ end
 
 -- which = 0 or 1, decides if a trinket should be equipped and equips if so
 function Trinkets.ProcessAutoQueue(which)
-	local _, _, id, name = string.find(GetInventoryItemLink("player", 13 + which) or "", "item:(%d+).+%[(.+)%]")
+	local _, _, id = string.find(GetInventoryItemLink("player", 13 + which) or "", "item:(%d+).+%[(.+)%]")
 	if not id then
 		return
 	end -- leave if no trinket equipped
