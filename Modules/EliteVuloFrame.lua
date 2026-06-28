@@ -33,6 +33,9 @@ local mod = ns:RegisterModule("elitevuloframe", {
 local BASE_X, BASE_Y = -17.5, -3.5
 if ns.isEra then BASE_X, BASE_Y = 0, 0 end
 local LEVEL_X, LEVEL_Y = 52.5 + BASE_X, -67 + BASE_Y
+-- Era's player frame is sized slightly differently, so the level number lands a
+-- touch too far left over the elite art; nudge it right (tune this value if needed).
+if ns.isEra then LEVEL_X = LEVEL_X + 8 end
 
 local STYLES = {
     elite = {
