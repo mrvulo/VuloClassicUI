@@ -26,7 +26,12 @@ local mod = ns:RegisterModule("elitevuloframe", {
 -- mirrored player frame). Anniversary 2.5.5 moved player frame
 -- elements directly, hence the -17.5 / -3.5 normalisation offsets.
 -- =========================================================
+-- The Anniversary 2.5.5 client shifted the player-frame elements, so the (wider)
+-- elite texture needs this -17.5/-3.5 normalisation to sit right. Classic Era keeps
+-- the original (un-shifted) layout, so on Era the same offset would push the dragon
+-- art + level badge ~17px off — there it needs no shift.
 local BASE_X, BASE_Y = -17.5, -3.5
+if ns.isEra then BASE_X, BASE_Y = 0, 0 end
 local LEVEL_X, LEVEL_Y = 52.5 + BASE_X, -67 + BASE_Y
 
 local STYLES = {
