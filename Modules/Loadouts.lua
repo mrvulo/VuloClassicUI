@@ -32,6 +32,7 @@ local mod = ns:RegisterModule("loadouts", {
         sidebarEnabled      = true,
         sidebarTopOffset    = -14,  -- fine-tune top edge (px) vs CharacterFrame
         sidebarBottomOffset = 45,   -- fine-tune bottom edge (px) vs CharacterFrame
+        sidebarPos          = { x = 0, y = 0 },  -- edit-mode drag offset from the char window
     },
 })
 
@@ -1332,11 +1333,14 @@ local function createSidebar()
     -- the visible backdrop on a given client.
     local function anchorToCharacterFrame()
         if not sidebar or not CharacterFrame then return end
-        local topOff = (mod.db and mod.db.sidebarTopOffset)    or 0
-        local botOff = (mod.db and mod.db.sidebarBottomOffset) or 0
+        local pos    = mod.db and mod.db.sidebarPos
+        local px     = (pos and pos.x) or 0   -- edit-mode drag offset (x)
+        local py     = (pos and pos.y) or 0   -- edit-mode drag offset (y)
+        local topOff = ((mod.db and mod.db.sidebarTopOffset)    or 0) + py
+        local botOff = ((mod.db and mod.db.sidebarBottomOffset) or 0) + py
         sidebar:ClearAllPoints()
-        sidebar:SetPoint("TOPLEFT",    CharacterFrame, "TOPRIGHT", -4, topOff)
-        sidebar:SetPoint("BOTTOMLEFT", CharacterFrame, "BOTTOMRIGHT", -4, botOff)
+        sidebar:SetPoint("TOPLEFT",    CharacterFrame, "TOPRIGHT", -4 + px, topOff)
+        sidebar:SetPoint("BOTTOMLEFT", CharacterFrame, "BOTTOMRIGHT", -4 + px, botOff)
     end
     anchorToCharacterFrame()
     sidebar._reanchor = anchorToCharacterFrame
@@ -1410,16 +1414,56 @@ local function createSidebar()
     newBtn:SetScript("OnClick", function() promptSaveWithSlots(nil) end)
     sidebar.newBtn = newBtn
 
+    -- Edit-mode mover: drag the sidebar to an offset from the character window.
+    -- It STAYS anchored to CharacterFrame (keeps tracking the window height and
+    -- shows/hides with it), so instead of the default screen-centre drag we store
+    -- only an x/y offset and re-anchor live while dragging. Arrow keys + the
+    -- right-click popup (incl. reset) work through applyPos = anchorToCharacterFrame.
+    mod.db.sidebarPos = mod.db.sidebarPos or { x = 0, y = 0 }
+    sidebar.mover = ns:CreateMover(sidebar, {
+        label    = L["|cffffffffLOADOUTS SIDEBAR|r\n|cffaaaaaaDrag or arrow keys|r"],
+        db       = mod.db.sidebarPos,
+        width    = 168,
+        height   = 44,
+        applyPos = anchorToCharacterFrame,
+    })
+    sidebar.mover:SetFrameLevel((sidebar:GetFrameLevel() or 1) + 20)  -- above the set buttons
+    do
+        -- Replace the default screen-centre drag with offset tracking so the
+        -- two-point anchor (and height tracking) is never broken.
+        local mvr = sidebar.mover
+        mvr:SetScript("OnDragStart", function(self)
+            local cx, cy = GetCursorPosition()
+            self._dragX, self._dragY = cx, cy
+            self._origX, self._origY = mod.db.sidebarPos.x or 0, mod.db.sidebarPos.y or 0
+            self:SetScript("OnUpdate", function()
+                local nx, ny = GetCursorPosition()
+                local s = UIParent:GetEffectiveScale()
+                if s and s > 0 then
+                    mod.db.sidebarPos.x = self._origX + (nx - self._dragX) / s
+                    mod.db.sidebarPos.y = self._origY + (ny - self._dragY) / s
+                    anchorToCharacterFrame()
+                end
+            end)
+        end)
+        mvr:SetScript("OnDragStop", function(self) self:SetScript("OnUpdate", nil) end)
+    end
+
     -- Hook CharacterFrame show/hide
     CharacterFrame:HookScript("OnShow", function()
         if mod._enabled and mod.db and mod.db.sidebarEnabled ~= false then
             sidebar:Show()
             anchorToCharacterFrame()  -- re-sync size in case CharacterFrame changed
             refreshSidebar()
+            -- the mover only makes sense while the window is open; sync its state
+            if sidebar.mover then
+                if ns:IsMoverEditMode() then sidebar.mover:Show() else sidebar.mover:Hide() end
+            end
         end
     end)
     CharacterFrame:HookScript("OnHide", function() sidebar:Hide() end)
 
+    if ns:IsMoverEditMode() then sidebar.mover:Show() end
     return sidebar
 end
 
@@ -1621,6 +1665,7 @@ function mod:GetOptions()
               mod.db.sidebarEnabled = v
               applySidebarVisibility()
           end },
+        { type = "desc", text = L["|cffaaaaaaTip: with the character window open, enable edit mode (Unlock) to drag the sidebar; right-click the purple box to reset its position.|r"] },
 
         -- Slot Picker (formerly its own module, now integrated here)
         { type = "spacer", height = 6 },
