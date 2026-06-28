@@ -670,6 +670,7 @@ local function build()
     end
 
     container.mover = ns:CreateMover(container, {
+        key    = "totems",
         label  = L["|cffffffffTOTEMS|r"],
         db     = db(),
         width  = 160,

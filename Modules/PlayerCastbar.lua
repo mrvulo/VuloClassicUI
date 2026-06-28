@@ -439,6 +439,7 @@ local function c_create()
 
     -- Mover overlay (clearly visible in unlock mode)
     cFrame.mover = ns:CreateMover(cFrame, {
+        key    = "castbar",
         label  = L["|cffffffffCASTBAR|r\n|cffaaaaaaDrag or arrow keys|r"],
         db     = mod.db,
         width  = math.max(mod.db.width + 60, 200),

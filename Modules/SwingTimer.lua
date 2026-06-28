@@ -365,6 +365,7 @@ local function create()
     ohBar = createBar(frame, L["OH"])
 
     frame.mover = ns:CreateMover(frame, {
+        key    = "swingtimer",
         label  = L["|cffffffffSWING TIMER|r\n|cffaaaaaaDrag or arrow keys|r"],
         db     = mod.db,
         width  = math.max(mod.db.width + 40, 180),

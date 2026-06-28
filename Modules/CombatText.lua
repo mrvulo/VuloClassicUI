@@ -514,92 +514,56 @@ local function applyWorldTextScale()
 end
 
 -- =========================================================
--- Mover (position of both systems)
+-- Mover (position of both systems) — a unified Edit Mode box (/vedit) anchored
+-- to the REAL text container, so the purple box sits exactly where the combat
+-- text appears (left/right click selects it -> per-frame panel, arrow keys
+-- nudge, magnetism, etc., just like every other VuloUI window).
 -- =========================================================
+-- Re-pin the text in our anchor model. Called by the option setters and as the
+-- mover's applyPos (arrow-key nudge / layout).
 local function applyMoverPosition()
-    if moverFrame then
-        local anchor = getAnchor()
-        moverFrame:ClearAllPoints()
-        if mod.db.centerOnScreen then
-            moverFrame:SetPoint("CENTER", anchor, "CENTER", mod.db.x or 0, mod.db.y or 0)
-        else
-            moverFrame:SetPoint("BOTTOM", anchor, "TOP", mod.db.x or 0, 25 + (mod.db.y or 0))
-        end
+    reAnchorContainer()
+    arrangeNotify()
+end
+
+-- Screen coords of a named point on a frame (raw; both frames share UIParent scale).
+local function pointOf(frame, point)
+    local l, b, w, h = frame:GetLeft(), frame:GetBottom(), frame:GetWidth(), frame:GetHeight()
+    if not (l and b and w and h) then return nil end
+    local x = (point:find("LEFT") and l) or (point:find("RIGHT") and (l + w)) or (l + w / 2)
+    local y = (point:find("BOTTOM") and b) or (point:find("TOP") and (b + h)) or (b + h / 2)
+    return x, y
+end
+
+-- After a drag, the engine has placed the container at a screen CENTER offset.
+-- Translate that back into our configurable anchor model (anchorFrom point ->
+-- anchorPoint on the chosen target) so "Anchored To" etc. keep working.
+local function moverOnMove()
+    local from = mod.db.anchorFrom  or "CENTER"
+    local pt   = mod.db.anchorPoint or "CENTER"
+    local tgt  = anchorTargetFrame()
+    local fx, fy = pointOf(container, from)
+    local tx, ty = pointOf(tgt, pt)
+    if fx and tx then
+        mod.db.x = fx - tx
+        mod.db.y = fy - ty
     end
     reAnchorContainer()
     arrangeNotify()
 end
 
-local function createMover()
-    if moverFrame then return moverFrame end
-    moverFrame = CreateFrame("Frame", "VCUI_CombatTextMover", UIParent)
-    moverFrame:SetSize(200, 60)
-    moverFrame:SetFrameStrata("HIGH")
-    moverFrame:EnableMouse(true)
-    moverFrame:SetMovable(true)
-    moverFrame:Hide()
-
-    local bg = moverFrame:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints(moverFrame)
-    bg:SetColorTexture(0.6, 0.4, 1.0, 0.4)
-    moverFrame.label = moverFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    moverFrame.label:SetPoint("CENTER", moverFrame, "CENTER", 0, 0)
-    moverFrame.label:SetText(L["|cffffffffCOMBAT TEXT|r"])
-
-    moverFrame:RegisterForDrag("LeftButton")
-    moverFrame:SetScript("OnDragStart", function(self) self:StartMoving() end)
-    moverFrame:SetScript("OnDragStop", function(self)
-        self:StopMovingOrSizing()
-        local a = getAnchor()
-        if not a then return end
-        local mx, my = self:GetCenter()
-        local ax, ay = a:GetCenter()
-        local _, ah = a:GetSize()
-        local _, mh = self:GetSize()
-        if mod.db.centerOnScreen then
-            mod.db.x = mx - ax
-            mod.db.y = my - ay
-        else
-            mod.db.x = mx - ax
-            mod.db.y = my - ay - ah/2 - 25 - mh/2
-        end
-        applyMoverPosition()
-    end)
-
-    moverFrame:EnableKeyboard(true)
-    moverFrame:SetPropagateKeyboardInput(true)
-    moverFrame:SetScript("OnKeyDown", function(self, key)
-        if not mod.db.unlocked then
-            self:SetPropagateKeyboardInput(true); return
-        end
-        local step = IsShiftKeyDown() and 5 or 1
-        local dx, dy = 0, 0
-        if     key == "UP"    then dy =  step
-        elseif key == "DOWN"  then dy = -step
-        elseif key == "LEFT"  then dx = -step
-        elseif key == "RIGHT" then dx =  step
-        else self:SetPropagateKeyboardInput(true); return end
-        self:SetPropagateKeyboardInput(false)
-        mod.db.x = (mod.db.x or 0) + dx
-        mod.db.y = (mod.db.y or 0) + dy
-        applyMoverPosition()
-    end)
-    return moverFrame
-end
-
-local function setUnlocked(state)
-    mod.db.unlocked = state
-    createMover()
-    applyMoverPosition()
-    if state then
-        moverFrame:Show()
-        -- show the notifications too so the user sees what they're positioning
-        showPreview()
-        ns:Print(L["Combat Text mover active. Drag or arrow keys (SHIFT=5px)."])
-    else
-        moverFrame:Hide()
-        hidePreview()
-    end
+local function setupMover()
+    if mod._mover then return end
+    createContainer()
+    mod._mover = ns:CreateMover(container, {
+        key    = "combattext",
+        label  = "|cffffffffCOMBAT TEXT|r",
+        db     = mod.db,                 -- mod.db.x / mod.db.y are the anchor offsets
+        width  = 220, height = 56,
+        applyPos    = applyMoverPosition,
+        onMove      = moverOnMove,
+        editPreview = function(show) if show then showPreview() else hidePreview() end end,
+    })
 end
 
 -- =========================================================
@@ -607,9 +571,12 @@ end
 -- =========================================================
 function mod:OnEnable()
     if not mod.db then return end
+    mod.db.unlocked = false   -- clear any stale saved "unlocked" so the box only shows in /vedit
     playerGUID = UnitGUID("player")
     createContainer()
+    if container then container:Show() end   -- re-show after a disable->enable cycle (createContainer early-returns)
     reAnchorContainer()
+    setupMover()
     applySharpFonts()
     applyWorldTextScale()
     applyDamageTextFont()
@@ -630,7 +597,6 @@ function mod:OnDisable()
     hidePreview()
     for _, f in pairs(notifyFrames) do f:Hide() end
     if container then container:Hide() end
-    if moverFrame then moverFrame:Hide() end
 end
 
 -- =========================================================
@@ -641,7 +607,10 @@ local function ensurePreviewAutoStop()
     local f = _G.VuloClassicUIMainFrame
     if f and not f._vcCTPreviewHooked then
         f._vcCTPreviewHooked = true
-        f:HookScript("OnHide", function() hidePreview() end)
+        f:HookScript("OnHide", function()
+            -- don't kill the positioning preview if /vedit is still driving it
+            if not (ns.IsEditModeActive and ns:IsEditModeActive()) then hidePreview() end
+        end)
     end
 end
 
@@ -716,6 +685,11 @@ function mod:GetOptions()
 
         -- ---- Position Settings ------------------------------------------
         { type = "section", title = L["Position Settings"], collapsed = false, items = {
+            { type = "button", label = L["Open Edit Mode"], width = 140,
+              tooltip = L["Drag the combat-text box in the unified Edit Mode (/vedit)."],
+              onClick = function()
+                  if ns.SetEditMode then ns:SetEditMode(not ns:IsEditModeActive()) end
+              end },
             { type = "dropdown", label = L["Anchored To"], values = ANCHOR_FRAMES,
               get = function() return mod.db.anchorTo or "UIParent" end,
               set = function(_, v) mod.db.anchorTo = v; applyMoverPosition() end },

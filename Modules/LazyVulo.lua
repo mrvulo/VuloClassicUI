@@ -24,9 +24,7 @@ local mod = ns:RegisterModule("lazyvulo", {
         showTooltips   = true,
         scale          = 1.25,
         keys           = { "G", "Y", "B", "R" },
-        point          = "CENTER",
-        relPoint       = "CENTER",
-        x              = 0,
+        x              = 0,    -- CENTER offset (legacy point/relPoint migrated on first load)
         y              = 120,
     },
 })
@@ -216,12 +214,19 @@ local function buildFrame()
 
     f = CreateFrame("Frame", "VCUI_LazyVulo", UIParent)
     f:SetSize(FRAME_W, FRAME_H)
-    f:SetPoint(mod.db.point or "CENTER", UIParent, mod.db.relPoint or "CENTER",
-        mod.db.x or 0, mod.db.y or 0)
+    -- one-time migrate the legacy point/relPoint anchor save to a CENTER offset
+    if mod.db.point then
+        f:ClearAllPoints()
+        f:SetPoint(mod.db.point, UIParent, mod.db.relPoint or "CENTER", mod.db.x or 0, mod.db.y or 0)
+        local fx, fy = f:GetCenter()
+        local px, py = UIParent:GetCenter()
+        if fx and px then mod.db.x, mod.db.y = fx - px, fy - py end
+        mod.db.point, mod.db.relPoint = nil, nil
+    end
+    f:ClearAllPoints()
+    f:SetPoint("CENTER", UIParent, "CENTER", mod.db.x or 0, mod.db.y or 0)
     f:SetScale(mod.db.scale or 1)
     f:SetFrameStrata("HIGH")
-    f:SetClampedToScreen(true)
-    f:SetMovable(true)
     f:EnableMouse(true)
     f:Hide()
 
@@ -230,14 +235,9 @@ local function buildFrame()
         if ns.UI.CreateShadow then ns.UI:CreateShadow(f) end
     end
 
-    -- Drag anywhere on the panel body
-    f:RegisterForDrag("LeftButton")
-    f:SetScript("OnDragStart", f.StartMoving)
-    f:SetScript("OnDragStop", function(self)
-        self:StopMovingOrSizing()
-        local p, _, rp, x, y = self:GetPoint(1)
-        mod.db.point, mod.db.relPoint, mod.db.x, mod.db.y = p, rp, x, y
-    end)
+    -- Drag / position are now handled by the unified Edit Mode HUD (/vedit).
+    ns:CreateMover(f, { key = "lazyvulo", label = "|cffffffffLAZYVULO|r", db = mod.db, width = FRAME_W, height = FRAME_H,
+        scalable = true, anchorable = true })
 
     -- Title + close
     local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")

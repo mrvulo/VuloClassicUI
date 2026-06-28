@@ -301,16 +301,6 @@ local function ensureFrame()
     if DCP then return DCP end
 
     DCP = CreateFrame("Frame", "VCUI_CooldownPulse", UIParent)
-    DCP:SetMovable(true)
-    DCP:RegisterForDrag("LeftButton")
-    DCP:SetScript("OnDragStart", function(self) self:StartMoving() end)
-    DCP:SetScript("OnDragStop", function(self)
-        self:StopMovingOrSizing()
-        mod.db.x = self:GetLeft() + self:GetWidth() / 2
-        mod.db.y = self:GetBottom() + self:GetHeight() / 2
-        self:ClearAllPoints()
-        self:SetPoint("CENTER", UIParent, "BOTTOMLEFT", mod.db.x, mod.db.y)
-    end)
 
     TextFrame = DCP:CreateFontString(nil, "ARTWORK")
     TextFrame:SetFont(STANDARD_TEXT_FONT, 14, "OUTLINE")
@@ -323,36 +313,53 @@ local function ensureFrame()
     DCPT = DCP:CreateTexture(nil, "BACKGROUND")
     DCPT:SetAllPoints(DCP)
 
-    -- Default position: center
-    if not mod.db.x then mod.db.x = UIParent:GetWidth() * UIParent:GetEffectiveScale() / 2 end
-    if not mod.db.y then mod.db.y = UIParent:GetHeight() * UIParent:GetEffectiveScale() / 2 end
     DCP:SetWidth(mod.db.iconSize or 75)
     DCP:SetHeight(mod.db.iconSize or 75)
-    DCP:SetPoint("CENTER", UIParent, "BOTTOMLEFT", mod.db.x, mod.db.y)
+
+    -- one-time migrate the legacy BOTTOMLEFT-pixel position to a CENTER offset
+    if mod.db.x and not mod.db._cmoffset then
+        DCP:ClearAllPoints()
+        DCP:SetPoint("CENTER", UIParent, "BOTTOMLEFT", mod.db.x, mod.db.y)
+        local fx, fy = DCP:GetCenter()
+        local px, py = UIParent:GetCenter()
+        if fx and px then mod.db.x, mod.db.y = fx - px, fy - py end
+    end
+    mod.db._cmoffset = true
+    DCP:ClearAllPoints()
+    DCP:SetPoint("CENTER", UIParent, "CENTER", mod.db.x or 0, mod.db.y or 0)
     DCP:SetAlpha(0)
     DCP:EnableMouse(false)
+
+    -- Join the unified Edit Mode. The frame is normally invisible (alpha 0), so
+    -- editPreview shows a sample icon + enables mouse while editing — which also
+    -- drives the existing "is being moved" guards (DCP:IsMouseEnabled()).
+    DCP.mover = ns:CreateMover(DCP, {
+        key    = "cooldownpulse",
+        label  = "|cffffffffCOOLDOWN PULSE|r",
+        db     = mod.db,
+        width  = mod.db.iconSize or 75,
+        height = mod.db.iconSize or 75,
+        anchorable = true,   -- size is via the icon-size slider, so no scale row
+        editPreview = function(show)
+            if show then
+                DCP:SetScript("OnUpdate", nil)
+                DCP:SetAlpha(1)
+                DCPT:SetTexture("Interface\\Icons\\Spell_Nature_Earthbind")
+                DCP:EnableMouse(true)
+                DCP:SetWidth(mod.db.iconSize); DCP:SetHeight(mod.db.iconSize)
+            else
+                DCP:SetAlpha(0)
+                DCPT:SetTexture(nil)
+                DCP:EnableMouse(false)
+            end
+        end,
+    })
 
     return DCP
 end
 
-local function setUnlocked(state)
-    mod.db.unlocked = state
-    ensureFrame()
-    if state then
-        DCP:SetScript("OnUpdate", nil)
-        DCP:SetAlpha(1)
-        DCPT:SetTexture("Interface\\Icons\\Spell_Nature_Earthbind")
-        DCP:EnableMouse(true)
-        DCP:SetWidth(mod.db.iconSize)
-        DCP:SetHeight(mod.db.iconSize)
-        ns:Print(L["Cooldown Pulse unlock active — drag icon to move."])
-    else
-        DCP:SetAlpha(0)
-        DCPT:SetTexture(nil)
-        DCP:EnableMouse(false)
-        ns:Print(L["Cooldown Pulse unlock disabled."])
-    end
-end
+-- (The old manual unlock/lock was replaced by the unified Edit Mode: the mover's
+--  editPreview callback in ensureFrame shows a sample icon you drag via /vedit.)
 
 -- =========================================================
 -- Events
@@ -497,7 +504,6 @@ end
 -- =========================================================
 local function testAnimation()
     ensureFrame()
-    if mod.db.unlocked then setUnlocked(false) end
     tinsert(animating, { "Interface\\Icons\\Spell_Nature_Earthbind", nil, L["Test Spell"] })
     DCP:SetScript("OnUpdate", OnUpdate)
 end
@@ -508,7 +514,6 @@ end
 function mod:OnEnable()
     ensureFrame()
     setupEvents()
-    if mod.db.unlocked then setUnlocked(true) end
 end
 
 function mod:OnDisable()
@@ -532,10 +537,12 @@ function mod:GetOptions()
             type = "group", layout = "row", gap = 8,
             items = {
                 {
-                    type = "button", label = L["Unlock"],
-                    tooltip = L["Shows a test icon you can move around."],
-                    width = 90,
-                    onClick = function() setUnlocked(not mod.db.unlocked) end,
+                    type = "button", label = L["Open Edit Mode"],
+                    tooltip = L["Move it in the unified Edit Mode (/vedit)."],
+                    width = 140,
+                    onClick = function()
+                        if ns.SetEditMode then ns:SetEditMode(not ns:IsEditModeActive()) end
+                    end,
                 },
                 {
                     type = "button", label = L["Test Pulse"], width = 110,
@@ -545,11 +552,10 @@ function mod:GetOptions()
                 {
                     type = "button", label = L["Reset Position"], width = 170,
                     onClick = function()
-                        mod.db.x = UIParent:GetWidth() * UIParent:GetEffectiveScale() / 2
-                        mod.db.y = UIParent:GetHeight() * UIParent:GetEffectiveScale() / 2
+                        mod.db.x, mod.db.y = 0, 0
                         if DCP then
                             DCP:ClearAllPoints()
-                            DCP:SetPoint("CENTER", UIParent, "BOTTOMLEFT", mod.db.x, mod.db.y)
+                            DCP:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
                         end
                         ns:Print(L["Cooldown Pulse position reset."])
                     end,

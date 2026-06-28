@@ -4,8 +4,13 @@ Trinkets = { }
 
 local _G, math, tonumber, string, type, pairs, ipairs, table, select = _G, math, tonumber, string, type, pairs, ipairs, table, select
 
-local IsClassic = WOW_PROJECT_ID >= WOW_PROJECT_CLASSIC
-local IsVanillaClassic = WOW_PROJECT_ID == WOW_PROJECT_CLASSIC
+-- Derive from VuloClassicUI's canonical client flags (single source of truth).
+-- Falls back to the raw WOW_PROJECT check so the engine still works standalone.
+-- Note: isEra covers BOTH Classic Era AND Season of Discovery (both are
+-- WOW_PROJECT_CLASSIC), which is exactly what IsVanillaClassic needs here.
+local _vui = _G.VuloClassicUI
+local IsClassic = (_vui and _vui.isClassic) or (WOW_PROJECT_ID and WOW_PROJECT_ID >= WOW_PROJECT_CLASSIC) or false
+local IsVanillaClassic = (_vui and _vui.isEra) or (WOW_PROJECT_ID == WOW_PROJECT_CLASSIC)
 local IsRetail = WOW_PROJECT_ID == WOW_PROJECT_MAINLINE
 
 -- localized strings required to support engineering bags

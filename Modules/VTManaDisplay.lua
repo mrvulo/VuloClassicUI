@@ -1,4 +1,15 @@
 -- =========================================================
+-- VuloClassicUI / Modules / VTManaDisplay (merged with Classes/Priest+Warlock DoT data)
+-- AUTO-MERGED file. Each former module is wrapped in an isolated
+-- IIFE so its file-level locals and any top-level early-return stay
+-- self-contained. Modules communicate through the shared ns table.
+-- =========================================================
+
+-- ============================================================
+-- merged from: VTManaDisplay.lua
+-- ============================================================
+(function(...)
+-- =========================================================
 -- VuloClassicUI / Modules / VTManaDisplay (Class Specific)
 -- Container module for class-specific tools, organized by class tabs.
 -- Currently: Priest → Shadow → Vampiric Touch mana tracker
@@ -157,6 +168,7 @@ local function createFrame()
     cFrame.text:SetText(L["|cff9b6cffVT Mana:|r 0"])
 
     cFrame.mover = ns:CreateMover(cFrame, {
+        key    = "vtmana",
         label  = L["|cffffffffVT MANA|r"],
         db     = mod.db,
         width  = 200,
@@ -639,6 +651,7 @@ local function dotsBuild()
     end
 
     dotsContainer.mover = ns:CreateMover(dotsContainer, {
+        key    = "vtmana.dots",
         label  = L["|cffffffffDOTS|r"],
         db     = mod.db.dots,
         width  = 160,
@@ -944,3 +957,71 @@ function mod:GetOptions(tabId)
         { type = "desc", text = L["|cffaaaaaaNo class-specific tools for this class yet. Got an idea? Let me know!|r"] },
     }
 end
+
+end)(...);
+
+-- ============================================================
+-- merged from: Classes/Priest.lua
+-- ============================================================
+(function(...)
+-- =========================================================
+-- VuloClassicUI / Modules / Classes / Priest
+-- Priest-specific data for the "Class Specific" module (Priest tab).
+-- Registers the Shadow DoT set into the shared DoT-tracker engine.
+--
+-- NOTE: the Vampiric Touch mana tracker itself stays in the container module
+-- (VTManaDisplay.lua) on purpose — it shares the SINGLE combat-log pass with
+-- the DoT snapshots, and the combat log is the hottest event in the game.
+-- Splitting it into a second handler would destructure every log line twice.
+-- Class files contribute DATA; the shared engine is never duplicated.
+-- =========================================================
+local _, ns = ...
+
+local csMod = ns.modules and ns.modules.vtmanadisplay
+if not csMod or not csMod.RegisterDotSet then return end
+
+-- key:    unique across classes (snapshot / row keying)
+-- id:     base-rank spell id (name filters every rank)
+-- toggle: db.dots flag (defaults live in the container's db schema)
+-- school: GetSpellBonusDamage index (6 = Shadow)
+csMod:RegisterDotSet("PRIEST", {
+    { key = "swp", id = 589,   toggle = "showSWP", label = "Shadow Word: Pain", school = 6, color = { 0.62, 0.40, 0.94 }, base = 1236, coef = 1.10 },
+    { key = "vt",  id = 34917, toggle = "showVT",  label = "Vampiric Touch",    school = 6, color = { 0.85, 0.30, 0.85 }, base = 850,  coef = 1.00 },
+    { key = "dp",  id = 2944,  toggle = "showDP",  label = "Devouring Plague",  school = 6, color = { 0.40, 0.78, 0.36 }, base = 1216, coef = 1.00 },
+})
+
+end)(...);
+
+-- ============================================================
+-- merged from: Classes/Warlock.lua
+-- ============================================================
+(function(...)
+-- =========================================================
+-- VuloClassicUI / Modules / Classes / Warlock
+-- Warlock-specific data for the "Class Specific" module (Warlock tab).
+-- Registers the Affliction / Destruction DoT set into the shared DoT-tracker
+-- engine — the container builds the Warlock tab's options generically from it.
+-- Class files contribute DATA only; the engine is shared, never duplicated.
+-- =========================================================
+local _, ns = ...
+local L = ns.L
+
+local csMod = ns.modules and ns.modules.vtmanadisplay
+if not csMod or not csMod.RegisterDotSet then return end
+
+-- key:    unique across classes (snapshot / row keying)
+-- id:     base-rank spell id (name filters every rank)
+-- toggle: db.dots flag (defaults live in the container's db schema)
+-- school: GetSpellBonusDamage index (6 = Shadow, 3 = Fire)
+csMod:RegisterDotSet("WARLOCK", {
+    { key = "corr",   id = 172,   toggle = "showCorruption", label = "Corruption",          school = 6, color = { 0.55, 0.35, 0.85 }, base = 900,  coef = 0.94 },
+    { key = "coa",    id = 980,   toggle = "showCoA",        label = "Curse of Agony",      school = 6, color = { 0.45, 0.30, 0.70 }, base = 1356, coef = 1.20 },
+    { key = "ua",     id = 30108, toggle = "showUA",         label = "Unstable Affliction", school = 6, color = { 0.72, 0.42, 0.96 }, base = 1050, coef = 1.20 },
+    { key = "siphon", id = 18265, toggle = "showSiphon",     label = "Siphon Life",         school = 6, color = { 0.40, 0.66, 0.42 }, base = 630,  coef = 1.00 },
+    { key = "immo",   id = 348,   toggle = "showImmolate",   label = "Immolate",            school = 3, color = { 0.92, 0.46, 0.20 }, base = 615,  coef = 0.65 },
+    { key = "codoom", id = 603,   toggle = "showCoDoom",     label = "Curse of Doom",       school = 6, color = { 0.72, 0.22, 0.22 }, base = 4200, coef = 2.00 },
+}, {
+    desc = L["|cffaaaaaaTracks your Warlock DoTs (Corruption, Curse of Agony, Unstable Affliction, Siphon Life, Immolate, Curse of Doom) on the target, with the same recast-snapshot readout as the Priest tracker.|r"],
+})
+
+end)(...);

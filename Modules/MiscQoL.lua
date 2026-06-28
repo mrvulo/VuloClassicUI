@@ -679,6 +679,7 @@ local function ftBuildBar()
     ftBar.time:SetJustifyH("RIGHT")
 
     ftBar.mover = ns:CreateMover(ftBar, {
+        key    = "flighttime",
         label  = L["|cffffffffFLIGHT TIME|r"],
         db     = ftDB(),
         width  = 240,

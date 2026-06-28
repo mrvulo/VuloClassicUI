@@ -1,4 +1,15 @@
 -- =========================================================
+-- VuloClassicUI / Modules / Pages (merged with QoL container)
+-- AUTO-MERGED file. Each former module is wrapped in an isolated
+-- IIFE so its file-level locals and any top-level early-return stay
+-- self-contained. Modules communicate through the shared ns table.
+-- =========================================================
+
+-- ============================================================
+-- merged from: Pages.lua
+-- ============================================================
+(function(...)
+-- =========================================================
 -- VuloClassicUI / Modules / Pages
 -- Sidebar consolidation: related modules are grouped onto a single "page" so
 -- the sidebar stays short. A page is just a lightweight pseudo-module whose
@@ -122,3 +133,31 @@ for _, page in ipairs(PAGES) do
         end
     end
 end
+
+end)(...);
+
+-- ============================================================
+-- merged from: QoL.lua
+-- ============================================================
+(function(...)
+-- =========================================================
+-- VuloClassicUI / Modules / QoL (container)
+-- Consolidates every "QoL"-group module into ONE tabbed sidebar entry
+-- (except the per-class "Class Specific" module, which stays separate).
+--
+-- All the wiring lives in Core/Container.lua (ns:MakeGroupContainer). This file
+-- just describes WHICH modules to fold in. Listed LAST in the .toc so every QoL
+-- sub-module is already registered when the factory scans ns.moduleOrder.
+-- =========================================================
+local _, ns = ...
+
+ns:MakeGroupContainer({
+    key          = "qol",
+    name         = "Quality of Life",
+    group        = "QoL",
+    sidebarOrder = -10,                    -- float above "Class Specific"
+    firstKey     = "miscqol",              -- "General" tab first
+    exclude      = { vtmanadisplay = true }, -- Class Specific stays its own row
+})
+
+end)(...);

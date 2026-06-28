@@ -2,7 +2,9 @@
 
 local _G, type, string, tonumber, table, pairs, select = _G, type, string, tonumber, table, pairs, select
 
-local IsClassic = WOW_PROJECT_ID >= WOW_PROJECT_CLASSIC
+-- Single source of truth: VuloClassicUI's canonical flags (raw check as fallback).
+local _vui = _G.VuloClassicUI
+local IsClassic = (_vui and _vui.isClassic) or (WOW_PROJECT_ID and WOW_PROJECT_ID >= WOW_PROJECT_CLASSIC) or false
 
 Trinkets.PausedQueue = { } -- 0 or 1 whether queue is paused
 

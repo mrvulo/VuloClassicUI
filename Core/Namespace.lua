@@ -23,6 +23,18 @@ ns.isClassic   = (ns.isEra or ns.isBCC or ns.isWrath or ns.isCata)              
 -- If WOW_PROJECT_ID is missing entirely, assume the build we ship for (BCC) so nothing self-disables wrongly.
 if _proj == nil then ns.isBCC, ns.isClassic = true, true end
 
+-- Season of Discovery. Era and SoD are indistinguishable by TOC (both Interface
+-- 11508) and by WOW_PROJECT_ID (both WOW_PROJECT_CLASSIC) -- the ONLY way to tell
+-- them apart is the C_Seasons API at runtime. Every access is guarded because
+-- C_Seasons / Enum.SeasonID do NOT exist on the TBC Anniversary (2.5.x) client,
+-- so there isSoD ends up false and SeasonID 0 (correct).
+local _seasons   = _G.C_Seasons
+local _hasSeason  = (_seasons and _seasons.HasActiveSeason and _seasons.HasActiveSeason()) and true or false
+ns.SeasonID = (_hasSeason and _seasons.GetActiveSeason and _seasons.GetActiveSeason()) or 0   -- 0 = no season
+ns.isSoD    = (ns.isEra and _hasSeason
+               and _G.Enum and _G.Enum.SeasonID
+               and ns.SeasonID == _G.Enum.SeasonID.SeasonOfDiscovery) and true or false
+
 -- Color escape codes for strings (FontStrings, Tooltip lines, ns:Print)
 ns.C = {
     accent = "|cff9b6cff",

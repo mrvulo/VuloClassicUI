@@ -160,20 +160,22 @@ local function buildWindow()
     f:SetBackdropColor(0.06, 0.06, 0.07, 0.95)
     f:SetBackdropBorderColor(0, 0, 0, 1)
 
-    -- restore / save position
-    local p = mod.db.point
-    if p then f:SetPoint(p.p or "CENTER", UIParent, p.p or "CENTER", p.x or 0, p.y or 0)
-    else f:SetPoint("CENTER") end
-
-    f:SetMovable(true)
     f:EnableMouse(true)
-    f:RegisterForDrag("LeftButton")
-    f:SetScript("OnDragStart", f.StartMoving)
-    f:SetScript("OnDragStop", function(self)
-        self:StopMovingOrSizing()
-        local point, _, _, x, y = self:GetPoint()
-        mod.db.point = { p = point, x = x, y = y }
-    end)
+    -- one-time migrate the legacy point-anchor save to the engine's CENTER offset
+    local p = mod.db.point
+    if p then
+        f:ClearAllPoints()
+        f:SetPoint(p.p or "CENTER", UIParent, p.p or "CENTER", p.x or 0, p.y or 0)
+        local fx, fy = f:GetCenter()
+        local px, py = UIParent:GetCenter()
+        if fx and px then mod.db.x, mod.db.y = fx - px, fy - py end
+        mod.db.point = nil
+    end
+    f:ClearAllPoints()
+    f:SetPoint("CENTER", UIParent, "CENTER", mod.db.x or 0, mod.db.y or 0)
+    -- Drag / position are now handled by the unified Edit Mode HUD (/vedit).
+    ns:CreateMover(f, { key = "disenchantqueue", label = "|cffffffff" .. L["Disenchant Queue"] .. "|r", db = mod.db, width = 280, height = 184,
+        scalable = true, anchorable = true })
 
     -- title
     local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")

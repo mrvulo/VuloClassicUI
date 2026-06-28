@@ -232,6 +232,7 @@ local function build()
     applyFont()
 
     frame.mover = ns:CreateMover(frame, {
+        key    = "powerbar",
         label  = L["|cffffffffPOWER BAR|r\n|cffaaaaaaDrag or arrow keys|r"],
         db     = mod.db,
         width  = math.max(mod.db.width + 20, 140),

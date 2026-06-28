@@ -1421,6 +1421,7 @@ local function createSidebar()
     -- right-click popup (incl. reset) work through applyPos = anchorToCharacterFrame.
     mod.db.sidebarPos = mod.db.sidebarPos or { x = 0, y = 0 }
     sidebar.mover = ns:CreateMover(sidebar, {
+        key      = "loadouts.sidebar",
         label    = L["|cffffffffLOADOUTS SIDEBAR|r\n|cffaaaaaaDrag or arrow keys|r"],
         db       = mod.db.sidebarPos,
         width    = 168,

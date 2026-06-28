@@ -12,6 +12,7 @@
 Libs\LibStub\LibStub.lua
 Libs\CallbackHandler-1.0\CallbackHandler-1.0.lua
 Libs\LibSharedMedia-3.0\LibSharedMedia-3.0.lua
+Libs\LibEditModeOverride\LibEditModeOverride.xml
 Core\Namespace.lua
 Core\Compat.lua
 Core\Locale.lua
@@ -31,6 +32,7 @@ UI\MainFrame.lua
 UI\Sidebar.lua
 UI\Dashboard.lua
 UI\OptionsBuilder.lua
+UI\EditMode.lua
 Modules\GlobalSettings.lua
 Modules\UnlockMode.lua
 Modules\Profiles.lua
@@ -42,15 +44,8 @@ Modules\EliteVuloFrame.lua
 Modules\SwingTimer.lua
 Modules\PowerBar.lua
 Modules\CooldownPulse.lua
-Modules\Arena\Init.lua
-Modules\Arena\Core.lua
-Modules\Arena\Layout.lua
-Modules\Arena\ClassColor.lua
-Modules\Arena\Trinket.lua
-Modules\Arena\DR.lua
-Modules\Arena\Castbar.lua
+Modules\Arena.lua
 Modules\CharacterPanel.lua
-Modules\CharacterPanel_Impl.lua
 Modules\ButtonSkin.lua
 Modules\FriendList.lua
 Modules\FlightTimesDB.lua
@@ -60,13 +55,11 @@ Modules\VulMail.lua
 Modules\VulLFG.lua
 Modules\QueueTimer.lua
 Modules\TooltipIDs.lua
-Modules\AutoItemBuy.lua
-Modules\GoldTracker.lua
+Modules\GoldVendors.lua
 Modules\SpamFilter.lua
 Modules\QuestLog.lua
 Modules\ProfessionWindow.lua
 Modules\DisenchantQueue.lua
-Modules\Pages.lua
 Modules\VulTraining\VTData.lua
 Modules\VulTraining\Classes\Druid.lua
 Modules\VulTraining\Classes\Hunter.lua
@@ -79,8 +72,6 @@ Modules\VulTraining\Classes\Warlock.lua
 Modules\VulTraining\Classes\Warrior.lua
 Modules\VulTraining.lua
 Modules\VTManaDisplay.lua
-Modules\Classes\Priest.lua
-Modules\Classes\Warlock.lua
 Modules\Classes\Shaman.lua
 Modules\LazyVulo.lua
 Modules\Vulslot.lua
@@ -88,12 +79,6 @@ Modules\CooldownManager.lua
 Modules\CombatText.lua
 Modules\Loadouts.lua
 Modules\SlotPicker.lua
-Modules\FixAuctionDropdown.lua
-Modules\FixGuildNewsNil.lua
-Modules\FixLFGBrowseNil.lua
-Modules\FixInspect.lua
-Modules\FixBindSocket.lua
-Modules\FixCombatGlow.lua
 Trinkets\TrinketsGlobals.lua
 Trinkets\Trinkets.lua
 Trinkets\Trinkets.xml
@@ -103,5 +88,5 @@ Trinkets\TrinketsQueue.lua
 Trinkets\TrinketsQueue.xml
 Modules\Trinkets.lua
 Modules\Bugfixes.lua
-Modules\QoL.lua
+Modules\Pages.lua
 Core\Init.lua

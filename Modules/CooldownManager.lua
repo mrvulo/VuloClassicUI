@@ -521,6 +521,7 @@ local function ensureBar(group)
     bar:SetScript("OnReceiveDrag", function(self) onReceiveDrag(self) end)
 
     bar.mover = ns:CreateMover(bar, {
+        key    = "cdm:" .. tostring(group.id or group.name or "?"),
         label  = group.name,
         db     = group,   -- per-group x/y/unlocked live here
         width  = 150,

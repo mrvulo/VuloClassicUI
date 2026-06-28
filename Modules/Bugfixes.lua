@@ -1,4 +1,749 @@
 -- =========================================================
+-- VuloClassicUI / Modules / Bugfixes (merged)
+-- AUTO-MERGED file. Each former module is wrapped in an isolated
+-- IIFE so its file-level locals and any top-level early-return stay
+-- self-contained. Modules communicate through the shared ns table.
+-- =========================================================
+
+-- ============================================================
+-- merged from: FixAuctionDropdown.lua
+-- ============================================================
+(function(...)
+-- =========================================================
+-- VuloClassicUI / Modules / FixAuctionPriceDropdown
+-- Fixes a bug in the German client where the PriceDropdown in the
+-- auction house throws nil errors. Provides an empty PriceDropdown
+-- so the UI doesn't crash.
+-- =========================================================
+local _, ns = ...
+local L = ns.L
+
+local mod = ns:RegisterModule("fixauctiondropdown", {
+    name        = "Auction Price Fix",
+    group       = "Bugfixes",
+    description = "Fixes a nil error in the German auction house UI (PriceDropdown not defined).",
+    defaults = {
+        enabled = true,
+    },
+})
+
+local applied = false
+
+local function applyFix()
+    if applied then return end
+    applied = true
+
+    if GetLocale() == "deDE" and not _G.PriceDropdown then
+        local f = CreateFrame("Frame", "PriceDropdown", UIParent)
+        f.Text           = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        f.HideSpacerFrame = CreateFrame("Frame", nil, f)
+    end
+end
+
+function mod:OnEnable()
+    applyFix()
+end
+
+function mod:GetOptions()
+    return {
+        { type = "header", text = L["Info"] },
+        { type = "desc", text = L["This fix addresses a known bug in the German WoW localization: the auction house UI references a \"PriceDropdown\" element that was never defined, which causes Lua errors when opening the auction house."] },
+        { type = "spacer", height = 6 },
+        { type = "desc", text = string.format(L["|cffaaaaaaCurrent locale: %s|r"], GetLocale() or "?") },
+        { type = "desc", text = L["|cffaaaaaaThe fix only applies on German clients (deDE). On other languages the module is inactive.|r"] },
+        { type = "spacer", height = 6 },
+        { type = "desc", text = string.format(L["|cffaaaaaaStatus: %s|r"],
+            applied and (_G.PriceDropdown and L["|cff66ff66applied|r"] or L["skipped (deDE-only)"]) or L["not applied"]) },
+    }
+end
+
+end)(...);
+
+-- ============================================================
+-- merged from: FixGuildNewsNil.lua
+-- ============================================================
+(function(...)
+-- =========================================================
+-- VuloClassicUI / Modules / FixGuildNewsNil
+-- Fixes a bug in Blizzard_Communities where broken guild news entries
+-- throw ("formatString") errors that make the guild news panel unusable.
+-- Wraps GuildNewsButton_SetNews with xpcall and shows a fallback text
+-- for broken entries.
+-- =========================================================
+local _, ns = ...
+local L = ns.L
+
+local mod = ns:RegisterModule("fixguildnews", {
+    name        = "Guild News Nil Fix",
+    group       = "Bugfixes",
+    description = "Catches Lua errors in guild news entries (typically \"formatString\" or \"GuildUtil\") and replaces broken entries with a fallback text instead of letting the whole panel break.",
+    defaults = {
+        enabled    = true,
+        showReport = true,  -- shows once in chat when the fix has been triggered
+    },
+})
+
+local unpack = unpack or table.unpack
+
+-- =========================================================
+-- Helpers
+-- =========================================================
+local function safeSetText(obj, text)
+    if obj and obj.SetText then obj:SetText(text or "") end
+end
+
+local function safeHide(obj)
+    if obj and obj.Hide then obj:Hide() end
+end
+
+local function safeShow(obj)
+    if obj and obj.Show then obj:Show() end
+end
+
+local function applyFallbackToButton(button)
+    if not button then return end
+
+    safeSetText(button.Name, L["|cffff8080Invalid guild news entry|r"])
+    safeSetText(button.Header, "")
+    safeSetText(button.Time, "")
+    safeSetText(button.Description, "")
+
+    if button.Icon and button.Icon.SetTexture then button.Icon:SetTexture(nil) end
+    if button.icon and button.icon.SetTexture then button.icon:SetTexture(nil) end
+
+    safeHide(button.Highlight)
+    safeHide(button.NewMarker)
+    safeHide(button.newsTypeIcon)
+
+    safeShow(button)
+    if button.Enable then button:Enable() end
+end
+
+-- =========================================================
+-- Installation
+-- =========================================================
+local wrappedAlready = false
+
+local function installPatch()
+    if wrappedAlready then return end
+    if type(_G.GuildNewsButton_SetNews) ~= "function" then return end
+
+    local Original = _G.GuildNewsButton_SetNews
+
+    _G.GuildNewsButton_SetNews = function(button, newsInfo, ...)
+        if not mod._enabled then
+            return Original(button, newsInfo, ...)
+        end
+
+        local args = { ... }
+        local ok, err = xpcall(function()
+            return Original(button, newsInfo, unpack(args))
+        end, function(e) return e end)
+
+        if ok then return end
+
+        local errText = tostring(err or "")
+        if errText:find("formatString") or errText:find("GuildUtil") then
+            applyFallbackToButton(button)
+            if mod.db.showReport and not _G.VCUI_GuildNewsNilFix_Reported then
+                _G.VCUI_GuildNewsNilFix_Reported = true
+                DEFAULT_CHAT_FRAME:AddMessage(
+                    L["|cffffff00[VuloClassicUI]|r Blizzard guild news error caught (fallback applied)."])
+            end
+            return
+        end
+
+        -- Pass other errors through (level 0: keep the original message/location
+        -- instead of re-stamping this wrapper's file:line onto a Blizzard error)
+        error(errText, 0)
+    end
+
+    wrappedAlready = true
+end
+
+-- =========================================================
+-- Lifecycle
+-- =========================================================
+local installFrame
+
+function mod:OnEnable()
+    if not installFrame then
+        installFrame = CreateFrame("Frame")
+        installFrame:RegisterEvent("ADDON_LOADED")
+        installFrame:SetScript("OnEvent", function(self, _, addonName)
+            if addonName == "Blizzard_Communities" then
+                installPatch()
+                self:UnregisterEvent("ADDON_LOADED")  -- one-shot; don't keep listening
+            end
+        end)
+    end
+
+    -- Try directly (in case Blizzard_Communities is already loaded)
+    installPatch()
+    -- Plus a delayed retry for edge cases
+    if C_Timer and C_Timer.After then
+        C_Timer.After(1, installPatch)
+    end
+end
+
+-- =========================================================
+-- Options
+-- =========================================================
+function mod:GetOptions()
+    return {
+        { type = "header", text = L["Behavior"] },
+        {
+            type = "toggle", label = L["Chat message on first error"],
+            tooltip = L["Shows a brief message once per session in chat when a guild news error was caught."],
+            get = function() return mod.db.showReport end,
+            set = function(_, v) mod.db.showReport = v end,
+        },
+        { type = "spacer", height = 8 },
+        { type = "desc", text = L["This fix wraps Blizzard's |cffffffffGuildNewsButton_SetNews|r function in a protected call (xpcall). When an entry throws a known error (\"formatString\" or \"GuildUtil\"), the entry is replaced with a fallback text \"Invalid guild news entry\" — the panel remains usable."] },
+        { type = "spacer", height = 6 },
+        { type = "desc", text = string.format(L["|cffaaaaaaStatus: %s|r"],
+            wrappedAlready and L["|cff66ff66Hook active|r"] or L["waiting for Blizzard_Communities"]) },
+    }
+end
+
+end)(...);
+
+-- ============================================================
+-- merged from: FixLFGBrowseNil.lua
+-- ============================================================
+(function(...)
+-- =========================================================
+-- VuloClassicUI / Modules / FixLFGBrowseNil
+-- Fixes a bug in the Anniversary GroupFinder (Vanilla-style) where
+-- LFGBrowseSearchEntry_Update is called with stale resultIDs:
+--   C_LFGList.GetSearchResultInfo(resultID) returns nil because the
+--   result was already removed from the server — Blizzard's update function
+--   then indexes into nil and crashes (Blizzard_LFGVanilla_Browse.lua:267).
+-- Wraps LFGBrowseSearchEntry_Update in xpcall — broken entries remain
+-- visible with their old state until Blizzard's refresh redraws them.
+-- =========================================================
+local _, ns = ...
+local L = ns.L
+
+local mod = ns:RegisterModule("fixlfgbrowsenil", {
+    name        = "LFG Browse Nil Fix",
+    group       = "Bugfixes",
+    description = "Catches Lua errors in the Anniversary Group Finder (LFGBrowseSearchEntry_Update with stale resultIDs). Prevents chat spam and broken browse lists.",
+    defaults = {
+        enabled    = true,
+        showReport = true,  -- report once per session
+    },
+})
+
+local unpack = unpack or table.unpack
+
+-- =========================================================
+-- Installation
+-- =========================================================
+local wrappedAlready = false
+
+local function installPatch()
+    if wrappedAlready then return end
+    if type(_G.LFGBrowseSearchEntry_Update) ~= "function" then return end
+
+    local Original = _G.LFGBrowseSearchEntry_Update
+
+    _G.LFGBrowseSearchEntry_Update = function(button, ...)
+        if not mod._enabled then
+            return Original(button, ...)
+        end
+
+        local args = { ... }
+        local ok, err = xpcall(function()
+            return Original(button, unpack(args))
+        end, function(e) return e end)
+
+        if ok then return end
+
+        local errText = tostring(err or "")
+        -- Known Anniversary bug: searchResultInfo becomes nil because the server
+        -- result is stale. Silent return — Blizzard's next refresh cleans up.
+        if errText:find("searchResultInfo") or errText:find("attempt to index") then
+            if mod.db.showReport and not _G.VCUI_LFGBrowseNilFix_Reported then
+                _G.VCUI_LFGBrowseNilFix_Reported = true
+                DEFAULT_CHAT_FRAME:AddMessage(
+                    L["|cffffff00[VuloClassicUI]|r Blizzard LFG browse error caught (stale entry skipped)."])
+            end
+            return
+        end
+
+        -- Pass other errors through so BugSack & co. see them (level 0: keep the
+        -- original message/location, don't re-stamp this wrapper's file:line)
+        error(errText, 0)
+    end
+
+    wrappedAlready = true
+end
+
+-- =========================================================
+-- Lifecycle
+-- =========================================================
+local installFrame
+
+function mod:OnEnable()
+    if not installFrame then
+        installFrame = CreateFrame("Frame")
+        installFrame:RegisterEvent("ADDON_LOADED")
+        installFrame:SetScript("OnEvent", function(_, _, addonName)
+            if addonName == "Blizzard_GroupFinder_VanillaStyle" then
+                installPatch()
+            end
+        end)
+    end
+
+    -- Try directly (in case addon is already loaded)
+    installPatch()
+    -- Plus a delayed retry for edge cases
+    if C_Timer and C_Timer.After then
+        C_Timer.After(1, installPatch)
+    end
+end
+
+-- =========================================================
+-- Options
+-- =========================================================
+function mod:GetOptions()
+    return {
+        { type = "header", text = L["Behavior"] },
+        {
+            type = "toggle", label = L["Chat message on first error"],
+            tooltip = L["Shows a brief message once per session in chat when an LFG browse error was caught."],
+            get = function() return mod.db.showReport end,
+            set = function(_, v) mod.db.showReport = v end,
+        },
+        { type = "spacer", height = 8 },
+        { type = "desc", text = L["This fix wraps Blizzard's |cffffffffLFGBrowseSearchEntry_Update|r function in a protected call (xpcall). When the entry crashes due to a stale resultID (\"searchResultInfo nil\"), the error is swallowed — Blizzard's next refresh automatically cleans up the list entry."] },
+        { type = "spacer", height = 6 },
+        { type = "desc", text = string.format(L["|cffaaaaaaStatus: %s|r"],
+            wrappedAlready and L["|cff66ff66Hook active|r"] or L["waiting for Blizzard_GroupFinder_VanillaStyle"]) },
+    }
+end
+
+end)(...);
+
+-- ============================================================
+-- merged from: FixInspect.lua
+-- ============================================================
+(function(...)
+-- =========================================================
+-- VuloClassicUI / Modules / FixInspect
+-- Aggressive fix for Anniversary inspect bugs:
+--   1. Empty frame / no items shown
+--   2. Shows previous target's data (stuck cache)
+--   3. Nothing happens at all
+--   4. Only works on second attempt
+-- All caused by the same root: Blizzard's inspect server-state gets stuck
+-- and ClearInspectPlayer() is never called reliably.
+--
+-- Strategy:
+--   - RAW replacement of NotifyInspect + InspectUnit: ALWAYS clear before request
+--   - InspectFrame:OnHide → full reset (clears unit, clears server state)
+--   - Watchdog: 5s timeout for stuck pending state
+--   - Slash: /inspectreset (force reset), /inspectstate (debug info)
+-- =========================================================
+local _, ns = ...
+local L = ns.L
+
+local mod = ns:RegisterModule("fixinspect", {
+    name        = "Inspect Fix",
+    group       = "Bugfixes",
+    description = "Fixes stuck inspect bugs (no player inspect possible after a faulty close/timeout). Auto-reset after 8s + cleanup when InspectFrame closes + /inspectreset slash command.",
+    defaults = {
+        enabled         = true,
+        aggressiveReset = true,   -- ALWAYS clear server state before NotifyInspect
+        autoReset       = true,
+        timeoutSec      = 5,      -- shorter than 8s — Anniversary is slow to clear
+    },
+})
+
+-- =========================================================
+-- State
+-- =========================================================
+local _activeGUID         = nil
+local _activeTime         = 0
+local _hookedFrame        = false
+local _origNotifyInspect  = nil
+local _origInspectUnit    = nil
+local _watchdog
+
+-- =========================================================
+-- Core reset
+--   softReset: clears server state + tracking, KEEPS InspectFrame.unit
+--              (used BEFORE NotifyInspect/InspectUnit — Blizzard sets unit
+--               right after, so clearing would break tooltips)
+--   hardReset: also clears InspectFrame.unit (used in OnHide / manual reset
+--              where the frame is about to close anyway)
+-- =========================================================
+local function softReset()
+    if _G.ClearInspectPlayer then
+        pcall(_G.ClearInspectPlayer)
+    end
+    _activeGUID = nil
+    _activeTime = 0
+end
+
+local function hardReset()
+    softReset()
+    local f = _G.InspectFrame
+    if f then f.unit = nil end
+end
+
+local function onInspectReady()
+    -- Server responded — clean our tracking, but don't reset (UI uses the data)
+    _activeGUID = nil
+    _activeTime = 0
+end
+
+-- =========================================================
+-- RAW wrappers (replace NotifyInspect + InspectUnit directly)
+-- This is the only reliable way to clear BEFORE the request is sent.
+-- hooksecurefunc would run AFTER and that's too late.
+-- =========================================================
+local function installNotifyInspectWrapper()
+    if _origNotifyInspect or type(_G.NotifyInspect) ~= "function" then return end
+    _origNotifyInspect = _G.NotifyInspect
+    _G.NotifyInspect = function(unit)
+        if mod._enabled and mod.db and mod.db.aggressiveReset then
+            -- soft: don't touch InspectFrame.unit — Blizzard sets it right after
+            -- and clearing here would break tooltips
+            softReset()
+        end
+        if unit and UnitExists(unit) then
+            _activeGUID = UnitGUID(unit)
+            _activeTime = GetTime()
+        end
+        return _origNotifyInspect(unit)
+    end
+end
+
+local function installInspectUnitWrapper()
+    if _origInspectUnit or type(_G.InspectUnit) ~= "function" then return end
+    _origInspectUnit = _G.InspectUnit
+    _G.InspectUnit = function(unit)
+        if mod._enabled and mod.db and mod.db.aggressiveReset then
+            softReset()  -- right-click menu route → also clean (soft only)
+        end
+        return _origInspectUnit(unit)
+    end
+end
+
+local function hookInspectFrame()
+    if _hookedFrame then return end
+    local f = _G.InspectFrame
+    if not f then return end
+    -- Full cleanup on close (frame is about to disappear → safe to clear unit)
+    f:HookScript("OnHide", function()
+        if mod._enabled then hardReset() end
+    end)
+    _hookedFrame = true
+end
+
+-- =========================================================
+-- Watchdog: tighter 5s timeout
+-- Soft reset only — frame might still be open with valid data
+-- =========================================================
+local function watchdogTick()
+    if not mod._enabled or not mod.db or not mod.db.autoReset then return end
+    if _activeTime == 0 then return end
+    local timeout = mod.db.timeoutSec or 5
+    if GetTime() - _activeTime > timeout then
+        softReset()
+    end
+end
+
+-- =========================================================
+-- Slash commands
+-- =========================================================
+_G.SLASH_VCUIINSPECTRESET1 = "/inspectreset"
+_G.SlashCmdList["VCUIINSPECTRESET"] = function()
+    hardReset()
+    if _G.InspectFrame and _G.InspectFrame:IsShown() then
+        _G.InspectFrame:Hide()
+    end
+    if ns and ns.Print then
+        ns:Print(L["Inspect state manually reset. Try again now."])
+    else
+        DEFAULT_CHAT_FRAME:AddMessage(L["|cffffff00[VuloClassicUI]|r Inspect state reset."])
+    end
+end
+
+_G.SLASH_VCUIINSPECTSTATE1 = "/inspectstate"
+_G.SlashCmdList["VCUIINSPECTSTATE"] = function()
+    local f = _G.InspectFrame
+    local lines = {
+        "|cffffff00[VuloClassicUI Inspect State]|r",
+        string.format("  NotifyInspect override: %s", _origNotifyInspect and "yes" or "no"),
+        string.format("  InspectUnit override:   %s", _origInspectUnit   and "yes" or "no"),
+        string.format("  InspectFrame hook:      %s", _hookedFrame      and "yes" or "no"),
+        string.format("  Active GUID:            %s", tostring(_activeGUID)),
+        string.format("  Active time:            %s", _activeTime > 0 and string.format("%.1fs ago", GetTime() - _activeTime) or "none"),
+        string.format("  InspectFrame.unit:      %s", f and tostring(f.unit) or "no frame"),
+        string.format("  InspectFrame shown:     %s", (f and f:IsShown()) and "yes" or "no"),
+    }
+    for _, line in ipairs(lines) do
+        DEFAULT_CHAT_FRAME:AddMessage(line)
+    end
+end
+
+-- =========================================================
+-- Lifecycle
+-- =========================================================
+local installFrame
+
+function mod:OnEnable()
+    if not mod.db then return end
+
+    -- Install raw wrappers immediately (NotifyInspect + InspectUnit are global)
+    installNotifyInspectWrapper()
+    installInspectUnitWrapper()
+    hookInspectFrame()
+
+    -- ADDON_LOADED for Blizzard_InspectUI (lazy-loaded the first time Inspect is opened)
+    if not installFrame then
+        installFrame = CreateFrame("Frame")
+        installFrame:SetScript("OnEvent", function(self, _, addonName)
+            if addonName == "Blizzard_InspectUI" then
+                hookInspectFrame()
+                self:UnregisterEvent("ADDON_LOADED")  -- one-shot
+            end
+        end)
+    end
+    -- (re-)arm the one-shot only while the inspect UI hasn't loaded yet
+    if not (IsAddOnLoaded and IsAddOnLoaded("Blizzard_InspectUI")) then
+        installFrame:RegisterEvent("ADDON_LOADED")
+    end
+
+    -- INSPECT_READY clearing
+    ns:RegisterEvent("INSPECT_READY", onInspectReady)
+
+    -- Watchdog ticker (2s tick, 5s timeout by default)
+    if not _watchdog and C_Timer and C_Timer.NewTicker then
+        _watchdog = C_Timer.NewTicker(2, watchdogTick)
+    end
+end
+
+function mod:OnDisable()
+    ns:UnregisterEvent("INSPECT_READY", onInspectReady)
+    if _watchdog then _watchdog:Cancel(); _watchdog = nil end
+    -- Note: We don't restore the original NotifyInspect/InspectUnit because
+    -- other code may already hold references to our wrapped versions.
+end
+
+-- =========================================================
+-- Options
+-- =========================================================
+function mod:GetOptions()
+    return {
+        { type = "header", text = L["Behavior"] },
+
+        { type = "toggle", label = L["Aggressive reset before each inspect"],
+          tooltip = L["Force-clears the inspect state before every NotifyInspect/InspectUnit call. Recommended for Anniversary because Blizzard's UI doesn't reliably clear the previous target's cache. Disable only if you have compatibility issues with another inspect addon."],
+          get = function() return mod.db.aggressiveReset ~= false end,
+          set = function(_, v) mod.db.aggressiveReset = v end },
+
+        { type = "toggle", label = L["Auto-reset on timeout"],
+          tooltip = L["If no response from the server comes after X seconds, the pending inspect state is automatically reset — so the next inspect attempt works again."],
+          get = function() return mod.db.autoReset ~= false end,
+          set = function(_, v) mod.db.autoReset = v end },
+
+        { type = "slider", label = L["Timeout (seconds)"],
+          min = 3, max = 20, step = 1,
+          tooltip = L["How long to wait for INSPECT_READY before auto-reset kicks in. 5 seconds is the new default for Anniversary — fast enough to recover quickly."],
+          get = function() return mod.db.timeoutSec or 5 end,
+          set = function(_, v) mod.db.timeoutSec = v end },
+
+        { type = "spacer", height = 6 },
+        { type = "header", text = L["Manual Reset"] },
+        { type = "button", label = L["Reset inspect state now"], width = 240,
+          onClick = function()
+              hardReset()
+              if _G.InspectFrame and _G.InspectFrame:IsShown() then
+                  _G.InspectFrame:Hide()
+              end
+              ns:Print(L["Inspect state manually reset."])
+          end },
+        { type = "desc", text = L["|cffaaaaaaSlash commands: /inspectreset (force-reset), /inspectstate (debug info in chat)|r"] },
+
+        { type = "spacer", height = 8 },
+        { type = "header", text = L["Status"] },
+        { type = "desc", text = string.format(
+            L["NotifyInspect override: %s\nInspectUnit override:   %s\nInspectFrame hook:      %s"],
+            _origNotifyInspect and L["|cff66ff66active|r"] or L["|cffff8800waiting|r"],
+            _origInspectUnit   and L["|cff66ff66active|r"] or L["|cffff8800waiting|r"],
+            _hookedFrame       and L["|cff66ff66active|r"] or L["|cffff8800waiting for Blizzard_InspectUI|r"]) },
+        { type = "spacer", height = 4 },
+        { type = "desc", text = L["|cffaaaaaaWhat the fix does: replaces NotifyInspect and InspectUnit with wrappers that force-clear server state before each request. Plus full reset when the inspect frame closes or after a 5s timeout.|r"] },
+    }
+end
+
+end)(...);
+
+-- ============================================================
+-- merged from: FixBindSocket.lua
+-- ============================================================
+(function(...)
+-- =========================================================
+-- VuloClassicUI / Modules / FixBindSocket
+-- The Anniversary client (2.5.5) ships Blizzard_ItemSocketingUI without the
+-- StaticPopup dialog "BIND_SOCKET". Socketing a gem that would bind the item
+-- then calls StaticPopup_Show("BIND_SOCKET"), which errors with
+--   "Dialog BIND_SOCKET does not exist."
+-- and the socketing aborts. We re-add the dialog (identical to Blizzard's own
+-- FrameXML definition) so the confirmation works and the gem goes in.
+-- =========================================================
+local _, ns = ...
+local L = ns.L
+
+local mod = ns:RegisterModule("fixbindsocket", {
+    name        = "Bind-on-Socket Fix",
+    group       = "Bugfixes",
+    description = "Re-adds the missing BIND_SOCKET confirmation dialog so socketing a gem that binds the item no longer throws a Lua error (Anniversary client).",
+    defaults = { enabled = true },
+})
+
+local function installFix()
+    local dialogs = _G.StaticPopupDialogs
+    if not dialogs or dialogs["BIND_SOCKET"] then return end  -- already there -> leave it
+    dialogs["BIND_SOCKET"] = {
+        text         = _G.BIND_SOCKET or L["Socketing this gem will bind the item to you. Continue?"],
+        button1      = _G.ACCEPT or "Accept",
+        button2      = _G.CANCEL or "Cancel",
+        OnAccept     = function() if _G.AcceptSockets then _G.AcceptSockets() end end,
+        timeout      = 0,
+        whileDead    = 1,
+        hideOnEscape = 1,
+        showAlert    = 1,
+    }
+end
+
+function mod:OnEnable()
+    -- StaticPopupDialogs exists at login; define right away.
+    installFix()
+end
+
+function mod:GetOptions()
+    local defined = _G.StaticPopupDialogs and _G.StaticPopupDialogs["BIND_SOCKET"] ~= nil
+    return {
+        { type = "header", text = L["Bind-on-Socket Fix"] },
+        { type = "desc", text = L["The Anniversary client is missing the |cffffffffBIND_SOCKET|r confirmation dialog. Socketing a gem that would bind the item then throws \"Dialog BIND_SOCKET does not exist\" and aborts. This re-adds the dialog so socketing works."] },
+        { type = "spacer", height = 6 },
+        { type = "desc", text = string.format(L["|cffaaaaaaStatus: %s|r"],
+            defined and L["|cff66ff66Dialog defined|r"] or L["not defined yet"]) },
+    }
+end
+
+end)(...);
+
+-- ============================================================
+-- merged from: FixCombatGlow.lua
+-- ============================================================
+(function(...)
+-- =========================================================
+-- VuloClassicUI / Modules / FixCombatGlow
+-- Restores the missing "in combat" indicator on the default Player frame.
+-- Confirmed TBC Anniversary default-UI bug: the player frame no longer flashes
+-- red in combat. We add our own red glow around the player portrait, toggled by
+-- PLAYER_REGEN_DISABLED / PLAYER_REGEN_ENABLED. Pure cosmetic, no taint.
+-- =========================================================
+local _, ns = ...
+local L = ns.L
+
+local mod = ns:RegisterModule("fixcombatglow", {
+    name        = "Combat Indicator",
+    group       = "Bugfixes",
+    description = "Restores the missing 'in combat' glow on the Player frame (Anniversary default-UI bug). Pulses a red glow around your portrait while you are in combat.",
+    defaults = {
+        enabled = true,
+    },
+})
+
+local glow
+
+local function ensureGlow()
+    if glow then return glow end
+    local pf = _G.PlayerFrame
+    if not pf then return nil end
+
+    -- A round ring that hugs the circular portrait (the old square glow stuck
+    -- out and read as rectangular).
+    glow = pf:CreateTexture(nil, "OVERLAY")
+    glow:SetTexture("Interface\\COMMON\\RingBorder")
+    glow:SetBlendMode("ADD")
+    glow:SetVertexColor(1, 0.18, 0.18, 1)
+
+    local portrait = _G.PlayerPortrait
+    if portrait then
+        glow:SetPoint("CENTER", portrait, "CENTER", 0, 0)
+        local w, h = portrait:GetSize()
+        if not w or w == 0 then w, h = 56, 56 end
+        glow:SetSize(w * 1.32, h * 1.32)  -- ring sits on the portrait's metal rim, not beyond
+    else
+        -- Fallback: roughly over the portrait area of the player frame
+        glow:SetPoint("CENTER", pf, "TOPLEFT", 40, -25)
+        glow:SetSize(74, 74)
+    end
+
+    -- Subtle pulse so the combat state is noticeable
+    glow.anim = glow:CreateAnimationGroup()
+    glow.anim:SetLooping("BOUNCE")
+    local a = glow.anim:CreateAnimation("Alpha")
+    a:SetFromAlpha(1.0)
+    a:SetToAlpha(0.35)
+    a:SetDuration(0.7)
+
+    glow:Hide()
+    return glow
+end
+
+local function update()
+    local g = ensureGlow()
+    if not g then return end
+    if UnitAffectingCombat and UnitAffectingCombat("player") then
+        g:Show()
+        if g.anim then g.anim:Play() end
+    else
+        if g.anim then g.anim:Stop() end
+        g:Hide()
+    end
+end
+
+function mod:OnEnable()
+    ensureGlow()
+    ns:RegisterEvent("PLAYER_REGEN_DISABLED", update)
+    ns:RegisterEvent("PLAYER_REGEN_ENABLED",  update)
+    ns:RegisterEvent("PLAYER_ENTERING_WORLD", update)
+    update()
+end
+
+function mod:OnDisable()
+    ns:UnregisterEvent("PLAYER_REGEN_DISABLED", update)
+    ns:UnregisterEvent("PLAYER_REGEN_ENABLED",  update)
+    ns:UnregisterEvent("PLAYER_ENTERING_WORLD", update)
+    if glow then
+        if glow.anim then glow.anim:Stop() end
+        glow:Hide()
+    end
+end
+
+function mod:GetOptions()
+    return {
+        { type = "header", text = L["Combat Indicator"] },
+        { type = "desc", text = L["|cffaaaaaaThe default Player frame on Anniversary no longer shows when you are in combat. This restores it: a red glow pulses around your portrait while you are in combat.|r"] },
+    }
+end
+
+end)(...);
+
+-- ============================================================
+-- merged from: Bugfixes.lua
+-- ============================================================
+(function(...)
+-- =========================================================
 -- VuloClassicUI / Modules / Bugfixes (container)
 -- Consolidates every "Bugfixes"-group module into ONE tabbed sidebar entry.
 --
@@ -13,3 +758,5 @@ ns:MakeGroupContainer({
     name  = "Bug Fixes",   -- distinct from the "Bugfixes" group header
     group = "Bugfixes",
 })
+
+end)(...);

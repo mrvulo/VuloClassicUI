@@ -254,6 +254,7 @@ local function getRow(parent, i)
     r.left = r:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     r.left:SetPoint("LEFT", r, "LEFT", 4, 0)
     r.left:SetJustifyH("LEFT")
+    r.left:SetWordWrap(false)
     if ns.UI and ns.UI.Font then ns.UI.Font(r.left, 12) end
     r.right = r:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     r.right:SetPoint("RIGHT", r, "RIGHT", -4, 0)
@@ -263,6 +264,7 @@ local function getRow(parent, i)
     r.msg:SetPoint("LEFT", r.left, "RIGHT", 8, 0)
     r.msg:SetPoint("RIGHT", r.right, "LEFT", -8, 0)
     r.msg:SetJustifyH("LEFT")
+    r.msg:SetWordWrap(false)   -- single line + ellipsis; full text shows on hover (tooltip below)
     if ns.UI and ns.UI.Font then ns.UI.Font(r.msg, 11) end
     local hl = r:CreateTexture(nil, "HIGHLIGHT"); hl:SetAllPoints(); hl:SetColorTexture(1, 1, 1, 0.06)
     r:SetScript("OnClick", function(self, button)
@@ -278,6 +280,17 @@ local function getRow(parent, i)
             ChatFrame_SendTell(self._sender)
         end
     end)
+    -- full (untruncated) message on hover, since the row text is single-line
+    r:SetScript("OnEnter", function(self)
+        if not self._fullmsg or self._fullmsg == "" then return end
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        if self._sender then
+            GameTooltip:AddLine(self._sender:gsub("%-.*", ""), ACCENT.r, ACCENT.g, ACCENT.b)
+        end
+        GameTooltip:AddLine(self._fullmsg, 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    r:SetScript("OnLeave", function() GameTooltip:Hide() end)
     rows[i] = r
     return r
 end
@@ -292,7 +305,7 @@ local function refresh()
     local function header(text)
         i = i + 1; local r = getRow(child, i)
         r:ClearAllPoints(); r:SetPoint("TOPLEFT", child, "TOPLEFT", 0, y); r:SetPoint("RIGHT", child, "RIGHT", 0, 0)
-        r:SetHeight(18); r:Disable(); r._sender = nil
+        r:SetHeight(18); r:Disable(); r._sender = nil; r._fullmsg = nil
         r.left:SetText("|cff" .. format("%02x%02x%02x", ACCENT.r*255, ACCENT.g*255, ACCENT.b*255) .. text .. "|r")
         r.right:SetText(""); r.msg:SetText("")
         r:Show(); y = y - 19
@@ -311,7 +324,7 @@ local function refresh()
                     -- dungeon sub-header
                     i = i + 1; local h = getRow(child, i)
                     h:ClearAllPoints(); h:SetPoint("TOPLEFT", child, "TOPLEFT", 8, y); h:SetPoint("RIGHT", child, "RIGHT", 0, 0)
-                    h:SetHeight(16); h:Disable(); h._sender = nil
+                    h:SetHeight(16); h:Disable(); h._sender = nil; h._fullmsg = nil
                     h.left:SetText(format("|cffffd200%s|r%s", nameOf[d.key] or d.key, levelText[d.key] or ""))
                     h.right:SetText("|cff888888" .. #list .. "|r"); h.msg:SetText("")
                     h:Show(); y = y - 16
@@ -319,7 +332,7 @@ local function refresh()
                     for _, e in ipairs(list) do
                         i = i + 1; local r = getRow(child, i)
                         r:ClearAllPoints(); r:SetPoint("TOPLEFT", child, "TOPLEFT", 18, y); r:SetPoint("RIGHT", child, "RIGHT", -2, 0)
-                        r:SetHeight(15); r:Enable(); r._sender = e.s
+                        r:SetHeight(15); r:Enable(); r._sender = e.s; r._fullmsg = e.rq.msg
                         local nm = e.s:gsub("%-.*", "")
                         r.left:SetText((e.rq.heroic and "|cffff8800[" .. L.HEROIC .. "]|r " or "") .. nm)
                         r.right:SetText(timeAgo(e.rq.time))
@@ -335,7 +348,7 @@ local function refresh()
     for j = i + 1, #rows do rows[j]:Hide() end
     if total == 0 then
         i = i + 1; local r = getRow(child, i)
-        r:ClearAllPoints(); r:SetPoint("TOPLEFT", child, "TOPLEFT", 8, -8); r:Disable(); r._sender = nil
+        r:ClearAllPoints(); r:SetPoint("TOPLEFT", child, "TOPLEFT", 8, -8); r:Disable(); r._sender = nil; r._fullmsg = nil
         r.left:SetText("|cff888888" .. L.EMPTY .. "|r"); r.right:SetText(""); r.msg:SetText(""); r:Show()
         y = y - 20
     end
@@ -359,16 +372,23 @@ local function buildWindow()
     f:SetSize(440, 420)
     f:SetFrameStrata("HIGH")
     f:SetClampedToScreen(true)
-    f:SetMovable(true); f:EnableMouse(true); f:RegisterForDrag("LeftButton")
-    f:SetScript("OnDragStart", f.StartMoving)
-    f:SetScript("OnDragStop", function(self)
-        self:StopMovingOrSizing()
-        local p, _, rp, x, yy = self:GetPoint()
-        mod.db.point = { p, rp, x, yy }
-    end)
-    if mod.db.point then f:SetPoint(mod.db.point[1], UIParent, mod.db.point[2], mod.db.point[3], mod.db.point[4])
-    else f:SetPoint("CENTER") end
+    f:EnableMouse(true)
+    -- one-time migrate the legacy point-anchor save to the engine's CENTER offset
+    if mod.db.point then
+        f:ClearAllPoints()
+        f:SetPoint(mod.db.point[1] or "CENTER", UIParent, mod.db.point[2] or "CENTER",
+            mod.db.point[3] or 0, mod.db.point[4] or 0)
+        local fx, fy = f:GetCenter()
+        local px, py = UIParent:GetCenter()
+        if fx and px then mod.db.x, mod.db.y = fx - px, fy - py end
+        mod.db.point = nil
+    end
+    f:ClearAllPoints()
+    f:SetPoint("CENTER", UIParent, "CENTER", mod.db.x or 0, mod.db.y or 0)
     f:Hide()
+    -- Drag / position are now handled by the unified Edit Mode HUD (/vedit).
+    ns:CreateMover(f, { key = "groupboard", label = "|cffffffffGROUP BOARD|r", db = mod.db, width = 440, height = 420,
+        scalable = true, anchorable = true })
     local bg = f:CreateTexture(nil, "BACKGROUND"); bg:SetAllPoints(); bg:SetColorTexture(0.06, 0.06, 0.08, 0.97)
     local b = {}
     for i = 1, 4 do local t = f:CreateTexture(nil, "BORDER"); t:SetColorTexture(ACCENT.r, ACCENT.g, ACCENT.b, 1); b[i] = t end

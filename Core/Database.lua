@@ -16,11 +16,18 @@ local L = ns.L
 ns.defaults = {
     global = {
         debug = false,
+        -- Named Edit Mode layouts (account-wide so they're shared across profiles
+        -- and characters). name -> { key = {x,y,scale,anchor}, ... }
+        editLayouts = {},
     },
     profile = {
         ui = {
             mainFramePos = { point = "CENTER", relPoint = "CENTER", x = 0, y = 0 },
             scale = 1.0,
+        },
+        editmode = {
+            -- Edit Mode HUD (UI/EditMode.lua): alignment grid + snapping.
+            grid = { show = false, snap = true, size = 32 },
         },
         modules = {
             -- populated dynamically from mod.defaults
