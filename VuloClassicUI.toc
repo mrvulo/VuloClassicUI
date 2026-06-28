@@ -47,6 +47,7 @@ Modules\CooldownPulse.lua
 Modules\Arena.lua
 Modules\CharacterPanel.lua
 Modules\ButtonSkin.lua
+Modules\DarkMode.lua
 Modules\FriendList.lua
 Modules\FlightTimesDB.lua
 Modules\MiscQoL.lua
