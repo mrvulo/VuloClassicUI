@@ -1284,6 +1284,7 @@ ns:RegisterLocale("deDE", {
     ["|cffaaaaaaBuilt-in dark drop-shadow skin. Action bars and WeakAuras icons are configured separately below.|r"] = "|cffaaaaaaEingebauter dunkler Schatten-Skin. Aktionsleisten und WeakAuras-Icons werden unten getrennt eingestellt.|r",
     ["Action Bars"] = "Aktionsleisten",
     ["Skin the action bars"] = "Aktionsleisten skinnen",
+    ["The dark action-bar border. Works on its own, and Dark Mode can drive it too."] = "Der dunkle Aktionsleisten-Rand. Funktioniert eigenständig, und der Dunkelmodus kann ihn ebenfalls steuern.",
     ["Bar style"] = "Leisten-Stil",
     ["Bar icon size"] = "Icon-Größe der Leisten",
     ["How much of the button the icon fills in Shadow style. Higher = bigger icons with a thinner rim."] = "Wie viel des Buttons das Icon im Shadow-Stil ausfüllt. Höher = größere Icons mit dünnerem Rand.",
@@ -1448,6 +1449,9 @@ ns:RegisterLocale("deDE", {
     ["ANCHOR"] = "ANKER",
     ["POSITION"] = "POSITION",
     ["SCALE"] = "SKALIERUNG",
+    ["FREE MOVE"] = "FREI",
+    ["Pin this frame to a screen edge/corner so it stays put across resolution changes. Off keeps it centred."] = "Verankert das Fenster an einer Bildschirmkante/-ecke, damit es bei Auflösungsänderungen an Ort und Stelle bleibt. Aus = bleibt zentriert.",
+    ["Leave this window unlocked so you can still drag it after closing Edit Mode. Stays unlocked through /reload."] = "Lässt dieses Fenster entsperrt, sodass du es auch nach dem Schließen des Edit-Modus noch ziehen kannst. Bleibt über /reload hinweg entsperrt.",
 
     -- Layouts
     ["LAYOUTS"] = "LAYOUTS",
@@ -1498,6 +1502,8 @@ ns:RegisterLocale("deDE", {
     ["The gryphons and the metal action-bar background."] = "Die Greifen und der metallene Aktionsleisten-Hintergrund.",
     ["Action button borders"] = "Aktionsknopf-Ränder",
     ["Also tints the border ring around every action button. Optional — leave off if it looks too flat."] = "Färbt auch den Rahmen um jeden Aktionsknopf. Optional — auslassen, wenn es zu flach wirkt.",
+    ["Action bar dark border"] = "Dunkler Aktionsleisten-Rand",
+    ["Adds the dark Button Skin border to the action bars while Dark Mode is on (and removes it when Dark Mode turns off). You can also switch it on with Dark Mode off in the Button Skin module."] = "Fügt den dunklen Button-Skin-Rand zu den Aktionsleisten hinzu, solange der Dunkelmodus an ist (und entfernt ihn, wenn der Dunkelmodus ausgeht). Du kannst ihn auch bei ausgeschaltetem Dunkelmodus im Modul „Button-Skin\" einschalten.",
     ["Bag slots"] = "Taschenplätze",
     ["Tints the backpack, bag and keyring button borders."] = "Färbt die Ränder von Rucksack-, Taschen- und Schlüsselbund-Knopf.",
     ["|cffaaaaaaNote: if the Target Frame module's |cffffffffThreat glow|r is on, threat colouring takes over the target/focus border while you have aggro — that's intended.|r"] = "|cffaaaaaaHinweis: Wenn beim Modul „Zielfenster\" das |cffffffffBedrohungs-Leuchten|r aktiv ist, übernimmt die Bedrohungsfärbung den Ziel-/Fokus-Rand, solange du Aggro hast — das ist beabsichtigt.|r",

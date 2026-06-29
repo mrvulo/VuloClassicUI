@@ -96,6 +96,11 @@ local STYLES = {
 
 local DARK_TINT = 0.12   -- "minimaldark" border tint (SUI uses ~0.15; a touch darker)
 
+-- Whether the action bars currently show our skin. Drives the NormalTexture
+-- re-hide hooks (so after a live unskin Blizzard's gold border stays put) and is
+-- flipped by setBarsSkinned() — used both by the skinBars toggle and by Dark Mode.
+local barsSkinned = false
+
 -- Style for the action bars (key="style") or WeakAuras (key="waStyle")
 local function currentStyle(forWA)
     local key = mod.db and (forWA and mod.db.waStyle or mod.db.style)
@@ -148,7 +153,7 @@ local function lockNormalTexture(button)
     if button._vcuiNTHook or not button.SetNormalTexture then return end
     button._vcuiNTHook = true
     hooksecurefunc(button, "SetNormalTexture", function(self)
-        if mod._enabled and self._vcuiSkinned then
+        if mod._enabled and barsSkinned and self._vcuiSkinned then
             applyNormalTexture(self)  -- re-hide or re-darken per the active style
         end
     end)
@@ -319,6 +324,47 @@ local function refreshAll()
         end
     end)
 end
+
+-- Live-remove our skin from a button (reverse of applyStyle): hide our overlays,
+-- unmask + un-crop the icon, and restore Blizzard's gold NormalTexture. Frames are
+-- kept (hidden) so re-skinning is cheap. Touches only textures/regions -> combat-safe.
+local function unstyleButton(button)
+    if not button or not button._vcuiSkinned then return end
+    if button._vcuiBg     then button._vcuiBg:Hide()     end
+    if button._vcuiBack   then button._vcuiBack:Hide()   end
+    if button._vcuiRing   then button._vcuiRing:Hide()   end
+    if button._vcuiBorder then button._vcuiBorder:Hide() end
+
+    local icon = getRegion(button, "Icon", button.icon or button.Icon)
+    if icon then
+        setMasked(button, icon, false)
+        if icon.SetTexCoord then icon:SetTexCoord(0, 1, 0, 1) end
+    end
+
+    local nt = (button.GetNormalTexture and button:GetNormalTexture())
+            or getRegion(button, "NormalTexture", button.NormalTexture)
+    if nt then
+        if button._vcuiNTOrig then nt:SetTexture(button._vcuiNTOrig) end
+        nt:SetAlpha(1)
+        if nt.SetDesaturated then nt:SetDesaturated(false) end
+        nt:SetVertexColor(1, 1, 1)
+    end
+    local slot = getRegion(button, "SlotBackground", button.SlotBackground)
+    if slot then slot:SetAlpha(1) end
+end
+
+-- Public: turn the action-bar skin on/off live (the skinBars toggle + Dark Mode
+-- both call this). The NT re-hide hooks are gated on `barsSkinned`, so once off
+-- Blizzard's gold border comes back and stays.
+local function setBarsSkinned(on)
+    barsSkinned = on and true or false
+    if on then
+        if mod._enabled then forEachButton(skinButton) end
+    else
+        forEachButton(unstyleButton)
+    end
+end
+mod.SetBarsSkinned = setBarsSkinned
 
 -- =========================================================
 -- WeakAuras icon skinning — VuloClassicUI's own skin, configured separately
@@ -578,6 +624,7 @@ end
 
 function mod:OnEnable()
     if not mod.db then return end
+    barsSkinned = mod.db.skinBars and true or false   -- gate the NT re-hide hooks
 
     -- Skin everything ourselves. Deferred so all frames exist.
     if C_Timer and C_Timer.After then
@@ -596,7 +643,7 @@ function mod:OnEnable()
         hookInstalled = true
         if _G.ActionButton_Update then
             hooksecurefunc("ActionButton_Update", function(button)
-                if mod._enabled and button and button._vcuiSkinned then
+                if mod._enabled and barsSkinned and button and button._vcuiSkinned then
                     applyNormalTexture(button)
                 end
             end)
@@ -652,8 +699,15 @@ function mod:GetOptions()
         -- ---- Action bars ----
         { type = "header", text = L["Action Bars"] },
         { type = "toggle", label = L["Skin the action bars"],
+          tooltip = L["The dark action-bar border. Works on its own, and Dark Mode can drive it too."],
           get = function() return mod.db.skinBars end,
-          set = function(_, v) mod.db.skinBars = v; skinAll(); refreshAll() end },
+          set = function(_, v)
+              mod.db.skinBars = v
+              setBarsSkinned(v)
+              -- keep Dark Mode's remembered prior in sync with this explicit choice
+              local dm = ns.modules and ns.modules.darkmode
+              if dm and dm.NotifyUserSetBars then dm.NotifyUserSetBars(v) end
+          end },
         { type = "dropdown", label = L["Bar style"],
           tooltip = L["Pick how the action buttons look. Rounded/Circle use an icon mask; Minimal is just the cropped icon."],
           width = 260,

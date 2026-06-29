@@ -29,6 +29,7 @@ local mod = ns:RegisterModule("darkmode", {
         minimap       = true,
         actionbars    = true,
         actionButtons = false,                         -- opt-in (tints the button border art)
+        actionBarBorder = true,                        -- drive Button Skin's dark bar border with Dark Mode
         bags          = false,                         -- opt-in
     },
 })
@@ -110,6 +111,14 @@ local BAG_BUTTONS = {
     "KeyRingButton",
 }
 
+-- Button Skin owns the action-button NormalTexture when it's actively skinning
+-- the bars; our greyscale tint of that same region would just fight it (and lose,
+-- since Button Skin hides the texture), so we skip it in that case.
+local function buttonSkinOwnsBars()
+    local bs = ns.modules and ns.modules.buttonskin
+    return (ns:IsModuleEnabled("buttonskin") and bs and bs.db and bs.db.skinBars) and true or false
+end
+
 -- ---------------------------------------------------------
 -- Per-area apply / restore
 -- ---------------------------------------------------------
@@ -123,6 +132,7 @@ end
 local function applyActionbars(on) paintGlobals(ACTIONBAR_ART, on) end
 
 local function applyActionButtons(on)
+    if on and buttonSkinOwnsBars() then return end   -- Button Skin owns these buttons' border
     for _, bar in ipairs(ACTION_BUTTON_BARS) do
         for i = 1, 12 do paintNormal(bar .. i, on) end
     end
@@ -162,6 +172,53 @@ local function restoreAll()
 end
 
 -- ---------------------------------------------------------
+-- Action-bar dark border — driven through the Button Skin module so it's the
+-- exact same look as before (and Button Skin stays independently usable: you can
+-- switch the border on with Dark Mode OFF straight from Button Skin's options).
+-- Dark Mode remembers the border's PRIOR state and restores it on disable, so it
+-- never clobbers a border you turned on yourself.
+-- ---------------------------------------------------------
+local _dmPrevSkinBars, _dmTouchedBars = false, false
+
+local function driveBars(on)
+    local bs = ns.modules and ns.modules.buttonskin
+    if not (bs and bs.SetBarsSkinned and bs.db and ns:IsModuleEnabled("buttonskin")) then
+        return false   -- Button Skin module off/absent -> nothing to drive
+    end
+    bs.db.skinBars = on and true or false
+    bs.SetBarsSkinned(on and true or false)
+    return true
+end
+
+-- want=true  -> show the bar border (after saving what it was)
+-- want=false -> release it back to the pre-Dark-Mode state
+local function syncBarBorder(want)
+    if want then
+        -- already DM-driven: do NOT re-force, so a manual OFF via Button Skin sticks
+        -- (and the PLAYER_ENTERING_WORLD re-assert becomes a no-op once driven).
+        if _dmTouchedBars then return end
+        local bs = ns.modules and ns.modules.buttonskin
+        local prev = (bs and bs.db and bs.db.skinBars) and true or false
+        -- only commit the snapshot if the drive actually applied (Button Skin
+        -- present + enabled) — a no-op drive must not record a bogus prior state.
+        if driveBars(true) then
+            _dmPrevSkinBars = prev
+            _dmTouchedBars  = true
+        end
+    elseif _dmTouchedBars then
+        driveBars(_dmPrevSkinBars)
+        _dmTouchedBars = false
+    end
+end
+
+-- Button Skin calls this when the user toggles "Skin the action bars" directly,
+-- so our remembered prior tracks their explicit choice — Dark Mode then never
+-- re-forces (above) nor restores a stale value over their manual change.
+function mod.NotifyUserSetBars(v)
+    if _dmTouchedBars then _dmPrevSkinBars = v and true or false end
+end
+
+-- ---------------------------------------------------------
 -- Re-apply hooks (Blizzard resets some textures on redraw)
 -- ---------------------------------------------------------
 local hooked = false
@@ -181,7 +238,7 @@ local function installHooks()
     -- Action button NormalTexture is reset when the slot's contents update.
     if _G.ActionButton_Update then
         hooksecurefunc("ActionButton_Update", function(btn)
-            if not isOn("actionButtons") then return end
+            if not isOn("actionButtons") or buttonSkinOwnsBars() then return end
             if btn and btn.GetNormalTexture then paint(btn:GetNormalTexture(), true) end
         end)
     end
@@ -195,7 +252,11 @@ local function wireEvents()
     if eventsWired then return end
     eventsWired = true
 
-    ns:RegisterEvent("PLAYER_ENTERING_WORLD", function() applyAll() end)
+    ns:RegisterEvent("PLAYER_ENTERING_WORLD", function()
+        applyAll()
+        -- re-assert (also covers the login case where Button Skin enables after us)
+        syncBarBorder(active and mod.db.actionBarBorder)
+    end)
     ns:RegisterEvent("PLAYER_TARGET_CHANGED", function()
         if isOn("unitframes") then paint(_G.TargetFrameTextureFrameTexture, true) end
     end)
@@ -219,11 +280,13 @@ function mod:OnEnable()
     wireEvents()     -- once-only (guarded); ns:RegisterEvent has no dedupe, so we
                      -- must NOT re-register on re-enable -> the guard is intentional
     applyAll()
+    syncBarBorder(mod.db.actionBarBorder)   -- drive Button Skin's dark bar border on
 end
 
 function mod:OnDisable()
     active = false
     restoreAll()
+    syncBarBorder(false)   -- release the bar border back to its pre-Dark-Mode state
     -- Hooks/events stay installed but are gated by isOn() (active=false now);
     -- a /reload reverts everything cleanly.
 end
@@ -265,6 +328,10 @@ function mod:GetOptions()
             L["The gryphons and the metal action-bar background."]),
         areaToggle("actionButtons", L["Action button borders"],
             L["Also tints the border ring around every action button. Optional — leave off if it looks too flat."]),
+        { type = "toggle", label = L["Action bar dark border"],
+          tooltip = L["Adds the dark Button Skin border to the action bars while Dark Mode is on (and removes it when Dark Mode turns off). You can also switch it on with Dark Mode off in the Button Skin module."],
+          get = function() return mod.db.actionBarBorder end,
+          set = function(_, v) mod.db.actionBarBorder = v; syncBarBorder(active and v) end },
         areaToggle("bags", L["Bag slots"],
             L["Tints the backpack, bag and keyring button borders."]),
 

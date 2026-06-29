@@ -18,6 +18,9 @@ initFrame:SetScript("OnEvent", function(_, event, addonName)
 
     elseif event == "PLAYER_LOGIN" then
         ns.isInitialised = true
+        -- re-show the box of any window left in per-frame "free move", so it
+        -- stays draggable across sessions without re-opening Edit Mode
+        if ns.RestoreFreeMovers then ns:RestoreFreeMovers() end
         ns:Print(L["v%s loaded. /vcui to open."], ns.VERSION)
     end
 end)

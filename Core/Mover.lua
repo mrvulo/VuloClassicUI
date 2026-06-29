@@ -63,8 +63,11 @@ local function applyPos(mover)
     target:SetPoint("CENTER", UIParent, "CENTER", db.x or 0, db.y or 0)
 
     -- optionally RE-PIN to another point WITHOUT moving the frame, so it stays
-    -- glued to that edge/corner across resolution / UI-scale changes
-    local p = opts.anchorable and db.anchor
+    -- glued to that edge/corner across resolution / UI-scale changes. The user
+    -- can switch this off per frame (db.anchorEnabled == false) to keep it on a
+    -- plain CENTER offset; nil means "follow whatever anchor is set" (legacy).
+    local anchorOn = (db.anchorEnabled ~= false)
+    local p = opts.anchorable and anchorOn and db.anchor
     if p and p ~= "CENTER" then
         local fx, fy = pointXY(target, p)
         local ux, uy = pointXY(UIParent, p)
@@ -131,6 +134,62 @@ function ns:MoverSetAnchor(mover, point)
     if not (mover and mover.opts and mover.opts.db) then return end
     mover.opts.db.anchor = point
     applyPos(mover)
+end
+
+-- Turn the per-frame anchor (edge/corner re-pin) on or off without moving the
+-- frame. Off keeps it on a plain CENTER offset; on re-pins to db.anchor.
+function ns:MoverSetAnchorEnabled(mover, on)
+    if not (mover and mover.opts and mover.opts.db) then return end
+    mover.opts.db.anchorEnabled = on and true or false
+    applyPos(mover)
+end
+
+function ns:IsMoverAnchorEnabled(mover)
+    local db = mover and mover.opts and mover.opts.db
+    return db ~= nil and db.anchorEnabled ~= false
+end
+
+-- ---------------------------------------------------------
+-- Per-frame "free move": unlock a SINGLE window so its purple box stays grabbable
+-- after Edit Mode is closed (and survives /reload). Independent of the global
+-- Edit Mode AND of a module's own db.unlocked test/preview flag — this uses its
+-- own db.freeMove so it never collides with per-module unlock buttons. Persists
+-- in the module's own db next to x/y.
+--
+-- It deliberately does NOT drive opts.editPreview: free-move is a persistent
+-- state, and forcing a preview/test bar on would leave fake content (a sample
+-- castbar / scrolling text) on screen indefinitely. The box itself marks where
+-- the frame sits and is the drag handle; aiming is done against the box.
+-- ---------------------------------------------------------
+function ns:IsMoverFreeMove(mover)
+    local db = mover and mover.opts and mover.opts.db
+    return db ~= nil and db.freeMove and true or false
+end
+
+function ns:SetMoverFreeMove(mover, on)
+    if not (mover and mover.opts and mover.opts.db) then return end
+    on = on and true or false
+    mover.opts.db.freeMove = on
+    -- The purple box is itself a HIGH-strata, mouse-enabled frame: showing it is
+    -- all that's needed to drag the (anchored) target — no preview/test content
+    -- is forced, so a preview-only frame doesn't get a permanent fake bar. Keep
+    -- the box shown while free (or while global edit is on); hide it once locked
+    -- again and edit is off.
+    if on or moverShouldEdit(mover) then
+        mover:Show()
+    else
+        mover:Hide()
+    end
+    if ns.RefreshMoverStyles then ns:RefreshMoverStyles() end
+end
+
+-- After login, re-show the box of any window the user left "free move" on, so it
+-- stays draggable across sessions without re-opening Edit Mode.
+function ns:RestoreFreeMovers()
+    for _, mover in ipairs(ns._movers) do
+        local db = mover.opts and mover.opts.db
+        if db and db.freeMove then mover:Show() end
+    end
 end
 
 -- The old right-click "X / Y / reset" popup was removed. The Edit Mode HUD's
@@ -355,7 +414,7 @@ function ns:CreateMover(target, opts)
     mover:SetPropagateKeyboardInput(true)
     mover:SetScript("OnKeyDown", function(self, key)
         -- only the last-hovered ("active") box reacts, so arrow keys nudge one
-        if not (moverShouldEdit(self) or db.unlocked) or ns._activeMover ~= self then
+        if not (moverShouldEdit(self) or db.unlocked or db.freeMove) or ns._activeMover ~= self then
             self:SetPropagateKeyboardInput(true)
             return
         end
@@ -386,6 +445,12 @@ function ns:CreateMover(target, opts)
     end)
 
     ns._movers[#ns._movers + 1] = mover
+
+    -- Restore per-frame "free move" the moment the box exists. This covers movers
+    -- built lazily (on first open) AFTER login, which a one-shot login pass would
+    -- miss — the box reappears grabbable as soon as its window is created.
+    if db.freeMove then mover:Show() end
+
     return mover
 end
 
@@ -409,7 +474,7 @@ function ns:SetMoversEditMode(state, scope)
         if opts.editPreview then pcall(opts.editPreview, edit) end
         if edit then
             mover:Show()
-        elseif not (opts.db and opts.db.unlocked) then
+        elseif not (opts.db and (opts.db.unlocked or opts.db.freeMove)) then
             mover:Hide()
         end
     end

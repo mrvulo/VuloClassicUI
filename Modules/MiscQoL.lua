@@ -467,11 +467,27 @@ local function applyHideStackCount()
     end)
 end
 
+-- Hide the "Group 1"/"Group 2" labels above the compact raid frames.
+-- CompactRaidGroup* are Blizzard SECURE frames: calling :Hide()/:Show() on a
+-- child triggers the container's protected relayout and taints the whole
+-- compact-frame update path (it shows up as a blocked CompactUnitFrame SetSize).
+-- So: (1) never touch them in combat, (2) only touch when we actually need to
+-- (the default-off case must not poke the frames at all), and (3) use SetAlpha
+-- (a pure cosmetic property that does NOT trigger a relayout) instead of Hide/Show.
 local function applyHideRaidGroupLabels()
+    if InCombatLockdown() then return end
+    local hide = mod.db.hideRaidGroupLabels and true or false
     for i = 1, 8 do
         local g = _G["CompactRaidGroup" .. i]
-        if g and g.title then
-            if mod.db.hideRaidGroupLabels then g.title:Hide() else g.title:Show() end
+        local title = g and g.title
+        if title then
+            if hide then
+                title:SetAlpha(0)
+                g._vcuiLabelHidden = true
+            elseif g._vcuiLabelHidden then   -- only restore what we hid (no gratuitous touch)
+                title:SetAlpha(1)
+                g._vcuiLabelHidden = nil
+            end
         end
     end
 end

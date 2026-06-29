@@ -428,7 +428,7 @@ end
 local function buildPanel()
     if panel then return end
     panel = CreateFrame("Frame", "VCUIEditPanel", UIParent)
-    panel:SetSize(264, 184)
+    panel:SetSize(300, 184)
     panel:SetPoint("RIGHT", UIParent, "RIGHT", -48, 60)
     panel:SetFrameStrata("DIALOG")
     panel:SetClampedToScreen(true)
@@ -483,7 +483,7 @@ local function buildPanel()
 
     -- X / Y side by side, each a wide value box so big numbers stay readable
     panel.xBox = UI:CreateEditBox(panel, {
-        label = "X", numeric = true, commitOnFocusLost = true, width = 110, editWidth = 86,
+        label = "X", numeric = true, commitOnFocusLost = true, width = 124, editWidth = 100,
         get = function() local x = moverXY(ns._selectedMover); return math.floor(x + 0.5) end,
         set = function(_, v)
             local m = ns._selectedMover
@@ -493,7 +493,7 @@ local function buildPanel()
     panel.xBox:SetPoint("TOPLEFT", panel, "TOPLEFT", 18, -62)
 
     panel.yBox = UI:CreateEditBox(panel, {
-        label = "Y", numeric = true, commitOnFocusLost = true, width = 110, editWidth = 86,
+        label = "Y", numeric = true, commitOnFocusLost = true, width = 124, editWidth = 100,
         get = function() local _, y = moverXY(ns._selectedMover); return math.floor(y + 0.5) end,
         set = function(_, v)
             local m = ns._selectedMover
@@ -508,16 +508,30 @@ local function buildPanel()
     panel.scaleCap:SetText(L["SCALE"])
     panel.scaleCap:SetTextColor(0.55, 0.55, 0.62)
     panel.scaleSlider = UI:CreateSlider(panel, {
-        label = "", min = 0.5, max = 2.0, step = 0.05, width = 80,
+        label = "", min = 0.5, max = 2.0, step = 0.05, width = 150,
         get = function() local m = ns._selectedMover; return (m and m.opts.db.scale) or 1 end,
         set = function(_, v) local m = ns._selectedMover; if m then ns:MoverSetScale(m, v) end end,
     })
 
-    -- ANCHOR-point row (shown only for movers that opt in)
+    -- ANCHOR-point row (shown only for movers that opt in). A small on/off switch
+    -- lets the user turn the edge/corner re-pin off entirely (plain CENTER offset)
+    -- and the dropdown picks which point it pins to when on.
     panel.anchorCap = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     UI.Font(panel.anchorCap, 10)
     panel.anchorCap:SetText(L["ANCHOR"])
     panel.anchorCap:SetTextColor(0.55, 0.55, 0.62)
+
+    panel.anchorToggle = UI:CreateToggle(panel, {
+        label   = "",
+        tooltip = L["Pin this frame to a screen edge/corner so it stays put across resolution changes. Off keeps it centred."],
+        get = function() local m = ns._selectedMover; return m and ns:IsMoverAnchorEnabled(m) end,
+        set = function(_, v)
+            local m = ns._selectedMover
+            if m then ns:MoverSetAnchorEnabled(m, v); if ns.OnAnchorToggled then ns:OnAnchorToggled() end end
+        end,
+    })
+    panel.anchorToggle:SetSize(44, 22)
+
     panel.anchorDrop = UI:CreateDropdown(panel, {
         label = "", width = 150, values = ANCHOR_POINTS,
         tooltip = L["Which screen point the frame is pinned to (keeps it put across resolution changes)."],
@@ -525,9 +539,24 @@ local function buildPanel()
         set = function(_, v) local m = ns._selectedMover; if m then ns:MoverSetAnchor(m, v) end end,
     })
 
+    -- FREE-MOVE row: keep THIS window draggable after Edit Mode is closed (and
+    -- across /reload). Always available for every selected window.
+    panel.freeCap = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    UI.Font(panel.freeCap, 10)
+    panel.freeCap:SetText(L["FREE MOVE"])
+    panel.freeCap:SetTextColor(0.55, 0.55, 0.62)
+
+    panel.freeToggle = UI:CreateToggle(panel, {
+        label   = "",
+        tooltip = L["Leave this window unlocked so you can still drag it after closing Edit Mode. Stays unlocked through /reload."],
+        get = function() local m = ns._selectedMover; return m and ns:IsMoverFreeMove(m) end,
+        set = function(_, v) local m = ns._selectedMover; if m then ns:SetMoverFreeMove(m, v) end end,
+    })
+    panel.freeToggle:SetSize(44, 22)
+
     panel.reset = UI:CreateButton(panel, {
         label   = L["Reset this frame"],
-        width   = 228,
+        width   = 264,
         onClick = function()
             local m = ns._selectedMover
             if m then ns:MoverSetCenter(m, 0, 0); refreshPanel() end
@@ -553,49 +582,84 @@ local function buildPanel()
     end)
 end
 
--- Show / position the optional Scale + Anchor rows for the selected mover and
--- size the panel to fit (capabilities are per-mover, declared in ns:CreateMover).
+-- Grey the anchor dropdown out while the anchor switch is off, so it reads as
+-- inactive (the re-pin is disabled but the point is remembered).
+local function refreshAnchorEnabled(m)
+    if not (panel and panel.anchorDrop) then return end
+    local on = m and ns:IsMoverAnchorEnabled(m)
+    local a = on and 1 or 0.4
+    panel.anchorDrop:SetAlpha(a)
+    if panel.anchorDrop.EnableMouse then panel.anchorDrop:EnableMouse(on and true or false) end
+    if panel.anchorDrop._button and panel.anchorDrop._button.EnableMouse then
+        panel.anchorDrop._button:EnableMouse(on and true or false)
+    end
+end
+
+-- Show / position the optional Scale + Anchor rows + the Free-move row for the
+-- selected mover and size the panel to fit (capabilities are per-mover).
 local function layoutPanel(m)
     if not panel then return end
     local scalable   = m and m.opts and m.opts.scalable
     local anchorable = m and m.opts and m.opts.anchorable
-    local y = -94
+    local y = -100   -- extra breathing room below the X / Y row
 
     if scalable then
+        -- Two-line section like POSITION: the SCALE caption on its own line, the
+        -- slider (with its ± steppers + value) on a full-width line beneath it —
+        -- so nothing is cramped and the value/steppers sit clear of the caption.
         panel.scaleCap:Show(); panel.scaleSlider:Show()
         panel.scaleCap:ClearAllPoints()
-        panel.scaleCap:SetPoint("LEFT", panel, "TOPLEFT", 18, y)
+        panel.scaleCap:SetPoint("TOPLEFT", panel, "TOPLEFT", 18, y)
         panel.scaleSlider:ClearAllPoints()
-        panel.scaleSlider:SetPoint("LEFT", panel.scaleCap, "RIGHT", 14, 0)
-        y = y - 30
+        panel.scaleSlider:SetPoint("TOPLEFT", panel, "TOPLEFT", 20, y - 20)
+        y = y - 48
     else
         panel.scaleCap:Hide(); panel.scaleSlider:Hide()
     end
 
     if anchorable then
-        panel.anchorCap:Show(); panel.anchorDrop:Show()
+        panel.anchorCap:Show(); panel.anchorToggle:Show(); panel.anchorDrop:Show()
         panel.anchorCap:ClearAllPoints()
         panel.anchorCap:SetPoint("LEFT", panel, "TOPLEFT", 18, y - 13)
+        panel.anchorToggle:ClearAllPoints()
+        panel.anchorToggle:SetPoint("LEFT", panel.anchorCap, "RIGHT", 10, 0)
         panel.anchorDrop:ClearAllPoints()
-        panel.anchorDrop:SetPoint("LEFT", panel.anchorCap, "RIGHT", 12, 0)
-        y = y - 34
+        panel.anchorDrop:SetPoint("LEFT", panel.anchorToggle, "RIGHT", 12, 0)
+        refreshAnchorEnabled(m)
+        y = y - 36
     else
-        panel.anchorCap:Hide(); panel.anchorDrop:Hide()
+        panel.anchorCap:Hide(); panel.anchorToggle:Hide(); panel.anchorDrop:Hide()
     end
 
+    -- Free-move row (always shown): caption left, switch right.
+    panel.freeCap:Show(); panel.freeToggle:Show()
+    panel.freeCap:ClearAllPoints()
+    panel.freeCap:SetPoint("LEFT", panel, "TOPLEFT", 18, y - 13)
+    panel.freeToggle:ClearAllPoints()
+    panel.freeToggle:SetPoint("RIGHT", panel, "TOPRIGHT", -18, y - 13)
+    y = y - 34
+
     panel.reset:ClearAllPoints()
-    panel.reset:SetPoint("TOPLEFT", panel, "TOPLEFT", 18, y - 6)
-    panel:SetHeight(-(y - 6) + 78)
+    panel.reset:SetPoint("TOPLEFT", panel, "TOPLEFT", 18, y - 8)
+    panel:SetHeight(-(y - 8) + 92)
 end
 
--- Reflect the selected mover's current scale / anchor in the panel controls.
+-- Reflect the selected mover's current scale / anchor / toggles in the panel.
 local function refreshCaps(m)
     if m and m.opts and m.opts.scalable and panel.scaleSlider._vcSetup then
         panel.scaleSlider._vcSetup(panel.scaleSlider, panel.scaleSlider._vcConfig)
     end
-    if m and m.opts and m.opts.anchorable and panel.anchorDrop._button then
-        panel.anchorDrop._button._refresh()
+    if m and m.opts and m.opts.anchorable then
+        if panel.anchorDrop._button then panel.anchorDrop._button._refresh() end
+        if panel.anchorToggle._refresh then panel.anchorToggle._refresh() end
+        refreshAnchorEnabled(m)
     end
+    if panel.freeToggle._refresh then panel.freeToggle._refresh() end
+end
+
+-- Called when the per-frame anchor switch flips: re-grey the dropdown.
+function ns:OnAnchorToggled()
+    refreshAnchorEnabled(ns._selectedMover)
 end
 
 -- additive (Shift+click): toggle this mover in/out of the selection set.
@@ -604,6 +668,12 @@ end
 -- group member can drag the whole group) and only move the primary to it.
 function ns:SelectMover(mover, additive)
     if not mover then return end
+    -- Only the Edit Mode HUD shows the floating settings panel. A free-move box
+    -- can still be clicked while Edit Mode is closed (to drag it) — but selecting
+    -- it then would strand the panel on screen with no dim to deselect against, so
+    -- ignore selection outside Edit Mode. Dragging still works (it's on the box's
+    -- own OnDragStart, independent of selection).
+    if not ns:IsEditModeActive() then return end
 
     if additive then
         local i = selIndex(mover)
