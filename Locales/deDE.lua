@@ -1144,6 +1144,7 @@ ns:RegisterLocale("deDE", {
     -- =====================================================
     ["Inspect Fix"] = "Inspect-Fix",
     ["Fixes stuck inspect bugs (no player inspect possible after a faulty close/timeout). Auto-reset after 8s + cleanup when InspectFrame closes + /inspectreset slash command."] = "Behebt hängende Inspect-Bugs (kein Spieler-Inspect möglich nach fehlerhaftem Schließen/Timeout). Auto-Reset nach 8s + Cleanup beim Schließen des InspectFrames + /inspectreset Slash-Befehl.",
+    ["Fixes stuck inspect bugs (no player inspect possible after a faulty close/timeout). Auto-reset after a timeout + cleanup when InspectFrame closes + /inspectreset slash command."] = "Behebt hängende Inspect-Bugs (kein Spieler-Inspect möglich nach fehlerhaftem Schließen/Timeout). Auto-Reset nach einem Timeout + Cleanup beim Schließen des InspectFrames + /inspectreset Slash-Befehl.",
     ["Inspect state manually reset. Try again now."] = "Inspect-Status manuell zurückgesetzt. Versuche es jetzt nochmal.",
     ["|cffffff00[VuloClassicUI]|r Inspect state reset."] = "|cffffff00[VuloClassicUI]|r Inspect-Status zurückgesetzt.",
     ["Auto-reset on timeout"] = "Auto-Reset bei Timeout",
