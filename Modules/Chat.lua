@@ -8,7 +8,6 @@
 --                       own GUID→class name colouring)
 --   * Clickable URLs  — AddMessageEventFilter wraps links + a SetItemRef hook
 --                       opens a copy popup
---   * Short channels  — [1. General] → [1] (rewrites the channel tag only)
 --   * Tab styling     — flat dark tab background + an accent underline on the
 --                       active tab (textures stripped, glow kept)
 --   * Idle fade       — the whole chat dims after a while, wakes on a new
@@ -31,14 +30,13 @@ local UI = ns.UI
 local mod = ns:RegisterModule("chat", {
     name        = "Chat",
     group       = "UI Reskin",
-    description = "Polishes Blizzard's chat: a dark panel with an icon sidebar, timestamps, class-coloured names, clickable links, short channel tags, dark tabs, idle fade and history that survives a /reload. Every part is optional.",
+    description = "Polishes Blizzard's chat: a dark panel with an icon sidebar, timestamps, class-coloured names, clickable links, dark tabs, idle fade and history that survives a /reload. Every part is optional.",
     defaults = {
         enabled         = true,
         timestamps      = true,
         timestampFormat = "%H:%M",
         classColors     = true,
         urls            = true,
-        shortenChannels = true,
         tabStyle        = true,
         bgPanel         = true,    -- dark panel behind chat + chrome-less input + tab bar above
         font            = true,    -- our font on chat, tabs and input
@@ -50,6 +48,10 @@ local mod = ns:RegisterModule("chat", {
         copyButton      = false,   -- standalone copy button (the sidebar carries copy instead)
         history         = true,
         historyMax      = 150,
+        tabFontSize     = 12,      -- ONE uniform size for every chat-tab label (8..16)
+        chatFontSize    = 0,       -- chat message font override; 0 = keep each window's Blizzard size
+        panelOpacity    = 78,      -- dark panel background alpha, % (0..100)
+        indent          = true,    -- indented word wrap (hanging indent on wrapped lines)
     },
 })
 
@@ -61,6 +63,7 @@ local active = false
 -- built in section 9; the bg panel + top fade are children of the chat frame so
 -- they fade automatically when the chat frame's alpha changes)
 local sidebarFrame
+local alignDockScroll   -- forward ref (defined in the panel section; updateTabs re-runs it on every dock relayout)
 
 local ACCENT     = ns.COLORS.accent
 local NUM        = _G.NUM_CHAT_WINDOWS or 10
@@ -99,7 +102,24 @@ local function applyTimestamps()
     if _tsOrig == nil then _tsOrig = GetCVar and GetCVar("showTimestamps") or "none" end
     local fmt = mod.db.timestampFormat
     if not fmt or fmt == "" then fmt = "%H:%M" end
+    -- No leading-space pad: proportional spaces only nudge the first physical
+    -- line and never line up with the wrapped continuation column, which is what
+    -- made the indent look wrong. The clean hanging indent comes purely from
+    -- SetIndentedWordWrap (see applyIndentWrap), so the time and wrap columns match.
     pcall(SetCVar, "showTimestamps", fmt .. " ")
+end
+
+-- Indented word wrap: long messages wrap with their continuation lines indented
+-- under the message start, giving a clean hanging-indent text column (the
+-- closest native match to a polished chat look). This is the whole indent
+-- feature now -- there is no separate leading-space pad. SetIndentedWordWrap is
+-- a ScrollingMessageFrame method present on these Classic clients; guarded just
+-- in case.
+local function applyIndentWrap()
+    local on = (active and mod.db.indent) and true or false
+    eachChatFrame(function(cf)
+        if cf.SetIndentedWordWrap then pcall(cf.SetIndentedWordWrap, cf, on) end
+    end)
 end
 
 -- =========================================================
@@ -128,7 +148,7 @@ local function applyClassColors()
 end
 
 -- =========================================================
--- 3 + 4. Message filter: clickable URLs + short channel tags
+-- 3. Message filter: clickable URLs
 -- =========================================================
 local function linkifyURL(url)
     return string.format("|c%s|H%s:%s|h[%s]|h|r", URL_HEX, URL_LINK, url, url)
@@ -152,25 +172,23 @@ local function wrapURLs(text)
     return text
 end
 
--- One filter for every text-bearing event: URL linkify (msg) + channel shorten
--- (channelName, CHANNEL only). Returns the full rewritten arg list so trailing
--- args (GUID etc.) survive — dropping them would break class colour / menus.
+-- One filter for every text-bearing event: URL linkify on the message body.
+-- Returns the full rewritten arg list so trailing args (GUID etc.) survive --
+-- dropping them would break class colour / menus.
+-- We ONLY ever rewrite the message body (arg 3). The channel name (arg 5) is
+-- load-bearing for Blizzard's routing to dedicated single-channel windows
+-- (e.g. a Trade-only tab) -- rewriting it to a bare number makes those windows
+-- match nothing and show no text, so we never touch it. Channel-tag shortening
+-- can't be done safely from a message filter; it would need the chat frame
+-- replaced, which this enhancer deliberately does not do.
 local function msgFilter(self, event, msg, author, lang, channelName, ...)
     if not active then return false end
-    local newMsg, newChannel = msg, channelName
 
     if mod.db.urls and type(msg) == "string" and not isSecret(msg) then
-        newMsg = wrapURLs(msg)
-    end
-
-    if mod.db.shortenChannels and event == "CHAT_MSG_CHANNEL"
-       and type(channelName) == "string" then
-        local num = channelName:match("^(%d+)%.")   -- "1. General" → "1" (locale-safe)
-        if num then newChannel = num end
-    end
-
-    if newMsg ~= msg or newChannel ~= channelName then
-        return false, newMsg, author, lang, newChannel, ...
+        local newMsg = wrapURLs(msg)
+        if newMsg ~= msg then
+            return false, newMsg, author, lang, channelName, ...
+        end
     end
     return false
 end
@@ -306,6 +324,48 @@ local function styleOneTab(i)
         if t and t.SetTexture then t:SetTexture(nil) end
     end
 
+    -- One-time geometry fix: a uniform height, and zero out Blizzard's stray
+    -- y-offset on docked tabs (3+) so every tab sits on the SAME line.
+    if not d.normalized then
+        d.normalized = true
+        if tab.SetHeight then tab:SetHeight(24) end
+        if tab.SetPushedTextOffset then tab:SetPushedTextOffset(0, 0) end
+        if tab:GetID() and tab:GetID() >= 3 and tab.SetPoint then
+            local guard = false
+            hooksecurefunc(tab, "SetPoint", function(self, point, rel, relPoint, x, y)
+                if guard then return end
+                if point == "LEFT" and relPoint == "LEFT" and y and y ~= 0 then
+                    guard = true
+                    self:SetPoint(point, rel, relPoint, x or 0, 0)
+                    guard = false
+                end
+            end)
+        end
+    end
+
+    -- Force ONE uniform label size + CENTER anchor on EVERY pass. This is the
+    -- core alignment fix: Blizzard gives the permanent docked tabs (1-2) a
+    -- larger font object than the created windows (3-4); a bigger CENTER-anchored
+    -- glyph also drops lower, so the tabs read as different sizes AND heights.
+    -- We never read the tab's own size back (that preserved the inequality) --
+    -- we set the same configurable size for all of them. Family follows the font
+    -- toggle; size is always equalized, so it works even with the font toggle off.
+    -- Lives in the tab-styling path (not applyFont) so the two never fight.
+    local txt = tab.Text or _G["ChatFrame" .. i .. "TabText"]
+    if txt then
+        if txt.SetFont then
+            local fallback = _G.ChatFontNormal and select(1, ChatFontNormal:GetFont())
+            local fam = (mod.db.font and UI.FONT_PATH) or fallback
+            local sz  = mod.db.tabFontSize or 12
+            if fam then pcall(txt.SetFont, txt, fam, sz, "") end
+        end
+        if txt.ClearAllPoints then
+            txt:ClearAllPoints()
+            txt:SetPoint("CENTER", tab, "CENTER", 0, 0)
+            if txt.SetJustifyH then txt:SetJustifyH("CENTER") end
+        end
+    end
+
     if not d.bg then
         d.bg = tab:CreateTexture(nil, "BACKGROUND")
         d.bg:SetPoint("TOPLEFT", tab, "TOPLEFT", 2, -3)
@@ -326,14 +386,23 @@ local function unstyleOneTab(i)
 end
 
 local function updateTabs()
+    -- Blizzard relays the dock out on tab select/close/open (FCFDock_UpdateTabs),
+    -- which re-drops the scroll frame ~5px and pushes the scroll-child tabs
+    -- (whisper/trade) below the primary tabs again. updateTabs runs on all those
+    -- events, so re-assert the alignment here. Panel-gated, independent of tab
+    -- styling; idempotent (no-op once aligned).
+    if active and mod.db.bgPanel and alignDockScroll then alignDockScroll() end
     if not (active and mod.db.tabStyle) then
         for i = 1, NUM do unstyleOneTab(i) end
         if underline then underline:Hide() end
         return
     end
     for i = 1, NUM do
-        local cf = _G["ChatFrame" .. i]
-        if cf and cf:IsShown() then styleOneTab(i) end
+        -- Gate on the TAB's visibility, not the chat frame's: docked tabs stay
+        -- shown even when their content is hidden behind the active tab, so
+        -- every docked tab gets styled + re-centred, not just the active one.
+        local tab = _G["ChatFrame" .. i .. "Tab"]
+        if tab and tab:IsShown() then styleOneTab(i) end
     end
     -- accent underline under the active tab (lives on UIParent, never a child of
     -- the protected tab — only anchored to it)
@@ -366,6 +435,15 @@ local function installTabHooks()
     end
     if _G.FCF_Close then
         hooksecurefunc("FCF_Close", function()
+            if C_Timer and C_Timer.After then C_Timer.After(0, updateTabs) else updateTabs() end
+        end)
+    end
+    -- Re-style/re-equalise newly opened temporary windows (whispers, etc.).
+    -- This is the reference-proven taint-safe catch -- deliberately NOT hooking
+    -- FCFTab_UpdateColors / FCFDock_UpdateTabs (those run inside the secure
+    -- temp-window chain and taint it even when deferred).
+    if _G.FCF_OpenTemporaryWindow then
+        hooksecurefunc("FCF_OpenTemporaryWindow", function()
             if C_Timer and C_Timer.After then C_Timer.After(0, updateTabs) else updateTabs() end
         end)
     end
@@ -652,10 +730,18 @@ histFrame:SetScript("OnEvent", histCapture)
 --    icon sidebar. All our own frames / cosmetic setters — taint-safe. A /reload
 --    fully restores Blizzard's default positions when turned off.
 -- =========================================================
-local BG  = ns.COLORS.bg
+-- A translucent near-black panel for the chat. Deliberately NOT the addon's
+-- opaque option-window colour (ns.COLORS.bg, ~0.96 alpha) -- a chat panel at
+-- that opacity is a solid black wall once Blizzard's own chrome is stripped.
+-- Lower alpha lets the game world show through, so it reads as a subtle dark
+-- tint behind the text, the way a polished chat panel should.
+local BG  = { r = 0.04, g = 0.045, b = 0.055, a = 0.78 }
 local panelBuilt = false
 
 local function chatFontSize(i)
+    -- user override wins (one size for every window = uniform body text)
+    local ovr = mod.db and mod.db.chatFontSize
+    if ovr and ovr > 0 then return ovr end
     if FCF_GetChatWindowInfo then
         local ok, _, size = pcall(FCF_GetChatWindowInfo, i)
         if ok and type(size) == "number" and size > 0 then return size end
@@ -709,6 +795,168 @@ local function restoreEditBoxChrome(i)
     end
 end
 
+-- Hidden parent for Blizzard widgets we want gone (reparenting beats Hide() —
+-- Blizzard re-Shows some of them on update; a hidden parent keeps them gone).
+local hiddenHost = CreateFrame("Frame")
+hiddenHost:Hide()
+
+-- Blizzard chat widgets we hide/restore as a set (named lists so de- and
+-- re-Blizzard stay in sync).
+local SCROLL_BTN_SUFFIX = { "BottomButton", "DownButton", "UpButton", "MinimizeButton" }
+local SOCIAL_BUTTONS = {
+    "QuickJoinToastButton", "ChatFrameMenuButton", "ChatFrameChannelButton",
+    "ChatFrameToggleVoiceDeafenButton", "ChatFrameToggleVoiceMuteButton",
+}
+
+-- Strip Blizzard's own chat chrome so only our panel + sidebar show: the scroll
+-- button cluster, scroll-to-bottom, minimize, and the frame's own background /
+-- border textures. Our textures live on child frames, so cf:GetRegions() never
+-- returns them. Taint-safe (insecure chat widgets) and per-frame one-shot.
+local function deBlizzardChrome(cf, i)
+    local d = FD(cf)
+    if d.deblizzed then return end
+    d.deblizzed = true
+    local name = "ChatFrame" .. i
+
+    local bf = _G[name .. "ButtonFrame"]
+    if bf then bf:SetParent(hiddenHost) end
+    for _, suf in ipairs(SCROLL_BTN_SUFFIX) do
+        local b = _G[name .. suf]
+        if b then
+            if b.SetAlpha then b:SetAlpha(0) end
+            if b.EnableMouse then b:EnableMouse(false) end
+        end
+    end
+    if cf.ScrollToBottomButton then cf.ScrollToBottomButton:SetParent(hiddenHost) end
+
+    if cf.GetRegions then
+        for r = 1, select("#", cf:GetRegions()) do
+            local region = select(r, cf:GetRegions())
+            if region and region.IsObjectType and region:IsObjectType("Texture") then
+                pcall(region.SetTexture, region, "")
+                if region.SetAtlas then pcall(region.SetAtlas, region, "") end
+                if region.SetAlpha then region:SetAlpha(0) end
+            end
+        end
+    end
+
+    -- On some clients the real chat background lives on a child frame
+    -- (cf.Background) rather than a direct region -- hide it too.
+    if cf.Background then
+        if cf.Background.SetAlpha then cf.Background:SetAlpha(0) end
+        if cf.Background.GetRegions then
+            for r = 1, select("#", cf.Background:GetRegions()) do
+                local region = select(r, cf.Background:GetRegions())
+                if region and region.IsObjectType and region:IsObjectType("Texture")
+                   and region.SetAlpha then
+                    region:SetAlpha(0)
+                end
+            end
+        end
+    end
+end
+
+-- Hide Blizzard's social/menu/voice buttons that float at the chat's left.
+local _socialHidden = false
+local function hideSocialButtons()
+    if _socialHidden then return end
+    _socialHidden = true
+    for _, n in ipairs(SOCIAL_BUTTONS) do
+        local f = _G[n]
+        if f then
+            if f.SetAlpha then f:SetAlpha(0) end
+            if f.EnableMouse then f:EnableMouse(false) end
+        end
+    end
+end
+
+-- Reverse de-Blizzard enough that turning the module OFF mid-session hands the
+-- player back Blizzard's *functional* chat buttons (scroll / scroll-to-bottom /
+-- minimize / social / menu / voice) without forcing a /reload. The stripped
+-- frame textures and the moved dock + combat-log bar only return on /reload --
+-- Blizzard's original texture paths / anchors aren't recorded, so we don't fake
+-- them (a /reload restores them exactly).
+local function reBlizzardChrome()
+    eachChatFrame(function(cf, i)
+        local d = fdata[cf]
+        if not (d and d.deblizzed) then return end
+        d.deblizzed = nil
+        local name = "ChatFrame" .. i
+        local bf = _G[name .. "ButtonFrame"]
+        if bf then bf:SetParent(cf) end
+        for _, suf in ipairs(SCROLL_BTN_SUFFIX) do
+            local b = _G[name .. suf]
+            if b then
+                if b.SetAlpha then b:SetAlpha(1) end
+                if b.EnableMouse then b:EnableMouse(true) end
+            end
+        end
+        if cf.ScrollToBottomButton then cf.ScrollToBottomButton:SetParent(cf) end
+    end)
+    if _socialHidden then
+        _socialHidden = false
+        for _, n in ipairs(SOCIAL_BUTTONS) do
+            local f = _G[n]
+            if f then
+                if f.SetAlpha then f:SetAlpha(1) end
+                if f.EnableMouse then f:EnableMouse(true) end
+            end
+        end
+    end
+end
+
+-- The Combat Log's filter bar ("Meine Aktionen…") is its own frame with a
+-- mismatched background — strip it and give it the panel colour so it blends in.
+local function styleCombatLog()
+    local qbf = _G.CombatLogQuickButtonFrame_Custom or _G.CombatLogQuickButtonFrame
+    if not qbf then return end
+    local d = FD(qbf)
+    if d.styled then return end
+    d.styled = true
+    if qbf.GetRegions then
+        for r = 1, select("#", qbf:GetRegions()) do
+            local region = select(r, qbf:GetRegions())
+            if region and region.IsObjectType and region:IsObjectType("Texture") then
+                if region.SetAlpha then region:SetAlpha(0) end
+            end
+        end
+    end
+    -- Anchor the bar flush above ChatFrame2 at the panel's width so it reads as
+    -- one piece with the panel instead of a narrower, offset band.
+    local cf2 = _G.ChatFrame2
+    if cf2 then
+        pcall(qbf.ClearAllPoints, qbf)
+        pcall(qbf.SetPoint, qbf, "BOTTOMLEFT", cf2, "TOPLEFT", -10, 3)
+        pcall(qbf.SetPoint, qbf, "BOTTOMRIGHT", cf2, "TOPRIGHT", 6, 3)
+        pcall(qbf.SetHeight, qbf, 24)
+    end
+    local bgt = qbf:CreateTexture(nil, "BACKGROUND")
+    bgt:SetAllPoints()
+    bgt:SetColorTexture(BG.r, BG.g, BG.b, BG.a or 0.9)
+end
+
+-- Blizzard anchors GeneralDockManagerScrollFrame a few px BELOW the dock
+-- manager, so tabs in the scroll child (the created windows, e.g. Whisper/Trade)
+-- sit lower than the primary tabs that anchor to the dock manager directly --
+-- the tab-row misalignment. Pull the scroll frame's bottom flush with the dock
+-- manager's bottom so EVERY tab (incl. future ones) shares one baseline. Done
+-- deferred (positions must be settled to measure) and idempotent (the >0.5 gate
+-- means a second pass, once aligned, does nothing).
+function alignDockScroll()
+    local gdm = _G.GeneralDockManager
+    local sf  = _G.GeneralDockManagerScrollFrame
+    if not (gdm and sf and gdm.GetBottom and sf.GetBottom and sf.GetNumPoints) then return end
+    local gb, sb = gdm:GetBottom(), sf:GetBottom()
+    if not (gb and sb) then return end
+    local dy = gb - sb
+    if math.abs(dy) < 0.5 then return end
+    local pts = {}
+    for pi = 1, sf:GetNumPoints() do pts[pi] = { sf:GetPoint(pi) } end
+    for _, pt in ipairs(pts) do
+        sf:SetPoint(pt[1], pt[2], pt[3], pt[4] or 0, (pt[5] or 0) + dy)
+    end
+end
+
 -- Put the tab bar (dock) directly above the panel.
 local function positionDock()
     local gdm = _G.GeneralDockManager
@@ -720,6 +968,8 @@ local function positionDock()
     gdm:SetHeight(24)
     if _G.GeneralDockManagerScrollFrame then _G.GeneralDockManagerScrollFrame:SetHeight(24) end
     if _G.GeneralDockManagerScrollFrameChild then _G.GeneralDockManagerScrollFrameChild:SetHeight(24) end
+    -- defer the scroll-frame alignment so GDM's new position is settled first
+    if C_Timer and C_Timer.After then C_Timer.After(0, alignDockScroll) else alignDockScroll() end
 end
 
 -- Top-edge fade: a vertical gradient over the top of the chat (opaque panel
@@ -851,7 +1101,10 @@ local function applyPanel()
                 local t = _G["ChatFrame" .. i .. "EditBox" .. suf]
                 if t and t.SetAlpha then t:SetAlpha(0) end
             end
+            deBlizzardChrome(cf, i)   -- self-guarded: hide native scroll/menu chrome + strip textures
         end)
+        hideSocialButtons()
+        styleCombatLog()
         positionDock()
     else
         eachChatFrame(function(cf, i)
@@ -859,6 +1112,7 @@ local function applyPanel()
             if d and d.bg then d.bg:Hide() end
             restoreEditBoxChrome(i)
         end)
+        reBlizzardChrome()   -- give Blizzard's functional chat buttons back
     end
     applyTopFade()
     applySidebar()
@@ -880,14 +1134,22 @@ local function applyFont()
             if use then pcall(eb.SetFont, eb, UI.FONT_PATH, size, "")
             elseif fallback then pcall(eb.SetFont, eb, fallback, size, "") end
         end
-        local tab = _G["ChatFrame" .. i .. "Tab"]
-        local txt = tab and (tab.Text or _G["ChatFrame" .. i .. "TabText"])
-        if txt and txt.SetFont then
-            local _, tsize, tflags = txt:GetFont()
-            if use then pcall(txt.SetFont, txt, UI.FONT_PATH, tsize or 12, tflags or "")
-            elseif fallback then pcall(txt.SetFont, txt, fallback, tsize or 12, tflags or "") end
-        end
+        -- Tab labels are owned by styleOneTab (uniform size + centre), NOT here,
+        -- so the two never fight over the tab font. A font-toggle change calls
+        -- updateTabs() to refresh the tab family.
     end)
+end
+
+-- Push the configured panel opacity into BG.a and refresh every panel texture
+-- that bakes it in (per-frame backgrounds, the shared chrome, the top fade).
+local function applyPanelOpacity()
+    BG.a = (mod.db.panelOpacity or 78) / 100
+    eachChatFrame(function(cf)
+        local d = fdata[cf]
+        if d and d.bgTex then d.bgTex:SetColorTexture(BG.r, BG.g, BG.b, BG.a) end
+    end)
+    applyPanel()     -- rebuilds the shared panel / combat-log / sidebar chrome with new BG.a
+    applyTopFade()   -- the vertical gradient bakes BG.a, so refresh it too
 end
 
 -- =========================================================
@@ -896,8 +1158,10 @@ end
 local function applyAll()
     applyTimestamps()
     applyClassColors()
+    if mod.db.panelOpacity then BG.a = mod.db.panelOpacity / 100 end  -- honour saved opacity
     applyPanel()
     applyFont()
+    applyIndentWrap()
     updateTabs()
     applyIdleFade()
     applyCopyButton()
@@ -955,6 +1219,7 @@ function mod:OnDisable()
     applyClassColors()   -- clears colorNameByClass
     applyPanel()         -- hides bg panel / sidebar / top fade, restores input chrome
     applyFont()          -- back to Blizzard's chat font
+    applyIndentWrap()    -- back to Blizzard's word wrap
     updateTabs()         -- hides our tab additions + underline
     applyIdleFade()      -- unregisters activity, restores full alpha
     applyCopyButton()    -- hides the copy button
@@ -1008,12 +1273,6 @@ function mod:GetOptions()
         get = function() return mod.db.urls end,
         set = function(_, v) mod.db.urls = v end,
     })
-    table.insert(items, {
-        type = "toggle", label = L["Short channel tags"],
-        tooltip = L["Shows just the channel number, e.g. [1. General] becomes [1]."],
-        get = function() return mod.db.shortenChannels end,
-        set = function(_, v) mod.db.shortenChannels = v end,
-    })
 
     -- Appearance
     table.insert(items, { type = "spacer", height = 6 })
@@ -1042,13 +1301,37 @@ function mod:GetOptions()
         type = "toggle", label = L["Use VuloUI font"],
         tooltip = L["Applies the VuloUI font to the chat text, tabs and input line."],
         get = function() return mod.db.font end,
-        set = function(_, v) mod.db.font = v; applyFont() end,
+        set = function(_, v) mod.db.font = v; applyFont(); updateTabs() end,
     })
     table.insert(items, {
         type = "toggle", label = L["Style chat tabs"],
         tooltip = L["Flat dark tab background with an accent underline on the active tab."],
         get = function() return mod.db.tabStyle end,
         set = function(_, v) mod.db.tabStyle = v; updateTabs() end,
+    })
+    table.insert(items, {
+        type = "slider", label = L["Tab label size"], min = 8, max = 16, step = 1,
+        tooltip = L["One uniform font size for every chat tab label."],
+        get = function() return mod.db.tabFontSize end,
+        set = function(_, v) mod.db.tabFontSize = v; updateTabs() end,
+    })
+    table.insert(items, {
+        type = "slider", label = L["Chat font size (0 = Blizzard)"], min = 0, max = 18, step = 1,
+        tooltip = L["Overrides the message font size for every chat window. 0 keeps each window's own Blizzard size."],
+        get = function() return mod.db.chatFontSize end,
+        set = function(_, v) mod.db.chatFontSize = v; applyFont() end,
+    })
+    table.insert(items, {
+        type = "slider", label = L["Panel opacity (%)"], min = 0, max = 100, step = 5,
+        tooltip = L["Transparency of the dark background panel behind the chat."],
+        get = function() return mod.db.panelOpacity end,
+        set = function(_, v) mod.db.panelOpacity = v; applyPanelOpacity() end,
+    })
+    table.insert(items, {
+        type = "toggle", label = L["Indent wrapped lines"],
+        tooltip = L["Wraps long messages with continuation lines indented under the message start, for a cleaner column."],
+        get = function() return mod.db.indent end,
+        set = function(_, v) mod.db.indent = v; applyIndentWrap() end,
     })
     table.insert(items, {
         type = "toggle", label = L["Copy button (standalone)"],
