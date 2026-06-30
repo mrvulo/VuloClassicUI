@@ -1,6 +1,6 @@
 -- =========================================================
 -- VuloClassicUI / UI / Widgets
--- EUI-inspired widgets: toggle switches, purple sliders, dropdowns,
+-- VuloUI widgets: toggle switches, purple sliders, dropdowns,
 -- section headers, buttons, editboxes.
 -- =========================================================
 local _, ns = ...
@@ -201,7 +201,7 @@ function UI:StyleBackdrop(frame, opts)
 end
 
 -- =========================================================
--- Header (section heading in EUI style: uppercase, dimmed)
+-- Header (section heading in VuloUI style: uppercase, dimmed)
 -- =========================================================
 local function headerSetup(f, item)
     f._label:SetText(string.upper(clean(item.text) or ""))
@@ -342,7 +342,7 @@ function UI:CreateCollapsibleHeader(parent, text, expanded, onClick)
 end
 
 -- =========================================================
--- Toggle Switch (EUI style: switch left/right with purple accent)
+-- Toggle Switch (VuloUI style: switch left/right with purple accent)
 -- =========================================================
 local TOGGLE_W, TOGGLE_H = 36, 18
 local EYE_ON  = "Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\eye.tga"
@@ -621,7 +621,7 @@ function UI:CreateSlider(parent, config)
 end
 
 -- =========================================================
--- Dropdown (custom EUI-style widget, not UIDropDownMenu)
+-- Dropdown (custom VuloUI-style widget, not UIDropDownMenu)
 -- Layout: black background, purple border, V-arrow on the right, list expands downward
 -- =========================================================
 

@@ -821,7 +821,7 @@ function mod:OnEnable()
 
         if addonName == "Blizzard_AchievementUI" then
             if AchievementTemplateMixin then
-                -- Modern (Dragonflight+) — not present in TBC, so usually skip
+                -- Modern clients only — not present in TBC, so usually skip
                 hook(AchievementTemplateMixin, "OnEnter", achievementOnEnter)
                 hook(AchievementTemplateMixin, "OnLeave", GameTooltip_Hide)
                 local hooked = {}
@@ -848,7 +848,7 @@ function mod:OnEnable()
                 end
             elseif AchievementFrameAchievementsContainer
                    and AchievementFrameAchievementsContainer.buttons then
-                -- Pre-Dragonflight (Classic/TBC) — the normal path
+                -- Classic/TBC clients — the normal path
                 for _, button in ipairs(AchievementFrameAchievementsContainer.buttons) do
                     hookScript(button, "OnEnter", achievementOnEnter)
                     hookScript(button, "OnLeave", GameTooltip_Hide)

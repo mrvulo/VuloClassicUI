@@ -423,9 +423,9 @@ local function styleWAIcon(region)
 
     -- Inset the cooldown to the masked icon (centres the number on it) and make
     -- the GCD/cooldown SWEEP transparent — we can't reliably resize the sweep to
-    -- the framed icon in WeakAuras without Masque, and full-size it overhangs.
-    -- The countdown number still shows. Re-applied via SetCooldown (WeakAuras
-    -- re-draws the sweep when a cooldown starts).
+    -- the framed icon, and full-size it overhangs. The countdown number still
+    -- shows. Re-applied via SetCooldown (the host re-draws the sweep when a
+    -- cooldown starts).
     local function fixCD(cd)
         insetCooldown(region, icon, pct)
         if cd.SetSwipeColor then pcall(cd.SetSwipeColor, cd, 0, 0, 0, 0) end

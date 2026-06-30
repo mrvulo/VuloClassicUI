@@ -1,11 +1,10 @@
 -- =========================================================
 -- VuloClassicUI / Modules / DarkMode
 -- Darkens + desaturates Blizzard's DEFAULT UI artwork (unit frames, minimap,
--- action bars) to a neutral dark tone — the same idea as DragonflightUI's
--- Darkmode, but pointed at Blizzard's own textures because VuloClassicUI keeps
--- the default frames instead of reskinning them.
+-- action bars) to a neutral dark tone, pointed at Blizzard's own textures
+-- because VuloClassicUI keeps the default frames instead of reskinning them.
 --
--- Technique (identical to DF): texture:SetDesaturated(true) + :SetVertexColor(grey).
+-- Technique: texture:SetDesaturated(true) + :SetVertexColor(grey).
 -- Purely cosmetic vertex recolour on existing regions -> no taint, no secure
 -- actions, fully reversible (restore to white / not-desaturated on disable).
 --
@@ -24,7 +23,7 @@ local mod = ns:RegisterModule("darkmode", {
     defaults = {
         enabled       = false,                         -- opt-in: it restyles the whole default UI
         desaturate    = true,                          -- strip colour before tinting (true greyscale)
-        color         = { r = 0.40, g = 0.40, b = 0.40 },  -- DF-style neutral grey
+        color         = { r = 0.40, g = 0.40, b = 0.40 },  -- neutral grey
         unitframes    = true,
         minimap       = true,
         actionbars    = true,
@@ -68,7 +67,7 @@ local function paintNormal(btnName, on)
 end
 
 -- ---------------------------------------------------------
--- Region tables (pre-Dragonflight FrameXML names; valid on TBC 2.5.x + Era 1.15)
+-- Region tables (Classic-era FrameXML names; valid on TBC 2.5.x + Era 1.15)
 -- ---------------------------------------------------------
 -- Gold metal borders of the standard unit frames.
 local UNIT_BORDERS = {

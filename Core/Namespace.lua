@@ -50,7 +50,7 @@ ns.C = {
     r      = "|r",
 }
 
--- Colors for the UI (EUI style: dark backdrops, purple accent)
+-- Colors for the UI (VuloUI style: dark backdrops, purple accent)
 ns.COLORS = {
     accent     = { r = 0.608, g = 0.424, b = 1.000 },  -- 9b6cff
     accentDim  = { r = 0.300, g = 0.200, b = 0.500 },  -- dimmed variant

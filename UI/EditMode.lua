@@ -1,6 +1,6 @@
 -- =========================================================
 -- VuloClassicUI / UI / EditMode
--- A global Edit Mode HUD in our EUI style, built ON TOP of the existing mover
+-- A global Edit Mode HUD in our VuloUI style, built ON TOP of the existing mover
 -- engine (Core/Mover.lua). Entering Edit Mode shows every registered mover box
 -- at once, plus:
 --   - a dimmed fullscreen overlay so the movers pop,
@@ -377,7 +377,7 @@ function ns:RefreshMoverStyles()
 end
 
 -- ---------------------------------------------------------
--- Floating per-frame settings panel (EUI styled, built from our widgets).
+-- Floating per-frame settings panel (VuloUI styled, built from our widgets).
 -- ---------------------------------------------------------
 local panel
 
@@ -1099,7 +1099,7 @@ StaticPopupDialogs["VCUI_LAYOUT_DELETE"] = {
 }
 
 -- ---------------------------------------------------------
--- The Layouts panel (EUI styled, mirrors the per-frame panel chrome)
+-- The Layouts panel (VuloUI styled, mirrors the per-frame panel chrome)
 -- ---------------------------------------------------------
 local function buildLayoutsPanel()
     if layoutsPanel then return end

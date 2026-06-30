@@ -1,6 +1,6 @@
 -- =========================================================
 -- VuloClassicUI / UI / Sidebar
--- EUI style: modules are listed under group headers (Core, QoL, Reskin, ...).
+-- VuloUI style: modules are listed under group headers (Core, QoL, Reskin, ...).
 -- On the right of each entry: power button to enable/disable.
 -- =========================================================
 local _, ns = ...
