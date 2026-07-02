@@ -42,6 +42,7 @@ local mod = ns:RegisterModule("chat", {
         font            = true,    -- our font on chat, tabs and input
         topFade         = true,    -- top-edge fade so old lines melt into the panel
         sidebar         = true,    -- slim icon sidebar (copy / settings / scroll)
+        friendsCounter  = true,    -- online-friends count at the top of the sidebar
         idleFade        = false,   -- opt-in: it dims the chat when idle
         idleFadeDelay   = 15,
         idleFadeOpacity = 35,      -- % minimum alpha when idle (0..90)
@@ -64,6 +65,7 @@ local active = false
 -- they fade automatically when the chat frame's alpha changes)
 local sidebarFrame
 local alignDockScroll   -- forward ref (defined in the panel section; updateTabs re-runs it on every dock relayout)
+local createChatWindow  -- forward ref (defined after the apply fns; used by the sidebar + options)
 
 local ACCENT     = ns.COLORS.accent
 local NUM        = _G.NUM_CHAT_WINDOWS or 10
@@ -1025,14 +1027,102 @@ local function makeSidebarIcon(parent, tex, tip, onClick)
     return b
 end
 
+-- Same look as makeSidebarIcon but draws a text glyph (e.g. "+") instead of a
+-- texture -- we have no plus icon in Media, and a glyph tints cleanly.
+local function makeSidebarGlyph(parent, glyph, tip, onClick)
+    local b = CreateFrame("Button", nil, parent)
+    b:SetSize(20, 20)
+    local fs = b:CreateFontString(nil, "ARTWORK")
+    if UI and UI.Font then UI.Font(fs, 18) else fs:SetFontObject("GameFontNormalLarge") end
+    fs:SetAllPoints()
+    fs:SetJustifyH("CENTER"); fs:SetJustifyV("MIDDLE")
+    fs:SetText(glyph)
+    fs:SetTextColor(1, 1, 1, ICON_IDLE)
+    b._fs = fs
+    b:SetScript("OnEnter", function(self)
+        fs:SetTextColor(ACCENT.r, ACCENT.g, ACCENT.b, ICON_HOVER)
+        if tip and GameTooltip then
+            GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+            GameTooltip:SetText(tip)
+            GameTooltip:Show()
+        end
+    end)
+    b:SetScript("OnLeave", function()
+        fs:SetTextColor(1, 1, 1, ICON_IDLE)
+        if GameTooltip then GameTooltip:Hide() end
+    end)
+    b:SetScript("OnClick", onClick)
+    return b
+end
+
+-- Online-friends counter (top of the sidebar): character friends + Battle.net.
+-- Reads only cached counts; the server list is requested via ShowFriends() on
+-- login + a slow ticker, and FRIENDLIST_UPDATE/BN_* events push updates here.
+local function updateFriendsCount()
+    local sb = sidebarFrame
+    if not (sb and sb._friendsCount) then return end
+    local wow = (C_FriendList and C_FriendList.GetNumOnlineFriends
+                 and C_FriendList.GetNumOnlineFriends()) or 0
+    local bn = 0
+    if BNGetNumFriends then
+        local ok, _, online = pcall(BNGetNumFriends)   -- (numFriends, numOnline)
+        if ok then bn = online or 0 end
+    end
+    sb._friendsWow, sb._friendsBN = wow, bn
+    local total = wow + bn
+    sb._friendsCount:SetText(total)
+    if total > 0 then
+        sb._friendsCount:SetTextColor(ACCENT.r, ACCENT.g, ACCENT.b, 0.95)
+    else
+        sb._friendsCount:SetTextColor(1, 1, 1, 0.35)
+    end
+end
+
+-- Show/hide the counter per option and re-anchor the icon column below it.
+local function applyFriendsCounter()
+    local sb = sidebarFrame
+    if not (sb and sb._friendsBtn and sb._copyBtn) then return end
+    local on = active and mod.db.friendsCounter ~= false
+    sb._friendsBtn:SetShown(on)
+    sb._friendsCount:SetShown(on)
+    sb._copyBtn:ClearAllPoints()
+    if on then
+        sb._copyBtn:SetPoint("TOP", sb._friendsCount, "BOTTOM", 0, -12)
+        if C_FriendList and C_FriendList.ShowFriends then pcall(C_FriendList.ShowFriends) end
+        updateFriendsCount()
+    else
+        sb._copyBtn:SetPoint("TOP", sb, "TOP", 0, -10)
+    end
+end
+
+-- Align the sidebar flush with the dark chat panel (same top + bottom edges, so
+-- it sits level with the chat instead of poking up beside the tab row). Falls
+-- back to the chat frame itself when the bg panel is off.
+local function positionSidebar()
+    local sb, cf1 = sidebarFrame, _G.ChatFrame1
+    if not (sb and cf1) then return end
+    local d = FD(cf1)
+    sb:ClearAllPoints()
+    if d.bg and active and mod.db.bgPanel then
+        -- x = 0: flush against the panel's LEFT edge — the same horizontal spot
+        -- as the old cf1-relative anchor (panel left == cf1 left - 10), so the
+        -- sidebar never slides further left / off-screen. Only the vertical
+        -- alignment comes from the panel.
+        sb:SetPoint("TOPRIGHT", d.bg, "TOPLEFT", 0, 0)
+        sb:SetPoint("BOTTOMRIGHT", d.bg, "BOTTOMLEFT", 0, 0)
+    else
+        sb:SetPoint("TOPRIGHT", cf1, "TOPLEFT", -10, 4)
+        sb:SetPoint("BOTTOMRIGHT", cf1, "BOTTOMLEFT", -10, -6)
+    end
+end
+
 local function buildSidebar()
     if sidebarFrame or not _G.ChatFrame1 then return end
     local cf1 = _G.ChatFrame1
     local sb = CreateFrame("Frame", "VCUIChatSidebar", UIParent)
     sidebarFrame = sb
     sb:SetWidth(28)
-    sb:SetPoint("TOPRIGHT", cf1, "TOPLEFT", -10, 4)
-    sb:SetPoint("BOTTOMRIGHT", cf1, "BOTTOMLEFT", -10, -6)
+    positionSidebar()
     sb:SetFrameStrata(cf1:GetFrameStrata())
     sb:SetFrameLevel(cf1:GetFrameLevel() + 2)
     local bgt = sb:CreateTexture(nil, "BACKGROUND")
@@ -1045,9 +1135,46 @@ local function buildSidebar()
     div:SetPoint("TOPRIGHT", sb, "TOPRIGHT", 0, 0)
     div:SetPoint("BOTTOMRIGHT", sb, "BOTTOMRIGHT", 0, 0)
 
+    -- friends-online counter at the very top: icon + live count below it; click
+    -- opens the friends list. Tooltip shows the character/Battle.net breakdown.
+    local friendsBtn = makeSidebarIcon(sb, "Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\friends.tga",
+        nil, function() if ToggleFriendsFrame then ToggleFriendsFrame(1) end end)
+    friendsBtn:SetPoint("TOP", sb, "TOP", 0, -10)
+    local fc = friendsBtn:CreateFontString(nil, "OVERLAY")
+    if UI and UI.Font then UI.Font(fc, 11) else fc:SetFontObject("GameFontNormalSmall") end
+    fc:SetPoint("TOP", friendsBtn, "BOTTOM", 0, -2)
+    fc:SetJustifyH("CENTER")
+    fc:SetText("0")
+    fc:SetTextColor(1, 1, 1, 0.35)
+    sb._friendsBtn, sb._friendsCount = friendsBtn, fc
+    friendsBtn:SetScript("OnEnter", function(self)
+        self._icon:SetVertexColor(ACCENT.r, ACCENT.g, ACCENT.b, ICON_HOVER)
+        if GameTooltip then
+            GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+            GameTooltip:SetText(L["Friends online"])
+            GameTooltip:AddLine(string.format("%s: %d", _G.FRIENDS or "Friends", sb._friendsWow or 0), 1, 1, 1)
+            if BNGetNumFriends then
+                GameTooltip:AddLine(string.format("Battle.net: %d", sb._friendsBN or 0), 1, 1, 1)
+            end
+            GameTooltip:Show()
+        end
+    end)
+    -- keep the cached counts fresh even without list events: request the server
+    -- friends list once a minute while the counter is visible (cheap, standard).
+    if C_Timer and C_Timer.NewTicker then
+        sb._friendsTicker = C_Timer.NewTicker(60, function()
+            if active and mod.db.friendsCounter ~= false and sb:IsShown()
+               and C_FriendList and C_FriendList.ShowFriends then
+                pcall(C_FriendList.ShowFriends)
+            end
+        end)
+    end
+
     local copyBtn = makeSidebarIcon(sb, "Interface\\Buttons\\UI-GuildButton-PublicNote-Up",
         L["Copy chat"], function() showTextPopup(L["Copy chat"], readActiveChat()) end)
-    copyBtn:SetPoint("TOP", sb, "TOP", 0, -10)
+    sb._copyBtn = copyBtn
+    -- copyBtn's TOP anchor is owned by applyFriendsCounter (below the counter
+    -- when it's on, at the sidebar top when off)
 
     local gearBtn = makeSidebarIcon(sb, "Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\gear.tga",
         L["Settings"], function()
@@ -1058,6 +1185,10 @@ local function buildSidebar()
         end)
     gearBtn:SetPoint("TOP", copyBtn, "BOTTOM", 0, -12)
 
+    local plusBtn = makeSidebarGlyph(sb, "+", L["New chat window"],
+        function() if createChatWindow then createChatWindow() end end)
+    plusBtn:SetPoint("TOP", gearBtn, "BOTTOM", 0, -10)
+
     local scrollBtn = makeSidebarIcon(sb, "Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\arrow_down.tga",
         L["Scroll to bottom"], function()
             local cf = (_G.FCFDock_GetSelectedWindow and _G.GENERAL_CHAT_DOCK
@@ -1065,12 +1196,15 @@ local function buildSidebar()
             if cf and cf.ScrollToBottom then pcall(cf.ScrollToBottom, cf) end
         end)
     scrollBtn:SetPoint("BOTTOM", sb, "BOTTOM", 0, 10)
+    applyFriendsCounter()   -- anchors copyBtn + shows/hides the counter per option
 end
 
 local function applySidebar()
     if active and mod.db.sidebar then
         buildSidebar()
         if sidebarFrame then sidebarFrame:Show() end
+        positionSidebar()   -- re-evaluate panel-vs-chat anchoring (bgPanel may have toggled)
+        applyFriendsCounter()
     elseif sidebarFrame then
         sidebarFrame:Hide()
     end
@@ -1152,6 +1286,32 @@ local function applyPanelOpacity()
     applyTopFade()   -- the vertical gradient bakes BG.a, so refresh it too
 end
 
+-- Create a brand-new Blizzard chat window (docked + selected). This is exactly
+-- what Blizzard's own "Create New Window" does -- FCF_OpenNewWindow is insecure
+-- chat code, so calling it from our button is taint-safe. The new frame's panel
+-- background was pre-built for all NUM_CHAT_WINDOWS and shows via its OnShow
+-- hook; we defer a re-style so its tab, font and dock alignment land too.
+-- (Forward-declared near the top so the sidebar's button can reference it.)
+function createChatWindow()
+    if not FCF_OpenNewWindow then
+        if ns.Print then ns:Print(L["This client can't create extra chat windows."]) end
+        return
+    end
+    pcall(FCF_OpenNewWindow)
+    local function restyle()
+        -- a freshly initialised window re-creates its Blizzard button chrome, so
+        -- clear the per-frame de-blizzard guard and let applyPanel strip it again
+        -- (per-frame, idempotent). Then font + tab + dock alignment.
+        for i = 1, NUM do
+            local cf = _G["ChatFrame" .. i]
+            local d = cf and fdata[cf]
+            if d then d.deblizzed = nil end
+        end
+        applyPanel(); applyFont(); updateTabs()
+    end
+    if C_Timer and C_Timer.After then C_Timer.After(0, restyle) else restyle() end
+end
+
 -- =========================================================
 -- Apply everything
 -- =========================================================
@@ -1192,9 +1352,23 @@ function mod:OnEnable()
         _eventsWired = true
         -- Blizzard can reset timestamp CVar / class-colour flags / tabs during
         -- login; re-assert after the world is in. Restore history once.
+        -- friends-online counter: the server pushes FRIENDLIST_UPDATE after a
+        -- ShowFriends() request and on list changes; BN_* cover Battle.net.
+        -- ns:RegisterEvent pcall-guards unknown events, so missing BN_* on a
+        -- client is silently skipped.
+        for _, ev in ipairs({
+            "FRIENDLIST_UPDATE", "BN_FRIEND_INFO_CHANGED",
+            "BN_FRIEND_ACCOUNT_ONLINE", "BN_FRIEND_ACCOUNT_OFFLINE",
+            "BN_CONNECTED", "BN_DISCONNECTED",
+        }) do
+            ns:RegisterEvent(ev, function() if active then updateFriendsCount() end end)
+        end
         ns:RegisterEvent("PLAYER_ENTERING_WORLD", function()
             applyTimestamps()
             applyClassColors()
+            -- request the friends list once the world is in (BNet may connect a
+            -- moment later; the BN_* events above catch up)
+            if C_FriendList and C_FriendList.ShowFriends then pcall(C_FriendList.ShowFriends) end
             if C_Timer and C_Timer.After then
                 -- the chat frames/dock settle a moment after login; build the
                 -- panel + font then so anchors land on final positions
@@ -1293,9 +1467,19 @@ function mod:GetOptions()
     })
     table.insert(items, {
         type = "toggle", label = L["Icon sidebar"],
-        tooltip = L["A slim bar left of the chat with copy, settings and scroll-to-bottom icons."],
+        tooltip = L["A slim bar left of the chat with copy, settings, new-window and scroll-to-bottom icons."],
         get = function() return mod.db.sidebar end,
         set = function(_, v) mod.db.sidebar = v; applySidebar(); applyCopyButton() end,
+    })
+    table.insert(items, {
+        type = "toggle", label = L["Show online friends"],
+        tooltip = L["Show how many friends are online at the top of the sidebar; click the icon to open the friends list."],
+        get = function() return mod.db.friendsCounter ~= false end,
+        set = function(_, v) mod.db.friendsCounter = v and true or false; applyFriendsCounter() end,
+    })
+    table.insert(items, {
+        type = "button", label = L["Create new chat window"], width = 200,
+        onClick = function() createChatWindow() end,
     })
     table.insert(items, {
         type = "toggle", label = L["Use VuloUI font"],

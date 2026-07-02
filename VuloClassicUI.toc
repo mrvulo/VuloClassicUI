@@ -2,7 +2,7 @@
 ## Title: |cff9b6cffVuloClassicUI|r
 ## Notes: Modular UI suite for TBC Classic Anniversary
 ## Author: Vulo
-## Version: 1.20.1
+## Version: 1.21.0
 ## X-Wago-ID: rN4kojGD
 ## X-Curse-Project-ID: 1553405
 ## SavedVariables: VuloClassicUIDB, TrinketsOptions
@@ -59,6 +59,8 @@ Modules\TooltipIDs.lua
 Modules\GoldVendors.lua
 Modules\SpamFilter.lua
 Modules\Chat.lua
+Modules\Bags.lua
+Modules\Bank.lua
 Modules\QuestLog.lua
 Modules\ProfessionWindow.lua
 Modules\DisenchantQueue.lua

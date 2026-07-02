@@ -99,9 +99,26 @@ local function syncOnLogin()
     end
 end
 
+-- Account-wide per-character gold snapshot (for the realm/faction overview in
+-- the bag/bank gold tooltip). Lives in ns.db.global (account SavedVariables):
+--   charGold[realm][charName] = { money, class, faction }
+local function trackCharGold()
+    if not (ns.db and ns.db.global) then return end
+    local realm, name = GetRealmName(), UnitName("player")
+    if not (realm and name) then return end
+    ns.db.global.charGold = ns.db.global.charGold or {}
+    ns.db.global.charGold[realm] = ns.db.global.charGold[realm] or {}
+    ns.db.global.charGold[realm][name] = {
+        money   = GetMoney() or 0,
+        class   = select(2, UnitClass("player")),
+        faction = UnitFactionGroup and UnitFactionGroup("player") or nil,
+    }
+end
+
 local function onMoney()
     local d = data()
     if not d then return end
+    trackCharGold()
     if not d.sessionStart then
         initSession(false)
         return
@@ -165,6 +182,61 @@ end
 
 local function hideTooltip()
     GameTooltip:Hide()
+end
+
+-- Published gold tooltip for OUR OWN money displays (bag + bank window):
+-- realm/faction character-gold overview on top, then the session balance.
+-- Coin icons via GetCoinTextureString; class-colored names.
+function ns.ShowGoldTooltip(owner)
+    -- nothing to show? (module disabled AND no realm data) -> no empty box
+    local store0 = ns.db and ns.db.global and ns.db.global.charGold
+    local realm0 = GetRealmName and GetRealmName()
+    if not mod._enabled and not (store0 and realm0 and store0[realm0]) then return end
+    if GameTooltip:GetOwner() ~= owner then
+        GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
+    end
+    local coin = function(c)
+        if GetCoinTextureString then return GetCoinTextureString(c or 0) end
+        return formatCopper(c or 0)
+    end
+    local store = ns.db and ns.db.global and ns.db.global.charGold
+    local realm = GetRealmName and GetRealmName()
+    local myFaction = UnitFactionGroup and UnitFactionGroup("player") or nil
+    if store and realm and store[realm] then
+        local rows, total = {}, 0
+        for name, info in pairs(store[realm]) do
+            if not myFaction or (info.faction or myFaction) == myFaction then
+                total = total + (info.money or 0)
+                rows[#rows + 1] = { name = name, info = info }
+            end
+        end
+        table.sort(rows, function(a, b) return a.name < b.name end)
+        GameTooltip:AddDoubleLine(ACCENT .. L["Faction/Server Gold:|r"], coin(total))
+        GameTooltip:AddLine(" ")
+        for _, r in ipairs(rows) do
+            local cls = r.info.class and RAID_CLASS_COLORS and RAID_CLASS_COLORS[r.info.class]
+            local colored = r.name
+            if cls then
+                colored = string.format("|cff%02x%02x%02x%s|r",
+                    math.floor((cls.r or 1) * 255 + 0.5), math.floor((cls.g or 1) * 255 + 0.5),
+                    math.floor((cls.b or 1) * 255 + 0.5), r.name)
+            end
+            GameTooltip:AddDoubleLine(colored, coin(r.info.money))
+        end
+        GameTooltip:AddLine(" ")
+        if IsShiftKeyDown and IsShiftKeyDown() then
+            local acct = 0
+            for _, chars in pairs(store) do
+                for _, info in pairs(chars) do acct = acct + (info.money or 0) end
+            end
+            GameTooltip:AddDoubleLine(GRAY .. L["Account total:|r"], coin(acct))
+        else
+            GameTooltip:AddLine(GRAY .. L["<Hold Shift to show the account total>|r"])
+        end
+    end
+    -- session balance (appends, since the owner is already set) + final Show()
+    showTooltip(owner)
+    GameTooltip:Show()
 end
 
 -- =========================================================
@@ -256,16 +328,18 @@ function mod:OnEnable()
     -- IMPORTANT: NO initSession(true) in OnEnable! Persistent values
     -- must be preserved. syncOnLogin() only syncs lastMoney.
     ns:RegisterEvent("PLAYER_LOGIN", syncOnLogin)
+    ns:RegisterEvent("PLAYER_LOGIN", trackCharGold)   -- account-wide gold snapshot
     ns:RegisterEvent("PLAYER_MONEY", onMoney)
 
     -- If module is enabled later (after PLAYER_LOGIN) via toggle:
-    if ns.isInitialised then syncOnLogin() end
+    if ns.isInitialised then syncOnLogin(); trackCharGold() end
 
     tryHook()
 end
 
 function mod:OnDisable()
     ns:UnregisterEvent("PLAYER_LOGIN", syncOnLogin)
+    ns:UnregisterEvent("PLAYER_LOGIN", trackCharGold)
     ns:UnregisterEvent("PLAYER_MONEY", onMoney)
     -- HookScripts on MoneyFrame can't be removed,
     -- showTooltip() checks mod._enabled itself.
