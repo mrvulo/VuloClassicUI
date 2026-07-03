@@ -1,8 +1,8 @@
 -- =========================================================
 -- VuloClassicUI / Core / MediaRegistry
 -- Registers all bundled sounds, fonts and statusbars
--- via LibSharedMedia-3.0. Other addons (BigWigs, ElvUI, WeakAuras,
--- DBM, ...) will then automatically detect this media.
+-- via LibSharedMedia-3.0. Any addon that consumes shared media (WeakAuras,
+-- boss mods, other UI suites) will then automatically detect it.
 --
 -- Paths live under Interface\AddOns\VuloClassicUI\Media\
 -- =========================================================

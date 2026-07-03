@@ -42,12 +42,17 @@ end
 -- the screen centre (same coordinate model the mover already uses), so we snap
 -- them to multiples of the grid size -> frame centres line up with grid lines.
 -- ---------------------------------------------------------
-function ns:EditSnapXY(x, y)
+function ns:EditSnapXY(x, y, ratio)
     local g = gridState()
     if not g.snap then return x, y end
     local s = g.size or 32
     if s <= 0 then return x, y end
-    local function snap(v) return math.floor(v / s + 0.5) * s end
+    -- snap in UIParent units (the space the grid is DRAWN in), then convert
+    -- back to the frame-local units db.x/db.y use — otherwise a scaled frame
+    -- "snaps" visibly beside the drawn line
+    ratio = ratio or 1
+    if ratio == 0 then ratio = 1 end
+    local function snap(v) return (math.floor((v * ratio) / s + 0.5) * s) / ratio end
     return snap(x), snap(y)
 end
 
@@ -271,8 +276,10 @@ function ns:SetEditMode(state)
     end
     -- Drive the existing mover engine (shows/hides every registered box).
     ns:SetMoversEditMode(state)
-    -- Style the freshly-shown boxes (selected vs unselected look).
-    if state and ns.RefreshMoverStyles then ns:RefreshMoverStyles() end
+    -- Style the boxes BOTH ways: entering styles the fresh selection looks,
+    -- leaving restyles boxes that stay visible via free-move into their
+    -- quiet (thin-outline) look instead of freezing the loud edit overlay.
+    if ns.RefreshMoverStyles then ns:RefreshMoverStyles() end
     -- let bespoke positioners (Arena) follow the same toggle
     for _, fn in ipairs(ns._editHooks) do pcall(fn, state) end
 end
@@ -361,11 +368,27 @@ function ns:RefreshMoverStyles()
     for _, m in ipairs(ns._movers) do
         local sel     = ns:IsSelected(m)
         local primary = (m == ns._selectedMover)
+        local sc      = m.opts and m.opts.scope
+        local editing = ns._moverEditGlobal or (sc and ns._moverEditScopes and ns._moverEditScopes[sc]) or false
+        -- A box that is visible ONLY because of "free move" (outside any edit
+        -- mode) stays grabbable but goes QUIET: thin dim outline, no fill, no
+        -- label — a full purple box parked on the frame reads as a stuck edit
+        -- overlay. The explicit Unlock/Position flow keeps the loud look.
+        local quiet = m:IsShown() and not editing
+            and not (m.opts and m.opts.db and m.opts.db.unlocked)
         if m.bg then
-            m.bg:SetColorTexture(accent.r, accent.g, accent.b, sel and 0.5 or 0.18)
+            if quiet then
+                m.bg:SetColorTexture(accent.r, accent.g, accent.b, 0.04)
+            else
+                m.bg:SetColorTexture(accent.r, accent.g, accent.b, sel and 0.5 or 0.18)
+            end
         end
+        if m.label then m.label:SetShown(not quiet) end
+        if m.hint  then m.hint:SetShown(not quiet) end
         if m.border and m.border.SetBackdropBorderColor then
-            if primary then
+            if quiet then
+                m.border:SetBackdropBorderColor(accent.r * 0.6, accent.g * 0.6, accent.b * 0.6, 0.35)
+            elseif primary then
                 m.border:SetBackdropBorderColor(accent.r, accent.g, accent.b, 1)
             elseif sel then
                 m.border:SetBackdropBorderColor(accent.r, accent.g, accent.b, 0.85)
@@ -397,12 +420,10 @@ local ANCHOR_POINTS = {
 -- frame (rather than the stored db, which only updates on drop) is what lets the
 -- panel's X / Y track a drag or an arrow-key nudge in real time.
 local function moverXY(m)
-    local t = m and m.target
-    if t and t.GetCenter then
-        local fx, fy = t:GetCenter()
-        local px, py = UIParent:GetCenter()
-        if fx and fy and px and py then return fx - px, fy - py end
-    end
+    -- canonical frame-local offsets (matches the stored db model exactly, so
+    -- the panel's X/Y round-trip without moving the frame)
+    local x, y = ns:GetCenterOffsets(m and m.target)
+    if x and y then return x, y end
     if m and m.opts and m.opts.db then return m.opts.db.x or 0, m.opts.db.y or 0 end
     return 0, 0
 end
@@ -559,7 +580,12 @@ local function buildPanel()
         width   = 264,
         onClick = function()
             local m = ns._selectedMover
-            if m then ns:MoverSetCenter(m, 0, 0); refreshPanel() end
+            if m then
+                ns._inMoverReset = true          -- explicit reset, not a 0,0 drop
+                ns:MoverSetCenter(m, 0, 0)
+                ns._inMoverReset = false
+                refreshPanel()
+            end
         end,
     })
 
@@ -723,21 +749,22 @@ end
 function ns:BeginGroupDrag(leader)
     ns._groupDrag = nil
     if #ns._selection <= 1 or not (leader and ns:IsSelected(leader) and leader.target) then return end
-    local px, py = UIParent:GetCenter()
-    if not px then return end
+    -- every capture below is in the OWNING frame's local space — the same
+    -- model db.x/y use, so a scaled follower no longer teleports on the
+    -- first drag tick (ns:GetCenterOffsets is the one canonical formula)
     local followers = {}
     for _, m in ipairs(ns._selection) do
-        if m ~= leader and m.target and m.target.GetCenter then
-            local fx, fy = m.target:GetCenter()
-            if fx and fy then
-                followers[#followers + 1] = { mover = m, x = fx - px, y = fy - py }
+        if m ~= leader and m.target then
+            local x, y = ns:GetCenterOffsets(m.target)
+            if x and y then
+                followers[#followers + 1] = { mover = m, x = x, y = y }
             end
         end
     end
     if #followers == 0 then return end
-    local lfx, lfy = leader.target:GetCenter()
-    if not lfx then return end
-    ns._groupDrag = { lx = lfx - px, ly = lfy - py, followers = followers }
+    local lx, ly = ns:GetCenterOffsets(leader.target)
+    if not lx then return end
+    ns._groupDrag = { lx = lx, ly = ly, followers = followers }
 end
 
 -- Called each frame while dragging (from liveGuideDriver): translate followers
@@ -746,11 +773,11 @@ function ns:UpdateGroupDrag()
     local gd = ns._groupDrag
     local leader = ns._draggingMover
     if not (gd and leader and leader.target) then return end
-    local px, py = UIParent:GetCenter()
-    local lfx, lfy = leader.target:GetCenter()
-    if not (px and lfx) then return end
-    -- leader's movement, measured in its own coordinate space
-    local dx, dy = (lfx - px) - gd.lx, (lfy - py) - gd.ly
+    local lx, ly = ns:GetCenterOffsets(leader.target)
+    if not lx then return end
+    -- leader's movement in its own coordinate space (same normalization as
+    -- the capture, so the constant term cancels exactly)
+    local dx, dy = lx - gd.lx, ly - gd.ly
     local lscale = leader.target:GetEffectiveScale() or 1
     for _, f in ipairs(gd.followers) do
         local t = f.mover.target
@@ -770,13 +797,10 @@ function ns:EndGroupDrag(sdx, sdy)
     ns._groupDrag = nil
     if not gd then return end
     sdx, sdy = sdx or 0, sdy or 0
-    local px, py = UIParent:GetCenter()
-    if not px then return end
     for _, f in ipairs(gd.followers) do
-        local t = f.mover.target
-        local fx, fy = t:GetCenter()
-        if fx and fy then
-            ns:MoverSetCenter(f.mover, (fx - px) + sdx, (fy - py) + sdy)
+        local x, y = ns:GetCenterOffsets(f.mover.target)
+        if x and y then
+            ns:MoverSetCenter(f.mover, x + sdx, y + sdy)
         end
     end
 end
@@ -849,21 +873,28 @@ local MAG_THRESH = 12
 -- Find the nearest snap lines for `mover` at CENTER offset (x,y): every other
 -- mover's edges/centre + the screen centre cross. Returns dx,lineX,dy,lineY --
 -- the per-axis snap delta and the line it snaps to (or nil if nothing in range).
+-- All snapping math runs in UIPARENT units — the space the guides and grid
+-- are drawn in. The dragged frame's local offsets/extents scale UP by its
+-- ratio, every other frame's lines are captured canonically and scaled the
+-- same way; the returned dx/dy convert BACK to the dragged frame's local
+-- units (what db.x/db.y store), while lineX/lineY stay UI-space for drawing.
 local function computeSnap(mover, x, y)
     local target = mover.target
-    local px, py = UIParent:GetCenter()
-    if not (px and target) then return end
-    local hw = (target:GetWidth()  or 0) / 2
-    local hh = (target:GetHeight() or 0) / 2
+    if not target then return end
+    local r = ns.GetScaleRatio and ns:GetScaleRatio(target) or 1
+    local xu, yu = x * r, y * r
+    local hw = (target:GetWidth()  or 0) / 2 * r
+    local hh = (target:GetHeight() or 0) / 2 * r
 
     local xLines, yLines = { 0 }, { 0 }   -- 0 == screen centre line
     for _, o in ipairs(ns._movers) do
         if o ~= mover and o.target and o:IsShown() then
-            local ofx, ofy = o.target:GetCenter()
-            if ofx and ofy then
-                local ocx, ocy = ofx - px, ofy - py
-                local ohw = (o.target:GetWidth()  or 0) / 2
-                local ohh = (o.target:GetHeight() or 0) / 2
+            local ox, oy = ns:GetCenterOffsets(o.target)
+            if ox and oy then
+                local orr = ns.GetScaleRatio and ns:GetScaleRatio(o.target) or 1
+                local ocx, ocy = ox * orr, oy * orr
+                local ohw = (o.target:GetWidth()  or 0) / 2 * orr
+                local ohh = (o.target:GetHeight() or 0) / 2 * orr
                 xLines[#xLines + 1] = ocx; xLines[#xLines + 1] = ocx - ohw; xLines[#xLines + 1] = ocx + ohw
                 yLines[#yLines + 1] = ocy; yLines[#yLines + 1] = ocy - ohh; yLines[#yLines + 1] = ocy + ohh
             end
@@ -883,8 +914,10 @@ local function computeSnap(mover, x, y)
         return bd, bl
     end
 
-    local dx, lineX = best({ x - hw, x, x + hw }, xLines)
-    local dy, lineY = best({ y - hh, y, y + hh }, yLines)
+    local dx, lineX = best({ xu - hw, xu, xu + hw }, xLines)
+    local dy, lineY = best({ yu - hh, yu, yu + hh }, yLines)
+    if dx then dx = dx / r end
+    if dy then dy = dy / r end
     return dx, lineX, dy, lineY
 end
 
@@ -894,9 +927,11 @@ end
 -- ---------------------------------------------------------
 function ns:EditResolveDrop(mover, x, y)
     local g = gridState()
+    local r = (ns.GetScaleRatio and mover.target) and ns:GetScaleRatio(mover.target) or 1
     local dx, lineX, dy, lineY = computeSnap(mover, x, y)
-    if dx then x = x + dx elseif g.snap then x = snapVal(x, g.size) end
-    if dy then y = y + dy elseif g.snap then y = snapVal(y, g.size) end
+    -- grid fallback also snaps in UI units, then converts back to local
+    if dx then x = x + dx elseif g.snap then x = snapVal(x * r, g.size) / r end
+    if dy then y = y + dy elseif g.snap then y = snapVal(y * r, g.size) / r end
     drawGuides(dx and lineX or nil, dy and lineY or nil)   -- flash on drop
     return x, y
 end
@@ -910,10 +945,9 @@ liveGuideDriver:SetScript("OnUpdate", function()
     local m = ns._draggingMover
     if not (m and m.target and ns:IsEditModeActive()) then return end
     if ns._groupDrag then ns:UpdateGroupDrag() end   -- drag the rest of the group along
-    local px, py = UIParent:GetCenter()
-    local fx, fy = m.target:GetCenter()
-    if not (px and fx) then return end
-    local dx, lineX, dy, lineY = computeSnap(m, fx - px, fy - py)
+    local lx, ly = ns:GetCenterOffsets(m.target)
+    if not lx then return end
+    local dx, lineX, dy, lineY = computeSnap(m, lx, ly)
     drawGuides(dx and lineX or nil, dy and lineY or nil, true)   -- persistent while dragging
 end)
 

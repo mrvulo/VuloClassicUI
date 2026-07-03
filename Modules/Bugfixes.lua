@@ -353,10 +353,11 @@ local L = ns.L
 local mod = ns:RegisterModule("fixinspect", {
     name        = "Inspect Fix",
     group       = "Bugfixes",
-    description = "Fixes stuck inspect bugs (no player inspect possible after a faulty close/timeout). Auto-reset after a timeout + cleanup when InspectFrame closes + /inspectreset slash command.",
+    description = "Fixes stuck inspect bugs (no player inspect possible after a faulty close/timeout). Auto-reset after a timeout, auto-retry when the window stays empty, cleanup when InspectFrame closes + /inspectreset slash command.",
     defaults = {
         enabled    = true,
         autoReset  = true,
+        autoRetry  = true,   -- repaint late data + re-request an all-empty inspect
         timeoutSec = 5,      -- Anniversary is slow to clear a stuck inspect
     },
 })
@@ -369,6 +370,8 @@ local _activeTime         = 0
 local _hookedFrame        = false
 local _inspectHooked      = false
 local _watchdog
+local _lastNotify         = 0     -- time of the last NotifyInspect (any source)
+local _retriedGUID        = nil   -- one automatic re-request per inspected target
 
 -- =========================================================
 -- Core reset
@@ -388,14 +391,96 @@ end
 
 local function hardReset()
     softReset()
+    _retriedGUID = nil
     local f = _G.InspectFrame
     if f then f.unit = nil end
 end
 
-local function onInspectReady()
+-- =========================================================
+-- "Sometimes the window is empty" repair: INSPECT_READY often fires BEFORE
+-- the item data has fully streamed in, and Blizzard's inspect paperdoll only
+-- paints once. So after READY we repaint the slots again shortly after (pulls
+-- in late data), and if the inspect is STILL completely empty we re-request
+-- it once — the classic "works on the second attempt" done automatically.
+-- =========================================================
+local INSPECT_SLOT_NAMES = {
+    "Head", "Neck", "Shoulder", "Back", "Chest", "Shirt", "Tabard", "Wrist",
+    "Hands", "Waist", "Legs", "Feet", "Finger0", "Finger1", "Trinket0",
+    "Trinket1", "MainHand", "SecondaryHand", "Ranged",
+}
+
+-- Force Blizzard's own per-slot update (insecure-safe: inspect paperdoll
+-- buttons are plain buttons, and this is the exact function Blizzard runs on
+-- INSPECT_READY). Our character-panel overlays refresh with it via their
+-- existing hooksecurefunc on the same function.
+local function repaintInspectSlots()
+    local f   = _G.InspectFrame
+    local upd = _G.InspectPaperDollItemSlotButton_Update
+    if not (f and f:IsShown() and f.unit and upd) then return end
+    for _, name in ipairs(INSPECT_SLOT_NAMES) do
+        local btn = _G["Inspect" .. name .. "Slot"]
+        if btn then pcall(upd, btn) end
+    end
+end
+
+local function hasAnyInspectItem(unit)
+    for slot = 1, 19 do
+        if GetInventoryItemLink(unit, slot) then return true end
+    end
+    return false
+end
+
+-- Re-request the currently shown inspect once per target (throttled). Calling
+-- NotifyInspect ourselves is fine — only REPLACING it would taint; the hook
+-- below records our request like any other. Returns TRUE only when a request
+-- was actually sent — callers decide between waiting and falling back on that
+-- (a silent refusal here must never keep re-arming the watchdog).
+local function retryInspect(guid)
+    local f = _G.InspectFrame
+    if not (f and f:IsShown() and f.unit) then return false end
+    if UnitGUID(f.unit) ~= guid then return false end
+    if _retriedGUID == guid then return false end               -- one shot per target
+    if GetTime() - _lastNotify < 1 then return false end        -- server throttle
+    if _G.CanInspect and not _G.CanInspect(f.unit) then return false end
+    if not _G.NotifyInspect then return false end
+    _retriedGUID = guid
+    _G.NotifyInspect(f.unit)                                    -- fresh READY repaints
+    return true
+end
+
+local function onInspectReady(_, guid)
     -- Server responded — clean our tracking, but don't reset (UI uses the data)
     _activeGUID = nil
     _activeTime = 0
+
+    if not (mod._enabled and mod.db and mod.db.autoRetry ~= false) then return end
+    local f = _G.InspectFrame
+    if not (guid and f and f:IsShown() and f.unit and UnitGUID(f.unit) == guid) then return end
+
+    -- late-data repaint passes; the 1.2s pass also re-requests an all-empty inspect
+    if C_Timer and C_Timer.After then
+        C_Timer.After(0.4, function()
+            if not mod._enabled then return end
+            local fr = _G.InspectFrame
+            if fr and fr:IsShown() and fr.unit and UnitGUID(fr.unit) == guid then
+                repaintInspectSlots()
+            end
+        end)
+        -- attempt 2 exists because the 1s NotifyInspect throttle can eat the
+        -- first try (e.g. our own tooltip inspector fired in between) — one
+        -- reschedule, never more
+        local function emptyCheck(attempt)
+            if not mod._enabled then return end
+            local fr = _G.InspectFrame
+            if not (fr and fr:IsShown() and fr.unit and UnitGUID(fr.unit) == guid) then return end
+            repaintInspectSlots()
+            if hasAnyInspectItem(fr.unit) then return end
+            if not retryInspect(guid) and attempt < 2 and _retriedGUID ~= guid then
+                C_Timer.After(1.0, function() emptyCheck(attempt + 1) end)
+            end
+        end
+        C_Timer.After(1.2, function() emptyCheck(1) end)
+    end
 end
 
 -- =========================================================
@@ -419,6 +504,7 @@ local function installInspectTracking()
     if _inspectHooked or type(_G.NotifyInspect) ~= "function" then return end
     _inspectHooked = true
     hooksecurefunc("NotifyInspect", function(unit)
+        _lastNotify = GetTime()
         if unit and UnitExists(unit) then
             _activeGUID = UnitGUID(unit)
             _activeTime = GetTime()
@@ -445,9 +531,22 @@ local function watchdogTick()
     if not mod._enabled or not mod.db or not mod.db.autoReset then return end
     if _activeTime == 0 then return end
     local timeout = mod.db.timeoutSec or 5
-    if GetTime() - _activeTime > timeout then
-        softReset()
+    if GetTime() - _activeTime <= timeout then return end
+
+    -- Stuck request. If the inspect WINDOW is open on exactly this target and
+    -- we haven't retried yet, fire one fresh request instead of clearing —
+    -- ClearInspectPlayer would invalidate the data the open frame still needs
+    -- and leave it permanently empty. Only an ACTUALLY SENT retry re-arms the
+    -- wait (the NotifyInspect hook re-arms tracking); a refusal (out of range,
+    -- throttle, already retried) falls through to the reset right away, so
+    -- the pre-existing "reset within timeout" guarantee stays intact.
+    local f = _G.InspectFrame
+    local stuckGUID = _activeGUID
+    if mod.db.autoRetry ~= false and stuckGUID and _retriedGUID ~= stuckGUID
+        and f and f:IsShown() and f.unit and UnitGUID(f.unit) == stuckGUID then
+        if retryInspect(stuckGUID) then return end   -- hook re-armed tracking
     end
+    softReset()
 end
 
 -- =========================================================
@@ -477,6 +576,9 @@ _G.SlashCmdList["VCUIINSPECTSTATE"] = function()
         string.format("  Active time:            %s", _activeTime > 0 and string.format("%.1fs ago", GetTime() - _activeTime) or "none"),
         string.format("  InspectFrame.unit:      %s", f and tostring(f.unit) or "no frame"),
         string.format("  InspectFrame shown:     %s", (f and f:IsShown()) and "yes" or "no"),
+        string.format("  Last NotifyInspect:     %s", _lastNotify > 0 and string.format("%.1fs ago", GetTime() - _lastNotify) or "none"),
+        string.format("  Auto-retry used:        %s", _retriedGUID and "yes (this target)" or "no"),
+        string.format("  Slots with data:        %s", (f and f:IsShown() and f.unit) and (hasAnyInspectItem(f.unit) and "yes" or "NONE") or "-"),
     }
     for _, line in ipairs(lines) do
         DEFAULT_CHAT_FRAME:AddMessage(line)
@@ -539,6 +641,11 @@ function mod:GetOptions()
           get = function() return mod.db.autoReset ~= false end,
           set = function(_, v) mod.db.autoReset = v end },
 
+        { type = "toggle", label = L["Auto-retry empty inspects"],
+          tooltip = L["After the server answers, the item slots are repainted again shortly after (data often arrives late). If the window is still completely empty, the inspect is automatically requested one more time."],
+          get = function() return mod.db.autoRetry ~= false end,
+          set = function(_, v) mod.db.autoRetry = v end },
+
         { type = "slider", label = L["Timeout (seconds)"],
           min = 3, max = 20, step = 1,
           tooltip = L["How long to wait for INSPECT_READY before auto-reset kicks in. 5 seconds is the new default for Anniversary — fast enough to recover quickly."],
@@ -564,7 +671,7 @@ function mod:GetOptions()
             _inspectHooked and L["|cff66ff66active|r"] or L["|cffff8800waiting|r"],
             _hookedFrame   and L["|cff66ff66active|r"] or L["|cffff8800waiting for Blizzard_InspectUI|r"]) },
         { type = "spacer", height = 4 },
-        { type = "desc", text = L["|cffaaaaaaWhat the fix does: tracks active inspects with a timestamp, calls ClearInspectPlayer() on close + on timeout. Prevents a stuck state from blocking all subsequent inspects.|r"] },
+        { type = "desc", text = L["|cffaaaaaaWhat the fix does: tracks active inspects with a timestamp, repaints late-arriving item data, re-requests an all-empty inspect once, and calls ClearInspectPlayer() on close + on timeout. Prevents a stuck state from blocking all subsequent inspects.|r"] },
     }
 end
 

@@ -52,7 +52,9 @@ local mod = ns:RegisterModule("bags", {
         showSearch    = true,
         showSortButton = true,
         sortReverse   = false,
-        sortMode      = "blizzard",   -- "blizzard" | "quality" | "type" | "name"
+        sortMode      = "blizzard",   -- "blizzard" | "quality" | "type" | "name" | "item-level"
+        catSortMode   = "type",       -- display order inside category sections ("off" = raw slot order)
+        showFreeSlots = true,         -- OneBag view: render empty slots after the items
         useCategories = true,         -- categorized sections vs one flat grid
         hideEmpty     = true,         -- hide category headers with zero items
         viewMode      = "all",        -- "all" | "onebag" | "multibag"
@@ -487,6 +489,7 @@ local pendingRelayout = false       -- set when a rebuild was blocked by combat
 local searchText  = ""              -- lowercased live query ("" = no filter)
 local sortReverse = false           -- runtime mirror of mod.db.sortReverse
 local sortMode    = "blizzard"      -- runtime mirror of mod.db.sortMode
+local catSortMode = "type"          -- runtime mirror of mod.db.catSortMode (display-only order)
 local sortInFlight = false          -- true while a custom-sort move batch drains
 local useCategories = true          -- runtime mirror of mod.db.useCategories
 local hideEmpty     = true          -- runtime mirror of mod.db.hideEmpty
@@ -1013,7 +1016,9 @@ local function layoutFlat()
     finishSize(cols, h, blocked)
 end
 
--- occupied slots bucketed by category, preserving slot order (so sort carries in)
+-- occupied slots bucketed by category. With catSortMode active each bucket is
+-- re-ordered for DISPLAY by the shared engine (never moves items); "off" keeps
+-- raw slot order (so a physical sort carries in).
 local function collectByCategory()
     local buckets = {}
     for _, bag in ipairs(visibleBags()) do
@@ -1024,6 +1029,27 @@ local function collectByCategory()
                 local b = buckets[key]; if not b then b = {}; buckets[key] = b end
                 b[#b + 1] = { bag = bag, slot = slot }
             end
+        end
+    end
+    if catSortMode ~= "off" and ns.SortEngine then
+        local needRetry = false
+        for key, b in pairs(buckets) do
+            -- pcall: a display-order failure must never take down layout();
+            -- worst case the bucket just keeps raw slot order this paint
+            local ok, sorted, incomplete = pcall(ns.SortEngine.OrderBucket, b, catSortMode, sortReverse)
+            if ok and sorted then
+                buckets[key] = sorted
+                if incomplete then needRetry = true end
+            end
+        end
+        -- some item data wasn't server-cached yet (fresh login): repaint once
+        -- shortly after — the engine already requested the missing data
+        if needRetry and not mod._catSortRetry and C_Timer and C_Timer.After then
+            mod._catSortRetry = true
+            C_Timer.After(0.5, function()
+                mod._catSortRetry = nil
+                if categoriesChanged then categoriesChanged() end
+            end)
         end
     end
     return buckets
@@ -1135,7 +1161,8 @@ local function layoutCategorized()
     finishSize(cols, y + dropH, blocked, (ghN > 0) and GROUP_INDENT or 0)
 end
 
--- OneBag: every OCCUPIED slot from bags 0-4 in one flat grid, one header.
+-- OneBag: every occupied slot from bags 0-4 in one flat grid, one header;
+-- with showFreeSlots the empty slots follow the items (as drop targets).
 layoutOneBag = function()
     if not (bagFrame and mod.active) then return end
     local cols = mod.db.columns or 12
@@ -1149,6 +1176,16 @@ layoutOneBag = function()
             end
         end
     end
+    local itemCount = #items
+    if mod.db.showFreeSlots ~= false then
+        for _, bag in ipairs(visibleBags()) do
+            for slot = 1, (GetContainerNumSlots(bag) or 0) do
+                if not (GetContainerItemLink and GetContainerItemLink(bag, slot)) then
+                    items[#items + 1] = { bag = bag, slot = slot }
+                end
+            end
+        end
+    end
 
     local btnN, blocked = 0, false
     local y = 0
@@ -1156,7 +1193,7 @@ layoutOneBag = function()
     if h then
         h:ClearAllPoints()
         h:SetPoint("TOPLEFT", bagFrame.content, "TOPLEFT", 1, -y)
-        h:SetText(string.format("%s  |cff808080(%d)|r", L["All Bags"], #items))
+        h:SetText(string.format("%s  |cff808080(%d)|r", L["All Bags"], itemCount))
         h:Show()
     end
     y = y + HEADER_ROW
@@ -1251,6 +1288,7 @@ function layout()
     -- scroll position -- looting while scrolled down doesn't snap you back up.
     local sig = tostring(viewMode) .. "|" .. tostring(selectedCategory) .. "|"
         .. tostring(sortMode) .. "|" .. tostring(sortReverse) .. "|" .. tostring(useCategories)
+        .. "|" .. tostring(catSortMode)
     if sig ~= lastLayoutSig then
         lastLayoutSig = sig
         if bagFrame.contentVP then bagFrame.contentVP:SetVerticalScroll(0) end
@@ -1397,13 +1435,14 @@ end
 -- window can reuse the whole machinery (its own containers, its own native fn).
 local function doSort(bagList, nativeFn)
     if sortInFlight then return end
+    if ns.SortEngine and ns.SortEngine.IsActive() then return end
     if InCombatLockdown() or (UnitIsDeadOrGhost and UnitIsDeadOrGhost("player")) then
         if UIErrorsFrame then UIErrorsFrame:AddMessage(L["Can't sort bags in combat."], 1, 0.2, 0.2) end
         return
     end
     local native = bagList and nativeFn or (not bagList and nativeSort) or nil
     -- "blizzard" mode uses Blizzard's native category sort when the client has it
-    -- (stacks merge, combat-safe); quality/type/name always use our own sort.
+    -- (stacks merge, combat-safe); the other modes run our own engine.
     if sortMode == "blizzard" and native then
         if nativeSetDir then pcall(nativeSetDir, sortReverse and true or false) end
         pcall(native)                -- Blizzard handles the moves + combat + stacks
@@ -1411,6 +1450,24 @@ local function doSort(bagList, nativeFn)
         return
     end
     sortBagsActive = bagList or SORT_BAGS
+    -- Engine sort (Modules/BagSort.lua): merges partial stacks first, then
+    -- moves items into multi-key order (junk to the far end, special bags
+    -- filled first). Repeats itself until the bags settle; the callback fires
+    -- exactly once, also on abort (combat / cancel), so the flag always clears.
+    if ns.SortEngine then
+        sortInFlight = true
+        local isBank = bagList ~= nil
+        ns.SortEngine.Run(sortBagsActive,
+            (sortMode == "blizzard") and "quality" or sortMode,
+            sortReverse and true or false,
+            function()
+                sortInFlight = false
+                refresh()
+                if isBank and ns.BankRefresh then ns.BankRefresh() end
+            end)
+        return
+    end
+    -- last-resort fallback (engine file failed to load): simple selection sort
     sortInFlight = true
     _sortStep = 0
     sortPos = 1
@@ -2073,10 +2130,9 @@ local function buildFrame()
     end)
     f:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
-        local fx, fy = self:GetCenter()
-        local px, py = UIParent:GetCenter()
-        if fx and fy and px and py then
-            mod.db.x, mod.db.y = fx - px, fy - py
+        local x, y = ns:GetCenterOffsets(self)   -- canonical scale-aware capture
+        if x and y then
+            mod.db.x, mod.db.y = x, y
             if ns.ApplyMover and mod.mover then ns:ApplyMover(mod.mover) end
         end
     end)
@@ -2309,6 +2365,7 @@ function mod:OnEnable()
     mod.active = true
     sortReverse = mod.db.sortReverse and true or false
     sortMode = mod.db.sortMode or "blizzard"
+    catSortMode = mod.db.catSortMode or "type"
     useCategories = (mod.db.useCategories ~= false)
     hideEmpty = (mod.db.hideEmpty ~= false)
     viewMode = mod.db.viewMode or "all"
@@ -2358,6 +2415,7 @@ end
 
 function mod:OnDisable()
     mod.active = false
+    if ns.SortEngine then ns.SortEngine.Cancel() end   -- stop a running engine sort
     if bagFrame then bagFrame:Hide() end
     restoreBlizzardBags()   -- give Blizzard's default bags back
     if ns.BankOnDisable then ns.BankOnDisable() end   -- Phase 4: hide bank window + restore default bank
@@ -2667,6 +2725,15 @@ function mod:GetOptions()
         end,
     })
     table.insert(items, {
+        type = "toggle", label = L["Show free slots (OneBag)"],
+        tooltip = L["OneBag view: show the empty bag slots after the items, so you can drop things onto them directly."],
+        get = function() return mod.db.showFreeSlots ~= false end,
+        set = function(_, v)
+            mod.db.showFreeSlots = v and true or false
+            if mod:IsOpen() then layout() end
+        end,
+    })
+    table.insert(items, {
         type = "toggle", label = L["Show sidebar"],
         tooltip = L["A collapsible left panel for view modes and category filtering."],
         get = function() return not mod.db.sidebarCollapsed end,
@@ -2730,19 +2797,41 @@ function mod:GetOptions()
         type = "dropdown", label = L["Sort order"], width = 200,
         tooltip = L["How the sort button arranges items. 'Blizzard' groups by category like the default UI; the others are a flat order."],
         values = {
-            { value = "blizzard", text = L["Blizzard (category)"] },
-            { value = "quality",  text = L["Quality"] },
-            { value = "type",     text = L["Item type"] },
-            { value = "name",     text = L["Name"] },
+            { value = "blizzard",   text = L["Blizzard (category)"] },
+            { value = "quality",    text = L["Quality"] },
+            { value = "type",       text = L["Item type"] },
+            { value = "name",       text = L["Name"] },
+            { value = "item-level", text = L["Item level"] },
         },
         get = function() return mod.db.sortMode end,
         set = function(_, v) mod.db.sortMode = v; sortMode = v end,
     })
     table.insert(items, {
+        type = "dropdown", label = L["Sort categories by"], width = 200,
+        tooltip = L["Display-only ordering of the items inside each category section. Never moves anything in your bags."],
+        values = {
+            { value = "off",        text = L["Off"] },
+            { value = "quality",    text = L["Quality"] },
+            { value = "type",       text = L["Item type"] },
+            { value = "name",       text = L["Name"] },
+            { value = "item-level", text = L["Item level"] },
+        },
+        get = function() return mod.db.catSortMode end,
+        set = function(_, v)
+            mod.db.catSortMode = v
+            catSortMode = v
+            if mod:IsOpen() then layout() end
+        end,
+    })
+    table.insert(items, {
         type = "toggle", label = L["Reverse sort order"],
         tooltip = L["Sort in the opposite direction."],
         get = function() return mod.db.sortReverse end,
-        set = function(_, v) mod.db.sortReverse = v; sortReverse = v and true or false end,
+        set = function(_, v)
+            mod.db.sortReverse = v
+            sortReverse = v and true or false
+            if mod:IsOpen() then layout() end
+        end,
     })
 
     table.insert(items, { type = "spacer", height = 6 })

@@ -69,14 +69,22 @@ function ns:EnableModules()
     end
 end
 
+-- The FRAMEWORK owns mod.active: true just before OnEnable runs (handlers
+-- wired inside OnEnable may fire immediately and gate on it), false just
+-- before OnDisable (so event handlers stand down during teardown). Modules
+-- may still set it themselves — that's harmlessly redundant now. Forgetting
+-- it used to leave every `if mod.active` runtime guard permanently dead.
 function ns:SafeEnable(mod)
     if mod._enabled then return end
     if not mod.OnEnable then
         mod._enabled = true
+        mod.active = true
         return
     end
+    mod.active = true
     local ok, err = pcall(mod.OnEnable, mod)
     if not ok then
+        mod.active = false
         ns:Print(L["|cffff5555Error enabling module '%s':|r %s"], mod.name, tostring(err))
         return
     end
@@ -86,6 +94,7 @@ end
 
 function ns:SafeDisable(mod)
     if not mod._enabled then return end
+    mod.active = false
     if mod.OnDisable then
         local ok, err = pcall(mod.OnDisable, mod)
         if not ok then

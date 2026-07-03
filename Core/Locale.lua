@@ -2,7 +2,7 @@
 -- VuloClassicUI / Core / Locale
 -- Simple locale registry with English-fallback via metatable.
 --
--- Pattern (matches WeakAuras / ElvUI style):
+-- Pattern (the common addon-locale style):
 --   - Keys ARE the English text — no abstract identifiers
 --   - L["Some text"] returns the translation for the current client locale
 --   - If no translation exists, returns the key itself (= English default)

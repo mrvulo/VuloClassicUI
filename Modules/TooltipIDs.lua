@@ -337,7 +337,7 @@ local function criteriaOnEnter(enterIndex)
 end
 
 -- =========================================================
--- Scan addon-created tooltips (e.g. ElvUI_SpellBookTooltip)
+-- Scan addon-created tooltips (other UI suites ship their own spellbook tooltips)
 -- =========================================================
 local hookedTooltips = {}
 

@@ -29,6 +29,7 @@ local mod = ns:RegisterModule("miscqol", {
         autoSellJunk          = true,
         autoRepair            = true,
         maxStackButton        = true,
+        skinStackSplit        = true,
         -- Visibility
         hideErrors            = false,
         hideZoneText          = false,
@@ -220,6 +221,190 @@ local function setupStackSplitMaxButton()
     StackSplitFrame:HookScript("OnHide", function()
         btn:Hide()
     end)
+end
+
+-- =========================================================
+-- StackSplitFrame: VuloUI skin. Pure restyle — every Blizzard behavior
+-- (typing digits, arrow buttons, okay/cancel/split handlers) stays untouched;
+-- we only blank the gold artwork and dress the same frames in the addon look.
+-- One-way per session: turning the option off needs a /reload (stated in the
+-- tooltip), turning it on applies immediately.
+-- =========================================================
+local _stackSplitSkinned = false
+
+local function setupStackSplitSkin()
+    if _stackSplitSkinned then return end
+    if mod.db.skinStackSplit == false then return end
+    local f  = StackSplitFrame
+    local UI = ns.UI
+    if not (f and UI and UI.StyleBackdrop) then return end
+    _stackSplitSkinned = true
+
+    local ac = (ns.COLORS and ns.COLORS.accent) or { r = 0.608, g = 0.424, b = 1 }
+    local bc = (ns.COLORS and ns.COLORS.border) or { r = 0.22, g = 0.22, b = 0.27 }
+
+    -- shared font objects for the panel buttons (a button swaps its label's
+    -- FontObject on hover/disable, so per-FontString SetFont would not stick)
+    local fontN = _G.VCUI_SplitFontNormal or CreateFont("VCUI_SplitFontNormal")
+    local fontH = _G.VCUI_SplitFontHighlight or CreateFont("VCUI_SplitFontHighlight")
+    local fontD = _G.VCUI_SplitFontDisabled or CreateFont("VCUI_SplitFontDisabled")
+    if UI.FONT_PATH then
+        fontN:SetFont(UI.FONT_PATH, 12, "")
+        fontH:SetFont(UI.FONT_PATH, 12, "")
+        fontD:SetFont(UI.FONT_PATH, 12, "")
+    end
+    fontN:SetTextColor(0.9, 0.9, 0.95)
+    fontH:SetTextColor(ac.r, ac.g, ac.b)
+    fontD:SetTextColor(0.45, 0.45, 0.5)
+
+    local function stripTextures(region)
+        for _, r in ipairs({ region:GetRegions() }) do
+            if r.IsObjectType and r:IsObjectType("Texture") then
+                r:SetTexture(nil)
+                r:SetAlpha(0)
+            end
+        end
+    end
+
+    -- 1px edge helper (same look as the shared widget buttons)
+    local function addEdges(owner, holder)
+        local edges = {}
+        for i = 1, 4 do
+            local t = owner:CreateTexture(nil, "BORDER")
+            t:SetColorTexture(bc.r, bc.g, bc.b, 1)
+            edges[i] = t
+        end
+        edges[1]:SetPoint("TOPLEFT", holder, "TOPLEFT", 0, 0);       edges[1]:SetPoint("TOPRIGHT", holder, "TOPRIGHT", 0, 0);       edges[1]:SetHeight(1)
+        edges[2]:SetPoint("BOTTOMLEFT", holder, "BOTTOMLEFT", 0, 0); edges[2]:SetPoint("BOTTOMRIGHT", holder, "BOTTOMRIGHT", 0, 0); edges[2]:SetHeight(1)
+        edges[3]:SetPoint("TOPLEFT", holder, "TOPLEFT", 0, 0);       edges[3]:SetPoint("BOTTOMLEFT", holder, "BOTTOMLEFT", 0, 0);   edges[3]:SetWidth(1)
+        edges[4]:SetPoint("TOPRIGHT", holder, "TOPRIGHT", 0, 0);     edges[4]:SetPoint("BOTTOMRIGHT", holder, "BOTTOMRIGHT", 0, 0); edges[4]:SetWidth(1)
+        return function(c, a)
+            for _, t in ipairs(edges) do t:SetColorTexture(c.r, c.g, c.b, a or 1) end
+        end
+    end
+
+    local function skinPanelButton(b)
+        if not b or b._vcuiSkin then return end
+        b._vcuiSkin = true
+        stripTextures(b)   -- gold panel art incl. highlight/pushed
+        local bg = b:CreateTexture(nil, "BACKGROUND")
+        bg:SetAllPoints(b)
+        bg:SetColorTexture(0.13, 0.13, 0.16, 1)
+        local setEdges = addEdges(b, b)
+        b:SetNormalFontObject(fontN)
+        b:SetHighlightFontObject(fontH)
+        b:SetDisabledFontObject(fontD)
+        b:HookScript("OnEnter", function()
+            bg:SetColorTexture(0.19, 0.19, 0.23, 1)
+            setEdges(ac, 0.9)
+        end)
+        b:HookScript("OnLeave", function()
+            bg:SetColorTexture(0.13, 0.13, 0.16, 1)
+            setEdges(bc, 1)
+        end)
+    end
+
+    local function skinArrow(b, dir)
+        if not b or b._vcuiSkin then return end
+        b._vcuiSkin = true
+        stripTextures(b)
+        local icon = b:CreateTexture(nil, "ARTWORK")
+        icon:SetPoint("CENTER", b, "CENTER", 0, 0)
+        icon:SetSize(14, 14)
+        icon:SetTexture("Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\arrow_" .. dir .. ".tga")
+        local function tint()
+            if b:IsEnabled() then
+                icon:SetVertexColor(ac.r, ac.g, ac.b, 1)
+            else
+                icon:SetVertexColor(0.4, 0.4, 0.45, 1)
+            end
+        end
+        tint()
+        b:HookScript("OnEnter",   function() if b:IsEnabled() then icon:SetVertexColor(1, 1, 1, 1) end end)
+        b:HookScript("OnLeave",   tint)
+        b:HookScript("OnDisable", tint)
+        b:HookScript("OnEnable",  tint)
+    end
+
+    -- ---- the panel itself -----------------------------------------------
+    stripTextures(f)
+    if f.NineSlice and f.NineSlice.SetAlpha then f.NineSlice:SetAlpha(0) end
+    if f.Border and f.Border.SetAlpha then f.Border:SetAlpha(0) end
+    UI:StyleBackdrop(f, { bg = ns.COLORS.bg, border = ns.COLORS.accentDim or ns.COLORS.border })
+    if UI.CreateShadow then UI:CreateShadow(f) end
+    local strip = f:CreateTexture(nil, "ARTWORK")
+    strip:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
+    strip:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, 0)
+    strip:SetHeight(2)
+    if UI.SetGradient then
+        UI.SetGradient(strip, "HORIZONTAL", ac.r, ac.g, ac.b, 0.1, ac.r, ac.g, ac.b, 0.9)
+    end
+    f:SetSize(214, 88)
+
+    -- ---- amount display: dark inset box behind the number ----------------
+    local box = CreateFrame("Frame", nil, f)
+    box:SetSize(104, 28)
+    box:SetPoint("TOP", f, "TOP", 0, -14)
+    local bbg = box:CreateTexture(nil, "BACKGROUND")
+    bbg:SetAllPoints(box)
+    bbg:SetColorTexture(0.05, 0.05, 0.07, 1)
+    addEdges(box, box)
+
+    local txt = _G.StackSplitText
+    if txt then
+        -- the text is a BACKGROUND region of f itself; the box child frame
+        -- (higher frame level) would draw its opaque bg OVER it. Adopt the
+        -- text into the box on the OVERLAY layer so the number always wins.
+        txt:SetParent(box)
+        txt:SetDrawLayer("OVERLAY")
+        txt:ClearAllPoints()
+        txt:SetPoint("CENTER", box, "CENTER", 0, 0)
+        if UI.Font then UI.Font(txt, 15) end
+        txt:SetTextColor(1, 1, 1)
+    end
+
+    -- ---- arrows left/right of the box ------------------------------------
+    -- name varies by client XML ($parent prefix vs fixed); cover all forms —
+    -- a miss just leaves that arrow unskinned, nothing breaks
+    local left  = f.leftButton or f.LeftButton
+        or _G.StackSplitLeftButton or _G.StackSplitFrameLeftButton
+    local right = f.rightButton or f.RightButton
+        or _G.StackSplitRightButton or _G.StackSplitFrameRightButton
+    if left then
+        skinArrow(left, "left")
+        left:ClearAllPoints()
+        left:SetPoint("RIGHT", box, "LEFT", -6, 0)
+        left:SetSize(22, 22)
+    end
+    if right then
+        skinArrow(right, "right")
+        right:ClearAllPoints()
+        right:SetPoint("LEFT", box, "RIGHT", 6, 0)
+        right:SetSize(22, 22)
+    end
+
+    -- ---- one clean button row: OK | MAX | Cancel --------------------------
+    local okBtn  = StackSplitFrame.okayButton  or _G.StackSplitOkayButton
+    local cancel = StackSplitFrame.cancelButton or _G.StackSplitCancelButton
+    local maxBtn = _G.VCUI_StackSplitMaxButton
+    if okBtn then
+        skinPanelButton(okBtn)
+        okBtn:ClearAllPoints()
+        okBtn:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 10, 10)
+        okBtn:SetSize(62, 22)
+    end
+    if cancel then
+        skinPanelButton(cancel)
+        cancel:ClearAllPoints()
+        cancel:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -10, 10)
+        cancel:SetSize(62, 22)
+    end
+    if maxBtn then
+        skinPanelButton(maxBtn)
+        maxBtn:ClearAllPoints()
+        maxBtn:SetPoint("BOTTOM", f, "BOTTOM", 0, 10)
+        maxBtn:SetSize(62, 22)
+    end
 end
 
 -- =========================================================
@@ -1032,11 +1217,16 @@ function mod:OnEnable()
         C_Timer.After(1, applyAllVisibility)
     end
 
-    -- Create StackSplit MAX button (deferred in case frame isn't there yet)
+    -- StackSplit MAX button + skin (deferred in case the frame isn't there
+    -- yet; skin AFTER the button so it gets dressed and re-anchored too)
     if C_Timer and C_Timer.After then
-        C_Timer.After(0.5, setupStackSplitMaxButton)
+        C_Timer.After(0.5, function()
+            setupStackSplitMaxButton()
+            setupStackSplitSkin()
+        end)
     else
         setupStackSplitMaxButton()
+        setupStackSplitSkin()
     end
 end
 
@@ -1202,6 +1392,11 @@ function mod:GetOptions()
         tgl("maxStackButton",    L["Stack-split popup: MAX button"],
             L["Adds a 'MAX' button to the quantity popup. Click = buy full stack (at vendor) or split completely (for bag items)."],
             applyMaxStackButton),
+        tgl("skinStackSplit",    L["Stack-split popup: VuloUI look"],
+            L["Restyles the quantity popup (stack buying/splitting) to match the addon look: dark panel, clean buttons and arrows. Turning this off needs a /reload."],
+            function()
+                if mod.db.skinStackSplit ~= false then setupStackSplitSkin() end
+            end),
 
         { type = "spacer", height = 6 },
         { type = "section", title = L["Flight Timer"], collapsed = true, items = {

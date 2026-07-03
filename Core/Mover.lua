@@ -32,6 +32,31 @@ local function moverShouldEdit(mover)
     return (sc and ns._moverEditScopes[sc]) and true or false
 end
 
+-- Canonical CENTER-offset capture: where does `frame` sit relative to the
+-- screen centre, in the FRAME-LOCAL units that SetPoint offsets use?
+-- GetCenter() is frame-local but UIParent's centre is not — divide it by the
+-- scale ratio (identity at scale 1). This is THE one formula for everything
+-- that writes db.x/db.y; hand-rolling `fx - px` breaks on scaled frames.
+-- Returns nil while the frame has no rect yet (early login).
+-- Scale ratio between a frame's effective scale and UIParent's — the factor
+-- between the frame's LOCAL units (what SetPoint offsets/db.x use) and
+-- UIParent units (what the screen grid/guides are drawn in). 1 when unscaled.
+function ns:GetScaleRatio(frame)
+    if not (frame and frame.GetEffectiveScale) then return 1 end
+    local s = (frame:GetEffectiveScale() or 1) / (UIParent:GetEffectiveScale() or 1)
+    if s == 0 then return 1 end
+    return s
+end
+
+function ns:GetCenterOffsets(frame)
+    if not (frame and frame.GetCenter) then return nil end
+    local fx, fy = frame:GetCenter()
+    local px, py = UIParent:GetCenter()
+    if not (fx and fy and px and py) then return nil end
+    local s = ns:GetScaleRatio(frame)
+    return fx - px / s, fy - py / s
+end
+
 -- ---------------------------------------------------------
 -- Positioning. Modules with their own anchoring pass opts.applyPos; everything
 -- else stores a CENTER offset from the screen centre. Movers that opt in via
@@ -101,6 +126,9 @@ end
 -- re-apply. Used by the Edit Mode HUD's "Reset positions" button. Movers with a
 -- custom applyPos still get db.x/db.y zeroed and their applyPos re-run.
 function ns:ResetAllMovers()
+    -- flagged so onMove callbacks can tell an EXPLICIT reset apart from a
+    -- drag that legitimately snapped to the screen centre (also 0,0)
+    ns._inMoverReset = true
     for _, mover in ipairs(ns._movers) do
         local opts = mover.opts
         local db   = opts and opts.db
@@ -109,6 +137,7 @@ function ns:ResetAllMovers()
             pcall(applyPos, mover)
         end
     end
+    ns._inMoverReset = false
 end
 
 -- Re-apply a single mover's stored position (used by the Edit Mode panel).
@@ -190,6 +219,8 @@ function ns:RestoreFreeMovers()
         local db = mover.opts and mover.opts.db
         if db and db.freeMove then mover:Show() end
     end
+    -- free boxes outside edit mode use the quiet (thin-outline) look
+    if ns.RefreshMoverStyles then ns:RefreshMoverStyles() end
 end
 
 -- The old right-click "X / Y / reset" popup was removed. The Edit Mode HUD's
@@ -374,10 +405,8 @@ function ns:CreateMover(target, opts)
     mover:SetScript("OnDragStop", function()
         target:StopMovingOrSizing()
         ns._draggingMover = nil
-        local fx, fy = target:GetCenter()
-        local px, py = UIParent:GetCenter()
-        if fx and fy and px and py then
-            local x, y = fx - px, fy - py
+        local x, y = ns:GetCenterOffsets(target)
+        if x and y then
             local rawx, rawy = x, y
             -- Edit Mode (UI/EditMode.lua): magnetism (snap to other frames' edges
             -- / centres + screen centre, with alignment guides) and a grid-snap
@@ -385,7 +414,7 @@ function ns:CreateMover(target, opts)
             if ns.EditResolveDrop and ns:IsEditModeActive() then
                 x, y = ns:EditResolveDrop(mover, x, y)
             elseif ns.EditSnapXY then
-                x, y = ns:EditSnapXY(x, y)
+                x, y = ns:EditSnapXY(x, y, ns:GetScaleRatio(target))
             end
             db.x, db.y = x, y
             commitPos(mover)   -- default movers: position + scale + anchor; custom: plain CENTER
@@ -449,7 +478,10 @@ function ns:CreateMover(target, opts)
     -- Restore per-frame "free move" the moment the box exists. This covers movers
     -- built lazily (on first open) AFTER login, which a one-shot login pass would
     -- miss — the box reappears grabbable as soon as its window is created.
-    if db.freeMove then mover:Show() end
+    if db.freeMove then
+        mover:Show()
+        if ns.RefreshMoverStyles then ns:RefreshMoverStyles() end
+    end
 
     return mover
 end
@@ -478,6 +510,9 @@ function ns:SetMoversEditMode(state, scope)
             mover:Hide()
         end
     end
+    -- restyle both ways (also for SCOPED editors): boxes that stay visible via
+    -- free-move must drop back to the quiet look when their editor closes
+    if ns.RefreshMoverStyles then ns:RefreshMoverStyles() end
 end
 
 -- scope nil -> is GLOBAL edit on?  scope given -> global OR that scope on.

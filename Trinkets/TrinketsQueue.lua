@@ -606,7 +606,7 @@ function Trinkets.ValidateProfile()
 		Trinkets_ProfilesDelete:Enable()
 		Trinkets_ProfilesLoad:Enable()
 	end
-	if strlen(name) > 0 then
+	if #name > 0 then
 		Trinkets_ProfilesSave:Enable()
 	end
 end

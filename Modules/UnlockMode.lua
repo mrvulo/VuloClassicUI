@@ -63,10 +63,11 @@ local function rebuild()
 end
 
 local function centerOffset(frame)
-    local fx, fy = frame:GetCenter()
-    local px, py = UIParent:GetCenter()
-    if not (fx and px) then return 0, 0 end
-    return fx - px, fy - py
+    -- canonical scale-aware capture — Edit-Mode-scaled Blizzard frames
+    -- (player/target scale settings) would otherwise park their anchors off
+    local x, y = ns:GetCenterOffsets(frame)
+    if not x then return 0, 0 end
+    return x, y
 end
 
 local function placeAnchor(anchor, x, y)
@@ -211,6 +212,12 @@ function mod:OnEnable()
 
     for _, def in ipairs(BLIZZ) do
         local frame = _G[def.name]
+        -- the minimap module adopts the map into its OWN mover; wiring the
+        -- cluster here too would show two identical MINIMAP boxes in edit
+        -- mode, one of them dragging an empty husk
+        if def.key == "minimap" and ns.IsModuleEnabled and ns:IsModuleEnabled("minimapstyle") then
+            frame = nil
+        end
         if frame and not def._wired then
             def._wired = true
             local fdb = mod.db.frames[def.key] or {}

@@ -20,6 +20,9 @@ if not csMod or not csMod.RegisterClassTool then return end
 
 local TOTEM_DEFAULTS = {
     layout      = "icons",  -- "bars" | "icons"
+    style       = "vulo",   -- "vulo" (dark + accent) | "classic" (metal rim)
+    flyoutDirection = "auto",  -- "auto" | "up" | "down" | "left" | "right"
+    flyoutInCombat  = true,    -- false = hovering never opens the picker in combat
     showFire    = true,
     showEarth   = true,
     showWater   = true,
@@ -77,6 +80,13 @@ local BAR_TEX     = "Interface\\Buttons\\WHITE8X8"
 local SPARK_TEX   = "Interface\\CastingBar\\UI-CastingBar-Spark"
 local FONT        = "Fonts\\FRIZQT__.TTF"
 local EXPIRE_SOUND = 567458  -- same alert used by the queue timer
+
+-- "vulo" style uses the addon font; "classic" keeps the Blizzard one
+local function isVulo() return (csMod.db.totems and csMod.db.totems.style) ~= "classic" end
+local function fontPath()
+    if isVulo() and ns.UI and ns.UI.FONT_PATH then return ns.UI.FONT_PATH end
+    return FONT
+end
 
 local container
 local rows         = {}
@@ -158,7 +168,7 @@ end
 
 -- Push the cast spell onto each secure button (out of combat only). We cast by
 -- spell ID (a number), not by name: the Anniversary client is unreliable casting
--- totems by name, and the working Disenchant button + TotemTimers both use IDs.
+-- totems by name; the working Disenchant button uses IDs, so we do too.
 local function applyButtonSpells()
     if InCombatLockdown and InCombatLockdown() then pendingAttr = true; return end
     pendingAttr = false
@@ -200,6 +210,11 @@ local function createRow(totem)
         "SecureActionButtonTemplate,SecureHandlerEnterLeaveTemplate")
     row:RegisterForClicks("AnyUp", "AnyDown")
     row:SetAttribute("_onenter", [=[
+        -- optional "keep the picker away while fighting" gate: the combatlock
+        -- attribute is fed by a [combat] driver (numbers 1/0)
+        if self:GetAttribute("combatlock") == 1 and self:GetAttribute("flyincombat") == 0 then
+            return
+        end
         for i = 1, 4 do
             local o = self:GetFrameRef("fly" .. i)
             if o then o:Hide() end
@@ -212,9 +227,37 @@ local function createRow(totem)
             fl:Show()
         end
     ]=])
+    -- Secure mouse-out close: leaving the slot hides the flyout UNLESS the
+    -- mouse moved onto it (they touch, so slot->flyout keeps it open). Runs in
+    -- the restricted environment, so this works IN COMBAT too — the insecure
+    -- OnUpdate poll only backs this up out of combat. IsUnderMouse exists on
+    -- these clients (feature-guarded anyway: dot-indexing a handle is safe).
+    row:SetAttribute("_onleave", [=[
+        local fl = self:GetFrameRef("flyout")
+        if fl and fl:IsShown() and fl.IsUnderMouse and not fl:IsUnderMouse(true) then
+            fl:Hide()
+        end
+    ]=])
+    -- [combat] 1; 0 -> combatlock attribute (SecureStateDriver converts to NUMBERS)
+    if RegisterAttributeDriver then
+        RegisterAttributeDriver(row, "combatlock", "[combat] 1; 0")
+    end
+    -- After casting via the slot itself, close its picker (secure wrap ->
+    -- legal in combat; a nil return from the pre-body does NOT block the cast,
+    -- same production-proven form as the flyout buttons' own click wrap).
+    -- Right-click is exempt: that's the "open the picker" click, hiding here
+    -- would close it with no way to reopen without re-hovering.
+    if SecureHandlerWrapScript then
+        SecureHandlerWrapScript(row, "OnClick", row, [=[
+            if not down and button ~= "RightButton" then
+                local fl = self:GetFrameRef("flyout")
+                if fl then fl:Hide() end
+            end
+        ]=])
+    end
     -- IMPORTANT: the 2.5.5 client only fires the protected cast through the "*"
     -- wildcard attributes (*type1/*spell1), NOT plain type/spell. (Verified vs
-    -- TotemTimers, which uses the same form.)
+    -- the established totem addons, which use the same form.)
     row:SetAttribute("*type1", "spell")  -- left-click: cast this element's totem (*spell1)
     row:SetAttribute("*type3", "spell")  -- middle-click: Totemic Call / recall all (*spell3)
     -- (no *type2 -> right-click casts nothing; it opens the picker below)
@@ -239,6 +282,27 @@ local function createRow(totem)
     -- only the slot frame rim is visible around it (tinted by state in updateRow)
     row.border = row:CreateTexture(nil, "BORDER")
     row.border:SetTexture("Interface\\Buttons\\UI-Quickslot2")
+
+    -- "vulo" style: filled ring behind a 1px-inset icon (the proven bag-button
+    -- recipe — a filled layer can never drop a side) + a 2px element-colored
+    -- strip under the icon so the element stays readable when dimmed
+    row.ring = row:CreateTexture(nil, "BACKGROUND", nil, -1)
+    row.ring:SetPoint("TOPLEFT", row.icon, "TOPLEFT", -1, 1)
+    row.ring:SetPoint("BOTTOMRIGHT", row.icon, "BOTTOMRIGHT", 1, -1)
+    row.ring:SetColorTexture(0.25, 0.25, 0.3, 1)
+    if row.ring.SetSnapToPixelGrid then
+        row.ring:SetSnapToPixelGrid(false); row.ring:SetTexelSnappingBias(0)
+    end
+    if row.icon.SetSnapToPixelGrid then
+        row.icon:SetSnapToPixelGrid(false); row.icon:SetTexelSnappingBias(0)
+    end
+    row.ring:Hide()
+    row.elem = row:CreateTexture(nil, "OVERLAY")
+    row.elem:SetHeight(2)
+    row.elem:SetPoint("BOTTOMLEFT", row.icon, "BOTTOMLEFT", 0, 0)
+    row.elem:SetPoint("BOTTOMRIGHT", row.icon, "BOTTOMRIGHT", 0, 0)
+    row.elem:SetColorTexture(totem.color[1], totem.color[2], totem.color[3], 0.9)
+    row.elem:Hide()
 
     -- (no Cooldown frame: hiding a child frame every tick from insecure code
     --  taints the secure button and blocks its cast; the timer text is enough)
@@ -291,6 +355,9 @@ local function applyLayout()
         return
     end
 
+    local vulo = isVulo()
+    local zoom = vulo and 0.07 or 0.08
+
     if d.layout == "icons" then
         local s = d.iconSize
         for i, t in ipairs(active) do
@@ -299,17 +366,19 @@ local function applyLayout()
             row:SetSize(s, s)
             row:SetPoint("LEFT", container, "LEFT", (i - 1) * (s + d.spacing), 0)
 
-            -- inset the icon when the frame is on, so the metal border rim shows
-            local inset = d.shadowBorder and 3 or 0
+            -- vulo: 1px inset so the filled ring shows as an even border;
+            -- classic: 3px inset so the metal rim shows
+            local inset = vulo and 1 or (d.shadowBorder and 3 or 0)
             row.icon:ClearAllPoints()
             row.icon:SetPoint("TOPLEFT", row, "TOPLEFT", inset, -inset)
             row.icon:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", -inset, inset)
+            row.icon:SetTexCoord(zoom, 1 - zoom, zoom, 1 - zoom)
             row.icon:Show()
             row.bg:Hide(); row.fill:Hide(); row.spark:Hide()
 
             row.time:ClearAllPoints()
             row.time:SetPoint("BOTTOM", row, "BOTTOM", 0, 1)
-            row.time:SetFont(FONT, d.fontSize, "OUTLINE")
+            row.time:SetFont(fontPath(), d.fontSize, "OUTLINE")
         end
         container:SetSize(#active * s + (#active - 1) * d.spacing, s)
     else -- bars
@@ -324,6 +393,7 @@ local function applyLayout()
             row.icon:ClearAllPoints()
             row.icon:SetSize(h, h)
             row.icon:SetPoint("LEFT", row, "LEFT", 0, 0)
+            row.icon:SetTexCoord(zoom, 1 - zoom, zoom, 1 - zoom)
             row.icon:Show()
 
             row.bg:ClearAllPoints()
@@ -340,17 +410,21 @@ local function applyLayout()
 
             row.time:ClearAllPoints()
             row.time:SetPoint("RIGHT", row, "RIGHT", -3, 0)
-            row.time:SetFont(FONT, d.fontSize, "OUTLINE")
+            row.time:SetFont(fontPath(), d.fontSize, "OUTLINE")
         end
         container:SetSize(iconW + w, #active * h + (#active - 1) * d.spacing)
     end
 
-    -- WeakAura-style shadow + border per icon (runs out of combat -> safe)
+    -- per-style dressing (runs out of combat -> safe): classic = metal rim +
+    -- soft shadow; vulo = filled ring + element underline (icons layout only,
+    -- bars already carry the element color in their fill)
     for _, t in ipairs(active) do
         local row = rows[t.key]
         if row then
-            row.shadow:SetShown(d.shadowBorder)
-            row.border:SetShown(d.shadowBorder)
+            row.shadow:SetShown(not vulo and d.shadowBorder)
+            row.border:SetShown(not vulo and d.shadowBorder)
+            row.ring:SetShown(vulo)
+            row.elem:SetShown(vulo and d.layout == "icons")
         end
     end
 end
@@ -398,10 +472,13 @@ local function updateRow(row, preview)
         row.icon:SetDesaturated(false)
         row.icon:SetVertexColor(1, 1, 1)
         if warn then
-            row.border:SetVertexColor(1, 0.4, 0.4)  -- expiring
+            row.border:SetVertexColor(1, 0.4, 0.4)   -- expiring (classic rim)
+            row.ring:SetColorTexture(WARN_COLOR[1], WARN_COLOR[2], WARN_COLOR[3], 1)
         else
             row.border:SetVertexColor(1, 1, 1)       -- active = normal/bright
+            row.ring:SetColorTexture(t.color[1], t.color[2], t.color[3], 1)
         end
+        row.elem:SetColorTexture(t.color[1], t.color[2], t.color[3], 0.9)
 
         if remaining < 10 then
             row.time:SetText(string.format("%.1f", remaining))
@@ -435,6 +512,8 @@ local function updateRow(row, preview)
         row.icon:SetDesaturated(true)
         row.icon:SetVertexColor(0.55, 0.55, 0.55)
         row.border:SetVertexColor(0.55, 0.55, 0.55)  -- not down = dimmed
+        row.ring:SetColorTexture(0.22, 0.22, 0.26, 1)
+        row.elem:SetColorTexture(t.color[1], t.color[2], t.color[3], 0.35)
         row.time:SetText("")
         row.time:Hide()
         if d.layout ~= "icons" then
@@ -486,26 +565,31 @@ end
 local function ensureFlyout(key)
     local fl = flyouts[key]
     if fl then return fl end
-    -- SecureHandlerBaseTemplate: makes the flyout an explicitly protected
-    -- handler, so the rows' secure _onenter snippets can show/move it in
-    -- combat and it can secure-wrap its buttons' clicks (hide after cast).
+    -- SecureHandlerEnterLeaveTemplate (includes the base handler): the flyout
+    -- is an explicitly protected handler, so the rows' secure _onenter
+    -- snippets can show/move it in combat, it can secure-wrap its buttons'
+    -- clicks (hide after cast) AND close itself on mouse-out via _onleave.
     fl = CreateFrame("Frame", "VCUI_TotemFlyout_" .. key, UIParent,
-        BackdropTemplateMixin and "SecureHandlerBaseTemplate,BackdropTemplate"
-                               or "SecureHandlerBaseTemplate")
+        BackdropTemplateMixin and "SecureHandlerEnterLeaveTemplate,BackdropTemplate"
+                               or "SecureHandlerEnterLeaveTemplate")
     fl:SetFrameStrata("DIALOG")
     if fl.SetBackdrop then
         fl:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8",
             edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
-        fl:SetBackdropColor(0.05, 0.05, 0.08, 0.92)
-        fl:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
     end
+    -- Secure mouse-out close (works in combat): leaving the panel hides it
+    -- unless the mouse is still over it or one of its (protected) buttons.
+    fl:SetAttribute("_onleave", [=[
+        if self.IsUnderMouse and not self:IsUnderMouse(true) then
+            self:Hide()
+        end
+    ]=])
     fl.btns  = {}
     fl.count = 0
     fl:Hide()
     fl:SetScript("OnUpdate", function(self)
-        -- Auto-hide on mouse-out: only out of combat (Hide on a protected
-        -- frame is blocked in combat — there it closes via the secure click
-        -- wrap or when another slot's _onenter hides it).
+        -- Out-of-combat backup for odd mouse paths (e.g. leaving the screen);
+        -- in combat the secure _onleave snippets do the closing.
         if InCombatLockdown and InCombatLockdown() then return end
         if not self:IsMouseOver() and not (self.anchor and self.anchor:IsMouseOver()) then
             self:Hide()
@@ -513,6 +597,56 @@ local function ensureFlyout(key)
     end)
     flyouts[key] = fl
     return fl
+end
+
+-- Per-style dressing of the flyout panel + one button (insecure texture work,
+-- also safe to re-run; secure geometry stays in rebuildFlyout)
+local function styleFlyoutPanel(fl)
+    if not fl.SetBackdropColor then return end
+    local vulo = isVulo()
+    if vulo then
+        local bg = ns.COLORS and ns.COLORS.bg
+        local bd = ns.COLORS and (ns.COLORS.accentDim or ns.COLORS.border)
+        if bg then fl:SetBackdropColor(bg.r, bg.g, bg.b, 0.96)
+        else fl:SetBackdropColor(0.05, 0.05, 0.08, 0.96) end
+        if bd then fl:SetBackdropBorderColor(bd.r, bd.g, bd.b, 1)
+        else fl:SetBackdropBorderColor(0.3, 0.3, 0.35, 1) end
+        if not fl._vcShadow and ns.UI and ns.UI.CreateShadow then
+            ns.UI:CreateShadow(fl)
+        end
+    else
+        fl:SetBackdropColor(0.05, 0.05, 0.08, 0.92)
+        fl:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
+    end
+    -- the soft drop shadow belongs to the vulo look only; hide it (textures,
+    -- combat-legal) when the user switches back to classic mid-session
+    if fl._vcShadow then
+        for _, t in ipairs(fl._vcShadow) do t:SetShown(vulo) end
+    end
+end
+
+local function styleFlyoutButton(b, selected)
+    local vulo = isVulo()
+    b.frame:SetShown(not vulo)                    -- classic metal rim
+    b.ring:SetShown(vulo)                         -- vulo filled ring
+    local zoom = vulo and 0.07 or 0.08
+    b.icon:SetTexCoord(zoom, 1 - zoom, zoom, 1 - zoom)
+    local inset = vulo and 1 or 3
+    b.icon:ClearAllPoints()
+    b.icon:SetPoint("TOPLEFT", b, "TOPLEFT", inset, -inset)
+    b.icon:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -inset, inset)
+    if vulo then
+        b.sel:Hide()                              -- selection lives on the ring
+        local ac = ns.COLORS and ns.COLORS.accent or { r = 0.608, g = 0.424, b = 1 }
+        if selected then
+            b.ring:SetColorTexture(ac.r, ac.g, ac.b, 1)
+        else
+            b.ring:SetColorTexture(0.22, 0.22, 0.26, 1)
+        end
+        b._vcuiSelected = selected and true or false
+    else
+        b.sel:SetShown(selected and true or false)
+    end
 end
 
 -- (Re)build one element's flyout: secure buttons + size/anchors/attributes.
@@ -524,23 +658,77 @@ local function rebuildFlyout(t)
     local names = knownTotemsFor(t.key)
     fl.count = #names
 
+    -- Which side the picker opens on: user choice, or (auto) away from the
+    -- nearest screen edge — icons layout opens up/down, bars open sideways.
+    local slot = rows[t.key]
+    local dir = d.flyoutDirection or "auto"
+    local p, rp
+    if dir == "up" then p, rp = "BOTTOM", "TOP"
+    elseif dir == "down"  then p, rp = "TOP", "BOTTOM"
+    elseif dir == "left"  then p, rp = "RIGHT", "LEFT"
+    elseif dir == "right" then p, rp = "LEFT", "RIGHT"
+    elseif slot then
+        if d.layout == "icons" then
+            local _, sy = slot:GetCenter()
+            local h = UIParent:GetHeight()
+            if sy and h and sy < h * 0.5 then p, rp = "BOTTOM", "TOP" else p, rp = "TOP", "BOTTOM" end
+        else
+            local sx = slot:GetCenter()
+            local w = UIParent:GetWidth()
+            if sx and w and sx > w * 0.5 then p, rp = "RIGHT", "LEFT" else p, rp = "LEFT", "RIGHT" end
+        end
+    end
+    p, rp = p or "LEFT", rp or "RIGHT"
+    local upwards = (p == "BOTTOM")   -- stack nearest-first when opening up
+
     local size, pad = math.max(28, d.iconSize), 4
     for i, name in ipairs(names) do
         local b = fl.btns[i]
         if not b then
-            b = CreateFrame("Button", nil, fl, "SecureActionButtonTemplate")
+            -- EnterLeave on top of the action template: the button's secure
+            -- _onleave closes the panel on mouse-out — in combat too (same
+            -- field-proven pattern the popular totem addons use).
+            b = CreateFrame("Button", nil, fl,
+                "SecureActionButtonTemplate,SecureHandlerEnterLeaveTemplate")
             b:RegisterForClicks("AnyUp", "AnyDown")
             b:SetAttribute("*type1", "spell")  -- clicking an icon CASTS that totem
+            b:SetAttribute("_onleave", [=[
+                local fp = self:GetParent()
+                if fp and fp.IsUnderMouse and not fp:IsUnderMouse(true) then
+                    fp:Hide()
+                end
+            ]=])
             b.icon = b:CreateTexture(nil, "ARTWORK")
             b.icon:SetPoint("TOPLEFT", 3, -3); b.icon:SetPoint("BOTTOMRIGHT", -3, 3)
             b.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+            if b.icon.SetSnapToPixelGrid then
+                b.icon:SetSnapToPixelGrid(false); b.icon:SetTexelSnappingBias(0)
+            end
             b.frame = b:CreateTexture(nil, "BORDER")
             b.frame:SetTexture("Interface\\Buttons\\UI-Quickslot2")
             b.frame:SetAllPoints(b)
+            b.ring = b:CreateTexture(nil, "BACKGROUND", nil, -1)
+            b.ring:SetAllPoints(b)
+            b.ring:SetColorTexture(0.22, 0.22, 0.26, 1)
+            if b.ring.SetSnapToPixelGrid then
+                b.ring:SetSnapToPixelGrid(false); b.ring:SetTexelSnappingBias(0)
+            end
+            b.ring:Hide()
             b.sel = b:CreateTexture(nil, "OVERLAY")
             b.sel:SetTexture("Interface\\Buttons\\CheckButtonHilight")
             b.sel:SetBlendMode("ADD"); b.sel:SetAllPoints(b); b.sel:Hide()
             b:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
+            -- vulo hover: brighten the ring (texture work — combat-legal)
+            b:HookScript("OnEnter", function(self)
+                if self.ring:IsShown() and not self._vcuiSelected then
+                    self.ring:SetColorTexture(1, 1, 1, 0.9)
+                end
+            end)
+            b:HookScript("OnLeave", function(self)
+                if self.ring:IsShown() and not self._vcuiSelected then
+                    self.ring:SetColorTexture(0.22, 0.22, 0.26, 1)
+                end
+            end)
             -- the secure click casts it; the secure wrap hides the flyout
             -- after the cast (legal in combat, unlike an insecure Hide).
             -- Global form: the template method is missing in this client.
@@ -568,29 +756,24 @@ local function rebuildFlyout(t)
         b:SetAttribute("*spell1", id or name)
         b:SetSize(size, size)
         b:ClearAllPoints()
-        b:SetPoint("TOP", fl, "TOP", 0, -(pad + (i - 1) * (size + 2)))
+        if upwards then
+            b:SetPoint("BOTTOM", fl, "BOTTOM", 0, pad + (i - 1) * (size + 2))
+        else
+            b:SetPoint("TOP", fl, "TOP", 0, -(pad + (i - 1) * (size + 2)))
+        end
         b:Show()
     end
     for i = #names + 1, #fl.btns do fl.btns[i]:Hide() end
 
     fl:SetSize(size + pad * 2, math.max(1, #names * (size + 2) - 2 + pad * 2))
+    styleFlyoutPanel(fl)
 
-    -- Wire the slot for the secure _onenter snippet: which side to open on
-    -- (depends on layout + screen half) and the frame ref to this flyout.
-    local slot = rows[t.key]
+    -- Wire the slot for the secure _onenter snippet: open side, combat gate
+    -- and the frame ref to this flyout.
     if slot then
-        local p, rp = "LEFT", "RIGHT"
-        if d.layout == "icons" then
-            local _, sy = slot:GetCenter()
-            local h = UIParent:GetHeight()
-            if sy and h and sy < h * 0.5 then p, rp = "BOTTOM", "TOP" else p, rp = "TOP", "BOTTOM" end
-        else
-            local sx = slot:GetCenter()
-            local w = UIParent:GetWidth()
-            if sx and w and sx > w * 0.5 then p, rp = "RIGHT", "LEFT" else p, rp = "LEFT", "RIGHT" end
-        end
         slot:SetAttribute("flypoint", p)
         slot:SetAttribute("flyrelpoint", rp)
+        slot:SetAttribute("flyincombat", d.flyoutInCombat ~= false and 1 or 0)
         setSecureRef(slot, "flyout", fl)
     end
 end
@@ -636,7 +819,7 @@ showTotemMenu = function(t)
     -- Selection highlight (textures are not protected, fine in combat)
     for i = 1, fl.count do
         local b = fl.btns[i]
-        if b then b.sel:SetShown(set[t.key] == b.totemName) end
+        if b then styleFlyoutButton(b, set[t.key] == b.totemName) end
     end
 
     fl.anchor = rows[t.key]  -- for the out-of-combat auto-hide check
@@ -852,7 +1035,29 @@ local function getOptions()
     items[#items + 1] = { type = "dropdown", label = L["Layout"],
         values = { { value = "icons", text = L["Icons"] }, { value = "bars", text = L["Bars"] } },
         get = function() return d.layout end,
-        set = function(_, v) d.layout = v; applyLayout(); refresh() end }
+        set = function(_, v) d.layout = v; applyLayout(); rebuildFlyouts(); refresh() end }
+    items[#items + 1] = { type = "dropdown", label = L["Style"],
+        values = {
+            { value = "vulo",    text = L["VuloUI (dark)"] },
+            { value = "classic", text = L["Classic (metal)"] },
+        },
+        get = function() return d.style or "vulo" end,
+        set = function(_, v) d.style = v; applyLayout(); rebuildFlyouts(); refresh() end }
+    items[#items + 1] = { type = "dropdown", label = L["Flyout direction"],
+        tooltip = L["Which way the totem picker opens when you hover a slot. Automatic picks the side away from the screen edge."],
+        values = {
+            { value = "auto",  text = L["Automatic"] },
+            { value = "up",    text = L["Upwards"] },
+            { value = "down",  text = L["Downwards"] },
+            { value = "left",  text = L["To the left"] },
+            { value = "right", text = L["To the right"] },
+        },
+        get = function() return d.flyoutDirection or "auto" end,
+        set = function(_, v) d.flyoutDirection = v; rebuildFlyouts() end }
+    items[#items + 1] = { type = "toggle", label = L["Open flyout in combat"],
+        tooltip = L["Off = hovering a slot never opens the totem picker while you are fighting (clicks still cast). The picker now also closes itself on mouse-out and after every cast, even in combat."],
+        get = function() return d.flyoutInCombat ~= false end,
+        set = function(_, v) d.flyoutInCombat = v and true or false; rebuildFlyouts() end }
     items[#items + 1] = { type = "toggle", label = L["Sound before a totem expires"],
         get = function() return d.expirySound end,
         set = function(_, v) d.expirySound = v end }

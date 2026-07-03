@@ -679,11 +679,10 @@ function bank.build()
     end)
     f:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
-        local fx, fy = self:GetCenter()
-        local px, py = UIParent:GetCenter()
-        if fx and fy and px and py then
+        local x, y = ns:GetCenterOffsets(self)   -- canonical scale-aware capture
+        if x and y then
             local d = bank.db()
-            d.x, d.y = fx - px, fy - py
+            d.x, d.y = x, y
             if ns.ApplyMover and bank.mover then ns:ApplyMover(bank.mover) end
         end
     end)
@@ -829,6 +828,11 @@ function bank.onEvent(event, arg1, arg2)
         -- fires TWICE, and also when just walking away; everything here is
         -- idempotent. Clear bank.open FIRST so OnHide skips CloseBankFrame.
         bank.open = false
+        -- a bank sort can't move items once the session is gone; stop it
+        -- (leaves a running BAG sort alone — that one doesn't cover -1)
+        if ns.SortEngine and ns.SortEngine.CancelContaining then
+            ns.SortEngine.CancelContaining(-1)
+        end
         if bank.frame and bank.frame.search then bank.frame.search:SetText("") end
         if bank.frame and bank.frame:IsShown() then bank.frame:Hide() end
         if bank.autoOpenedBags then bank.autoOpenedBags = false; mod:Close() end
