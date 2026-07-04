@@ -534,7 +534,7 @@ function bank.build()
     sortBtn:SetSize(18, 18)
     sortBtn:SetPoint("RIGHT", sb, "LEFT", -8, 0)
     local si = sortBtn:CreateTexture(nil, "ARTWORK")
-    si:SetAllPoints(); si:SetTexture("Interface\\Buttons\\UI-GuildButton-PublicNote-Up")
+    si:SetAllPoints(); si:SetTexture("Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\broom.tga")
     si:SetVertexColor(0.7, 0.7, 0.75)
     sortBtn:SetScript("OnEnter", function()
         si:SetVertexColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
@@ -812,9 +812,269 @@ function bank.refresh()
     bank.refreshScheduled = true
     local function run()
         bank.refreshScheduled = false
-        if bank.open and bank.frame and bank.frame:IsShown() then bank.layout() end
+        if bank.open and bank.frame and bank.frame:IsShown() then
+            bank.layout()
+            bank.snapshotMirror()   -- keep the offline mirror current per change
+        end
     end
     if C_Timer and C_Timer.After then C_Timer.After(0, run) else run() end
+end
+
+-- ---------------------------------------------------------
+-- Offline bank mirror: a per-character snapshot taken on every refresh while
+-- the bank is open, plus a read-only viewer window that works ANYWHERE (the
+-- bag header's bank button opens it). Plain frames only — the buttons carry
+-- no container wiring, tooltips come from the stored hyperlinks.
+-- ---------------------------------------------------------
+function bank.snapshotMirror(closing)
+    if not bank.open then return end
+    _G.VuloClassicUICharDB = _G.VuloClassicUICharDB or {}
+    local mir = { when = time and time() or 0, free = 0, items = 0, bags = {} }
+    for _, bag in ipairs(bank.bags) do
+        local n = GetContainerNumSlots(bag) or 0
+        if n > 0 then
+            local b = { name = bank.bagName(bag), slots = {} }
+            for slot = 1, n do
+                local icon, count, _, quality, _, _, link = GetContainerItemInfo(bag, slot)
+                if link then
+                    b.slots[#b.slots + 1] = { l = link, c = count or 1, q = quality or 1, i = icon }
+                    mir.items = mir.items + 1
+                else
+                    mir.free = mir.free + 1
+                end
+            end
+            if #b.slots > 0 then mir.bags[#mir.bags + 1] = b end
+        end
+    end
+
+    local old = _G.VuloClassicUICharDB.bankMirror
+    if closing then
+        -- final pass during BANKFRAME_CLOSED (catches a deposit in the very
+        -- last frame). If the server already dropped the data the scan reads
+        -- FEWER items than the live snapshots recorded — keep the good one.
+        if old and (old.items or 0) > mir.items then return end
+    elseif (bank.mirrorScans or 0) == 0 and old and (old.items or 0) > mir.items then
+        -- first scan of a visit: item data can still lag OPENED, so an
+        -- understated scan must not clobber a good mirror — rescan shortly
+        bank.mirrorScans = 1
+        if C_Timer and C_Timer.After then
+            C_Timer.After(0.7, function() if bank.open then bank.snapshotMirror() end end)
+            return
+        end
+    end
+    bank.mirrorScans = (bank.mirrorScans or 0) + 1
+    _G.VuloClassicUICharDB.bankMirror = mir
+    -- live-update an open viewer (e.g. both windows visible at the banker)
+    if bank.mirrorFrame and bank.mirrorFrame:IsShown() then bank.renderMirror() end
+end
+
+function bank.mirrorButton(i)
+    local f = bank.mirrorFrame
+    local b = f.btns[i]
+    if b then return b end
+    b = CreateFrame("Button", nil, f)
+    b:SetSize(30, 30)
+    b.border = b:CreateTexture(nil, "BACKGROUND")
+    b.border:SetAllPoints()
+    b.border:SetColorTexture(0, 0, 0, 1)
+    b.icon = b:CreateTexture(nil, "ARTWORK")
+    b.icon:SetPoint("TOPLEFT", 1, -1)
+    b.icon:SetPoint("BOTTOMRIGHT", -1, 1)
+    b.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    b.count = b:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
+    b.count:SetPoint("BOTTOMRIGHT", -2, 2)
+    b:SetScript("OnEnter", function(self)
+        if self.link and GameTooltip then
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            pcall(GameTooltip.SetHyperlink, GameTooltip, self.link)
+            GameTooltip:Show()
+        end
+    end)
+    b:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+    f.btns[i] = b
+    return b
+end
+
+function bank.mirrorHeader(i)
+    local f = bank.mirrorFrame
+    local h = f.heads[i]
+    if h then return h end
+    h = f:CreateFontString(nil, "OVERLAY")
+    if ns.UI and ns.UI.Font then ns.UI.Font(h, 11) else h:SetFontObject(GameFontNormalSmall) end
+    h:SetJustifyH("LEFT")
+    local ac = ns.COLORS.accent
+    h:SetTextColor(ac.r, ac.g, ac.b, 1)
+    f.heads[i] = h
+    return h
+end
+
+-- dim non-matching buttons for the viewer's search box (smart search engine)
+function bank.mirrorApplySearch()
+    local f = bank.mirrorFrame
+    if not f then return end
+    local q = f.search and f.search:GetText() or ""
+    q = q:lower():gsub("^%s+", ""):gsub("%s+$", "")
+    for _, b in ipairs(f.btns) do
+        if b:IsShown() then
+            local match = (q == "")
+                or (ns.ItemSearchMatch and ns.ItemSearchMatch(b.link, b.quality, q))
+            b:SetAlpha(match and 1 or 0.25)
+        end
+    end
+end
+
+function bank.renderMirror()
+    local f = bank.mirrorFrame
+    if not f then return end
+    local mir = _G.VuloClassicUICharDB and _G.VuloClassicUICharDB.bankMirror
+    local S, G, COLS = 30, 3, 12
+    local left, top = PAD, 64          -- below title + search row
+    local width = PAD * 2 + COLS * (S + G) - G
+
+    for _, b in ipairs(f.btns) do b:Hide() end
+    for _, h in ipairs(f.heads) do h:Hide() end
+
+    if not (mir and mir.bags and #mir.bags > 0) then
+        f.hint:Show()
+        f.sub:SetText("")
+        f:SetSize(width, 120)
+        return
+    end
+    f.hint:Hide()
+
+    local bi, hi = 0, 0
+    local y = top
+    for _, bagData in ipairs(mir.bags) do
+        hi = hi + 1
+        local h = bank.mirrorHeader(hi)
+        h:ClearAllPoints()
+        h:SetPoint("TOPLEFT", f, "TOPLEFT", left, -y)
+        h:SetText(bagData.name or "")
+        h:Show()
+        y = y + 16
+        local col = 0
+        for _, it in ipairs(bagData.slots) do
+            bi = bi + 1
+            local b = bank.mirrorButton(bi)
+            b:ClearAllPoints()
+            b:SetPoint("TOPLEFT", f, "TOPLEFT", left + col * (S + G), -y)
+            b.link, b.quality = it.l, it.q
+            b.icon:SetTexture(it.i or "Interface\\Icons\\INV_Misc_QuestionMark")
+            b.count:SetText((it.c or 1) > 1 and it.c or "")
+            local r, g, bl = 0, 0, 0
+            if (it.q or 1) > 1 and GetItemQualityColor then
+                r, g, bl = GetItemQualityColor(it.q)
+            end
+            b.border:SetColorTexture(r or 0, g or 0, bl or 0, 1)
+            b:SetAlpha(1)
+            b:Show()
+            col = col + 1
+            if col >= COLS then col = 0; y = y + S + G end
+        end
+        if col > 0 then y = y + S + G end
+        y = y + 6
+    end
+
+    if mir.when and mir.when > 0 and date then
+        f.sub:SetText(string.format(L["As of: %s"], date("%d.%m.%Y %H:%M", mir.when))
+            .. "  |cff888888" .. string.format(L["%d free slots"], mir.free or 0) .. "|r")
+    else
+        f.sub:SetText("")
+    end
+
+    f:SetSize(width, y + PAD)
+    bank.mirrorApplySearch()
+end
+
+function bank.buildMirror()
+    if bank.mirrorFrame then return bank.mirrorFrame end
+    local f = CreateFrame("Frame", "VCUI_BankMirror", UIParent)
+    bank.mirrorFrame = f
+    f.btns, f.heads = {}, {}
+    f:SetFrameStrata("HIGH")
+    f:SetToplevel(true)
+    f:SetMovable(true)
+    f:EnableMouse(true)
+    f:SetClampedToScreen(true)
+    f:RegisterForDrag("LeftButton")
+    f:SetScript("OnDragStart", function(self) self:StartMoving() end)
+    f:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        local d = bank.db()
+        local cx, cy = self:GetCenter()
+        local ux, uy = UIParent:GetCenter()
+        if cx and ux then d.mirrorX, d.mirrorY = cx - ux, cy - uy end
+    end)
+    -- Escape-close mid-drag never fires OnDragStop — clear the moving state
+    f:SetScript("OnHide", function(self) self:StopMovingOrSizing() end)
+    if ns.UI and ns.UI.StyleBackdrop then
+        ns.UI:StyleBackdrop(f, { bg = ns.COLORS.bg, border = ns.COLORS.accentDim or ns.COLORS.border })
+    end
+    f:Hide()
+
+    f.title = f:CreateFontString(nil, "OVERLAY")
+    if ns.UI and ns.UI.Font then ns.UI.Font(f.title, 13) else f.title:SetFontObject(GameFontNormal) end
+    f.title:SetPoint("TOPLEFT", PAD, -10)
+    f.title:SetTextColor(1, 1, 1, 1)
+    f.title:SetText(L["Bank contents"])
+
+    f.sub = f:CreateFontString(nil, "OVERLAY")
+    if ns.UI and ns.UI.Font then ns.UI.Font(f.sub, 10) else f.sub:SetFontObject(GameFontDisableSmall) end
+    f.sub:SetPoint("TOPLEFT", PAD, -28)
+    f.sub:SetTextColor(0.7, 0.7, 0.75, 1)
+
+    f.hint = f:CreateFontString(nil, "OVERLAY")
+    if ns.UI and ns.UI.Font then ns.UI.Font(f.hint, 11) else f.hint:SetFontObject(GameFontDisableSmall) end
+    f.hint:SetPoint("TOPLEFT", PAD, -64)
+    f.hint:SetTextColor(0.7, 0.7, 0.75, 1)
+    f.hint:SetText(L["No bank visit recorded on this character yet."])
+    f.hint:Hide()
+
+    -- flat close ×
+    local close = CreateFrame("Button", nil, f)
+    close:SetSize(20, 20)
+    close:SetPoint("TOPRIGHT", -6, -6)
+    close.x = close:CreateFontString(nil, "OVERLAY")
+    if ns.UI and ns.UI.Font then ns.UI.Font(close.x, 14) else close.x:SetFontObject(GameFontNormal) end
+    close.x:SetPoint("CENTER")
+    close.x:SetText("x")
+    close.x:SetTextColor(0.7, 0.7, 0.75, 1)
+    close:SetScript("OnEnter", function() close.x:SetTextColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 1) end)
+    close:SetScript("OnLeave", function() close.x:SetTextColor(0.7, 0.7, 0.75, 1) end)
+    close:SetScript("OnClick", function() f:Hide() end)
+
+    -- search row (same smart matcher as the bag/bank windows)
+    f.search = CreateFrame("EditBox", nil, f)
+    f.search:SetSize(180, 18)
+    f.search:SetPoint("TOPLEFT", PAD + 2, -42)
+    f.search:SetAutoFocus(false)
+    -- an EditBox WITHOUT a font hard-errors on input — always set one
+    if ns.UI and ns.UI.Font then ns.UI.Font(f.search, 11)
+    else f.search:SetFontObject(_G.ChatFontNormal or GameFontNormalSmall) end
+    f.search:SetTextColor(0.9, 0.9, 0.95, 1)
+    local sline = f:CreateTexture(nil, "ARTWORK")
+    sline:SetPoint("TOPLEFT", f.search, "BOTTOMLEFT", -2, -2)
+    sline:SetPoint("TOPRIGHT", f.search, "BOTTOMRIGHT", 2, -2)
+    sline:SetHeight(1)
+    sline:SetColorTexture(0.3, 0.3, 0.35, 1)
+    f.search:SetScript("OnTextChanged", function() bank.mirrorApplySearch() end)
+    f.search:SetScript("OnEscapePressed", function(self) self:SetText(""); self:ClearFocus() end)
+    f.search:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
+
+    -- Escape closes the window like any panel
+    table.insert(UISpecialFrames, "VCUI_BankMirror")
+    return f
+end
+
+-- Published for the bag window's header button: toggle the offline viewer.
+function ns.ToggleBankMirror()
+    local f = bank.buildMirror()
+    if f:IsShown() then f:Hide(); return end
+    local d = bank.db()
+    f:ClearAllPoints()
+    f:SetPoint("CENTER", UIParent, "CENTER", d.mirrorX or 300, d.mirrorY or 0)
+    bank.renderMirror()
+    f:Show()
 end
 
 -- ---------------------------------------------------------
@@ -852,6 +1112,7 @@ function bank.onEvent(event, arg1, arg2)
     if event == "BANKFRAME_OPENED" then
         if not bank.enabled() then return end   -- leave the default bank alone
         bank.open = true
+        bank.mirrorScans = 0     -- fresh visit: re-arm the first-scan guard
         bank.suppressDefault()
         if not bank.frame then bank.build() end -- normally pre-built at login
         if not bank.frame then bank.open = false; return end
@@ -865,6 +1126,9 @@ function bank.onEvent(event, arg1, arg2)
     if event == "BANKFRAME_CLOSED" then
         -- fires TWICE, and also when just walking away; everything here is
         -- idempotent. Clear bank.open FIRST so OnHide skips CloseBankFrame.
+        -- (Mirror snapshot BEFORE that — item data is still readable inside
+        -- this event, and the guard keeps a dropped-data scan from writing.)
+        bank.snapshotMirror(true)
         bank.open = false
         -- a bank sort can't move items once the session is gone; stop it
         -- (leaves a running BAG sort alone — that one doesn't cover -1)

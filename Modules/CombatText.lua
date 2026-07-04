@@ -28,11 +28,18 @@ local mod = ns:RegisterModule("combattext", {
         applyToMobFCT  = true,
         -- Per-event customization (color, size, outline, shadow + shadowColor + shadowOffset)
         -- The three notification events also carry an editable `text`.
+        -- Inline spell icon next to the spell name in scroll messages
+        showSpellIcons = true,
         events = {
             combatStart    = { enabled = true, text = "", color = { r = 0.93, g = 0.26, b = 0.0 }, size = 0, outline = true, shadow = true, shadowColor = { r = 0, g = 0, b = 0 }, shadowX = 2, shadowY = -2 },
-            combatEnd      = { enabled = true, text = "", color = { r = 0.6, g = 0.9, b = 0.6 }, size = 0, outline = true, shadow = true, shadowColor = { r = 0, g = 0, b = 0 }, shadowX = 2, shadowY = -2 },
-            spellInterrupt = { enabled = true, color = { r = 1.0, g = 1.0, b = 0.3 }, size = 0, outline = true,  shadow = true, shadowColor = { r = 0, g = 0, b = 0 }, shadowX = 2, shadowY = -2 },
-            dispels        = { enabled = true, color = { r = 0.6, g = 0.9, b = 1.0 }, size = 0, outline = true,  shadow = true, shadowColor = { r = 0, g = 0, b = 0 }, shadowX = 2, shadowY = -2 },
+            combatEnd      = { enabled = true, text = "", color = { r = 1.0, g = 1.0, b = 1.0 }, size = 0, outline = true, shadow = true, shadowColor = { r = 0, g = 0, b = 0 }, shadowX = 2, shadowY = -2 },
+            spellInterrupt = { enabled = true, color = { r = 1.0, g = 0.82, b = 0.2 }, size = 0, outline = true,  shadow = true, shadowColor = { r = 0, g = 0, b = 0 }, shadowX = 2, shadowY = -2 },
+            purged         = { enabled = true, color = { r = 0.608, g = 0.424, b = 1.0 }, size = 0, outline = true,  shadow = true, shadowColor = { r = 0, g = 0, b = 0 }, shadowX = 2, shadowY = -2 },
+            dispels        = { enabled = true, color = { r = 1.0, g = 0.45, b = 0.75 }, size = 0, outline = true,  shadow = true, shadowColor = { r = 0, g = 0, b = 0 }, shadowX = 2, shadowY = -2 },
+            dispelledBy    = { enabled = true, color = { r = 1.0, g = 0.6, b = 0.85 }, size = 0, outline = true,  shadow = true, shadowColor = { r = 0, g = 0, b = 0 }, shadowX = 2, shadowY = -2 },
+            buffGiven      = { enabled = true, color = { r = 0.75, g = 0.65, b = 1.0 }, size = 0, outline = true,  shadow = true, shadowColor = { r = 0, g = 0, b = 0 }, shadowX = 2, shadowY = -2 },
+            buffReceived   = { enabled = true, color = { r = 0.6, g = 0.8, b = 1.0 }, size = 0, outline = true,  shadow = true, shadowColor = { r = 0, g = 0, b = 0 }, shadowX = 2, shadowY = -2 },
+            reflected      = { enabled = true, color = { r = 1.0, g = 0.6, b = 0.3 }, size = 0, outline = true,  shadow = true, shadowColor = { r = 0, g = 0, b = 0 }, shadowX = 2, shadowY = -2 },
             missed         = { enabled = true, color = { r = 1.0, g = 0.7, b = 0.2 }, size = 0, outline = true,  shadow = true, shadowColor = { r = 0, g = 0, b = 0 }, shadowX = 2, shadowY = -2 },
             lowDurability  = { enabled = true, text = "", color = { r = 1.0, g = 0.3, b = 0.3 }, size = 0, outline = true, shadow = true, shadowColor = { r = 0, g = 0, b = 0 }, shadowX = 2, shadowY = -2 },
         },
@@ -189,7 +196,12 @@ local EVENT_CATEGORY = {
     combatStart    = "showCombatState",
     combatEnd      = "showCombatState",
     spellInterrupt = "showCombatLog",
+    purged         = "showCombatLog",
     dispels        = "showCombatLog",
+    dispelledBy    = "showCombatLog",
+    buffGiven      = "showCombatLog",
+    buffReceived   = "showCombatLog",
+    reflected      = "showCombatLog",
     missed         = "showCombatLog",
     lowDurability  = "showDurability",
 }
@@ -425,11 +437,45 @@ local function onCombatEnd()
     scheduleDurabilityCheck()
 end
 
+-- ── Rich message parts: colored label + inline icon + white [Spell Name] ──
+-- The event color paints the LABEL (SetTextColor); the spell name is forced
+-- white via an embedded color code, the icon rides the font height (|T..:0|t).
+local function iconTag(spellId)
+    if mod.db.showSpellIcons == false then return "" end
+    local tex = spellId and GetSpellTexture and GetSpellTexture(spellId)
+    if not tex then return "" end
+    return "|T" .. tex .. ":0|t "
+end
+
+local function richMsg(label, spellId, spellName, nameFirst)
+    if not spellName then return label end
+    local namePart = iconTag(spellId) .. "|cffffffff[" .. spellName .. "]|r"
+    if nameFirst then return namePart .. " " .. label end
+    return label .. " " .. namePart
+end
+
+local function isPlayerGUID(guid)
+    return guid and guid:find("^Player%-") ~= nil
+end
+
+-- Per-(event, spell) throttle for the buff messages: a raid-wide Prayer or a
+-- paladin aura re-entering range would otherwise flood the pool with dozens
+-- of identical lines in one instant.
+local _lastRich = {}
+local function throttled(eventKey, spellId)
+    local k = eventKey .. ":" .. (spellId or 0)
+    local now = GetTime()
+    if _lastRich[k] and (now - _lastRich[k]) < 2 then return true end
+    _lastRich[k] = now
+    return false
+end
+
 -- Only these subevents ever produce combat text. Reading just the subevent
--- first lets the hot path bail before the full 18-value destructure.
+-- first lets the hot path bail before the full destructure.
 local CLEU_WANTED = {
     SPELL_INTERRUPT = true, SPELL_DISPEL = true, SPELL_STOLEN = true,
     SWING_MISSED    = true, RANGE_MISSED = true, SPELL_MISSED = true,
+    SPELL_AURA_APPLIED = true,
 }
 local function onCLEU()
     if not mod._enabled then return end
@@ -438,21 +484,64 @@ local function onCLEU()
         playerGUID = UnitGUID("player")
         if not playerGUID then return end
     end
-    -- single fetch; arg12/arg15 carry the miss type for swing vs spell/range
+    -- single fetch; slot 12 = spellId (or SWING missType), 13 = spellName,
+    -- 15 = extraSpellId / SPELL missType / auraType(APPLIED), 16 = extraSpellName,
+    -- 18 = auraType for DISPEL/STOLEN (slot 17 is the extra school)
     local _, subEvent, _, sourceGUID, _, _, _, destGUID, _, _, _,
-          arg12, spellName, _, arg15, extraSpellName
+          arg12, spellName, _, arg15, extraSpellName, _, auraType18
           = CombatLogGetCurrentEventInfo()
 
+    if subEvent == "SPELL_AURA_APPLIED" then
+        -- external buffs only: someone else buffed YOU, or YOU buffed someone
+        -- else (both sides real players — no self-buffs, no NPC auras)
+        if arg15 ~= "BUFF" then return end
+        if destGUID == playerGUID and sourceGUID and sourceGUID ~= playerGUID
+           and isPlayerGUID(sourceGUID) then
+            if not throttled("buffReceived", arg12) then
+                spawnScroll("buffReceived", richMsg(L["gave you"], arg12, spellName))
+            end
+        elseif sourceGUID == playerGUID and destGUID ~= playerGUID
+           and isPlayerGUID(destGUID) then
+            if not throttled("buffGiven", arg12) then
+                spawnScroll("buffGiven", richMsg(L["You gave"], arg12, spellName))
+            end
+        end
+        return
+    end
+
     if subEvent == "SPELL_INTERRUPT" and sourceGUID == playerGUID then
-        spawnScroll("spellInterrupt", L["Interrupted: "] .. (extraSpellName or spellName or "?"))
-    elseif subEvent == "SPELL_DISPEL" and sourceGUID == playerGUID then
-        spawnScroll("dispels", L["Dispelled: "] .. (extraSpellName or "?"))
+        spawnScroll("spellInterrupt",
+            richMsg(L["Interrupted"], arg15, extraSpellName or spellName))
+    elseif subEvent == "SPELL_DISPEL" then
+        -- auraType (slot 18) decides the flavor: removing a BUFF from an
+        -- enemy is a purge, removing a DEBUFF from a friend is a cleanse
+        if sourceGUID == playerGUID then
+            if auraType18 == "BUFF" then
+                spawnScroll("purged", richMsg(L["Purged"], arg15, extraSpellName))
+            else
+                spawnScroll("dispels", richMsg(L["Dispelled"], arg15, extraSpellName))
+            end
+        elseif destGUID == playerGUID and auraType18 == "BUFF" then
+            -- an enemy stripped one of YOUR buffs (a friendly cleanse on you
+            -- removes a DEBUFF and stays silent)
+            spawnScroll("dispelledBy", richMsg(L["dispelled"], arg15, extraSpellName))
+        end
     elseif subEvent == "SPELL_STOLEN" and sourceGUID == playerGUID then
-        spawnScroll("dispels", L["Purged: "] .. (extraSpellName or "?"))
-    elseif (subEvent == "SWING_MISSED" or subEvent == "RANGE_MISSED" or subEvent == "SPELL_MISSED")
-        and destGUID == playerGUID then
+        -- spellsteal behaves like a purge
+        spawnScroll("purged", richMsg(L["Purged"], arg15, extraSpellName))
+    elseif (subEvent == "SWING_MISSED" or subEvent == "RANGE_MISSED" or subEvent == "SPELL_MISSED") then
         -- missType: slot 12 (SWING) or 15 (SPELL/RANGE), already captured above
         local realMissType = (subEvent == "SWING_MISSED") and arg12 or arg15
+        -- swings can't be reflected — and for SWING_MISSED slot 13 is not a
+        -- spell name, so the reflect message must never touch it
+        if realMissType == "REFLECT" and subEvent ~= "SWING_MISSED" then
+            -- either direction reads the same: that spell bounced
+            if destGUID == playerGUID or sourceGUID == playerGUID then
+                spawnScroll("reflected", richMsg(L["reflected"], arg12, spellName, true))
+            end
+            return
+        end
+        if destGUID ~= playerGUID then return end
         local label = realMissType or "Missed"
         if label == "PARRY"  then label = L["Parried"]
         elseif label == "DODGE" then label = L["Dodged"]
@@ -564,6 +653,24 @@ end
 function mod:OnEnable()
     if not mod.db then return end
     mod.db.unlocked = false   -- clear any stale saved "unlocked" so the box only shows in /vedit
+
+    -- Migration to the two-tone look: retint events still on their OLD default
+    -- color (user-customized colors are left alone — same pattern as the castbar)
+    local function isNear(c, r, g, b)
+        return c and math.abs((c.r or 0) - r) < 0.01
+                 and math.abs((c.g or 0) - g) < 0.01
+                 and math.abs((c.b or 0) - b) < 0.01
+    end
+    local ev = mod.db.events or {}
+    if ev.combatEnd and isNear(ev.combatEnd.color, 0.6, 0.9, 0.6) then
+        ev.combatEnd.color = { r = 1, g = 1, b = 1 }
+    end
+    if ev.dispels and isNear(ev.dispels.color, 0.6, 0.9, 1.0) then
+        ev.dispels.color = { r = 1.0, g = 0.45, b = 0.75 }
+    end
+    if ev.spellInterrupt and isNear(ev.spellInterrupt.color, 1.0, 1.0, 0.3) then
+        ev.spellInterrupt.color = { r = 1.0, g = 0.82, b = 0.2 }
+    end
     playerGUID = UnitGUID("player")
     createContainer()
     if container then container:Show() end   -- re-show after a disable->enable cycle (createContainer early-returns)
@@ -743,16 +850,32 @@ function mod:GetOptions()
         msgSection("combatEnd",   L["Exit Combat Message"], true),
         lowDura,
         msgSection("spellInterrupt", L["Interrupted"], false),
-        msgSection("dispels",        L["Dispelled/Purged"], false),
+        msgSection("purged",         L["Purged (enemy buff removed)"], false),
+        msgSection("dispels",        L["Dispelled (by you)"], false),
+        msgSection("dispelledBy",    L["Dispelled (your buff lost)"], false),
+        msgSection("buffGiven",      L["Buff given"], false),
+        msgSection("buffReceived",   L["Buff received"], false),
+        msgSection("reflected",      L["Reflected"], false),
         msgSection("missed",         L["Parried/Dodged/Missed"], false),
+
+        { type = "toggle", label = L["Show spell icons"],
+          tooltip = L["Shows the spell icon inline next to the spell name."],
+          get = function() return mod.db.showSpellIcons ~= false end,
+          set = function(_, v) mod.db.showSpellIcons = v end },
 
         { type = "group", layout = "row", gap = 8, items = {
             { type = "button", label = L["Test (all events)"], width = 170,
               onClick = function()
                   showNotify("combatStart")
-                  C_Timer.After(0.4, function() spawnScroll("spellInterrupt", L["Interrupted: Frostbolt"]) end)
-                  C_Timer.After(0.8, function() spawnScroll("dispels",        L["Dispelled: Curse"]) end)
-                  C_Timer.After(1.2, function() spawnScroll("missed",         L["Parried"]) end)
+                  -- 116 = Frostbolt, 133 = Fireball, 1459 = Arcane Intellect,
+                  -- 687 = Demon Skin — stable classic spell ids for the preview
+                  C_Timer.After(0.3, function() spawnScroll("spellInterrupt", richMsg(L["Interrupted"], 116, GetSpellInfo and GetSpellInfo(116) or "Frostbolt")) end)
+                  C_Timer.After(0.6, function() spawnScroll("purged",         richMsg(L["Purged"], 1459, GetSpellInfo and GetSpellInfo(1459) or "Arcane Intellect")) end)
+                  C_Timer.After(0.9, function() spawnScroll("dispels",        richMsg(L["Dispelled"], 687, GetSpellInfo and GetSpellInfo(687) or "Demon Skin")) end)
+                  C_Timer.After(1.2, function() spawnScroll("dispelledBy",    richMsg(L["dispelled"], 1459, GetSpellInfo and GetSpellInfo(1459) or "Arcane Intellect")) end)
+                  C_Timer.After(1.5, function() spawnScroll("buffReceived",   richMsg(L["gave you"], 1459, GetSpellInfo and GetSpellInfo(1459) or "Arcane Intellect")) end)
+                  C_Timer.After(1.8, function() spawnScroll("reflected",      richMsg(L["reflected"], 133, GetSpellInfo and GetSpellInfo(133) or "Fireball", true)) end)
+                  C_Timer.After(2.1, function() spawnScroll("missed",         L["Parried"]) end)
               end },
         } },
     }

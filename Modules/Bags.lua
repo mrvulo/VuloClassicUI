@@ -2008,7 +2008,7 @@ local function buildFrame()
     sortBtn:SetSize(18, 18)
     sortBtn:SetPoint("RIGHT", sb, "LEFT", -8, 0)
     local si = sortBtn:CreateTexture(nil, "ARTWORK")
-    si:SetAllPoints(); si:SetTexture("Interface\\Buttons\\UI-GuildButton-PublicNote-Up")
+    si:SetAllPoints(); si:SetTexture("Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\broom.tga")
     si:SetVertexColor(0.7, 0.7, 0.75)
     sortBtn:SetScript("OnEnter", function()
         si:SetVertexColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
@@ -2042,8 +2042,8 @@ local function buildFrame()
     bagsBtn:SetSize(18, 18)
     bagsBtn:SetPoint("RIGHT", sortBtn, "LEFT", -8, 0)
     local bi = bagsBtn:CreateTexture(nil, "ARTWORK")
-    bi:SetAllPoints(); bi:SetTexture("Interface\\Buttons\\Button-Backpack-Up")
-    bi:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    -- same line-art set as the broom (the sidebar's backpack glyph — no crop)
+    bi:SetAllPoints(); bi:SetTexture("Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\modules\\bags.tga")
     bi:SetVertexColor(0.7, 0.7, 0.75)
     bagsBtn:SetScript("OnEnter", function()
         bi:SetVertexColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
@@ -2054,6 +2054,35 @@ local function buildFrame()
         end
     end)
     bagsBtn:SetScript("OnLeave", function() bi:SetVertexColor(0.7, 0.7, 0.75); if GameTooltip then GameTooltip:Hide() end end)
+
+    -- bank-mirror button (left of the bag toggle): opens the read-only bank
+    -- snapshot viewer — works anywhere, not just at a banker
+    local bankBtn = CreateFrame("Button", nil, f)
+    f.bankBtn = bankBtn
+    bankBtn:SetSize(18, 18)
+    bankBtn:SetPoint("RIGHT", bagsBtn, "LEFT", -8, 0)
+    local ki = bankBtn:CreateTexture(nil, "ARTWORK")
+    ki:SetAllPoints(); ki:SetTexture("Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\landmark.tga")
+    ki:SetVertexColor(0.7, 0.7, 0.75)
+    bankBtn:SetScript("OnEnter", function()
+        ki:SetVertexColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
+        if GameTooltip then
+            GameTooltip:SetOwner(bankBtn, "ANCHOR_TOP")
+            GameTooltip:SetText(L["Bank contents"])
+            GameTooltip:AddLine(L["Shows what your bank holds - from the last bank visit, viewable anywhere."], 0.7, 0.7, 0.7, true)
+            GameTooltip:Show()
+        end
+    end)
+    bankBtn:SetScript("OnLeave", function() ki:SetVertexColor(0.7, 0.7, 0.75); if GameTooltip then GameTooltip:Hide() end end)
+    bankBtn:SetScript("OnClick", function()
+        if ns.ToggleBankMirror then ns.ToggleBankMirror() end
+    end)
+
+    -- the title would run UNDER the header buttons at low column counts —
+    -- pin its right edge to the leftmost button so it truncates instead
+    f.title:SetPoint("RIGHT", bankBtn, "LEFT", -8, 0)
+    f.title:SetJustifyH("LEFT")
+    f.title:SetWordWrap(false)
 
     -- Phase 4 STAGE-2: visual bag bar — a strip of the real bag icons floating
     -- above the window (backpack, bags 1-4, keyring). Clicking an icon toggles
