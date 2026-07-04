@@ -119,6 +119,189 @@ local function findItemInBags(targetItemID)
 end
 
 -- =========================================================
+-- Availability: where does a set item live right now?
+-- Bank contents are snapshotted while the bank is open (per character), so
+-- "in the bank" stays answerable anywhere in the world.
+-- =========================================================
+local function bankItems()
+    local c = charDB(); c.bankItems = c.bankItems or {}; return c.bankItems
+end
+
+local _bankOpen = false
+local _snapPending = false
+local function snapshotBank()
+    local store = bankItems()
+    wipe(store)
+    local bags = { _G.BANK_CONTAINER or -1 }
+    for i = 1, (_G.NUM_BANKBAGSLOTS or 6) do
+        bags[#bags + 1] = (_G.NUM_BAG_SLOTS or 4) + i
+    end
+    for _, bag in ipairs(bags) do
+        for slot = 1, (GetContainerNumSlots(bag) or 0) do
+            local id = GetContainerItemID(bag, slot)
+            if id then store[id] = true end
+        end
+    end
+end
+
+local function onBankEvent(event)
+    if event == "BANKFRAME_OPENED" then
+        _bankOpen = true
+        -- item data lags OPENED; snapshot a moment later
+        if C_Timer and C_Timer.After then
+            C_Timer.After(0.5, function() if _bankOpen then snapshotBank() end end)
+        else
+            snapshotBank()
+        end
+    elseif event == "BANKFRAME_CLOSED" then
+        _bankOpen = false
+    elseif _bankOpen then
+        -- PLAYERBANKSLOTS_CHANGED only covers the main bank container;
+        -- BAG_UPDATE covers the bank BAGS. Coalesce bursts into one snapshot.
+        if C_Timer and C_Timer.After then
+            if not _snapPending then
+                _snapPending = true
+                C_Timer.After(0.1, function()
+                    _snapPending = false
+                    if _bankOpen then snapshotBank() end
+                end)
+            end
+        else
+            snapshotBank()
+        end
+    end
+end
+
+-- "equipped" | "bags" | "bank" | nil (not found anywhere we can see).
+-- PERF: one inventory index per frame instead of a full bag scan per item —
+-- sidebar refreshes and preview tooltips hit this for every set item.
+local availIndex
+local function buildAvailIndex()
+    local idx = {}
+    for _, s in ipairs(EQUIP_SLOTS) do
+        local l = GetInventoryItemLink("player", s)
+        local id = l and getItemIDFromLink(l)
+        if id then idx[id] = "equipped" end
+    end
+    if GetContainerItemID and GetContainerNumSlots then
+        for bag = 0, (NUM_BAG_SLOTS or 4) do
+            for slot = 1, (GetContainerNumSlots(bag) or 0) do
+                local id = GetContainerItemID(bag, slot)
+                if id and not idx[id] then idx[id] = "bags" end
+            end
+        end
+    end
+    return idx
+end
+
+local function itemAvailability(link)
+    local itemID = getItemIDFromLink(link)
+    if not itemID then return nil end
+    if not availIndex then
+        availIndex = buildAvailIndex()
+        -- valid for this frame only; bags/equipment can change right after
+        if C_Timer and C_Timer.After then
+            C_Timer.After(0, function() availIndex = nil end)
+        else
+            local idx = availIndex
+            availIndex = nil
+            local a = idx[itemID]
+            if a then return a end
+            if bankItems()[itemID] then return "bank" end
+            return nil
+        end
+    end
+    local a = availIndex[itemID]
+    if a then return a end
+    if bankItems()[itemID] then return "bank" end
+    return nil
+end
+
+-- per-set completeness: how many items are unreachable / only in the bank
+local function setStatus(name)
+    local lo = LO()[name]
+    if not (lo and lo.slots) then return 0, 0 end
+    local missing, inBank = 0, 0
+    for _, link in pairs(lo.slots) do
+        local a = itemAvailability(link)
+        if a == "bank" then inBank = inBank + 1
+        elseif not a then missing = missing + 1 end
+    end
+    return missing, inBank
+end
+
+-- =========================================================
+-- Reverse index itemID -> set names, for the "Part of set" tooltip line and
+-- the disenchant-queue warning. Rebuilt lazily after any mutation.
+-- =========================================================
+local _setIndexDirty = true
+local _setsByItem = {}
+local function rebuildSetIndex()
+    _setIndexDirty = false
+    wipe(_setsByItem)
+    for name, lo in pairs(LO() or {}) do
+        for _, link in pairs(lo.slots or {}) do
+            local id = getItemIDFromLink(link)
+            if id then
+                local t = _setsByItem[id]
+                if not t then t = {}; _setsByItem[id] = t end
+                t[#t + 1] = name
+            end
+        end
+    end
+    for _, t in pairs(_setsByItem) do table.sort(t) end
+end
+
+-- Published: which sets contain this itemID? ("A, B" or nil). Used by the
+-- tooltip line here and by the disenchant queue's warning.
+function ns.ItemSetMembership(itemID)
+    if not itemID or not mod.active then return nil end
+    if _setIndexDirty then rebuildSetIndex() end
+    local t = _setsByItem[itemID]
+    if t and #t > 0 then return table.concat(t, ", ") end
+end
+
+-- "Part of set: X" line in item tooltips — guards against selling or
+-- disenchanting set pieces by accident. TooltipDataProcessor when the client
+-- has it (2.5.5 does), the classic OnTooltipSetItem hook otherwise; never
+-- both, or the line would double up.
+local _tipHooked = false
+local function installSetTooltip()
+    if _tipHooked then return end
+    _tipHooked = true
+    local function annotate(tip)
+        if not mod.active or not tip or tip ~= GameTooltip and tip ~= ItemRefTooltip then return end
+        if not tip.GetItem then return end
+        local ok, _, link = pcall(tip.GetItem, tip)
+        if not ok or not link then return end
+        local sets = ns.ItemSetMembership(getItemIDFromLink(link))
+        if sets then
+            tip:AddLine(string.format(L["Part of set: %s"], sets), 0.608, 0.424, 1)
+            tip:Show()
+        end
+    end
+    if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall
+       and Enum and Enum.TooltipDataType and Enum.TooltipDataType.Item then
+        TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, annotate)
+    elseif GameTooltip and GameTooltip.HookScript then
+        -- classic quirk: OnTooltipSetItem can fire twice per fill (and once
+        -- for a recipe plus once for its product) — dedupe until cleared
+        local function annotateOnce(tip)
+            if tip._vcuiSetLineDone then return end
+            tip._vcuiSetLineDone = true
+            annotate(tip)
+        end
+        local function onCleared(tip) tip._vcuiSetLineDone = nil end
+        pcall(GameTooltip.HookScript, GameTooltip, "OnTooltipSetItem", annotateOnce)
+        pcall(GameTooltip.HookScript, GameTooltip, "OnTooltipCleared", onCleared)
+        if ItemRefTooltip and ItemRefTooltip.HookScript then
+            pcall(ItemRefTooltip.HookScript, ItemRefTooltip, "OnTooltipSetItem", annotateOnce)
+            pcall(ItemRefTooltip.HookScript, ItemRefTooltip, "OnTooltipCleared", onCleared)
+        end
+    end
+end
+
+-- =========================================================
 -- Equip a bag item into a SPECIFIC inventory slot.
 -- UseContainerItem ignores the destination slot and always picks the first
 -- valid one — that's why paired slots (rings 11/12, trinkets 13/14) always
@@ -189,6 +372,7 @@ local function saveAs(name, slotList)
         slotMask  = copySlotList(slotList or EQUIP_SLOTS),
         createdAt = time(),
     }
+    _setIndexDirty = true
     ns:Print(string.format(L["Loadout '%s' saved (%d items)."],
         name, countSlots(LO()[name])))
 end
@@ -222,6 +406,7 @@ local function overwriteLoadout(name)
         slotMask  = copySlotList(slotList),
         createdAt = time(),
     }
+    _setIndexDirty = true
     ns:Print(string.format(L["Loadout '%s' updated with current gear."], name))
 end
 
@@ -231,6 +416,7 @@ local function deleteLoadout(name)
         return
     end
     LO()[name] = nil
+    _setIndexDirty = true
     ns:Print(string.format(L["Loadout '%s' deleted."], name))
 end
 
@@ -250,6 +436,7 @@ local function equipLoadout(name)
     end
 
     local swapped, missing = 0, 0
+    local failedLinks = {}
     -- Sorted ascending so paired slots resolve predictably (11 before 12,
     -- 13 before 14). We equip via ns:EquipBagItemToSlot which uses
     -- EquipCursorItem(slot) — that honours the exact destination slot, so
@@ -271,9 +458,11 @@ local function equipLoadout(name)
                         -- Fallback for non-paired slots if cursor method failed
                         ok = pcall(UseContainerItem, bag, bagSlot)
                     end
-                    if ok then swapped = swapped + 1 else missing = missing + 1 end
+                    if ok then swapped = swapped + 1
+                    else missing = missing + 1; failedLinks[#failedLinks + 1] = link end
                 else
                     missing = missing + 1
+                    failedLinks[#failedLinks + 1] = link
                 end
             end
         end
@@ -291,6 +480,24 @@ local function equipLoadout(name)
             name, missing))
     else
         ns:Print(string.format(L["Loadout '%s' already equipped."], name))
+    end
+
+    -- name the failures instead of only counting them — with WHERE the item
+    -- actually is (bank snapshot) so the fix is obvious
+    for _, flink in ipairs(failedLinks) do
+        local a = itemAvailability(flink)
+        local whereTxt
+        if a == "bank" then
+            whereTxt = L["in the bank"]
+        elseif a == "bags" or a == "equipped" then
+            -- item IS here but the equip call failed (combat, unique-equipped,
+            -- pending BoE confirm, ...) — don't claim it's missing
+            whereTxt = L["in bags, equip failed"]
+        else
+            whereTxt = L["not found"]
+        end
+        DEFAULT_CHAT_FRAME:AddMessage("    |cffff5555-|r " .. (flink or "?")
+            .. "  |cff888888(" .. whereTxt .. ")|r")
     end
 end
 
@@ -1004,20 +1211,35 @@ local function createSetRow(parent, index)
 
     -- Name text (between icon and expand button)
     btn.text = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    if ns.UI and ns.UI.Font then ns.UI.Font(btn.text, 12) end
     btn.text:SetPoint("LEFT", btn.icon, "RIGHT", 8, 0)
     btn.text:SetPoint("RIGHT", btn.expand, "LEFT", -4, 0)
     btn.text:SetJustifyH("LEFT")
+    btn.text:SetWordWrap(false)
 
-    -- Selection background
+    -- Selection: accent gradient fading right + 3px accent bar (house style,
+    -- matches the options sidebar)
+    local ac2 = ns.COLORS.accent
     btn.selection = btn:CreateTexture(nil, "BACKGROUND")
     btn.selection:SetAllPoints(btn)
-    btn.selection:SetColorTexture(0.4, 0.3, 0.6, 0.45)
+    if ns.UI and ns.UI.SetGradient then
+        ns.UI.SetGradient(btn.selection, "HORIZONTAL",
+            ac2.r, ac2.g, ac2.b, 0.30, ac2.r, ac2.g, ac2.b, 0.04)
+    else
+        btn.selection:SetColorTexture(ac2.r, ac2.g, ac2.b, 0.30)
+    end
     btn.selection:Hide()
+    btn.selBar = btn:CreateTexture(nil, "ARTWORK")
+    btn.selBar:SetPoint("TOPLEFT", btn, "TOPLEFT", 0, 0)
+    btn.selBar:SetPoint("BOTTOMLEFT", btn, "BOTTOMLEFT", 0, 0)
+    btn.selBar:SetWidth(3)
+    btn.selBar:SetColorTexture(ac2.r, ac2.g, ac2.b, 1)
+    btn.selBar:Hide()
 
     -- Hover highlight
     btn.hl = btn:CreateTexture(nil, "BACKGROUND")
     btn.hl:SetAllPoints(btn)
-    btn.hl:SetColorTexture(0.25, 0.2, 0.35, 0.4)
+    btn.hl:SetColorTexture(1, 1, 1, 0.05)
     btn.hl:Hide()
 
     btn:SetScript("OnEnter", function(self)
@@ -1028,6 +1250,27 @@ local function createSetRow(parent, index)
             GameTooltip:AddLine(self.setName, 1, 0.82, 0)
             GameTooltip:AddLine(string.format("%d %s", countSlots(loadout), L["items"]),
                 0.6, 0.6, 0.6)
+            -- full preview: every stored slot with its item, colored by where
+            -- the item is right now (white = ready, orange = bank, red = gone)
+            local slots = {}
+            for s in pairs(loadout.slots or {}) do slots[#slots + 1] = s end
+            table.sort(slots)
+            if #slots > 0 then GameTooltip:AddLine(" ") end
+            for _, s in ipairs(slots) do
+                local link  = loadout.slots[s]
+                local label = SLOT_NAMES[s] or ("Slot " .. s)
+                local iname = link and link:match("%[(.-)%]") or "?"
+                local a = itemAvailability(link)
+                if a == "equipped" or a == "bags" then
+                    GameTooltip:AddDoubleLine(label, iname, 0.6, 0.6, 0.6, 0.95, 0.95, 1)
+                elseif a == "bank" then
+                    GameTooltip:AddDoubleLine(label, iname .. " (" .. L["Bank"] .. ")",
+                        0.6, 0.6, 0.6, 1, 0.6, 0.2)
+                else
+                    GameTooltip:AddDoubleLine(label, iname .. " (" .. L["missing"] .. ")",
+                        0.6, 0.6, 0.6, 1, 0.35, 0.35)
+                end
+            end
             GameTooltip:AddLine(" ")
             GameTooltip:AddLine(L["Left-click: select"], 1, 1, 1)
             GameTooltip:AddLine(L["Double-click / Right-click menu: equip"], 0.7, 0.7, 0.7)
@@ -1123,8 +1366,13 @@ local function getItemButton(row, idx)
     if b then return b end
     b = CreateFrame("Button", nil, row)
     b:SetSize(ITEM_SIZE, ITEM_SIZE)
+    -- dark slot backing + 1px-inset icon (the shared bag-button look)
+    b.slotBg = b:CreateTexture(nil, "BACKGROUND")
+    b.slotBg:SetAllPoints(b)
+    b.slotBg:SetColorTexture(0.10, 0.10, 0.13, 0.9)
     b.iconTex = b:CreateTexture(nil, "ARTWORK")
-    b.iconTex:SetAllPoints(b)
+    b.iconTex:SetPoint("TOPLEFT", b, "TOPLEFT", 1, -1)
+    b.iconTex:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -1, 1)
     b.iconTex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
     b.iconBorder = b:CreateTexture(nil, "OVERLAY")
     b.iconBorder:SetAllPoints(b)
@@ -1133,12 +1381,17 @@ local function getItemButton(row, idx)
     b.iconBorder:Hide()
     b:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-        if self.link then
+        if self.isAdd then
+            GameTooltip:AddLine(L["Add a slot"], 1, 0.82, 0)
+            GameTooltip:AddLine(L["Re-adds an ignored slot to this set."], 0.7, 0.7, 0.7)
+        elseif self.link then
             pcall(GameTooltip.SetHyperlink, GameTooltip, self.link)
+            GameTooltip:AddLine(L["Right-click: remove this slot from the set."], 0.7, 0.7, 0.7)
         else
             local slotName = SLOT_NAMES[self.targetSlot] or ("Slot " .. tostring(self.targetSlot))
             GameTooltip:AddLine(string.format(L["Empty: %s"], slotName), 1, 0.82, 0)
             GameTooltip:AddLine(L["Left-click to pick an item from your bags"], 0.7, 0.7, 0.7)
+            GameTooltip:AddLine(L["Right-click: remove this slot from the set."], 0.7, 0.7, 0.7)
         end
         GameTooltip:Show()
         self.iconBorder:Show()
@@ -1149,10 +1402,54 @@ local function getItemButton(row, idx)
     end)
     b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     b:SetScript("OnClick", function(self, button)
+        if self.isAdd then
+            -- "+" tile: menu of the slots this set currently ignores
+            local lo = self.loadoutName and LO()[self.loadoutName]
+            if not lo then return end
+            -- "present" = union of mask AND stored slots: legacy sets have
+            -- items but no mask yet, and seeding the new mask from the mask
+            -- alone would collapse the set down to the one added slot
+            local present = {}
+            for _, s in ipairs(lo.slotMask or {}) do present[s] = true end
+            for s in pairs(lo.slots or {}) do present[s] = true end
+            local menu = { { title = true, text = L["Add a slot"] } }
+            for _, s in ipairs(EQUIP_SLOTS) do
+                if not present[s] then
+                    local slotID, loName = s, self.loadoutName
+                    table.insert(menu, { text = SLOT_NAMES[s] or ("Slot " .. s), func = function()
+                        local lo2 = LO()[loName]
+                        if not lo2 then return end
+                        if not lo2.slotMask or #lo2.slotMask == 0 then
+                            lo2.slotMask = {}
+                            for k in pairs(lo2.slots or {}) do
+                                table.insert(lo2.slotMask, k)
+                            end
+                        end
+                        table.insert(lo2.slotMask, slotID)
+                        table.sort(lo2.slotMask)
+                        -- seed with whatever is equipped there right now
+                        local cur = GetInventoryItemLink("player", slotID)
+                        if cur then lo2.slots[slotID] = cur end
+                        _setIndexDirty = true
+                        refreshSidebar()
+                    end })
+                end
+            end
+            if #menu > 1 then ns:ShowPopupMenu(menu, self) end
+            return
+        end
         if button == "RightButton" then
-            -- Quick-remove
-            if self.loadoutName and self.targetSlot and LO()[self.loadoutName] then
-                LO()[self.loadoutName].slots[self.targetSlot] = nil
+            -- TRUE partial-set removal: drop the slot from the set AND its
+            -- mask, so Save/Overwrite never re-captures the ignored slot
+            local lo = self.loadoutName and LO()[self.loadoutName]
+            if lo and self.targetSlot then
+                lo.slots[self.targetSlot] = nil
+                if lo.slotMask then
+                    for i = #lo.slotMask, 1, -1 do
+                        if lo.slotMask[i] == self.targetSlot then table.remove(lo.slotMask, i) end
+                    end
+                end
+                _setIndexDirty = true
                 refreshSidebar()
             end
         else
@@ -1207,6 +1504,7 @@ local function renderItemRow(row, loadoutName)
         b.loadoutName = loadoutName
         b.targetSlot  = slot
         b.link        = link
+        b.isAdd       = nil
 
         if link then
             local icon
@@ -1215,11 +1513,23 @@ local function renderItemRow(row, loadoutName)
                 icon = ic
             end
             b.iconTex:SetTexture(icon or "Interface\\Icons\\INV_Misc_QuestionMark")
-            b.iconTex:SetVertexColor(1, 1, 1)
+            -- availability tint: ready = normal, bank = orange, gone = red
+            local a = itemAvailability(link)
+            if a == "equipped" or a == "bags" then
+                b.iconTex:SetVertexColor(1, 1, 1)
+                b.iconTex:SetDesaturated(false)
+            elseif a == "bank" then
+                b.iconTex:SetVertexColor(1, 0.7, 0.35)
+                b.iconTex:SetDesaturated(false)
+            else
+                b.iconTex:SetVertexColor(1, 0.4, 0.4)
+                b.iconTex:SetDesaturated(true)
+            end
         else
             -- Empty slot: show placeholder + dim color so it reads as "click to fill"
             b.iconTex:SetTexture(EMPTY_SLOT_ICON)
             b.iconTex:SetVertexColor(0.6, 0.6, 0.6)
+            b.iconTex:SetDesaturated(false)
         end
 
         local col = (i - 1) % ITEM_COLS
@@ -1231,7 +1541,28 @@ local function renderItemRow(row, loadoutName)
         b:Show()
     end
 
-    local rows = math.max(1, math.ceil(#sortedSlots / ITEM_COLS))
+    -- "+" tile when the set ignores some slots (partial set) — re-add path
+    local tiles = #sortedSlots
+    if tiles < #EQUIP_SLOTS then
+        tiles = tiles + 1
+        local b = getItemButton(row, tiles)
+        b.loadoutName = loadoutName
+        b.targetSlot  = nil
+        b.link        = nil
+        b.isAdd       = true
+        b.iconTex:SetTexture("Interface\\Buttons\\UI-PlusButton-Up")   -- classic-safe plus
+        b.iconTex:SetVertexColor(0.7, 0.7, 0.8)
+        b.iconTex:SetDesaturated(false)
+        local col = (tiles - 1) % ITEM_COLS
+        local rowIdx = math.floor((tiles - 1) / ITEM_COLS)
+        b:ClearAllPoints()
+        b:SetPoint("TOPLEFT", row, "TOPLEFT",
+            col * (ITEM_SIZE + ITEM_PAD),
+            -(rowIdx * (ITEM_SIZE + ITEM_PAD)))
+        b:Show()
+    end
+
+    local rows = math.max(1, math.ceil(tiles / ITEM_COLS))
     row:SetHeight(rows * (ITEM_SIZE + ITEM_PAD) + 2)
 end
 
@@ -1257,15 +1588,22 @@ refreshSidebar = function()
     for i, name in ipairs(names) do
         local btn = createSetRow(sidebar, i)
         btn.setName = name
-        btn.text:SetText(name)
+        -- completeness marker: red dot = items unreachable, orange = in bank
+        local miss, inBank = setStatus(name)
+        local marker = ""
+        if miss > 0 then marker = " |cffff5555•|r"
+        elseif inBank > 0 then marker = " |cffff9933•|r" end
+        btn.text:SetText(name .. marker)
         btn.icon:SetTexture(getSetIcon(name))
         btn.isSelected = (name == sidebarSelected)
         if btn.isSelected then
             btn.selection:Show()
-            btn.text:SetTextColor(1, 0.82, 0)
+            if btn.selBar then btn.selBar:Show() end
+            btn.text:SetTextColor(1, 1, 1)
         else
             btn.selection:Hide()
-            btn.text:SetTextColor(1, 1, 1)
+            if btn.selBar then btn.selBar:Hide() end
+            btn.text:SetTextColor(0.82, 0.82, 0.88)
         end
         -- Expand button icon: up-arrow when expanded (collapse), down-arrow when collapsed
         if sidebarExpanded == name then
@@ -1373,30 +1711,90 @@ local function createSidebar()
             mod.db.sidebarTopOffset or 0, mod.db.sidebarBottomOffset or 0))
     end
 
-    if sidebar.SetBackdrop then
+    -- house style: dark panel + soft shadow + accent hairline on top
+    local UIW = ns.UI
+    if UIW and UIW.StyleBackdrop then
+        UIW:StyleBackdrop(sidebar, { bg = ns.COLORS.bg, border = ns.COLORS.accentDim or ns.COLORS.border })
+    elseif sidebar.SetBackdrop then
         sidebar:SetBackdrop({
-            bgFile   = "Interface\\Buttons\\WHITE8X8",
-            edgeFile = "Interface\\Buttons\\WHITE8X8",
-            edgeSize = 1,
-            insets   = { left = 1, right = 1, top = 1, bottom = 1 },
+            bgFile = "Interface\\Buttons\\WHITE8X8",
+            edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1,
         })
         sidebar:SetBackdropColor(0.05, 0.05, 0.08, 0.95)
         sidebar:SetBackdropBorderColor(0.4, 0.3, 0.6, 1)
+    end
+    if UIW and UIW.CreateShadow then UIW:CreateShadow(sidebar) end
+    local gstrip = sidebar:CreateTexture(nil, "ARTWORK")
+    gstrip:SetPoint("TOPLEFT", sidebar, "TOPLEFT", 0, 0)
+    gstrip:SetPoint("TOPRIGHT", sidebar, "TOPRIGHT", 0, 0)
+    gstrip:SetHeight(2)
+    if UIW and UIW.SetGradient then
+        local a = ns.COLORS.accent
+        UIW.SetGradient(gstrip, "HORIZONTAL", a.r, a.g, a.b, 0.1, a.r, a.g, a.b, 0.9)
+    end
+
+    -- dark flat buttons (the proven panel-button recipe: strip Blizzard art,
+    -- dark fill, 1px edges, accent on hover)
+    local ac = ns.COLORS.accent
+    local bc = ns.COLORS.border or { r = 0.22, g = 0.22, b = 0.27 }
+    local fontN = _G.VCUI_LoadoutFontNormal or CreateFont("VCUI_LoadoutFontNormal")
+    local fontH = _G.VCUI_LoadoutFontHighlight or CreateFont("VCUI_LoadoutFontHighlight")
+    local fontD = _G.VCUI_LoadoutFontDisabled or CreateFont("VCUI_LoadoutFontDisabled")
+    if UIW and UIW.FONT_PATH then
+        fontN:SetFont(UIW.FONT_PATH, 12, "")
+        fontH:SetFont(UIW.FONT_PATH, 12, "")
+        fontD:SetFont(UIW.FONT_PATH, 12, "")
+    end
+    fontN:SetTextColor(0.9, 0.9, 0.95)
+    fontH:SetTextColor(ac.r, ac.g, ac.b)
+    fontD:SetTextColor(0.45, 0.45, 0.5)
+
+    local function skinBtn(b)
+        for _, r in ipairs({ b:GetRegions() }) do
+            if r.IsObjectType and r:IsObjectType("Texture") then
+                r:SetTexture(nil); r:SetAlpha(0)
+            end
+        end
+        local bg = b:CreateTexture(nil, "BACKGROUND")
+        bg:SetAllPoints(b)
+        bg:SetColorTexture(0.13, 0.13, 0.16, 1)
+        local edges = {}
+        for i = 1, 4 do
+            local t = b:CreateTexture(nil, "BORDER")
+            t:SetColorTexture(bc.r, bc.g, bc.b, 1)
+            edges[i] = t
+        end
+        edges[1]:SetPoint("TOPLEFT"); edges[1]:SetPoint("TOPRIGHT"); edges[1]:SetHeight(1)
+        edges[2]:SetPoint("BOTTOMLEFT"); edges[2]:SetPoint("BOTTOMRIGHT"); edges[2]:SetHeight(1)
+        edges[3]:SetPoint("TOPLEFT"); edges[3]:SetPoint("BOTTOMLEFT"); edges[3]:SetWidth(1)
+        edges[4]:SetPoint("TOPRIGHT"); edges[4]:SetPoint("BOTTOMRIGHT"); edges[4]:SetWidth(1)
+        b:SetNormalFontObject(fontN)
+        b:SetHighlightFontObject(fontH)
+        b:SetDisabledFontObject(fontD)
+        b:HookScript("OnEnter", function()
+            bg:SetColorTexture(0.19, 0.19, 0.23, 1)
+            for _, t in ipairs(edges) do t:SetColorTexture(ac.r, ac.g, ac.b, 0.9) end
+        end)
+        b:HookScript("OnLeave", function()
+            bg:SetColorTexture(0.13, 0.13, 0.16, 1)
+            for _, t in ipairs(edges) do t:SetColorTexture(bc.r, bc.g, bc.b, 1) end
+        end)
     end
 
     -- Action buttons (top row)
     local equipBtn = CreateFrame("Button", nil, sidebar, "UIPanelButtonTemplate")
     equipBtn:SetSize(86, 22)
-    equipBtn:SetPoint("TOPLEFT", sidebar, "TOPLEFT", 4, -4)
+    equipBtn:SetPoint("TOPLEFT", sidebar, "TOPLEFT", 4, -6)
     equipBtn:SetText(L["Equip"])
     equipBtn:SetScript("OnClick", function()
         if sidebarSelected then equipLoadout(sidebarSelected) end
     end)
+    skinBtn(equipBtn)
     sidebar.equipBtn = equipBtn
 
     local saveBtn = CreateFrame("Button", nil, sidebar, "UIPanelButtonTemplate")
     saveBtn:SetSize(86, 22)
-    saveBtn:SetPoint("TOPRIGHT", sidebar, "TOPRIGHT", -4, -4)
+    saveBtn:SetPoint("TOPRIGHT", sidebar, "TOPRIGHT", -4, -6)
     saveBtn:SetText(L["Save"])
     saveBtn:SetScript("OnClick", function()
         if sidebarSelected then
@@ -1404,14 +1802,16 @@ local function createSidebar()
             refreshSidebar()
         end
     end)
+    skinBtn(saveBtn)
     sidebar.saveBtn = saveBtn
 
     -- New Set button (bottom)
     local newBtn = CreateFrame("Button", nil, sidebar, "UIPanelButtonTemplate")
     newBtn:SetSize(178, 24)
-    newBtn:SetPoint("BOTTOM", sidebar, "BOTTOM", 0, 4)
+    newBtn:SetPoint("BOTTOM", sidebar, "BOTTOM", 0, 5)
     newBtn:SetText("+ " .. L["New Set"])
     newBtn:SetScript("OnClick", function() promptSaveWithSlots(nil) end)
+    skinBtn(newBtn)
     sidebar.newBtn = newBtn
 
     -- Edit-mode mover: drag the sidebar to an offset from the character window.
@@ -1508,6 +1908,16 @@ function mod.ImportLegacy()
     for name, data in pairs(legacy) do
         if not lo[name] then
             lo[name] = (CopyTable and CopyTable(data)) or data
+            -- same slotMask migration as OnEnable — imports arrive AFTER it ran
+            local imported = lo[name]
+            if not imported.slotMask then
+                local mask = {}
+                for slot in pairs(imported.slots or {}) do
+                    table.insert(mask, slot)
+                end
+                table.sort(mask)
+                imported.slotMask = mask
+            end
             n = n + 1
         end
     end
@@ -1567,12 +1977,18 @@ function mod:OnEnable()
         end
     end
 
-    -- Create minimap button (deferred so Minimap definitely exists)
+    -- Create minimap button (deferred so Minimap definitely exists).
+    -- applyMinimapVisibility afterwards: on RE-enable the button already
+    -- exists (create early-returns) but OnDisable hid it.
     if C_Timer and C_Timer.After then
-        C_Timer.After(0.5, createMinimapButton)
+        C_Timer.After(0.5, function()
+            createMinimapButton()
+            applyMinimapVisibility()
+        end)
         C_Timer.After(0.5, createSidebar)
     else
         createMinimapButton()
+        applyMinimapVisibility()
         createSidebar()
     end
 
@@ -1590,6 +2006,14 @@ function mod:OnEnable()
     ns:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", onTalentChange)
     ns:RegisterEvent("PLAYER_ENTERING_WORLD",       onTalentChange)
     ns:RegisterEvent("PLAYER_REGEN_ENABLED",        onTalentChange)  -- retry after combat
+
+    -- bank snapshot for the availability display ("in the bank" vs "missing")
+    ns:RegisterEvent("BANKFRAME_OPENED",         onBankEvent)
+    ns:RegisterEvent("BANKFRAME_CLOSED",         onBankEvent)
+    ns:RegisterEvent("PLAYERBANKSLOTS_CHANGED",  onBankEvent)
+    ns:RegisterEvent("BAG_UPDATE",               onBankEvent)  -- bank BAGS (gated on _bankOpen)
+
+    installSetTooltip()
 
     _lastForm = getCurrentForm()
     -- Defer initial spec read — spec group may not be available immediately on login
@@ -1609,8 +2033,13 @@ function mod:OnDisable()
     ns:UnregisterEvent("PLAYER_SPECIALIZATION_CHANGED", onTalentChange)
     ns:UnregisterEvent("PLAYER_ENTERING_WORLD",       onTalentChange)
     ns:UnregisterEvent("PLAYER_REGEN_ENABLED",        onTalentChange)
+    ns:UnregisterEvent("BANKFRAME_OPENED",        onBankEvent)
+    ns:UnregisterEvent("BANKFRAME_CLOSED",        onBankEvent)
+    ns:UnregisterEvent("PLAYERBANKSLOTS_CHANGED", onBankEvent)
+    ns:UnregisterEvent("BAG_UPDATE",              onBankEvent)
     if _specPoller then _specPoller:Cancel(); _specPoller = nil end
     if mmBtn then mmBtn:Hide() end
+    if sidebar then sidebar:Hide() end
 end
 
 -- =========================================================

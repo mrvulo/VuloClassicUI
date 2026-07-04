@@ -49,6 +49,8 @@ local mod = ns:RegisterModule("chat", {
         copyButton      = false,   -- standalone copy button (the sidebar carries copy instead)
         history         = true,
         historyMax      = 150,
+        scrollbackLines = 512,     -- SetMaxLines per window (Blizzard default 128)
+        linkItemLevel   = true,    -- append (ilvl) to equipment links in chat
         tabFontSize     = 12,      -- ONE uniform size for every chat-tab label (8..16)
         chatFontSize    = 0,       -- chat message font override; 0 = keep each window's Blizzard size
         panelOpacity    = 78,      -- dark panel background alpha, % (0..100)
@@ -183,11 +185,36 @@ end
 -- match nothing and show no text, so we never touch it. Channel-tag shortening
 -- can't be done safely from a message filter; it would need the chat frame
 -- replaced, which this enhancer deliberately does not do.
+-- append the item level to EQUIPMENT links: [Sword] -> [Sword (45)]. The
+-- added text sits inside the |h..|h display part, so the link keeps working
+-- and inherits its quality colour. Cache-safe: uncached items stay untouched
+-- (the GetItemInfo probe doubles as the async cache request).
+local function addItemLevels(msg)
+    if not msg:find("|Hitem:", 1, true) then return msg end
+    return (msg:gsub("(|Hitem:[^|]+|h%[)(.-)(%]|h)", function(pre, name, post)
+        local itemString = pre:match("|H(item:[^|]+)|h")
+        if itemString and GetItemInfoInstant then
+            local _, _, _, equipLoc, _, classID = GetItemInfoInstant(itemString)
+            if (classID == 2 or classID == 4) and equipLoc and equipLoc ~= ""
+               and equipLoc ~= "INVTYPE_BAG" then
+                local lvl = (GetDetailedItemLevelInfo and GetDetailedItemLevelInfo(itemString))
+                    or (GetItemInfo and select(4, GetItemInfo(itemString)))
+                if lvl and lvl > 1 then
+                    return pre .. name .. " (" .. lvl .. ")" .. post
+                end
+            end
+        end
+        return pre .. name .. post
+    end))
+end
+
 local function msgFilter(self, event, msg, author, lang, channelName, ...)
     if not active then return false end
 
-    if mod.db.urls and type(msg) == "string" and not isSecret(msg) then
-        local newMsg = wrapURLs(msg)
+    if type(msg) == "string" and not isSecret(msg) then
+        local newMsg = msg
+        if mod.db.linkItemLevel ~= false then newMsg = addItemLevels(newMsg) end
+        if mod.db.urls then newMsg = wrapURLs(newMsg) end
         if newMsg ~= msg then
             return false, newMsg, author, lang, channelName, ...
         end
@@ -204,6 +231,7 @@ local FILTER_EVENTS = {
     "CHAT_MSG_WHISPER", "CHAT_MSG_WHISPER_INFORM",
     "CHAT_MSG_BN_WHISPER", "CHAT_MSG_BN_WHISPER_INFORM",
     "CHAT_MSG_CHANNEL",
+    "CHAT_MSG_LOOT",   -- item links in loot lines get the (ilvl) suffix too
 }
 
 -- =========================================================
@@ -617,17 +645,19 @@ local function ensureCopyButton()
     b:SetPoint("BOTTOMRIGHT", ChatFrame1, "TOPRIGHT", 2, 4)
     local bg = b:CreateTexture(nil, "BACKGROUND")
     bg:SetAllPoints(b); bg:SetColorTexture(0.05, 0.05, 0.07, 0.8)
-    local fs = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    fs:SetPoint("CENTER"); fs:SetText("C"); fs:SetTextColor(ACCENT.r, ACCENT.g, ACCENT.b)
+    local ic = b:CreateTexture(nil, "OVERLAY")
+    ic:SetPoint("CENTER"); ic:SetSize(14, 14)
+    ic:SetTexture("Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\copy.tga")
+    ic:SetVertexColor(ACCENT.r, ACCENT.g, ACCENT.b, 0.9)
     b:SetScript("OnEnter", function()
-        fs:SetTextColor(1, 1, 1)
+        ic:SetVertexColor(1, 1, 1, 1)
         if GameTooltip then
             GameTooltip:SetOwner(b, "ANCHOR_LEFT")
             GameTooltip:SetText(L["Copy chat"])
             GameTooltip:Show()
         end
     end)
-    b:SetScript("OnLeave", function() fs:SetTextColor(ACCENT.r, ACCENT.g, ACCENT.b); if GameTooltip then GameTooltip:Hide() end end)
+    b:SetScript("OnLeave", function() ic:SetVertexColor(ACCENT.r, ACCENT.g, ACCENT.b, 0.9); if GameTooltip then GameTooltip:Hide() end end)
     b:SetScript("OnClick", function() showTextPopup(L["Copy chat"], readActiveChat()) end)
 end
 
@@ -1170,7 +1200,7 @@ local function buildSidebar()
         end)
     end
 
-    local copyBtn = makeSidebarIcon(sb, "Interface\\Buttons\\UI-GuildButton-PublicNote-Up",
+    local copyBtn = makeSidebarIcon(sb, "Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\copy.tga",
         L["Copy chat"], function() showTextPopup(L["Copy chat"], readActiveChat()) end)
     sb._copyBtn = copyBtn
     -- copyBtn's TOP anchor is owned by applyFriendsCounter (below the counter
@@ -1313,9 +1343,26 @@ function createChatWindow()
 end
 
 -- =========================================================
+-- Scrollback: raise Blizzard's 128-line cap per window. GetMaxLines guard is
+-- LOAD-BEARING — SetMaxLines wipes the window's backlog, so it must only run
+-- when the value actually changes (and before the history replay at login).
+-- =========================================================
+local function applyScrollback()
+    local want = mod.db.scrollbackLines or 128
+    if not active or want < 128 then want = 128 end   -- disable -> Blizzard default
+    for i = 1, NUM do
+        local cf = _G["ChatFrame" .. i]
+        if cf and cf.SetMaxLines and cf.GetMaxLines and cf:GetMaxLines() ~= want then
+            cf:SetMaxLines(want)
+        end
+    end
+end
+
+-- =========================================================
 -- Apply everything
 -- =========================================================
 local function applyAll()
+    applyScrollback()   -- FIRST: a later SetMaxLines would wipe restored lines
     applyTimestamps()
     applyClassColors()
     if mod.db.panelOpacity then BG.a = mod.db.panelOpacity / 100 end  -- honour saved opacity
@@ -1388,7 +1435,10 @@ end
 function mod:OnDisable()
     active = false
     -- Filters / hooks stay installed but no-op via the `active` gate, so the
-    -- module turns off without a /reload. Reverse the live-visible effects:
+    -- module turns off without a /reload. Reverse the live-visible effects.
+    -- Scrollback is deliberately NOT reverted here: SetMaxLines(128) would
+    -- wipe every visible chat line on a mid-session toggle. The raised cap is
+    -- harmless while disabled and reverts on the next /reload.
     applyTimestamps()    -- restores the user's own showTimestamps value
     applyClassColors()   -- clears colorNameByClass
     applyPanel()         -- hides bg panel / sidebar / top fade, restores input chrome
@@ -1504,6 +1554,18 @@ function mod:GetOptions()
         tooltip = L["Overrides the message font size for every chat window. 0 keeps each window's own Blizzard size."],
         get = function() return mod.db.chatFontSize end,
         set = function(_, v) mod.db.chatFontSize = v; applyFont() end,
+    })
+    table.insert(items, {
+        type = "slider", label = L["Scrollback (lines per window)"], min = 128, max = 1024, step = 128,
+        tooltip = L["How many lines each chat window keeps for scrolling (Blizzard default: 128). More lines use a little more memory; changing this clears the currently shown lines once."],
+        get = function() return mod.db.scrollbackLines or 512 end,
+        set = function(_, v) mod.db.scrollbackLines = v; applyScrollback() end,
+    })
+    table.insert(items, {
+        type = "toggle", label = L["Item levels in chat links"],
+        tooltip = L["Appends the item level to equipment links: [Sword] becomes [Sword (45)]."],
+        get = function() return mod.db.linkItemLevel ~= false end,
+        set = function(_, v) mod.db.linkItemLevel = v and true or false end,
     })
     table.insert(items, {
         type = "slider", label = L["Panel opacity (%)"], min = 0, max = 100, step = 5,

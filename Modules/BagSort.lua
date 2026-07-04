@@ -895,3 +895,90 @@ function sorting.OrderBucket(entries, method, reverse)
     end
     return out, incomplete
 end
+
+-- =========================================================
+-- Smart item search, shared by bags / bank / guild bank. Space-separated
+-- terms AND together. Term forms (query arrives lowercased):
+--   q:<farbe|0-5>          quality (also qual:/quality:/qualität:)
+--   typ:<text>             item type/subtype/slot (also type:/t:)
+--   ilvl>NN ilvl<NN ilvl>=NN ilvl<=NN ilvl=NN   (also lvl/stufe; no spaces)
+--   anything else          name/type substring (the classic behavior)
+-- Cache-safe: quality/ilvl of uncached items read as no-match and correct
+-- themselves on the next repaint (the GetItemInfo call requests the load).
+-- =========================================================
+local QUALITY_WORDS = {
+    grau = 0, gray = 0, grey = 0, poor = 0, schlecht = 0,
+    ["weiß"] = 1, weiss = 1, white = 1, common = 1, ["gewöhnlich"] = 1, gewoehnlich = 1,
+    ["grün"] = 2, gruen = 2, green = 2, uncommon = 2, ["ungewöhnlich"] = 2, ungewoehnlich = 2,
+    blau = 3, blue = 3, rare = 3, selten = 3,
+    lila = 4, purple = 4, epic = 4, episch = 4,
+    orange = 5, legendary = 5, ["legendär"] = 5, legendaer = 5,
+}
+
+local searchCache = { raw = nil, terms = nil }
+local function parseSearch(raw)
+    if searchCache.raw == raw then return searchCache.terms end
+    local terms = {}
+    for tok in raw:gmatch("%S+") do
+        local t = { kind = "name", text = tok }
+        local field, op, num = tok:match("^(%a+)([<>=]=?)(%d+)$")
+        if field and (field == "ilvl" or field == "lvl" or field == "stufe") then
+            t = { kind = "ilvl", op = op, num = tonumber(num) }
+        else
+            local key, val = tok:match("^([^:]+):(.+)$")
+            if key and val and val ~= "" then
+                if key == "q" or key == "qual" or key == "quality"
+                   or key == "qualität" or key == "qualitaet" then
+                    t = { kind = "quality", q = tonumber(val) or QUALITY_WORDS[val] }
+                elseif key == "t" or key == "typ" or key == "type" then
+                    t = { kind = "type", text = val }
+                end
+            end
+        end
+        terms[#terms + 1] = t
+    end
+    searchCache.raw, searchCache.terms = raw, terms
+    return terms
+end
+
+-- ns.ItemSearchMatch(link, quality, rawLowerQuery): quality may be nil
+-- (derived from the link then). Published for all three item windows.
+ns.ItemSearchMatch = function(link, quality, raw)
+    if not raw or raw == "" then return true end
+    if not link then return false end
+    local terms = parseSearch(raw)
+    local itemType, itemSubType, equipLoc
+    if sorting.instantInfo then
+        local _, it, ist, el = sorting.instantInfo(link)
+        itemType, itemSubType, equipLoc = it, ist, el
+    end
+    -- localized slot name ("Schmuckstück"...) searches better than the token
+    local slotName = equipLoc and equipLoc ~= "" and _G[equipLoc] or nil
+    local typeHay = ((itemType or "") .. " " .. (itemSubType or "") .. " "
+        .. (slotName or "")):lower()
+    for _, t in ipairs(terms) do
+        if t.kind == "name" then
+            -- classic behavior: the whole link (contains the name) + types
+            if not (link:lower():find(t.text, 1, true) or typeHay:find(t.text, 1, true)) then
+                return false
+            end
+        elseif t.kind == "type" then
+            if not typeHay:find(t.text, 1, true) then return false end
+        elseif t.kind == "quality" then
+            local q = quality
+            if q == nil and GetItemInfo then q = select(3, GetItemInfo(link)) end
+            if t.q == nil or q == nil or q ~= t.q then return false end
+        elseif t.kind == "ilvl" then
+            local lvl = (GetDetailedItemLevelInfo and GetDetailedItemLevelInfo(link))
+                or (GetItemInfo and select(4, GetItemInfo(link)))
+            if not lvl then return false end
+            local op = t.op
+            if op == ">" then if not (lvl > t.num) then return false end
+            elseif op == "<" then if not (lvl < t.num) then return false end
+            elseif op == ">=" then if not (lvl >= t.num) then return false end
+            elseif op == "<=" then if not (lvl <= t.num) then return false end
+            else if lvl ~= t.num then return false end end
+        end
+    end
+    return true
+end

@@ -512,10 +512,62 @@ local function installInspectTracking()
     end)
 end
 
+-- Tooltip hardening: Blizzard's inspect-slot OnEnter shows NOTHING while the
+-- inspected player's item data is still streaming (SetInventoryItem returns
+-- false) and never retries — the "hover shows no tooltip" report. Replacing
+-- OnEnter is tooltip-only and taint-legal (same rule as the bank's -1 slots).
+-- UpdateTooltip points at the same function and the client re-invokes it
+-- several times per second while hovering, so the real tooltip pops in on
+-- its own the moment the data lands.
+local function inspectSlotOnEnter(self)
+    if not mod._enabled then
+        if self._vcuiOrigEnter then self._vcuiOrigEnter(self) end
+        return
+    end
+    local fr = _G.InspectFrame
+    local unit = (fr and fr.unit) or "target"
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    if GameTooltip:SetInventoryItem(unit, self:GetID()) then
+        GameTooltip:Show()
+        return
+    end
+    local slot = self:GetID()
+    local link = GetInventoryItemLink and GetInventoryItemLink(unit, slot)
+    if link then
+        GameTooltip:SetHyperlink(link)   -- data half-arrived: the link suffices
+        GameTooltip:Show()
+        return
+    end
+    local tex = GetInventoryItemTexture and GetInventoryItemTexture(unit, slot)
+    if tex then
+        -- occupied but uncached: request the data and show the stub; the
+        -- UpdateTooltip refresh swaps in the real tooltip while hovering
+        local id = GetInventoryItemID and GetInventoryItemID(unit, slot)
+        if id and GetItemInfo then GetItemInfo(id) end
+        GameTooltip:SetText(_G.RETRIEVING_ITEM_INFO or "...", 1, 0.82, 0)
+        GameTooltip:Show()
+    else
+        GameTooltip:Hide()   -- genuinely empty slot: no tooltip, like Blizzard
+    end
+end
+
+local function hardenInspectTooltips()
+    for _, name in ipairs(INSPECT_SLOT_NAMES) do
+        local btn = _G["Inspect" .. name .. "Slot"]
+        if btn and not btn._vcuiTipFixed then
+            btn._vcuiTipFixed = true
+            btn._vcuiOrigEnter = btn:GetScript("OnEnter")
+            btn:SetScript("OnEnter", inspectSlotOnEnter)
+            btn.UpdateTooltip = inspectSlotOnEnter
+        end
+    end
+end
+
 local function hookInspectFrame()
     if _hookedFrame then return end
     local f = _G.InspectFrame
     if not f then return end
+    hardenInspectTooltips()
     -- Full cleanup on close (frame is about to disappear → safe to clear unit)
     f:HookScript("OnHide", function()
         if mod._enabled then hardReset() end

@@ -22,6 +22,7 @@ local mod = ns:RegisterModule("professionwindow", {
         counts    = true,        -- show "[N] craftable" after each recipe
         bankmats  = true,        -- detail: craftable count incl. bank + what's missing
         favorites = {},          -- [recipeName] = true (right-click a recipe)
+        favFirst  = true,        -- favourites float to the top of the list
         bank      = {},          -- [charKey] = { [itemID] = count }  (cached at the bank)
         prices    = true,        -- show AH value / cost / profit (needs Auctionator)
         showSource     = true,   -- CraftLib: where the recipe comes from
@@ -50,6 +51,9 @@ local FRAMES = {
         scrollBar   = "TradeSkillListScrollFrameScrollBar",
         updateHook  = "TradeSkillFrame_Update",
         info        = function(idx) return GetTradeSkillInfo(idx) end,  -- name, type, numAvailable
+        numFn       = function() return GetNumTradeSkills() end,
+        selFn       = function() return GetTradeSkillSelectionIndex() end,
+        colorTable  = "TradeSkillTypeColor",
         highlight   = "TradeSkillHighlightFrame",
         cancel      = "TradeSkillCancelButton",
         create      = "TradeSkillCreateButton",
@@ -82,6 +86,10 @@ local FRAMES = {
         scrollBar   = "CraftListScrollFrameScrollBar",
         updateHook  = "CraftFrame_Update",
         info        = function(idx) local n, _, t, a = GetCraftInfo(idx); return n, t, a end,
+        numFn       = function() return GetNumCrafts() end,
+        selFn       = function() return GetCraftSelectionIndex() end,
+        colorTable  = "CraftTypeColor",
+        isCraft     = true,
         highlight   = "CraftHighlightFrame",
         cancel      = "CraftCancelButton",
         create      = "CraftCreateButton",
@@ -179,6 +187,136 @@ local function enhanceRow(btn, cfg)
     end)
 end
 
+-- =========================================================
+-- Favourites first: when any favourite exists, the visible rows are repainted
+-- with a PERMUTED index order (favourites on top, then everything else incl.
+-- headers in natural order) and re-SetID so click/selection/expand keep
+-- working. The painting mirrors Blizzard's own 2.5.5 row recipe verbatim
+-- (SetNormalFontObject via the type color table, plus/minus header textures,
+-- " name [N]" text, highlight frame + LockHighlight on the selection).
+-- Zero favourites -> nil -> Blizzard's own order stays untouched.
+-- =========================================================
+local function buildFavOrder(cfg)
+    if mod.db.favFirst == false or not next(mod.db.favorites) then return nil end
+    local num = cfg.numFn and cfg.numFn() or 0
+    if num == 0 then return nil end
+    local favs, rest = {}, {}
+    for i = 1, num do
+        local name, skillType = cfg.info(i)
+        if name and skillType ~= "header" and mod.db.favorites[name] then
+            favs[#favs + 1] = i
+        else
+            rest[#rest + 1] = i
+        end
+    end
+    if #favs == 0 then return nil end
+    for _, i in ipairs(rest) do favs[#favs + 1] = i end
+    return favs
+end
+
+local function repaintReordered(cfg)
+    local order = buildFavOrder(cfg)
+    if not order then return end
+    local list = _G[cfg.list]
+    local offset = (FauxScrollFrame_GetOffset and list) and FauxScrollFrame_GetOffset(list) or 0
+    local displayed = _G[cfg.displayed] or 0
+    local hl = _G[cfg.highlight]
+    local colorT = _G[cfg.colorTable] or {}
+    local sel = cfg.selFn and cfg.selFn() or 0
+    if hl then hl:Hide() end
+    for i = 1, displayed do
+        local btn = _G[cfg.rowFmt:format(i)]
+        local idx = order[i + offset]
+        if btn and btn:IsShown() and idx then
+            local rowHl = _G[cfg.rowFmt:format(i) .. "Highlight"]
+            if cfg.isCraft then
+                local name, subName, ctype, avail, isExpanded, tpCost = GetCraftInfo(idx)
+                local color = colorT[ctype]
+                local cost = _G[cfg.rowFmt:format(i) .. "Cost"]
+                local subT = _G[cfg.rowFmt:format(i) .. "SubText"]
+                local txtFS = _G[cfg.rowFmt:format(i) .. "Text"]
+                if color then
+                    btn:SetNormalFontObject(color.font)
+                    if cost then cost:SetTextColor(color.r, color.g, color.b) end
+                    if Craft_SetSubTextColor then Craft_SetSubTextColor(btn, color.r, color.g, color.b) end
+                end
+                -- Blizzard's Text-width sequence (beast-training "(Rank)" hack
+                -- first, header/subtext overrides after) — the widths are per-
+                -- ENTRY, so a permuted row must re-run all of it
+                if txtFS and not tpCost then
+                    txtFS:SetWidth(list and list:IsVisible() and 290 or 320)
+                end
+                if ctype == "header" and name then
+                    btn:SetID(idx)
+                    btn:SetText(name)
+                    if subT then subT:SetText("") end
+                    if cost then cost:SetText("") end   -- a TP-cost row may lurk under the header
+                    if txtFS then txtFS:SetWidth(0) end
+                    btn:SetNormalTexture(isExpanded and "Interface\\Buttons\\UI-MinusButton-Up"
+                        or "Interface\\Buttons\\UI-PlusButton-Up")
+                    if rowHl then rowHl:SetTexture("Interface\\Buttons\\UI-PlusButton-Hilight") end
+                    btn:UnlockHighlight()
+                elseif name then
+                    btn:SetID(idx)
+                    if btn.ClearNormalTexture then btn:ClearNormalTexture() else btn:SetNormalTexture("") end
+                    if rowHl then rowHl:SetTexture("") end
+                    btn:SetText((avail and avail > 0) and (" " .. name .. " [" .. avail .. "]") or (" " .. name))
+                    if subT then
+                        if subName and subName ~= "" then
+                            subT:SetText(string.format(_G.PARENS_TEMPLATE or "(%s)", subName))
+                            if txtFS then txtFS:SetWidth(0) end
+                        else
+                            subT:SetText("")
+                            if txtFS then txtFS:SetWidth(_G.CRAFT_TEXT_WIDTH or 290) end
+                        end
+                    end
+                    if cost then
+                        if tpCost and tpCost > 0 then
+                            cost:SetText(string.format(_G.TRAINER_LIST_TP or "%d TP", tpCost))
+                        else
+                            cost:SetText("")
+                        end
+                    end
+                    if sel == idx then
+                        if hl then hl:ClearAllPoints(); hl:SetPoint("TOPLEFT", btn, "TOPLEFT", 0, 0); hl:Show() end
+                        btn:LockHighlight()
+                        -- Blizzard whitens the selected row's sub/cost texts
+                        if Craft_SetSubTextColor then Craft_SetSubTextColor(btn, 1, 1, 1) end
+                        if cost then cost:SetTextColor(1, 1, 1) end
+                    else
+                        btn:UnlockHighlight()
+                    end
+                end
+            else
+                local name, skillType, avail, isExpanded = GetTradeSkillInfo(idx)
+                local color = colorT[skillType]
+                if color then btn:SetNormalFontObject(color.font) end
+                -- SetID only with valid data: a nil-name race must not leave a
+                -- row whose ID disagrees with its shown text
+                if skillType == "header" and name then
+                    btn:SetID(idx)
+                    btn:SetText(name)
+                    btn:SetNormalTexture(isExpanded and "Interface\\Buttons\\UI-MinusButton-Up"
+                        or "Interface\\Buttons\\UI-PlusButton-Up")
+                    if rowHl then rowHl:SetTexture("Interface\\Buttons\\UI-PlusButton-Hilight") end
+                    btn:UnlockHighlight()
+                elseif name then
+                    btn:SetID(idx)
+                    if btn.ClearNormalTexture then btn:ClearNormalTexture() else btn:SetNormalTexture("") end
+                    if rowHl then rowHl:SetTexture("") end
+                    btn:SetText((avail and avail > 0) and (" " .. name .. " [" .. avail .. "]") or (" " .. name))
+                    if sel == idx then
+                        if hl then hl:ClearAllPoints(); hl:SetPoint("TOPLEFT", btn, "TOPLEFT", 0, 0); hl:Show() end
+                        btn:LockHighlight()
+                    else
+                        btn:UnlockHighlight()
+                    end
+                end
+            end
+        end
+    end
+end
+
 local function refreshList(cfg)
     if not mod._enabled then return end
 
@@ -220,6 +358,10 @@ local function refreshList(cfg)
         for _, r in ipairs(st.bars) do r:Hide() end
     end
 
+    -- favourites first (repaints rows with permuted indices; the decoration
+    -- loop below then reads the MAPPED index off each button's new ID)
+    repaintReordered(cfg)
+
     local displayed = _G[cfg.displayed] or 0
     -- Pull the favourite stars further in when a scrollbar is showing, so they
     -- don't sit crammed at the far right edge (e.g. First Aid's long list).
@@ -246,8 +388,11 @@ local function refreshList(cfg)
                 end
                 if mod.db.counts and numAvailable and numAvailable > 0 then
                     local txt = btn:GetText()
-                    -- Blizzard re-sets the plain name each update, so append once.
-                    if txt and not txt:find("%[%d+%]%s*$") then
+                    -- Blizzard re-sets the plain name each update, so append
+                    -- once. Non-anchored check: a rare early-return in
+                    -- Blizzard's update can leave our |r-terminated suffix
+                    -- standing, which an anchored pattern would re-append to.
+                    if txt and not txt:find("%[%d+%]") then
                         btn:SetText(txt .. "  |cffffffff[" .. numAvailable .. "]|r")
                     end
                 end
@@ -770,6 +915,14 @@ function mod:GetOptions()
 
         { type = "spacer", height = 6 },
         { type = "header", text = L["Recipes"] },
+        { type = "toggle", label = L["Favourites first"],
+          tooltip = L["Recipes you marked with the star float to the top of the list."],
+          get = function() return mod.db.favFirst ~= false end,
+          set = function(_, v)
+              mod.db.favFirst = v and true or false
+              if _G.TradeSkillFrame and _G.TradeSkillFrame:IsShown() and _G.TradeSkillFrame_Update then pcall(_G.TradeSkillFrame_Update) end
+              if _G.CraftFrame and _G.CraftFrame:IsShown() and _G.CraftFrame_Update then pcall(_G.CraftFrame_Update) end
+          end },
         { type = "toggle", label = L["Show craftable count"],
           tooltip = L["Shows how many of each recipe you can make right now, like [12]."],
           get = function() return mod.db.counts end,

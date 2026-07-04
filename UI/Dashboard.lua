@@ -98,12 +98,13 @@ local function createCard(parent, key, mod)
         end
     end)
 
-    -- Icon
+    -- Icon (our bundled monochrome glyph set: full-frame white line art,
+    -- tinted here — no border crop like the old Blizzard spell icons)
     local icon = card:CreateTexture(nil, "ARTWORK")
-    icon:SetSize(34, 34)
-    icon:SetPoint("LEFT", card, "LEFT", 11, 0)
+    icon:SetSize(30, 30)
+    icon:SetPoint("LEFT", card, "LEFT", 13, 0)
     icon:SetTexture(ns:GetModuleIcon(key))
-    icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    icon:SetVertexColor(0.76, 0.76, 0.84, 0.95)
     card.icon = icon
 
     -- Name

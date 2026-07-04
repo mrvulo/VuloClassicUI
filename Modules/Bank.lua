@@ -51,6 +51,7 @@ local bank = {
     origScripts  = nil,       -- BankFrame's original parent + scripts (restore)
     hiddenHost   = nil,       -- permanently hidden parent (created below)
     mover        = nil,
+    bindTypeCache = {},       -- [itemID] = bindType (0 = binds never/other)
     TOP          = 40,        -- title row (equip/purchase lives in the filter strip)
     BOTTOM       = 38,        -- footer (26) + bottom padding (12)
 }
@@ -195,7 +196,7 @@ function bank.updateButton(btn)
     local slot = btn:GetID()
     -- the container API accepts -1 here — Blizzard's own bank reads item info
     -- exactly this way (BankFrame.lua: BankFrameItemButton_Update)
-    local icon, count, locked, quality, _, _, link, _, _, itemID = GetContainerItemInfo(bag, slot)
+    local icon, count, locked, quality, _, _, link, _, _, itemID, isBound = GetContainerItemInfo(bag, slot)
 
     SetItemButtonTexture(btn, icon)
     SetItemButtonCount(btn, count)
@@ -243,6 +244,38 @@ function bank.updateButton(btn)
     local cnt = _G[btn:GetName() .. "Count"]
     if cnt and ns.UI and ns.UI.FONT_PATH then
         pcall(cnt.SetFont, cnt, ns.UI.FONT_PATH, mod.db.countFontSize or 12, "OUTLINE")
+    end
+
+    -- bind marker: BoE/BoU on still-tradeable equipment (same recipe as bags)
+    local bm = btn._bind
+    if bm then
+        local tag
+        if mod.db.bindMarker ~= false and link and not isBound and itemID and GetItemInfo then
+            local bindType = bank.bindTypeCache[itemID]
+            if bindType == nil then
+                local iname = GetItemInfo(link)
+                if iname then
+                    bindType = select(14, GetItemInfo(link)) or 0
+                    bank.bindTypeCache[itemID] = bindType
+                end
+            end
+            if bindType == 2 or bindType == 3 then
+                local _, _, _, equipLoc, _, classID = GetItemInfoInstant(link)
+                if (classID == 2 or classID == 4) and equipLoc and equipLoc ~= "" and equipLoc ~= "INVTYPE_BAG" then
+                    tag = (bindType == 2) and "BoE" or "BoU"
+                end
+            end
+        end
+        if tag then
+            if ns.UI and ns.UI.FONT_PATH then
+                pcall(bm.SetFont, bm, ns.UI.FONT_PATH,
+                    math.max(8, (mod.db.countFontSize or 12) - 2), "OUTLINE")
+            end
+            bm:SetText(tag)
+            bm:Show()
+        else
+            bm:Hide()
+        end
     end
 
     local cd = _G[btn:GetName() .. "Cooldown"]
@@ -379,6 +412,11 @@ function bank.acquireButton(n)
     il:SetTextColor(1, 1, 1)
     il:Hide()
     btn._ilvl = il
+    local bm = btn:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
+    bm:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -2, 2)
+    bm:SetTextColor(0.45, 0.75, 1)
+    bm:Hide()
+    btn._bind = bm
     btn:Hide()
     bank.buttons[n] = btn
     return btn
@@ -923,6 +961,16 @@ end
 -- Bags.lua — quality borders / item levels / count size affect both windows).
 function ns.BankRefresh()
     bank.refresh()
+end
+
+-- Published: the bag window's search mirrors into an OPEN bank window (one
+-- query, every visible container). Setting the box text routes through its
+-- own OnTextChanged, which stores + refreshes — no recursion back to bags.
+function ns.BankMirrorSearch(text)
+    if not (bank.open and bank.frame and bank.frame:IsShown() and bank.frame.search) then return end
+    if bank.frame.search:GetText() ~= text then
+        bank.frame.search:SetText(text)
+    end
 end
 
 -- Called from mod:OnEnable() in Bags.lua — a module re-enable without /reload

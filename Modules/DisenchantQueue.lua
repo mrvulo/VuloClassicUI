@@ -54,11 +54,11 @@ end
 local function containerInfo(bag, slot)
     if C_Container and C_Container.GetContainerItemInfo then
         local i = C_Container.GetContainerItemInfo(bag, slot)
-        if i then return i.itemID, i.quality, i.hyperlink, i.iconFileID, i.isLocked end
+        if i then return i.itemID, i.quality, i.hyperlink, i.iconFileID, i.isLocked, i.isBound end
         return nil
     elseif _G.GetContainerItemInfo then
-        local icon, _, locked, quality, _, _, link, _, _, itemID = _G.GetContainerItemInfo(bag, slot)
-        return itemID, quality, link, icon, locked
+        local icon, _, locked, quality, _, _, link, _, _, itemID, isBound = _G.GetContainerItemInfo(bag, slot)
+        return itemID, quality, link, icon, locked, isBound
     end
 end
 
@@ -83,9 +83,10 @@ local function findNext()
     for bag = 0, 4 do
         for slot = 1, numSlots(bag) do
             if not sessionIgnore[bag .. "-" .. slot] then
-                local itemID, quality, link, icon, locked = containerInfo(bag, slot)
+                local itemID, quality, link, icon, locked, isBound = containerInfo(bag, slot)
                 if eligible(itemID, quality, locked) and not mod.db.ignore[itemID] then
-                    return { bag = bag, slot = slot, itemID = itemID, link = link, icon = icon }
+                    return { bag = bag, slot = slot, itemID = itemID, link = link,
+                             icon = icon, bound = isBound and true or false }
                 end
             end
         end
@@ -114,9 +115,9 @@ local current  -- the entry currently loaded on the secure button
 local function clearButton()
     local b = win and win.cast
     if not b or InCombatLockdown() then return end
-    b:SetAttribute("spell", nil)
-    b:SetAttribute("target-bag", nil)
-    b:SetAttribute("target-slot", nil)
+    b:SetAttribute("spell", nil);       b:SetAttribute("*spell1", nil)
+    b:SetAttribute("target-bag", nil);  b:SetAttribute("*target-bag1", nil)
+    b:SetAttribute("target-slot", nil); b:SetAttribute("*target-slot1", nil)
     b:Disable()
 end
 
@@ -129,19 +130,54 @@ local function loadNext()
     local b = win.cast
     if e then
         b:SetAttribute("spell", DISENCHANT_SPELL_ID)
+        b:SetAttribute("*spell1", DISENCHANT_SPELL_ID)
         b:SetAttribute("target-bag", e.bag)
+        b:SetAttribute("*target-bag1", e.bag)
         b:SetAttribute("target-slot", e.slot)
+        b:SetAttribute("*target-slot1", e.slot)
         b:Enable()
         win.icon:SetTexture(e.icon)
         win.icon:Show()
         win.itemText:SetText(e.link or "?")
         win.countText:SetText(string.format(L["%d item(s) to disenchant"], countRemaining()))
+        -- item level (top-left) + bind state (bottom-right) on the icon
+        if win.ilvl then
+            local lvl = e.link and ((GetDetailedItemLevelInfo and GetDetailedItemLevelInfo(e.link))
+                or (GetItemInfo and select(4, GetItemInfo(e.link))))
+            win.ilvl:SetText((lvl and lvl > 1) and lvl or "")
+        end
+        if win.bind then
+            local tag = ""
+            if e.bound then
+                tag = "|cff9d9d9dBoP|r"   -- soulbound: shard-only
+            elseif e.link and GetItemInfo then
+                local bindType = select(14, GetItemInfo(e.link))
+                if bindType == 2 then tag = "|cff73bfffBoE|r"
+                elseif bindType == 3 then tag = "|cff73bfffBoU|r" end
+            end
+            win.bind:SetText(tag)
+        end
+        -- loud warning when this item belongs to a saved equipment set
+        if win.setWarn then
+            local sets = ns.ItemSetMembership and ns.ItemSetMembership(e.itemID)
+            if sets then
+                win.setWarn:SetText(string.format(L["Part of set: %s"], sets))
+                win.setWarn:Show()
+            else
+                win.setWarn:Hide()
+            end
+        end
     else
-        b:SetAttribute("spell", nil); b:SetAttribute("target-bag", nil); b:SetAttribute("target-slot", nil)
+        b:SetAttribute("spell", nil);       b:SetAttribute("*spell1", nil)
+        b:SetAttribute("target-bag", nil);  b:SetAttribute("*target-bag1", nil)
+        b:SetAttribute("target-slot", nil); b:SetAttribute("*target-slot1", nil)
         b:Disable()
         win.icon:Hide()
         win.itemText:SetText(L["|cff888888Nothing to disenchant.|r"])
         win.countText:SetText("")
+        if win.ilvl then win.ilvl:SetText("") end
+        if win.bind then win.bind:SetText("") end
+        if win.setWarn then win.setWarn:Hide() end
     end
 end
 
@@ -173,9 +209,25 @@ local function buildWindow()
     end
     f:ClearAllPoints()
     f:SetPoint("CENTER", UIParent, "CENTER", mod.db.x or 0, mod.db.y or 0)
-    -- Drag / position are now handled by the unified Edit Mode HUD (/vedit).
-    ns:CreateMover(f, { key = "disenchantqueue", label = "|cffffffff" .. L["Disenchant Queue"] .. "|r", db = mod.db, width = 280, height = 184,
+    f.mover = ns:CreateMover(f, { key = "disenchantqueue", label = "|cffffffff" .. L["Disenchant Queue"] .. "|r", db = mod.db, width = 280, height = 184,
         scalable = true, anchorable = true })
+
+    -- direct drag (in addition to Edit Mode): same canonical capture as the
+    -- bag/bank windows. The frame itself is not protected — only the cast
+    -- button child is — so StartMoving is legal; combat guard for symmetry.
+    f:SetMovable(true)
+    f:RegisterForDrag("LeftButton")
+    f:SetScript("OnDragStart", function(self)
+        if not InCombatLockdown() then self:StartMoving() end
+    end)
+    f:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        local x, y = ns:GetCenterOffsets(self)
+        if x and y then
+            mod.db.x, mod.db.y = x, y
+            if ns.ApplyMover and f.mover then ns:ApplyMover(f.mover) end
+        end
+    end)
 
     -- title
     local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -199,8 +251,46 @@ local function buildWindow()
     f.itemText:SetJustifyH("LEFT")
     f.itemText:SetWordWrap(false)
 
+    -- item level (top-left) + bind state (bottom-right) on the icon
+    f.ilvl = f:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
+    f.ilvl:SetPoint("TOPLEFT", f.icon, "TOPLEFT", 1, -1)
+    f.ilvl:SetTextColor(1, 1, 1)
+    f.bind = f:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
+    f.bind:SetPoint("BOTTOMRIGHT", f.icon, "BOTTOMRIGHT", -1, 1)
+    if ns.UI and ns.UI.FONT_PATH then
+        pcall(f.ilvl.SetFont, f.ilvl, ns.UI.FONT_PATH, 10, "OUTLINE")
+        pcall(f.bind.SetFont, f.bind, ns.UI.FONT_PATH, 9, "OUTLINE")
+    end
+
+    -- hovering the item row shows the real bag tooltip (incl. bind line)
+    local hover = CreateFrame("Button", nil, f)
+    hover:SetPoint("TOPLEFT", f.icon, "TOPLEFT", 0, 0)
+    hover:SetPoint("BOTTOMLEFT", f.icon, "BOTTOMLEFT", 0, 0)
+    hover:SetPoint("RIGHT", f, "RIGHT", -12, 0)
+    hover:SetScript("OnEnter", function(self)
+        if current and GameTooltip then
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:SetBagItem(current.bag, current.slot)
+            GameTooltip:Show()
+        end
+    end)
+    hover:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+    -- the button strip would otherwise swallow drag on the item row
+    hover:RegisterForDrag("LeftButton")
+    hover:SetScript("OnDragStart", function() local h = f:GetScript("OnDragStart"); if h then h(f) end end)
+    hover:SetScript("OnDragStop",  function() local h = f:GetScript("OnDragStop");  if h then h(f) end end)
+
     f.countText = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     f.countText:SetPoint("TOPLEFT", f.icon, "BOTTOMLEFT", 0, -6)
+
+    -- warning line: the queued item belongs to a saved equipment set
+    f.setWarn = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    f.setWarn:SetPoint("TOPLEFT", f.countText, "BOTTOMLEFT", 0, -3)
+    f.setWarn:SetPoint("RIGHT", f, "RIGHT", -12, 0)
+    f.setWarn:SetJustifyH("LEFT")
+    f.setWarn:SetWordWrap(false)
+    f.setWarn:SetTextColor(1, 0.55, 0.2)
+    f.setWarn:Hide()
 
     -- the secure cast button (visible main action)
     local cast = CreateFrame("Button", "VuloClassicUIDisenchantButton", f,
@@ -208,8 +298,12 @@ local function buildWindow()
     cast:SetSize(256, 28)
     cast:SetPoint("BOTTOMLEFT", 12, 46)
     cast:SetText(L["Disenchant"])
-    cast:RegisterForClicks("LeftButtonUp")
+    -- 2.5.5 quirk (same as the totem bar, verified in the field): the secure
+    -- cast only fires via the "*" wildcard attributes with AnyUp+AnyDown
+    -- registration — plain type/spell + LeftButtonUp never triggers it.
+    cast:RegisterForClicks("AnyUp", "AnyDown")
     cast:SetAttribute("type", "spell")
+    cast:SetAttribute("*type1", "spell")
     cast:SetAttribute("unit", "none")
     cast:Disable()
     -- After the secure cast fires, the item gets consumed and BAG_UPDATE_DELAYED

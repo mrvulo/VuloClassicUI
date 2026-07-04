@@ -52,9 +52,12 @@ local mod = ns:RegisterModule("bags", {
         showSearch    = true,
         showSortButton = true,
         sortReverse   = false,
-        sortMode      = "blizzard",   -- "blizzard" | "quality" | "type" | "name" | "item-level"
+        sortMode      = "type",       -- "type" | "quality" | "name" | "item-level" | "blizzard"
         catSortMode   = "type",       -- display order inside category sections ("off" = raw slot order)
         showFreeSlots = true,         -- OneBag view: render empty slots after the items
+        onebagFixedSlots = true,      -- OneBag view: natural slot order (empties inline)
+        junkMarker    = true,         -- purple C on vendor-trash icons
+        bindMarker    = true,         -- BoE/BoU tag on still-tradeable equipment
         useCategories = true,         -- categorized sections vs one flat grid
         hideEmpty     = true,         -- hide category headers with zero items
         viewMode      = "all",        -- "all" | "onebag" | "multibag"
@@ -606,17 +609,13 @@ local function itemMatchesSearch(bag, slot, query)
     if searchText == "" then return true end
     local link = GetContainerItemLink and GetContainerItemLink(bag, slot)
     if not link then return false end                     -- empty slot vs a non-empty query
-    if link:lower():find(searchText, 1, true) then return true end  -- name is inside the link
-    if GetItemInfoInstant then
-        -- returns: itemID, itemType(str), itemSubType(str), equipLoc(str), icon, classID(num), subClassID(num)
-        local _, itemType, itemSubType, equipLoc = GetItemInfoInstant(link)
-        for _, field in ipairs({ itemType, itemSubType, equipLoc }) do
-            if type(field) == "string" and field ~= "" and field:lower():find(searchText, 1, true) then
-                return true
-            end
-        end
+    -- smart matcher (Modules/BagSort.lua): plain terms behave like before,
+    -- plus q:/typ:/ilvl> keyword filters, all AND-combined
+    if ns.ItemSearchMatch then
+        local quality = select(4, GetContainerItemInfo(bag, slot))
+        return ns.ItemSearchMatch(link, quality, searchText)
     end
-    return false
+    return link:lower():find(searchText, 1, true) and true or false
 end
 
 -- =========================================================
@@ -676,10 +675,12 @@ local function categoryFor(bag, slot)
 end
 
 -- Refresh one button's visuals from its own bag/slot (never touches interactivity).
+local bindTypeCache = {}   -- [itemID] = bindType (0 = binds never/other)
+
 local function updateButton(btn)
     local bag  = btn:GetParent():GetID()
     local slot = btn:GetID()
-    local icon, count, locked, quality, _, _, link, _, _, itemID = GetContainerItemInfo(bag, slot)
+    local icon, count, locked, quality, _, _, link, _, noValue, itemID, isBound = GetContainerItemInfo(bag, slot)
 
     SetItemButtonTexture(btn, icon)
     SetItemButtonCount(btn, count)
@@ -735,6 +736,67 @@ local function updateButton(btn)
     local cnt = _G[btn:GetName() .. "Count"]
     if cnt and UI and UI.FONT_PATH then
         pcall(cnt.SetFont, cnt, UI.FONT_PATH, mod.db.countFontSize or 12, "OUTLINE")
+    end
+
+    -- bind marker: BoE/BoU on equipment that is NOT yet soulbound (the tuple's
+    -- isBound covers THIS instance; bindType 2/3 = binds on equip/use) — the
+    -- "still tradeable" signal for banking and the auction house
+    local bm = btn._bind
+    if bm then
+        local tag
+        if mod.db.bindMarker ~= false and link and not isBound and itemID and GetItemInfo then
+            -- PERF: bindType is intrinsic per itemID — cache it (only once the
+            -- item data is server-cached; nil name = uncached, retry next paint)
+            local bindType = bindTypeCache[itemID]
+            if bindType == nil then
+                local iname = GetItemInfo(link)
+                if iname then
+                    bindType = select(14, GetItemInfo(link)) or 0
+                    bindTypeCache[itemID] = bindType
+                end
+            end
+            if bindType == 2 or bindType == 3 then
+                local _, _, _, equipLoc, _, classID = GetItemInfoInstant(link)
+                if (classID == 2 or classID == 4) and equipLoc and equipLoc ~= "" and equipLoc ~= "INVTYPE_BAG" then
+                    tag = (bindType == 2) and "BoE" or "BoU"
+                end
+            end
+        end
+        if tag then
+            if UI and UI.FONT_PATH then
+                pcall(bm.SetFont, bm, UI.FONT_PATH,
+                    math.max(8, (mod.db.countFontSize or 12) - 2), "OUTLINE")
+            end
+            bm:SetText(tag)
+            bm:Show()
+        else
+            bm:Hide()
+        end
+    end
+
+    -- keyring slots: subtly accent-tinted backing (empty AND filled), so they
+    -- read as their own section even inside a mixed grid
+    if btn._slotbg then
+        if bag == KEYRING then
+            btn._slotbg:SetColorTexture(0.16, 0.12, 0.24, 0.7)
+        else
+            btn._slotbg:SetColorTexture(0.10, 0.10, 0.13, 0.55)
+        end
+    end
+
+    -- junk marker: accent C bottom-left on vendor trash (grey WITH sell
+    -- value — worthless greys get none, same rule as the sort engine's junk)
+    local jt = btn._junk
+    if jt then
+        if mod.db.junkMarker ~= false and quality == 0 and not noValue and icon then
+            if UI and UI.FONT_PATH then
+                pcall(jt.SetFont, jt, UI.FONT_PATH,
+                    math.max(9, (mod.db.countFontSize or 12) - 1), "OUTLINE")
+            end
+            jt:Show()
+        else
+            jt:Hide()
+        end
     end
 
     -- cooldown swirl
@@ -854,6 +916,21 @@ local function acquireButton(n)
     il:SetTextColor(1, 1, 1)
     il:Hide()
     btn._ilvl = il
+    -- junk marker: accent C bottom-left (fixed anchor; the stack count owns
+    -- the bottom-right corner)
+    local jk = btn:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
+    local jac = ns.COLORS and ns.COLORS.accent or { r = 0.608, g = 0.424, b = 1 }
+    jk:SetPoint("BOTTOMLEFT", btn, "BOTTOMLEFT", 2, 2)
+    jk:SetText("C")
+    jk:SetTextColor(jac.r, jac.g, jac.b)
+    jk:Hide()
+    btn._junk = jk
+    -- bind marker: BoE/BoU bottom-right (equipment never stacks, no count clash)
+    local bm = btn:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
+    bm:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -2, 2)
+    bm:SetTextColor(0.45, 0.75, 1)
+    bm:Hide()
+    btn._bind = bm
     btn:Hide()   -- layout() shows the ones it uses; keeps pre-allocated buttons invisible
     buttons[n] = btn
     return btn
@@ -987,10 +1064,24 @@ local function layoutFlat()
     if cols < 1 then cols = 1 end
 
     local n, blocked = 0, false
+    local yExtra, keyHeader = 0, 0   -- keyring gets its own labeled row
     for _, bag in ipairs(visibleBags()) do
         local slots = GetContainerNumSlots(bag) or 0
         local idx = ensureIndexFrame(bag)
         if not idx then blocked = true; break end
+        if bag == KEYRING and slots > 0 and n > 0 then
+            n = math.ceil(n / cols) * cols       -- start on a fresh row
+            local h1 = acquireHeader(1)
+            if h1 then
+                h1:ClearAllPoints()
+                h1:SetPoint("TOPLEFT", bagFrame.content, "TOPLEFT", 1,
+                    -(math.floor(n / cols) * (BTN + GAP) + yExtra))
+                h1:SetText(_G.KEYRING or L["Keyring"])
+                h1:Show()
+                keyHeader = 1
+            end
+            yExtra = yExtra + HEADER_ROW
+        end
         for slot = 1, slots do
             n = n + 1
             local btn = acquireButton(n)
@@ -1001,17 +1092,17 @@ local function layoutFlat()
             local row = math.floor((n - 1) / cols)
             btn:ClearAllPoints()
             btn:SetPoint("TOPLEFT", bagFrame.content, "TOPLEFT",
-                col * (BTN + GAP), -row * (BTN + GAP))
+                col * (BTN + GAP), -(row * (BTN + GAP) + yExtra))
             btn:Show()
             updateButton(btn)
         end
         if blocked then break end
     end
     for i = n + 1, #buttons do buttons[i]:Hide() end
-    for i = 1, #sectionHeaders do sectionHeaders[i]:Hide() end   -- no headers in flat mode
+    for i = keyHeader + 1, #sectionHeaders do sectionHeaders[i]:Hide() end
     for i = 1, #groupHeaders do groupHeaders[i]:Hide() end       -- STAGE-3: no group chrome either
     local rows = math.max(1, math.ceil(math.max(n, 1) / cols))
-    local h = rows * (BTN + GAP) - GAP
+    local h = rows * (BTN + GAP) - GAP + yExtra
     h = h + GAP + placeDropSlot(h + GAP)   -- quick-drop row under the grid
     finishSize(cols, h, blocked)
 end
@@ -1168,16 +1259,21 @@ layoutOneBag = function()
     local cols = mod.db.columns or 12
     if cols < 1 then cols = 1 end
 
-    local items = {}
+    -- fixed-slot mode: EVERY slot in natural bag order (empties inline), so an
+    -- item dropped on a slot visually stays where you put it — like one big
+    -- real bag. Compact mode keeps items first, free slots trailing.
+    local natural = mod.db.showFreeSlots ~= false and mod.db.onebagFixedSlots ~= false
+    local items, itemCount = {}, 0
     for _, bag in ipairs(visibleBags()) do
         for slot = 1, (GetContainerNumSlots(bag) or 0) do
-            if GetContainerItemLink and GetContainerItemLink(bag, slot) then
+            local occupied = GetContainerItemLink and GetContainerItemLink(bag, slot)
+            if occupied then itemCount = itemCount + 1 end
+            if occupied or natural then
                 items[#items + 1] = { bag = bag, slot = slot }
             end
         end
     end
-    local itemCount = #items
-    if mod.db.showFreeSlots ~= false then
+    if not natural and mod.db.showFreeSlots ~= false then
         for _, bag in ipairs(visibleBags()) do
             for slot = 1, (GetContainerNumSlots(bag) or 0) do
                 if not (GetContainerItemLink and GetContainerItemLink(bag, slot)) then
@@ -1198,28 +1294,43 @@ layoutOneBag = function()
     end
     y = y + HEADER_ROW
 
+    local pos, keyHeaderN = 0, 1   -- keyring block gets its own labeled row
     for i = 1, #items do
         local it  = items[i]
         -- bail BEFORE consuming a button index (see layoutCategorized note)
         local idx = ensureIndexFrame(it.bag)
         if not idx then blocked = true; break end
+        if it.bag == KEYRING and keyHeaderN == 1 then
+            keyHeaderN = 2
+            if pos > 0 then pos = math.ceil(pos / cols) * cols end
+            local h2 = acquireHeader(2)
+            if h2 then
+                h2:ClearAllPoints()
+                h2:SetPoint("TOPLEFT", bagFrame.content, "TOPLEFT", 1,
+                    -(y + math.floor(pos / cols) * (BTN + GAP)))
+                h2:SetText(_G.KEYRING or L["Keyring"])
+                h2:Show()
+            end
+            y = y + HEADER_ROW
+        end
         btnN = btnN + 1
         local btn = acquireButton(btnN)
         if not btn then blocked = true; break end
         btn:SetParent(idx)
         btn:SetID(it.slot)
-        local col = (i - 1) % cols
-        local row = math.floor((i - 1) / cols)
+        local col = pos % cols
+        local row = math.floor(pos / cols)
+        pos = pos + 1
         btn:ClearAllPoints()
         btn:SetPoint("TOPLEFT", bagFrame.content, "TOPLEFT",
             col * (BTN + GAP), -(y + row * (BTN + GAP)))
         btn:Show()
         updateButton(btn)
     end
-    if #items > 0 then y = y + math.ceil(#items / cols) * (BTN + GAP) else y = y + BTN end
+    if pos > 0 then y = y + math.ceil(pos / cols) * (BTN + GAP) else y = y + BTN end
 
     for i = btnN + 1, #buttons do buttons[i]:Hide() end
-    for i = 2, #sectionHeaders do sectionHeaders[i]:Hide() end
+    for i = keyHeaderN + 1, #sectionHeaders do sectionHeaders[i]:Hide() end
     for i = 1, #groupHeaders do groupHeaders[i]:Hide() end   -- STAGE-3
     local dropH = placeDropSlot(y)
     finishSize(cols, y + dropH, blocked)
@@ -1289,6 +1400,10 @@ function layout()
     local sig = tostring(viewMode) .. "|" .. tostring(selectedCategory) .. "|"
         .. tostring(sortMode) .. "|" .. tostring(sortReverse) .. "|" .. tostring(useCategories)
         .. "|" .. tostring(catSortMode)
+        -- onebag slot options change that view's row set only; keep them out
+        -- of the sig elsewhere so toggling them can't snap other views to top
+        .. "|" .. (viewMode == "onebag"
+            and (tostring(mod.db.showFreeSlots) .. tostring(mod.db.onebagFixedSlots)) or "")
     if sig ~= lastLayoutSig then
         lastLayoutSig = sig
         if bagFrame.contentVP then bagFrame.contentVP:SetVerticalScroll(0) end
@@ -1458,7 +1573,10 @@ local function doSort(bagList, nativeFn)
         sortInFlight = true
         local isBank = bagList ~= nil
         ns.SortEngine.Run(sortBagsActive,
-            (sortMode == "blizzard") and "quality" or sortMode,
+            -- "blizzard" without a native sorter falls back to TYPE grouping:
+            -- quality-mode mixes mats and equipment (quality is its FIRST key),
+            -- which reads as "sorted only by quality" (live bank report)
+            (sortMode == "blizzard") and "type" or sortMode,
             sortReverse and true or false,
             function()
                 sortInFlight = false
@@ -1868,9 +1986,20 @@ local function buildFrame()
     sb:SetScript("OnTextChanged", function(self)
         searchText = (self:GetText() or ""):lower()
         refresh()
+        -- one query, every open window: mirror into the bank / guild bank
+        if ns.BankMirrorSearch then ns.BankMirrorSearch(self:GetText() or "") end
+        if ns.GuildBankMirrorSearch then ns.GuildBankMirrorSearch(self:GetText() or "") end
     end)
     sb:SetScript("OnEscapePressed", function(self) self:SetText(""); self:ClearFocus() end)
     sb:SetScript("OnEnterPressed",  function(self) self:ClearFocus() end)
+    sb:SetScript("OnEnter", function(self)
+        if not GameTooltip then return end
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:SetText(L["Search"])
+        GameTooltip:AddLine(L["Keywords: q:epic, typ:weapon, ilvl>30 (combinable). Also filters the open bank and guild bank."], 0.7, 0.7, 0.7, true)
+        GameTooltip:Show()
+    end)
+    sb:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
     if not mod.db.showSearch then sb:Hide() end
 
     -- header sort button (icon; left of the search box). Right-click toggles order.
@@ -2363,8 +2492,14 @@ end
 -- =========================================================
 function mod:OnEnable()
     mod.active = true
+    -- one-shot: default moved "blizzard" -> "type" (the engine's grouped sort
+    -- everywhere; native Blizzard cleanup stays available in the dropdown)
+    if not mod.db.sortModeUpgraded then
+        mod.db.sortModeUpgraded = true
+        if mod.db.sortMode == "blizzard" then mod.db.sortMode = "type" end
+    end
     sortReverse = mod.db.sortReverse and true or false
-    sortMode = mod.db.sortMode or "blizzard"
+    sortMode = mod.db.sortMode or "type"
     catSortMode = mod.db.catSortMode or "type"
     useCategories = (mod.db.useCategories ~= false)
     hideEmpty = (mod.db.hideEmpty ~= false)
@@ -2411,6 +2546,7 @@ function mod:OnEnable()
     preallocate()
     hideBlizzardBags()   -- out-of-combat now; deferred to PLAYER_REGEN_ENABLED if in combat
     if ns.BankOnEnable then ns.BankOnEnable() end   -- Phase 4: re-suppress default bank on live re-enable
+    if ns.GuildBankOnEnable then ns.GuildBankOnEnable() end
 end
 
 function mod:OnDisable()
@@ -2419,6 +2555,7 @@ function mod:OnDisable()
     if bagFrame then bagFrame:Hide() end
     restoreBlizzardBags()   -- give Blizzard's default bags back
     if ns.BankOnDisable then ns.BankOnDisable() end   -- Phase 4: hide bank window + restore default bank
+    if ns.GuildBankOnDisable then ns.GuildBankOnDisable() end
     -- open/close hooks stay installed but no-op via the active gate; no global
     -- was ever replaced, so the default bags work again after this.
 end
@@ -2734,6 +2871,15 @@ function mod:GetOptions()
         end,
     })
     table.insert(items, {
+        type = "toggle", label = L["Fixed slot order (OneBag)"],
+        tooltip = L["Shows every slot in its natural bag order with the empty slots inline — items stay visually where you drop them, like one big real bag. Needs the free-slots option above."],
+        get = function() return mod.db.onebagFixedSlots ~= false end,
+        set = function(_, v)
+            mod.db.onebagFixedSlots = v and true or false
+            if mod:IsOpen() then layout() end
+        end,
+    })
+    table.insert(items, {
         type = "toggle", label = L["Show sidebar"],
         tooltip = L["A collapsible left panel for view modes and category filtering."],
         get = function() return not mod.db.sidebarCollapsed end,
@@ -2757,6 +2903,7 @@ function mod:GetOptions()
             mod.db.qualityBorders = v
             if mod:IsOpen() then layout() end
             if ns.BankRefresh then ns.BankRefresh() end   -- shared flag: repaint an open bank too
+            if ns.GuildBankRefresh then ns.GuildBankRefresh() end
         end,
     })
     table.insert(items, {
@@ -2767,6 +2914,27 @@ function mod:GetOptions()
             mod.db.showItemLevel = v and true or false
             if mod:IsOpen() then layout() end
             if ns.BankRefresh then ns.BankRefresh() end
+            if ns.GuildBankRefresh then ns.GuildBankRefresh() end
+        end,
+    })
+    table.insert(items, {
+        type = "toggle", label = L["Junk marker (C)"],
+        tooltip = L["Marks vendor trash with a purple C in the icon corner - grey items a merchant pays gold for."],
+        get = function() return mod.db.junkMarker ~= false end,
+        set = function(_, v)
+            mod.db.junkMarker = v and true or false
+            if mod:IsOpen() then layout() end
+        end,
+    })
+    table.insert(items, {
+        type = "toggle", label = L["BoE/BoU markers"],
+        tooltip = L["Tags equipment that is still tradeable (binds on equip or use, not yet soulbound) - handy for banking and the auction house."],
+        get = function() return mod.db.bindMarker ~= false end,
+        set = function(_, v)
+            mod.db.bindMarker = v and true or false
+            if mod:IsOpen() then layout() end
+            if ns.BankRefresh then ns.BankRefresh() end
+            if ns.GuildBankRefresh then ns.GuildBankRefresh() end
         end,
     })
     table.insert(items, {
@@ -2776,6 +2944,7 @@ function mod:GetOptions()
             mod.db.countFontSize = v
             if mod:IsOpen() then layout() end
             if ns.BankRefresh then ns.BankRefresh() end
+            if ns.GuildBankRefresh then ns.GuildBankRefresh() end
         end,
     })
 
@@ -2845,6 +3014,9 @@ function mod:GetOptions()
     -- items; splice them in so bag + bank settings share one page.
     if ns.BankOptions then
         for _, it in ipairs(ns.BankOptions()) do table.insert(items, it) end
+    end
+    if ns.GuildBankOptions then
+        for _, it in ipairs(ns.GuildBankOptions()) do table.insert(items, it) end
     end
     return items
 end

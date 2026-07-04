@@ -23,6 +23,7 @@ local TOTEM_DEFAULTS = {
     style       = "vulo",   -- "vulo" (dark + accent) | "classic" (metal rim)
     flyoutDirection = "auto",  -- "auto" | "up" | "down" | "left" | "right"
     flyoutInCombat  = true,    -- false = hovering never opens the picker in combat
+    hoverTooltip    = true,    -- tooltip with name + remaining cooldown on hover
     showFire    = true,
     showEarth   = true,
     showWater   = true,
@@ -61,7 +62,7 @@ for _, t in ipairs(TOTEMS) do SLOT_KEY[t.slot] = t.key end
 -- "Known" is checked by name lookup (GetSpellInfo by name = nil if not learned).
 local TOTEM_IDS = {
     fire  = { 3599, 1535, 8187, 8227, 8181, 30706, 2894 },        -- Searing, Fire Nova, Magma, Flametongue, Frost Resist, Totem of Wrath, Fire Elemental
-    earth = { 2484, 5730, 8071, 31634, 8143, 2062 },              -- Earthbind, Stoneclaw, Stoneskin, Strength of Earth, Tremor, Earth Elemental
+    earth = { 2484, 5730, 8071, 8075, 8143, 2062 },               -- Earthbind, Stoneclaw, Stoneskin, Strength of Earth, Tremor, Earth Elemental
     water = { 5394, 5675, 16190, 8166, 8170, 8184 },              -- Healing Stream, Mana Spring, Mana Tide, Poison Cleansing, Disease Cleansing, Fire Resist
     air   = { 8512, 8835, 8177, 10595, 15107, 6495, 25908, 3738 },-- Windfury, Grace of Air, Grounding, Nature Resist, Windwall, Sentry, Tranquil Air, Wrath of Air
 }
@@ -94,6 +95,8 @@ local throttle     = 0
 local pendingAttr  = false  -- secure attr update queued for end of combat
 local showTotemMenu         -- forward decl (defined after refresh)
 local rebuildFlyouts        -- forward decl (defined with the flyout code)
+local paintTotemTooltip     -- forward decl (defined after refresh)
+local hoverBtn              -- button currently owning our tooltip (slot or flyout icon)
 
 -- ---------------------------------------------------------
 -- Settings (created with defaults on first use)
@@ -266,7 +269,14 @@ local function createRow(totem)
     end)
     -- Hover a slot to open the icon picker (it opens away from the slot so it
     -- can't sit on top of it and eat the click).
-    row:HookScript("OnEnter", function(self) showTotemMenu(self.totem) end)
+    row:HookScript("OnEnter", function(self)
+        showTotemMenu(self.totem)
+        paintTotemTooltip(self)
+    end)
+    row:HookScript("OnLeave", function(self)
+        if hoverBtn == self then hoverBtn = nil end
+        if GameTooltip and GameTooltip:IsOwned(self) then GameTooltip:Hide() end
+    end)
 
     -- WeakAura-style soft drop shadow behind the icon
     row.shadow = row:CreateTexture(nil, "BACKGROUND", nil, -1)
@@ -538,6 +548,53 @@ local function refresh()
         local row = rows[t.key]
         if row and row:IsShown() then updateRow(row, preview) end
     end
+    -- keep the hover tooltip's cooldown line counting down
+    if hoverBtn then
+        if GameTooltip and GameTooltip:IsOwned(hoverBtn) and hoverBtn:IsVisible() then
+            paintTotemTooltip(hoverBtn)
+        else
+            hoverBtn = nil
+        end
+    end
+end
+
+-- ---------------------------------------------------------
+-- Hover tooltip: totem name + remaining cooldown (e.g. Mana Tide, Fire Nova,
+-- the elementals). Tooltips are never protected -> fully combat-safe, unlike
+-- a Cooldown swipe frame on the secure buttons (see the taint note above).
+-- ---------------------------------------------------------
+local function fmtCD(s)
+    if s >= 60 then return string.format("%d:%02d", math.floor(s / 60), math.floor(s % 60)) end
+    return string.format("%ds", math.ceil(s))
+end
+
+-- Tooltip anchor OPPOSITE the side the flyout opens on, so they never overlap.
+local TIP_ANCHOR = { BOTTOM = "ANCHOR_BOTTOM", TOP = "ANCHOR_TOP",
+                     LEFT = "ANCHOR_LEFT", RIGHT = "ANCHOR_RIGHT" }
+
+paintTotemTooltip = function(btn)
+    if db().hoverTooltip == false or not GameTooltip then return end
+    -- flyout icon carries its totem name; a slot shows what a click would cast
+    local name = btn.totemName
+        or (btn.totem and castableName(buttonSpell(btn.totem), btn.totem.key))
+    if not name or name == "" then return end
+    local id = select(7, GetSpellInfo(name))
+    hoverBtn = btn
+    local anchor = "ANCHOR_RIGHT"
+    if btn.totem then  -- slot row: flypoint is where the flyout attaches to us
+        anchor = TIP_ANCHOR[btn:GetAttribute("flypoint")] or "ANCHOR_BOTTOM"
+    end
+    GameTooltip:SetOwner(btn, anchor)
+    GameTooltip:SetText(name, 1, 1, 1)
+    local start, dur = GetSpellCooldown(id or name)
+    if start and dur and start > 0 and dur > 1.5 then  -- > 1.5 filters the GCD
+        local remain = (start + dur) - GetTime()
+        if remain > 0 then
+            GameTooltip:AddLine((_G.COOLDOWN_REMAINING or "Cooldown remaining:")
+                .. " " .. fmtCD(remain), 1, 0.35, 0.35)
+        end
+    end
+    GameTooltip:Show()
 end
 
 -- Icon flyout: hovering (or right-clicking) a slot opens a column of totem ICONS
@@ -723,11 +780,14 @@ local function rebuildFlyout(t)
                 if self.ring:IsShown() and not self._vcuiSelected then
                     self.ring:SetColorTexture(1, 1, 1, 0.9)
                 end
+                paintTotemTooltip(self)
             end)
             b:HookScript("OnLeave", function(self)
                 if self.ring:IsShown() and not self._vcuiSelected then
                     self.ring:SetColorTexture(0.22, 0.22, 0.26, 1)
                 end
+                if hoverBtn == self then hoverBtn = nil end
+                if GameTooltip and GameTooltip:IsOwned(self) then GameTooltip:Hide() end
             end)
             -- the secure click casts it; the secure wrap hides the flyout
             -- after the cast (legal in combat, unlike an insecure Hide).
@@ -1058,6 +1118,10 @@ local function getOptions()
         tooltip = L["Off = hovering a slot never opens the totem picker while you are fighting (clicks still cast). The picker now also closes itself on mouse-out and after every cast, even in combat."],
         get = function() return d.flyoutInCombat ~= false end,
         set = function(_, v) d.flyoutInCombat = v and true or false; rebuildFlyouts() end }
+    items[#items + 1] = { type = "toggle", label = L["Tooltip with cooldown on hover"],
+        tooltip = L["Hovering a totem slot or a picker icon shows the totem name and its remaining cooldown."],
+        get = function() return d.hoverTooltip ~= false end,
+        set = function(_, v) d.hoverTooltip = v and true or false end }
     items[#items + 1] = { type = "toggle", label = L["Sound before a totem expires"],
         get = function() return d.expirySound end,
         set = function(_, v) d.expirySound = v end }

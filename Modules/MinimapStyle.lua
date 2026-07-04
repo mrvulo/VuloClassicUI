@@ -29,8 +29,10 @@ local mod = ns:RegisterModule("minimapstyle", {
         zonePanel     = "top",    -- "top" | "bottom" | "hidden"
         showClock     = true,
         accentRing    = true,     -- thin colored line around the dark ring
+        ringColorMode = "accent", -- "accent" | "class" | "custom"
+        ringColor     = { r = 0.608, g = 0.424, b = 1 },   -- used by "custom"
         shape         = "round",  -- "round" | "square"
-        hideZoom      = true,     -- mouse wheel zooms instead
+        zoomButtons   = true,     -- flat +/- pair on the map edge (wheel always zooms)
         showDayNight  = false,    -- the classic sun/moon time button
         skinButtons   = true,     -- restyle other addons' minimap buttons
         buttonsOnHover = false,   -- only show addon buttons while hovering
@@ -154,8 +156,7 @@ function mm.adoptMinimap()
     mm.ring = ringTex("ring_main.tga", 6)
     -- THE ring: the accent band
     mm.accent = ringTex("ring_accent.tga", 7)
-    local ac = ns.COLORS and ns.COLORS.accent or { r = 0.608, g = 0.424, b = 1 }
-    mm.accent:SetVertexColor(ac.r, ac.g, ac.b, 1)
+    mm.applyRingColor()
 
     -- square variant: 1px frame + soft shadow, no rings
     mm.squareFrame = CreateFrame("Frame", nil, mm.base)
@@ -175,6 +176,24 @@ function mm.adoptMinimap()
     sq[4]:SetPoint("TOPRIGHT"); sq[4]:SetPoint("BOTTOMRIGHT"); sq[4]:SetWidth(1)
     if ns.UI and ns.UI.CreateShadow then ns.UI:CreateShadow(mm.squareFrame) end
     mm.squareFrame:Hide()
+end
+
+-- the accent ring's color: house accent, the player's class color, or a
+-- user-picked custom color
+function mm.applyRingColor()
+    if not mm.accent then return end
+    local d = db()
+    local c
+    if d.ringColorMode == "class" then
+        local _, token = UnitClass("player")
+        c = token and (_G.RAID_CLASS_COLORS or {})[token]
+    elseif d.ringColorMode == "custom" then
+        c = d.ringColor
+    end
+    if not (c and c.r) then
+        c = ns.COLORS and ns.COLORS.accent or { r = 0.608, g = 0.424, b = 1 }
+    end
+    mm.accent:SetVertexColor(c.r, c.g, c.b, 1)
 end
 
 function mm.applyShape()
@@ -237,9 +256,15 @@ end
 
 function mm.applyToggles()
     local d = db()
+    -- Blizzard's metal pair stays hidden; our flat glyphs replace it
     if _G.MinimapZoomIn and _G.MinimapZoomOut then
-        _G.MinimapZoomIn:SetShown(not d.hideZoom)
-        _G.MinimapZoomOut:SetShown(not d.hideZoom)
+        _G.MinimapZoomIn:Hide()
+        _G.MinimapZoomOut:Hide()
+    end
+    if mm.zoomIn then
+        mm.zoomIn:SetShown(d.zoomButtons ~= false)
+        mm.zoomOut:SetShown(d.zoomButtons ~= false)
+        mm.updateZoomButtons()
     end
     if _G.GameTimeFrame then
         _G.GameTimeFrame:SetShown(d.showDayNight and true or false)
@@ -265,6 +290,11 @@ function mm.setupPanel()
         ztb:ClearAllPoints()
         ztb:SetPoint("LEFT", mm.panel, "LEFT", 6, 0)
         ztb:SetHeight(16)
+        -- comfort: clicking the zone name opens the world map (gated on
+        -- mod.active so the default behavior returns when the module is off)
+        ztb:SetScript("OnClick", function()
+            if mod.active and ToggleWorldMap then ToggleWorldMap() end
+        end)
         local zt = _G.MinimapZoneText
         if zt then
             zt:ClearAllPoints()
@@ -353,7 +383,7 @@ function mm.setupCorners()
     if tracking then
         tracking:SetParent(Minimap)
         tracking:ClearAllPoints()
-        tracking:SetPoint("CENTER", Minimap, "TOPLEFT", 20, -20)
+        tracking:SetPoint("CENTER", Minimap, "TOPLEFT", 10, -22)
         tracking:SetSize(26, 26)
         local border = _G.MiniMapTrackingButtonBorder or _G.MiniMapTrackingBorder
         if border and border.Hide then
@@ -376,13 +406,7 @@ function mm.setupCorners()
                 icon:AddMaskTexture(mm.trackingMask)
             end
         end
-        -- thin dark ring behind the tracking icon
-        local ring = tracking:CreateTexture(nil, "BACKGROUND")
-        ring:SetTexture(MEDIA .. "ring_main.tga")
-        ring:SetVertexColor(0.07, 0.07, 0.09, 1)
-        ring:SetSize(26 * RING_SCALE * 0.85, 26 * RING_SCALE * 0.85)
-        ring:SetPoint("CENTER", tracking, "CENTER", 0, 0)
-        if ring.SetSnapToPixelGrid then ring:SetSnapToPixelGrid(false); ring:SetTexelSnappingBias(0) end
+        -- (no ring behind the icon — the bare round icon reads cleaner)
     end
 
     -- mail: onto the top-right edge, plain envelope without the gold border
@@ -451,8 +475,16 @@ function mm.setupDrag()
 end
 
 -- =========================================================
--- Zoom: mouse wheel + optional +/- buttons
+-- Zoom: mouse wheel + optional flat +/- pair on the right arc
 -- =========================================================
+-- dim the pair at the zoom limits so they read as end stops
+function mm.updateZoomButtons()
+    if not mm.zoomIn then return end
+    local z, top = Minimap:GetZoom(), Minimap:GetZoomLevels() - 1
+    mm.zoomIn:SetAlpha(z >= top and 0.3 or 1)
+    mm.zoomOut:SetAlpha(z <= 0 and 0.3 or 1)
+end
+
 function mm.setupZoom()
     if mm.zoomWired then return end
     mm.zoomWired = true
@@ -463,20 +495,38 @@ function mm.setupZoom()
         else
             self:SetZoom(math.max(self:GetZoom() - 1, 0))
         end
+        mm.updateZoomButtons()
     end)
-    -- re-home the +/- buttons onto the map edge: on Era they are children of
-    -- the old backdrop, which stays glued to the untouched cluster position
-    local zin, zout = _G.MinimapZoomIn, _G.MinimapZoomOut
-    if zin and zout then
-        zin:SetParent(Minimap)
-        zin:ClearAllPoints()
-        zin:SetPoint("CENTER", Minimap, "BOTTOMRIGHT", -6, 30)
-        zin:SetScale(0.7)
-        zout:SetParent(Minimap)
-        zout:ClearAllPoints()
-        zout:SetPoint("CENTER", Minimap, "BOTTOMRIGHT", -22, 8)
-        zout:SetScale(0.7)
+    -- our own flat glyph pair on the upper-right arc (just below the clock
+    -- pill), clear of the mail envelope at 1:30 and the LFG eye / difficulty
+    -- flag at the 4:30 corner. Blizzard's dated metal pair is hidden in
+    -- applyToggles instead of re-homed.
+    local function makeZoom(glyph, dz, x, y)
+        local b = CreateFrame("Button", nil, Minimap)
+        b:SetSize(18, 18)
+        b:SetPoint("CENTER", Minimap, "TOPRIGHT", x, y)
+        b:SetFrameLevel(Minimap:GetFrameLevel() + 3)
+        local fs = b:CreateFontString(nil, "OVERLAY")
+        local font = (ns.UI and ns.UI.FONT_PATH) or "Fonts\\FRIZQT__.TTF"
+        fs:SetFont(font, 19, "OUTLINE")
+        fs:SetPoint("CENTER", 0, 0)
+        fs:SetText(glyph)
+        fs:SetTextColor(1, 1, 1, 0.85)
+        b._fs = fs
+        b:SetScript("OnEnter", function(self)
+            local ac = ns.COLORS and ns.COLORS.accent or { r = 0.608, g = 0.424, b = 1 }
+            self._fs:SetTextColor(ac.r, ac.g, ac.b, 1)
+        end)
+        b:SetScript("OnLeave", function(self) self._fs:SetTextColor(1, 1, 1, 0.85) end)
+        b:SetScript("OnClick", function()
+            local z = Minimap:GetZoom() + dz
+            Minimap:SetZoom(math.max(0, math.min(z, Minimap:GetZoomLevels() - 1)))
+            mm.updateZoomButtons()
+        end)
+        return b
     end
+    mm.zoomIn  = makeZoom("+", 1, -4, -7)
+    mm.zoomOut = makeZoom("–", -1, 6, -26)
 end
 
 -- =========================================================
@@ -608,9 +658,13 @@ end
 -- Apply / lifecycle
 -- =========================================================
 function mm.applyAll()
+    -- options setters call this unconditionally — after OnDisable restored
+    -- the default map, re-applying the shape/mask here would re-skin it
+    if not mod.active then return end
     if not mm.base then return end
     mm.base:SetScale(db().scale or 1)
     mm.syncCornerOffsets()   -- AFTER SetScale: offsets are frame-local units
+    mm.applyRingColor()
     mm.applyShape()
     mm.applyPanel()
     mm.applyToggles()
@@ -684,6 +738,8 @@ function mod:OnDisable()
             Minimap:SetPoint("CENTER", UIParent, "TOPRIGHT", -100, -120)
         end
         if _G.MinimapBorder then _G.MinimapBorder:Show() end
+        if mm.zoomIn then mm.zoomIn:Hide(); mm.zoomOut:Hide() end
+        if _G.MinimapZoomIn then _G.MinimapZoomIn:Show(); _G.MinimapZoomOut:Show() end
         -- addon buttons the hover option may have faded out must come back
         mm.hovered = true
         for _, b in ipairs(mm.addonButtons or {}) do b:SetAlpha(1) end
@@ -720,6 +776,21 @@ function mod:GetOptions()
           },
           get = function() return d.shape or "round" end,
           set = function(_, v) d.shape = v; mm.applyAll() end },
+        { type = "dropdown", label = L["Ring color"],
+          values = {
+              { value = "accent", text = L["Accent (purple)"] },
+              { value = "class",  text = L["Class color"] },
+              { value = "custom", text = L["Custom color"] },
+          },
+          get = function() return d.ringColorMode or "accent" end,
+          set = function(_, v) d.ringColorMode = v; mm.applyRingColor() end },
+        { type = "color", label = L["Custom ring color"], width = 160,
+          get = function() return d.ringColor end,
+          set = function(r, g, b)
+              d.ringColor = { r = r, g = g, b = b }
+              d.ringColorMode = "custom"   -- picking a color means: use it
+              mm.applyRingColor()
+          end },
         { type = "toggle", label = L["Accent ring"],
           tooltip = L["A thin colored line around the dark ring (round shape only)."],
           get = function() return d.accentRing ~= false end,
@@ -745,10 +816,10 @@ function mod:GetOptions()
 
         { type = "spacer", height = 6 },
         { type = "header", text = L["Buttons"] },
-        { type = "toggle", label = L["Hide zoom buttons"],
-          tooltip = L["The mouse wheel always zooms; the +/- buttons are just clutter."],
-          get = function() return d.hideZoom ~= false end,
-          set = function(_, v) d.hideZoom = v; mm.applyAll() end },
+        { type = "toggle", label = L["Zoom buttons (+/-)"],
+          tooltip = L["Shows a flat + and - on the right edge of the map. The mouse wheel always zooms too."],
+          get = function() return d.zoomButtons ~= false end,
+          set = function(_, v) d.zoomButtons = v and true or false; mm.applyAll() end },
         { type = "toggle", label = L["Show day/night button"],
           get = function() return d.showDayNight and true or false end,
           set = function(_, v) d.showDayNight = v and true or false; mm.applyAll() end },

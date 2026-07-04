@@ -12,50 +12,28 @@ local ROW_HEIGHT     = 28
 local GROUP_HEADER_H = 26
 local GROUP_GAP      = 8
 
--- Per-module icons (Blizzard textures available in TBC Classic).
+-- Per-module icons: our own bundled monochrome glyph set (white line art,
+-- tinted at runtime — gray idle / accent selected). Rasterized from a freely
+-- ISC-licensed icon set; see Media\Icons\modules\LICENSE.txt.
 -- Unknown keys fall back to MODULE_ICON_FALLBACK.
-local MODULE_ICONS = {
-    globalsettings     = "Interface\\Icons\\Trade_Engineering",
-    unlockmode         = "Interface\\Icons\\INV_Misc_Wrench_01",
-    qol                = "Interface\\Icons\\INV_Misc_Gear_08",
-    bugfixes           = "Interface\\Icons\\Ability_Repair",
-    profiles           = "Interface\\Icons\\INV_Misc_Note_03",
-    minimap            = "Interface\\Icons\\INV_Misc_Map_01",
-    fontbars           = "Interface\\Icons\\INV_Misc_Note_01",
-    playercastbar      = "Interface\\Icons\\Spell_Holy_MagicalSentry",
-    targetframe        = "Interface\\Icons\\Ability_Hunter_MarkedForDeath",
-    elitevuloframe     = "Interface\\Icons\\INV_Misc_Head_Dragon_Bronze",
-    cooldownpulse      = "Interface\\Icons\\Spell_Nature_TimeStop",
-    cooldownmanager    = "Interface\\Icons\\Spell_Holy_BorrowedTime",
-    powerbar           = "Interface\\Icons\\INV_Elemental_Primal_Mana",
-    arenaframes        = "Interface\\Icons\\Achievement_Arena_2v2_1",
-    characterpanel     = "Interface\\Icons\\INV_Chest_Plate06",
-    buttonskin         = "Interface\\Icons\\INV_Misc_EngGizmos_27",
-    friendlist         = "Interface\\Icons\\INV_Misc_GroupLooking",
-    miscqol            = "Interface\\Icons\\Trade_BlackSmithing",
-    queuetimer         = "Interface\\Icons\\INV_Misc_PocketWatch_01",
-    tooltipids         = "Interface\\Icons\\INV_Misc_QuestionMark",
-    autoitembuy        = "Interface\\Icons\\INV_Misc_Coin_01",
-    goldtracker        = "Interface\\Icons\\INV_Misc_Coin_05",
-    spamfilter         = "Interface\\Icons\\Spell_Holy_Silence",
-    questlog           = "Interface\\Icons\\INV_Misc_Book_09",
-    professionwindow   = "Interface\\Icons\\Trade_Tailoring",
-    disenchantqueue    = "Interface\\Icons\\INV_Enchant_Disenchant",
-    vtmanadisplay      = "Interface\\Icons\\Spell_Shadow_ShadowWordPain",
-    lazyvulo           = "Interface\\Icons\\Spell_Fire_BlueFlameRing",
-    vulslot            = "Interface\\Icons\\INV_Scroll_05",
-    combattext         = "Interface\\Icons\\Ability_Warrior_BattleShout",
-    loadouts           = "Interface\\Icons\\INV_Chest_Chain",
-    slotpicker         = "Interface\\Icons\\INV_Misc_Bag_08",
-    trinkets           = "Interface\\Icons\\INV_Misc_Gem_Variety_01",
-    fixinspect         = "Interface\\Icons\\INV_Misc_Spyglass_02",
-    fixlfgbrowsenil    = "Interface\\Icons\\INV_Misc_GroupLooking",
-    fixguildnews       = "Interface\\Icons\\INV_Scroll_03",
-    fixauctiondropdown = "Interface\\Icons\\INV_Misc_Coin_02",
-    fixbindsocket      = "Interface\\Icons\\INV_Misc_Gem_Diamond_02",
-    fixcombatglow      = "Interface\\Icons\\Ability_Warrior_Challange",
-}
-local MODULE_ICON_FALLBACK = "Interface\\Icons\\INV_Misc_Gear_01"
+local ICON_DIR = "Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\modules\\"
+local MODULE_ICONS = {}
+for _, key in ipairs({
+    "globalsettings", "unlockmode", "qol", "bugfixes", "profiles",
+    "minimap", "minimapstyle", "fontbars", "playercastbar", "targetframe",
+    "elitevuloframe", "cooldownpulse", "cooldownmanager", "powerbar",
+    "arenaframes", "characterpanel", "buttonskin", "darkmode", "friendlist",
+    "miscqol", "queuetimer", "tooltipids", "autoitembuy", "goldtracker",
+    "goldvendors", "spamfilter", "chat", "bags", "questlog",
+    "professionwindow", "disenchantqueue", "vtmanadisplay", "lazyvulo",
+    "vulslot", "combattext", "loadouts", "slotpicker", "trinkets",
+    "swingtimer", "vulmail", "vulfishing", "vullfg", "vultraining",
+    "fixinspect", "fixlfgbrowsenil", "fixguildnews", "fixauctiondropdown",
+    "fixbindsocket", "fixcombatglow",
+}) do
+    MODULE_ICONS[key] = ICON_DIR .. key .. ".tga"
+end
+local MODULE_ICON_FALLBACK = ICON_DIR .. "_fallback.tga"
 
 -- Expose for the dashboard (and anything else that needs per-module icons)
 ns.MODULE_ICONS = MODULE_ICONS
@@ -90,17 +68,24 @@ local function highlightSelected()
             btn.label:SetTextColor(c.r, c.g, c.b)
         end
 
-        -- Dim the icon + label of disabled modules so on/off is readable at a glance
+        -- Uniform monochrome icon set: every icon desaturated, tinted by state
+        -- (selected = accent, enabled = light gray, disabled = dim gray). One
+        -- consistent style instead of mixed full-color spell art.
         local mod = ns.modules[key]
         local enabled
         if mod and mod.toggleGet then enabled = mod.toggleGet()
         else enabled = mod and ns:IsModuleEnabled(key) end
         if btn.icon then
-            if enabled then
-                btn.icon:SetDesaturated(false)
+            btn.icon:SetDesaturated(true)
+            if selected then
+                local a = ns.COLORS.accent
+                btn.icon:SetVertexColor(a.r, a.g, a.b)
                 btn.icon:SetAlpha(1)
+            elseif enabled then
+                btn.icon:SetVertexColor(0.76, 0.76, 0.84)
+                btn.icon:SetAlpha(0.95)
             else
-                btn.icon:SetDesaturated(true)
+                btn.icon:SetVertexColor(0.55, 0.55, 0.6)
                 btn.icon:SetAlpha(0.4)
             end
         end
@@ -137,13 +122,20 @@ local function createModuleRow(parent, key, mod)
     hover:SetAllPoints(row)
     hover:SetColorTexture(1, 1, 1, 0.04)
 
-    -- Module icon (left)
+    -- Module icon (left) — monochrome treatment, tinted by highlightSelected
     local icon = row:CreateTexture(nil, "ARTWORK")
     icon:SetSize(16, 16)
     icon:SetPoint("LEFT", row, "LEFT", 8, 0)
     icon:SetTexture(MODULE_ICONS[key] or MODULE_ICON_FALLBACK)
-    icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)  -- crop default border
+    -- our glyphs are full-frame white line art — no border crop needed
+    icon:SetVertexColor(0.76, 0.76, 0.84, 0.95)
     row.icon = icon
+
+    -- hover: brighten the icon (selection tint wins; restored on leave)
+    row:HookScript("OnEnter", function()
+        if UI.currentModule ~= key then icon:SetVertexColor(0.95, 0.95, 1) end
+    end)
+    row:HookScript("OnLeave", function() highlightSelected() end)
 
     -- Power button on the right (toggle) - unless module marks itself as noToggle
     local power
@@ -300,8 +292,8 @@ function UI:PopulateSidebar()
             local icon = row:CreateTexture(nil, "ARTWORK")
             icon:SetSize(16, 16)
             icon:SetPoint("LEFT", row, "LEFT", 8, 0)
-            icon:SetTexture("Interface\\Icons\\INV_Misc_Book_03")
-            icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+            icon:SetTexture(ICON_DIR .. "_dashboard.tga")
+            icon:SetVertexColor(0.76, 0.76, 0.84, 0.95)
 
             local label = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
             ns.UI.Font(label, 12)
