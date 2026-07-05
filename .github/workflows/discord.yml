@@ -4,9 +4,9 @@ name: Discord Changelog
 # Runs alongside the packager release; needs no GitHub token, only the webhook.
 #
 # Required repo secrets (Settings -> Secrets and variables -> Actions):
-#   DISCORD_WEBHOOK           the channel webhook URL   (required)
-#   DISCORD_UPDATES_ROLE_ID   role id to ping           (optional)
-# If DISCORD_WEBHOOK is missing the job skips cleanly.
+#   DISCORD_CHANGELOG_WEBHOOK   the channel webhook URL   (required)
+#   DISCORD_UPDATES_ROLE_ID     role id to ping           (optional)
+# If DISCORD_CHANGELOG_WEBHOOK is missing the job skips cleanly.
 
 on:
   push:
@@ -22,13 +22,13 @@ jobs:
 
       - name: Post changelog to Discord
         env:
-          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          WEBHOOK: ${{ secrets.DISCORD_CHANGELOG_WEBHOOK }}
           ROLE_ID: ${{ secrets.DISCORD_UPDATES_ROLE_ID }}
         run: |
           set -eo pipefail
 
           if [ -z "${WEBHOOK:-}" ]; then
-            echo "DISCORD_WEBHOOK secret not set - skipping."; exit 0
+            echo "DISCORD_CHANGELOG_WEBHOOK secret not set - skipping."; exit 0
           fi
           if [ ! -f CHANGELOG.md ]; then
             echo "No CHANGELOG.md - skipping."; exit 0

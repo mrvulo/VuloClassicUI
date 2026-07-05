@@ -16,6 +16,85 @@
   ~1900 characters or it gets truncated with a link to the full notes.
 -->
 
+## 1.26.0
+**Bags:**
+- Item levels on gear are now tinted in the item's quality color, matching the rest of the window (toggle in the options).
+- Section headers gained a thin divider line and a collapse control — click a category header to fold it away. The state is remembered per category.
+- The window title now shows the used and total item count.
+
+## 1.25.0
+**Global:**
+- **NEW:** Theme color — pick the accent color in the global settings (presets or your own). Everything purple follows it, saved per profile.
+- **NEW:** Pin a profile to a single character; at login it beats the class assignment and the account-wide selection.
+
+**Cooldown Manager:**
+- **NEW:** Track your own debuffs on the target, or set up a missing-buff reminder group (icon shows while the buff is absent).
+- Icons tint blue when you are out of mana and red when the target is out of range; ready-only groups now pack without gaps.
+- **NEW:** Auto-track your equipped trinkets, duplicate a whole group, and optional hover tooltips.
+
+**UI Reskin:**
+- **NEW:** Dark skin for the guild & communities window — flat tabs, list cards, roster and chat panels.
+
+## 1.24.0
+**Player Castbar:**
+- **NEW:** Pushback readout, a latency window on casts (the spell-queue moment), a crafting-series counter (e.g. 3/20), timer format options, accent/class fill colors and smoother fill on time jumps.
+
+**Combat Text:**
+- Reworked with inline spell icons and bracketed spell names; separate purge, incoming-dispel, buff-given/received and spell-reflect messages, with anti-spam throttling.
+- **NEW:** Death announcements for group members with class-colored names.
+
+**Bank:**
+- **NEW:** A per-character snapshot of your bank contents, viewable anywhere from the bag window — with tooltips and smart search.
+
+## 1.23.0
+**NEW — Guild Bank:**
+- A dark guild bank window with tabs, search, a money log, deposit/withdraw and engine-based sorting.
+
+**Friends & Reskins:**
+- Full dark reskin of the friends window with class crests, row layout, tabs and a battletag pill.
+- **NEW:** Addon Skins module — matches supported third-party windows to the dark look, including a quest tracker with accent headers.
+
+**Bags & Bank:**
+- **NEW:** Smart search keywords (quality, type, item level) that also search an open bank and guild bank.
+- Bind-on-equip and junk markers, keyring separation, and a fixed-slot OneBag layout.
+
+**Equipment Sets:**
+- Availability markers, set-preview tooltips, true partial sets, and an item-level/set warning in the disenchant queue.
+
+## 1.22.0
+**Quality of Life:**
+- Rebuilt sort engine (bags, bank and guild bank) that keeps materials and gear apart.
+- Minimap and totem-bar improvements, plus framework hardening for the current clients.
+
+## 1.21.0
+**NEW — Bags & Bank:**
+- A single unified inventory window: search, sort, categories, custom groups, pinned & recent items, keyring, quick-drop, item levels and quality borders.
+- A new bank window with slot purchasing.
+
+**Quality of Life:**
+- Friends counter in the chat, a gold overview tooltip, and taint-free Edit Mode movers.
+
+## 1.20.1
+**Fixes:**
+- Chat module polish and localization fixes.
+
+## 1.20.0
+**NEW — Chat:**
+- A reworked chat: timestamps, class-colored names, clickable links, short channel names, a dark panel with an icon sidebar, idle fade and history that survives a reload. Every part is optional.
+
+## 1.19.0
+**Edit Mode:**
+- **NEW:** Per-frame free-move and an anchor toggle, with panel polish.
+- Dark border on the action bars; fixed a compat-frame taint issue.
+
+## 1.18.0
+**NEW — Dark Mode:**
+- A dark-mode module, plus German localization fixes.
+
+## 1.17.0
+**Quality of Life:**
+- General fixes and polish.
+
 ## 1.16.0
 **Quality of Life:**
 - **NEW:** The Loadouts sidebar on the character window can now be moved. Turn on edit mode, then drag the purple box (arrow keys fine-tune, right-click to reset its position).
