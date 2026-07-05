@@ -16,6 +16,11 @@
   ~1900 characters or it gets truncated with a link to the full notes.
 -->
 
+## 1.28.0
+**Minimap:**
+- **NEW:** The date now shows next to the clock in the zone panel — click it to open the calendar, hover for the full date. Optional in the minimap settings.
+- The zone panel is a touch wider so the zone name, clock and date sit more comfortably.
+
 ## 1.27.0
 **Equipment Sets:**
 - **NEW:** Hover an equipment slot in the character window for a compact flyout of matching items from your bags — click one to equip it. The modifier-click picker is still there for a larger, pinnable window.

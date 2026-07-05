@@ -1511,6 +1511,8 @@ ns:RegisterLocale("deDE", {
     ["Below the map"] = "Unter der Karte",
     ["Hidden"] = "Ausgeblendet",
     ["Show clock"] = "Uhr anzeigen",
+    ["Show date"] = "Datum anzeigen",
+    ["Shows the date next to the clock. Click it to open the calendar."] = "Zeigt das Datum neben der Uhr. Klick öffnet den Kalender.",
     ["Buttons"] = "Knöpfe",
     ["Zoom buttons (+/-)"] = "Zoom-Buttons (+/-)",
     ["Shows a flat + and - on the right edge of the map. The mouse wheel always zooms too."] = "Zeigt ein flaches + und - am rechten Kartenrand. Das Mausrad zoomt weiterhin.",

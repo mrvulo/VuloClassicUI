@@ -28,6 +28,7 @@ local mod = ns:RegisterModule("minimapstyle", {
         moved         = false,    -- false = default top-right corner anchor
         zonePanel     = "top",    -- "top" | "bottom" | "hidden"
         showClock     = true,
+        showDate      = true,     -- date badge next to the clock (opens the calendar)
         accentRing    = true,     -- thin colored line around the dark ring
         ringColorMode = "accent", -- "accent" | "class" | "custom"
         ringColor     = { r = 0.608, g = 0.424, b = 1 },   -- used by "custom"
@@ -80,9 +81,11 @@ function mm.ensureBase()
     base:SetFrameStrata("LOW")
     mm.base = base
 
-    -- zone/clock panel: a modern dark pill (rounded ends, baked light rim)
+    -- zone/clock panel: a modern dark pill (rounded ends, baked light rim).
+    -- A touch wider than the map so the zone name, clock and date get more
+    -- room; it stays centred and overhangs both map edges evenly.
     mm.panel = CreateFrame("Frame", "VCUI_MinimapPanel", base)
-    mm.panel:SetSize(MAP_SIZE, 18)
+    mm.panel:SetSize(MAP_SIZE + 22, 18)
     local pbg = mm.panel:CreateTexture(nil, "BACKGROUND")
     pbg:SetAllPoints(mm.panel)
     pbg:SetTexture(MEDIA .. "capsule.tga")
@@ -325,6 +328,53 @@ function mm.setupPanel()
             ticker:SetTextColor(0.95, 0.95, 1)
         end
     end
+
+    -- date badge: numeric day.month next to the clock (like the reference
+    -- minimap); click opens the calendar, hover shows the full date
+    if not mm.dateBtn then
+        local dateBtn = CreateFrame("Button", "VCUI_MinimapDate", mm.panel)
+        dateBtn:SetSize(34, 16)
+        local dtxt = dateBtn:CreateFontString(nil, "OVERLAY")
+        dtxt:SetAllPoints(dateBtn)
+        dtxt:SetJustifyH("CENTER")
+        if ns.UI and ns.UI.FONT_PATH then dtxt:SetFont(ns.UI.FONT_PATH, 11, "")
+        else dtxt:SetFontObject("GameFontNormalSmall") end
+        dtxt:SetTextColor(0.95, 0.95, 1)
+        dateBtn.text = dtxt
+        local ac = ns.COLORS and ns.COLORS.accent or { r = 0.608, g = 0.424, b = 1 }
+        dateBtn:SetScript("OnEnter", function(self)
+            self.text:SetTextColor(ac.r, ac.g, ac.b)
+            if GameTooltip then
+                GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+                local ok, s = pcall(date, "%A, %d.%m.%Y")
+                GameTooltip:SetText(ok and s or "")
+                GameTooltip:Show()
+            end
+        end)
+        dateBtn:SetScript("OnLeave", function(self)
+            self.text:SetTextColor(0.95, 0.95, 1)
+            if GameTooltip then GameTooltip:Hide() end
+        end)
+        dateBtn:SetScript("OnClick", function()
+            if not mod.active then return end
+            local loader = (C_AddOns and C_AddOns.LoadAddOn) or _G.LoadAddOn
+            if loader then pcall(loader, "Blizzard_Calendar") end
+            if _G.ToggleCalendar then pcall(_G.ToggleCalendar) end
+        end)
+        mm.dateBtn = dateBtn
+        mm.updateDate()
+        if C_Timer and C_Timer.NewTicker and not mm.dateTicker then
+            mm.dateTicker = C_Timer.NewTicker(60, function() mm.updateDate() end)
+        end
+    end
+end
+
+-- date changes at most once a day, but a 60s ticker keeps it correct across
+-- the midnight rollover without any per-frame work
+function mm.updateDate()
+    if not mm.dateBtn then return end
+    local ok, s = pcall(date, "%d.%m")
+    mm.dateBtn.text:SetText(ok and s or "")
 end
 
 function mm.applyPanel()
@@ -337,6 +387,7 @@ function mm.applyPanel()
         mm.panel:Hide()
         if clock then clock:Hide() end
         if ztb then ztb:Hide() end
+        if mm.dateBtn then mm.dateBtn:Hide() end
         return
     end
     mm.panel:Show()
@@ -348,13 +399,33 @@ function mm.applyPanel()
     end
 
     local showClock = d.showClock ~= false and clock ~= nil
+    local showDate  = d.showDate ~= false and mm.dateBtn ~= nil
     if clock then clock:SetShown(showClock) end
+    if mm.dateBtn then mm.dateBtn:SetShown(showDate) end
+
+    -- pack right-to-left: date, then clock; the zone text fills what's left
+    local anchor, point, x = mm.panel, "RIGHT", -4
+    if showDate then
+        mm.dateBtn:ClearAllPoints()
+        mm.dateBtn:SetPoint("RIGHT", mm.panel, "RIGHT", -4, 0)
+        anchor, point, x = mm.dateBtn, "LEFT", -4
+    end
+    if showClock then
+        clock:ClearAllPoints()
+        clock:SetPoint("RIGHT", anchor, point, x, 0)
+        anchor, point, x = clock, "LEFT", -4
+    end
     if ztb then
         ztb:Show()
         ztb:ClearAllPoints()
         ztb:SetPoint("LEFT", mm.panel, "LEFT", 6, 0)
-        ztb:SetPoint("RIGHT", mm.panel, "RIGHT", showClock and -44 or -6, 0)
+        if anchor == mm.panel then
+            ztb:SetPoint("RIGHT", mm.panel, "RIGHT", -6, 0)
+        else
+            ztb:SetPoint("RIGHT", anchor, point, x, 0)
+        end
     end
+    mm.updateDate()
 end
 
 -- =========================================================
@@ -813,6 +884,10 @@ function mod:GetOptions()
         { type = "toggle", label = L["Show clock"],
           get = function() return d.showClock ~= false end,
           set = function(_, v) d.showClock = v; mm.applyAll() end },
+        { type = "toggle", label = L["Show date"],
+          tooltip = L["Shows the date next to the clock. Click it to open the calendar."],
+          get = function() return d.showDate ~= false end,
+          set = function(_, v) d.showDate = v; mm.applyAll() end },
 
         { type = "spacer", height = 6 },
         { type = "header", text = L["Buttons"] },
