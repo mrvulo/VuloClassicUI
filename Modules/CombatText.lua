@@ -40,11 +40,14 @@ local mod = ns:RegisterModule("combattext", {
             buffGiven      = { enabled = true, color = { r = 0.75, g = 0.65, b = 1.0 }, size = 0, outline = true,  shadow = true, shadowColor = { r = 0, g = 0, b = 0 }, shadowX = 2, shadowY = -2 },
             buffReceived   = { enabled = true, color = { r = 0.6, g = 0.8, b = 1.0 }, size = 0, outline = true,  shadow = true, shadowColor = { r = 0, g = 0, b = 0 }, shadowX = 2, shadowY = -2 },
             reflected      = { enabled = true, color = { r = 1.0, g = 0.6, b = 0.3 }, size = 0, outline = true,  shadow = true, shadowColor = { r = 0, g = 0, b = 0 }, shadowX = 2, shadowY = -2 },
+            partyDeath     = { enabled = true, color = { r = 1.0, g = 0.3, b = 0.3 }, size = 0, outline = true,  shadow = true, shadowColor = { r = 0, g = 0, b = 0 }, shadowX = 2, shadowY = -2 },
             missed         = { enabled = true, color = { r = 1.0, g = 0.7, b = 0.2 }, size = 0, outline = true,  shadow = true, shadowColor = { r = 0, g = 0, b = 0 }, shadowX = 2, shadowY = -2 },
             lowDurability  = { enabled = true, text = "", color = { r = 1.0, g = 0.3, b = 0.3 }, size = 0, outline = true, shadow = true, shadowColor = { r = 0, g = 0, b = 0 }, shadowX = 2, shadowY = -2 },
         },
         -- Low durability threshold (percent)
         durabilityThreshold = 15,
+        -- Party/raid death announcements: class-colored names
+        deathClassColor = true,
         -- Engine FCT
         worldTextScale = 1.0,
         sharpFonts     = true,
@@ -202,6 +205,7 @@ local EVENT_CATEGORY = {
     buffGiven      = "showCombatLog",
     buffReceived   = "showCombatLog",
     reflected      = "showCombatLog",
+    partyDeath     = "showCombatLog",
     missed         = "showCombatLog",
     lowDurability  = "showDurability",
 }
@@ -470,12 +474,41 @@ local function throttled(eventKey, spellId)
     return false
 end
 
+-- Death announcements: at most 4 in 10s (a raid wipe is obvious enough)
+local _deathStamps = {}
+local function deathThrottled()
+    local now = GetTime()
+    for i = #_deathStamps, 1, -1 do
+        if now - _deathStamps[i] > 10 then table.remove(_deathStamps, i) end
+    end
+    if #_deathStamps >= 4 then return true end
+    _deathStamps[#_deathStamps + 1] = now
+    return false
+end
+
+-- GUID -> group unit token (nil if not in our party/raid). Deaths are rare,
+-- the scan is fine — and it lets us check for a feigning hunter.
+local function groupUnitByGUID(guid)
+    if IsInRaid and IsInRaid() then
+        for i = 1, 40 do
+            local u = "raid" .. i
+            if UnitExists(u) and UnitGUID(u) == guid then return u end
+        end
+    else
+        for i = 1, 4 do
+            local u = "party" .. i
+            if UnitExists(u) and UnitGUID(u) == guid then return u end
+        end
+    end
+    return nil
+end
+
 -- Only these subevents ever produce combat text. Reading just the subevent
 -- first lets the hot path bail before the full destructure.
 local CLEU_WANTED = {
     SPELL_INTERRUPT = true, SPELL_DISPEL = true, SPELL_STOLEN = true,
     SWING_MISSED    = true, RANGE_MISSED = true, SPELL_MISSED = true,
-    SPELL_AURA_APPLIED = true,
+    SPELL_AURA_APPLIED = true, UNIT_DIED = true,
 }
 local function onCLEU()
     if not mod._enabled then return end
@@ -487,9 +520,33 @@ local function onCLEU()
     -- single fetch; slot 12 = spellId (or SWING missType), 13 = spellName,
     -- 15 = extraSpellId / SPELL missType / auraType(APPLIED), 16 = extraSpellName,
     -- 18 = auraType for DISPEL/STOLEN (slot 17 is the extra school)
-    local _, subEvent, _, sourceGUID, _, _, _, destGUID, _, _, _,
+    local _, subEvent, _, sourceGUID, _, _, _, destGUID, destName, _, _,
           arg12, spellName, _, arg15, extraSpellName, _, auraType18
           = CombatLogGetCurrentEventInfo()
+
+    if subEvent == "UNIT_DIED" then
+        -- another PLAYER in our group died (never ourselves — the release
+        -- dialog says it loudly enough)
+        if not destGUID or destGUID == playerGUID or not isPlayerGUID(destGUID) then return end
+        local unit = groupUnitByGUID(destGUID)
+        if not unit then return end
+        -- a feigning hunter also fires UNIT_DIED
+        if UnitIsFeignDeath and UnitIsFeignDeath(unit) then return end
+        if deathThrottled() then return end
+        local name = destName and destName:match("^[^%-]+") or "?"
+        if mod.db.deathClassColor ~= false and GetPlayerInfoByGUID then
+            local _, classToken = GetPlayerInfoByGUID(destGUID)
+            local cc = classToken and _G.RAID_CLASS_COLORS and _G.RAID_CLASS_COLORS[classToken]
+            if cc then
+                local hex = cc.colorStr or string.format("ff%02x%02x%02x",
+                    math.floor(cc.r * 255 + 0.5), math.floor(cc.g * 255 + 0.5),
+                    math.floor(cc.b * 255 + 0.5))
+                name = "|c" .. hex .. name .. "|r"
+            end
+        end
+        spawnScroll("partyDeath", string.format(L["%s died"], name))
+        return
+    end
 
     if subEvent == "SPELL_AURA_APPLIED" then
         -- external buffs only: someone else buffed YOU, or YOU buffed someone
@@ -856,6 +913,13 @@ function mod:GetOptions()
         msgSection("buffGiven",      L["Buff given"], false),
         msgSection("buffReceived",   L["Buff received"], false),
         msgSection("reflected",      L["Reflected"], false),
+        (function()
+            local sec = msgSection("partyDeath", L["Party member died"], false)
+            table.insert(sec.items, { type = "toggle", label = L["Class color names"],
+                get = function() return mod.db.deathClassColor ~= false end,
+                set = function(_, v) mod.db.deathClassColor = v end })
+            return sec
+        end)(),
         msgSection("missed",         L["Parried/Dodged/Missed"], false),
 
         { type = "toggle", label = L["Show spell icons"],
@@ -876,6 +940,7 @@ function mod:GetOptions()
                   C_Timer.After(1.5, function() spawnScroll("buffReceived",   richMsg(L["gave you"], 1459, GetSpellInfo and GetSpellInfo(1459) or "Arcane Intellect")) end)
                   C_Timer.After(1.8, function() spawnScroll("reflected",      richMsg(L["reflected"], 133, GetSpellInfo and GetSpellInfo(133) or "Fireball", true)) end)
                   C_Timer.After(2.1, function() spawnScroll("missed",         L["Parried"]) end)
+                  C_Timer.After(2.4, function() spawnScroll("partyDeath",     string.format(L["%s died"], "|cfff58cbaVulo|r")) end)
               end },
         } },
     }

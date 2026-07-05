@@ -124,9 +124,15 @@ end
 local function defaultGroup(name)
     return {
         name           = name or L["Cooldowns"],
-        mode           = "cooldown",   -- "cooldown" | "aura" (buffs/procs)
+        -- "cooldown" | "aura" (own buffs/procs) | "targetdebuff" (own debuffs
+        -- on the target) | "missing" (reminder: show while the buff is absent)
+        mode           = "cooldown",
         auraStyle      = "glow",       -- "glow" | "border" | "none"
         auraColor      = "yellow",
+        tintUnusable   = true,         -- blue-ish icon when out of mana
+        tintRange      = false,        -- red icon when target out of range
+        autoTrinkets   = false,        -- keep both equipped trinkets tracked
+        showTooltips   = false,        -- spell/item tooltip on icon hover
         entries        = {},
         iconSize       = 40,
         spacing        = 4,
@@ -206,6 +212,11 @@ local function ensureGroups()
         if g.minDuration == nil then g.minDuration = 1.5 end
         if g.stackSize  == nil then g.stackSize  = 13 end
         if type(g.stackColor) ~= "table" then g.stackColor = { r = 1, g = 0.95, b = 0.6 } end
+        if g.tintUnusable == nil then g.tintUnusable = true end
+        -- earlier builds parked the active-icon buffers ON the group table —
+        -- that table IS the saved profile, and the buffers hold FRAMES. Purge;
+        -- the runtime buffers live in side tables now (activeBufOf below).
+        g._activeBuf, g._activePrev = nil, nil
     end
     ensureGroupIDs()
     if d.selected < 1 then d.selected = 1 end
@@ -239,7 +250,7 @@ local function spellIDByName(name)
     return nil
 end
 
-local function resolveInput(text)
+local function resolveInput(text, allowRawName)
     if not text or text == "" then return nil end
     local sid = text:match("|Hspell:(%d+)")
     if sid then return "spell", tonumber(sid) end
@@ -269,6 +280,10 @@ local function resolveInput(text)
         local id = tonumber(link:match("item:(%d+)"))
         if id then return "item", id end
     end
+    -- aura-like groups match by NAME at runtime, so a buff another class
+    -- provides (a blessing, a weapon oil) is legal input even though it's in
+    -- nobody's spellbook here — keep the raw name as the entry id
+    if allowRawName then return "spell", text end
     return nil
 end
 
@@ -276,8 +291,10 @@ local function entryInfo(e)
     if e.kind == "spell" then
         local name, _, icon = GetSpellInfo(e.id)
         -- proc/aura IDs GetSpellInfo can't resolve fall back to the name/icon
-        -- cached the first time the aura was seen live (see refreshGroup).
-        return name or e.savedName, icon or e.savedIcon
+        -- cached the first time the aura was seen live (see refreshGroup);
+        -- raw-name entries (foreign buffs) fall back to the name itself
+        return name or e.savedName or (type(e.id) == "string" and e.id or nil),
+               icon or e.savedIcon
     else
         local name = GetItemInfo(e.id)
         return name, (GetItemIcon and GetItemIcon(e.id))
@@ -341,6 +358,51 @@ local function scanPlayerAuras()
     end
 end
 
+-- Same snapshot for YOUR debuffs on the target ("HARMFUL|PLAYER" = cast by
+-- the player — every rank/DoT tick counts, other people's debuffs don't).
+local tdByName, tdByID = {}, {}
+local recPoolT = {}
+local function scanTargetDebuffs()
+    wipe(tdByName); wipe(tdByID)
+    if not UnitExists("target") then return end
+    for i = 1, 40 do
+        local name, icon, count, _, duration, expiration, _, _, _, sid = UnitAura("target", i, "HARMFUL|PLAYER")
+        if not name then break end
+        local rec = recPoolT[i]
+        if not rec then rec = {}; recPoolT[i] = rec end
+        rec.dur, rec.exp, rec.count, rec.icon, rec.name = duration, expiration, count, icon, name
+        tdByName[name] = rec
+        if sid then tdByID[sid] = rec end
+    end
+end
+
+-- Runtime active-icon buffers, keyed by group table (NEVER stored on the
+-- group itself — that table is saved to disk and these lists hold frames).
+local activeBufOf, activePrevOf = {}, {}
+local function activeBuffers(group)
+    local buf = activeBufOf[group]
+    if not buf then buf = {}; activeBufOf[group] = buf end
+    wipe(buf)
+    return buf
+end
+
+-- Re-pack a group's shown icons, but only when the visible set actually
+-- changed (count or order) — same trick the aura mode always used.
+local function packIfChanged(group, active)
+    local prev, same = activePrevOf[group], false
+    if prev and #prev == #active then
+        same = true
+        for j = 1, #active do if prev[j] ~= active[j] then same = false; break end end
+    end
+    if not same then
+        layoutIcons(group, active)
+        prev = activePrevOf[group] or {}
+        wipe(prev)
+        for j = 1, #active do prev[j] = active[j] end
+        activePrevOf[group] = prev
+    end
+end
+
 -- Spells that consume a reagent: base spell id -> reagent item id. Resolved to
 -- the localized NAME at runtime, so it's locale-independent and covers every
 -- rank. Spells NOT listed (e.g. Howl of Terror) show no reagent.
@@ -376,7 +438,7 @@ end
 -- reagent (Soul Shards on Soul Fire, Infernal Stone on Inferno) that reagent's
 -- count is shown; otherwise the live aura stack count (>1). Gated by the
 -- per-group "Show stacks" eye.
-local function applyStack(group, f)
+local function applyStack(group, f, rec)
     if not group.showStacks then f.stack:Hide(); return end
     local e = f.entry
     if group.showReagents and e and e.kind == "spell" then
@@ -387,7 +449,9 @@ local function applyStack(group, f)
             return
         end
     end
-    local rec = (e and auraByID[e.id]) or (f.entryName and auraByName[f.entryName])
+    -- caller may pass the matched rec directly (target-debuff groups read a
+    -- DIFFERENT snapshot than the player-buff fallback below)
+    rec = rec or (e and auraByID[e.id]) or (f.entryName and auraByName[f.entryName])
     if rec and rec.count and rec.count > 1 then
         f.stack:SetText(rec.count); f.stack:Show()
     else
@@ -397,7 +461,7 @@ end
 
 local function addEntry(group, input)
     if not group then return false end
-    local kind, id = resolveInput(input)
+    local kind, id = resolveInput(input, group.mode ~= "cooldown")
     if not kind then
         ns:Print(L["Cooldown Manager: '%s' is not a known spell or item."], tostring(input))
         return false
@@ -490,6 +554,34 @@ local function makeIcon(bar, i)
     f.flash:SetBlendMode("ADD")
     f.flash:SetPoint("CENTER", f, "CENTER", 0, 0)
     f.flash:Hide()
+
+    -- optional hover tooltip (mouse only enabled per group in relayoutGroup;
+    -- with the mouse on, forward drops so drag-adding onto the bar still works)
+    f:EnableMouse(false)
+    f:SetScript("OnEnter", function(self)
+        local e = self.entry
+        if not e or not GameTooltip then return end
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        if e.kind == "item" then
+            if GameTooltip.SetItemByID then GameTooltip:SetItemByID(e.id)
+            else pcall(GameTooltip.SetHyperlink, GameTooltip, "item:" .. e.id) end
+        else
+            local sid = tonumber(e.id)
+            if sid and GameTooltip.SetSpellByID then
+                pcall(GameTooltip.SetSpellByID, GameTooltip, sid)
+            else
+                GameTooltip:SetText(self.entryName or tostring(e.id))
+            end
+        end
+        GameTooltip:Show()
+    end)
+    f:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+    f:SetScript("OnReceiveDrag", function()
+        -- forward to the bar's own handler (defined later in the file, so a
+        -- direct upvalue would bind nil at this point)
+        local h = bar:GetScript("OnReceiveDrag")
+        if h then h(bar) end
+    end)
     return f
 end
 
@@ -638,6 +730,10 @@ end
 
 relayoutGroup = function(group)
     local bar = ensureBar(group)
+    -- a relayout invalidates every cached grid position — drop the pack
+    -- memory or packIfChanged would skip re-packing an unchanged active set
+    -- that now sits at stale coordinates/sizes
+    activePrevOf[group] = nil
     local size = group.iconSize
     local entries = group.entries
     local icons = bar._icons
@@ -678,14 +774,16 @@ relayoutGroup = function(group)
         end
         f.stack:Hide()
         f.usable = entryUsable(e)
+        f:EnableMouse(group.showTooltips == true)
         f:SetSize(size, size)
         if f.usable then f:Show() else f:Hide() end
     end
     for i = #entries + 1, #icons do icons[i]:Hide() end
 
-    if group.mode == "aura" then
-        -- visibility + packing happen per refresh (only active procs show)
+    if group.mode == "aura" or group.mode == "targetdebuff" or group.mode == "missing" then
+        -- visibility + packing happen per refresh (only active entries show)
         scanPlayerAuras()
+        scanTargetDebuffs()
         refreshGroup(group, GetTime())
     else
         local all = {}
@@ -726,6 +824,25 @@ local function updateIcon(group, f, now)
         f.text:Hide()
         f.tex:SetDesaturated(false)
         f.tex:SetVertexColor(1, 1, 1)
+        -- ready, but not actually usable? tint like action buttons do:
+        -- blue-ish = not enough mana/energy, red = target out of range
+        if e.kind == "spell" then
+            local tinted = false
+            if group.tintUnusable ~= false and IsUsableSpell then
+                local usable, noMana = IsUsableSpell(e.id)
+                if noMana then
+                    f.tex:SetVertexColor(0.4, 0.45, 0.9); tinted = true
+                elseif not usable then
+                    f.tex:SetVertexColor(0.45, 0.45, 0.45); tinted = true
+                end
+            end
+            if not tinted and group.tintRange and IsSpellInRange
+               and f.entryName and UnitExists("target") then
+                if IsSpellInRange(f.entryName, "target") == 0 then
+                    f.tex:SetVertexColor(0.9, 0.3, 0.3)
+                end
+            end
+        end
         if group.readyFlash and (f.prevRemain or 0) > 0 then
             f.flashT = 0
             f.flash:SetAlpha(0.9)
@@ -782,6 +899,17 @@ local function applyAuraStyle(group, f)
     end
 end
 
+-- Missing mode: the icon is the REMINDER — plain spell icon + the group's
+-- highlight while the buff is absent; no sweep, no countdown.
+local function updateMissingIcon(group, f)
+    f.tex:SetDesaturated(false)
+    f.tex:SetVertexColor(1, 1, 1)
+    f.cd:Clear()
+    f.text:Hide()
+    f.stack:Hide()
+    applyAuraStyle(group, f)
+end
+
 -- Aura mode: the icon is only ever shown while the buff/proc is active.
 -- Draw a draining sweep for the remaining time + stacks.
 local function updateAuraIcon(group, f, rec, now)
@@ -803,34 +931,40 @@ local function updateAuraIcon(group, f, rec, now)
         f.cd:Clear()       -- permanent / no timed duration
         f.text:Hide()
     end
-    applyStack(group, f)
+    applyStack(group, f, rec)
 end
 
 refreshGroup = function(group, now)
     local bar = barOf[group]
     if not bar then return end
     local icons = bar._icons
+    local mode = group.mode
 
-    if group.mode == "aura" then
-        local active = group._activeBuf or {}   -- reuse buffer; no per-tick {} alloc
-        wipe(active)
-        group._activeBuf = active
+    if mode == "aura" or mode == "targetdebuff" or mode == "missing" then
+        -- pick the snapshot: own buffs or own debuffs on the target;
+        -- "missing" INVERTS the test (icon shows while the buff is absent)
+        local byID, byName = auraByID, auraByName
+        if mode == "targetdebuff" then byID, byName = tdByID, tdByName end
+        local invert = (mode == "missing")
+
+        local active = activeBuffers(group)
         for i = 1, #group.entries do
             local f = icons[i]
             if f then
                 local e = f.entry
-                local rec = (e and auraByID[e.id]) or (f.entryName and auraByName[f.entryName])
-                if rec then
+                local rec = (e and byID[e.id]) or (f.entryName and byName[f.entryName])
+                -- remember name/icon the moment the aura is EVER seen — also
+                -- in missing mode, where the icon shows while rec is nil and
+                -- an unresolvable raw-ID entry would otherwise stay "?"
+                if rec and e then
+                    if rec.name and not e.savedName then e.savedName = rec.name end
+                    if rec.icon and not e.savedIcon then e.savedIcon = rec.icon end
+                end
+                local show = invert and (rec == nil) or (not invert and rec ~= nil)
+                if show then
                     active[#active + 1] = f
                     f._rec = rec
-                    -- procs whose spell ID GetSpellInfo can't resolve start with
-                    -- the "?" icon; show the live aura icon instead, and remember
-                    -- name/icon once so the options list reads correctly too.
-                    if e then
-                        if rec.name and not e.savedName then e.savedName = rec.name end
-                        if rec.icon and not e.savedIcon then e.savedIcon = rec.icon end
-                    end
-                    if rec.icon and f._auraIconTex ~= rec.icon then
+                    if rec and rec.icon and f._auraIconTex ~= rec.icon then
                         f.tex:SetTexture(rec.icon); f._auraIconTex = rec.icon
                     end
                     f:Show()
@@ -840,43 +974,40 @@ refreshGroup = function(group, now)
                 end
             end
         end
-        -- only re-pack when the active set (count + order) actually changed
-        local prev, same = group._activePrev, false
-        if prev and #prev == #active then
-            same = true
-            for j = 1, #active do if prev[j] ~= active[j] then same = false; break end end
+        packIfChanged(group, active)   -- pack only the visible icons
+        for _, f in ipairs(active) do
+            if invert then updateMissingIcon(group, f)
+            else updateAuraIcon(group, f, f._rec, now) end
         end
-        if not same then
-            layoutIcons(group, active)          -- pack only the active procs
-            prev = group._activePrev or {}
-            wipe(prev)
-            for j = 1, #active do prev[j] = active[j] end
-            group._activePrev = prev
-        end
-        for _, f in ipairs(active) do updateAuraIcon(group, f, f._rec, now) end
         return
     end
 
-    -- cooldown mode
+    -- cooldown mode. With "only on cooldown" the shown set shifts constantly —
+    -- collect and re-pack so no holes are left in the grid.
+    local pack = group.onlyOnCooldown
+    local active = pack and activeBuffers(group) or nil
     for i = 1, #group.entries do
         local f = icons[i]
-        if f and f.usable and (f:IsShown() or group.onlyOnCooldown) then
+        if f and f.usable and (f:IsShown() or pack) then
             updateIcon(group, f, now)
+            if pack and f:IsShown() then active[#active + 1] = f end
         end
     end
+    if pack then packIfChanged(group, active) end
 end
 
 refreshAll = function()
     if not mod._enabled then return end
     local now = GetTime()
     local groups = db().groups
-    -- one shared aura scan if any group needs aura data (aura mode, or a
-    -- cooldown group that shows stack counts on its tracked spells)
-    local needAuras = false
+    -- one shared scan per unit if any group needs that data
+    local needPlayer, needTarget = false, false
     for _, g in ipairs(groups) do
-        if g.mode == "aura" or g.showStacks then needAuras = true; break end
+        if g.mode == "aura" or g.mode == "missing" or g.showStacks then needPlayer = true end
+        if g.mode == "targetdebuff" then needTarget = true end
     end
-    if needAuras then scanPlayerAuras() end
+    if needPlayer then scanPlayerAuras() end
+    if needTarget then scanTargetDebuffs() end
     for _, group in ipairs(groups) do
         local bar = barOf[group]
         local vis = barVisible(group)
@@ -888,7 +1019,7 @@ refreshAll = function()
 end
 
 local function onUnitAura(_, unit)
-    if unit == "player" then refreshAll() end
+    if unit == "player" or unit == "target" then refreshAll() end
 end
 
 local function onCombat()
@@ -896,6 +1027,46 @@ local function onCombat()
     -- (event, ...) so the old `(_, event)` put the name in `_` and left event nil.
     inCombat = not not UnitAffectingCombat("player")
     refreshAll()
+end
+
+-- Auto-tracked trinkets: keep the group's auto entries in step with the two
+-- equipped trinket slots. Manual entries for the same item are respected
+-- (they just prevent a duplicate auto entry).
+local function syncAutoTrinkets(group)
+    local changed = false
+    if not group.autoTrinkets then
+        for i = #group.entries, 1, -1 do
+            if group.entries[i].auto then table.remove(group.entries, i); changed = true end
+        end
+        return changed
+    end
+    local want = {}
+    for _, slot in ipairs({ 13, 14 }) do
+        local id = GetInventoryItemID and GetInventoryItemID("player", slot)
+        if id then want[id] = true end
+    end
+    for i = #group.entries, 1, -1 do
+        local e = group.entries[i]
+        if e.kind == "item" and want[e.id] then
+            want[e.id] = nil                       -- already tracked (manual or auto)
+        elseif e.auto then
+            table.remove(group.entries, i)         -- unequipped -> drop
+            changed = true
+        end
+    end
+    for id in pairs(want) do
+        group.entries[#group.entries + 1] = { kind = "item", id = id, auto = true }
+        changed = true
+    end
+    return changed
+end
+
+local function onEquipChanged()
+    for _, group in ipairs(db().groups) do
+        if group.autoTrinkets and syncAutoTrinkets(group) then
+            relayoutGroup(group)
+        end
+    end
 end
 
 -- Rebuild every bar: hide all, then (re)lay-out each current group.
@@ -908,6 +1079,7 @@ local function rebuildBars()
         local bar = ensureBar(group)
         bar:Show()
         if bar.mover and bar.mover.label then bar.mover.label:SetText(group.name) end
+        syncAutoTrinkets(group)
         relayoutGroup(group)
     end
     -- position after every bar exists, so anchors can target any other bar
@@ -961,6 +1133,7 @@ function mod:OnEnable()
     ns:RegisterEvent("PLAYER_REGEN_DISABLED", onCombat)    -- visibility conditions
     ns:RegisterEvent("PLAYER_REGEN_ENABLED",  onCombat)
     ns:RegisterEvent("PLAYER_TARGET_CHANGED", refreshAll)
+    ns:RegisterEvent("PLAYER_EQUIPMENT_CHANGED", onEquipChanged)  -- trinket auto-track
 end
 
 function mod:OnDisable()
@@ -972,6 +1145,7 @@ function mod:OnDisable()
     ns:UnregisterEvent("PLAYER_REGEN_DISABLED", onCombat)
     ns:UnregisterEvent("PLAYER_REGEN_ENABLED",  onCombat)
     ns:UnregisterEvent("PLAYER_TARGET_CHANGED", refreshAll)
+    ns:UnregisterEvent("PLAYER_EQUIPMENT_CHANGED", onEquipChanged)
     if driver then driver:Hide() end
     for _, b in ipairs(allBars) do
         if b.mover then b.mover:Hide() end
@@ -1039,6 +1213,21 @@ function mod:GetOptions()
                   d.selected = #d.groups
                   rebuildBars(); rebuildPage()
               end },
+            { type = "button", label = L["Duplicate"], width = 120,
+              tooltip = L["Copies the selected group with all entries and layout settings."],
+              onClick = function()
+                  local src = curGroup()
+                  if not src then return end
+                  local copy = ns:DeepCopy(src)
+                  copy.id = newGroupID()
+                  copy.name = src.name .. " " .. L["(copy)"]
+                  copy.unlocked = false
+                  copy.freeMove = nil        -- mover state stays with the original
+                  copy.anchorEnabled = nil
+                  d.groups[#d.groups + 1] = copy
+                  d.selected = #d.groups
+                  rebuildBars(); rebuildPage()
+              end },
         } },
     }
 
@@ -1068,15 +1257,24 @@ function mod:GetOptions()
     } }
     items[#items + 1] = { type = "dropdown", label = L["Group type"], width = 280,
         values = {
-            { value = "cooldown", text = L["Cooldowns"] },
-            { value = "aura",     text = L["Buffs & Procs (only show while active)"] },
+            { value = "cooldown",     text = L["Cooldowns"] },
+            { value = "aura",         text = L["Buffs & Procs (only show while active)"] },
+            { value = "targetdebuff", text = L["Debuffs on target (yours only)"] },
+            { value = "missing",      text = L["Missing buffs (reminder)"] },
         },
         get = function() return group.mode end,
         set = function(_, v) group.mode = v; rebuildBars(); rebuildPage() end }
-    items[#items + 1] = { type = "desc",
-        text = (group.mode == "aura")
-            and L["|cffaaaaaaIcons appear only while their buff/proc is on you; the bar is empty otherwise. Add the BUFF (e.g. Clearcasting) by name or ID.|r"]
-            or  L["|cffaaaaaaIcons show the cooldown of each spell/trinket.|r"] }
+    local modeDesc
+    if group.mode == "aura" then
+        modeDesc = L["|cffaaaaaaIcons appear only while their buff/proc is on you; the bar is empty otherwise. Add the BUFF (e.g. Clearcasting) by name or ID.|r"]
+    elseif group.mode == "targetdebuff" then
+        modeDesc = L["|cffaaaaaaIcons appear while YOUR debuff/DoT is on the target, with its remaining time. Add the debuff by name or ID.|r"]
+    elseif group.mode == "missing" then
+        modeDesc = L["|cffaaaaaaIcons appear while the buff is MISSING on you - a reminder for weapon oils, blessings, food buffs. Add the buff by name or ID.|r"]
+    else
+        modeDesc = L["|cffaaaaaaIcons show the cooldown of each spell/trinket.|r"]
+    end
+    items[#items + 1] = { type = "desc", text = modeDesc }
     items[#items + 1] = { type = "spacer", height = 6 }
 
     -- Add entry (commit on focus loss so clicking Add works without Enter;
@@ -1110,9 +1308,13 @@ function mod:GetOptions()
             local label = (icon and ("|T" .. icon .. ":18:18:0:0:64:64:5:59:5:59|t  ") or "")
                 .. (nm or ("#" .. tostring(e.id)))
             if e.kind == "item" then label = label .. L["  |cff888888(item)|r"] end
-            if e.kind == "spell" and not entryUsable(e) then label = label .. L["  |cffaa5555(other class)|r"] end
+            if e.auto then label = label .. " |cff888888(auto)|r" end
+            -- foreign buffs are the POINT of missing/aura groups — no warning tag there
+            if group.mode == "cooldown" and e.kind == "spell" and not entryUsable(e) then
+                label = label .. L["  |cffaa5555(other class)|r"]
+            end
 
-            trackedItems[#trackedItems + 1] = { type = "group", layout = "row", gap = 6, items = {
+            local rowItems = {
                 { type = "desc", text = label, width = 300 },
                 { type = "iconbutton", icon = ARROW_LEFT, width = 28, height = 28, iconInset = 7,
                   tooltip = L["Move earlier"],
@@ -1130,15 +1332,30 @@ function mod:GetOptions()
                           relayoutGroup(group); rebuildPage()
                       end
                   end },
-                { type = "button", label = L["Remove"], width = 110, height = 28,
+            }
+            -- auto trinkets have no Remove: the sync would just re-add them
+            if not e.auto then
+                rowItems[#rowItems + 1] = { type = "button", label = L["Remove"], width = 110, height = 28,
                   onClick = function()
                       table.remove(group.entries, i); relayoutGroup(group); rebuildPage()
-                  end },
-            } }
+                  end }
+            end
+            trackedItems[#trackedItems + 1] = { type = "group", layout = "row", gap = 6, items = rowItems }
         end
     end
     -- Unlock / position lives INSIDE the section, so it collapses with it
     trackedItems[#trackedItems + 1] = { type = "spacer", height = 4 }
+    if group.mode == "cooldown" then
+        trackedItems[#trackedItems + 1] = { type = "toggle", label = L["Auto-track equipped trinkets"],
+            tooltip = L["Keeps both equipped trinkets in this group automatically - they follow along when you swap trinkets."],
+            get = function() return group.autoTrinkets == true end,
+            set = function(_, v)
+                group.autoTrinkets = v
+                syncAutoTrinkets(group)
+                relayoutGroup(group)
+                rebuildPage()
+            end }
+    end
     trackedItems[#trackedItems + 1] = { type = "button", label = L["Unlock / Position"], width = 200,
         onClick = function() setUnlocked(group, not group.unlocked) end }
     items[#items + 1] = { type = "section", title = L["Tracked"], collapsed = false, items = trackedItems }
@@ -1274,7 +1491,11 @@ function mod:GetOptions()
                   function(c) group.stackColor = c; relayoutGroup(group) end)
           end },
     }
-    if group.mode == "aura" then
+    displayItems[#displayItems + 1] = { type = "toggle", label = L["Show tooltips on hover"],
+        tooltip = L["The icons then intercept the mouse - leave this off if the bar sits over clickable UI."],
+        get = function() return group.showTooltips == true end,
+        set = function(_, v) group.showTooltips = v; relayoutGroup(group) end }
+    if group.mode ~= "cooldown" then
         displayItems[#displayItems + 1] = { type = "dropdown", label = L["Highlight"], width = 220,
             values = {
                 { value = "proc",   text = L["Proc glow (animated)"] },
@@ -1312,6 +1533,13 @@ function mod:GetOptions()
         displayItems[#displayItems + 1] = { type = "toggle", label = L["Flash when ready"],
             get = function() return group.readyFlash end,
             set = function(_, v) group.readyFlash = v end }
+        displayItems[#displayItems + 1] = { type = "toggle", label = L["Tint blue when out of mana"],
+            get = function() return group.tintUnusable ~= false end,
+            set = function(_, v) group.tintUnusable = v; refreshAll() end }
+        displayItems[#displayItems + 1] = { type = "toggle", label = L["Tint red when out of range"],
+            tooltip = L["Needs a target; uses the spell's own range."],
+            get = function() return group.tintRange == true end,
+            set = function(_, v) group.tintRange = v; refreshAll() end }
     end
     items[#items + 1] = { type = "section", title = L["Display"], collapsed = true, items = displayItems }
 

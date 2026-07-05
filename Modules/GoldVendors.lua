@@ -140,7 +140,7 @@ function mod.ResetSession()
     initSession(true)
     local d = data()
     if d then
-        ns:Print(ACCENT .. L["Gold Tracker reset|r. Start = "] .. formatCopper(d.sessionStart))
+        ns:Print(ns.C.accent .. L["Gold Tracker reset|r. Start = "] .. formatCopper(d.sessionStart))
     end
 end
 
@@ -161,7 +161,7 @@ local function showTooltip(self)
         GameTooltip:AddLine(" ")
     end
 
-    GameTooltip:AddLine(ACCENT .. L["Gold Balance|r"])
+    GameTooltip:AddLine(ns.C.accent .. L["Gold Balance|r"])
     GameTooltip:AddLine(" ")
     GameTooltip:AddDoubleLine(POS_COLOR .. L["Gained:|r"], formatCopper(d.gained))
     GameTooltip:AddDoubleLine(NEG_COLOR .. L["Spent:|r"],  formatCopper(d.spent))
@@ -211,7 +211,7 @@ function ns.ShowGoldTooltip(owner)
             end
         end
         table.sort(rows, function(a, b) return a.name < b.name end)
-        GameTooltip:AddDoubleLine(ACCENT .. L["Faction/Server Gold:|r"], coin(total))
+        GameTooltip:AddDoubleLine(ns.C.accent .. L["Faction/Server Gold:|r"], coin(total))
         GameTooltip:AddLine(" ")
         for _, r in ipairs(rows) do
             local cls = r.info.class and RAID_CLASS_COLORS and RAID_CLASS_COLORS[r.info.class]

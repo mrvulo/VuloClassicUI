@@ -232,7 +232,7 @@ local function buildWindow()
     -- title
     local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     title:SetPoint("TOPLEFT", 10, -8)
-    title:SetText("|cff9b6cff" .. L["Disenchant Queue"] .. "|r")
+    title:SetText((ns.C and ns.C.accent or "|cff9b6cff") .. L["Disenchant Queue"] .. "|r")
 
     -- close (X)
     local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")

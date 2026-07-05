@@ -21,6 +21,7 @@ local mod = ns:RegisterModule("friendlist", {
     defaults    = {
         enabled         = true,
         skinFrame       = true,       -- dark window skin (whole FriendsFrame)
+        skinCommunities = true,       -- dark skin for the guild & communities window
         classColorNames = true,
         classIcons      = true,
         iconStyle       = "blizzard", -- "blizzard" | "vulo" | "circle" | "square"
@@ -704,6 +705,381 @@ local function restyleAll()
 end
 
 -- =========================================================
+-- Guild & communities window — same dark treatment as the friends frame.
+-- Facts (verified against this client's UI source): the modern communities
+-- addon is NOT load-on-demand here, so CommunitiesFrame exists from login
+-- (unless the classic-guild-UI CVar disables it); the gold border is the
+-- old-style EXPLICIT texture set (NineSlice inert but present); the list and
+-- roster are pooled modern ScrollBoxes -> per-frame skins via ScrollUtil;
+-- nothing in the window is secure.
+-- =========================================================
+local commSkinned = false
+
+local function commStrip(region)
+    if not region then return end
+    for _, r in ipairs({ region:GetRegions() }) do
+        if r.IsObjectType and r:IsObjectType("Texture") then hideRegion(r) end
+    end
+end
+
+-- left-column community/guild entries (pooled). NO one-shot latch for the
+-- recolors: Blizzard's element initializer re-sets Background/Selection on
+-- EVERY list refresh (after the acquire event), so they must be re-applied.
+local function skinCommEntry(btn)
+    if not btn or not btn.GetObjectType then return end
+    local ac = ns.COLORS and ns.COLORS.accent or { r = 0.608, g = 0.424, b = 1 }
+    -- the template anchors Background/Selection/Highlight BEYOND the button
+    -- rect (the old atlas art had transparent margins) — as solid colors they
+    -- bleed into the neighbouring rows. Pin all three to the row itself, with
+    -- a small vertical gap so the cards read as separate.
+    local function pin(t)
+        if not t then return end
+        t:ClearAllPoints()
+        t:SetPoint("TOPLEFT", btn, "TOPLEFT", 0, -1)
+        t:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", 0, 2)
+    end
+    if btn.Background then
+        if not btn._vcuiPinned then pin(btn.Background) end
+        btn.Background:SetTexture(nil)
+        btn.Background:SetColorTexture(0.085, 0.085, 0.11, 0.9)
+    end
+    if btn.Selection then
+        if not btn._vcuiPinned then pin(btn.Selection) end
+        btn.Selection:SetTexture(nil)
+        btn.Selection:SetColorTexture(ac.r, ac.g, ac.b, 0.22)
+    end
+    if btn.IconRing then btn.IconRing:SetAlpha(0) end
+    if not btn._vcuiSkin then
+        btn._vcuiSkin = true
+        local hl = btn.GetHighlightTexture and btn:GetHighlightTexture()
+        if hl then
+            pin(hl)
+            hl:SetTexture(nil)
+            hl:SetColorTexture(1, 1, 1, 0.06)
+            hl:SetBlendMode("BLEND")   -- template ships ADD; a solid tint needs BLEND
+        end
+        if btn.Name and ns.UI and ns.UI.Font then ns.UI.Font(btn.Name, 12) end
+        btn._vcuiPinned = true
+    end
+end
+
+-- roster rows (pooled): drop the parchment stripe, accent highlight
+local function skinCommMemberRow(row)
+    if not row or not row.GetObjectType then return end
+    local nt = row.GetNormalTexture and row:GetNormalTexture()
+    if nt then nt:SetAlpha(0) end
+    if not row._vcuiRowSkin then
+        row._vcuiRowSkin = true
+        local ac = ns.COLORS and ns.COLORS.accent or { r = 0.608, g = 0.424, b = 1 }
+        local hl = row.GetHighlightTexture and row:GetHighlightTexture()
+        if hl then
+            hl:SetTexture(nil)
+            hl:SetColorTexture(ac.r, ac.g, ac.b, 0.12)
+            hl:SetBlendMode("BLEND")
+        end
+    end
+end
+
+-- ScrollUtil callback signatures on this build: the EVENT path prepends the
+-- registered owner as the first arg, the iterate-existing path passes the
+-- frame first. The owner we register is a plain table (mod), never a frame,
+-- so "the arg that is a frame" is unambiguous.
+local function acquiredFrameOf(a, b)
+    if type(a) == "table" and a.GetObjectType then return a end
+    if type(b) == "table" and b.GetObjectType then return b end
+    return nil
+end
+
+local function skinCommunitiesFrame()
+    if commSkinned or mod.db.skinCommunities == false or not mod.active then return end
+    local cf, UI = _G.CommunitiesFrame, ns.UI
+    if not (cf and UI and UI.StyleBackdrop) then return end
+    commSkinned = true
+
+    local ac = ns.COLORS and ns.COLORS.accent or { r = 0.608, g = 0.424, b = 1 }
+    local bc = ns.COLORS and (ns.COLORS.borderDark or ns.COLORS.border) or { r = 0.15, g = 0.15, b = 0.18 }
+
+    -- chrome off: explicit border pieces + the button-bar art (global names)
+    for _, k in ipairs({ "Bg", "TitleBg", "PortraitFrame", "TopLeftCorner",
+        "TopRightCorner", "TopBorder", "TopTileStreaks", "BotLeftCorner",
+        "BotRightCorner", "BottomBorder", "LeftBorder", "RightBorder",
+        "portrait" }) do
+        hideRegion(cf[k])
+    end
+    hideRegion(_G.CommunitiesFrameBtnCornerLeft)
+    hideRegion(_G.CommunitiesFrameBtnCornerRight)
+    hideRegion(_G.CommunitiesFrameButtonBottomBorder)
+    if cf.NineSlice then cf.NineSlice:SetAlpha(0) end
+    if cf.PortraitContainer then commStrip(cf.PortraitContainer) end
+    if cf.Inset then
+        if cf.Inset.Bg then hideRegion(cf.Inset.Bg) end
+        if cf.Inset.NineSlice then cf.Inset.NineSlice:SetAlpha(0) end
+    end
+
+    -- our panel + title + flat close
+    UI:StyleBackdrop(cf, { bg = ns.COLORS and ns.COLORS.bg, border = bc })
+    if UI.CreateShadow then UI:CreateShadow(cf) end
+    local gstrip = cf:CreateTexture(nil, "ARTWORK")
+    gstrip:SetPoint("TOPLEFT", cf, "TOPLEFT", 0, 0)
+    gstrip:SetPoint("TOPRIGHT", cf, "TOPRIGHT", 0, 0)
+    gstrip:SetHeight(2)
+    if UI.SetGradient then
+        UI.SetGradient(gstrip, "HORIZONTAL", ac.r, ac.g, ac.b, 0.1, ac.r, ac.g, ac.b, 0.9)
+    end
+    if cf.TitleText then
+        if UI.Font then UI.Font(cf.TitleText, 13) end
+        cf.TitleText:SetTextColor(0.95, 0.95, 1)
+    end
+    local cb = cf.CloseButton
+    if cb and not cb._vcuiSkin then
+        cb._vcuiSkin = true
+        commStrip(cb)
+        local x = cb:CreateFontString(nil, "OVERLAY")
+        if UI.Font then UI.Font(x, 16) else x:SetFontObject("GameFontNormalLarge") end
+        x:SetPoint("CENTER", cb, "CENTER", 0, 0)
+        x:SetText("×")
+        x:SetTextColor(0.8, 0.8, 0.85)
+        cb:HookScript("OnEnter", function() x:SetTextColor(ac.r, ac.g, ac.b) end)
+        cb:HookScript("OnLeave", function() x:SetTextColor(0.8, 0.8, 0.85) end)
+    end
+
+    -- the floating round community icon over the corner reads as clutter on
+    -- the flat panel — hide the whole overlay (alpha survives Blizzard's
+    -- Show/SetPortraitToTexture calls on it)
+    if cf.PortraitOverlay then cf.PortraitOverlay:SetAlpha(0) end
+
+    -- maximize/minimize -> flat +/– glyphs matching the close button
+    local mm = cf.MaximizeMinimizeFrame
+    if mm then
+        for _, key in ipairs({ "MaximizeButton", "MinimizeButton" }) do
+            local b = mm[key]
+            if b and not b._vcuiSkin then
+                b._vcuiSkin = true
+                commStrip(b)
+                local g = b:CreateFontString(nil, "OVERLAY")
+                if UI.Font then UI.Font(g, 14) else g:SetFontObject("GameFontNormal") end
+                g:SetPoint("CENTER", b, "CENTER", 0, 0)
+                g:SetText(key == "MaximizeButton" and "+" or "–")
+                g:SetTextColor(0.8, 0.8, 0.85)
+                b:HookScript("OnEnter", function() g:SetTextColor(ac.r, ac.g, ac.b) end)
+                b:HookScript("OnLeave", function() g:SetTextColor(0.8, 0.8, 0.85) end)
+            end
+        end
+    end
+
+    -- gold Blizzard text -> house font/colors (colors persist across SetText)
+    local acb = cf.AddToChatButton
+    if acb then
+        local fs = (acb.GetFontString and acb:GetFontString()) or acb.Text
+        if fs then
+            if UI.Font then UI.Font(fs, 11) end
+            fs:SetTextColor(0.9, 0.9, 0.95)
+        end
+    end
+    local sd = cf.StreamDropdown
+    if sd and sd.Text then
+        if UI.Font then UI.Font(sd.Text, 12) end
+        sd.Text:SetTextColor(0.9, 0.9, 0.95)
+    end
+
+    -- left column: blue-menu art off, darker column + 1px divider instead
+    local cl = cf.CommunitiesList
+    if cl then
+        hideRegion(cl.Bg)
+        hideRegion(cl.TopFiligree)
+        hideRegion(cl.BottomFiligree)
+        if cl.FilligreeOverlay then commStrip(cl.FilligreeOverlay) end
+        if cl.InsetFrame then
+            commStrip(cl.InsetFrame)
+            if cl.InsetFrame.NineSlice then cl.InsetFrame.NineSlice:SetAlpha(0) end
+        end
+        local colbg = cl:CreateTexture(nil, "BACKGROUND")
+        colbg:SetAllPoints(cl)
+        colbg:SetColorTexture(0.05, 0.05, 0.065, 0.95)
+        local div = cl:CreateTexture(nil, "BORDER")
+        div:SetPoint("TOPRIGHT", cl, "TOPRIGHT", 0, 0)
+        div:SetPoint("BOTTOMRIGHT", cl, "BOTTOMRIGHT", 0, 0)
+        div:SetWidth(1)
+        div:SetColorTexture(bc.r, bc.g, bc.b, 1)
+        if cl.ScrollBox and _G.ScrollUtil then
+            -- Initialized > Acquired: Blizzard's initializer repaints the
+            -- entry AFTER acquire, so the skin must run after it
+            local add = ScrollUtil.AddInitializedFrameCallback or ScrollUtil.AddAcquiredFrameCallback
+            if add then
+                pcall(add, cl.ScrollBox, function(a, b)
+                    local f = acquiredFrameOf(a, b)
+                    if f and mod.active and mod.db.skinCommunities ~= false then skinCommEntry(f) end
+                end, mod, true)   -- owner MUST NOT be a frame (see acquiredFrameOf)
+            end
+        end
+    end
+
+    -- roster: rock header + inset borders off, flat header plates
+    local ml = cf.MemberList
+    if ml then
+        -- the huge faint crest watermark fights the flat look
+        if ml.WatermarkFrame then ml.WatermarkFrame:SetAlpha(0) end
+        if ml.MemberCount then
+            if UI.Font then UI.Font(ml.MemberCount, 11) end
+            ml.MemberCount:SetTextColor(0.65, 0.65, 0.7)
+        end
+        for _, k in ipairs({ "InsetBorderTopLeft", "InsetBorderTopRight",
+            "InsetBorderBottomLeft", "InsetBorderBottomRight",
+            "InsetBorderTop", "InsetBorderBottom", "InsetBorderLeft",
+            "InsetBorderRight", "InsetBorderTop2", "InsetBorderLeft2" }) do
+            hideRegion(ml[k])
+        end
+        if ml.InsetFrame then
+            commStrip(ml.InsetFrame)
+            if ml.InsetFrame.NineSlice then ml.InsetFrame.NineSlice:SetAlpha(0) end
+        end
+        if ml.ScrollBar and ml.ScrollBar.Background then hideRegion(ml.ScrollBar.Background) end
+        local cd = ml.ColumnDisplay
+        if cd then
+            hideRegion(cd.Background)
+            hideRegion(cd.TopTileStreaks)
+            local function skinHeaders()
+                for _, child in ipairs({ cd:GetChildren() }) do
+                    if child.IsObjectType and child:IsObjectType("Button") and not child._vcuiSkin then
+                        child._vcuiSkin = true
+                        -- strip the plate art but KEEP hover feedback
+                        local chl = child.GetHighlightTexture and child:GetHighlightTexture()
+                        for _, r in ipairs({ child:GetRegions() }) do
+                            if r.IsObjectType and r:IsObjectType("Texture") and r ~= chl then
+                                hideRegion(r)
+                            end
+                        end
+                        if chl then
+                            chl:SetTexture(nil)
+                            chl:SetColorTexture(1, 1, 1, 0.06)
+                            chl:SetBlendMode("BLEND")
+                        end
+                        local bg = child:CreateTexture(nil, "BACKGROUND")
+                        bg:SetAllPoints(child)
+                        bg:SetColorTexture(0.1, 0.1, 0.13, 0.9)
+                        local ln = child:CreateTexture(nil, "BORDER")
+                        ln:SetPoint("BOTTOMLEFT", child, "BOTTOMLEFT", 0, 0)
+                        ln:SetPoint("BOTTOMRIGHT", child, "BOTTOMRIGHT", 0, 0)
+                        ln:SetHeight(1)
+                        ln:SetColorTexture(ac.r, ac.g, ac.b, 0.4)
+                    end
+                end
+            end
+            skinHeaders()
+            -- headers are (re)built when the roster layout changes
+            if type(cd.LayoutColumns) == "function" then
+                hooksecurefunc(cd, "LayoutColumns", function()
+                    if mod.active and mod.db.skinCommunities ~= false then skinHeaders() end
+                end)
+            end
+        end
+        if ml.ScrollBox and _G.ScrollUtil then
+            local add = ScrollUtil.AddInitializedFrameCallback or ScrollUtil.AddAcquiredFrameCallback
+            if add then
+                pcall(add, ml.ScrollBox, function(a, b)
+                    local f = acquiredFrameOf(a, b)
+                    if f and mod.active and mod.db.skinCommunities ~= false then skinCommMemberRow(f) end
+                end, mod, true)   -- owner MUST NOT be a frame
+            end
+        end
+    end
+
+    -- chat area: sunken border off, flat edit box with a hairline
+    if cf.Chat and cf.Chat.InsetFrame then
+        commStrip(cf.Chat.InsetFrame)
+        if cf.Chat.InsetFrame.NineSlice then cf.Chat.InsetFrame.NineSlice:SetAlpha(0) end
+    end
+    local eb = cf.ChatEditBox
+    if eb then
+        hideRegion(eb.Left); hideRegion(eb.Right); hideRegion(eb.Mid)
+        local ebg = eb:CreateTexture(nil, "BACKGROUND")
+        ebg:SetPoint("TOPLEFT", eb, "TOPLEFT", 0, -4)
+        ebg:SetPoint("BOTTOMRIGHT", eb, "BOTTOMRIGHT", 0, 4)
+        ebg:SetColorTexture(0.04, 0.04, 0.055, 0.95)
+        local line = eb:CreateTexture(nil, "BORDER")
+        line:SetPoint("BOTTOMLEFT", eb, "BOTTOMLEFT", 0, 2)
+        line:SetPoint("BOTTOMRIGHT", eb, "BOTTOMRIGHT", 0, 2)
+        line:SetHeight(1)
+        line:SetColorTexture(0.3, 0.3, 0.35, 1)
+    end
+
+    -- right-edge tabs: skill-line bevel off, flat plate + accent when active
+    local function skinSideTab(tab)
+        if not tab or tab._vcuiSkin then return end
+        tab._vcuiSkin = true
+        local hl = tab.GetHighlightTexture and tab:GetHighlightTexture()
+        local ck = tab.GetCheckedTexture and tab:GetCheckedTexture()
+        for _, r in ipairs({ tab:GetRegions() }) do
+            if r.IsObjectType and r:IsObjectType("Texture")
+               and r ~= tab.Icon and r ~= tab.IconOverlay and r ~= hl and r ~= ck then
+                hideRegion(r)
+            end
+        end
+        local bg = tab:CreateTexture(nil, "BACKGROUND")
+        bg:SetAllPoints(tab)
+        bg:SetColorTexture(0.09, 0.09, 0.115, 0.95)
+        if hl then
+            hl:SetTexture(nil); hl:SetColorTexture(1, 1, 1, 0.08)
+            hl:SetBlendMode("BLEND")   -- template ships ADD
+        end
+        if ck then
+            ck:SetTexture(nil); ck:SetColorTexture(ac.r, ac.g, ac.b, 0.3)
+            ck:SetBlendMode("BLEND")
+        end
+    end
+    skinSideTab(cf.ChatTab)
+    skinSideTab(cf.RosterTab)
+    skinSideTab(cf.GuildBenefitsTab)
+    skinSideTab(cf.GuildInfoTab)
+
+    -- bottom buttons -> the friends-frame button recipe
+    local fontN = _G.VCUI_FriendsFontNormal or CreateFont("VCUI_FriendsFontNormal")
+    local fontH = _G.VCUI_FriendsFontHighlight or CreateFont("VCUI_FriendsFontHighlight")
+    local fontD = _G.VCUI_FriendsFontDisabled or CreateFont("VCUI_FriendsFontDisabled")
+    local function skinCommButton(b)
+        if not b or b._vcuiSkin then return end
+        b._vcuiSkin = true
+        commStrip(b)
+        local bg = b:CreateTexture(nil, "BACKGROUND")
+        bg:SetAllPoints(b)
+        bg:SetColorTexture(0.13, 0.13, 0.16, 1)
+        local edges = {}
+        for i = 1, 4 do
+            local t = b:CreateTexture(nil, "BORDER")
+            t:SetColorTexture(bc.r, bc.g, bc.b, 1)
+            edges[i] = t
+        end
+        edges[1]:SetPoint("TOPLEFT"); edges[1]:SetPoint("TOPRIGHT"); edges[1]:SetHeight(1)
+        edges[2]:SetPoint("BOTTOMLEFT"); edges[2]:SetPoint("BOTTOMRIGHT"); edges[2]:SetHeight(1)
+        edges[3]:SetPoint("TOPLEFT"); edges[3]:SetPoint("BOTTOMLEFT"); edges[3]:SetWidth(1)
+        edges[4]:SetPoint("TOPRIGHT"); edges[4]:SetPoint("BOTTOMRIGHT"); edges[4]:SetWidth(1)
+        if b.SetNormalFontObject then b:SetNormalFontObject(fontN) end
+        if b.SetHighlightFontObject then b:SetHighlightFontObject(fontH) end
+        if b.SetDisabledFontObject then b:SetDisabledFontObject(fontD) end
+        b:HookScript("OnEnter", function()
+            bg:SetColorTexture(0.19, 0.19, 0.23, 1)
+            for _, t in ipairs(edges) do t:SetColorTexture(ac.r, ac.g, ac.b, 0.9) end
+        end)
+        b:HookScript("OnLeave", function()
+            bg:SetColorTexture(0.13, 0.13, 0.16, 1)
+            for _, t in ipairs(edges) do t:SetColorTexture(bc.r, bc.g, bc.b, 1) end
+        end)
+    end
+    skinCommButton(cf.InviteButton)
+    skinCommButton(cf.GuildLogButton)
+    if cf.CommunitiesControlFrame then
+        skinCommButton(cf.CommunitiesControlFrame.GuildControlButton)
+        skinCommButton(cf.CommunitiesControlFrame.GuildRecruitmentButton)
+        skinCommButton(cf.CommunitiesControlFrame.CommunitiesSettingsButton)
+    end
+end
+
+-- the communities addon can load after us on some setups — watch for it
+local function onCommAddonLoaded(_, addonName)
+    if addonName == "Blizzard_Communities" then skinCommunitiesFrame() end
+end
+
+-- =========================================================
 -- Auto-accept Battle.net FRIEND invites
 -- =========================================================
 local function acceptInvites()
@@ -787,6 +1163,8 @@ function mod:OnEnable()
         if self.db.iconStyle == "vulo" then self.db.iconStyle = "blizzard" end
     end
     installHooks()
+    skinCommunitiesFrame()
+    ns:RegisterEvent("ADDON_LOADED",                      onCommAddonLoaded)
     ns:RegisterEvent("FRIENDLIST_UPDATE",                 restyleAll)
     ns:RegisterEvent("BN_FRIEND_INFO_CHANGED",            restyleAll)
     ns:RegisterEvent("BN_FRIEND_INVITE_ADDED",            acceptInvites)
@@ -797,6 +1175,7 @@ function mod:OnEnable()
 end
 
 function mod:OnDisable()
+    ns:UnregisterEvent("ADDON_LOADED",                      onCommAddonLoaded)
     ns:UnregisterEvent("FRIENDLIST_UPDATE",                 restyleAll)
     ns:UnregisterEvent("BN_FRIEND_INFO_CHANGED",            restyleAll)
     ns:UnregisterEvent("BN_FRIEND_INVITE_ADDED",            acceptInvites)
@@ -865,6 +1244,13 @@ function mod:GetOptions()
         { type = "header", text = L["Display"] },
         tgl("skinFrame", L["Dark window skin"],
             L["Restyles the whole friends window dark with purple accents. Turning it off needs a /reload to restore Blizzard's frame."]),
+        { type = "toggle", label = L["Dark guild & communities window"],
+          tooltip = L["Restyles the guild and communities window to the same dark look. Turning it off needs a /reload."],
+          get = function() return mod.db.skinCommunities ~= false end,
+          set = function(_, v)
+              mod.db.skinCommunities = v
+              if v then skinCommunitiesFrame() end
+          end },
         tgl("classColorNames", L["Class color names"],
             L["Colors each online friend's name by their class."]),
         tgl("classIcons", L["Show class icons"],

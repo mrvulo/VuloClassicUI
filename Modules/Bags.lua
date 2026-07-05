@@ -590,7 +590,8 @@ end
 
 local function updateMoney()
     if bagFrame and bagFrame.money and GetCoinTextureString then
-        bagFrame.money:SetText(GetCoinTextureString(GetMoney() or 0))
+        -- second arg = coin icon size, so the icons grow with the 13px font
+        bagFrame.money:SetText(GetCoinTextureString(GetMoney() or 0, 13))
     end
 end
 
@@ -1969,7 +1970,7 @@ local function buildFrame()
     local sbIcon = sb:CreateTexture(nil, "OVERLAY")
     sbIcon:SetSize(11, 11)
     sbIcon:SetPoint("LEFT", sb, "LEFT", 6, 0)
-    sbIcon:SetTexture("Interface\\Common\\UI-Searchbox-Icon")
+    sbIcon:SetTexture("Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\modules\\fixinspect.tga")
     sbIcon:SetVertexColor(0.55, 0.55, 0.62)
     local sbBorder = CreateFrame("Frame", nil, sb, BackdropTemplateMixin and "BackdropTemplate")
     sbBorder:SetAllPoints(sb)
@@ -2259,8 +2260,9 @@ local function buildFrame()
     -- footer: free slots (left) + money (right)
     f.free = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     f.free:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", PAD, 8)
-    f.money = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    f.money:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -PAD, 8)
+    f.money = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    if UI and UI.Font then UI.Font(f.money, 13) end
+    f.money:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -PAD, 7)
     -- invisible hover region over the money text -> account gold tooltip
     local moneyBtn = CreateFrame("Button", nil, f)
     moneyBtn:SetPoint("TOPLEFT", f.money, "TOPLEFT", -4, 2)
@@ -2599,11 +2601,11 @@ StaticPopupDialogs["VCUI_BAGS_NEW_CATEGORY"] = {
     button1 = ACCEPT, button2 = CANCEL,
     hasEditBox = true, maxLetters = 32,
     OnShow = function(self)
-        local eb = self.editBox or _G[self:GetName() .. "EditBox"]
+        local eb = self.EditBox or self.editBox or _G[self:GetName() .. "EditBox"]
         if eb then eb:SetText(""); eb:SetFocus() end
     end,
     OnAccept = function(self)
-        local eb = self.editBox or _G[self:GetName() .. "EditBox"]
+        local eb = self.EditBox or self.editBox or _G[self:GetName() .. "EditBox"]
         createCustomCategory(eb and eb:GetText() or "")
     end,
     EditBoxOnEnterPressed = function(self)
@@ -2620,11 +2622,11 @@ StaticPopupDialogs["VCUI_BAGS_RENAME_CATEGORY"] = {
     button1 = ACCEPT, button2 = CANCEL,
     hasEditBox = true, maxLetters = 32,
     OnShow = function(self, data)
-        local eb = self.editBox or _G[self:GetName() .. "EditBox"]
+        local eb = self.EditBox or self.editBox or _G[self:GetName() .. "EditBox"]
         if eb then eb:SetText((data and data.current) or ""); eb:HighlightText(); eb:SetFocus() end
     end,
     OnAccept = function(self, data)
-        local eb = self.editBox or _G[self:GetName() .. "EditBox"]
+        local eb = self.EditBox or self.editBox or _G[self:GetName() .. "EditBox"]
         if data then renameCategory(data.key, eb and eb:GetText() or "") end
     end,
     EditBoxOnEnterPressed = function(self)
@@ -2642,11 +2644,11 @@ StaticPopupDialogs["VCUI_BAGS_NEW_GROUP"] = {
     button1 = ACCEPT, button2 = CANCEL,
     hasEditBox = true, maxLetters = 32,
     OnShow = function(self)
-        local eb = self.editBox or _G[self:GetName() .. "EditBox"]
+        local eb = self.EditBox or self.editBox or _G[self:GetName() .. "EditBox"]
         if eb then eb:SetText(""); eb:SetFocus() end
     end,
     OnAccept = function(self, data)
-        local eb = self.editBox or _G[self:GetName() .. "EditBox"]
+        local eb = self.EditBox or self.editBox or _G[self:GetName() .. "EditBox"]
         local id = createGroup(eb and eb:GetText() or "")
         if id and data and data.catKey then assignCatToGroup(data.catKey, id) end
     end,
@@ -2665,11 +2667,11 @@ StaticPopupDialogs["VCUI_BAGS_RENAME_GROUP"] = {
     button1 = ACCEPT, button2 = CANCEL,
     hasEditBox = true, maxLetters = 32,
     OnShow = function(self, data)
-        local eb = self.editBox or _G[self:GetName() .. "EditBox"]
+        local eb = self.EditBox or self.editBox or _G[self:GetName() .. "EditBox"]
         if eb then eb:SetText((data and data.current) or ""); eb:HighlightText(); eb:SetFocus() end
     end,
     OnAccept = function(self, data)
-        local eb = self.editBox or _G[self:GetName() .. "EditBox"]
+        local eb = self.EditBox or self.editBox or _G[self:GetName() .. "EditBox"]
         if data then renameGroup(data.id, eb and eb:GetText() or "") end
     end,
     EditBoxOnEnterPressed = function(self)

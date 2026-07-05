@@ -243,7 +243,7 @@ local function buildFrame()
     local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     if ns.UI and ns.UI.Font then ns.UI.Font(title, 13) end
     title:SetPoint("TOPLEFT", f, "TOPLEFT", 8, -7)
-    title:SetText("|cff9b6cffLazyVulo|r")
+    title:SetText((ns.C and ns.C.accent or "|cff9b6cff") .. "LazyVulo|r")
 
     local close = CreateFrame("Button", nil, f)
     close:SetSize(20, 20)

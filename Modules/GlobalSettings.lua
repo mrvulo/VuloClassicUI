@@ -11,7 +11,10 @@ local mod = ns:RegisterModule("globalsettings", {
     name        = "Global Settings",
     group       = "Global",
     description = "Global UI settings + profile management.",
-    defaults    = { enabled = true },
+    defaults    = {
+        enabled    = true,
+        themeColor = { r = 0.608, g = 0.424, b = 1.000 },   -- house purple
+    },
 })
 
 mod.tabs = {
@@ -76,6 +79,47 @@ StaticPopupDialogs["VCUI_RELOAD_LOCALE"] = {
     preferredIndex = 3,
 }
 
+-- StaticPopup for theme color (already-painted textures keep the old color
+-- until the UI reloads)
+StaticPopupDialogs["VCUI_RELOAD_THEME"] = {
+    text = L["Theme color changed. /reload applies it to everything (elements already drawn keep the old color until then)."],
+    button1 = L["Reload now"],
+    button2 = L["Later"],
+    OnAccept = function() ReloadUI() end,
+    timeout = 0,
+    whileDead = true,
+    hideOnEscape = true,
+    preferredIndex = 3,
+}
+
+-- =========================================================
+-- Theme color (what is purple today becomes this color)
+-- =========================================================
+local THEME_PRESETS = {
+    { value = "9b6cff", text = L["Purple (default)"] },
+    { value = "4f9bff", text = L["Blue"] },
+    { value = "37d67a", text = L["Green"] },
+    { value = "ff5c5c", text = L["Red"] },
+    { value = "ffd100", text = L["Gold"] },
+    { value = "2dd4cf", text = L["Turquoise"] },
+    { value = "ff6ec7", text = L["Pink"] },
+    { value = "ff8c1a", text = L["Orange"] },
+}
+
+local function themeHex()
+    local c = mod.db and mod.db.themeColor or {}
+    return string.format("%02x%02x%02x",
+        math.floor((c.r or 0.608) * 255 + 0.5),
+        math.floor((c.g or 0.424) * 255 + 0.5),
+        math.floor((c.b or 1.000) * 255 + 0.5))
+end
+
+local function setTheme(r, g, b)
+    mod.db.themeColor = { r = r, g = g, b = b }
+    if ns.ApplyThemeColor then ns:ApplyThemeColor() end
+    StaticPopup_Show("VCUI_RELOAD_THEME")
+end
+
 -- =========================================================
 -- Tab: General
 -- =========================================================
@@ -114,6 +158,24 @@ local function generalOptions()
                 onClick = function() applyUIScale(768/1440); ns:Print(L["UI Scale = 0.5333 (1440p)"]) end },
           },
         },
+
+        { type = "spacer", height = 6 },
+        { type = "header", text = L["Theme color"] },
+        { type = "desc",
+          text = L["|cffaaaaaaColors everything that is purple today in the color of your choice - sidebar, borders, highlights, bars. A /reload applies it everywhere.|r"] },
+        { type = "dropdown", label = L["Preset"],
+          width = 220,
+          values = THEME_PRESETS,
+          get = function() return themeHex() end,
+          set = function(_, v)
+              local r = tonumber(v:sub(1, 2), 16) / 255
+              local g = tonumber(v:sub(3, 4), 16) / 255
+              local b = tonumber(v:sub(5, 6), 16) / 255
+              setTheme(r, g, b)
+          end },
+        { type = "color", label = L["Custom color"],
+          get = function() return mod.db.themeColor end,
+          set = function(r, g, b) setTheme(r, g, b) end },
 
         { type = "spacer", height = 6 },
         { type = "header", text = L["Camera"] },

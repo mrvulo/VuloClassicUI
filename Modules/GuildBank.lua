@@ -162,7 +162,7 @@ end
 -- typed in GOLD and converted to copper.
 -- ---------------------------------------------------------
 function gb.popupAmount(self)
-    local box = self.editBox or _G[self:GetName() .. "EditBox"]
+    local box = self.EditBox or self.editBox or _G[self:GetName() .. "EditBox"]
     local g = box and tonumber(box:GetText() or "")
     if not g or g <= 0 then return 0 end
     return math.floor(g * 10000)
@@ -750,7 +750,7 @@ function gb.build()
     local sbIcon = sb:CreateTexture(nil, "OVERLAY")
     sbIcon:SetSize(11, 11)
     sbIcon:SetPoint("LEFT", sb, "LEFT", 6, 0)
-    sbIcon:SetTexture("Interface\\Common\\UI-Searchbox-Icon")
+    sbIcon:SetTexture("Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\modules\\fixinspect.tga")
     sbIcon:SetVertexColor(0.55, 0.55, 0.62)
     local sbBorder = CreateFrame("Frame", nil, sb, BackdropTemplateMixin and "BackdropTemplate")
     sbBorder:SetAllPoints(sb)
@@ -805,8 +805,8 @@ function gb.build()
     logBtn:SetSize(18, 18)
     logBtn:SetPoint("RIGHT", sortBtn, "LEFT", -8, 0)
     local li = logBtn:CreateTexture(nil, "ARTWORK")
-    li:SetAllPoints(); li:SetTexture("Interface\\Icons\\INV_Misc_Coin_01")
-    li:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    -- same line-art set as the other header buttons (own glyphs: no crop)
+    li:SetAllPoints(); li:SetTexture("Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\modules\\goldtracker.tga")
     li:SetVertexColor(0.7, 0.7, 0.75)
     logBtn:SetScript("OnEnter", function()
         li:SetVertexColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)

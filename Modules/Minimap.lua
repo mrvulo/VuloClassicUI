@@ -102,7 +102,7 @@ local function createButton()
     -- =========================================================
     button:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-        GameTooltip:AddLine("|cff9b6cffVuloClassicUI|r")
+        GameTooltip:AddLine((ns.C and ns.C.accent or "|cff9b6cff") .. "VuloClassicUI|r")
         GameTooltip:AddLine(L["|cffffffffLeft click:|r Open options"])
         GameTooltip:AddLine(L["|cffffffffRight click:|r Quick module selection"])
         GameTooltip:AddLine(L["|cffffffffShift+drag:|r Move button"])
@@ -158,7 +158,7 @@ mod.ApplyVisibility = applyVisibility
 -- =========================================================
 function mod:ShowDropdown(anchor)
     local entries = {
-        { title = true, text = "|cff9b6cffVuloClassicUI|r" },
+        { title = true, text = (ns.C and ns.C.accent or "|cff9b6cff") .. "VuloClassicUI|r" },
         { text = L["Open Options"],
           func = function() if ns.UI then ns.UI:ToggleMainFrame() end end },
         { separator = true },

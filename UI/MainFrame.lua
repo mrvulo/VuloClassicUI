@@ -91,7 +91,7 @@ function UI:CreateMainFrame()
     -- Title: icon (V from logo) + "uloClassicUI" text + version + CPU
     local title = titleBar:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     UI.Font(title, 15)
-    title:SetText("|cff9b6cffuloClassicUI|r")
+    title:SetText((ns.C and ns.C.accent or "|cff9b6cff") .. "uloClassicUI|r")
     local _, titleFontSize = title:GetFont()
     local iconSize = (titleFontSize or 14) + 4
 
@@ -327,7 +327,8 @@ function UI:CreateMainFrame()
                 resultRows[i] = row
             end
             row:SetPoint("TOP", searchDD, "TOP", 0, y)
-            row.text:SetText(string.format("|cff9b6cff%s|r  »  %s", res.modName, res.label))
+            row.text:SetText(string.format("%s%s|r  »  %s",
+                (ns.C and ns.C.accent) or "|cff9b6cff", res.modName, res.label))
             row._modKey = res.modKey
             row._tabId  = res.tabId
             row:SetScript("OnClick", function(self)
@@ -504,6 +505,61 @@ function UI:CreateMainFrame()
         onClick = function() f:Hide() end,
     })
     doneBtn:SetPoint("RIGHT", bottomBar, "RIGHT", -10, 0)
+
+    -- Social links, centered: click shows the URL pre-selected for Ctrl+C
+    -- (the game client cannot open a browser)
+    StaticPopupDialogs["VCUI_COPY_URL"] = StaticPopupDialogs["VCUI_COPY_URL"] or {
+        text = L["Copy the link with Ctrl+C:"],
+        button1 = CLOSE or "Close",
+        hasEditBox = true,
+        editBoxWidth = 260,
+        OnShow = function(self)
+            -- newer clients expose the box as .EditBox, older as .editBox
+            local eb = self.EditBox or self.editBox
+                or (self.GetName and _G[(self:GetName() or "") .. "EditBox"])
+            if not eb then return end
+            eb:SetText(self.data or "")
+            eb:HighlightText()
+            eb:SetFocus()
+        end,
+        EditBoxOnTextChanged = function(self, data)
+            -- keep the box locked to the link (typing would break the copy)
+            if self:GetText() ~= (data or "") then
+                self:SetText(data or "")
+                self:HighlightText()
+            end
+        end,
+        EditBoxOnEscapePressed = function(self) self:GetParent():Hide() end,
+        EditBoxOnEnterPressed  = function(self) self:GetParent():Hide() end,
+        timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
+    }
+
+    local function socialButton(iconFile, label, url, xOff)
+        local b = CreateFrame("Button", nil, bottomBar)
+        b:SetSize(20, 20)
+        b:SetPoint("CENTER", bottomBar, "CENTER", xOff, 0)
+        local t = b:CreateTexture(nil, "ARTWORK")
+        t:SetAllPoints(b)
+        t:SetTexture("Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\" .. iconFile)
+        t:SetVertexColor(0.85, 0.85, 0.85, 0.9)
+        b:SetScript("OnEnter", function(self)
+            t:SetVertexColor(1, 1, 1, 1)
+            GameTooltip:SetOwner(self, "ANCHOR_TOP")
+            GameTooltip:SetText(label)
+            GameTooltip:AddLine(L["Click: copy link"], 0.7, 0.7, 0.7)
+            GameTooltip:Show()
+        end)
+        b:SetScript("OnLeave", function()
+            t:SetVertexColor(0.85, 0.85, 0.85, 0.9)
+            GameTooltip:Hide()
+        end)
+        b:SetScript("OnClick", function()
+            StaticPopup_Show("VCUI_COPY_URL", nil, nil, url)
+        end)
+        return b
+    end
+    socialButton("TwitchV.tga",  "Twitch",  "https://www.twitch.tv/mrvulo", -14)
+    socialButton("DiscordV.tga", "Discord", "https://discord.gg/P5dTSB6wC",  14)
 
     UI.mainFrame = f
     return f

@@ -34,6 +34,8 @@ local mod = ns:RegisterModule("addonskins", {
         atlasloot     = true,
         healpredict   = true,
         addonprofiler = true,
+        novaworldbuffs      = true,
+        novainstancetracker = true,
         questieBackup = nil,   -- Questie settings before we touched them
     },
 })
@@ -471,6 +473,138 @@ function sk.skinAddonProfiler()
 end
 
 -- =========================================================
+-- Nova-family windows (world-buff timers + instance tracker, same author,
+-- same architecture): every window is a ScrollFrame on an InputScrollFrame
+-- template whose visible chrome is a set of input-border TEXTURES
+-- (parentKeys below), plus a WHITE8x8 backdrop painted ONCE at load — so a
+-- restyle applied after load is durable. All windows exist right after the
+-- addon loads (nothing lazy except two tracker sub-windows, hooked below);
+-- nothing in these windows is secure.
+-- =========================================================
+local NOVA_BORDER_KEYS = {
+    "TopLeftTex", "TopRightTex", "BottomLeftTex", "BottomRightTex",
+    "TopTex", "BottomTex", "LeftTex", "RightTex", "MiddleTex",
+}
+
+function sk.novaWindow(f, opts)
+    if not f or f._vcuiSkin then return end
+    f._vcuiSkin = true
+    for _, k in ipairs(NOVA_BORDER_KEYS) do
+        local t = f[k]
+        if t and t.SetAlpha then t:SetAlpha(0) end
+    end
+    -- some of their windows use a backdrop EDGE file (gold tooltip ring /
+    -- orange chat-border) instead of the texture set — the edge draws above
+    -- our overlay panel, so tint it away
+    if f.SetBackdropBorderColor then
+        pcall(f.SetBackdropBorderColor, f, 0, 0, 0, 0)
+    end
+    panelize(f, opts)
+    local n = f.GetName and f:GetName()
+    if n then
+        skinClose(_G[n .. "Close"] or _G[n .. "CloseButton"])
+    end
+end
+
+function sk.skinNovaWorldBuffs()
+    if sk.done.novaworldbuffs or mod.db.novaworldbuffs == false then return end
+    if not _G.NWBlayerFrame then return end   -- all windows exist after load
+    sk.done.novaworldbuffs = true
+    for _, name in ipairs({
+        "NWBlayerFrame", "NWBbuffListFrame", "NWBLayerMapFrame",
+        "NWBVersionFrame", "NWBCopyFrame", "NWBTimerLogFrame", "NWBLFrame",
+        "NWBDMFListFrame", "NWBDmfFrame",
+    }) do
+        sk.novaWindow(_G[name])
+    end
+    -- the layer window's bottom button row + the copy button
+    skinButton(_G.NWBlayerFrameConfButton)
+    skinButton(_G.NWBlayerFrameBuffsButton)
+    skinButton(_G.NWBlayerFrameMapButton)
+    skinButton(_G.NWBGuildLayersButton)
+    skinButton(_G.NWBlayerFrameCopyButton)
+    -- the darkmoon window's close carries a doubled-name typo upstream
+    skinClose(_G.NWBDmfFrameFrameClose)
+
+    -- the on-minimap LAYER READOUT: gold-edge template art off, thin dark
+    -- panel + accent text instead (its frame has no backdrop mixin — build
+    -- the panel from plain textures like the button recipe does)
+    local ml = _G.MinimapLayerFrame
+    if ml and not ml._vcuiSkin then
+        ml._vcuiSkin = true
+        stripTextures(ml)
+        local bgc = ns.COLORS.bg
+        local bg = ml:CreateTexture(nil, "BACKGROUND")
+        bg:SetAllPoints(ml)
+        bg:SetColorTexture(bgc.r, bgc.g, bgc.b, 0.9)
+        local bc = ns.COLORS.accentDim or ns.COLORS.border
+        local edges = {}
+        for i = 1, 4 do
+            local t = ml:CreateTexture(nil, "BORDER")
+            t:SetColorTexture(bc.r, bc.g, bc.b, 0.9)
+            edges[i] = t
+        end
+        edges[1]:SetPoint("TOPLEFT"); edges[1]:SetPoint("TOPRIGHT"); edges[1]:SetHeight(1)
+        edges[2]:SetPoint("BOTTOMLEFT"); edges[2]:SetPoint("BOTTOMRIGHT"); edges[2]:SetHeight(1)
+        edges[3]:SetPoint("TOPLEFT"); edges[3]:SetPoint("BOTTOMLEFT"); edges[3]:SetWidth(1)
+        edges[4]:SetPoint("TOPRIGHT"); edges[4]:SetPoint("BOTTOMRIGHT"); edges[4]:SetWidth(1)
+        if ml.fs then
+            local ac = ns.COLORS.accent
+            ml.fs:SetTextColor(ac.r, ac.g, ac.b, 1)
+        end
+    end
+end
+
+function sk.skinNovaInstanceTracker()
+    if sk.done.novainstancetracker or mod.db.novainstancetracker == false then return end
+    if not _G.NITInstanceFrame then return end
+    sk.done.novainstancetracker = true
+    for _, name in ipairs({
+        "NITInstanceFrame", "NITTradeLogFrame", "NITTradeCopyFrame",
+        "NITAltsFrame", "NITCopyFrame", "NITInstanceFrameDC",
+        "NITCharsFrameDC", "NITPostInstanceStatsFrame",
+    }) do
+        sk.novaWindow(_G[name])
+    end
+    -- window buttons + off-pattern close names
+    skinButton(_G.NITInstanceFrameConfButton)
+    skinButton(_G.NITInstanceFrameTradesButton)
+    skinButton(_G.NITInstanceFrameLockoutsButton)
+    skinButton(_G.NITInstanceFrameRestedButton)
+    skinButton(_G.NITTradeFrameCopyButton)
+    -- both delete-confirm closes sit on off-pattern global names
+    skinClose(_G.NITInstanceDCFrameClose)
+    skinClose(_G.NITCharsDCFrameClose)
+    -- gold-edge top bar of the copy popup
+    if _G.NITCopyFrameTopBar then stripTextures(_G.NITCopyFrameTopBar) end
+    -- two windows build lazily on first open — hook their loaders (the
+    -- tracker's addon object IS global, unlike its sibling addon)
+    local nit = _G.NIT
+    if nit and not sk.nitHooked then
+        sk.nitHooked = true
+        if type(nit.openLockoutsFrame) == "function" then
+            hooksecurefunc(nit, "openLockoutsFrame", function()
+                if mod.active and mod.db.novainstancetracker ~= false then
+                    sk.novaWindow(_G.NRCLockoutsFrame)   -- their (stale) global name
+                end
+            end)
+        end
+        if type(nit.loadLevelLogFrame) == "function" then
+            hooksecurefunc(nit, "loadLevelLogFrame", function()
+                if mod.active and mod.db.novainstancetracker ~= false then
+                    local llf = _G.NITLevelLogFrame
+                    sk.novaWindow(llf)
+                    -- its attached header bar has its own backdrop + border
+                    if llf and llf.topFrame then
+                        sk.novaWindow(llf.topFrame, { noShadow = true })
+                    end
+                end
+            end)
+        end
+    end
+end
+
+-- =========================================================
 -- Arming: apply what's loaded now, watch ADDON_LOADED for the rest
 -- =========================================================
 local TARGETS = {
@@ -479,6 +613,8 @@ local TARGETS = {
     { key = "atlasloot",     addon = "AtlasLootClassic" },
     { key = "healpredict",   addon = "HealPredict" },
     { key = "addonprofiler", addon = "!!AddonProfiler" },
+    { key = "novaworldbuffs",      addon = "NovaWorldBuffs" },
+    { key = "novainstancetracker", addon = "NovaInstanceTracker" },
 }
 
 function sk.applyLoaded()
@@ -493,6 +629,8 @@ function sk.applyLoaded()
     if loaded("AtlasLootClassic") then sk.armAtlasLoot() end
     if loaded("HealPredict") then sk.armHealPredict() end
     if loaded("!!AddonProfiler") then sk.skinAddonProfiler() end
+    if loaded("NovaWorldBuffs") then sk.skinNovaWorldBuffs() end
+    if loaded("NovaInstanceTracker") then sk.skinNovaInstanceTracker() end
 end
 
 local function onEvent(event, arg1)
@@ -506,6 +644,8 @@ local function onEvent(event, arg1)
         elseif arg1 == "AtlasLootClassic" then sk.armAtlasLoot()
         elseif arg1 == "HealPredict" then sk.armHealPredict()
         elseif arg1 == "!!AddonProfiler" then sk.skinAddonProfiler()
+        elseif arg1 == "NovaWorldBuffs" then sk.skinNovaWorldBuffs()
+        elseif arg1 == "NovaInstanceTracker" then sk.skinNovaInstanceTracker()
         end
     elseif event == "PLAYER_ENTERING_WORLD" then
         sk.applyLoaded()

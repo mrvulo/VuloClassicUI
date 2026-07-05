@@ -434,7 +434,9 @@ local function refreshPanel()
     if not m or not m.opts then return end
     local name = cleanLabel(m.opts.label)
     local n = #ns._selection
-    if n > 1 then name = name .. string.format("  |cff9b6cff+%d|r", n - 1) end
+    if n > 1 then
+        name = name .. string.format("  %s+%d|r", (ns.C and ns.C.accent) or "|cff9b6cff", n - 1)
+    end
     panel.title:SetText(name)
     local x, y = moverXY(m)
     -- don't stomp on the field the user is currently typing in
@@ -1085,7 +1087,9 @@ end
 -- Popups (name input, import paste, export copy, delete confirm)
 -- ---------------------------------------------------------
 local function popupBox(self)
-    return self.editBox or (self.GetName and _G[(self:GetName() or "") .. "EditBox"])
+    -- newer clients expose the box as .EditBox, older as .editBox
+    return self.EditBox or self.editBox
+        or (self.GetName and _G[(self:GetName() or "") .. "EditBox"])
 end
 
 StaticPopupDialogs["VCUI_LAYOUT_SAVE"] = {

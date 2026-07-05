@@ -276,7 +276,8 @@ local function installSetTooltip()
         if not ok or not link then return end
         local sets = ns.ItemSetMembership(getItemIDFromLink(link))
         if sets then
-            tip:AddLine(string.format(L["Part of set: %s"], sets), 0.608, 0.424, 1)
+            tip:AddLine(string.format(L["Part of set: %s"], sets),
+                ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
             tip:Show()
         end
     end
@@ -525,7 +526,10 @@ StaticPopupDialogs["VCUI_LOADOUT_SAVE"] = {
     hasEditBox = true,
     maxLetters = 32,
     OnAccept = function(self)
-        saveAs(self.editBox:GetText(), _pendingSaveSlots)
+        -- newer clients expose the box as .EditBox, older as .editBox
+        local eb = self.EditBox or self.editBox
+            or (self.GetName and _G[(self:GetName() or "") .. "EditBox"])
+        saveAs(eb and eb:GetText() or "", _pendingSaveSlots)
         _pendingSaveSlots = nil
     end,
     EditBoxOnEnterPressed = function(self)
@@ -759,7 +763,7 @@ local function createMinimapButton()
 
     mmBtn:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-        GameTooltip:AddLine("|cff9b6cff" .. L["Loadouts"] .. "|r")
+        GameTooltip:AddLine((ns.C and ns.C.accent or "|cff9b6cff") .. L["Loadouts"] .. "|r")
         GameTooltip:AddLine(L["Left-click: switch set"],   1, 1, 1)
         GameTooltip:AddLine(L["Right-click: settings"],    1, 1, 1)
         GameTooltip:AddLine(L["Drag: reposition"],         0.6, 0.6, 0.6)

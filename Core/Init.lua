@@ -29,7 +29,7 @@ end)
 -- Slash commands
 -- =========================================================
 local function printVcuiHelp()
-    local A = "|cff9b6cff"
+    local A = (ns.C and ns.C.accent) or "|cff9b6cff"
     ns:Print(L["VuloClassicUI — commands:"])
     ns:Print(A .. "/vcui|r, /vulo — " .. L["open the options window"])
     ns:Print(A .. "/vcui <module>|r — " .. L["jump to that module's page"])

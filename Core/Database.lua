@@ -82,12 +82,19 @@ function ns:InitDB()
     )
 
     -- Determine active profile:
-    --   1. Class assignment
-    --   2. Fallback: last active profile
-    --   3. Fallback: Default
+    --   1. Character assignment (this char's own pick, VuloClassicUICharDB)
+    --   2. Class assignment
+    --   3. Fallback: last active profile
+    --   4. Fallback: Default
+    local charAssigned = VuloClassicUICharDB.profileOverride
+    if charAssigned and not VuloClassicUIDB.profiles[charAssigned] then
+        -- profile was deleted/renamed on another character — self-heal
+        VuloClassicUICharDB.profileOverride = nil
+        charAssigned = nil
+    end
     local classKey   = getClassKey()
     local assigned   = VuloClassicUIDB.classAssignments[classKey]
-    local activeName = assigned or VuloClassicUIDB.activeProfile or DEFAULT_PROFILE
+    local activeName = charAssigned or assigned or VuloClassicUIDB.activeProfile or DEFAULT_PROFILE
 
     -- If the profile no longer exists: use Default
     if not VuloClassicUIDB.profiles[activeName] then
@@ -137,7 +144,37 @@ function ns:LoadProfile(profileName)
         mod.db = profileData.modules[key]
     end
 
+    -- theme color rides the profile — apply BEFORE modules paint anything
+    if ns.ApplyThemeColor then ns:ApplyThemeColor() end
+
     return true
+end
+
+-- =========================================================
+-- Theme color: mutates ns.COLORS.accent / accentDim (and the chat escape)
+-- IN PLACE, so every module holding a reference to those tables picks the
+-- color up. Runs on every profile load, before modules enable — everything
+-- painted afterwards uses it; textures already painted this session keep
+-- the old color until /reload.
+-- =========================================================
+function ns:ApplyThemeColor()
+    local gs = ns.db and ns.db.profile and ns.db.profile.modules
+        and ns.db.profile.modules.globalsettings
+    local c = gs and gs.themeColor
+    if not (c and c.r and c.g and c.b) then
+        c = { r = 0.608, g = 0.424, b = 1.000 }   -- house purple
+    end
+    local A = ns.COLORS.accent
+    A.r, A.g, A.b = c.r, c.g, c.b
+    local D = ns.COLORS.accentDim
+    D.r, D.g, D.b = c.r * 0.5, c.g * 0.47, c.b * 0.5
+    if ns.C then
+        ns.C.accent = string.format("|cff%02x%02x%02x",
+            math.floor(c.r * 255 + 0.5), math.floor(c.g * 255 + 0.5),
+            math.floor(c.b * 255 + 0.5))
+        -- the chat prefix was concatenated at file load — rebuild it
+        ns.PREFIX = ns.C.accent .. "VuloClassicUI|r"
+    end
 end
 
 -- =========================================================
@@ -187,6 +224,10 @@ function ns:DeleteProfile(name)
             VuloClassicUIDB.classAssignments[classKey] = nil
         end
     end
+    -- this character's own assignment (other chars self-heal at login)
+    if VuloClassicUICharDB and VuloClassicUICharDB.profileOverride == name then
+        VuloClassicUICharDB.profileOverride = nil
+    end
 
     -- If active profile was deleted: revert to Default
     if ns:GetActiveProfileName() == name then
@@ -212,6 +253,9 @@ function ns:RenameProfile(oldName, newName)
             VuloClassicUIDB.classAssignments[classKey] = newName
         end
     end
+    if VuloClassicUICharDB and VuloClassicUICharDB.profileOverride == oldName then
+        VuloClassicUICharDB.profileOverride = newName
+    end
 
     if ns:GetActiveProfileName() == oldName then
         VuloClassicUIDB.activeProfile = newName
@@ -231,6 +275,21 @@ function ns:SwitchProfile(name)
     ns:LoadProfile(name)
     ns:Print(L["Profile '%s' loaded. |cffffff00/reload|r recommended so all modules use the new settings."], name)
     return true
+end
+
+-- Per-CHARACTER assignment (lives in the char SavedVariables, beats the class
+-- assignment at login). NOTE: other characters' assignments cannot be edited
+-- from this session — a rename/delete self-heals on their next login instead.
+function ns:AssignCharToProfile(profileName)
+    if profileName and profileName ~= "" and not ns:ProfileExists(profileName) then
+        return false
+    end
+    VuloClassicUICharDB.profileOverride = (profileName ~= "" and profileName) or nil
+    return true
+end
+
+function ns:GetCharAssignment()
+    return VuloClassicUICharDB and VuloClassicUICharDB.profileOverride
 end
 
 function ns:AssignClassToProfile(classKey, profileName)

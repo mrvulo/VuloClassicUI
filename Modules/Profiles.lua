@@ -87,6 +87,33 @@ function mod:GetOptions()
         get = function() return ns:GetActiveProfileName() end,
         set = function(_, v)
             ns:SwitchProfile(v)
+            -- a pinned character profile would silently revert the switch at
+            -- the next login — keep the pin in step with a manual switch
+            if ns:GetCharAssignment() then ns:AssignCharToProfile(v) end
+            refreshUI()
+        end,
+    })
+
+    table.insert(items, { type = "spacer", height = 12 })
+
+    -- =========================================================
+    -- Section: Per-character assignment (beats the class assignment)
+    -- =========================================================
+    table.insert(items, { type = "header", text = L["Profile for this character"] })
+    table.insert(items, {
+        type = "desc",
+        text = L["|cffaaaaaaPins a profile to THIS character only. At login it beats the class assignment and the account-wide selection - so every character can keep its own minimap, bars and window settings.|r"],
+    })
+    table.insert(items, {
+        type = "dropdown", label = UnitName and UnitName("player") or L["This character"],
+        width = 220,
+        values = getProfileValuesWithNone(),
+        get = function() return ns:GetCharAssignment() or "" end,
+        set = function(_, v)
+            ns:AssignCharToProfile(v)
+            if v ~= "" and v ~= ns:GetActiveProfileName() then
+                ns:SwitchProfile(v)
+            end
             refreshUI()
         end,
     })
@@ -111,6 +138,9 @@ function mod:GetOptions()
             end
             ns:SwitchProfile(pname)
             ns:AssignClassToProfile(myClass, pname)
+            -- a character pin would override the class profile at login —
+            -- the explicit class setup wins, so drop the pin
+            ns:AssignCharToProfile(nil)
             ns:Print(L["'%s' is now the %s profile. |cffffff00/reload|r to apply."],
                 pname, CLASS_LABELS[myClass] or myClass)
             refreshUI()
