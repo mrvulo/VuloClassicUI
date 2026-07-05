@@ -1,0 +1,79 @@
+name: Discord Changelog
+
+# Posts the newest CHANGELOG.md section to a Discord channel on every v* tag.
+# Runs alongside the packager release; needs no GitHub token, only the webhook.
+#
+# Required repo secrets (Settings -> Secrets and variables -> Actions):
+#   DISCORD_WEBHOOK           the channel webhook URL   (required)
+#   DISCORD_UPDATES_ROLE_ID   role id to ping           (optional)
+# If DISCORD_WEBHOOK is missing the job skips cleanly.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  discord:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Post changelog to Discord
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          ROLE_ID: ${{ secrets.DISCORD_UPDATES_ROLE_ID }}
+        run: |
+          set -eo pipefail
+
+          if [ -z "${WEBHOOK:-}" ]; then
+            echo "DISCORD_WEBHOOK secret not set - skipping."; exit 0
+          fi
+          if [ ! -f CHANGELOG.md ]; then
+            echo "No CHANGELOG.md - skipping."; exit 0
+          fi
+
+          VERSION="${GITHUB_REF_NAME#v}"
+          RELEASE_URL="https://github.com/${GITHUB_REPOSITORY}/releases/tag/${GITHUB_REF_NAME}"
+
+          # Newest section = everything after the first "## " header up to the next
+          # "## ", with the header line dropped and blank edges trimmed.
+          BODY="$(awk '
+            /^## / { if (seen) exit; seen=1; next }
+            seen   { lines[++n]=$0 }
+            END {
+              s=1; while (s<=n && lines[s] ~ /^[[:space:]]*$/) s++
+              e=n; while (e>=1 && lines[e] ~ /^[[:space:]]*$/) e--
+              for (i=s; i<=e; i++) print lines[i]
+            }
+          ' CHANGELOG.md)"
+
+          if [ -z "$BODY" ]; then
+            echo "No changelog section found - skipping."; exit 0
+          fi
+
+          TITLE="## 🟣 VuloClassicUI ${VERSION}"
+          PING=""
+          [ -n "${ROLE_ID:-}" ] && PING="<@&${ROLE_ID}>"
+
+          CONTENT="$(printf '%s\n\n%s\n\n%s' "$TITLE" "$BODY" "$PING")"
+
+          # Discord content limit is 2000 chars: truncate the body if needed and
+          # link to the full notes. iconv -c drops any byte cut mid-UTF8.
+          if [ "$(printf '%s' "$CONTENT" | wc -m)" -gt 1990 ]; then
+            KEEP=$((1700 - ${#TITLE} - ${#PING}))
+            BODY="$(printf '%s' "$BODY" | head -c "$KEEP" | iconv -c -f utf-8 -t utf-8)"
+            CONTENT="$(printf '%s\n\n%s\n…\n**Full changelog:** %s\n\n%s' "$TITLE" "$BODY" "$RELEASE_URL" "$PING")"
+          fi
+
+          if [ -n "${ROLE_ID:-}" ]; then
+            PAYLOAD="$(jq -n --arg c "$CONTENT" --arg r "$ROLE_ID" \
+              '{content:$c, allowed_mentions:{roles:[$r]}}')"
+          else
+            PAYLOAD="$(jq -n --arg c "$CONTENT" \
+              '{content:$c, allowed_mentions:{parse:[]}}')"
+          fi
+
+          curl -sS -f -H "Content-Type: application/json" \
+               -X POST -d "$PAYLOAD" "$WEBHOOK"
+          echo "Posted changelog for ${GITHUB_REF_NAME} to Discord."
