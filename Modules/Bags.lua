@@ -77,6 +77,8 @@ local mod = ns:RegisterModule("bags", {
         hiddenBags      = {},         -- [bagID] = true -> bag not rendered
         showKeyring     = false,      -- include the keyring (-2) in the grid
         showItemLevel   = true,       -- ilvl text on weapons/armor
+        itemLevelQualityColor = true, -- tint that ilvl in the quality color
+        collapsedCats   = {},         -- [categoryKey] = true (per-section fold)
         bagBarShown     = false,      -- the bag-icons strip above the window
         -- Phase 4 STAGE-1 — bank window (Modules/Bank.lua reads this sub-table;
         -- SEPARATE keys so the bank mover never collides with the bag window's).
@@ -481,6 +483,20 @@ function toggleGroupCollapsed(id)
     groupsChanged()
 end
 
+-- Per-category collapse (click a section header to fold it away). Persisted
+-- per category key in mod.db.collapsedCats; the header row stays so it can be
+-- reopened.
+local function catCollapsed(key)
+    return mod.db and mod.db.collapsedCats and mod.db.collapsedCats[key] == true
+end
+
+local function toggleCatCollapsed(key)
+    if not (mod.db and key) then return end
+    mod.db.collapsedCats = mod.db.collapsedCats or {}
+    mod.db.collapsedCats[key] = (not mod.db.collapsedCats[key]) or nil
+    if categoriesChanged then categoriesChanged() end
+end
+
 -- =========================================================
 -- State
 -- =========================================================
@@ -596,8 +612,22 @@ local function updateMoney()
 end
 
 local function updateFree()
-    if bagFrame and bagFrame.free then
+    if not bagFrame then return end
+    if bagFrame.free then
         bagFrame.free:SetText(string.format(L["%d free"], freeSlots()))
+    end
+    -- title carries a used / total item count, like the reference window
+    -- (keyring excluded, same as the footer's free count — keys aren't items)
+    if bagFrame.title then
+        local total, freeAll = 0, 0
+        for _, bag in ipairs(visibleBags()) do
+            if bag ~= KEYRING then
+                total = total + (GetContainerNumSlots(bag) or 0)
+                freeAll = freeAll + (GetContainerNumFreeSlots(bag) or 0)
+            end
+        end
+        bagFrame.title:SetText(string.format("%s  |cff808080%d / %d %s|r",
+            L["Inventory"], total - freeAll, total, L["Items"]))
     end
 end
 
@@ -726,7 +756,14 @@ local function updateButton(btn)
             if UI and UI.FONT_PATH then
                 pcall(fs.SetFont, fs, UI.FONT_PATH, mod.db.countFontSize or 12, "OUTLINE")
             end
-            fs:SetText(lvl)   -- plain white (set at creation)
+            fs:SetText(lvl)
+            -- quality-tinted (the reference look) or plain white per option
+            if mod.db.itemLevelQualityColor ~= false and quality and quality >= 2 and GetItemQualityColor then
+                local r, g, b = GetItemQualityColor(quality)
+                fs:SetTextColor(r, g, b)
+            else
+                fs:SetTextColor(1, 1, 1)
+            end
             fs:Show()
         else
             fs:Hide()
@@ -943,13 +980,79 @@ local function acquireHeader(n)
     local h = sectionHeaders[n]
     if h then return h end
     if not bagFrame then return nil end
-    h = bagFrame.content:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    if UI and UI.Font then UI.Font(h, 12) end
-    h:SetJustifyH("LEFT")
-    h:SetTextColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
+    -- a clickable Button (insecure; layout reserves its row so it never overlaps
+    -- a secure item button) carrying: accent label, a hairline divider trailing
+    -- the text to the section's right edge, and a right-aligned collapse hint.
+    h = CreateFrame("Button", nil, bagFrame.content)
+    h:SetHeight(HEADER_ROW)
+    local label = h:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    if UI and UI.Font then UI.Font(label, 12) end
+    label:SetJustifyH("LEFT")
+    label:SetTextColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
+    label:SetPoint("LEFT", h, "LEFT", 0, 0)
+    h.label = label
+
+    local hint = h:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    if UI and UI.Font then UI.Font(hint, 10) end
+    hint:SetJustifyH("RIGHT")
+    hint:SetPoint("RIGHT", h, "RIGHT", -1, 0)
+    hint:SetTextColor(0.5, 0.5, 0.55)
+    hint:Hide()
+    h.hint = hint
+
+    local div = h:CreateTexture(nil, "ARTWORK")
+    div:SetPoint("LEFT", label, "RIGHT", 8, 0)
+    div:SetPoint("RIGHT", hint, "LEFT", -8, 0)
+    div:SetHeight(1)
+    div:SetColorTexture(1, 1, 1, 0.06)
+    h.divider = div
+
+    h:RegisterForClicks("LeftButtonUp")
+    h:SetScript("OnClick", function(self)
+        if self._catKey and toggleCatCollapsed then toggleCatCollapsed(self._catKey) end
+    end)
+    h:SetScript("OnEnter", function(self)
+        if self._catKey then
+            self.label:SetTextColor(1, 1, 1)
+            self.hint:SetTextColor(0.75, 0.7, 0.85)
+        end
+    end)
+    h:SetScript("OnLeave", function(self)
+        self.label:SetTextColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
+        self.hint:SetTextColor(0.5, 0.5, 0.55)
+    end)
     h:Hide()
     sectionHeaders[n] = h
     return h
+end
+
+-- Position + fill a section header. `catKey` non-nil makes it collapsible (the
+-- reference "Verbergen"/"Zeigen" toggle); pass nil for the plain labels used by
+-- the flat / onebag / keyring / multibag sections.
+local function placeHeader(h, x, y, text, widthCols, catKey)
+    if not h then return end
+    h:ClearAllPoints()
+    h:SetPoint("TOPLEFT", bagFrame.content, "TOPLEFT", x, -y)
+    h:SetWidth(math.max(1, widthCols * (BTN + GAP) - GAP - x + 1))
+    h.label:SetText(text)
+    if catKey then
+        local collapsed = catCollapsed(catKey)
+        h._catKey = catKey
+        h._collapsed = collapsed
+        h:EnableMouse(true)
+        h.divider:Show()
+        h.hint:SetText(collapsed and L["Show"] or L["Hide"])
+        h.hint:SetTextColor(0.5, 0.5, 0.55)
+        h.hint:Show()
+    else
+        h._catKey = nil
+        h._collapsed = nil
+        h:EnableMouse(false)
+        h.hint:SetText("")   -- empty rect -> divider runs to the right edge
+        h.hint:Hide()
+        h.divider:Show()
+    end
+    h:Show()
 end
 
 -- STAGE-3: pooled group-section headers. Plain Buttons (label + v/> glyph on a
@@ -1072,15 +1175,10 @@ local function layoutFlat()
         if not idx then blocked = true; break end
         if bag == KEYRING and slots > 0 and n > 0 then
             n = math.ceil(n / cols) * cols       -- start on a fresh row
-            local h1 = acquireHeader(1)
-            if h1 then
-                h1:ClearAllPoints()
-                h1:SetPoint("TOPLEFT", bagFrame.content, "TOPLEFT", 1,
-                    -(math.floor(n / cols) * (BTN + GAP) + yExtra))
-                h1:SetText(_G.KEYRING or L["Keyring"])
-                h1:Show()
-                keyHeader = 1
-            end
+            placeHeader(acquireHeader(1), 1,
+                math.floor(n / cols) * (BTN + GAP) + yExtra,
+                _G.KEYRING or L["Keyring"], cols, nil)
+            keyHeader = 1
             yExtra = yExtra + HEADER_ROW
         end
         for slot = 1, slots do
@@ -1167,14 +1265,17 @@ local function layoutCategorized()
                   or (filtered and key == selectedCategory)
         if not show then return true end
         hdrN = hdrN + 1
-        local h = acquireHeader(hdrN)
-        if h then
-            h:ClearAllPoints()
-            h:SetPoint("TOPLEFT", bagFrame.content, "TOPLEFT", 1 + indent, -y)
-            h:SetText(string.format("%s  |cff808080(%d)|r", catName(key), count))
-            h:Show()
-        end
+        -- a filtered view forces the picked category open (its own header is
+        -- the whole window); otherwise honour the per-category collapse flag
+        local collapsed = (not filtered) and catCollapsed(key)
+        placeHeader(acquireHeader(hdrN), 1 + indent, y,
+            string.format("%s  |cff808080(%d)|r", catName(key), count),
+            cols, (not filtered) and key or nil)
         y = y + HEADER_ROW
+        if collapsed then
+            y = y + GAP   -- folded: header only, skip every item
+            return true
+        end
         for i = 1, count do
             local it  = items[i]
             -- bail BEFORE consuming a button index: a consumed-but-unplaced index
@@ -1286,13 +1387,8 @@ layoutOneBag = function()
 
     local btnN, blocked = 0, false
     local y = 0
-    local h = acquireHeader(1)
-    if h then
-        h:ClearAllPoints()
-        h:SetPoint("TOPLEFT", bagFrame.content, "TOPLEFT", 1, -y)
-        h:SetText(string.format("%s  |cff808080(%d)|r", L["All Bags"], itemCount))
-        h:Show()
-    end
+    placeHeader(acquireHeader(1), 1, y,
+        string.format("%s  |cff808080(%d)|r", L["All Bags"], itemCount), cols, nil)
     y = y + HEADER_ROW
 
     local pos, keyHeaderN = 0, 1   -- keyring block gets its own labeled row
@@ -1304,14 +1400,9 @@ layoutOneBag = function()
         if it.bag == KEYRING and keyHeaderN == 1 then
             keyHeaderN = 2
             if pos > 0 then pos = math.ceil(pos / cols) * cols end
-            local h2 = acquireHeader(2)
-            if h2 then
-                h2:ClearAllPoints()
-                h2:SetPoint("TOPLEFT", bagFrame.content, "TOPLEFT", 1,
-                    -(y + math.floor(pos / cols) * (BTN + GAP)))
-                h2:SetText(_G.KEYRING or L["Keyring"])
-                h2:Show()
-            end
+            placeHeader(acquireHeader(2), 1,
+                y + math.floor(pos / cols) * (BTN + GAP),
+                _G.KEYRING or L["Keyring"], cols, nil)
             y = y + HEADER_ROW
         end
         btnN = btnN + 1
@@ -1352,13 +1443,8 @@ layoutMultiBag = function()
             local bagName = bagDisplayName(bag)
 
             hdrN = hdrN + 1
-            local h = acquireHeader(hdrN)
-            if h then
-                h:ClearAllPoints()
-                h:SetPoint("TOPLEFT", bagFrame.content, "TOPLEFT", 1, -y)
-                h:SetText(string.format("%s  |cff808080(%d)|r", bagName, slots))
-                h:Show()
-            end
+            placeHeader(acquireHeader(hdrN), 1, y,
+                string.format("%s  |cff808080(%d)|r", bagName, slots), cols, nil)
             y = y + HEADER_ROW
 
             local idx = ensureIndexFrame(bag)
@@ -2943,6 +3029,17 @@ function mod:GetOptions()
         get = function() return mod.db.showItemLevel ~= false end,
         set = function(_, v)
             mod.db.showItemLevel = v and true or false
+            if mod:IsOpen() then layout() end
+            if ns.BankRefresh then ns.BankRefresh() end
+            if ns.GuildBankRefresh then ns.GuildBankRefresh() end
+        end,
+    })
+    table.insert(items, {
+        type = "toggle", label = L["Color item levels by quality"],
+        tooltip = L["Tints the item level number in the item's quality color instead of plain white."],
+        get = function() return mod.db.itemLevelQualityColor ~= false end,
+        set = function(_, v)
+            mod.db.itemLevelQualityColor = v and true or false
             if mod:IsOpen() then layout() end
             if ns.BankRefresh then ns.BankRefresh() end
             if ns.GuildBankRefresh then ns.GuildBankRefresh() end

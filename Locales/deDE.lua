@@ -1712,6 +1712,11 @@ ns:RegisterLocale("deDE", {
     -- Bags
     ["Bags"] = "Taschen",
     ["Inventory"] = "Inventar",
+    ["Items"] = "Gegenstände",
+    ["Hide"] = "Verbergen",
+    ["Show"] = "Zeigen",
+    ["Color item levels by quality"] = "Gegenstandsstufen nach Qualität färben",
+    ["Tints the item level number in the item's quality color instead of plain white."] = "Färbt die Gegenstandsstufe in der Qualitätsfarbe statt einfach Weiß.",
     ["%d free"] = "%d frei",
     ["|cffaaaaaaOne window for all your bags. Press your bag key (default B) to open it. Type in the search box to find items; click the sort button to tidy up. At a banker, your bank opens in a matching window.|r"] = "|cffaaaaaaEin Fenster für alle deine Taschen. Drücke deine Taschen-Taste (Standard B), um es zu öffnen. Tippe im Suchfeld, um Gegenstände zu finden; klicke den Sortier-Knopf zum Aufräumen. Beim Bankier öffnet sich deine Bank in einem passenden Fenster.|r",
     ["Window scale"] = "Fenster-Skalierung",
