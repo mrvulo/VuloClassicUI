@@ -12,6 +12,7 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch: {}   # manual test run: posts the current top CHANGELOG.md section
 
 jobs:
   discord:
@@ -33,8 +34,14 @@ jobs:
             echo "No CHANGELOG.md - skipping."; exit 0
           fi
 
-          VERSION="${GITHUB_REF_NAME#v}"
-          RELEASE_URL="https://github.com/${GITHUB_REPOSITORY}/releases/tag/${GITHUB_REF_NAME}"
+          # On a tag push use the tag; on a manual run take the top CHANGELOG version.
+          if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+            RELEASE_URL="https://github.com/${GITHUB_REPOSITORY}/releases/tag/${GITHUB_REF_NAME}"
+          else
+            VERSION="$(awk '/^## /{sub(/^## +/,""); print; exit}' CHANGELOG.md)"
+            RELEASE_URL="https://github.com/${GITHUB_REPOSITORY}/releases"
+          fi
 
           # Newest section = everything after the first "## " header up to the next
           # "## ", with the header line dropped and blank edges trimmed.
