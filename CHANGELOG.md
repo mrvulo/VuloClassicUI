@@ -16,6 +16,10 @@
   ~1900 characters or it gets truncated with a link to the full notes.
 -->
 
+## 1.27.0
+**Equipment Sets:**
+- **NEW:** Hover an equipment slot in the character window for a compact flyout of matching items from your bags — click one to equip it. The modifier-click picker is still there for a larger, pinnable window.
+
 ## 1.26.0
 **Bags:**
 - Item levels on gear are now tinted in the item's quality color, matching the rest of the window (toggle in the options).

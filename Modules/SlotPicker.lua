@@ -1,10 +1,12 @@
 -- =========================================================
 -- VuloClassicUI / Modules / SlotPicker
--- Shift+Right-click on a character equipment slot → popup with all
--- compatible items from your bags. Click an item to equip it.
+-- Two ways to swap gear from a character equipment slot:
+--   * HOVER a slot -> a compact flyout of compatible bag items appears next
+--     to it (the ItemRack-style paperdoll popout). Click to equip.
+--   * Modifier-click a slot -> the same items in a larger pinnable popup.
 --
--- Equipping uses UseContainerItem (works out-of-combat in Anniversary,
--- same approach as Loadouts).
+-- Equipping uses the slot-aware EquipBagItemToSlot / UseContainerItem
+-- (works out-of-combat in Anniversary, same approach as Loadouts).
 -- =========================================================
 local _, ns = ...
 local L = ns.L
@@ -15,12 +17,13 @@ local L = ns.L
 local mod = ns:RegisterModule("slotpicker", {
     name        = "Slot Picker",
     group       = "_hidden",
-    description = "Shift+Right-click an equipment slot to show all compatible items from your bags. Click to equip.",
+    description = "Hover an equipment slot for a compact flyout of compatible bag items, or modifier-click for a larger picker. Click an item to equip it.",
     defaults = {
-        enabled   = true,
-        modifier  = "right",  -- "right" | "shift-right" | "alt-right" | "ctrl-right"
-        cols      = 8,
-        autoClose = true,     -- hide shortly after the mouse leaves the popup
+        enabled     = true,
+        hoverFlyout = true,   -- hover a slot -> compact flyout (ItemRack style)
+        modifier    = "right",  -- "right" | "shift-right" | "alt-right" | "ctrl-right"
+        cols        = 8,
+        autoClose   = true,   -- hide shortly after the mouse leaves the popup
     },
 })
 
@@ -177,6 +180,7 @@ local function createPopup()
     closeBtn:SetScript("OnEnter", function() cx:SetTextColor(ac.r, ac.g, ac.b) end)
     closeBtn:SetScript("OnLeave", function() cx:SetTextColor(0.7, 0.7, 0.75) end)
     closeBtn:SetScript("OnClick", function() popup:Hide() end)
+    popup.closeBtn = closeBtn
 
     -- Title: our font, white, elides at the END against the close button
     local title = popup:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -201,16 +205,23 @@ local function createPopup()
     -- Arms only once the mouse has actually been over the popup, so it never
     -- vanishes before you reach it.
     popup:SetScript("OnUpdate", function(self, elapsed)
-        if not (mod.db and mod.db.autoClose ~= false) or self.pinned then return end
-        local overSelf   = self:IsMouseOver(6, -6, -6, 6)   -- small grace margin
+        -- the compact hover flyout always auto-closes; the click popup honours
+        -- the option and can be pinned by dragging
+        local auto = self._compact or (mod.db and mod.db.autoClose ~= false)
+        if not auto then return end
+        if self.pinned and not self._compact then return end
+        local overSelf   = self:IsMouseOver(8, -8, -8, 8)   -- grace margin bridges the slot gap
         local overAnchor = self.anchorBtn and self.anchorBtn.IsMouseOver
                            and self.anchorBtn:IsMouseOver()
-        if overSelf then
-            self.armed = true
+        if overSelf then self.armed = true end
+        if overSelf or overAnchor then
             self.outTime = 0
-        elseif self.armed and not overAnchor then
+        elseif self._compact or self.armed then
+            -- compact: close once the mouse is off BOTH the slot and the flyout
+            -- (the slot is the origin, so no "armed" gate is needed); click
+            -- popup keeps the arm-first rule so it never vanishes before reached
             self.outTime = (self.outTime or 0) + elapsed
-            if self.outTime > 0.5 then self:Hide() end
+            if self.outTime > (self._compact and 0.35 or 0.5) then self:Hide() end
         end
     end)
     popup:SetScript("OnShow", function(self)
@@ -326,28 +337,63 @@ local function applyItemLook(btn)
     btn.ilvl:SetText(lvl and lvl > 1 and tostring(lvl) or "")
 end
 
-local function showSlotPicker(slotID, anchorBtn)
+local function showSlotPicker(slotID, anchorBtn, compact)
     if not GetItemInfoInstant then
-        ns:Print(L["Item scanning API not available on this client."])
+        if not compact then ns:Print(L["Item scanning API not available on this client."]) end
         return
     end
 
     createPopup()
 
+    -- the hover flyout shares one pooled popup with the click picker — it must
+    -- never hijack or close a click popup the user opened (a pinned one, or any
+    -- click popup still up). Only take over when nothing is shown or the popup
+    -- currently up is itself a flyout.
+    if compact and popup:IsShown() and (popup.pinned or not popup._compact) then
+        return
+    end
+
     local results = scanBagsForSlot(slotID)
-    popup.title:SetText(string.format(L["Items for: %s"], slotLabel(slotID))
-        .. string.format(" |cff888888(%d)|r", #results))
+
+    -- the compact hover flyout shows nothing when there's nothing to swap to
+    if compact and #results == 0 then
+        popup:Hide()
+        return
+    end
+
+    popup._compact = compact and true or nil
+    -- chrome: the flyout drops the title bar + close button for a clean popout;
+    -- the click popup keeps them (and stays pinnable)
+    if compact then
+        popup.title:Hide()
+        if popup.closeBtn then popup.closeBtn:Hide() end
+    else
+        popup.title:Show()
+        if popup.closeBtn then popup.closeBtn:Show() end
+        popup.title:SetText(string.format(L["Items for: %s"], slotLabel(slotID))
+            .. string.format(" |cff888888(%d)|r", #results))
+    end
 
     -- Hide leftover buttons
     for _, b in ipairs(itemButtons) do b:Hide() end
 
-    -- CONSTANT width: always the full grid width, no matter how many items —
-    -- the popup never jumps sizes between slots (and the title never clips)
-    local cols      = mod.db.cols or 8
-    local padding   = 10
-    local gridStart = 30  -- below title bar
+    -- click popup: CONSTANT full-grid width so it never jumps between slots.
+    -- compact flyout: a tight block that hugs the item count (sqrt-ish wrap).
     local btnPad    = 4
-    local width     = math.max(cols * (BTN_SIZE + btnPad) - btnPad + padding * 2, 240)
+    local padding   = compact and 6 or 10
+    local gridStart = compact and 6 or 30  -- flyout has no title bar
+    local cols
+    if compact then
+        cols = math.min(mod.db.cols or 8, math.max(1, math.ceil(math.sqrt(#results))))
+    else
+        cols = mod.db.cols or 8
+    end
+    local width
+    if compact then
+        width = cols * (BTN_SIZE + btnPad) - btnPad + padding * 2
+    else
+        width = math.max(cols * (BTN_SIZE + btnPad) - btnPad + padding * 2, 240)
+    end
 
     if #results == 0 then
         popup:SetSize(width, 64)
@@ -443,6 +489,26 @@ end
 -- =========================================================
 local _hooked = false
 
+-- Hover flyout with a short delay + generation token, so brushing the mouse
+-- across several slots doesn't spawn a flyout on each one — only the slot the
+-- cursor settles on (for ~0.15s) opens.
+local hoverGen = 0
+local function scheduleFlyout(slotID, btn)
+    if not (mod._enabled and mod.db and mod.db.hoverFlyout) then return end
+    hoverGen = hoverGen + 1
+    local myGen = hoverGen
+    if not (C_Timer and C_Timer.After) then
+        showSlotPicker(slotID, btn, true); return
+    end
+    C_Timer.After(0.15, function()
+        if myGen ~= hoverGen then return end            -- moved on / left the slot
+        if not (mod._enabled and mod.db and mod.db.hoverFlyout) then return end
+        if btn.IsMouseOver and btn:IsMouseOver() then
+            showSlotPicker(slotID, btn, true)
+        end
+    end)
+end
+
 local function hookSlots()
     if _hooked then return end
     for slotID, frameName in pairs(SLOT_FRAME_NAMES) do
@@ -451,8 +517,14 @@ local function hookSlots()
             slotBtn:HookScript("OnClick", function(self, button)
                 if not mod._enabled then return end
                 if checkModifier(button) then
-                    showSlotPicker(slotID, self)   -- anchor the popup to this slot
+                    showSlotPicker(slotID, self)   -- anchor the click popup to this slot
                 end
+            end)
+            slotBtn:HookScript("OnEnter", function(self)
+                scheduleFlyout(slotID, self)
+            end)
+            slotBtn:HookScript("OnLeave", function()
+                hoverGen = hoverGen + 1   -- cancel a pending (not-yet-shown) flyout
             end)
         end
     end
@@ -484,9 +556,14 @@ end
 function mod:GetOptions()
     return {
         { type = "header", text = L["Slot Picker"] },
-        { type = "desc", text = L["Modifier-click an equipment slot in the Character frame to open a popup with all compatible items from your bags. Click an item to equip it (out-of-combat)."] },
+        { type = "desc", text = L["Hover an equipment slot in the Character frame for a compact flyout of compatible bag items, or modifier-click for a larger pinnable picker. Click an item to equip it (out-of-combat)."] },
 
         { type = "spacer", height = 6 },
+        { type = "toggle", label = L["Flyout on hover"],
+          tooltip = L["Hovering an equipment slot pops out a compact strip of items you can swap in — the paperdoll flyout look. Turn off to use only the modifier-click picker."],
+          get = function() return mod.db.hoverFlyout ~= false end,
+          set = function(_, v) mod.db.hoverFlyout = v and true or false end },
+
         { type = "dropdown", label = L["Activation modifier"],
           tooltip = L["Choose which key combination opens the item picker when you click an equipment slot."],
           values = {
