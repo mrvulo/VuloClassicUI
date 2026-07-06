@@ -1200,6 +1200,11 @@ local function createSetRow(parent, index)
     btn.expand = CreateFrame("Button", nil, btn)
     btn.expand:SetSize(18, 18)
     btn.expand:SetPoint("RIGHT", btn, "RIGHT", -4, 0)
+    -- the 18x18 arrow at the row's edge was too small a target — near-misses
+    -- fell through to the row (select / double-click-equip), so the arrow
+    -- "didn't always" toggle. Grow the clickable zone (negatives enlarge):
+    -- left into the name gap, right to the border, full row height.
+    btn.expand:SetHitRectInsets(-12, -4, -7, -7)
     btn.expand.icon = btn.expand:CreateTexture(nil, "ARTWORK")
     btn.expand.icon:SetAllPoints(btn.expand)
     btn.expand.icon:SetTexture("Interface\\Buttons\\UI-Panel-ExpandButton-Up")
@@ -1581,9 +1586,12 @@ refreshSidebar = function()
         sidebarExpanded = nil
     end
 
-    -- Hide leftover buttons + item rows
+    -- Hide leftover buttons + item rows. item rows are created LAZILY only for
+    -- whichever set gets expanded, so sidebarItemRows is a SPARSE array (e.g.
+    -- only [3] exists) — ipairs would stop at the first gap and leave a shown
+    -- row visible (the set then "won't collapse"). pairs walks every entry.
     for _, b in ipairs(sidebarSetButtons) do b:Hide() end
-    for _, r in ipairs(sidebarItemRows)   do r:Hide() end
+    for _, r in pairs(sidebarItemRows)    do r:Hide() end
 
     local names = sortedLoadoutNames()
     if not sidebarSelected and #names > 0 then sidebarSelected = names[1] end

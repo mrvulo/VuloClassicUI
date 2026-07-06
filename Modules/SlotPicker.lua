@@ -35,6 +35,10 @@ local GetContainerItemLink  = (C_Container and C_Container.GetContainerItemLink)
 local GetContainerNumSlots  = (C_Container and C_Container.GetContainerNumSlots)  or _G.GetContainerNumSlots
 local UseContainerItem      = (C_Container and C_Container.UseContainerItem)      or _G.UseContainerItem
 local GetItemInfoInstant    = _G.GetItemInfoInstant
+-- EquipItemByName(link, slot) honours the exact slot AND routes bind-on-equip
+-- items through the engine's own EQUIP_BIND_CONFIRM -> "this will bind to you"
+-- dialog (already-bound items just equip). No cursor juggling, no lost popup.
+local EquipItemByName       = (C_Item and C_Item.EquipItemByName)                or _G.EquipItemByName
 
 -- =========================================================
 -- Slot → INVTYPE mapping
@@ -297,9 +301,14 @@ local function getItemButton(idx)
             return
         end
         if button == "LeftButton" and self.bag and self.slot then
-            -- Use the slot-aware equip helper (honours the exact target slot,
-            -- so picking for the lower ring/trinket slot works correctly).
-            if self.equipSlot and ns.EquipBagItemToSlot then
+            local link = GetContainerItemLink and GetContainerItemLink(self.bag, self.slot)
+            -- EquipItemByName honours the exact slot (lower ring/trinket) AND,
+            -- for a not-yet-bound BoE item, pops the game's own "this will bind
+            -- to you" confirmation instead of binding it silently; an already
+            -- soulbound item just equips.
+            if self.equipSlot and EquipItemByName and link then
+                pcall(EquipItemByName, link, self.equipSlot)
+            elseif self.equipSlot and ns.EquipBagItemToSlot then
                 ns:EquipBagItemToSlot(self.bag, self.slot, self.equipSlot)
             elseif UseContainerItem then
                 pcall(UseContainerItem, self.bag, self.slot)

@@ -2,7 +2,7 @@
 ## Title: |cff9b6cffVuloClassicUI|r
 ## Notes: Modular UI suite for Classic Era / Anniversary
 ## Author: Vulo
-## Version: 1.28.0
+## Version: 1.29.0
 ## X-Wago-ID: rN4kojGD
 ## X-Curse-Project-ID: 1553405
 ## SavedVariables: VuloClassicUIDB, TrinketsOptions

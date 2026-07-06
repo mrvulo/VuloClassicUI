@@ -16,6 +16,15 @@
   ~1900 characters or it gets truncated with a link to the full notes.
 -->
 
+## 1.29.0
+**Equipment Sets:**
+- Fixed: an expanded set sometimes would not collapse on the second click of its arrow. The arrow is also easier to hit now.
+- The slot flyout can now equip not-yet-bound items too — with the game's own "this will bind to you" confirmation before it soulbinds.
+
+**Chat:**
+- Item levels in links now only show on uncommon (green) and better gear — grey and white trash no longer gets a number.
+- No double number when another loot addon already tagged the item with its item level.
+
 ## 1.28.0
 **Minimap:**
 - **NEW:** The date now shows next to the clock in the zone panel — click it to open the calendar, hover for the full date. Optional in the minimap settings.

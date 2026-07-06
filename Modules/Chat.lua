@@ -188,7 +188,9 @@ end
 -- append the item level to EQUIPMENT links: [Sword] -> [Sword (45)]. The
 -- added text sits inside the |h..|h display part, so the link keeps working
 -- and inherits its quality colour. Cache-safe: uncached items stay untouched
--- (the GetItemInfo probe doubles as the async cache request).
+-- (the GetItemInfo probe doubles as the async cache request). Quality-gated to
+-- uncommon (green) and up, so grey/white trash doesn't clutter chat with a
+-- pointless low item level.
 local function addItemLevels(msg)
     if not msg:find("|Hitem:", 1, true) then return msg end
     return (msg:gsub("(|Hitem:[^|]+|h%[)(.-)(%]|h)", function(pre, name, post)
@@ -196,10 +198,20 @@ local function addItemLevels(msg)
         if itemString and GetItemInfoInstant then
             local _, _, _, equipLoc, _, classID = GetItemInfoInstant(itemString)
             if (classID == 2 or classID == 4) and equipLoc and equipLoc ~= ""
-               and equipLoc ~= "INVTYPE_BAG" then
-                local lvl = (GetDetailedItemLevelInfo and GetDetailedItemLevelInfo(itemString))
-                    or (GetItemInfo and select(4, GetItemInfo(itemString)))
-                if lvl and lvl > 1 then
+               and equipLoc ~= "INVTYPE_BAG"
+               -- a loot/GDKP addon may already have put an item level in
+               -- brackets/parens on the link name — don't stack a second
+               -- number on top of it
+               and not name:find("[%[%(]%s*%d+%s*[%]%)]%s*$") then
+                -- quality (pos 3) + item level (pos 4) from GetItemInfo; if the
+                -- item isn't cached yet quality is nil and we skip (untouched)
+                local quality, ilvl
+                if GetItemInfo then
+                    local _, _, q, il = GetItemInfo(itemString)
+                    quality, ilvl = q, il
+                end
+                local lvl = ilvl or (GetDetailedItemLevelInfo and GetDetailedItemLevelInfo(itemString))
+                if quality and quality >= 2 and lvl and lvl > 1 then
                     return pre .. name .. " (" .. lvl .. ")" .. post
                 end
             end
