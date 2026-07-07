@@ -16,6 +16,12 @@
   ~1900 characters or it gets truncated with a link to the full notes.
 -->
 
+## 1.30.0
+**UI Reskin:**
+- **NEW:** Dark skin for a loot-distribution addon — its award and roll windows, its settings and overview windows, and the two always-visible roll and bid bars get the house panel, accent border and flat close button.
+- **NEW:** Dark skin for an attunement tracker — the main window and its buttons match the dark look; the colored status rows stay as they are so the state colors remain readable.
+- Both are separate on and off switches in the Addon Skins options, next to the others.
+
 ## 1.29.0
 **Equipment Sets:**
 - Fixed: an expanded set sometimes would not collapse on the second click of its arrow. The arrow is also easier to hit now.
