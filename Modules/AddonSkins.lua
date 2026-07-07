@@ -36,6 +36,8 @@ local mod = ns:RegisterModule("addonskins", {
         addonprofiler = true,
         novaworldbuffs      = true,
         novainstancetracker = true,
+        gargul        = true,
+        attune        = true,
         questieBackup = nil,   -- Questie settings before we touched them
     },
 })
@@ -605,6 +607,167 @@ function sk.skinNovaInstanceTracker()
 end
 
 -- =========================================================
+-- Shared: an AceGUI-3.0 "Frame" window (dark dialog backdrop + a gold
+-- three-piece header + a bottom "Close" text button and a status bar). The
+-- backdrop is a real Backdrop frame, so we just make the native art
+-- transparent and lay our own dark panel + accent border over it, then hide
+-- the gold header textures and recolor the title. Reached as the raw .frame
+-- of the widget; the widget itself is the .obj back-reference (titletext etc.
+-- live on the widget, not the frame). One-shot guarded — safe to call again.
+-- =========================================================
+function sk.skinAceGUIFrame(f)
+    if not f or f._vcuiSkin then return end
+    f._vcuiSkin = true
+    local w = f.obj   -- AceGUI widget back-reference (titletext/statustext/titlebg)
+    -- make the native dialog backdrop (bg fill + gold edge) invisible; our
+    -- panel provides the fill and a 1px accent border instead
+    if f.SetBackdropColor then pcall(f.SetBackdropColor, f, 0, 0, 0, 0) end
+    if f.SetBackdropBorderColor then pcall(f.SetBackdropBorderColor, f, 0, 0, 0, 0) end
+    panelize(f)
+    -- gold three-piece header: the widget's own titlebg + the two unnamed
+    -- sibling textures (UI-DialogBox-Header, file id 131080)
+    if w and w.titlebg and w.titlebg.SetAlpha then w.titlebg:SetAlpha(0) end
+    for _, r in ipairs({ f:GetRegions() }) do
+        if r.IsObjectType and r:IsObjectType("Texture") then
+            local tex = r.GetTexture and r:GetTexture()
+            if tex == 131080 or (type(tex) == "string" and tex:find("Header")) then
+                r:SetAlpha(0)
+            end
+        end
+    end
+    -- title + status text -> house font/accent
+    if w then
+        if w.titletext then
+            if ns.UI and ns.UI.Font then ns.UI.Font(w.titletext, 13) end
+            local ac = ns.COLORS.accent
+            w.titletext:SetTextColor(ac.r, ac.g, ac.b, 1)
+        end
+        if w.statustext then w.statustext:SetTextColor(0.7, 0.7, 0.75, 1) end
+    end
+    -- close text button (child 1) + status backdrop (child 2)
+    local closebutton, statusbg = f:GetChildren()
+    if closebutton and closebutton.GetObjectType and closebutton:GetObjectType() == "Button" then
+        skinButton(closebutton)
+    end
+    if statusbg then
+        if statusbg.SetBackdropColor then pcall(statusbg.SetBackdropColor, statusbg, 0.10, 0.10, 0.13, 0.9) end
+        if statusbg.SetBackdropBorderColor then pcall(statusbg.SetBackdropBorderColor, statusbg, 0, 0, 0, 0) end
+    end
+end
+
+-- =========================================================
+-- Gargul (loot distribution). Two render paths + two bespoke bars:
+--   * ~25 "builder" windows: BackdropTemplate frames reachable as _G[name],
+--     with .CloseButton (round ×) and a .Watermark FontString. Caught via a
+--     posthook on Interface:createWindow (the name is in the passed table,
+--     _G[name] is populated by the time the hook fires).
+--   * ~20 AceGUI windows (award / master loot / settings / overviews): caught
+--     via a posthook on Interface:set, skinning every stored top-level widget
+--     whose .type == "Frame" through its .frame (see skinAceGUIFrame).
+--   * two always-on bars (roll prompt + GDKP bid): plain frames, hooked on
+--     their :draw and given the dark panel treatment.
+-- Nothing here is secure — all cosmetic posthooks.
+-- =========================================================
+function sk.skinGargulBuilder(f)
+    if not f or f._vcuiSkin then return end
+    f._vcuiSkin = true
+    if f.SetBackdropColor then pcall(f.SetBackdropColor, f, 0, 0, 0, 0) end
+    if f.SetBackdropBorderColor then pcall(f.SetBackdropBorderColor, f, 0, 0, 0, 0) end
+    panelize(f)
+    if f.CloseButton then skinClose(f.CloseButton) end
+    if f.Watermark and f.Watermark.SetAlpha then f.Watermark:SetAlpha(0) end
+end
+
+function sk.skinGargulBar(f)
+    if not f or f._vcuiSkin then return end
+    f._vcuiSkin = true
+    panelize(f, { noShadow = true })
+end
+
+function sk.skinGargulExisting()
+    if not (mod.active and mod.db.gargul ~= false) then return end
+    -- windows opened before we armed (the hooks cover everything opened after)
+    sk.skinGargulBar(_G.GargulUI_RollerUI_Window)
+    sk.skinGargulBar(_G.GARGUL_GDKP_BIDDER_WINDOW)
+    for _, n in ipairs({
+        "GARGUL_AWARD_WINDOW", "GARGUL_SETTING_WINDOW", "GARGUL_TMB_OVERVIEW_WINDOW",
+        "GARGUL_SOFTRES_OVERVIEW_WINDOW", "GARGUL_PLUSONES_OVERVIEW_WINDOW",
+        "GARGUL_BOOSTEDROLLS_OVERVIEW_WINDOW", "GARGUL_PLAYER_SELECTOR_WINDOW",
+        "GARGUL_RAID_GROUP_WINDOW", "GARGUL_EXPORTER_WINDOW",
+        "GARGUL_MASTER_LOOTER_DIALOG_WINDOW",
+    }) do
+        if _G[n] then sk.skinAceGUIFrame(_G[n]) end
+    end
+end
+
+function sk.armGargul()
+    if sk.armed_gargul then return end
+    local G = _G.Gargul
+    if not (G and G.Interface and type(G.Interface.createWindow) == "function") then return end
+    sk.armed_gargul = true   -- after the guard; a hook error must not re-arm
+    hooksecurefunc(G.Interface, "createWindow", function(_, opts)
+        if not (mod.active and mod.db.gargul ~= false) then return end
+        if type(opts) == "table" and opts.name then
+            sk.skinGargulBuilder(_G[opts.name])
+        end
+    end)
+    if type(G.Interface.set) == "function" then
+        hooksecurefunc(G.Interface, "set", function(_, _, _, Item)
+            if not (mod.active and mod.db.gargul ~= false) then return end
+            if type(Item) == "table" and Item.frame and Item.type == "Frame" then
+                sk.skinAceGUIFrame(Item.frame)
+            end
+        end)
+    end
+    if G.RollerUI and type(G.RollerUI.draw) == "function" then
+        hooksecurefunc(G.RollerUI, "draw", function()
+            if mod.active and mod.db.gargul ~= false then sk.skinGargulBar(_G.GargulUI_RollerUI_Window) end
+        end)
+    end
+    local Bidder = G.Interface.GDKP and G.Interface.GDKP.Bidder
+    if Bidder and type(Bidder.draw) == "function" then
+        hooksecurefunc(Bidder, "draw", function()
+            if mod.active and mod.db.gargul ~= false then sk.skinGargulBar(_G.GARGUL_GDKP_BIDDER_WINDOW) end
+        end)
+    end
+    sk.skinGargulExisting()
+end
+
+-- =========================================================
+-- Attune (attunement tracker). A single AceGUI-3.0 "Frame" reachable as the
+-- global Attune_MainFrame, built lazily by the global Attune_Frame() on first
+-- open. Skin the shell with the shared recipe, then the bottom text buttons.
+-- The per-row node colors carry attunement STATE (blue/green/red) — left
+-- untouched on purpose.
+-- =========================================================
+function sk.skinAttune()
+    if sk.done.attune or mod.db.attune == false then return end
+    local f = _G.Attune_MainFrame
+    if not f then return end   -- only exists after Attune_Frame() has run
+    sk.done.attune = true
+    sk.skinAceGUIFrame(f)
+    -- bottom text buttons (survey / results / planner); the AceGUI close was
+    -- already handled by skinAceGUIFrame and self-guards against a repeat
+    for _, child in ipairs({ f:GetChildren() }) do
+        if child.GetObjectType and child:GetObjectType() == "Button" then
+            local fs = child.GetFontString and child:GetFontString()
+            local txt = fs and fs:GetText()
+            if txt and txt ~= "" then skinButton(child) end
+        end
+    end
+end
+
+function sk.armAttune()
+    if sk.armed_attune then return end
+    if type(_G.Attune_Frame) ~= "function" then return end
+    sk.armed_attune = true   -- after the guard; a hook error must not re-arm
+    hooksecurefunc("Attune_Frame", function()
+        if mod.active and mod.db.attune ~= false then sk.skinAttune() end
+    end)
+    if _G.Attune_MainFrame then sk.skinAttune() end   -- already open
+end
+
+-- =========================================================
 -- Arming: apply what's loaded now, watch ADDON_LOADED for the rest
 -- =========================================================
 local TARGETS = {
@@ -615,6 +778,8 @@ local TARGETS = {
     { key = "addonprofiler", addon = "!!AddonProfiler" },
     { key = "novaworldbuffs",      addon = "NovaWorldBuffs" },
     { key = "novainstancetracker", addon = "NovaInstanceTracker" },
+    { key = "gargul",              addon = "Gargul" },
+    { key = "attune",              addon = "Attune" },
 }
 
 function sk.applyLoaded()
@@ -631,6 +796,8 @@ function sk.applyLoaded()
     if loaded("!!AddonProfiler") then sk.skinAddonProfiler() end
     if loaded("NovaWorldBuffs") then sk.skinNovaWorldBuffs() end
     if loaded("NovaInstanceTracker") then sk.skinNovaInstanceTracker() end
+    if loaded("Gargul") then sk.armGargul() end
+    if loaded("Attune") then sk.armAttune() end
 end
 
 local function onEvent(event, arg1)
@@ -646,6 +813,8 @@ local function onEvent(event, arg1)
         elseif arg1 == "!!AddonProfiler" then sk.skinAddonProfiler()
         elseif arg1 == "NovaWorldBuffs" then sk.skinNovaWorldBuffs()
         elseif arg1 == "NovaInstanceTracker" then sk.skinNovaInstanceTracker()
+        elseif arg1 == "Gargul" then sk.armGargul()
+        elseif arg1 == "Attune" then sk.armAttune()
         end
     elseif event == "PLAYER_ENTERING_WORLD" then
         sk.applyLoaded()
