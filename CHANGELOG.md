@@ -16,6 +16,18 @@
   ~1900 characters or it gets truncated with a link to the full notes.
 -->
 
+## 1.30.1
+**Character Panel:**
+- **NEW:** A style dropdown at the top of the module options. Classic+ keeps the current look; Modern is a new dark, single-window style.
+- Modern reskins the whole character window dark with an accent border and a stats panel on the right: a big equipped item level, then collapsible categories — attributes, melee, spell, defense and resistances — with per-stat hover breakdowns and mouse-wheel scrolling.
+- Under Modern the built-in stats, resistance icons and the model rotate arrows are hidden, and the reputation, skills and player-versus-player sub-tabs plus the bottom tabs are skinned to match. Everything switches back to Classic+ live, and adapts per client (rating stats only where they exist).
+
+**UI Reskin:**
+- **NEW:** Dark skin for a world-map options window, with its own on and off switch in the Addon Skins options.
+
+**Minimap:**
+- The clock now sits on the same line as the date and zone instead of floating higher.
+
 ## 1.30.0
 **UI Reskin:**
 - **NEW:** Dark skin for a loot-distribution addon — its award and roll windows, its settings and overview windows, and the two always-visible roll and bid bars get the house panel, accent border and flat close button.
