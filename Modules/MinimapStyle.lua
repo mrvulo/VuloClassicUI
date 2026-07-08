@@ -283,6 +283,22 @@ end
 -- =========================================================
 -- Zone text + clock panel
 -- =========================================================
+-- The Blizzard clock ticker inherits a larger number font and can sit a few
+-- pixels above the button's center (a locale anchor override on some clients).
+-- Apply our font and pin it dead-center so the time lines up on the same
+-- baseline as the zone text and date badge. Returns true once it took (the
+-- clock addon is lazy, so applyPanel retries this until it succeeds).
+function mm.styleClockTicker()
+    local clock = _G.TimeManagerClockButton
+    local ticker = _G.TimeManagerClockTicker
+    if not (clock and ticker) then return false end
+    if ns.UI and ns.UI.FONT_PATH then ticker:SetFont(ns.UI.FONT_PATH, 11, "") end
+    ticker:SetTextColor(0.95, 0.95, 1)
+    ticker:ClearAllPoints()
+    ticker:SetPoint("CENTER", clock, "CENTER", 0, 0)
+    return true
+end
+
 function mm.setupPanel()
     if mm.panelWired then return end
     mm.panelWired = true
@@ -322,11 +338,7 @@ function mm.setupPanel()
         clock:ClearAllPoints()
         clock:SetPoint("RIGHT", mm.panel, "RIGHT", -4, 0)
         clock:SetSize(38, 16)
-        local ticker = _G.TimeManagerClockTicker
-        if ticker and ns.UI and ns.UI.FONT_PATH then
-            ticker:SetFont(ns.UI.FONT_PATH, 11, "")
-            ticker:SetTextColor(0.95, 0.95, 1)
-        end
+        mm.clockStyled = mm.styleClockTicker()
     end
 
     -- date badge: numeric day.month next to the clock (like the reference
@@ -402,6 +414,11 @@ function mm.applyPanel()
     local showDate  = d.showDate ~= false and mm.dateBtn ~= nil
     if clock then clock:SetShown(showClock) end
     if mm.dateBtn then mm.dateBtn:SetShown(showDate) end
+    -- the clock addon can load after setupPanel ran; keep re-styling the
+    -- ticker (font + baseline) until it takes, so the time never sits high
+    if showClock and not mm.clockStyled then
+        mm.clockStyled = mm.styleClockTicker()
+    end
 
     -- pack right-to-left: date, then clock; the zone text fills what's left
     local anchor, point, x = mm.panel, "RIGHT", -4

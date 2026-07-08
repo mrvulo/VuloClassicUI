@@ -22,6 +22,7 @@ local mod = ns:RegisterModule("characterpanel", {
     group       = "UI Reskin",
     description = "Enhances the character panel: iLvL per slot, socket display, shortened enchant text.",
     defaults = {
+        style               = "classic",   -- "classic" (current look) | "modern" (built later)
         showItemLevel       = true,
         showSockets         = true,
         markEmptySockets    = true,
@@ -97,6 +98,21 @@ function mod:GetOptions()
     end
 
     return {
+        { type = "header", text = L["Style"] },
+        { type = "dropdown", label = L["Character panel style"], width = 240,
+          tooltip = L["Classic+ is the current look. Modern is a new style we are still building; for now it shows the plain panel."],
+          values = {
+              { value = "classic", text = L["Classic+ (current)"] },
+              { value = "modern",  text = L["Modern (in progress)"] },
+          },
+          get = function() return mod.db.style or "classic" end,
+          set = function(_, v)
+              mod.db.style = v
+              refreshPanel()
+          end },
+        { type = "desc", text = L["The options below apply to the Classic+ style."] },
+
+        { type = "spacer", height = 6 },
         { type = "header", text = L["Display"] },
         { type = "checkbox", label = L["Show item level per slot"],
           get = function() return mod.db.showItemLevel end,
@@ -197,6 +213,10 @@ function ns:RunCharacterPanelInit()
         if d and d[key] ~= nil then return d[key] end
         return default
     end
+    -- Which look is selected: "classic" (the current Classic+ enhancements) or
+    -- "modern" (the new style we build together later). Everything Classic+
+    -- draws is gated on this, so picking "modern" leaves a clean slate.
+    local function cpStyle() return cpOpt("style", "classic") end
 
 -- =========================================================
 -- Constants / Layout
@@ -896,6 +916,8 @@ local function UpdateButton(button, unit)
 	local slot = button:GetID()
 	if not buttonLayout[slot] then return end
 
+	-- Both styles keep the per-slot item level (the Modern look shows it too);
+	-- Modern only adds the stats panel and hides the small average readout.
 	if not button.BCPDisplay then
 		button.BCPDisplay = CreateAdditionalDisplayForButton(button)
 		AnchorAdditionalDisplay(button)
@@ -993,6 +1015,12 @@ local function UpdatePlayerAvgIlvlDisplay()
 	CreatePlayerAvgIlvlDisplay()
 
 	if not PaperDollFrame or not PaperDollFrame.avgIlvlDisplay then return end
+
+	-- Modern style suppresses the Classic+ average readout too
+	if cpStyle() ~= "classic" then
+		PaperDollFrame.avgIlvlDisplay:SetText("")
+		return
+	end
 
 	-- "Show average item level" toggle — hide the display when off
 	if not cpOpt("showAvgItemLevel", true) then
@@ -1098,10 +1126,533 @@ local function UpdateAllCharacterSlots()
 	end
 end
 
+-- =========================================================
+-- Modern style: a dark stats panel docked to the right of the character
+-- frame (big equipped item level + collapsible stat categories). Reads only
+-- non-protected player APIs and lives in its own frame parented to
+-- CharacterFrame, so nothing here taints the secure paper doll. Retail-only
+-- stats (mastery, versatility, tertiary, ratings on Era) are simply not built.
+-- =========================================================
+local modernPanel
+
+-- safe numeric read: a missing API or bad return never errors the panel
+local function num(fn)
+	local ok, v = pcall(fn)
+	if ok and type(v) == "number" then return v end
+	return 0
+end
+
+local function maxSpellPower()
+	if not GetSpellBonusDamage then return 0 end
+	local m = 0
+	for s = 2, 7 do local v = GetSpellBonusDamage(s) or 0; if v > m then m = v end end
+	return m
+end
+
+local function maxSpellCrit()
+	if not GetSpellCritChance then return 0 end
+	local m = 0
+	for s = 2, 7 do local v = GetSpellCritChance(s) or 0; if v > m then m = v end end
+	return m
+end
+
+-- The stat table, adapted to the running client. TBC (2.5.x) has the combat
+-- rating model (haste/hit/spell hit); Classic Era / SoD do not, so those rows
+-- are only added on BCC.
+-- spell schools 2..7 (Holy/Fire/Nature/Frost/Shadow/Arcane), matching the
+-- Blizzard paper doll. Used for the hover breakdowns on Spell Power / Crit.
+local SCHOOL_NAMES
+local function schoolNames()
+	if not SCHOOL_NAMES then
+		SCHOOL_NAMES = { [2] = L["Holy"], [3] = L["Fire"], [4] = L["Nature"],
+		                 [5] = L["Frost"], [6] = L["Shadow"], [7] = L["Arcane"] }
+	end
+	return SCHOOL_NAMES
+end
+local function spellPowerTip(tt)
+	if not GetSpellBonusDamage then return end
+	local n = schoolNames()
+	for i = 2, 7 do
+		tt:AddDoubleLine(n[i], tostring(GetSpellBonusDamage(i) or 0), 0.8, 0.8, 0.85, 1, 1, 1)
+	end
+end
+local function spellCritTip(tt)
+	if not GetSpellCritChance then return end
+	local n = schoolNames()
+	for i = 2, 7 do
+		tt:AddDoubleLine(n[i], string.format("%.2f%%", GetSpellCritChance(i) or 0), 0.8, 0.8, 0.85, 1, 1, 1)
+	end
+end
+
+local function buildModernSections()
+	local S = {}
+	local function sec(key, title) local t = { key = key, title = title, rows = {} }; S[#S+1] = t; return t end
+	local function row(t, name, get, fmt, tip) t.rows[#t.rows+1] = { name = name, get = get, fmt = fmt, tip = tip } end
+
+	local attr = sec("attributes", L["Attributes"])
+	row(attr, L["Strength"],  function() return select(2, UnitStat("player", 1)) end)
+	row(attr, L["Agility"],   function() return select(2, UnitStat("player", 2)) end)
+	row(attr, L["Stamina"],   function() return select(2, UnitStat("player", 3)) end)
+	row(attr, L["Intellect"], function() return select(2, UnitStat("player", 4)) end)
+	row(attr, L["Spirit"],    function() return select(2, UnitStat("player", 5)) end)
+	row(attr, L["Health"],    function() return UnitHealthMax("player") end)
+
+	local melee = sec("melee", L["Melee"])
+	row(melee, L["Attack Power"], function() local b, p, n = UnitAttackPower("player"); return (b or 0) + (p or 0) + (n or 0) end)
+	row(melee, L["Crit"], function() return GetCritChance and GetCritChance() or 0 end, "%.2f%%")
+	if ns.isBCC and GetCombatRatingBonus and _G.CR_HASTE_MELEE then
+		row(melee, L["Haste"], function() return GetCombatRatingBonus(CR_HASTE_MELEE) end, "%.2f%%")
+	end
+	if ns.isBCC and GetCombatRating and _G.CR_HIT_MELEE then
+		row(melee, L["Hit"], function() return GetCombatRating(CR_HIT_MELEE) end)
+	end
+
+	local spell = sec("spell", L["Spell"])
+	row(spell, L["Spell Power"], maxSpellPower, nil, spellPowerTip)
+	row(spell, L["Spell Crit"], maxSpellCrit, "%.2f%%", spellCritTip)
+	row(spell, L["Healing"], function() return GetSpellBonusHealing and GetSpellBonusHealing() or 0 end)
+	if ns.isBCC and GetCombatRating and _G.CR_HIT_SPELL then
+		row(spell, L["Spell Hit"], function() return GetCombatRating(CR_HIT_SPELL) end)
+	end
+
+	local def = sec("defense", L["Defense"])
+	row(def, L["Armor"], function() return select(2, UnitArmor("player")) end)
+	if UnitDefense then
+		row(def, L["Defense"], function() local b, m = UnitDefense("player"); return (b or 0) + (m or 0) end)
+	end
+	row(def, L["Dodge"], function() return GetDodgeChance and GetDodgeChance() or 0 end, "%.2f%%")
+	row(def, L["Parry"], function() return GetParryChance and GetParryChance() or 0 end, "%.2f%%")
+	row(def, L["Block"], function() return GetBlockChance and GetBlockChance() or 0 end, "%.2f%%")
+
+	-- Resistances live here on the right now (the Blizzard icons on the paper
+	-- doll are hidden under Modern). UnitResistance index: 6 Arcane, 2 Fire,
+	-- 3 Nature, 4 Frost, 5 Shadow.
+	local res = sec("resistances", L["Resistances"])
+	row(res, L["Arcane"], function() return select(2, UnitResistance("player", 6)) end)
+	row(res, L["Fire"],   function() return select(2, UnitResistance("player", 2)) end)
+	row(res, L["Nature"], function() return select(2, UnitResistance("player", 3)) end)
+	row(res, L["Frost"],  function() return select(2, UnitResistance("player", 4)) end)
+	row(res, L["Shadow"], function() return select(2, UnitResistance("player", 5)) end)
+
+	return S
+end
+
+local function layoutModern()
+	local p = modernPanel
+	if not (p and p.content) then return end
+	local c = p.content
+	local collapsed = (cpMod and cpMod.db and cpMod.db.modernCollapsed) or {}
+	local y = -4
+	for _, s in ipairs(p.secObjs) do
+		s.header:ClearAllPoints()
+		s.header:SetPoint("TOPLEFT", c, "TOPLEFT", 4, y)
+		local isCol = collapsed[s.key]
+		s.arrow:SetText(isCol and "+" or "-")
+		y = y - 20
+		for _, r in ipairs(s.rows) do
+			if isCol then
+				r.name:Hide(); r.value:Hide(); r.hover:Hide()
+			else
+				r.name:Show(); r.value:Show(); r.hover:Show()
+				r.name:ClearAllPoints();  r.name:SetPoint("TOPLEFT",  c, "TOPLEFT",  10, y)
+				r.value:ClearAllPoints(); r.value:SetPoint("TOPRIGHT", c, "TOPRIGHT", -8, y)
+				r.hover:ClearAllPoints()
+				-- both points on the TOP edge only, so the fixed SetHeight(15)
+				-- is honored (a second vertical constraint would override it)
+				r.hover:SetPoint("TOPLEFT", c, "TOPLEFT", 4, y + 2)
+				r.hover:SetPoint("TOPRIGHT", c, "TOPRIGHT", -4, y + 2)
+				y = y - 15
+			end
+		end
+		y = y - 8
+	end
+	c:SetHeight(math.max(10, -y + 6))
+	-- keep the scroll position valid after a collapse shrinks the content
+	local range = math.max(0, c:GetHeight() - (p.scroll:GetHeight() or 0))
+	if p.scroll:GetVerticalScroll() > range then p.scroll:SetVerticalScroll(range) end
+end
+
+local function updateModernValues()
+	local p = modernPanel
+	if not p then return end
+	if p.ilvl then p.ilvl:SetText(tostring(GetUnitAverageItemLevelTBC("player"))) end
+	for _, s in ipairs(p.secObjs) do
+		for _, r in ipairs(s.rows) do
+			local v = num(r.get)
+			if r.fmt then
+				r.value:SetText(string.format(r.fmt, v))
+			else
+				r.value:SetText(tostring(math.floor(v + 0.5)))
+			end
+		end
+	end
+end
+
+-- =========================================================
+-- "One window" chrome: instead of a separate floating panel, we hide the
+-- Blizzard tan window art + built-in stats and lay ONE dark rectangle (a
+-- texture on CharacterFrame's BACKGROUND, so it sits behind every child:
+-- model, slots, name, tabs) that extends to the RIGHT to also back the stats.
+-- The stats panel itself is transparent. Everything is reversible so the
+-- Classic+ style restores Blizzard's frame live. Offsets are first-pass and
+-- meant to be nudged after seeing it in-game.
+-- =========================================================
+local modernChrome
+-- how far the dark rectangle reaches to the right of the frame (holds the stats)
+local MODERN_RIGHT_EXT = 172
+
+local function ensureModernChrome()
+	if modernChrome then return modernChrome.bg end
+	if not CharacterFrame then return nil end
+	local bgc = ns.COLORS.bg
+	local bd  = ns.COLORS.accentDim or ns.COLORS.border
+	modernChrome = { hidden = {}, edges = {} }
+
+	local bg = CharacterFrame:CreateTexture(nil, "BACKGROUND", nil, -8)
+	bg:SetColorTexture(bgc.r, bgc.g, bgc.b, 0.97)
+	bg:SetPoint("TOPLEFT", CharacterFrame, "TOPLEFT", 7, -6)
+	bg:SetPoint("BOTTOMRIGHT", CharacterFrame, "BOTTOMRIGHT", MODERN_RIGHT_EXT, 72)
+	bg:Hide()
+	modernChrome.bg = bg
+
+	for i = 1, 4 do
+		local t = CharacterFrame:CreateTexture(nil, "BACKGROUND", nil, -7)
+		t:SetColorTexture(bd.r, bd.g, bd.b, 0.9)
+		t:Hide()
+		modernChrome.edges[i] = t
+	end
+	local e = modernChrome.edges
+	e[1]:SetPoint("TOPLEFT", bg, "TOPLEFT");     e[1]:SetPoint("TOPRIGHT", bg, "TOPRIGHT");     e[1]:SetHeight(1)
+	e[2]:SetPoint("BOTTOMLEFT", bg, "BOTTOMLEFT"); e[2]:SetPoint("BOTTOMRIGHT", bg, "BOTTOMRIGHT"); e[2]:SetHeight(1)
+	e[3]:SetPoint("TOPLEFT", bg, "TOPLEFT");     e[3]:SetPoint("BOTTOMLEFT", bg, "BOTTOMLEFT");   e[3]:SetWidth(1)
+	e[4]:SetPoint("TOPRIGHT", bg, "TOPRIGHT");   e[4]:SetPoint("BOTTOMRIGHT", bg, "BOTTOMRIGHT"); e[4]:SetWidth(1)
+
+	-- Blizzard chrome to hide under Modern
+	local h = modernChrome.hidden
+	if _G.CharacterFramePortrait then h[#h + 1] = _G.CharacterFramePortrait end
+	if _G.PaperDollFrame then
+		-- the tan window backdrop is the 4 BORDER-layer textures on PaperDollFrame
+		for _, r in ipairs({ _G.PaperDollFrame:GetRegions() }) do
+			if r.IsObjectType and r:IsObjectType("Texture")
+			   and r.GetDrawLayer and r:GetDrawLayer() == "BORDER" then
+				h[#h + 1] = r
+			end
+		end
+	end
+	-- Blizzard's built-in attribute/stat block (our panel replaces it)
+	local attr = _G.CharacterAttributesFrame or (_G.PaperDollFrame and _G.PaperDollFrame.Attributes)
+	if attr then h[#h + 1] = attr end
+	-- the 5 magic-resistance icons are a SEPARATE frame; hide them too (their
+	-- values now live in the panel's Resistances category)
+	if _G.CharacterResistanceFrame then h[#h + 1] = _G.CharacterResistanceFrame end
+	-- the two model-rotate arrows
+	if _G.CharacterModelFrameRotateLeftButton  then h[#h + 1] = _G.CharacterModelFrameRotateLeftButton  end
+	if _G.CharacterModelFrameRotateRightButton then h[#h + 1] = _G.CharacterModelFrameRotateRightButton end
+
+	return bg
+end
+
+local function applyModernChrome(on)
+	ensureModernChrome()
+	if not modernChrome then return end
+	for _, r in ipairs(modernChrome.hidden) do
+		if on then if r.Hide then r:Hide() end else if r.Show then r:Show() end end
+	end
+	if on then
+		modernChrome.bg:Show()
+		for _, t in ipairs(modernChrome.edges) do t:Show() end
+	else
+		modernChrome.bg:Hide()
+		for _, t in ipairs(modernChrome.edges) do t:Hide() end
+	end
+end
+
+-- The other character sub-tabs (Reputation / Skills / PvP / Honor) each carry
+-- their own tan window chrome. Under Modern we hide that chrome (the BACKGROUND
+-- and BORDER direct textures — content lives in child frames / ARTWORK, which
+-- we leave alone) and lay a dark panel + accent border on each, parented to the
+-- pane so it shows and hides with its tab automatically. Fully reversible.
+local modernPanes
+
+local function ensureModernPanes()
+	if modernPanes then return modernPanes end
+	modernPanes = {}
+	local bgc = ns.COLORS.bg
+	local bd  = ns.COLORS.accentDim or ns.COLORS.border
+	for _, name in ipairs({ "ReputationFrame", "SkillFrame", "PVPFrame" }) do
+		local f = _G[name]
+		if f and f.CreateTexture and f.GetRegions then
+			local rec = { hidden = {}, edges = {} }
+			-- collect the existing tan chrome FIRST, before we add our own
+			-- textures (so our bg/edges are never swept into the hide list)
+			for _, r in ipairs({ f:GetRegions() }) do
+				if r.IsObjectType and r:IsObjectType("Texture") and r.GetDrawLayer then
+					local dl = r:GetDrawLayer()
+					if dl == "BACKGROUND" or dl == "BORDER" then
+						rec.hidden[#rec.hidden + 1] = r
+					end
+				end
+			end
+			local bg = f:CreateTexture(nil, "BACKGROUND", nil, -8)
+			bg:SetColorTexture(bgc.r, bgc.g, bgc.b, 0.97)
+			bg:SetPoint("TOPLEFT", f, "TOPLEFT", 7, -6)
+			bg:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -8, 72)
+			bg:Hide()
+			rec.bg = bg
+			for i = 1, 4 do
+				local t = f:CreateTexture(nil, "BACKGROUND", nil, -7)
+				t:SetColorTexture(bd.r, bd.g, bd.b, 0.9)
+				t:Hide()
+				rec.edges[i] = t
+			end
+			local e = rec.edges
+			e[1]:SetPoint("TOPLEFT", bg, "TOPLEFT");       e[1]:SetPoint("TOPRIGHT", bg, "TOPRIGHT");       e[1]:SetHeight(1)
+			e[2]:SetPoint("BOTTOMLEFT", bg, "BOTTOMLEFT"); e[2]:SetPoint("BOTTOMRIGHT", bg, "BOTTOMRIGHT"); e[2]:SetHeight(1)
+			e[3]:SetPoint("TOPLEFT", bg, "TOPLEFT");       e[3]:SetPoint("BOTTOMLEFT", bg, "BOTTOMLEFT");   e[3]:SetWidth(1)
+			e[4]:SetPoint("TOPRIGHT", bg, "TOPRIGHT");     e[4]:SetPoint("BOTTOMRIGHT", bg, "BOTTOMRIGHT"); e[4]:SetWidth(1)
+			modernPanes[#modernPanes + 1] = rec
+		end
+	end
+	return modernPanes
+end
+
+local function applyModernPanes(on)
+	if not on and not modernPanes then return end   -- nothing built yet, nothing to restore
+	ensureModernPanes()
+	for _, rec in ipairs(modernPanes) do
+		for _, r in ipairs(rec.hidden) do
+			if on then if r.Hide then r:Hide() end else if r.Show then r:Show() end end
+		end
+		if on then
+			rec.bg:Show()
+			for _, t in ipairs(rec.edges) do t:Show() end
+		else
+			rec.bg:Hide()
+			for _, t in ipairs(rec.edges) do t:Hide() end
+		end
+	end
+end
+
+-- The bottom tabs (Character / Pet / Reputation / Skills / PvP) carry tan tab
+-- art. Under Modern we hide that art (all their Texture regions; the label
+-- FontString stays), put a dark strip behind each label and an accent
+-- underline on the active tab. Reversible; the original label colors are kept.
+local modernTabs
+
+local function tabSelectedId()
+	if CharacterFrame and CharacterFrame.selectedTab then return CharacterFrame.selectedTab end
+	if PanelTemplates_GetSelectedTab then
+		local ok, id = pcall(PanelTemplates_GetSelectedTab, CharacterFrame)
+		if ok and id then return id end
+	end
+	return 1
+end
+
+-- re-hide the art (Blizzard re-styles a tab on click) and move the underline
+local function layoutModernTabs()
+	if not modernTabs or cpStyle() ~= "modern" then return end
+	local sel = tabSelectedId()
+	for _, rec in ipairs(modernTabs) do
+		for _, r in ipairs(rec.hidden) do if r.Hide then r:Hide() end end
+		if rec.id == sel then rec.underline:Show() else rec.underline:Hide() end
+	end
+end
+
+local function ensureModernTabs()
+	if modernTabs then return modernTabs end
+	modernTabs = {}
+	local ac  = ns.COLORS.accent
+	local bgc = ns.COLORS.bg
+	for i = 1, 5 do
+		local tab = _G["CharacterFrameTab" .. i]
+		if tab and tab.CreateTexture and tab.GetRegions then
+			local rec = { id = i, hidden = {} }
+			for _, r in ipairs({ tab:GetRegions() }) do
+				if r.IsObjectType and r:IsObjectType("Texture") then
+					rec.hidden[#rec.hidden + 1] = r
+				end
+			end
+			local bg = tab:CreateTexture(nil, "BACKGROUND", nil, -2)
+			bg:SetColorTexture(bgc.r, bgc.g, bgc.b, 0.95)
+			bg:SetPoint("TOPLEFT", tab, "TOPLEFT", 4, -6)
+			bg:SetPoint("BOTTOMRIGHT", tab, "BOTTOMRIGHT", -4, 8)
+			bg:Hide()
+			rec.bg = bg
+			local ul = tab:CreateTexture(nil, "ARTWORK")
+			ul:SetColorTexture(ac.r, ac.g, ac.b, 0.9)
+			ul:SetHeight(2)
+			ul:SetPoint("BOTTOMLEFT", bg, "BOTTOMLEFT", 2, 1)
+			ul:SetPoint("BOTTOMRIGHT", bg, "BOTTOMRIGHT", -2, 1)
+			ul:Hide()
+			rec.underline = ul
+			rec.label = _G["CharacterFrameTab" .. i .. "Text"] or tab.Text
+				or (tab.GetFontString and tab:GetFontString())
+			if rec.label and rec.label.GetTextColor then
+				rec.oR, rec.oG, rec.oB = rec.label:GetTextColor()
+			end
+			tab:HookScript("OnClick", function() layoutModernTabs() end)
+			modernTabs[#modernTabs + 1] = rec
+		end
+	end
+	return modernTabs
+end
+
+local function applyModernTabs(on)
+	if not on and not modernTabs then return end
+	ensureModernTabs()
+	for _, rec in ipairs(modernTabs) do
+		for _, r in ipairs(rec.hidden) do
+			if on then if r.Hide then r:Hide() end else if r.Show then r:Show() end end
+		end
+		if on then
+			rec.bg:Show()
+			if rec.label and rec.label.SetTextColor then rec.label:SetTextColor(0.9, 0.9, 0.95) end
+		else
+			rec.bg:Hide()
+			rec.underline:Hide()
+			if rec.label and rec.label.SetTextColor then
+				rec.label:SetTextColor(rec.oR or 1, rec.oG or 0.82, rec.oB or 0)
+			end
+		end
+	end
+	if on then layoutModernTabs() end
+end
+
+local function ensureModernPanel()
+	if modernPanel then return modernPanel end
+	if not CharacterFrame then return nil end
+	local bg = ensureModernChrome()
+	local UI = ns.UI
+	local ac = ns.COLORS.accent
+	local function font(fs, size, fallback)
+		if UI and UI.FONT_PATH then fs:SetFont(UI.FONT_PATH, size, "") else fs:SetFontObject(fallback) end
+	end
+
+	local p = CreateFrame("Frame", "VCUI_ModernCharStats", CharacterFrame)
+	p:SetWidth(188)
+	-- transparent panel filling the right part of the shared dark rectangle
+	if bg then
+		p:SetPoint("TOPRIGHT", bg, "TOPRIGHT", -6, -6)
+		p:SetPoint("BOTTOMRIGHT", bg, "BOTTOMRIGHT", -6, 6)
+	else
+		p:SetPoint("TOPLEFT", CharacterFrame, "TOPRIGHT", 6, -8)
+		p:SetHeight(420)
+	end
+	p:SetFrameStrata(CharacterFrame:GetFrameStrata())
+	p:SetFrameLevel((CharacterFrame:GetFrameLevel() or 0) + 6)
+
+	-- fixed header: caption + big item level (does not scroll)
+	local cap = p:CreateFontString(nil, "OVERLAY")
+	font(cap, 10, "GameFontNormalSmall")
+	cap:SetPoint("TOP", p, "TOP", 0, -8)
+	cap:SetText(L["Item Level"])
+	cap:SetTextColor(0.6, 0.6, 0.66)
+
+	local il = p:CreateFontString(nil, "OVERLAY")
+	font(il, 22, "GameFontNormalHuge")
+	il:SetPoint("TOP", cap, "BOTTOM", 0, -1)
+	il:SetTextColor(ac.r, ac.g, ac.b)
+	p.ilvl = il
+
+	-- scrollable body below the item level
+	local scroll = CreateFrame("ScrollFrame", nil, p)
+	scroll:SetPoint("TOPLEFT", p, "TOPLEFT", 0, -50)
+	scroll:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", 0, 6)
+	scroll:EnableMouseWheel(true)
+	scroll:SetScript("OnMouseWheel", function(self, delta)
+		local range = math.max(0, (p.content:GetHeight() or 0) - (self:GetHeight() or 0))
+		local nv = math.min(range, math.max(0, self:GetVerticalScroll() - delta * 24))
+		self:SetVerticalScroll(nv)
+	end)
+	local content = CreateFrame("Frame", nil, scroll)
+	content:SetSize(184, 400)
+	scroll:SetScrollChild(content)
+	p.scroll = scroll
+	p.content = content
+
+	p.secObjs = {}
+	for _, s in ipairs(buildModernSections()) do
+		local obj = { key = s.key, rows = {} }
+		local header = CreateFrame("Button", nil, content)
+		header:SetSize(178, 18)
+		local ht = header:CreateFontString(nil, "OVERLAY")
+		font(ht, 11, "GameFontNormal")
+		ht:SetPoint("LEFT", header, "LEFT", 2, 0)
+		ht:SetText(string.upper(s.title or ""))
+		ht:SetTextColor(ac.r, ac.g, ac.b)
+		local arrow = header:CreateFontString(nil, "OVERLAY")
+		font(arrow, 13, "GameFontNormal")
+		arrow:SetPoint("RIGHT", header, "RIGHT", -2, 0)
+		arrow:SetTextColor(0.6, 0.6, 0.66)
+		local div = header:CreateTexture(nil, "ARTWORK")
+		div:SetHeight(1)
+		div:SetPoint("BOTTOMLEFT", header, "BOTTOMLEFT", 0, 0)
+		div:SetPoint("BOTTOMRIGHT", header, "BOTTOMRIGHT", 0, 0)
+		div:SetColorTexture(ac.r, ac.g, ac.b, 0.35)
+		header:SetScript("OnClick", function()
+			cpMod.db.modernCollapsed = cpMod.db.modernCollapsed or {}
+			cpMod.db.modernCollapsed[s.key] = not cpMod.db.modernCollapsed[s.key]
+			layoutModern()
+		end)
+		obj.header = header
+		obj.arrow = arrow
+		for _, r in ipairs(s.rows) do
+			local nameFS = content:CreateFontString(nil, "OVERLAY")
+			font(nameFS, 11, "GameFontHighlightSmall")
+			nameFS:SetTextColor(0.68, 0.68, 0.72)
+			nameFS:SetJustifyH("LEFT")
+			nameFS:SetText(r.name)
+			local valueFS = content:CreateFontString(nil, "OVERLAY")
+			font(valueFS, 11, "GameFontHighlightSmall")
+			valueFS:SetTextColor(0.92, 0.92, 0.96)
+			valueFS:SetJustifyH("RIGHT")
+			-- transparent hover strip for the Blizzard-style detail tooltip
+			local hover = CreateFrame("Button", nil, content)
+			hover:SetHeight(15)
+			hover.def = r
+			hover:SetScript("OnEnter", function(self)
+				if not GameTooltip then return end
+				GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+				GameTooltip:AddLine(self.def.name, 1, 1, 1)
+				if self.def.tip then self.def.tip(GameTooltip) end
+				GameTooltip:Show()
+			end)
+			hover:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+			obj.rows[#obj.rows + 1] = { name = nameFS, value = valueFS, hover = hover, get = r.get, fmt = r.fmt }
+		end
+		p.secObjs[#p.secObjs + 1] = obj
+	end
+
+	modernPanel = p
+	return p
+end
+
+-- Called from UpdateCharacterPanel when the Modern style is active and the
+-- character frame is open.
+function ns:RenderModernCharacterPanel()
+	applyModernChrome(true)
+	local p = ensureModernPanel()
+	if not p then return end
+	p:Show()
+	updateModernValues()
+	layoutModern()
+end
+
 local function UpdateCharacterPanel()
 	if CharacterFrame and CharacterFrame:IsShown() then
+		-- both self-gate on the style; on "modern" they clear the Classic+ overlays
 		UpdateAllCharacterSlots()
 		UpdatePlayerAvgIlvlDisplay()
+		if cpStyle() == "modern" then
+			applyModernPanes(true)
+			applyModernTabs(true)
+			ns:RenderModernCharacterPanel()
+		else
+			if modernPanel then modernPanel:Hide() end
+			applyModernChrome(false)
+			applyModernPanes(false)
+			applyModernTabs(false)
+		end
 	end
 end
 
@@ -1182,6 +1733,20 @@ eventListener:RegisterEvent("PLAYER_ENTERING_WORLD")
 if CharacterFrame then
 	CharacterFrame:HookScript("OnShow", function()
 		UpdateCharacterPanel()
+	end)
+end
+
+-- The Modern chrome belongs to the paper-doll (Character) sub-tab only. When
+-- the user switches to Reputation/Skills/Honor the character frame stays open
+-- but PaperDollFrame hides, so follow it: drop the dark bg + stats panel when
+-- the paper doll leaves, restore them when it returns.
+if _G.PaperDollFrame then
+	_G.PaperDollFrame:HookScript("OnHide", function()
+		if modernPanel then modernPanel:Hide() end
+		applyModernChrome(false)
+	end)
+	_G.PaperDollFrame:HookScript("OnShow", function()
+		if cpStyle() == "modern" then ns:RenderModernCharacterPanel() end
 	end)
 end
 end  -- ns:RunCharacterPanelInit

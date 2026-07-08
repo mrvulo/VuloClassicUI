@@ -38,6 +38,7 @@ local mod = ns:RegisterModule("addonskins", {
         novainstancetracker = true,
         gargul        = true,
         attune        = true,
+        leamaps       = true,   -- world-map options addon (referenced by frame only)
         questieBackup = nil,   -- Questie settings before we touched them
     },
 })
@@ -768,6 +769,98 @@ function sk.armAttune()
 end
 
 -- =========================================================
+-- World-map options addon. Its window is a plain frame reachable as the global
+-- LeaMapsGlobalPanel (built eagerly at load), with two parchment "gold" overlay
+-- textures over a dark fill, a title, checkboxes, a dropdown and two text
+-- buttons carrying their own gold skin. The addon's own tables are local, so
+-- every control is reached by walking the frame's regions/children. We detect
+-- and reference it only through its LeaMaps* frame globals — its name never
+-- appears in our code, options or changelog.
+-- =========================================================
+function sk.skinMapAddonPanel(f)
+    if not f or f._vcuiSkin then return end
+    f._vcuiSkin = true
+    -- kill the parchment overlays (the gold look), then lay our dark panel
+    for _, r in ipairs({ f:GetRegions() }) do
+        if r.IsObjectType and r:IsObjectType("Texture") then
+            local tex = r.GetTexture and r:GetTexture()
+            if type(tex) == "string" and tex:lower():find("parchment") then
+                r:SetAlpha(0)
+            end
+        end
+    end
+    panelize(f)
+    -- title + section headers (the gold GameFontNormal text) -> accent; the
+    -- version subtitle stays dim; white body text is left alone so the config
+    -- sub-panels keep readable descriptions
+    local ac = ns.COLORS.accent
+    for _, r in ipairs({ f:GetRegions() }) do
+        if r.IsObjectType and r:IsObjectType("FontString") then
+            if r == f.v then
+                r:SetTextColor(0.6, 0.6, 0.66)
+            else
+                local cr, cg, cb = r:GetTextColor()
+                if cr and cr > 0.8 and cg > 0.7 and (cb or 0) < 0.35 then
+                    r:SetTextColor(ac.r, ac.g, ac.b)
+                end
+            end
+        end
+    end
+    -- children: text buttons (reset / reload), the close X, checkbox labels
+    for _, c in ipairs({ f:GetChildren() }) do
+        local ot = c.GetObjectType and c:GetObjectType()
+        -- the zone-map dropdown is a direct child too; never treat a dropdown
+        -- as a plain button (it would lose its arrow/box art)
+        local isDropdown = c.SetupMenu ~= nil or c.OpenMenu ~= nil or c.Arrow ~= nil
+        if ot == "Button" and not isDropdown then
+            local fs = c.GetFontString and c:GetFontString()
+            local txt = fs and fs:GetText()
+            if txt and txt ~= "" then
+                skinButton(c)
+                -- these buttons carry a second gold label fontstring for sizing
+                if c.f and c.f.SetTextColor then c.f:SetTextColor(0.9, 0.9, 0.95) end
+            else
+                local w = (c.GetWidth and c:GetWidth()) or 0
+                local h = (c.GetHeight and c:GetHeight()) or 0
+                if w >= 28 and h >= 28 and math.abs(w - h) < 6 then
+                    skinClose(c)   -- the 30x30 UIPanelCloseButton
+                end
+                -- other art buttons (gear cogs) are left functional
+            end
+        elseif ot == "CheckButton" then
+            if c.f and c.f.SetTextColor then c.f:SetTextColor(0.9, 0.9, 0.95) end
+        end
+    end
+end
+
+function sk.skinMapAddon()
+    if not (mod.active and mod.db.leamaps ~= false) then return end
+    if _G.LeaMapsGlobalPanel then sk.skinMapAddonPanel(_G.LeaMapsGlobalPanel) end
+    -- the secondary config sub-panels share the LeaMapsGlobalPanel_ prefix and
+    -- the same chrome; a one-time scan catches the ones built at load
+    if not sk.leamapsSubsScanned then
+        sk.leamapsSubsScanned = true
+        for k, v in pairs(_G) do
+            if type(k) == "string" and k:find("^LeaMapsGlobalPanel_") and type(v) == "table" then
+                local ok, isFrame = pcall(function() return v.IsObjectType and v:IsObjectType("Frame") end)
+                if ok and isFrame then sk.skinMapAddonPanel(v) end
+            end
+        end
+    end
+end
+
+function sk.armMapAddon()
+    if sk.armed_leamaps then return end
+    local f = _G.LeaMapsGlobalPanel
+    if not f then return end
+    sk.armed_leamaps = true   -- after the guard; a hook error must not re-arm
+    sk.skinMapAddon()
+    f:HookScript("OnShow", function()
+        if mod.active and mod.db.leamaps ~= false then sk.skinMapAddon() end
+    end)
+end
+
+-- =========================================================
 -- Arming: apply what's loaded now, watch ADDON_LOADED for the rest
 -- =========================================================
 local TARGETS = {
@@ -798,6 +891,7 @@ function sk.applyLoaded()
     if loaded("NovaInstanceTracker") then sk.skinNovaInstanceTracker() end
     if loaded("Gargul") then sk.armGargul() end
     if loaded("Attune") then sk.armAttune() end
+    if _G.LeaMapsGlobalPanel then sk.armMapAddon() end
 end
 
 local function onEvent(event, arg1)
@@ -816,6 +910,8 @@ local function onEvent(event, arg1)
         elseif arg1 == "Gargul" then sk.armGargul()
         elseif arg1 == "Attune" then sk.armAttune()
         end
+        -- world-map options addon: detect by its frame, not its name
+        if _G.LeaMapsGlobalPanel then sk.armMapAddon() end
     elseif event == "PLAYER_ENTERING_WORLD" then
         sk.applyLoaded()
         -- several targets build their windows in their own deferred init
@@ -872,6 +968,20 @@ function mod:GetOptions()
                 elseif key == "questie" and sk.done.questie then
                     sk.restoreQuestie()
                 end
+            end,
+        })
+    end
+    -- world-map options addon: a nameless toggle (its name is never shipped);
+    -- detected by its frame, so it shows "not loaded" until the addon is present
+    do
+        local isLoaded = _G.LeaMapsGlobalPanel ~= nil
+        table.insert(items, {
+            type = "toggle",
+            label = L["Map addon"] .. (isLoaded and "" or (" |cff888888(" .. L["not loaded"] .. ")|r")),
+            get = function() return mod.db.leamaps ~= false end,
+            set = function(_, v)
+                mod.db.leamaps = v and true or false
+                if v then sk.applyLoaded() end
             end,
         })
     end

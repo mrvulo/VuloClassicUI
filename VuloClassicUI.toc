@@ -1,4 +1,4 @@
-## Interface: 20505
+## Interface: 20506
 ## Title: |cff9b6cffVuloClassicUI|r
 ## Notes: Modular UI suite for TBC Classic Anniversary
 ## Author: Vulo
