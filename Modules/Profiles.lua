@@ -87,9 +87,15 @@ function mod:GetOptions()
         get = function() return ns:GetActiveProfileName() end,
         set = function(_, v)
             ns:SwitchProfile(v)
-            -- a pinned character profile would silently revert the switch at
-            -- the next login — keep the pin in step with a manual switch
-            if ns:GetCharAssignment() then ns:AssignCharToProfile(v) end
+            -- Persist the switch so it survives relog. A pinned character keeps
+            -- its pin in step; otherwise the choice sticks at CLASS scope (the
+            -- default scope) — without this the class assignment written on
+            -- first login would silently revert the switch at the next login.
+            if ns:GetCharAssignment() then
+                ns:AssignCharToProfile(v)
+            else
+                ns:AssignClassToProfile(ns:GetMyClassKey(), v)
+            end
             refreshUI()
         end,
     })

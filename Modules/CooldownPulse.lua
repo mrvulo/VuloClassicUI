@@ -411,9 +411,13 @@ local function setupEvents()
             end
 
         elseif event == "COMBAT_LOG_EVENT_UNFILTERED" then
-            if not UnitExists("pet") then return end   -- this branch only tracks pet casts
-            local _, e, _, _, _, sourceFlags, _, _, _, _, _, spellID = CombatLogGetCurrentEventInfo()
-            if e == "SPELL_CAST_SUCCESS" and sourceFlags and spellID then
+            -- Hot path: fires on every combat-log line. Bail on the cheap
+            -- subevent read BEFORE the UnitExists call and the full destructure
+            -- (this branch only ever tracks the player's pet casts).
+            if select(2, CombatLogGetCurrentEventInfo()) ~= "SPELL_CAST_SUCCESS" then return end
+            if not UnitExists("pet") then return end
+            local _, _, _, _, _, sourceFlags, _, _, _, _, _, spellID = CombatLogGetCurrentEventInfo()
+            if sourceFlags and spellID then
                 local isPet = (bit.band(sourceFlags, COMBATLOG_OBJECT_TYPE_PET or 0) ~= 0)
                 local mine  = (bit.band(sourceFlags, COMBATLOG_OBJECT_AFFILIATION_MINE or 0) ~= 0)
                 if isPet and mine then

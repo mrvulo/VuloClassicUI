@@ -8,6 +8,7 @@ ignore:
   - .git
   - .github
   - .gitignore
+  - .claude
   - .pkgmeta.yaml
   - .pkgmeta
   - README.md

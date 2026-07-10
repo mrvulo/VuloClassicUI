@@ -1209,8 +1209,8 @@ local function buildModernSections()
 
 	local spell = sec("spell", L["Spell"])
 	row(spell, L["Spell Power"], maxSpellPower, nil, spellPowerTip)
-	row(spell, L["Spell Crit"], maxSpellCrit, "%.2f%%", spellCritTip)
 	row(spell, L["Healing"], function() return GetSpellBonusHealing and GetSpellBonusHealing() or 0 end)
+	row(spell, L["Spell Crit"], maxSpellCrit, "%.2f%%", spellCritTip)
 	if ns.isBCC and GetCombatRating and _G.CR_HIT_SPELL then
 		row(spell, L["Spell Hit"], function() return GetCombatRating(CR_HIT_SPELL) end)
 	end

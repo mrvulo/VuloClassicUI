@@ -20,8 +20,8 @@ local ICON_DIR = "Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\modules\\"
 local MODULE_ICONS = {}
 for _, key in ipairs({
     "globalsettings", "unlockmode", "qol", "bugfixes", "profiles",
-    "minimap", "minimapstyle", "fontbars", "playercastbar", "targetframe",
-    "elitevuloframe", "cooldownpulse", "cooldownmanager", "powerbar",
+    "minimap", "minimapstyle", "fontbars", "playercastbar", "unitframes",
+    "cooldownpulse", "cooldownmanager", "powerbar",
     "arenaframes", "characterpanel", "buttonskin", "darkmode", "friendlist",
     "miscqol", "queuetimer", "tooltipids", "autoitembuy", "goldtracker",
     "goldvendors", "spamfilter", "chat", "bags", "questlog",

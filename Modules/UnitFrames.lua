@@ -1,33 +1,205 @@
 -- =========================================================
--- VuloClassicUI / Modules / TargetFrame
--- Re-adds the "modern" TargetFrame/FocusFrame extras that the default TBC
--- Anniversary UI is missing, natively (no external addon needed):
---   * Numeric threat % readout above the frame
---   * Coloured threat glow around the frame
---   * The winged Rare-Elite border for rare-elite mobs
+-- VuloClassicUI / Modules / UnitFrames
+-- The two frames you stare at all fight, in one module.
+--
+--   Player frame:  the elite/rare dragon border known from target frames.
+--     Technique: swap PlayerFrameTexture for the (wider) horizontally-flipped
+--     target-frame texture, re-anchor it with the 2.5.5 Anniversary layout
+--     offsets, then re-align the level text and rest icon and lift pet/totem/
+--     group frames above the bigger art. All original values are captured
+--     before the first change so the default look can be restored exactly
+--     (style "off" / module off).
+--
+--   Target + Focus frame:  the "modern" extras the default TBC Anniversary UI
+--     is missing, natively (no external addon needed):
+--       * real NPC health value instead of the obfuscated percentage
+--       * numeric threat % readout above the frame
+--       * coloured threat glow around the frame
+--       * the winged Rare-Elite border for rare-elite mobs
+--       * the target's class crest on player targets
+--
 -- All purely cosmetic: hooksecurefunc + our own textures / fontstrings, so no
 -- taint and no secure actions are touched. Threat runs off Blizzard's native
 -- ThreatAPI (present on 2.5.5) — no LibThreatClassic.
--- (Real-NPC-health text is handled separately once we confirm what the default
---  frame shows for a normal mob.)
 -- =========================================================
 local _, ns = ...
 local L = ns.L
 
-local mod = ns:RegisterModule("targetframe", {
-    name        = "Target Frame",
+local mod = ns:RegisterModule("unitframes", {
+    name        = "Player & Target Frame",
     group       = "Unit Frames",
-    description = "Adds a numeric threat %, a coloured threat glow and the winged Rare-Elite border to the Target and Focus frames - the bits the default Anniversary UI leaves out.",
-    defaults = {
+    description = "Elite dragon border for your player frame, plus real health, threat display and the rare-elite border for the target and focus frames.",
+    defaults    = {
         enabled       = true,
-        realHealth    = true,   -- show the real HP value for NPCs (default shows %)
-        threatNumeric = true,   -- numeric threat % above the frame
-        threatGlow    = true,   -- tint the frame border by threat status
-        rareElite     = true,   -- winged Rare-Elite border for rare-elite mobs
-        classIcon     = true,   -- class crest on player targets
-        focus         = true,   -- apply all of the above to the Focus frame too
+        playerStyle   = "elite",  -- "elite" | "rareelite" | "rare" | "off"
+        realHealth    = true,     -- show the real HP value for NPCs (default shows %)
+        threatNumeric = true,     -- numeric threat % above the frame
+        threatGlow    = true,     -- tint the frame border by threat status
+        rareElite     = true,     -- winged Rare-Elite border for rare-elite mobs
+        classIcon     = true,     -- class crest on player targets
+        focus         = true,     -- apply the target extras to the Focus frame too
     },
 })
+
+-- =========================================================
+-- PLAYER FRAME — elite dragon border
+-- =========================================================
+
+-- Texture data (target-frame art, flipped horizontally for the mirrored player
+-- frame). The Anniversary 2.5.5 client shifted the player-frame elements, so the
+-- (wider) elite texture needs this -17.5/-3.5 normalisation to sit right. Classic
+-- Era keeps the original (un-shifted) layout, so on Era the same offset would push
+-- the dragon art + level badge ~17px off — there it needs no shift.
+local BASE_X, BASE_Y = -17.5, -3.5
+if ns.isEra then BASE_X, BASE_Y = 0, 0 end
+local LEVEL_X, LEVEL_Y = 52.5 + BASE_X, -67 + BASE_Y
+-- Era's player frame is sized slightly differently, so the level number lands a
+-- touch too far left over the elite art; nudge it right (tune this value if needed).
+if ns.isEra then LEVEL_X = LEVEL_X + 8 end
+
+local STYLES = {
+    elite = {
+        file = "Interface\\TargetingFrame\\UI-TargetingFrame-Elite",
+        w = 232, h = 101, l = 256 / 256, r = 24 / 256, t = 0, b = 101 / 128,
+        ox = 0, oy = 0,
+    },
+    rareelite = {
+        file = "Interface\\TargetingFrame\\UI-TargetingFrame-Rare-Elite",
+        w = 232, h = 101, l = 256 / 256, r = 24 / 256, t = 0, b = 101 / 128,
+        ox = 0, oy = 0,
+    },
+    rare = {
+        file = "Interface\\TargetingFrame\\UI-TargetingFrame-Rare",
+        w = 226, h = 101, l = 250 / 256, r = 24 / 256, t = 0, b = 101 / 128,
+        ox = 6, oy = 0,
+    },
+}
+
+-- Frames lifted above the enlarged border art (original levels restored)
+local RAISE_FRAMES = {
+    { name = "PlayerFrameGroupIndicator", lift = 1 },
+    { name = "PetFrame",                  lift = 2 },
+    { name = "TotemFrame",                lift = 3 },
+}
+
+-- ---------------------------------------------------------
+-- Capture / restore the default player-frame look
+-- ---------------------------------------------------------
+local captured  -- nil until the first apply
+
+local function capturePoints(frame)
+    local pts = {}
+    for i = 1, frame:GetNumPoints() do
+        pts[i] = { frame:GetPoint(i) }
+    end
+    return pts
+end
+
+local function restorePoints(frame, pts)
+    if not pts or #pts == 0 then return end
+    frame:ClearAllPoints()
+    for _, p in ipairs(pts) do
+        frame:SetPoint(p[1], p[2], p[3], p[4], p[5])
+    end
+end
+
+local function capturePlayerDefaults()
+    if captured then return true end
+    local tex   = _G.PlayerFrameTexture
+    local level = _G.PlayerLevelText
+    if not tex or not level then return false end
+
+    captured = {
+        tex = {
+            points   = capturePoints(tex),
+            file     = tex:GetTexture(),
+            texCoord = { tex:GetTexCoord() },
+            width    = tex:GetWidth(),
+            height   = tex:GetHeight(),
+        },
+        levelPoints = capturePoints(level),
+        restPoints  = _G.PlayerRestIcon and capturePoints(_G.PlayerRestIcon) or nil,
+        levels      = {},
+    }
+    for _, def in ipairs(RAISE_FRAMES) do
+        local f = _G[def.name]
+        if f then captured.levels[def.name] = f:GetFrameLevel() end
+    end
+    return true
+end
+
+local function restorePlayerDefaults()
+    if not captured then return end
+    local tex = _G.PlayerFrameTexture
+    if tex then
+        restorePoints(tex, captured.tex.points)
+        if captured.tex.file then tex:SetTexture(captured.tex.file) end
+        local tc = captured.tex.texCoord
+        if tc and #tc == 8 then tex:SetTexCoord(unpack(tc)) end
+        tex:SetSize(captured.tex.width, captured.tex.height)
+    end
+    if _G.PlayerLevelText then restorePoints(_G.PlayerLevelText, captured.levelPoints) end
+    if _G.PlayerRestIcon and captured.restPoints then
+        restorePoints(_G.PlayerRestIcon, captured.restPoints)
+    end
+    for _, def in ipairs(RAISE_FRAMES) do
+        local f = _G[def.name]
+        local lvl = captured.levels[def.name]
+        if f and lvl then f:SetFrameLevel(lvl) end
+    end
+end
+
+-- ---------------------------------------------------------
+-- Apply the chosen player-frame style
+-- ---------------------------------------------------------
+local function playerStyleActive()
+    return mod._enabled and mod.db.playerStyle ~= "off" and STYLES[mod.db.playerStyle] ~= nil
+end
+
+-- Level text + rest icon: normalised positions for the bigger art.
+-- Also re-run from the Blizzard anchor hook (it resets the anchor).
+local function applyPlayerTextPositions()
+    if not playerStyleActive() or not captured then return end
+    local level = _G.PlayerLevelText
+    if level then
+        level:ClearAllPoints()
+        level:SetPoint("CENTER", _G.PlayerFrame, "TOPLEFT", LEVEL_X, LEVEL_Y)
+    end
+    local rest = _G.PlayerRestIcon
+    if rest and level then
+        rest:ClearAllPoints()
+        rest:SetPoint("CENTER", level, "CENTER", 0, 1)
+    end
+end
+
+local function applyPlayerStyle()
+    if not capturePlayerDefaults() then return end
+    local s = STYLES[mod.db.playerStyle]
+    if not s then
+        restorePlayerDefaults()
+        return
+    end
+
+    local tex = _G.PlayerFrameTexture
+    if not tex then return end
+    tex:ClearAllPoints()
+    tex:SetPoint("TOPLEFT", _G.PlayerFrame, "TOPLEFT", BASE_X + s.ox, BASE_Y + s.oy)
+    tex:SetTexture(s.file)
+    tex:SetTexCoord(s.l, s.r, s.t, s.b)
+    tex:SetSize(s.w, s.h)
+
+    applyPlayerTextPositions()
+
+    local base = tex:GetParent():GetFrameLevel()
+    for _, def in ipairs(RAISE_FRAMES) do
+        local f = _G[def.name]
+        if f then f:SetFrameLevel(base + def.lift) end
+    end
+end
+
+-- =========================================================
+-- TARGET + FOCUS FRAME — health, threat, classification, class crest
+-- =========================================================
 
 -- The frame's border ("classification") texture. On the 2.5.5 Classic frame this
 -- is <Frame>TextureFrameTexture; older paths used frame.borderTexture.
@@ -289,10 +461,10 @@ local function refreshHealth()
     up(_G.FocusFrameHealthBar)
 end
 
--- ---------------------------------------------------------
+-- =========================================================
 -- Lifecycle
--- ---------------------------------------------------------
-local hooked, realHealthHooked = false, false
+-- =========================================================
+local hooked, realHealthHooked, anchorHooked = false, false, false
 
 local function ensureSetup()
     if not _G.TargetFrame then return end
@@ -359,17 +531,37 @@ local function ensureSetup()
     end
 end
 
-function mod:OnEnable()
-    ensureSetup()
-    ns:RegisterEvent("PLAYER_ENTERING_WORLD", function()
-        ensureSetup(); updateAll(); refreshClassification(); refreshHealth()
-    end)
+local function refreshTargetFrames()
     updateAll()
     refreshClassification()
     refreshHealth()
 end
 
+local function onWorldEnter()
+    if not mod._enabled then return end
+    applyPlayerStyle()
+    ensureSetup()
+    refreshTargetFrames()
+end
+
+function mod:OnEnable()
+    applyPlayerStyle()
+    ensureSetup()
+    ns:RegisterEvent("PLAYER_ENTERING_WORLD", onWorldEnter)
+    refreshTargetFrames()
+
+    -- Blizzard re-anchors the player level text (e.g. on level-up); follow it.
+    -- hooksecurefunc is permanent, so install once and gate on state.
+    if not anchorHooked and _G.PlayerFrame_UpdateLevelTextAnchor then
+        anchorHooked = true
+        hooksecurefunc("PlayerFrame_UpdateLevelTextAnchor", applyPlayerTextPositions)
+    end
+end
+
 function mod:OnDisable()
+    ns:UnregisterEvent("PLAYER_ENTERING_WORLD", onWorldEnter)
+    restorePlayerDefaults()
+
     pulseDriver:Hide()
     for frame, ind in pairs(indicators) do
         ind:Hide()
@@ -381,24 +573,45 @@ function mod:OnDisable()
     -- Hooks stay installed but are gated by mod._enabled; a /reload fully reverts.
 end
 
--- ---------------------------------------------------------
+-- =========================================================
 -- Options
--- ---------------------------------------------------------
+-- =========================================================
 function mod:GetOptions()
-    local function apply() updateAll(); refreshClassification(); refreshHealth() end
+    local function apply() refreshTargetFrames() end
     return {
-        { type = "header", text = L["Target Frame"] },
-        { type = "desc",   text = L["|cffaaaaaaAdds the modern Target/Focus frame extras the default Anniversary UI is missing - all cosmetic, no taint.|r"] },
+        { type = "header", text = L["Player & Target Frame"] },
 
         { type = "spacer", height = 6 },
-        { type = "header", text = L["Health"] },
+        { type = "header", text = L["Player Frame"] },
+        { type = "desc",
+          text = L["|cffaaaaaaPuts the golden elite dragon (or the rare variants) around your player portrait — the look elite mobs have on the target frame.|r"] },
+        { type = "dropdown", label = L["Frame style"], width = 240,
+          values = {
+              { value = "elite",     text = L["Elite (golden dragon)"] },
+              { value = "rareelite", text = L["Rare-Elite (silver dragon)"] },
+              { value = "rare",      text = L["Rare (silver)"] },
+              { value = "off",       text = L["Off (default frame)"] },
+          },
+          get = function() return mod.db.playerStyle end,
+          set = function(_, v)
+              mod.db.playerStyle = v
+              applyPlayerStyle()
+          end },
+
+        { type = "spacer", height = 6 },
+        { type = "header", text = L["Target & Focus Frame"] },
+        { type = "desc",
+          text = L["|cffaaaaaaAdds the modern Target/Focus frame extras the default Anniversary UI is missing - all cosmetic, no taint.|r"] },
+
         { type = "toggle", label = L["Show real NPC health"],
           tooltip = L["Shows the true health value on NPCs instead of the obfuscated percentage (enemy players stay %)."],
           get = function() return mod.db.realHealth end,
           set = function(_, v) mod.db.realHealth = v; apply() end },
+        { type = "toggle", label = L["Class icon on player targets"],
+          tooltip = L["Shows the target's class crest on the frame when you target a player."],
+          get = function() return mod.db.classIcon end,
+          set = function(_, v) mod.db.classIcon = v; apply() end },
 
-        { type = "spacer", height = 6 },
-        { type = "header", text = L["Threat"] },
         { type = "toggle", label = L["Numeric threat %"],
           tooltip = L["Shows your threat percentage on the target (and focus) above the frame, coloured by threat status."],
           get = function() return mod.db.threatNumeric end,
@@ -408,18 +621,10 @@ function mod:GetOptions()
           get = function() return mod.db.threatGlow end,
           set = function(_, v) mod.db.threatGlow = v; apply() end },
 
-        { type = "spacer", height = 6 },
-        { type = "header", text = L["Classification"] },
         { type = "toggle", label = L["Rare-Elite border"],
           tooltip = L["Shows the winged silver-dragon Rare-Elite border on rare-elite mobs."],
           get = function() return mod.db.rareElite end,
           set = function(_, v) mod.db.rareElite = v; apply() end },
-        { type = "toggle", label = L["Class icon on player targets"],
-          tooltip = L["Shows the target's class crest on the frame when you target a player."],
-          get = function() return mod.db.classIcon end,
-          set = function(_, v) mod.db.classIcon = v; apply() end },
-
-        { type = "spacer", height = 6 },
         { type = "toggle", label = L["Also apply to the Focus frame"],
           get = function() return mod.db.focus end,
           set = function(_, v) mod.db.focus = v; apply() end },

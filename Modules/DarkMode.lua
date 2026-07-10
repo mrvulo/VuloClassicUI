@@ -335,7 +335,7 @@ function mod:GetOptions()
             L["Tints the backpack, bag and keyring button borders."]),
 
         { type = "spacer", height = 6 },
-        { type = "desc", text = L["|cffaaaaaaNote: if the Target Frame module's |cffffffffThreat glow|r is on, threat colouring takes over the target/focus border while you have aggro — that's intended.|r"] },
+        { type = "desc", text = L["|cffaaaaaaNote: if the Player & Target Frame module's |cffffffffThreat glow|r is on, threat colouring takes over the target/focus border while you have aggro — that's intended.|r"] },
         { type = "desc", text = L["|cffaaaaaaAction button borders are also managed by the Button Skin module — if that's on, it controls the buttons instead.|r"] },
     }
 end

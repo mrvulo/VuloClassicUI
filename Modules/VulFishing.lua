@@ -155,13 +155,22 @@ end
 -- Temp CVars (soft-target interact + auto-loot while fishing)
 -- ---------------------------------------------------------
 local cvarCache, cvarsActive = {}, false
+
+-- The soft-target CVars are protected during combat: SetCVar() there throws
+-- ADDON_ACTION_BLOCKED (e.g. a mob aggros you mid-cast, so the fishing channel
+-- stops IN combat and we try to restore). Defer any apply/restore to
+-- PLAYER_REGEN_ENABLED while in combat; wantCVars is the state to end up in.
+local cvarDefer = CreateFrame("Frame")
+cvarDefer:Hide()
+local wantCVars = false
+
 local function applyCVar(k, v)
     local cur = GetCVar(k)
     if cur == nil then return end          -- CVar doesn't exist on this client (e.g. Classic Era lacks soft-target) -> skip, never SetCVar an unknown name
     if cvarCache[k] == nil then cvarCache[k] = cur end
     SetCVar(k, v)
 end
-local function setFishCVars()
+local function doSetFishCVars()
     if cvarsActive then return end
     cvarsActive = true
     wipe(cvarCache)
@@ -175,11 +184,25 @@ local function setFishCVars()
     end
     if mod.db.soundBG then applyCVar("Sound_EnableSoundWhenGameIsInBG", "1") end
 end
-local function restoreFishCVars()
+local function doRestoreFishCVars()
     if not cvarsActive then return end
     cvarsActive = false
     for k, v in pairs(cvarCache) do if v ~= nil then SetCVar(k, v) end end
     wipe(cvarCache)
+end
+cvarDefer:SetScript("OnEvent", function(self)
+    self:UnregisterEvent("PLAYER_REGEN_ENABLED")
+    if wantCVars then doSetFishCVars() else doRestoreFishCVars() end
+end)
+local function setFishCVars()
+    wantCVars = true
+    if InCombatLockdown() then cvarDefer:RegisterEvent("PLAYER_REGEN_ENABLED"); return end
+    doSetFishCVars()
+end
+local function restoreFishCVars()
+    wantCVars = false
+    if InCombatLockdown() then cvarDefer:RegisterEvent("PLAYER_REGEN_ENABLED"); return end
+    doRestoreFishCVars()
 end
 
 -- ---------------------------------------------------------

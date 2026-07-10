@@ -718,10 +718,12 @@ function mm.setupHover()
     mm.hoverWired = true
     local acc = 0
     mm.base:SetScript("OnUpdate", function(self, elapsed)
-        if not (mod.active and db().buttonsOnHover) then return end
+        -- keep the per-frame cost to just the accumulator; the db() lookup and
+        -- IsMouseOver test run at 10Hz, not every rendered frame
         acc = acc + elapsed
         if acc < 0.1 then return end
         acc = 0
+        if not (mod.active and db().buttonsOnHover) then return end
         local over = self:IsMouseOver(10, -10, -10, 10)
         if over ~= mm.hovered then
             mm.hovered = over

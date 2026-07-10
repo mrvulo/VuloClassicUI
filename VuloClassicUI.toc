@@ -40,8 +40,7 @@ Modules\Minimap.lua
 Modules\MinimapStyle.lua
 Modules\FontBars.lua
 Modules\PlayerCastbar.lua
-Modules\TargetFrame.lua
-Modules\EliteVuloFrame.lua
+Modules\UnitFrames.lua
 Modules\SwingTimer.lua
 Modules\PowerBar.lua
 Modules\CooldownPulse.lua

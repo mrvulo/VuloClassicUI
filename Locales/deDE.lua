@@ -208,6 +208,12 @@ ns:RegisterLocale("deDE", {
     ["Red"] = "Rot",
 
     -- =====================================================
+    -- Module display names (tabs + sidebar)
+    -- =====================================================
+    ["Fishing"] = "Angeln",
+    ["Mail"]    = "Post",
+
+    -- =====================================================
     -- Loadouts
     -- =====================================================
     ["Loadouts"] = "Ausrüstungs-Sets",
@@ -443,10 +449,11 @@ ns:RegisterLocale("deDE", {
     ["Raises the maximum camera zoom-out distance far beyond the default."] = "Erhöht die maximale Kamera-Entfernung weit über den Standardwert hinaus.",
 
     -- =====================================================
-    -- EliteVuloFrame (elite dragon border on the player frame)
+    -- UnitFrames (player elite border + target/focus extras)
     -- =====================================================
-    ["EliteVuloFrame"] = "EliteVuloFrame",
-    ["Gives your player frame the elite dragon border (elite, rare-elite or rare style)."] = "Verpasst deinem Spielerfenster den Elite-Drachenrahmen (Elite, Selten-Elite oder Selten).",
+    ["Player & Target Frame"] = "Spieler- & Zielfenster",
+    ["Elite dragon border for your player frame, plus real health, threat display and the rare-elite border for the target and focus frames."] = "Elite-Drachenrahmen für dein Spielerfenster, plus echte HP, Bedrohungsanzeige und Selten-Elite-Rahmen für Ziel- und Fokusfenster.",
+    ["Target & Focus Frame"] = "Ziel- & Fokusfenster",
     ["|cffaaaaaaPuts the golden elite dragon (or the rare variants) around your player portrait — the look elite mobs have on the target frame.|r"] = "|cffaaaaaaLegt den goldenen Elite-Drachen (oder die Selten-Varianten) um dein Spielerporträt — der Look, den Elite-Mobs im Zielfenster haben.|r",
     ["Frame style"] = "Rahmen-Stil",
     ["Elite (golden dragon)"] = "Elite (goldener Drache)",
@@ -1678,7 +1685,7 @@ ns:RegisterLocale("deDE", {
     ["Adds the dark Button Skin border to the action bars while Dark Mode is on (and removes it when Dark Mode turns off). You can also switch it on with Dark Mode off in the Button Skin module."] = "Fügt den dunklen Button-Skin-Rand zu den Aktionsleisten hinzu, solange der Dunkelmodus an ist (und entfernt ihn, wenn der Dunkelmodus ausgeht). Du kannst ihn auch bei ausgeschaltetem Dunkelmodus im Modul „Button-Skin\" einschalten.",
     ["Bag slots"] = "Taschenplätze",
     ["Tints the backpack, bag and keyring button borders."] = "Färbt die Ränder von Rucksack-, Taschen- und Schlüsselbund-Knopf.",
-    ["|cffaaaaaaNote: if the Target Frame module's |cffffffffThreat glow|r is on, threat colouring takes over the target/focus border while you have aggro — that's intended.|r"] = "|cffaaaaaaHinweis: Wenn beim Modul „Zielfenster\" das |cffffffffBedrohungs-Leuchten|r aktiv ist, übernimmt die Bedrohungsfärbung den Ziel-/Fokus-Rand, solange du Aggro hast — das ist beabsichtigt.|r",
+    ["|cffaaaaaaNote: if the Player & Target Frame module's |cffffffffThreat glow|r is on, threat colouring takes over the target/focus border while you have aggro — that's intended.|r"] = "|cffaaaaaaHinweis: Wenn beim Modul „Spieler- & Zielfenster\" das |cffffffffBedrohungs-Leuchten|r aktiv ist, übernimmt die Bedrohungsfärbung den Ziel-/Fokus-Rand, solange du Aggro hast — das ist beabsichtigt.|r",
     ["|cffaaaaaaAction button borders are also managed by the Button Skin module — if that's on, it controls the buttons instead.|r"] = "|cffaaaaaaAktionsknopf-Ränder werden auch vom Modul „Button-Skin\" verwaltet — wenn das an ist, steuert es stattdessen die Knöpfe.|r",
 
     -- =====================================================

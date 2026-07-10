@@ -778,10 +778,17 @@ local function c_create()
         self.spark:ClearAllPoints()
         self.spark:SetPoint("CENTER", self.bar, "LEFT", self.bar:GetWidth() * disp, 0)
 
-        if mod.db.showTimeText then
-            self.timeText:SetText(fmtTime(remaining, duration))
-        else
-            self.timeText:SetText("")
+        -- Time text needs only ~10Hz (the %.1f value changes 10x/sec at most);
+        -- refresh on a small accumulator and skip identical strings so the
+        -- per-frame string.format + fontstring relayout stops churning the GC.
+        self._textAcc = (self._textAcc or 0) + elapsed
+        if self._textAcc >= 0.05 then
+            self._textAcc = 0
+            local str = mod.db.showTimeText and fmtTime(remaining, duration) or ""
+            if str ~= self._lastTimeText then
+                self._lastTimeText = str
+                self.timeText:SetText(str)
+            end
         end
 
         if (not castInfo.isChannel and progress >= 1)
@@ -805,6 +812,7 @@ local function c_startCast(isChannel)
     if not name or not sMS or not eMS then return end
 
     castInfo = { name = name, icon = icon, startMS = sMS, endMS = eMS, isChannel = isChannel }
+    cFrame._textAcc, cFrame._lastTimeText = 1, nil   -- force the time text on the first tick of the new cast
     cFrame:SetAlpha(1)
     cFrame:Show()
     cFrame.icon:SetTexture(icon)

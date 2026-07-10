@@ -166,7 +166,7 @@ local function animateMessages(self, elapsed)
             table.remove(activeMessages, i)
         else
             m.fs:ClearAllPoints()
-            m.fs:SetPoint("CENTER", container, "CENTER", 0, p * m.dist)
+            m.fs:SetPoint("CENTER", container, "CENTER", 0, (m.offset or 0) + p * m.dist)
             m.fs:SetAlpha(1 - p)
         end
     end
@@ -229,13 +229,26 @@ local function spawnScroll(eventKey, text)
     local c = ev.color or mod.db.color or { r = 1, g = 1, b = 1 }
     fs:SetTextColor(c.r or 1, c.g or 1, c.b or 1, 1)
     fs:SetAlpha(1)
+    -- Stagger a burst of messages so simultaneous events queue below one another
+    -- instead of stacking on the same spot. A new line starts at least one
+    -- line-height below the most-recent line still rising; because every message
+    -- rises the same distance in lockstep, that gap is preserved until they fade.
+    local startOffset = 0
+    local newest = activeMessages[#activeMessages]
+    if newest then
+        local curY  = (newest.offset or 0) + (newest.t / newest.dur) * newest.dist
+        local lineH = (fs:GetStringHeight() or (mod.db.fontSize or 18))
+                    + (mod.db.messageSpacing or NOTIFY_SPACING)
+        startOffset = math.min(0, curY - lineH)
+    end
     fs:ClearAllPoints()
-    fs:SetPoint("CENTER", container, "CENTER", 0, 0)
+    fs:SetPoint("CENTER", container, "CENTER", 0, startOffset)
     fs:Show()
     table.insert(activeMessages, {
         fs = fs, t = 0,
         dur = mod.db.scrollDuration or 2.0,
         dist = mod.db.scrollDistance or 80,
+        offset = startOffset,
     })
     container:SetScript("OnUpdate", animateMessages)
 end

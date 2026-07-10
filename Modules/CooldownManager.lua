@@ -1018,8 +1018,22 @@ refreshAll = function()
     end
 end
 
+-- Coalesce burst events (aura applies/fades, cooldown starts, bag/trinket
+-- changes all arrive in clusters) into ONE refresh on the next frame instead of
+-- a full rescan per event. C_Timer.After(0) fires on the next frame, so every
+-- event that lands in the same frame collapses into a single refreshAll.
+local _refreshQueued = false
+local function refreshSoon()
+    if _refreshQueued then return end
+    _refreshQueued = true
+    C_Timer.After(0, function()
+        _refreshQueued = false
+        if mod._enabled then refreshAll() end
+    end)
+end
+
 local function onUnitAura(_, unit)
-    if unit == "player" or unit == "target" then refreshAll() end
+    if unit == "player" or unit == "target" then refreshSoon() end
 end
 
 local function onCombat()
@@ -1125,26 +1139,26 @@ function mod:OnEnable()
     inCombat = InCombatLockdown() and true or false
     driver:Show()
     rebuildBars()
-    ns:RegisterEvent("SPELL_UPDATE_COOLDOWN", refreshAll)
-    ns:RegisterEvent("BAG_UPDATE_COOLDOWN",   refreshAll)
+    ns:RegisterEvent("SPELL_UPDATE_COOLDOWN", refreshSoon)
+    ns:RegisterEvent("BAG_UPDATE_COOLDOWN",   refreshSoon)
     ns:RegisterEvent("PLAYER_ENTERING_WORLD", refreshAll)
     ns:RegisterEvent("SPELLS_CHANGED",        rebuildBars)
-    ns:RegisterEvent("UNIT_AURA",             onUnitAura)  -- snappy proc show/hide
+    ns:RegisterEvent("UNIT_AURA",             onUnitAura)  -- snappy proc show/hide (coalesced)
     ns:RegisterEvent("PLAYER_REGEN_DISABLED", onCombat)    -- visibility conditions
     ns:RegisterEvent("PLAYER_REGEN_ENABLED",  onCombat)
-    ns:RegisterEvent("PLAYER_TARGET_CHANGED", refreshAll)
+    ns:RegisterEvent("PLAYER_TARGET_CHANGED", refreshSoon)
     ns:RegisterEvent("PLAYER_EQUIPMENT_CHANGED", onEquipChanged)  -- trinket auto-track
 end
 
 function mod:OnDisable()
-    ns:UnregisterEvent("SPELL_UPDATE_COOLDOWN", refreshAll)
-    ns:UnregisterEvent("BAG_UPDATE_COOLDOWN",   refreshAll)
+    ns:UnregisterEvent("SPELL_UPDATE_COOLDOWN", refreshSoon)
+    ns:UnregisterEvent("BAG_UPDATE_COOLDOWN",   refreshSoon)
     ns:UnregisterEvent("PLAYER_ENTERING_WORLD", refreshAll)
     ns:UnregisterEvent("SPELLS_CHANGED",        rebuildBars)
     ns:UnregisterEvent("UNIT_AURA",             onUnitAura)
     ns:UnregisterEvent("PLAYER_REGEN_DISABLED", onCombat)
     ns:UnregisterEvent("PLAYER_REGEN_ENABLED",  onCombat)
-    ns:UnregisterEvent("PLAYER_TARGET_CHANGED", refreshAll)
+    ns:UnregisterEvent("PLAYER_TARGET_CHANGED", refreshSoon)
     ns:UnregisterEvent("PLAYER_EQUIPMENT_CHANGED", onEquipChanged)
     if driver then driver:Hide() end
     for _, b in ipairs(allBars) do

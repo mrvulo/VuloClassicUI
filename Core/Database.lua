@@ -45,6 +45,22 @@ local function getClassKey()
     return class or "UNKNOWN"
 end
 
+-- Class token -> the L[] key used for its display name. Kept in sync with the
+-- CLASS_LABELS map in Modules/Profiles.lua so the auto per-class profile name
+-- matches the "Set up a <class> profile" button (both resolve to the same
+-- localized string, e.g. "Priester").
+local CLASS_ENGLISH = {
+    WARRIOR = "Warrior", PALADIN = "Paladin", HUNTER = "Hunter", ROGUE = "Rogue",
+    PRIEST = "Priest", SHAMAN = "Shaman", MAGE = "Mage", WARLOCK = "Warlock",
+    DRUID = "Druid",
+}
+-- Profile name used by default for a class (localized). Falls back to the raw
+-- token for anything not in the map.
+function ns:GetClassProfileName(classKey)
+    local eng = CLASS_ENGLISH[classKey]
+    return (eng and L[eng]) or classKey
+end
+
 -- =========================================================
 -- Init after ADDON_LOADED
 -- =========================================================
@@ -81,11 +97,15 @@ function ns:InitDB()
         VuloClassicUIDB.profiles[DEFAULT_PROFILE], ns.defaults.profile
     )
 
+    -- Carry old per-module settings into the merged "unitframes" module.
+    ns:MigrateUnitFramesMerge()
+
     -- Determine active profile:
     --   1. Character assignment (this char's own pick, VuloClassicUICharDB)
     --   2. Class assignment
-    --   3. Fallback: last active profile
-    --   4. Fallback: Default
+    --   3. Default: this character's OWN class profile (auto-created, seeded
+    --      from Default) so classes never share settings — a Priest's config
+    --      must never bleed onto a Shaman.
     local charAssigned = VuloClassicUICharDB.profileOverride
     if charAssigned and not VuloClassicUIDB.profiles[charAssigned] then
         -- profile was deleted/renamed on another character — self-heal
@@ -94,9 +114,34 @@ function ns:InitDB()
     end
     local classKey   = getClassKey()
     local assigned   = VuloClassicUIDB.classAssignments[classKey]
-    local activeName = charAssigned or assigned or VuloClassicUIDB.activeProfile or DEFAULT_PROFILE
+    if assigned and not VuloClassicUIDB.profiles[assigned] then
+        -- class profile was deleted/renamed elsewhere — self-heal and fall
+        -- through to re-create a fresh class profile below
+        VuloClassicUIDB.classAssignments[classKey] = nil
+        assigned = nil
+    end
+    local activeName = charAssigned or assigned
 
-    -- If the profile no longer exists: use Default
+    if not activeName then
+        -- No explicit pick for this character/class yet. Default to a per-class
+        -- profile instead of the shared Default, so each class keeps its own
+        -- settings. Seed it from Default the first time each class logs in
+        -- (existing users keep their look — Default still holds it), then it
+        -- diverges freely. Persist the assignment so the Profiles UI shows it.
+        if classKey ~= "UNKNOWN" then
+            activeName = ns:GetClassProfileName(classKey)
+            if not VuloClassicUIDB.profiles[activeName] then
+                VuloClassicUIDB.profiles[activeName] =
+                    ns:DeepCopy(VuloClassicUIDB.profiles[DEFAULT_PROFILE])
+            end
+            VuloClassicUIDB.classAssignments[classKey] = activeName
+        else
+            -- class not readable yet (very early login) — fall back safely
+            activeName = VuloClassicUIDB.activeProfile or DEFAULT_PROFILE
+        end
+    end
+
+    -- If the chosen profile no longer exists: use Default
     if not VuloClassicUIDB.profiles[activeName] then
         activeName = DEFAULT_PROFILE
     end
@@ -367,6 +412,56 @@ function ns:MigrateLegacyDBs()
     end
 
     ns.db.global.migratedLegacy = true
+end
+
+-- =========================================================
+-- One-time migration: the separate "targetframe" + "elitevuloframe" modules
+-- were merged into one "unitframes" module. Copy each profile's old settings
+-- (and this character's enable override) into the new key so nobody loses
+-- their configuration on upgrade. Runs before the active profile loads.
+-- =========================================================
+function ns:MigrateUnitFramesMerge()
+    -- Profile settings live in the ACCOUNT-wide DB, so this pass migrates every
+    -- profile once and is guarded by an account-wide flag.
+    if not VuloClassicUIDB.global.migratedUnitFrames then
+        for _, profile in pairs(VuloClassicUIDB.profiles or {}) do
+            local m = profile.modules
+            if m and (m.targetframe or m.elitevuloframe) and not m.unitframes then
+                local uf = {}
+                local tf, el = m.targetframe, m.elitevuloframe
+                if tf then
+                    for _, k in ipairs({ "realHealth", "threatNumeric", "threatGlow",
+                                         "rareElite", "classIcon", "focus" }) do
+                        if tf[k] ~= nil then uf[k] = tf[k] end
+                    end
+                end
+                if el and el.style ~= nil then uf.playerStyle = el.style end
+                -- Merged module is on if EITHER old module was on; if only the elite
+                -- border was switched off, keep the target extras but drop the dragon.
+                local tfOn = not tf or tf.enabled ~= false
+                local elOn = not el or el.enabled ~= false
+                uf.enabled = tfOn or elOn
+                if not elOn then uf.playerStyle = "off" end
+                m.unitframes = uf
+            end
+        end
+        VuloClassicUIDB.global.migratedUnitFrames = true
+    end
+
+    -- The enable override is PER CHARACTER, so it needs its own per-character
+    -- guard — the account flag above is set by whichever character logs in
+    -- first and would otherwise skip every other character's override.
+    -- Off only when BOTH old modules were explicitly turned off.
+    if not VuloClassicUICharDB.migratedUnitFrames then
+        local me = VuloClassicUICharDB.modEnabled
+        if me and me.unitframes == nil then
+            local t, e = me.targetframe, me.elitevuloframe
+            if t ~= nil or e ~= nil then
+                me.unitframes = not (t == false and e == false)
+            end
+        end
+        VuloClassicUICharDB.migratedUnitFrames = true
+    end
 end
 
 -- =========================================================
