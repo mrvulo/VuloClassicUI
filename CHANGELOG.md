@@ -16,6 +16,28 @@
   ~1900 characters or it gets truncated with a link to the full notes.
 -->
 
+## 1.31.0
+**Unit Frames:**
+- The target-frame extras and the elite player-frame border are now a single module called "Player & Target Frame". Your existing settings and per-character on and off state carry over automatically.
+
+**Profiles:**
+- **NEW:** Settings now default to a separate profile per class, so what you set on one class no longer changes another. Your current settings are copied into each class profile, and you can still share or pin profiles as before.
+
+**Combat Text:**
+- Scrolling messages that fire at the same moment now stack with a gap instead of overlapping.
+
+**Fishing:**
+- Fixed an error that could appear when combat started while your line was cast. The sound and interact settings now restore after combat ends instead.
+
+**Performance:**
+- Lighter cast bar time text, cooldown bars that batch their refreshes during busy moments, a cheaper combat-log check for the cooldown pulse, and a lighter minimap hover check.
+
+**Character Panel:**
+- The spell stats are ordered spell power, healing, spell crit, then spell hit.
+
+**German client:**
+- The Fishing and Mail tabs now read "Angeln" and "Post".
+
 ## 1.30.1
 **Character Panel:**
 - **NEW:** A style dropdown at the top of the module options. Classic+ keeps the current look; Modern is a new dark, single-window style.
