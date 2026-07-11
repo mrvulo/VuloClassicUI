@@ -16,6 +16,18 @@
   ~1900 characters or it gets truncated with a link to the full notes.
 -->
 
+## 1.32.0
+**Interface Skins:**
+- **NEW:** A single "Dark Skin" module now covers the dark action-button and WeakAuras skin plus the optional Dark Mode that darkens Blizzard's default frames — those used to be two separate modules. Your existing settings carry over.
+- The reskin modules (skins, character panel, chat, friends list, minimap) are now one tabbed entry, matching how the other groups are already organised.
+
+**Settings Window:**
+- Consolidated groups now list their modules as a vertical, icon-labelled column instead of a wrapping row of tabs — easier to scan when there are many.
+- **NEW:** A "Patch Notes" page under Overview shows every version's changes right in the game.
+
+**German client:**
+- Cleaner tab names for a few tools: Training, Leisten-Profile, Apexis-Minispiel, Gruppensuche.
+
 ## 1.31.0
 **Unit Frames:**
 - The target-frame extras and the elite player-frame border are now a single module called "Player & Target Frame". Your existing settings and per-character on and off state carry over automatically.

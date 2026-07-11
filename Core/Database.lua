@@ -97,8 +97,9 @@ function ns:InitDB()
         VuloClassicUIDB.profiles[DEFAULT_PROFILE], ns.defaults.profile
     )
 
-    -- Carry old per-module settings into the merged "unitframes" module.
+    -- Carry old per-module settings into the merged modules.
     ns:MigrateUnitFramesMerge()
+    ns:MigrateDarkSkinMerge()
 
     -- Determine active profile:
     --   1. Character assignment (this char's own pick, VuloClassicUICharDB)
@@ -147,6 +148,9 @@ function ns:InitDB()
     end
 
     ns:LoadProfile(activeName)
+
+    -- Per-character bits of the Dark Skin merge (needs the active profile loaded).
+    ns:MigrateDarkSkinPerChar()
 
     -- Char DB
     VuloClassicUICharDB = ns:ApplyDefaults(VuloClassicUICharDB, ns.defaults.char or {})
@@ -462,6 +466,69 @@ function ns:MigrateUnitFramesMerge()
         end
         VuloClassicUICharDB.migratedUnitFrames = true
     end
+end
+
+-- =========================================================
+-- One-time migration: the separate "buttonskin" + "darkmode" modules were
+-- merged into one "darkskin" module. The Button Skin settings map straight
+-- across; the Dark Mode settings become the "dm*" keys plus a "darkMode" master
+-- toggle (Dark Mode used to be a whole opt-in module, now it's a sub-toggle).
+-- =========================================================
+function ns:MigrateDarkSkinMerge()
+    if VuloClassicUIDB.global.migratedDarkSkin then return end
+
+    for _, profile in pairs(VuloClassicUIDB.profiles or {}) do
+        local m = profile.modules
+        if m and (m.buttonskin or m.darkmode) and not m.darkskin then
+            local ds = {}
+            local bs, dm = m.buttonskin, m.darkmode
+            if bs then
+                for _, k in ipairs({ "style", "waStyle", "skinPetStance", "skinBars",
+                                     "barIconSize", "skinWeakAuras", "hideWABorder", "enabled" }) do
+                    if bs[k] ~= nil then ds[k] = bs[k] end   -- merged module follows Button Skin
+                end
+            end
+            if dm then
+                if dm.desaturate    ~= nil then ds.dmDesaturate    = dm.desaturate end
+                if dm.color         ~= nil then ds.dmColor         = dm.color end
+                if dm.unitframes    ~= nil then ds.dmUnitframes    = dm.unitframes end
+                if dm.minimap       ~= nil then ds.dmMinimap       = dm.minimap end
+                if dm.actionbars    ~= nil then ds.dmActionbars    = dm.actionbars end
+                if dm.actionButtons ~= nil then ds.dmActionButtons = dm.actionButtons end
+                if dm.bags          ~= nil then ds.dmBags          = dm.bags end
+                -- dm.enabled was the profile default (off); the real per-character
+                -- on/off is carried into the darkMode toggle in MigrateDarkSkinPerChar.
+            end
+            m.darkskin = ds
+        end
+    end
+
+    VuloClassicUIDB.global.migratedDarkSkin = true
+end
+
+-- Per-character half of the Dark Skin merge: the merged module's on/off follows
+-- the old Button Skin per-character state, and the old Dark Mode module's
+-- per-character on/off becomes the darkMode toggle in this character's active
+-- profile. Runs after LoadProfile so ns.db.profile is set.
+function ns:MigrateDarkSkinPerChar()
+    if VuloClassicUICharDB.migratedDarkSkin then return end
+    local me = VuloClassicUICharDB.modEnabled
+    if me then
+        -- Merged module is on if EITHER old module was on (Button Skin defaults
+        -- on, Dark Mode defaults off). Only write when the char actually
+        -- overrode one of them; otherwise fall through to the profile default.
+        if me.darkskin == nil and (me.buttonskin ~= nil or me.darkmode ~= nil) then
+            local bsOn = (me.buttonskin ~= false)   -- Button Skin default: on
+            local dmOn = (me.darkmode == true)      -- Dark Mode default: off
+            me.darkskin = bsOn or dmOn
+        end
+        if me.darkmode == true then
+            local mods = ns.db and ns.db.profile and ns.db.profile.modules
+            local ds = mods and mods.darkskin
+            if ds then ds.darkMode = true end
+        end
+    end
+    VuloClassicUICharDB.migratedDarkSkin = true
 end
 
 -- =========================================================

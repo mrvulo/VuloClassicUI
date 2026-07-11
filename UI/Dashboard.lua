@@ -189,8 +189,10 @@ function UI:ShowDashboard()
     UI.currentModule = UI.DASHBOARD_KEY
     UI.currentTab    = nil
 
-    -- Hide the tab bar; content fills the whole right pane (like a no-tab module)
+    -- Hide the tab bar + vertical column; content fills the whole right pane
     if f.tabBar then f.tabBar:Hide() end
+    if f.tabSep then f.tabSep:Hide() end
+    if f.tabColumn then f.tabColumn:Hide() end
     -- Leftover tab buttons go back into the pool
     if UI.ReleaseTabs then UI:ReleaseTabs() end
     f.content:ClearAllPoints()

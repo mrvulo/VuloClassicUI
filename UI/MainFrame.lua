@@ -427,10 +427,43 @@ function UI:CreateMainFrame()
     tabSep:SetHeight(1)
 
     f.tabBar = tabBar
+    f.tabSep = tabSep
     f.tabs   = {}
 
     -- =========================================================
-    -- Content (right side, below tabs)
+    -- Vertical tab column — a secondary nav strip between the sidebar and the
+    -- content, used by consolidated containers (QoL, Bugfixes, UI Reskin) whose
+    -- many sub-modules read better as a scannable vertical list than a wrapping
+    -- row of tabs. Hidden until a module with real tabs is shown.
+    -- =========================================================
+    local TABCOL_W = 170
+    local tabColumn = CreateFrame("Frame", nil, f)
+    tabColumn:SetPoint("TOPLEFT",     sidebar, "TOPRIGHT",    1, 0)
+    tabColumn:SetPoint("BOTTOMRIGHT", sidebar, "BOTTOMRIGHT", 1 + TABCOL_W, 0)
+    UI.SetColorBG(tabColumn, ns.COLORS.bgLight.r, ns.COLORS.bgLight.g, ns.COLORS.bgLight.b, 1)
+    tabColumn:Hide()
+
+    local tabColSep = f:CreateTexture(nil, "ARTWORK")
+    tabColSep:SetColorTexture(ns.COLORS.border.r, ns.COLORS.border.g, ns.COLORS.border.b, 1)
+    tabColSep:SetPoint("TOPLEFT",    tabColumn, "TOPRIGHT", 0, 0)
+    tabColSep:SetPoint("BOTTOMLEFT", tabColumn, "BOTTOMRIGHT", 0, 0)
+    tabColSep:SetWidth(1)
+
+    local tabColScroll = CreateFrame("ScrollFrame", nil, tabColumn, "UIPanelScrollFrameTemplate")
+    tabColScroll:SetPoint("TOPLEFT",     tabColumn, "TOPLEFT",     6, -6)
+    tabColScroll:SetPoint("BOTTOMRIGHT", tabColumn, "BOTTOMRIGHT", -14, 6)
+    local tabColContent = CreateFrame("Frame", nil, tabColScroll)
+    tabColContent:SetSize(TABCOL_W - 22, 10)
+    tabColScroll:SetScrollChild(tabColContent)
+    if UI.StyleScrollbar then UI.StyleScrollbar(tabColScroll) end
+
+    f.tabColumn     = tabColumn
+    f.tabColWidth   = TABCOL_W
+    f.tabColContent = tabColContent
+    f.tabColScroll  = tabColScroll
+
+    -- =========================================================
+    -- Content (right side)
     -- =========================================================
     local content = CreateFrame("Frame", nil, f)
     content:SetPoint("TOPLEFT",     tabBar,  "BOTTOMLEFT",  0, -1)
@@ -581,6 +614,9 @@ function UI:ReleaseTabs()
     for _, tab in ipairs(f.tabs) do
         tab:Hide()
         tab:ClearAllPoints()
+        if tab._icon    then tab._icon:Hide()    end
+        if tab._leftbar then tab._leftbar:Hide() end
+        if tab._activeBG then tab._activeBG:Hide() end
         table.insert(UI._tabPool, tab)
     end
     f.tabs = {}
@@ -600,6 +636,22 @@ local function acquireTab(parentBar)
     UI.Font(text, 12)
     text:SetPoint("CENTER", tab, "CENTER", 0, 0)
     tab._text = text
+
+    -- Per-sub-module icon (shown in the vertical column layout).
+    local icon = tab:CreateTexture(nil, "ARTWORK")
+    icon:SetSize(16, 16)
+    icon:SetPoint("LEFT", tab, "LEFT", 8, 0)
+    icon:Hide()
+    tab._icon = icon
+
+    -- Left accent bar (active indicator in the vertical column layout).
+    local leftbar = tab:CreateTexture(nil, "OVERLAY")
+    leftbar:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 1)
+    leftbar:SetWidth(3)
+    leftbar:SetPoint("TOPLEFT",    tab, "TOPLEFT",    0, 0)
+    leftbar:SetPoint("BOTTOMLEFT", tab, "BOTTOMLEFT", 0, 0)
+    leftbar:Hide()
+    tab._leftbar = leftbar
 
     local activeBG = tab:CreateTexture(nil, "BACKGROUND")
     activeBG:SetAllPoints(tab)
@@ -646,55 +698,66 @@ function UI:BuildTabsForModule(key)
     local tabs = (mod and mod.tabs) or { { id = "default", label = L["Settings"] } }
     local hasRealTabs = mod and mod.tabs and #mod.tabs > 1
 
-    -- If only the default tab: hide tab bar, pull content up
+    -- If only the default tab: no nav strip, content spans the full width.
     if not hasRealTabs then
         f.tabBar:Hide()
+        if f.tabSep then f.tabSep:Hide() end
+        if f.tabColumn then f.tabColumn:Hide() end
         f.content:ClearAllPoints()
         f.content:SetPoint("TOPLEFT",     f.sidebar, "TOPRIGHT",  1, 0)
-        f.content:SetPoint("BOTTOMRIGHT", f,         "BOTTOMRIGHT", 0, 44)  -- bottombar height
+        f.content:SetPoint("BOTTOMRIGHT", f,         "BOTTOMRIGHT", 0, BOTTOMBAR_H)
         UI.currentTab = "default"
         UI:BuildOptionsPage(key, "default")
         return
     end
 
-    f.tabBar:Show()
+    -- Many tabs (a consolidated container): render them as a scannable vertical
+    -- column between the sidebar and the content, each with its module icon.
+    f.tabBar:Hide()
+    if f.tabSep then f.tabSep:Hide() end
+    f.tabColumn:Show()
+    if f.tabColScroll then f.tabColScroll:SetVerticalScroll(0) end  -- fresh list starts at top
 
-    -- Lay tabs out left-to-right, wrapping to a new row when they don't fit.
-    local ROW_H  = 28
-    local x      = 12
-    local row    = 0
-    local availW = (f.tabBar:GetWidth() or 600) - 16
+    local parent = f.tabColContent
+    parent:SetWidth((f.tabColWidth or 150) - 22)
 
-    for i, tabDef in ipairs(tabs) do
-        local tab = acquireTab(f.tabBar)
-        tab:SetHeight(ROW_H)
+    local ROW_H = 26
+    local y = -2
+    for _, tabDef in ipairs(tabs) do
+        local tab = acquireTab(parent)
+        tab:SetParent(parent)
         tab._tabId = tabDef.id
+        tab:SetHeight(ROW_H)
+        tab:ClearAllPoints()
+        tab:SetPoint("TOPLEFT",  parent, "TOPLEFT",  0, y)
+        tab:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, y)
+
+        -- icon (per sub-module) + left-aligned label
+        if tab._icon then
+            tab._icon:Show()
+            tab._icon:SetTexture(ns:GetModuleIcon(tabDef.id))
+        end
+        tab._text:ClearAllPoints()
+        tab._text:SetPoint("LEFT", tab, "LEFT", 30, 0)
+        tab._text:SetPoint("RIGHT", tab, "RIGHT", -4, 0)
+        tab._text:SetJustifyH("LEFT")
         tab._text:SetText(L[tabDef.label])  -- raw English key → translate live
-        tab._underline:Hide()
+
+        -- active indicator in this layout = the left accent bar
+        tab._activeMark = tab._leftbar
+        if tab._underline then tab._underline:Hide() end
+        tab._leftbar:Hide()
         tab._activeBG:Hide()
 
-        local tabW = math.max(60, (tab._text:GetStringWidth() or 40) + 24)
-        tab:SetWidth(tabW)
-
-        -- Wrap to next row if this tab would overflow
-        if x > 12 and (x + tabW) > availW then
-            row = row + 1
-            x = 12
-        end
-        tab:ClearAllPoints()
-        tab:SetPoint("TOPLEFT", f.tabBar, "TOPLEFT", x, -(row * ROW_H) - 2)
-        x = x + tabW + 4
         tab:Show()
-
         table.insert(f.tabs, tab)
+        y = y - ROW_H
     end
+    parent:SetHeight(math.max(10, -y + 2))
 
-    -- Resize the tab bar to fit all rows, then re-anchor content below it
-    local numRows = row + 1
-    f.tabBar:SetHeight(numRows * ROW_H + 4)
     f.content:ClearAllPoints()
-    f.content:SetPoint("TOPLEFT",     f.tabBar, "BOTTOMLEFT",  0, -1)
-    f.content:SetPoint("BOTTOMRIGHT", f,        "BOTTOMRIGHT", 0, 44)
+    f.content:SetPoint("TOPLEFT",     f.tabColumn, "TOPRIGHT",  1, 0)
+    f.content:SetPoint("BOTTOMRIGHT", f,           "BOTTOMRIGHT", 0, BOTTOMBAR_H)
 
     if tabs[1] then UI:ShowTab(tabs[1].id) end
 end
@@ -703,12 +766,13 @@ function UI:ShowTab(tabId)
     UI.currentTab = tabId
     local f = UI.mainFrame
     for _, tab in ipairs(f.tabs) do
+        local mark = tab._activeMark or tab._underline
         if tab._tabId == tabId then
-            tab._underline:Show()
+            if mark then mark:Show() end
             if tab._activeBG then tab._activeBG:Show() end
             tab._text:SetTextColor(1, 1, 1)
         else
-            tab._underline:Hide()
+            if mark then mark:Hide() end
             if tab._activeBG then tab._activeBG:Hide() end
             local c = ns.COLORS.textDim
             tab._text:SetTextColor(c.r, c.g, c.b)

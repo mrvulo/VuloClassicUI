@@ -2,7 +2,7 @@
 ## Title: |cff9b6cffVuloClassicUI|r
 ## Notes: Modular UI suite for TBC Classic Anniversary
 ## Author: Vulo
-## Version: 1.31.0
+## Version: 1.32.0
 ## X-Wago-ID: rN4kojGD
 ## X-Curse-Project-ID: 1553405
 ## SavedVariables: VuloClassicUIDB, TrinketsOptions
@@ -36,6 +36,8 @@ UI\EditMode.lua
 Modules\GlobalSettings.lua
 Modules\UnlockMode.lua
 Modules\Profiles.lua
+Modules\ChangelogData.lua
+Modules\Changelog.lua
 Modules\Minimap.lua
 Modules\MinimapStyle.lua
 Modules\FontBars.lua
@@ -46,8 +48,7 @@ Modules\PowerBar.lua
 Modules\CooldownPulse.lua
 Modules\Arena.lua
 Modules\CharacterPanel.lua
-Modules\ButtonSkin.lua
-Modules\DarkMode.lua
+Modules\DarkSkin.lua
 Modules\FriendList.lua
 Modules\FlightTimesDB.lua
 Modules\MiscQoL.lua
@@ -96,4 +97,5 @@ Trinkets\TrinketsQueue.xml
 Modules\Trinkets.lua
 Modules\Bugfixes.lua
 Modules\Pages.lua
+Modules\UIReskin.lua
 Core\Init.lua

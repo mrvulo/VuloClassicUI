@@ -19,10 +19,10 @@ local GROUP_GAP      = 8
 local ICON_DIR = "Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\modules\\"
 local MODULE_ICONS = {}
 for _, key in ipairs({
-    "globalsettings", "unlockmode", "qol", "bugfixes", "profiles",
+    "globalsettings", "unlockmode", "qol", "bugfixes", "uireskin", "profiles",
     "minimap", "minimapstyle", "fontbars", "playercastbar", "unitframes",
     "cooldownpulse", "cooldownmanager", "powerbar",
-    "arenaframes", "characterpanel", "buttonskin", "darkmode", "friendlist",
+    "arenaframes", "characterpanel", "darkskin", "friendlist",
     "miscqol", "queuetimer", "tooltipids", "autoitembuy", "goldtracker",
     "goldvendors", "spamfilter", "chat", "bags", "questlog",
     "professionwindow", "disenchantqueue", "vtmanadisplay", "lazyvulo",
@@ -53,6 +53,11 @@ local function highlightSelected()
         local onDash = (UI.currentModule == UI.DASHBOARD_KEY)
         if onDash then UI._dashRow.bg:Show(); UI._dashRow.accentBar:Show()
         else UI._dashRow.bg:Hide(); UI._dashRow.accentBar:Hide() end
+    end
+    if UI._changelogRow then
+        local onCL = (UI.currentModule == "changelog")
+        if onCL then UI._changelogRow.bg:Show(); UI._changelogRow.accentBar:Show()
+        else UI._changelogRow.bg:Hide(); UI._changelogRow.accentBar:Hide() end
     end
 
     for key, btn in pairs(UI.sidebarButtons) do
@@ -314,6 +319,58 @@ function UI:PopulateSidebar()
         y = y + ROW_HEIGHT + GROUP_GAP
     end
 
+    -- "Patch Notes" entry directly under Overview → opens the changelog page.
+    if ns.modules and ns.modules.changelog then
+        local row = UI._changelogRow
+        if not row then
+            row = CreateFrame("Button", nil, parent)
+            row:SetHeight(ROW_HEIGHT)
+
+            local bg = row:CreateTexture(nil, "BACKGROUND")
+            bg:SetAllPoints(row)
+            ns.UI.SetGradient(bg, "HORIZONTAL",
+                ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 0.26,
+                ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 0.02)
+            bg:Hide()
+            row.bg = bg
+
+            local accentBar = row:CreateTexture(nil, "ARTWORK")
+            accentBar:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 0)
+            accentBar:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 0, 0)
+            accentBar:SetWidth(3)
+            accentBar:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 1)
+            accentBar:Hide()
+            row.accentBar = accentBar
+
+            local hover = row:CreateTexture(nil, "HIGHLIGHT")
+            hover:SetAllPoints(row)
+            hover:SetColorTexture(1, 1, 1, 0.05)
+
+            local icon = row:CreateTexture(nil, "ARTWORK")
+            icon:SetSize(16, 16)
+            icon:SetPoint("LEFT", row, "LEFT", 8, 0)
+            icon:SetTexture(ICON_DIR .. "changelog.tga")
+            icon:SetVertexColor(0.76, 0.76, 0.84, 0.95)
+
+            local label = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+            ns.UI.Font(label, 12)
+            label:SetPoint("LEFT", icon, "RIGHT", 7, 0)
+            row.label = label
+
+            row:SetScript("OnClick", function()
+                if UI.ShowModulePage then UI:ShowModulePage("changelog") end
+            end)
+            UI._changelogRow = row
+        end
+        row.label:SetText(L[ns.modules.changelog.name])  -- raw key → translate live
+        row:ClearAllPoints()
+        row:SetPoint("TOPLEFT",  parent, "TOPLEFT",  0, -y)
+        row:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, -y)
+        row:Show()
+        table.insert(UI._sidebarChildren, row)
+        y = y + ROW_HEIGHT + GROUP_GAP
+    end
+
     for _, groupName in ipairs(UI.sidebarGroupOrder) do
         local moduleKeys = UI.sidebarGroupBuckets[groupName]
         local hidden = UI.sidebarHiddenGroups and UI.sidebarHiddenGroups[groupName]
@@ -368,9 +425,18 @@ function UI:RefreshSidebarStates()
 end
 
 function UI:ShowModulePage(key)
+    -- A consolidated sub-module (parentTab) has no sidebar row of its own — open
+    -- its container and select that sub as the active tab instead.
+    local m = ns.modules[key]
+    local subTab
+    if m and m.parentTab then
+        subTab = key
+        key    = m.parentTab
+    end
     UI.currentModule = key
     UI.currentTab    = nil
     UI:BuildTabsForModule(key)
     -- BuildTabsForModule eventually calls ShowTab(firstTabId), which triggers BuildOptionsPage
+    if subTab then UI:ShowTab(subTab) end
     highlightSelected()
 end

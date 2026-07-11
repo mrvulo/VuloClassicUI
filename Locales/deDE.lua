@@ -361,6 +361,9 @@ ns:RegisterLocale("deDE", {
     ["General"] = "Allgemein",
     ["Settings"] = "Einstellungen",
     ["Overview"] = "Übersicht",
+    ["Patch Notes"] = "Patch Notes",
+    ["|cffaaaaaaAll changes from recent versions — newest first.|r"] = "|cffaaaaaaAlle Änderungen der letzten Versionen — neueste zuerst.|r",
+    ["|cffaaaaaaNo changelog data.|r"] = "|cffaaaaaaKeine Changelog-Daten.|r",
     ["%d of %d modules active"] = "%d von %d Modulen aktiv",
     ["Active"] = "Aktiv",
     ["Disabled"] = "Deaktiviert",
@@ -624,7 +627,7 @@ ns:RegisterLocale("deDE", {
     -- =====================================================
     -- Vulslot (action bar / macro / keybinding snapshots)
     -- =====================================================
-    ["Vulslot"] = "Vulslot",
+    ["Vulslot"] = "Leisten-Profile",
     ["Saves named snapshots of your action bars, macros and keybindings, and restores them with one click."] = "Speichert benannte Schnappschüsse deiner Aktionsleisten, Makros und Tastenbelegungen und stellt sie mit einem Klick wieder her.",
     ["|cffaaaaaaSaves your complete bar setup (all action slots, macros, keybindings) as a named profile and restores it with one click — e.g. PvP and Raid layouts, or to copy a setup to a twink (account-wide storage).|r"] = "|cffaaaaaaSpeichert dein komplettes Leisten-Setup (alle Aktionsslots, Makros, Tastenbelegungen) als benanntes Profil und stellt es mit einem Klick wieder her — z. B. PvP- und Raid-Layout, oder um ein Setup auf einen Twink zu übertragen (accountweite Speicherung).|r",
     ["Load"] = "Laden",
@@ -669,7 +672,9 @@ ns:RegisterLocale("deDE", {
     -- =====================================================
     -- LazyVulo (Apexis Relic minigame helper)
     -- =====================================================
-    ["LazyVulo"] = "LazyVulo",
+    ["LazyVulo"] = "Apexis-Minispiel",
+    ["VulTraining"] = "Trainer",
+    ["Group Board"] = "Gruppensuche",
     ["Apexis Relic memory minigame helper (Ogri'la dailies): record the flashing color sequence, always see what to click next."] = "Helfer für das Apexis-Relikt-Memory-Minispiel (Ogri'la-Dailies): Zeichne die Farbsequenz auf und sieh immer, was als Nächstes zu klicken ist.",
     ["Green relic"] = "Grünes Relikt",
     ["Yellow relic"] = "Gelbes Relikt",
@@ -704,6 +709,7 @@ ns:RegisterLocale("deDE", {
     ["|cffaaaaaaPick a tab above.|r"] = "|cffaaaaaaWähle oben einen Tab.|r",
     ["|cffff5555This tab failed to load.|r"] = "|cffff5555Dieser Tab konnte nicht geladen werden.|r",
     ["UI Reskin"] = "UI-Reskin",
+    ["Interface Skins"] = "Oberflächen-Skins",
     ["Bugfixes"] = "Bug-Fixes",
 
     -- =====================================================
@@ -1382,6 +1388,14 @@ ns:RegisterLocale("deDE", {
     -- CharacterPanel
     -- =====================================================
     ["Character Panel"] = "Charakterfenster",
+    -- DarkSkin (merged Button Skin + Dark Mode)
+    ["Dark Skin"] = "Dunkles Design",
+    ["The dark look of the UI in one place: a built-in dark skin for action buttons and WeakAuras icons, plus an optional Dark Mode that darkens Blizzard's default frames, minimap and bars."] = "Der dunkle Look der Oberfläche an einem Ort: ein eingebauter dunkler Skin für Aktionsbuttons und WeakAuras-Icons, plus ein optionaler Dunkelmodus, der Blizzards Standard-Fenster, Minikarte und Leisten abdunkelt.",
+    ["|cffaaaaaaThe dark look of the UI in one place: a built-in skin for action buttons and WeakAuras icons, plus an optional Dark Mode that re-tints Blizzard's default frames.|r"] = "|cffaaaaaaDer dunkle Look der Oberfläche an einem Ort: ein eingebauter Skin für Aktionsbuttons und WeakAuras-Icons, plus ein optionaler Dunkelmodus, der Blizzards Standard-Fenster umfärbt.|r",
+    ["The dark action-bar button skin."] = "Der dunkle Aktionsleisten-Button-Skin.",
+    ["Enable Dark Mode"] = "Dunkelmodus aktivieren",
+    ["Re-tints Blizzard's default frames, minimap and action-bar artwork to a dark tone. Off by default."] = "Färbt Blizzards Standard-Fenster, Minikarte und Aktionsleisten-Grafik in einen dunklen Ton um. Standardmäßig aus.",
+    ["|cffaaaaaaOptional: darkens and desaturates Blizzard's default artwork — unit frames, minimap and action bars — to a neutral dark tone. Reversible: turn it off and the gold look returns.|r"] = "|cffaaaaaaOptional: dunkelt Blizzards Standard-Grafik — Einheitenfenster, Minikarte und Aktionsleisten — auf einen neutralen dunklen Ton ab und entsättigt sie. Umkehrbar: ausschalten und der goldene Look kehrt zurück.|r",
     ["Button Skin"] = "Button-Skin",
     ["Built-in dark drop-shadow skin for action buttons and WeakAuras icons: black, rounded, soft rim. Several styles, no extra addons needed."] = "Eingebauter dunkler Schatten-Skin für Aktionsbuttons und WeakAuras-Icons: schwarz, abgerundet, weicher Rand. Mehrere Stile, keine Zusatz-Addons nötig.",
     ["|cffaaaaaaBuilt-in dark drop-shadow skin. Action bars and WeakAuras icons are configured separately below.|r"] = "|cffaaaaaaEingebauter dunkler Schatten-Skin. Aktionsleisten und WeakAuras-Icons werden unten getrennt eingestellt.|r",
