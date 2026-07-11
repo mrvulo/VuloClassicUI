@@ -21,6 +21,7 @@ const MAP = {
   fontbars:           'type',
   playercastbar:      'activity',
   unitframes:         'square-user-round',
+  nameplates:         'id-card',
   uireskin:           'layout-grid',
   cooldownpulse:      'timer',
   cooldownmanager:    'clock',

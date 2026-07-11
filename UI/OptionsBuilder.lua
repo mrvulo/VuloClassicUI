@@ -13,6 +13,7 @@
 --   { type = "button",    label, tooltip, onClick, width?, primary? }
 --   { type = "spacer",    height? }
 --   { type = "group",     layout = "row" | "columns", items, columns?, gap? }
+--   { type = "custom",    build = function(parent) -> frame end, height?, width? }
 -- =========================================================
 local _, ns = ...
 ns.UI = ns.UI or {}
@@ -135,6 +136,13 @@ local function createWidget(parent, item)
             return UI:CreateIconButton(parent, item)
         end)
         return w, 28, item.width or 28
+    elseif t == "custom" then
+        -- A module-owned frame (e.g. a live preview). The module keeps the
+        -- reference and memoises creation; build(parent) just re-parents it back
+        -- onto the page and returns it, so it survives clearChildren untouched.
+        local w = item.build and item.build(parent)
+        if not w then return nil, 0, 0 end
+        return w, item.height or (w:GetHeight() or 100), item.width or 480
     end
     return nil, 0, 0
 end
@@ -149,6 +157,7 @@ local function estimateHeight(item)
     elseif t == "dropdown" then return item.label and 30 or 28
     elseif t == "editbox" then return 28
     elseif t == "color" then return 26
+    elseif t == "custom" then return item.height or 100
     end
     return 26
 end

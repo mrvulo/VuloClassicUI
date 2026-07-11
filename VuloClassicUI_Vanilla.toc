@@ -44,6 +44,7 @@ Modules\MinimapStyle.lua
 Modules\FontBars.lua
 Modules\PlayerCastbar.lua
 Modules\UnitFrames.lua
+Modules\Nameplates.lua
 Modules\SwingTimer.lua
 Modules\PowerBar.lua
 Modules\CooldownPulse.lua
