@@ -2039,4 +2039,8 @@ ns:RegisterLocale("deDE", {
     ["Shows a friendly NPC's subtitle (e.g. <Innkeeper>) under its name in name-only mode."] = "Zeigt den Untertitel eines freundlichen NSCs (z. B. <Gastwirt>) unter dem Namen im Nur-Name-Modus.",
     ["<Innkeeper>"] = "<Gastwirt>",
     ["Nameplates"] = "Namensplaketten",
+    ["Vulo Classes"] = "Vulo Klassen",
+    ["Vulo Fantasy 1"] = "Vulo Fantasy 1",
+    ["Vulo Fantasy 2"] = "Vulo Fantasy 2",
+    ["Vulo Epic"] = "Vulo Epic",
 })

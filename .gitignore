@@ -1,7 +1,6 @@
 tools/node_modules/
 # local-only icon art (third-party licensed — must never ship in a release)
-Media/Alle-Klassen/
-Media/classes/
+Media/LocalClasses/
 # local tooling config, contains absolute machine paths
 .claude/
 IDEA.md

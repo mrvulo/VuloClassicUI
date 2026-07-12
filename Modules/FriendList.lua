@@ -24,7 +24,7 @@ local mod = ns:RegisterModule("friendlist", {
         skinCommunities = true,       -- dark skin for the guild & communities window
         classColorNames = true,
         classIcons      = true,
-        iconStyle       = "blizzard", -- "blizzard" | "vulo" | "circle" | "square"
+        iconStyle       = "blizzard", -- blizzard | vuloepic | vulofantasy1/2 | vulostyle | circle | square
         statusDot       = true,
         showNotes       = true,
         factionAccent   = true,       -- tint the realm/zone TEXT
@@ -42,26 +42,19 @@ local CLASS_SQUARE = "Interface\\WorldStateFrame\\Icons-Classes"
 -- the character-creation crest sheet — same 4x4 grid as CLASS_ICON_TCOORDS
 local CLASS_CREATE = "Interface\\Glues\\CharacterCreate\\UI-CharacterCreate-Classes"
 
--- Own class art (Media\classes); non-classic tokens included for completeness.
--- The files are GENUINE 32-bit TGA (power-of-two, square): the client picks
--- its image decoder by file extension, so PNG bytes in a .tga name never load.
-local CLASS_ART_PATH = "Interface\\AddOns\\VuloClassicUI\\Media\\classes\\"
-local CLASS_ART = {
-    WARRIOR = "warrior.tga", PALADIN     = "paladin.tga", HUNTER = "hunter.tga",
-    ROGUE   = "rogue.tga",   PRIEST      = "priest.tga",  SHAMAN = "shaman.tga",
-    MAGE    = "mage.tga",    WARLOCK     = "warlock.tga", DRUID  = "druid.tga",
-    DEATHKNIGHT = "dk.tga",  DEMONHUNTER = "dh.tga",      MONK   = "monk.tga",
-    EVOKER  = "evoker.tga",
-}
-
--- Optional LOCAL-ONLY sprite sheets (Media\Alle-Klassen — gitignored, never
--- distributed): 1024px sheets on an 8x8 grid of 128px cells. Their dropdown
--- entries appear only when the files exist on this installation; everyone
--- else silently falls back to the Blizzard crests.
-local SHEET_PATH = "Interface\\AddOns\\VuloClassicUI\\Media\\Alle-Klassen\\"
+-- Sprite sheets on a 1024px / 8x8 grid of 128px cells. vulostyle is LOCAL-ONLY
+-- (Media\LocalClasses — gitignored); its dropdown entry appears only where the
+-- file exists. vulofantasy1/2 and vuloepic SHIP with the addon (Media\ClassSheets)
+-- and are always offered. Sheets must be GENUINE 32-bit TGA (power-of-two): the
+-- client picks its decoder by file extension, so PNG bytes in a .tga never load.
+local SHEET_PATH = "Interface\\AddOns\\VuloClassicUI\\Media\\LocalClasses\\"
 local SHEETS = {
-    vulomodern = SHEET_PATH .. "vulomodern.tga",
-    vulostyle  = SHEET_PATH .. "vulostlye.tga",
+    vulostyle = SHEET_PATH .. "vulostlye.tga",   -- local-only
+    -- shipped: game-icons.net glyphs (CC BY 3.0) for fantasy1/2, own art for
+    -- vuloepic — see Media\ClassSheets\LICENSE.txt
+    vulofantasy1 = "Interface\\AddOns\\VuloClassicUI\\Media\\ClassSheets\\vulofantasy1.tga",
+    vulofantasy2 = "Interface\\AddOns\\VuloClassicUI\\Media\\ClassSheets\\vulofantasy2.tga",
+    vuloepic     = "Interface\\AddOns\\VuloClassicUI\\Media\\ClassSheets\\vuloepic.tga",
 }
 local SHEET_COORDS = {
     WARRIOR     = { 0,     0.125, 0,     0.125 },
@@ -387,10 +380,10 @@ local function restyleButton(button)
     -- left icon slot (class art / mirrored game icon / offline) with the
     -- row texts shifted right of the slot ------------------------------------
     local style = mod.db.iconStyle
-    -- local-only styles degrade to the crests when their files are absent
-    -- (fresh installs, or a profile carried to another machine)
-    if (SHEETS[style] and not fileOK(SHEETS[style]))
-       or (style == "vulo" and not fileOK(CLASS_ART_PATH .. "mage.tga")) then
+    -- local-only sheets degrade to the crests when their files are absent
+    if SHEETS[style] and not fileOK(SHEETS[style]) then style = "blizzard" end
+    -- removed styles fall back to the Blizzard crests
+    if style == "vulo" or style == "vuloclasses" or style == "vulomodern" then
         style = "blizzard"
     end
     local icon = button._vcClassIcon
@@ -412,14 +405,7 @@ local function restyleButton(button)
             local c = SHEET_COORDS[token]
             icon:SetTexCoord(c[1], c[2], c[3], c[4])
             icon:SetDesaturated(false); icon:SetAlpha(1)
-        elseif token and style == "vulo" and CLASS_ART[token] then
-            icon:SetSize(slot, slot)
-            icon:ClearAllPoints()
-            icon:SetPoint("LEFT", button, "LEFT", 4, 0)
-            icon:SetTexture(CLASS_ART_PATH .. CLASS_ART[token])
-            icon:SetTexCoord(0, 1, 0, 1)   -- recycled rows may carry atlas coords
-            icon:SetDesaturated(false); icon:SetAlpha(1)
-        elseif token and style ~= "vulo" and not SHEETS[style]
+        elseif token and not SHEETS[style]
            and (_G.CLASS_ICON_TCOORDS or {})[token] then
             icon:SetSize(slot, slot)
             icon:ClearAllPoints()
@@ -1152,16 +1138,6 @@ installHooks = function()
 end
 
 function mod:OnEnable()
-    -- one-shot: move profiles still on the old default ("circle") to the art icons
-    if not self.db.iconStyleUpgraded then
-        self.db.iconStyleUpgraded = true
-        if self.db.iconStyle == "circle" then self.db.iconStyle = "vulo" end
-    end
-    -- one-shot: default moved again, "vulo" art -> Blizzard's crest sheet
-    if not self.db.iconStyleUpgraded2 then
-        self.db.iconStyleUpgraded2 = true
-        if self.db.iconStyle == "vulo" then self.db.iconStyle = "blizzard" end
-    end
     installHooks()
     skinCommunitiesFrame()
     ns:RegisterEvent("ADDON_LOADED",                      onCommAddonLoaded)
@@ -1257,16 +1233,14 @@ function mod:GetOptions()
             L["Shows a class icon next to online WoW friends (in-game and Battle.net)."]),
         { type = "dropdown", label = L["Class icon style"], width = 240,
           values = (function()
-              -- local-only styles are offered only where their files exist
               local v = { { value = "blizzard", text = L["Blizzard crests"] } }
-              if fileOK(SHEETS.vulomodern) then
-                  v[#v + 1] = { value = "vulomodern", text = L["Vulo Modern"] }
-              end
+              -- shipped original class art (always available)
+              v[#v + 1] = { value = "vuloepic", text = L["Vulo Epic"] }
+              v[#v + 1] = { value = "vulofantasy1", text = L["Vulo Fantasy 1"] }
+              v[#v + 1] = { value = "vulofantasy2", text = L["Vulo Fantasy 2"] }
+              -- local-only sheet, offered only where its file exists
               if fileOK(SHEETS.vulostyle) then
                   v[#v + 1] = { value = "vulostyle", text = L["Vulo Style"] }
-              end
-              if fileOK(CLASS_ART_PATH .. "mage.tga") then
-                  v[#v + 1] = { value = "vulo", text = L["Vulo icons"] }
               end
               v[#v + 1] = { value = "circle", text = L["Circles"] }
               v[#v + 1] = { value = "square", text = L["Squares"] }
