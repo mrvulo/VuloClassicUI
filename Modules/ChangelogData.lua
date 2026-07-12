@@ -6,6 +6,19 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+    { version = "1.33.0", sections = {
+        { category = "Nameplates (German: Namensplaketten)", lines = {
+            "NEW: A custom Nameplates module draws its own health bar, cast bar, name and health text over enemy and NPC nameplates — fully configurable, with a live preview that updates as you change each option.",
+            "Health bar with your choice of texture, width, height, background, and a border drawn as thin lines or a texture, all in your own colours.",
+            "Colouring by reaction (hostile, neutral, friendly, tapped) and by class for players, plus role-based threat colouring for tanks and damage dealers.",
+            "Target and focus highlight rings, and an optional fade for plates that are not your target.",
+            "Cast bar with spell icon, spell name, and a separate colour for casts that cannot be interrupted.",
+            "Aura rows: your debuffs (or all of them), enemy buffs, and a separate prominent row for crowd control such as Polymorph, Fear and Sap. A glow marks enemy buffs you can steal or dispel.",
+            "Combo point pips on your target for Rogues and Druids in cat form.",
+            "Raid target markers (skull, cross, and the rest) with adjustable size and position.",
+            "Friendly plates can show name only, the full plate, or nothing — set separately for players and NPCs — and can show a friendly NPC's subtitle under its name.",
+        } },
+    } },
     { version = "1.32.0", sections = {
         { category = "Interface Skins", lines = {
             "NEW: A single \"Dark Skin\" module now covers the dark action-button and WeakAuras skin plus the optional Dark Mode that darkens Blizzard's default frames — those used to be two separate modules. Your existing settings carry over.",

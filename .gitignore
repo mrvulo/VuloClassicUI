@@ -4,3 +4,4 @@ Media/Alle-Klassen/
 Media/classes/
 # local tooling config, contains absolute machine paths
 .claude/
+IDEA.md
