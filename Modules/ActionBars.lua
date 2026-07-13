@@ -25,6 +25,18 @@
 local _, ns = ...
 local L = ns.L
 
+-- per-bar defaults: shared keys once, per-bar overrides on top
+local function barDefaults(over)
+    local d = {
+        on = true, visibility = "always", fadeAlpha = 0, scale = 1,
+        perRow = 12, spacing = 4, x = 0, y = -300,
+        alpha = 100, showEmpty = true, clickThrough = false,
+        textKeybindSize = 0, textMacroSize = 0, textCountSize = 0, textCooldownSize = 0,
+    }
+    for k, v in pairs(over) do d[k] = v end
+    return d
+end
+
 local mod = ns:RegisterModule("actionbars", {
     name        = "Action Bars",
     group       = "HUD",
@@ -38,6 +50,12 @@ local mod = ns:RegisterModule("actionbars", {
         hidePerfBar    = true,   -- hide Blizzard's green FPS/latency performance bar
         hideMicroMenu  = false,  -- hide the micro menu (menu buttons)
         hideBags       = false,  -- hide the bag bar
+        -- look (applies to all bars)
+        cdSwipe       = 80,      -- cooldown swipe opacity in percent
+        desatOnCd     = false,   -- desaturate icons while on cooldown
+        rangeColoring = false,   -- tint icons when the target is out of range
+        rangeColor    = { r = 0.8, g = 0.15, b = 0.15 },
+        tooltipMode   = "show",  -- show | combat | never
         -- movable holders for Blizzard chrome (x/y = CENTER offset, Edit Mode)
         chrome = {
             micro = { x = 300,  y = -350, scale = 1 },
@@ -50,13 +68,13 @@ local mod = ns:RegisterModule("actionbars", {
         -- per bar: on/visibility/fade/perRow/spacing + mover position (x,y = CENTER
         -- offset) and scale (multiplier). Position/scale are edited in Edit Mode.
         bars = {
-            main        = { on = true, visibility = "always", fadeAlpha = 0, scale = 1, perRow = 12, spacing = 4, x = 0,    y = -300 },
-            bottomleft  = { on = true, visibility = "always", fadeAlpha = 0, scale = 1, perRow = 12, spacing = 4, x = 0,    y = -338 },
-            bottomright = { on = true, visibility = "always", fadeAlpha = 0, scale = 1, perRow = 12, spacing = 4, x = 0,    y = -376 },
-            right       = { on = true, visibility = "always", fadeAlpha = 0, scale = 1, perRow = 6,  spacing = 4, x = 520,  y = -40 },
-            left        = { on = true, visibility = "always", fadeAlpha = 0, scale = 1, perRow = 6,  spacing = 4, x = 452,  y = -40 },
-            stance      = { on = true, visibility = "always", fadeAlpha = 0, scale = 1, perRow = 10, spacing = 4, x = -380, y = -250 },
-            pet         = { on = true, visibility = "always", fadeAlpha = 0, scale = 1, perRow = 10, spacing = 4, x = 380,  y = -250 },
+            main        = barDefaults({ y = -300 }),
+            bottomleft  = barDefaults({ y = -338 }),
+            bottomright = barDefaults({ y = -376 }),
+            right       = barDefaults({ perRow = 6,  x = 520,  y = -40 }),
+            left        = barDefaults({ perRow = 6,  x = 452,  y = -40 }),
+            stance      = barDefaults({ perRow = 10, x = -380, y = -250 }),
+            pet         = barDefaults({ perRow = 10, x = 380,  y = -250 }),
         },
     },
 })
@@ -308,14 +326,27 @@ local function layoutBar(desc)
     local sp = db.spacing or 4
     local iconSize = (db.iconSize and db.iconSize > 0) and db.iconSize or nil
 
-    -- per-button styling: optional icon size + hide keybind / macro text
+    -- per-button styling: icon size, text visibility + sizes, click-through
+    local function fontSize(fs, size)
+        if fs and size and size > 0 and ns.ApplyFontSize then ns:ApplyFontSize(fs, size) end
+    end
     for _, b in ipairs(st.buttons) do
         if iconSize then b:SetSize(iconSize, iconSize) end
         local nm = b:GetName()
         local hk = b.HotKey or (nm and _G[nm .. "HotKey"])
-        if hk then hk:SetShown(not db.hideKeybind) end
+        if hk then hk:SetShown(not db.hideKeybind); fontSize(hk, db.textKeybindSize) end
         local macro = b.Name or (nm and _G[nm .. "Name"])
-        if macro then macro:SetShown(not db.hideMacro) end
+        if macro then macro:SetShown(not db.hideMacro); fontSize(macro, db.textMacroSize) end
+        local count = b.Count or (nm and _G[nm .. "Count"])
+        if count then fontSize(count, db.textCountSize) end
+        if (db.textCooldownSize or 0) > 0 and b.cooldown and b.cooldown.GetRegions then
+            for _, r in ipairs({ b.cooldown:GetRegions() }) do
+                if r.GetObjectType and r:GetObjectType() == "FontString" then
+                    fontSize(r, db.textCooldownSize)
+                end
+            end
+        end
+        b:EnableMouse(not db.clickThrough)
     end
 
     local w = iconSize or (buttons[1] and buttons[1]:GetWidth()) or 36
@@ -722,10 +753,12 @@ end
 local function refreshFade(desc)
     local st = state[desc.key]
     if not (mod.active and st and st.frame) then return end
-    if barDB(desc.key).visibility == "mouseover" then
-        st.tgtAlpha = st.hovered and 1 or (barDB(desc.key).fadeAlpha or 0) / 100
+    local db = barDB(desc.key)
+    local base = (db.alpha or 100) / 100   -- the bar's configured opacity
+    if db.visibility == "mouseover" then
+        st.tgtAlpha = st.hovered and base or (db.fadeAlpha or 0) / 100
     else
-        st.tgtAlpha = 1
+        st.tgtAlpha = base
     end
     if abs(st.curAlpha - st.tgtAlpha) > 0.001 and updater then updater:Show() end
 end
@@ -774,6 +807,125 @@ local function ensureUpdater()
     end)
 end
 
+-- show/hide EMPTY slots on the action bars (own buttons — insecure show/hide,
+-- so out of combat only). While dragging an ability the grid events force-show
+-- everything so empty slots stay valid drop targets.
+local gridForced = false
+local function refreshEmpty(desc)
+    if InCombatLockdown() then return end
+    if desc.kind ~= "own" and desc.kind ~= "reuse" then return end
+    local st = state[desc.key]
+    if not st then return end
+    local show = gridForced or barDB(desc.key).showEmpty ~= false
+    for _, b in ipairs(st.buttons) do
+        if show then
+            b:Show()
+        else
+            b:SetShown(HasAction(b:GetAttribute("action") or 0))
+        end
+    end
+end
+local function refreshEmptyAll()
+    for _, desc in ipairs(BARS) do refreshEmpty(desc) end
+end
+
+-- =========================================================
+-- Look: cooldown swipe opacity, desaturate-on-cooldown, out-of-range colouring,
+-- tooltip suppression. All texture / tooltip work — insecure, combat-safe.
+-- =========================================================
+local lookTicker
+
+local function forAllButtons(fn)
+    for _, desc in ipairs(BARS) do
+        local st = state[desc.key]
+        if st then
+            for _, b in ipairs(st.buttons) do fn(b, desc) end
+        end
+    end
+end
+
+local function buttonIcon(b)
+    local nm = b.GetName and b:GetName()
+    return b.icon or b.Icon or (nm and _G[nm .. "Icon"])
+end
+
+local function ttHook()
+    local m = mod.db.tooltipMode
+    if mod.active and (m == "never" or (m == "combat" and InCombatLockdown())) then
+        GameTooltip:Hide()
+    end
+end
+
+-- periodic pass (0.2 s): cooldown desaturation + range tint on the action bars
+local function lookTick()
+    local desat = mod.db.desatOnCd
+    local range = mod.db.rangeColoring
+    local c = mod.db.rangeColor or { r = 0.8, g = 0.15, b = 0.15 }
+    for _, desc in ipairs(BARS) do
+        if desc.kind == "own" or desc.kind == "reuse" then
+            local st = state[desc.key]
+            if st then
+                for _, b in ipairs(st.buttons) do
+                    local action = b:GetAttribute("action")
+                    local icon = buttonIcon(b)
+                    if icon and action and action > 0 and HasAction(action) then
+                        if desat and icon.SetDesaturated then
+                            local start, dur = GetActionCooldown(action)
+                            icon:SetDesaturated((start or 0) > 0 and (dur or 0) > 1.5)
+                        end
+                        if range then
+                            if IsActionInRange(action) == false then
+                                icon:SetVertexColor(c.r, c.g, c.b)
+                            else
+                                local usable, noMana = IsUsableAction(action)
+                                if usable then icon:SetVertexColor(1, 1, 1)
+                                elseif noMana then icon:SetVertexColor(0.5, 0.5, 1)
+                                else icon:SetVertexColor(0.4, 0.4, 0.4) end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+local function applyLook()
+    local swipe = (mod.db.cdSwipe or 80) / 100
+    forAllButtons(function(b)
+        if b.cooldown and b.cooldown.SetSwipeColor then
+            b.cooldown:SetSwipeColor(0, 0, 0, swipe)
+        end
+        if not b._vcuiTT and b.HookScript then
+            b._vcuiTT = true
+            b:HookScript("OnEnter", ttHook)
+        end
+        -- reset whatever a just-disabled option left behind (Blizzard re-dims
+        -- unusable icons on its next update)
+        local icon = buttonIcon(b)
+        if icon then
+            if not mod.db.desatOnCd and icon.SetDesaturated then icon:SetDesaturated(false) end
+            if not mod.db.rangeColoring then icon:SetVertexColor(1, 1, 1) end
+        end
+    end)
+    local need = mod.db.desatOnCd or mod.db.rangeColoring
+    if need then
+        if not lookTicker then
+            lookTicker = CreateFrame("Frame")
+            lookTicker._acc = 0
+            lookTicker:SetScript("OnUpdate", function(self, elapsed)
+                self._acc = self._acc + elapsed
+                if self._acc < 0.2 then return end
+                self._acc = 0
+                if mod.active and taken then lookTick() end
+            end)
+        end
+        lookTicker:Show()
+    elseif lookTicker then
+        lookTicker:Hide()
+    end
+end
+
 -- =========================================================
 -- Take over / restore
 -- =========================================================
@@ -789,7 +941,7 @@ local function applyBar(desc)
         layoutBar(desc)
         if desc.kind == "stance" then updateStance()
         elseif desc.kind ~= "pet" then pageBar(desc) end   -- pet: Blizzard drives the buttons
-        visBar(desc); bindBar(desc)
+        visBar(desc); bindBar(desc); refreshEmpty(desc)
         hookHover(desc); refreshFade(desc)
     else
         if desc.kind == "own" then UnregisterStateDriver(st.frame, "page") end
@@ -806,7 +958,7 @@ local function takeOver()
     for _, desc in ipairs(BARS) do ensureBar(desc) end
     hideBlizzard()
     for _, desc in ipairs(BARS) do applyBar(desc) end
-    applyChrome(); applyXPBar()
+    applyChrome(); applyXPBar(); applyLook()
     taken = true
     -- ask the Dark Skin module to skin our freshly-created buttons
     if ns.ReskinActionButtons then ns.ReskinActionButtons() end
@@ -867,7 +1019,7 @@ local function applyAll()
         takeOver()
     else
         for _, desc in ipairs(BARS) do applyBar(desc) end
-        applyChrome(); applyXPBar()
+        applyChrome(); applyXPBar(); applyLook()
     end
 end
 
@@ -911,6 +1063,9 @@ end
 -- so this is safe in combat, unlike re-layout).
 local function onStance() if mod.active and taken then updateStance() end end
 local function onXP() if mod.active and taken then updateXPBar() end end
+local function onGridShow() if mod.active and taken then gridForced = true;  refreshEmptyAll() end end
+local function onGridHide() if mod.active and taken then gridForced = false; refreshEmptyAll() end end
+local function onSlot()     if mod.active and taken then refreshEmptyAll() end end
 local function onBindings()
     if mod.active and not InCombatLockdown() then
         for _, desc in ipairs(BARS) do bindBar(desc) end
@@ -943,6 +1098,9 @@ function mod:OnEnable()
     ns:RegisterEvent("PLAYER_XP_UPDATE", onXP)
     ns:RegisterEvent("PLAYER_LEVEL_UP", onXP)
     ns:RegisterEvent("UPDATE_EXHAUSTION", onXP)
+    ns:RegisterEvent("ACTIONBAR_SHOWGRID", onGridShow)
+    ns:RegisterEvent("ACTIONBAR_HIDEGRID", onGridHide)
+    ns:RegisterEvent("ACTIONBAR_SLOT_CHANGED", onSlot)
     applyAll()
 end
 
@@ -958,7 +1116,11 @@ function mod:OnDisable()
     ns:UnregisterEvent("PLAYER_XP_UPDATE", onXP)
     ns:UnregisterEvent("PLAYER_LEVEL_UP", onXP)
     ns:UnregisterEvent("UPDATE_EXHAUSTION", onXP)
+    ns:UnregisterEvent("ACTIONBAR_SHOWGRID", onGridShow)
+    ns:UnregisterEvent("ACTIONBAR_HIDEGRID", onGridHide)
+    ns:UnregisterEvent("ACTIONBAR_SLOT_CHANGED", onSlot)
     if updater then updater:Hide() end
+    if lookTicker then lookTicker:Hide() end
     if InCombatLockdown() then
         pendingRestore = true
         ns:Print(L["|cffff5555Action Bars: leaving combat to restore Blizzard's bars…|r"])
@@ -1037,6 +1199,39 @@ local function barSection(desc)
                   get = function() return barDB(key).hideMacro end,
                   set = function(_, v) barDB(key).hideMacro = v; reapply() end },
             } },
+            { type = "group", layout = "row", gap = 8, items = {
+                { type = "slider", label = L["Bar opacity"], min = 10, max = 100, step = 5, width = 150,
+                  get = function() return barDB(key).alpha or 100 end,
+                  set = function(_, v) barDB(key).alpha = v; reapply() end },
+                { type = "checkbox", label = L["Show empty buttons"],
+                  tooltip = L["Off hides empty slots; they reappear automatically while you drag an ability."],
+                  get = function() return barDB(key).showEmpty ~= false end,
+                  set = function(_, v) barDB(key).showEmpty = v; reapply() end },
+                { type = "checkbox", label = L["Click through"],
+                  tooltip = L["The bar ignores the mouse entirely — clicks go through it. Keybinds still work."],
+                  get = function() return barDB(key).clickThrough end,
+                  set = function(_, v) barDB(key).clickThrough = v; reapply() end },
+            } },
+            { type = "group", layout = "row", gap = 8, items = {
+                { type = "slider", label = L["Keybind text size"], min = 0, max = 24, step = 1, width = 150,
+                  tooltip = L["0 = default size."],
+                  get = function() return barDB(key).textKeybindSize or 0 end,
+                  set = function(_, v) barDB(key).textKeybindSize = v; reapply() end },
+                { type = "slider", label = L["Macro text size"], min = 0, max = 24, step = 1, width = 150,
+                  tooltip = L["0 = default size."],
+                  get = function() return barDB(key).textMacroSize or 0 end,
+                  set = function(_, v) barDB(key).textMacroSize = v; reapply() end },
+            } },
+            { type = "group", layout = "row", gap = 8, items = {
+                { type = "slider", label = L["Count text size"], min = 0, max = 24, step = 1, width = 150,
+                  tooltip = L["0 = default size."],
+                  get = function() return barDB(key).textCountSize or 0 end,
+                  set = function(_, v) barDB(key).textCountSize = v; reapply() end },
+                { type = "slider", label = L["Cooldown text size"], min = 0, max = 24, step = 1, width = 150,
+                  tooltip = L["0 = default size. Requires cooldown numbers to be enabled in the game options."],
+                  get = function() return barDB(key).textCooldownSize or 0 end,
+                  set = function(_, v) barDB(key).textCooldownSize = v; reapply() end },
+            } },
         },
     }
 end
@@ -1068,6 +1263,35 @@ function mod:GetOptions()
           set = function(_, v) mod.db.fadeSpeed = v end },
         { type = "desc",
           text = L["|cff9b6cffThe micro menu, bag bar, FPS/latency bar and the XP bar below are movable in Edit Mode (/vedit) like the action bars.|r"] },
+        { type = "section", title = L["Cooldown & look"], collapsed = true, items = {
+            { type = "desc", text = L["|cffaaaaaaApplies to every action bar.|r"] },
+            { type = "group", layout = "row", gap = 8, items = {
+                { type = "slider", label = L["Cooldown swipe opacity"], min = 0, max = 100, step = 5, width = 170,
+                  tooltip = L["How dark the cooldown sweep overlay is (0 = invisible)."],
+                  get = function() return mod.db.cdSwipe or 80 end,
+                  set = function(_, v) mod.db.cdSwipe = v; if mod.active then applyLook() end end },
+                { type = "checkbox", label = L["Desaturate icons on cooldown"],
+                  get = function() return mod.db.desatOnCd end,
+                  set = function(_, v) mod.db.desatOnCd = v; if mod.active then applyLook() end end },
+            } },
+            { type = "group", layout = "row", gap = 8, items = {
+                { type = "checkbox", label = L["Out-of-range colouring"],
+                  tooltip = L["Tints the whole icon while your target is out of range."],
+                  get = function() return mod.db.rangeColoring end,
+                  set = function(_, v) mod.db.rangeColoring = v; if mod.active then applyLook() end end },
+                { type = "color", label = L["Colour"], width = 120,
+                  get = function() return mod.db.rangeColor end,
+                  set = function(r, g, b) mod.db.rangeColor = { r = r, g = g, b = b } end },
+                { type = "dropdown", label = L["Tooltips"], width = 200,
+                  values = {
+                      { value = "show",   text = L["Show"] },
+                      { value = "combat", text = L["Hide in combat"] },
+                      { value = "never",  text = L["Hide always"] },
+                  },
+                  get = function() return mod.db.tooltipMode or "show" end,
+                  set = function(_, v) mod.db.tooltipMode = v end },
+            } },
+        } },
         { type = "section", title = L["XP bar"], collapsed = true, items = {
             { type = "checkbox", label = L["Show a custom XP bar"],
               tooltip = L["A movable, resizable experience bar with rested overlay. Hidden at max level. Replaces Blizzard's bar while on."],

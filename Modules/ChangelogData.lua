@@ -6,6 +6,21 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+    { version = "1.34.0", sections = {
+        { category = "Action Bars", lines = {
+            "NEW: An Action Bars module puts every action bar on its own movable frame — action bars 1 to 5, the stance bar and the pet bar — each placed and scaled in Edit Mode and configured on its own.",
+            "The main bar pages correctly with druid, rogue, warrior and priest forms, and your keybinds keep working on every bar, with the key shown on the buttons.",
+            "Per bar: visibility (always, mouseover, in or out of combat), opacity, icon size, buttons per row, spacing, vertical layout, reverse order, and hiding the keybind or macro text — with adjustable text sizes for keybind, macro, count and cooldown numbers.",
+            "Empty slots can be hidden and reappear automatically while you drag an ability onto the bar, and a bar can be made click-through.",
+            "Cooldown and look settings for all bars: cooldown sweep darkness, desaturating icons on cooldown, colouring icons while the target is out of range, and hiding button tooltips always or only in combat.",
+            "NEW: An own experience bar with adjustable width, height and colour, rested overlay and progress text — it replaces the default bar while enabled and hides at the level cap.",
+            "The micro menu, the bag bar and the performance bar sit on movable holders, and each of them can be hidden — as can the default experience bar.",
+            "Off by default: the standard bars stay untouched until you enable the module, and disabling hands everything back (a reload fully restores the default bars).",
+        } },
+        { category = "Dark Skin", lines = {
+            "The dark button skin now also covers the new action-bar buttons.",
+        } },
+    } },
     { version = "1.33.0", sections = {
         { category = "Nameplates (German: Namensplaketten)", lines = {
             "NEW: A custom Nameplates module draws its own health bar, cast bar, name and health text over enemy and NPC nameplates — fully configurable, with a live preview that updates as you change each option.",
