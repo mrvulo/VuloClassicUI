@@ -114,8 +114,10 @@ local LEGACY_BARS = { "MainMenuExpBar", "ReputationWatchBar", "MainMenuBarMaxLev
 local MULTIBAR_FRAMES = { "MultiBarBottomLeft", "MultiBarBottomRight", "MultiBarRight", "MultiBarLeft" }
 -- Blizzard's stance bar container (hidden when our own stance bar is active)
 local STANCE_HIDE = { "StanceBar", "StanceBarFrame" }
--- micro menu + bag bar frames (best-effort names across client versions)
-local MICRO_FRAMES = { "MicroMenu", "MicroMenuContainer" }
+-- micro menu + bag bar frames (best-effort names across client versions).
+-- Only the actual button row (MicroMenu) — its MicroMenuContainer shell stays
+-- parked and mouse-off (an invisible shell with mouse eats micro-button clicks).
+local MICRO_FRAMES = { "MicroMenu" }
 local BAG_FRAMES   = {
     "BagsBar", "MainMenuBarBackpackButton",
     "CharacterBag0Slot", "CharacterBag1Slot", "CharacterBag2Slot", "CharacterBag3Slot",
@@ -477,11 +479,19 @@ local function applyPerfBar()
     if b then b:SetAlpha(hide and 0 or 1); if b.EnableMouse then b:EnableMouse(not hide) end end
 end
 
--- hide/show a set of frames taint-free (alpha + mouse), never moving them
+-- hide/show a set of frames taint-free (alpha + mouse), never moving them.
+-- The original mouse state is remembered — force-enabling mouse on a frame that
+-- never had it turns invisible shells into click-eaters.
 local function setFramesHidden(names, hide)
     for _, n in ipairs(names) do
         local f = _G[n]
-        if f then f:SetAlpha(hide and 0 or 1); if f.EnableMouse then f:EnableMouse(not hide) end end
+        if f then
+            if f._vcuiMouse == nil and f.IsMouseEnabled then
+                f._vcuiMouse = f:IsMouseEnabled() and true or false
+            end
+            f:SetAlpha(hide and 0 or 1)
+            if f.EnableMouse then f:EnableMouse((not hide) and f._vcuiMouse or false) end
+        end
     end
 end
 
@@ -610,6 +620,16 @@ local function applyChrome()
     if InCombatLockdown() then return end
     muteKeyRingLayout(true)
     for _, c in ipairs(CHROME) do ensureChrome(c) end
+    -- the emptied MicroMenuContainer shell stays at its old spot, invisible but
+    -- mouse-enabled — it swallows clicks on the relocated micro buttons.
+    local shell = _G.MicroMenuContainer
+    local microTarget = chromeState.micro and chromeState.micro.targets and chromeState.micro.targets[1]
+    if shell and shell ~= microTarget then
+        if shell._vcuiMouse == nil and shell.IsMouseEnabled then
+            shell._vcuiMouse = shell:IsMouseEnabled() and true or false
+        end
+        shell:EnableMouse(false)
+    end
 end
 
 local function restoreChrome()
@@ -619,6 +639,8 @@ local function restoreChrome()
         f:SetParent(parent)
         chromeOrig[f] = nil
     end
+    local shell = _G.MicroMenuContainer
+    if shell and shell._vcuiMouse ~= nil then shell:EnableMouse(shell._vcuiMouse) end
     for _, cs in pairs(chromeState) do
         if cs.holder then cs.holder:Hide() end
     end

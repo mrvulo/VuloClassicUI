@@ -720,12 +720,44 @@ local function ensureOffParent()
 end
 
 -- Suppress Blizzard's own nameplate UnitFrame so only ours shows.
+-- The modern client flags some children (health bar container etc.) as
+-- ignore-parent-alpha — they render semi-transparent through the alpha-0
+-- UnitFrame — so those get un-flagged too, with a guard hook.
+local function suppressChild(uf, r)
+    if not (r and r.SetIgnoreParentAlpha) then return end
+    pcall(r.SetIgnoreParentAlpha, r, false)
+    if not hookedUFs[r] then
+        hookedUFs[r] = true
+        local locked = false
+        hooksecurefunc(r, "SetIgnoreParentAlpha", function(self, v)
+            if locked or not v then return end
+            local u = uf.unit or (uf.GetUnit and uf:GetUnit())
+            if not u or not ns.plates[u] then return end   -- no VCUI plate owns it now
+            locked = true; pcall(self.SetIgnoreParentAlpha, self, false); locked = false
+        end)
+    end
+end
+
 local function hideBlizzard(nameplate)
     local uf = nameplate and nameplate.UnitFrame
     if not uf then return end
     uf:SetAlpha(0)
+    -- alpha alone is not enough on this engine (children can ignore parent
+    -- alpha and still render semi-transparent) — hide the frame outright and
+    -- keep it hidden while a VCUI plate owns the unit.
+    uf:Hide()
+    suppressChild(uf, uf.HealthBarsContainer)
+    suppressChild(uf, uf.HealthBarsContainer and uf.HealthBarsContainer.healthBar)
+    suppressChild(uf, uf.healthBar)
+    suppressChild(uf, uf.name)
+    suppressChild(uf, uf.castBar)
+    suppressChild(uf, uf.AurasFrame)
     if not hookedUFs[uf] then
         hookedUFs[uf] = true
+        uf:HookScript("OnShow", function(self)
+            local u = self.unit or (self.GetUnit and self:GetUnit())
+            if u and ns.plates[u] then self:Hide() end
+        end)
         local locked = false
         hooksecurefunc(uf, "SetAlpha", function(self, a)
             if locked or a == 0 then return end
@@ -1264,7 +1296,7 @@ function mod:OnDisable()
     -- restore Blizzard plates that were suppressed
     if C_NamePlate and C_NamePlate.GetNamePlates then
         for _, p in ipairs(C_NamePlate.GetNamePlates()) do
-            if p.UnitFrame then p.UnitFrame:SetAlpha(1) end
+            if p.UnitFrame then p.UnitFrame:SetAlpha(1); p.UnitFrame:Show() end
         end
     end
 end
