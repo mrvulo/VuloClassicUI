@@ -47,6 +47,7 @@ Modules\UnitFrames.lua
 Modules\Nameplates.lua
 Modules\SwingTimer.lua
 Modules\PowerBar.lua
+Modules\ActionBars.lua
 Modules\CooldownPulse.lua
 Modules\Arena.lua
 Modules\CharacterPanel.lua

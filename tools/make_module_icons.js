@@ -26,6 +26,7 @@ const MAP = {
   cooldownpulse:      'timer',
   cooldownmanager:    'clock',
   powerbar:           'zap',
+  actionbars:         'gallery-horizontal',
   arenaframes:        'swords',
   characterpanel:     'user',
   darkskin:           'palette',

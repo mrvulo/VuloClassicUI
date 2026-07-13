@@ -1,139 +1,52 @@
 # VuloClassicUI
 
-**A modular UI & quality-of-life suite for WoW Classic — Burning Crusade Classic
-(2.5.5) and Classic Era (1.15.8).**
+<span style="color:#9b6cff"><strong>VuloClassicUI</strong></span> is a fully modular UI suite for WoW Classic (Anniversary / TBC and Classic Era / SoD), built for players who want a clean, modern interface without giving up performance or the Classic feel. Every element follows one cohesive style: dark, minimal, with a signature purple accent.
 
-One config panel, 30+ small enhancements — turn on what you want, leave the rest
-off. No dependencies, everything is built in.
+At its heart sits a powerful visual Edit Mode that lets you move, align and snap every window on a shared grid — the addon's own frames and Blizzard's (player, target, focus, minimap, buffs) alike. Enable only the modules you want and design a UI that feels like yours in minutes.
 
-Type **`/vcui`** to open the options. Every module has its own on/off switch and
-settings, a search box up top filters the list, and **`/vcui help`** lists every
-slash command.
+<span style="color:#9b6cff"><strong>Edit Mode</strong></span>  
+Move everything from one editor: drag, nudge with arrow keys, snap to a grid, magnetize to other frames' edges and centers with live alignment guides. Save and switch complete named layouts, scale-aware and pixel-accurate.
 
-> **Compatibility:** Works on TBC Classic **2.5.5** (Anniversary) and Classic Era
-> **1.15.8**. Content that only exists in TBC — Arena enemy frames, gem sockets —
-> auto-disables on Era; everything else runs on both.
+<span style="color:#9b6cff"><strong>One Bag &amp; Bank</strong></span>  
+All bags in a single window: automatic categories, your own categories and category groups, pinned and recently-looted sections, search, quality borders and item levels. A multi-key sorting engine merges stacks, sends junk to the end and fills profession bags first — and the bank opens in a matching window with its own search, sorting and bag filters, plus a gold overview across all your characters.
 
----
+<span style="color:#9b6cff"><strong>Modern Minimap</strong></span>  
+A clean round minimap with a slim accent ring, zone text and clock in a minimal pill, mouse-wheel zoom and tidy button corners. Restyles other addons' minimap buttons and can hide them until mouseover. Movable anywhere via Shift-drag or Edit Mode.
 
-## ✨ Highlights
+<span style="color:#9b6cff"><strong>Nameplates</strong></span>  
+Custom enemy and NPC nameplates with a live preview that updates as you configure them: health bar, cast bar, name and health text, reaction and class colours, target and focus highlight, role-based threat colouring, aura rows for your debuffs and buffs plus a separate crowd-control row and a glow on buffs you can dispel, combo-point pips, raid target markers, friendly name-only plates with NPC titles, and custom border textures.
 
-- **One window, 30+ modules** — searchable, with per-class **profiles** and a
-  fully independent on/off switch for every feature.
-- **Built-in button skin** — dark, rounded drop-shadow for action bars *and*
-  WeakAuras icons. No Masque required.
-- **Built-in edit mode** — drag movable frames (castbar, power bar, cooldown bars,
-  loadouts sidebar…) into place; arrow keys fine-tune.
-- **Arena tools, cooldown manager, loadouts, one-key fishing** and a deep pile of
-  quality-of-life — see below.
+<span style="color:#9b6cff"><strong>Modular by Design</strong></span>  
+Every feature is a standalone module you can toggle individually. Turn on the full suite or run just the pieces you like — nothing loads that you did not ask for.
 
----
+<span style="color:#9b6cff"><strong>Consistent Visual Style</strong></span>  
+Dark panels, thin borders, one accent color across bags, bank, chat, tooltips, popups and class tools — polished, readable, and true to World of Warcraft.
 
-## 🖥️ Unit Frames & Display
+<span style="color:#9b6cff"><strong>Quality of Life</strong></span>  
+Auto-repair and junk selling, a MAX button and a restyled quantity popup for stack buying, faster looting, tooltip spell/item IDs, flight timers, inspect fixes for the Anniversary client and many small annoyance removers — each one optional.
 
-- **Player Castbar** — two modes: an extended Blizzard bar (time text, ticks,
-  channel coloring) or a custom VUI castbar with icon and spell name.
-- **Target & Focus Frame** — adds a numeric threat %, a colored threat glow and
-  the winged rare-elite border the default UI leaves out.
-- **Power Bar** — a movable resource bar that follows your class automatically
-  (Mana / Rage / Energy), and switches with Druid forms.
-- **Elite Player Frame** — gives your portrait the elite, rare-elite or rare
-  dragon border.
-- **Cooldown Pulse** — flashes an ability's icon in the center of the screen the
-  moment its cooldown is ready.
-- **Font Bars** — smaller, cleaner fonts on Player / Target / Pet health & mana.
+<span style="color:#9b6cff"><strong>Localization</strong></span>  
+Fully localized in English and German.
 
-## ⚔️ Action Bars & Icons
+<span style="color:#9b6cff"><strong>Included Modules</strong></span>
 
-- **Button Skin** — built-in dark drop-shadow skin for the action bars and
-  WeakAuras icons: several styles (shadow / rounded / square / accent / circle /
-  minimal), adjustable icon size, and bundled bar textures. No extra add-on needed.
+*   **Edit Mode** _(movers, grid, magnetism, named layouts)_
+*   **Bags & Bank** _(categories, groups, search, sorting engine)_
+*   **Minimap**
+*   **Nameplates** _(custom enemy/NPC plates with live preview)_
+*   **Chat** _(styling, copy, friends counter, spam filter)_
+*   **Friends List** _(class colors & icons, status, faction accents)_
+*   **Character Panel** _(item levels, inspect enhancements)_
+*   **Equipment Sets & Slot Picker**
+*   **Action Button Skin & Dark Mode**
+*   **Castbar, Swing Timer, Power Bar, Combat Text**
+*   **Cooldown Manager & Cooldown Pulse**
+*   **Totem Bar** _(Shaman)_ **& class tools**
+*   **Trinket Queue**
+*   **Quest Log, Profession Window, Mail & Fishing helpers**
+*   **Tooltip IDs & Gold Overview**
+*   **Quality of Life** _(auto-repair, auto-sell, flight timer, ...)_
+*   **Anniversary Client Bugfixes** _(inspect, group finder, socketing)_
+*   **Profiles**
 
-## 🎯 HUD & Combat
-
-- **Cooldown Manager** — movable cooldown bars grouped however you like (procs,
-  defensives, burst), in the style of the retail cooldown manager.
-- **Combat Text** — custom floating combat text for combat start/end, interrupts,
-  dispels, misses and low durability, with per-event color, size, outline & shadow.
-- **Swing Timer** — main-hand / off-hand weapon swing bars for melee auto-attacks
-  (on by default for melee classes), with color, texture and transparency options.
-- **Class Specific** — Shadow Priest: Vampiric Touch mana-return tracker.
-
-## 🏹 PvP & Arena
-
-- **Arena Frames** *(TBC)* — move & scale the enemy frames, class colors + class
-  icons, PvP-trinket cooldown, diminishing-returns tracking, enemy castbars and a
-  drag & drop layout.
-- **Trinkets** — two on-screen trinket slots with cooldown display, a selection
-  dropdown and auto-queue.
-- **Queue Timer** — a countdown on the PvP/PvE queue-pop dialog, with an optional
-  sound warning.
-
-## 🧰 Quality of Life
-
-- **General** — auto-accept quests / resurrects / summons, auto-sell junk,
-  auto-repair, hide UI spam (zone text, portrait numbers, stack counts,
-  keybind/macro text), text-size tweaks.
-- **Loadouts** — save and quick-equip gear sets (per character), with auto-switch
-  on spec / stance / form, a movable character-frame sidebar and a minimap button.
-- **Action Bar Profiles** — snapshot and restore your action bars, macros and
-  keybindings on demand.
-- **Fishing** — one key casts, reels and applies a lure, then auto-loots your catch.
-- **Mail: Open All** — collect every attachment and coin from your mailbox in a
-  single click.
-- **Group Board** — scans chat for people forming groups and lists them by
-  Classic / TBC instance in its own window.
-- **Trainer Tab** — adds a tab to your spellbook listing every ability you can
-  still learn from your class trainer, grouped by level.
-- **Disenchant Queue** — one window, one button: disenchant your bags item by item.
-- **Slot Picker** — Shift + Right-click an equipment slot to equip a compatible
-  item straight from your bags.
-- **Spam Filter** — hides gold/casino chat spammers whose names use look-alike
-  letters (e.g. *Gãsïnô*, *Casinòbâbe*), including `/emote` spam. Optional web-link
-  block and a per-name whitelist (`/vcui spam <name>`).
-- **Gold Tracker** — shows how much gold you've gained or spent since the last
-  reset, right in the bag tooltip (per character).
-- **Auto Item Buy** — automatically buys configured items at configured vendors
-  (hold Shift when opening a merchant = emergency stop).
-- **Character Panel** — item level per slot, socket display and shortened enchant
-  text.
-- **Tooltip IDs** — spell / item / NPC (and more) IDs on every tooltip.
-
-## 🎨 UI Reskins
-
-- **Profession Window** — enlarges and themes the tradeskill & craft windows: the
-  detail pane sits beside the recipe list, with a Parchment or Dark theme.
-- **Quest Log** — quest levels (and optional quest IDs) in the titles, a larger
-  frame, and a Parchment or Dark theme.
-- **Friends List** — class-colored names, class icons, status dots, inline notes,
-  faction tint and optional auto-accept.
-
-## 🩹 Bug Fixes
-
-Small, targeted catches for known client issues so a single broken entry doesn't
-spam your chat or break a whole panel (these target the Anniversary 2.5.5 client
-and stay inert where the bug doesn't exist):
-
-- Stuck player inspects (auto-reset + `/inspectreset`)
-- LFG / Group Finder browse crashes
-- Guild News nil errors
-- Missing socket-bind confirmation dialog
-- Missing "in combat" glow on the player frame
-- German Auction House price-dropdown nil error
-
----
-
-## 🔧 Installation
-
-1. Extract into `Interface\AddOns\`
-2. `/reload` (or restart the game)
-3. Type **`/vcui`** and enable the modules you want
-
-## ⌨️ Handy slash commands
-
-`/vcui` options · `/vcui help` command list · `/lo` loadouts · `/vlfg` group board ·
-`/trinket` trinkets · `/swingtest` swing-timer mover · `/rl` reload
-
-## 🔗 Links
-
-- Source & bug reports: **github.com/mrvulo/VuloClassicUI**
+*   Source & bug reports: **github.com/mrvulo/VuloClassicUI**

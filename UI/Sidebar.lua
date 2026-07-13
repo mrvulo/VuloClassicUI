@@ -21,7 +21,7 @@ local MODULE_ICONS = {}
 for _, key in ipairs({
     "globalsettings", "unlockmode", "qol", "bugfixes", "uireskin", "profiles",
     "minimap", "minimapstyle", "fontbars", "playercastbar", "unitframes", "nameplates",
-    "cooldownpulse", "cooldownmanager", "powerbar",
+    "cooldownpulse", "cooldownmanager", "powerbar", "actionbars",
     "arenaframes", "characterpanel", "darkskin", "friendlist",
     "miscqol", "queuetimer", "tooltipids", "autoitembuy", "goldtracker",
     "goldvendors", "spamfilter", "chat", "bags", "questlog",

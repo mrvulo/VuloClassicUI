@@ -52,6 +52,10 @@ local mod = ns:RegisterModule("darkskin", {
 local BAR_PREFIXES = {
     "ActionButton", "MultiBarBottomLeftButton", "MultiBarBottomRightButton",
     "MultiBarLeftButton", "MultiBarRightButton", "BonusActionButton",
+    -- VuloClassicUI's own action-bar buttons (present when the Action Bars module
+    -- has taken over) — skin these too, or the visible bars stay unskinned.
+    "VuloActionButton", "VuloAB_bottomleftB", "VuloAB_bottomrightB",
+    "VuloAB_rightB", "VuloAB_leftB", "VuloAB_stanceB",
 }
 local EXTRA_PREFIXES = { "PetActionButton", "StanceButton" }
 
@@ -549,6 +553,10 @@ local function skinAllSoon()
     _skinAllPending = true
     C_Timer.After(0.1, function() _skinAllPending = false; if mod._enabled then skinAll() end end)
 end
+
+-- let other modules (Action Bars, when it rebuilds its own buttons) ask us to
+-- re-skin the action buttons so freshly-created ones pick up the skin.
+ns.ReskinActionButtons = skinAllSoon
 local function skinEverythingSoon()
     if not (C_Timer and C_Timer.After) then return skinEverything() end
     if _skinEvtPending then return end
