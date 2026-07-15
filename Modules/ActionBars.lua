@@ -289,9 +289,10 @@ end
 local function updateStance()
     local st = state.stance
     if not st then return end
+    local canShow = not InCombatLockdown()   -- Show/Hide on a secure button is protected in combat
     for i, b in ipairs(st.buttons) do
         local texture, isActive, isCastable = GetShapeshiftFormInfo(i)
-        b:SetShown(texture ~= nil)
+        if canShow then b:SetShown(texture ~= nil) end
         local icon = b.icon or (b:GetName() and _G[b:GetName() .. "Icon"])
         if icon then
             icon:SetTexture(texture)
