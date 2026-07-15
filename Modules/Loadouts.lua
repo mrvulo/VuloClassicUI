@@ -1688,13 +1688,30 @@ local function createSidebar()
         local py     = (pos and pos.y) or 0   -- edit-mode drag offset (y)
         local topOff = ((mod.db and mod.db.sidebarTopOffset)    or 0) + py
         local botOff = ((mod.db and mod.db.sidebarBottomOffset) or 0) + py
+        -- the Modern character style widens the window to the right (stats
+        -- panel) — dock past that extension and use EXACTLY its top/bottom
+        -- edges (the classic fine-tune offsets compensate the classic art and
+        -- would skew the height here; the drag offset still applies)
+        local ext, extTop, extBot = 0, 0, 0
+        if ns.CharacterPanelModernExt then ext, extTop, extBot = ns.CharacterPanelModernExt() end
+        local x = -4 + px + ext + (ext > 0 and 6 or 0)
+        if ext > 0 then
+            topOff = extTop + py
+            botOff = extBot + py
+        end
         sidebar:ClearAllPoints()
-        sidebar:SetPoint("TOPLEFT",    CharacterFrame, "TOPRIGHT", -4 + px, topOff)
-        sidebar:SetPoint("BOTTOMLEFT", CharacterFrame, "BOTTOMRIGHT", -4 + px, botOff)
+        sidebar:SetPoint("TOPLEFT",    CharacterFrame, "TOPRIGHT", x, topOff)
+        sidebar:SetPoint("BOTTOMLEFT", CharacterFrame, "BOTTOMRIGHT", x, botOff)
+        -- docked next to the Modern window the drop shadow reads as a black rim
+        -- around the sidebar (and makes it look taller) — hide it there
+        if sidebar._vcShadow then
+            for _, t in ipairs(sidebar._vcShadow) do t:SetShown(ext == 0) end
+        end
     end
     anchorToCharacterFrame()
     sidebar._reanchor = anchorToCharacterFrame
     mod._reanchorSidebar = anchorToCharacterFrame
+    ns.ReanchorLoadoutsSidebar = anchorToCharacterFrame   -- character panel style switches call this
 
     -- Debug: print real top/bottom/height of CharacterFrame vs the sidebar
     mod._debugSizes = function()

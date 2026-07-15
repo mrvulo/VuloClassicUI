@@ -1301,6 +1301,16 @@ local modernChrome
 -- how far the dark rectangle reaches to the right of the frame (holds the stats)
 local MODERN_RIGHT_EXT = 172
 
+-- Exposed: how far the Modern style extends the character window to the right,
+-- plus its top/bottom edge offsets — so frames docked right of the window (the
+-- loadouts sidebar) can shift over and match the Modern chrome's height.
+ns.CharacterPanelModernExt = function()
+    if cpMod and cpMod.active and cpStyle() == "modern" then
+        return MODERN_RIGHT_EXT, -6, 72
+    end
+    return 0, 0, 0
+end
+
 local function ensureModernChrome()
 	if modernChrome then return modernChrome.bg end
 	if not CharacterFrame then return nil end
@@ -1653,6 +1663,8 @@ local function UpdateCharacterPanel()
 			applyModernPanes(false)
 			applyModernTabs(false)
 		end
+		-- frames docked right of the window follow the style's extension
+		if ns.ReanchorLoadoutsSidebar then ns.ReanchorLoadoutsSidebar() end
 	end
 end
 
