@@ -6,6 +6,15 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+    { version = "1.34.1", sections = {
+        { category = "Nameplates", lines = {
+            "The default nameplate no longer shows through as a faint transparent bar under the custom plate — it is now hidden outright and kept hidden while the custom plate is active.",
+        } },
+        { category = "Action Bars", lines = {
+            "All micro menu buttons open their windows again — the emptied default micro menu shell was invisibly swallowing clicks on the relocated buttons.",
+            "Fixed a blocked-action error when the stance bar updated during combat; stance button visibility now only changes out of combat, while icon tint, cooldown and the active marker keep updating live.",
+        } },
+    } },
     { version = "1.34.0", sections = {
         { category = "Action Bars", lines = {
             "NEW: An Action Bars module puts every action bar on its own movable frame — action bars 1 to 5, the stance bar and the pet bar — each placed and scaled in Edit Mode and configured on its own.",
