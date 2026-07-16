@@ -6,6 +6,17 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+    { version = "1.34.2", sections = {
+        { category = "Settings Window", lines = {
+            "NEW: After an update, a pulsing dot on the \"Patch Notes\" entry points at the new notes until you open them once — account wide, per version.",
+        } },
+        { category = "Character Window", lines = {
+            "With the Modern style, the equipment set sidebar now docks to the right of the stats panel at exactly the window's height, instead of overlapping it. Switching styles with the window open moves it immediately.",
+        } },
+        { category = "Action Bars", lines = {
+            "Micro menu buttons that the game hides situationally are shown again, so the row no longer has a gap.",
+        } },
+    } },
     { version = "1.34.1", sections = {
         { category = "Nameplates", lines = {
             "The default nameplate no longer shows through as a faint transparent bar under the custom plate — it is now hidden outright and kept hidden while the custom plate is active.",

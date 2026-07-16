@@ -617,10 +617,33 @@ local function muteKeyRingLayout(mute)
     end
 end
 
+-- Blizzard hides individual micro buttons situationally, which leaves a gap in
+-- the row. The user wants the FULL set visible, so every micro button is
+-- force-shown, re-applied after Blizzard's own micro button updates. Micro
+-- buttons are insecure, so this is taint-free.
+local microHooked = false
+local function showAllMicro()
+    local cs = chromeState.micro
+    local container = cs and cs.targets and cs.targets[1]
+    if not (container and container.GetChildren) then return end
+    for _, b in ipairs({ container:GetChildren() }) do
+        if b.IsObjectType and b:IsObjectType("Button") and not b:IsShown() then
+            b:Show()
+        end
+    end
+end
+
 local function applyChrome()
     if InCombatLockdown() then return end
     muteKeyRingLayout(true)
     for _, c in ipairs(CHROME) do ensureChrome(c) end
+    if not microHooked and type(_G.UpdateMicroButtons) == "function" then
+        microHooked = true
+        hooksecurefunc("UpdateMicroButtons", function()
+            if mod.active and taken then showAllMicro() end
+        end)
+    end
+    showAllMicro()
     -- the emptied MicroMenuContainer shell stays at its old spot, invisible but
     -- mouse-enabled — it swallows clicks on the relocated micro buttons.
     local shell = _G.MicroMenuContainer

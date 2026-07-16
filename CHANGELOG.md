@@ -16,6 +16,16 @@
   ~1900 characters or it gets truncated with a link to the full notes.
 -->
 
+## 1.34.2
+**Settings Window:**
+- **NEW:** After an update, a pulsing dot on the "Patch Notes" entry points at the new notes until you open them once — account wide, per version.
+
+**Character Window:**
+- With the Modern style, the equipment set sidebar now docks to the right of the stats panel at exactly the window's height, instead of overlapping it. Switching styles with the window open moves it immediately.
+
+**Action Bars:**
+- Micro menu buttons that the game hides situationally are shown again, so the row no longer has a gap.
+
 ## 1.34.1
 **Nameplates:**
 - The default nameplate no longer shows through as a faint transparent bar under the custom plate — it is now hidden outright and kept hidden while the custom plate is active.

@@ -357,12 +357,41 @@ function UI:PopulateSidebar()
             label:SetPoint("LEFT", icon, "RIGHT", 7, 0)
             row.label = label
 
-            row:SetScript("OnClick", function()
+            -- unread-update dot: a small accent circle on the right that pulses
+            -- until the patch notes are opened after an update
+            local dot = row:CreateTexture(nil, "OVERLAY")
+            dot:SetSize(13, 13)
+            dot:SetPoint("RIGHT", row, "RIGHT", -8, 0)
+            -- a real round dot: the game's LED indicator texture, tinted accent
+            dot:SetTexture("Interface\\COMMON\\Indicator-Gray")
+            dot:SetVertexColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 1)
+            local pulse = dot:CreateAnimationGroup()
+            pulse:SetLooping("REPEAT")
+            local a1 = pulse:CreateAnimation("Alpha")
+            a1:SetFromAlpha(1); a1:SetToAlpha(0.15); a1:SetDuration(0.7); a1:SetOrder(1); a1:SetSmoothing("IN_OUT")
+            local a2 = pulse:CreateAnimation("Alpha")
+            a2:SetFromAlpha(0.15); a2:SetToAlpha(1); a2:SetDuration(0.7); a2:SetOrder(2); a2:SetSmoothing("IN_OUT")
+            row.dot, row.dotPulse = dot, pulse
+
+            row:SetScript("OnClick", function(self)
+                -- opening the notes marks this version as read
+                if ns.db and ns.db.global then ns.db.global.patchNotesSeen = ns.VERSION end
+                if self.dotPulse then self.dotPulse:Stop() end
+                if self.dot then self.dot:Hide() end
                 if UI.ShowModulePage then UI:ShowModulePage("changelog") end
             end)
             UI._changelogRow = row
         end
         row.label:SetText(L[ns.modules.changelog.name])  -- raw key → translate live
+        -- pulse while the current version's notes haven't been opened yet
+        local unread = ns.db and ns.db.global and ns.db.global.patchNotesSeen ~= ns.VERSION
+        if unread then
+            row.dot:Show()
+            if not row.dotPulse:IsPlaying() then row.dotPulse:Play() end
+        else
+            row.dotPulse:Stop()
+            row.dot:Hide()
+        end
         row:ClearAllPoints()
         row:SetPoint("TOPLEFT",  parent, "TOPLEFT",  0, -y)
         row:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, -y)
