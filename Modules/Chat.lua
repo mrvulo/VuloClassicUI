@@ -965,14 +965,23 @@ local function styleCombatLog()
             end
         end
     end
-    -- Anchor the bar flush above ChatFrame2 at the panel's width so it reads as
-    -- one piece with the panel instead of a narrower, offset band.
-    local cf2 = _G.ChatFrame2
-    if cf2 then
+    -- Anchor the bar to the SAME reference as the tab dock (the panel bg, same
+    -- side insets, same 24px height) so both rows share width and height exactly.
+    local cf1 = _G.ChatFrame1
+    local bg = cf1 and FD(cf1).bg
+    if bg then
         pcall(qbf.ClearAllPoints, qbf)
-        pcall(qbf.SetPoint, qbf, "BOTTOMLEFT", cf2, "TOPLEFT", -10, 3)
-        pcall(qbf.SetPoint, qbf, "BOTTOMRIGHT", cf2, "TOPRIGHT", 6, 3)
+        pcall(qbf.SetPoint, qbf, "TOPLEFT", bg, "TOPLEFT", 0, 0)
+        pcall(qbf.SetPoint, qbf, "TOPRIGHT", bg, "TOPRIGHT", 0, 0)
         pcall(qbf.SetHeight, qbf, 24)
+    else
+        local cf2 = _G.ChatFrame2
+        if cf2 then
+            pcall(qbf.ClearAllPoints, qbf)
+            pcall(qbf.SetPoint, qbf, "BOTTOMLEFT", cf2, "TOPLEFT", -10, 3)
+            pcall(qbf.SetPoint, qbf, "BOTTOMRIGHT", cf2, "TOPRIGHT", 6, 3)
+            pcall(qbf.SetHeight, qbf, 24)
+        end
     end
     local bgt = qbf:CreateTexture(nil, "BACKGROUND")
     bgt:SetAllPoints()

@@ -30,6 +30,9 @@ local mod = ns:RegisterModule("miscqol", {
         autoRepair            = true,
         maxStackButton        = true,
         skinStackSplit        = true,
+        -- Game menu (Escape)
+        skinGameMenu          = true,
+        gameMenuButton        = true,
         -- Visibility
         hideErrors            = false,
         hideZoneText          = false,
@@ -1176,10 +1179,176 @@ end
 local function onTradeClosed() userInitiatedTrade = false end
 
 -- =========================================================
+-- Game menu (Escape): house-style skin + a VuloClassicUI button that opens the
+-- options window. The menu rebuilds its buttons from a pool on every open
+-- (Layout/InitButtons), so the skin hooks those; everything is insecure.
+-- =========================================================
+local gameMenuDone = false
+
+local function skinMenuButton(b, bc)
+    if not b or b._vcuiSkin then return end
+    b._vcuiSkin = true
+    local fs = b.GetFontString and b:GetFontString()
+    for i = 1, select("#", b:GetRegions()) do
+        local r = select(i, b:GetRegions())
+        if r and r:IsObjectType("Texture") and r ~= fs then r:SetAlpha(0) end
+    end
+    for _, key in ipairs({ "Left", "Middle", "Right" }) do
+        local tex = b[key]
+        if tex and tex.SetAlpha then
+            tex:SetAlpha(0)
+            hooksecurefunc(tex, "SetAlpha", function(self, a)
+                if a > 0 then self:SetAlpha(0) end
+            end)
+        end
+    end
+    local inset = CreateFrame("Frame", nil, b)
+    inset:SetPoint("TOPLEFT", 2, -2)
+    inset:SetPoint("BOTTOMRIGHT", -2, 2)
+    inset:SetFrameLevel(b:GetFrameLevel())
+    local bg = inset:CreateTexture(nil, "BACKGROUND", nil, -6)
+    bg:SetAllPoints()
+    bg:SetColorTexture(0.1, 0.1, 0.13, 0.9)
+    for i = 1, 4 do
+        local t = inset:CreateTexture(nil, "OVERLAY")
+        t:SetColorTexture(bc.r, bc.g, bc.b, 1)
+        if i == 1 then t:SetPoint("TOPLEFT"); t:SetPoint("TOPRIGHT"); t:SetHeight(1)
+        elseif i == 2 then t:SetPoint("BOTTOMLEFT"); t:SetPoint("BOTTOMRIGHT"); t:SetHeight(1)
+        elseif i == 3 then t:SetPoint("TOPLEFT"); t:SetPoint("BOTTOMLEFT"); t:SetWidth(1)
+        else t:SetPoint("TOPRIGHT"); t:SetPoint("BOTTOMRIGHT"); t:SetWidth(1) end
+    end
+    local hl = b:CreateTexture(nil, "HIGHLIGHT")
+    hl:SetAllPoints(inset)
+    hl:SetColorTexture(1, 1, 1, 0.08)
+    if fs and ns.UI and ns.UI.FONT_PATH then
+        local _, size, flags = fs:GetFont()
+        fs:SetFont(ns.UI.FONT_PATH, (size or 14) - 2, flags or "")
+    end
+end
+
+local function setupGameMenu()
+    if gameMenuDone or not GameMenuFrame then return end
+    if not (mod.db.skinGameMenu or mod.db.gameMenuButton) then return end
+    gameMenuDone = true
+
+    local UIW = ns.UI
+    local ac = ns.COLORS and ns.COLORS.accent or { r = 0.608, g = 0.424, b = 1 }
+    local bc = ns.COLORS and (ns.COLORS.borderDark or ns.COLORS.border) or { r = 0.15, g = 0.15, b = 0.18 }
+
+    -- ---- skin ----
+    if mod.db.skinGameMenu then
+        for i = 1, select("#", GameMenuFrame:GetRegions()) do
+            local r = select(i, GameMenuFrame:GetRegions())
+            if r and r:IsObjectType("Texture") then r:SetAlpha(0) end
+        end
+        if GameMenuFrame.NineSlice then GameMenuFrame.NineSlice:SetAlpha(0) end
+        if GameMenuFrame.Border then GameMenuFrame.Border:SetAlpha(0) end
+        local header = GameMenuFrame.Header
+        if header then
+            for i = 1, select("#", header:GetRegions()) do
+                local r = select(i, header:GetRegions())
+                if r and r:IsObjectType("Texture") then r:SetAlpha(0) end
+            end
+            local ht = header.Text or (header.GetRegions and select(1, header:GetRegions()))
+            if ht and ht.SetTextColor then
+                ht:SetTextColor(ac.r, ac.g, ac.b, 1)
+                if UIW and UIW.Font then UIW.Font(ht, 14) end
+            end
+            header:ClearAllPoints()
+            header:SetPoint("TOP", GameMenuFrame, "TOP", 0, -10)
+            -- moved inside the frame it can overlap the first button — it's
+            -- decorative, so it must never swallow clicks
+            if header.EnableMouse then header:EnableMouse(false) end
+        end
+        if UIW and UIW.StyleBackdrop then
+            UIW:StyleBackdrop(GameMenuFrame, { bg = ns.COLORS and ns.COLORS.bg, border = bc })
+        end
+        if UIW and UIW.CreateShadow then UIW:CreateShadow(GameMenuFrame) end
+        local strip = GameMenuFrame:CreateTexture(nil, "ARTWORK")
+        strip:SetPoint("TOPLEFT", GameMenuFrame, "TOPLEFT", 0, 0)
+        strip:SetPoint("TOPRIGHT", GameMenuFrame, "TOPRIGHT", 0, 0)
+        strip:SetHeight(2)
+        if UIW and UIW.SetGradient then
+            UIW.SetGradient(strip, "HORIZONTAL", ac.r, ac.g, ac.b, 0.1, ac.r, ac.g, ac.b, 0.9)
+        end
+        if GameMenuFrame.InitButtons then
+            hooksecurefunc(GameMenuFrame, "InitButtons", function(menu)
+                if not menu.buttonPool then return end
+                for menuBtn in menu.buttonPool:EnumerateActive() do
+                    skinMenuButton(menuBtn, bc)
+                end
+            end)
+        end
+    end
+
+    -- ---- our button ----
+    if mod.db.gameMenuButton and GameMenuFrame.Layout then
+        local btn = CreateFrame("Button", "VCUI_GameMenuButton", GameMenuFrame, "MainMenuFrameButtonTemplate")
+        btn:SetSize(200, 35)
+        btn:SetScript("OnClick", function()
+            if InCombatLockdown() then
+                ns:Print(L["Not possible in combat."])
+                return
+            end
+            HideUIPanel(GameMenuFrame)
+            if ns.UI and ns.UI.ToggleMainFrame then ns.UI:ToggleMainFrame() end
+        end)
+        if mod.db.skinGameMenu then skinMenuButton(btn, bc) end
+
+        local baseHeight
+        hooksecurefunc(GameMenuFrame, "Layout", function()
+            if InCombatLockdown() then btn:Hide(); return end
+            if not (mod.active and mod.db.gameMenuButton) then btn:Hide(); return end
+            if not GameMenuFrame.buttonPool then btn:Hide(); return end
+
+            -- anchor below the shop button (fall back to options)
+            local anchor
+            for menuBtn in GameMenuFrame.buttonPool:EnumerateActive() do
+                local text = menuBtn:GetText()
+                if text == BLIZZARD_STORE then anchor = menuBtn; break
+                elseif text == GAMEMENU_OPTIONS then anchor = menuBtn end
+            end
+            if not anchor then btn:Hide(); return end
+
+            local w, h = anchor:GetWidth(), anchor:GetHeight()
+            if w and w > 0 then btn:SetSize(w, h or 35) end
+            btn:Show()
+            local hex = string.format("|cff%02x%02x%02x", ac.r * 255, ac.g * 255, ac.b * 255)
+            btn:SetText(hex .. "Vulo|r|cffffffffClassicUI|r")
+            if ns.UI and ns.UI.FONT_PATH then
+                local fs = btn:GetFontString()
+                if fs then fs:SetFont(ns.UI.FONT_PATH, 13, "") end
+            end
+            btn:ClearAllPoints()
+            btn:SetPoint("TOP", anchor, "BOTTOM", 0, -12)
+
+            -- push every pooled button below the anchor down by our height
+            local extraH = 40
+            local anchorBottom = anchor:GetBottom()
+            if anchorBottom then
+                for menuBtn in GameMenuFrame.buttonPool:EnumerateActive() do
+                    local top = menuBtn:GetTop()
+                    if top and top < anchorBottom + 2 then
+                        local p, rel, rp, x, y = menuBtn:GetPoint(1)
+                        if p then
+                            menuBtn:ClearAllPoints()
+                            menuBtn:SetPoint(p, rel, rp, x, (y or 0) - extraH)
+                        end
+                    end
+                end
+            end
+            if not baseHeight then baseHeight = GameMenuFrame:GetHeight() end
+            GameMenuFrame:SetHeight(baseHeight + extraH)
+        end)
+    end
+end
+
+-- =========================================================
 -- Lifecycle
 -- =========================================================
 local function onPlayerLogin()
     applyAllVisibility()
+    setupGameMenu()
 end
 
 function mod:OnEnable()
@@ -1213,6 +1382,7 @@ function mod:OnEnable()
 
     if ns.isInitialised then
         applyAllVisibility()
+        setupGameMenu()   -- covers enabling the module after login
     elseif C_Timer and C_Timer.After then
         C_Timer.After(1, applyAllVisibility)
     end
@@ -1397,6 +1567,14 @@ function mod:GetOptions()
             function()
                 if mod.db.skinStackSplit ~= false then setupStackSplitSkin() end
             end),
+
+        { type = "header", text = L["Game Menu"] },
+        tgl("skinGameMenu",      L["Game menu: VuloUI look"],
+            L["Restyles the Escape menu to match the addon look: dark panel, flat buttons, accent title. Changing this needs a /reload."],
+            setupGameMenu),
+        tgl("gameMenuButton",    L["Game menu: VuloClassicUI button"],
+            L["Adds a VuloClassicUI button to the Escape menu that opens the options window. Turning this off needs a /reload."],
+            setupGameMenu),
 
         { type = "spacer", height = 6 },
         { type = "section", title = L["Flight Timer"], collapsed = true, items = {

@@ -671,6 +671,57 @@ local function skinFriendsFrame()
     end
     skinArrow(_G.FriendsFrameFriendsScrollFrameScrollBarScrollUpButton, "up")
     skinArrow(_G.FriendsFrameFriendsScrollFrameScrollBarScrollDownButton, "down")
+
+    -- "Add friend" dialog — same dark panel treatment (keeps the two service
+    -- icons, restyles chrome, headline, edit box and the red buttons)
+    local af = _G.AddFriendFrame
+    if af then
+        stripTextures(af)
+        if af.Border then
+            if af.Border.SetAlpha then af.Border:SetAlpha(0) end
+            if af.Border.GetRegions then
+                for _, r in ipairs({ af.Border:GetRegions() }) do hideRegion(r) end
+            end
+        end
+        UI:StyleBackdrop(af, { bg = ns.COLORS and ns.COLORS.bg, border = bc })
+        if UI.CreateShadow then UI:CreateShadow(af) end
+        local afStrip = af:CreateTexture(nil, "ARTWORK")
+        afStrip:SetPoint("TOPLEFT", af, "TOPLEFT", 0, 0)
+        afStrip:SetPoint("TOPRIGHT", af, "TOPRIGHT", 0, 0)
+        afStrip:SetHeight(2)
+        if UI.SetGradient then
+            UI.SetGradient(afStrip, "HORIZONTAL", ac.r, ac.g, ac.b, 0.1, ac.r, ac.g, ac.b, 0.9)
+        end
+        -- headline + labels in our font, accent headline
+        for _, n in ipairs({ "AddFriendEntryFrameTitle", "AddFriendEntryFrameOrLabel",
+                             "AddFriendEntryFrameLeftTitle", "AddFriendEntryFrameRightTitle",
+                             "AddFriendEntryFrameLeftDescription", "AddFriendEntryFrameRightDescription" }) do
+            local fs = _G[n]
+            if fs and UI.Font then UI.Font(fs, n == "AddFriendEntryFrameTitle" and 13 or 11) end
+        end
+        local afTitle = _G.AddFriendEntryFrameTitle
+        if afTitle then afTitle:SetTextColor(ac.r, ac.g, ac.b) end
+        -- edit box -> dark inset
+        local eb = _G.AddFriendNameEditBox
+        if eb then
+            hideRegion(_G.AddFriendNameEditBoxLeft)
+            hideRegion(_G.AddFriendNameEditBoxMiddle)
+            hideRegion(_G.AddFriendNameEditBoxRight)
+            local ebBg = CreateFrame("Frame", nil, eb, BackdropTemplateMixin and "BackdropTemplate")
+            ebBg:SetPoint("TOPLEFT", eb, "TOPLEFT", -6, 2)
+            ebBg:SetPoint("BOTTOMRIGHT", eb, "BOTTOMRIGHT", 2, -2)
+            ebBg:SetFrameLevel(math.max(0, eb:GetFrameLevel() - 1))
+            if ebBg.SetBackdrop then
+                ebBg:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8",
+                                   edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
+                ebBg:SetBackdropColor(0.07, 0.07, 0.1, 0.95)
+                ebBg:SetBackdropBorderColor(bc.r, bc.g, bc.b, 1)
+            end
+        end
+        skinPanelButton(_G.AddFriendEntryFrameAcceptButton)
+        skinPanelButton(_G.AddFriendEntryFrameCancelButton)
+        skinPanelButton(_G.AddFriendInfoFrameContinueButton)
+    end
 end
 
 -- After Blizzard rebuilds the list, restyle every row. The scroll container
@@ -939,6 +990,10 @@ local function skinCommunitiesFrame()
                             chl:SetTexture(nil)
                             chl:SetColorTexture(1, 1, 1, 0.06)
                             chl:SetBlendMode("BLEND")
+                            -- Blizzard's plate-art anchors let it bleed past the
+                            -- flat header row — clamp it to the button
+                            chl:ClearAllPoints()
+                            chl:SetAllPoints(child)
                         end
                         local bg = child:CreateTexture(nil, "BACKGROUND")
                         bg:SetAllPoints(child)
