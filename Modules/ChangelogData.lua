@@ -6,6 +6,18 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+    { version = "1.34.3", sections = {
+        { category = "Game Menu", lines = {
+            "NEW: The Escape menu now wears the dark addon look — flat buttons, accent title — and gains a VuloClassicUI button that opens the options window. Both have their own toggles under General.",
+        } },
+        { category = "Friends List", lines = {
+            "The add friend dialog is skinned to match: dark panel, accent headline, dark input field and flat buttons.",
+            "Guild roster column header hover and click no longer stick out past the flat header row.",
+        } },
+        { category = "Chat", lines = {
+            "The combat log filter bar now shares the exact width and height of the chat tab row, flush with the panel edge.",
+        } },
+    } },
     { version = "1.34.2", sections = {
         { category = "Settings Window", lines = {
             "NEW: After an update, a pulsing dot on the \"Patch Notes\" entry points at the new notes until you open them once — account wide, per version.",
