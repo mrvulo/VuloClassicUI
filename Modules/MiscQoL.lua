@@ -1188,6 +1188,8 @@ local gameMenuDone = false
 local function skinMenuButton(b, bc)
     if not b or b._vcuiSkin then return end
     b._vcuiSkin = true
+    -- a touch taller than Blizzard's default — the flat look breathes better
+    b:SetHeight((b:GetHeight() or 26) + 4)
     local fs = b.GetFontString and b:GetFontString()
     for i = 1, select("#", b:GetRegions()) do
         local r = select(i, b:GetRegions())

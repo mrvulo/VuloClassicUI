@@ -617,19 +617,53 @@ local function muteKeyRingLayout(mute)
     end
 end
 
--- Blizzard hides individual micro buttons situationally, which leaves a gap in
--- the row. The user wants the FULL set visible, so every micro button is
--- force-shown, re-applied after Blizzard's own micro button updates. Micro
--- buttons are insecure, so this is taint-free.
+-- Blizzard hides individual micro buttons situationally and re-anchors the rest
+-- in a chain — force-shown buttons can end up stacked on top of each other (a
+-- button "disappears" underneath a neighbour). So: force-show the FULL set AND
+-- lay the row out ourselves in a fixed, gap-free order. Micro buttons are
+-- insecure, so all of this is taint-free.
+local MICRO_ORDER = {
+    CharacterMicroButton = 1, SpellbookMicroButton = 2, TalentMicroButton = 3,
+    QuestLogMicroButton = 4, SocialsMicroButton = 5, GuildMicroButton = 5,
+    LFGMicroButton = 6, StoreMicroButton = 7,
+    MainMenuMicroButton = 8, HelpMicroButton = 9,
+}
 local microHooked = false
+local microSeen = {}   -- buttons Blizzard itself has shown this session
 local function showAllMicro()
     local cs = chromeState.micro
     local container = cs and cs.targets and cs.targets[1]
     if not (container and container.GetChildren) then return end
+    local btns = {}
     for _, b in ipairs({ container:GetChildren() }) do
-        if b.IsObjectType and b:IsObjectType("Button") and not b:IsShown() then
-            b:Show()
+        if b.IsObjectType and b:IsObjectType("Button") then
+            -- keep every button Blizzard has EVER shown this session visible
+            -- (covers situational hiding, e.g. the shop) — but never resurrect
+            -- buttons Blizzard itself never shows (deprecated hidden twins)
+            if b:IsShown() then
+                microSeen[b] = true
+            elseif microSeen[b] then
+                b:Show()
+            end
+            if b:IsShown() then btns[#btns + 1] = b end
         end
+    end
+    if #btns == 0 then return end
+    table.sort(btns, function(a, b)
+        local oa = MICRO_ORDER[a:GetName() or ""] or 50
+        local ob = MICRO_ORDER[b:GetName() or ""] or 50
+        if oa ~= ob then return oa < ob end
+        return (a:GetName() or "") < (b:GetName() or "")
+    end)
+    local prev
+    for _, b in ipairs(btns) do
+        b:ClearAllPoints()
+        if prev then
+            b:SetPoint("LEFT", prev, "RIGHT", 1, 0)
+        else
+            b:SetPoint("BOTTOMLEFT", container, "BOTTOMLEFT", 0, 0)
+        end
+        prev = b
     end
 end
 

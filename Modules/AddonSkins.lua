@@ -38,6 +38,7 @@ local mod = ns:RegisterModule("addonskins", {
         novainstancetracker = true,
         gargul        = true,
         attune        = true,
+        wowsims       = true,
         leamaps       = true,   -- world-map options addon (referenced by frame only)
         questieBackup = nil,   -- Questie settings before we touched them
     },
@@ -923,7 +924,43 @@ local TARGETS = {
     { key = "novainstancetracker", addon = "NovaInstanceTracker" },
     { key = "gargul",              addon = "Gargul" },
     { key = "attune",              addon = "Attune" },
+    { key = "wowsims",             addon = "WowSimsExporter" },
 }
+
+-- =========================================================
+-- Simulation exporter button on the character window: skin it and slot it into
+-- the bottom tab row. The button is created WITHOUT a name, so it is found by
+-- its text among the character window's children.
+-- =========================================================
+function sk.skinWowSims()
+    if sk.done.wowsims or mod.db.wowsims == false then return end
+    if not _G.CharacterFrame then return end
+    local btn
+    for _, child in ipairs({ _G.CharacterFrame:GetChildren() }) do
+        if child.IsObjectType and child:IsObjectType("Button")
+            and not child:GetName()
+            and child.GetText and child:GetText() == "WowSims" then
+            btn = child
+            break
+        end
+    end
+    if not btn then return end   -- not created yet; retried by applyLoaded
+    sk.done.wowsims = true
+    skinButton(btn)
+    -- line it up with the bottom character tabs (after the last visible one)
+    local lastTab
+    for i = 1, 6 do
+        local tab = _G["CharacterFrameTab" .. i]
+        if tab and tab:IsShown() then lastTab = tab end
+    end
+    if lastTab then
+        btn:ClearAllPoints()
+        btn:SetPoint("LEFT", lastTab, "RIGHT", 8, 0)
+        btn:SetHeight(22)
+    end
+    -- the same addon's inspect-window button, when present
+    skinButton(_G.WSEInspectButton)
+end
 
 function sk.applyLoaded()
     if not mod.active then return end
@@ -941,6 +978,7 @@ function sk.applyLoaded()
     if loaded("NovaInstanceTracker") then sk.skinNovaInstanceTracker() end
     if loaded("Gargul") then sk.armGargul() end
     if loaded("Attune") then sk.armAttune() end
+    if loaded("WowSimsExporter") then sk.skinWowSims() end
     if _G.LeaMapsGlobalPanel then sk.armMapAddon() end
 end
 
@@ -959,6 +997,7 @@ local function onEvent(event, arg1)
         elseif arg1 == "NovaInstanceTracker" then sk.skinNovaInstanceTracker()
         elseif arg1 == "Gargul" then sk.armGargul()
         elseif arg1 == "Attune" then sk.armAttune()
+        elseif arg1 == "WowSimsExporter" then sk.skinWowSims()
         end
         -- world-map options addon: detect by its frame, not its name
         if _G.LeaMapsGlobalPanel then sk.armMapAddon() end
