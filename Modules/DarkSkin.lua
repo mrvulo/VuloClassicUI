@@ -55,7 +55,7 @@ local BAR_PREFIXES = {
     -- VuloClassicUI's own action-bar buttons (present when the Action Bars module
     -- has taken over) — skin these too, or the visible bars stay unskinned.
     "VuloActionButton", "VuloAB_bottomleftB", "VuloAB_bottomrightB",
-    "VuloAB_rightB", "VuloAB_leftB", "VuloAB_stanceB",
+    "VuloAB_rightB", "VuloAB_leftB", "VuloAB_extraB", "VuloAB_stanceB",
 }
 local EXTRA_PREFIXES = { "PetActionButton", "StanceButton" }
 

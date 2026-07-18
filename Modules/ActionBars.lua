@@ -32,6 +32,8 @@ local function barDefaults(over)
         perRow = 12, spacing = 4, x = 0, y = -300,
         alpha = 100, showEmpty = true, clickThrough = false,
         textKeybindSize = 0, textMacroSize = 0, textCountSize = 0, textCooldownSize = 0,
+        growH = "right",   -- right | left  (which side the buttons grow from)
+        growV = "down",    -- down | up     (which way extra rows stack)
         -- extra visibility conditions (combined with the visibility mode)
         onlyInstances = false, hideMounted = false,
         hideNoTarget = false, hideNoEnemyTarget = false,
@@ -54,6 +56,15 @@ local mod = ns:RegisterModule("actionbars", {
         hidePerfBar    = true,   -- hide Blizzard's green FPS/latency performance bar
         hideMicroMenu  = false,  -- hide the micro menu (menu buttons)
         hideBags       = false,  -- hide the bag bar
+        -- text styling (applies to all bars; colours + fine offsets)
+        textKeybindColor = { r = 1, g = 1, b = 1 },
+        textMacroColor   = { r = 1, g = 1, b = 1 },
+        textCountColor   = { r = 1, g = 1, b = 1 },
+        textKeybindX = 0, textKeybindY = 0,
+        textMacroX   = 0, textMacroY   = 0,
+        textCountX   = 0, textCountY   = 0,
+        -- hovering one mouseover bar reveals ALL mouseover bars
+        hoverShowsAll = false,
         -- look (applies to all bars)
         cdSwipe       = 80,      -- cooldown swipe opacity in percent
         cdSwipeColor  = { r = 0, g = 0, b = 0 },
@@ -80,6 +91,7 @@ local mod = ns:RegisterModule("actionbars", {
             bottomright = barDefaults({ y = -376 }),
             right       = barDefaults({ perRow = 6,  x = 520,  y = -40 }),
             left        = barDefaults({ perRow = 6,  x = 452,  y = -40 }),
+            extra       = barDefaults({ on = false, y = -262 }),   -- spare page (actions 13-24)
             stance      = barDefaults({ perRow = 10, x = -380, y = -250 }),
             pet         = barDefaults({ perRow = 10, x = 380,  y = -250 }),
         },
@@ -97,6 +109,9 @@ local BARS = {
     { key = "bottomright", kind = "reuse",  count = 12, base = 48, prefix = "MultiBarBottomRight", cmd = "MULTIACTIONBAR2BUTTON%d", label = "Action Bar 3" },
     { key = "right",       kind = "reuse",  count = 12, base = 24, prefix = "MultiBarRight",       cmd = "MULTIACTIONBAR3BUTTON%d", label = "Action Bar 4" },
     { key = "left",        kind = "reuse",  count = 12, base = 36, prefix = "MultiBarLeft",        cmd = "MULTIACTIONBAR4BUTTON%d", label = "Action Bar 5" },
+    -- spare page 2 (actions 13-24): no Blizzard bar shows these — a free extra
+    -- bar; its buttons are bound via the quick keybind mode (click bindings)
+    { key = "extra",       kind = "reuse",  count = 12, base = 12, cmd = "CLICK VuloAB_extraB%d:LeftButton", label = "Action Bar 6 (Extra)" },
     { key = "stance",      kind = "stance", count = 10, prefix = "StanceButton",    blizz = "StanceBarFrame",     cmd = "SHAPESHIFTBUTTON%d", label = "Stance bar" },
     { key = "pet",         kind = "pet",    count = 10, prefix = "PetActionButton", blizz = "PetActionBarFrame",  cmd = "BONUSACTIONBUTTON%d", label = "Pet bar" },
 }
@@ -365,19 +380,49 @@ local function layoutBar(desc)
     local sp = db.spacing or 4
     local iconSize = (db.iconSize and db.iconSize > 0) and db.iconSize or nil
 
-    -- per-button styling: icon size, text visibility + sizes, click-through
+    -- per-button styling: icon size, text visibility + sizes + colours +
+    -- fine offsets, click-through
     local function fontSize(fs, size)
         if fs and size and size > 0 and ns.ApplyFontSize then ns:ApplyFontSize(fs, size) end
     end
+    -- colour + nudge a button text; the original anchor is captured once so
+    -- offsets stay relative to Blizzard's default placement
+    local function styleText(fs, color, ox2, oy2)
+        if not fs then return end
+        if color then fs:SetTextColor(color.r or 1, color.g or 1, color.b or 1) end
+        ox2, oy2 = ox2 or 0, oy2 or 0
+        if ox2 ~= 0 or oy2 ~= 0 or fs._vcuiMoved then
+            if not fs._vcuiDef then
+                local p, rel, rp, x, y = fs:GetPoint(1)
+                if p then fs._vcuiDef = { p, rel, rp, x or 0, y or 0 } end
+            end
+            local d0 = fs._vcuiDef
+            if d0 then
+                fs:ClearAllPoints()
+                fs:SetPoint(d0[1], d0[2], d0[3], d0[4] + ox2, d0[5] + oy2)
+                fs._vcuiMoved = (ox2 ~= 0 or oy2 ~= 0) or nil
+            end
+        end
+    end
+    local g = mod.db
     for _, b in ipairs(st.buttons) do
         if iconSize then b:SetSize(iconSize, iconSize) end
         local nm = b:GetName()
         local hk = b.HotKey or (nm and _G[nm .. "HotKey"])
-        if hk then hk:SetShown(not db.hideKeybind); fontSize(hk, db.textKeybindSize) end
+        if hk then
+            hk:SetShown(not db.hideKeybind); fontSize(hk, db.textKeybindSize)
+            styleText(hk, g.textKeybindColor, g.textKeybindX, g.textKeybindY)
+        end
         local macro = b.Name or (nm and _G[nm .. "Name"])
-        if macro then macro:SetShown(not db.hideMacro); fontSize(macro, db.textMacroSize) end
+        if macro then
+            macro:SetShown(not db.hideMacro); fontSize(macro, db.textMacroSize)
+            styleText(macro, g.textMacroColor, g.textMacroX, g.textMacroY)
+        end
         local count = b.Count or (nm and _G[nm .. "Count"])
-        if count then fontSize(count, db.textCountSize) end
+        if count then
+            fontSize(count, db.textCountSize)
+            styleText(count, g.textCountColor, g.textCountX, g.textCountY)
+        end
         if (db.textCooldownSize or 0) > 0 and b.cooldown and b.cooldown.GetRegions then
             for _, r in ipairs({ b.cooldown:GetRegions() }) do
                 if r.GetObjectType and r:GetObjectType() == "FontString" then
@@ -403,6 +448,9 @@ local function layoutBar(desc)
             local col, row
             if db.vertical then row = slot % perRow; col = math.floor(slot / perRow)
             else               col = slot % perRow; row = math.floor(slot / perRow) end
+            -- grow direction: mirror columns / rows on demand
+            if db.growH == "left" then col = cols - 1 - col end
+            if db.growV == "up" then row = rows - 1 - row end
             b:ClearAllPoints()
             b:SetPoint("TOPLEFT", st.frame, "TOPLEFT", col * (w + sp), -row * (h + sp))
         end
@@ -890,6 +938,18 @@ local function refreshFade(desc)
     if abs(st.curAlpha - st.tgtAlpha) > 0.001 and updater then updater:Show() end
 end
 
+-- set the hovered flag on one mouseover bar — or, with "hover shows all", on
+-- EVERY mouseover bar at once
+local function setHovered(on)
+    for _, d2 in ipairs(BARS) do
+        local st2 = state[d2.key]
+        if st2 and barDB(d2.key).visibility == "mouseover" then
+            st2.hovered = on
+            refreshFade(d2)
+        end
+    end
+end
+
 local function hookHover(desc)
     local st = state[desc.key]
     if not st then return end
@@ -897,15 +957,22 @@ local function hookHover(desc)
         if not b.vHovered then
             b.vHovered = true
             b:HookScript("OnEnter", function()
-                if mod.active and barDB(desc.key).visibility == "mouseover" then st.hovered = true; refreshFade(desc) end
+                if not (mod.active and barDB(desc.key).visibility == "mouseover") then return end
+                if mod.db.hoverShowsAll then setHovered(true)
+                else st.hovered = true; refreshFade(desc) end
             end)
             b:HookScript("OnLeave", function()
                 if not (mod.active and barDB(desc.key).visibility == "mouseover") then return end
                 if C_Timer and C_Timer.After then
                     C_Timer.After(0.1, function()
-                        if mod.active and st.frame and not st.frame:IsMouseOver() then st.hovered = false; refreshFade(desc) end
+                        if not (mod.active and st.frame) or st.frame:IsMouseOver() then return end
+                        if mod.db.hoverShowsAll then setHovered(false)
+                        else st.hovered = false; refreshFade(desc) end
                     end)
-                else st.hovered = false; refreshFade(desc) end
+                else
+                    if mod.db.hoverShowsAll then setHovered(false)
+                    else st.hovered = false; refreshFade(desc) end
+                end
             end)
         end
     end
@@ -1406,6 +1473,22 @@ local function barSection(desc)
                   set = function(_, v) barDB(key).reverse = v; reapply() end },
             } },
             { type = "group", layout = "row", gap = 8, items = {
+                { type = "dropdown", label = L["Grow from"], width = 200,
+                  values = {
+                      { value = "right", text = L["Left edge (rightwards)"] },
+                      { value = "left",  text = L["Right edge (leftwards)"] },
+                  },
+                  get = function() return barDB(key).growH or "right" end,
+                  set = function(_, v) barDB(key).growH = v; reapply() end },
+                { type = "dropdown", label = L["Rows grow"], width = 200,
+                  values = {
+                      { value = "down", text = L["Downwards"] },
+                      { value = "up",   text = L["Upwards"] },
+                  },
+                  get = function() return barDB(key).growV or "down" end,
+                  set = function(_, v) barDB(key).growV = v; reapply() end },
+            } },
+            { type = "group", layout = "row", gap = 8, items = {
                 { type = "checkbox", label = L["Hide keybind text"],
                   get = function() return barDB(key).hideKeybind end,
                   set = function(_, v) barDB(key).hideKeybind = v; reapply() end },
@@ -1456,7 +1539,7 @@ function mod:GetOptions()
         { type = "desc",
           text = L["|cffaaaaaaOwn buttons for every action bar (1-5): real combat / mouseover show-hide, scale and grid layout, correct main-bar paging (druid/rogue/warrior/priest forms) and your keybinds. Move each in Edit Mode (/vedit). After disabling, /reload to fully restore Blizzard's bars.|r"] },
         { type = "desc",
-          text = L["|cff9b6cffButton border / icon style lives in the Dark Skin module (Action Bars → Bar style): square, accent edge, shadow and more.|r"] },
+          text = L["|cff9b6cffButton border / icon style lives in the Dark Skin module (Action Bars > Bar style): square, accent edge, shadow and more.|r"] },
         { type = "checkbox", label = L["Hide Blizzard's XP / reputation bar"],
           tooltip = L["Removes the leftover blue experience / reputation bar under the action bar."],
           get = function() return mod.db.hideStatusBars end,
@@ -1476,6 +1559,48 @@ function mod:GetOptions()
         { type = "slider", label = L["Fade speed (sec.)"], min = 0.05, max = 0.6, step = 0.01, width = 180,
           get = function() return mod.db.fadeSpeed end,
           set = function(_, v) mod.db.fadeSpeed = v end },
+        { type = "checkbox", label = L["Mouseover reveals all mouseover bars"],
+          tooltip = L["Hovering ANY mouseover bar shows every bar set to mouseover at once."],
+          get = function() return mod.db.hoverShowsAll end,
+          set = function(_, v) mod.db.hoverShowsAll = v end },
+        { type = "section", title = L["Button text styling"], collapsed = true, items = {
+            { type = "desc", text = L["|cffaaaaaaColours and fine offsets for the button texts, on every bar.|r"] },
+            { type = "group", layout = "row", gap = 8, items = {
+                { type = "color", label = L["Keybind text colour"], width = 150,
+                  get = function() return mod.db.textKeybindColor end,
+                  set = function(r, g, b) mod.db.textKeybindColor = { r = r, g = g, b = b }; reapply() end },
+                { type = "color", label = L["Macro text colour"], width = 150,
+                  get = function() return mod.db.textMacroColor end,
+                  set = function(r, g, b) mod.db.textMacroColor = { r = r, g = g, b = b }; reapply() end },
+                { type = "color", label = L["Count text colour"], width = 150,
+                  get = function() return mod.db.textCountColor end,
+                  set = function(r, g, b) mod.db.textCountColor = { r = r, g = g, b = b }; reapply() end },
+            } },
+            { type = "group", layout = "row", gap = 8, items = {
+                { type = "slider", label = L["Keybind offset X"], min = -20, max = 20, step = 1, width = 150,
+                  get = function() return mod.db.textKeybindX or 0 end,
+                  set = function(_, v) mod.db.textKeybindX = v; reapply() end },
+                { type = "slider", label = L["Keybind offset Y"], min = -20, max = 20, step = 1, width = 150,
+                  get = function() return mod.db.textKeybindY or 0 end,
+                  set = function(_, v) mod.db.textKeybindY = v; reapply() end },
+            } },
+            { type = "group", layout = "row", gap = 8, items = {
+                { type = "slider", label = L["Macro offset X"], min = -20, max = 20, step = 1, width = 150,
+                  get = function() return mod.db.textMacroX or 0 end,
+                  set = function(_, v) mod.db.textMacroX = v; reapply() end },
+                { type = "slider", label = L["Macro offset Y"], min = -20, max = 20, step = 1, width = 150,
+                  get = function() return mod.db.textMacroY or 0 end,
+                  set = function(_, v) mod.db.textMacroY = v; reapply() end },
+            } },
+            { type = "group", layout = "row", gap = 8, items = {
+                { type = "slider", label = L["Count offset X"], min = -20, max = 20, step = 1, width = 150,
+                  get = function() return mod.db.textCountX or 0 end,
+                  set = function(_, v) mod.db.textCountX = v; reapply() end },
+                { type = "slider", label = L["Count offset Y"], min = -20, max = 20, step = 1, width = 150,
+                  get = function() return mod.db.textCountY or 0 end,
+                  set = function(_, v) mod.db.textCountY = v; reapply() end },
+            } },
+        } },
         { type = "button", label = L["Quick keybind mode (/vkb)"], width = 240,
           tooltip = L["Hover an action button and press a key to bind it. Hidden bars are shown while binding."],
           onClick = function() if ns.OpenQuickKeybind then ns.OpenQuickKeybind() end end },
@@ -1541,7 +1666,7 @@ function mod:GetOptions()
             } },
         } },
     }
-    for _, key in ipairs({ "main", "bottomleft", "bottomright", "right", "left", "stance", "pet" }) do
+    for _, key in ipairs({ "main", "bottomleft", "bottomright", "right", "left", "extra", "stance", "pet" }) do
         items[#items + 1] = barSection(BAR_BY_KEY[key])
     end
     return items

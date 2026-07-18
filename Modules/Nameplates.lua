@@ -86,6 +86,21 @@ local mod = ns:RegisterModule("nameplates", {
         castOffsetX          = 0,        -- cast bar position/size overrides
         castOffsetY          = 0,
         castWidth            = 0,        -- 0 = match the health bar
+        castBgAlpha          = 0,        -- 0 = use the global background opacity
+        castBgColor          = { r = 0.05, g = 0.05, b = 0.06 },
+        castIconScale        = 100,      -- icon size relative to the bar height
+        castIconX            = 0,
+        castIconY            = 0,
+        castIconRight        = false,    -- icon on the right side of the bar
+        showCastShield       = true,     -- shield icon on uninterruptible casts
+        castKickTick         = false,    -- tick where YOUR interrupt comes off cooldown
+        colKickTick          = { r = 0.30, g = 1.00, b = 0.40 },
+        castInterruptFlash   = true,     -- flash the bar when a cast is interrupted
+        colInterruptFlash    = { r = 1.00, g = 0.25, b = 0.20 },
+        castTextColor        = { r = 1, g = 1, b = 1 },
+        castTimerSide        = "right",  -- right | left
+        castTimerColor       = { r = 1, g = 1, b = 1 },
+        hideNameWhileCasting = false,
 
         -- element offsets (fine positioning)
         nameOffsetX       = 0,
@@ -375,6 +390,14 @@ local function buildVisuals(f)
     f.castTimer = f.cast:CreateFontString(nil, "OVERLAY")
     f.castTimer:SetPoint("RIGHT", f.cast, "RIGHT", -3, 0)
     f.castTimer:SetJustifyH("RIGHT")
+    -- shield marker for uninterruptible casts
+    f.castShield = f.cast:CreateTexture(nil, "OVERLAY", nil, 2)
+    f.castShield:SetTexture("Interface\\CastingBar\\UI-CastingBar-Small-Shield")
+    f.castShield:SetTexCoord(0, 36 / 64, 0, 1)
+    f.castShield:Hide()
+    -- tick marking where YOUR interrupt comes off cooldown during this cast
+    f.kickTick = f.cast:CreateTexture(nil, "ARTWORK", nil, 3)
+    f.kickTick:Hide()
     f.cast:Hide()
 
     -- Aura rows (debuffs + buffs + CC). 1px anchor points; icons hang off centre.
@@ -426,23 +449,67 @@ local function layoutPlate(f)
 
     f.cast:ClearAllPoints()
     local castY = -(4 + ns:Pixel(f, d.borderSize)) + (d.castOffsetY or 0)
+    local iconSz = ch * ((d.castIconScale or 100) / 100)
     if d.showCastIcon then
-        -- icon sits LEFT of the bar: right-align the bar so icon + bar together
-        -- span exactly the intended width (matches the health bar at 0)
-        f.cast:SetPoint("TOPRIGHT", f.health, "BOTTOMRIGHT", d.castOffsetX or 0, castY)
+        -- bar is aligned so icon + bar together span exactly the intended
+        -- width (matches the health bar at 0); the icon side is configurable
+        if d.castIconRight then
+            f.cast:SetPoint("TOPLEFT", f.health, "BOTTOMLEFT", d.castOffsetX or 0, castY)
+        else
+            f.cast:SetPoint("TOPRIGHT", f.health, "BOTTOMRIGHT", d.castOffsetX or 0, castY)
+        end
     else
         f.cast:SetPoint("TOP", f.health, "BOTTOM", d.castOffsetX or 0, castY)
     end
     local cw = (d.castWidth or 0) > 0 and ns:PixelSnap(d.castWidth, f) or w
-    f.cast:SetSize(cw - (d.showCastIcon and (ch + 2) or 0), ch)
+    f.cast:SetSize(cw - (d.showCastIcon and (iconSz + 2) or 0), ch)
 
     f.healthText:ClearAllPoints()
     f.healthText:SetPoint("CENTER", f.health, "CENTER",
         d.healthTextOffsetX or 0, d.healthTextOffsetY or 0)
 
     f.castIcon:ClearAllPoints()
-    f.castIcon:SetPoint("RIGHT", f.cast, "LEFT", -2, 0)
-    f.castIcon:SetSize(ch, ch)
+    if d.castIconRight then
+        f.castIcon:SetPoint("LEFT", f.cast, "RIGHT", 2 + (d.castIconX or 0), d.castIconY or 0)
+    else
+        f.castIcon:SetPoint("RIGHT", f.cast, "LEFT", -2 + (d.castIconX or 0), d.castIconY or 0)
+    end
+    f.castIcon:SetSize(iconSz, iconSz)
+
+    -- cast background: own colour + optional own opacity (0 = global)
+    if f.castBG then
+        local cbc = d.castBgColor or { r = 0.05, g = 0.05, b = 0.06 }
+        f.castBG:SetColorTexture(cbc.r, cbc.g, cbc.b, 1)
+        f.castBG:SetAlpha((d.castBgAlpha or 0) > 0 and d.castBgAlpha or (d.bgAlpha or 0.85))
+    end
+
+    -- shield marker: over the icon when shown, else at the bar's left edge
+    if f.castShield then
+        f.castShield:ClearAllPoints()
+        f.castShield:SetSize(math.max(12, ch + 4), math.max(12, ch + 4))
+        if d.showCastIcon then
+            f.castShield:SetPoint("CENTER", f.castIcon, "CENTER", 0, -2)
+        else
+            f.castShield:SetPoint("CENTER", f.cast, "LEFT", 0, -2)
+        end
+    end
+
+    -- cast text + timer arrangement (the timer side is configurable)
+    if f.castTimer then
+        f.castTimer:ClearAllPoints()
+        f.castText:ClearAllPoints()
+        if d.castTimerSide == "left" then
+            f.castTimer:SetPoint("LEFT", f.cast, "LEFT", 3, 0)
+            f.castTimer:SetJustifyH("LEFT")
+            f.castText:SetPoint("LEFT", f.cast, "LEFT", d.castTimer and 30 or 3, 0)
+            f.castText:SetPoint("RIGHT", f.cast, "RIGHT", -3, 0)
+        else
+            f.castTimer:SetPoint("RIGHT", f.cast, "RIGHT", -3, 0)
+            f.castTimer:SetJustifyH("RIGHT")
+            f.castText:SetPoint("LEFT", f.cast, "LEFT", 3, 0)
+            f.castText:SetPoint("RIGHT", f.cast, "RIGHT", d.castTimer and -30 or -3, 0)
+        end
+    end
 
     -- borders track the bars (thin lines or a SharedMedia edge texture)
     applyBarBorders(f, d)
@@ -483,10 +550,14 @@ local function skinPlate(f)
     f.healthText:SetShown(d.showHealthText)
     f.castIcon:SetShown(d.showCastbar and d.showCastIcon)
     f.castText:SetShown(d.showCastbar and d.showCastText)
+    do
+        local tc = d.castTextColor or { r = 1, g = 1, b = 1 }
+        f.castText:SetTextColor(tc.r, tc.g, tc.b)
+    end
     if f.castTimer then
         f.castTimer:SetShown(d.showCastbar and d.castTimer)
-        -- reserve room for the timer on the right of the spell name
-        f.castText:SetPoint("RIGHT", f.cast, "RIGHT", d.castTimer and -30 or -3, 0)
+        local tc = d.castTimerColor or { r = 1, g = 1, b = 1 }
+        f.castTimer:SetTextColor(tc.r, tc.g, tc.b)
     end
 end
 
@@ -936,7 +1007,58 @@ end
 local function plateCastStop(f)
     f._casting = nil
     f.cast:Hide()
+    f.cast:SetAlpha(1)
+    if f.castShield then f.castShield:Hide() end
+    if f.kickTick then f.kickTick:Hide() end
+    if db().hideNameWhileCasting and f._mode == "full" then
+        f.name:SetShown(db().showName)
+    end
     f:SetScript("OnUpdate", nil)
+end
+
+-- interrupted: flash the bar briefly in the flash colour, then hide
+local function plateCastFlash(f)
+    local d = db()
+    if not d.castInterruptFlash or not f._casting then return plateCastStop(f) end
+    f._casting = nil
+    if f.castShield then f.castShield:Hide() end
+    if f.kickTick then f.kickTick:Hide() end
+    if d.hideNameWhileCasting and f._mode == "full" then f.name:SetShown(d.showName) end
+    local c = d.colInterruptFlash
+    f.cast:SetMinMaxValues(0, 1)
+    f.cast:SetValue(1)
+    f.cast:SetStatusBarColor(c.r, c.g, c.b)
+    f.cast:SetAlpha(1)
+    f.cast:Show()
+    local untilT = GetTime() + 0.8
+    f:SetScript("OnUpdate", function(self)
+        local left = untilT - GetTime()
+        if left <= 0 then return plateCastStop(self) end
+        self.cast:SetAlpha(math.min(1, left / 0.6))
+    end)
+end
+
+-- tick on the cast bar marking where YOUR interrupt comes off cooldown
+local function updateKickTick(f)
+    local d = db()
+    local tk = f.kickTick
+    if not tk then return end
+    if not d.castKickTick or f._castNoInt or not kickSpell or not f._casting then tk:Hide(); return end
+    local s, du = GetSpellCooldown(kickSpell)
+    if not s or s == 0 or (du or 0) <= 1.5 then tk:Hide(); return end   -- kick is ready: whole cast is kickable
+    local ready = s + du
+    if ready >= f._castEnd then tk:Hide(); return end                   -- never ready during this cast
+    local frac = (ready - f._castStart) / (f._castEnd - f._castStart)
+    if frac < 0 then frac = 0 end
+    local w = f.cast:GetWidth() or 0
+    if w <= 0 then tk:Hide(); return end
+    local c = d.colKickTick
+    tk:SetColorTexture(c.r, c.g, c.b, 0.95)
+    tk:ClearAllPoints()
+    tk:SetPoint("TOPLEFT", f.cast, "TOPLEFT", w * frac - 1, 0)
+    tk:SetPoint("BOTTOMLEFT", f.cast, "BOTTOMLEFT", w * frac - 1, 0)
+    tk:SetWidth(2)
+    tk:Show()
 end
 
 local function plateCastStart(f)
@@ -958,7 +1080,11 @@ local function plateCastStart(f)
     f._kickAcc     = 0
     f.cast:SetMinMaxValues(f._castStart, f._castEnd)
     paintCast(f, name, icon, notInterruptible)
+    f.cast:SetAlpha(1)
     f.cast:Show()
+    if f.castShield then f.castShield:SetShown(d.showCastShield and notInterruptible) end
+    if d.hideNameWhileCasting then f.name:Hide() end
+    updateKickTick(f)
     f:SetScript("OnUpdate", function(self, elapsed)
         if not self._casting then return end
         local now = GetTime()
@@ -968,12 +1094,18 @@ local function plateCastStart(f)
             self.castTimer:SetFormattedText("%.1f", self._castEnd - now)
         end
         -- your interrupt may come off (or go on) cooldown mid-cast — recheck
-        if not self._castNoInt and db().kickColorOn then
-            self._kickAcc = (self._kickAcc or 0) + (elapsed or 0)
-            if self._kickAcc > 0.2 then
-                self._kickAcc = 0
-                local c = castColor(db(), false)
-                self.cast:SetStatusBarColor(c.r, c.g, c.b)
+        if not self._castNoInt then
+            local d2 = db()
+            if d2.kickColorOn or d2.castKickTick then
+                self._kickAcc = (self._kickAcc or 0) + (elapsed or 0)
+                if self._kickAcc > 0.2 then
+                    self._kickAcc = 0
+                    if d2.kickColorOn then
+                        local c = castColor(d2, false)
+                        self.cast:SetStatusBarColor(c.r, c.g, c.b)
+                    end
+                    if d2.castKickTick then updateKickTick(self) end
+                end
             end
         end
     end)
@@ -1213,8 +1345,10 @@ local function acquirePlate()
         elseif event == "UNIT_SPELLCAST_START" or event == "UNIT_SPELLCAST_CHANNEL_START"
             or event == "UNIT_SPELLCAST_DELAYED" or event == "UNIT_SPELLCAST_CHANNEL_UPDATE" then
             plateCastStart(self)
+        elseif event == "UNIT_SPELLCAST_INTERRUPTED" then
+            plateCastFlash(self)
         elseif event == "UNIT_SPELLCAST_STOP" or event == "UNIT_SPELLCAST_CHANNEL_STOP"
-            or event == "UNIT_SPELLCAST_INTERRUPTED" or event == "UNIT_SPELLCAST_FAILED" then
+            or event == "UNIT_SPELLCAST_FAILED" then
             plateCastStop(self)
         elseif event == "UNIT_NAME_UPDATE" or event == "UNIT_FACTION" then
             refreshPlate(self)
@@ -1948,6 +2082,61 @@ function mod:GetOptions()
                   get = function() return mod.db.castOffsetY or 0 end,
                   set = function(_, v) mod.db.castOffsetY = v; applyAndRefresh() end },
             } },
+            { type = "color", label = L["Cast background colour"], width = 220,
+              get = function() return mod.db.castBgColor end,
+              set = function(r, g, b) mod.db.castBgColor = { r = r, g = g, b = b }; applyAndRefresh() end },
+            { type = "slider", label = L["Cast background opacity"], min = 0, max = 100, step = 5, width = SLW,
+              tooltip = L["0 = uses the global background opacity."],
+              get = function() return floor((mod.db.castBgAlpha or 0) * 100 + 0.5) end,
+              set = function(_, v) mod.db.castBgAlpha = v / 100; applyAndRefresh() end },
+            { type = "group", layout = "row", gap = 8, items = {
+                { type = "slider", label = L["Icon scale"], min = 50, max = 200, step = 5, width = SLW,
+                  get = function() return mod.db.castIconScale or 100 end,
+                  set = function(_, v) mod.db.castIconScale = v; applyAndRefresh() end },
+                { type = "checkbox", label = L["Icon on the right"],
+                  get = function() return mod.db.castIconRight end,
+                  set = function(_, v) mod.db.castIconRight = v; applyAndRefresh() end },
+            } },
+            { type = "group", layout = "row", gap = 8, items = {
+                { type = "slider", label = L["Icon offset X"], min = -40, max = 40, step = 1, width = SLW,
+                  get = function() return mod.db.castIconX or 0 end,
+                  set = function(_, v) mod.db.castIconX = v; applyAndRefresh() end },
+                { type = "slider", label = L["Icon offset Y"], min = -40, max = 40, step = 1, width = SLW,
+                  get = function() return mod.db.castIconY or 0 end,
+                  set = function(_, v) mod.db.castIconY = v; applyAndRefresh() end },
+            } },
+            { type = "checkbox", label = L["Shield on uninterruptible casts"],
+              get = function() return mod.db.showCastShield end,
+              set = function(_, v) mod.db.showCastShield = v; applyAndRefresh() end },
+            { type = "checkbox", label = L["Tick where your interrupt becomes ready"],
+              tooltip = L["Marks the spot on the enemy cast bar where YOUR interrupt comes off cooldown — everything after the tick is kickable."],
+              get = function() return mod.db.castKickTick end,
+              set = function(_, v) mod.db.castKickTick = v; applyAndRefresh() end },
+            { type = "color", label = L["Tick colour"], width = 200,
+              get = function() return mod.db.colKickTick end,
+              set = function(r, g, b) mod.db.colKickTick = { r = r, g = g, b = b }; applyAndRefresh() end },
+            { type = "checkbox", label = L["Flash when a cast is interrupted"],
+              get = function() return mod.db.castInterruptFlash end,
+              set = function(_, v) mod.db.castInterruptFlash = v; applyAndRefresh() end },
+            { type = "color", label = L["Flash colour"], width = 200,
+              get = function() return mod.db.colInterruptFlash end,
+              set = function(r, g, b) mod.db.colInterruptFlash = { r = r, g = g, b = b }; applyAndRefresh() end },
+            { type = "color", label = L["Cast text colour"], width = 200,
+              get = function() return mod.db.castTextColor end,
+              set = function(r, g, b) mod.db.castTextColor = { r = r, g = g, b = b }; applyAndRefresh() end },
+            { type = "dropdown", label = L["Timer side"], width = 220,
+              values = {
+                  { value = "right", text = L["Right"] },
+                  { value = "left",  text = L["Left"] },
+              },
+              get = function() return mod.db.castTimerSide or "right" end,
+              set = function(_, v) mod.db.castTimerSide = v; applyAndRefresh() end },
+            { type = "color", label = L["Timer colour"], width = 200,
+              get = function() return mod.db.castTimerColor end,
+              set = function(r, g, b) mod.db.castTimerColor = { r = r, g = g, b = b }; applyAndRefresh() end },
+            { type = "checkbox", label = L["Hide name while casting"],
+              get = function() return mod.db.hideNameWhileCasting end,
+              set = function(_, v) mod.db.hideNameWhileCasting = v; applyAndRefresh() end },
         } },
 
         -- ---- Target & threat ---------------------------------------------
