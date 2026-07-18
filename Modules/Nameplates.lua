@@ -55,7 +55,12 @@ local mod = ns:RegisterModule("nameplates", {
         showName        = true,
         nameSize        = 10,
         showHealthText  = true,
-        healthTextMode  = "percent",     -- none | percent | current | currentmax
+        healthTextMode  = "percent",     -- none | percent | current | currentmax | both
+        healthTextFormat = "%s (%s)",    -- layout for the "both" mode: value + percent
+        healthTextShort  = false,        -- rounded short values (12.3k)
+        healthTextPercentSign = true,    -- show the % sign on percent values
+        healthSmooth = false,            -- smooth bar movement + damage trail
+        bgTintByBar  = false,            -- tint the bar background with the bar colour
         fontSize        = 9,             -- shared base text size
         fontFace        = "",            -- SharedMedia font name ("" = addon font)
         -- individual text sizes (0 = inherit: fontSize, title inherits nameSize-2)
@@ -79,6 +84,13 @@ local mod = ns:RegisterModule("nameplates", {
         showCastIcon  = true,
         showCastText  = true,
         colCast              = { r = 0.70, g = 0.40, b = 0.90 },
+        kickReadyColorOn     = false,    -- own colour while YOUR interrupt is ready
+        colCastKickReady     = { r = 0.20, g = 0.85, b = 0.25 },
+        castChannelColor     = false,    -- own colour while channelling
+        colCastChannel       = { r = 0.24, g = 0.75, b = 0.30 },
+        castYouColorOn       = false,    -- own colour when the cast is aimed at YOU
+        colCastYou           = { r = 1, g = 0.15, b = 0.15 },
+        castInterrupter      = false,    -- show who interrupted on the flash
         colCastNoInterrupt   = { r = 0.55, g = 0.55, b = 0.55 },
         castTimer            = false,    -- remaining cast time on the bar
         kickColorOn          = false,    -- own colour while YOUR interrupt is on cooldown
@@ -171,6 +183,7 @@ local mod = ns:RegisterModule("nameplates", {
         showDispelGlow = true,           -- glow buffs you can steal/dispel
         colDispel      = { r = 0.60, g = 0.40, b = 1.00 },
         showAuraTimer  = true,
+        auraTimerDecimals = true,   -- "3.4" below 10s; off = whole seconds
         showAuraStacks = true,
         auraTimerSize  = 10,
         auraStackSize  = 9,
@@ -357,6 +370,11 @@ local function buildVisuals(f)
     -- Execute marker: a thin vertical line at a configurable health percent.
     f.execLine = f.health:CreateTexture(nil, "ARTWORK", nil, 3)
     f.execLine:Hide()
+    -- Damage trail for the smooth-health option: a bright strip over the part
+    -- of the bar currently draining away.
+    f.cutaway = f.health:CreateTexture(nil, "ARTWORK", nil, 1)
+    f.cutaway:SetColorTexture(1, 1, 1, 0.45)
+    f.cutaway:Hide()
     -- Mouseover wash over the bar.
     f.hover = f.health:CreateTexture(nil, "ARTWORK", nil, 4)
     f.hover:SetAllPoints(f.health)
@@ -436,6 +454,32 @@ local function applyBarBorders(f, d)
     applyBarBorder(f.cast,   f.castBorder,   f.castBD,   d)
 end
 
+-- Cast row placement (bar + icon). `f._castExtra` widens the row while this
+-- plate is the target, so the row's outer edge lines up with the health bar
+-- INCLUDING its target ring (set from paintTarget; 0 otherwise).
+local function layoutCastRow(f, d)
+    local w  = ns:PixelSnap(d.healthWidth, f)
+    local ch = ns:PixelSnap(d.castHeight, f)
+    local extra = f._castExtra or 0
+    f.cast:ClearAllPoints()
+    local castY = -(4 + ns:Pixel(f, d.borderSize)) + (d.castOffsetY or 0)
+    local iconSz = ch * ((d.castIconScale or 100) / 100)
+    if d.showCastIcon then
+        -- bar is aligned so icon + bar together span exactly the intended
+        -- width (matches the health bar at 0); the icon side is configurable
+        if d.castIconRight then
+            f.cast:SetPoint("TOPLEFT", f.health, "BOTTOMLEFT", (d.castOffsetX or 0) - extra / 2, castY)
+        else
+            f.cast:SetPoint("TOPRIGHT", f.health, "BOTTOMRIGHT", (d.castOffsetX or 0) + extra / 2, castY)
+        end
+    else
+        f.cast:SetPoint("TOP", f.health, "BOTTOM", d.castOffsetX or 0, castY)
+    end
+    local cw = ((d.castWidth or 0) > 0 and ns:PixelSnap(d.castWidth, f) or w) + extra
+    f.cast:SetSize(cw - (d.showCastIcon and (iconSz + 2) or 0), ch)
+    return iconSz
+end
+
 -- Position everything from the current settings (unit-independent).
 local function layoutPlate(f)
     local d = db()
@@ -447,22 +491,7 @@ local function layoutPlate(f)
     f.health:SetPoint("CENTER", f, "CENTER", 0, 0)
     f.health:SetSize(w, hh)
 
-    f.cast:ClearAllPoints()
-    local castY = -(4 + ns:Pixel(f, d.borderSize)) + (d.castOffsetY or 0)
-    local iconSz = ch * ((d.castIconScale or 100) / 100)
-    if d.showCastIcon then
-        -- bar is aligned so icon + bar together span exactly the intended
-        -- width (matches the health bar at 0); the icon side is configurable
-        if d.castIconRight then
-            f.cast:SetPoint("TOPLEFT", f.health, "BOTTOMLEFT", d.castOffsetX or 0, castY)
-        else
-            f.cast:SetPoint("TOPRIGHT", f.health, "BOTTOMRIGHT", d.castOffsetX or 0, castY)
-        end
-    else
-        f.cast:SetPoint("TOP", f.health, "BOTTOM", d.castOffsetX or 0, castY)
-    end
-    local cw = (d.castWidth or 0) > 0 and ns:PixelSnap(d.castWidth, f) or w
-    f.cast:SetSize(cw - (d.showCastIcon and (iconSz + 2) or 0), ch)
+    local iconSz = layoutCastRow(f, d)
 
     f.healthText:ClearAllPoints()
     f.healthText:SetPoint("CENTER", f.health, "CENTER",
@@ -561,14 +590,66 @@ local function skinPlate(f)
     end
 end
 
+local function fmtShortNum(v)
+    if v >= 1e6 then return format("%.1fm", v / 1e6)
+    elseif v >= 1e4 then return format("%.1fk", v / 1e3) end
+    return tostring(v)
+end
+
 local function healthTextString(d, cur, max)
     if d.healthTextMode == "none" or max <= 0 then return "" end
+    local short = d.healthTextShort
+    local pct = floor(cur / max * 100 + 0.5)
+        .. (d.healthTextPercentSign ~= false and "%" or "")
+    local curS = short and fmtShortNum(cur) or tostring(cur)
     if d.healthTextMode == "current" then
-        return tostring(cur)
+        return curS
     elseif d.healthTextMode == "currentmax" then
-        return format("%d/%d", cur, max)
+        return curS .. "/" .. (short and fmtShortNum(max) or tostring(max))
+    elseif d.healthTextMode == "both" then
+        return format(d.healthTextFormat or "%s (%s)", curS, pct)
     end
-    return floor(cur / max * 100 + 0.5) .. "%"   -- percent (default)
+    return pct   -- percent (default)
+end
+
+-- Smooth-health driver: the displayed value glides to the real one; while
+-- dropping, the cutaway strip covers the part being lost. OnUpdate runs on the
+-- health bar itself (the plate root's OnUpdate belongs to the cast bar).
+local function smoothHealthTo(f, cur)
+    local hb = f.health
+    f._hGoal = cur
+    if f._hShow == nil or math.abs(f._hShow - cur) < 0.5 then
+        f._hShow = cur
+        hb:SetValue(cur)
+        hb:SetScript("OnUpdate", nil)
+        if f.cutaway then f.cutaway:Hide() end
+        return
+    end
+    hb:SetScript("OnUpdate", function(bar, e)
+        local goal = f._hGoal or 0
+        f._hShow = f._hShow + (goal - f._hShow) * math.min(1, (e or 0) * 14)
+        if math.abs(goal - f._hShow) < 0.5 then
+            f._hShow = goal
+            bar:SetScript("OnUpdate", nil)
+            if f.cutaway then f.cutaway:Hide() end
+        end
+        bar:SetValue(f._hShow)
+        local ct = f.cutaway
+        if ct then
+            local _, mx = bar:GetMinMaxValues()
+            local w = bar:GetWidth() or 0
+            if f._hShow > goal + 0.5 and mx > 0 and w > 0 then
+                local a = goal / mx
+                ct:ClearAllPoints()
+                ct:SetPoint("TOPLEFT", bar, "TOPLEFT", w * a, 0)
+                ct:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", w * a, 0)
+                ct:SetWidth(math.max(1, w * (f._hShow / mx - a)))
+                ct:Show()
+            else
+                ct:Hide()
+            end
+        end
+    end)
 end
 
 -- Paint health value + colour + text from a data context.
@@ -576,9 +657,23 @@ local function paintHealth(f, ctx, cur, max)
     local d = db()
     if max <= 0 then max = 1 end
     f.health:SetMinMaxValues(0, max)
-    f.health:SetValue(cur)
+    if d.healthSmooth and f.unit then
+        smoothHealthTo(f, cur)
+    else
+        f._hShow = nil
+        f.health:SetValue(cur)
+        f.health:SetScript("OnUpdate", nil)
+        if f.cutaway then f.cutaway:Hide() end
+    end
     local r, g, b = healthColor(d, ctx)
     f.health:SetStatusBarColor(r, g, b)
+    if f.healthBG then
+        if d.bgTintByBar then
+            f.healthBG:SetColorTexture(r * 0.28, g * 0.28, b * 0.28, 0.9)
+        else
+            f.healthBG:SetColorTexture(0.05, 0.05, 0.06, 0.85)
+        end
+    end
     if d.showHealthText then f.healthText:SetText(healthTextString(d, cur, max)) end
 end
 
@@ -631,6 +726,16 @@ local function paintTarget(f, isTarget)
             c.r, c.g, c.b, 1, d.borderSize)
     else
         if f.targetGlow then for _, t in pairs(f.targetGlow) do t:Hide() end end
+    end
+    -- widen the cast row on the target so its own border lines up flush with
+    -- the outer edge of the health bar's target ring (auto-width mode only)
+    local extra = 0
+    if d.targetHighlight and isTarget and (d.castWidth or 0) == 0 then
+        extra = 2 * ns:Pixel(f.health, math.max(1, d.borderSize + 1))
+    end
+    if (f._castExtra or 0) ~= extra then
+        f._castExtra = extra
+        layoutCastRow(f, d)
     end
     -- optional bigger target plate (real plates only — the preview must keep
     -- its pixel-exact 1.0 scale)
@@ -686,15 +791,22 @@ local function kickOnCooldown()
     return (start or 0) > 0 and (dur or 0) > 1.5
 end
 
-local function castColor(d, notInterruptible)
+local function castColor(d, notInterruptible, f)
     if notInterruptible then return d.colCastNoInterrupt end
+    -- the mob is casting at YOU → warning colour beats everything else
+    if d.castYouColorOn and f and f.unit and UnitIsUnit(f.unit .. "target", "player") then
+        return d.colCastYou
+    end
     if d.kickColorOn and kickOnCooldown() then return d.colCastKickCd end
+    -- the inverse rule: your interrupt is ready right now → "kickable" colour
+    if d.kickReadyColorOn and kickSpell and not kickOnCooldown() then return d.colCastKickReady end
+    if d.castChannelColor and f and f._castChannel then return d.colCastChannel end
     return d.colCast
 end
 
 local function paintCast(f, name, icon, notInterruptible)
     local d = db()
-    local c = castColor(d, notInterruptible)
+    local c = castColor(d, notInterruptible, f)
     f.cast:SetStatusBarColor(c.r, c.g, c.b)
     if d.showCastText then f.castText:SetText(name or "") end
     if d.showCastIcon then f.castIcon:SetTexture(icon) end
@@ -771,7 +883,10 @@ local function fmtAuraTime(s)
     if s >= 3600 then return floor(s / 3600 + 0.5) .. "h"
     elseif s >= 60 then return floor(s / 60 + 0.5) .. "m"
     elseif s >= 10 then return tostring(floor(s))
-    elseif s > 0  then return format("%.1f", s) end
+    elseif s > 0 then
+        if db().auraTimerDecimals ~= false then return format("%.1f", s) end
+        return tostring(math.ceil(s))   -- whole seconds, counting 3..2..1
+    end
     return ""
 end
 
@@ -1017,6 +1132,25 @@ local function plateCastStop(f)
 end
 
 -- interrupted: flash the bar briefly in the flash colour, then hide
+-- Who interrupted last (from the combat log): a single record is enough —
+-- interrupts are rare and the flash only lives 0.8s. CLEU and the UI event can
+-- arrive in either order, so both sides check the other.
+local lastInterrupt = { guid = nil, name = nil, t = 0 }
+local function onCombatLogEvent()
+    if not db().castInterrupter then return end
+    local _, sub, _, _, srcName, _, _, dstGUID = CombatLogGetCurrentEventInfo()
+    if sub ~= "SPELL_INTERRUPT" or not dstGUID then return end
+    lastInterrupt.guid, lastInterrupt.name, lastInterrupt.t = dstGUID, srcName, GetTime()
+    -- late CLEU: a flash may already be running on that unit's plate
+    for _, f in pairs(ns.plates) do
+        if f._flashUntil and f._flashUntil > GetTime()
+            and f.unit and UnitGUID(f.unit) == dstGUID and srcName then
+            f.castText:SetFormattedText(L["Interrupted by %s"], srcName)
+            f.castText:Show()
+        end
+    end
+end
+
 local function plateCastFlash(f)
     local d = db()
     if not d.castInterruptFlash or not f._casting then return plateCastStop(f) end
@@ -1031,9 +1165,17 @@ local function plateCastFlash(f)
     f.cast:SetAlpha(1)
     f.cast:Show()
     local untilT = GetTime() + 0.8
+    f._flashUntil = untilT
+    -- interrupter name (if the combat log got there first)
+    if d.castInterrupter and f.unit and lastInterrupt.name
+        and lastInterrupt.guid == UnitGUID(f.unit)
+        and GetTime() - lastInterrupt.t < 1 then
+        f.castText:SetFormattedText(L["Interrupted by %s"], lastInterrupt.name)
+        f.castText:Show()
+    end
     f:SetScript("OnUpdate", function(self)
         local left = untilT - GetTime()
-        if left <= 0 then return plateCastStop(self) end
+        if left <= 0 then self._flashUntil = nil; return plateCastStop(self) end
         self.cast:SetAlpha(math.min(1, left / 0.6))
     end)
 end
@@ -1093,15 +1235,16 @@ local function plateCastStart(f)
         if self.castTimer and self.castTimer:IsShown() then
             self.castTimer:SetFormattedText("%.1f", self._castEnd - now)
         end
-        -- your interrupt may come off (or go on) cooldown mid-cast — recheck
+        -- your interrupt may come off (or go on) cooldown mid-cast, and the
+        -- mob may switch its target — recheck colour + tick on a throttle
         if not self._castNoInt then
             local d2 = db()
-            if d2.kickColorOn or d2.castKickTick then
+            if d2.kickColorOn or d2.kickReadyColorOn or d2.castKickTick or d2.castYouColorOn then
                 self._kickAcc = (self._kickAcc or 0) + (elapsed or 0)
                 if self._kickAcc > 0.2 then
                     self._kickAcc = 0
-                    if d2.kickColorOn then
-                        local c = castColor(d2, false)
+                    if d2.kickColorOn or d2.kickReadyColorOn or d2.castYouColorOn then
+                        local c = castColor(d2, false, self)
                         self.cast:SetStatusBarColor(c.r, c.g, c.b)
                     end
                     if d2.castKickTick then updateKickTick(self) end
@@ -1383,6 +1526,8 @@ local function onPlateAdded(_, unit)
     f:Show()
 
     hideBlizzard(nameplate)
+
+    f._hShow = nil   -- reused frame: snap the smooth-health value to the new unit
 
     f:RegisterUnitEvent("UNIT_HEALTH", unit)
     f:RegisterUnitEvent("UNIT_MAXHEALTH", unit)
@@ -1800,6 +1945,7 @@ function mod:OnEnable()
     ns:RegisterEvent("PLAYER_FOCUS_CHANGED", updateAllFocus)
     ns:RegisterEvent("RAID_TARGET_UPDATE", onRaidTargetUpdate)
     ns:RegisterEvent("UNIT_POWER_UPDATE", onComboUpdate)
+    ns:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", onCombatLogEvent)
     -- adopt any plates already on screen (e.g. /reload in combat)
     if C_NamePlate and C_NamePlate.GetNamePlates then
         for _, p in ipairs(C_NamePlate.GetNamePlates()) do
@@ -1818,6 +1964,7 @@ function mod:OnDisable()
     ns:UnregisterEvent("PLAYER_FOCUS_CHANGED", updateAllFocus)
     ns:UnregisterEvent("RAID_TARGET_UPDATE", onRaidTargetUpdate)
     ns:UnregisterEvent("UNIT_POWER_UPDATE", onComboUpdate)
+    ns:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED", onCombatLogEvent)
     for unit in pairs(ns.plates) do onPlateRemoved(nil, unit) end
     -- restore Blizzard plates that were suppressed
     if C_NamePlate and C_NamePlate.GetNamePlates then
@@ -1846,6 +1993,7 @@ local function textModeValues()
         { value = "percent",    text = L["Percent"] },
         { value = "current",    text = L["Current value"] },
         { value = "currentmax", text = L["Current / Max"] },
+        { value = "both",       text = L["Value + percent"] },
     }
 end
 
@@ -1912,6 +2060,16 @@ function mod:GetOptions()
                   get = function() return mod.db.healthHeight end,
                   set = function(_, v) mod.db.healthHeight = v; applyAndRefresh() end },
             } },
+            { type = "group", layout = "row", gap = 8, items = {
+                { type = "checkbox", label = L["Smooth health changes"],
+                  tooltip = L["The bar glides to the new value; a bright trail marks health draining away."],
+                  get = function() return mod.db.healthSmooth end,
+                  set = function(_, v) mod.db.healthSmooth = v; applyAndRefresh() end },
+                { type = "checkbox", label = L["Tint background with bar colour"],
+                  tooltip = L["The empty part of the bar shows a darkened shade of the bar colour instead of plain dark grey."],
+                  get = function() return mod.db.bgTintByBar end,
+                  set = function(_, v) mod.db.bgTintByBar = v; applyAndRefresh() end },
+            } },
             -- dropdowns + colours auto-arrange into even 2-column rows
             { type = "dropdown", label = L["Bar texture"], width = 300, values = textureValues(),
               get = function() return mod.db.healthTexture end,
@@ -1969,6 +2127,23 @@ function mod:GetOptions()
             { type = "dropdown", label = L["Health text"], width = 300, values = textModeValues(),
               get = function() return mod.db.healthTextMode end,
               set = function(_, v) mod.db.healthTextMode = v; applyAndRefresh() end },
+            { type = "dropdown", label = L["Value + percent layout"], width = 300,
+              values = {
+                  { value = "%s (%s)", text = "12.3k (45%)" },
+                  { value = "%s | %s", text = "12.3k | 45%" },
+                  { value = "%s - %s", text = "12.3k - 45%" },
+                  { value = "%s %s",   text = "12.3k 45%" },
+              },
+              get = function() return mod.db.healthTextFormat or "%s (%s)" end,
+              set = function(_, v) mod.db.healthTextFormat = v; applyAndRefresh() end },
+            { type = "group", layout = "row", gap = 8, items = {
+                { type = "checkbox", label = L["Short values (12.3k)"],
+                  get = function() return mod.db.healthTextShort end,
+                  set = function(_, v) mod.db.healthTextShort = v; applyAndRefresh() end },
+                { type = "checkbox", label = L["Show percent sign"],
+                  get = function() return mod.db.healthTextPercentSign ~= false end,
+                  set = function(_, v) mod.db.healthTextPercentSign = v; applyAndRefresh() end },
+            } },
             { type = "group", layout = "row", gap = 8, items = {
                 { type = "slider", label = L["Name size"], min = 6, max = 20, step = 1, width = SLW,
                   get = function() return mod.db.nameSize end,
@@ -2055,6 +2230,36 @@ function mod:GetOptions()
             { type = "color", label = L["Interrupt-on-cooldown colour"], width = 220,
               get = function() return mod.db.colCastKickCd end,
               set = function(r, g, b) mod.db.colCastKickCd = { r = r, g = g, b = b }; applyAndRefresh() end },
+            { type = "group", layout = "row", gap = 8, items = {
+                { type = "checkbox", label = L["Own colour while your interrupt is ready"],
+                  tooltip = L["Interruptible casts paint in this colour while your interrupt is off cooldown — kick at will."],
+                  get = function() return mod.db.kickReadyColorOn end,
+                  set = function(_, v) mod.db.kickReadyColorOn = v; applyAndRefresh() end },
+                { type = "color", label = L["Interrupt-ready colour"], width = 160,
+                  get = function() return mod.db.colCastKickReady end,
+                  set = function(r, g, b) mod.db.colCastKickReady = { r = r, g = g, b = b }; applyAndRefresh() end },
+            } },
+            { type = "group", layout = "row", gap = 8, items = {
+                { type = "checkbox", label = L["Own colour while channelling"],
+                  get = function() return mod.db.castChannelColor end,
+                  set = function(_, v) mod.db.castChannelColor = v; applyAndRefresh() end },
+                { type = "color", label = L["Channel colour"], width = 160,
+                  get = function() return mod.db.colCastChannel end,
+                  set = function(r, g, b) mod.db.colCastChannel = { r = r, g = g, b = b }; applyAndRefresh() end },
+            } },
+            { type = "group", layout = "row", gap = 8, items = {
+                { type = "checkbox", label = L["Own colour when the cast targets YOU"],
+                  tooltip = L["The bar turns this colour while the caster's target is you."],
+                  get = function() return mod.db.castYouColorOn end,
+                  set = function(_, v) mod.db.castYouColorOn = v; applyAndRefresh() end },
+                { type = "color", label = L["Targets-you colour"], width = 160,
+                  get = function() return mod.db.colCastYou end,
+                  set = function(r, g, b) mod.db.colCastYou = { r = r, g = g, b = b }; applyAndRefresh() end },
+            } },
+            { type = "checkbox", label = L["Show who interrupted"],
+              tooltip = L["The interrupt flash shows the name of whoever landed the interrupt."],
+              get = function() return mod.db.castInterrupter end,
+              set = function(_, v) mod.db.castInterrupter = v; applyAndRefresh() end },
             { type = "group", layout = "row", gap = 8, items = {
                 { type = "slider", label = L["Cast bar height"], min = 4, max = 30, step = 1, width = SLW,
                   get = function() return mod.db.castHeight end,
@@ -2237,6 +2442,10 @@ function mod:GetOptions()
             { type = "checkbox", label = L["Show timer text"],
               get = function() return mod.db.showAuraTimer end,
               set = function(_, v) mod.db.showAuraTimer = v; applyAndRefresh() end },
+            { type = "checkbox", label = L["Timer decimals below 10 seconds"],
+              tooltip = L["On: 9.9, 3.4 … Off: whole seconds (9, 3)."],
+              get = function() return mod.db.auraTimerDecimals ~= false end,
+              set = function(_, v) mod.db.auraTimerDecimals = v; applyAndRefresh() end },
             { type = "checkbox", label = L["Show stacks"],
               get = function() return mod.db.showAuraStacks end,
               set = function(_, v) mod.db.showAuraStacks = v; applyAndRefresh() end },

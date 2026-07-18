@@ -55,7 +55,9 @@ local mod = ns:RegisterModule("actionbars", {
         hideStatusBars = true,   -- hide Blizzard's leftover XP/reputation bar
         hidePerfBar    = true,   -- hide Blizzard's green FPS/latency performance bar
         hideMicroMenu  = false,  -- hide the micro menu (menu buttons)
+        microStyle     = "classic",  -- classic (Blizzard buttons) | modern (flat icon strip)
         hideBags       = false,  -- hide the bag bar
+        bagStyle       = "classic",  -- classic (Blizzard buttons) | modern (flat dark strip)
         -- text styling (applies to all bars; colours + fine offsets)
         textKeybindColor = { r = 1, g = 1, b = 1 },
         textMacroColor   = { r = 1, g = 1, b = 1 },
@@ -591,9 +593,10 @@ local function setFramesHidden(names, hide)
     end
 end
 
--- micro menu + bag bar hide toggles (alpha — works wherever the frames live)
+-- micro menu + bag bar hide toggles (alpha — works wherever the frames live).
+-- The modern micro style also blanks Blizzard's row: our own strip replaces it.
 local function applyMicroBags()
-    setFramesHidden(MICRO_FRAMES, mod.active and mod.db.hideMicroMenu)
+    setFramesHidden(MICRO_FRAMES, mod.active and (mod.db.hideMicroMenu or (taken and mod.db.microStyle == "modern")))
     setFramesHidden(BAG_FRAMES, mod.active and mod.db.hideBags)
 end
 
@@ -762,6 +765,8 @@ local function showAllMicro()
     end
 end
 
+local applyMicroStyle, applyBagStyle   -- fwd: modern strips, defined below restoreChrome
+
 local function applyChrome()
     if InCombatLockdown() then return end
     muteKeyRingLayout(true)
@@ -769,7 +774,10 @@ local function applyChrome()
     if not microHooked and type(_G.UpdateMicroButtons) == "function" then
         microHooked = true
         hooksecurefunc("UpdateMicroButtons", function()
-            if mod.active and taken then showAllMicro() end
+            if mod.active and taken then
+                showAllMicro()
+                if applyMicroStyle then applyMicroStyle() end
+            end
         end)
     end
     showAllMicro()
@@ -796,6 +804,424 @@ local function restoreChrome()
     if shell and shell._vcuiMouse ~= nil then shell:EnableMouse(shell._vcuiMouse) end
     for _, cs in pairs(chromeState) do
         if cs.holder then cs.holder:Hide() end
+    end
+end
+
+-- =========================================================
+-- Modern micro menu: our own flat dark strip (same look as the chat panel /
+-- sidebar) with monochrome line icons. Clicks forward to Blizzard's blanked
+-- micro buttons, so every button keeps its exact behaviour and tooltip.
+-- Everything here is insecure — taint-free.
+-- =========================================================
+local MICRO_ICON_DIR = "Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\"
+-- `action` overrides the click-forward: the character and main-menu buttons do
+-- their work in Blizzard's OnMouseUp (with an IsMouseOver check), so a
+-- forwarded Click() is a no-op there — call the toggles directly instead.
+-- `custom` entries have no Blizzard twin at all (map / friends list).
+local MODERN_MICRO = {
+    { names = { "CharacterMicroButton" }, icon = "micro\\character",
+      action = function() if ToggleCharacter then ToggleCharacter("PaperDollFrame") end end },
+    { names = { "SpellbookMicroButton" },                   icon = "micro\\spellbook" },
+    { names = { "TalentMicroButton" },                      icon = "micro\\talents" },
+    { names = { "QuestLogMicroButton" },                    icon = "micro\\questlog" },
+    { custom = true, icon = "micro\\map",
+      tip = function() return _G.WORLD_MAP or L["World map"] end,
+      action = function() if ToggleWorldMap then ToggleWorldMap() end end },
+    { names = { "SocialsMicroButton", "GuildMicroButton" }, icon = "micro\\socials" },
+    { custom = true, icon = "friends",
+      tip = function() return _G.FRIENDS_LIST or L["Friends list"] end,
+      action = function() if ToggleFriendsFrame then ToggleFriendsFrame(1) end end },
+    -- group finder + shop: always shown; prefer Blizzard's own button when the
+    -- client has one, otherwise toggle the frames directly
+    { names = { "LFGMicroButton" }, custom = true, icon = "micro\\lfg",
+      tip = function()
+          local t = _G.LFGMicroButton
+          return (t and t.tooltipText) or _G.LFG_TITLE or L["Group finder"]
+      end,
+      action = function(self)
+          local t = self._target
+          if t and t.Click and (t:IsShown() or microSeen[t]) then t:Click("LeftButton"); return end
+          if _G.ToggleLFGParentFrame then
+              _G.ToggleLFGParentFrame()
+          elseif _G.LFGParentFrame then
+              if _G.LFGParentFrame:IsShown() then HideUIPanel(_G.LFGParentFrame) else ShowUIPanel(_G.LFGParentFrame) end
+          end
+      end },
+    -- the shop is hard-protected on this client (addons may not open it, not
+    -- even via a forwarded click) — so the REAL store button joins the strip,
+    -- only restyled; its click then runs in Blizzard's own, permitted context
+    { adopt = "StoreMicroButton", icon = "micro\\store" },
+    { names = { "MainMenuMicroButton" }, icon = "gear",
+      action = function()
+          local gm = _G.GameMenuFrame
+          if not gm then return end
+          if gm:IsShown() then
+              HideUIPanel(gm)
+          else
+              if CloseMenus then CloseMenus() end
+              if PlaySound and SOUNDKIT then pcall(PlaySound, SOUNDKIT.IG_MAINMENU_OPEN) end
+              ShowUIPanel(gm)
+          end
+      end },
+    { names = { "HelpMicroButton" },                        icon = "micro\\help" },
+}
+local MICRO_BTN, MICRO_GAP, MICRO_PAD, MICRO_H, MICRO_ICON = 26, 3, 6, 34, 20
+local modernMicro
+local adoptSkin = {}   -- Blizzard button adopted into the strip -> original state
+
+-- take a real Blizzard micro button into the strip: blank its artwork, put our
+-- glyph on top. Function, tooltip and (secure) click path stay Blizzard's own.
+local function adoptMicroButton(b, icon)
+    if not adoptSkin[b] then
+        local st = { parent = b:GetParent() or UIParent, scale = b:GetScale() or 1, alphas = {} }
+        for i = 1, select("#", b:GetRegions()) do
+            local r = select(i, b:GetRegions())
+            if r and r.SetAlpha then st.alphas[r] = r:GetAlpha(); r:SetAlpha(0) end
+        end
+        adoptSkin[b] = st
+    end
+    if not b._vcuiGlyph then
+        local g = b:CreateTexture(nil, "OVERLAY")
+        g:SetPoint("CENTER")
+        g:SetVertexColor(1, 1, 1, 0.45)
+        b._vcuiGlyph = g
+        b:HookScript("OnEnter", function(self)
+            local a = ns.COLORS.accent
+            if self._vcuiGlyph then self._vcuiGlyph:SetVertexColor(a.r, a.g, a.b, 0.95) end
+        end)
+        b:HookScript("OnLeave", function(self)
+            if self._vcuiGlyph then self._vcuiGlyph:SetVertexColor(1, 1, 1, 0.45) end
+        end)
+    end
+    b._vcuiGlyph:SetTexture(MICRO_ICON_DIR .. icon .. ".tga")
+    b._vcuiGlyph:SetAlpha(1)
+    b._vcuiGlyph:Show()
+    if b.EnableMouse then b:EnableMouse(true) end
+end
+
+local function restoreAdoptedMicro()
+    for b, st in pairs(adoptSkin) do
+        for r, a in pairs(st.alphas) do if r.SetAlpha then r:SetAlpha(a) end end
+        if b._vcuiGlyph then b._vcuiGlyph:Hide() end
+        b._vcuiPinTo = nil
+        b:SetScale(st.scale)
+        b:SetParent(st.parent)
+        adoptSkin[b] = nil
+    end
+end
+
+local function ensureModernMicro()
+    if modernMicro then return end
+    local f = CreateFrame("Frame", "VuloABMicroModern", UIParent)
+    f:SetSize(220, MICRO_H)
+    local bg = f:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints()
+    bg:SetColorTexture(0.05, 0.05, 0.07, 0.85)
+    f.buttons = {}
+    for _, def in ipairs(MODERN_MICRO) do
+        if def.adopt then
+            local t = _G[def.adopt]
+            if t then
+                t._vcuiAdopt = def.icon   -- marker: re-adopted lazily in layout
+                adoptMicroButton(t, def.icon)
+                t:SetParent(f)
+                f.buttons[#f.buttons + 1] = t
+            end
+        else
+        local target
+        if def.names then
+            for _, n in ipairs(def.names) do if _G[n] then target = _G[n]; break end end
+        end
+        if target or def.custom then
+            local b = CreateFrame("Button", nil, f)
+            b:SetSize(MICRO_BTN, MICRO_BTN)
+            local ic = b:CreateTexture(nil, "ARTWORK")
+            ic:SetPoint("CENTER"); ic:SetSize(MICRO_ICON, MICRO_ICON)
+            ic:SetTexture(MICRO_ICON_DIR .. def.icon .. ".tga")
+            ic:SetVertexColor(1, 1, 1, 0.45)
+            b._icon, b._target, b._custom = ic, target, def.custom
+            b._action, b._tip = def.action, def.tip
+            b:SetScript("OnEnter", function(self)
+                local a = ns.COLORS.accent
+                ic:SetVertexColor(a.r, a.g, a.b, 0.95)
+                local tip = (self._tip and self._tip()) or (self._target and self._target.tooltipText)
+                if tip and GameTooltip then
+                    GameTooltip:SetOwner(self, "ANCHOR_TOP")
+                    GameTooltip:SetText(tip)
+                    GameTooltip:Show()
+                end
+            end)
+            b:SetScript("OnLeave", function()
+                ic:SetVertexColor(1, 1, 1, 0.45)
+                if GameTooltip then GameTooltip:Hide() end
+            end)
+            b:SetScript("OnClick", function(self)
+                if self._action then
+                    self._action(self)
+                elseif self._target and self._target.Click then
+                    self._target:Click("LeftButton")
+                end
+            end)
+            f.buttons[#f.buttons + 1] = b
+        end
+        end
+    end
+    modernMicro = f
+end
+
+-- only rows Blizzard itself shows (or has shown this session) get a slot —
+-- mirrors the classic showAllMicro rule, so e.g. a shop button that never
+-- exists on this client doesn't leave an empty gap
+local function layoutModernMicro()
+    if not modernMicro then return end
+    local x = MICRO_PAD
+    for _, b in ipairs(modernMicro.buttons) do
+        if b._vcuiAdopt then
+            -- a real Blizzard button riding in the strip: scale to slot height
+            if not adoptSkin[b] then adoptMicroButton(b, b._vcuiAdopt) end
+            local vis = (b:IsShown() or microSeen[b]) and true or false
+            b:SetShown(vis)
+            if vis then
+                b:SetParent(modernMicro)
+                local h = b:GetHeight()
+                local sc = (h and h > 0) and (MICRO_BTN / h) or 1
+                b:SetScale(sc)
+                b._vcuiGlyph:SetSize(MICRO_ICON / sc, MICRO_ICON / sc)
+                pinFrame(b, "LEFT", modernMicro, "LEFT", x / sc, 0)
+                x = x + (b:GetWidth() or MICRO_BTN) * sc + MICRO_GAP
+            end
+        else
+            local t = b._target
+            local vis = (b._custom or (t and (t:IsShown() or microSeen[t]))) and true or false
+            b:SetShown(vis)
+            if vis then
+                b:ClearAllPoints()
+                b:SetPoint("LEFT", modernMicro, "LEFT", x, 0)
+                x = x + MICRO_BTN + MICRO_GAP
+            end
+        end
+    end
+    modernMicro:SetSize(math.max(MICRO_BTN, x - MICRO_GAP + MICRO_PAD), MICRO_H)
+end
+
+-- Blizzard's micro buttons are only blanked via alpha, so they would still
+-- swallow clicks underneath our strip — cut their mouse too while modern is on.
+local function setMicroChildrenMouse(on)
+    local cs = chromeState.micro
+    local container = cs and cs.targets and cs.targets[1]
+    if not (container and container.GetChildren) then return end
+    for _, b in ipairs({ container:GetChildren() }) do
+        if b.IsObjectType and b:IsObjectType("Button") and b.EnableMouse then b:EnableMouse(on) end
+    end
+end
+
+function applyMicroStyle()   -- assigns the forward local above applyChrome
+    local modern = mod.active and taken and mod.db.microStyle == "modern" and not mod.db.hideMicroMenu
+    if modern then
+        ensureModernMicro()
+        local cs = chromeState.micro
+        if cs and cs.holder then
+            modernMicro:SetParent(cs.holder)
+            modernMicro:SetFrameLevel(cs.holder:GetFrameLevel() + 5)
+            modernMicro:ClearAllPoints()
+            modernMicro:SetPoint("CENTER", cs.holder, "CENTER", 0, 0)
+            layoutModernMicro()
+            cs.holder:SetSize(modernMicro:GetSize())
+            if cs.mover then
+                cs.mover:SetSize(cs.holder:GetWidth(), cs.holder:GetHeight())
+                if ns.ApplyMover then ns:ApplyMover(cs.mover) end
+            end
+        end
+        setMicroChildrenMouse(false)
+        modernMicro:Show()
+    else
+        if modernMicro then modernMicro:Hide() end
+        restoreAdoptedMicro()
+        setMicroChildrenMouse(true)
+    end
+end
+
+-- =========================================================
+-- Modern bag bar: the REAL Blizzard bag buttons, re-homed onto a flat dark
+-- strip in the same look as the modern micro menu. The buttons stay fully
+-- functional (open bag, drop a bag in, tooltips) — only the chrome changes:
+-- gold ring off, icon cropped, thin dark edge, uniform size.
+-- =========================================================
+local BAG_BTN_H = 26
+-- our own monochrome glyphs replace the bag item textures on the strip
+local BAG_GLYPHS = {
+    MainMenuBarBackpackButton = "micro\\backpack",
+    CharacterBag0Slot = "micro\\bag", CharacterBag1Slot = "micro\\bag",
+    CharacterBag2Slot = "micro\\bag", CharacterBag3Slot = "micro\\bag",
+    KeyRingButton = "micro\\key",
+}
+local modernBags
+local bagSkin = {}   -- button -> { parent, scale, width } original state
+
+local function ensureModernBags()
+    if modernBags then return end
+    local f = CreateFrame("Frame", "VuloABBagsModern", UIParent)
+    f:SetSize(220, MICRO_H)
+    local bg = f:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints()
+    bg:SetColorTexture(0.05, 0.05, 0.07, 0.85)
+    modernBags = f
+end
+
+local function skinBagButton(b, glyph)
+    if not bagSkin[b] then
+        bagSkin[b] = { parent = b:GetParent() or UIParent, scale = b:GetScale() or 1,
+                       width = b:GetWidth(), wasShown = b:IsShown() }
+    end
+    -- blank Blizzard's artwork entirely — our monochrome glyph replaces it
+    local ic = b.icon or _G[(b:GetName() or "") .. "IconTexture"]
+    local nt = b.GetNormalTexture and b:GetNormalTexture()
+    if nt then nt:SetAlpha(0) end
+    if ic then ic:SetAlpha(0) end
+    if not b._vcuiGlyph then
+        local g = b:CreateTexture(nil, "ARTWORK")
+        g:SetPoint("CENTER")
+        g:SetVertexColor(1, 1, 1, 0.45)
+        b._vcuiGlyph = g
+        b:HookScript("OnEnter", function(self)
+            if self._vcuiGlyph and self._vcuiGlyph:IsShown() then
+                local a = ns.COLORS.accent
+                self._vcuiGlyph:SetVertexColor(a.r, a.g, a.b, 0.95)
+            end
+        end)
+        b:HookScript("OnLeave", function(self)
+            if self._vcuiGlyph then self._vcuiGlyph:SetVertexColor(1, 1, 1, 0.45) end
+        end)
+    end
+    b._vcuiGlyph:SetTexture(MICRO_ICON_DIR .. glyph .. ".tga")
+    b._vcuiGlyph:Show()
+    -- item count (backpack): tuck it into the bottom-right corner instead of
+    -- sitting across the glyph
+    local cnt = _G[(b:GetName() or "") .. "Count"]
+    if cnt then
+        if not bagSkin[b].countPoint then
+            local p, rel, rp, px, py = cnt:GetPoint(1)
+            bagSkin[b].countPoint = { p or "CENTER", rel or b, rp or "CENTER", px or 0, py or 0 }
+        end
+        cnt:ClearAllPoints()
+        cnt:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -1, 2)
+    end
+end
+
+local function unskinBagButton(b)
+    local o = bagSkin[b]
+    if not o then return end
+    local ic = b.icon or _G[(b:GetName() or "") .. "IconTexture"]
+    local nt = b.GetNormalTexture and b:GetNormalTexture()
+    if nt then nt:SetAlpha(1) end
+    if ic then ic:SetAlpha(1) end
+    if b._vcuiGlyph then b._vcuiGlyph:Hide() end
+    local cnt = _G[(b:GetName() or "") .. "Count"]
+    if cnt and o.countPoint then
+        cnt:ClearAllPoints()
+        cnt:SetPoint(unpack(o.countPoint))
+    end
+    b._vcuiPinTo = nil
+    b:SetScale(o.scale)
+    if o.width and o.width > 0 then b:SetWidth(o.width) end
+    b:SetParent(o.parent)
+    -- never re-show the key ring button: its OnShow is broken on this client
+    -- (calls a function that does not exist) — it stays hidden either way
+    if o.wasShown ~= nil and b ~= _G.KeyRingButton then
+        b:SetShown(o.wasShown)
+    elseif b == _G.KeyRingButton then
+        b:Hide()
+    end
+    bagSkin[b] = nil
+end
+
+function applyBagStyle()   -- assigns the forward local above applyChrome
+    local modern = mod.active and taken and mod.db.bagStyle == "modern" and not mod.db.hideBags
+    local shell = _G.BagsBar
+    if modern then
+        local cs = chromeState.bags
+        if not (cs and cs.holder) then return end
+        ensureModernBags()
+        modernBags:SetParent(cs.holder)
+        modernBags:SetFrameLevel(cs.holder:GetFrameLevel() + 5)
+        modernBags:ClearAllPoints()
+        modernBags:SetPoint("CENTER", cs.holder, "CENTER", 0, 0)
+        local x = MICRO_PAD
+        -- Blizzard's key ring button (an odd half-height slot) stays out of the
+        -- strip entirely — the strip carries its OWN key-ring opener below
+        local krb = _G.KeyRingButton
+        if krb and bagSkin[krb] then unskinBagButton(krb); krb:Hide() end
+        for _, n in ipairs(BAG_SLOT_BUTTONS) do
+            local b = _G[n]
+            if b and n ~= "KeyRingButton" then
+                skinBagButton(b, BAG_GLYPHS[n] or "micro\\bag")
+                b:SetParent(modernBags)
+                local h = b:GetHeight()
+                local sc = (h and h > 0) and (BAG_BTN_H / h) or 1
+                b:SetScale(sc)
+                if b:GetWidth() < (h or 0) then b:SetWidth(h) end
+                b._vcuiGlyph:SetSize(MICRO_ICON / sc, MICRO_ICON / sc)
+                pinFrame(b, "LEFT", modernBags, "LEFT", x / sc, 0)
+                x = x + (b:GetWidth() or BAG_BTN_H) * sc + MICRO_GAP
+            end
+        end
+        -- our own key-ring opener, styled exactly like the micro strip buttons
+        local kb = modernBags._keyBtn
+        if not kb then
+            kb = CreateFrame("Button", nil, modernBags)
+            kb:SetSize(BAG_BTN_H, BAG_BTN_H)
+            local g = kb:CreateTexture(nil, "ARTWORK")
+            g:SetPoint("CENTER"); g:SetSize(MICRO_ICON, MICRO_ICON)
+            g:SetTexture(MICRO_ICON_DIR .. "micro\\key.tga")
+            g:SetVertexColor(1, 1, 1, 0.45)
+            kb:SetScript("OnEnter", function(self)
+                local a = ns.COLORS.accent
+                g:SetVertexColor(a.r, a.g, a.b, 0.95)
+                if GameTooltip then
+                    GameTooltip:SetOwner(self, "ANCHOR_TOP")
+                    GameTooltip:SetText(_G.KEYRING or L["Key ring"])
+                    GameTooltip:Show()
+                end
+            end)
+            kb:SetScript("OnLeave", function()
+                g:SetVertexColor(1, 1, 1, 0.45)
+                if GameTooltip then GameTooltip:Hide() end
+            end)
+            kb:SetScript("OnClick", function()
+                -- direct toggles only — the Blizzard button's handlers are
+                -- broken on this client (see OnShow note above)
+                if _G.ToggleKeyRing then _G.ToggleKeyRing()
+                elseif ToggleBag and KEYRING_CONTAINER then ToggleBag(KEYRING_CONTAINER) end
+            end)
+            modernBags._keyBtn = kb
+        end
+        kb:ClearAllPoints()
+        kb:SetPoint("LEFT", modernBags, "LEFT", x, 0)
+        kb:Show()
+        x = x + BAG_BTN_H + MICRO_GAP
+        modernBags:SetSize(math.max(BAG_BTN_H, x - MICRO_GAP + MICRO_PAD), MICRO_H)
+        cs.holder:SetSize(modernBags:GetSize())
+        if cs.mover then
+            cs.mover:SetSize(cs.holder:GetWidth(), cs.holder:GetHeight())
+            if ns.ApplyMover then ns:ApplyMover(cs.mover) end
+        end
+        -- the emptied container shell must not swallow clicks on our strip
+        if shell then
+            if shell._vcuiMouse == nil and shell.IsMouseEnabled then
+                shell._vcuiMouse = shell:IsMouseEnabled() and true or false
+            end
+            shell:EnableMouse(false)
+        end
+        modernBags:Show()
+    else
+        if modernBags then modernBags:Hide() end
+        if shell and shell._vcuiMouse ~= nil then shell:EnableMouse(shell._vcuiMouse) end
+        local restored = false
+        for b in pairs(bagSkin) do unskinBagButton(b); restored = true end
+        -- hand the buttons back to the classic holder layout
+        if restored and mod.active and taken and not InCombatLockdown() then
+            for _, c in ipairs(CHROME) do if c.key == "bags" then ensureChrome(c) end end
+        end
     end
 end
 
@@ -1159,6 +1585,8 @@ local function takeOver()
     for _, desc in ipairs(BARS) do applyBar(desc) end
     applyChrome(); applyXPBar(); applyLook()
     taken = true
+    -- these gate on `taken`, so they run again now that it is set
+    applyMicroBags(); applyMicroStyle(); applyBagStyle()
     -- ask the Dark Skin module to skin our freshly-created buttons
     if ns.ReskinActionButtons then ns.ReskinActionButtons() end
 end
@@ -1196,6 +1624,13 @@ local function restore()
     if pf then pf:SetAlpha(1) end
     local pb = _G.MainMenuBarPerformanceBarFrameButton
     if pb then pb:SetAlpha(1); if pb.EnableMouse then pb:EnableMouse(true) end end
+    if modernMicro then modernMicro:Hide() end
+    restoreAdoptedMicro()
+    setMicroChildrenMouse(true)
+    if modernBags then modernBags:Hide() end
+    for b in pairs(bagSkin) do unskinBagButton(b) end
+    local bagShell = _G.BagsBar
+    if bagShell and bagShell._vcuiMouse ~= nil then bagShell:EnableMouse(bagShell._vcuiMouse) end
     setFramesHidden(MICRO_FRAMES, false)
     setFramesHidden(BAG_FRAMES, false)
     setFramesHidden(STANCE_HIDE, false)
@@ -1218,7 +1653,7 @@ local function applyAll()
         takeOver()
     else
         for _, desc in ipairs(BARS) do applyBar(desc) end
-        applyChrome(); applyXPBar(); applyLook()
+        applyChrome(); applyXPBar(); applyLook(); applyMicroStyle(); applyBagStyle()
     end
 end
 
@@ -1551,11 +1986,32 @@ function mod:GetOptions()
         { type = "checkbox", label = L["Hide the micro menu"],
           tooltip = L["Hides the row of menu buttons (character, spellbook, …)."],
           get = function() return mod.db.hideMicroMenu end,
-          set = function(_, v) mod.db.hideMicroMenu = v; if mod.active then applyMicroBags() end end },
+          set = function(_, v) mod.db.hideMicroMenu = v; if mod.active then applyMicroBags(); applyMicroStyle() end end },
+        { type = "dropdown", label = L["Micro menu style"], width = 280,
+          tooltip = L["Modern replaces Blizzard's buttons with a flat dark icon strip in the VuloUI look. Clicks and tooltips stay identical."],
+          values = {
+              { value = "classic", text = L["Classic (Blizzard buttons)"] },
+              { value = "modern",  text = L["Modern (flat icon strip)"] },
+          },
+          get = function() return mod.db.microStyle or "classic" end,
+          set = function(_, v) mod.db.microStyle = v; if mod.active then applyMicroBags(); applyMicroStyle() end end },
         { type = "checkbox", label = L["Hide the bag bar"],
           tooltip = L["Hides the backpack and bag slots."],
           get = function() return mod.db.hideBags end,
-          set = function(_, v) mod.db.hideBags = v; if mod.active then applyMicroBags() end end },
+          set = function(_, v) mod.db.hideBags = v; if mod.active then applyMicroBags(); applyBagStyle() end end },
+        { type = "dropdown", label = L["Bag bar style"], width = 280,
+          tooltip = L["Modern puts the real bag buttons on a flat dark strip in the VuloUI look — opening, swapping and tooltips stay identical."],
+          values = {
+              { value = "classic", text = L["Classic (Blizzard buttons)"] },
+              { value = "modern",  text = L["Modern (flat icon strip)"] },
+          },
+          get = function() return mod.db.bagStyle or "classic" end,
+          set = function(_, v) mod.db.bagStyle = v; if mod.active then applyBagStyle() end end },
+        { type = "desc",
+          text = L["|cff9b6cffThe micro menu, bag bar, FPS/latency bar and the XP bar below are movable in Edit Mode (/vedit) like the action bars.|r"] },
+        { type = "button", label = L["Quick keybind mode (/vkb)"], width = 240,
+          tooltip = L["Hover an action button and press a key to bind it. Hidden bars are shown while binding."],
+          onClick = function() if ns.OpenQuickKeybind then ns.OpenQuickKeybind() end end },
         { type = "slider", label = L["Fade speed (sec.)"], min = 0.05, max = 0.6, step = 0.01, width = 180,
           get = function() return mod.db.fadeSpeed end,
           set = function(_, v) mod.db.fadeSpeed = v end },
@@ -1601,11 +2057,6 @@ function mod:GetOptions()
                   set = function(_, v) mod.db.textCountY = v; reapply() end },
             } },
         } },
-        { type = "button", label = L["Quick keybind mode (/vkb)"], width = 240,
-          tooltip = L["Hover an action button and press a key to bind it. Hidden bars are shown while binding."],
-          onClick = function() if ns.OpenQuickKeybind then ns.OpenQuickKeybind() end end },
-        { type = "desc",
-          text = L["|cff9b6cffThe micro menu, bag bar, FPS/latency bar and the XP bar below are movable in Edit Mode (/vedit) like the action bars.|r"] },
         { type = "section", title = L["Cooldown & look"], collapsed = true, items = {
             { type = "desc", text = L["|cffaaaaaaApplies to every action bar.|r"] },
             { type = "group", layout = "row", gap = 8, items = {
@@ -1654,7 +2105,7 @@ function mod:GetOptions()
               get = function() return mod.db.xpbar.on end,
               set = function(_, v) mod.db.xpbar.on = v; if mod.active then applyXPBar(); applyStatusBar() end end },
             { type = "group", layout = "row", gap = 8, items = {
-                { type = "slider", label = L["Width"], min = 120, max = 900, step = 10, width = 160,
+                { type = "slider", label = L["Width"], min = 120, max = 900, step = 1, width = 160,
                   get = function() return mod.db.xpbar.width end,
                   set = function(_, v) mod.db.xpbar.width = v; if mod.active then applyXPBar() end end },
                 { type = "slider", label = L["Height"], min = 6, max = 32, step = 1, width = 160,
