@@ -1690,12 +1690,12 @@ local function createSidebar()
         local botOff = ((mod.db and mod.db.sidebarBottomOffset) or 0) + py
         -- the Modern character style widens the window to the right (stats
         -- panel) — dock past that extension and use EXACTLY its top/bottom
-        -- edges (the classic fine-tune offsets compensate the classic art and
-        -- would skew the height here; the drag offset still applies)
-        local ext, extTop, extBot = 0, 0, 0
-        if ns.CharacterPanelModernExt then ext, extTop, extBot = ns.CharacterPanelModernExt() end
+        -- edges on EVERY tab (the classic fine-tune offsets compensate the
+        -- classic art and would skew the height; the drag offset still applies)
+        local ext, extTop, extBot, modernOn = 0, 0, 0, false
+        if ns.CharacterPanelModernExt then ext, extTop, extBot, modernOn = ns.CharacterPanelModernExt() end
         local x = -4 + px + ext + (ext > 0 and 6 or 0)
-        if ext > 0 then
+        if modernOn then
             topOff = extTop + py
             botOff = extBot + py
         end
@@ -1705,7 +1705,7 @@ local function createSidebar()
         -- docked next to the Modern window the drop shadow reads as a black rim
         -- around the sidebar (and makes it look taller) — hide it there
         if sidebar._vcShadow then
-            for _, t in ipairs(sidebar._vcShadow) do t:SetShown(ext == 0) end
+            for _, t in ipairs(sidebar._vcShadow) do t:SetShown(not modernOn) end
         end
     end
     anchorToCharacterFrame()

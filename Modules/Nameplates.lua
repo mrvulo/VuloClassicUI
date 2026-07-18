@@ -494,15 +494,18 @@ for _, id in ipairs({
     118, 12824, 12825, 12826, 28271, 28272, 61305, 61721, 61780,   -- Polymorph (+ variants)
     122, 865, 6131, 10230, 27088,                                  -- Frost Nova (root)
     33395,                                                         -- Freeze (water elemental)
+    31661, 33041, 33042, 33043,                                    -- Dragon's Breath
+    12355,                                                         -- Impact stun
     -- Warlock
-    5782, 6213, 6215, 6789, 17925, 17926,                          -- Fear / Death Coil
+    5782, 6213, 6215, 6789, 17925, 17926, 27223,                   -- Fear / Death Coil
     5484, 17928,                                                   -- Howl of Terror
     6358,                                                          -- Seduction
     710, 18647,                                                    -- Banish
+    30283, 30413, 30414,                                           -- Shadowfury
     -- Priest
     8122, 8124, 10888, 10890,                                      -- Psychic Scream
     9484, 9485, 10955,                                             -- Shackle Undead
-    605,                                                           -- Mind Control
+    605, 10911, 10912,                                             -- Mind Control
     -- Rogue
     6770, 2070, 11297,                                             -- Sap
     2094,                                                          -- Blind
@@ -513,7 +516,9 @@ for _, id in ipairs({
     33786,                                                         -- Cyclone
     2637, 18657, 18658,                                            -- Hibernate
     339, 1062, 5195, 5196, 9852, 9853, 26989,                      -- Entangling Roots
+    19970, 19971, 19972, 19973, 19974, 19975,                      -- Nature's Grasp roots
     5211, 6798, 8983,                                              -- Bash
+    9005, 9823, 9827, 27006,                                       -- Pounce stun
     22570,                                                         -- Maim
     -- Hunter
     3355, 14308, 14309,                                            -- Freezing Trap
@@ -527,7 +532,11 @@ for _, id in ipairs({
     10326,                                                         -- Turn Evil
     -- Warrior
     5246,                                                          -- Intimidating Shout
-    -- Misc / pets
+    12809,                                                         -- Concussion Blow
+    7922,                                                          -- Charge stun
+    20253, 20614, 20615, 25274,                                    -- Intercept stun
+    -- Racials / misc / pets
+    20549,                                                         -- War Stomp
     1098, 11725, 11726,                                            -- Enslave Demon
 }) do CC_SPELLS[id] = true end
 

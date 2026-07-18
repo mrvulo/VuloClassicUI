@@ -1305,10 +1305,14 @@ local MODERN_RIGHT_EXT = 172
 -- plus its top/bottom edge offsets — so frames docked right of the window (the
 -- loadouts sidebar) can shift over and match the Modern chrome's height.
 ns.CharacterPanelModernExt = function()
+    -- 4th return: is the Modern style active at all (its window edges apply on
+    -- EVERY tab). The right extension itself only exists while the paperdoll
+    -- tab shows the stats panel.
     if cpMod and cpMod.active and cpStyle() == "modern" then
-        return MODERN_RIGHT_EXT, -6, 72
+        local ext = (_G.PaperDollFrame and _G.PaperDollFrame:IsShown()) and MODERN_RIGHT_EXT or 0
+        return ext, -6, 72, true
     end
-    return 0, 0, 0
+    return 0, 0, 0, false
 end
 
 local function ensureModernChrome()
@@ -1656,7 +1660,14 @@ local function UpdateCharacterPanel()
 		if cpStyle() == "modern" then
 			applyModernPanes(true)
 			applyModernTabs(true)
-			ns:RenderModernCharacterPanel()
+			-- the stats panel + right extension belong to the PAPERDOLL tab only;
+			-- on skills / reputation / honor tabs they must go away
+			if _G.PaperDollFrame and _G.PaperDollFrame:IsShown() then
+				ns:RenderModernCharacterPanel()
+			else
+				if modernPanel then modernPanel:Hide() end
+				applyModernChrome(false)
+			end
 		else
 			if modernPanel then modernPanel:Hide() end
 			applyModernChrome(false)
@@ -1670,6 +1681,14 @@ end
 
 -- Exposed so the options toggles can refresh the open panel immediately
 ns.RefreshCharacterPanel = UpdateCharacterPanel
+
+-- Tab switches inside the character window toggle the sub-frames without any
+-- of our events firing — follow the paperdoll's own show/hide so the Modern
+-- stats panel appears and disappears with its tab.
+if _G.PaperDollFrame then
+	_G.PaperDollFrame:HookScript("OnShow", UpdateCharacterPanel)
+	_G.PaperDollFrame:HookScript("OnHide", UpdateCharacterPanel)
+end
 
 -- =========================================================
 -- Events

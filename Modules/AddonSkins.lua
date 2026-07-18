@@ -363,6 +363,48 @@ function sk.skinAtlasLoot()
     skinClose(f.CloseButton or _G["AtlasLoot_GUI-Frame-CloseButton"])
 end
 
+-- AtlasLoot arena-points side panel (honor tab): house look, docked flush
+-- beside the equipment-set sidebar at its exact height so window, sidebar and
+-- calculator read as one row of panels.
+function sk.skinAtlasLootPVP()
+    if sk.done.atlaslootpvp or mod.db.atlasloot == false then return end
+    local p = _G.AtlasLootPVPSidePanel
+    if not p then return end
+    sk.done.atlaslootpvp = true
+    if p.SetBackdrop then p:SetBackdrop(nil) end
+    panelize(p)
+    -- our font on every label; sizes and the panel's own colours stay
+    if ns.UI and ns.UI.Font then
+        for _, r in ipairs({ p:GetRegions() }) do
+            if r.IsObjectType and r:IsObjectType("FontString") then
+                local _, size = r:GetFont()
+                ns.UI.Font(r, math.max(10, math.floor((size or 12) + 0.5)))
+            end
+        end
+    end
+    for _, child in ipairs({ p:GetChildren() }) do
+        if child.IsObjectType and child:IsObjectType("Button")
+            and child.GetText and child:GetText() then
+            skinButton(child)
+        end
+    end
+    -- the "Calculator" toggle button on the arena section of the honor tab
+    skinButton(_G.AtlasLootPVPCalcToggleButton)
+    local function dock()
+        local sb = _G.VCUI_LoadoutsSidebar
+        p:ClearAllPoints()
+        if sb and sb:IsShown() then
+            p:SetPoint("TOPLEFT", sb, "TOPRIGHT", 2, 0)
+            p:SetPoint("BOTTOMLEFT", sb, "BOTTOMRIGHT", 2, 0)
+        elseif _G.CharacterFrame then
+            p:SetPoint("TOPLEFT", _G.CharacterFrame, "TOPRIGHT", 6, -8)
+            p:SetPoint("BOTTOMLEFT", _G.CharacterFrame, "BOTTOMRIGHT", 6, 45)
+        end
+    end
+    dock()
+    p:HookScript("OnShow", dock)
+end
+
 function sk.armAtlasLoot()
     if sk.armed_atlasloot then return end
     local al = _G.AtlasLoot
@@ -377,8 +419,16 @@ function sk.armAtlasLoot()
             if mod.active then sk.skinAtlasLoot() end
         end)
     end
+    -- the arena-points panel is created lazily — skin it when the honor tab opens
+    if _G.PVPFrame and not sk.armed_atlaslootpvp then
+        sk.armed_atlaslootpvp = true
+        _G.PVPFrame:HookScript("OnShow", function()
+            if mod.active then sk.skinAtlasLootPVP() end
+        end)
+    end
     sk.armed_atlasloot = true   -- after the hooks: a hook error must not latch
     sk.skinAtlasLoot()
+    sk.skinAtlasLootPVP()
 end
 
 -- =========================================================
