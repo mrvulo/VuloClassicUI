@@ -32,6 +32,10 @@ local function barDefaults(over)
         perRow = 12, spacing = 4, x = 0, y = -300,
         alpha = 100, showEmpty = true, clickThrough = false,
         textKeybindSize = 0, textMacroSize = 0, textCountSize = 0, textCooldownSize = 0,
+        -- extra visibility conditions (combined with the visibility mode)
+        onlyInstances = false, hideMounted = false,
+        hideNoTarget = false, hideNoEnemyTarget = false,
+        groupVis = "any",   -- any | group | raid | party | solo
     }
     for k, v in pairs(over) do d[k] = v end
     return d
@@ -52,6 +56,8 @@ local mod = ns:RegisterModule("actionbars", {
         hideBags       = false,  -- hide the bag bar
         -- look (applies to all bars)
         cdSwipe       = 80,      -- cooldown swipe opacity in percent
+        cdSwipeColor  = { r = 0, g = 0, b = 0 },
+        cdAlpha       = 100,     -- icon opacity while on cooldown (100 = off)
         desatOnCd     = false,   -- desaturate icons while on cooldown
         rangeColoring = false,   -- tint icons when the target is out of range
         rangeColor    = { r = 0.8, g = 0.15, b = 0.15 },
@@ -68,7 +74,8 @@ local mod = ns:RegisterModule("actionbars", {
         -- per bar: on/visibility/fade/perRow/spacing + mover position (x,y = CENTER
         -- offset) and scale (multiplier). Position/scale are edited in Edit Mode.
         bars = {
-            main        = barDefaults({ y = -300 }),
+            -- main also carries the modifier/target paging (page number 2-6, 0 = off)
+            main        = barDefaults({ y = -300, pageShift = 0, pageCtrl = 0, pageAlt = 0, pageHelp = 0, pageHarm = 0 }),
             bottomleft  = barDefaults({ y = -338 }),
             bottomright = barDefaults({ y = -376 }),
             right       = barDefaults({ perRow = 6,  x = 520,  y = -40 }),
@@ -161,6 +168,17 @@ end
 
 local function pageDriver()
     local conds = {}
+    -- user-configured modifier / target paging comes FIRST (highest precedence)
+    local db = barDB("main")
+    local function modpage(cond, page)
+        page = tonumber(page) or 0
+        if page >= 2 and page <= 6 then conds[#conds + 1] = cond .. page end
+    end
+    modpage("[mod:shift]", db.pageShift)
+    modpage("[mod:ctrl]",  db.pageCtrl)
+    modpage("[mod:alt]",   db.pageAlt)
+    modpage("[@target,help]", db.pageHelp)
+    modpage("[@target,harm]", db.pageHarm)
     for p = 2, 6 do conds[#conds + 1] = ("[bar:%d]%d"):format(p, p) end
     local _, class = UnitClass("player")
     local states = CLASS_STATES[class]
@@ -181,6 +199,22 @@ local function keyAbbr(key)
         :gsub("SHIFT%-", "s-"):gsub("STRG%-", "c-"):gsub("CTRL%-", "c-"):gsub("ALT%-", "a-")
         :gsub("BUTTON", "M"):gsub("MOUSEWHEELUP", "MwU"):gsub("MOUSEWHEELDOWN", "MwD")
         :gsub("NUMPAD", "N"):gsub("SPACE", "Sp"))
+end
+
+-- make one of our own buttons respond to Blizzard's quick-keybind mode: the
+-- mode works off a visible button's `commandName` FIELD plus the quick-keybind
+-- mixin's mouse scripts. Never call the mixin's OnShow eagerly (it registers
+-- persistent callbacks that would poke secure scripts on every mode change).
+local function wireQuickKeybind(b, command)
+    b.commandName = command
+    if not _G.QuickKeybindButtonTemplateMixin or b._vcuiQKB then return end
+    b._vcuiQKB = true
+    Mixin(b, _G.QuickKeybindButtonTemplateMixin)
+    b:HookScript("OnShow", b.QuickKeybindButtonOnShow)
+    b:HookScript("OnHide", b.QuickKeybindButtonOnHide)
+    b:HookScript("OnClick", b.QuickKeybindButtonOnClick)
+    b:HookScript("OnEnter", b.QuickKeybindButtonOnEnter)
+    b:HookScript("OnLeave", b.QuickKeybindButtonOnLeave)
 end
 
 -- =========================================================
@@ -225,6 +259,7 @@ local function ensureBar(desc)
             b:SetAttributeNoHandler("action", 0)
             b:SetAttributeNoHandler("index", i)
             b:SetAttributeNoHandler("commandName", "ACTIONBUTTON" .. i)
+            wireQuickKeybind(b, "ACTIONBUTTON" .. i)
             b:SetAttributeNoHandler("useparent-checkselfcast", true)
             b:SetAttributeNoHandler("useparent-checkfocuscast", true)
             b:SetAttributeNoHandler("useparent-checkmouseovercast", true)
@@ -271,6 +306,7 @@ local function ensureBar(desc)
             b:SetAttributeNoHandler("action", 0)
             b:SetAttributeNoHandler("index", i)
             b:SetAttributeNoHandler("commandName", desc.cmd:format(i))
+            wireQuickKeybind(b, desc.cmd:format(i))
             b:SetAttributeNoHandler("_childupdate-offset", [[
                 local offset = message or 0
                 local id = self:GetAttribute('index') + offset
@@ -388,24 +424,35 @@ local function pageBar(desc)
     end
 end
 
+-- Visibility: the mode (always/combat/out of combat) plus the extra conditions
+-- are folded into ONE secure driver bracket (conditions inside a bracket are
+-- AND-ed), so everything keeps working in combat. "Only in instances" has no
+-- macro conditional — it is pre-gated insecurely and re-evaluated on zone
+-- changes. Mouseover stays an alpha fade on top of the driver.
 local function visBar(desc)
     local st = state[desc.key]
     if not st or not st.frame or InCombatLockdown() then return end
-    local m = barDB(desc.key).visibility
-    if desc.kind == "pet" then
-        -- the pet bar only ever shows while a pet with an action bar exists;
-        -- the secure driver folds the user's visibility choice into that.
-        local cond
-        if m == "combat" then cond = "[@pet,exists,combat] show; hide"
-        elseif m == "noncombat" then cond = "[@pet,exists,nocombat] show; hide"
-        else cond = "[@pet,exists] show; hide" end
-        RegisterStateDriver(st.frame, "userDisplay", cond)
+    local db = barDB(desc.key)
+    if db.onlyInstances and not IsInInstance() then
+        RegisterStateDriver(st.frame, "userDisplay", "hide")
         return
     end
-    if m == "combat" then
-        RegisterStateDriver(st.frame, "userDisplay", "[combat] show; hide")
-    elseif m == "noncombat" then
-        RegisterStateDriver(st.frame, "userDisplay", "[combat] hide; show")
+    local gates = {}
+    if desc.kind == "pet" then gates[#gates + 1] = "@pet,exists" end
+    if db.hideMounted then gates[#gates + 1] = "nomounted" end
+    if db.hideNoEnemyTarget then gates[#gates + 1] = "@target,harm"
+    elseif db.hideNoTarget then gates[#gates + 1] = "@target,exists" end
+    local grp = db.groupVis
+    if grp == "group" then gates[#gates + 1] = "group"
+    elseif grp == "raid" then gates[#gates + 1] = "group:raid"
+    elseif grp == "party" then gates[#gates + 1] = "group:party"
+    elseif grp == "solo" then gates[#gates + 1] = "nogroup" end
+    local m = db.visibility
+    if m == "combat" then gates[#gates + 1] = "combat"
+    elseif m == "noncombat" then gates[#gates + 1] = "nocombat" end
+    if #gates > 0 then
+        RegisterStateDriver(st.frame, "userDisplay",
+            "[" .. table.concat(gates, ",") .. "] show; hide")
     else
         UnregisterStateDriver(st.frame, "userDisplay")
         st.frame:Show()
@@ -940,6 +987,7 @@ end
 local function lookTick()
     local desat = mod.db.desatOnCd
     local range = mod.db.rangeColoring
+    local dim = (mod.db.cdAlpha or 100) / 100
     local c = mod.db.rangeColor or { r = 0.8, g = 0.15, b = 0.15 }
     for _, desc in ipairs(BARS) do
         if desc.kind == "own" or desc.kind == "reuse" then
@@ -949,9 +997,11 @@ local function lookTick()
                     local action = b:GetAttribute("action")
                     local icon = buttonIcon(b)
                     if icon and action and action > 0 and HasAction(action) then
-                        if desat and icon.SetDesaturated then
+                        if desat or dim < 1 then
                             local start, dur = GetActionCooldown(action)
-                            icon:SetDesaturated((start or 0) > 0 and (dur or 0) > 1.5)
+                            local onCd = (start or 0) > 0 and (dur or 0) > 1.5
+                            if desat and icon.SetDesaturated then icon:SetDesaturated(onCd) end
+                            if dim < 1 then icon:SetAlpha(onCd and dim or 1) end
                         end
                         if range then
                             if IsActionInRange(action) == false then
@@ -972,9 +1022,10 @@ end
 
 local function applyLook()
     local swipe = (mod.db.cdSwipe or 80) / 100
+    local sc = mod.db.cdSwipeColor or { r = 0, g = 0, b = 0 }
     forAllButtons(function(b)
         if b.cooldown and b.cooldown.SetSwipeColor then
-            b.cooldown:SetSwipeColor(0, 0, 0, swipe)
+            b.cooldown:SetSwipeColor(sc.r or 0, sc.g or 0, sc.b or 0, swipe)
         end
         if not b._vcuiTT and b.HookScript then
             b._vcuiTT = true
@@ -986,9 +1037,10 @@ local function applyLook()
         if icon then
             if not mod.db.desatOnCd and icon.SetDesaturated then icon:SetDesaturated(false) end
             if not mod.db.rangeColoring then icon:SetVertexColor(1, 1, 1) end
+            if (mod.db.cdAlpha or 100) >= 100 then icon:SetAlpha(1) end
         end
     end)
-    local need = mod.db.desatOnCd or mod.db.rangeColoring
+    local need = mod.db.desatOnCd or mod.db.rangeColoring or (mod.db.cdAlpha or 100) < 100
     if need then
         if not lookTicker then
             lookTicker = CreateFrame("Frame")
@@ -1126,11 +1178,39 @@ local function onEditMode(active)
 end
 if ns.RegisterEditModeHook then ns:RegisterEditModeHook(onEditMode) end
 
+-- Quick keybind mode: Blizzard's hover-a-button-press-a-key binding screen.
+-- While it is open, every bar is force-shown (same as Edit Mode) so hidden /
+-- mouseover bars can be bound too.
+local function openQuickKeybind()
+    if InCombatLockdown() then ns:Print(L["Not possible in combat."]); return end
+    if C_AddOns and C_AddOns.LoadAddOn then pcall(C_AddOns.LoadAddOn, "Blizzard_QuickKeybind")
+    elseif _G.LoadAddOn then pcall(_G.LoadAddOn, "Blizzard_QuickKeybind") end
+    local qkb = _G.QuickKeybindFrame
+    if not qkb then
+        ns:Print(L["|cffff5555Quick keybind mode is not available on this client.|r"])
+        return
+    end
+    if not qkb._vcuiHooked then
+        qkb._vcuiHooked = true
+        qkb:HookScript("OnShow", function() if mod.active then onEditMode(true) end end)
+        qkb:HookScript("OnHide", function() if mod.active then onEditMode(false) end end)
+    end
+    qkb:Show()
+end
+ns.OpenQuickKeybind = openQuickKeybind
+
+SLASH_VCUIKEYBIND1 = "/vkb"
+SlashCmdList["VCUIKEYBIND"] = openQuickKeybind
+
 local function onRegen()
     if pendingRestore then pendingRestore = false; restore(); return end
     applyAll()
 end
 local function onWorld() applyAll() end
+-- re-evaluate the "only in instances" gate on zone changes
+local function onZone() if mod.active and taken and not InCombatLockdown() then
+    for _, desc in ipairs(BARS) do visBar(desc) end
+end end
 local function onForms()
     if mod.active and not InCombatLockdown() and taken then
         pageBar(BAR_BY_KEY.main); applyBar(BAR_BY_KEY.stance)
@@ -1181,6 +1261,7 @@ function mod:OnEnable()
     ns:RegisterEvent("ACTIONBAR_SHOWGRID", onGridShow)
     ns:RegisterEvent("ACTIONBAR_HIDEGRID", onGridHide)
     ns:RegisterEvent("ACTIONBAR_SLOT_CHANGED", onSlot)
+    ns:RegisterEvent("ZONE_CHANGED_NEW_AREA", onZone)
     applyAll()
 end
 
@@ -1199,6 +1280,7 @@ function mod:OnDisable()
     ns:UnregisterEvent("ACTIONBAR_SHOWGRID", onGridShow)
     ns:UnregisterEvent("ACTIONBAR_HIDEGRID", onGridHide)
     ns:UnregisterEvent("ACTIONBAR_SLOT_CHANGED", onSlot)
+    ns:UnregisterEvent("ZONE_CHANGED_NEW_AREA", onZone)
     if updater then updater:Hide() end
     if lookTicker then lookTicker:Hide() end
     if InCombatLockdown() then
@@ -1231,6 +1313,32 @@ local function moverApply(key)
     if st and st.mover and ns.ApplyMover then ns:ApplyMover(st.mover) end
 end
 
+-- modifier/target paging targets: page number -> the bar whose actions it shows
+local PAGE_VALUES = {
+    { value = 0, text = "—" },
+    { value = 6, text = L["Action Bar 2"] },
+    { value = 5, text = L["Action Bar 3"] },
+    { value = 3, text = L["Action Bar 4"] },
+    { value = 4, text = L["Action Bar 5"] },
+}
+
+local function pagingRows()
+    local function pageDrop(label, dbKey)
+        return { type = "dropdown", label = label, width = 220, values = PAGE_VALUES,
+            get = function() return barDB("main")[dbKey] or 0 end,
+            set = function(_, v) barDB("main")[dbKey] = v; reapply() end }
+    end
+    return { type = "section", title = L["Modifier paging"], collapsed = true, items = {
+        { type = "desc",
+          text = L["|cffaaaaaaWhile the key is held (or your target matches), the main bar shows the chosen bar's abilities instead. Fully secure — works in combat.|r"] },
+        pageDrop(L["Shift held"], "pageShift"),
+        pageDrop(L["Ctrl held"],  "pageCtrl"),
+        pageDrop(L["Alt held"],   "pageAlt"),
+        pageDrop(L["Friendly target"], "pageHelp"),
+        pageDrop(L["Hostile target"],  "pageHarm"),
+    } }
+end
+
 local function barSection(desc)
     local key = desc.key
     return {
@@ -1245,6 +1353,32 @@ local function barSection(desc)
                 { type = "dropdown", label = L["Visibility"], width = 220, values = VIS_VALUES,
                   get = function() return barDB(key).visibility end,
                   set = function(_, v) barDB(key).visibility = v; reapply() end },
+            } },
+            { type = "group", layout = "row", gap = 8, items = {
+                { type = "dropdown", label = L["Group visibility"], width = 220,
+                  values = {
+                      { value = "any",   text = L["Always"] },
+                      { value = "group", text = L["Only in a group"] },
+                      { value = "raid",  text = L["Only in a raid"] },
+                      { value = "party", text = L["Only in a party"] },
+                      { value = "solo",  text = L["Only solo"] },
+                  },
+                  get = function() return barDB(key).groupVis or "any" end,
+                  set = function(_, v) barDB(key).groupVis = v; reapply() end },
+                { type = "checkbox", label = L["Only in instances"],
+                  get = function() return barDB(key).onlyInstances end,
+                  set = function(_, v) barDB(key).onlyInstances = v; reapply() end },
+            } },
+            { type = "group", layout = "row", gap = 8, items = {
+                { type = "checkbox", label = L["Hide when mounted"],
+                  get = function() return barDB(key).hideMounted end,
+                  set = function(_, v) barDB(key).hideMounted = v; reapply() end },
+                { type = "checkbox", label = L["Hide without target"],
+                  get = function() return barDB(key).hideNoTarget end,
+                  set = function(_, v) barDB(key).hideNoTarget = v; reapply() end },
+                { type = "checkbox", label = L["Hide without enemy target"],
+                  get = function() return barDB(key).hideNoEnemyTarget end,
+                  set = function(_, v) barDB(key).hideNoEnemyTarget = v; reapply() end },
             } },
             { type = "group", layout = "row", gap = 8, items = {
                 { type = "slider", label = L["Scale"], min = 50, max = 150, step = 1, width = 150,
@@ -1312,6 +1446,7 @@ local function barSection(desc)
                   get = function() return barDB(key).textCooldownSize or 0 end,
                   set = function(_, v) barDB(key).textCooldownSize = v; reapply() end },
             } },
+            key == "main" and pagingRows() or nil,
         },
     }
 end
@@ -1341,6 +1476,9 @@ function mod:GetOptions()
         { type = "slider", label = L["Fade speed (sec.)"], min = 0.05, max = 0.6, step = 0.01, width = 180,
           get = function() return mod.db.fadeSpeed end,
           set = function(_, v) mod.db.fadeSpeed = v end },
+        { type = "button", label = L["Quick keybind mode (/vkb)"], width = 240,
+          tooltip = L["Hover an action button and press a key to bind it. Hidden bars are shown while binding."],
+          onClick = function() if ns.OpenQuickKeybind then ns.OpenQuickKeybind() end end },
         { type = "desc",
           text = L["|cff9b6cffThe micro menu, bag bar, FPS/latency bar and the XP bar below are movable in Edit Mode (/vedit) like the action bars.|r"] },
         { type = "section", title = L["Cooldown & look"], collapsed = true, items = {
@@ -1350,9 +1488,22 @@ function mod:GetOptions()
                   tooltip = L["How dark the cooldown sweep overlay is (0 = invisible)."],
                   get = function() return mod.db.cdSwipe or 80 end,
                   set = function(_, v) mod.db.cdSwipe = v; if mod.active then applyLook() end end },
+                { type = "color", label = L["Swipe colour"], width = 130,
+                  get = function() return mod.db.cdSwipeColor end,
+                  set = function(r, g, b) mod.db.cdSwipeColor = { r = r, g = g, b = b }; if mod.active then applyLook() end end },
                 { type = "checkbox", label = L["Desaturate icons on cooldown"],
                   get = function() return mod.db.desatOnCd end,
                   set = function(_, v) mod.db.desatOnCd = v; if mod.active then applyLook() end end },
+            } },
+            { type = "group", layout = "row", gap = 8, items = {
+                { type = "slider", label = L["Icon opacity on cooldown"], min = 20, max = 100, step = 5, width = 170,
+                  tooltip = L["Dims the whole icon while the ability is on cooldown (100 = off)."],
+                  get = function() return mod.db.cdAlpha or 100 end,
+                  set = function(_, v) mod.db.cdAlpha = v; if mod.active then applyLook() end end },
+                { type = "checkbox", label = L["Show cooldown numbers"],
+                  tooltip = L["The game's own countdown numbers on cooldowns (a game setting, changed live)."],
+                  get = function() return GetCVar and GetCVar("countdownForCooldowns") == "1" end,
+                  set = function(_, v) if not InCombatLockdown() then pcall(SetCVar, "countdownForCooldowns", v and "1" or "0") end end },
             } },
             { type = "group", layout = "row", gap = 8, items = {
                 { type = "checkbox", label = L["Out-of-range colouring"],
