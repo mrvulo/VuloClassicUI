@@ -6,6 +6,27 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+    { version = "1.35.0", sections = {
+        { category = "Nameplates", lines = {
+            "NEW: Interrupt help on the cast bar: own colours while your interrupt is on cooldown or ready, a tick marking where it comes back mid-cast, a shield on uninterruptible casts and an interrupt flash that can show who landed the kick.",
+            "NEW: Cast bar suite: icon side and scale, remaining time, own background, channel colour, a warning colour when the cast aims at YOU — and on your target the cast bar lines up flush with the health bar including its border.",
+            "NEW: Execute line, target and mouseover effects, crowd control section, combo point shapes and placement, per-element position, size and text-size controls plus a font picker.",
+            "NEW: The options page carries a clickable live preview that stays pinned while you scroll — click any element to jump to its settings.",
+            "NEW: Smooth health movement with a damage trail, value plus percent text layouts with short numbers, and a decimal toggle for aura timers.",
+        } },
+        { category = "Action Bars", lines = {
+            "NEW: Per-bar visibility conditions (instances, mounted, target, group), modifier paging, quick keybind mode (/vkb), a sixth bar, growth directions, button text styling and cooldown look options.",
+            "NEW: Micro menu and bag bar modern style: flat dark strips with an own monochrome icon set, plus world map, friends list, group finder, shop and key ring buttons.",
+            "The experience bar width now adjusts in single steps.",
+        } },
+        { category = "Resource Bar", lines = {
+            "NEW: Visibility conditions, colour modes with gradient, background and border colours, smooth value changes, hash marks and threshold colouring.",
+        } },
+        { category = "Fixes", lines = {
+            "Character sheet stats panel no longer bleeds into other tabs; loadout sidebar aligns with the modern character sheet.",
+            "Arena points calculator panel and button wear the addon look and dock beside the character sheet.",
+        } },
+    } },
     { version = "1.34.3", sections = {
         { category = "Game Menu", lines = {
             "NEW: The Escape menu now wears the dark addon look — flat buttons, accent title — and gains a VuloClassicUI button that opens the options window. Both have their own toggles under General.",
@@ -239,18 +260,6 @@ ns.CHANGELOG = {
         } },
         { category = "Unit Frames", lines = {
             "Classic Era: fixed the elite player-frame border alignment and moved the level badge into place.",
-        } },
-    } },
-    { version = "1.15.0", sections = {
-        { category = "Compatibility", lines = {
-            "NEW: Full Classic Era (1.15.8) support alongside Burning Crusade Classic (2.5.5). TBC-only content (Arena frames, gem sockets) auto-disables on Era; everything else runs on both.",
-        } },
-        { category = "UI Reskin", lines = {
-            "The Character Panel enhancements (item level per slot, shortened enchant text, average item level) now work on Classic Era as well.",
-        } },
-        { category = "Bug Fixes", lines = {
-            "Fishing: muted the reel error spam (\"Unknown unit\" / \"Out of range\") while fishing.",
-            "Mail: \"Open All\" is faster and now reliably empties the whole mailbox in a single click, even past the 50-mail batch limit.",
         } },
     } },
 }
