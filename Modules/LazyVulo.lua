@@ -1,4 +1,3 @@
--- =========================================================
 -- VuloClassicUI / Modules / LazyVulo
 -- Helper for the Apexis Relic memory minigame (Ogri'la dailies,
 -- Blade's Edge): record the flashing color sequence with buttons or
@@ -8,7 +7,6 @@
 --   - A wrong click zaps you with Reprisal self-damage -> the entry
 --     is restored (it was not actually consumed).
 -- Auto-opens when you start the minigame at the relic (gossip hook).
--- =========================================================
 local _, ns = ...
 local L = ns.L
 
@@ -29,9 +27,7 @@ local mod = ns:RegisterModule("lazyvulo", {
     },
 })
 
--- =========================================================
 -- Game data (Apexis Relic minigame, TBC)
--- =========================================================
 -- The two relic game objects; selecting their gossip option starts the game
 local RELIC_OBJECTS = { [185890] = true, [185944] = true }
 -- "Introspection": refreshed on every crystal click -> consume a queue entry
@@ -61,9 +57,7 @@ local MAX_SHOWN = 12   -- queue icons drawn (overflow shows "+N")
 local FRAME_W   = 184
 local FRAME_H   = 166
 
--- =========================================================
 -- State
--- =========================================================
 local f                   -- main window
 local queue    = {}       -- recorded color indices, [1] = next click
 local consumed            -- last consumed color (restored on Reprisal)
@@ -74,9 +68,7 @@ local function playClickSound()
     if snd and PlaySound then PlaySound(snd) end
 end
 
--- =========================================================
 -- Queue handling
--- =========================================================
 local updateQueue  -- forward (defined after the frame builder)
 
 local function shiftQueue()
@@ -108,9 +100,7 @@ local function introspectionExpire()
     return nil
 end
 
--- =========================================================
 -- Hotkeys (override bindings while the window is shown)
--- =========================================================
 local function unbindKeys()
     if not f then return end
     ClearOverrideBindings(f)
@@ -155,9 +145,7 @@ local function onRegenEnabled()
     end
 end
 
--- =========================================================
 -- Window
--- =========================================================
 local function attachHelpTooltip(btn)
     btn:SetScript("OnEnter", function(self)
         if not mod.db.showTooltips then return end
@@ -239,7 +227,6 @@ local function buildFrame()
     ns:CreateMover(f, { key = "lazyvulo", label = "|cffffffffLAZYVULO|r", db = mod.db, width = FRAME_W, height = FRAME_H,
         scalable = true, anchorable = true })
 
-    -- Title + close
     local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     if ns.UI and ns.UI.Font then ns.UI.Font(title, 13) end
     title:SetPoint("TOPLEFT", f, "TOPLEFT", 8, -7)
@@ -292,7 +279,6 @@ local function buildFrame()
         f["record" .. i] = b
     end
 
-    -- Separator above the record grid
     local sep = f:CreateTexture(nil, "ARTWORK")
     sep:SetColorTexture(ns.COLORS.border.r, ns.COLORS.border.g, ns.COLORS.border.b, 0.6)
     sep:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 6, 78)
@@ -385,9 +371,7 @@ local function toggleWindow()
     if f:IsShown() then f:Hide() else showWindow() end
 end
 
--- =========================================================
 -- Auto-show: selecting the relic's gossip option starts the game
--- =========================================================
 local gossipHooked = false
 
 local function onGossipSelect()
@@ -410,9 +394,7 @@ local function installGossipHook()
     end
 end
 
--- =========================================================
 -- Lifecycle
--- =========================================================
 function mod:OnEnable()
     installGossipHook()
     ns:RegisterEvent("PLAYER_REGEN_DISABLED", onRegenDisabled)
@@ -428,7 +410,6 @@ function mod:OnDisable()
     end
 end
 
--- Slash command: toggle the window
 SLASH_VCUILAZYVULO1 = "/lazyvulo"
 SLASH_VCUILAZYVULO2 = "/lv"
 SlashCmdList.VCUILAZYVULO = function()
@@ -439,9 +420,7 @@ SlashCmdList.VCUILAZYVULO = function()
     toggleWindow()
 end
 
--- =========================================================
 -- Options
--- =========================================================
 function mod:GetOptions()
     local items = {
         { type = "header", text = L["LazyVulo"] },

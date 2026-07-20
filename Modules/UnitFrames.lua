@@ -1,27 +1,4 @@
--- =========================================================
--- VuloClassicUI / Modules / UnitFrames
--- The two frames you stare at all fight, in one module.
---
---   Player frame:  the elite/rare dragon border known from target frames.
---     Technique: swap PlayerFrameTexture for the (wider) horizontally-flipped
---     target-frame texture, re-anchor it with the 2.5.5 Anniversary layout
---     offsets, then re-align the level text and rest icon and lift pet/totem/
---     group frames above the bigger art. All original values are captured
---     before the first change so the default look can be restored exactly
---     (style "off" / module off).
---
---   Target + Focus frame:  the "modern" extras the default TBC Anniversary UI
---     is missing, natively (no external addon needed):
---       * real NPC health value instead of the obfuscated percentage
---       * numeric threat % readout above the frame
---       * coloured threat glow around the frame
---       * the winged Rare-Elite border for rare-elite mobs
---       * the target's class crest on player targets
---
--- All purely cosmetic: hooksecurefunc + our own textures / fontstrings, so no
--- taint and no secure actions are touched. Threat runs off Blizzard's native
--- ThreatAPI (present on 2.5.5) — no LibThreatClassic.
--- =========================================================
+-- Cosmetic only: hooksecurefunc plus own textures, never touching secure unit-frame state, so nothing taints.
 local _, ns = ...
 local L = ns.L
 
@@ -31,30 +8,21 @@ local mod = ns:RegisterModule("unitframes", {
     description = "Elite dragon border for your player frame, plus real health, threat display and the rare-elite border for the target and focus frames.",
     defaults    = {
         enabled       = true,
-        playerStyle   = "elite",  -- "elite" | "rareelite" | "rare" | "off"
-        realHealth    = true,     -- show the real HP value for NPCs (default shows %)
-        threatNumeric = true,     -- numeric threat % above the frame
-        threatGlow    = true,     -- tint the frame border by threat status
-        rareElite     = true,     -- winged Rare-Elite border for rare-elite mobs
-        classIcon     = true,     -- class crest on player targets
-        focus         = true,     -- apply the target extras to the Focus frame too
+        playerStyle   = "elite",
+        realHealth    = true,
+        threatNumeric = true,
+        threatGlow    = true,
+        rareElite     = true,
+        classIcon     = true,
+        focus         = true,
     },
 })
 
--- =========================================================
--- PLAYER FRAME — elite dragon border
--- =========================================================
-
--- Texture data (target-frame art, flipped horizontally for the mirrored player
--- frame). The Anniversary 2.5.5 client shifted the player-frame elements, so the
--- (wider) elite texture needs this -17.5/-3.5 normalisation to sit right. Classic
--- Era keeps the original (un-shifted) layout, so on Era the same offset would push
--- the dragon art + level badge ~17px off — there it needs no shift.
+-- The 2.5.5 client shifted the player-frame elements; Era keeps the original layout and needs no offset.
 local BASE_X, BASE_Y = -17.5, -3.5
 if ns.isEra then BASE_X, BASE_Y = 0, 0 end
 local LEVEL_X, LEVEL_Y = 52.5 + BASE_X, -67 + BASE_Y
--- Era's player frame is sized slightly differently, so the level number lands a
--- touch too far left over the elite art; nudge it right (tune this value if needed).
+-- Era's frame is sized differently, so the level number needs an extra nudge right.
 if ns.isEra then LEVEL_X = LEVEL_X + 8 end
 
 local STYLES = {
@@ -75,17 +43,13 @@ local STYLES = {
     },
 }
 
--- Frames lifted above the enlarged border art (original levels restored)
 local RAISE_FRAMES = {
     { name = "PlayerFrameGroupIndicator", lift = 1 },
     { name = "PetFrame",                  lift = 2 },
     { name = "TotemFrame",                lift = 3 },
 }
 
--- ---------------------------------------------------------
--- Capture / restore the default player-frame look
--- ---------------------------------------------------------
-local captured  -- nil until the first apply
+local captured
 
 local function capturePoints(frame)
     local pts = {}
@@ -149,15 +113,10 @@ local function restorePlayerDefaults()
     end
 end
 
--- ---------------------------------------------------------
--- Apply the chosen player-frame style
--- ---------------------------------------------------------
 local function playerStyleActive()
     return mod._enabled and mod.db.playerStyle ~= "off" and STYLES[mod.db.playerStyle] ~= nil
 end
 
--- Level text + rest icon: normalised positions for the bigger art.
--- Also re-run from the Blizzard anchor hook (it resets the anchor).
 local function applyPlayerTextPositions()
     if not playerStyleActive() or not captured then return end
     local level = _G.PlayerLevelText
@@ -197,26 +156,20 @@ local function applyPlayerStyle()
     end
 end
 
--- =========================================================
--- TARGET + FOCUS FRAME — health, threat, classification, class crest
--- =========================================================
-
--- The frame's border ("classification") texture. On the 2.5.5 Classic frame this
--- is <Frame>TextureFrameTexture; older paths used frame.borderTexture.
+-- Border texture is <Frame>TextureFrameTexture on 2.5.5; older clients expose frame.borderTexture.
 local function borderTexOf(frame)
     if frame.borderTexture then return frame.borderTexture end
     local name = frame.GetName and frame:GetName()
     return name and _G[name .. "TextureFrameTexture"]
 end
 
--- Short HP like 120, 3.4k, 1.2m
 local function abbrev(v)
     if v >= 1e6 then return string.format("%.1fm", v / 1e6)
     elseif v >= 1e4 then return string.format("%.1fk", v / 1e3)
     else return tostring(v) end
 end
 
--- Threat status colours (fallback if GetThreatStatusColor is ever missing).
+-- Fallback table for clients without GetThreatStatusColor.
 local THREAT_COLOR = { [0] = { 0.69, 0.69, 0.69 }, [1] = { 1, 1, 0.47 }, [2] = { 1, 0.6, 0 }, [3] = { 1, 0, 0 } }
 local function threatColor(status)
     if GetThreatStatusColor then
@@ -233,25 +186,19 @@ local function unitForFrame(frame)
     return frame and frame.unit
 end
 
--- ---------------------------------------------------------
--- Threat indicator (numeric box above the frame + glow on the frame)
--- ---------------------------------------------------------
-local indicators = {}  -- [frame] = indicator
+local indicators = {}
 
--- Border pulse while at full aggro (status 3): oscillate the border colour
--- red <-> light red on a single shared OnUpdate.
-local pulsing = {}     -- [frame] = border texture
+local pulsing = {}
 local pulseDriver = CreateFrame("Frame")
 pulseDriver:Hide()
 pulseDriver:SetScript("OnUpdate", function()
-    local g = 0.30 - 0.30 * math.cos(GetTime() * 6)  -- 0 .. 0.6, ~1s period
+    local g = 0.30 - 0.30 * math.cos(GetTime() * 6)
     for _, border in pairs(pulsing) do border:SetVertexColor(1, g, g) end
 end)
 
 local function createIndicator(frame)
     if indicators[frame] then return indicators[frame] end
 
-    -- Numeric box. Anchors tuned to the 2.5.5 Anniversary frame geometry.
     local ind = CreateFrame("Frame", nil, frame)
     ind:SetPoint("BOTTOM", frame, "TOP", -31, -24)
     ind:SetSize(49, 18)
@@ -291,13 +238,12 @@ local function updateIndicator(frame)
         local tanking, status, _, percent = UnitDetailedThreatSituation("player", unit)
         local r, g, b = threatColor(status or 0)
 
-        -- Numeric %
         if numeric then
             if tanking and UnitThreatPercentageOfLead then
                 percent = UnitThreatPercentageOfLead("player", unit)
             end
             if percent and percent > 0 then
-                if percent > 999 then percent = 999 end  -- clamp the known API spike
+                if percent > 999 then percent = 999 end  -- the threat API spikes above 999
                 ind.text:SetFormattedText("%.0f%%", percent)
                 ind.bg:SetVertexColor(r, g, b)
                 ind:Show()
@@ -308,14 +254,13 @@ local function updateIndicator(frame)
             ind:Hide()
         end
 
-        -- Glow = tint the frame's metal border by threat colour; pulse at full aggro
         local border = borderTexOf(frame)
         if border then
             if glowOn and status and status >= 3 then
-                pulsing[frame] = border            -- pulse red (driver animates it)
+                pulsing[frame] = border
             elseif glowOn and status and status > 0 then
                 pulsing[frame] = nil
-                border:SetVertexColor(r, g, b)     -- static yellow / orange
+                border:SetVertexColor(r, g, b)
             else
                 pulsing[frame] = nil
                 border:SetVertexColor(1, 1, 1)
@@ -330,15 +275,11 @@ local function updateIndicator(frame)
     if next(pulsing) then pulseDriver:Show() else pulseDriver:Hide() end
 end
 
--- ---------------------------------------------------------
--- Class icon (players only) — the target's class crest on the frame
--- ---------------------------------------------------------
-local classIcons = {}  -- [frame] = texture
+local classIcons = {}
 local function ensureClassIcon(frame)
     if classIcons[frame] then return classIcons[frame] end
     local fname = frame:GetName() or ""
-    -- Host on the texture frame + raised level so the badge draws IN FRONT of the
-    -- metal border (a plain texture on the frame ends up behind it).
+    -- Must host on the texture frame with a raised level, or the badge draws behind the metal border.
     local host  = _G[fname .. "TextureFrame"] or frame
     local badge = CreateFrame("Frame", nil, host)
     badge:SetSize(26, 26)
@@ -351,7 +292,7 @@ local function ensureClassIcon(frame)
     badge.icon:SetPoint("CENTER")
     badge.icon:SetSize(17, 17)
 
-    badge.ring = badge:CreateTexture(nil, "OVERLAY")  -- gold ornate ring
+    badge.ring = badge:CreateTexture(nil, "OVERLAY")
     badge.ring:SetTexture("Interface\\Common\\RingBorder")
     badge.ring:SetAllPoints(badge)
 
@@ -386,9 +327,6 @@ local function updateAll()
     end
 end
 
--- ---------------------------------------------------------
--- Rare-Elite border (winged dragon) for rare-elite mobs
--- ---------------------------------------------------------
 local RARE_ELITE_TEX = "Interface\\TargetingFrame\\UI-TargetingFrame-Rare-Elite"
 
 local function applyClassification(frame, lock)
@@ -403,7 +341,6 @@ local function applyClassification(frame, lock)
 end
 
 local function refreshClassification()
-    -- Re-run the default check so our hook re-applies (or the default reverts).
     if _G.TargetFrame and _G.TargetFrame:IsShown() then
         if _G.TargetFrame_CheckClassification then
             pcall(_G.TargetFrame_CheckClassification, _G.TargetFrame)
@@ -413,10 +350,7 @@ local function refreshClassification()
     end
 end
 
--- ---------------------------------------------------------
--- Real NPC health text (the default obfuscates NPCs to a %, but UnitHealth
--- already returns the true value on 2.5.5 — we just rewrite the bar text).
--- ---------------------------------------------------------
+-- UnitHealth already returns true NPC values on 2.5.5; only the bar text is obfuscated.
 local function healthUnitFor(bar)
     if bar == _G.TargetFrameHealthBar then return "target" end
     if bar == _G.FocusFrameHealthBar  then return "focus"  end
@@ -429,7 +363,7 @@ local function applyRealHealth(bar)
     if not unit then return end
     if unit == "focus" and not mod.db.focus then return end
     if not UnitExists(unit) then return end
-    -- Enemy players (and their summons) stay percentage-obfuscated — unchangeable.
+    -- Enemy players stay percentage-obfuscated server-side; nothing to rewrite.
     if UnitIsPlayer(unit) and not (UnitIsUnit(unit, "player") or UnitInParty(unit)
         or UnitInRaid(unit) or UnitIsFriend("player", unit)) then
         return
@@ -442,7 +376,6 @@ local function applyRealHealth(bar)
     end
     local left, right, ts = fs("LeftText", "LeftText"), fs("RightText", "RightText"), fs("TextString", "TextString")
     if left and right then
-        -- percent on the left, real value on the right (Show: the default hides them)
         left:SetText(pct .. "%");   left:Show()
         right:SetText(abbrev(cur)); right:Show()
         if ts then ts:SetText("") end
@@ -461,20 +394,15 @@ local function refreshHealth()
     up(_G.FocusFrameHealthBar)
 end
 
--- =========================================================
--- Lifecycle
--- =========================================================
 local hooked, realHealthHooked, anchorHooked = false, false, false
 
 local function ensureSetup()
     if not _G.TargetFrame then return end
 
-    -- One indicator per frame.
     createIndicator(_G.TargetFrame)
     ensureClassIcon(_G.TargetFrame)
     if _G.FocusFrame then createIndicator(_G.FocusFrame); ensureClassIcon(_G.FocusFrame) end
 
-    -- Drive threat updates off the native events, unit-filtered.
     for frame, ind in pairs(indicators) do
         if not ind._wired then
             ind._wired = true
@@ -482,6 +410,7 @@ local function ensureSetup()
             if frame == _G.TargetFrame then ind:RegisterEvent("PLAYER_TARGET_CHANGED") end
             if frame == _G.FocusFrame  then ind:RegisterEvent("PLAYER_FOCUS_CHANGED")  end
             if unit then
+                -- RegisterUnitEvent is missing on older clients; fall back to the unfiltered event.
                 if ind.RegisterUnitEvent then
                     pcall(ind.RegisterUnitEvent, ind, "UNIT_THREAT_LIST_UPDATE", unit)
                     pcall(ind.RegisterUnitEvent, ind, "UNIT_THREAT_SITUATION_UPDATE", unit)
@@ -493,7 +422,6 @@ local function ensureSetup()
         end
     end
 
-    -- Rare-Elite: hook the default classification check (global fn or mixin).
     if not hooked then
         hooked = true
         if _G.TargetFrame_CheckClassification then
@@ -506,9 +434,7 @@ local function ensureSetup()
         end
     end
 
-    -- Real NPC health: rewrite the bar text with the true value. On the
-    -- Anniversary client the text is set by the bar's TextStatusBarMixin method,
-    -- so hook that on the bar directly; fall back to the global on older paths.
+    -- On 2.5.5 the bar text comes from the bar's own mixin method; older clients only have the global.
     if not realHealthHooked then
         local hb = _G.TargetFrameHealthBar
         local function hookBar(bar)
@@ -550,8 +476,7 @@ function mod:OnEnable()
     ns:RegisterEvent("PLAYER_ENTERING_WORLD", onWorldEnter)
     refreshTargetFrames()
 
-    -- Blizzard re-anchors the player level text (e.g. on level-up); follow it.
-    -- hooksecurefunc is permanent, so install once and gate on state.
+    -- The level text gets re-anchored by the default UI; hooksecurefunc is permanent, so install it once.
     if not anchorHooked and _G.PlayerFrame_UpdateLevelTextAnchor then
         anchorHooked = true
         hooksecurefunc("PlayerFrame_UpdateLevelTextAnchor", applyPlayerTextPositions)
@@ -569,13 +494,10 @@ function mod:OnDisable()
         local b = borderTexOf(frame); if b then b:SetVertexColor(1, 1, 1) end
         if classIcons[frame] then classIcons[frame]:Hide() end
     end
-    refreshHealth()  -- restore the default % text
-    -- Hooks stay installed but are gated by mod._enabled; a /reload fully reverts.
+    refreshHealth()
+    -- Hooks cannot be removed; they stay installed and gate on mod._enabled.
 end
 
--- =========================================================
--- Options
--- =========================================================
 function mod:GetOptions()
     local function apply() refreshTargetFrames() end
     return {

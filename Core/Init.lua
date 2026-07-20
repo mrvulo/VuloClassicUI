@@ -1,8 +1,6 @@
--- =========================================================
 -- VuloClassicUI / Core / Init
 -- Loaded LAST. Waits for ADDON_LOADED, initializes DB,
 -- enables modules, registers slash commands.
--- =========================================================
 local _, ns = ...
 local L = ns.L
 
@@ -18,16 +16,12 @@ initFrame:SetScript("OnEvent", function(_, event, addonName)
 
     elseif event == "PLAYER_LOGIN" then
         ns.isInitialised = true
-        -- re-show the box of any window left in per-frame "free move", so it
-        -- stays draggable across sessions without re-opening Edit Mode
         if ns.RestoreFreeMovers then ns:RestoreFreeMovers() end
         ns:Print(L["v%s loaded. /vcui to open."], ns.VERSION)
     end
 end)
 
--- =========================================================
 -- Slash commands
--- =========================================================
 local function printVcuiHelp()
     local A = (ns.C and ns.C.accent) or "|cff9b6cff"
     ns:Print(L["VuloClassicUI — commands:"])
@@ -54,7 +48,6 @@ SlashCmdList["VULOCLASSICUI"] = function(msg)
     local raw = (msg or ""):match("^%s*(.-)%s*$")
     msg = raw:lower()
 
-    -- Defensive: if UI is not loaded yet, show a clear message
     if not ns.UI or not ns.UI.ToggleMainFrame then
         ns:Print(L["UI not loaded. Likely a Lua error during init. Enable /console scriptErrors 1 and /reload."])
         return
@@ -120,11 +113,9 @@ SlashCmdList["VULOCLASSICUI"] = function(msg)
     end
 end
 
--- Convenience aliases for modules
 SLASH_VCUI_IDTIP1 = "/idtip"
 SlashCmdList["VCUI_IDTIP"] = function() SlashCmdList["VULOCLASSICUI"]("tooltipids") end
 
--- Quick reload
 SLASH_VCUI_RELOAD1 = "/rl"
 SLASH_VCUI_RELOAD2 = "/reloadui"
 SlashCmdList["VCUI_RELOAD"] = function()

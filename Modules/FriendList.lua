@@ -1,16 +1,4 @@
--- =========================================================
 -- VuloClassicUI / Modules / FriendList (UI Reskin)
--- Polishes the Friends list:
---   - class-coloured names + a class icon per online WoW friend
---     (in-game and Battle.net)
---   - a status dot (green/yellow/red/grey) trailing the name
---   - the friend note shown inline under the name
---   - faction accent on the realm/zone line + a subtle row tint
---   - optional auto-accept of Battle.net friend invites
---   - optional auto-accept of group invites coming from a friend
--- Hooks the Blizzard per-button update -> no taint, fully reversible
--- (module off hides the extras and asks Blizzard to redraw defaults).
--- =========================================================
 local _, ns = ...
 local L = ns.L
 
@@ -20,38 +8,28 @@ local mod = ns:RegisterModule("friendlist", {
     description = "Class-coloured names, class icons, status dots, inline notes, faction tint and optional auto-accept.",
     defaults    = {
         enabled         = true,
-        skinFrame       = true,       -- dark window skin (whole FriendsFrame)
-        skinCommunities = true,       -- dark skin for the guild & communities window
+        skinFrame       = true,
+        skinCommunities = true,
         classColorNames = true,
         classIcons      = true,
         iconStyle       = "blizzard", -- blizzard | vuloepic | vulofantasy1/2 | vulostyle | circle | square
         statusDot       = true,
         showNotes       = true,
-        factionAccent   = true,       -- tint the realm/zone TEXT
-        factionTint     = true,       -- subtle row BACKGROUND tint
-        autoAccept      = false,      -- Battle.net friend requests
-        autoAcceptGroup = false,      -- party/raid invites from friends
+        factionAccent   = true,
+        factionTint     = true,
+        autoAccept      = false,
+        autoAcceptGroup = false,
     },
 })
 
--- =========================================================
--- Class lookup
--- =========================================================
 local CLASS_CIRCLE = "Interface\\TargetingFrame\\UI-Classes-Circles"
 local CLASS_SQUARE = "Interface\\WorldStateFrame\\Icons-Classes"
--- the character-creation crest sheet — same 4x4 grid as CLASS_ICON_TCOORDS
 local CLASS_CREATE = "Interface\\Glues\\CharacterCreate\\UI-CharacterCreate-Classes"
 
--- Sprite sheets on a 1024px / 8x8 grid of 128px cells. vulostyle is LOCAL-ONLY
--- (Media\LocalClasses — gitignored); its dropdown entry appears only where the
--- file exists. vulofantasy1/2 and vuloepic SHIP with the addon (Media\ClassSheets)
--- and are always offered. Sheets must be GENUINE 32-bit TGA (power-of-two): the
--- client picks its decoder by file extension, so PNG bytes in a .tga never load.
+-- Sheets must be genuine 32-bit power-of-two TGA; the client picks its decoder by file extension.
 local SHEET_PATH = "Interface\\AddOns\\VuloClassicUI\\Media\\LocalClasses\\"
 local SHEETS = {
-    vulostyle = SHEET_PATH .. "vulostlye.tga",   -- local-only
-    -- shipped: game-icons.net glyphs (CC BY 3.0) for fantasy1/2, own art for
-    -- vuloepic — see Media\ClassSheets\LICENSE.txt
+    vulostyle = SHEET_PATH .. "vulostlye.tga",   -- local-only, may be absent
     vulofantasy1 = "Interface\\AddOns\\VuloClassicUI\\Media\\ClassSheets\\vulofantasy1.tga",
     vulofantasy2 = "Interface\\AddOns\\VuloClassicUI\\Media\\ClassSheets\\vulofantasy2.tga",
     vuloepic     = "Interface\\AddOns\\VuloClassicUI\\Media\\ClassSheets\\vuloepic.tga",
@@ -72,7 +50,6 @@ local SHEET_COORDS = {
     DEMONHUNTER = { 0.375, 0.5,   0.25,  0.375 },
 }
 
--- does a texture file exist on THIS installation? (memoized; nil API -> yes)
 local fileOKCache = {}
 local function fileOK(path)
     local hit = fileOKCache[path]
@@ -83,9 +60,7 @@ local function fileOK(path)
     return ok
 end
 
--- Battle.net presence often reports the class name UNLOCALIZED (English) on
--- this client, so the localized map alone misses every BNet friend. Seed with
--- the English names, then let the client's localized tables extend/override.
+-- Battle.net presence often reports class names unlocalized, so seed English before the localized tables.
 local ENGLISH_CLASS = {
     ["Warrior"] = "WARRIOR", ["Paladin"] = "PALADIN", ["Hunter"] = "HUNTER",
     ["Rogue"] = "ROGUE", ["Priest"] = "PRIEST", ["Shaman"] = "SHAMAN",
@@ -94,7 +69,7 @@ local ENGLISH_CLASS = {
     ["Demon Hunter"] = "DEMONHUNTER", ["Evoker"] = "EVOKER",
 }
 
-local classToken = {}   -- class name (localized or English) -> token (MAGE, ...)
+local classToken = {}
 local function buildClassMap()
     if next(classToken) then return end
     for name, token in pairs(ENGLISH_CLASS) do classToken[name] = token end
@@ -112,9 +87,6 @@ local function classColor(token)
     return token and (_G.RAID_CLASS_COLORS or {})[token]
 end
 
--- =========================================================
--- Status dot textures (built-in glossy orbs, present in every client)
--- =========================================================
 local ORB = {
     online  = "Interface\\COMMON\\Indicator-Green",
     afk     = "Interface\\COMMON\\Indicator-Yellow",
@@ -122,15 +94,10 @@ local ORB = {
     offline = "Interface\\COMMON\\Indicator-Gray",
 }
 
--- =========================================================
--- Friend info resolution
--- =========================================================
--- real FrameXML values: DIVIDER=1, BNET=2, WOW=3
+-- FrameXML values: DIVIDER=1, BNET=2, WOW=3
 local FBTYPE_WOW  = _G.FRIENDS_BUTTON_TYPE_WOW  or 3
 local FBTYPE_BNET = _G.FRIENDS_BUTTON_TYPE_BNET or 2
 
--- Resolve (classToken, factionGroup, status, note) for a button's friend.
--- status is one of "online" | "afk" | "dnd" | "offline".
 local function buttonFriendInfo(button)
     if button.buttonType == FBTYPE_WOW then
         local info = C_FriendList and C_FriendList.GetFriendInfoByIndex
@@ -139,7 +106,6 @@ local function buttonFriendInfo(button)
             local status = info.dnd and "dnd" or info.afk and "afk"
                 or (info.connected and "online" or "offline")
             local token   = info.connected and tokenFor(info.className) or nil
-            -- WoW (non-BNet) friends are necessarily your own faction
             local faction = UnitFactionGroup and UnitFactionGroup("player") or nil
             return token, faction, status, info.notes
         end
@@ -152,8 +118,6 @@ local function buttonFriendInfo(button)
             local status  = online and (acc.isDND and "dnd" or acc.isAFK and "afk" or "online") or "offline"
             local token, faction
             if online and (g.clientProgram == "WoW" or g.clientProgram == _G.BNET_CLIENT_WOW) then
-                -- classID first: locale-proof, works even when className is
-                -- missing or unlocalized; name lookup is only the fallback
                 if g.classID and g.classID > 0 and GetClassInfo then
                     local _, classFile = GetClassInfo(g.classID)
                     token = classFile
@@ -167,24 +131,15 @@ local function buttonFriendInfo(button)
     return nil
 end
 
--- =========================================================
--- Per-button textures (created lazily, parked on the button)
--- =========================================================
 local function ensureClassIcon(button)
     if button._vcClassIcon then return button._vcClassIcon end
-    -- anchored to the ROW BUTTON, not the name FontString: an anchor left of
-    -- the name hangs out of the row and gets clipped by the scroll frame.
-    -- Size/position are per-state (class art vs mirrored game icon).
+    -- anchor to the row button, not the name FontString: left of the name gets clipped by the scroll frame
     local t = button:CreateTexture(nil, "OVERLAY")
     t:Hide()
     button._vcClassIcon = t
     return t
 end
 
--- =========================================================
--- Row layout: big square icon slot on the left, texts shifted right —
--- fully reversible so turning the option off restores Blizzard's layout.
--- =========================================================
 local function snapPoints(r)
     local pts = {}
     for i = 1, r:GetNumPoints() do pts[#pts + 1] = { r:GetPoint(i) } end
@@ -198,7 +153,6 @@ local function restorePoints(r, pts)
 end
 
 local function rowHeight(button)
-    -- round: fractional heights under UI scale would put the art off-pixel
     local h = math.floor((button:GetHeight() or 0) + 0.5)
     if h < 20 then h = 34 end
     return h
@@ -210,12 +164,8 @@ local function applyRowLayout(button, styled)
     local name, info = button.name, button.info
     local st, gi = button.status, button.gameIcon
     if styled then
-        local x0 = 4 + (rowHeight(button) - 10) + 6   -- right edge of the icon slot
-        -- right bounds keep long text off the travelPass "+" button (24px +
-        -- edge inset + gap = 28; the name gets 16 more so the status orb
-        -- after it clears too). TOPRIGHT/BOTTOMRIGHT, NOT "RIGHT": a RIGHT
-        -- point pins the vertical center and would stretch the FontString
-        -- over the info line. No wrapping — bounded text must truncate.
+        local x0 = 4 + (rowHeight(button) - 10) + 6
+        -- TOPRIGHT/BOTTOMRIGHT, not "RIGHT": a RIGHT point pins the vertical center and stretches the FontString over the info line.
         if name then
             button._vcNamePts = button._vcNamePts or snapPoints(name)
             name:ClearAllPoints()
@@ -256,17 +206,11 @@ local function ensureFactionBg(button)
     return t
 end
 
--- =========================================================
--- Per-button restyle (cosmetic only -> never tainting)
--- =========================================================
 local function restyleButton(button)
     if not button or not button.name then return end
-    -- mod.active, not mod._enabled: the framework sets active BEFORE OnEnable
-    -- runs, so the initial restyle pass inside OnEnable actually styles
+    -- mod.active, not mod._enabled: active is set BEFORE OnEnable, so the initial pass inside OnEnable styles
     local on = mod.active
 
-    -- non-friend rows (dividers, pending invites) keep Blizzard's layout —
-    -- but under the dark skin their background must match the friend rows
     if button.buttonType ~= FBTYPE_WOW and button.buttonType ~= FBTYPE_BNET then
         if on and mod.db.skinFrame ~= false and button.background then
             button.background:SetColorTexture(1, 1, 1, 0.02)
@@ -281,13 +225,11 @@ local function restyleButton(button)
     local token, faction, status, note
     if on then token, faction, status, note = buttonFriendInfo(button) end
 
-    -- name colour ------------------------------------------------------------
     if on and mod.db.classColorNames and token then
         local c = classColor(token)
         if c then
             button.name:SetTextColor(c.r, c.g, c.b)
-            -- BNet rows wrap the "(CharName)" part in INLINE |cff codes which
-            -- SetTextColor cannot touch — rewrite those to the class color
+            -- BNet rows wrap "(CharName)" in inline |cff codes that SetTextColor cannot touch
             local txt = button.name:GetText()
             if txt and txt:find("|c", 1, true) then
                 local hex = string.format("%02x%02x%02x",
@@ -297,21 +239,16 @@ local function restyleButton(button)
         end
     end
 
-    -- realm/zone line: faction text accent + inline note ---------------------
-    -- factionName can arrive localized ("Allianz" on deDE); "Horde" is the
-    -- same word in German
+    -- factionName can arrive localized ("Allianz" on deDE); "Horde" is identical in German
     local alliance = (faction == "Alliance" or faction == "Allianz")
     if button.info then
         if on and mod.db.factionAccent then
-            -- no 'and faction': a recycled row whose faction is now nil must hit
-            -- the else and reset, not keep a stale red/blue tint
+            -- no 'and faction': a recycled row with nil faction must reset, not keep a stale tint
             if faction == "Horde" then button.info:SetTextColor(0.92, 0.36, 0.36)
             elseif alliance then button.info:SetTextColor(0.45, 0.60, 0.98)
             else button.info:SetTextColor(0.69, 0.69, 0.69) end
             button._vcInfoTinted = true
         elseif button._vcInfoTinted then
-            -- feature just turned off: hand the line back to Blizzard's gray
-            -- (SetTextColor overrides survive Blizzard updates otherwise)
             button._vcInfoTinted = nil
             local gc = _G.GRAY_FONT_COLOR
             if gc then button.info:SetTextColor(gc.r, gc.g, gc.b)
@@ -319,7 +256,6 @@ local function restyleButton(button)
         end
         if on and mod.db.showNotes and note and note ~= "" then
             local base = button.info:GetText() or ""
-            -- strip a previously-appended note so repeated restyles don't stack
             base = base:match("^(.-)%s*|cff8a8a8a") or base
             if base ~= "" then
                 button.info:SetText(base .. "  |cff8a8a8a" .. note .. "|r")
@@ -329,14 +265,12 @@ local function restyleButton(button)
         end
     end
 
-    -- status dot -------------------------------------------------------------
     local orb = button._vcOrb
     if on and mod.db.statusDot and status then
         orb = ensureOrb(button)
         orb:SetTexture(ORB[status] or ORB.offline)
         orb:ClearAllPoints()
-        -- clamp to the FontString's actual width: GetStringWidth() reports the
-        -- UNtruncated text, which would park the orb past a truncated name
+        -- GetStringWidth reports UNtruncated text; clamp so the orb isn't parked past a truncated name
         local w = button.name:GetStringWidth() or 0
         local mw = button.name:GetWidth() or 0
         if mw > 0 and w > mw then w = mw end
@@ -347,7 +281,6 @@ local function restyleButton(button)
         orb:Hide()
     end
 
-    -- subtle faction row tint (online only, so offline rows stay clean) ------
     local bg = button._vcFactionBg
     if on and mod.db.factionTint and faction and status ~= "offline" then
         bg = ensureFactionBg(button)
@@ -362,7 +295,6 @@ local function restyleButton(button)
         bg:Hide()
     end
 
-    -- dark-skin row dressing: neutral row fill + accent hover/selection ------
     if on and mod.db.skinFrame ~= false then
         if not button._vcRowSkin then
             button._vcRowSkin = true
@@ -377,12 +309,8 @@ local function restyleButton(button)
         end
     end
 
-    -- left icon slot (class art / mirrored game icon / offline) with the
-    -- row texts shifted right of the slot ------------------------------------
     local style = mod.db.iconStyle
-    -- local-only sheets degrade to the crests when their files are absent
     if SHEETS[style] and not fileOK(SHEETS[style]) then style = "blizzard" end
-    -- removed styles fall back to the Blizzard crests
     if style == "vulo" or style == "vuloclasses" or style == "vulomodern" then
         style = "blizzard"
     end
@@ -390,9 +318,6 @@ local function restyleButton(button)
     if on and mod.db.classIcons then
         icon = ensureClassIcon(button)
         applyRowLayout(button, true)
-        -- EVERY pass, not just on layout change: Blizzard re-sets the game
-        -- icon's alpha (e.g. dimmed for app friends) on each of its updates,
-        -- which would bring the right-side icon back after the first paint
         if button.status then button.status:SetAlpha(0) end
         if button.gameIcon then button.gameIcon:SetAlpha(0) end
         local slot = rowHeight(button) - 10
@@ -415,8 +340,6 @@ local function restyleButton(button)
             icon:SetTexCoord(unpack(_G.CLASS_ICON_TCOORDS[token]))
             icon:SetDesaturated(false); icon:SetAlpha(1)
         else
-            -- no class known: mirror the game icon into the slot (BNet logo
-            -- for "In App", the game's icon otherwise), grayed when offline
             local small = math.floor(slot * 0.75)
             icon:SetSize(small, small)
             icon:ClearAllPoints()
@@ -442,16 +365,10 @@ local function restyleButton(button)
     end
 end
 
--- =========================================================
--- Dark window skin for the whole FriendsFrame (covers all its tabs — the
--- subframes are setAllPoints children). Texture strips are session-permanent,
--- so turning the option off asks for a /reload. Element names verified
--- against the 2.5.5/1.15.8 client UI source.
--- =========================================================
+-- Texture strips are session-permanent, so turning the skin off needs a /reload.
 local frameSkinned = false
-local installHooks   -- fwd decl (lifecycle section) — restyleAll retries it
+local installHooks   -- fwd decl: defined in the lifecycle section, called by restyleAll
 
--- classic ButtonFrameTemplate chrome + FriendsFrame extras + scroll rail art
 local CHROME = {
     "FriendsFrameBg", "FriendsFrameTitleBg", "FriendsFramePortrait",
     "FriendsFramePortraitFrame", "FriendsFrameIcon",
@@ -487,7 +404,6 @@ local function skinFriendsFrame()
         end
     end
 
-    -- chrome off: named pieces, then any unnamed leftovers on the frame itself
     for _, n in ipairs(CHROME) do hideRegion(_G[n]) end
     stripTextures(ff)
     if ff.Inset and ff.Inset.NineSlice then ff.Inset.NineSlice:SetAlpha(0) end
@@ -497,7 +413,6 @@ local function skinFriendsFrame()
         if wi.NineSlice then wi.NineSlice:SetAlpha(0) end
     end
 
-    -- our panel: dark fill, 1px border, soft shadow, accent hairline on top
     UI:StyleBackdrop(ff, { bg = ns.COLORS and ns.COLORS.bg, border = bc })
     if UI.CreateShadow then UI:CreateShadow(ff) end
     local gstrip = ff:CreateTexture(nil, "ARTWORK")
@@ -514,7 +429,6 @@ local function skinFriendsFrame()
         title:SetTextColor(0.95, 0.95, 1)
     end
 
-    -- close button -> flat ×
     local cb = _G.FriendsFrameCloseButton
     if cb then
         stripTextures(cb)
@@ -527,7 +441,6 @@ local function skinFriendsFrame()
         cb:HookScript("OnLeave", function() x:SetTextColor(0.8, 0.8, 0.85) end)
     end
 
-    -- battletag pill -> dark inset
     local bn = _G.FriendsFrameBattlenetFrame
     if bn then
         stripTextures(bn)
@@ -535,7 +448,6 @@ local function skinFriendsFrame()
         if bn.Tag and UI.Font then UI.Font(bn.Tag, 12) end
     end
 
-    -- panel buttons (friends + ignore + who tab)
     local fontN = _G.VCUI_FriendsFontNormal or CreateFont("VCUI_FriendsFontNormal")
     local fontH = _G.VCUI_FriendsFontHighlight or CreateFont("VCUI_FriendsFontHighlight")
     local fontD = _G.VCUI_FriendsFontDisabled or CreateFont("VCUI_FriendsFontDisabled")
@@ -582,8 +494,6 @@ local function skinFriendsFrame()
     skinPanelButton(_G.WhoFrameAddFriendButton)
     skinPanelButton(_G.WhoFrameGroupInviteButton)
 
-    -- tabs (top: Friends/Ignore, bottom: Friends/Who/Guild/Raid): flat plates
-    -- around the label, accent text + underline for the active one
     local function skinTab(tab)
         if not tab or tab._vcuiSkin then return end
         tab._vcuiSkin = true
@@ -618,9 +528,7 @@ local function skinFriendsFrame()
         for i, tab in ipairs(tabs) do
             local fs = tab and tab._vcText
             if fs then
-                -- re-apply the font too: tab switches swap Blizzard FontObjects.
-                -- 11px, not larger: PanelTemplates sized the tab from its own
-                -- font metrics, and wider text would overflow long deDE labels
+                -- re-apply the font (tab switches swap FontObjects); keep 11px or deDE labels overflow
                 if UI.Font then UI.Font(fs, 11) end
                 if i == sel then
                     fs:SetTextColor(ac.r, ac.g, ac.b)
@@ -650,7 +558,6 @@ local function skinFriendsFrame()
     end
     repaintTabs()
 
-    -- scrollbar: flat thumb + our arrow glyphs
     local thumb = _G.FriendsFrameFriendsScrollFrameScrollBarThumbTexture
     if thumb then
         thumb:SetTexture("Interface\\Buttons\\WHITE8X8")
@@ -672,8 +579,6 @@ local function skinFriendsFrame()
     skinArrow(_G.FriendsFrameFriendsScrollFrameScrollBarScrollUpButton, "up")
     skinArrow(_G.FriendsFrameFriendsScrollFrameScrollBarScrollDownButton, "down")
 
-    -- "Add friend" dialog — same dark panel treatment (keeps the two service
-    -- icons, restyles chrome, headline, edit box and the red buttons)
     local af = _G.AddFriendFrame
     if af then
         stripTextures(af)
@@ -692,7 +597,6 @@ local function skinFriendsFrame()
         if UI.SetGradient then
             UI.SetGradient(afStrip, "HORIZONTAL", ac.r, ac.g, ac.b, 0.1, ac.r, ac.g, ac.b, 0.9)
         end
-        -- headline + labels in our font, accent headline
         for _, n in ipairs({ "AddFriendEntryFrameTitle", "AddFriendEntryFrameOrLabel",
                              "AddFriendEntryFrameLeftTitle", "AddFriendEntryFrameRightTitle",
                              "AddFriendEntryFrameLeftDescription", "AddFriendEntryFrameRightDescription" }) do
@@ -701,7 +605,6 @@ local function skinFriendsFrame()
         end
         local afTitle = _G.AddFriendEntryFrameTitle
         if afTitle then afTitle:SetTextColor(ac.r, ac.g, ac.b) end
-        -- edit box -> dark inset
         local eb = _G.AddFriendNameEditBox
         if eb then
             hideRegion(_G.AddFriendNameEditBoxLeft)
@@ -724,10 +627,8 @@ local function skinFriendsFrame()
     end
 end
 
--- After Blizzard rebuilds the list, restyle every row. The scroll container
--- differs by client vintage: HybridScroll (.buttons) or a ScrollBox.
 local function restyleAll()
-    installHooks()   -- retry path: cheap no-op once hooked
+    installHooks()
     skinFriendsFrame()
     if not _G.FriendsFrame or not _G.FriendsFrame:IsShown() then return end
     local scroll = _G.FriendsListFrameScrollFrame or _G.FriendsFrameFriendsScrollFrame
@@ -741,15 +642,7 @@ local function restyleAll()
     end
 end
 
--- =========================================================
--- Guild & communities window — same dark treatment as the friends frame.
--- Facts (verified against this client's UI source): the modern communities
--- addon is NOT load-on-demand here, so CommunitiesFrame exists from login
--- (unless the classic-guild-UI CVar disables it); the gold border is the
--- old-style EXPLICIT texture set (NineSlice inert but present); the list and
--- roster are pooled modern ScrollBoxes -> per-frame skins via ScrollUtil;
--- nothing in the window is secure.
--- =========================================================
+-- CommunitiesFrame is not load-on-demand here; its border is the explicit texture set (NineSlice inert).
 local commSkinned = false
 
 local function commStrip(region)
@@ -759,16 +652,11 @@ local function commStrip(region)
     end
 end
 
--- left-column community/guild entries (pooled). NO one-shot latch for the
--- recolors: Blizzard's element initializer re-sets Background/Selection on
--- EVERY list refresh (after the acquire event), so they must be re-applied.
+-- No one-shot latch for the recolors: Blizzard's initializer re-sets Background/Selection on every refresh.
 local function skinCommEntry(btn)
     if not btn or not btn.GetObjectType then return end
     local ac = ns.COLORS and ns.COLORS.accent or { r = 0.608, g = 0.424, b = 1 }
-    -- the template anchors Background/Selection/Highlight BEYOND the button
-    -- rect (the old atlas art had transparent margins) — as solid colors they
-    -- bleed into the neighbouring rows. Pin all three to the row itself, with
-    -- a small vertical gap so the cards read as separate.
+    -- the template anchors Background/Selection/Highlight beyond the button rect, so solid colors bleed
     local function pin(t)
         if not t then return end
         t:ClearAllPoints()
@@ -800,7 +688,6 @@ local function skinCommEntry(btn)
     end
 end
 
--- roster rows (pooled): drop the parchment stripe, accent highlight
 local function skinCommMemberRow(row)
     if not row or not row.GetObjectType then return end
     local nt = row.GetNormalTexture and row:GetNormalTexture()
@@ -817,10 +704,7 @@ local function skinCommMemberRow(row)
     end
 end
 
--- ScrollUtil callback signatures on this build: the EVENT path prepends the
--- registered owner as the first arg, the iterate-existing path passes the
--- frame first. The owner we register is a plain table (mod), never a frame,
--- so "the arg that is a frame" is unambiguous.
+-- ScrollUtil arg order differs per callback path; the registered owner is never a frame, so this is unambiguous.
 local function acquiredFrameOf(a, b)
     if type(a) == "table" and a.GetObjectType then return a end
     if type(b) == "table" and b.GetObjectType then return b end
@@ -836,7 +720,6 @@ local function skinCommunitiesFrame()
     local ac = ns.COLORS and ns.COLORS.accent or { r = 0.608, g = 0.424, b = 1 }
     local bc = ns.COLORS and (ns.COLORS.borderDark or ns.COLORS.border) or { r = 0.15, g = 0.15, b = 0.18 }
 
-    -- chrome off: explicit border pieces + the button-bar art (global names)
     for _, k in ipairs({ "Bg", "TitleBg", "PortraitFrame", "TopLeftCorner",
         "TopRightCorner", "TopBorder", "TopTileStreaks", "BotLeftCorner",
         "BotRightCorner", "BottomBorder", "LeftBorder", "RightBorder",
@@ -853,7 +736,6 @@ local function skinCommunitiesFrame()
         if cf.Inset.NineSlice then cf.Inset.NineSlice:SetAlpha(0) end
     end
 
-    -- our panel + title + flat close
     UI:StyleBackdrop(cf, { bg = ns.COLORS and ns.COLORS.bg, border = bc })
     if UI.CreateShadow then UI:CreateShadow(cf) end
     local gstrip = cf:CreateTexture(nil, "ARTWORK")
@@ -880,12 +762,9 @@ local function skinCommunitiesFrame()
         cb:HookScript("OnLeave", function() x:SetTextColor(0.8, 0.8, 0.85) end)
     end
 
-    -- the floating round community icon over the corner reads as clutter on
-    -- the flat panel — hide the whole overlay (alpha survives Blizzard's
-    -- Show/SetPortraitToTexture calls on it)
+    -- alpha, not Hide: it survives Blizzard's Show/SetPortraitToTexture calls
     if cf.PortraitOverlay then cf.PortraitOverlay:SetAlpha(0) end
 
-    -- maximize/minimize -> flat +/– glyphs matching the close button
     local mm = cf.MaximizeMinimizeFrame
     if mm then
         for _, key in ipairs({ "MaximizeButton", "MinimizeButton" }) do
@@ -904,7 +783,6 @@ local function skinCommunitiesFrame()
         end
     end
 
-    -- gold Blizzard text -> house font/colors (colors persist across SetText)
     local acb = cf.AddToChatButton
     if acb then
         local fs = (acb.GetFontString and acb:GetFontString()) or acb.Text
@@ -919,7 +797,6 @@ local function skinCommunitiesFrame()
         sd.Text:SetTextColor(0.9, 0.9, 0.95)
     end
 
-    -- left column: blue-menu art off, darker column + 1px divider instead
     local cl = cf.CommunitiesList
     if cl then
         hideRegion(cl.Bg)
@@ -939,8 +816,7 @@ local function skinCommunitiesFrame()
         div:SetWidth(1)
         div:SetColorTexture(bc.r, bc.g, bc.b, 1)
         if cl.ScrollBox and _G.ScrollUtil then
-            -- Initialized > Acquired: Blizzard's initializer repaints the
-            -- entry AFTER acquire, so the skin must run after it
+            -- Initialized before Acquired: Blizzard's initializer repaints the entry after acquire
             local add = ScrollUtil.AddInitializedFrameCallback or ScrollUtil.AddAcquiredFrameCallback
             if add then
                 pcall(add, cl.ScrollBox, function(a, b)
@@ -951,10 +827,8 @@ local function skinCommunitiesFrame()
         end
     end
 
-    -- roster: rock header + inset borders off, flat header plates
     local ml = cf.MemberList
     if ml then
-        -- the huge faint crest watermark fights the flat look
         if ml.WatermarkFrame then ml.WatermarkFrame:SetAlpha(0) end
         if ml.MemberCount then
             if UI.Font then UI.Font(ml.MemberCount, 11) end
@@ -979,7 +853,6 @@ local function skinCommunitiesFrame()
                 for _, child in ipairs({ cd:GetChildren() }) do
                     if child.IsObjectType and child:IsObjectType("Button") and not child._vcuiSkin then
                         child._vcuiSkin = true
-                        -- strip the plate art but KEEP hover feedback
                         local chl = child.GetHighlightTexture and child:GetHighlightTexture()
                         for _, r in ipairs({ child:GetRegions() }) do
                             if r.IsObjectType and r:IsObjectType("Texture") and r ~= chl then
@@ -990,8 +863,6 @@ local function skinCommunitiesFrame()
                             chl:SetTexture(nil)
                             chl:SetColorTexture(1, 1, 1, 0.06)
                             chl:SetBlendMode("BLEND")
-                            -- Blizzard's plate-art anchors let it bleed past the
-                            -- flat header row — clamp it to the button
                             chl:ClearAllPoints()
                             chl:SetAllPoints(child)
                         end
@@ -1007,7 +878,6 @@ local function skinCommunitiesFrame()
                 end
             end
             skinHeaders()
-            -- headers are (re)built when the roster layout changes
             if type(cd.LayoutColumns) == "function" then
                 hooksecurefunc(cd, "LayoutColumns", function()
                     if mod.active and mod.db.skinCommunities ~= false then skinHeaders() end
@@ -1025,7 +895,6 @@ local function skinCommunitiesFrame()
         end
     end
 
-    -- chat area: sunken border off, flat edit box with a hairline
     if cf.Chat and cf.Chat.InsetFrame then
         commStrip(cf.Chat.InsetFrame)
         if cf.Chat.InsetFrame.NineSlice then cf.Chat.InsetFrame.NineSlice:SetAlpha(0) end
@@ -1044,7 +913,6 @@ local function skinCommunitiesFrame()
         line:SetColorTexture(0.3, 0.3, 0.35, 1)
     end
 
-    -- right-edge tabs: skill-line bevel off, flat plate + accent when active
     local function skinSideTab(tab)
         if not tab or tab._vcuiSkin then return end
         tab._vcuiSkin = true
@@ -1073,7 +941,6 @@ local function skinCommunitiesFrame()
     skinSideTab(cf.GuildBenefitsTab)
     skinSideTab(cf.GuildInfoTab)
 
-    -- bottom buttons -> the friends-frame button recipe
     local fontN = _G.VCUI_FriendsFontNormal or CreateFont("VCUI_FriendsFontNormal")
     local fontH = _G.VCUI_FriendsFontHighlight or CreateFont("VCUI_FriendsFontHighlight")
     local fontD = _G.VCUI_FriendsFontDisabled or CreateFont("VCUI_FriendsFontDisabled")
@@ -1115,14 +982,10 @@ local function skinCommunitiesFrame()
     end
 end
 
--- the communities addon can load after us on some setups — watch for it
 local function onCommAddonLoaded(_, addonName)
     if addonName == "Blizzard_Communities" then skinCommunitiesFrame() end
 end
 
--- =========================================================
--- Auto-accept Battle.net FRIEND invites
--- =========================================================
 local function acceptInvites()
     if not mod.active or not mod.db.autoAccept then return end
     local n = (BNGetNumFriendInvites and BNGetNumFriendInvites()) or 0
@@ -1134,16 +997,12 @@ local function acceptInvites()
     end
 end
 
--- =========================================================
--- Auto-accept GROUP invites from someone on the friends list
--- =========================================================
 local function nameKey(n)
     if not n or n == "" then return nil end
     n = n:match("^([^-]+)") or n   -- drop "-Realm" suffix
     return n:lower()
 end
 
--- Is `name` a WoW friend, or the current character of a BNet friend?
 local function isFriendName(name)
     local key = nameKey(name)
     if not key then return false end
@@ -1176,13 +1035,9 @@ local function onPartyInvite(_, name)
     end
 end
 
--- =========================================================
--- Lifecycle
--- =========================================================
 local hooked = false
 installHooks = function()
     if hooked then return end
-    -- Per-button hook is the cleanest; fall back to the list update.
     if type(_G.FriendsFrame_UpdateFriendButton) == "function" then
         hooksecurefunc("FriendsFrame_UpdateFriendButton", restyleButton)
         hooked = true
@@ -1212,17 +1067,11 @@ function mod:OnDisable()
     ns:UnregisterEvent("BN_FRIEND_INVITE_ADDED",            acceptInvites)
     ns:UnregisterEvent("BN_FRIEND_INVITE_LIST_INITIALIZED", acceptInvites)
     ns:UnregisterEvent("PARTY_INVITE_REQUEST",              onPartyInvite)
-    -- hooksecurefunc can't be removed; restyleButton no-ops while disabled,
-    -- so ask Blizzard to redraw with default colours / hide our extras.
+    -- hooksecurefunc can't be removed; ask Blizzard to redraw defaults instead
     if _G.FriendsList_Update then pcall(_G.FriendsList_Update) end
     restyleAll()
 end
 
--- =========================================================
--- Debug: /friendstate — dump what the client actually reports per friend,
--- so "no class icon" cases can be told apart (no character online vs the
--- data simply not being sent, e.g. friends on another WoW project).
--- =========================================================
 _G.SLASH_VCUIFRIENDSTATE1 = "/friendstate"
 _G.SlashCmdList["VCUIFRIENDSTATE"] = function()
     print("|cffffff00[VuloClassicUI Friend State]|r")
@@ -1255,17 +1104,12 @@ _G.SlashCmdList["VCUIFRIENDSTATE"] = function()
     end
 end
 
--- =========================================================
--- Options
--- =========================================================
 function mod:GetOptions()
     local function tgl(key, label, tooltip)
         return { type = "toggle", label = label, tooltip = tooltip,
             get = function() return mod.db[key] end,
             set = function(_, v)
                 mod.db[key] = v
-                -- ask Blizzard for a clean repaint first, so turning a
-                -- feature OFF actually clears it from the open frame
                 if _G.FriendsList_Update then pcall(_G.FriendsList_Update) end
                 restyleAll()
             end }
@@ -1289,11 +1133,9 @@ function mod:GetOptions()
         { type = "dropdown", label = L["Class icon style"], width = 240,
           values = (function()
               local v = { { value = "blizzard", text = L["Blizzard crests"] } }
-              -- shipped original class art (always available)
               v[#v + 1] = { value = "vuloepic", text = L["Vulo Epic"] }
               v[#v + 1] = { value = "vulofantasy1", text = L["Vulo Fantasy 1"] }
               v[#v + 1] = { value = "vulofantasy2", text = L["Vulo Fantasy 2"] }
-              -- local-only sheet, offered only where its file exists
               if fileOK(SHEETS.vulostyle) then
                   v[#v + 1] = { value = "vulostyle", text = L["Vulo Style"] }
               end

@@ -1,27 +1,10 @@
--- =========================================================
--- VuloClassicUI / UI / EditMode
--- A global Edit Mode HUD in our VuloUI style, built ON TOP of the existing mover
--- engine (Core/Mover.lua). Entering Edit Mode shows every registered mover box
--- at once, plus:
---   - a dimmed fullscreen overlay so the movers pop,
---   - an optional alignment grid (purple centre cross + faint lines),
---   - a draggable toolbar (Exit / Grid / Snap / grid size / Reset positions).
---
--- Grid snapping is wired back into the mover drag via ns:EditSnapXY (called from
--- Core/Mover.lua's OnDragStop). Settings live in ns.db.profile.editmode.grid.
---
--- NOTE: addons may not open Blizzard's own Edit Mode (protected -> taint), so
--- this HUD is fully self-driven. Where the client HAS Blizzard Edit Mode
--- (Anniversary), Core/Mover.lua mirrors its open/close into ns:SetEditMode.
--- =========================================================
+-- Self-driven Edit Mode HUD: Blizzard's own is protected, so opening it from here would taint.
 local _, ns = ...
 local L  = ns.L
 local UI = ns.UI
 local accent = ns.COLORS.accent
 
--- ---------------------------------------------------------
--- Grid settings (persisted per profile; safe fallback before the DB is ready)
--- ---------------------------------------------------------
+-- Falls back to a local table when called before the DB exists.
 local function gridState()
     local p = ns.db and ns.db.profile
     if p then
@@ -37,28 +20,18 @@ local function gridState()
     return ns._editGridFallback
 end
 
--- ---------------------------------------------------------
--- Grid snap, called from Core/Mover.lua OnDragStop. x/y are CENTER offsets from
--- the screen centre (same coordinate model the mover already uses), so we snap
--- them to multiples of the grid size -> frame centres line up with grid lines.
--- ---------------------------------------------------------
 function ns:EditSnapXY(x, y, ratio)
     local g = gridState()
     if not g.snap then return x, y end
     local s = g.size or 32
     if s <= 0 then return x, y end
-    -- snap in UIParent units (the space the grid is DRAWN in), then convert
-    -- back to the frame-local units db.x/db.y use — otherwise a scaled frame
-    -- "snaps" visibly beside the drawn line
+    -- Snap in UIParent units (where the grid is drawn), then convert back to frame-local units.
     ratio = ratio or 1
     if ratio == 0 then ratio = 1 end
     local function snap(v) return (math.floor((v * ratio) / s + 0.5) * s) / ratio end
     return snap(x), snap(y)
 end
 
--- ---------------------------------------------------------
--- Lazy-built chrome
--- ---------------------------------------------------------
 local dim, toolbar, built
 local gridPool = {}
 
@@ -85,7 +58,6 @@ local function refreshGrid()
         t:ClearAllPoints()
         return t
     end
-    -- vertical line at screen x = px
     local function vline(px, center)
         local t = lineTex()
         if center then t:SetColorTexture(accent.r, accent.g, accent.b, 0.55)
@@ -95,7 +67,6 @@ local function refreshGrid()
         t:SetPoint("BOTTOM", dim, "BOTTOMLEFT", px, 0)
         t:Show()
     end
-    -- horizontal line at screen y = py (measured from the bottom)
     local function hline(py, center)
         local t = lineTex()
         if center then t:SetColorTexture(accent.r, accent.g, accent.b, 0.55)
@@ -116,32 +87,24 @@ local function refreshGrid()
 end
 ns.RefreshEditGrid = refreshGrid
 
--- ---------------------------------------------------------
--- Build (once)
--- ---------------------------------------------------------
 local function build()
     if built then return end
     built = true
     local accent = ns.COLORS.accent
 
-    -- Dim overlay: below the movers (HIGH) so the purple boxes stay on top and
-    -- clickable; mouse-enabled so stray clicks hit it instead of the world.
+    -- Strata stays below the movers (HIGH) so the boxes remain clickable.
     dim = CreateFrame("Frame", "VCUIEditDim", UIParent)
     dim:SetAllPoints(UIParent)
     dim:SetFrameStrata("MEDIUM")
     dim:EnableMouse(true)
-    -- click empty space to deselect the current frame
     dim:SetScript("OnMouseDown", function() if ns.DeselectMover then ns:DeselectMover() end end)
     local fill = dim:CreateTexture(nil, "BACKGROUND")
     fill:SetAllPoints(dim)
     fill:SetColorTexture(0, 0, 0, 0.35)
     dim:Hide()
 
-    -- Toolbar: above the movers (DIALOG > HIGH) so its controls are clickable.
+    -- DIALOG keeps the toolbar above the movers (HIGH) so its controls stay clickable.
     toolbar = CreateFrame("Frame", "VCUIEditToolbar", UIParent)
-    -- wide enough that the grid-size slider's value + / - steppers clear the
-    -- right-hand Layouts / Reset buttons (left cluster anchors left, right cluster
-    -- anchors right, so the extra width separates them)
     toolbar:SetSize(960, 64)
     toolbar:SetPoint("TOP", UIParent, "TOP", 0, -140)
     toolbar:SetFrameStrata("DIALOG")
@@ -154,7 +117,6 @@ local function build()
     UI:StyleBackdrop(toolbar, { bg = ns.COLORS.bg, border = ns.COLORS.accentDim })
     UI:CreateShadow(toolbar)
 
-    -- Accent strip + title
     local strip = toolbar:CreateTexture(nil, "ARTWORK")
     strip:SetPoint("TOPLEFT",  toolbar, "TOPLEFT",  0, 0)
     strip:SetPoint("TOPRIGHT", toolbar, "TOPRIGHT", 0, 0)
@@ -169,7 +131,6 @@ local function build()
 
     local ROWY = -32
 
-    -- Exit (primary accent)
     local exitBtn = UI:CreateButton(toolbar, {
         label   = L["Exit"],
         primary = true,
@@ -179,7 +140,6 @@ local function build()
     })
     exitBtn:SetPoint("TOPLEFT", toolbar, "TOPLEFT", 14, ROWY)
 
-    -- Grid toggle
     local gridTog = UI:CreateToggle(toolbar, {
         label   = L["Grid"],
         tooltip = L["Show an alignment grid."],
@@ -189,7 +149,6 @@ local function build()
     gridTog:SetSize(108, 24)
     gridTog:SetPoint("LEFT", exitBtn, "RIGHT", 18, 0)
 
-    -- Snap toggle
     local snapTog = UI:CreateToggle(toolbar, {
         label   = L["Snap"],
         tooltip = L["Snap windows to the grid while dragging."],
@@ -199,7 +158,6 @@ local function build()
     snapTog:SetSize(140, 24)
     snapTog:SetPoint("LEFT", gridTog, "RIGHT", 14, 0)
 
-    -- Grid-size caption + slider
     local cap = toolbar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     UI.Font(cap, 11)
     cap:SetText(L["Size"])
@@ -215,7 +173,6 @@ local function build()
     })
     sizeSlider:SetPoint("LEFT", cap, "RIGHT", 8, 0)
 
-    -- Reset positions (right-aligned)
     local resetBtn = UI:CreateButton(toolbar, {
         label   = L["Reset"],
         width   = 130,
@@ -224,7 +181,6 @@ local function build()
     })
     resetBtn:SetPoint("TOPRIGHT", toolbar, "TOPRIGHT", -16, ROWY)
 
-    -- Layouts (save / load / export named arrangements) — opens its own panel
     local layoutsBtn = UI:CreateButton(toolbar, {
         label   = L["Layouts"],
         width   = 120,
@@ -234,15 +190,11 @@ local function build()
     layoutsBtn:SetPoint("RIGHT", resetBtn, "LEFT", -10, 0)
 end
 
--- ---------------------------------------------------------
--- Public: enter / exit
--- ---------------------------------------------------------
 function ns:IsEditModeActive()
     return ns._editActive and true or false
 end
 
--- Hooks fired whenever Edit Mode toggles, so a module with its OWN positioner
--- (not a ns:CreateMover box) can follow the same on/off — e.g. Arena's overlay.
+-- Lets modules with their own positioner (not a CreateMover box) follow the same toggle.
 ns._editHooks = ns._editHooks or {}
 function ns:RegisterEditModeHook(fn)
     if type(fn) == "function" then ns._editHooks[#ns._editHooks + 1] = fn end
@@ -257,36 +209,27 @@ function ns:SetEditMode(state)
     build()
     ns._editActive = state
     if state then
-        -- Park/link Blizzard frame anchors before the boxes are shown.
         if ns.PrepareBlizzMovers then ns:PrepareBlizzMovers() end
         dim:Show()
         toolbar:Show()
         refreshGrid()
     else
-        -- abort any in-flight drag cleanly so the grabbed frame isn't left stuck
-        -- to the cursor (e.g. combat auto-exit fires mid-drag)
+        -- Abort an in-flight drag (combat auto-exit can fire mid-drag) or the frame sticks to the cursor.
         local d = ns._draggingMover
         if d and d.target and d.target.StopMovingOrSizing then d.target:StopMovingOrSizing() end
-        if ns.DeselectMover then ns:DeselectMover() end   -- also clears ns._groupDrag
+        if ns.DeselectMover then ns:DeselectMover() end
         if ns.HideLayouts then ns:HideLayouts() end
         ns._draggingMover = nil
         if ns._hideGuides then ns._hideGuides() end
         dim:Hide()
         toolbar:Hide()
     end
-    -- Drive the existing mover engine (shows/hides every registered box).
     ns:SetMoversEditMode(state)
-    -- Style the boxes BOTH ways: entering styles the fresh selection looks,
-    -- leaving restyles boxes that stay visible via free-move into their
-    -- quiet (thin-outline) look instead of freezing the loud edit overlay.
+    -- Restyle on both edges: leaving must drop free-move boxes back to their quiet look.
     if ns.RefreshMoverStyles then ns:RefreshMoverStyles() end
-    -- let bespoke positioners (Arena) follow the same toggle
     for _, fn in ipairs(ns._editHooks) do pcall(fn, state) end
 end
 
--- ---------------------------------------------------------
--- Reset confirmation
--- ---------------------------------------------------------
 StaticPopupDialogs["VCUI_EDIT_RESET"] = {
     text         = L["Reset all VuloUI window positions to the screen centre?"],
     button1      = YES,
@@ -298,9 +241,6 @@ StaticPopupDialogs["VCUI_EDIT_RESET"] = {
     preferredIndex = 3,
 }
 
--- ---------------------------------------------------------
--- Combat safety: auto-exit on entering combat, restore afterwards.
--- ---------------------------------------------------------
 local combat = CreateFrame("Frame")
 combat:RegisterEvent("PLAYER_REGEN_DISABLED")
 combat:RegisterEvent("PLAYER_REGEN_ENABLED")
@@ -318,7 +258,6 @@ combat:SetScript("OnEvent", function(_, event)
     end
 end)
 
--- Keep the grid correct across resolution / UI-scale changes.
 local disp = CreateFrame("Frame")
 disp:RegisterEvent("DISPLAY_SIZE_CHANGED")
 disp:RegisterEvent("UI_SCALE_CHANGED")
@@ -326,18 +265,11 @@ disp:SetScript("OnEvent", function()
     if ns:IsEditModeActive() then refreshGrid() end
 end)
 
--- ---------------------------------------------------------
--- Slash command
--- ---------------------------------------------------------
 SLASH_VCUIEDIT1 = "/vedit"
 SlashCmdList["VCUIEDIT"] = function()
     ns:SetEditMode(not ns:IsEditModeActive())
 end
 
--- =========================================================
--- Phase 2: selection + floating per-frame panel, edge/centre magnetism with
--- alignment guides, and Alt-cycle through stacked frames.
--- =========================================================
 local function snapVal(v, size)
     if not size or size <= 0 then return v end
     return math.floor(v / size + 0.5) * size
@@ -348,11 +280,7 @@ local function cleanLabel(s)
     return (s:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""))
 end
 
--- ---------------------------------------------------------
--- Selection set (multi-select). ns._selection is the list of selected movers;
--- ns._selectedMover is the PRIMARY (the one the floating panel edits). A group
--- drag moves every selected box; the panel still edits only the primary.
--- ---------------------------------------------------------
+-- ns._selection holds all selected movers; ns._selectedMover is the primary one the panel edits.
 ns._selection = ns._selection or {}
 
 local function selIndex(m)
@@ -360,20 +288,13 @@ local function selIndex(m)
 end
 function ns:IsSelected(m) return selIndex(m) ~= nil end
 
--- ---------------------------------------------------------
--- Selection visuals: brighten selected boxes, dim the rest. The primary
--- (panel target) gets the strongest border so you can tell which one X/Y edits.
--- ---------------------------------------------------------
 function ns:RefreshMoverStyles()
     for _, m in ipairs(ns._movers) do
         local sel     = ns:IsSelected(m)
         local primary = (m == ns._selectedMover)
         local sc      = m.opts and m.opts.scope
         local editing = ns._moverEditGlobal or (sc and ns._moverEditScopes and ns._moverEditScopes[sc]) or false
-        -- A box that is visible ONLY because of "free move" (outside any edit
-        -- mode) stays grabbable but goes QUIET: thin dim outline, no fill, no
-        -- label — a full purple box parked on the frame reads as a stuck edit
-        -- overlay. The explicit Unlock/Position flow keeps the loud look.
+        -- Free-move boxes outside edit mode stay grabbable but go quiet, else they read as a stuck overlay.
         local quiet = m:IsShown() and not editing
             and not (m.opts and m.opts.db and m.opts.db.unlocked)
         if m.bg then
@@ -399,9 +320,6 @@ function ns:RefreshMoverStyles()
     end
 end
 
--- ---------------------------------------------------------
--- Floating per-frame settings panel (VuloUI styled, built from our widgets).
--- ---------------------------------------------------------
 local panel
 
 local ANCHOR_POINTS = {
@@ -416,12 +334,8 @@ local ANCHOR_POINTS = {
     { value = "BOTTOMRIGHT", text = "Bottom-Right" },
 }
 
--- Live CENTER offset of the selected mover's target. Reading the target every
--- frame (rather than the stored db, which only updates on drop) is what lets the
--- panel's X / Y track a drag or an arrow-key nudge in real time.
+-- Reads the live target, not the stored db (which only updates on drop), so X/Y track a drag.
 local function moverXY(m)
-    -- canonical frame-local offsets (matches the stored db model exactly, so
-    -- the panel's X/Y round-trip without moving the frame)
     local x, y = ns:GetCenterOffsets(m and m.target)
     if x and y then return x, y end
     if m and m.opts and m.opts.db then return m.opts.db.x or 0, m.opts.db.y or 0 end
@@ -439,7 +353,6 @@ local function refreshPanel()
     end
     panel.title:SetText(name)
     local x, y = moverXY(m)
-    -- don't stomp on the field the user is currently typing in
     if not panel.xBox._editBox:HasFocus() then
         panel.xBox._editBox:SetText(tostring(math.floor(x + 0.5)))
     end
@@ -469,7 +382,6 @@ local function buildPanel()
     strip:SetHeight(2)
     UI.SetGradient(strip, "HORIZONTAL", accent.r, accent.g, accent.b, 0.0, accent.r, accent.g, accent.b, 0.9)
 
-    -- title (frame name) — bigger, with room before the close button
     panel.title = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     UI.Font(panel.title, 14)
     panel.title:SetPoint("TOPLEFT",  panel, "TOPLEFT",  16, -13)
@@ -478,7 +390,6 @@ local function buildPanel()
     panel.title:SetWordWrap(false)
     panel.title:SetTextColor(accent.r, accent.g, accent.b)
 
-    -- lightweight close (×) — deselects
     local close = CreateFrame("Button", nil, panel)
     close:SetSize(20, 20)
     close:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -6, -8)
@@ -490,21 +401,18 @@ local function buildPanel()
     close:SetScript("OnLeave", function() cfs:SetTextColor(0.7, 0.7, 0.75) end)
     close:SetScript("OnClick", function() if ns.DeselectMover then ns:DeselectMover() end end)
 
-    -- separator under the title
     local sep = panel:CreateTexture(nil, "ARTWORK")
     sep:SetPoint("TOPLEFT",  panel, "TOPLEFT",  14, -38)
     sep:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -14, -38)
     sep:SetHeight(1)
     sep:SetColorTexture(1, 1, 1, 0.07)
 
-    -- "POSITION" caption
     local cap = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     UI.Font(cap, 10)
     cap:SetPoint("TOPLEFT", panel, "TOPLEFT", 16, -46)
     cap:SetText(L["POSITION"])
     cap:SetTextColor(0.55, 0.55, 0.62)
 
-    -- X / Y side by side, each a wide value box so big numbers stay readable
     panel.xBox = UI:CreateEditBox(panel, {
         label = "X", numeric = true, commitOnFocusLost = true, width = 124, editWidth = 100,
         get = function() local x = moverXY(ns._selectedMover); return math.floor(x + 0.5) end,
@@ -525,7 +433,6 @@ local function buildPanel()
     })
     panel.yBox:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -18, -62)
 
-    -- SCALE row (shown only for movers that opt in; positioned by layoutPanel)
     panel.scaleCap = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     UI.Font(panel.scaleCap, 10)
     panel.scaleCap:SetText(L["SCALE"])
@@ -536,9 +443,6 @@ local function buildPanel()
         set = function(_, v) local m = ns._selectedMover; if m then ns:MoverSetScale(m, v) end end,
     })
 
-    -- ANCHOR-point row (shown only for movers that opt in). A small on/off switch
-    -- lets the user turn the edge/corner re-pin off entirely (plain CENTER offset)
-    -- and the dropdown picks which point it pins to when on.
     panel.anchorCap = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     UI.Font(panel.anchorCap, 10)
     panel.anchorCap:SetText(L["ANCHOR"])
@@ -562,8 +466,6 @@ local function buildPanel()
         set = function(_, v) local m = ns._selectedMover; if m then ns:MoverSetAnchor(m, v) end end,
     })
 
-    -- FREE-MOVE row: keep THIS window draggable after Edit Mode is closed (and
-    -- across /reload). Always available for every selected window.
     panel.freeCap = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     UI.Font(panel.freeCap, 10)
     panel.freeCap:SetText(L["FREE MOVE"])
@@ -583,7 +485,7 @@ local function buildPanel()
         onClick = function()
             local m = ns._selectedMover
             if m then
-                ns._inMoverReset = true          -- explicit reset, not a 0,0 drop
+                ns._inMoverReset = true          -- flags an explicit reset, not a 0,0 drop
                 ns:MoverSetCenter(m, 0, 0)
                 ns._inMoverReset = false
                 refreshPanel()
@@ -600,7 +502,6 @@ local function buildPanel()
     hint:SetTextColor(0.55, 0.55, 0.62)
     hint:SetText(L["Drag a box, or hover it and use the arrow keys (Shift = 5px). Shift+click to select several and drag them together."])
 
-    -- Live values: keep X / Y in step with a drag or an arrow-key nudge.
     panel._acc = 0
     panel:SetScript("OnUpdate", function(self, elapsed)
         self._acc = self._acc + elapsed
@@ -610,8 +511,6 @@ local function buildPanel()
     end)
 end
 
--- Grey the anchor dropdown out while the anchor switch is off, so it reads as
--- inactive (the re-pin is disabled but the point is remembered).
 local function refreshAnchorEnabled(m)
     if not (panel and panel.anchorDrop) then return end
     local on = m and ns:IsMoverAnchorEnabled(m)
@@ -623,18 +522,13 @@ local function refreshAnchorEnabled(m)
     end
 end
 
--- Show / position the optional Scale + Anchor rows + the Free-move row for the
--- selected mover and size the panel to fit (capabilities are per-mover).
 local function layoutPanel(m)
     if not panel then return end
     local scalable   = m and m.opts and m.opts.scalable
     local anchorable = m and m.opts and m.opts.anchorable
-    local y = -100   -- extra breathing room below the X / Y row
+    local y = -100
 
     if scalable then
-        -- Two-line section like POSITION: the SCALE caption on its own line, the
-        -- slider (with its ± steppers + value) on a full-width line beneath it —
-        -- so nothing is cramped and the value/steppers sit clear of the caption.
         panel.scaleCap:Show(); panel.scaleSlider:Show()
         panel.scaleCap:ClearAllPoints()
         panel.scaleCap:SetPoint("TOPLEFT", panel, "TOPLEFT", 18, y)
@@ -659,7 +553,6 @@ local function layoutPanel(m)
         panel.anchorCap:Hide(); panel.anchorToggle:Hide(); panel.anchorDrop:Hide()
     end
 
-    -- Free-move row (always shown): caption left, switch right.
     panel.freeCap:Show(); panel.freeToggle:Show()
     panel.freeCap:ClearAllPoints()
     panel.freeCap:SetPoint("LEFT", panel, "TOPLEFT", 18, y - 13)
@@ -672,7 +565,6 @@ local function layoutPanel(m)
     panel:SetHeight(-(y - 8) + 92)
 end
 
--- Reflect the selected mover's current scale / anchor / toggles in the panel.
 local function refreshCaps(m)
     if m and m.opts and m.opts.scalable and panel.scaleSlider._vcSetup then
         panel.scaleSlider._vcSetup(panel.scaleSlider, panel.scaleSlider._vcConfig)
@@ -685,22 +577,14 @@ local function refreshCaps(m)
     if panel.freeToggle._refresh then panel.freeToggle._refresh() end
 end
 
--- Called when the per-frame anchor switch flips: re-grey the dropdown.
 function ns:OnAnchorToggled()
     refreshAnchorEnabled(ns._selectedMover)
 end
 
--- additive (Shift+click): toggle this mover in/out of the selection set.
--- non-additive (plain click): select just this one — UNLESS it is already part
--- of a multi-selection, in which case keep the group (so a plain click/grab on a
--- group member can drag the whole group) and only move the primary to it.
+-- A plain click on a member of a multi-selection keeps the group and only retargets the primary.
 function ns:SelectMover(mover, additive)
     if not mover then return end
-    -- Only the Edit Mode HUD shows the floating settings panel. A free-move box
-    -- can still be clicked while Edit Mode is closed (to drag it) — but selecting
-    -- it then would strand the panel on screen with no dim to deselect against, so
-    -- ignore selection outside Edit Mode. Dragging still works (it's on the box's
-    -- own OnDragStart, independent of selection).
+    -- Selecting outside edit mode would strand the panel with no dim to deselect against; dragging still works.
     if not ns:IsEditModeActive() then return end
 
     if additive then
@@ -714,14 +598,14 @@ function ns:SelectMover(mover, additive)
             ns._selectedMover = mover
         end
     elseif selIndex(mover) and #ns._selection > 1 then
-        ns._selectedMover = mover            -- keep the group, just retarget the panel
+        ns._selectedMover = mover
     else
         wipe(ns._selection)
         ns._selection[1]  = mover
         ns._selectedMover = mover
     end
 
-    if not ns._selectedMover then            -- toggled the last box off
+    if not ns._selectedMover then
         if panel then panel:Hide() end
         ns:RefreshMoverStyles()
         return
@@ -743,17 +627,11 @@ function ns:DeselectMover()
     ns:RefreshMoverStyles()
 end
 
--- ---------------------------------------------------------
--- Group drag: when the dragged ("leader") box is part of a multi-selection,
--- every other selected box follows it by the same delta. Only the leader snaps
--- (magnetism); followers keep their relative offset so the group stays rigid.
--- ---------------------------------------------------------
+-- Only the leader snaps; followers keep their relative offset so the group stays rigid.
 function ns:BeginGroupDrag(leader)
     ns._groupDrag = nil
     if #ns._selection <= 1 or not (leader and ns:IsSelected(leader) and leader.target) then return end
-    -- every capture below is in the OWNING frame's local space — the same
-    -- model db.x/y use, so a scaled follower no longer teleports on the
-    -- first drag tick (ns:GetCenterOffsets is the one canonical formula)
+    -- Captures are in each owning frame's local space, or a scaled follower teleports on the first tick.
     local followers = {}
     for _, m in ipairs(ns._selection) do
         if m ~= leader and m.target then
@@ -769,31 +647,24 @@ function ns:BeginGroupDrag(leader)
     ns._groupDrag = { lx = lx, ly = ly, followers = followers }
 end
 
--- Called each frame while dragging (from liveGuideDriver): translate followers
--- by the leader's live movement so they track the cursor with it.
 function ns:UpdateGroupDrag()
     local gd = ns._groupDrag
     local leader = ns._draggingMover
     if not (gd and leader and leader.target) then return end
     local lx, ly = ns:GetCenterOffsets(leader.target)
     if not lx then return end
-    -- leader's movement in its own coordinate space (same normalization as
-    -- the capture, so the constant term cancels exactly)
     local dx, dy = lx - gd.lx, ly - gd.ly
     local lscale = leader.target:GetEffectiveScale() or 1
     for _, f in ipairs(gd.followers) do
         local t = f.mover.target
-        -- convert the delta into THIS follower's space so a scaled frame tracks
-        -- the leader 1:1 on screen (conv == 1 when both are at the same scale)
+        -- Convert the delta into this follower's space so a scaled frame tracks the leader 1:1 on screen.
         local conv = lscale / (t:GetEffectiveScale() or 1)
         t:ClearAllPoints()
         t:SetPoint("CENTER", UIParent, "CENTER", f.x + dx * conv, f.y + dy * conv)
     end
 end
 
--- Called on drop. sdx/sdy = the snap correction the leader took, applied on top
--- of each follower's live position so the whole group keeps its arrangement;
--- then each follower is committed through its own model (scale/anchor/custom).
+-- sdx/sdy is the snap correction the leader took, reapplied so the group keeps its arrangement.
 function ns:EndGroupDrag(sdx, sdy)
     local gd = ns._groupDrag
     ns._groupDrag = nil
@@ -807,7 +678,6 @@ function ns:EndGroupDrag(sdx, sdy)
     end
 end
 
--- Arrow-key nudge: move the rest of the selection by the same step as the leader.
 function ns:NudgeGroupFollowers(leader, dx, dy)
     if #ns._selection <= 1 or not ns:IsSelected(leader) then return end
     for _, m in ipairs(ns._selection) do
@@ -823,9 +693,6 @@ function ns:OnMoverMoved(mover)
     if mover == ns._selectedMover then refreshPanel() end
 end
 
--- ---------------------------------------------------------
--- Alignment guides (flashed when a magnet snap engages on drop).
--- ---------------------------------------------------------
 local guideFrame, guidePool = nil, {}
 local function ensureGuideFrame()
     if guideFrame then return end
@@ -872,14 +739,7 @@ end
 
 local MAG_THRESH = 12
 
--- Find the nearest snap lines for `mover` at CENTER offset (x,y): every other
--- mover's edges/centre + the screen centre cross. Returns dx,lineX,dy,lineY --
--- the per-axis snap delta and the line it snaps to (or nil if nothing in range).
--- All snapping math runs in UIPARENT units — the space the guides and grid
--- are drawn in. The dragged frame's local offsets/extents scale UP by its
--- ratio, every other frame's lines are captured canonically and scaled the
--- same way; the returned dx/dy convert BACK to the dragged frame's local
--- units (what db.x/db.y store), while lineX/lineY stay UI-space for drawing.
+-- Math runs in UIParent units (where guides are drawn); returned dx/dy convert back to frame-local, lineX/lineY stay UI-space.
 local function computeSnap(mover, x, y)
     local target = mover.target
     if not target then return end
@@ -888,7 +748,7 @@ local function computeSnap(mover, x, y)
     local hw = (target:GetWidth()  or 0) / 2 * r
     local hh = (target:GetHeight() or 0) / 2 * r
 
-    local xLines, yLines = { 0 }, { 0 }   -- 0 == screen centre line
+    local xLines, yLines = { 0 }, { 0 }
     for _, o in ipairs(ns._movers) do
         if o ~= mover and o.target and o:IsShown() then
             local ox, oy = ns:GetCenterOffsets(o.target)
@@ -923,40 +783,28 @@ local function computeSnap(mover, x, y)
     return dx, lineX, dy, lineY
 end
 
--- ---------------------------------------------------------
--- Magnetism on DROP: snap the dropped frame to the nearest lines (grid-snap is
--- the per-axis fallback) and flash the guides.
--- ---------------------------------------------------------
 function ns:EditResolveDrop(mover, x, y)
     local g = gridState()
     local r = (ns.GetScaleRatio and mover.target) and ns:GetScaleRatio(mover.target) or 1
     local dx, lineX, dy, lineY = computeSnap(mover, x, y)
-    -- grid fallback also snaps in UI units, then converts back to local
     if dx then x = x + dx elseif g.snap then x = snapVal(x * r, g.size) / r end
     if dy then y = y + dy elseif g.snap then y = snapVal(y * r, g.size) / r end
-    drawGuides(dx and lineX or nil, dy and lineY or nil)   -- flash on drop
+    drawGuides(dx and lineX or nil, dy and lineY or nil)
     return x, y
 end
 
--- ---------------------------------------------------------
--- LIVE guides: while a box is being dragged, show the alignment lines it is
--- about to snap to. Purely visual -- the actual snap still happens on drop.
--- ---------------------------------------------------------
+-- Purely visual preview; the actual snap still happens on drop.
 local liveGuideDriver = CreateFrame("Frame")
 liveGuideDriver:SetScript("OnUpdate", function()
     local m = ns._draggingMover
     if not (m and m.target and ns:IsEditModeActive()) then return end
-    if ns._groupDrag then ns:UpdateGroupDrag() end   -- drag the rest of the group along
+    if ns._groupDrag then ns:UpdateGroupDrag() end
     local lx, ly = ns:GetCenterOffsets(m.target)
     if not lx then return end
     local dx, lineX, dy, lineY = computeSnap(m, lx, ly)
-    drawGuides(dx and lineX or nil, dy and lineY or nil, true)   -- persistent while dragging
+    drawGuides(dx and lineX or nil, dy and lineY or nil, true)
 end)
 
--- ---------------------------------------------------------
--- Alt-cycle: when several boxes overlap under the cursor, show a hint and let
--- Alt raise the buried one so it can be grabbed.
--- ---------------------------------------------------------
 local cycleHint, altWasDown
 local function ensureCycleHint()
     ensureGuideFrame()
@@ -1006,12 +854,7 @@ cycleDriver:SetScript("OnUpdate", function(_, elapsed)
     updateCycle()
 end)
 
--- =========================================================
--- Named layouts: save / load / delete the current arrangement + a copy-paste
--- export / import string. Stored account-wide in ns.db.global.editLayouts so
--- they're shared across profiles and characters. The capture / apply / (de)
--- serialize logic lives in Core/Mover.lua.
--- =========================================================
+-- Layouts live in ns.db.global so they are shared across profiles; capture/apply lives in Core/Mover.lua.
 local layoutsPanel
 local selectedLayout
 local layoutValues = {}
@@ -1026,7 +869,6 @@ local function layoutStore()
     return ns._layoutFallback
 end
 
--- Rebuild the dropdown list from the store and keep / repair the selection.
 local function rebuildLayoutList(preferred)
     wipe(layoutValues)
     local store = layoutStore()
@@ -1074,7 +916,7 @@ local function importLayout(str)
         return
     end
     if name == "" then name = L["Imported"] end
-    -- de-dupe without parentheses (the dropdown strips "(...)" from display)
+    -- De-dupe without parentheses; the dropdown strips "(...)" from display.
     local store = layoutStore()
     local base, i, final = name, 2, name
     while store[final] do final = base .. " " .. i; i = i + 1 end
@@ -1083,11 +925,8 @@ local function importLayout(str)
     ns:Print(string.format(L["Layout '%s' imported."], final))
 end
 
--- ---------------------------------------------------------
--- Popups (name input, import paste, export copy, delete confirm)
--- ---------------------------------------------------------
+-- Newer clients expose the popup box as .EditBox, older ones as .editBox.
 local function popupBox(self)
-    -- newer clients expose the box as .EditBox, older as .editBox
     return self.EditBox or self.editBox
         or (self.GetName and _G[(self:GetName() or "") .. "EditBox"])
 end
@@ -1136,9 +975,6 @@ StaticPopupDialogs["VCUI_LAYOUT_DELETE"] = {
     timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
 }
 
--- ---------------------------------------------------------
--- The Layouts panel (VuloUI styled, mirrors the per-frame panel chrome)
--- ---------------------------------------------------------
 local function buildLayoutsPanel()
     if layoutsPanel then return end
     local p = CreateFrame("Frame", "VCUILayoutsPanel", UIParent)

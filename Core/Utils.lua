@@ -1,7 +1,4 @@
--- =========================================================
--- VuloClassicUI / Core / Utils
 -- General helpers used by multiple modules.
--- =========================================================
 local _, ns = ...
 
 function ns:Print(msg, ...)
@@ -29,12 +26,7 @@ function ns:Clamp(v, lo, hi)
     return v
 end
 
--- =========================================================
--- Pixel-perfect helpers
--- 1 physical pixel == (768 / physicalScreenHeight) coord units at scale 1.0.
--- Divided by a frame's effective scale, that is the size of one physical pixel
--- in THAT frame's coordinate space — use it for crisp N-pixel borders.
--- =========================================================
+-- 1 physical pixel == (768 / physicalScreenHeight) coord units at scale 1.0, divided by the frame's effective scale.
 function ns:Pixel(frame, n)
     local _, physH = GetPhysicalScreenSize()
     if not physH or physH <= 0 then physH = 1080 end
@@ -43,14 +35,12 @@ function ns:Pixel(frame, n)
     return (n or 1) * (768 / physH) / es
 end
 
--- Snap a value to the nearest whole physical pixel (in the frame's coord space).
 function ns:PixelSnap(value, frame)
     local px = ns:Pixel(frame, 1)
     if px <= 0 then return value end
     return math.floor(value / px + 0.5) * px
 end
 
--- Safe deep copy (for defaults -> DB)
 function ns:DeepCopy(t)
     if type(t) ~= "table" then return t end
     local copy = {}
@@ -60,13 +50,11 @@ function ns:DeepCopy(t)
     return copy
 end
 
--- Recursively insert defaults into an existing table, without overwriting existing values
 function ns:ApplyDefaults(target, defaults)
     if type(target) ~= "table" then target = {} end
     for k, v in pairs(defaults) do
         if type(v) == "table" then
-            -- only recurse into a table/nil slot; never clobber a saved scalar
-            -- with a fresh table (would silently drop the user's value)
+            -- never clobber a saved scalar with a fresh table (drops the user's value)
             if target[k] == nil or type(target[k]) == "table" then
                 target[k] = ns:ApplyDefaults(target[k], v)
             end
@@ -77,9 +65,6 @@ function ns:ApplyDefaults(target, defaults)
     return target
 end
 
--- =========================================================
--- Font helper (used by VuloFontBars and ArenaEnemyEdit)
--- =========================================================
 function ns:SafeGetFontString(bar, suffix)
     if not bar or not bar.GetName then return nil end
     local n = bar:GetName()

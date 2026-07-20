@@ -1,11 +1,7 @@
--- =========================================================
 -- VuloClassicUI / Modules / CooldownPulse
--- Ported from Doom_CooldownPulse.
 -- Briefly flashes the icon of a spell/item large in the screen center
 -- when its cooldown expires.
---
 -- Ported for TBC 2.5.5 (no C_Spell / C_Container / Settings APIs).
--- =========================================================
 local _, ns = ...
 local L = ns.L
 
@@ -14,7 +10,7 @@ local mod = ns:RegisterModule("cooldownpulse", {
     group       = "Unit Frames",
     description = "Shows the icon of an expired cooldown as a brief pulsing animation in the screen center (based on Doom_CooldownPulse).",
     defaults = {
-        enabled       = false,  -- default OFF
+        enabled       = false,
         iconSize      = 75,
         fadeInTime    = 0.3,
         fadeOutTime   = 0.7,
@@ -31,14 +27,12 @@ local mod = ns:RegisterModule("cooldownpulse", {
     },
 })
 
--- =========================================================
 -- API compat: GetItemCooldown is not available globally in 2.5.5.
 -- Possible locations depending on client version:
 --   - global GetItemCooldown (Classic Era)
 --   - C_Item.GetItemCooldown (Retail 10.2+)
 --   - C_Container.GetItemCooldown (Retail 10.0+)
 -- Fallback: scan bags with GetContainerItemCooldown.
--- =========================================================
 local function getItemCooldown(itemID)
     if not itemID then return 0, 0, 0 end
 
@@ -89,9 +83,7 @@ local function getContainerItemID(bag, slot)
     return nil
 end
 
--- =========================================================
 -- Local state
--- =========================================================
 local cooldowns = {}   -- [id] = getCooldownDetailsFn
 local animating = {}   -- queue of {texture, isPet, name}
 local watching  = {}   -- [id] = {startTime, type, ref}
@@ -101,9 +93,7 @@ local DCP        -- main frame
 local DCPT       -- texture child
 local TextFrame  -- font string child
 
--- =========================================================
 -- Helper
--- =========================================================
 local function tcount(tab)
     local n = 0
     for _ in pairs(tab) do n = n + 1 end
@@ -165,9 +155,7 @@ local function trackItemSpell(itemID)
     return false
 end
 
--- =========================================================
 -- Cooldown/animation update (OnUpdate)
--- =========================================================
 local elapsed = 0
 local runtimer = 0
 local function OnUpdate(_, update)
@@ -293,9 +281,7 @@ local function OnUpdate(_, update)
     end
 end
 
--- =========================================================
 -- Frame setup
--- =========================================================
 local function ensureFrame()
     if DCP then return DCP end
 
@@ -357,12 +343,7 @@ local function ensureFrame()
     return DCP
 end
 
--- (The old manual unlock/lock was replaced by the unified Edit Mode: the mover's
---  editPreview callback in ensureFrame shows a sample icon you drag via /vedit.)
-
--- =========================================================
 -- Events
--- =========================================================
 local function triggerSpell(spellID)
     watching[spellID] = { GetTime(), "spell", spellID }
     if DCP and not DCP:IsMouseEnabled() then
@@ -502,18 +483,14 @@ local function setupEvents()
     end
 end
 
--- =========================================================
 -- Test animation
--- =========================================================
 local function testAnimation()
     ensureFrame()
     tinsert(animating, { "Interface\\Icons\\Spell_Nature_Earthbind", nil, L["Test Spell"] })
     DCP:SetScript("OnUpdate", OnUpdate)
 end
 
--- =========================================================
 -- Lifecycle
--- =========================================================
 function mod:OnEnable()
     ensureFrame()
     setupEvents()
@@ -530,9 +507,7 @@ function mod:OnDisable()
     wipe(watching)
 end
 
--- =========================================================
 -- Options page
--- =========================================================
 function mod:GetOptions()
     return {
         { type = "header", text = L["Position"] },
@@ -643,9 +618,7 @@ function mod:GetOptions()
     }
 end
 
--- =========================================================
 -- Slash commands
--- =========================================================
 SLASH_VCUI_DCP1 = "/dcp"
 SLASH_VCUI_DCP2 = "/cooldownpulse"
 SlashCmdList.VCUI_DCP = function() SlashCmdList["VULOCLASSICUI"]("cooldownpulse") end

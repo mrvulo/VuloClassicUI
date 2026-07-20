@@ -4,88 +4,77 @@ Trinkets = { }
 
 local _G, math, tonumber, string, type, pairs, ipairs, table, select = _G, math, tonumber, string, type, pairs, ipairs, table, select
 
--- Derive from VuloClassicUI's canonical client flags (single source of truth).
--- Falls back to the raw WOW_PROJECT check so the engine still works standalone.
--- Note: isEra covers BOTH Classic Era AND Season of Discovery (both are
--- WOW_PROJECT_CLASSIC), which is exactly what IsVanillaClassic needs here.
+-- isEra covers both Classic Era and Season of Discovery (both are WOW_PROJECT_CLASSIC).
 local _vui = _G.VuloClassicUI
 local IsClassic = (_vui and _vui.isClassic) or (WOW_PROJECT_ID and WOW_PROJECT_ID >= WOW_PROJECT_CLASSIC) or false
 local IsVanillaClassic = (_vui and _vui.isEra) or (WOW_PROJECT_ID == WOW_PROJECT_CLASSIC)
 local IsRetail = WOW_PROJECT_ID == WOW_PROJECT_MAINLINE
 
--- localized strings required to support engineering bags
-Trinkets.BAG = "Bag" -- 7th return of GetItemInfo on a normal bag
-Trinkets.ENGINEERING_BAG = "Engineering Bag" -- 7th return of GetItemInfo on an engineering bag
-Trinkets.TRADE_GOODS = "Trade Goods" -- 6th return of GetItemInfo on most engineered trinkets
-Trinkets.DEVICES = "Devices" -- 7th return of GetItemInfo on most engineered trinkets
-Trinkets.REQUIRES_ENGINEERING = "Requires Engineering" -- from tooltip when GetItemInfo ambiguous
+-- Locale-dependent GetItemInfo returns (6th = type, 7th = subtype) used to detect engineering bags/trinkets.
+Trinkets.BAG = "Bag"
+Trinkets.ENGINEERING_BAG = "Engineering Bag"
+Trinkets.TRADE_GOODS = "Trade Goods"
+Trinkets.DEVICES = "Devices"
+Trinkets.REQUIRES_ENGINEERING = "Requires Engineering"
 
 function Trinkets.LoadDefaults()
 	TrinketsOptions = TrinketsOptions or {
 		IconPos = - 100,				-- angle of initial minimap icon position
-		ShowIcon = "ON",				-- whether to show the minimap button
-		SquareMinimap = "OFF",			-- whether the minimap is square instead of circular
-		CooldownCount = "OFF",			-- whether to display numerical cooldown counters
-		CooldownCountBlizzard = "ON",	-- whether to display numerical blizzard cooldown counters
-		CooldownCountOmniCC = "ON",		-- whether to display numerical omnicc cooldown counters
-		LargeCooldown = "ON",			-- whether cooldown numbers are large or small
-		TooltipFollow = "OFF",			-- whether tooltips follow the mouse
-		KeepOpen = "OFF",				-- whether menu hides after use
-		KeepDocked = "ON",				-- whether to keep menu docked at all times
-		Notify = "OFF",					-- whether a message appears when a trinket is ready
-		DisableToggle = "OFF",			-- whether minimap button toggles trinkets
-		NotifyUsedOnly = "OFF",			-- whether notify happens only on trinkets used
-		NotifyChatAlso = "OFF",			-- whether to send notify to chat also
-		Locked = "OFF",					-- whether windows can be moved/scaled/rotated
-		ShowTooltips = "ON",			-- whether to display tooltips at all
-		NotifyThirty = "OFF",			-- whether to notify cooldowns at 30 seconds instead of 0
-		MenuOnShift = "OFF",			-- whether menu requires Shift to display
-		TinyTooltips = "OFF",			-- whether tooltips display only name and cooldown
-		SetColumns = "OFF",				-- whether number of columns in menu is chosen automatically
-		Columns = 4,					-- if SetColumns "ON", number of columns before menu wraps
-		ShowHotKeys = "OFF",			-- whether hotkeys show on trinkets
-		StopOnSwap = "OFF",				-- whether to stop auto queue on all manual swaps
-		RedRange = "OFF",				-- whether to monitor and red out out of range trinkets
-		HidePetBattle = "ON",			-- whether to hide the trinkets while in a pet battle
-		MenuOnRight = "OFF"				-- whether to open menu with right-click
+		ShowIcon = "ON",
+		SquareMinimap = "OFF",
+		CooldownCount = "OFF",
+		CooldownCountBlizzard = "ON",
+		CooldownCountOmniCC = "ON",
+		LargeCooldown = "ON",
+		TooltipFollow = "OFF",
+		KeepOpen = "OFF",
+		KeepDocked = "ON",
+		Notify = "OFF",
+		DisableToggle = "OFF",
+		NotifyUsedOnly = "OFF",
+		NotifyChatAlso = "OFF",
+		Locked = "OFF",
+		ShowTooltips = "ON",
+		NotifyThirty = "OFF",
+		MenuOnShift = "OFF",
+		TinyTooltips = "OFF",
+		SetColumns = "OFF",				-- "OFF" = pick column count automatically, ignoring Columns
+		Columns = 4,
+		ShowHotKeys = "OFF",
+		StopOnSwap = "OFF",
+		RedRange = "OFF",
+		HidePetBattle = "ON",
+		MenuOnRight = "OFF"
 	}
 	TrinketsPerOptions = TrinketsPerOptions or {
-		MainDock = "BOTTOMRIGHT",		-- corner of main window docked to
-		MenuDock = "BOTTOMLEFT",		-- corner menu window is docked from
-		MainOrient = "HORIZONTAL",		-- direction of main window
-		MenuOrient = "VERTICAL",		-- direction of menu window
-		XPos = 400,						-- left edge of main window
-		YPos = 400,						-- top edge of main window
-		MainScale = 1,					-- scaling of main window
-		MenuScale = 1,					-- scaling of menu window
-		Visible = "ON",					-- whether to display the trinkets
-		FirstUse = true,				-- whether this is the first time this user has used the mod
-		ItemsUsed = { },				-- table of trinkets used and their cooldown status
-		Alpha = 1,						-- alpha of both windows
-		Hidden = { }					-- table of trinkets hidden
+		MainDock = "BOTTOMRIGHT",
+		MenuDock = "BOTTOMLEFT",
+		MainOrient = "HORIZONTAL",
+		MenuOrient = "VERTICAL",
+		XPos = 400,
+		YPos = 400,
+		MainScale = 1,
+		MenuScale = 1,
+		Visible = "ON",
+		FirstUse = true,
+		ItemsUsed = { },
+		Alpha = 1,
+		Hidden = { }
 	}
 end
 
---[[ Misc Variables ]]--
-
--- VCUI-Patch: war GetAddOnMetadata("Trinkets",...) → nil weil als VuloClassicUI eingebettet
 Trinkets_Version = (C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata("VuloClassicUI", "Version")) or "embedded"
 BINDING_HEADER_VULOCLASSICUI_TRINKETS = "VuloClassicUI – Trinkets"
 setglobal("BINDING_NAME_CLICK Trinkets_Trinket0:LeftButton", "Trinket-Slot oben")
 setglobal("BINDING_NAME_CLICK Trinkets_Trinket1:LeftButton", "Trinket-Slot unten")
 
-Trinkets.MaxTrinkets = 30 -- add more to Trinkets_MenuFrame if this changes
-Trinkets.BaggedTrinkets = { } -- indexed by number, 1-30 of trinkets in the menu
-Trinkets.NumberOfTrinkets = 0 -- number of trinkets in the menu
-Trinkets.CombatQueue = { } -- [0] or [1] = name of trinket queued for slot 0 or 1
+Trinkets.MaxTrinkets = 30 -- must match the number of buttons defined in Trinkets_MenuFrame
+Trinkets.BaggedTrinkets = { }
+Trinkets.NumberOfTrinkets = 0
+Trinkets.CombatQueue = { }
 Trinkets.Corners = {"TOPLEFT", "TOPRIGHT", "BOTTOMLEFT", "BOTTOMRIGHT"}
 
---[[ Local functions ]]--
-
--- dock-dependant offset and directions: MainDock..MenuDock
--- x/yoff   = offset MenuFrame is positioned to MainFrame
--- x/ydir   = direction trinkets are added to menu
--- x/ystart = starting offset when building a menu, relativePoint MenuDock
+-- Key = MainDock..MenuDock; off = menu offset from main, dir = fill direction, start = first slot offset.
 if IsRetail then
 	Trinkets.DockStats = {
 		["TOPRIGHTTOPLEFT"] =			{ xoff = -7, yoff = 0, xdir = 1, ydir = - 1, xstart = 4, ystart = -4 },
@@ -110,7 +99,6 @@ else
 	}
 end
 
--- returns offset and direction depending on current docking. ie: Trinkets.DockInfo("xoff")
 function Trinkets.DockInfo(arg1)
 	local anchor = TrinketsPerOptions.MainDock..TrinketsPerOptions.MenuDock
 	if Trinkets.DockStats[anchor] and arg1 and Trinkets.DockStats[anchor][arg1] then
@@ -120,7 +108,6 @@ function Trinkets.DockInfo(arg1)
 	end
 end
 
--- hide the docking markers
 function Trinkets.ClearDocking()
 	for i = 1, 4 do
 		_G["Trinkets_MainDock_"..Trinkets.Corners[i]]:Hide()
@@ -128,12 +115,10 @@ function Trinkets.ClearDocking()
 	end
 end
 
--- returns true if the two values are close to each other
 function Trinkets.Near(arg1, arg2)
 	return (math.max(arg1, arg2) - math.min(arg1, arg2)) < 15
 end
 
--- moves the MenuFrame to the dock position against MainFrame
 function Trinkets.DockWindows()
 	Trinkets.ClearDocking()
 	if TrinketsOptions.KeepDocked == "ON" then
@@ -149,7 +134,6 @@ function Trinkets.DockWindows()
 	end
 end
 
--- displays windows vertically or horizontally
 function Trinkets.OrientWindows()
 	if TrinketsPerOptions.MainOrient == "HORIZONTAL" then
 		if IsRetail then
@@ -195,22 +179,19 @@ function Trinkets.PickupContainerItem(bagID, slotIndex)
 end
 
 function Trinkets.GetItemCooldown(itemID)
-	-- 2.5.5 has the GLOBAL GetItemCooldown; C_Container.GetItemCooldown is
-	-- retail-only and nil here (would crash the cooldown watch loops).
+	-- C_Container.GetItemCooldown is retail-only; Classic only has the global GetItemCooldown.
 	if C_Container and C_Container.GetItemCooldown then
 		return C_Container.GetItemCooldown(itemID)
 	end
 	return GetItemCooldown(itemID)
 end
 
--- scan inventory and build MenuFrame
 function Trinkets.BuildMenu()
 	if not IsShiftKeyDown() and TrinketsOptions.MenuOnShift == "ON" then
 		return
 	end
 	local idx = 1
 	local _, itemLink, itemID, itemName, equipSlot, itemTexture
-	-- go through bags and gather trinkets into .BaggedTrinkets
 	for i = 0, 4 do
 		for j = 1, Trinkets.GetContainerNumSlots(i) do
 			itemLink = Trinkets.GetContainerItemLink(i, j)
@@ -233,10 +214,8 @@ function Trinkets.BuildMenu()
 	end
 	Trinkets.NumberOfTrinkets = math.min(idx - 1, Trinkets.MaxTrinkets)
 	if Trinkets.NumberOfTrinkets < 1 then
-		-- user has no bagged trinkets :(
 		Trinkets_MenuFrame:Hide()
 	else
-		-- display trinkets outward from docking point
 		local col, row, xpos, ypos = 0, 0, Trinkets.DockInfo("xstart"), Trinkets.DockInfo("ystart")
 		local max_cols = 1
 		if Trinkets.NumberOfTrinkets > 24 then
@@ -305,31 +284,31 @@ end
 
 function Trinkets.Initialize()
 	local options = TrinketsOptions
-	options.KeepDocked = options.KeepDocked or "ON" -- new option for 2.1
-	options.Notify = options.Notify or "OFF" -- 2.1
-	options.DisableToggle = options.DisableToggle or "OFF" -- new option for 2.2
-	options.NotifyUsedOnly = options.NotifyUsedOnly or "OFF" -- 2.2
-	options.NotifyChatAlso = options.NotifyChatAlso or "OFF" -- 2.2
-	options.ShowTooltips = options.ShowTooltips or "ON" -- 2.3
-	options.NotifyThirty = options.NotifyThirty or "OFF" -- 2.5
-	options.SquareMinimap = options.SquareMinimap or "OFF" -- 2.6
-	options.MenuOnShift = options.MenuOnShift or "OFF" -- 2.6
-	options.TinyTooltips = options.TinyTooltips or "OFF" -- 3.0
-	options.SetColumns = options.SetColumns or "OFF" -- 3.0
-	options.Columns = options.Columns or 4 -- 3.0
-	options.CooldownCount = options.CooldownCount or "OFF" -- 3.0
-	options.LargeCooldown = options.LargeCooldown or "OFF" -- 3.0
-	options.ShowHotKeys = options.ShowHotKeys or "OFF" -- 3.0
-	TrinketsPerOptions.ItemsUsed = TrinketsPerOptions.ItemsUsed or { } -- 3.0
-	options.StopOnSwap = options.StopOnSwap or "OFF" -- 3.2
-	options.HideOnLoad = options.HideOnLoad or "OFF" -- 3.4
-	options.RedRange = options.RedRange or "OFF" -- 3.54
-	options.HidePetBattle = options.HidePetBattle or "ON" -- 6.0.3
-	options.CooldownCountBlizzard = options.CooldownCountBlizzard or "ON" -- 11.1.6
-	options.CooldownCountOmniCC = options.CooldownCountOmniCC or "ON" -- 11.1.6
-	TrinketsPerOptions.Alpha = TrinketsPerOptions.Alpha or 1 -- 3.5
+	options.KeepDocked = options.KeepDocked or "ON"
+	options.Notify = options.Notify or "OFF"
+	options.DisableToggle = options.DisableToggle or "OFF"
+	options.NotifyUsedOnly = options.NotifyUsedOnly or "OFF"
+	options.NotifyChatAlso = options.NotifyChatAlso or "OFF"
+	options.ShowTooltips = options.ShowTooltips or "ON"
+	options.NotifyThirty = options.NotifyThirty or "OFF"
+	options.SquareMinimap = options.SquareMinimap or "OFF"
+	options.MenuOnShift = options.MenuOnShift or "OFF"
+	options.TinyTooltips = options.TinyTooltips or "OFF"
+	options.SetColumns = options.SetColumns or "OFF"
+	options.Columns = options.Columns or 4
+	options.CooldownCount = options.CooldownCount or "OFF"
+	options.LargeCooldown = options.LargeCooldown or "OFF"
+	options.ShowHotKeys = options.ShowHotKeys or "OFF"
+	TrinketsPerOptions.ItemsUsed = TrinketsPerOptions.ItemsUsed or { }
+	options.StopOnSwap = options.StopOnSwap or "OFF"
+	options.HideOnLoad = options.HideOnLoad or "OFF"
+	options.RedRange = options.RedRange or "OFF"
+	options.HidePetBattle = options.HidePetBattle or "ON"
+	options.CooldownCountBlizzard = options.CooldownCountBlizzard or "ON"
+	options.CooldownCountOmniCC = options.CooldownCountOmniCC or "ON"
+	TrinketsPerOptions.Alpha = TrinketsPerOptions.Alpha or 1
 	TrinketsPerOptions.Hidden = TrinketsPerOptions.Hidden or { }
-	options.MenuOnRight = options.MenuOnRight or "OFF" -- 3.61
+	options.MenuOnRight = options.MenuOnRight or "OFF"
 	if TrinketsPerOptions.XPos and TrinketsPerOptions.YPos then
 		Trinkets_MainFrame:ClearAllPoints()
 		Trinkets_MainFrame:SetPoint("TOPLEFT", "UIParent", "BOTTOMLEFT", TrinketsPerOptions.XPos, TrinketsPerOptions.YPos)
@@ -346,7 +325,7 @@ function Trinkets.Initialize()
 	Trinkets_Trinket0:SetAttribute("slot", 13)
 	Trinkets_Trinket1:SetAttribute("slot", 14)
 	if Trinkets.QueueInit then
-		-- alt has a special purpose if queue installed
+		-- Queue module claims alt-click, so the secure alt-slot action must be a no-op.
 		Trinkets_Trinket0:SetAttribute("alt-slot*", ATTRIBUTE_NOOP)
 		Trinkets_Trinket1:SetAttribute("alt-slot*", ATTRIBUTE_NOOP)
 	end
@@ -360,7 +339,6 @@ function Trinkets.Initialize()
 	Trinkets.CreateTimer("TooltipUpdate", Trinkets.TooltipUpdate, 1, 1)
 	Trinkets.CreateTimer("CooldownUpdate", Trinkets.CooldownUpdate, 1, 1)
 	Trinkets.CreateTimer("QueueUpdate", Trinkets.QueueUpdate, 1, 1)
-	--Trinkets.CreateTimer("RedRange", Trinkets.RedRangeUpdate, .33, 1)
 	hooksecurefunc("UseInventoryItem", Trinkets.newUseInventoryItem)
 	hooksecurefunc("UseAction", Trinkets.newUseAction)
 	Trinkets.InitOptions()
@@ -413,12 +391,9 @@ function Trinkets.Initialize()
 	if Trinkets.PeriodicQueueCheck then
 		Trinkets.PeriodicQueueCheck()
 	end
-	--Trinkets.StartTimer("QueueUpdate")
-	--Trinkets.ReflectRedRange()
 	if TrinketsPerOptions.Visible == "ON" and (GetInventoryItemLink("player", 13) or GetInventoryItemLink("player", 14)) then
 		Trinkets_MainFrame:Show()
 	end
-	-- fix for OmniCC
 	Trinkets_MainFrame:SetFrameLevel(1)
 	Trinkets_MenuFrame:SetFrameLevel(1)
 	Trinkets_Trinket0:SetFrameLevel(2)
@@ -434,7 +409,6 @@ function Trinkets.ReflectMenuOnRight()
 	Trinkets_Trinket1:SetAttribute("slot2", TrinketsOptions.MenuOnRight == "ON" and ATTRIBUTE_NOOP or nil)
 end
 
--- returns true if the player is really dead or ghost, not merely FD
 function Trinkets.IsPlayerReallyDead()
 	if IsVanillaClassic then
 		return UnitIsDeadOrGhost("player") and not UnitIsFeignDeath("player")
@@ -477,8 +451,6 @@ function Trinkets.FindItem(item, includeInventory)
 		end
 	end
 end
-
---[[ Frame Scripts ]]--
 
 function Trinkets.OnLoad(self)
 	self:OnBackdropLoaded()
@@ -658,13 +630,8 @@ function Trinkets.ResetSettings()
 	StaticPopup_Show("TrinketsRESET")
 end
 
---[[ Window Movement ]]--
-
 function Trinkets.MainFrame_OnMouseUp(self)
-	-- Secure-Frame (UseItem-Buttons): Move-/Layout-Aufrufe sind im Kampf
-	-- geblockt, und pcall schluckt den ADDON_ACTION_BLOCKED-Ping NICHT
-	-- (das ist kein Lua-Error, sondern das Taint-System). Im Kampf komplett
-	-- raus — bewegen/umklappen geht dann eben erst nach dem Kampf.
+	-- Secure frame: moving it in combat is blocked and pcall does not swallow the taint ping.
 	if InCombatLockdown() then return end
 	local arg1 = GetMouseButtonClicked()
 	if arg1 == "LeftButton" then
@@ -684,13 +651,9 @@ end
 function Trinkets.MainFrame_OnMouseDown(self)
 	if InCombatLockdown() then return end
 	if GetMouseButtonClicked() == "LeftButton" and TrinketsOptions.Locked == "OFF" then
-		-- Secure-Frame: StartMoving wird vom WoW-Security geblockt (UseItem-Buttons).
-		-- pcall fängt den Lua-Error, falls der Frame gerade protected ist.
 		pcall(self.StartMoving, self)
 	end
 end
-
---[[ Timers ]]
 
 function Trinkets.InitTimers()
 	Trinkets.TimerPool = { }
@@ -744,7 +707,7 @@ function Trinkets.TimersFrame_OnUpdate(elapsed)
 	end
 	if Trinkets.PeriodicQueueCheck then
 		Trinkets.PeriodicQueueCheck()
-	end -- Check for auto queue
+	end
 end
 
 function Trinkets.TimerDebug()
@@ -755,8 +718,6 @@ function Trinkets.TimerDebug()
 		DEFAULT_CHAT_FRAME:AddMessage(i.." is "..(Trinkets.IsTimerActive(i) and on or off))
 	end
 end
-
---[[ OnClicks ]]
 
 function Trinkets.MainTrinket_OnClick(self, button, down)
 	self:SetChecked(false)
@@ -779,7 +740,6 @@ function Trinkets.MainTrinket_OnClick(self, button, down)
 			TrinketsQueue.Enabled[which] = 1
 		end
 		Trinkets.ReflectQueueEnabled()
-		-- toggle queue
 		Trinkets.UpdateCombatQueue()
 	else
 		Trinkets.ReflectTrinketUse(self:GetID())
@@ -802,8 +762,8 @@ function Trinkets.MenuTrinket_OnClick(self, button, down)
 		local slot = (button == "LeftButton") and 13 or 14
 		if Trinkets.QueueInit then
 			local _, _, canCooldown = Trinkets.GetContainerItemCooldown(Trinkets.BaggedTrinkets[self:GetID()].bag, Trinkets.BaggedTrinkets[self:GetID()].slot)
-			if canCooldown == 0 or TrinketsOptions.StopOnSwap == "ON" then -- if incoming trinket can't go on cooldown
-				TrinketsQueue.Enabled[slot - 13] = nil -- turn off autoqueue
+			if canCooldown == 0 or TrinketsOptions.StopOnSwap == "ON" then
+				TrinketsQueue.Enabled[slot - 13] = nil
 				Trinkets.ReflectQueueEnabled()
 			end
 		end
@@ -814,11 +774,8 @@ function Trinkets.MenuTrinket_OnClick(self, button, down)
 	end
 end
 
---[[ Docking ]]
-
 function Trinkets.MenuFrame_OnMouseDown(button)
-	-- Wie beim MainFrame: im Kampf keine Move-Aufrufe auf dem Secure-Frame
-	-- (pcall verhindert den ADDON_ACTION_BLOCKED-Ping nicht).
+	-- Secure frame: no move calls in combat, pcall does not suppress the taint ping.
 	if InCombatLockdown() then return end
 	if button == "LeftButton" and TrinketsOptions.Locked == "OFF" then
 		pcall(Trinkets_MenuFrame.StartMoving, Trinkets_MenuFrame)
@@ -897,8 +854,6 @@ function Trinkets.MenuMouseover()
 	end
 end
 
---[[ Cooldowns ]]
-
 function Trinkets.UpdateWornCooldowns(maybeGlobal)
 	local start, duration, enable = GetInventoryItemCooldown("player", 13)
 	CooldownFrame_Set(Trinkets_Trinket0Cooldown, start, duration, enable)
@@ -918,14 +873,12 @@ function Trinkets.UpdateMenuCooldowns()
 	Trinkets.WriteMenuCooldowns()
 end
 
---[[ Item use ]]
-
 function Trinkets.ReflectTrinketUse(slot)
 	_G["Trinkets_Trinket"..(slot - 13)]:SetChecked(true)
 	Trinkets.StartTimer("UpdateWornTrinkets")
 	local _, _, id = string.find(GetInventoryItemLink("player", slot) or "", "item:(%d+)")
 	if id then
-		TrinketsPerOptions.ItemsUsed[id] = 0 -- 0 is an indeterminate state, cooldown will figure if it's worth watching
+		TrinketsPerOptions.ItemsUsed[id] = 0 -- sentinel: 0-3 = settling, 5 = notify at ready, 30 = notify at 30s left
 	end
 end
 
@@ -948,8 +901,6 @@ function Trinkets.newUseAction(slot)
 		end
 	end
 end
-
---[[ Tooltips ]]
 
 function Trinkets.WornTrinketTooltip(self)
 	if TrinketsOptions.ShowTooltips == "OFF" then
@@ -993,7 +944,6 @@ function Trinkets.AnchorTooltip(self)
 	end
 end
 
--- updates the tooltip created in the functions above
 function Trinkets.TooltipUpdate()
 	if Trinkets.TooltipType then
 		local cooldown
@@ -1005,13 +955,12 @@ function Trinkets.TooltipUpdate()
 			GameTooltip:SetInventoryItem("player", Trinkets.TooltipSlot)
 			cooldown = GetInventoryItemCooldown("player", Trinkets.TooltipSlot)
 		end
-		Trinkets.ShrinkTooltip(Trinkets.TooltipOwner) -- if TinyTooltips on, shrink it
+		Trinkets.ShrinkTooltip(Trinkets.TooltipOwner)
 		if Trinkets.TooltipType == "INVENTORY" and Trinkets.TooltipBag then
 			GameTooltip:AddLine("Queued: "..Trinkets.TooltipBag)
 		end
 		GameTooltip:Show()
 		if cooldown == 0 then
-			-- stop updates if this trinket has no cooldown
 			Trinkets.TooltipType = nil
 			Trinkets.StopTimer("TooltipUpdate")
 		end
@@ -1019,7 +968,6 @@ function Trinkets.TooltipUpdate()
 
 end
 
--- normal tooltip for options
 function Trinkets.OnTooltip(self, line1, line2)
 	if TrinketsOptions.ShowTooltips == "ON" then
 		Trinkets.AnchorTooltip(self)
@@ -1043,7 +991,7 @@ function Trinkets.OnTooltip(self, line1, line2)
 	end
 end
 
--- strip format reordering in global strings
+-- Strip positional format specifiers (%1$d) so the string can be used as a plain pattern.
 Trinkets.ITEM_SPELL_CHARGES = string.gsub(ITEM_SPELL_CHARGES, "%%%d%$d", "%%d")
 
 function Trinkets.ShrinkTooltip(owner)
@@ -1070,7 +1018,6 @@ function Trinkets.ShrinkTooltip(owner)
 	end
 end
 
--- returns 1 if the item at bag(,slot) is an engineered trinket
 function Trinkets.IsEngineered(bag, slot)
 	local item = slot and Trinkets.GetContainerItemLink(bag, slot) or GetInventoryItemLink("player", bag)
 	if item then
@@ -1088,7 +1035,7 @@ function Trinkets.IsEngineered(bag, slot)
 	end
 end
 
--- returns bag,slot of a free bag space, if one found.  engineering true if only looking for an engineering bag
+-- engineering: truthy restricts the search to engineering bags.
 function Trinkets.FindSpace(engineering)
 	local bagType
 	for i = 4, 0, -1 do
@@ -1103,16 +1050,13 @@ function Trinkets.FindSpace(engineering)
 	end
 end
 
---[[ Combat Queue ]]
-
 function Trinkets.EquipTrinketByName(name, slot)
 	if not name then
 		return
 	end
 	if UnitAffectingCombat("player") or Trinkets.IsPlayerReallyDead() or (IsRetail and C_PetBattles.IsInBattle() or false) then
-		-- queue trinket
 		local queue = Trinkets.CombatQueue
-		local which = slot - 13 -- 0 or 1
+		local which = slot - 13
 		if queue[which] == name then
 			queue[which] = nil
 		elseif queue[1 - which] == name then
@@ -1125,12 +1069,10 @@ function Trinkets.EquipTrinketByName(name, slot)
 		local _, b, s = Trinkets.FindItem(name)
 		if b then
 			if not Trinkets.GetContainerItemInfo(b, s).isLocked and not IsInventoryItemLocked(slot) then
-				-- neither container item nor inventory item locked, perform swap
-				local directSwap = true -- assume a direct swap will happen
+				-- Engineering bags only accept engineered items, so a cross-type swap needs a free slot elsewhere.
+				local directSwap = true
 				if (select(7, GetItemInfo(GetInventoryItemLink("player", 19 + b) or ""))) == Trinkets.ENGINEERING_BAG then
-					-- incoming trinket is in an engineering bag
 					if not Trinkets.IsEngineered(slot) then
-						-- outgoing trinket can't go inside it
 						local freeBag,freeSlot = Trinkets.FindSpace()
 						if freeBag then
 							PickupInventoryItem(slot)
@@ -1141,10 +1083,8 @@ function Trinkets.EquipTrinketByName(name, slot)
 						end
 					end
 				elseif Trinkets.IsEngineered(slot) and not Trinkets.IsEngineered(b, s) then
-					-- outgoing trinket is engineered, incoming trinket is not
 					local freeBag, freeSlot = Trinkets.FindSpace(1)
 					if freeBag then
-						-- move outgoing trinket to engineering bag, equip incoming trinket
 						PickupInventoryItem(slot)
 						Trinkets.PickupContainerItem(freeBag, freeSlot)
 						Trinkets.PickupContainerItem(b, s)
@@ -1157,7 +1097,7 @@ function Trinkets.EquipTrinketByName(name, slot)
 					PickupInventoryItem(slot)
 				end
 				_G["Trinkets_Trinket"..(slot - 13).."Icon"]:SetDesaturated(true)
-				Trinkets.StartTimer("UpdateWornTrinkets") -- in case it's not equipped (stunned, etc)
+				Trinkets.StartTimer("UpdateWornTrinkets")
 			end
 		end
 	end
@@ -1183,24 +1123,21 @@ function Trinkets.UpdateCombatQueue()
 	end
 end
 
---[[ Notify ]]
-
 function Trinkets.Notify(msg)
 	PlaySound(4146)
-	if MikSBT then -- send via MSBT if it exists
+	if MikSBT then
 		MikSBT.DisplayMessage(msg, "Notification", true, 255, 0, 0, nil, nil, nil, nil)
-	elseif SCT_Display then -- send via SCT if it exists
+	elseif SCT_Display then
 		SCT_Display(msg, {r = .2, g = .7, b = .9})
-	elseif Parrot then -- send via Parrot if it exists
+	elseif Parrot then
 		Parrot:ShowMessage(msg, "Notification", true, 255, 0, 0, nil, nil, nil, nil)
-	elseif xCT then -- send via xCT if it exists
+	elseif xCT then
 		ct.frames[3]:AddMessage(msg, 255, 0, 0)
-	elseif xCT_Plus then -- send via xCT+ if it exists
+	elseif xCT_Plus then
 		xCT_Plus:AddMessage("general", msg, {1, 0, 0})
-	elseif SHOW_COMBAT_TEXT == "1" and CombatText_AddMessage then -- or default UI's SCT
+	elseif SHOW_COMBAT_TEXT == "1" and CombatText_AddMessage then
 		CombatText_AddMessage(msg, CombatText_StandardScroll, .2, .7, .9)
 	else
-		-- send vis UIErrorsFrame if neither SCT exists
 		UIErrorsFrame:AddMessage(msg, .2, .7, .9, 1, UIERRORS_HOLD_TIME)
 	end
 	if TrinketsOptions.NotifyChatAlso == "ON" then
@@ -1213,15 +1150,15 @@ function Trinkets.CooldownUpdate()
 	for i in pairs(TrinketsPerOptions.ItemsUsed) do
 		start, duration = Trinkets.GetItemCooldown(i)
 		if start and TrinketsPerOptions.ItemsUsed[i] < 3 then
-			TrinketsPerOptions.ItemsUsed[i] = TrinketsPerOptions.ItemsUsed[i] + 1 -- count for 3 seconds before seeing if this is a real cooldown
+			TrinketsPerOptions.ItemsUsed[i] = TrinketsPerOptions.ItemsUsed[i] + 1
 		elseif start then
 			if start > 0 then
 				remain = duration - (GetTime() - start)
 				if TrinketsPerOptions.ItemsUsed[i] < 5 then
 					if remain > 29 then
-						TrinketsPerOptions.ItemsUsed[i] = 30 -- first actual cooldown greater than 30 seconds, tag it for 30+0 notify
+						TrinketsPerOptions.ItemsUsed[i] = 30
 					elseif remain > 5 then
-						TrinketsPerOptions.ItemsUsed[i] = 5 -- first actual cooldown less than 30 but greater than 5, tag for 0 notify
+						TrinketsPerOptions.ItemsUsed[i] = 5
 					end
 				end
 			end
@@ -1232,7 +1169,7 @@ function Trinkets.CooldownUpdate()
 						Trinkets.Notify(name.." ready soon!")
 					end
 				end
-				TrinketsPerOptions.ItemsUsed[i] = 5 -- tag for just 0 notify now
+				TrinketsPerOptions.ItemsUsed[i] = 5
 			elseif TrinketsPerOptions.ItemsUsed[i] == 5 and start == 0 then
 				if TrinketsOptions.Notify == "ON" then
 					name = GetItemInfo(i)
@@ -1246,7 +1183,6 @@ function Trinkets.CooldownUpdate()
 			end
 		end
 	end
-	-- update cooldown numbers
 	if TrinketsOptions.CooldownCount == "ON" then
 		if Trinkets_MainFrame:IsVisible() then
 			Trinkets.WriteWornCooldowns()
@@ -1284,7 +1220,7 @@ function Trinkets.WriteCooldown(where, start, duration)
 	if start == 0 or TrinketsOptions.CooldownCount == "OFF" then
 		where:SetText("")
 	elseif cooldown < 3 and not where:GetText() then
-		-- this is a global cooldown. don't display it. not accurate but at least not annoying
+		-- Suppress: sub-3s is almost certainly the global cooldown, not the item cooldown.
 	else
 		where:SetText((cooldown < 60 and math.floor(cooldown + .5).." s") or (cooldown < 3600 and math.ceil(cooldown / 60).." m") or math.ceil(cooldown / 3600).." h")
 	end
@@ -1307,8 +1243,6 @@ function Trinkets.ReflectAlpha()
 	Trinkets_MenuFrame:SetAlpha(TrinketsPerOptions.Alpha)
 end
 
---[[ Key bindings ]]
-
 function Trinkets.KeyBindingsChanged()
 	if TrinketsOptions.ShowHotKeys == "ON" then
 		local key
@@ -1321,8 +1255,6 @@ function Trinkets.KeyBindingsChanged()
 		Trinkets_Trinket1HotKey:SetText("")
 	end
 end
-
---[[ Monitor Range ]]
 
 --[[function Trinkets.ReflectRedRange()
 	if TrinketsOptions.RedRange == "ON" then

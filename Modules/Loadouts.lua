@@ -1,14 +1,4 @@
--- =========================================================
 -- VuloClassicUI / Modules / Loadouts
--- Equipment set manager.
--- Save current gear as a named "loadout" and quickly swap between sets.
---
--- Equipping in Anniversary is restricted (AutoEquipCursorItem is protected),
--- so we use UseContainerItem(bag, slot) which acts as a normal "use" on
--- equipable items → swap works out-of-combat for items located in bags.
---
--- Slash: /loadout (or /lo) save <name> | equip <name> | delete <name> | list
--- =========================================================
 local _, ns = ...
 local L = ns.L
 
@@ -18,31 +8,21 @@ local mod = ns:RegisterModule("loadouts", {
     description = "Save and quickly equip gear sets for different specs, content, or roles.",
     defaults = {
         enabled       = true,
-        loadouts      = {},   -- { [name] = { slots = { [slotID] = itemLink, ... }, createdAt = epoch, formIdx = nil } }
+        loadouts      = {},
         confirmDelete = true,
-        -- Minimap button
         minimap = { hidden = false, angle = 45 },
-        -- Auto-switch on stance/form change: [formIndex] = "loadoutName"
         autoSwitchEnabled = true,
         formMapping       = {},
-        -- Auto-switch on talent spec (dominant talent tab): [tabIndex] = "loadoutName"
         specSwitchEnabled = true,
         specMapping       = {},
-        -- Character-frame sidebar
         sidebarEnabled      = true,
-        sidebarTopOffset    = -14,  -- fine-tune top edge (px) vs CharacterFrame
-        sidebarBottomOffset = 45,   -- fine-tune bottom edge (px) vs CharacterFrame
-        sidebarPos          = { x = 0, y = 0 },  -- edit-mode drag offset from the char window
+        sidebarTopOffset    = -14,
+        sidebarBottomOffset = 45,
+        sidebarPos          = { x = 0, y = 0 },
     },
 })
 
--- =========================================================
--- Per-character storage. Loadouts (and their spec/form bindings) reference
--- this character's gear, so they live in VuloClassicUICharDB (per-character),
--- NOT in mod.db (account-wide). The old account-wide loadouts still sit in
--- mod.db.loadouts as a legacy pool that "/loadout import" copies onto the
--- current character (one-time migration for users upgrading from <= 1.8.0).
--- =========================================================
+-- Loadouts live per-character in VuloClassicUICharDB; mod.db.loadouts is the legacy account-wide pool.
 local function charDB()
     _G.VuloClassicUICharDB = _G.VuloClassicUICharDB or {}
     return _G.VuloClassicUICharDB
@@ -57,17 +37,14 @@ local function formMap()
     local c = charDB(); c.formMapping = c.formMapping or {}; return c.formMapping
 end
 
--- =========================================================
--- API compat (Anniversary uses C_Container namespace)
--- =========================================================
+-- API compat: Anniversary moved container APIs into C_Container.
 local GetContainerItemID    = (C_Container and C_Container.GetContainerItemID)    or _G.GetContainerItemID
 local GetContainerNumSlots  = (C_Container and C_Container.GetContainerNumSlots)  or _G.GetContainerNumSlots
 local UseContainerItem      = (C_Container and C_Container.UseContainerItem)      or _G.UseContainerItem
 
--- Equipment slots we capture (skip shirt=4 and tabard=19)
+-- Skips shirt (4) and tabard (19).
 local EQUIP_SLOTS = { 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18 }
 
--- Slot display names (for UI / pickers)
 local SLOT_NAMES = {
     [1]  = L["Head"],    [2]  = L["Neck"],     [3]  = L["Shoulder"],
     [5]  = L["Chest"],   [6]  = L["Waist"],    [7]  = L["Legs"],
@@ -78,7 +55,6 @@ local SLOT_NAMES = {
     [16] = L["Main Hand"], [17] = L["Off Hand"], [18] = L["Ranged"],
 }
 
--- Pre-defined slot groups for quick-save
 local SLOT_GROUPS = {
     all      = EQUIP_SLOTS,
     trinkets = { 13, 14 },
@@ -87,9 +63,6 @@ local SLOT_GROUPS = {
     armor    = { 1, 3, 5, 6, 7, 8, 9, 10, 15 },
 }
 
--- =========================================================
--- Helpers
--- =========================================================
 local function getItemIDFromLink(link)
     if not link then return nil end
     return tonumber(link:match("item:(%d+)"))
@@ -118,11 +91,7 @@ local function findItemInBags(targetItemID)
     return nil
 end
 
--- =========================================================
--- Availability: where does a set item live right now?
--- Bank contents are snapshotted while the bank is open (per character), so
--- "in the bank" stays answerable anywhere in the world.
--- =========================================================
+-- Bank contents are snapshotted while the bank is open so "in the bank" stays answerable anywhere.
 local function bankItems()
     local c = charDB(); c.bankItems = c.bankItems or {}; return c.bankItems
 end
@@ -147,7 +116,7 @@ end
 local function onBankEvent(event)
     if event == "BANKFRAME_OPENED" then
         _bankOpen = true
-        -- item data lags OPENED; snapshot a moment later
+        -- item data lags BANKFRAME_OPENED; snapshot a moment later
         if C_Timer and C_Timer.After then
             C_Timer.After(0.5, function() if _bankOpen then snapshotBank() end end)
         else
@@ -156,8 +125,7 @@ local function onBankEvent(event)
     elseif event == "BANKFRAME_CLOSED" then
         _bankOpen = false
     elseif _bankOpen then
-        -- PLAYERBANKSLOTS_CHANGED only covers the main bank container;
-        -- BAG_UPDATE covers the bank BAGS. Coalesce bursts into one snapshot.
+        -- coalesce event bursts into one snapshot
         if C_Timer and C_Timer.After then
             if not _snapPending then
                 _snapPending = true
@@ -172,9 +140,7 @@ local function onBankEvent(event)
     end
 end
 
--- "equipped" | "bags" | "bank" | nil (not found anywhere we can see).
--- PERF: one inventory index per frame instead of a full bag scan per item —
--- sidebar refreshes and preview tooltips hit this for every set item.
+-- Returns "equipped" | "bags" | "bank" | nil. Indexed once per frame; a per-item bag scan is too slow here.
 local availIndex
 local function buildAvailIndex()
     local idx = {}
@@ -217,7 +183,6 @@ local function itemAvailability(link)
     return nil
 end
 
--- per-set completeness: how many items are unreachable / only in the bank
 local function setStatus(name)
     local lo = LO()[name]
     if not (lo and lo.slots) then return 0, 0 end
@@ -230,10 +195,7 @@ local function setStatus(name)
     return missing, inBank
 end
 
--- =========================================================
--- Reverse index itemID -> set names, for the "Part of set" tooltip line and
--- the disenchant-queue warning. Rebuilt lazily after any mutation.
--- =========================================================
+-- Reverse index itemID -> set names; rebuilt lazily whenever _setIndexDirty is set by a mutation.
 local _setIndexDirty = true
 local _setsByItem = {}
 local function rebuildSetIndex()
@@ -252,8 +214,7 @@ local function rebuildSetIndex()
     for _, t in pairs(_setsByItem) do table.sort(t) end
 end
 
--- Published: which sets contain this itemID? ("A, B" or nil). Used by the
--- tooltip line here and by the disenchant queue's warning.
+-- Public: also consumed by the disenchant queue's warning.
 function ns.ItemSetMembership(itemID)
     if not itemID or not mod.active then return nil end
     if _setIndexDirty then rebuildSetIndex() end
@@ -261,10 +222,7 @@ function ns.ItemSetMembership(itemID)
     if t and #t > 0 then return table.concat(t, ", ") end
 end
 
--- "Part of set: X" line in item tooltips — guards against selling or
--- disenchanting set pieces by accident. TooltipDataProcessor when the client
--- has it (2.5.5 does), the classic OnTooltipSetItem hook otherwise; never
--- both, or the line would double up.
+-- TooltipDataProcessor when available, else the classic hook — never both, or the line doubles up.
 local _tipHooked = false
 local function installSetTooltip()
     if _tipHooked then return end
@@ -285,8 +243,7 @@ local function installSetTooltip()
        and Enum and Enum.TooltipDataType and Enum.TooltipDataType.Item then
         TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, annotate)
     elseif GameTooltip and GameTooltip.HookScript then
-        -- classic quirk: OnTooltipSetItem can fire twice per fill (and once
-        -- for a recipe plus once for its product) — dedupe until cleared
+        -- OnTooltipSetItem can fire twice per fill on classic — dedupe until cleared
         local function annotateOnce(tip)
             if tip._vcuiSetLineDone then return end
             tip._vcuiSetLineDone = true
@@ -302,15 +259,7 @@ local function installSetTooltip()
     end
 end
 
--- =========================================================
--- Equip a bag item into a SPECIFIC inventory slot.
--- UseContainerItem ignores the destination slot and always picks the first
--- valid one — that's why paired slots (rings 11/12, trinkets 13/14) always
--- ended up in the upper slot. EquipCursorItem(slot) is the only reliable API
--- that honours the exact target slot: pick the item onto the cursor, then
--- equip the cursor into the requested slot.
--- Shared with SlotPicker via ns:EquipBagItemToSlot.
--- =========================================================
+-- UseContainerItem ignores the destination slot; only EquipCursorItem(slot) honours it (rings/trinkets).
 local _PickupContainerItem = (C_Container and C_Container.PickupContainerItem) or _G.PickupContainerItem
 
 function ns:EquipBagItemToSlot(bag, bagSlot, equipSlot)
@@ -319,15 +268,11 @@ function ns:EquipBagItemToSlot(bag, bagSlot, equipSlot)
 
     ClearCursor()
     _PickupContainerItem(bag, bagSlot)
-    -- Verify the pickup actually grabbed something
     if CursorHasItem and not CursorHasItem() then
         return false, "pickup"
     end
-    -- EquipCursorItem honours the explicit slot (unlike UseContainerItem)
     local ok = pcall(_G.EquipCursorItem, equipSlot)
-    -- Only clear if something is still stuck on the cursor (e.g. equip failed).
-    -- A BoE-confirm popup leaves the item reserved — don't yank it back, let
-    -- the player confirm. If equip succeeded the cursor is already empty.
+    -- Only clear a still-occupied cursor: a pending BoE-confirm popup must keep its item.
     if CursorHasItem and CursorHasItem() then
         ClearCursor()
     end
@@ -353,10 +298,6 @@ local function sortedLoadoutNames()
     return names
 end
 
--- =========================================================
--- Core operations
--- =========================================================
--- Copy a slot-id list (used as the intended mask)
 local function copySlotList(list)
     local out = {}
     for i, v in ipairs(list) do out[i] = v end
@@ -378,7 +319,7 @@ local function saveAs(name, slotList)
         name, countSlots(LO()[name])))
 end
 
--- Pending slot list for the StaticPopup (popups have no parameter passing on Show)
+-- StaticPopup_Show cannot pass parameters, so the slot list is handed over through this upvalue.
 local _pendingSaveSlots = nil
 
 local function promptSaveWithSlots(slotList)
@@ -386,22 +327,16 @@ local function promptSaveWithSlots(slotList)
     StaticPopup_Show("VCUI_LOADOUT_SAVE")
 end
 
--- Overwrite an existing loadout with current gear, preserving the original
--- slot mask. THIS IS THE KEY HELPER — previously every "save current as ..."
--- button iterated over loadout.slots which only has slots that had an item
--- at the time of the original save, so missing items (e.g. Head/Neck/Shoulder
--- not equipped at save time) would never be re-captured.
+-- Must re-capture via slotMask, not loadout.slots: slots only holds what was equipped at save time.
 local function overwriteLoadout(name)
     local loadout = LO()[name]
     if not loadout then return end
-    -- Prefer slotMask (intended slots, set at save time). Fall back to existing
-    -- slots keys for legacy data without a mask.
     local slotList = loadout.slotMask
     if not slotList or #slotList == 0 then
         slotList = {}
         for s in pairs(loadout.slots or {}) do table.insert(slotList, s) end
     end
-    if #slotList == 0 then slotList = EQUIP_SLOTS end  -- ultimate fallback: all slots
+    if #slotList == 0 then slotList = EQUIP_SLOTS end
     LO()[name] = {
         slots     = captureCurrentEquipment(slotList),
         slotMask  = copySlotList(slotList),
@@ -438,10 +373,7 @@ local function equipLoadout(name)
 
     local swapped, missing = 0, 0
     local failedLinks = {}
-    -- Sorted ascending so paired slots resolve predictably (11 before 12,
-    -- 13 before 14). We equip via ns:EquipBagItemToSlot which uses
-    -- EquipCursorItem(slot) — that honours the exact destination slot, so
-    -- ring2/trinket2 land in slot 12/14 instead of always the upper slot.
+    -- Ascending order so paired slots (11/12, 13/14) resolve predictably.
     local sortedSlots = {}
     for slot in pairs(loadout.slots) do table.insert(sortedSlots, slot) end
     table.sort(sortedSlots)
@@ -456,7 +388,6 @@ local function equipLoadout(name)
                 if bag and bagSlot then
                     local ok = ns:EquipBagItemToSlot(bag, bagSlot, slot)
                     if not ok and UseContainerItem then
-                        -- Fallback for non-paired slots if cursor method failed
                         ok = pcall(UseContainerItem, bag, bagSlot)
                     end
                     if ok then swapped = swapped + 1
@@ -483,16 +414,12 @@ local function equipLoadout(name)
         ns:Print(string.format(L["Loadout '%s' already equipped."], name))
     end
 
-    -- name the failures instead of only counting them — with WHERE the item
-    -- actually is (bank snapshot) so the fix is obvious
     for _, flink in ipairs(failedLinks) do
         local a = itemAvailability(flink)
         local whereTxt
         if a == "bank" then
             whereTxt = L["in the bank"]
         elseif a == "bags" or a == "equipped" then
-            -- item IS here but the equip call failed (combat, unique-equipped,
-            -- pending BoE confirm, ...) — don't claim it's missing
             whereTxt = L["in bags, equip failed"]
         else
             whereTxt = L["not found"]
@@ -516,9 +443,6 @@ local function listLoadouts()
     end
 end
 
--- =========================================================
--- StaticPopups
--- =========================================================
 StaticPopupDialogs["VCUI_LOADOUT_SAVE"] = {
     text = L["Save current equipment as a new loadout. Enter name:"],
     button1 = SAVE or L["Save"],
@@ -559,9 +483,6 @@ StaticPopupDialogs["VCUI_LOADOUT_DELETE"] = {
     preferredIndex = 3,
 }
 
--- =========================================================
--- Slash commands
--- =========================================================
 _G.SLASH_VCUILOADOUT1 = "/loadout"
 _G.SLASH_VCUILOADOUT2 = "/lo"
 _G.SlashCmdList["VCUILOADOUT"] = function(msg)
@@ -578,7 +499,6 @@ _G.SlashCmdList["VCUILOADOUT"] = function(msg)
             ns:Print(L["Usage: /loadout equip <name> | save <name> | delete <name> | list"])
         end
     elseif cmd == "spec" then
-        -- Debug: show dual-spec state
         local active = (GetActiveTalentGroup and select(1, pcall(GetActiveTalentGroup))) and GetActiveTalentGroup() or "?"
         local numG   = (GetNumTalentGroups  and select(1, pcall(GetNumTalentGroups)))  and GetNumTalentGroups()  or "?"
         DEFAULT_CHAT_FRAME:AddMessage("|cff9b6cff[Loadouts spec debug]|r")
@@ -610,7 +530,6 @@ _G.SlashCmdList["VCUILOADOUT"] = function(msg)
     elseif cmd == "debug" then
         if mod._debugSizes then mod._debugSizes() else ns:Print("Sidebar not created yet.") end
     elseif cmd == "tune" then
-        -- /loadout tune top <n>  |  /loadout tune bottom <n>
         local which, valStr = arg:match("^(%S+)%s*(%-?%d*)$")
         local val = tonumber(valStr)
         if which == "top" and val then
@@ -630,7 +549,6 @@ _G.SlashCmdList["VCUILOADOUT"] = function(msg)
             ns:Print("Usage: /loadout tune top <n> | tune bottom <n> | tune reset")
         end
     else
-        -- Treat unknown first word as a loadout name to equip
         if LO()[msg] then
             equipLoadout(msg)
         else
@@ -639,26 +557,22 @@ _G.SlashCmdList["VCUILOADOUT"] = function(msg)
     end
 end
 
--- =========================================================
--- Minimap button
--- =========================================================
 local mmBtn
 
 local function updateMinimapPos()
     if not mmBtn then return end
     local angle = (mod.db.minimap and mod.db.minimap.angle) or -45
     local rad = math.rad(angle)
-    local r = 80  -- distance from minimap center
+    local r = 80
     local x = r * math.cos(rad)
     local y = r * math.sin(rad)
     mmBtn:ClearAllPoints()
     mmBtn:SetPoint("CENTER", Minimap, "CENTER", x, y)
 end
 
--- Forward declarations (resolves circular references between popup menu and settings opener)
+-- Forward declaration: showLoadoutMenu closes over this before it is defined below.
 local openLoadoutsSettings
 
--- Loadouts dropdown — uses ns:ShowPopupMenu (shared helper, EasyMenu replacement)
 local function showLoadoutMenu(anchor)
     local entries = {
         { title = true, text = L["Loadouts"] },
@@ -688,8 +602,6 @@ local function showLoadoutMenu(anchor)
     ns:ShowPopupMenu(entries, anchor)
 end
 
--- Helper: open the Loadouts settings (prefer direct tab open, fall back to main frame)
--- Assigned to forward-declared local (declared near showLoadoutMenu)
 function openLoadoutsSettings()
     if ns.OpenConfig then
         ns:OpenConfig("loadouts")
@@ -702,8 +614,7 @@ local function createMinimapButton()
     if mmBtn then return end
     if not Minimap then return end
 
-    -- LibDBIcon standard layout: 31x31 button, 53x53 border at TOPLEFT (0,0),
-    -- icon 17x17 at TOPLEFT(7, -6), background 20x20 at TOPLEFT(7, -5).
+    -- Sizes/offsets below are the standard minimap-button layout; changing them misaligns the border.
     mmBtn = CreateFrame("Button", "VCUI_LoadoutsMinimapButton", Minimap)
     mmBtn:SetFrameStrata("MEDIUM")
     mmBtn:SetFrameLevel(8)
@@ -712,29 +623,24 @@ local function createMinimapButton()
     mmBtn:RegisterForClicks("AnyUp")
     mmBtn:RegisterForDrag("LeftButton")
 
-    -- Background (the dark circle behind the icon)
     local background = mmBtn:CreateTexture(nil, "BACKGROUND")
     background:SetTexture("Interface\\Minimap\\UI-Minimap-Background")
     background:SetSize(20, 20)
     background:SetPoint("TOPLEFT", 7, -5)
 
-    -- Icon (equipment armor)
     local icon = mmBtn:CreateTexture(nil, "ARTWORK")
     icon:SetTexture("Interface\\Icons\\INV_Chest_Plate06")
     icon:SetSize(17, 17)
     icon:SetPoint("TOPLEFT", 7, -6)
-    icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)  -- crop default Blizzard icon border
+    icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
 
-    -- Round border (Blizzard minimap-tracking style) — standard LibDBIcon offset
     local border = mmBtn:CreateTexture(nil, "OVERLAY")
     border:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
     border:SetSize(53, 53)
     border:SetPoint("TOPLEFT", 0, 0)
 
-    -- Hover highlight
     mmBtn:SetHighlightTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight", "ADD")
 
-    -- Drag to reposition around minimap (saved as angle)
     mmBtn:SetScript("OnDragStart", function(self)
         self:SetScript("OnUpdate", function()
             local mx, my = Minimap:GetCenter()
@@ -752,7 +658,6 @@ local function createMinimapButton()
         self:SetScript("OnUpdate", nil)
     end)
 
-    -- Click handlers — Left = quick switcher menu, Right = settings
     mmBtn:SetScript("OnClick", function(self, button)
         if button == "LeftButton" then
             showLoadoutMenu(self)
@@ -787,9 +692,6 @@ local function applyMinimapVisibility()
     end
 end
 
--- =========================================================
--- Stance/Form auto-switching
--- =========================================================
 local _lastForm = -1
 
 local function getCurrentForm()
@@ -816,8 +718,7 @@ local function onShapeshiftChange()
     if currentForm == _lastForm then return end
     _lastForm = currentForm
 
-    -- formMapping is keyed by loadout name → form index (1:1).
-    -- Reverse-look up to find which loadout is bound to the current form.
+    -- formMapping is keyed by loadout name -> form index, so this is a reverse lookup.
     if not formMap() then return end
     for loadoutName, formIdx in pairs(formMap()) do
         if formIdx == currentForm and LO()[loadoutName] then
@@ -827,12 +728,6 @@ local function onShapeshiftChange()
     end
 end
 
--- =========================================================
--- Dual-spec auto-switching
--- Anniversary backported the WotLK dual-spec system. We use the real spec
--- group APIs (GetActiveTalentGroup + ACTIVE_TALENT_GROUP_CHANGED) so switching
--- between Spec 1 and Spec 2 in-game instantly equips the bound loadout.
--- =========================================================
 local _lastSpecGroup = -1
 
 local function getActiveSpecGroup()
@@ -851,7 +746,7 @@ local function getNumSpecGroups()
     return 1
 end
 
--- Points spent in a talent tab FOR A SPECIFIC spec group (4th param = talentGroup).
+-- 4th param of GetTalentTabInfo/GetTalentInfo is the talent group — omitting it reads the active spec.
 local function getTabPoints(tab, group)
     if GetTalentTabInfo then
         local _, _, pointsSpent = GetTalentTabInfo(tab, false, false, group)
@@ -866,7 +761,6 @@ local function getTabPoints(tab, group)
     return total
 end
 
--- Label for a spec group: "Spec 1 (Shadow)" using the dominant talent tab name.
 local function getSpecGroupLabel(group)
     local numTabs = (GetNumTalentTabs and GetNumTalentTabs()) or 0
     local bestName, bestPoints = nil, -1
@@ -894,7 +788,6 @@ local function onTalentChange()
     if currentGroup == _lastSpecGroup then return end
     _lastSpecGroup = currentGroup
 
-    -- specMapping is keyed by loadout name → spec group index (1:1)
     if not specMap() then return end
     for loadoutName, groupIdx in pairs(specMap()) do
         if groupIdx == currentGroup and LO()[loadoutName] then
@@ -904,15 +797,12 @@ local function onTalentChange()
     end
 end
 
--- Force a spec re-check (clears the cached group so it always re-evaluates).
--- Used by /loadout spec and as the polling fallback.
 mod._forceSpecCheck = function()
     _lastSpecGroup = -1
     onTalentChange()
 end
 
--- Event-independent polling fallback: some Anniversary builds don't fire
--- ACTIVE_TALENT_GROUP_CHANGED reliably, so we also poll every 2s.
+-- Required fallback: some Anniversary builds never fire ACTIVE_TALENT_GROUP_CHANGED.
 local _specPoller
 local function startSpecPolling()
     if _specPoller or not (C_Timer and C_Timer.NewTicker) then return end
@@ -921,24 +811,18 @@ local function startSpecPolling()
         if InCombatLockdown() then return end
         local g = getActiveSpecGroup()
         if g ~= _lastSpecGroup then
-            onTalentChange()  -- group changed since last check → switch
+            onTalentChange()
         end
     end)
 end
 
--- =========================================================
--- Character-frame sidebar (loadout buttons)
--- =========================================================
 local sidebar
 local sidebarSetButtons = {}
-local sidebarItemRows   = {}    -- pool of expanded-item-row frames
-local sidebarSelected           -- currently highlighted loadout name
-local sidebarExpanded           -- name of currently expanded loadout (only one at a time)
-local refreshSidebar            -- forward declaration
+local sidebarItemRows   = {}
+local sidebarSelected
+local sidebarExpanded
+local refreshSidebar  -- forward declaration; assigned far below, captured by closures above it
 
--- =========================================================
--- Bag-item picker for replacing a slot in a loadout (uses SlotPicker's scan API)
--- =========================================================
 local function showSlotReplacePicker(loadoutName, targetSlot, anchor)
     if not ns.ScanBagsForSlot then
         ns:Print(L["SlotPicker module is required for editing item slots."])
@@ -947,14 +831,7 @@ local function showSlotReplacePicker(loadoutName, targetSlot, anchor)
 
     local GetContainerItemLink_ = (C_Container and C_Container.GetContainerItemLink) or _G.GetContainerItemLink
 
-    -- Build a unified candidate list:
-    --   1) Currently equipped item in that slot (if any) — common case where
-    --      the desired item is on the character, not in a bag
-    --   2) For Trinkets/Rings (paired slots), the OTHER slot's equipped item too
-    --      (you may want trinket1 to be what's currently in trinket2)
-    --   3) All compatible items found in bags by ns:ScanBagsForSlot
-    -- De-dupes by itemID so we don't show the same physical item twice.
-    local candidates = {}  -- ordered list of { link, label, sourceTag }
+    local candidates = {}
     local seenItemID = {}
 
     local function addCandidate(link, label)
@@ -965,14 +842,12 @@ local function showSlotReplacePicker(loadoutName, targetSlot, anchor)
         table.insert(candidates, { link = link, label = label })
     end
 
-    -- 1) Currently equipped at this slot
     local currentLink = GetInventoryItemLink("player", targetSlot)
     if currentLink then
         local name = currentLink:match("|h%[(.-)%]|h") or currentLink
         addCandidate(currentLink, name .. " |cff66ff66" .. L["(equipped)"] .. "|r")
     end
 
-    -- 2) Paired slot for symmetric pairs (rings 11/12, trinkets 13/14)
     local PAIRS = { [11] = 12, [12] = 11, [13] = 14, [14] = 13 }
     local pairedSlot = PAIRS[targetSlot]
     if pairedSlot then
@@ -983,7 +858,6 @@ local function showSlotReplacePicker(loadoutName, targetSlot, anchor)
         end
     end
 
-    -- 3) Bag scan
     local bagResults = ns:ScanBagsForSlot(targetSlot)
     for _, entry in ipairs(bagResults) do
         local link = GetContainerItemLink_ and GetContainerItemLink_(entry.bag, entry.slot)
@@ -1031,7 +905,6 @@ local function getSetIcon(name)
     local loadout = mod.db and LO() and LO()[name]
     if not loadout or not loadout.slots then return "Interface\\Icons\\INV_Misc_QuestionMark" end
     if loadout.iconOverride then return loadout.iconOverride end
-    -- Auto-pick first item's icon
     if GetItemInfoInstant then
         for _, link in pairs(loadout.slots) do
             local _, _, _, _, icon = GetItemInfoInstant(link)
@@ -1041,19 +914,12 @@ local function getSetIcon(name)
     return "Interface\\Icons\\INV_Misc_QuestionMark"
 end
 
--- =========================================================
--- Set-icon picker popup
--- Grid of: [Auto] + every item icon in the set + a few generic role icons.
--- Click sets loadout.iconOverride (or clears it for Auto).
--- =========================================================
 local _iconPicker
 local _iconBtns = {}
 local ICON_SIZE = 30
 local ICON_COLS = 6
 local ICON_PAD  = 3
 
--- A few hand-picked generic icons (roles/specs) so a set can use a symbol
--- that isn't one of its items.
 local GENERIC_ICONS = {
     "Interface\\Icons\\Spell_Holy_PowerWordShield",
     "Interface\\Icons\\Spell_Shadow_ShadowWordPain",
@@ -1116,12 +982,10 @@ local function showIconPicker(loadoutName, anchor)
 
     _iconPicker.title:SetText(string.format(L["Icon for: %s"], loadoutName))
 
-    -- Build the icon list: Auto first, then set items, then generics (de-duped)
-    local icons = {}           -- { tex = path or nil (=auto), isAuto = bool }
+    local icons = {}
     local seen  = {}
     table.insert(icons, { isAuto = true })
     if GetItemInfoInstant and loadout.slots then
-        -- stable order by slot
         local slots = {}
         for s in pairs(loadout.slots) do table.insert(slots, s) end
         table.sort(slots)
@@ -1140,7 +1004,6 @@ local function showIconPicker(loadoutName, anchor)
         end
     end
 
-    -- Hide leftover buttons
     for _, b in ipairs(_iconBtns) do b:Hide() end
 
     local startY = 24
@@ -1150,14 +1013,14 @@ local function showIconPicker(loadoutName, anchor)
         if entry.isAuto then
             b.tex:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
             b.tex:SetVertexColor(0.7, 0.7, 0.7)
-            b._iconValue = nil  -- nil = auto
+            b._iconValue = nil
         else
             b.tex:SetTexture(entry.tex)
             b.tex:SetVertexColor(1, 1, 1)
             b._iconValue = entry.tex
         end
         b:SetScript("OnClick", function(self)
-            loadout.iconOverride = self._iconValue  -- nil → auto
+            loadout.iconOverride = self._iconValue
             _iconPicker:Hide()
             refreshSidebar()
         end)
@@ -1190,20 +1053,15 @@ local function createSetRow(parent, index)
     btn = CreateFrame("Button", nil, parent)
     btn:SetHeight(32)
 
-    -- Icon (left)
     btn.icon = btn:CreateTexture(nil, "ARTWORK")
     btn.icon:SetSize(26, 26)
     btn.icon:SetPoint("LEFT", btn, "LEFT", 4, 0)
     btn.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
 
-    -- Expand button (right) — toggles inline item view
     btn.expand = CreateFrame("Button", nil, btn)
     btn.expand:SetSize(18, 18)
     btn.expand:SetPoint("RIGHT", btn, "RIGHT", -4, 0)
-    -- the 18x18 arrow at the row's edge was too small a target — near-misses
-    -- fell through to the row (select / double-click-equip), so the arrow
-    -- "didn't always" toggle. Grow the clickable zone (negatives enlarge):
-    -- left into the name gap, right to the border, full row height.
+    -- negative insets enlarge the hit zone; without this near-misses fall through to the row
     btn.expand:SetHitRectInsets(-12, -4, -7, -7)
     btn.expand.icon = btn.expand:CreateTexture(nil, "ARTWORK")
     btn.expand.icon:SetAllPoints(btn.expand)
@@ -1218,7 +1076,6 @@ local function createSetRow(parent, index)
         refreshSidebar()
     end)
 
-    -- Name text (between icon and expand button)
     btn.text = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     if ns.UI and ns.UI.Font then ns.UI.Font(btn.text, 12) end
     btn.text:SetPoint("LEFT", btn.icon, "RIGHT", 8, 0)
@@ -1226,8 +1083,6 @@ local function createSetRow(parent, index)
     btn.text:SetJustifyH("LEFT")
     btn.text:SetWordWrap(false)
 
-    -- Selection: accent gradient fading right + 3px accent bar (house style,
-    -- matches the options sidebar)
     local ac2 = ns.COLORS.accent
     btn.selection = btn:CreateTexture(nil, "BACKGROUND")
     btn.selection:SetAllPoints(btn)
@@ -1245,7 +1100,6 @@ local function createSetRow(parent, index)
     btn.selBar:SetColorTexture(ac2.r, ac2.g, ac2.b, 1)
     btn.selBar:Hide()
 
-    -- Hover highlight
     btn.hl = btn:CreateTexture(nil, "BACKGROUND")
     btn.hl:SetAllPoints(btn)
     btn.hl:SetColorTexture(1, 1, 1, 0.05)
@@ -1259,8 +1113,6 @@ local function createSetRow(parent, index)
             GameTooltip:AddLine(self.setName, 1, 0.82, 0)
             GameTooltip:AddLine(string.format("%d %s", countSlots(loadout), L["items"]),
                 0.6, 0.6, 0.6)
-            -- full preview: every stored slot with its item, colored by where
-            -- the item is right now (white = ready, orange = bank, red = gone)
             local slots = {}
             for s in pairs(loadout.slots or {}) do slots[#slots + 1] = s end
             table.sort(slots)
@@ -1307,7 +1159,6 @@ local function createSetRow(parent, index)
                 end },
             }
 
-            -- Spec-binding entries — only when dual spec is active
             if getNumSpecGroups() >= 2 then
                 table.insert(menu, { separator = true })
                 for g = 1, getNumSpecGroups() do
@@ -1317,11 +1168,10 @@ local function createSetRow(parent, index)
                         checked = function() return specMap() and specMap()[setName] == group end,
                         func    = function()
                             if specMap()[setName] == group then
-                                -- toggle off
                                 specMap()[setName] = nil
                                 ns:Print(string.format(L["'%s' unbound from spec."], setName))
                             else
-                                -- 1:1 — clear any other set on this group
+                                -- bindings are 1:1, so clear any other set on this group
                                 for other, gi in pairs(specMap()) do
                                     if gi == group and other ~= setName then specMap()[other] = nil end
                                 end
@@ -1346,7 +1196,7 @@ local function createSetRow(parent, index)
 
             ns:ShowPopupMenu(menu, self)
         else
-            -- Detect double-click via timestamp
+            -- no OnDoubleClick on this button type; detect it by timestamp
             local now = GetTime()
             if self._lastClick and (now - self._lastClick) < 0.35 then
                 equipLoadout(self.setName)
@@ -1363,9 +1213,6 @@ local function createSetRow(parent, index)
     return btn
 end
 
--- =========================================================
--- Expanded item-row (grid of item icons under a set when expanded)
--- =========================================================
 local ITEM_COLS = 6
 local ITEM_SIZE = 26
 local ITEM_PAD  = 3
@@ -1375,7 +1222,6 @@ local function getItemButton(row, idx)
     if b then return b end
     b = CreateFrame("Button", nil, row)
     b:SetSize(ITEM_SIZE, ITEM_SIZE)
-    -- dark slot backing + 1px-inset icon (the shared bag-button look)
     b.slotBg = b:CreateTexture(nil, "BACKGROUND")
     b.slotBg:SetAllPoints(b)
     b.slotBg:SetColorTexture(0.10, 0.10, 0.13, 0.9)
@@ -1412,12 +1258,10 @@ local function getItemButton(row, idx)
     b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     b:SetScript("OnClick", function(self, button)
         if self.isAdd then
-            -- "+" tile: menu of the slots this set currently ignores
             local lo = self.loadoutName and LO()[self.loadoutName]
             if not lo then return end
-            -- "present" = union of mask AND stored slots: legacy sets have
-            -- items but no mask yet, and seeding the new mask from the mask
-            -- alone would collapse the set down to the one added slot
+            -- union of mask AND stored slots: legacy sets have items but no mask, and
+            -- seeding from the mask alone would collapse the set to the one added slot
             local present = {}
             for _, s in ipairs(lo.slotMask or {}) do present[s] = true end
             for s in pairs(lo.slots or {}) do present[s] = true end
@@ -1436,7 +1280,6 @@ local function getItemButton(row, idx)
                         end
                         table.insert(lo2.slotMask, slotID)
                         table.sort(lo2.slotMask)
-                        -- seed with whatever is equipped there right now
                         local cur = GetInventoryItemLink("player", slotID)
                         if cur then lo2.slots[slotID] = cur end
                         _setIndexDirty = true
@@ -1448,8 +1291,7 @@ local function getItemButton(row, idx)
             return
         end
         if button == "RightButton" then
-            -- TRUE partial-set removal: drop the slot from the set AND its
-            -- mask, so Save/Overwrite never re-captures the ignored slot
+            -- must drop the slot from slotMask too, or Overwrite re-captures it
             local lo = self.loadoutName and LO()[self.loadoutName]
             if lo and self.targetSlot then
                 lo.slots[self.targetSlot] = nil
@@ -1462,7 +1304,6 @@ local function getItemButton(row, idx)
                 refreshSidebar()
             end
         else
-            -- Left-click → bag-item picker for this slot
             if self.loadoutName and self.targetSlot then
                 showSlotReplacePicker(self.loadoutName, self.targetSlot, self)
             end
@@ -1481,7 +1322,6 @@ local function getItemRow(parent, index)
     return row
 end
 
--- Default empty-slot placeholder texture
 local EMPTY_SLOT_ICON = "Interface\\PaperDoll\\UI-Backpack-EmptySlot"
 
 local function renderItemRow(row, loadoutName)
@@ -1491,10 +1331,8 @@ local function renderItemRow(row, loadoutName)
         return
     end
 
-    -- Hide leftover item buttons
     for _, b in ipairs(row.items) do b:Hide() end
 
-    -- Build display order from slotMask (intended slots) — fall back to slot keys for old data
     local displaySlots = loadout.slotMask
     if not displaySlots or #displaySlots == 0 then
         displaySlots = {}
@@ -1502,7 +1340,6 @@ local function renderItemRow(row, loadoutName)
             table.insert(displaySlots, slot)
         end
     end
-    -- Sorted copy so display order is stable
     local sortedSlots = {}
     for _, s in ipairs(displaySlots) do table.insert(sortedSlots, s) end
     table.sort(sortedSlots)
@@ -1522,7 +1359,6 @@ local function renderItemRow(row, loadoutName)
                 icon = ic
             end
             b.iconTex:SetTexture(icon or "Interface\\Icons\\INV_Misc_QuestionMark")
-            -- availability tint: ready = normal, bank = orange, gone = red
             local a = itemAvailability(link)
             if a == "equipped" or a == "bags" then
                 b.iconTex:SetVertexColor(1, 1, 1)
@@ -1535,7 +1371,6 @@ local function renderItemRow(row, loadoutName)
                 b.iconTex:SetDesaturated(true)
             end
         else
-            -- Empty slot: show placeholder + dim color so it reads as "click to fill"
             b.iconTex:SetTexture(EMPTY_SLOT_ICON)
             b.iconTex:SetVertexColor(0.6, 0.6, 0.6)
             b.iconTex:SetDesaturated(false)
@@ -1550,7 +1385,6 @@ local function renderItemRow(row, loadoutName)
         b:Show()
     end
 
-    -- "+" tile when the set ignores some slots (partial set) — re-add path
     local tiles = #sortedSlots
     if tiles < #EQUIP_SLOTS then
         tiles = tiles + 1
@@ -1559,7 +1393,7 @@ local function renderItemRow(row, loadoutName)
         b.targetSlot  = nil
         b.link        = nil
         b.isAdd       = true
-        b.iconTex:SetTexture("Interface\\Buttons\\UI-PlusButton-Up")   -- classic-safe plus
+        b.iconTex:SetTexture("Interface\\Buttons\\UI-PlusButton-Up")
         b.iconTex:SetVertexColor(0.7, 0.7, 0.8)
         b.iconTex:SetDesaturated(false)
         local col = (tiles - 1) % ITEM_COLS
@@ -1578,7 +1412,6 @@ end
 refreshSidebar = function()
     if not sidebar then return end
 
-    -- Validate selection / expansion
     if sidebarSelected and not (LO() and LO()[sidebarSelected]) then
         sidebarSelected = nil
     end
@@ -1586,21 +1419,17 @@ refreshSidebar = function()
         sidebarExpanded = nil
     end
 
-    -- Hide leftover buttons + item rows. item rows are created LAZILY only for
-    -- whichever set gets expanded, so sidebarItemRows is a SPARSE array (e.g.
-    -- only [3] exists) — ipairs would stop at the first gap and leave a shown
-    -- row visible (the set then "won't collapse"). pairs walks every entry.
+    -- sidebarItemRows is sparse (rows are created lazily), so it must use pairs, not ipairs.
     for _, b in ipairs(sidebarSetButtons) do b:Hide() end
     for _, r in pairs(sidebarItemRows)    do r:Hide() end
 
     local names = sortedLoadoutNames()
     if not sidebarSelected and #names > 0 then sidebarSelected = names[1] end
 
-    local y = -32  -- below action bar (which is at top)
+    local y = -32
     for i, name in ipairs(names) do
         local btn = createSetRow(sidebar, i)
         btn.setName = name
-        -- completeness marker: red dot = items unreachable, orange = in bank
         local miss, inBank = setStatus(name)
         local marker = ""
         if miss > 0 then marker = " |cffff5555•|r"
@@ -1617,7 +1446,6 @@ refreshSidebar = function()
             if btn.selBar then btn.selBar:Hide() end
             btn.text:SetTextColor(0.82, 0.82, 0.88)
         end
-        -- Expand button icon: up-arrow when expanded (collapse), down-arrow when collapsed
         if sidebarExpanded == name then
             btn.expand.icon:SetTexture("Interface\\Buttons\\UI-Panel-CollapseButton-Up")
         else
@@ -1629,7 +1457,6 @@ refreshSidebar = function()
         btn:Show()
         y = y - 33
 
-        -- If expanded, render the item icons below this row
         if sidebarExpanded == name then
             local row = getItemRow(sidebar, i)
             renderItemRow(row, name)
@@ -1653,7 +1480,6 @@ refreshSidebar = function()
         sidebar.emptyText:Hide()
     end
 
-    -- Enable/disable action buttons
     if sidebar.equipBtn then
         if sidebarSelected then
             sidebar.equipBtn:Enable()
@@ -1675,23 +1501,15 @@ local function createSidebar()
     sidebar:SetFrameStrata("HIGH")
     sidebar:Hide()
 
-    -- Anchor BOTH corners to CharacterFrame. This makes the sidebar height
-    -- track the character window dynamically and exactly — whatever the real
-    -- height is (even if another addon resizes CharacterFrame), top and bottom
-    -- always line up. No GetHeight() snapshot that can be measured at the wrong
-    -- time. The user-tunable offsets compensate if the frame bounds differ from
-    -- the visible backdrop on a given client.
+    -- Both corners anchor to CharacterFrame so the height tracks it live; never snapshot GetHeight().
     local function anchorToCharacterFrame()
         if not sidebar or not CharacterFrame then return end
         local pos    = mod.db and mod.db.sidebarPos
-        local px     = (pos and pos.x) or 0   -- edit-mode drag offset (x)
-        local py     = (pos and pos.y) or 0   -- edit-mode drag offset (y)
+        local px     = (pos and pos.x) or 0
+        local py     = (pos and pos.y) or 0
         local topOff = ((mod.db and mod.db.sidebarTopOffset)    or 0) + py
         local botOff = ((mod.db and mod.db.sidebarBottomOffset) or 0) + py
-        -- the Modern character style widens the window to the right (stats
-        -- panel) — dock past that extension and use EXACTLY its top/bottom
-        -- edges on EVERY tab (the classic fine-tune offsets compensate the
-        -- classic art and would skew the height; the drag offset still applies)
+        -- the Modern style widens the window, so dock past it and ignore the classic art offsets
         local ext, extTop, extBot, modernOn = 0, 0, 0, false
         if ns.CharacterPanelModernExt then ext, extTop, extBot, modernOn = ns.CharacterPanelModernExt() end
         local x = -4 + px + ext + (ext > 0 and 6 or 0)
@@ -1702,8 +1520,6 @@ local function createSidebar()
         sidebar:ClearAllPoints()
         sidebar:SetPoint("TOPLEFT",    CharacterFrame, "TOPRIGHT", x, topOff)
         sidebar:SetPoint("BOTTOMLEFT", CharacterFrame, "BOTTOMRIGHT", x, botOff)
-        -- docked next to the Modern window the drop shadow reads as a black rim
-        -- around the sidebar (and makes it look taller) — hide it there
         if sidebar._vcShadow then
             for _, t in ipairs(sidebar._vcShadow) do t:SetShown(not modernOn) end
         end
@@ -1713,7 +1529,6 @@ local function createSidebar()
     mod._reanchorSidebar = anchorToCharacterFrame
     ns.ReanchorLoadoutsSidebar = anchorToCharacterFrame   -- character panel style switches call this
 
-    -- Debug: print real top/bottom/height of CharacterFrame vs the sidebar
     mod._debugSizes = function()
         local function dump(label, f)
             if not f then
@@ -1740,7 +1555,6 @@ local function createSidebar()
             mod.db.sidebarTopOffset or 0, mod.db.sidebarBottomOffset or 0))
     end
 
-    -- house style: dark panel + soft shadow + accent hairline on top
     local UIW = ns.UI
     if UIW and UIW.StyleBackdrop then
         UIW:StyleBackdrop(sidebar, { bg = ns.COLORS.bg, border = ns.COLORS.accentDim or ns.COLORS.border })
@@ -1762,8 +1576,6 @@ local function createSidebar()
         UIW.SetGradient(gstrip, "HORIZONTAL", a.r, a.g, a.b, 0.1, a.r, a.g, a.b, 0.9)
     end
 
-    -- dark flat buttons (the proven panel-button recipe: strip Blizzard art,
-    -- dark fill, 1px edges, accent on hover)
     local ac = ns.COLORS.accent
     local bc = ns.COLORS.border or { r = 0.22, g = 0.22, b = 0.27 }
     local fontN = _G.VCUI_LoadoutFontNormal or CreateFont("VCUI_LoadoutFontNormal")
@@ -1810,7 +1622,6 @@ local function createSidebar()
         end)
     end
 
-    -- Action buttons (top row)
     local equipBtn = CreateFrame("Button", nil, sidebar, "UIPanelButtonTemplate")
     equipBtn:SetSize(86, 22)
     equipBtn:SetPoint("TOPLEFT", sidebar, "TOPLEFT", 4, -6)
@@ -1834,7 +1645,6 @@ local function createSidebar()
     skinBtn(saveBtn)
     sidebar.saveBtn = saveBtn
 
-    -- New Set button (bottom)
     local newBtn = CreateFrame("Button", nil, sidebar, "UIPanelButtonTemplate")
     newBtn:SetSize(178, 24)
     newBtn:SetPoint("BOTTOM", sidebar, "BOTTOM", 0, 5)
@@ -1843,11 +1653,7 @@ local function createSidebar()
     skinBtn(newBtn)
     sidebar.newBtn = newBtn
 
-    -- Edit-mode mover: drag the sidebar to an offset from the character window.
-    -- It STAYS anchored to CharacterFrame (keeps tracking the window height and
-    -- shows/hides with it), so instead of the default screen-centre drag we store
-    -- only an x/y offset and re-anchor live while dragging. Arrow keys + the
-    -- right-click popup (incl. reset) work through applyPos = anchorToCharacterFrame.
+    -- The mover stores an x/y offset only; the frame must stay anchored to CharacterFrame.
     mod.db.sidebarPos = mod.db.sidebarPos or { x = 0, y = 0 }
     sidebar.mover = ns:CreateMover(sidebar, {
         key      = "loadouts.sidebar",
@@ -1857,10 +1663,9 @@ local function createSidebar()
         height   = 44,
         applyPos = anchorToCharacterFrame,
     })
-    sidebar.mover:SetFrameLevel((sidebar:GetFrameLevel() or 1) + 20)  -- above the set buttons
+    sidebar.mover:SetFrameLevel((sidebar:GetFrameLevel() or 1) + 20)
     do
-        -- Replace the default screen-centre drag with offset tracking so the
-        -- two-point anchor (and height tracking) is never broken.
+        -- replaces the default screen-centre drag, which would break the two-point anchor
         local mvr = sidebar.mover
         mvr:SetScript("OnDragStart", function(self)
             local cx, cy = GetCursorPosition()
@@ -1879,13 +1684,11 @@ local function createSidebar()
         mvr:SetScript("OnDragStop", function(self) self:SetScript("OnUpdate", nil) end)
     end
 
-    -- Hook CharacterFrame show/hide
     CharacterFrame:HookScript("OnShow", function()
         if mod._enabled and mod.db and mod.db.sidebarEnabled ~= false then
             sidebar:Show()
-            anchorToCharacterFrame()  -- re-sync size in case CharacterFrame changed
+            anchorToCharacterFrame()
             refreshSidebar()
-            -- the mover only makes sense while the window is open; sync its state
             if sidebar.mover then
                 if ns:IsMoverEditMode() then sidebar.mover:Show() else sidebar.mover:Hide() end
             end
@@ -1907,7 +1710,6 @@ local function applySidebarVisibility()
     end
 end
 
--- Refresh sidebar after save/delete operations
 local _origSaveAs    = saveAs
 local _origDelete    = deleteLoadout
 saveAs = function(name, slotList)
@@ -1925,8 +1727,6 @@ deleteLoadout = function(name)
     end
 end
 
--- One-time migration: copy the old account-wide loadouts (mod.db.*) onto the
--- CURRENT character. Names that already exist on this character are skipped.
 function mod.ImportLegacy()
     local legacy = mod.db and mod.db.loadouts
     if not (legacy and next(legacy)) then
@@ -1937,7 +1737,7 @@ function mod.ImportLegacy()
     for name, data in pairs(legacy) do
         if not lo[name] then
             lo[name] = (CopyTable and CopyTable(data)) or data
-            -- same slotMask migration as OnEnable — imports arrive AFTER it ran
+            -- repeats the OnEnable slotMask migration; imports arrive after it ran
             local imported = lo[name]
             if not imported.slotMask then
                 local mask = {}
@@ -1960,16 +1760,12 @@ function mod.ImportLegacy()
     refreshSidebar()
 end
 
--- =========================================================
--- Lifecycle
--- =========================================================
 function mod:OnEnable()
     if not mod.db then return end
-    -- Ensure per-character tables exist (the accessors create them lazily)
     LO(); formMap(); specMap()
     mod.db.minimap     = mod.db.minimap     or { hidden = false, angle = -45 }
 
-    -- Migration: legacy loadouts without slotMask → derive from currently saved slots
+    -- migration: derive slotMask for legacy loadouts saved without one
     for _, loadout in pairs(LO()) do
         if loadout and not loadout.slotMask then
             local mask = {}
@@ -1981,8 +1777,7 @@ function mod:OnEnable()
         end
     end
 
-    -- Migration: bump sidebar offsets from old 0/0 default to the tuned -14/45
-    -- (one-time; users who deliberately set their own values keep them via the flag)
+    -- one-time migration of the old 0/0 sidebar offset default
     if not mod.db._offsetMigrated then
         if (mod.db.sidebarTopOffset or 0) == 0 and (mod.db.sidebarBottomOffset or 0) == 0 then
             mod.db.sidebarTopOffset    = -14
@@ -1991,9 +1786,6 @@ function mod:OnEnable()
         mod.db._offsetMigrated = true
     end
 
-    -- One-time hint (per character): this character has no loadouts yet, but the
-    -- old account-wide pool still holds some (user upgrading from <= 1.8.0).
-    -- Shown once per character so other chars don't get nagged every login.
     if not next(LO()) and not charDB()._importHintShown
        and mod.db.loadouts and next(mod.db.loadouts) then
         charDB()._importHintShown = true
@@ -2006,9 +1798,7 @@ function mod:OnEnable()
         end
     end
 
-    -- Create minimap button (deferred so Minimap definitely exists).
-    -- applyMinimapVisibility afterwards: on RE-enable the button already
-    -- exists (create early-returns) but OnDisable hid it.
+    -- deferred so Minimap exists; applyMinimapVisibility is needed on re-enable (create early-returns)
     if C_Timer and C_Timer.After then
         C_Timer.After(0.5, function()
             createMinimapButton()
@@ -2021,14 +1811,11 @@ function mod:OnEnable()
         createSidebar()
     end
 
-    -- Hook stance/form events
     ns:RegisterEvent("UPDATE_SHAPESHIFT_FORM",  onShapeshiftChange)
     ns:RegisterEvent("UPDATE_SHAPESHIFT_FORMS", onShapeshiftChange)
     ns:RegisterEvent("PLAYER_REGEN_ENABLED",    onShapeshiftChange)  -- retry leaving combat
 
-    -- Hook every plausible dual-spec event — Anniversary builds vary on which
-    -- one actually fires. Plus a 2s polling fallback (startSpecPolling) covers
-    -- builds where none of them fire reliably.
+    -- all of these are registered because Anniversary builds vary on which one fires
     ns:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED", onTalentChange)
     ns:RegisterEvent("PLAYER_TALENT_UPDATE",        onTalentChange)
     ns:RegisterEvent("CHARACTER_POINTS_CHANGED",    onTalentChange)
@@ -2036,7 +1823,6 @@ function mod:OnEnable()
     ns:RegisterEvent("PLAYER_ENTERING_WORLD",       onTalentChange)
     ns:RegisterEvent("PLAYER_REGEN_ENABLED",        onTalentChange)  -- retry after combat
 
-    -- bank snapshot for the availability display ("in the bank" vs "missing")
     ns:RegisterEvent("BANKFRAME_OPENED",         onBankEvent)
     ns:RegisterEvent("BANKFRAME_CLOSED",         onBankEvent)
     ns:RegisterEvent("PLAYERBANKSLOTS_CHANGED",  onBankEvent)
@@ -2045,7 +1831,7 @@ function mod:OnEnable()
     installSetTooltip()
 
     _lastForm = getCurrentForm()
-    -- Defer initial spec read — spec group may not be available immediately on login
+    -- deferred: the spec group is not readable immediately on login
     if C_Timer and C_Timer.After then
         C_Timer.After(2, function() _lastSpecGroup = getActiveSpecGroup() end)
     end
@@ -2071,13 +1857,8 @@ function mod:OnDisable()
     if sidebar then sidebar:Hide() end
 end
 
--- =========================================================
--- Options UI
--- =========================================================
--- Build a list of available form indices for dropdown values
 local function buildFormDropdownValues()
     local values = { { value = 0, text = L["None"] } }
-    -- Add all known shapeshift forms (max 6 in Anniversary classes)
     local numForms = (GetNumShapeshiftForms and GetNumShapeshiftForms()) or 0
     for i = 1, numForms do
         table.insert(values, { value = i, text = getFormName(i) })
@@ -2085,7 +1866,6 @@ local function buildFormDropdownValues()
     return values
 end
 
--- Build a list of spec groups (dual-spec) for dropdown values
 local function buildSpecDropdownValues()
     local values = { { value = 0, text = L["None"] } }
     local numGroups = getNumSpecGroups()
@@ -2126,7 +1906,6 @@ function mod:GetOptions()
           end },
         { type = "desc", text = L["|cffaaaaaaTip: with the character window open, enable edit mode (Unlock) to drag the sidebar; right-click the purple box to reset its position.|r"] },
 
-        -- Slot Picker (formerly its own module, now integrated here)
         { type = "spacer", height = 6 },
         { type = "section", title = L["Slot Picker"], collapsed = false, items = {
             { type = "desc", text = L["|cffaaaaaaRight-click an equipment slot in the character window to see all compatible items from your bags and click one to equip it.|r"] },
@@ -2179,9 +1958,7 @@ function mod:GetOptions()
         { type = "header", text = L["Saved Loadouts"] },
     }
 
-    -- Legacy import (upgraders from <= 1.8.0): only shown while old account-wide
-    -- loadouts still exist. Loadouts are now per-character, so this copies the
-    -- old shared sets onto THIS character. Inserted at the top (after header+desc).
+    -- index 3 keeps this directly under the header + desc
     if mod.db.loadouts and next(mod.db.loadouts) then
         table.insert(items, 3, { type = "section", title = L["Import from older version"], collapsed = false, items = {
             { type = "desc", text = L["|cffaaaaaaYou have gear sets saved account-wide by an older version. Loadouts are now per-character — import copies them onto THIS character.|r"] },
@@ -2195,20 +1972,18 @@ function mod:GetOptions()
         table.insert(items, { type = "desc", text = L["|cffaaaaaaNo loadouts saved yet. Use the button above to save your current gear.|r"] })
     else
         local formValues = buildFormDropdownValues()
-        local hasForms = #formValues > 1  -- 1 = only "None" → no stance class
+        local hasForms = #formValues > 1
         local specValues = buildSpecDropdownValues()
-        local hasSpecs = getNumSpecGroups() >= 2  -- only show when dual spec is active
+        local hasSpecs = getNumSpecGroups() >= 2
 
         for _, name in ipairs(names) do
-            local capturedName = name  -- closure capture
+            local capturedName = name  -- must be a fresh local per iteration for the closures below
             local slotCount = countSlots(LO()[name])
 
-            -- Row 1: name + item count (full width, separate line)
             table.insert(items, { type = "desc",
                 text = string.format("|cffffd100%s|r |cff888888(%d %s)|r",
                     name, slotCount, L["items"]) })
 
-            -- Row 2: action buttons (under the name, fits properly in content width)
             table.insert(items, { type = "group", layout = "row", gap = 6,
                 items = {
                     { type = "button", label = L["Equip"], width = 100,
@@ -2227,7 +2002,6 @@ function mod:GetOptions()
                 },
             })
 
-            -- Row 3: Auto-equip on talent spec dropdown
             if hasSpecs then
                 table.insert(items, { type = "dropdown",
                     label = L["Auto-equip on spec"],
@@ -2235,7 +2009,7 @@ function mod:GetOptions()
                     values = specValues,
                     get = function() return (specMap() and specMap()[capturedName]) or 0 end,
                     set = function(_, v)
-                        -- 1:1 mapping — clear any other loadout on this spec tab
+                        -- bindings are 1:1, so clear any other loadout on this spec
                         if v and v ~= 0 then
                             for other, tabIdx in pairs(specMap()) do
                                 if tabIdx == v and other ~= capturedName then
@@ -2248,7 +2022,6 @@ function mod:GetOptions()
                 })
             end
 
-            -- Row 4: Auto-equip on form dropdown (only show if class has forms)
             if hasForms then
                 table.insert(items, { type = "dropdown",
                     label = L["Auto-equip on form"],
@@ -2256,7 +2029,7 @@ function mod:GetOptions()
                     values = formValues,
                     get = function() return (formMap() and formMap()[capturedName]) or 0 end,
                     set = function(_, v)
-                        -- Clear any other loadout currently mapped to this form (1:1 mapping)
+                        -- bindings are 1:1, so clear any other loadout on this form
                         if v and v ~= 0 then
                             for other, formIdx in pairs(formMap()) do
                                 if formIdx == v and other ~= capturedName then
@@ -2269,7 +2042,6 @@ function mod:GetOptions()
                 })
             end
 
-            -- Separator before next loadout
             table.insert(items, { type = "spacer", height = 4 })
         end
     end

@@ -1,41 +1,20 @@
--- =========================================================
--- VuloClassicUI / Modules / Bags  (Phase 1 — core unified bag)
--- One custom window that shows every backpack/bag item in a single grid.
--- We do NOT reskin Blizzard's ContainerFrames; we draw our own frame and drive
--- open/close off the normal bag key, suppressing the default bag windows.
---
--- TAINT DISCIPLINE (functional, in-combat-safe item buttons):
---   * each slot is a SECURE button inheriting Blizzard's own
---     "ContainerFrameItemButtonTemplate" (needs a global name on Classic) — all
---     use/equip/pickup/split/tooltip is Blizzard-driven; we NEVER SetScript its
---     OnClick/OnDragStart (only HookScript) and NEVER call the protected
---     UseContainerItem/PickupContainerItem ourselves.
---   * bag id lives on the button's PARENT (SetID), slot id on the button (SetID)
---     — exactly what Blizzard's handler reads.
---   * buttons are created only OUT of combat (pre-allocated on enable); in combat
---     we only refresh visuals + reposition existing buttons, and rebuild fully on
---     PLAYER_REGEN_ENABLED. Creating a brand-new button in combat can taint.
---   * open/close hooks use hooksecurefunc only — no Blizzard global is replaced.
--- =========================================================
+-- VuloClassicUI / Modules / Bags
 local _, ns = ...
 local L  = ns.L
 local UI = ns.UI
 
--- Container API — the bare globals are guaranteed on every flavor we ship for by
--- Core/Compat.lua (it recreates them from C_Container on Era). GetContainerItemInfo
--- returns the legacy tuple there too.
+-- Container globals come from Core/Compat.lua on Era (legacy GetContainerItemInfo tuple).
 local GetContainerNumSlots     = _G.GetContainerNumSlots
 local GetContainerItemInfo     = _G.GetContainerItemInfo
 local GetContainerItemCooldown = _G.GetContainerItemCooldown
 local GetContainerNumFreeSlots = _G.GetContainerNumFreeSlots
-local GetContainerItemLink     = _G.GetContainerItemLink   -- Compat guarantees this on Era
+local GetContainerItemLink     = _G.GetContainerItemLink
 
--- Native bag sort exists on retail + some Classic builds only; fall back to our
--- own Lua sort when absent (see doSort). Never assume it's there.
+-- Native bag sort is absent on many Classic builds; nativeSort/nativeSetDir may be nil.
 local nativeSort   = (_G.C_Container and _G.C_Container.SortBags) or _G.SortBags
 local nativeSetDir = (_G.C_Container and _G.C_Container.SetSortBagsRightToLeft) or _G.SetSortBagsRightToLeft
 
-local BAGS = { 0, 1, 2, 3, 4 }          -- backpack + 4 bags (keyring/bank: later phases)
+local BAGS = { 0, 1, 2, 3, 4 }
 
 local mod = ns:RegisterModule("bags", {
     name        = "Bags",
@@ -53,110 +32,82 @@ local mod = ns:RegisterModule("bags", {
         showSortButton = true,
         sortReverse   = false,
         sortMode      = "type",       -- "type" | "quality" | "name" | "item-level" | "blizzard"
-        catSortMode   = "type",       -- display order inside category sections ("off" = raw slot order)
-        showFreeSlots = true,         -- OneBag view: render empty slots after the items
-        onebagFixedSlots = true,      -- OneBag view: natural slot order (empties inline)
-        junkMarker    = true,         -- purple C on vendor-trash icons
-        bindMarker    = true,         -- BoE/BoU tag on still-tradeable equipment
-        useCategories = true,         -- categorized sections vs one flat grid
-        hideEmpty     = true,         -- hide category headers with zero items
+        catSortMode   = "type",       -- "type" | "quality" | "name" | "item-level" | "off"
+        showFreeSlots = true,
+        onebagFixedSlots = true,
+        junkMarker    = true,
+        bindMarker    = true,
+        useCategories = true,
+        hideEmpty     = true,
         viewMode      = "all",        -- "all" | "onebag" | "multibag"
-        sidebarCollapsed = true,      -- sidebar starts collapsed (arrow only)
-        -- Phase 3c — user categories + manual item assignment (all profile-scoped)
-        customCats      = {},         -- array of { key, name, icon }
-        itemAssignments = {},         -- [itemID] = categoryKey
-        disabledCats    = {},         -- [builtinKey] = true
-        catOrder        = nil,        -- array of keys; nil = auto order
-        -- Phase 3c STAGE-2 — pinned/recent pseudo-categories
-        pinnedItems     = {},         -- [itemID] = true (profile-scoped, persistent)
-        showRecent      = true,       -- master toggle for the Recent pseudo-category
-        recentCap       = 20,         -- max distinct itemIDs kept in Recent (0 = unlimited)
-        -- Phase 3c STAGE-3 — user-defined collapsible category groups
-        groups          = {},         -- ordered array of { id, name, collapsed, cats = { catKey, ... } }
-        -- Phase 4 STAGE-2 — per-bag visibility + keyring + quick-drop
-        hiddenBags      = {},         -- [bagID] = true -> bag not rendered
-        showKeyring     = false,      -- include the keyring (-2) in the grid
-        showItemLevel   = true,       -- ilvl text on weapons/armor
-        itemLevelQualityColor = true, -- tint that ilvl in the quality color
-        collapsedCats   = {},         -- [categoryKey] = true (per-section fold)
-        bagBarShown     = false,      -- the bag-icons strip above the window
-        -- Phase 4 STAGE-1 — bank window (Modules/Bank.lua reads this sub-table;
-        -- SEPARATE keys so the bank mover never collides with the bag window's).
+        sidebarCollapsed = true,
+        customCats      = {},
+        itemAssignments = {},
+        disabledCats    = {},
+        catOrder        = nil,
+        pinnedItems     = {},
+        showRecent      = true,
+        recentCap       = 20,
+        groups          = {},
+        hiddenBags      = {},
+        showKeyring     = false,
+        showItemLevel   = true,
+        itemLevelQualityColor = true,
+        collapsedCats   = {},
+        bagBarShown     = false,
+        -- bank sub-table: SEPARATE keys so the bank mover never collides with the bag window
         bank = { enabled = true, x = -280, y = 0, scale = 1.0, columns = 14, hiddenBags = {} },
     },
 })
 
 mod.active = false
 
--- =========================================================
--- Layout constants
--- =========================================================
 local BTN, GAP, PAD = 37, 4, 12
 local HEADER_H, FOOTER_H = 32, 26
-local HEADER_ROW = 18   -- vertical space a category section header occupies
--- STAGE-3: collapsible category groups
-local GROUP_HEADER_ROW = 20   -- vertical space a group header row occupies
-local GROUP_INDENT     = 10   -- x-indent for category sections inside an expanded group
-local SIDEBAR_INDENT   = 14   -- x-indent for member category rows in the sidebar
--- Sidebar (Phase 3b) — plain-frame left panel; never holds secure item buttons.
+local HEADER_ROW = 18
+local GROUP_HEADER_ROW = 20
+local GROUP_INDENT     = 10
+local SIDEBAR_INDENT   = 14
 local SIDEBAR_W_EXPANDED  = 160
 local SIDEBAR_W_COLLAPSED = 32
 local SIDEBAR_BTN_H       = 24
 local SIDEBAR_BTN_GAP     = 2
 local SIDEBAR_ICON        = 16
 local SIDEBAR_HDR_H       = 22
--- STAGE-2: content scrolls (instead of the window growing without bound) once it
--- exceeds this fraction of the screen height.
 local CONTENT_MAX_FRAC = 0.60   -- viewport caps at 60% of UIParent height
 local WHEEL_STEP       = BTN + GAP
 
--- =========================================================
--- Categories (Phase 3a). Keys are internal + stable; display names localized.
--- ORDER drives top-to-bottom section stacking. Everything keys off numeric
--- Enum.ItemClass IDs (locale-independent) + equip slot + quality, so the same
--- rules work on 20505 and 11508; classes absent on a client never match.
--- =========================================================
+-- Categories. Keys are internal + stable; display names localized.
 local CATEGORY_ORDER = {
-    "pinned", "recent",   -- STAGE-2 pseudo-categories, always at the top
+    "pinned", "recent",   -- pseudo-categories, always at the top
     "quest", "consumable", "weapon", "armor", "trinket", "container",
     "tradegoods", "recipe", "projectile", "quiver", "key", "junk", "misc",
 }
 
--- Phase 3c state (mirrors of the profile-linked mod.db) + forward declarations.
--- Declared BEFORE catName/categoryIcon/categoryFor and the CRUD/menu functions
--- that reference them, so every reference binds the same upvalue.
-local customCats      = {}     -- array of { key, name, icon } (mirror)
-local itemAssignments = {}     -- [itemID] = categoryKey (mirror)
-local disabledCats    = {}     -- [builtinKey] = true (mirror)
-local customCatByKey  = {}     -- [key] = customCats entry (rebuilt on change)
-local nextCustomSeq   = 0      -- unique key counter ("cust1", "cust2", ...)
--- declared up here (not in the State block below) because the CRUD functions
--- reference it before that block; a later `local` would bind a stale global.
-local selectedCategory = "all" -- "all" | a category key (only meaningful in "all" view)
+-- Declared before every function that references them, so closures bind these upvalues.
+local customCats      = {}
+local itemAssignments = {}
+local disabledCats    = {}
+local customCatByKey  = {}
+local nextCustomSeq   = 0
+local selectedCategory = "all"
 local DEFAULT_CUSTOM_ICON = "Interface\\Icons\\INV_Misc_Note_02"
--- Phase 3c STAGE-2 pseudo-category state. pinnedItems mirrors mod.db.pinnedItems
--- (profile). recentItems/recentOrder are RUNTIME ONLY (rebuilt on BAG_UPDATE_DELAYED
--- from a per-char baseline diff). All THREE must be declared here -- textually before
--- categoryExists (below) and categoryFor -- so those closures bind the upvalue, not a nil global.
-local pinnedItems = {}          -- [itemID] = true (mirror of mod.db.pinnedItems)
-local recentItems = {}          -- [itemID] = true (runtime; items acquired this session)
-local recentOrder = {}          -- array of itemIDs, newest first (for cap + stable order)
-local recentBaseline = {}       -- [itemID] = last-seen total count (runtime; re-seeded each session)
-local recentPrimed = false      -- true once the baseline has been seeded this session
--- Phase 3c STAGE-3 group state. `groups` is a LIVE reference to mod.db.groups
--- (set in OnEnable); groupById/groupOfCat are rebuilt lookups. Declared here --
--- textually before makeSidebarRow/layoutCategorized/showCategoryMenu -- so every
--- closure binds these upvalues, never a nil global.
-local groups       = {}   -- ordered array of { id, name, collapsed, cats = {catKey,...} } (mirror)
-local groupById    = {}   -- [id] = group entry (rebuilt on change)
-local groupOfCat   = {}   -- [catKey] = group entry (rebuilt on change; max ONE group per cat)
-local nextGroupSeq = 0    -- unique id counter ("grp1", "grp2", ...)
+-- pinnedItems mirrors the profile; recentItems/recentOrder/recentBaseline are runtime only.
+local pinnedItems = {}
+local recentItems = {}
+local recentOrder = {}
+local recentBaseline = {}
+local recentPrimed = false
+-- groups is a LIVE reference to mod.db.groups (set in OnEnable).
+local groups       = {}
+local groupById    = {}
+local groupOfCat   = {}
+local nextGroupSeq = 0
 local rebuildCustomLookup, categoryExists, orderedCategoryKeys, categoriesChanged
 local createCustomCategory, renameCategory, deleteOrDisableCategory, reenableCategory, moveCategory
 local showCategoryMenu, promptNewCategory
-local updateRecentItems, clearRecentItems    -- STAGE-2 recent helpers (defined below)
--- STAGE-3 groups: declared ONCE here (with the Phase-3c block), defined below via
--- bare `function name()` assignment. NEVER redeclare with `local` at the definition.
+local updateRecentItems, clearRecentItems
+-- Defined below via bare "function name()" -- never redeclare with local at the definition.
 local rebuildGroupLookup, groupsChanged, groupedDisplay
 local createGroup, renameGroup, deleteGroup, moveGroup
 local assignCatToGroup, moveCatWithinGroup, toggleGroupCollapsed
@@ -176,7 +127,6 @@ local function catName(key)
     return map[key] or key
 end
 
--- Category / view-mode icons (base-UI textures present on 20505 + 11508).
 local CATEGORY_ICON = {
     pinned = "Interface\\Icons\\INV_Misc_Note_02",
     recent = "Interface\\Icons\\INV_Misc_PocketWatch_01",
@@ -205,7 +155,6 @@ local function viewModeName(mode)
     return L["All Items"]
 end
 
--- ---- Phase 3c: custom-category registry + CRUD -----------------------------
 function rebuildCustomLookup()
     wipe(customCatByKey)
     nextCustomSeq = 0
@@ -219,28 +168,24 @@ function rebuildCustomLookup()
     end
 end
 
--- Is a category key a valid, visible destination right now?
 function categoryExists(key)
     if not key then return false end
-    if key == "pinned" then return next(pinnedItems) ~= nil end       -- pseudo-cat: valid only when something is pinned
-    if key == "recent" then                                          -- pseudo-cat: gated on toggle + non-empty
+    if key == "pinned" then return next(pinnedItems) ~= nil end
+    if key == "recent" then
         return (mod.db and mod.db.showRecent ~= false) and next(recentItems) ~= nil
     end
-    if customCatByKey[key] then return true end     -- live custom category
-    if disabledCats[key] then return false end      -- disabled built-in
+    if customCatByKey[key] then return true end
+    if disabledCats[key] then return false end
     for _, k in ipairs(CATEGORY_ORDER) do if k == key then return true end end
     return false
 end
 
--- Effective ordered category-key list: built-ins (minus disabled) + customs,
--- reordered by mod.db.catOrder when present; unknown/gone keys dropped.
 function orderedCategoryKeys()
     local out, seen = {}, {}
     local function push(key)
         if key and not seen[key] and categoryExists(key) then out[#out + 1] = key; seen[key] = true end
     end
-    -- STAGE-2: pinned/recent pseudo-categories are ALWAYS pinned to the very top,
-    -- regardless of any user catOrder (they are never written into catOrder).
+    -- pseudo-categories are always top and are never written into catOrder
     push("pinned"); push("recent")
     if mod.db and mod.db.catOrder then for _, key in ipairs(mod.db.catOrder) do push(key) end end
     for _, key in ipairs(CATEGORY_ORDER) do push(key) end
@@ -272,22 +217,18 @@ function renameCategory(key, newName)
     if categoriesChanged then categoriesChanged() end
 end
 
--- deletes a custom category, OR disables a built-in (built-ins can't be deleted)
 function deleteOrDisableCategory(key)
-    if key == "pinned" or key == "recent" then return end   -- STAGE-2 pseudo-cats: never disable
+    if key == "pinned" or key == "recent" then return end
     local c = customCatByKey[key]
     if c then
         for i = 1, #customCats do
             if customCats[i] and customCats[i].key == key then table.remove(customCats, i); break end
         end
-        -- STAGE-3: a deleted custom category leaves its group; a DISABLED built-in
-        -- keeps its membership (skipped while disabled, restored on re-enable).
-        -- MUST run before customCatByKey[key] is nilled: assignCatToGroup's
-        -- groupableKey() check consults customCatByKey and would no-op after it.
+        -- MUST run before customCatByKey[key] is nilled (groupableKey consults it)
         if groupOfCat[key] and assignCatToGroup then assignCatToGroup(key, nil) end
         customCatByKey[key] = nil
         for itemID, ck in pairs(itemAssignments) do
-            if ck == key then itemAssignments[itemID] = nil end   -- purge dead assignments
+            if ck == key then itemAssignments[itemID] = nil end
         end
         if mod.db.catOrder then
             for i = #mod.db.catOrder, 1, -1 do
@@ -295,7 +236,7 @@ function deleteOrDisableCategory(key)
             end
         end
     else
-        disabledCats[key] = true   -- built-in: hide + reroute auto items to misc
+        disabledCats[key] = true
     end
     if selectedCategory == key then selectedCategory = "all" end
     if categoriesChanged then categoriesChanged() end
@@ -306,13 +247,10 @@ function reenableCategory(key)
     if categoriesChanged then categoriesChanged() end
 end
 
--- move a category one step within the effective order (materialises catOrder)
 function moveCategory(key, delta)
-    if key == "pinned" or key == "recent" then return end   -- STAGE-2 pseudo-cats: fixed at the top
+    if key == "pinned" or key == "recent" then return end
     local eff = orderedCategoryKeys()
     mod.db.catOrder = mod.db.catOrder or {}
-    -- materialise from the effective order but NEVER bake the pseudo-categories into
-    -- the persistent order (they are positioned by CATEGORY_ORDER + categoryExists).
     if #mod.db.catOrder == 0 then
         for _, k in ipairs(eff) do
             if k ~= "pinned" and k ~= "recent" then mod.db.catOrder[#mod.db.catOrder + 1] = k end
@@ -322,8 +260,7 @@ function moveCategory(key, delta)
     local idx
     for i, k in ipairs(order) do if k == key then idx = i; break end end
     if not idx then return end
-    -- STAGE-3: grouped keys don't render in the ungrouped block, so swapping with one
-    -- would be an invisible no-op click -- skip past them to the next visible neighbor.
+    -- grouped keys do not render here; skip them or the click is an invisible no-op
     local swap = idx + delta
     while order[swap] and groupOfCat[order[swap]] do swap = swap + delta end
     if swap < 1 or swap > #order then return end
@@ -331,12 +268,6 @@ function moveCategory(key, delta)
     if categoriesChanged then categoriesChanged() end
 end
 
--- ---- Phase 3c STAGE-3: collapsible category groups --------------------------
--- Groups are a pure PRESENTATION layer: categoryFor()/collectByCategory() still
--- bucket by category key only; groups just regroup the non-pseudo keys for the
--- grid + sidebar. All state lives in mod.db.groups (profile-scoped).
-
--- Can this key ever live in a group? (pseudo-cats + unknown keys: never)
 local function groupableKey(key)
     if not key or key == "pinned" or key == "recent" or key == "__unassign" then return false end
     if customCatByKey[key] then return true end
@@ -344,18 +275,15 @@ local function groupableKey(key)
     return false
 end
 
--- Rebuild groupById/groupOfCat + nextGroupSeq from the groups array; sanitizes
--- persisted data (drops malformed entries, pseudo-cats, duplicates across groups,
--- dead custom keys). Call AFTER rebuildCustomLookup() so customCatByKey is fresh.
+-- Call AFTER rebuildCustomLookup() so customCatByKey is fresh.
 function rebuildGroupLookup()
     wipe(groupById); wipe(groupOfCat)
     nextGroupSeq = 0
     for i = #groups, 1, -1 do
         local g = groups[i]
-        -- strict type checks: a corrupt SavedVariables entry (numeric id, string
-        -- cats, ...) must be dropped/repaired here, not error out OnEnable.
+        -- corrupt SavedVariables must be repaired here, not error out OnEnable
         if not (type(g) == "table" and type(g.id) == "string") then
-            table.remove(groups, i)   -- malformed (hand-edited SavedVariables): drop
+            table.remove(groups, i)
         elseif type(g.cats) ~= "table" then
             g.cats = {}
         end
@@ -366,7 +294,7 @@ function rebuildGroupLookup()
         for j = #g.cats, 1, -1 do
             local key = g.cats[j]
             if not groupableKey(key) or groupOfCat[key] then
-                table.remove(g.cats, j)   -- pseudo/dead/duplicate: can never be grouped
+                table.remove(g.cats, j)
             else
                 groupOfCat[key] = g
             end
@@ -378,15 +306,10 @@ end
 
 function groupsChanged()
     rebuildGroupLookup()
-    if categoriesChanged then categoriesChanged() end   -- coalesced relayout + sidebar
+    if categoriesChanged then categoriesChanged() end
 end
 
 -- THE render order. Returns an array of entries:
---   { kind = "cat",   key = catKey }
---   { kind = "group", group = g, cats = { existing member keys, in g.cats order } }
--- Order: pinned, recent (pseudo, always top) -> groups in mod.db.groups order
--- (members in the group's own order) -> ungrouped cats in orderedCategoryKeys()
--- order. With zero groups this is exactly orderedCategoryKeys() -> no behavior change.
 function groupedDisplay()
     local base, out, inBase = orderedCategoryKeys(), {}, {}
     for _, key in ipairs(base) do inBase[key] = true end
@@ -395,7 +318,7 @@ function groupedDisplay()
     for _, g in ipairs(groups) do
         local cats = {}
         for _, key in ipairs(g.cats) do
-            if inBase[key] then cats[#cats + 1] = key end   -- disabled/gone keys skipped
+            if inBase[key] then cats[#cats + 1] = key end
         end
         out[#out + 1] = { kind = "group", group = g, cats = cats }
     end
@@ -425,8 +348,6 @@ function renameGroup(id, newName)
     groupsChanged()
 end
 
--- Deleting a group NEVER deletes categories: its members simply become ungrouped
--- (groupOfCat is rebuilt from the remaining groups).
 function deleteGroup(id)
     for i = #groups, 1, -1 do
         if groups[i] and groups[i].id == id then table.remove(groups, i); break end
@@ -444,11 +365,10 @@ function moveGroup(id, delta)
     groupsChanged()
 end
 
--- groupId = nil -> remove from its current group ("ungroup").
 function assignCatToGroup(catKey, groupId)
-    if not groupableKey(catKey) then return end          -- pinned/recent/__unassign/dead: never
+    if not groupableKey(catKey) then return end
     local target = groupId and groupById[groupId] or nil
-    if groupId and not target then return end            -- unknown group: no-op
+    if groupId and not target then return end
     local cur = groupOfCat[catKey]
     if cur == target then return end
     if cur then
@@ -466,7 +386,7 @@ function moveCatWithinGroup(catKey, delta)
     local idx
     for i, k in ipairs(g.cats) do if k == catKey then idx = i; break end end
     if not idx then return end
-    -- disabled built-ins stay members but don't render -- skip them when picking
+    -- skip disabled built-ins when picking the swap neighbor (they never render)
     -- the swap neighbor, else the click looks like a dead no-op (same rule as
     -- moveCategory's grouped-key skip).
     local swap = idx + delta
@@ -483,9 +403,6 @@ function toggleGroupCollapsed(id)
     groupsChanged()
 end
 
--- Per-category collapse (click a section header to fold it away). Persisted
--- per category key in mod.db.collapsedCats; the header row stays so it can be
--- reopened.
 local function catCollapsed(key)
     return mod.db and mod.db.collapsedCats and mod.db.collapsedCats[key] == true
 end
@@ -497,39 +414,27 @@ local function toggleCatCollapsed(key)
     if categoriesChanged then categoriesChanged() end
 end
 
--- =========================================================
--- State
--- =========================================================
-local bagFrame                      -- the main window (built lazily, out of combat)
-local buttons     = {}              -- pooled item buttons, indexed by visual position
-local indexFrames = {}              -- [bag] = plain Frame carrying SetID(bag)
-local btnCounter  = 0               -- global-name counter
-local pendingRelayout = false       -- set when a rebuild was blocked by combat
-local searchText  = ""              -- lowercased live query ("" = no filter)
-local sortReverse = false           -- runtime mirror of mod.db.sortReverse
-local sortMode    = "blizzard"      -- runtime mirror of mod.db.sortMode
-local catSortMode = "type"          -- runtime mirror of mod.db.catSortMode (display-only order)
-local sortInFlight = false          -- true while a custom-sort move batch drains
-local useCategories = true          -- runtime mirror of mod.db.useCategories
-local hideEmpty     = true          -- runtime mirror of mod.db.hideEmpty
-local viewMode         = "all"      -- "all" | "onebag" | "multibag" (mirror of mod.db.viewMode)
-local sidebarExpanded  = false      -- true = panel open (mirror of NOT mod.db.sidebarCollapsed)
--- selectedCategory is declared earlier (near the custom-category state) so the
--- CRUD functions above can reference it; do NOT redeclare it here.
-local sidebarWidth     = SIDEBAR_W_COLLAPSED  -- live width; finishSize() reads this
+local bagFrame
+local buttons     = {}
+local indexFrames = {}
+local btnCounter  = 0
+local pendingRelayout = false
+local searchText  = ""
+local sortReverse = false
+local sortMode    = "blizzard"
+local catSortMode = "type"
+local sortInFlight = false
+local useCategories = true
+local hideEmpty     = true
+local viewMode         = "all"
+local sidebarExpanded  = false
+local sidebarWidth     = SIDEBAR_W_COLLAPSED
 
--- Forward declarations (real definitions further down). Declared ONCE here, before
--- ANY of them is defined or referenced, so every closure/dispatcher binds the same
--- upvalue (defining `local function layout` later would shadow these -> nil calls).
+-- Forward declarations -- never redeclare these with local at the definition site.
 local layout, layoutOneBag, layoutMultiBag
 local buildSidebar, rebuildSidebar, applySidebarWidth
 
--- =========================================================
--- Helpers
--- =========================================================
--- Phase 4 STAGE-2: the DISPLAYED bag list — bags 0..4 minus the user-hidden
--- ones, plus the keyring (-2) when enabled. Everything that RENDERS iterates
--- this; sorting + the Recent baseline stay on the physical bags 0..4.
+-- Everything that RENDERS iterates visibleBags(); sorting + the Recent baseline use BAGS.
 local KEYRING = _G.KEYRING_CONTAINER or -2
 local function visibleBags()
     local out, hidden = {}, (mod.db and mod.db.hiddenBags) or {}
@@ -540,7 +445,6 @@ local function visibleBags()
     return out
 end
 
--- Localized display name for a container (backpack / equipped bag / keyring).
 local function bagDisplayName(bag)
     if bag == 0 then return L["Backpack"] end
     if bag == KEYRING then return _G.KEYRING or L["Keyring"] end
@@ -562,7 +466,7 @@ end
 local function freeSlots()
     local free = 0
     for _, bag in ipairs(visibleBags()) do
-        if bag ~= KEYRING then   -- keyring is dynamic; its "free" count is noise
+        if bag ~= KEYRING then
             local f = GetContainerNumFreeSlots(bag)
             free = free + (f or 0)
         end
@@ -570,7 +474,6 @@ local function freeSlots()
     return free
 end
 
--- First empty slot across the visible regular bags (for the quick-drop slot).
 local function firstFreeSlot()
     for _, bag in ipairs(visibleBags()) do
         if bag ~= KEYRING then
@@ -584,7 +487,6 @@ local function firstFreeSlot()
     return nil
 end
 
--- STAGE-2: snapshot current bag contents as itemID -> total count (used by the Recent diff).
 local function snapshotTotals()
     local totals = {}
     for _, bag in ipairs(BAGS) do
@@ -596,8 +498,7 @@ local function snapshotTotals()
     return totals
 end
 
--- STAGE-2: mark everything currently in bags as "seen" and clear the Recent set. Called
--- when the bag window closes, so "recent" means "acquired since you last closed the bag".
+-- Marks current contents seen, so "recent" means acquired since you last closed the bag.
 local function markRecentSeen()
     recentBaseline = snapshotTotals()
     recentPrimed = true
@@ -616,8 +517,6 @@ local function updateFree()
     if bagFrame.free then
         bagFrame.free:SetText(string.format(L["%d free"], freeSlots()))
     end
-    -- title carries a used / total item count, like the reference window
-    -- (keyring excluded, same as the footer's free count — keys aren't items)
     if bagFrame.title then
         local total, freeAll = 0, 0
         for _, bag in ipairs(visibleBags()) do
@@ -631,17 +530,12 @@ local function updateFree()
     end
 end
 
--- Search match. Returns true (match), false (no match) or nil (data not ready ->
--- keep the slot shown and retry on the next refresh). Cache-safe: never forces
--- the async GetItemInfo; the display name lives inside the item link, and
--- GetItemInfoInstant is local-only (no network).
+-- Returns true/false/nil (nil = data not ready, keep the slot shown). Never forces async GetItemInfo.
 local function itemMatchesSearch(bag, slot, query)
-    local searchText = query or searchText   -- Phase 4: the bank passes its own query
+    local searchText = query or searchText
     if searchText == "" then return true end
     local link = GetContainerItemLink and GetContainerItemLink(bag, slot)
-    if not link then return false end                     -- empty slot vs a non-empty query
-    -- smart matcher (Modules/BagSort.lua): plain terms behave like before,
-    -- plus q:/typ:/ilvl> keyword filters, all AND-combined
+    if not link then return false end
     if ns.ItemSearchMatch then
         local quality = select(4, GetContainerItemInfo(bag, slot))
         return ns.ItemSearchMatch(link, quality, searchText)
@@ -649,18 +543,14 @@ local function itemMatchesSearch(bag, slot, query)
     return link:lower():find(searchText, 1, true) and true or false
 end
 
--- =========================================================
--- Category classifier. Numeric Enum.ItemClass IDs (locale-independent).
--- =========================================================
 local CLASS_CONSUMABLE, CLASS_CONTAINER, CLASS_WEAPON, CLASS_GEM = 0, 1, 2, 3
 local CLASS_ARMOR, CLASS_REAGENT, CLASS_PROJECTILE, CLASS_TRADEGOODS = 4, 5, 6, 7
 local CLASS_RECIPE, CLASS_QUIVER, CLASS_QUEST, CLASS_KEY, CLASS_MISC = 9, 11, 12, 13, 15
 
 local GetQuestInfo = _G.C_Container and _G.C_Container.GetContainerItemQuestInfo
-local categoryCache = {}   -- [itemID] = class-derived categoryKey (class is intrinsic)
+local categoryCache = {}
 
--- class/equip-slot only (never quest/junk -- those are decided per-slot below), so
--- this result is safe to cache by itemID.
+-- class/equip-slot only (quest/junk are per-slot), so the result is cacheable by itemID
 local function classifyLink(link)
     if not (link and GetItemInfoInstant) then return "misc" end
     local _, _, _, equipLoc, _, classID = GetItemInfoInstant(link)
@@ -680,19 +570,16 @@ local function classifyLink(link)
     return "misc"
 end
 
--- categoryKey for a slot:
---   manual assignment (if the target still exists) > quest flag > junk > cached class.
--- The class cache holds ONLY classifyLink() output, so assignments never poison it
--- and wiping it never loses an assignment (assignments live in itemAssignments).
+-- priority: pin > manual assignment > recent > quest flag > junk > cached class
 local function categoryFor(bag, slot)
     local link = GetContainerItemLink and GetContainerItemLink(bag, slot)
     if not link then return nil end
     local _, _, _, quality, _, _, _, _, _, itemID = GetContainerItemInfo(bag, slot)
     if itemID then
-        if pinnedItems[itemID] then return "pinned" end               -- STAGE-2: pin wins over everything
+        if pinnedItems[itemID] then return "pinned" end
         local assigned = itemAssignments[itemID]
         if assigned and categoryExists(assigned) then return assigned end
-        if mod.db and mod.db.showRecent ~= false and recentItems[itemID] then return "recent" end  -- STAGE-2
+        if mod.db and mod.db.showRecent ~= false and recentItems[itemID] then return "recent" end
     end
     if GetQuestInfo then
         local ok, info = pcall(GetQuestInfo, bag, slot)
@@ -705,8 +592,7 @@ local function categoryFor(bag, slot)
     return key
 end
 
--- Refresh one button's visuals from its own bag/slot (never touches interactivity).
-local bindTypeCache = {}   -- [itemID] = bindType (0 = binds never/other)
+local bindTypeCache = {}
 
 local function updateButton(btn)
     local bag  = btn:GetParent():GetID()
@@ -717,16 +603,11 @@ local function updateButton(btn)
     SetItemButtonCount(btn, count)
     SetItemButtonDesaturated(btn, locked)
 
-    -- keep the "new item" / battlepay glow suppressed (cheap insurance in case
-    -- anything re-shows it; the heavy strip happens once in acquireButton)
     local ng = btn.NewItemTexture or _G[btn:GetName() .. "NewItemTexture"]
     if ng and ng:IsShown() then ng:Hide() end
     local bp = btn.BattlepayItemTexture or _G[btn:GetName() .. "BattlepayItemTexture"]
     if bp and bp:IsShown() then bp:Hide() end
 
-    -- quality border: our own crisp 1px edge in the item's quality colour —
-    -- clearly visible, unlike the template's soft IconBorder glow. Poor/common
-    -- items get none (visual noise).
     local qf = btn._qborder
     if qf then
         if mod.db.qualityBorders ~= false and quality and quality >= 2 and GetItemQualityColor then
@@ -738,9 +619,7 @@ local function updateButton(btn)
         end
     end
 
-    -- item level on equipment (weapons/armor), quality-coloured, top-left.
-    -- GetItemInfo can miss on uncached items -> hidden now, filled by the next
-    -- refresh (BAG_UPDATE bursts re-run updateButton anyway).
+    -- ilvl can be nil on uncached items; the next refresh fills it in
     local fs = btn._ilvl
     if fs then
         local lvl
@@ -752,12 +631,10 @@ local function updateButton(btn)
             end
         end
         if lvl and lvl > 1 then
-            -- same font/size as the stack-count numbers (follows the option live)
             if UI and UI.FONT_PATH then
                 pcall(fs.SetFont, fs, UI.FONT_PATH, mod.db.countFontSize or 12, "OUTLINE")
             end
             fs:SetText(lvl)
-            -- quality-tinted (the reference look) or plain white per option
             if mod.db.itemLevelQualityColor ~= false and quality and quality >= 2 and GetItemQualityColor then
                 local r, g, b = GetItemQualityColor(quality)
                 fs:SetTextColor(r, g, b)
@@ -770,21 +647,17 @@ local function updateButton(btn)
         end
     end
 
-    -- count font = our font at the configured size
     local cnt = _G[btn:GetName() .. "Count"]
     if cnt and UI and UI.FONT_PATH then
         pcall(cnt.SetFont, cnt, UI.FONT_PATH, mod.db.countFontSize or 12, "OUTLINE")
     end
 
-    -- bind marker: BoE/BoU on equipment that is NOT yet soulbound (the tuple's
-    -- isBound covers THIS instance; bindType 2/3 = binds on equip/use) — the
-    -- "still tradeable" signal for banking and the auction house
+    -- BoE/BoU only while not yet soulbound (bindType 2 = on equip, 3 = on use)
     local bm = btn._bind
     if bm then
         local tag
         if mod.db.bindMarker ~= false and link and not isBound and itemID and GetItemInfo then
-            -- PERF: bindType is intrinsic per itemID — cache it (only once the
-            -- item data is server-cached; nil name = uncached, retry next paint)
+            -- nil name = item not server-cached yet, retry next paint
             local bindType = bindTypeCache[itemID]
             if bindType == nil then
                 local iname = GetItemInfo(link)
@@ -812,8 +685,6 @@ local function updateButton(btn)
         end
     end
 
-    -- keyring slots: subtly accent-tinted backing (empty AND filled), so they
-    -- read as their own section even inside a mixed grid
     if btn._slotbg then
         if bag == KEYRING then
             btn._slotbg:SetColorTexture(0.16, 0.12, 0.24, 0.7)
@@ -822,8 +693,7 @@ local function updateButton(btn)
         end
     end
 
-    -- junk marker: accent C bottom-left on vendor trash (grey WITH sell
-    -- value — worthless greys get none, same rule as the sort engine's junk)
+    -- junk = grey WITH sell value (same rule as the sort engine)
     local jt = btn._junk
     if jt then
         if mod.db.junkMarker ~= false and quality == 0 and not noValue and icon then
@@ -837,7 +707,6 @@ local function updateButton(btn)
         end
     end
 
-    -- cooldown swirl
     local cd = _G[btn:GetName() .. "Cooldown"]
     if cd then
         local start, dur, enable = GetContainerItemCooldown(bag, slot)
@@ -848,9 +717,7 @@ local function updateButton(btn)
         end
     end
 
-    -- search dimming: matched = full alpha, non-match = dimmed (but still fully
-    -- interactive -- we only touch alpha, never Enable/Hide, so the secure click
-    -- handler is untouched). nil (item not cached yet) keeps it visible + retried.
+    -- dim via alpha only -- never Enable/Hide, that would break the secure click path
     if searchText == "" then
         btn:SetAlpha(1)
     else
@@ -858,7 +725,6 @@ local function updateButton(btn)
     end
 end
 
--- Get (or lazily create, OUT of combat) the plain frame that carries a bag id.
 local function ensureIndexFrame(bag)
     local f = indexFrames[bag]
     if not f then
@@ -871,7 +737,6 @@ local function ensureIndexFrame(bag)
     return f
 end
 
--- Get (or lazily create, OUT of combat) the pooled secure button at position n.
 local function acquireButton(n)
     local btn = buttons[n]
     if btn then return btn end
@@ -880,14 +745,9 @@ local function acquireButton(n)
     btn = CreateFrame("Button", "VuloClassicUIBagItem" .. btnCounter, bagFrame.content,
         "ContainerFrameItemButtonTemplate")
     btn:SetSize(BTN, BTN)
-    -- STAGE-2: middle-click toggles a "pin". Passing an explicit list REPLACES the
-    -- template's click registration, so we re-list Left/Right to keep Blizzard's secure
-    -- use/equip/pickup path intact. Registered ONCE here, always out of combat
-    -- (acquireButton bails in combat above), so no protected-in-combat taint.
+    -- an explicit click list REPLACES the template registration; re-list Left/Right to keep the secure path
     btn:RegisterForClicks("LeftButtonUp", "RightButtonUp", "MiddleButtonUp")
-    -- Additive post-hook only (never SetScript): runs AFTER the secure handler, so
-    -- left/right use/equip already fired; the middle branch does nothing secure
-    -- (reads item info, flips a plain Lua table, relayouts) -> cannot taint the action.
+    -- HookScript only (never SetScript): runs after the secure handler, so it cannot taint it
     btn:HookScript("OnClick", function(self, mouseButton)
         if mouseButton ~= "MiddleButton" then return end
         local bg = self:GetParent() and self:GetParent():GetID()
@@ -897,13 +757,9 @@ local function acquireButton(n)
         if not itemID then return end
         if pinnedItems[itemID] then pinnedItems[itemID] = nil
         else pinnedItems[itemID] = true end
-        if categoriesChanged then categoriesChanged() end   -- re-bucket + relayout + sidebar
+        if categoriesChanged then categoriesChanged() end
     end)
-    -- Clean dark slots. The modern item-button template shows a "new item" glow
-    -- (atlas bags-glow-*) + a battlepay overlay on EVERY slot here -- suppressing
-    -- the default bags means the game's "new item" flags never get cleared, so
-    -- every slot glows. Hide those overlays (and stop their glow animations), plus
-    -- Blizzard's blue empty-slot NormalTexture.
+    -- suppressing the default bags means "new item" flags never clear -- strip the glow overlays
     local bname = btn:GetName()
     if btn.SetNormalTexture then pcall(btn.SetNormalTexture, btn, nil) end
     local nt = _G[bname .. "NormalTexture"]; if nt then nt:SetTexture(nil); nt:Hide() end
@@ -914,7 +770,6 @@ local function acquireButton(n)
     if newTex then newTex:Hide() end
     local bpTex = btn.BattlepayItemTexture or _G[bname .. "BattlepayItemTexture"]
     if bpTex then bpTex:Hide() end
-    -- belt-and-suspenders: hide any remaining glow-atlas texture on the button
     for r = 1, select("#", btn:GetRegions()) do
         local reg = select(r, btn:GetRegions())
         if reg and reg.GetObjectType and reg:GetObjectType() == "Texture" and reg.GetAtlas then
@@ -922,21 +777,14 @@ local function acquireButton(n)
             if type(a) == "string" and a:find("glow", 1, true) then reg:Hide() end
         end
     end
-    -- dark empty-slot backing (shows through empty slots; icon covers it when full)
     local sb = btn:CreateTexture(nil, "BACKGROUND")
     sb:SetPoint("TOPLEFT", btn, "TOPLEFT", 1, -1)
     sb:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -1, 1)
     sb:SetColorTexture(0.10, 0.10, 0.13, 0.55)
     btn._slotbg = sb
-    -- quality border: a full-button colour layer BEHIND the 1px-inset icon.
-    -- A filled ring can never drop a side (no hairline sub-pixel rasterization)
-    -- and stays evenly thin at every resolution/scale — the reference look.
     local qb = btn:CreateTexture(nil, "BACKGROUND", nil, -1)
     qb:SetAllPoints(btn)
-    -- disable pixel snapping on BOTH ring and icon: with snapping, each edge
-    -- independently rounds to the pixel grid and the ring rasterizes 1px on one
-    -- side, 2px on another. Anti-aliased edges render the ring evenly thick on
-    -- every side at any position/scale (and a filled ring can never vanish).
+    -- pixel snapping off on ring + icon, else the border rasterizes unevenly
     if qb.SetSnapToPixelGrid then qb:SetSnapToPixelGrid(false); qb:SetTexelSnappingBias(0) end
     qb:Hide()
     btn._qborder = qb
@@ -948,14 +796,11 @@ local function acquireButton(n)
         iconTex:SetTexCoord(0.07, 0.93, 0.07, 0.93)   -- crop the icon's own dark bevel
         if iconTex.SetSnapToPixelGrid then iconTex:SetSnapToPixelGrid(false); iconTex:SetTexelSnappingBias(0) end
     end
-    -- item level text: plain white, standard number font (equipment only)
     local il = btn:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
     il:SetPoint("TOPLEFT", btn, "TOPLEFT", 2, -2)
     il:SetTextColor(1, 1, 1)
     il:Hide()
     btn._ilvl = il
-    -- junk marker: accent C bottom-left (fixed anchor; the stack count owns
-    -- the bottom-right corner)
     local jk = btn:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
     local jac = ns.COLORS and ns.COLORS.accent or { r = 0.608, g = 0.424, b = 1 }
     jk:SetPoint("BOTTOMLEFT", btn, "BOTTOMLEFT", 2, 2)
@@ -963,26 +808,22 @@ local function acquireButton(n)
     jk:SetTextColor(jac.r, jac.g, jac.b)
     jk:Hide()
     btn._junk = jk
-    -- bind marker: BoE/BoU bottom-right (equipment never stacks, no count clash)
     local bm = btn:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
     bm:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -2, 2)
     bm:SetTextColor(0.45, 0.75, 1)
     bm:Hide()
     btn._bind = bm
-    btn:Hide()   -- layout() shows the ones it uses; keeps pre-allocated buttons invisible
+    btn:Hide()
     buttons[n] = btn
     return btn
 end
 
--- Pooled category-section header FontStrings (plain text -> no taint).
 local sectionHeaders = {}
 local function acquireHeader(n)
     local h = sectionHeaders[n]
     if h then return h end
     if not bagFrame then return nil end
-    -- a clickable Button (insecure; layout reserves its row so it never overlaps
-    -- a secure item button) carrying: accent label, a hairline divider trailing
-    -- the text to the section's right edge, and a right-aligned collapse hint.
+    -- insecure Button; layout reserves its row so it never overlaps a secure item button
     h = CreateFrame("Button", nil, bagFrame.content)
     h:SetHeight(HEADER_ROW)
     local label = h:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -1026,9 +867,7 @@ local function acquireHeader(n)
     return h
 end
 
--- Position + fill a section header. `catKey` non-nil makes it collapsible (the
--- reference "Verbergen"/"Zeigen" toggle); pass nil for the plain labels used by
--- the flat / onebag / keyring / multibag sections.
+-- catKey non-nil makes the header collapsible; nil = plain label.
 local function placeHeader(h, x, y, text, widthCols, catKey)
     if not h then return end
     h:ClearAllPoints()
@@ -1048,17 +887,13 @@ local function placeHeader(h, x, y, text, widthCols, catKey)
         h._catKey = nil
         h._collapsed = nil
         h:EnableMouse(false)
-        h.hint:SetText("")   -- empty rect -> divider runs to the right edge
+        h.hint:SetText("")
         h.hint:Hide()
         h.divider:Show()
     end
     h:Show()
 end
 
--- STAGE-3: pooled group-section headers. Plain Buttons (label + v/> glyph on a
--- faint accent bar) -> zero taint; they never host or overlap secure item buttons
--- (layout reserves their rows). Left-click toggles collapse, right-click opens
--- the group menu. Safe to create in combat (insecure frames).
 local groupHeaders = {}
 local function acquireGroupHeader(n)
     local gh = groupHeaders[n]
@@ -1075,7 +910,7 @@ local function acquireGroupHeader(n)
     label:SetPoint("LEFT", gh, "LEFT", 3, 0)
     label:SetPoint("RIGHT", gh, "RIGHT", -3, 0)
     label:SetJustifyH("LEFT")
-    label:SetTextColor(1, 1, 1)   -- white on accent bar = distinct from accent category headers
+    label:SetTextColor(1, 1, 1)
     gh.label = label
     gh:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     gh:SetScript("OnClick", function(self, mouseButton)
@@ -1097,27 +932,18 @@ local function acquireGroupHeader(n)
     return gh
 end
 
--- =========================================================
--- Layout. Two modes: one flat grid, or category sections. A dispatcher named
--- layout() (kept, since refresh/Open/options/events call it) picks based on the
--- useCategories setting. Both preserve the secure button/index-frame wiring and
--- only change WHERE a button is placed.
--- =========================================================
 local function finishSize(cols, contentH, blocked, extraW)
     if blocked then pendingRelayout = true end
-    local contentW = cols * (BTN + GAP) - GAP + (extraW or 0)   -- STAGE-3: group indent
+    local contentW = cols * (BTN + GAP) - GAP + (extraW or 0)
     contentH = math.max(contentH, BTN)
 
-    -- scroll CHILD = true content size (may exceed the viewport -> scrolls)
     bagFrame.content:SetSize(contentW, contentH)
 
-    -- viewport height capped to a fraction of the screen; width = content width
     local cap = math.floor(UIParent:GetHeight() * CONTENT_MAX_FRAC)
     local vpH = math.min(contentH, cap)
     local vp  = bagFrame.contentVP
     if vp then vp:SetSize(contentW, vpH) end
 
-    -- scrollbar range + visibility from overflow
     local overflow = contentH - vpH
     local sbar = bagFrame.contentBar
     if sbar and vp then
@@ -1136,8 +962,7 @@ local function finishSize(cols, contentH, blocked, extraW)
         end
     end
 
-    -- window = padding + sidebar + GAP + content + (scrollbar gutter) + padding.
-    -- Height uses the CAPPED viewport height, so the window never exceeds the screen.
+    -- height uses the CAPPED viewport height, so the window never exceeds the screen
     local barGutter = (sbar and sbar:IsShown()) and 10 or 0
     bagFrame:SetSize(PAD + sidebarWidth + GAP + contentW + barGutter + PAD,
                      HEADER_H + vpH + FOOTER_H + PAD)
@@ -1145,16 +970,10 @@ local function finishSize(cols, contentH, blocked, extraW)
     updateFree()
 end
 
--- Phase 4 STAGE-2: park the quick-drop slot on its own row at the very bottom
--- of the content (directly under the last section); returns its height so the
--- caller can grow contentH. It lives in the scroll child, so it scrolls along.
 local function placeDropSlot(y, blocked)
     local d = bagFrame and bagFrame.dropSlot
     if not d then return 0 end
-    -- a combat-blocked layout can abort MID-SECTION: buttons of the partial
-    -- section are already shown at/below y, so parking the drop there would
-    -- stack it onto them (and under-report contentH). Hide until the
-    -- pendingRelayout pass after combat.
+    -- a combat-blocked layout can abort mid-section; hide until the post-combat pass
     if blocked then d:Hide(); return 0 end
     d:ClearAllPoints()
     d:SetPoint("TOPLEFT", bagFrame.content, "TOPLEFT", 0, -y)
@@ -1168,13 +987,13 @@ local function layoutFlat()
     if cols < 1 then cols = 1 end
 
     local n, blocked = 0, false
-    local yExtra, keyHeader = 0, 0   -- keyring gets its own labeled row
+    local yExtra, keyHeader = 0, 0
     for _, bag in ipairs(visibleBags()) do
         local slots = GetContainerNumSlots(bag) or 0
         local idx = ensureIndexFrame(bag)
         if not idx then blocked = true; break end
         if bag == KEYRING and slots > 0 and n > 0 then
-            n = math.ceil(n / cols) * cols       -- start on a fresh row
+            n = math.ceil(n / cols) * cols
             placeHeader(acquireHeader(1), 1,
                 math.floor(n / cols) * (BTN + GAP) + yExtra,
                 _G.KEYRING or L["Keyring"], cols, nil)
@@ -1199,23 +1018,20 @@ local function layoutFlat()
     end
     for i = n + 1, #buttons do buttons[i]:Hide() end
     for i = keyHeader + 1, #sectionHeaders do sectionHeaders[i]:Hide() end
-    for i = 1, #groupHeaders do groupHeaders[i]:Hide() end       -- STAGE-3: no group chrome either
+    for i = 1, #groupHeaders do groupHeaders[i]:Hide() end
     local rows = math.max(1, math.ceil(math.max(n, 1) / cols))
     local h = rows * (BTN + GAP) - GAP + yExtra
-    h = h + GAP + placeDropSlot(h + GAP)   -- quick-drop row under the grid
+    h = h + GAP + placeDropSlot(h + GAP)
     finishSize(cols, h, blocked)
 end
 
--- occupied slots bucketed by category. With catSortMode active each bucket is
--- re-ordered for DISPLAY by the shared engine (never moves items); "off" keeps
--- raw slot order (so a physical sort carries in).
 local function collectByCategory()
     local buckets = {}
     for _, bag in ipairs(visibleBags()) do
         for slot = 1, (GetContainerNumSlots(bag) or 0) do
             if GetContainerItemLink and GetContainerItemLink(bag, slot) then
                 local key = categoryFor(bag, slot) or "misc"
-                if disabledCats[key] then key = "misc" end   -- disabled built-in -> catch-all
+                if disabledCats[key] then key = "misc" end
                 local b = buckets[key]; if not b then b = {}; buckets[key] = b end
                 b[#b + 1] = { bag = bag, slot = slot }
             end
@@ -1224,16 +1040,14 @@ local function collectByCategory()
     if catSortMode ~= "off" and ns.SortEngine then
         local needRetry = false
         for key, b in pairs(buckets) do
-            -- pcall: a display-order failure must never take down layout();
-            -- worst case the bucket just keeps raw slot order this paint
+            -- pcall: a display-order failure must never take down layout()
             local ok, sorted, incomplete = pcall(ns.SortEngine.OrderBucket, b, catSortMode, sortReverse)
             if ok and sorted then
                 buckets[key] = sorted
                 if incomplete then needRetry = true end
             end
         end
-        -- some item data wasn't server-cached yet (fresh login): repaint once
-        -- shortly after — the engine already requested the missing data
+        -- some item data was not server-cached yet: repaint shortly after
         if needRetry and not mod._catSortRetry and C_Timer and C_Timer.After then
             mod._catSortRetry = true
             C_Timer.After(0.5, function()
@@ -1255,9 +1069,6 @@ local function layoutCategorized()
     local y = 0   -- distance from content TOPLEFT (positive downward)
     local filtered = (selectedCategory ~= "all")
 
-    -- One category section at x-offset `indent`. Returns false when combat-blocked.
-    -- Same show rule as before: a picked filter shows ONLY that category (even
-    -- empty, so the window isn't blank); otherwise the hide-empty rule applies.
     local function renderCategory(key, indent)
         local items = buckets[key]
         local count = items and #items or 0
@@ -1265,22 +1076,18 @@ local function layoutCategorized()
                   or (filtered and key == selectedCategory)
         if not show then return true end
         hdrN = hdrN + 1
-        -- a filtered view forces the picked category open (its own header is
-        -- the whole window); otherwise honour the per-category collapse flag
         local collapsed = (not filtered) and catCollapsed(key)
         placeHeader(acquireHeader(hdrN), 1 + indent, y,
             string.format("%s  |cff808080(%d)|r", catName(key), count),
             cols, (not filtered) and key or nil)
         y = y + HEADER_ROW
         if collapsed then
-            y = y + GAP   -- folded: header only, skip every item
+            y = y + GAP
             return true
         end
         for i = 1, count do
             local it  = items[i]
-            -- bail BEFORE consuming a button index: a consumed-but-unplaced index
-            -- would be skipped by the trailing hide loop, leaving that pooled secure
-            -- button SHOWN at its stale previous-layout position (misclick hazard).
+            -- bail BEFORE consuming a button index, else that pooled button stays shown at a stale position
             local idx = ensureIndexFrame(it.bag)
             if not idx then blocked = true; return false end
             btnN = btnN + 1
@@ -1305,9 +1112,6 @@ local function layoutCategorized()
         if entry.kind == "cat" then
             if not renderCategory(entry.key, 0) then break end
         elseif filtered then
-            -- STAGE-3: an active filter renders the selected category FLAT, with no
-            -- group chrome -- the group is effectively forced expanded for this view
-            -- (its persisted collapsed flag is untouched).
             for _, key in ipairs(entry.cats) do
                 if key == selectedCategory then renderCategory(key, 0); break end
             end
@@ -1317,9 +1121,6 @@ local function layoutCategorized()
             for _, key in ipairs(entry.cats) do
                 total = total + (buckets[key] and #buckets[key] or 0)
             end
-            -- same visibility rule as a category: hide an all-empty group when
-            -- hideEmpty is on (a freshly created empty group is managed via the
-            -- sidebar, which always lists it)
             if total > 0 or not hideEmpty then
                 ghN = ghN + 1
                 local gh = acquireGroupHeader(ghN)
@@ -1334,7 +1135,7 @@ local function layoutCategorized()
                 end
                 y = y + GROUP_HEADER_ROW
                 if g.collapsed then
-                    y = y + GAP   -- collapsed: skip every member section entirely
+                    y = y + GAP
                 else
                     for _, key in ipairs(entry.cats) do
                         if not renderCategory(key, GROUP_INDENT) then break end
@@ -1348,22 +1149,15 @@ local function layoutCategorized()
     for i = btnN + 1, #buttons do buttons[i]:Hide() end
     for i = hdrN + 1, #sectionHeaders do sectionHeaders[i]:Hide() end
     for i = ghN + 1, #groupHeaders do groupHeaders[i]:Hide() end
-    -- y already carries the trailing section GAP -> the drop slot lands exactly
-    -- one GAP below the last category, then grows the content by its height
     local dropH = placeDropSlot(y)
     finishSize(cols, y + dropH, blocked, (ghN > 0) and GROUP_INDENT or 0)
 end
 
--- OneBag: every occupied slot from bags 0-4 in one flat grid, one header;
--- with showFreeSlots the empty slots follow the items (as drop targets).
 layoutOneBag = function()
     if not (bagFrame and mod.active) then return end
     local cols = mod.db.columns or 12
     if cols < 1 then cols = 1 end
 
-    -- fixed-slot mode: EVERY slot in natural bag order (empties inline), so an
-    -- item dropped on a slot visually stays where you put it — like one big
-    -- real bag. Compact mode keeps items first, free slots trailing.
     local natural = mod.db.showFreeSlots ~= false and mod.db.onebagFixedSlots ~= false
     local items, itemCount = {}, 0
     for _, bag in ipairs(visibleBags()) do
@@ -1391,10 +1185,10 @@ layoutOneBag = function()
         string.format("%s  |cff808080(%d)|r", L["All Bags"], itemCount), cols, nil)
     y = y + HEADER_ROW
 
-    local pos, keyHeaderN = 0, 1   -- keyring block gets its own labeled row
+    local pos, keyHeaderN = 0, 1
     for i = 1, #items do
         local it  = items[i]
-        -- bail BEFORE consuming a button index (see layoutCategorized note)
+
         local idx = ensureIndexFrame(it.bag)
         if not idx then blocked = true; break end
         if it.bag == KEYRING and keyHeaderN == 1 then
@@ -1423,12 +1217,11 @@ layoutOneBag = function()
 
     for i = btnN + 1, #buttons do buttons[i]:Hide() end
     for i = keyHeaderN + 1, #sectionHeaders do sectionHeaders[i]:Hide() end
-    for i = 1, #groupHeaders do groupHeaders[i]:Hide() end   -- STAGE-3
+    for i = 1, #groupHeaders do groupHeaders[i]:Hide() end
     local dropH = placeDropSlot(y)
     finishSize(cols, y + dropH, blocked)
 end
 
--- MultiBag: one section per bag 0-4 (all slots in slot order), skips empty bags.
 layoutMultiBag = function()
     if not (bagFrame and mod.active) then return end
     local cols = mod.db.columns or 12
@@ -1471,24 +1264,18 @@ layoutMultiBag = function()
 
     for i = btnN + 1, #buttons do buttons[i]:Hide() end
     for i = hdrN + 1, #sectionHeaders do sectionHeaders[i]:Hide() end
-    for i = 1, #groupHeaders do groupHeaders[i]:Hide() end   -- STAGE-3
+    for i = 1, #groupHeaders do groupHeaders[i]:Hide() end
     local dropH = placeDropSlot(y)
     finishSize(cols, math.max(y + dropH, BTN), blocked)
 end
 
--- Dispatcher (assigned to the forward-declared upvalue). Routes by viewMode.
 local lastLayoutSig   -- identity of the last laid-out view (mode|filter|sort|categorized)
 function layout()
     if not (bagFrame and mod.active) then return end
-    -- STAGE-2: when the view IDENTITY changes (view mode / category filter / sort /
-    -- categorized toggle) the retained pixel scroll offset points at a different set of
-    -- rows, so reset it to the top. A plain content refresh (same identity) keeps its
-    -- scroll position -- looting while scrolled down doesn't snap you back up.
+    -- reset scroll only when the view IDENTITY changes; a plain refresh keeps its offset
     local sig = tostring(viewMode) .. "|" .. tostring(selectedCategory) .. "|"
         .. tostring(sortMode) .. "|" .. tostring(sortReverse) .. "|" .. tostring(useCategories)
         .. "|" .. tostring(catSortMode)
-        -- onebag slot options change that view's row set only; keep them out
-        -- of the sig elsewhere so toggling them can't snap other views to top
         .. "|" .. (viewMode == "onebag"
             and (tostring(mod.db.showFreeSlots) .. tostring(mod.db.onebagFixedSlots)) or "")
     if sig ~= lastLayoutSig then
@@ -1502,7 +1289,6 @@ function layout()
     else                               layoutFlat() end
 end
 
--- coalesce a burst of BAG_UPDATE etc. into one relayout next frame
 local refreshScheduled = false
 local function refresh()
     if not (mod.active and bagFrame and bagFrame:IsShown()) then return end
@@ -1510,33 +1296,25 @@ local function refresh()
     refreshScheduled = true
     local function run()
         refreshScheduled = false
-        -- if the filtered category emptied out, fall back to All (no stranded blank)
+
         if selectedCategory ~= "all" then
             local b = collectByCategory()[selectedCategory]
             if not (b and #b > 0) then selectedCategory = "all" end
         end
         if sidebarExpanded and rebuildSidebar then rebuildSidebar() end
         if bagFrame.bagBar and bagFrame.bagBar:IsShown() and bagFrame.updateBagBar then
-            bagFrame.updateBagBar()   -- bag swaps change the strip's icons
+            bagFrame.updateBagBar()
         end
         layout()
     end
     if C_Timer and C_Timer.After then C_Timer.After(0, run) else run() end
 end
 
--- Phase 3c: an assignment/category change never touches categoryCache (class-only);
--- it just needs a re-bucket + relayout + sidebar rebuild, which refresh() does.
 function categoriesChanged() refresh() end
 
--- =========================================================
--- Sort. Native SortBags() is unreliable on Classic (it's only a global when an
--- external sort addon is present; C_Container.SortBags is retail-only), so we
--- PREFER the native call when it genuinely exists and otherwise fall back to our
--- own Lua sort. Both are taint-safe from a plain button (only PickupContainerItem
--- + ClearCursor, no protected item API) and both bail in combat.
--- =========================================================
+-- Prefer native SortBags only when it genuinely exists, else our own Lua sort. Both bail in combat.
 local SORT_BAGS = { 0, 1, 2, 3, 4 }
-local sortBagsActive = SORT_BAGS   -- Phase 4: doSort() may point this at the bank's bag list
+local sortBagsActive = SORT_BAGS
 
 local function sortKey(link)
     local q, t, s, name = 0, "", "", ""
@@ -1550,7 +1328,6 @@ local function sortKey(link)
     return q, t, s, name
 end
 
--- strict weak ordering; primary key depends on sortMode, rest are stable tie-breaks
 local function sortLess(la, lb)
     local qa, ta, sa, na = sortKey(la)
     local qb, tb, sb, nb = sortKey(lb)
@@ -1564,7 +1341,7 @@ local function sortLess(la, lb)
         if qa ~= qb then return qa > qb end
         if na ~= nb then return na < nb end
         return false
-    else -- "quality" (also the custom fallback used when a client lacks native sort)
+    else
         if qa ~= qb then if sortReverse then return qa < qb else return qa > qb end end
         if ta ~= tb then return ta < tb end
         if sa ~= sb then return sa < sb end
@@ -1573,15 +1350,10 @@ local function sortLess(la, lb)
     end
 end
 
--- Fallback sort (only runs when the client has NO native SortBags). Selection
--- sort: for each target position, bring the "smallest" remaining item into it
--- with a proper 3-pickup swap. Converges in <= N swaps (one swap per frame so
--- item locks settle); never swaps two identical stacks (so nothing merges); a
--- 3-pickup swap is a clean exchange, so an item is never stranded on the cursor.
+-- Fallback selection sort: one 3-pickup swap per frame; never swaps two identical stacks.
 local _sortStep = 0
 local sortPos   = 1
 
--- should x be placed before y? non-empty before empty; among items, by sortLess.
 local function betterSlot(x, y)
     if x.link and not y.link then return true  end
     if y.link and not x.link then return false end
@@ -1612,12 +1384,12 @@ local function customSortStep()
             if betterSlot(slots[j], slots[best]) then best = j end
         end
         if best == sortPos then
-            sortPos = sortPos + 1                       -- right item already here
+            sortPos = sortPos + 1
         else
             local a, b = slots[sortPos], slots[best]
             if slotLocked(a.bag, a.slot) or slotLocked(b.bag, b.slot) then
                 if C_Timer and C_Timer.After then C_Timer.After(0, customSortStep) else sortInFlight = false end
-                return                                  -- locked: retry this position next frame
+                return
             end
             -- proper 3-pickup swap (clean whether the other slot is empty or full)
             PickupContainerItem(a.bag, a.slot)
@@ -1626,15 +1398,13 @@ local function customSortStep()
             ClearCursor()
             sortPos = sortPos + 1
             if C_Timer and C_Timer.After then C_Timer.After(0, customSortStep) else customSortStep() end
-            return                                      -- one swap per frame
+            return
         end
     end
     sortInFlight = false
     refresh()
 end
 
--- Phase 4: doSort optionally takes a bag list + native sorter so the bank
--- window can reuse the whole machinery (its own containers, its own native fn).
 local function doSort(bagList, nativeFn)
     if sortInFlight then return end
     if ns.SortEngine and ns.SortEngine.IsActive() then return end
@@ -1643,26 +1413,18 @@ local function doSort(bagList, nativeFn)
         return
     end
     local native = bagList and nativeFn or (not bagList and nativeSort) or nil
-    -- "blizzard" mode uses Blizzard's native category sort when the client has it
-    -- (stacks merge, combat-safe); the other modes run our own engine.
     if sortMode == "blizzard" and native then
         if nativeSetDir then pcall(nativeSetDir, sortReverse and true or false) end
-        pcall(native)                -- Blizzard handles the moves + combat + stacks
-        refresh()                    -- BAG_UPDATE will also fire; belt-and-suspenders
+        pcall(native)
+        refresh()
         return
     end
     sortBagsActive = bagList or SORT_BAGS
-    -- Engine sort (Modules/BagSort.lua): merges partial stacks first, then
-    -- moves items into multi-key order (junk to the far end, special bags
-    -- filled first). Repeats itself until the bags settle; the callback fires
-    -- exactly once, also on abort (combat / cancel), so the flag always clears.
+    -- the engine callback fires exactly once, also on abort, so sortInFlight always clears
     if ns.SortEngine then
         sortInFlight = true
         local isBank = bagList ~= nil
         ns.SortEngine.Run(sortBagsActive,
-            -- "blizzard" without a native sorter falls back to TYPE grouping:
-            -- quality-mode mixes mats and equipment (quality is its FIRST key),
-            -- which reads as "sorted only by quality" (live bank report)
             (sortMode == "blizzard") and "type" or sortMode,
             sortReverse and true or false,
             function()
@@ -1672,24 +1434,15 @@ local function doSort(bagList, nativeFn)
             end)
         return
     end
-    -- last-resort fallback (engine file failed to load): simple selection sort
     sortInFlight = true
     _sortStep = 0
     sortPos = 1
     customSortStep()
 end
 
--- Published for Modules/Bank.lua: shared search matcher + sort driver. The sort
--- respects the shared "Sort order" / "Reverse" settings; concurrent sorts are
--- already serialized by sortInFlight.
 ns.BagItemMatchesSearch = itemMatchesSearch
 ns.RunBagSort = doSort
 
--- =========================================================
--- Sidebar (Phase 3b) — plain frames only. It SELECTS what layout() draws; it
--- never creates or moves secure item buttons, so every click/hover/scroll/resize
--- is taint-free and legal in combat.
--- =========================================================
 local function makeSidebarRow(parent, pool, n)
     local row = pool[n]
     if row then return row end
@@ -1721,9 +1474,7 @@ local function makeSidebarRow(parent, pool, n)
     row:SetScript("OnEnter", function(self) if not self._selected then self.bg:SetAlpha(0.18) end end)
     row:SetScript("OnLeave", function(self) if not self._selected then self.bg:SetAlpha(0) end end)
 
-    -- Phase 3c: drop/hold an item on a category row to assign it; right-click for
-    -- the category menu. GetCursorInfo/ClearCursor are unprotected on 20505/11508
-    -- (read the cursor, drop it back) -> taint-free from this plain button.
+    -- GetCursorInfo/ClearCursor are unprotected, so drop-to-assign is taint-free here
     row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     row:RegisterForDrag("LeftButton")
     local function tryAssignFromCursor(self)
@@ -1735,8 +1486,8 @@ local function makeSidebarRow(parent, pool, n)
         if not itemID and type(a2) == "string" then itemID = tonumber(a2:match("item:(%d+)")) end
         if not itemID and type(a1) == "string" then itemID = tonumber(a1:match("item:(%d+)")) end
         if not itemID then return false end
-        if key == "recent" then return false end          -- STAGE-2: recent is not an assignment target
-        if key == "pinned" then                           -- STAGE-2: dropping on Pinned pins the item
+        if key == "recent" then return false end
+        if key == "pinned" then
             pinnedItems[itemID] = true
         elseif key == "__unassign" then itemAssignments[itemID] = nil
         else itemAssignments[itemID] = key end
@@ -1747,7 +1498,7 @@ local function makeSidebarRow(parent, pool, n)
     row:SetScript("OnReceiveDrag", function(self) tryAssignFromCursor(self) end)
     row:SetScript("OnClick", function(self, mouseButton)
         if mouseButton == "RightButton" then
-            if self._groupId and showGroupMenu then                       -- STAGE-3 group row
+            if self._groupId and showGroupMenu then
                 showGroupMenu(self, self._groupId)
             elseif self._catKey and self._catKey ~= "__unassign" and showCategoryMenu then
                 showCategoryMenu(self, self._catKey)
@@ -1779,7 +1530,6 @@ function applySidebarWidth()
     bagFrame.sidebar:SetWidth(sidebarWidth)
     if bagFrame.sidebarScroll then bagFrame.sidebarScroll:SetShown(sidebarExpanded) end
     if bagFrame.sidebarArrow then
-        -- collapsed shows a right ("expand") arrow, expanded a left ("collapse") one
         bagFrame.sidebarArrow:SetTexture(sidebarExpanded
             and "Interface\\Buttons\\UI-SpellbookIcon-PrevPage-Up"
             or  "Interface\\Buttons\\UI-SpellbookIcon-NextPage-Up")
@@ -1823,7 +1573,7 @@ function buildSidebar(f)
     tog:SetScript("OnClick", function()
         sidebarExpanded = not sidebarExpanded
         mod.db.sidebarCollapsed = not sidebarExpanded
-        if not sidebarExpanded then selectedCategory = "all" end  -- don't strand a filter
+        if not sidebarExpanded then selectedCategory = "all" end
         applySidebarWidth()
         if sidebarExpanded and rebuildSidebar then rebuildSidebar() end
         if mod:IsOpen() then layout() end
@@ -1848,7 +1598,6 @@ function buildSidebar(f)
     f.sbRows = {}
 end
 
--- Populate/refresh sidebar rows: VIEW modes, then (in "all" view) a CATEGORIES list.
 function rebuildSidebar()
     if not (bagFrame and bagFrame.sidebarChild and sidebarExpanded) then return end
     local child, pool = bagFrame.sidebarChild, bagFrame.sbRows
@@ -1858,7 +1607,7 @@ function rebuildSidebar()
         n = n + 1
         local row = makeSidebarRow(child, pool, n)
         row.icon:Hide(); row.sel:Hide(); row.bg:SetAlpha(0); row._selected = false
-        row._onClick = nil; row._catKey = nil; row._groupId = nil   -- inert header (constructor dispatches on these)
+        row._onClick = nil; row._catKey = nil; row._groupId = nil
         row:EnableMouse(false)
         row.label:ClearAllPoints()
         row.label:SetPoint("LEFT", row, "LEFT", 6, 0)
@@ -1878,7 +1627,7 @@ function rebuildSidebar()
         row:EnableMouse(true); row:SetHeight(SIDEBAR_BTN_H)
         row.icon:Show(); row.icon:SetTexture(icon)
         row.icon:ClearAllPoints()
-        row.icon:SetPoint("LEFT", row, "LEFT", 6 + (indent or 0), 0)   -- STAGE-3 indent
+        row.icon:SetPoint("LEFT", row, "LEFT", 6 + (indent or 0), 0)
         row.label:ClearAllPoints()
         row.label:SetPoint("LEFT", row.icon, "RIGHT", 6, 0)
         row.label:SetPoint("RIGHT", row, "RIGHT", -4, 0)
@@ -1891,16 +1640,14 @@ function rebuildSidebar()
         row:ClearAllPoints()
         row:SetPoint("TOPLEFT", child, "TOPLEFT", 0, -y)
         row:SetPoint("TOPRIGHT", child, "TOPRIGHT", 0, -y)
-        row._onClick = onClick     -- constructor OnClick dispatches here
-        row._catKey  = catKey      -- nil = plain row; a key = drop/menu target
-        row._groupId = nil         -- STAGE-3: pooled row may have been a group row
+        row._onClick = onClick
+        row._catKey  = catKey
+        row._groupId = nil
         row:Show()
         y = y + SIDEBAR_BTN_H + SIDEBAR_BTN_GAP
     end
 
-    -- STAGE-3: a group row -- accent label with v/> glyph + summed count. Click
-    -- toggles collapse; right-click opens the group menu (via _groupId in the
-    -- constructor). NOT a drop/assign target (_catKey = nil).
+    -- a group row -- accent label with v/> glyph + summed count. Click
     local function groupRow(g, total)
         n = n + 1
         local row = makeSidebarRow(child, pool, n)
@@ -1919,7 +1666,7 @@ function rebuildSidebar()
         row._catKey  = nil
         row._groupId = g.id
         row._onClick = function()
-            if GetCursorInfo and GetCursorInfo() == "item" then return end  -- don't toggle while dragging
+            if GetCursorInfo and GetCursorInfo() == "item" then return end
             if toggleGroupCollapsed then toggleGroupCollapsed(g.id) end
         end
         row:Show()
@@ -1940,14 +1687,11 @@ function rebuildSidebar()
         y = y + 4
         sectionLabel(L["Categories"])
         local buckets = collectByCategory()
-        -- All Items row: click = clear filter; drop an item here = un-assign it (__unassign)
         itemRow(categoryIcon("misc"), L["All Items"], nil, selectedCategory == "all", function()
             if selectedCategory == "all" then return end
             selectedCategory = "all"; rebuildSidebar()
             if mod:IsOpen() then layout() end
         end, "__unassign")
-        -- STAGE-3: same visibility rule as before per category (has items OR is a
-        -- custom drop target); groups are ALWAYS listed (management surface).
         local function catRow(key, indent)
             local items = buckets[key]
             local count = items and #items or 0
@@ -1973,11 +1717,10 @@ function rebuildSidebar()
                 if not g.collapsed then
                     for _, key in ipairs(entry.cats) do catRow(key, SIDEBAR_INDENT) end
                 elseif groupOfCat[selectedCategory] == g then
-                    catRow(selectedCategory, SIDEBAR_INDENT)   -- never hide the active filter row
+                    catRow(selectedCategory, SIDEBAR_INDENT)
                 end
             end
         end
-        -- [+] create a new custom category / a new group
         itemRow("Interface\\Buttons\\UI-PlusButton-Up", L["New category..."], nil, false,
             function() if promptNewCategory then promptNewCategory() end end, nil)
         itemRow("Interface\\Buttons\\UI-PlusButton-Up", L["New group..."], nil, false,
@@ -1986,8 +1729,7 @@ function rebuildSidebar()
 
     for i = n + 1, #pool do pool[i]:Hide() end
     child:SetHeight(math.max(y, 10))
-    -- STAGE-3: collapsing a group can shrink the child below the current scroll
-    -- offset -- clamp so the sidebar is never stuck scrolled into blank space.
+    -- clamp: collapsing a group can shrink the child below the current scroll offset
     local s = bagFrame.sidebarScroll
     if s then
         local maxs = math.max(0, child:GetHeight() - s:GetHeight())
@@ -1995,9 +1737,6 @@ function rebuildSidebar()
     end
 end
 
--- =========================================================
--- Frame construction (out of combat)
--- =========================================================
 local function buildFrame()
     if bagFrame or InCombatLockdown() then return bagFrame end
     local f = CreateFrame("Frame", "VuloClassicUIBagFrame", UIParent)
@@ -2007,15 +1746,12 @@ local function buildFrame()
     f:SetPoint("CENTER")
     f:EnableMouse(true)
     f:Hide()
-    -- STAGE-2: closing the window marks the current contents as "seen" (Recent then only
-    -- shows items gained since). OnHide fires only on a real shown->hidden transition, so
-    -- repeated CloseAllBags while already closed won't wipe freshly-acquired recents.
+    -- OnHide fires only on a real shown->hidden transition, so a repeated CloseAllBags is safe
     f:HookScript("OnHide", function() markRecentSeen() end)
     if UI and UI.StyleBackdrop then UI:StyleBackdrop(f, { bg = ns.COLORS.bg, border = ns.COLORS.accentDim or ns.COLORS.border }) end
     if UI and UI.CreateShadow then UI:CreateShadow(f) end
     if _G.tinsert and _G.UISpecialFrames then tinsert(UISpecialFrames, "VuloClassicUIBagFrame") end
 
-    -- accent strip along the top
     local strip = f:CreateTexture(nil, "ARTWORK")
     strip:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
     strip:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, 0)
@@ -2025,7 +1761,6 @@ local function buildFrame()
         UI.SetGradient(strip, "HORIZONTAL", a.r, a.g, a.b, 0.1, a.r, a.g, a.b, 0.9)
     end
 
-    -- header: title + close
     f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     if UI and UI.Font then UI.Font(f.title, 14) end
     f.title:SetPoint("TOPLEFT", f, "TOPLEFT", PAD, -9)
@@ -2041,7 +1776,6 @@ local function buildFrame()
     close:SetScript("OnLeave", function() cx:SetTextColor(0.7, 0.7, 0.75) end)
     close:SetScript("OnClick", function() mod:Close() end)
 
-    -- header search box (right side of the header, left of the close button)
     local sb = CreateFrame("EditBox", nil, f)
     f.search = sb
     sb:SetAutoFocus(false)
@@ -2073,7 +1807,6 @@ local function buildFrame()
     sb:SetScript("OnTextChanged", function(self)
         searchText = (self:GetText() or ""):lower()
         refresh()
-        -- one query, every open window: mirror into the bank / guild bank
         if ns.BankMirrorSearch then ns.BankMirrorSearch(self:GetText() or "") end
         if ns.GuildBankMirrorSearch then ns.GuildBankMirrorSearch(self:GetText() or "") end
     end)
@@ -2089,7 +1822,6 @@ local function buildFrame()
     sb:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
     if not mod.db.showSearch then sb:Hide() end
 
-    -- header sort button (icon; left of the search box). Right-click toggles order.
     local sortBtn = CreateFrame("Button", nil, f)
     f.sortBtn = sortBtn
     sortBtn:SetSize(18, 18)
@@ -2121,15 +1853,11 @@ local function buildFrame()
     end)
     if not mod.db.showSortButton then sortBtn:Hide() end
 
-    -- Phase 4 STAGE-2: bag-filter button (left of sort) — a menu with one
-    -- checkable entry per bag + the keyring toggle. Plain frames + a table
-    -- write per toggle -> zero taint; keepOpen lets the user flip several.
     local bagsBtn = CreateFrame("Button", nil, f)
     f.bagsBtn = bagsBtn
     bagsBtn:SetSize(18, 18)
     bagsBtn:SetPoint("RIGHT", sortBtn, "LEFT", -8, 0)
     local bi = bagsBtn:CreateTexture(nil, "ARTWORK")
-    -- same line-art set as the broom (the sidebar's backpack glyph — no crop)
     bi:SetAllPoints(); bi:SetTexture("Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\modules\\bags.tga")
     bi:SetVertexColor(0.7, 0.7, 0.75)
     bagsBtn:SetScript("OnEnter", function()
@@ -2142,8 +1870,6 @@ local function buildFrame()
     end)
     bagsBtn:SetScript("OnLeave", function() bi:SetVertexColor(0.7, 0.7, 0.75); if GameTooltip then GameTooltip:Hide() end end)
 
-    -- bank-mirror button (left of the bag toggle): opens the read-only bank
-    -- snapshot viewer — works anywhere, not just at a banker
     local bankBtn = CreateFrame("Button", nil, f)
     f.bankBtn = bankBtn
     bankBtn:SetSize(18, 18)
@@ -2165,17 +1891,11 @@ local function buildFrame()
         if ns.ToggleBankMirror then ns.ToggleBankMirror() end
     end)
 
-    -- the title would run UNDER the header buttons at low column counts —
-    -- pin its right edge to the leftmost button so it truncates instead
     f.title:SetPoint("RIGHT", bankBtn, "LEFT", -8, 0)
     f.title:SetJustifyH("LEFT")
     f.title:SetWordWrap(false)
 
-    -- Phase 4 STAGE-2: visual bag bar — a strip of the real bag icons floating
-    -- above the window (backpack, bags 1-4, keyring). Clicking an icon toggles
-    -- that bag's visibility in the grid (hidden = desaturated + dim). Plain
-    -- buttons flipping db flags -> zero taint. The header button toggles the bar.
-    local ICON_N = #BAGS + 1                    -- bags + keyring
+    local ICON_N = #BAGS + 1
     local bar = CreateFrame("Frame", nil, f)
     f.bagBar = bar
     bar:SetSize(ICON_N * (26 + GAP) - GAP + 12, 34)
@@ -2248,26 +1968,18 @@ local function buildFrame()
     end)
     if mod.db.bagBarShown then bar:Show(); f.updateBagBar() end
 
-    -- content grid area
-    -- sidebar (plain-frame left panel: view modes + category filter)
     buildSidebar(f)
-    -- content grid area — a ScrollFrame viewport whose scroll CHILD holds the grid.
-    -- The child keeps the name f.content, so every layout function that anchors to
-    -- bagFrame.content (index frames + secure buttons + section headers) is untouched;
-    -- only the viewport clips + scrolls it. Secure wiring is therefore unchanged.
+    -- the scroll CHILD keeps the name f.content, so every layout anchor stays unchanged
     local vp = CreateFrame("ScrollFrame", nil, f)
     f.contentVP = vp
-    vp:SetPoint("TOPLEFT", f.sidebar, "TOPRIGHT", GAP, 0)   -- top-left fixed; size set in finishSize()
+    vp:SetPoint("TOPLEFT", f.sidebar, "TOPRIGHT", GAP, 0)
     vp:EnableMouseWheel(true)
 
-    f.content = CreateFrame("Frame", nil, vp)   -- scroll CHILD; the grid lives here
+    f.content = CreateFrame("Frame", nil, vp)
     vp:SetScrollChild(f.content)
     f.content:SetPoint("TOPLEFT", vp, "TOPLEFT", 0, 0)
 
-    -- slim custom scrollbar (purple thumb) on the viewport's right edge; shown only when
-    -- content overflows (see finishSize). A plain Slider avoids the template's chrome.
-    -- Parented to the WINDOW (not the viewport) so it is never clipped and always draws
-    -- above the grid; still anchored to the viewport's right edge so it tracks it.
+    -- parented to the WINDOW (not the viewport) so it is never clipped
     local sbar = CreateFrame("Slider", nil, f)
     f.contentBar = sbar
     sbar:SetFrameLevel((vp:GetFrameLevel() or 0) + 10)
@@ -2291,19 +2003,14 @@ local function buildFrame()
         local maxs  = math.max(0, (child and child:GetHeight() or 0) - self:GetHeight())
         local off   = math.min(maxs, math.max(0, (self:GetVerticalScroll() or 0) - delta * WHEEL_STEP))
         self:SetVerticalScroll(off)
-        sbar:SetValue(off)   -- keep the thumb in sync (OnValueChanged re-applies the scroll harmlessly)
+        sbar:SetValue(off)
     end)
 
-    -- Phase 4 STAGE-2: quick-drop slot — drop or click an item onto it to stash
-    -- it into the FIRST free bag slot. Item-button-sized and parented to the
-    -- CONTENT (scroll child): each layout places it on its own row directly
-    -- under the last section, so it scrolls with the grid. Plain button;
-    -- PickupContainerItem with an item on the cursor is an unprotected place-
-    -- into-slot (same call our custom sort uses), so this is taint-free.
+    -- quick-drop: PickupContainerItem with an item on the cursor is unprotected -> taint-free
     local drop = CreateFrame("Button", nil, f.content)
     f.dropSlot = drop
     drop:SetSize(BTN, BTN)
-    drop:Hide()   -- layout() positions + shows it
+    drop:Hide()
     local dbg = drop:CreateTexture(nil, "BACKGROUND")
     dbg:SetAllPoints(drop); dbg:SetColorTexture(0.10, 0.10, 0.13, 0.75)
     local dborder = CreateFrame("Frame", nil, drop, BackdropTemplateMixin and "BackdropTemplate")
@@ -2323,7 +2030,7 @@ local function buildFrame()
             if UIErrorsFrame then UIErrorsFrame:AddMessage(L["No free bag slots."], 1, 0.2, 0.2) end
             return true
         end
-        PickupContainerItem(bag, slot)   -- cursor holds an item -> places it there
+        PickupContainerItem(bag, slot)
         return true
     end
     drop:SetScript("OnReceiveDrag", dropCursorItem)
@@ -2343,13 +2050,11 @@ local function buildFrame()
         if GameTooltip then GameTooltip:Hide() end
     end)
 
-    -- footer: free slots (left) + money (right)
     f.free = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     f.free:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", PAD, 8)
     f.money = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     if UI and UI.Font then UI.Font(f.money, 13) end
     f.money:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -PAD, 7)
-    -- invisible hover region over the money text -> account gold tooltip
     local moneyBtn = CreateFrame("Button", nil, f)
     moneyBtn:SetPoint("TOPLEFT", f.money, "TOPLEFT", -4, 2)
     moneyBtn:SetPoint("BOTTOMRIGHT", f.money, "BOTTOMRIGHT", 4, -2)
@@ -2358,7 +2063,7 @@ local function buildFrame()
     end)
     moneyBtn:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
 
-    -- movable + scalable via our mover (Edit Mode); CENTER offset in db.x/db.y
+    -- movable + scalable via our mover; CENTER offset in db.x/db.y
     if ns.CreateMover then
         mod.mover = ns:CreateMover(f, {
             db = mod.db, scalable = true, anchorable = true,
@@ -2368,15 +2073,13 @@ local function buildFrame()
         if ns.ApplyMover then ns:ApplyMover(mod.mover) end
     end
 
-    -- Direct drag anywhere not covered by an item button (header/edges/footer) —
-    -- writes the SAME CENTER-offset model the mover uses, so both stay in sync.
     f:RegisterForDrag("LeftButton")
     f:SetScript("OnDragStart", function(self)
         if not InCombatLockdown() then self:StartMoving() end
     end)
     f:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
-        local x, y = ns:GetCenterOffsets(self)   -- canonical scale-aware capture
+        local x, y = ns:GetCenterOffsets(self)
         if x and y then
             mod.db.x, mod.db.y = x, y
             if ns.ApplyMover and mod.mover then ns:ApplyMover(mod.mover) end
@@ -2385,12 +2088,12 @@ local function buildFrame()
     return f
 end
 
--- pre-allocate enough buttons now (out of combat) so opening in combat is safe
+-- pre-allocate buttons out of combat so opening in combat is safe
 local function preallocate()
     if InCombatLockdown() then return end
     if not bagFrame then buildFrame() end
     if not bagFrame then return end
-    -- STAGE-3: create every per-bag index frame now (out of combat), so a layout
+    -- create every index frame now, so a mid-combat layout never hits the blocked path
     -- that first touches a bag mid-combat (e.g. expanding a collapsed group) can
     -- never hit the blocked path for a missing index frame. Includes the keyring
     -- so toggling it on mid-combat also has its frame ready.
@@ -2402,9 +2105,6 @@ local function preallocate()
     end
 end
 
--- =========================================================
--- Open / close  (our window; state is our own, not Blizzard's)
--- =========================================================
 function mod:IsOpen() return bagFrame and bagFrame:IsShown() end
 
 function mod:Open()
@@ -2415,10 +2115,8 @@ function mod:Open()
     end
     if not bagFrame then return end
     bagFrame:Show()
-    if applySidebarWidth then applySidebarWidth() end   -- sync width + arrow to saved state
-    if rebuildSidebar then rebuildSidebar() end          -- populate (no-op if collapsed)
-    -- bag swaps while the window was closed don't fire our refresh -> re-read
-    -- the strip's icons on every open
+    if applySidebarWidth then applySidebarWidth() end
+    if rebuildSidebar then rebuildSidebar() end
     if bagFrame.bagBar and bagFrame.bagBar:IsShown() and bagFrame.updateBagBar then
         bagFrame.updateBagBar()
     end
@@ -2427,8 +2125,6 @@ end
 
 function mod:Close()
     if bagFrame then
-        -- clear the query so we don't reopen with half the bag dimmed
-        -- (SetText fires OnTextChanged -> searchText = "" -> refresh)
         if bagFrame.search then bagFrame.search:SetText("") end
         bagFrame:Hide()
     end
@@ -2438,7 +2134,6 @@ function mod:Toggle()
     if mod:IsOpen() then mod:Close() else mod:Open() end
 end
 
--- option-driven visibility of the header widgets
 local function applySearchVisibility()
     if bagFrame and bagFrame.search then
         bagFrame.search:SetShown(mod.db.showSearch and true or false)
@@ -2451,13 +2146,7 @@ local function applySortVisibility()
     end
 end
 
--- =========================================================
--- Hooks: drive our window from the bag key / merchant / etc., and hide the
--- default bag windows. hooksecurefunc only — no global is replaced.
--- Toggle functions call Open/CloseAllBags internally, so hooking both would
--- double-fire; we record the DESIRED state and apply the last one next frame
--- (the Toggle*'s own hook fires last and computes from our real state).
--- =========================================================
+-- hooksecurefunc only. Toggle* calls Open/CloseAllBags internally, so record the desired state and apply it next frame.
 local _hooked = false
 local wantOpen, wantScheduled = false, false
 local function applyWant() wantScheduled = false; if wantOpen then mod:Open() else mod:Close() end end
@@ -2468,13 +2157,7 @@ local function want(state)
     if C_Timer and C_Timer.After then C_Timer.After(0, applyWant) else applyWant() end
 end
 
--- Suppress the default bag windows by REPARENTING them to a permanently-hidden
--- frame. This beats hooking their OnShow to :Hide(): it's flicker-free and it
--- never calls Hide() on a protected ContainerFrame in combat (which would be
--- blocked). Only the regular bag frames 1..6 are touched; bank frames (7..13)
--- are left to Blizzard until the bank phase. Reparenting a protected frame is
--- only legal OUT of combat, so if we're enabled mid-combat we defer to
--- PLAYER_REGEN_ENABLED. Restored on disable.
+-- Suppress default bags by REPARENTING to a hidden frame (never Hide() a protected frame); only legal out of combat, else deferred to PLAYER_REGEN_ENABLED.
 local hiddenBagHost = CreateFrame("Frame")
 hiddenBagHost:Hide()
 local _origBagParent  = {}
@@ -2514,21 +2197,12 @@ local function installHooks()
     hookOpen("OpenBag");       hookClose("CloseBag");       hookTog("ToggleBag")
 end
 
--- =========================================================
--- Events
--- =========================================================
 local _eventsWired = false
--- STAGE-2: recompute the Recent set from a per-itemID count diff vs the runtime baseline,
--- then snapshot the new totals. Recent is session-scoped (re-seeded every login/reload via
--- OnEnable), so the baseline is a runtime table -- nothing to persist. Capped to
--- mod.db.recentCap newest itemIDs. Called on BAG_UPDATE_DELAYED only (BAG_UPDATE counts
--- are unreliable mid-event).
+-- Recent = per-itemID count diff vs a runtime baseline; session-scoped, capped to recentCap, BAG_UPDATE_DELAYED only.
 function updateRecentItems()
     local baseline = recentBaseline
     local totals = snapshotTotals()
 
-    -- 1) prune recent entries whose item is no longer in bags (consumed/sold/mailed),
-    --    so Recent never lists a phantom that isn't actually present anymore.
     for i = #recentOrder, 1, -1 do
         local id = recentOrder[i]
         if not totals[id] then
@@ -2537,16 +2211,12 @@ function updateRecentItems()
         end
     end
 
-    -- 2) first scan of the session: seed the baseline, flag nothing as new
     if not recentPrimed then
         recentBaseline = totals
         recentPrimed = true
         return
     end
 
-    -- 3) flag only item TYPES that were NOT present as of the last "seen" snapshot (login
-    --    or last bag-close). Buying/looting MORE of something you already had does NOT
-    --    re-flag it -- only brand-new item types show under Recent. Newest first.
     for itemID in pairs(totals) do
         if (baseline[itemID] or 0) == 0 then
             if recentItems[itemID] then
@@ -2556,24 +2226,20 @@ function updateRecentItems()
             else
                 recentItems[itemID] = true
             end
-            table.insert(recentOrder, 1, itemID)   -- (re)insert at front
+            table.insert(recentOrder, 1, itemID)
         end
     end
 
-    -- 4) enforce the cap (0 = unlimited)
     local cap = mod.db and mod.db.recentCap or 20
     if cap and cap > 0 then
         while #recentOrder > cap do
-            local drop = table.remove(recentOrder)   -- oldest
+            local drop = table.remove(recentOrder)
             recentItems[drop] = nil
         end
     end
-    -- NB: recentBaseline is intentionally NOT advanced here. It only moves forward on
-    -- bag-close (markRecentSeen) or login-prime, so "recent" = "since you last closed".
+    -- recentBaseline is intentionally NOT advanced here; only markRecentSeen/login move it
 end
 
--- STAGE-2: user-facing "clear recent" -- wipes the runtime set but keeps the baseline
--- so items already in bags do NOT re-flag as new.
 function clearRecentItems()
     if wipe then wipe(recentItems); wipe(recentOrder)
     else recentItems, recentOrder = {}, {} end
@@ -2585,7 +2251,6 @@ local function onEvent(event, arg1)
         updateMoney()
     elseif event == "PLAYER_REGEN_ENABLED" then
         -- suppression/restore may have been combat-deferred in either direction
-        -- (disabling the module mid-combat skips restoreBlizzardBags)
         if mod.active then hideBlizzardBags()
         elseif _bagsSuppressed then restoreBlizzardBags() end
         if pendingRelayout then
@@ -2594,23 +2259,16 @@ local function onEvent(event, arg1)
             if mod:IsOpen() then layout() end
         end
     else
-        -- class is intrinsic so the category cache rarely needs clearing, but a
-        -- cheap wipe on the delayed event keeps it honest across itemID reuse.
         if event == "BAG_UPDATE_DELAYED" then
             if wipe then wipe(categoryCache) end
-            if mod.db.showRecent ~= false then updateRecentItems() end   -- STAGE-2 recent diff
+            if mod.db.showRecent ~= false then updateRecentItems() end
         end
-        refresh()   -- BAG_UPDATE(_DELAYED), ITEM_LOCK_CHANGED, BAG_UPDATE_COOLDOWN
+        refresh()
     end
 end
 
--- =========================================================
--- Lifecycle
--- =========================================================
 function mod:OnEnable()
     mod.active = true
-    -- one-shot: default moved "blizzard" -> "type" (the engine's grouped sort
-    -- everywhere; native Blizzard cleanup stays available in the dropdown)
     if not mod.db.sortModeUpgraded then
         mod.db.sortModeUpgraded = true
         if mod.db.sortMode == "blizzard" then mod.db.sortMode = "type" end
@@ -2625,31 +2283,25 @@ function mod:OnEnable()
     sidebarExpanded = (mod.db.sidebarCollapsed == false)
     sidebarWidth = sidebarExpanded and SIDEBAR_W_EXPANDED or SIDEBAR_W_COLLAPSED
     selectedCategory = "all"
-    -- Phase 3c: mirror the (profile-linked) custom-category state; these are live
-    -- references, so writes through them persist automatically.
+    -- live references into the profile: writes through these persist automatically
     mod.db.customCats      = mod.db.customCats      or {}
     mod.db.itemAssignments = mod.db.itemAssignments or {}
     mod.db.disabledCats    = mod.db.disabledCats    or {}
     customCats      = mod.db.customCats
     itemAssignments = mod.db.itemAssignments
     disabledCats    = mod.db.disabledCats
-    -- STAGE-2: pinned is profile-scoped (live reference like the others).
     mod.db.pinnedItems = mod.db.pinnedItems or {}
     pinnedItems = mod.db.pinnedItems
-    -- STAGE-3: groups are profile-scoped; live reference so writes persist.
     mod.db.groups = mod.db.groups or {}
     groups = mod.db.groups
     if mod.db.showRecent == nil then mod.db.showRecent = true end
     if mod.db.recentCap  == nil then mod.db.recentCap  = 20 end
-    -- STAGE-2: recent is session-scoped. Clear the runtime set + baseline and force a
-    -- re-prime on the next BAG_UPDATE_DELAYED, so whatever is already in bags at login
-    -- is treated as "already seen", not new.
     if wipe then wipe(recentItems); wipe(recentOrder); wipe(recentBaseline)
     else recentItems, recentOrder, recentBaseline = {}, {}, {} end
     recentPrimed = false
-    lastLayoutSig = nil   -- force a scroll-reset on the first layout of this session
+    lastLayoutSig = nil
     rebuildCustomLookup()
-    rebuildGroupLookup()   -- STAGE-3: AFTER rebuildCustomLookup (sanitizer needs customCatByKey)
+    rebuildGroupLookup()   -- AFTER rebuildCustomLookup (sanitizer needs customCatByKey)
     installHooks()
     if not _eventsWired then
         _eventsWired = true
@@ -2661,27 +2313,20 @@ function mod:OnEnable()
         end
     end
     preallocate()
-    hideBlizzardBags()   -- out-of-combat now; deferred to PLAYER_REGEN_ENABLED if in combat
-    if ns.BankOnEnable then ns.BankOnEnable() end   -- Phase 4: re-suppress default bank on live re-enable
+    hideBlizzardBags()
+    if ns.BankOnEnable then ns.BankOnEnable() end
     if ns.GuildBankOnEnable then ns.GuildBankOnEnable() end
 end
 
 function mod:OnDisable()
     mod.active = false
-    if ns.SortEngine then ns.SortEngine.Cancel() end   -- stop a running engine sort
+    if ns.SortEngine then ns.SortEngine.Cancel() end
     if bagFrame then bagFrame:Hide() end
-    restoreBlizzardBags()   -- give Blizzard's default bags back
-    if ns.BankOnDisable then ns.BankOnDisable() end   -- Phase 4: hide bank window + restore default bank
+    restoreBlizzardBags()
+    if ns.BankOnDisable then ns.BankOnDisable() end
     if ns.GuildBankOnDisable then ns.GuildBankOnDisable() end
-    -- open/close hooks stay installed but no-op via the active gate; no global
-    -- was ever replaced, so the default bags work again after this.
 end
 
--- =========================================================
--- Phase 3c: name-entry popups + right-click category menu (Classic-safe).
--- StaticPopup is core FrameXML on 20505 + 11508; ns:ShowPopupMenu is our own
--- menu helper (Core/PopupMenu.lua) -- no MenuUtil/EasyMenu dependency.
--- =========================================================
 StaticPopupDialogs["VCUI_BAGS_NEW_CATEGORY"] = {
     text = L["New category name:"],
     button1 = ACCEPT, button2 = CANCEL,
@@ -2774,23 +2419,20 @@ function promptNewCategory()
     StaticPopup_Show("VCUI_BAGS_NEW_CATEGORY")
 end
 
--- catKey is optional: when set, the freshly created group immediately adopts it
--- (used by the "New group..." entry in the assign-to-group menu).
 function promptNewGroup(catKey)
     StaticPopup_Show("VCUI_BAGS_NEW_GROUP", nil, nil, catKey and { catKey = catKey } or nil)
 end
 
 function showCategoryMenu(anchorRow, key)
     if not key or key == "__unassign" then return end
-    if key == "pinned" or key == "recent" then return end   -- STAGE-2 pseudo-cats: no rename/move/delete
+    if key == "pinned" or key == "recent" then return end
     local isCustom = customCatByKey[key] ~= nil
-    local grouped  = groupOfCat[key] ~= nil                 -- STAGE-3
+    local grouped  = groupOfCat[key] ~= nil
     local entries = {
         { title = true, text = catName(key) },
         { text = L["Rename"], func = function()
             StaticPopup_Show("VCUI_BAGS_RENAME_CATEGORY", nil, nil, { key = key, current = catName(key) })
         end },
-        -- STAGE-3: inside a group, up/down moves within the group's own cats order
         { text = L["Move up"],   func = function()
             if groupOfCat[key] then moveCatWithinGroup(key, -1) else moveCategory(key, -1) end
         end },
@@ -2798,8 +2440,6 @@ function showCategoryMenu(anchorRow, key)
             if groupOfCat[key] then moveCatWithinGroup(key,  1) else moveCategory(key,  1) end
         end },
         { separator = true },
-        -- STAGE-3: chained menu (our popup menu is a flat list; the first menu hides
-        -- itself on click, then the second opens on the same anchor)
         { text = L["Add to group..."], func = function() showAssignToGroupMenu(anchorRow, key) end },
     }
     if grouped then
@@ -2812,8 +2452,6 @@ function showCategoryMenu(anchorRow, key)
     if ns.ShowPopupMenu then ns:ShowPopupMenu(entries, anchorRow) end
 end
 
--- STAGE-3: second-stage menu listing every group (checkmark = current), plus
--- "New group..." and, when grouped, "Remove from group".
 function showAssignToGroupMenu(anchor, catKey)
     if not catKey or catKey == "pinned" or catKey == "recent" or catKey == "__unassign" then return end
     local entries = { { title = true, text = catName(catKey) } }
@@ -2834,7 +2472,6 @@ function showAssignToGroupMenu(anchor, catKey)
     if ns.ShowPopupMenu then ns:ShowPopupMenu(entries, anchor) end
 end
 
--- STAGE-3: right-click menu for a group header (grid) or group row (sidebar).
 function showGroupMenu(anchor, id)
     local g = groupById[id]
     if not g then return end
@@ -2853,9 +2490,6 @@ function showGroupMenu(anchor, id)
     if ns.ShowPopupMenu then ns:ShowPopupMenu(entries, anchor) end
 end
 
--- =========================================================
--- Options
--- =========================================================
 function mod:GetOptions()
     local items = {}
     table.insert(items, { type = "header", text = L["Bags"] })
@@ -2905,14 +2539,12 @@ function mod:GetOptions()
         type = "button", label = L["New category..."], width = 200,
         onClick = function() promptNewCategory() end,
     })
-    -- STAGE-3: groups (per-group management is right-click-only; options stay light)
     table.insert(items, {
         type = "button", label = L["New group..."], width = 200,
         onClick = function() if promptNewGroup then promptNewGroup() end end,
     })
     table.insert(items, { type = "desc",
         text = L["|cffaaaaaaTip: right-click a category to add it to a group; click a group header to collapse or expand it; right-click a group header to rename, move or delete it.|r"] })
-    -- STAGE-2: pinned/recent pseudo-category controls
     table.insert(items, { type = "spacer", height = 4 })
     table.insert(items, {
         type = "toggle", label = L["Show Recent Items"],
@@ -2945,8 +2577,6 @@ function mod:GetOptions()
     })
     table.insert(items, { type = "desc",
         text = L["|cffaaaaaaTip: middle-click an item to pin it to the top; middle-click again to unpin.|r"] })
-    -- one toggle per built-in category to show/hide it (hidden ones reroute to Misc).
-    -- pinned/recent are pseudo-categories with their own controls -> skip them here.
     for _, key in ipairs(CATEGORY_ORDER) do
         if key ~= "pinned" and key ~= "recent" then
             table.insert(items, {
@@ -3003,7 +2633,7 @@ function mod:GetOptions()
         set = function(_, v)
             mod.db.sidebarCollapsed = not v
             sidebarExpanded = v and true or false
-            if not v then selectedCategory = "all" end  -- don't strand a filter when hiding the sidebar
+            if not v then selectedCategory = "all" end
             if applySidebarWidth then applySidebarWidth() end
             if v and rebuildSidebar then rebuildSidebar() end
             if mod:IsOpen() then layout() end
@@ -3019,7 +2649,7 @@ function mod:GetOptions()
         set = function(_, v)
             mod.db.qualityBorders = v
             if mod:IsOpen() then layout() end
-            if ns.BankRefresh then ns.BankRefresh() end   -- shared flag: repaint an open bank too
+            if ns.BankRefresh then ns.BankRefresh() end
             if ns.GuildBankRefresh then ns.GuildBankRefresh() end
         end,
     })
@@ -3138,8 +2768,6 @@ function mod:GetOptions()
             if mod.mover and ns.MoverSetCenter then ns:MoverSetCenter(mod.mover, 0, 0) end
         end,
     })
-    -- Phase 4: the bank window (Modules/Bank.lua) publishes its own option
-    -- items; splice them in so bag + bank settings share one page.
     if ns.BankOptions then
         for _, it in ipairs(ns.BankOptions()) do table.insert(items, it) end
     end

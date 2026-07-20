@@ -1,11 +1,4 @@
--- =========================================================
--- VuloClassicUI / VulTraining / data shim
--- The per-class spell tables (Modules/VulTraining/Classes/*.lua) are factual
--- WoW spell-id data. They expect a small namespace with currentClass +
--- Race/Faction filters + an overridden-rank helper, and they assign
--- SpellsByLevel onto it. This file provides that namespace as ns.VTData so the
--- data files load unchanged (only their header line was repointed here).
--- =========================================================
+-- Namespace (ns.VTData) that the per-class spell tables in Classes/*.lua expect and assign onto.
 local _, ns = ...
 
 local tinsert, ipairs, pairs = table.insert, ipairs, pairs

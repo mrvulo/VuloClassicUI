@@ -1,9 +1,6 @@
--- =========================================================
 -- VuloClassicUI / Core / Events
--- Central event dispatcher.
--- Modules can call ns:RegisterEvent("EVENT", function(...) end)
--- instead of creating their own frame each time.
--- =========================================================
+-- Central event dispatcher: ns:RegisterEvent("EVENT", handler) instead of a
+-- frame per module.
 local _, ns = ...
 local L = ns.L
 

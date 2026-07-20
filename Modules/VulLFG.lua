@@ -1,15 +1,4 @@
--- =========================================================
--- VuloClassicUI / Modules / VulLFG
--- A "group board": scans the LFG / World / General / Trade / guild chat for
--- group-forming messages, matches them to a Classic or TBC instance, and shows
--- them grouped by dungeon in a movable window. Open via /vlfg or the minimap
--- button; click a line to whisper, right-click for invite / who.
---
--- Lean by design: instance names + level ranges come from the client's own LFG
--- activity database (localized for free), keywords are a single precompiled
--- word->key map (O(words) per message), rows are pooled, and stale requests are
--- pruned lazily. Classic + TBC dungeons/raids only.
--- =========================================================
+-- Group board: scans chat for group-forming messages and lists them per instance.
 local _, ns = ...
 
 local mod = ns:RegisterModule("vullfg", {
@@ -19,12 +8,12 @@ local mod = ns:RegisterModule("vullfg", {
     defaults = {
         enabled    = true,
         window     = 20,     -- minutes a request stays listed
-        minimap    = true,   -- show the minimap button
-        mmAngle    = 200,    -- minimap button position (degrees)
-        scanWorld  = true,   -- General/Trade/World/LookingForGroup channels
+        minimap    = true,
+        mmAngle    = 200,    -- degrees
+        scanWorld  = true,
         scanGuild  = true,
-        scanSay    = true,   -- say/yell
-        point      = nil,    -- saved window position
+        scanSay    = true,
+        point      = nil,
     },
 })
 
@@ -33,9 +22,6 @@ local ipairs, pairs = ipairs, pairs
 local GetTime, GetActivity = GetTime, (C_LFGList and C_LFGList.GetActivityInfoTable)
 local ACCENT = ns.COLORS and ns.COLORS.accent or { r = 0.608, g = 0.424, b = 1 }
 
--- ---------------------------------------------------------
--- Localization
--- ---------------------------------------------------------
 local L = {
     TITLE = "Group Board", EMPTY = "No groups forming right now.",
     CAT_CD = "Classic Dungeons", CAT_CR = "Classic Raids",
@@ -57,17 +43,11 @@ if GetLocale() == "deDE" then
     L.HEROIC = "H"; L.JUST_NOW = "jetzt"
 end
 
--- ---------------------------------------------------------
--- Instance data (Classic + TBC). id = LFG activity id (for the localized name
--- + level range); cat = cd/cr/bd/br; abbr = curated chat keywords. The localized
--- client name is added as a keyword automatically, so German names match too.
--- ---------------------------------------------------------
--- bd/br are TBC categories; on Classic Era only the Classic dungeon/raid groups exist.
+-- id = LFG activity id (source of the localized name + level range); abbr = curated chat keywords.
 local CAT_ORDER = ns.isEra and { "cd", "cr" } or { "cd", "cr", "bd", "br" }
 local CAT_NAME = { cd = L.CAT_CD, cr = L.CAT_CR, bd = L.CAT_BD, br = L.CAT_BR }
 
 local DUNGEONS = {
-    -- Classic dungeons
     { key="RFC",  id=798, cat="cd", abbr="rfc ragefire chasm" },
     { key="WC",   id=796, cat="cd", abbr="wc wailing caverns" },
     { key="DM",   id=799, cat="cd", abbr="vc deadmines deadmine dm defias" },
@@ -88,7 +68,6 @@ local DUNGEONS = {
     { key="UBRS", id=837, cat="cd", abbr="ubrs upper spire" },
     { key="STR",  id=816, cat="cd", abbr="strat stratholme baron ud undead living" },
     { key="SCH",  id=797, cat="cd", abbr="sch scholo scholomance" },
-    -- Classic raids
     { key="ZG",   id=836, cat="cr", abbr="zg zulgurub gurub" },
     { key="ONY",  id=838, cat="cr", abbr="ony onyxia" },
     { key="MC",   id=839, cat="cr", abbr="mc molten core" },
@@ -96,7 +75,6 @@ local DUNGEONS = {
     { key="AQ20", id=842, cat="cr", abbr="aq20 ruins aqr" },
     { key="AQ40", id=843, cat="cr", abbr="aq40 temple aqt" },
     { key="NAXX", id=841, cat="cr", abbr="naxx naxxramas" },
-    -- TBC dungeons (normal + heroic share one entry)
     { key="RAMPS",id=913, cat="bd", abbr="ramps ramparts hellfire ramp" },
     { key="BF",   id=912, cat="bd", abbr="bf blood furnace bloodfurnace" },
     { key="SP",   id=909, cat="bd", abbr="sp slave pens slave" },
@@ -113,7 +91,6 @@ local DUNGEONS = {
     { key="BM",   id=907, cat="bd", abbr="bm morass blackmorass" },
     { key="SH",   id=914, cat="bd", abbr="sh shattered shatteredhalls" },
     { key="MGT",  id=917, cat="bd", abbr="mgt magisters terrace" },
-    -- TBC raids
     { key="KARA", id=844, cat="br", abbr="kara karazhan kz" },
     { key="GL",   id=846, cat="br", abbr="gruul gruuls gl" },
     { key="MAG",  id=845, cat="br", abbr="mag magtheridon magth" },
@@ -127,26 +104,21 @@ local DUNGEONS = {
 local byKey = {}
 for _, d in ipairs(DUNGEONS) do byKey[d.key] = d end
 
--- Active instance list for this client. On Classic Era the TBC instances (bd/br)
--- don't exist (their LFG activity ids are absent), so drop them everywhere.
+-- On Classic Era the TBC activity ids don't exist, so drop the bd/br entries.
 local ACTIVE = {}
 for _, d in ipairs(DUNGEONS) do
     if not (ns.isEra and (d.cat == "bd" or d.cat == "br")) then ACTIVE[#ACTIVE + 1] = d end
 end
 
--- search-intent + heroic keywords
 local SEARCH = "lfg lfm lf lf1m lf2m lf3m lf4m lf5m group grp need lf dps heal heals healer healers tank tanks dd boost run runs wts wtb"
     .. " suche sucht suchen gesucht such gruppe grp brauche heiler dd go"
 local HEROIC = { h=true, hc=true, heroic=true, hero=true, ["hero"]=true, hcc=true }
 
--- ---------------------------------------------------------
--- Build the keyword map (word -> { key, ... }). Done once, after activity data
--- is queryable. Values are lists because a word (e.g. "dm") can hit > 1 instance.
--- ---------------------------------------------------------
-local tagList = {}        -- word -> { key, ... }
-local searchWords = {}    -- word -> true
-local levelText = {}      -- key -> "(60-70)"
-local nameOf = {}         -- key -> localized name
+-- word -> list of instance keys, since a word like "dm" can hit more than one
+local tagList = {}
+local searchWords = {}
+local levelText = {}
+local nameOf = {}
 local built = false
 
 local function addTag(word, key)
@@ -161,7 +133,6 @@ local function buildTags()
     if built then return end
     for word in (SEARCH):gmatch("%S+") do searchWords[word] = true end
     for _, d in ipairs(ACTIVE) do
-        -- name + level from the client's LFG activity DB (localized)
         local name, lo, hi
         if d.zone and GetRealZoneText then name = GetRealZoneText(d.zone) end
         if GetActivity then
@@ -177,9 +148,7 @@ local function buildTags()
         name = (name and name ~= "" and name) or d.key
         nameOf[d.key] = name
         if lo and hi and lo > 0 then levelText[d.key] = (lo == hi) and format(" |cff808080(%d)|r", lo) or format(" |cff808080(%d-%d)|r", lo, hi) end
-        -- curated abbreviations
         for word in (d.abbr or ""):gmatch("%S+") do addTag(strlower(word), d.key) end
-        -- the localized name's words (so "todesminen" / "shattrath" match)
         for word in strlower(name):gmatch("[%a]+") do
             if #word >= 4 then addTag(word, d.key) end
         end
@@ -187,11 +156,7 @@ local function buildTags()
     built = true
 end
 
--- ---------------------------------------------------------
--- Message parsing
--- ---------------------------------------------------------
 local function words(msg)
-    -- lowercase, punctuation -> space, split; cheap (no heavy fuzzing)
     local norm = strlower(msg):gsub("[%p%c]", " ")
     local out, seen = {}, {}
     for w in norm:gmatch("%S+") do if not seen[w] then seen[w] = true; out[#out + 1] = w end end
@@ -215,7 +180,7 @@ local function handleMessage(msg, sender, fromWorld)
         end
     end
     if not hits then return end
-    -- world/LFG channels are group-forming by nature; elsewhere require intent
+    -- world/LFG channels count as group-forming by themselves; elsewhere require intent words
     if not fromWorld and not hasSearch then return end
     local now = GetTime()
     for k in pairs(hits) do
@@ -225,9 +190,6 @@ local function handleMessage(msg, sender, fromWorld)
     if mod._frame and mod._frame:IsShown() then mod._refreshSoon() end
 end
 
--- ---------------------------------------------------------
--- Prune + counts
--- ---------------------------------------------------------
 local function prune()
     local cutoff = GetTime() - (mod.db.window or 20) * 60
     for k, byS in pairs(requests) do
@@ -241,9 +203,6 @@ local function timeAgo(t)
     return floor(s / 60) .. "m"
 end
 
--- ---------------------------------------------------------
--- Window
--- ---------------------------------------------------------
 local rows = {}
 local function getRow(parent, i)
     local r = rows[i]
@@ -264,7 +223,7 @@ local function getRow(parent, i)
     r.msg:SetPoint("LEFT", r.left, "RIGHT", 8, 0)
     r.msg:SetPoint("RIGHT", r.right, "LEFT", -8, 0)
     r.msg:SetJustifyH("LEFT")
-    r.msg:SetWordWrap(false)   -- single line + ellipsis; full text shows on hover (tooltip below)
+    r.msg:SetWordWrap(false)
     if ns.UI and ns.UI.Font then ns.UI.Font(r.msg, 11) end
     local hl = r:CreateTexture(nil, "HIGHLIGHT"); hl:SetAllPoints(); hl:SetColorTexture(1, 1, 1, 0.06)
     r:SetScript("OnClick", function(self, button)
@@ -280,7 +239,6 @@ local function getRow(parent, i)
             ChatFrame_SendTell(self._sender)
         end
     end)
-    -- full (untruncated) message on hover, since the row text is single-line
     r:SetScript("OnEnter", function(self)
         if not self._fullmsg or self._fullmsg == "" then return end
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -315,20 +273,17 @@ local function refresh()
         local catPrinted = false
         for _, d in ipairs(ACTIVE) do
             if d.cat == cat and requests[d.key] then
-                -- gather this dungeon's senders
                 local list = {}
                 for s, rq in pairs(requests[d.key]) do list[#list + 1] = { s = s, rq = rq } end
                 if #list > 0 then
                     table.sort(list, function(a, b) return a.rq.time > b.rq.time end)
                     if not catPrinted then header(CAT_NAME[cat] or cat); catPrinted = true end
-                    -- dungeon sub-header
                     i = i + 1; local h = getRow(child, i)
                     h:ClearAllPoints(); h:SetPoint("TOPLEFT", child, "TOPLEFT", 8, y); h:SetPoint("RIGHT", child, "RIGHT", 0, 0)
                     h:SetHeight(16); h:Disable(); h._sender = nil; h._fullmsg = nil
                     h.left:SetText(format("|cffffd200%s|r%s", nameOf[d.key] or d.key, levelText[d.key] or ""))
                     h.right:SetText("|cff888888" .. #list .. "|r"); h.msg:SetText("")
                     h:Show(); y = y - 16
-                    -- request rows
                     for _, e in ipairs(list) do
                         i = i + 1; local r = getRow(child, i)
                         r:ClearAllPoints(); r:SetPoint("TOPLEFT", child, "TOPLEFT", 18, y); r:SetPoint("RIGHT", child, "RIGHT", -2, 0)
@@ -356,7 +311,6 @@ local function refresh()
     f.title:SetText(format("%s  |cff888888(%d)|r", L.TITLE, total))
 end
 
--- throttle refreshes triggered by incoming chat
 local refreshPending
 function mod._refreshSoon()
     if refreshPending then return end
@@ -373,7 +327,7 @@ local function buildWindow()
     f:SetFrameStrata("HIGH")
     f:SetClampedToScreen(true)
     f:EnableMouse(true)
-    -- one-time migrate the legacy point-anchor save to the engine's CENTER offset
+    -- one-time migration of the legacy point-anchor save to a CENTER offset
     if mod.db.point then
         f:ClearAllPoints()
         f:SetPoint(mod.db.point[1] or "CENTER", UIParent, mod.db.point[2] or "CENTER",
@@ -386,7 +340,6 @@ local function buildWindow()
     f:ClearAllPoints()
     f:SetPoint("CENTER", UIParent, "CENTER", mod.db.x or 0, mod.db.y or 0)
     f:Hide()
-    -- Drag / position are now handled by the unified Edit Mode HUD (/vedit).
     ns:CreateMover(f, { key = "groupboard", label = "|cffffffffGROUP BOARD|r", db = mod.db, width = 440, height = 420,
         scalable = true, anchorable = true })
     local bg = f:CreateTexture(nil, "BACKGROUND"); bg:SetAllPoints(); bg:SetColorTexture(0.06, 0.06, 0.08, 0.97)
@@ -426,9 +379,6 @@ function mod:Toggle()
     if mod._frame:IsShown() then mod._frame:Hide() else buildTags(); mod._frame:Show() end
 end
 
--- ---------------------------------------------------------
--- Minimap button
--- ---------------------------------------------------------
 local function buildMinimap()
     if mod._mm or not Minimap then return end
     local b = CreateFrame("Button", "VulLFGMinimapButton", Minimap)
@@ -436,7 +386,7 @@ local function buildMinimap()
     local overlay = b:CreateTexture(nil, "OVERLAY"); overlay:SetSize(53, 53)
     overlay:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder"); overlay:SetPoint("TOPLEFT")
     local icon = b:CreateTexture(nil, "ARTWORK"); icon:SetSize(19, 19); icon:SetPoint("CENTER", -1, 1)
-    icon:SetTexture("Interface\\LFGFrame\\BattlenetWorking0")  -- a magnifier-ish LFG icon
+    icon:SetTexture("Interface\\LFGFrame\\BattlenetWorking0")
     icon:SetTexture("Interface\\GossipFrame\\BattleMasterGossipIcon")
     b.icon = icon
     local function place()
@@ -462,9 +412,6 @@ local function buildMinimap()
     mod._mm = b
 end
 
--- ---------------------------------------------------------
--- Chat scanning
--- ---------------------------------------------------------
 local function isWorldChannel(cn)
     return strfind(cn, "lookingforgroup") or strfind(cn, "suchenachgruppe")
         or strfind(cn, "world") or strfind(cn, "welt")
@@ -480,9 +427,6 @@ end
 local function onGuild(_, text, sender) if mod.db.scanGuild ~= false then handleMessage(text, sender, false) end end
 local function onSay(_, text, sender) if mod.db.scanSay ~= false then handleMessage(text, sender, false) end end
 
--- ---------------------------------------------------------
--- Lifecycle
--- ---------------------------------------------------------
 function mod:OnEnable()
     buildTags()
     ns:RegisterEvent("CHAT_MSG_CHANNEL", onChannel)

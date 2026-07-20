@@ -1,71 +1,43 @@
--- =========================================================
 -- VuloClassicUI / Modules / GuildBank
--- Companion to Modules/Bags.lua + Bank.lua: same module key "bags", same
--- options page, shared profile db. Replaces the default guild bank window
--- (TBC Anniversary has guild banks; on Classic Era this file stays inert).
---
--- KEY FACTS (verified against the 2.5.5 client UI source + a live
--- implementation shipping on this exact client):
---   * open/close is driven by PLAYER_INTERACTION_MANAGER_FRAME_SHOW/HIDE with
---     Enum.PlayerInteractionType.GuildBanker; GUILDBANKFRAME_OPENED/CLOSED are
---     registered as idempotent fallbacks only.
---   * UIParent's own GUILDBANKFRAME_OPENED handler calls CloseGuildBankFrame()
---     whenever GuildBankFrame isn't visible after ShowUIPanel — with the frame
---     reparented away that would kill EVERY session. UIParent:UnregisterEvent
---     for both events at enable is therefore mandatory (restored on disable).
---   * GuildBankFrame lives in the LoadOnDemand addon Blizzard_GuildBankUI —
---     suppression needs an ADDON_LOADED watcher plus an immediate pass when
---     the addon is already loaded. OnHide is nil'ed FIRST (it calls
---     CloseGuildBankFrame), then OnShow/OnEvent, then reparent to hidden host.
---   * ALL guild bank data/action APIs are plain UNPROTECTED globals — the item
---     buttons are plain insecure Buttons (base ItemButtonTemplate) with our own
---     handlers. No taint or hardware-event concerns anywhere in this flow.
---   * PickupGuildBankItem(tab, slot) is pickup AND place/deposit/swap in one;
---     AutoStoreGuildBankItem = right-click withdraw-to-bags; item data arrives
---     via GUILDBANKBAGSLOTS_CHANGED only AFTER QueryGuildBankTab(tab), and
---     only for the server-side CURRENT tab.
---
--- LOCALS BUDGET: exactly 8 top-level locals (_, ns, L, mod, BTN, GAP, PAD,
--- gb). All other state/functions are fields of `gb`, so no forward decls.
--- =========================================================
+-- UIParent's own GUILDBANKFRAME_OPENED handler calls CloseGuildBankFrame() whenever
+-- GuildBankFrame isn't visible, so UIParent must be unregistered (restored on disable).
+-- GuildBankFrame lives in the LoD addon Blizzard_GuildBankUI (needs an ADDON_LOADED watcher).
+-- All guild bank APIs are unprotected: the item buttons are plain insecure buttons.
+-- Item data arrives via GUILDBANKBAGSLOTS_CHANGED only after QueryGuildBankTab(tab).
 local _, ns = ...
 local L   = ns.L
-local mod = ns.modules.bags   -- Bags.lua loads first (TOC order). mod.db is NOT
-                              -- valid at file scope — read it only in handlers.
+local mod = ns.modules.bags   -- loads after Bags.lua; mod.db is only valid inside handlers
 local BTN, GAP, PAD = 37, 4, 12
 
--- hard gate: no guild bank API surface on this client -> whole file inert
+-- no guild bank API on this client -> whole file inert
 if not (_G.GetGuildBankItemInfo and _G.QueryGuildBankTab) then return end
 
 local gb = {
     frame        = nil,
-    buttons      = {},        -- pooled item buttons, by slot 1..98
-    tabButtons   = {},        -- pooled tab-strip buttons
+    buttons      = {},
+    tabButtons   = {},
     open         = false,
     currentTab   = 1,
     refreshScheduled = false,
-    pendingSuppress  = false, -- combat-deferred neuter/restore
-    suppressed   = false,     -- GuildBankFrame currently neutered
-    uipDisarmed  = false,     -- UIParent's GUILDBANKFRAME_* events unregistered
-    origScripts  = nil,       -- GuildBankFrame's original parent + scripts
+    pendingSuppress  = false,
+    suppressed   = false,
+    uipDisarmed  = false,
+    origScripts  = nil,
     hiddenHost   = nil,
     hooksInstalled = false,
-    bindTypeCache = {},       -- [itemID] = bindType (0 = binds never/other)
-    dirtyTabs    = {},        -- source tabs of cross-tab moves -> re-query
-    tabSig       = nil,       -- last tab-bar snapshot (skip pointless rebuilds)
+    bindTypeCache = {},
+    dirtyTabs    = {},
+    tabSig       = nil,
     mover        = nil,
     searchText   = "",
-    SLOTS        = 98,        -- MAX_GUILDBANK_SLOTS_PER_TAB on 2.5.5
-    TOP          = 76,        -- title row (40) + tab strip (36)
-    BOTTOM       = 54,        -- two footer rows: money/allowance + buttons
+    SLOTS        = 98,
+    TOP          = 76,
+    BOTTOM       = 54,
 }
 
 gb.hiddenHost = CreateFrame("Frame")
 gb.hiddenHost:Hide()
 
--- ---------------------------------------------------------
--- db / gates
--- ---------------------------------------------------------
 function gb.db()
     local root = mod.db
     if not root then return { enabled = false } end
@@ -77,26 +49,17 @@ function gb.db()
     return d
 end
 
--- capability: Blizzard's own gate; exists on 2.5.5 AND 1.15.8 (false there).
--- Re-evaluated at every call so a mid-phase unlock is picked up.
 function gb.capable()
     if C_GuildBank and C_GuildBank.IsGuildBankEnabled then
         return C_GuildBank.IsGuildBankEnabled() and true or false
     end
-    return true   -- API surface exists (file-top gate) but no capability probe
+    return true
 end
 
 function gb.enabled()
     return mod.active and gb.db().enabled ~= false and gb.capable()
 end
 
--- ---------------------------------------------------------
--- Default guild bank suppression.
--- Step 1: disarm UIParent's GUILDBANKFRAME_* handlers (its OPENED fallback
---         closes the session when the neutered frame isn't visible).
--- Step 2: neuter GuildBankFrame itself once Blizzard_GuildBankUI is loaded.
--- Both fully restored on disable.
--- ---------------------------------------------------------
 function gb.disarmUIParent()
     if gb.uipDisarmed or not UIParent then return end
     gb.uipDisarmed = true
@@ -112,8 +75,7 @@ function gb.rearmUIParent()
 end
 
 function gb.suppressDefault()
-    -- the UIParent disarm is just event surgery — combat-legal, never defer it
-    -- (a deferred disarm would let UIParent's OPENED fallback kill the session)
+    -- combat-legal event surgery - never defer, or UIParent's OPENED fallback kills the session
     gb.disarmUIParent()
     if InCombatLockdown() then gb.pendingSuppress = true; return end
     local f = _G.GuildBankFrame
@@ -127,27 +89,24 @@ function gb.suppressDefault()
             OnHide  = f:GetScript("OnHide"),
         }
     end
-    -- OnHide FIRST: reparenting to a hidden host hides the frame, and the
-    -- live OnHide would CloseGuildBankFrame() and end the session.
+    -- OnHide FIRST: reparenting hides the frame and the live OnHide would CloseGuildBankFrame()
     local wasShown = f:IsShown()
     f:SetScript("OnHide", nil)
     f:SetScript("OnShow", nil)
     f:SetScript("OnEvent", nil)
     f:SetParent(gb.hiddenHost)
     if wasShown then
-        f:Hide()   -- safe: scripts already nil'd
-        -- the DEFAULT window was open mid-session (option flipped on at the
-        -- banker): end the session cleanly instead of leaving it headless
+        f:Hide()
         if CloseGuildBankFrame then CloseGuildBankFrame() end
     end
 end
 
 function gb.restoreDefault()
-    gb.rearmUIParent()   -- combat-legal, never defer
+    gb.rearmUIParent()
     if InCombatLockdown() then gb.pendingSuppress = true; return end
     local f = _G.GuildBankFrame
     if f and gb.suppressed and gb.origScripts then
-        if f:IsShown() then f:Hide() end   -- while scripts are still nil'd
+        if f:IsShown() then f:Hide() end
         f:SetParent(gb.origScripts.parent or UIParent)
         f:SetScript("OnEvent", gb.origScripts.OnEvent)
         f:SetScript("OnShow",  gb.origScripts.OnShow)
@@ -156,11 +115,7 @@ function gb.restoreDefault()
     gb.suppressed = false
 end
 
--- ---------------------------------------------------------
--- Money popups: our own dialogs (Blizzard's read the neutered frame's state).
--- Deposit/WithdrawGuildBankMoney are plain unprotected globals. Amounts are
--- typed in GOLD and converted to copper.
--- ---------------------------------------------------------
+-- Own money dialogs (Blizzard's read the neutered frame). Amounts are typed in gold.
 function gb.popupAmount(self)
     local box = self.EditBox or self.editBox or _G[self:GetName() .. "EditBox"]
     local g = box and tonumber(box:GetText() or "")
@@ -216,8 +171,7 @@ StaticPopupDialogs["VCUI_GBANK_BUY_TAB"] = {
     OnAccept = function() if BuyGuildBankTab then BuyGuildBankTab() end end,
 }
 
--- money the player may take out right now: sign-check BEFORE any clamping —
--- GetGuildBankWithdrawMoney() returns -1 for "unlimited" (guild master).
+-- GetGuildBankWithdrawMoney() returns -1 for unlimited: sign-check before clamping.
 function gb.withdrawable()
     local guildMoney = (GetGuildBankMoney and GetGuildBankMoney()) or 0
     local w = (GetGuildBankWithdrawMoney and GetGuildBankWithdrawMoney()) or 0
@@ -225,14 +179,10 @@ function gb.withdrawable()
     return math.min(w, guildMoney)
 end
 
--- ---------------------------------------------------------
--- Search (own matcher: the shared one reads container APIs)
--- ---------------------------------------------------------
 function gb.itemMatches(tab, slot, q)
     if not q or q == "" then return true end
     local link = GetGuildBankItemLink and GetGuildBankItemLink(tab, slot)
     if not link then return false end
-    -- shared smart matcher (plain terms + q:/typ:/ilvl> filters)
     if ns.ItemSearchMatch then
         local _, _, _, _, quality = GetGuildBankItemInfo(tab, slot)
         if quality and quality < 0 then quality = nil end
@@ -241,10 +191,7 @@ function gb.itemMatches(tab, slot, q)
     return link:lower():find(q, 1, true) and true or false
 end
 
--- ---------------------------------------------------------
--- Item buttons: plain insecure, base ItemButtonTemplate (always available —
--- the guild template lives in the LoD addon). Visuals mirror the bank window.
--- ---------------------------------------------------------
+-- Item buttons: plain insecure, base ItemButtonTemplate (the guild template is in the LoD addon).
 function gb.onClickItem(self, mouseButton)
     local tab, slot = self.tabIndex, self:GetID()
     if not (gb.open and tab and slot) then return end
@@ -312,13 +259,11 @@ function gb.acquireButton(n)
     btn:SetScript("OnEnter", gb.onEnterItem)
     btn:SetScript("OnLeave", gb.onLeaveItem)
     btn.UpdateTooltip = gb.onEnterItem
-    -- the split popup calls button:SplitStack(amount) on OK
     btn.SplitStack = function(b, split)
         if gb.open and SplitGuildBankItem and split and split > 0 then
             SplitGuildBankItem(b.tabIndex, b:GetID(), split)
         end
     end
-    -- clean dark slot look (same strip + ring recipe as the bank window)
     local bname = btn:GetName()
     if btn.SetNormalTexture then pcall(btn.SetNormalTexture, btn, nil) end
     local nt = _G[bname .. "NormalTexture"]; if nt then nt:SetTexture(nil); nt:Hide() end
@@ -362,9 +307,8 @@ function gb.updateButton(btn)
 
     SetItemButtonTexture(btn, texture)
     SetItemButtonCount(btn, count)
-    SetItemButtonDesaturated(btn, locked)   -- read LIVE every paint
+    SetItemButtonDesaturated(btn, locked)
 
-    -- quality can be -1/nil on uncached guild items; derive from the link then
     if (not quality or quality < 0) and link and GetItemInfo then
         quality = select(3, GetItemInfo(link))
     end
@@ -403,8 +347,6 @@ function gb.updateButton(btn)
         pcall(cnt.SetFont, cnt, ns.UI.FONT_PATH, mod.db.countFontSize or 12, "OUTLINE")
     end
 
-    -- bind marker: guild-banked items are never soulbound, so every BoE/BoU
-    -- equipment piece here is tradeable by definition
     local bm = btn._bind
     if bm then
         local tag
@@ -444,20 +386,16 @@ function gb.updateButton(btn)
     end
 end
 
--- ---------------------------------------------------------
--- Tab strip: one icon button per guild bank tab + optional buy button.
--- Rebuilt only when the tab meta actually changed (rapid clicks would other-
--- wise land on released buttons).
--- ---------------------------------------------------------
+-- Tab strip is rebuilt only when the tab meta changed (rapid clicks would hit released buttons).
 function gb.selectTab(i)
     if not gb.open then return end
     local _, _, viewable = GetGuildBankTabInfo(i)
     if not viewable then return end
-    if gb.cancelSort then gb.cancelSort() end   -- never re-target a running sort
+    if gb.cancelSort then gb.cancelSort() end
     if SetCurrentGuildBankTab then SetCurrentGuildBankTab(i) end
     if QueryGuildBankTab then QueryGuildBankTab(i) end
     gb.currentTab = i
-    gb.tabSig = nil          -- active-tab highlight must repaint
+    gb.tabSig = nil
     gb.updateTabs()
     gb.refresh()
 end
@@ -483,7 +421,6 @@ function gb.updateTabs()
         local name, icon, viewable = GetGuildBankTabInfo(i)
         local tb = gb.tabButtons[i]
         if not tb then
-            -- plain insecure buttons: creation is combat-legal, no bail needed
             tb = CreateFrame("Button", nil, f)
             tb:SetSize(30, 30)
             local ring = tb:CreateTexture(nil, "BACKGROUND")
@@ -531,7 +468,6 @@ function gb.updateTabs()
     end
     for i = num + 1, #gb.tabButtons do gb.tabButtons[i]:Hide() end
 
-    -- buy-tab button right of the last tab (guild leader only)
     if canBuy then
         local bb = gb.buyBtn
         if not bb then
@@ -568,15 +504,10 @@ function gb.updateTabs()
         gb.buyBtn:Hide()
     end
 
-    -- latch LAST: the strip is now known-complete for this signature
     gb.tabSig = sig
 end
 
--- ---------------------------------------------------------
--- Money log: side panel with Blizzard's own localized log lines (the exact
--- "%s zahlte ... ein ( vor N Tagen )" strings). The money log lives at
--- pseudo-tab MAX_GUILDBANK_TABS+1; data arrives via GUILDBANKLOG_UPDATE.
--- ---------------------------------------------------------
+-- Money log lives at pseudo-tab MAX_GUILDBANK_TABS+1; data arrives via GUILDBANKLOG_UPDATE.
 function gb.buildLog()
     if gb.logPanel then return gb.logPanel end
     local UI = ns.UI
@@ -604,16 +535,11 @@ function gb.buildLog()
     msgs:SetJustifyH("LEFT")
     msgs:SetFading(false)
     msgs:SetMaxLines(128)
-    -- Blizzard's money log combo: TOP insert mode + ASCENDING adds (i=1..num).
-    -- AddMessage push-fronts, and TOP mode paints buffer index 1 (= the LAST
-    -- added message) at the visual top — so adding oldest-first puts the
-    -- newest entry on top, exactly like the original.
+    -- TOP insert mode + oldest-first adds puts the newest entry at the visual top.
     if msgs.SetInsertMode and _G.SCROLLING_MESSAGE_FRAME_INSERT_MODE_TOP then
         msgs:SetInsertMode(_G.SCROLLING_MESSAGE_FRAME_INSERT_MODE_TOP)
     end
     msgs:EnableMouseWheel(true)
-    -- under TOP insert mode the mixin's buffer-relative Up/Down are visually
-    -- mirrored: offset+1 (ScrollUp) moves the window DOWN the rendered list
     msgs:SetScript("OnMouseWheel", function(self, delta)
         if delta > 0 then
             if IsShiftKeyDown() then self:ScrollToBottom() else self:ScrollDown() end
@@ -626,7 +552,7 @@ end
 
 function gb.queryLog()
     if QueryGuildBankLog then
-        QueryGuildBankLog((_G.MAX_GUILDBANK_TABS or 6) + 1)   -- the money log
+        QueryGuildBankLog((_G.MAX_GUILDBANK_TABS or 6) + 1)
     end
 end
 
@@ -639,9 +565,6 @@ function gb.updateLog()
         p.msgs:AddMessage(L["No transactions yet."], 0.55, 0.55, 0.6)
         return
     end
-    -- Blizzard's own recipe: localized format globals + RecentTimeDate.
-    -- ASCENDING: with TOP insert mode the last add lands at the visual top,
-    -- so oldest-first adds put the newest transaction on top (see buildLog)
     for i = 1, num do
         local kind, name, amount, year, month, day, hour = GetGuildBankMoneyTransaction(i)
         name = name or _G.UNKNOWN or "?"
@@ -683,13 +606,10 @@ function gb.toggleLog()
     else
         p:Show()
         gb.queryLog()
-        gb.updateLog()   -- paint from cache now; the event repaints when fresh
+        gb.updateLog()
     end
 end
 
--- ---------------------------------------------------------
--- Frame construction (eager at PLAYER_ENTERING_WORLD, out of combat)
--- ---------------------------------------------------------
 function gb.build()
     if gb.frame or InCombatLockdown() then return gb.frame end
     local UI = ns.UI
@@ -705,8 +625,7 @@ function gb.build()
     if UI and UI.CreateShadow then UI:CreateShadow(f) end
     if _G.tinsert and _G.UISpecialFrames then tinsert(UISpecialFrames, "VuloClassicUIGuildBankFrame") end
 
-    -- manual close (X / Escape) must end the server interaction; the
-    -- close-event path clears gb.open FIRST so this doesn't double-fire
+    -- manual close must end the server interaction; the close path clears gb.open first
     f:HookScript("OnHide", function()
         if gb.open and CloseGuildBankFrame then CloseGuildBankFrame() end
     end)
@@ -735,7 +654,6 @@ function gb.build()
     close:SetScript("OnLeave", function() cx:SetTextColor(0.7, 0.7, 0.75) end)
     close:SetScript("OnClick", function() f:Hide() end)
 
-    -- search box (same shape as the bank window's)
     local sb = CreateFrame("EditBox", nil, f)
     f.search = sb
     sb:SetAutoFocus(false)
@@ -771,8 +689,6 @@ function gb.build()
     sb:SetScript("OnEscapePressed", function(self) self:SetText(""); self:ClearFocus() end)
     sb:SetScript("OnEnterPressed",  function(self) self:ClearFocus() end)
 
-    -- sort button (left of the search box): engine sort of the current tab.
-    -- Left-click sorts, right-click flips the shared sort direction.
     local sortBtn = CreateFrame("Button", nil, f)
     sortBtn:SetSize(18, 18)
     sortBtn:SetPoint("RIGHT", sb, "LEFT", -8, 0)
@@ -800,12 +716,10 @@ function gb.build()
         gb.runSort()
     end)
 
-    -- money-log toggle (left of the sort button)
     local logBtn = CreateFrame("Button", nil, f)
     logBtn:SetSize(18, 18)
     logBtn:SetPoint("RIGHT", sortBtn, "LEFT", -8, 0)
     local li = logBtn:CreateTexture(nil, "ARTWORK")
-    -- same line-art set as the other header buttons (own glyphs: no crop)
     li:SetAllPoints(); li:SetTexture("Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\modules\\goldtracker.tga")
     li:SetVertexColor(0.7, 0.7, 0.75)
     logBtn:SetScript("OnEnter", function()
@@ -828,10 +742,6 @@ function gb.build()
     f.hint:SetPoint("CENTER", f.content, "CENTER", 0, 0)
     f.hint:Hide()
 
-    -- footer, two rows with FIXED anchors (a money-width-dependent anchor
-    -- would make the buttons jump sideways on every balance change):
-    --   row 1 (upper): guild money left, withdraw allowance right
-    --   row 2 (lower): deposit / withdraw buttons left
     f.guildMoney = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     f.guildMoney:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", PAD, 30)
 
@@ -868,7 +778,6 @@ function gb.build()
     f.allowance = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     f.allowance:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -PAD, 30)
 
-    -- movable + scalable; own db sub-table so it never collides with bags/bank
     if ns.CreateMover then
         gb.mover = ns:CreateMover(f, {
             db = gb.db(), scalable = true, anchorable = true,
@@ -890,20 +799,15 @@ function gb.build()
         end
     end)
 
-    -- pre-build the full 98-slot pool out of combat
     for i = 1, gb.SLOTS do
         if not gb.acquireButton(i) then break end
     end
     return f
 end
 
--- ---------------------------------------------------------
--- Layout: the CURRENT tab's 98 slots as one grid.
--- ---------------------------------------------------------
 function gb.layout()
     if not (gb.frame and gb.open) then return end
     local f = gb.frame
-    -- the server can shift the current tab under us — resync every repaint
     if GetCurrentGuildBankTab then
         local cur = GetCurrentGuildBankTab()
         if cur and cur >= 1 then gb.currentTab = cur end
@@ -913,8 +817,6 @@ function gb.layout()
     local num = (GetNumGuildBankTabs and GetNumGuildBankTabs()) or 0
     local cols = gb.db().columns or 14
     if cols < 1 then cols = 1 end
-    -- height cap: at low column counts 98 slots would grow past small screens;
-    -- raise the EFFECTIVE column count (saved setting untouched)
     local maxRows = math.floor((UIParent:GetHeight() * 0.7 - gb.TOP - gb.BOTTOM) / (BTN + GAP))
     if maxRows < 1 then maxRows = 1 end
     if math.ceil(gb.SLOTS / cols) > maxRows then
@@ -942,7 +844,6 @@ function gb.layout()
     end
     for i = shown + 1, #gb.buttons do gb.buttons[i]:Hide() end
 
-    -- hint text: no tabs at all, or the displayed tab is not viewable
     if f.hint then
         if num == 0 then
             f.hint:SetText(L["Your guild has no bank tabs yet."]); f.hint:Show()
@@ -977,8 +878,6 @@ function gb.updateMoney()
                 GetCoinTextureString(gb.withdrawable())))
         end
     end
-    -- dim the withdraw button when nothing can be taken out (its click is a
-    -- deliberate no-op then — the label must say so)
     if f.withdrawBtn and f.withdrawBtn._fs then
         if gb.withdrawable() > 0 then
             f.withdrawBtn._fs:SetTextColor(0.85, 0.85, 0.9)
@@ -988,8 +887,7 @@ function gb.updateMoney()
     end
 end
 
--- coalesce event bursts into ONE relayout next frame; also re-query source
--- tabs of cross-tab moves (the changed event only covers the current tab)
+-- Coalesce bursts into ONE relayout; also re-query source tabs of cross-tab moves.
 function gb.refresh()
     if not (gb.open and gb.frame and gb.frame:IsShown()) then return end
     if gb.refreshScheduled then return end
@@ -1006,16 +904,14 @@ function gb.refresh()
                 didDirty = true
             end
         end
-        -- current tab LAST: change events only stream for the last-queried
-        -- (server-side current) tab — the displayed one must stay live
+        -- current tab LAST: change events only stream for the last-queried tab
         if didDirty and cur and QueryGuildBankTab then QueryGuildBankTab(cur) end
         gb.layout()
     end
     if C_Timer and C_Timer.After then C_Timer.After(0, run) else run() end
 end
 
--- cross-tab move staleness: remember the source tab of every pickup/split so
--- the next refresh re-queries it (installed once, act only while live)
+-- Remember the source tab of every pickup/split so the next refresh re-queries it.
 function gb.installHooks()
     if gb.hooksInstalled then return end
     gb.hooksInstalled = true
@@ -1031,15 +927,8 @@ function gb.installHooks()
     end
 end
 
--- ---------------------------------------------------------
--- Physical sort of the CURRENT tab, driven by the shared sort engine's
--- comparator (ns.SortEngine.AddSortKeys/OrderOneListOffline are pure data —
--- only the moves differ: PickupGuildBankItem instead of the container API).
--- Same driver recipe as the engine: stack-combine first, then ordering
--- steps; wait for GUILDBANKBAGSLOTS_CHANGED (or 1s fallback) between steps;
--- pcall-contained; stuck detection (no progress = likely missing withdraw
--- rights on the tab -> abort quietly); cancel on close/tab switch.
--- ---------------------------------------------------------
+-- Physical sort of the CURRENT tab through the shared engine's comparator; moves use
+-- PickupGuildBankItem and wait for GUILDBANKBAGSLOTS_CHANGED (1s fallback) per step.
 function gb.cancelSort()
     gb.sortToken = (gb.sortToken or 0) + 1
     gb.sortInFlight = false
@@ -1058,22 +947,17 @@ function gb.sortScan(tab)
             entry.itemLink  = link
             entry.itemID    = itemID
             entry.itemCount = count or 1
-            -- the guild API reports -1/nil on uncached items; fall back to the
-            -- link (the GetItemInfo call also requests the cache load)
             local q = (quality and quality >= 0) and quality or nil
             if not q and GetItemInfo then q = select(3, GetItemInfo(link)) end
             entry.quality    = q
-            entry.hasNoValue = false   -- the guild API has no noValue flag
+            entry.hasNoValue = false
         end
         slots[slot] = entry
     end
     return slots
 end
 
--- merge the smallest partial stack of an item onto its largest partial: the
--- number of partial stacks strictly decreases every merge -> terminates.
--- Distinct item groups touch disjoint slot pairs, so one batch per step is
--- safe. Returns the number of merges fired.
+-- Merge the smallest partial stack onto the largest: the partial count strictly decreases.
 function gb.sortCombineStep(tab)
     local slots = gb.sortScan(tab)
     local partials, occurrences, incomplete = {}, {}, false
@@ -1090,8 +974,6 @@ function gb.sortCombineStep(tab)
                 if not t then t = {}; partials[e.itemID] = t end
                 t[#t + 1] = { slot = slot, count = e.itemCount }
             elseif not maxStack and (occurrences[e.itemID] or 0) >= 2 then
-                -- uncached stack size on a potentially mergeable item: the
-                -- GetItemInfo call above doubles as the cache request — retry
                 incomplete = true
             end
         end
@@ -1102,17 +984,14 @@ function gb.sortCombineStep(tab)
             table.sort(list, function(a, b) return a.count < b.count end)
             local smallest, largest = list[1], list[#list]
             PickupGuildBankItem(tab, smallest.slot)
-            PickupGuildBankItem(tab, largest.slot)   -- merges; remainder on cursor
-            ClearCursor()                            -- remainder returns home
+            PickupGuildBankItem(tab, largest.slot)
+            ClearCursor()
             fired = fired + 1
         end
     end
     return fired, incomplete
 end
 
--- one ordering step: fresh scan, engine order, junk (grey) to the far end,
--- fire every non-overlapping move. Returns status ("complete"|"move"|
--- "unlock"|"itemdata") plus the number of moves fired.
 function gb.sortOrderStep(tab, method, reverse)
     local SE = ns.SortEngine
     if not (SE and SE.AddSortKeys and SE.OrderOneListOffline) then return "complete", 0 end
@@ -1122,7 +1001,7 @@ function gb.sortOrderStep(tab, method, reverse)
         e.from = slot
         if e.locked then anyLocked = true end
         if e.itemID then
-            e.index = slot   -- stable tie-break across steps
+            e.index = slot
             oneList[#oneList + 1] = e
         end
     end
@@ -1131,7 +1010,6 @@ function gb.sortOrderStep(tab, method, reverse)
     local sorted, incomplete = SE.OrderOneListOffline(oneList, method, reverse)
     if incomplete then return "itemdata", 0 end
 
-    -- junk split (grey to the end), same visual rule as the bag engine
     local main, junk = {}, {}
     for _, it in ipairs(sorted) do
         if (it.quality or 1) == 0 then junk[#junk + 1] = it else main[#main + 1] = it end
@@ -1147,10 +1025,10 @@ function gb.sortOrderStep(tab, method, reverse)
             local src, cur = slots[want.from], slots[dest]
             if not (src and src.locked) and not (cur and cur.locked) then
                 used[dest], used[want.from] = true, true
-                PickupGuildBankItem(tab, want.from)      -- lift
-                PickupGuildBankItem(tab, dest)           -- place / swap
+                PickupGuildBankItem(tab, want.from)
+                PickupGuildBankItem(tab, dest)
                 if cur and cur.itemID then
-                    PickupGuildBankItem(tab, want.from)  -- complete the swap
+                    PickupGuildBankItem(tab, want.from)
                 end
                 ClearCursor()
                 moves = moves + 1
@@ -1168,7 +1046,7 @@ function gb.runSort()
     local _, _, viewable = GetGuildBankTabInfo(tab)
     if not viewable then return end
     local method  = mod.db and mod.db.sortMode or "type"
-    if method == "blizzard" then method = "type" end   -- no native guild sort
+    if method == "blizzard" then method = "type" end
     local reverse = mod.db and mod.db.sortReverse and true or false
 
     gb.sortInFlight = true
@@ -1184,19 +1062,17 @@ function gb.runSort()
     local function step()
         if token ~= gb.sortToken then return end
         if not gb.open then return finish() end
-        -- moves act on the server-side current tab; a user tab switch mid-
-        -- sort must cancel, never silently re-target
+        -- a user tab switch mid-sort must cancel, never silently re-target
         if GetCurrentGuildBankTab and GetCurrentGuildBankTab() ~= tab then return finish() end
         attempts = attempts + 1
         if attempts > 150 then return finish() end
         local ok, status, queued = pcall(function()
-            -- never fire moves with something already on the cursor (the first
-            -- pickup would deposit the user's held item into the guild bank)
+            -- never fire moves with something already on the cursor
             if CursorHasItem and CursorHasItem() then return "unlock", 0 end
             if combining then
                 local fired, inc = gb.sortCombineStep(tab)
                 if fired > 0 then return "move", fired end
-                if inc then return "itemdata", 0 end   -- stay in the combine phase
+                if inc then return "itemdata", 0 end
                 combining = false
             end
             return gb.sortOrderStep(tab, method, reverse)
@@ -1204,22 +1080,20 @@ function gb.runSort()
         if not ok or status == "complete" then return finish() end
         if status == "move" then
             if queued == lastQueued then sameCount = sameCount + 1 else sameCount = 0; lastQueued = queued end
-            if sameCount >= 4 then return finish() end   -- no progress (no rights?)
+            if sameCount >= 4 then return finish() end
             gb.sortWaiting = true
-            -- generation counter: a stale fallback timer from an earlier wait
-            -- cycle must never consume a LATER cycle's wait (the event kick
-            -- would then be suppressed and the driver degrade to timer pacing)
+            -- generation counter: a stale fallback timer must not consume a later wait cycle
             gb.sortWaitGen = (gb.sortWaitGen or 0) + 1
             local gen = gb.sortWaitGen
             if C_Timer and C_Timer.After then
-                C_Timer.After(1, function()   -- fallback if the event never comes
+                C_Timer.After(1, function()
                     if token == gb.sortToken and gb.sortWaiting and gen == gb.sortWaitGen then
                         gb.sortWaiting = false
                         step()
                     end
                 end)
             end
-        else   -- "unlock" / "itemdata": data settles quickly
+        else
             if C_Timer and C_Timer.After then C_Timer.After(0.05, step) else step() end
         end
     end
@@ -1227,12 +1101,10 @@ function gb.runSort()
     step()
 end
 
--- ---------------------------------------------------------
--- Open / close (idempotent — PIM and legacy events may both fire)
--- ---------------------------------------------------------
+-- Open / close is idempotent: PIM and legacy events may both fire.
 function gb.onOpen()
     if gb.open then return end
-    if not gb.enabled() then return end   -- leave the default guild bank alone
+    if not gb.enabled() then return end
     -- classic quirk: the interaction opens even without a guild
     if IsInGuild and not IsInGuild() then
         if UIErrorsFrame and _G.ERR_GUILD_PLAYER_NOT_IN_GUILD then
@@ -1246,16 +1118,14 @@ function gb.onOpen()
     gb.installHooks()
     if not gb.frame then gb.build() end
     if not gb.frame then
-        -- combat-blocked first build: nothing can show and the default UI is
-        -- neutered — END the session, or it stays open headless on the server
+        -- combat-blocked first build with the default UI neutered: end the session
         gb.open = false
         if CloseGuildBankFrame then CloseGuildBankFrame() end
         return
     end
     gb.currentTab = (GetCurrentGuildBankTab and GetCurrentGuildBankTab()) or 1
     if gb.currentTab < 1 then gb.currentTab = 1 end
-    -- full scan: query every viewable tab, CURRENT LAST so the final answer
-    -- burst leaves the server on the displayed tab
+    -- query every viewable tab, CURRENT LAST so the final burst is the displayed tab
     local num = (GetNumGuildBankTabs and GetNumGuildBankTabs()) or 0
     for i = 1, num do
         local _, _, viewable = GetGuildBankTabInfo(i)
@@ -1267,17 +1137,15 @@ function gb.onOpen()
     gb.tabSig = nil
     gb.frame:Show()
     gb.updateTabs()
-    -- log panel left open last session: refresh it for THIS session's data
     if gb.logPanel and gb.logPanel:IsShown() then
         gb.queryLog()
         gb.updateLog()
     end
-    gb.refresh()   -- one-frame deferral: item data lags the open event
+    gb.refresh()
 end
 
 function gb.onClose()
     if not gb.open then
-        -- still hide a stray window (e.g. option toggled off mid-session)
         if gb.frame and gb.frame:IsShown() then gb.frame:Hide() end
         return
     end
@@ -1289,9 +1157,6 @@ function gb.onClose()
     if gb.frame and gb.frame:IsShown() then gb.frame:Hide() end
 end
 
--- ---------------------------------------------------------
--- Events
--- ---------------------------------------------------------
 function gb.onEvent(event, arg1)
     if event == "PLAYER_ENTERING_WORLD" then
         if gb.enabled() then
@@ -1314,9 +1179,8 @@ function gb.onEvent(event, arg1)
             gb.pendingSuppress = false
             if gb.enabled() then gb.suppressDefault() else gb.restoreDefault() end
         end
-        -- a combat PEW left the window unbuilt: catch up now
         if gb.enabled() and not gb.frame then gb.build() end
-        gb.tabSig = nil   -- belt: never trust a strip painted around combat
+        gb.tabSig = nil
         return
     end
 
@@ -1335,10 +1199,8 @@ function gb.onEvent(event, arg1)
     if event == "GUILDBANKFRAME_OPENED" then gb.onOpen(); return end
     if event == "GUILDBANKFRAME_CLOSED" then gb.onClose(); return end
 
-    -- content events — only while our window is live and shown
     if not (gb.open and gb.frame and gb.frame:IsShown()) then return end
     if event == "GUILDBANKBAGSLOTS_CHANGED" then
-        -- a waiting sort step continues on the first event of the burst
         if gb.sortWaiting and gb.sortStep then
             gb.sortWaiting = false
             local s = gb.sortStep
@@ -1354,19 +1216,15 @@ function gb.onEvent(event, arg1)
     elseif event == "GUILDBANK_ITEM_LOCK_CHANGED" then
         gb.refresh()
     elseif event == "GET_ITEM_INFO_RECEIVED" then
-        -- quality borders / ilvls on uncached items pop in once the data lands
         gb.refresh()
     elseif event == "GUILDBANKLOG_UPDATE" then
         gb.updateLog()
     end
 end
 
--- ---------------------------------------------------------
--- Published hooks for Bags.lua (options splice + lifecycle)
--- ---------------------------------------------------------
 function ns.GuildBankOptions()
     local items = {}
-    if not gb.capable() then return items end   -- Era: no guild bank, no options
+    if not gb.capable() then return items end
     table.insert(items, { type = "spacer", height = 6 })
     table.insert(items, { type = "header", text = L["Guild Bank"] })
     table.insert(items, {
@@ -1383,7 +1241,7 @@ function ns.GuildBankOptions()
                     end
                 end
             else
-                if gb.frame and gb.frame:IsShown() then gb.frame:Hide() end -- ends a live session
+                if gb.frame and gb.frame:IsShown() then gb.frame:Hide() end
                 gb.restoreDefault()
             end
         end,
@@ -1422,8 +1280,6 @@ function ns.GuildBankRefresh()
     gb.refresh()
 end
 
--- Published: the bag window's search mirrors into an OPEN guild bank window
--- (same non-recursive SetText -> OnTextChanged route as the bank).
 function ns.GuildBankMirrorSearch(text)
     if not (gb.open and gb.frame and gb.frame:IsShown() and gb.frame.search) then return end
     if gb.frame.search:GetText() ~= text then
@@ -1443,28 +1299,24 @@ end
 
 function ns.GuildBankOnDisable()
     gb.cancelSort()
-    if gb.frame and gb.frame:IsShown() then gb.frame:Hide() end   -- ends a live session
+    if gb.frame and gb.frame:IsShown() then gb.frame:Hide() end
     gb.restoreDefault()
 end
 
--- ---------------------------------------------------------
--- Event wiring — LAST in the file (every gb.* above is defined). The central
--- dispatcher pcall-isolates handlers; unknown events on a flavor are guarded
--- there too. Everything gates at runtime on mod.active + db + capability.
--- ---------------------------------------------------------
+-- Wired LAST: every gb.* handler above must already be defined.
 for _, ev in ipairs({
     "PLAYER_ENTERING_WORLD",
-    "ADDON_LOADED",                        -- Blizzard_GuildBankUI is LoadOnDemand
+    "ADDON_LOADED",
     "PLAYER_REGEN_ENABLED",
     "PLAYER_INTERACTION_MANAGER_FRAME_SHOW",
     "PLAYER_INTERACTION_MANAGER_FRAME_HIDE",
-    "GUILDBANKFRAME_OPENED", "GUILDBANKFRAME_CLOSED",   -- legacy fallbacks
-    "GUILDBANKBAGSLOTS_CHANGED",           -- THE item repaint driver (current tab)
+    "GUILDBANKFRAME_OPENED", "GUILDBANKFRAME_CLOSED",
+    "GUILDBANKBAGSLOTS_CHANGED",
     "GUILDBANK_UPDATE_TABS",
     "GUILDBANK_UPDATE_MONEY", "GUILDBANK_UPDATE_WITHDRAWMONEY",
     "GUILDBANK_ITEM_LOCK_CHANGED",
-    "GET_ITEM_INFO_RECEIVED",              -- late item data -> borders/ilvl pop in
-    "GUILDBANKLOG_UPDATE",                 -- money-log panel repaint
+    "GET_ITEM_INFO_RECEIVED",
+    "GUILDBANKLOG_UPDATE",
 }) do
     ns:RegisterEvent(ev, gb.onEvent)
 end

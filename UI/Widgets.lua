@@ -1,39 +1,28 @@
--- =========================================================
--- VuloClassicUI / UI / Widgets
--- VuloUI widgets: toggle switches, purple sliders, dropdowns,
--- section headers, buttons, editboxes.
--- =========================================================
+-- VuloClassicUI / UI / Widgets: toggle switches, sliders, dropdowns, headers, buttons, editboxes.
 local _, ns = ...
 ns.UI = ns.UI or {}
 local UI = ns.UI
 local L = ns.L
 
--- =========================================================
--- Design helpers: shared UI font, gradients, drop shadows
--- =========================================================
 local FONT_PATH = "Interface\\AddOns\\VuloClassicUI\\Media\\Fonts\\Expressway.TTF"
 UI.FONT_PATH = FONT_PATH
 
--- Rounded-corner masks (used for the pill toggle switch)
 local MASK_ROUNDED = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\csquare_mask.tga"
 local MASK_CIRCLE  = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\circle_mask.tga"
 
--- Strip "(...)" hints from option chrome (labels, dropdown values) for a clean,
--- uncluttered look. The full text still lives in the help tooltip.
+-- Strips "(...)" hints from labels and dropdown values; the full text stays in the tooltip.
 function UI.StripParens(s)
     if type(s) ~= "string" then return s end
     return (s:gsub("%s*%b()", ""):gsub("%s+$", ""))
 end
 local clean = UI.StripParens
 
--- Apply the addon UI font to a FontString (or EditBox)
 function UI.Font(fs, size, flags)
     fs:SetFont(FONT_PATH, size or 12, flags or "")
     return fs
 end
 
--- Cross-client gradient on a texture.
--- (r1,g1,b1,a1) = bottom/left color, (r2,g2,b2,a2) = top/right color.
+-- SetGradient(tex, orient, ...): first color is bottom/left, second is top/right.
 function UI.SetGradient(tex, orient, r1, g1, b1, a1, r2, g2, b2, a2)
     tex:SetTexture("Interface\\Buttons\\WHITE8X8")
     if tex.SetGradient and CreateColor then
@@ -45,7 +34,6 @@ function UI.SetGradient(tex, orient, r1, g1, b1, a1, r2, g2, b2, a2)
     end
 end
 
--- Soft drop shadow: layered translucent black rings around the frame
 function UI:CreateShadow(frame)
     if frame._vcShadow then return end
     frame._vcShadow = {}
@@ -59,10 +47,6 @@ function UI:CreateShadow(frame)
     end
 end
 
--- =========================================================
--- Helper: white 1px pixel as background texture
--- =========================================================
-
 local function setColorBG(frame, r, g, b, a, drawLayer)
     local tex = frame:CreateTexture(nil, drawLayer or "BACKGROUND")
     tex:SetAllPoints(frame)
@@ -72,17 +56,11 @@ end
 
 UI.SetColorBG = setColorBG
 
--- =========================================================
--- Scrollbar in purple accent style
--- Works on ScrollFrames that use UIPanelScrollFrameTemplate.
--- =========================================================
+-- Restyles a ScrollFrame built from UIPanelScrollFrameTemplate.
 function UI.StyleScrollbar(scrollFrame)
     if not scrollFrame then return end
 
-    -- Find ScrollBar:
-    --   1. Directly as property (Retail style)
-    --   2. Via _G with name (if ScrollFrame is named)
-    --   3. Via child iteration (if frame has no name)
+    -- API compat: the scrollbar is a property, a global by name, or an unnamed child
     local sb = scrollFrame.ScrollBar
     if not sb then
         local sfName = scrollFrame.GetName and scrollFrame:GetName()
@@ -95,7 +73,6 @@ function UI.StyleScrollbar(scrollFrame)
     end
     if not sb then return end
 
-    -- Hide arrow buttons at top/bottom
     local function findChild(parent, suffix)
         local pName = parent.GetName and parent:GetName()
         if pName then
@@ -109,14 +86,12 @@ function UI.StyleScrollbar(scrollFrame)
     if upBtn   then upBtn:Hide();   upBtn:SetHeight(0.001)   end
     if downBtn then downBtn:Hide(); downBtn:SetHeight(0.001) end
 
-    -- Remove old track textures (yellow tooltip borders)
     for _, region in ipairs({ sb:GetRegions() }) do
         if region.GetObjectType and region:GetObjectType() == "Texture" then
             region:SetTexture(nil)
         end
     end
 
-    -- Draw new slim track
     if not sb._vcTrack then
         local track = sb:CreateTexture(nil, "BACKGROUND")
         track:SetPoint("TOP",    sb, "TOP",    0, 0)
@@ -126,7 +101,6 @@ function UI.StyleScrollbar(scrollFrame)
         sb._vcTrack = track
     end
 
-    -- Tint thumb (the movable bar) purple
     local thumb = sb:GetThumbTexture()
     if thumb then
         thumb:SetTexture(nil)
@@ -137,12 +111,7 @@ function UI.StyleScrollbar(scrollFrame)
     sb:SetWidth(8)
 end
 
--- =========================================================
--- Tooltip helper
--- Handlers are installed ONCE and read the LIVE config: option widgets
--- are pooled and reconfigured (frames are never garbage-collected), so
--- per-config HookScripts would stack up on every reuse.
--- =========================================================
+-- Installed once and reading the live _vcConfig: pooled widgets would otherwise stack hooks.
 local function tooltipShow(self)
     local cfg = self._vcConfig
     local text = cfg and cfg.tooltip
@@ -158,22 +127,17 @@ local function attachTooltip(frame)
     frame:SetScript("OnLeave", tooltipHide)
 end
 
--- =========================================================
--- Build a clean backdrop without tooltip border
--- =========================================================
 function UI:StyleBackdrop(frame, opts)
     opts = opts or {}
     local bgColor    = opts.bg     or ns.COLORS.bg
     local borderRGB  = opts.border or ns.COLORS.border
 
-    -- BG
     if not frame._vcBG then
         frame._vcBG = frame:CreateTexture(nil, "BACKGROUND")
         frame._vcBG:SetAllPoints(frame)
     end
     frame._vcBG:SetColorTexture(bgColor.r, bgColor.g, bgColor.b, bgColor.a or 1)
 
-    -- Border: 4 thin lines (top/bottom/left/right)
     if not frame._vcBorders then
         frame._vcBorders = {}
         for i = 1, 4 do
@@ -200,9 +164,7 @@ function UI:StyleBackdrop(frame, opts)
     end
 end
 
--- =========================================================
--- Header (section heading in VuloUI style: uppercase, dimmed)
--- =========================================================
+-- Header item: { text, subtitle? }
 local function headerSetup(f, item)
     f._label:SetText(string.upper(clean(item.text) or ""))
     if item.subtitle and item.subtitle ~= "" then
@@ -218,13 +180,11 @@ function UI:CreateHeader(parent, text)
     local f = CreateFrame("Frame", nil, parent)
     f:SetSize(480, 22)
 
-    -- Small accent tick on the left
     local tick = f:CreateTexture(nil, "ARTWORK")
     tick:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 0, 3)
     tick:SetSize(3, 12)
     tick:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 1)
 
-    -- Header label (uppercase, dimmed — section label, like the reference)
     local fs = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     fs:SetPoint("BOTTOMLEFT", tick, "BOTTOMRIGHT", 7, -1)
     UI.Font(fs, 11)
@@ -232,7 +192,6 @@ function UI:CreateHeader(parent, text)
     fs:SetJustifyH("LEFT")
     f._label = fs
 
-    -- Optional muted subtitle hint after the label ("one per slot")
     local sub = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     sub:SetPoint("LEFT", fs, "RIGHT", 6, 0)
     UI.Font(sub, 10)
@@ -240,7 +199,6 @@ function UI:CreateHeader(parent, text)
     sub:Hide()
     f._sub = sub
 
-    -- Thin accent underline spanning the row, fading out to the right
     local line = f:CreateTexture(nil, "ARTWORK")
     line:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 0, 0)
     line:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -10, 0)
@@ -255,9 +213,7 @@ function UI:CreateHeader(parent, text)
     return f
 end
 
--- Description: a wrapper frame around the FontString so the widget can be
--- pooled like every other option widget (regions alone can't be re-pooled
--- cleanly across parents).
+-- Desc item: { text }. Wrapped in a frame because bare regions cannot be pooled across parents.
 local function descSetup(f, item)
     f._fs:SetText(item.text or "")
 end
@@ -274,7 +230,7 @@ function UI:CreateDescription(parent, text)
     fs:SetJustifyH("LEFT")
     f._fs = fs
 
-    -- Width drives the wrap; the frame then adopts the wrapped text height
+    -- width drives the wrap; the frame then adopts the wrapped text height
     function f:SetDescWidth(w)
         self._fs:SetWidth(w)
         local _, h = self._fs:GetSize()
@@ -291,8 +247,7 @@ function UI:CreateDescription(parent, text)
     return f
 end
 
--- Collapsible section header: gear ("more settings") + label + underline.
--- Whole row clickable; the gear lights up (accent) while expanded.
+-- Collapsible header: CreateCollapsibleHeader(parent, text, expanded, onClick)
 local function collapsibleSetup(b, title, expanded, onClick)
     b._label:SetText(string.upper(title or ""))
     b._label:SetTextColor(0.92, 0.90, 0.96)
@@ -308,7 +263,6 @@ function UI:CreateCollapsibleHeader(parent, text, expanded, onClick)
     local b = CreateFrame("Button", nil, parent)
     b:SetSize(480, 24)
 
-    -- Gear icon = "more settings"; tinted accent when the section is open
     local box = b:CreateTexture(nil, "ARTWORK")
     box:SetSize(14, 14)
     box:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 0, 4)
@@ -316,13 +270,11 @@ function UI:CreateCollapsibleHeader(parent, text, expanded, onClick)
     box:SetVertexColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
     b._chevron = box
 
-    -- Label
     local fs = b:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     fs:SetPoint("BOTTOMLEFT", box, "BOTTOMRIGHT", 6, 1)
     UI.Font(fs, 12)
     b._label = fs
 
-    -- Accent underline fading out to the right
     local line = b:CreateTexture(nil, "ARTWORK")
     line:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 0, 0)
     line:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -10, 0)
@@ -341,9 +293,7 @@ function UI:CreateCollapsibleHeader(parent, text, expanded, onClick)
     return b
 end
 
--- =========================================================
--- Toggle Switch (VuloUI style: switch left/right with purple accent)
--- =========================================================
+-- Toggle config: { label, tooltip?, get, set, width?, style = "eye"? }
 local TOGGLE_W, TOGGLE_H = 36, 18
 local EYE_ON  = "Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\eye.tga"
 local EYE_OFF = "Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\eye_off.tga"
@@ -357,7 +307,6 @@ local function toggleRefresh(container)
     if not cfg then return end
     local state = cfg.get(btn) and true or false
 
-    -- Eye variant: open eye = on (accent), closed eye = off (grey).
     if container._eye then
         container._eye:SetTexture(state and EYE_ON or EYE_OFF)
         if state then
@@ -395,9 +344,6 @@ local function toggleSetup(container, config)
     local label = container._label
     label:SetText(clean(config.label) or "")
 
-    -- Width: explicit, else size to content (label + switch). The two-column
-    -- page layout overrides this via SetWidth, so a compact default keeps
-    -- toggles inside group rows from eating the whole row.
     if config.width then
         container:SetSize(config.width, 22)
     else
@@ -410,18 +356,15 @@ end
 function UI:CreateToggle(parent, config)
     local container = CreateFrame("Frame", nil, parent)
 
-    -- Label on the left
     local label = container:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     UI.Font(label, 12)
     label:SetPoint("LEFT", container, "LEFT", 0, 0)
     label:SetTextColor(0.95, 0.95, 0.97)
 
-    -- Switch on the right (Button)
     local btn = CreateFrame("Button", nil, container)
     btn:SetSize(TOGGLE_W, TOGGLE_H)
     btn:SetPoint("RIGHT", container, "RIGHT", 0, 0)
 
-    -- Constrain the label so it truncates instead of running under the switch
     label:SetPoint("RIGHT", btn, "LEFT", -8, 0)
     label:SetJustifyH("LEFT")
     label:SetWordWrap(false)
@@ -430,14 +373,12 @@ function UI:CreateToggle(parent, config)
     container._label  = label
 
     if config.style == "eye" then
-        -- Eye variant: a single show/hide eye glyph instead of the switch.
         btn:SetSize(22, 16)
         local eye = btn:CreateTexture(nil, "ARTWORK")
         eye:SetPoint("CENTER", btn, "CENTER", 0, 0)
         eye:SetSize(22, 16)
         container._eye = eye
     else
-        -- Rectangular track + thin border
         local track = btn:CreateTexture(nil, "BACKGROUND")
         track:SetAllPoints(btn)
         track:SetColorTexture(ns.COLORS.toggleOff.r, ns.COLORS.toggleOff.g, ns.COLORS.toggleOff.b, 1)
@@ -454,7 +395,6 @@ function UI:CreateToggle(parent, config)
             end
         end
 
-        -- Square knob with a soft shadow
         local knobShadow = btn:CreateTexture(nil, "ARTWORK", nil, 1)
         knobShadow:SetSize(TOGGLE_H - 4, TOGGLE_H - 4)
         knobShadow:SetColorTexture(0, 0, 0, 0.30)
@@ -469,7 +409,6 @@ function UI:CreateToggle(parent, config)
 
     btn:SetScript("OnClick", function(self) toggleFlip(self:GetParent()) end)
 
-    -- Convenience: entire container is clickable
     container:EnableMouse(true)
     container:SetScript("OnMouseUp", function(self, button)
         if button == "LeftButton" then toggleFlip(self) end
@@ -483,14 +422,12 @@ function UI:CreateToggle(parent, config)
     return container
 end
 
--- Old API compatibility: CreateCheckbox now returns a Toggle
+-- API compat: CreateCheckbox is an alias for CreateToggle
 function UI:CreateCheckbox(parent, config)
     return UI:CreateToggle(parent, config)
 end
 
--- =========================================================
--- Slider (purple accent, value display on the right)
--- =========================================================
+-- Slider config: { label, tooltip?, min, max, step, get, set, width? }
 local function sliderUpdateFill(s, v)
     local sMin, sMax = s._min or 0, s._max or 100
     local frac = 0
@@ -506,8 +443,7 @@ local function sliderSetup(s, config)
     s._max  = config.max or 100
     s._step = config.step or 1
 
-    -- Guard: SetMinMaxValues/SetValue fire OnValueChanged — during a
-    -- (re)configure that must not write through config.set().
+    -- SetMinMaxValues/SetValue fire OnValueChanged; a reconfigure must not call config.set()
     s._configuring = true
     s:SetWidth(config.width or 200)
     s:SetMinMaxValues(s._min, s._max)
@@ -519,7 +455,7 @@ local function sliderSetup(s, config)
     sliderUpdateFill(s, v)
     s._configuring = false
 
-    -- Re-fill once the track has its real width (next frame)
+    -- re-fill next frame, once the track has its real width
     if C_Timer and C_Timer.After then
         C_Timer.After(0, function()
             if s:IsShown() then sliderUpdateFill(s, s:GetValue() or s._min) end
@@ -531,7 +467,7 @@ function UI:CreateSlider(parent, config)
     local s = CreateFrame("Slider", nil, parent, "OptionsSliderTemplate")
     s:SetObeyStepOnDrag(true)
 
-    if s.Low  then s.Low:SetText("") end  -- hide min text (clean)
+    if s.Low  then s.Low:SetText("") end
     if s.High then s.High:SetText("") end
     if s.Text then
         UI.Font(s.Text, 12)
@@ -540,8 +476,6 @@ function UI:CreateSlider(parent, config)
 
     local accent = ns.COLORS.accent
 
-    -- Modern track: dark base bar + accent progress fill, drawn over the
-    -- plain Blizzard template track. A slim white thumb sits on top.
     local trackBg = s:CreateTexture(nil, "ARTWORK", nil, 1)
     trackBg:SetHeight(4)
     trackBg:SetPoint("LEFT", s, "LEFT", 2, 0)
@@ -556,14 +490,12 @@ function UI:CreateSlider(parent, config)
     s._trackBg, s._trackFill = trackBg, trackFill
     s._updateFill = function(v) sliderUpdateFill(s, v) end
 
-    -- Square accent thumb
     local thumb = s:GetThumbTexture()
     if thumb then
         thumb:SetColorTexture(0.95, 0.95, 1.0, 1)
         thumb:SetSize(14, 14)
     end
 
-    -- Value display + clickable ± buttons (SHIFT = 5x step)
     local function makeStepButton(label, dir)
         local b = CreateFrame("Button", nil, s)
         b:SetSize(16, 16)
@@ -620,12 +552,8 @@ function UI:CreateSlider(parent, config)
     return s
 end
 
--- =========================================================
--- Dropdown (custom VuloUI-style widget, not UIDropDownMenu)
--- Layout: black background, purple border, V-arrow on the right, list expands downward
--- =========================================================
-
--- We share one popup frame across all dropdowns (only one open at a time)
+-- Dropdown config: { label?, tooltip?, values = { { text, value }, ... }, get, set, width? }
+-- One popup frame is shared by all dropdowns; only one can be open at a time.
 local activePopup
 
 local function closeActivePopup()
@@ -646,14 +574,12 @@ local function ensurePopupFrame()
     p:EnableMouse(true)
     p:Hide()
 
-    -- Drop shadow + background
     UI:CreateShadow(p)
     local bg = p:CreateTexture(nil, "BACKGROUND")
     bg:SetAllPoints(p)
     bg:SetColorTexture(0.07, 0.07, 0.09, 0.99)
     p._bg = bg
 
-    -- Border (purple)
     local borders = {}
     for i = 1, 4 do
         local b = p:CreateTexture(nil, "BORDER")
@@ -667,7 +593,6 @@ local function ensurePopupFrame()
 
     p._items = {}
 
-    -- OnHide: reset owner border
     p:SetScript("OnHide", function(self)
         if self._owner and self._owner._setHovered then
             self._owner._setHovered(false)
@@ -675,8 +600,7 @@ local function ensurePopupFrame()
         self._owner = nil
     end)
 
-    -- ESC closes the popup
-    tinsert(UISpecialFrames, "VCDropdownPopup")
+    tinsert(UISpecialFrames, "VCDropdownPopup")  -- ESC closes
 
     activePopup = p
     return p
@@ -695,7 +619,6 @@ local function openPopup(button, config)
     p:SetPoint("TOPLEFT", button, "BOTTOMLEFT", 0, -2)
     p:SetSize(width, height)
 
-    -- Recycle / hide old items
     for _, item in ipairs(p._items) do item:Hide() end
 
     for i, opt in ipairs(values) do
@@ -733,7 +656,7 @@ local function openPopup(button, config)
         item:SetPoint("TOPLEFT",  p, "TOPLEFT",   2, -((i - 1) * itemHeight + 2))
         item:SetPoint("TOPRIGHT", p, "TOPRIGHT", -2, -((i - 1) * itemHeight + 2))
 
-        item._text:SetText(clean(L[opt.text]))  -- translate + drop "(...)" hints
+        item._text:SetText(clean(L[opt.text]))
         if opt.value == config.get(button) then
             item._check:Show()
             item._text:SetTextColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
@@ -755,9 +678,7 @@ local function openPopup(button, config)
     p:Show()
 end
 
--- Inline layout: label on the LEFT, the dropdown button on the RIGHT (fixed
--- width). The container is the row -- SetWidth() on it reflows everything, so
--- the OptionsBuilder can drop it straight into a two-column grid.
+-- The container is the row: SetWidth() on it reflows label and button.
 local function dropdownSetup(container, config)
     container._vcConfig = config
     local btn, label = container._button, container._label
@@ -765,9 +686,8 @@ local function dropdownSetup(container, config)
     if config.label then
         label:SetText(clean(config.label))
         label:Show()
-        label:SetWidth(0)  -- auto-size to text
+        label:SetWidth(0)
         label:SetPoint("LEFT", container, "LEFT", 0, 0)
-        -- button fills the rest of the row up to the right edge (wide value box)
         btn:SetHeight(24)
         btn:SetPoint("LEFT", label, "RIGHT", 10, 0)
         btn:SetPoint("RIGHT", container, "RIGHT", 0, 0)
@@ -784,7 +704,6 @@ end
 function UI:CreateDropdown(parent, config)
     local container = CreateFrame("Frame", nil, parent)
 
-    -- Label on the left (always created; shown only when configured)
     local label = container:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     UI.Font(label, 12)
     label:SetJustifyH("LEFT")
@@ -792,17 +711,14 @@ function UI:CreateDropdown(parent, config)
     label:SetTextColor(0.95, 0.95, 0.97)
     container._label = label
 
-    -- Actual button
     local btn = CreateFrame("Button", nil, container)
     btn:SetHeight(24)
     container._button = btn
 
-    -- BG
     local bg = btn:CreateTexture(nil, "BACKGROUND")
     bg:SetAllPoints(btn)
     bg:SetColorTexture(0.06, 0.06, 0.08, 1)
 
-    -- Border (thin, switches to purple on hover/open)
     local borders = {}
     for i = 1, 4 do
         local b = btn:CreateTexture(nil, "BORDER")
@@ -814,15 +730,13 @@ function UI:CreateDropdown(parent, config)
     borders[3]:SetPoint("TOPLEFT", btn, "TOPLEFT"); borders[3]:SetPoint("BOTTOMLEFT", btn, "BOTTOMLEFT"); borders[3]:SetWidth(1)
     borders[4]:SetPoint("TOPRIGHT", btn, "TOPRIGHT"); borders[4]:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT"); borders[4]:SetWidth(1)
 
-    -- Current value text
     local valueText = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     UI.Font(valueText, 12)
     valueText:SetPoint("LEFT",  btn, "LEFT",   8, 0)
     valueText:SetPoint("RIGHT", btn, "RIGHT", -22, 0)
     valueText:SetJustifyH("LEFT")
-    valueText:SetWordWrap(false)  -- single line, truncate instead of wrapping
+    valueText:SetWordWrap(false)
 
-    -- V-arrow on the right
     local arrow = btn:CreateTexture(nil, "OVERLAY")
     arrow:SetSize(10, 10)
     arrow:SetPoint("RIGHT", btn, "RIGHT", -6, 0)
@@ -830,7 +744,6 @@ function UI:CreateDropdown(parent, config)
     arrow:SetTexCoord(0.25, 0.75, 0.30, 0.80)
     arrow:SetVertexColor(0.7, 0.7, 0.75)
 
-    -- Border hover/open effect
     local function setHovered(state)
         local c = state and ns.COLORS.accent or ns.COLORS.border
         for _, b in ipairs(borders) do
@@ -893,11 +806,7 @@ function UI:CreateDropdown(parent, config)
     return container
 end
 
--- =========================================================
--- EditBox
--- =========================================================
--- Inline: label LEFT, edit field RIGHT (fixed width). SetWidth() on the
--- container reflows it for the two-column grid.
+-- EditBox config: { label?, tooltip?, get, set, numeric?, width?, editWidth?, commitOnFocusLost?, onEnter? }
 local function editboxSetup(container, config)
     container._vcConfig = config
     local label, eb = container._labelFS, container._editBox
@@ -929,28 +838,24 @@ function UI:CreateEditBox(parent, config)
     local container = CreateFrame("Frame", nil, parent)
     container:SetHeight(26)
 
-    -- Label to the LEFT of the edit field (always created; hidden if unused)
     local label = container:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     UI.Font(label, 12)
     label:SetPoint("LEFT", container, "LEFT", 0, 0)
     label:SetTextColor(0.95, 0.95, 0.97)
     container._labelFS = label
 
-    -- Edit field (rectangular, custom style — NO InputBoxTemplate)
     local eb = CreateFrame("EditBox", nil, container)
     eb:SetHeight(22)
     eb:SetAutoFocus(false)
     eb:SetFont(FONT_PATH, 12, "")
-    eb:SetTextInsets(8, 8, 0, 0)  -- inner padding left/right
+    eb:SetTextInsets(8, 8, 0, 0)
     container._editBox = eb
 
-    -- Background (dark purple tinted)
     local bg = eb:CreateTexture(nil, "BACKGROUND")
     bg:SetAllPoints(eb)
     bg:SetColorTexture(0.06, 0.05, 0.10, 0.85)
     eb._bg = bg
 
-    -- Border (1px, accent purple)
     local borderColor = ns.COLORS.border or { r = 0.35, g = 0.25, b = 0.55, a = 1 }
     local borderFrame = CreateFrame("Frame", nil, eb,
         BackdropTemplateMixin and "BackdropTemplate")
@@ -964,7 +869,6 @@ function UI:CreateEditBox(parent, config)
     end
     eb._borderFrame = borderFrame
 
-    -- On focus: brighter purple border
     eb:SetScript("OnEditFocusGained", function(self)
         if self._borderFrame and self._borderFrame.SetBackdropBorderColor then
             local c = ns.COLORS.accent
@@ -975,9 +879,7 @@ function UI:CreateEditBox(parent, config)
         if self._borderFrame and self._borderFrame.SetBackdropBorderColor then
             self._borderFrame:SetBackdropBorderColor(borderColor.r, borderColor.g, borderColor.b, borderColor.a or 1)
         end
-        -- Commit the typed value on focus loss too, so clicking an adjacent
-        -- button (which steals focus before its OnClick) sees the new value.
-        -- Opt-in: setters with heavy rebuild side effects shouldn't fire here.
+        -- opt-in: an adjacent button steals focus before its OnClick, so commit here too
         local cfg = container._vcConfig
         if cfg and cfg.commitOnFocusLost then
             local v = self:GetText()
@@ -993,7 +895,7 @@ function UI:CreateEditBox(parent, config)
         if cfg.numeric then v = tonumber(v) end
         cfg.set(self, v)
         self:ClearFocus()
-        if cfg.onEnter then cfg.onEnter(v) end   -- e.g. submit/add on Enter
+        if cfg.onEnter then cfg.onEnter(v) end
     end)
     eb:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
 
@@ -1004,14 +906,10 @@ function UI:CreateEditBox(parent, config)
     return container
 end
 
--- =========================================================
--- Button (clean, with accent hover)
--- =========================================================
+-- Button config: { label, tooltip?, onClick, width?, height?, primary? }
 local function buttonApplyIdle(b)
     local cfg = b._vcConfig
     if cfg and cfg.primary then
-        -- Accent outline style: dark fill, accent-coloured border + text
-        -- (matches the footer "Done" look — not a solid fill).
         local a = ns.COLORS.accent
         b._bg:SetColorTexture(0.13, 0.13, 0.16, 1)
         b._setBorder(a, 0.70)
@@ -1026,8 +924,6 @@ end
 local function buttonSetup(b, config)
     b._vcConfig = config
     b._textFS:SetText(clean(config.label) or "")
-    -- grow to fit the label with generous horizontal padding (text never
-    -- crowds the border)
     local w = config.width or 120
     local tw = (b._textFS:GetStringWidth() or 0) + 36
     b:SetSize(math.max(w, tw), config.height or 26)
@@ -1037,12 +933,10 @@ end
 function UI:CreateButton(parent, config)
     local b = CreateFrame("Button", nil, parent)
 
-    -- BG
     local bg = b:CreateTexture(nil, "BACKGROUND")
     bg:SetAllPoints(b)
     b._bg = bg
 
-    -- Border (thin)
     local borderColor = ns.COLORS.border
     local borders = {}
     for i = 1, 4 do
@@ -1059,17 +953,14 @@ function UI:CreateButton(parent, config)
         for _, bt in ipairs(borders) do bt:SetColorTexture(c.r, c.g, c.b, a or 1) end
     end
 
-    -- Text
     local text = b:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     UI.Font(text, 12)
     text:SetPoint("CENTER", b, "CENTER", 0, 0)
     b._textFS = text
 
-    -- Hover effect (accent border for secondary buttons)
     b:SetScript("OnEnter", function(self)
         local cfg = self._vcConfig
         if cfg and cfg.primary then
-            -- accent outline: faint accent fill, border + text up to full accent
             local a = ns.COLORS.accent
             bg:SetColorTexture(a.r * 0.16, a.g * 0.16, a.b * 0.16, 1)
             self._setBorder(a, 1)
@@ -1089,7 +980,6 @@ function UI:CreateButton(parent, config)
         GameTooltip:Hide()
     end)
 
-    -- Subtle press feedback: nudge the label 1px down
     b:SetScript("OnMouseDown", function(self)
         self._textFS:SetPoint("CENTER", self, "CENTER", 0, -1)
     end)
@@ -1108,15 +998,7 @@ function UI:CreateButton(parent, config)
     return b
 end
 
--- =========================================================
--- Icon button (texture instead of text label, e.g. arrows)
--- config.icon can be:
---   "up", "down", "left", "right" -> built-in Blizzard arrows
---   "Interface\\..."              -> any texture
--- =========================================================
--- Clean triangle arrows: one "Arrow-Up-Up" texture, flipped/rotated per direction.
--- tc form: {ULx,ULy, LLx,LLy, URx,URy, LRx,LRy} for rotations, or {l,r,t,b} for simple flips.
--- Our own clean chevron arrows (white + alpha, tinted by the icon button)
+-- IconButton config: { icon = "up"/"down"/"left"/"right" or a texture path, tooltip?, onClick, width?, height?, iconInset? }
 local ARROW_DIR = "Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\"
 local BUILTIN_ICONS = {
     up    = { tex = ARROW_DIR .. "arrow_up.tga",    tc = {0, 1, 0, 1} },
@@ -1129,7 +1011,7 @@ local function iconButtonSetup(b, config)
     b._vcConfig = config
     b:SetSize(config.width or 24, config.height or 24)
     local icon = b._icon
-    local inset = config.iconInset or 10   -- smaller inset = larger glyph
+    local inset = config.iconInset or 10
     icon:SetSize((config.width or 24) - inset, (config.height or 24) - inset)
     icon:SetVertexColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
 
@@ -1147,12 +1029,10 @@ end
 function UI:CreateIconButton(parent, config)
     local b = CreateFrame("Button", nil, parent)
 
-    -- Background
     local bg = b:CreateTexture(nil, "BACKGROUND")
     bg:SetAllPoints(b)
     bg:SetColorTexture(0.15, 0.15, 0.18, 1)
 
-    -- Border (thin)
     local borderColor = ns.COLORS.border
     local borders = {}
     for i = 1, 4 do
@@ -1165,12 +1045,10 @@ function UI:CreateIconButton(parent, config)
     borders[3]:SetPoint("TOPLEFT", b, "TOPLEFT"); borders[3]:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT"); borders[3]:SetWidth(1)
     borders[4]:SetPoint("TOPRIGHT", b, "TOPRIGHT"); borders[4]:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT"); borders[4]:SetWidth(1)
 
-    -- Icon texture (slightly larger, centered)
     local icon = b:CreateTexture(nil, "ARTWORK")
     icon:SetPoint("CENTER", b, "CENTER", 0, 0)
     b._icon = icon
 
-    -- Hover
     b:SetScript("OnEnter", function(self)
         bg:SetColorTexture(0.22, 0.22, 0.26, 1)
         icon:SetVertexColor(1, 1, 1)
@@ -1197,14 +1075,11 @@ function UI:CreateIconButton(parent, config)
     return b
 end
 
--- =========================================================
--- Power button (small toggle per sidebar entry)
--- =========================================================
+-- PowerButton config: { size?, tooltip?, get() -> bool, set(bool) }
 function UI:CreatePowerButton(parent, config)
     local b = CreateFrame("Button", nil, parent)
     b:SetSize(config.size or 14, config.size or 14)
 
-    -- Power icon (white pixels = visible, black = transparent thanks to alpha channel)
     local icon = b:CreateTexture(nil, "ARTWORK")
     icon:SetAllPoints(b)
     icon:SetTexture("Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\power")
@@ -1213,10 +1088,8 @@ function UI:CreatePowerButton(parent, config)
     local function refresh()
         local on = config.get() and true or false
         if on then
-            -- Active: purple accent color
             icon:SetVertexColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 1)
         else
-            -- Inactive: greyed out (dark grey, ~40% alpha)
             icon:SetVertexColor(0.4, 0.4, 0.4, 0.6)
         end
     end
@@ -1228,7 +1101,6 @@ function UI:CreatePowerButton(parent, config)
     end)
 
     b:SetScript("OnEnter", function()
-        -- Hover: brighter white
         icon:SetVertexColor(1, 1, 1, 1)
         if config.tooltip then
             GameTooltip:SetOwner(b, "ANCHOR_RIGHT")
@@ -1246,10 +1118,7 @@ function UI:CreatePowerButton(parent, config)
     return b
 end
 
--- =========================================================
--- Colour swatch (label + clickable colour box -> opens ns:ShowColorPicker)
--- config: { label, get -> {r,g,b} (or {r=,g=,b=}), set(r,g,b), width }
--- =========================================================
+-- ColorSwatch config: { label, get() -> {r,g,b} or {r=,g=,b=}, set(r,g,b), width? }
 function UI:CreateColorSwatch(parent, config)
     local b = CreateFrame("Button", nil, parent)
 
@@ -1260,7 +1129,7 @@ function UI:CreateColorSwatch(parent, config)
     b._label = label
 
     local sw = CreateFrame("Button", nil, b)
-    sw:SetSize(18, 18)   -- square colour box
+    sw:SetSize(18, 18)
     sw:SetPoint("RIGHT", b, "RIGHT", 0, 0)
     local border = sw:CreateTexture(nil, "BACKGROUND"); border:SetAllPoints(); border:SetColorTexture(0, 0, 0, 0.8)
     local fill = sw:CreateTexture(nil, "ARTWORK"); fill:SetPoint("TOPLEFT", 1, -1); fill:SetPoint("BOTTOMRIGHT", -1, 1)

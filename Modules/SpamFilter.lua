@@ -1,4 +1,3 @@
--- =========================================================
 -- VuloClassicUI / Modules / SpamFilter
 -- Hides (and optionally ignores) chat spammers whose names spell "casino" & co.
 -- using look-alike letters (Gãsïnô, Casinòbâbe, ...). The name is normalized to
@@ -9,7 +8,6 @@
 -- we hide the messages (reliable, no limit) and can optionally /ignore the
 -- sender (limited to ~50 slots, and spammers rotate names — hence off by
 -- default; hiding is the effective part).
--- =========================================================
 local _, ns = ...
 local L = ns.L
 
@@ -28,11 +26,9 @@ local mod = ns:RegisterModule("spamfilter", {
     },
 })
 
--- =========================================================
 -- Look-alike normalization
 -- Map accented / Cyrillic / Greek look-alike letters to plain ASCII so an
 -- obfuscated name collapses to a comparable form (Gãsïnô -> gasino).
--- =========================================================
 local CONFUSABLES = {
     -- a
     ["á"]="a",["à"]="a",["â"]="a",["ä"]="a",["ã"]="a",["å"]="a",["ā"]="a",["ă"]="a",["ą"]="a",
@@ -106,9 +102,6 @@ local function matches(s)
     return false
 end
 
--- =========================================================
--- Actions
--- =========================================================
 local ignoredThisSession = {}
 
 local function maybeIgnore(author)
@@ -189,9 +182,6 @@ local function chatFilter(_, _, msg, author)
     return false
 end
 
--- =========================================================
--- Lifecycle
--- =========================================================
 local FILTER_EVENTS = {
     "CHAT_MSG_WHISPER", "CHAT_MSG_CHANNEL", "CHAT_MSG_SAY", "CHAT_MSG_YELL",
     "CHAT_MSG_EMOTE", "CHAT_MSG_TEXT_EMOTE",  -- /emote spam
@@ -215,9 +205,6 @@ function mod:OnDisable()
     -- chatFilter, so disabling takes effect immediately without a /reload.
 end
 
--- =========================================================
--- Options
--- =========================================================
 function mod:GetOptions()
     local items = {}
 

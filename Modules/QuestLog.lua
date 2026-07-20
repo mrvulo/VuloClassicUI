@@ -1,15 +1,4 @@
--- =========================================================
--- VuloClassicUI / Modules / QuestLog
--- Enhances the (Classic) quest log:
---   * quest levels (and optional quest IDs) in the titles
---   * an enlarged frame (more quests, detail pane beside the list)
---   * a theme choice: Parchment or Dark
---
--- TBC 2.5.5 has no C_QuestLog.GetInfo (Shadowlands+), so this uses the classic
--- QuestLogFrame / GetQuestLogTitle / QuestLog_Update API. The frame's parchment
--- regions are filled with a parchment image bundled in Media\textures, which the
--- theme then tints. Everything is guarded.
--- =========================================================
+-- Quest log: levels/IDs in titles, an enlarged frame, Parchment or Dark theme.
 local _, ns = ...
 local L = ns.L
 
@@ -19,37 +8,32 @@ local mod = ns:RegisterModule("questlog", {
     description = "Enhances the quest log: quest levels (and optional quest IDs) in the titles, a larger frame, and a Parchment or Dark theme.",
     defaults = {
         enabled  = true,
-        levels   = true,        -- show quest level in the titles
-        questIDs = false,       -- show the quest ID after the title
-        larger   = true,        -- enlarge the quest log frame
-        theme    = "parchment", -- "parchment" | "dark"
+        levels   = true,
+        questIDs = false,
+        larger   = true,
+        theme    = "parchment",
     },
 })
 
+-- TBC 2.5.5 has no C_QuestLog.GetInfo; the classic global API is the only one available.
 local GetQuestLogTitle      = GetQuestLogTitle
 local GetNumQuestLogEntries = GetNumQuestLogEntries
 local GetQuestLogSelection  = GetQuestLogSelection
 local format                = string.format
 
--- Parchment image bundled with the addon (Media\textures). It's a single atlas
--- whose top half holds the quest-log parchment; we map two slices of it across
--- the enlarged frame (left = list, right = detail) at ~1:1 so it fills cleanly.
+-- Atlas whose top half holds the quest-log parchment; sliced by SetTexCoord below.
 local PARCHMENT = "Interface\\AddOns\\VuloClassicUI\\Media\\textures\\questlog-parchment"
 
 local hooked   = false
 local enlarged = false
 local bgDone   = false
 
--- =========================================================
--- Titles: "[67] Title (1234)"  — Blizzard already shows the (Dungeon) tag.
--- =========================================================
 local function formatTitle(title, level, questID)
     local prefix = (mod.db.levels and level and level > 0) and format("[%d] ", level) or ""
     local idTag  = (mod.db.questIDs and questID and questID > 0) and format(" |cff808080(%d)|r", questID) or ""
     return prefix .. title .. idTag
 end
 
--- Levels on the quest list (hooked onto QuestLog_Update)
 local function updateListLevels()
     if not (mod.db.levels or mod.db.questIDs) then return end
     local numEntries = GetNumQuestLogEntries()
@@ -70,7 +54,6 @@ local function updateListLevels()
     end
 end
 
--- Dark theme: lighten the (parchment-coloured) detail text so it stays readable
 local function lightenDetailText()
     local sc = _G.QuestLogDetailScrollChildFrame
     if not sc then return end
@@ -79,7 +62,7 @@ local function lightenDetailText()
             for _, r in ipairs({ frame:GetRegions() }) do
                 if r.GetObjectType and r:GetObjectType() == "FontString" and r.GetTextColor then
                     local cr, cg, cb = r:GetTextColor()
-                    if cr and (cr + cg + cb) < 1.2 then          -- dark text -> lighten
+                    if cr and (cr + cg + cb) < 1.2 then
                         r:SetTextColor(0.92, 0.90, 0.84)
                     end
                 end
@@ -92,7 +75,6 @@ local function lightenDetailText()
     pcall(walk, sc)
 end
 
--- Levels on the detail pane title (hooked onto QuestLog_UpdateQuestDetails)
 local function updateDetail()
     if mod.db.levels or mod.db.questIDs then
         local q = GetQuestLogSelection and GetQuestLogSelection()
@@ -113,12 +95,7 @@ local function installHooks()
     if _G.QuestLog_UpdateQuestDetails then hooksecurefunc("QuestLog_UpdateQuestDetails", updateDetail) end
 end
 
--- =========================================================
--- Background: retexture the quest log's OWN parchment regions (3-6).
--- This is the approach the reference addons use for the enlarged frame: keep
--- Blizzard's regions (so the list area on the left keeps its parchment) and
--- just swap the image + tint, instead of hiding them and overlaying our own.
--- =========================================================
+-- Regions 3-6 of QuestLogFrame are its parchment textures; retexture them in place.
 local function setupBg()
     if bgDone then return end
     local QLF = _G.QuestLogFrame
@@ -133,9 +110,6 @@ local function setupBg()
         end
 
         if enlarged and q[3] and q[4] then
-            -- Map two slices of the bundled parchment across the enlarged frame
-            -- at ~1:1 (left covers the list, right covers the detail); the bottom
-            -- pair isn't needed once the taller top pair covers everything.
             q[3]:SetTexture(PARCHMENT)
             q[3]:SetTexCoord(0.25, 0.75, 0, 0.5)
             q[3]:SetSize(512, 512)
@@ -150,8 +124,6 @@ local function setupBg()
             if q[6] then q[6]:Hide() end
             QLF._vcuiRegs = { q[3], q[4] }
         else
-            -- Not enlarged: leave Blizzard's own parchment in place; just keep
-            -- handles so the dark theme can still tint the surface.
             local list = {}
             for i = 3, 6 do if q[i] then list[#list + 1] = q[i] end end
             QLF._vcuiRegs = list
@@ -165,8 +137,6 @@ local function applyTheme()
     local dark = (mod.db.theme == "dark")
     if QLF._vcuiRegs then
         for _, r in ipairs(QLF._vcuiRegs) do
-            -- Parchment shows the bundled image as-is; only the dark theme
-            -- desaturates and tints the surface dark.
             if r.SetDesaturated then r:SetDesaturated(dark) end
             if dark then r:SetVertexColor(0.16, 0.15, 0.14, 1)
             else        r:SetVertexColor(1, 1, 1, 1) end
@@ -176,9 +146,6 @@ local function applyTheme()
     if _G.QuestLog_Update then pcall(_G.QuestLog_Update) end
 end
 
--- =========================================================
--- Enlarge the quest log (geometry only — the background is the tiled parchment)
--- =========================================================
 local function enlarge()
     if enlarged or not mod.db.larger then return end
     local QLF = _G.QuestLogFrame
@@ -207,7 +174,6 @@ local function enlarge()
             _G.QuestLogListScrollFrame:SetHeight(336 + tall)
         end
 
-        -- extra quest rows
         local old = _G.QUESTS_DISPLAYED or 0
         _G.QUESTS_DISPLAYED = old + extra
         for i = old + 1, _G.QUESTS_DISPLAYED do
@@ -220,7 +186,6 @@ local function enlarge()
             end
         end
 
-        -- reposition the bottom buttons
         local function placeBtn(name, w, h, point, rel, relPoint, x, y)
             local b = _G[name]
             if not b then return end
@@ -234,9 +199,6 @@ local function enlarge()
     end)
 end
 
--- =========================================================
--- Lifecycle
--- =========================================================
 local function setup()
     enlarge()
     setupBg()
@@ -254,12 +216,9 @@ function mod:OnEnable()
 end
 
 function mod:OnDisable()
-    -- Hooks stay (gated by mod.db checks); a /reload fully restores the frame.
+    -- hooksecurefunc cannot be undone; the hooks stay and self-gate on mod.db.
 end
 
--- =========================================================
--- Options
--- =========================================================
 function mod:GetOptions()
     return {
         { type = "header", text = L["Quest Log"] },

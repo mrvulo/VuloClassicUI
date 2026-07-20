@@ -1,19 +1,4 @@
--- =========================================================
--- VuloClassicUI / Core / PopupMenu
--- Shared popup-menu helper as a replacement for EasyMenu, which is
--- unreliable in Anniversary (often nil → modules that call it crash).
---
--- Usage:
---   ns:ShowPopupMenu(entries, anchorFrame)
---
--- Entry shape:
---   { title     = true,  text = "Header" }              — section header
---   { separator = true }                                — visual divider
---   { text      = "Item", func = function() ... end }   — clickable
---   { text      = "...",  checked = function() return mod.db.x end,
---     func = function() ... end, keepOpen = true }      — toggle (stays open)
---   { text      = "...",  disabled = true }             — greyed
--- =========================================================
+-- Shared popup-menu helper; EasyMenu is often nil on Anniversary.
 local _, ns = ...
 
 local _menuFrame
@@ -40,7 +25,6 @@ local function createMenuFrame()
         local bd = (ns.COLORS and ns.COLORS.borderDark) or { r = 0.02, g = 0.02, b = 0.03 }
         _menuFrame:SetBackdropBorderColor(bd.r, bd.g, bd.b, 1)
     end
-    -- Soft drop shadow (UI helpers exist by the time a menu is first opened)
     if ns.UI and ns.UI.CreateShadow then ns.UI:CreateShadow(_menuFrame) end
     -- ESC closes
     tinsert(UISpecialFrames, "VCUI_SharedPopupMenu")
@@ -55,21 +39,18 @@ local function getMenuButton(idx)
 
     local ac = (ns.COLORS and ns.COLORS.accent) or { r = 0.608, g = 0.424, b = 1 }
 
-    -- Check indicator (left): small accent square, matches the dropdown widget
     btn.check = btn:CreateTexture(nil, "OVERLAY")
     btn.check:SetSize(6, 6)
     btn.check:SetPoint("LEFT", btn, "LEFT", 8, 0)
     btn.check:SetColorTexture(ac.r, ac.g, ac.b, 1)
     btn.check:Hide()
 
-    -- Label
     btn.text = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     if ns.UI and ns.UI.Font then ns.UI.Font(btn.text, 11) end
     btn.text:SetPoint("LEFT", btn, "LEFT", 22, 0)
     btn.text:SetPoint("RIGHT", btn, "RIGHT", -10, 0)
     btn.text:SetJustifyH("LEFT")
 
-    -- Hover highlight
     btn.hl = btn:CreateTexture(nil, "BACKGROUND")
     btn.hl:SetAllPoints(btn)
     btn.hl:SetColorTexture(ac.r, ac.g, ac.b, 0.22)
@@ -87,7 +68,6 @@ function ns:ShowPopupMenu(entries, anchor)
     if type(entries) ~= "table" then return end
     local menu = createMenuFrame()
 
-    -- Hide leftover buttons from a previous menu
     for _, b in ipairs(_menuButtons) do b:Hide() end
 
     local y, maxTextWidth = -6, 0
@@ -135,14 +115,12 @@ function ns:ShowPopupMenu(entries, anchor)
                     end
                 end)
             end
-            -- Checkmark
             if entry.checked then
                 local ok, isChecked = pcall(entry.checked)
                 if ok and isChecked then btn.check:Show() end
             end
         end
 
-        -- Compute approximate text width to size the menu
         local stringWidth = btn.text:GetStringWidth() or 0
         if stringWidth > maxTextWidth then maxTextWidth = stringWidth end
 
@@ -152,12 +130,10 @@ function ns:ShowPopupMenu(entries, anchor)
         y = y - btn:GetHeight() - 1
     end
 
-    -- Auto-size width based on widest label (with some padding for checkmark + margins)
     local desiredWidth = math.min(360, math.max(180, maxTextWidth + 40))
     menu:SetWidth(desiredWidth)
     menu:SetHeight(-y + 6)
 
-    -- Position relative to anchor
     menu:ClearAllPoints()
     if anchor and anchor.GetLeft then
         menu:SetPoint("TOPRIGHT", anchor, "BOTTOMLEFT", -2, 0)
@@ -179,7 +155,6 @@ function ns:ShowPopupMenu(entries, anchor)
     end
 end
 
--- Convenience: force-close (e.g. when toggling a checkbox should hide elsewhere)
 function ns:HidePopupMenu()
     if _menuFrame and _menuFrame:IsShown() then _menuFrame:Hide() end
 end

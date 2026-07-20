@@ -1,17 +1,7 @@
--- =========================================================
--- VuloClassicUI / Locales / deDE
--- German translations.
--- Maintained by: mrvulo
---
--- Format: ["English key"] = "Deutsche Übersetzung",
--- Missing keys fall back to the English original automatically.
--- =========================================================
 local _, ns = ...
 
 ns:RegisterLocale("deDE", {
-    -- =====================================================
     -- Spam Filter
-    -- =====================================================
     ["Spam Filter"] = "Spam-Filter",
     ["Hide (and optionally ignore) chat spammers whose names spell 'casino' & co. with look-alike letters."] = "Blendet Chat-Spammer aus (optional auch ignorieren), deren Namen 'casino' & Co. mit ähnlich aussehenden Buchstaben schreiben.",
     ["|cffaaaaaaHides chat from gold/casino spammers whose names use look-alike letters (e.g. Gãsïnô, Casinòbâbe). The name is folded to plain letters, then matched against the keywords below. Applies to whisper, channels, say, yell and emotes — not guild/party/raid.|r"] = "|cffaaaaaaBlendet Chat von Gold-/Casino-Spammern aus, deren Namen ähnlich aussehende Buchstaben nutzen (z.B. Gãsïnô, Casinòbâbe). Der Name wird auf normale Buchstaben reduziert und gegen die Stichwörter unten geprüft. Gilt für Flüstern, Channels, Sagen, Schreien und Emotes — nicht Gilde/Gruppe/Schlachtzug.|r",
@@ -32,9 +22,7 @@ ns:RegisterLocale("deDE", {
     ["Spam filter: '%s' added to the whitelist (never filtered)."] = "Spam-Filter: '%s' zur Whitelist hinzugefügt (wird nie gefiltert).",
     ["|cff9b6cffBlocked this session: %d|r"] = "|cff9b6cffDiese Sitzung geblockt: %d|r",
 
-    -- =====================================================
     -- Quest Log
-    -- =====================================================
     ["Quest Log"] = "Questlog",
     ["Enhances the quest log: quest levels (and optional quest IDs) in the titles, a larger frame, and a Parchment or Dark theme."] = "Verbessert das Questlog: Quest-Level (optional Quest-IDs) im Titel, größeres Fenster und Pergament- oder Dunkel-Design.",
     ["|cffaaaaaaShows quest levels (and optionally IDs) in the quest log, can enlarge it, and lets you pick a Parchment or Dark look.|r"] = "|cffaaaaaaZeigt Quest-Level (optional IDs) im Questlog, kann es vergrößern und bietet Pergament- oder Dunkel-Look zur Auswahl.|r",
@@ -49,9 +37,7 @@ ns:RegisterLocale("deDE", {
     ["Dark"] = "Dunkel",
     ["Quest log size changed. /reload recommended."] = "Questlog-Größe geändert. /reload empfohlen.",
 
-    -- =====================================================
     -- Profession Window
-    -- =====================================================
     ["Profession Window"] = "Berufe-Fenster",
     ["Enlarges and themes the profession windows (Tradeskill & Craft) to match the quest log: the detail pane sits beside the recipe list, with a Parchment or Dark theme."] = "Vergrößert und gestaltet die Berufe-Fenster (Beruf & Handwerk) passend zum Questlog: das Detailfenster steht neben der Rezeptliste, mit Pergament- oder Dunkel-Design.",
     ["|cffaaaaaaEnlarges the Tradeskill and Craft windows so the detail sits beside the recipe list, with a Parchment or Dark look.|r"] = "|cffaaaaaaVergrößert die Berufe- und Handwerksfenster, sodass das Detailfenster neben der Rezeptliste steht – mit Pergament- oder Dunkel-Look.|r",
@@ -97,9 +83,7 @@ ns:RegisterLocale("deDE", {
     ["Material cost"] = "Materialkosten",
     ["Profit"] = "Gewinn",
 
-    -- =====================================================
     -- Bind-on-Socket Fix
-    -- =====================================================
     ["Bind-on-Socket Fix"] = "Sockel-Bindung-Fix",
     ["Re-adds the missing BIND_SOCKET confirmation dialog so socketing a gem that binds the item no longer throws a Lua error (Anniversary client)."] = "Fügt den fehlenden BIND_SOCKET-Bestätigungsdialog wieder hinzu, damit das Einsetzen eines bindenden Steins keinen Lua-Fehler mehr auslöst (Anniversary-Client).",
     ["Socketing this gem will bind the item to you. Continue?"] = "Diesen Stein einzusetzen bindet den Gegenstand an dich. Fortfahren?",
@@ -107,16 +91,12 @@ ns:RegisterLocale("deDE", {
     ["|cff66ff66Dialog defined|r"] = "|cff66ff66Dialog definiert|r",
     ["not defined yet"] = "noch nicht definiert",
 
-    -- =====================================================
-    -- Combat Indicator (FixCombatGlow)
-    -- =====================================================
+    -- Combat Indicator
     ["Combat Indicator"] = "Kampf-Anzeige",
     ["Restores the missing 'in combat' glow on the Player frame (Anniversary default-UI bug). Pulses a red glow around your portrait while you are in combat."] = "Stellt den fehlenden 'im Kampf'-Glow am Spielerframe wieder her (Anniversary-Default-UI-Bug). Pulsierender roter Glow um dein Portrait, solange du im Kampf bist.",
     ["|cffaaaaaaThe default Player frame on Anniversary no longer shows when you are in combat. This restores it: a red glow pulses around your portrait while you are in combat.|r"] = "|cffaaaaaaDer Standard-Spielerframe auf Anniversary zeigt nicht mehr an, wenn du im Kampf bist. Dies stellt es wieder her: ein roter Glow pulsiert um dein Portrait, solange du im Kampf bist.|r",
 
-    -- =====================================================
     -- Disenchant Queue
-    -- =====================================================
     ["Disenchant Queue"] = "Entzauber-Queue",
     ["For enchanters: a window with one button that disenchants your bag items one click each, auto-advancing through the queue (no casting + picking each item by hand)."] = "Für Verzauberer: ein Fenster mit einem Knopf, der deine Taschen-Gegenstände mit je einem Klick entzaubert und sich automatisch durch die Queue arbeitet (kein manuelles Zaubern + Anklicken pro Gegenstand).",
     ["%d item(s) to disenchant"] = "%d Gegenstände zum Entzaubern",
@@ -143,9 +123,7 @@ ns:RegisterLocale("deDE", {
     ["|cff888888Click an entry to remove it from the ignore list.|r"] = "|cff888888Klicke einen Eintrag an, um ihn aus der Ignorier-Liste zu entfernen.|r",
     ["Clear ignore list"] = "Ignorier-Liste leeren",
 
-    -- =====================================================
-    -- Sidebar pages (grouped modules)
-    -- =====================================================
+    -- Sidebar pages
     ["Enabled"] = "Aktiviert",
     ["Windows & Professions"] = "Fenster & Berufe",
     ["Quest log, profession windows and the disenchant queue, all in one place."] = "Questlog, Berufe-Fenster und Entzauber-Queue – alles an einem Ort.",
@@ -154,9 +132,7 @@ ns:RegisterLocale("deDE", {
     ["Chat & Tooltips"] = "Chat & Tooltips",
     ["Chat spam filter and tooltip IDs."] = "Chat-Spamfilter und Tooltip-IDs.",
 
-    -- =====================================================
     -- /vcui help
-    -- =====================================================
     ["VuloClassicUI — commands:"] = "VuloClassicUI — Befehle:",
     ["open the options window"] = "Optionsfenster öffnen",
     ["jump to that module's page"] = "zur Seite dieses Moduls springen",
@@ -176,12 +152,10 @@ ns:RegisterLocale("deDE", {
     ["Spam filter not available."] = "Spam-Filter nicht verfügbar.",
     ["Usage: /vcui spam <name> — toggle a name on/off the spam-filter whitelist."] = "Benutzung: /vcui spam <Name> — Namen auf der Spam-Filter-Whitelist umschalten.",
 
-    -- =====================================================
     -- Swing Timer
-    -- =====================================================
     ["Swing Timer"] = "Waffen-Swingtimer",
-    ["MH"] = "MH",  -- main-hand bar label (the abbreviation is the same in German)
-    ["OH"] = "OH",  -- off-hand bar label
+    ["MH"] = "MH",
+    ["OH"] = "OH",
     ["Weapon swing timer for your melee auto-attacks (any melee class). Shows a main-hand bar and, while dual-wielding, an off-hand bar."] = "Waffen-Swingtimer für deine Nahkampf-Autoangriffe (jede Nahkampfklasse). Zeigt eine Waffenhand-Leiste und beim beidhändigen Kämpfen eine Nebenhand-Leiste.",
     ["|cffaaaaaaShows when your next melee auto-attack lands (any melee class). The off-hand bar only appears while dual-wielding. The bar fills up toward the swing; the number is the time left.|r"] = "|cffaaaaaaZeigt, wann dein nächster Nahkampf-Autoangriff trifft (jede Nahkampfklasse). Die Nebenhand-Leiste erscheint nur beim beidhändigen Kämpfen. Die Leiste füllt sich bis zum Schlag; die Zahl ist die verbleibende Zeit.|r",
     ["Enable swing timer"] = "Swingtimer aktivieren",
@@ -207,15 +181,11 @@ ns:RegisterLocale("deDE", {
     ["Gold"] = "Gold",
     ["Red"] = "Rot",
 
-    -- =====================================================
-    -- Module display names (tabs + sidebar)
-    -- =====================================================
+    -- Module display names
     ["Fishing"] = "Angeln",
     ["Mail"]    = "Post",
 
-    -- =====================================================
     -- Loadouts
-    -- =====================================================
     ["Loadouts"] = "Ausrüstungs-Sets",
     ["Save and quickly equip gear sets for different specs, content, or roles."] = "Speichere und wechsle schnell zwischen Ausrüstungs-Sets für verschiedene Skillungen, Content oder Rollen.",
     ["Save your current equipment as named gear sets and quickly switch between them. Equipping requires you to be out of combat — items in your bags are auto-equipped via Use."] = "Speichere deine aktuelle Ausrüstung als benannte Sets und wechsle schnell dazwischen. Equippen erfordert dass du außerhalb des Kampfes bist — Items in deinen Taschen werden automatisch via 'Benutzen' equipt.",
@@ -254,7 +224,6 @@ ns:RegisterLocale("deDE", {
     ["Import from older version"] = "Aus älterer Version importieren",
     ["|cffaaaaaaYou have gear sets saved account-wide by an older version. Loadouts are now per-character — import copies them onto THIS character.|r"] = "|cffaaaaaaDu hast Ausrüstungs-Sets, die eine ältere Version accountweit gespeichert hat. Sets sind jetzt pro Charakter — der Import kopiert sie auf DIESEN Charakter.|r",
     ["Import account-wide loadouts"] = "Accountweite Sets importieren",
-    -- Slot names
     ["Head"] = "Kopf", ["Neck"] = "Hals", ["Shoulder"] = "Schulter",
     ["Chest"] = "Brust", ["Waist"] = "Taille", ["Legs"] = "Beine",
     ["Feet"] = "Füße", ["Wrist"] = "Handgelenk", ["Hands"] = "Hände",
@@ -272,7 +241,6 @@ ns:RegisterLocale("deDE", {
     ["Macro '%s' created — open |cffffffff/macro|r and drag it onto your action bar."] = "Makro '%s' erstellt – |cffffffff/macro|r öffnen und auf die Aktionsleiste ziehen.",
     ["Back"] = "Rücken",
     ["Main Hand"] = "Haupthand", ["Off Hand"] = "Schildhand", ["Ranged"] = "Distanz",
-    -- Save modes
     ["Save All..."] = "Alles speichern...",
     ["Save Trinkets..."] = "Schmuckstücke speichern...",
     ["Save Weapons..."] = "Waffen speichern...",
@@ -280,14 +248,12 @@ ns:RegisterLocale("deDE", {
     ["Save trinkets only..."] = "Nur Schmuckstücke speichern...",
     ["Save weapons only..."] = "Nur Waffen speichern...",
     ["Settings..."] = "Einstellungen...",
-    -- Minimap button
     ["Minimap Button"] = "Minimap-Button",
     ["Show minimap button"] = "Minimap-Button anzeigen",
     ["Left-click for a quick set-switcher menu, right-click to open settings, drag to reposition."] = "Linksklick öffnet ein Schnellwahl-Menü, Rechtsklick öffnet die Einstellungen, Ziehen zum Verschieben.",
     ["Left-click: switch set"] = "Linksklick: Set wechseln",
     ["Right-click: settings"] = "Rechtsklick: Einstellungen",
     ["Drag: reposition"] = "Ziehen: Verschieben",
-    -- Auto-switch
     ["Auto-Switch on Stance/Form"] = "Auto-Wechsel bei Haltung/Gestalt",
     ["Enable auto-switching"] = "Auto-Wechsel aktivieren",
     ["Automatically equips a loadout when your stance/form changes (warrior stances, druid forms). Out-of-combat only — if a stance change happens in combat, the swap is deferred until combat ends."] = "Legt automatisch ein Set an, wenn deine Haltung/Gestalt wechselt (Krieger-Haltungen, Druiden-Gestalten). Nur außerhalb des Kampfes — bei einem Wechsel im Kampf wird der Swap bis nach dem Kampf verschoben.",
@@ -303,7 +269,6 @@ ns:RegisterLocale("deDE", {
     ["No Form"] = "Keine Gestalt",
     ["Form %d"] = "Gestalt %d",
     ["No loadouts saved"] = "Keine Sets gespeichert",
-    -- Sidebar
     ["Character Frame Sidebar"] = "Charakterfenster-Sidebar",
     ["Show sidebar on character frame"] = "Sidebar am Charakterfenster anzeigen",
     ["Attach a quick-access sidebar to the right of the character window. Click a set to select, double-click or button to equip, right-click for context menu."] = "Hängt eine Schnellzugriffs-Sidebar rechts neben das Charakterfenster. Klick auf ein Set zum Auswählen, Doppelklick oder Button zum Anlegen, Rechtsklick für Kontextmenü.",
@@ -332,7 +297,6 @@ ns:RegisterLocale("deDE", {
     ["Left-click to pick an item from your bags"] = "Linksklick um ein Item aus den Taschen zu wählen",
     ["(equipped)"] = "(angelegt)",
 
-    -- SlotPicker
     ["Slot Picker"] = "Slot-Auswahl",
     ["Enable slot picker"] = "Slot-Auswahl aktivieren",
     ["|cffaaaaaaRight-click an equipment slot in the character window to see all compatible items from your bags and click one to equip it.|r"] = "|cffaaaaaaRechtsklick auf einen Ausrüstungs-Slot im Charakterfenster zeigt alle passenden Items aus deinen Taschen — Klick zum Anlegen.|r",
@@ -355,9 +319,7 @@ ns:RegisterLocale("deDE", {
     ["No matching items in your bags."] = "Keine passenden Items in deinen Taschen.",
     ["Item scanning API not available on this client."] = "Item-Scan-API auf diesem Client nicht verfügbar.",
 
-    -- =====================================================
     -- General UI / Common terms
-    -- =====================================================
     ["General"] = "Allgemein",
     ["Settings"] = "Einstellungen",
     ["Overview"] = "Übersicht",
@@ -374,7 +336,6 @@ ns:RegisterLocale("deDE", {
     ["Classic+ (current)"] = "Classic+ (aktuell)",
     ["Modern (in progress)"] = "Modern (in Arbeit)",
     ["The options below apply to the Classic+ style."] = "Die Optionen unten gelten für den Classic+-Stil.",
-    -- Modern character panel: stat categories + names
     ["Attributes"] = "Attribute",
     ["Melee"] = "Nahkampf",
     ["Spell"] = "Zauber",
@@ -451,9 +412,7 @@ ns:RegisterLocale("deDE", {
     ["Max camera zoom"] = "Maximaler Kamerazoom",
     ["Raises the maximum camera zoom-out distance far beyond the default."] = "Erhöht die maximale Kamera-Entfernung weit über den Standardwert hinaus.",
 
-    -- =====================================================
-    -- UnitFrames (player elite border + target/focus extras)
-    -- =====================================================
+    -- UnitFrames
     ["Player & Target Frame"] = "Spieler- & Zielfenster",
     ["Elite dragon border for your player frame, plus real health, threat display and the rare-elite border for the target and focus frames."] = "Elite-Drachenrahmen für dein Spielerfenster, plus echte HP, Bedrohungsanzeige und Selten-Elite-Rahmen für Ziel- und Fokusfenster.",
     ["Target & Focus Frame"] = "Ziel- & Fokusfenster",
@@ -464,9 +423,7 @@ ns:RegisterLocale("deDE", {
     ["Rare (silver)"] = "Selten (silber)",
     ["Off (default frame)"] = "Aus (Standard-Rahmen)",
 
-    -- =====================================================
-    -- CooldownManager (retail-style cooldown bar)
-    -- =====================================================
+    -- CooldownManager
     ["Cooldown Manager"] = "Cooldown-Manager",
     ["A row of icons that shows the cooldowns of spells and trinkets you choose — like the retail cooldown manager."] = "Eine Icon-Reihe, die die Cooldowns von selbst gewählten Zaubern und Schmuckstücken zeigt — wie der Cooldown-Manager in Retail.",
     ["Movable cooldown bars grouped however you like (procs, defensives, offensives ...) — like the retail cooldown manager."] = "Verschiebbare Cooldown-Leisten, gruppiert wie du willst (Procs, Defensiv, Offensiv …) — wie der Cooldown-Manager in Retail.",
@@ -487,9 +444,7 @@ ns:RegisterLocale("deDE", {
     ["Size & offsets"] = "Größe & Versatz",
     ["Extra settings"] = "Mehr Einstellungen",
 
-    -- =====================================================
-    -- FriendList (friends list reskin)
-    -- =====================================================
+    -- FriendList
     ["Friends List"] = "Freundesliste",
     ["Class-coloured friend names, class icons, faction accent and optional auto-accept for Battle.net invites."] = "Freundesnamen in Klassenfarbe, Klassen-Icons, Fraktions-Akzent und optionales Auto-Annehmen von Battle.net-Anfragen.",
     -- Addon skins
@@ -624,9 +579,7 @@ ns:RegisterLocale("deDE", {
     ["Cooldown Manager unlocked. Drag spells/items onto the bar to add. |cff9b6cffDrag|r the bar to move."] = "Cooldown-Manager entsperrt. Zieh Zauber/Gegenstände auf die Leiste zum Hinzufügen. |cff9b6cffZiehen|r zum Verschieben.",
     ["Cooldown Manager locked."] = "Cooldown-Manager gesperrt.",
 
-    -- =====================================================
-    -- Vulslot (action bar / macro / keybinding snapshots)
-    -- =====================================================
+    -- Vulslot
     ["Vulslot"] = "Leisten-Profile",
     ["Saves named snapshots of your action bars, macros and keybindings, and restores them with one click."] = "Speichert benannte Schnappschüsse deiner Aktionsleisten, Makros und Tastenbelegungen und stellt sie mit einem Klick wieder her.",
     ["|cffaaaaaaSaves your complete bar setup (all action slots, macros, keybindings) as a named profile and restores it with one click — e.g. PvP and Raid layouts, or to copy a setup to a twink (account-wide storage).|r"] = "|cffaaaaaaSpeichert dein komplettes Leisten-Setup (alle Aktionsslots, Makros, Tastenbelegungen) als benanntes Profil und stellt es mit einem Klick wieder her — z. B. PvP- und Raid-Layout, oder um ein Setup auf einen Twink zu übertragen (accountweite Speicherung).|r",
@@ -647,9 +600,7 @@ ns:RegisterLocale("deDE", {
     ["Vulslot '%s' loaded: %d slots set, %d cleared, |cffff8800%d skipped|r (unknown spell / missing item or macro)."] = "Vulslot '%s' geladen: %d Slots gesetzt, %d geleert, |cffff8800%d übersprungen|r (unbekannter Zauber / fehlendes Item oder Makro).",
     ["Vulslot '%s' loaded: %d slots set, %d cleared."] = "Vulslot '%s' geladen: %d Slots gesetzt, %d geleert.",
 
-    -- =====================================================
-    -- FlightTimer (taxi flight duration bar)
-    -- =====================================================
+    -- FlightTimer
     ["Flight Timer"] = "Flugzeit",
     ["|cffff8800Flight route database not loaded.|r Fully restart WoW (a /reload is not enough after an update) so the flight times work."] = "|cffff8800Flugrouten-Datenbank nicht geladen.|r Starte WoW komplett neu (ein /reload reicht nach einem Update nicht), damit die Flugzeiten funktionieren.",
     ["Show flight time bar"] = "Flugzeitbalken anzeigen",
@@ -669,9 +620,7 @@ ns:RegisterLocale("deDE", {
     ["Flight timer mover active. |cff9b6cffDrag|r or |cff9b6cffarrow keys|r (SHIFT = 5px)."] = "Flugzeit-Mover aktiv. |cff9b6cffZiehen|r oder |cff9b6cffPfeiltasten|r (SHIFT = 5px).",
     ["Flight timer mover disabled."] = "Flugzeit-Mover deaktiviert.",
 
-    -- =====================================================
-    -- LazyVulo (Apexis Relic minigame helper)
-    -- =====================================================
+    -- LazyVulo
     ["LazyVulo"] = "Apexis-Minispiel",
     ["VulTraining"] = "Trainer",
     ["Group Board"] = "Gruppensuche",
@@ -697,9 +646,7 @@ ns:RegisterLocale("deDE", {
     ["|cffaaaaaaOne key per color (e.g. G, Y, B, R or NUMPAD1). Empty = no hotkey.|r"] = "|cffaaaaaaEine Taste pro Farbe (z. B. G, Y, B, R oder NUMPAD1). Leer = kein Hotkey.|r",
     ["Show window"] = "Fenster anzeigen",
 
-    -- =====================================================
     -- Sidebar group labels
-    -- =====================================================
     ["Global"] = "Global",
     ["Unit Frames"] = "Einheitenfenster",
     ["HUD"] = "HUD",
@@ -712,9 +659,7 @@ ns:RegisterLocale("deDE", {
     ["Interface Skins"] = "Oberflächen-Skins",
     ["Bugfixes"] = "Bug-Fixes",
 
-    -- =====================================================
     -- MainFrame / OptionsFrame
-    -- =====================================================
     ["Search settings..."] = "Einstellungen durchsuchen...",
     ["Reset Module"] = "Modul zurücksetzen",
     ["Resets all settings of the current module to defaults."] = "Setzt alle Einstellungen des aktuellen Moduls auf Standard zurück.",
@@ -731,7 +676,7 @@ ns:RegisterLocale("deDE", {
     ["%s: modules restored."] = "%s: Module wiederhergestellt.",
     ["%s: all modules off. /reload recommended."] = "%s: alle Module aus. /reload empfohlen.",
 
-    -- Power Bar (HUD)
+    -- Power Bar
     ["Power Bar"] = "Ressourcenleiste",
     ["A movable resource bar for your character. The power type follows your class automatically (Mana / Rage / Energy) — and for Druids it switches with your form: Bear = Rage, Cat = Energy, otherwise Mana."] = "Eine bewegliche Ressourcenleiste für deinen Charakter. Der Energietyp folgt automatisch deiner Klasse (Mana / Wut / Energie) — und beim Druiden wechselt er mit der Form: Bär = Wut, Katze = Energie, sonst Mana.",
     ["No text"] = "Kein Text",
@@ -776,14 +721,13 @@ ns:RegisterLocale("deDE", {
     ["Threshold colour"] = "Schwellwert-Farbe",
     ["Recolour the text instead of the bar"] = "Text statt Leiste umfärben",
 
-    -- Colour picker
     ["Color Picker"] = "Farbauswahl",
     ["New"] = "Neu",
     ["Prev"] = "Vorher",
     ["Hex#"] = "Hex#",
     ["OK"] = "OK",
 
-    -- Combat Text (1:1 layout)
+    -- Combat Text
     ["Display Settings"] = "Anzeige",
     ["Enable Combat Messages"] = "Kampftext aktivieren",
     ["Fade Duration"] = "Ausblenddauer",
@@ -807,7 +751,6 @@ ns:RegisterLocale("deDE", {
     ["Threshold (%)"] = "Schwellwert (%)",
     ["Color"] = "Farbe",
 
-    -- QoL: block strangers
     ["Protection"] = "Schutz",
     ["Block group invites from strangers"] = "Gruppen-Einladungen von Fremden blocken",
     ["Auto-declines party/raid invites from players who are not in your guild or on your friends list."] = "Lehnt Gruppen-/Schlachtzug-Einladungen von Spielern automatisch ab, die nicht in deiner Gilde oder auf deiner Freundesliste sind.",
@@ -834,9 +777,7 @@ ns:RegisterLocale("deDE", {
     ["|cffaaaaaaResource bar that follows your class automatically (Mana / Rage / Energy). Druids switch with their form: Bear = Rage, Cat = Energy, otherwise Mana.|r"] = "|cffaaaaaaRessourcenleiste, die automatisch deiner Klasse folgt (Mana / Wut / Energie). Druiden wechseln mit der Form: Bär = Wut, Katze = Energie, sonst Mana.|r",
     ["|cffaaaaaaThe bar colour follows your current power type automatically (Mana = blue, Rage = red, Energy = yellow).|r"] = "|cffaaaaaaDie Leistenfarbe folgt automatisch deinem aktuellen Energietyp (Mana = blau, Wut = rot, Energie = gelb).|r",
 
-    -- =====================================================
     -- Core / Init / Database / Slash commands
-    -- =====================================================
     ["v%s loaded. /vcui to open."] = "v%s geladen. /vcui zum Öffnen.",
     ["UI not loaded. Likely a Lua error during init. Enable /console scriptErrors 1 and /reload."] = "UI nicht geladen. Wahrscheinlich ein Lua-Fehler beim Init. Aktiviere /console scriptErrors 1 und /reload.",
     ["Not possible in combat."] = "Im Kampf nicht möglich.",
@@ -854,9 +795,7 @@ ns:RegisterLocale("deDE", {
     ["Module '%s' disabled. /reload recommended for full effect."] = "Modul '%s' deaktiviert. /reload empfohlen für vollen Effekt.",
     ["|cffff5555LibSharedMedia-3.0 not found, Media Registry will be skipped.|r"] = "|cffff5555LibSharedMedia-3.0 nicht gefunden, Media Registry wird übersprungen.|r",
 
-    -- =====================================================
-    -- Profile system (Database.lua + Profiles.lua)
-    -- =====================================================
+    -- Profile system
     ["Profiles"] = "Profile",
     ["Manage profiles with different settings. A default profile can be assigned per class and is loaded automatically on login."] = "Profile mit verschiedenen Einstellungen verwalten. Pro Klasse kann ein Standardprofil festgelegt werden, das beim Einloggen automatisch geladen wird.",
     ["Active Profile"] = "Aktives Profil",
@@ -908,7 +847,6 @@ ns:RegisterLocale("deDE", {
     ["Settings imported from idTip."] = "Einstellungen aus idTip importiert.",
     ["|cffff5555Profile module not loaded.|r"] = "|cffff5555Profil-Modul nicht geladen.|r",
 
-    -- Class labels
     ["Warrior"] = "Krieger",
     ["Paladin"] = "Paladin",
     ["Hunter"] = "Jäger",
@@ -919,9 +857,7 @@ ns:RegisterLocale("deDE", {
     ["Warlock"] = "Hexenmeister",
     ["Druid"] = "Druide",
 
-    -- =====================================================
     -- GlobalSettings
-    -- =====================================================
     ["Global Settings"] = "Globale Einstellungen",
     ["Global UI settings + profile management."] = "Globale UI-Einstellungen + Profilverwaltung.",
     ["UI Scale"] = "UI-Skalierung",
@@ -943,9 +879,7 @@ ns:RegisterLocale("deDE", {
     ["Reload now"] = "Jetzt neu laden",
     ["Later"] = "Später",
 
-    -- =====================================================
     -- Minimap
-    -- =====================================================
     ["Minimap Button"] = "Minimap-Button",
     ["Shows a button on the minimap to quickly open VuloClassicUI. Shift+drag moves the button."] = "Zeigt einen Button auf der Minimap, um VuloClassicUI schnell zu öffnen. Shift+Ziehen verschiebt den Button.",
     ["UI is not loaded yet."] = "UI ist noch nicht geladen.",
@@ -959,9 +893,7 @@ ns:RegisterLocale("deDE", {
     ["Angle (degrees)"] = "Winkel (Grad)",
     ["Tip: You can also move the button directly on the minimap — hold Shift and drag it to the desired position."] = "Tipp: Du kannst den Button auch direkt auf der Minimap verschieben — halte Shift gedrückt und ziehe ihn an die gewünschte Position.",
 
-    -- =====================================================
     -- FontBars
-    -- =====================================================
     ["Font Bars"] = "Font-Bars",
     ["Smaller font sizes for Player/Target/Pet Health & Mana bars, optionally hide TargetFrameBackground."] = "Kleinere Schriftgrößen für Lebens- und Mana-Balken von Spieler/Ziel/Begleiter, optional TargetFrameBackground ausblenden.",
     ["Health Bar Text"] = "Lebensbalken-Text",
@@ -993,9 +925,7 @@ ns:RegisterLocale("deDE", {
     ["Show real NPC health"] = "Echte NPC-HP anzeigen",
     ["Shows the true health value on NPCs instead of the obfuscated percentage (enemy players stay %)."] = "Zeigt bei NPCs den echten Lebenswert statt der verschleierten Prozentanzeige (feindliche Spieler bleiben %).",
 
-    -- =====================================================
     -- PlayerCastbar
-    -- =====================================================
     ["Player Castbar"] = "Spieler-Castbar",
     ["Player castbar with two modes: Original (Blizzard bar extended) or Custom castbar (VUI style)."] = "Spieler-Castbar mit zwei Modi: Original (Blizzard-Bar erweitert) oder Custom-Castbar (VUI-Stil).",
     ["|cffffffffCASTBAR|r\n|cffaaaaaaDrag or arrow keys|r"] = "|cffffffffCASTBAR|r\n|cffaaaaaaZiehen oder Pfeiltasten|r",
@@ -1041,9 +971,7 @@ ns:RegisterLocale("deDE", {
     ["Moves the icon vertically. Positive = up, negative = down."] = "Verschiebt das Icon vertikal. Positiv = oben, negativ = unten.",
     ["Test only available in 'Custom Castbar' mode."] = "Test nur im 'Custom-Castbar'-Modus verfügbar.",
 
-    -- =====================================================
     -- CooldownPulse
-    -- =====================================================
     ["Cooldown Pulse"] = "Cooldown-Pulse",
     ["Shows the icon of an expired cooldown as a brief pulsing animation in the screen center (based on Doom_CooldownPulse)."] = "Zeigt das Icon eines abgelaufenen Cooldowns als kurze pulsierende Animation in der Bildschirmmitte (basierend auf Doom_CooldownPulse).",
     ["Cooldown Pulse unlock active — drag icon to move."] = "Cooldown-Pulse-Entsperrung aktiv — Icon ziehen zum Verschieben.",
@@ -1070,9 +998,7 @@ ns:RegisterLocale("deDE", {
     ["Spell List (comma-separated)"] = "Zauberliste (kommagetrennt)",
     ["Spell names exactly as in-game, comma-separated. Spell IDs also work."] = "Zaubernamen exakt wie im Spiel, kommagetrennt. Spell-IDs funktionieren ebenfalls.",
 
-    -- =====================================================
-    -- ArenaFrames (orphan + Arena/*)
-    -- =====================================================
+    -- ArenaFrames
     ["Arena Frames"] = "Arena-Fenster",
     ["Enhances the Arena enemy frames: move/scale, class colors, class icons, PvP trinket CD, DR tracking, castbar, drag&drop layout."] = "Erweitert die Arena-Gegnerfenster: Verschieben/Skalieren, Klassenfarben, Klassen-Icons, PvP-Trinket-CD, DR-Tracking, Castbar, Drag&Drop-Layout.",
     ["|cffff5555ArenaFrames submodule error:|r %s"] = "|cffff5555ArenaFrames-Submodul-Fehler:|r %s",
@@ -1096,7 +1022,6 @@ ns:RegisterLocale("deDE", {
     ["Position reset."] = "Position zurückgesetzt.",
     ["In unlock mode a purple overlay appears above the frames. Click + drag to move, mouse wheel to scale."] = "Im Entsperren-Modus erscheint ein violettes Overlay über den Fenstern. Klicken + ziehen zum Verschieben, Mausrad zum Skalieren.",
 
-    -- Arena Layout
     ["Layout (Order)"] = "Layout (Reihenfolge)",
     ["Order of the arena frames. Use up/down to move slots 1-5."] = "Reihenfolge der Arena-Fenster. Mit Hoch/Runter Slots 1-5 verschieben.",
     ["|cff9b6cff%d.|r  Arena Slot %d"] = "|cff9b6cff%d.|r  Arena-Slot %d",
@@ -1108,7 +1033,6 @@ ns:RegisterLocale("deDE", {
     ["Upward"] = "Nach oben",
     ["Reset order"] = "Reihenfolge zurücksetzen",
 
-    -- Arena ClassColor
     ["Class Visuals"] = "Klassen-Visuals",
     ["Class-colored health bars"] = "Klassenfarbige Lebensbalken",
     ["Colors the health bar in the player's class color."] = "Färbt den Lebensbalken in der Klassenfarbe des Spielers.",
@@ -1116,7 +1040,6 @@ ns:RegisterLocale("deDE", {
     ["Class icon instead of portrait"] = "Klassen-Icon statt Portrait",
     ["Replaces the 3D portrait with a class symbol."] = "Ersetzt das 3D-Portrait durch ein Klassen-Symbol.",
 
-    -- Arena Trinket
     ["PvP Trinket Tracker"] = "PvP-Trinket-Tracker",
     ["Show PvP trinket cooldown"] = "PvP-Trinket-Cooldown anzeigen",
     ["Shows an icon with cooldown spiral next to the arena frame when the opponent used their PvP trinket."] = "Zeigt ein Icon mit Cooldown-Spirale neben dem Arena-Fenster, wenn der Gegner sein PvP-Trinket benutzt hat.",
@@ -1126,19 +1049,15 @@ ns:RegisterLocale("deDE", {
     ["Offset X"] = "Versatz X",
     ["Offset Y"] = "Versatz Y",
 
-    -- Arena DR
     ["Diminishing Returns Tracker"] = "Diminishing-Returns-Tracker",
     ["Shows icons to the right of each arena frame for active DR categories (Stun, Fear, Polymorph etc.) with color indicator: |cff00ff00green|r = full, |cffffff00yellow|r = 1/2, |cffff8000orange|r = 1/4, |cffff0000red|r = immune."] = "Zeigt Icons rechts neben jedem Arena-Fenster für aktive DR-Kategorien (Stun, Fear, Polymorph usw.) mit Farbindikator: |cff00ff00grün|r = voll, |cffffff00gelb|r = 1/2, |cffff8000orange|r = 1/4, |cffff0000rot|r = immun.",
     ["Enable DR tracking"] = "DR-Tracking aktivieren",
 
-    -- Arena Castbar
     ["INTERRUPTED"] = "UNTERBROCHEN",
     ["Castbar for arena opponents"] = "Castbar für Arena-Gegner",
     ["Shows a castbar below the frame when the opponent casts or channels."] = "Zeigt eine Castbar unter dem Fenster, wenn der Gegner zaubert oder kanalisiert.",
 
-    -- =====================================================
     -- MiscQoL
-    -- =====================================================
     ["Collection of simple quality-of-life toggles: auto-accept (quest, res, summon), auto-sell, repair, hide UI spam, text sizes."] = "Sammlung einfacher Komfort-Schalter: Auto-Annehmen (Quest, Wiederbelebung, Beschwörung), Auto-Verkaufen, Reparieren, UI-Spam ausblenden, Textgrößen.",
     ["Auto-sold: %d items, +%s"] = "Auto-verkauft: %d Gegenstände, +%s",
     ["Auto-sold: %d items."] = "Auto-verkauft: %d Gegenstände.",
@@ -1186,9 +1105,7 @@ ns:RegisterLocale("deDE", {
     ["Book Text Size"] = "Buch-Textgröße",
     ["Font size in readable books and letters from item text."] = "Schriftgröße in lesbaren Büchern und Briefen aus Itemtexten.",
 
-    -- =====================================================
     -- QueueTimer
-    -- =====================================================
     ["Queue Timer"] = "Queue-Timer",
     ["Shows a countdown on the PvP/PvE queue pop dialog. Optional sound warning at 5 seconds."] = "Zeigt einen Countdown im PvP-/PvE-Warteschlangen-Dialog. Optional Soundwarnung bei 5 Sekunden.",
     ["Queue expires in"] = "Warteschlange läuft ab in",
@@ -1205,9 +1122,7 @@ ns:RegisterLocale("deDE", {
     ["Hide other timers (e.g. BigWigs)"] = "Andere Timer ausblenden (z.B. BigWigs)",
     ["Hides foreign StatusBars on the LFG ready popup so only our timer is visible."] = "Blendet fremde StatusBars im LFG-Ready-Popup aus, sodass nur unser Timer sichtbar ist.",
 
-    -- =====================================================
     -- TooltipIDs
-    -- =====================================================
     ["Tooltip IDs"] = "Tooltip-IDs",
     ["Shows SpellID, ItemID, NPC ID and many other IDs in tooltips (based on idTip by silverwind)."] = "Zeigt SpellID, ItemID, NPC-ID und viele weitere IDs in Tooltips (basierend auf idTip von silverwind).",
     ["|cff9b6cffTalents:|r "] = "|cff9b6cffTalente:|r ",
@@ -1226,9 +1141,7 @@ ns:RegisterLocale("deDE", {
     ["ID Types"] = "ID-Typen",
     ["Which IDs should be shown in tooltips? Some types are only active in Retail and are ignored in TBC (e.g. TraitNodeID, SourceID)."] = "Welche IDs sollen in Tooltips angezeigt werden? Manche Typen sind nur in Retail aktiv und werden in TBC ignoriert (z.B. TraitNodeID, SourceID).",
 
-    -- =====================================================
     -- AutoItemBuy
-    -- =====================================================
     ["Auto Item Buy"] = "Auto-Itemkauf",
     ["Automatically buys configured items at configured vendors. Shift when opening the merchant window = emergency stop."] = "Kauft konfigurierte Items automatisch bei konfigurierten Anbietern. Shift beim Öffnen des Anbieterfensters = Notbremse.",
     ["|cffffd200[AutoItemBuy]|r "] = "|cffffd200[Auto-Itemkauf]|r ",
@@ -1257,9 +1170,7 @@ ns:RegisterLocale("deDE", {
     ["Remove"] = "Entfernen",
     ["Item '%s' removed."] = "Item '%s' entfernt.",
 
-    -- =====================================================
-    -- Bug Fix modules (FixInspect, FixLFG, FixGuildNews, FixAuction)
-    -- =====================================================
+    -- Bug Fix modules
     ["Inspect Fix"] = "Inspect-Fix",
     ["Fixes stuck inspect bugs (no player inspect possible after a faulty close/timeout). Auto-reset after 8s + cleanup when InspectFrame closes + /inspectreset slash command."] = "Behebt hängende Inspect-Bugs (kein Spieler-Inspect möglich nach fehlerhaftem Schließen/Timeout). Auto-Reset nach 8s + Cleanup beim Schließen des InspectFrames + /inspectreset Slash-Befehl.",
     ["Fixes stuck inspect bugs (no player inspect possible after a faulty close/timeout). Auto-reset after a timeout + cleanup when InspectFrame closes + /inspectreset slash command."] = "Behebt hängende Inspect-Bugs (kein Spieler-Inspect möglich nach fehlerhaftem Schließen/Timeout). Auto-Reset nach einem Timeout + Cleanup beim Schließen des InspectFrames + /inspectreset Slash-Befehl.",
@@ -1315,9 +1226,7 @@ ns:RegisterLocale("deDE", {
     ["skipped (deDE-only)"] = "übersprungen (nur deDE)",
     ["not applied"] = "nicht angewendet",
 
-    -- =====================================================
     -- CombatText
-    -- =====================================================
     ["Combat Text"] = "Kampftext",
     ["Custom floating combat text engine with configurable events, color, size and position."] = "Eigene Floating-Combat-Text-Engine mit konfigurierbaren Ereignissen, Farbe, Größe und Position.",
     ["Expressway (Default)"] = "Expressway (Standard)",
@@ -1398,9 +1307,7 @@ ns:RegisterLocale("deDE", {
     ["Keeps the horizontal position and only centers vertically in the screen center."] = "Behält die horizontale Position und zentriert nur vertikal in der Bildschirmmitte.",
     ["Unlock / Position"] = "Entsperren / Position",
 
-    -- =====================================================
     -- Trinkets wrapper
-    -- =====================================================
     ["Trinkets"] = "Schmuckstücke",
     ["Two trinket slots on screen with cooldown display, dropdown selection and auto-queue."] = "Zwei Schmuckstück-Slots auf dem Bildschirm mit Cooldown-Anzeige, Dropdown-Auswahl und Auto-Queue.",
     ["|cffaaaaaaTwo trinket slots with cooldown, dropdown selection and auto-queue.|nLeft click = use, right click = dropdown.|r"] = "|cffaaaaaaZwei Schmuckstück-Slots mit Cooldown, Dropdown-Auswahl und Auto-Queue.|nLinksklick = benutzen, Rechtsklick = Dropdown.|r",
@@ -1412,11 +1319,9 @@ ns:RegisterLocale("deDE", {
     ["Scales the trinket slots."] = "Skaliert die Schmuckstück-Slots.",
     ["|cffaaaaaaTip: Left click on a slot uses the trinket, right click shows the selection list. Auto-queue is configured via right click -> Queue tab.|r"] = "|cffaaaaaaTipp: Linksklick auf einen Slot benutzt das Schmuckstück, Rechtsklick zeigt die Auswahlliste. Auto-Queue wird per Rechtsklick -> Queue-Reiter konfiguriert.|r",
 
-    -- =====================================================
     -- CharacterPanel
-    -- =====================================================
     ["Character Panel"] = "Charakterfenster",
-    -- DarkSkin (merged Button Skin + Dark Mode)
+    -- DarkSkin
     ["Dark Skin"] = "Dunkles Design",
     ["The dark look of the UI in one place: a built-in dark skin for action buttons and WeakAuras icons, plus an optional Dark Mode that darkens Blizzard's default frames, minimap and bars."] = "Der dunkle Look der Oberfläche an einem Ort: ein eingebauter dunkler Skin für Aktionsbuttons und WeakAuras-Icons, plus ein optionaler Dunkelmodus, der Blizzards Standard-Fenster, Minikarte und Leisten abdunkelt.",
     ["|cffaaaaaaThe dark look of the UI in one place: a built-in skin for action buttons and WeakAuras icons, plus an optional Dark Mode that re-tints Blizzard's default frames.|r"] = "|cffaaaaaaDer dunkle Look der Oberfläche an einem Ort: ein eingebauter Skin für Aktionsbuttons und WeakAuras-Icons, plus ein optionaler Dunkelmodus, der Blizzards Standard-Fenster umfärbt.|r",
@@ -1464,9 +1369,7 @@ ns:RegisterLocale("deDE", {
     ["|cffff0000No Ench|r"] = "|cffff0000Keine Verz|r",
     ["|c%siLvL - %d|r"] = "|c%siLvL - %d|r",
 
-    -- =====================================================
     -- GoldTracker
-    -- =====================================================
     ["Gold Tracker"] = "Gold-Tracker",
     ["Shows in the backpack gold tooltip how much gold has been gained or spent since the last reset. Per-char persistent."] = "Zeigt im Backpack-Gold-Tooltip an, wie viel Gold seit dem letzten Reset eingenommen oder ausgegeben wurde. Pro Charakter persistent.",
     ["Gold Tracker reset|r. Start = "] = "Gold-Tracker zurückgesetzt|r. Start = ",
@@ -1480,9 +1383,7 @@ ns:RegisterLocale("deDE", {
     ["|cffaaaaaaShows in the backpack gold tooltip the balance since the last manual reset:|n  - |cff44ff44Gained|r (quests, loot, vendor sales, mail)|n  - |cffff4444Spent|r (repair, vendor buy, mail cost)|n  - |cffffffffNet|r (+/- since reset)|n|nValues are |cffffffffper-char persistent|r across /reload and logout.|nOffline gold (AH mail, trade) is not counted.|n|nReset: button below or |cffffff00/vcui goldreset|r.|r"] = "|cffaaaaaaZeigt im Backpack-Gold-Tooltip die Bilanz seit dem letzten manuellen Reset:|n  - |cff44ff44Eingenommen|r (Quests, Loot, Anbieter-Verkäufe, Mail)|n  - |cffff4444Ausgegeben|r (Reparatur, Anbieter-Kauf, Mail-Kosten)|n  - |cffffffffNetto|r (+/- seit Reset)|n|nWerte sind |cffffffffpro Charakter persistent|r über /reload und Logout hinweg.|nOffline-Gold (AH-Mail, Trade) wird nicht gezählt.|n|nReset: Button unten oder |cffffff00/vcui goldreset|r.|r",
     ["Reset session"] = "Session zurücksetzen",
 
-    -- =====================================================
     -- VTManaDisplay
-    -- =====================================================
     ["Class Specific"] = "Klassenspezifisch",
     ["Class-specific tools, grouped by class. Currently includes the Priest Vampiric Touch mana tracker (Shadow)."] = "Klassenspezifische Tools, nach Klasse gruppiert. Aktuell enthalten: der Priester Vampirberührungs-Mana-Tracker (Schatten).",
     ["|cffaaaaaaVampiric Touch mana tracker — shows live how much mana you've given to the group (5% of shadow damage per tick, per mana user).|n|cffffffffReset automatically on combat start.|r|r"] = "|cffaaaaaaVampirberührungs-Mana-Tracker — zeigt live, wie viel Mana du der Gruppe gegeben hast (5% des Schattenschadens pro Tick, pro Mana-Nutzer).|n|cffffffffWird bei Kampfbeginn automatisch zurückgesetzt.|r|r",
@@ -1501,9 +1402,7 @@ ns:RegisterLocale("deDE", {
     ["Reset manually"] = "Manuell zurücksetzen",
     ["VT mana reset."] = "VT-Mana zurückgesetzt.",
 
-    -- =====================================================
     -- Shadow DoTs
-    -- =====================================================
     ["Shadow DoT Tracker"] = "Schatten-DoT-Tracker",
     ["|cffaaaaaaTracks your Shadow DoTs on the target. |cff44ff44Green|r = a buff is up that makes it hit harder if you recast now (TBC snapshot); |cffff4444red|r = about to expire.|r"] = "|cffaaaaaaVerfolgt deine Schatten-DoTs auf dem Ziel. |cff44ff44Grün|r = ein Buff ist aktiv, der bei Neu-Cast mehr Schaden bringt (TBC-Snapshot); |cffff4444rot|r = läuft gleich aus.|r",
     ["Bars"] = "Balken",
@@ -1534,18 +1433,14 @@ ns:RegisterLocale("deDE", {
     ["Shadow DoTs mover active. |cff9b6cffDrag|r or |cff9b6cffarrow keys|r (SHIFT = 5px)."] = "Schatten-DoTs-Mover aktiv. |cff9b6cffZiehen|r oder |cff9b6cffPfeiltasten|r (SHIFT = 5px).",
     ["Shadow DoTs mover disabled."] = "Schatten-DoTs-Mover deaktiviert.",
 
-    -- =====================================================
-    -- Character Panel (extra)
-    -- =====================================================
+    -- Character Panel
     ["Mark empty sockets"] = "Leere Sockel markieren",
     ["Adds a red ring around item sockets that have no gem."] = "Zeigt einen roten Ring um Item-Sockel ohne Stein.",
     ["Text shadow (instead of outline)"] = "Text-Schatten (statt Outline)",
     ["Cleaner text with a drop shadow instead of a thick outline."] = "Sauberer Text mit Schatten statt dickem Outline.",
 
-    -- =====================================================
-    -- Shaman Totem Timer (Class Specific -> Shaman)
-    -- =====================================================
-    -- MinimapStyle (modern minimap)
+    -- Shaman Totem Timer
+    -- MinimapStyle
     ["|cffaaaaaaA modern round minimap with a beveled ring, zone text and clock in a slim pill. Zoom with the mouse wheel. |cffffffffShift+drag the map|r to move it — or use Unlock / the addon's own Edit Mode (/vedit). Blizzard's Edit Mode does not manage this map.|r"] = "|cffaaaaaaEine moderne runde Minimap mit Relief-Ring, Zonentext und Uhr in einer schmalen Pille. Zoomen per Mausrad. |cffffffffShift+Ziehen auf der Karte|r verschiebt sie — oder Entsperren bzw. der addon-eigene Edit Mode (/vedit). Blizzards Edit Mode verwaltet diese Karte nicht.|r",
     ["|cffffffffMINIMAP|r"] = "|cffffffffMINIMAP|r",
     ["Minimap: x=%.0f, y=%.0f"] = "Minimap: x=%.0f, y=%.0f",
@@ -1618,7 +1513,6 @@ ns:RegisterLocale("deDE", {
     ["Shown elements"] = "Angezeigte Elemente",
     ["Sound before a totem expires"] = "Ton bevor ein Totem ausläuft",
     ["Icon border (action-bar style)"] = "Icon-Rahmen (Action-Leisten-Stil)",
-    -- Totem bar: style + flyout behavior
     ["Style"] = "Stil",
     ["VuloUI (dark)"] = "VuloUI (dunkel)",
     ["Classic (metal)"] = "Klassisch (Metall)",
@@ -1643,9 +1537,7 @@ ns:RegisterLocale("deDE", {
     ["Totem timer mover disabled."] = "Totem-Mover deaktiviert.",
     ["|cffff5555Class tool error:|r %s"] = "|cffff5555Klassen-Tool-Fehler:|r %s",
 
-    -- =====================================================
-    -- Edit Mode / Unlock Mode (unified Edit Mode HUD)
-    -- =====================================================
+    -- Edit Mode / Unlock Mode
     ["EDIT MODE"] = "EDIT-MODUS",
     ["Edit Mode"] = "Edit-Modus",
     ["Open Edit Mode"] = "Edit-Modus öffnen",
@@ -1673,7 +1565,6 @@ ns:RegisterLocale("deDE", {
     ["Pin this frame to a screen edge/corner so it stays put across resolution changes. Off keeps it centred."] = "Verankert das Fenster an einer Bildschirmkante/-ecke, damit es bei Auflösungsänderungen an Ort und Stelle bleibt. Aus = bleibt zentriert.",
     ["Leave this window unlocked so you can still drag it after closing Edit Mode. Stays unlocked through /reload."] = "Lässt dieses Fenster entsperrt, sodass du es auch nach dem Schließen des Edit-Modus noch ziehen kannst. Bleibt über /reload hinweg entsperrt.",
 
-    -- Layouts
     ["LAYOUTS"] = "LAYOUTS",
     ["Layouts"] = "Layouts",
     ["SAVED"] = "GESPEICHERT",
@@ -1695,7 +1586,6 @@ ns:RegisterLocale("deDE", {
     ["Paste a layout string and confirm:"] = "Layout-Text einfügen und bestätigen:",
     ["Copy this string (Ctrl+A, Ctrl+C):"] = "Diesen Text kopieren (Strg+A, Strg+C):",
 
-    -- Module hints pointing at the unified Edit Mode
     ["click to edit"] = "Klicken zum Bearbeiten",
     ["Move it in the unified Edit Mode (/vedit)."] = "Im vereinheitlichten Edit-Modus (/vedit) verschieben.",
     ["Drag the combat-text box in the unified Edit Mode (/vedit)."] = "Das Kampftext-Kästchen im vereinheitlichten Edit-Modus (/vedit) ziehen.",
@@ -1705,9 +1595,7 @@ ns:RegisterLocale("deDE", {
     ["|cff888888• Drag a purple box to move that frame.|n• Hover a box, then arrow keys fine-tune (SHIFT = 5px).|n• Right-click a box for exact X / Y.|n• |cffffffff/vedit|r toggles Edit Mode too.|r"] = "|cff888888• Ein lila Kästchen ziehen, um das Fenster zu verschieben.|n• Über ein Kästchen fahren, dann mit den Pfeiltasten feinjustieren (UMSCHALT = 5px).|n• Rechtsklick auf ein Kästchen für genaues X / Y.|n• |cffffffff/vedit|r schaltet ebenfalls den Edit-Modus um.|r",
     ["Enable 'Target and Focus' in Blizzard's Edit Mode settings, then /reload, so VuloUI can move the target/focus frame."] = "Aktiviere „Ziel und Fokus“ in den Einstellungen von Blizzards Bearbeitungsmodus und lade dann mit /reload neu, damit VuloUI das Ziel-/Fokusfenster verschieben kann.",
 
-    -- =====================================================
     -- Dark Mode
-    -- =====================================================
     ["Dark Mode"] = "Dunkelmodus",
     ["Darkens and desaturates Blizzard's default UI artwork (unit frames, minimap, action bars) to a neutral dark tone. Keeps Blizzard's frames — it just re-tints them."] = "Verdunkelt und entsättigt Blizzards Standard-Grafik (Einheitenfenster, Minimap, Aktionsleisten) zu einem neutralen dunklen Ton. Behält Blizzards Frames — es färbt sie nur um.",
     ["|cffaaaaaaDarkens and desaturates Blizzard's default artwork — unit frames, minimap and action bars — to a neutral dark tone. Reversible: turn it off and the gold look returns.|r"] = "|cffaaaaaaVerdunkelt und entsättigt Blizzards Standard-Grafik — Einheitenfenster, Minimap und Aktionsleisten — zu einem neutralen dunklen Ton. Umkehrbar: ausschalten und der goldene Look kehrt zurück.|r",
@@ -1730,9 +1618,7 @@ ns:RegisterLocale("deDE", {
     ["|cffaaaaaaNote: if the Player & Target Frame module's |cffffffffThreat glow|r is on, threat colouring takes over the target/focus border while you have aggro — that's intended.|r"] = "|cffaaaaaaHinweis: Wenn beim Modul „Spieler- & Zielfenster\" das |cffffffffBedrohungs-Leuchten|r aktiv ist, übernimmt die Bedrohungsfärbung den Ziel-/Fokus-Rand, solange du Aggro hast — das ist beabsichtigt.|r",
     ["|cffaaaaaaAction button borders are also managed by the Button Skin module — if that's on, it controls the buttons instead.|r"] = "|cffaaaaaaAktionsknopf-Ränder werden auch vom Modul „Button-Skin\" verwaltet — wenn das an ist, steuert es stattdessen die Knöpfe.|r",
 
-    -- =====================================================
     -- Chat
-    -- =====================================================
     ["Chat"] = "Chat",
     ["Polishes Blizzard's chat: a dark panel with an icon sidebar, timestamps, class-coloured names, clickable links, dark tabs, idle fade and history that survives a /reload. Every part is optional."] = "Verbessert Blizzards Chat: ein dunkles Panel mit Icon-Sidebar, Zeitstempel, Namen in Klassenfarbe, klickbare Links, dunkle Tabs, Abblenden bei Inaktivität und Verlauf, der ein /reload übersteht. Jeder Teil ist optional.",
     ["|cffaaaaaaPolishes Blizzard's own chat — nothing is replaced, so it stays light and compatible. Every option below is independent.|r"] = "|cffaaaaaaVerbessert Blizzards eigenen Chat — nichts wird ersetzt, daher bleibt es leichtgewichtig und kompatibel. Jede Option unten ist unabhängig.|r",
@@ -1835,7 +1721,6 @@ ns:RegisterLocale("deDE", {
     ["Quality"] = "Qualität",
     ["Item type"] = "Gegenstandstyp",
     ["Sort in the opposite direction."] = "In umgekehrter Richtung sortieren.",
-    -- Sorting engine (multi-key sort + category display order)
     ["Item level"] = "Gegenstandsstufe",
     ["Off"] = "Aus",
     ["Sort categories by"] = "Kategorien sortieren nach",
@@ -1848,7 +1733,6 @@ ns:RegisterLocale("deDE", {
     ["Marks vendor trash with a purple C in the icon corner - grey items a merchant pays gold for."] = "Markiert Händlerware mit einem lila C in der Icon-Ecke — graue Gegenstände, für die ein Händler Gold zahlt.",
     ["BoE/BoU markers"] = "BoE/BoU-Kennzeichnung",
     ["Tags equipment that is still tradeable (binds on equip or use, not yet soulbound) - handy for banking and the auction house."] = "Kennzeichnet Ausrüstung, die noch handelbar ist (beim Anlegen oder Benutzen gebunden, noch nicht seelengebunden) — praktisch fürs Bankieren und Auktionshaus.",
-    -- Categories (Phase 3a)
     ["Categories"] = "Kategorien",
     ["Group items into categories"] = "Gegenstände in Kategorien gruppieren",
     ["Show items in labelled sections (Quest, Consumables, Armor...). Off = one flat grid."] = "Gegenstände in beschrifteten Abschnitten anzeigen (Quest, Verbrauchbar, Rüstung...). Aus = ein einzelnes Raster.",
@@ -1866,7 +1750,6 @@ ns:RegisterLocale("deDE", {
     ["Keys"] = "Schlüssel",
     ["Junk"] = "Grauzeug",
     ["Miscellaneous"] = "Verschiedenes",
-    -- View modes + sidebar (Phase 3b)
     ["View"] = "Ansicht",
     ["View mode"] = "Ansichtsmodus",
     ["All = categorized sections. OneBag = one flat grid. MultiBag = a section per bag."] = "Alle = Abschnitte nach Kategorie. OneBag = ein einzelnes Raster. MultiBag = ein Abschnitt pro Tasche.",
@@ -1880,7 +1763,6 @@ ns:RegisterLocale("deDE", {
     ["A collapsible left panel for view modes and category filtering."] = "Ein einklappbares linkes Feld für Ansichtsmodi und Kategoriefilter.",
     ["Collapse sidebar"] = "Seitenleiste einklappen",
     ["Expand sidebar"] = "Seitenleiste ausklappen",
-    -- Custom categories + manual assignment (Phase 3c)
     ["New category..."] = "Neue Kategorie...",
     ["New category name:"] = "Name der neuen Kategorie:",
     ["Rename category:"] = "Kategorie umbenennen:",
@@ -1892,7 +1774,6 @@ ns:RegisterLocale("deDE", {
     ["Show category: %s"] = "Kategorie zeigen: %s",
     ["Reset category order"] = "Kategoriereihenfolge zurücksetzen",
     ["|cffaaaaaaTip: drag an item onto a category in the sidebar to keep it there; right-click a category to rename, move or delete it.|r"] = "|cffaaaaaaTipp: Ziehe einen Gegenstand auf eine Kategorie in der Seitenleiste, um ihn dort zu behalten; Rechtsklick auf eine Kategorie zum Umbenennen, Verschieben oder Löschen.|r",
-    -- Pinned + Recent pseudo-categories (Phase 3c STAGE-2)
     ["Pinned Items"] = "Angeheftete Gegenstände",
     ["Recent Items"] = "Neue Gegenstände",
     ["Show Recent Items"] = "Neue Gegenstände anzeigen",
@@ -1902,7 +1783,6 @@ ns:RegisterLocale("deDE", {
     ["Clear recent"] = "Neue Gegenstände leeren",
     ["Unpin all items"] = "Alle Anheftungen lösen",
     ["|cffaaaaaaTip: middle-click an item to pin it to the top; middle-click again to unpin.|r"] = "|cffaaaaaaTipp: Mittelklick auf einen Gegenstand heftet ihn nach oben an; erneuter Mittelklick löst ihn wieder.|r",
-    -- Collapsible category groups (Phase 3c STAGE-3)
     ["New group..."] = "Neue Gruppe...",
     ["New group name:"] = "Name der neuen Gruppe:",
     ["Rename group:"] = "Gruppe umbenennen:",
@@ -1911,10 +1791,8 @@ ns:RegisterLocale("deDE", {
     ["Collapse"] = "Einklappen",
     ["Expand"] = "Ausklappen",
     ["|cffaaaaaaTip: right-click a category to add it to a group; click a group header to collapse or expand it; right-click a group header to rename, move or delete it.|r"] = "|cffaaaaaaTipp: Rechtsklick auf eine Kategorie fügt sie einer Gruppe hinzu; Klick auf eine Gruppenüberschrift klappt sie ein oder aus; Rechtsklick auf eine Gruppenüberschrift zum Umbenennen, Verschieben oder Löschen.|r",
-    -- Bank (Phase 4 STAGE-1)
     ["Bank"] = "Bank",
     ["Replace the bank window"] = "Bankfenster ersetzen",
-    -- Guild bank
     ["Guild Bank"] = "Gildenbank",
     ["Replace the guild bank window"] = "Gildenbank-Fenster ersetzen",
     ["Show the guild bank in a matching window with tabs and search. Off = the default guild bank."] = "Zeigt die Gildenbank in einem passenden Fenster mit Tabs und Suche. Aus = das Standard-Gildenbankfenster.",
@@ -1947,7 +1825,6 @@ ns:RegisterLocale("deDE", {
     ["Bank grid columns"] = "Bank-Grid-Spalten",
     ["Reset bank position"] = "Bank-Position zurücksetzen",
     ["Buy the previous slot first."] = "Kaufe zuerst den vorherigen Platz.",
-    -- Bag/bank filter + keyring + quick-drop + bank search/sort (Phase 4 STAGE-2)
     ["Show or hide bags"] = "Taschen ein- oder ausblenden",
     ["Keyring"] = "Schlüsselbund",
     ["No free bag slots."] = "Keine freien Taschenplätze.",
@@ -1959,7 +1836,6 @@ ns:RegisterLocale("deDE", {
     ["Right-click: buy this bag slot."] = "Rechtsklick: diesen Taschenplatz kaufen.",
     ["Show item levels"] = "Itemlevel anzeigen",
     ["Shows the item level on weapons and armor."] = "Zeigt das Itemlevel auf Waffen und Rüstung.",
-    -- Account-gold tooltip (GoldVendors)
     ["Faction/Server Gold:|r"] = "Fraktion/Server Gold:|r",
     ["Account total:|r"] = "Konto gesamt:|r",
     ["<Hold Shift to show the account total>|r"] = "<Shift gedrückt halten, um den Gesamtbetrag des Accounts anzuzeigen>|r",

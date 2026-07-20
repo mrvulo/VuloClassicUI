@@ -1,8 +1,4 @@
--- =========================================================
--- VuloClassicUI / Modules / QueueTimer
--- Formerly: BetterBlizzQueue (Classic variant)
--- Shows a countdown on the PvP/PvE queue pop dialog.
--- =========================================================
+-- QueueTimer: shows a countdown on the PvP/PvE queue pop dialog.
 local _, ns = ...
 local L = ns.L
 
@@ -26,9 +22,6 @@ local soundPlayed
 local isPveQueueActive
 local pveQueuePopTime  -- only in memory; old SV pop time is not migrated
 
--- =========================================================
--- Helpers
--- =========================================================
 local function stopUpdateFrame()
     if updateFrame then
         updateFrame:Hide()
@@ -216,9 +209,6 @@ local function hideOtherTimers()
     end
 end
 
--- =========================================================
--- Hooks (installed once)
--- =========================================================
 local hooksInstalled = false
 local function installHooks()
     if hooksInstalled then return end
@@ -234,9 +224,6 @@ local function installHooks()
     end
 end
 
--- =========================================================
--- Lifecycle
--- =========================================================
 -- Register events only once. Re-enabling the module must not add a second set
 -- of handlers (that would fire queue pops / sounds twice). The handlers below
 -- all gate on mod._enabled, so disabling them is handled by the flag alone.
@@ -274,9 +261,6 @@ function mod:OnEnable()
     end)
 end
 
--- =========================================================
--- Options
--- =========================================================
 function mod:GetOptions()
     return {
         { type = "header", text = L["Sound"] },

@@ -1,26 +1,7 @@
--- =========================================================
--- VuloClassicUI / Core / Container
--- Factory for "group container" modules: collapse every module in a sidebar
--- group into ONE tabbed sidebar entry. Each tab shows an enable/disable switch
--- first, then that sub-module's own options. The container's sidebar power
--- button is a MASTER switch that toggles every sub-module at once (remembering
--- each module's prior state, so turning it back on restores what was on).
---
--- Used by Modules/QoL.lua and Modules/Bugfixes.lua. A container file MUST be
--- listed in the .toc AFTER every module in its group, so the factory sees them
--- all when it scans ns.moduleOrder.
--- =========================================================
+-- Factory collapsing a sidebar group into one tabbed entry. A container file MUST be listed in the .toc AFTER every module in its group, so the ns.moduleOrder scan sees them all.
 local _, ns = ...
 local L = ns.L
 
--- opts = {
---   key          : container module key            (e.g. "qol")
---   name         : display name / English L key     (e.g. "Quality of Life")
---   group        : sidebar group to consolidate      (e.g. "QoL")
---   sidebarOrder : optional in-group ordering (lower = higher up)
---   firstKey     : optional module key forced to the first tab (e.g. "miscqol")
---   exclude      : optional { [key]=true } of group members to keep separate
--- }
 function ns:MakeGroupContainer(opts)
     local mod = ns:RegisterModule(opts.key, {
         name         = opts.name,
@@ -30,9 +11,8 @@ function ns:MakeGroupContainer(opts)
         defaults     = { enabled = true },
     })
 
-    -- Build the tab list now (every sub-module is registered by this point).
     mod.tabs    = {}
-    mod.subKeys = {}   -- flat list of consolidated keys (for the master switch)
+    mod.subKeys = {}
     local exclude = opts.exclude or {}
     local function addTab(key, sub)
         mod.tabs[#mod.tabs + 1]       = { id = key, label = sub.name }
@@ -52,10 +32,6 @@ function ns:MakeGroupContainer(opts)
         end
     end
 
-    -- =========================================================
-    -- Master switch (sidebar power button on the container row)
-    -- =========================================================
-    -- "On" if at least one sub-module is enabled.
     function mod.toggleGet()
         for _, key in ipairs(mod.subKeys) do
             if ns:IsModuleEnabled(key) then return true end
@@ -63,9 +39,7 @@ function ns:MakeGroupContainer(opts)
         return false
     end
 
-    -- Turn every sub-module on/off at once. When switching OFF we remember each
-    -- module's state so switching back ON restores exactly that (instead of
-    -- force-enabling modules that were intentionally off).
+    -- Switching OFF remembers each sub-module's state so switching back ON restores it.
     function mod.toggleSet(v)
         -- per-character saved-state memory (enable is a per-char preference)
         local store
@@ -77,7 +51,7 @@ function ns:MakeGroupContainer(opts)
             local saved = store and store[opts.key]
             for _, key in ipairs(mod.subKeys) do
                 local want = (saved == nil) and true or (saved[key] and true or false)
-                ns:ToggleModule(key, want, true)   -- silent: one summary below
+                ns:ToggleModule(key, want, true)
             end
             if store then store[opts.key] = nil end
             ns:Print(L["%s: modules restored."], L[opts.name])
@@ -85,12 +59,11 @@ function ns:MakeGroupContainer(opts)
             local saved = {}
             for _, key in ipairs(mod.subKeys) do
                 saved[key] = ns:IsModuleEnabled(key)
-                ns:ToggleModule(key, false, true)  -- silent: one summary below
+                ns:ToggleModule(key, false, true)
             end
             if store then store[opts.key] = saved end
             ns:Print(L["%s: all modules off. /reload recommended."], L[opts.name])
         end
-        -- reflect the new state in the sidebar + the open options page
         if ns.UI then
             if ns.UI.RefreshSidebarStates then ns.UI:RefreshSidebarStates() end
             if ns.UI.currentModule == opts.key and ns.UI.currentTab then
@@ -99,9 +72,6 @@ function ns:MakeGroupContainer(opts)
         end
     end
 
-    -- =========================================================
-    -- Per-tab options: enable switch FIRST, then the sub's own options
-    -- =========================================================
     function mod:GetOptions(tabId)
         local sub = tabId and ns.modules[tabId]
         if not sub then
@@ -110,7 +80,6 @@ function ns:MakeGroupContainer(opts)
 
         local items = {}
 
-        -- Enable/disable switch first, so every tab opens with its on/off control.
         items[#items + 1] = {
             type = "toggle", label = L["Module enabled"],
             get = function() return ns:IsModuleEnabled(tabId) end,
@@ -129,7 +98,7 @@ function ns:MakeGroupContainer(opts)
             items[#items + 1] = { type = "spacer", height = 6 }
         end
 
-        -- guard: a broken sub-module GetOptions must not take down the whole page
+        -- a broken sub-module GetOptions must not take down the whole page
         if sub.GetOptions then
             local ok, subItems = pcall(function() return sub:GetOptions() end)
             if ok and type(subItems) == "table" then

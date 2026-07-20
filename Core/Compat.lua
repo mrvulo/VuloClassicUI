@@ -1,19 +1,10 @@
--- =========================================================
--- VuloClassicUI / Core / Compat
--- Cross-client API shims so the same module code runs on every flavor we ship
--- for (Classic Era 1.15.x and BCC/Anniversary 2.5.x).
---
--- Classic Era removed the global bag functions (GetContainerItemInfo, ...) and
--- exposes only C_Container.*; BCC still has the globals. Our modules call the
--- bare global names, so on Era we recreate them from C_Container when missing.
--- Each shim is installed ONLY when the global is absent, so on clients that
--- still have the real function nothing changes.
--- =========================================================
+-- Cross-client API shims (Classic Era 1.15.x + Anniversary 2.5.x); each installs ONLY when the legacy global is absent.
 local _, ns = ...
 
+-- Era removed the global bag functions and exposes only C_Container; BCC still has them.
 local c = _G.C_Container
 if c then
-    -- These keep the legacy single-value / same-argument contract -> safe to alias 1:1.
+    -- same argument/return contract -> safe to alias 1:1
     GetContainerNumSlots     = GetContainerNumSlots     or c.GetContainerNumSlots
     GetContainerItemID       = GetContainerItemID       or c.GetContainerItemID
     GetContainerItemLink     = GetContainerItemLink     or c.GetContainerItemLink
@@ -23,8 +14,7 @@ if c then
     UseContainerItem         = UseContainerItem         or c.UseContainerItem
     SplitContainerItem       = SplitContainerItem       or c.SplitContainerItem
 
-    -- GetContainerItemInfo CHANGED contract: C_Container returns a single table,
-    -- the old global returned a tuple. Re-wrap to the legacy tuple our call sites expect.
+    -- contract CHANGED: C_Container returns one table, the old global a tuple.
     if not GetContainerItemInfo and c.GetContainerItemInfo then
         local getInfo = c.GetContainerItemInfo
         GetContainerItemInfo = function(bag, slot)
@@ -36,19 +26,11 @@ if c then
     end
 end
 
--- =========================================================
--- FUTURE-PROOFING SHIMS. The classic clients trail retail's API removals by a
--- few builds: everything below is either already gone on one of our flavors
--- (addon management + GetMouseFocus on 2.5.5) or only survives as a Blizzard
--- "Deprecated_*" Lua wrapper gated by the loadDeprecationFallbacks CVar, with
--- a TOC note that it dies at the next client jump. Each shim installs ONLY
--- when the legacy global is nil and its modern source exists — a no-op today
--- where the native remains, an invisible safety net the day it disappears.
--- Legacy tuple shapes mirror Blizzard's own wrappers exactly.
--- Test harness on a live client: /console loadDeprecationFallbacks 0 + /reload.
--- =========================================================
+-- Everything below is either already removed on one of our flavors or survives only as a
+-- Blizzard Deprecated_* wrapper gated by the loadDeprecationFallbacks CVar; legacy tuple
+-- shapes mirror those wrappers. Test with: /console loadDeprecationFallbacks 0 + /reload.
 
--- ---- addon management (already REMOVED on 2.5.5; wrapper-only on 1.15.x) ----
+-- addon management: removed on 2.5.5, wrapper-only on 1.15.x
 local ca = _G.C_AddOns
 if ca then
     IsAddOnLoaded     = IsAddOnLoaded     or ca.IsAddOnLoaded
@@ -66,7 +48,7 @@ if ca then
     end
 end
 
--- ---- mouse focus (already removed on BOTH flavors) ---------------------------
+-- mouse focus: removed on both flavors
 if not GetMouseFocus and _G.GetMouseFoci then
     local foci = _G.GetMouseFoci
     GetMouseFocus = function()
@@ -75,13 +57,10 @@ if not GetMouseFocus and _G.GetMouseFoci then
     end
 end
 
--- ---- auras (wrapper-only on BOTH flavors — the natives are already gone) -----
+-- auras: wrapper-only on both flavors, natives already gone
 local cua = _G.C_UnitAuras
 if cua and cua.GetAuraDataByIndex then
-    -- legacy tuple = AuraUtil.UnpackAuraData: name, icon, count, dispelType,
-    -- duration, expirationTime, source, isStealable, nameplateShowPersonal,
-    -- spellId, canApplyAura, isBossAura, castByPlayer, nameplateShowAll,
-    -- timeMod, ...points
+    -- legacy tuple order = AuraUtil.UnpackAuraData
     local function unpackAura(data)
         if not data then return nil end
         if _G.AuraUtil and _G.AuraUtil.UnpackAuraData then
@@ -99,10 +78,7 @@ if cua and cua.GetAuraDataByIndex then
             return unpackAura(cua.GetAuraDataByIndex(unit, index, filter))
         end
     end
-    -- UnitBuff/UnitDebuff must COMBINE the implied flag with any caller
-    -- filter (UnitDebuff(unit, i, "RAID") means HARMFUL|RAID) — exactly what
-    -- the dedicated getters do; a plain `filter or "HELPFUL"` default would
-    -- silently return buffs for a filtered debuff query.
+    -- dedicated getters COMBINE the implied flag with the caller filter (UnitDebuff(u,i,"RAID") = HARMFUL|RAID); a `filter or "HELPFUL"` default would return the wrong auras.
     if not UnitBuff and cua.GetBuffDataByIndex then
         UnitBuff = function(unit, index, filter)
             return unpackAura(cua.GetBuffDataByIndex(unit, index, filter))
@@ -115,7 +91,7 @@ if cua and cua.GetAuraDataByIndex then
     end
 end
 
--- ---- items (wrapper-only on both; C_Item keeps the legacy tuples 1:1) --------
+-- items: wrapper-only on both; C_Item keeps the legacy tuples 1:1
 local ci = _G.C_Item
 if ci then
     GetItemInfo              = GetItemInfo              or ci.GetItemInfo
@@ -130,21 +106,20 @@ if ci then
     GetItemIcon              = GetItemIcon              or ci.GetItemIconByID   -- renamed upstream
 end
 
--- ---- spells (still native on both; C_Spell exists on both = next in line) ----
+-- spells: still native on both, but C_Spell exists = next in line for removal
 local cs = _G.C_Spell
 if cs then
     if not GetSpellInfo and cs.GetSpellInfo then
         GetSpellInfo = function(spell)
             local si = cs.GetSpellInfo(spell)
             if not si then return nil end
-            -- legacy: name, rank(nil), icon, castTime, minRange, maxRange,
-            -- spellID, originalIcon (rank text lives in GetSpellSubtext)
+            -- legacy slot 2 was rank text, which now lives in GetSpellSubtext
             return si.name, nil, si.iconID, si.castTime, si.minRange,
                    si.maxRange, si.spellID, si.originalIconID
         end
     end
     if not GetSpellTexture and cs.GetSpellTexture then
-        GetSpellTexture = cs.GetSpellTexture   -- plain values, same order
+        GetSpellTexture = cs.GetSpellTexture
     end
     if not GetSpellLink and cs.GetSpellLink then
         GetSpellLink = cs.GetSpellLink
@@ -159,7 +134,7 @@ if cs then
     end
 end
 
--- ---- chat plumbing (wrapper-only; ChatFrameUtil is the modern home) ----------
+-- chat: wrapper-only; ChatFrameUtil is the modern home
 if not SendChatMessage and _G.C_ChatInfo and _G.C_ChatInfo.SendChatMessage then
     SendChatMessage = _G.C_ChatInfo.SendChatMessage
 end

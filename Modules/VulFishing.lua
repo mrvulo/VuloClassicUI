@@ -1,11 +1,4 @@
--- =========================================================
--- VuloClassicUI / Modules / VulFishing
--- One-key fishing. A single chosen key dynamically casts Fishing, reels in the
--- bobber (soft-target interact), and applies a lure when one is missing — all
--- via override bindings on a secure button, so it stays taint-safe. While the
--- bobber is out it temporarily enables soft-target interaction + auto-loot.
--- Registered as a QoL sub-module.
--- =========================================================
+-- One-key fishing: one key casts, reels and lures via secure override bindings.
 local _, ns = ...
 
 local mod = ns:RegisterModule("vulfishing", {
@@ -14,24 +7,21 @@ local mod = ns:RegisterModule("vulfishing", {
     description = "One-key fishing: one key casts, reels and applies a lure, and auto-loots your catch.",
     defaults = {
         enabled      = true,
-        key          = "",     -- chosen key token, e.g. "BUTTON4" or "SHIFT-F"
-        lure         = true,   -- auto-apply a lure when missing
-        autoLoot     = true,   -- temp auto-loot while the bobber is out
-        softInteract = true,   -- one-key reel via soft-target interact
-        equipPole    = false,  -- auto-equip a fishing pole from bags
-        quietErrors  = true,   -- hide the reel's "unknown unit / out of range" spam
-        soundBoost   = false,  -- boost effect/master volume while fishing so the bite is clear
-        soundBG      = false,  -- also keep sound playing while the game is in the background
-        soundLevel   = 100,    -- 0-100 % volume to boost to while fishing
-        extra        = {},     -- up to 3 extra item/macro strings used mid-cycle
+        key          = "",
+        lure         = true,
+        autoLoot     = true,
+        softInteract = true,
+        equipPole    = false,
+        quietErrors  = true,
+        soundBoost   = false,
+        soundBG      = false,
+        soundLevel   = 100,
+        extra        = {},
     },
 })
 
 local pairs, ipairs, wipe = pairs, ipairs, wipe
 
--- ---------------------------------------------------------
--- Localization
--- ---------------------------------------------------------
 local L = {
     DESC        = "|cffaaaaaaOne key does it all: cast, reel in, and apply a lure — then auto-loots. Set a key below, face some water, and press it.|r",
     SET_KEY     = "Set fishing key",
@@ -79,9 +69,6 @@ if GetLocale() == "deDE" then
     L.IN_COMBAT = "Angel-Taste kann im Kampf nicht geändert werden."
 end
 
--- ---------------------------------------------------------
--- Data
--- ---------------------------------------------------------
 local FISHING_POLES = {
     [6256] = true, [6365] = true, [6366] = true, [6367] = true, [12225] = true,
     [19022] = true, [19970] = true, [25978] = true,
@@ -89,18 +76,14 @@ local FISHING_POLES = {
 local FISHING_SPELLS = {
     [7620] = true, [7731] = true, [7732] = true, [18248] = true, [33095] = true,
 }
--- best -> worst, by fishing bonus
+-- Ordered best to worst by fishing bonus.
 local LURES = { 6533, 6532, 7307, 6811, 6530, 6529 }
 local LURE_ENCHANTS = { [263] = true, [264] = true, [265] = true, [266] = true, [3868] = true, [4225] = true }
 local FISHING_NAME = PROFESSIONS_FISHING or (GetSpellInfo and GetSpellInfo(7620)) or "Fishing"
 
 local FISH_CVARS = { SoftTargetInteract = "3", SoftTargetInteractRange = "15", SoftTargetInteractRangeIsHard = "0" }
--- while fishing: raise effect + master volume (to soundLevel%) and dim music/ambience so the bite stands out
 local SOUND_DIM = { Sound_MusicVolume = "0", Sound_AmbienceVolume = "0" }
 
--- ---------------------------------------------------------
--- Secure binding owner + macro button
--- ---------------------------------------------------------
 local owner = CreateFrame("Frame", "VulFishOwner", UIParent)
 local macroBtn = CreateFrame("Button", "VulFishMacroButton", UIParent, "SecureActionButtonTemplate")
 macroBtn:SetAttribute("type", "macro")
@@ -108,9 +91,6 @@ macroBtn:RegisterForClicks("AnyUp", "AnyDown")
 
 local midFishing = false
 
--- ---------------------------------------------------------
--- Helpers
--- ---------------------------------------------------------
 local function isFishingSpell(spellID)
     if FISHING_SPELLS[spellID] then return true end
     local n = spellID and GetSpellInfo(spellID)
@@ -138,7 +118,7 @@ end
 local function hasLure()
     local has, _, _, enchID = GetWeaponEnchantInfo()
     if not has then return false end
-    if enchID == nil then return true end         -- can't read id: assume the pole enchant is a lure
+    if enchID == nil then return true end   -- enchant id unreadable on some clients: assume it is a lure
     return LURE_ENCHANTS[enchID] == true
 end
 
@@ -151,22 +131,17 @@ local function bestOwnedLure()
     end
 end
 
--- ---------------------------------------------------------
--- Temp CVars (soft-target interact + auto-loot while fishing)
--- ---------------------------------------------------------
 local cvarCache, cvarsActive = {}, false
 
--- The soft-target CVars are protected during combat: SetCVar() there throws
--- ADDON_ACTION_BLOCKED (e.g. a mob aggros you mid-cast, so the fishing channel
--- stops IN combat and we try to restore). Defer any apply/restore to
--- PLAYER_REGEN_ENABLED while in combat; wantCVars is the state to end up in.
+-- Soft-target CVars are protected in combat (SetCVar throws ADDON_ACTION_BLOCKED),
+-- so apply/restore is deferred to PLAYER_REGEN_ENABLED; wantCVars is the target state.
 local cvarDefer = CreateFrame("Frame")
 cvarDefer:Hide()
 local wantCVars = false
 
 local function applyCVar(k, v)
     local cur = GetCVar(k)
-    if cur == nil then return end          -- CVar doesn't exist on this client (e.g. Classic Era lacks soft-target) -> skip, never SetCVar an unknown name
+    if cur == nil then return end   -- CVar absent on this client version; never SetCVar an unknown name
     if cvarCache[k] == nil then cvarCache[k] = cur end
     SetCVar(k, v)
 end
@@ -205,11 +180,6 @@ local function restoreFishCVars()
     doRestoreFishCVars()
 end
 
--- ---------------------------------------------------------
--- Extra items / macros: used mid-cycle only when "ready", so they never
--- permanently block casting. Items gate on cooldown + their granted buff;
--- macros gate on their [conditions] and/or the spell they cast.
--- ---------------------------------------------------------
 local NUM_EXTRA = 3
 local resolved = {}
 
@@ -287,22 +257,19 @@ local function bindExtra(k, r)
     SetOverrideBindingClick(owner, true, k, "VulFishMacroButton")
 end
 
--- ---------------------------------------------------------
--- Action handler: pick what the key does right now
--- ---------------------------------------------------------
 local function chosenKey()
     return (mod.db.key ~= "" and mod.db.key) or nil
 end
 
+-- Override bindings cannot be changed in combat, hence the lockdown bail-out.
 local function actionHandler()
     if InCombatLockdown() then return end
     local k = chosenKey()
     if not k then ClearOverrideBindings(owner); return end
-    if IsKeyDown and IsKeyDown(k) then return end  -- never rebind while held (guarded: API may be absent)
+    if IsKeyDown and IsKeyDown(k) then return end   -- rebinding a held key breaks the press; API may be absent
     ClearOverrideBindings(owner)
     if UnitIsDeadOrGhost("player") then return end
 
-    -- reel in while a bobber is out
     if midFishing then
         if mod.db.softInteract then
             SetOverrideBinding(owner, true, k, "INTERACTMOUSEOVER")
@@ -312,7 +279,6 @@ local function actionHandler()
         return
     end
 
-    -- equip a pole if asked and none is worn
     if mod.db.equipPole and not poleEquipped() then
         local pole = poleInBags()
         if pole then
@@ -322,7 +288,6 @@ local function actionHandler()
         end
     end
 
-    -- apply a lure if missing
     if mod.db.lure and not hasLure() then
         local lure = bestOwnedLure()
         if lure then
@@ -332,20 +297,15 @@ local function actionHandler()
         end
     end
 
-    -- extra items / macros, only while they are ready (never blocks casting)
     for i = 1, NUM_EXTRA do
         local r = resolved[i]
         if r and extraReady(r) then bindExtra(k, r); return end
     end
 
-    -- default: cast
     SetOverrideBindingSpell(owner, true, k, FISHING_NAME)
 end
 mod._apply = actionHandler
 
--- ---------------------------------------------------------
--- Throttled re-evaluation (reacts to lure applied, pole swapped, etc.)
--- ---------------------------------------------------------
 local accum = 0
 owner:SetScript("OnUpdate", function(_, elapsed)
     if not mod._enabled or not mod.db then return end
@@ -355,11 +315,7 @@ owner:SetScript("OnUpdate", function(_, elapsed)
     if chosenKey() then actionHandler() end
 end)
 
--- ---------------------------------------------------------
--- Events
--- ---------------------------------------------------------
--- Mute the cast/interact error spam ("Unknown unit" / "Out of range") that the
--- one-key reel (INTERACTMOUSEOVER) throws when the bobber isn't the soft target.
+-- INTERACTMOUSEOVER spams UI_ERROR_MESSAGE while the bobber is not the soft target.
 local errQuiet = false
 local function setQuiet(on)
     if not UIErrorsFrame then return end
@@ -394,9 +350,6 @@ end
 local function onRegenEnabled() actionHandler() end
 local function onInvChanged() if not midFishing then actionHandler() end end
 
--- ---------------------------------------------------------
--- Key capture
--- ---------------------------------------------------------
 local capture
 local function refreshKey(k)
     capture:Hide()
@@ -434,9 +387,6 @@ local function startCapture()
     capture:SetPropagateKeyboardInput(false)
 end
 
--- ---------------------------------------------------------
--- Lifecycle
--- ---------------------------------------------------------
 function mod:OnEnable()
     ns:RegisterEvent("UNIT_SPELLCAST_CHANNEL_START", onChannelStart)
     ns:RegisterEvent("UNIT_SPELLCAST_CHANNEL_STOP", onChannelStop)

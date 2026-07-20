@@ -1,8 +1,4 @@
--- =========================================================
--- VuloClassicUI / Modules / MiscQoL ("General")
--- Collection module for all simple QoL toggles that don't need their own
--- module: auto actions, hide features, text sizes.
--- =========================================================
+-- General QoL toggles.
 local _, ns = ...
 local L = ns.L
 
@@ -12,28 +8,22 @@ local mod = ns:RegisterModule("miscqol", {
     description = "Collection of simple quality-of-life toggles: auto-accept (quest, res, summon), auto-sell, repair, hide UI spam, text sizes.",
     defaults    = {
         enabled               = true,
-        -- Character / auto actions
         autoAcceptQuest       = false,
         autoTurnInQuest       = false,
         autoAcceptRes         = true,
         autoAcceptSummon      = false,
         autoReleasePvP        = true,
-        -- Protection: block invites / trades from non-guild, non-friend players
         blockStrangerInvites  = false,
         blockStrangerTrades   = false,
-        -- World
         autoGossip            = false,
         fasterLoot            = true,
         maxCameraZoom         = false,
-        -- Vendor
         autoSellJunk          = true,
         autoRepair            = true,
         maxStackButton        = true,
         skinStackSplit        = true,
-        -- Game menu (Escape)
         skinGameMenu          = true,
         gameMenuButton        = true,
-        -- Visibility
         hideErrors            = false,
         hideZoneText          = false,
         hidePortraitNumbers   = false,
@@ -43,11 +33,9 @@ local mod = ns:RegisterModule("miscqol", {
         hideMacroText         = false,
         hideStackCount        = false,
         hideRaidGroupLabels   = false,
-        -- Text sizes
         mailTextSize          = 13,
         questTextSize         = 14,
         bookTextSize          = 14,
-        -- Flight timer (taxi duration bar)
         flight = {
             enabled    = true,
             chatReport = false,
@@ -56,23 +44,18 @@ local mod = ns:RegisterModule("miscqol", {
             x          = 0,
             y          = 280,
             unlocked   = false,
-            times      = {},   -- "source @ destination" -> seconds (learned)
+            times      = {},
         },
     },
 })
 
--- =========================================================
 -- API compat (Anniversary uses C_Container instead of globals)
--- =========================================================
 local GetContainerNumSlots  = (C_Container and C_Container.GetContainerNumSlots)  or _G.GetContainerNumSlots
 local GetContainerItemInfo  = (C_Container and C_Container.GetContainerItemInfo)  or _G.GetContainerItemInfo
 local UseContainerItem      = (C_Container and C_Container.UseContainerItem)      or _G.UseContainerItem
 local GetContainerItemLink  = (C_Container and C_Container.GetContainerItemLink)  or _G.GetContainerItemLink
 local GetCVarBool           = (C_CVar and C_CVar.GetCVarBool)                     or _G.GetCVarBool
 
--- =========================================================
--- Helpers
--- =========================================================
 local function isJunkLegacy(bag, slot)
     local link = GetContainerItemLink and GetContainerItemLink(bag, slot)
     if not link then return false end
@@ -156,9 +139,6 @@ local function repairAll()
     ns:Print(L["Auto-repaired (%dg %ds)."], g, s)
 end
 
--- =========================================================
--- StackSplitFrame: MAX button (buy/split entire stack directly)
--- =========================================================
 local _stackSplitHooked = false
 
 local function applyMaxStackButton()
@@ -178,10 +158,7 @@ local function setupStackSplitMaxButton()
 
     _stackSplitHooked = true
 
-    -- Extend frame height once so the MAX button fits at the bottom inside.
-    -- Width extension doesn't work because the backdrop in Classic has a
-    -- fixed size and doesn't grow with SetWidth -> button would stick out of
-    -- the dark panel. Bottom position stays cleanly within the backdrop.
+    -- Height only: the Classic backdrop has a fixed size and does not grow with SetWidth.
     if not StackSplitFrame._vcuiHeightExtended then
         StackSplitFrame._vcuiHeightExtended = true
         local h = StackSplitFrame:GetHeight() or 50
@@ -191,7 +168,6 @@ local function setupStackSplitMaxButton()
     local btn = CreateFrame("Button", "VCUI_StackSplitMaxButton", StackSplitFrame, "UIPanelButtonTemplate")
     btn:SetSize(80, 22)
     btn:SetText(L["MAX"])
-    -- Centered at the bottom inside edge of the popup
     btn:ClearAllPoints()
     btn:SetPoint("BOTTOM", StackSplitFrame, "BOTTOM", 0, 8)
     btn:SetFrameLevel(StackSplitFrame:GetFrameLevel() + 2)
@@ -199,9 +175,7 @@ local function setupStackSplitMaxButton()
         local maxStack = StackSplitFrame.maxStack or 1
         if maxStack < 1 then return end
 
-        -- Classic/Anniversary: StackSplitFrame.split is a NUMBER (current value),
-        -- the OK handler reads it directly via StackSplitFrame.owner:SplitStack(.split).
-        -- Retail: .split is an EditBox with :SetNumber().
+        -- Classic/Anniversary: .split is a NUMBER read by the OK handler; Retail: an EditBox.
         local s = StackSplitFrame.split
         if type(s) == "number" then
             StackSplitFrame.split = maxStack
@@ -212,12 +186,10 @@ local function setupStackSplitMaxButton()
             s:SetNumber(maxStack)
         end
 
-        -- Clicking OK triggers merchant buy or bag split with the set value
         local ok = StackSplitFrame.okayButton or _G.StackSplitOkayButton
         if ok and ok.Click then ok:Click() end
     end)
 
-    -- Show/hide in sync with the popup
     StackSplitFrame:HookScript("OnShow", function()
         btn:SetShown(mod.db.maxStackButton ~= false)
     end)
@@ -226,13 +198,7 @@ local function setupStackSplitMaxButton()
     end)
 end
 
--- =========================================================
--- StackSplitFrame: VuloUI skin. Pure restyle — every Blizzard behavior
--- (typing digits, arrow buttons, okay/cancel/split handlers) stays untouched;
--- we only blank the gold artwork and dress the same frames in the addon look.
--- One-way per session: turning the option off needs a /reload (stated in the
--- tooltip), turning it on applies immediately.
--- =========================================================
+-- StackSplitFrame skin: pure restyle; turning the option off needs a /reload.
 local _stackSplitSkinned = false
 
 local function setupStackSplitSkin()
@@ -246,8 +212,7 @@ local function setupStackSplitSkin()
     local ac = (ns.COLORS and ns.COLORS.accent) or { r = 0.608, g = 0.424, b = 1 }
     local bc = (ns.COLORS and ns.COLORS.border) or { r = 0.22, g = 0.22, b = 0.27 }
 
-    -- shared font objects for the panel buttons (a button swaps its label's
-    -- FontObject on hover/disable, so per-FontString SetFont would not stick)
+    -- shared font objects: buttons swap FontObject on hover/disable, so per-FontString SetFont would not stick
     local fontN = _G.VCUI_SplitFontNormal or CreateFont("VCUI_SplitFontNormal")
     local fontH = _G.VCUI_SplitFontHighlight or CreateFont("VCUI_SplitFontHighlight")
     local fontD = _G.VCUI_SplitFontDisabled or CreateFont("VCUI_SplitFontDisabled")
@@ -269,7 +234,6 @@ local function setupStackSplitSkin()
         end
     end
 
-    -- 1px edge helper (same look as the shared widget buttons)
     local function addEdges(owner, holder)
         local edges = {}
         for i = 1, 4 do
@@ -289,7 +253,7 @@ local function setupStackSplitSkin()
     local function skinPanelButton(b)
         if not b or b._vcuiSkin then return end
         b._vcuiSkin = true
-        stripTextures(b)   -- gold panel art incl. highlight/pushed
+        stripTextures(b)
         local bg = b:CreateTexture(nil, "BACKGROUND")
         bg:SetAllPoints(b)
         bg:SetColorTexture(0.13, 0.13, 0.16, 1)
@@ -329,7 +293,6 @@ local function setupStackSplitSkin()
         b:HookScript("OnEnable",  tint)
     end
 
-    -- ---- the panel itself -----------------------------------------------
     stripTextures(f)
     if f.NineSlice and f.NineSlice.SetAlpha then f.NineSlice:SetAlpha(0) end
     if f.Border and f.Border.SetAlpha then f.Border:SetAlpha(0) end
@@ -344,7 +307,6 @@ local function setupStackSplitSkin()
     end
     f:SetSize(214, 88)
 
-    -- ---- amount display: dark inset box behind the number ----------------
     local box = CreateFrame("Frame", nil, f)
     box:SetSize(104, 28)
     box:SetPoint("TOP", f, "TOP", 0, -14)
@@ -355,9 +317,7 @@ local function setupStackSplitSkin()
 
     local txt = _G.StackSplitText
     if txt then
-        -- the text is a BACKGROUND region of f itself; the box child frame
-        -- (higher frame level) would draw its opaque bg OVER it. Adopt the
-        -- text into the box on the OVERLAY layer so the number always wins.
+        -- the text is a BACKGROUND region of f; adopt it into the box on OVERLAY so the number is not covered
         txt:SetParent(box)
         txt:SetDrawLayer("OVERLAY")
         txt:ClearAllPoints()
@@ -366,9 +326,6 @@ local function setupStackSplitSkin()
         txt:SetTextColor(1, 1, 1)
     end
 
-    -- ---- arrows left/right of the box ------------------------------------
-    -- name varies by client XML ($parent prefix vs fixed); cover all forms —
-    -- a miss just leaves that arrow unskinned, nothing breaks
     local left  = f.leftButton or f.LeftButton
         or _G.StackSplitLeftButton or _G.StackSplitFrameLeftButton
     local right = f.rightButton or f.RightButton
@@ -386,7 +343,6 @@ local function setupStackSplitSkin()
         right:SetSize(22, 22)
     end
 
-    -- ---- one clean button row: OK | MAX | Cancel --------------------------
     local okBtn  = StackSplitFrame.okayButton  or _G.StackSplitOkayButton
     local cancel = StackSplitFrame.cancelButton or _G.StackSplitCancelButton
     local maxBtn = _G.VCUI_StackSplitMaxButton
@@ -410,9 +366,6 @@ local function setupStackSplitSkin()
     end
 end
 
--- =========================================================
--- Event handlers
--- =========================================================
 local function onMerchantShow()
     if mod.db.autoSellJunk then sellAllJunk() end
     if mod.db.autoRepair   then repairAll()   end
@@ -454,7 +407,6 @@ end
 
 local function onQuestProgress()
     if not mod.db.autoTurnInQuest then return end
-    -- When all quest items are turned in -> CompleteQuest triggers QUEST_COMPLETE
     if IsQuestCompletable and IsQuestCompletable() and CompleteQuest then
         CompleteQuest()
     end
@@ -470,7 +422,6 @@ local function onQuestComplete()
     end
 end
 
--- Soulstone / Reincarnation / self-res available? Then never auto-release.
 local function hasSelfRes()
     if C_DeathInfo and C_DeathInfo.GetSelfResurrectOptions then
         local ok, t = pcall(C_DeathInfo.GetSelfResurrectOptions)
@@ -490,11 +441,6 @@ local function onPlayerDead()
     end
 end
 
--- =========================================================
--- World: gossip automation, faster loot, max camera zoom
--- =========================================================
-
--- Single-option gossip without quests -> select it (hold SHIFT to skip)
 local function onGossipShow()
     if not mod.db.autoGossip then return end
     if IsShiftKeyDown and IsShiftKeyDown() then return end
@@ -515,9 +461,7 @@ local function onGossipShow()
     end
 end
 
--- Faster auto-loot: grab all slots at once instead of Blizzard's
--- one-item-at-a-time crawl. Only acts when auto-loot actually applies
--- (CVar XOR held auto-loot modifier key), so manual looting is untouched.
+-- Faster auto-loot: only acts when auto-loot applies (CVar XOR modifier key), so manual looting is untouched.
 local _lastFastLoot = 0
 local function onLootReady()
     if not mod.db.fasterLoot then return end
@@ -526,7 +470,7 @@ local function onLootReady()
     _lastFastLoot = now
     local cvarAuto  = GetCVarBool and GetCVarBool("autoLootDefault") and true or false
     local modifier  = IsModifiedClick and IsModifiedClick("AUTOLOOTTOGGLE") and true or false
-    if cvarAuto == modifier then return end  -- auto-loot not active for this window
+    if cvarAuto == modifier then return end
     if not GetNumLootItems or not LootSlot then return end
     for i = GetNumLootItems(), 1, -1 do
         LootSlot(i)
@@ -534,7 +478,7 @@ local function onLootReady()
 end
 
 local CAMERA_CVAR    = "cameraDistanceMaxZoomFactor"
-local CAMERA_MAX     = 3.4   -- client clamps if its cap is lower
+local CAMERA_MAX     = 3.4
 local CAMERA_DEFAULT = 1.9
 
 local function applyMaxCameraZoom()
@@ -542,9 +486,6 @@ local function applyMaxCameraZoom()
     pcall(SetCVar, CAMERA_CVAR, mod.db.maxCameraZoom and CAMERA_MAX or CAMERA_DEFAULT)
 end
 
--- =========================================================
--- Visibility toggles
--- =========================================================
 local function applyHideErrors()
     if not UIErrorsFrame then return end
     if mod.db.hideErrors then
@@ -564,9 +505,7 @@ local function applyHideZoneText()
         if zt  then zt:UnregisterAllEvents();  zt:Hide()  end
         if szt then szt:UnregisterAllEvents(); szt:Hide() end
     else
-        -- Re-register events; do NOT call :Show() directly — FadingFrame OnUpdate
-        -- crashes with 'startTime nil' if frame wasn't shown via FadingFrame_Show().
-        -- Blizzard will show + fade on the next zone change itself.
+        -- Never :Show() directly - FadingFrame OnUpdate errors with nil startTime unless shown via FadingFrame_Show().
         if zt then
             zt:RegisterEvent("ZONE_CHANGED")
             zt:RegisterEvent("ZONE_CHANGED_NEW_AREA")
@@ -588,11 +527,7 @@ local function applyHidePortraitNumbers()
     end
 end
 
--- Hit indicators (the damage/heal number that flashes on a portrait) blur
--- because Blizzard's combat-feedback animation SCALES the font up over time
--- (fractional pixel sizes). Re-font crisply at a fixed size, then freeze
--- SetFont/SetTextHeight so the animation can't rescale it -- only the alpha
--- fade remains. Restoring the captured originals turns it back to default.
+-- Blizzard's combat-feedback animation rescales the font (blurry); freeze SetFont/SetTextHeight at a fixed size.
 local function applyHitNumberFont(fs, on, size)
     if not fs then return end
     if on then
@@ -655,13 +590,7 @@ local function applyHideStackCount()
     end)
 end
 
--- Hide the "Group 1"/"Group 2" labels above the compact raid frames.
--- CompactRaidGroup* are Blizzard SECURE frames: calling :Hide()/:Show() on a
--- child triggers the container's protected relayout and taints the whole
--- compact-frame update path (it shows up as a blocked CompactUnitFrame SetSize).
--- So: (1) never touch them in combat, (2) only touch when we actually need to
--- (the default-off case must not poke the frames at all), and (3) use SetAlpha
--- (a pure cosmetic property that does NOT trigger a relayout) instead of Hide/Show.
+-- CompactRaidGroup* are secure: Hide/Show taints the compact-frame layout, so use SetAlpha and never touch them in combat.
 local function applyHideRaidGroupLabels()
     if InCombatLockdown() then return end
     local hide = mod.db.hideRaidGroupLabels and true or false
@@ -672,7 +601,7 @@ local function applyHideRaidGroupLabels()
             if hide then
                 title:SetAlpha(0)
                 g._vcuiLabelHidden = true
-            elseif g._vcuiLabelHidden then   -- only restore what we hid (no gratuitous touch)
+            elseif g._vcuiLabelHidden then
                 title:SetAlpha(1)
                 g._vcuiLabelHidden = nil
             end
@@ -680,9 +609,6 @@ local function applyHideRaidGroupLabels()
     end
 end
 
--- =========================================================
--- Text sizes
--- =========================================================
 local function setFontSize(fontObject, size)
     if not fontObject or not fontObject.GetFont then return end
     if not size or size <= 0 then return end
@@ -721,16 +647,10 @@ local function applyAllVisibility()
     applyMaxCameraZoom()
 end
 
--- =========================================================
--- Flight timer: progress bar for taxi flights (gryphon & co.)
--- Hooks TakeTaxiNode for source/destination, learns each route's
--- duration and shows a DRAINING countdown bar on known routes.
--- Strictly taxi-only: visibility is tied to UnitOnTaxi, so it can
--- never stick around while you ride your own mount.
--- =========================================================
+-- Flight timer: taxi duration bar; visibility is tied to UnitOnTaxi.
 local FT_FONT = "Fonts\\FRIZQT__.TTF"
 local ftBar
-local ftFlight            -- { src, dst, key, t0, known } while flying
+local ftFlight
 local ftThrottle = 0
 
 local function ftDB() return mod.db.flight end
@@ -744,9 +664,7 @@ local function ftRouteKey(src, dst)
     return (src or "?") .. " @ " .. (dst or "?")
 end
 
--- Valid English node names, harvested once from the shipped DB. Lets us
--- recognise the node segment directly on English clients and pick the node
--- (not the zone) out of a multi-part name.
+-- English node names harvested from the shipped DB, to pick the node (not the zone) out of a multi-part name.
 local ftNodeSet
 local function ftEnglishNodes()
     if ftNodeSet then return ftNodeSet end
@@ -763,13 +681,7 @@ local function ftEnglishNodes()
     return ftNodeSet
 end
 
--- Resolve a raw client taxi name to (germanNodeName, englishKey).
--- The client formats the CURRENT node as "Zone, Node, Faction" but a
--- DESTINATION as "Node, Zone" -- so taking the part before the first comma
--- grabs the zone for sources. Instead test EVERY comma-separated segment
--- against the German->English map and the English node set (case-insensitive,
--- since client casing varies e.g. "das Dunkle Portal") and pick the segment
--- that is an actual flight node.
+-- Resolve a raw taxi name: the client formats the current node as "Zone, Node, Faction" but a destination as "Node, Zone", so every segment is tested.
 local function ftResolve(raw)
     if not raw then return "?", nil end
     local de = ns.FLIGHT_NODE_DE or {}
@@ -778,26 +690,20 @@ local function ftResolve(raw)
     for s in (raw .. ","):gmatch("%s*(.-)%s*,") do
         if s ~= "" then segs[#segs + 1] = s end
     end
-    -- pass 1: exact (German map, then English node set)
     for _, s in ipairs(segs) do
         if de[s] then return s, de[s] end
         if en[s] then return s, en[s] end
     end
-    -- pass 2: case-insensitive
     for _, s in ipairs(segs) do
         local l = s:lower()
         for k, v in pairs(de) do if k:lower() == l then return s, v end end
         for k, v in pairs(en) do if k:lower() == l then return s, v end end
     end
-    -- nothing matched: keep the first segment for display, no DB key
     return segs[1] or raw, nil
 end
 
--- Short, human-readable node name for display (German node, no zone suffix).
 local function ftShort(name)
     local s = (ftResolve(name))
-    -- the German client returns node names with a lowercase leading article
-    -- (e.g. "das Dunkle Portal"); capitalize the first letter for display only
     if s and s ~= "" then s = (s:gsub("^%a", string.upper)) end
     return s
 end
@@ -814,7 +720,7 @@ local function ftDefaultTime(src, dst)
     return s and d and routes[s] and routes[s][d] or nil
 end
 
-local FT_INSET = 4   -- fill sits inside the tooltip border
+local FT_INSET = 4
 
 local function ftSetFill(frac)
     frac = math.max(0, math.min(1, frac or 0))
@@ -837,7 +743,6 @@ local function ftBuildBar()
     if ftBar then return ftBar end
     local d = ftDB()
 
-    -- InFlight-style: tooltip border + dark backdrop, glossy blue fill
     ftBar = CreateFrame("Frame", "VCUI_FlightTimer", UIParent,
         BackdropTemplateMixin and "BackdropTemplate")
     ftBar:SetSize(d.barWidth, d.barHeight)
@@ -908,7 +813,6 @@ end
 local function ftStop(recordIt)
     if not ftFlight then return end
     local dur = GetTime() - ftFlight.t0
-    -- Only record plausible flights (a cancelled click is shorter than 5s)
     if recordIt and dur > 5 then
         ftDB().times[ftFlight.key] = math.floor(dur + 0.5)
         if ftDB().chatReport then
@@ -917,7 +821,7 @@ local function ftStop(recordIt)
         end
     end
     ftFlight = nil
-    ftDB().inFlight = nil  -- persisted reload-resume marker
+    ftDB().inFlight = nil
     if ftBar then ftBar:Hide() end
 end
 
@@ -925,24 +829,21 @@ local function ftOnUpdate(_, elapsed)
     ftThrottle = ftThrottle + elapsed
     if ftThrottle < 0.1 then return end
     ftThrottle = 0
-    if ftDB().unlocked then return end  -- preview owns the bar
+    if ftDB().unlocked then return end
     if not ftFlight then return end
 
     local elapsedT = GetTime() - ftFlight.t0
 
-    -- Hard taxi check: the moment we're not on a taxi anymore (landed,
-    -- own mount, whatever) the bar goes away. 3s grace for boarding.
+    -- 3s grace for boarding, then leaving the taxi always hides the bar
     if elapsedT > 3 and not UnitOnTaxi("player") then
         ftStop(elapsedT > 5)
         return
     end
 
     if ftFlight.known and ftFlight.known > 0 then
-        -- Known route: bar fills towards arrival, "elapsed / total" readout
         ftSetFill(elapsedT / ftFlight.known)
         ftBar.time:SetText(ftFmt(math.min(elapsedT, ftFlight.known)) .. " / " .. ftFmt(ftFlight.known))
     else
-        -- Learning flight: no total yet -> empty bar, counting "1:58 / ?"
         ftSetFill(0)
         ftBar.time:SetText(ftFmt(elapsedT) .. " / ?")
     end
@@ -967,14 +868,11 @@ local function ftOnTakeTaxi(slot)
         dst   = dst,
         key   = key,
         t0    = GetTime(),
-        -- measured time first, shipped default as fallback
         known = ftDB().times[key] or ftDefaultTime(src, dst),
     }
-    -- Persist for /reload mid-flight: epoch-stamped so the elapsed time
-    -- keeps running while the UI is away (the flight itself continues).
+    -- persist for /reload mid-flight (epoch-stamped so elapsed keeps running)
     ftDB().inFlight = { src = src, dst = dst, key = key, start = time() }
 
-    -- /vcuiflug: dump exactly what the resolver sees (route DB debugging)
     if ftDB().debug then
         local s, se = ftResolve(src)
         local d2, de2 = ftResolve(dst)
@@ -998,8 +896,6 @@ local function ftOnTakeTaxi(slot)
     ftSetFill(0)
     ftBar:Show()
 
-    -- The click can fail (no money, combat...): if we never took off,
-    -- discard the pending flight again.
     if C_Timer and C_Timer.After then
         C_Timer.After(2, function()
             if ftFlight and ftFlight.key == key and not UnitOnTaxi("player") then
@@ -1016,8 +912,6 @@ local function ftOnControlGained()
 end
 
 local function ftOnWorldEnter()
-    -- Resume after /reload mid-flight: restore the bar with the elapsed
-    -- time reconstructed from the persisted epoch departure stamp.
     local saved = ftDB().inFlight
     if not ftFlight and saved then
         if UnitOnTaxi("player") then
@@ -1033,8 +927,6 @@ local function ftOnWorldEnter()
             ftBar.label:SetText(ftShort(saved.dst))
             ftBar:Show()
         else
-            -- Landed (or logged out) while the UI was away: the true landing
-            -- moment is unknown -> discard instead of recording a wrong time.
             ftDB().inFlight = nil
         end
     end
@@ -1062,7 +954,6 @@ local function ftSetUnlocked(state)
     end
 end
 
--- Debug toggle for the route resolver (prints details on each taxi click)
 SLASH_VCUIFLUG1 = "/vcuiflug"
 SlashCmdList.VCUIFLUG = function()
     local d = mod.db and mod.db.flight
@@ -1073,10 +964,7 @@ end
 
 local ftTaxiHooked = false
 local function ftInit()
-    -- The shipped route database lives in a separate file added to the .toc.
-    -- /reload does NOT re-read the .toc, so right after an update the file is
-    -- absent until the game is fully restarted -> every shipped time shows "?".
-    -- Detect that and tell the user once instead of failing silently.
+    -- /reload does not re-read the .toc, so after an update the route DB file is absent until a full restart.
     if not ns.FLIGHT_TIMES and not ns._flightDBWarned then
         ns._flightDBWarned = true
         ns:Print(L["|cffff8800Flight route database not loaded.|r Fully restart WoW (a /reload is not enough after an update) so the flight times work."])
@@ -1097,22 +985,19 @@ local function ftInit()
     ftBuildBar()
     ftBar:SetScript("OnUpdate", ftOnUpdate)
     if not ftTaxiHooked and type(TakeTaxiNode) == "function" then
-        ftTaxiHooked = true  -- hooksecurefunc is permanent; gated on flags
+        ftTaxiHooked = true
         hooksecurefunc("TakeTaxiNode", ftOnTakeTaxi)
     end
 end
 
--- =========================================================
--- Block invites / trades from strangers (not guild, not on the friends list)
--- =========================================================
 local function normName(name)
     if not name or name == "" then return nil end
-    name = name:match("^([^-]+)") or name   -- strip a trailing "-Realm"
+    name = name:match("^([^-]+)") or name
     return name:lower()
 end
 
-local trustedNames = {}        -- normalized name -> true (friends + guild)
-local guildRosterLoaded = false  -- becomes true once GUILD_ROSTER_UPDATE has fired
+local trustedNames = {}
+local guildRosterLoaded = false
 local function rebuildTrusted()
     wipe(trustedNames)
     if C_FriendList and C_FriendList.GetNumFriends then
@@ -1140,9 +1025,8 @@ end
 
 local function isStranger(name)
     local nm = normName(name)
-    if not nm then return false end   -- unknown -> never block
-    -- In a guild but the roster hasn't arrived yet -> fail open (request it and
-    -- allow), so we never decline a real guildmate before the roster loads.
+    if not nm then return false end
+    -- roster not loaded yet -> fail open so a real guildmate is never declined
     if IsInGuild and IsInGuild() and not guildRosterLoaded then
         if GuildRoster then GuildRoster() end
         return false
@@ -1159,8 +1043,7 @@ local function onPartyInvite(_, name)
     end
 end
 
--- Trades open a window for both parties (no accept popup), so we must skip the
--- ones the player started themselves — hooking InitiateTrade flags those.
+-- Trades have no accept popup; the InitiateTrade hook flags player-started trades so they are skipped.
 local userInitiatedTrade = false
 local function checkTrade()
     if not mod.db.blockStrangerTrades then return end
@@ -1173,22 +1056,16 @@ local function checkTrade()
 end
 local function onTradeShow()
     if not mod.db.blockStrangerTrades then return end
-    -- defer one frame so the recipient name field is populated
     if C_Timer and C_Timer.After then C_Timer.After(0, checkTrade) else checkTrade() end
 end
 local function onTradeClosed() userInitiatedTrade = false end
 
--- =========================================================
--- Game menu (Escape): house-style skin + a VuloClassicUI button that opens the
--- options window. The menu rebuilds its buttons from a pool on every open
--- (Layout/InitButtons), so the skin hooks those; everything is insecure.
--- =========================================================
+-- Game menu (Escape): skin + options button. The menu rebuilds its buttons from a pool on every open.
 local gameMenuDone = false
 
 local function skinMenuButton(b, bc)
     if not b or b._vcuiSkin then return end
     b._vcuiSkin = true
-    -- a touch taller than Blizzard's default — the flat look breathes better
     b:SetHeight((b:GetHeight() or 26) + 4)
     local fs = b.GetFontString and b:GetFontString()
     for i = 1, select("#", b:GetRegions()) do
@@ -1237,7 +1114,6 @@ local function setupGameMenu()
     local ac = ns.COLORS and ns.COLORS.accent or { r = 0.608, g = 0.424, b = 1 }
     local bc = ns.COLORS and (ns.COLORS.borderDark or ns.COLORS.border) or { r = 0.15, g = 0.15, b = 0.18 }
 
-    -- ---- skin ----
     if mod.db.skinGameMenu then
         for i = 1, select("#", GameMenuFrame:GetRegions()) do
             local r = select(i, GameMenuFrame:GetRegions())
@@ -1258,8 +1134,6 @@ local function setupGameMenu()
             end
             header:ClearAllPoints()
             header:SetPoint("TOP", GameMenuFrame, "TOP", 0, -10)
-            -- moved inside the frame it can overlap the first button — it's
-            -- decorative, so it must never swallow clicks
             if header.EnableMouse then header:EnableMouse(false) end
         end
         if UIW and UIW.StyleBackdrop then
@@ -1283,7 +1157,6 @@ local function setupGameMenu()
         end
     end
 
-    -- ---- our button ----
     if mod.db.gameMenuButton and GameMenuFrame.Layout then
         local btn = CreateFrame("Button", "VCUI_GameMenuButton", GameMenuFrame, "MainMenuFrameButtonTemplate")
         btn:SetSize(200, 35)
@@ -1303,7 +1176,6 @@ local function setupGameMenu()
             if not (mod.active and mod.db.gameMenuButton) then btn:Hide(); return end
             if not GameMenuFrame.buttonPool then btn:Hide(); return end
 
-            -- anchor below the shop button (fall back to options)
             local anchor
             for menuBtn in GameMenuFrame.buttonPool:EnumerateActive() do
                 local text = menuBtn:GetText()
@@ -1324,7 +1196,6 @@ local function setupGameMenu()
             btn:ClearAllPoints()
             btn:SetPoint("TOP", anchor, "BOTTOM", 0, -12)
 
-            -- push every pooled button below the anchor down by our height
             local extraH = 40
             local anchorBottom = anchor:GetBottom()
             if anchorBottom then
@@ -1345,9 +1216,6 @@ local function setupGameMenu()
     end
 end
 
--- =========================================================
--- Lifecycle
--- =========================================================
 local function onPlayerLogin()
     applyAllVisibility()
     setupGameMenu()
@@ -1368,7 +1236,6 @@ function mod:OnEnable()
     ns:RegisterEvent("PLAYER_LOGIN",          onPlayerLogin)
     ns:RegisterEvent("PLAYER_CONTROL_GAINED", ftOnControlGained)
     ns:RegisterEvent("PLAYER_ENTERING_WORLD", ftOnWorldEnter)
-    -- Block strangers (invites + trades)
     ns:RegisterEvent("PARTY_INVITE_REQUEST",  onPartyInvite)
     ns:RegisterEvent("TRADE_SHOW",            onTradeShow)
     ns:RegisterEvent("TRADE_CLOSED",          onTradeClosed)
@@ -1384,13 +1251,12 @@ function mod:OnEnable()
 
     if ns.isInitialised then
         applyAllVisibility()
-        setupGameMenu()   -- covers enabling the module after login
+        setupGameMenu()
     elseif C_Timer and C_Timer.After then
         C_Timer.After(1, applyAllVisibility)
     end
 
-    -- StackSplit MAX button + skin (deferred in case the frame isn't there
-    -- yet; skin AFTER the button so it gets dressed and re-anchored too)
+    -- deferred in case the frame is not there yet; skin AFTER the button so it is dressed and re-anchored too
     if C_Timer and C_Timer.After then
         C_Timer.After(0.5, function()
             setupStackSplitMaxButton()
@@ -1427,17 +1293,12 @@ function mod:OnDisable()
         if ftBar.mover then ftBar.mover:Hide() end
         ftBar:Hide()
     end
-    -- Module off -> hand the camera distance back to the game default
     if mod.db.maxCameraZoom and SetCVar then
         pcall(SetCVar, CAMERA_CVAR, CAMERA_DEFAULT)
     end
 end
 
--- =========================================================
--- Macro Factory — one click builds a ready-to-use, language-independent macro
--- (per character). The user then drags it from /macro onto the action bar.
--- =========================================================
--- Healing potions, best tier first; the macro bakes in whichever you carry.
+-- Macro Factory: builds per-character macros; potion IDs are best tier first.
 local POTION_IDS = { 22829, 13446, 3928, 1710, 929, 118 }
 local function potionBody()
     for _, id in ipairs(POTION_IDS) do
@@ -1475,7 +1336,7 @@ local function makeMacro(def)
         EditMacro(existing, def.name, def.icon, body)
         ns:Print(L["Macro '%s' updated — drag it from |cffffffff/macro|r onto your action bar."], def.name)
     elseif CreateMacro then
-        local ok = pcall(CreateMacro, def.name, def.icon, body, true)  -- per-character
+        local ok = pcall(CreateMacro, def.name, def.icon, body, true)
         if ok then
             ns:Print(L["Macro '%s' created — open |cffffffff/macro|r and drag it onto your action bar."], def.name)
         else
@@ -1484,9 +1345,6 @@ local function makeMacro(def)
     end
 end
 
--- =========================================================
--- Options
--- =========================================================
 function mod:GetOptions()
     local function tgl(key, label, tooltip, applyFn)
         return {
@@ -1499,7 +1357,6 @@ function mod:GetOptions()
         }
     end
 
-    -- Macro Factory buttons, laid out 3 per row
     local macroItems = {
         { type = "desc",
           text = L["|cffaaaaaaOne click builds a ready-made macro (per character). Then open |cffffffff/macro|r and drag it onto your action bar. Works on any client — uses item slots / IDs, no English needed.|r"] },

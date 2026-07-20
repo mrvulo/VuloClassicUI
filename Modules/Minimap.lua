@@ -1,10 +1,4 @@
--- =========================================================
--- VuloClassicUI / Modules / Minimap
--- Minimap button to open VuloClassicUI.
--- Left click: open/close the UI
--- Right click: module list as dropdown
--- Shift+Drag: change position on the minimap
--- =========================================================
+-- Minimap button: left click opens the UI, right click the module dropdown, Shift+drag moves it.
 local _, ns = ...
 local L = ns.L
 
@@ -21,9 +15,6 @@ local mod = ns:RegisterModule("minimap", {
 
 local button
 
--- =========================================================
--- Create button
--- =========================================================
 local function createButton()
     if button then return button end
 
@@ -36,13 +27,11 @@ local function createButton()
     button:SetMovable(true)
     button:EnableMouse(true)
 
-    -- Background ring (standard minimap button look)
     button.bg = button:CreateTexture(nil, "BACKGROUND")
     button.bg:SetSize(20, 20)
     button.bg:SetPoint("CENTER", 0, 1)
     button.bg:SetTexture("Interface\\Minimap\\UI-Minimap-Background")
 
-    -- Icon texture
     button.icon = button:CreateTexture(nil, "ARTWORK")
     button.icon:SetSize(20, 20)
     button.icon:SetPoint("CENTER", 0, 1)
@@ -58,18 +47,13 @@ local function createButton()
     button.icon:SetTexture(iconPath)
     button.icon:SetTexCoord(0, 1, 0, 1)
 
-    -- Border (standard ring)
     button.border = button:CreateTexture(nil, "OVERLAY")
     button.border:SetSize(54, 54)
     button.border:SetPoint("TOPLEFT", 0, 0)
     button.border:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
 
-    -- Highlight on hover
     button:SetHighlightTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
 
-    -- =========================================================
-    -- Click handler
-    -- =========================================================
     button:SetScript("OnClick", function(_, mouseBtn)
         if mouseBtn == "LeftButton" then
             if ns.UI and ns.UI.ToggleMainFrame then
@@ -78,14 +62,10 @@ local function createButton()
                 ns:Print(L["UI is not loaded yet."])
             end
         elseif mouseBtn == "RightButton" then
-            -- Dropdown with module list
             mod:ShowDropdown()
         end
     end)
 
-    -- =========================================================
-    -- Drag handler (only with shift)
-    -- =========================================================
     button:SetScript("OnDragStart", function(self)
         if IsShiftKeyDown() then
             self.isMoving = true
@@ -97,9 +77,6 @@ local function createButton()
         self:SetScript("OnUpdate", nil)
     end)
 
-    -- =========================================================
-    -- Tooltip
-    -- =========================================================
     button:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_LEFT")
         GameTooltip:AddLine((ns.C and ns.C.accent or "|cff9b6cff") .. "VuloClassicUI|r")
@@ -113,9 +90,6 @@ local function createButton()
     return button
 end
 
--- =========================================================
--- Compute position on the minimap
--- =========================================================
 local function updatePosition()
     if not button then return end
     local angle  = math.rad(mod.db.angle or 215)
@@ -128,7 +102,6 @@ end
 
 mod.UpdatePosition = updatePosition
 
--- OnUpdate while dragging: compute angle from mouse position
 function mod.OnUpdatePosition()
     if not button or not button.isMoving then return end
     local mx, my = Minimap:GetCenter()
@@ -142,9 +115,6 @@ function mod.OnUpdatePosition()
     updatePosition()
 end
 
--- =========================================================
--- Visibility
--- =========================================================
 local function applyVisibility()
     if not button then return end
     if mod.db.hide then button:Hide() else button:Show() end
@@ -152,10 +122,7 @@ end
 
 mod.ApplyVisibility = applyVisibility
 
--- =========================================================
--- Dropdown with module list (right click)
--- Uses ns:ShowPopupMenu helper (EasyMenu is unreliable in Anniversary)
--- =========================================================
+-- Uses the ns:ShowPopupMenu helper (EasyMenu is unreliable in Anniversary)
 function mod:ShowDropdown(anchor)
     local entries = {
         { title = true, text = (ns.C and ns.C.accent or "|cff9b6cff") .. "VuloClassicUI|r" },
@@ -164,7 +131,6 @@ function mod:ShowDropdown(anchor)
         { separator = true },
     }
 
-    -- Module list with checkbox toggles (keepOpen so user can toggle multiple)
     for _, key in ipairs(ns.moduleOrder) do
         local m = ns.modules[key]
         if m and m.db then
@@ -184,18 +150,12 @@ function mod:ShowDropdown(anchor)
     ns:ShowPopupMenu(entries, anchor or "cursor")
 end
 
--- =========================================================
--- Lifecycle
--- =========================================================
 function mod:OnEnable()
     createButton()
     updatePosition()
     applyVisibility()
 end
 
--- =========================================================
--- Options section
--- =========================================================
 function mod:GetOptions()
     return {
         { type = "header", text = L["Minimap"] },

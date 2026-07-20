@@ -2,11 +2,10 @@
 
 local _G, type, string, tonumber, table, pairs, select = _G, type, string, tonumber, table, pairs, select
 
--- Single source of truth: VuloClassicUI's canonical flags (raw check as fallback).
 local _vui = _G.VuloClassicUI
 local IsClassic = (_vui and _vui.isClassic) or (WOW_PROJECT_ID and WOW_PROJECT_ID >= WOW_PROJECT_CLASSIC) or false
 
-Trinkets.PausedQueue = { } -- 0 or 1 whether queue is paused
+Trinkets.PausedQueue = { }
 
 local TRINKET_KEEP_BUFF_AFTER_SWAP = {
 	[19341] = true,
@@ -14,9 +13,9 @@ local TRINKET_KEEP_BUFF_AFTER_SWAP = {
 
 function Trinkets.QueueInit()
 	TrinketsQueue = TrinketsQueue or {
-		Stats = { }, -- indexed by id of trinket, delay, priority and keep
-		Sort = { }, -- indexed by number, ids in order of use
-		Enabled = { } -- 0 or 1 whether auto queue is on for the slot
+		Stats = { },
+		Sort = { },
+		Enabled = { }
 	}
 	TrinketsQueue.Sort[0] = TrinketsQueue.Sort[0] or { }
 	TrinketsQueue.Sort[1] = TrinketsQueue.Sort[1] or { }
@@ -69,7 +68,6 @@ function Trinkets.GetNameByID(id)
 	end
 end
 
--- adds id to which sort if it's not already in the list
 function Trinkets.AddToSort(which, id)
 	if not id then
 		return
@@ -83,7 +81,6 @@ function Trinkets.AddToSort(which, id)
 	end
 end
 
--- populates sorts adding any new trinkets
 function Trinkets.PopulateSort(which)
 	TrinketsQueue.Sort[which] = TrinketsQueue.Sort[which] or { }
 	Trinkets.AddToSort(which,Trinkets.GetID(which + 13))
@@ -98,7 +95,7 @@ function Trinkets.PopulateSort(which)
 			end
 		end
 	end
-	Trinkets.AddToSort(which, 0) -- id 0 is Stop
+	Trinkets.AddToSort(which, 0) -- item id 0 is the "stop queue here" marker
 end
 
 function Trinkets.SortScrollFrameUpdate()
@@ -158,7 +155,6 @@ function Trinkets.UnlockHighlight(frame)
 	_G[frame:GetName().."Highlight"]:Hide()
 end
 
--- shows tooltip for items in the sort list
 function Trinkets.SortTooltip(self)
 	local idx = FauxScrollFrame_GetOffset(Trinkets_SortScroll) + self:GetID()
 	local _
@@ -185,7 +181,6 @@ function Trinkets.SortOnClick(self)
 	Trinkets.SortValidate()
 end
 
--- turns move buttons on/off, moves the list to keep selected in view and keeps the sorting slot button highlighted
 function Trinkets.SortValidate()
 	local selected = Trinkets.SortSelected
 	local list = TrinketsQueue.Sort[Trinkets.CurrentlySorting]
@@ -193,16 +188,16 @@ function Trinkets.SortValidate()
 	Trinkets_MoveUp:Enable()
 	Trinkets_MoveDown:Enable()
 	Trinkets_MoveBottom:Enable()
-	if selected == 0 or #list < 2 then -- none selected, disable all
+	if selected == 0 or #list < 2 then
 		Trinkets_MoveTop:Disable()
 		Trinkets_MoveUp:Disable()
 		Trinkets_MoveDown:Disable()
 		Trinkets_MoveBottom:Disable()
-	elseif selected == 1 then -- top selected, disable up
+	elseif selected == 1 then
 		Trinkets_MoveUp:Disable()
 		Trinkets_MoveTop:Disable()
 		Trinkets_MoveDown:Enable()
-	elseif selected == #list then -- bottom selected, disable down
+	elseif selected == #list then
 		Trinkets_MoveDown:Disable()
 		Trinkets_MoveBottom:Disable()
 	end
@@ -222,7 +217,7 @@ function Trinkets.SortValidate()
 	Trinkets_SortDelay:SetText(stats and (stats.delay or "0") or "0")
 	Trinkets_SortPriority:SetChecked(stats and stats.priority)
 	Trinkets_SortKeepEquipped:SetChecked(stats and stats.keep)
-	if not IsShiftKeyDown() and selected > 0 then -- keep selected visible on list, moving thumb as needed, unless shift is down
+	if not IsShiftKeyDown() and selected > 0 then
 		local parent = Trinkets_SortScrollScrollBar
 		local offset
 		if selected <= idx then
@@ -237,7 +232,6 @@ function Trinkets.SortValidate()
 	end
 end
 
--- movement buttons
 function Trinkets.SortMove(self)
 	Trinkets_SortDelay:ClearFocus()
 	local dir = ((self == Trinkets_MoveUp) and - 1) or ((self == Trinkets_MoveTop) and "top") or ((self == Trinkets_MoveDown) and 1) or ((self == Trinkets_MoveBottom) and "bottom")
@@ -294,8 +288,6 @@ function Trinkets.TabCheck_OnClick(self)
 	Trinkets.UpdateCombatQueue()
 end
 
---[[ Auto queue processing ]]
-
 function Trinkets.TrinketNearReady(id)
 	local start, duration = Trinkets.GetItemCooldown(id)
 	if start == 0 or duration - (GetTime() - start) <= 30 then
@@ -308,7 +300,6 @@ function Trinkets.CanCooldown(inv)
 	return enable == 1
 end
 
--- this function quickly checks if conditions are right for a possible ProcessAutoQueue
 function Trinkets.PeriodicQueueCheck()
 	if not TrinketsQueue.Enabled[0] and not TrinketsQueue.Enabled[1] then
 		Trinkets.StopTimer("QueueUpdate")
@@ -322,32 +313,30 @@ function Trinkets.PeriodicQueueCheck()
 	end
 end
 
--- which = 0 or 1, decides if a trinket should be equipped and equips if so
 function Trinkets.ProcessAutoQueue(which)
 	local _, _, id = string.find(GetInventoryItemLink("player", 13 + which) or "", "item:(%d+).+%[(.+)%]")
 	if not id then
 		return
-	end -- leave if no trinket equipped
+	end
 	local start, duration, enable = GetInventoryItemCooldown("player", 13 + which)
 	local timeLeft = GetTime() - start
 	local icon = _G["Trinkets_Trinket"..which.."Queue"]
 	if IsInventoryItemLocked(13 + which) then
 		return
-	end -- leave if slot being swapped
+	end
 	if (IsClassic and (CastingInfo() or ChannelInfo())) or (not IsClassic and (UnitCastingInfo("player") or UnitChannelInfo("player"))) then
 		return
-	end -- leave if player is casting/channeling
+	end
 	if Trinkets.PausedQueue[which] then
-		icon:SetVertexColor(1, .5, .5) -- leave if SetQueue(which, "PAUSE")
+		icon:SetVertexColor(1, .5, .5)
 		return
 	end
 	if TrinketsQueue.Stats[id] then
 		if TrinketsQueue.Stats[id].keep then
 			icon:SetVertexColor(1, .5, .5)
-			return -- leave if .keep flag set on this item
+			return
 		end
 		if TrinketsQueue.Stats[id].delay then
-			-- leave if currently equipped trinket is on cooldown for less than its delay
 			if start > 0 and (duration - timeLeft) > 30 and timeLeft < TrinketsQueue.Stats[id].delay then
 				icon:SetDesaturated(true)
 				return
@@ -377,7 +366,7 @@ function Trinkets.ProcessAutoQueue(which)
 			end
 		end
 	end
-	icon:SetDesaturated(false) -- normal queue operation, reflect that in queue inset
+	icon:SetDesaturated(false)
 	icon:SetVertexColor(1, 1, 1)
 	local name
 	local ready = Trinkets.TrinketNearReady(id)
@@ -416,18 +405,7 @@ function Trinkets.ProcessAutoQueue(which)
 	end
 end
 
---[[ Trinkets.SetQueue and Trinkets.GetQueue ]]
-
--- These functions are for macros and mods to configure sort queues
-
--- Trinkets.SetQueue(0 or 1,"ON" or "OFF" or "PAUSE" or "RESUME" or "SORT"[,"sort list")
--- some examples:
--- Trinkets.SetQueue(1, "PAUSE") -- if queue is going, pause it
--- Trinkets.SetQueue(1, "RESUME") -- if queue is paused, resume it
--- Trinkets.SetQueue(1, "SORT", "Earthstrike", "Insignia of the Alliance", "Diamond Flask") -- set sort
--- Trinkets.SetQueue(0, "SORT", "Lifestone", "Darkmoon Card: Heroism") -- set sort for trinket 0
--- Trinkets.SetQueue(1, "SORT", "Pvp Profile") -- note you can replace list with a profile name
--- (a "stop the queue" is assumed at the end of the list)
+-- Public macro API: SetQueue(0|1, "ON"|"OFF"|"PAUSE"|"RESUME"|"SORT", trinket names or a profile name...).
 function Trinkets.SetQueue(which, ...)
 	local errorstub = "|cFFBBBBBBTrinkets:|cFFFFFFFF "
 	if not which or not tonumber(which) or which < 0 or which > 1 then
@@ -439,7 +417,7 @@ function Trinkets.SetQueue(which, ...)
 		return
 	end
 	if Trinkets_OptFrame:IsVisible() then
-		Trinkets_OptFrame:Hide() -- close option frame if it's up. the mess otherwise would be scary
+		Trinkets_OptFrame:Hide()
 	end
 	local cmd = (select(1, ...))
 	if cmd == "ON" then
@@ -457,7 +435,6 @@ function Trinkets.SetQueue(which, ...)
 		for i in pairs(TrinketsQueue.Sort[which]) do
 			TrinketsQueue.Sort[which][i] = nil
 		end
-		--table.setn(TrinketsQueue.Sort[which], 0)
 		local profile = Trinkets.GetProfileID((select(2,...)))
 		if profile then
 			for i = 2, #TrinketsQueue.Profiles[profile] do
@@ -465,7 +442,7 @@ function Trinkets.SetQueue(which, ...)
 			end
 		else
 			for i = 2, (select("#", ...)) do
-				inv, bag, slot = Trinkets.FindItem((select(i, ...)), true) -- include inventory
+				inv, bag, slot = Trinkets.FindItem((select(i, ...)), true) -- true = also search equipped slots
 				if inv then
 					table.insert(TrinketsQueue.Sort[which], Trinkets.GetID(inv))
 				elseif bag then
@@ -483,7 +460,6 @@ function Trinkets.SetQueue(which, ...)
 	Trinkets.UpdateCombatQueue()
 end
 
--- returns 1 or nil if queue is enabled, and a table containing an ordered list of the trinkets
 function Trinkets.GetQueue(which)
 	if not which or not tonumber(which) or which < 0 or which > 1 then
 		DEFAULT_CHAT_FRAME:AddMessage("|cFFBBBBBBTrinkets.GetQueue:|cFFFFFFFF Parameter must be 0 for top trinket or 1 for bottom.")
@@ -497,9 +473,7 @@ function Trinkets.GetQueue(which)
 	return TrinketsQueue.Enabled[which], trinketList
 end
 
---[[ Profiles ]]
-
--- add="add" or "remove" to add or remove "frame" from UISpecialFrames
+-- add: "add" or "remove" the frame name in UISpecialFrames (Escape-closable).
 function Trinkets.Escable(frame, add)
 	local found
 	for i in pairs(UISpecialFrames) do
@@ -512,7 +486,7 @@ function Trinkets.Escable(frame, add)
 	end
 end
 
--- shows profile if show non-nil. Trinkets_ProfilesFrame has an OnHide that calls this with nil
+-- Trinkets_ProfilesFrame's OnHide calls this back with nil, so it must stay re-entrant-safe.
 function Trinkets.ShowProfiles(show)
 	local normalTexture = Trinkets_Profiles:GetNormalTexture()
 	local pushedTexture = Trinkets_Profiles:GetPushedTexture()
@@ -661,7 +635,6 @@ function Trinkets.LoadProfile(which, idx)
 	for i in pairs(list) do
 		list[i] = nil
 	end
-	--table.setn(list, 0)
 	for i = 2, #load do
 		table.insert(list, load[i])
 	end

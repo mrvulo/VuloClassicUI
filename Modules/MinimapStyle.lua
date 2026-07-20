@@ -1,18 +1,4 @@
--- =========================================================
--- VuloClassicUI / Modules / MinimapStyle — modern minimap
--- Rebuilds the minimap into the clean modern look: a round map with a thin
--- dark ring + accent line + soft shadow (our own generated ring textures —
--- rotation-safe, they are radially symmetric), a slim zone/clock panel,
--- tracking + mail moved onto the map edge, mouse-wheel zoom, and optional
--- skinning/hover-hiding of other addons' minimap buttons.
---
--- Everything is guarded per client (TBC Anniversary 20505 / Era 11508 ship
--- different tracking/battlefield frames). The minimap and its children are
--- NOT protected frames — reparenting/moving them from insecure code is the
--- long-established approach every minimap addon uses.
---
--- All state lives in the single `mm` table (Lua 5.1 locals discipline).
--- =========================================================
+-- Minimap reskin. Tracking/battlefield frames differ per client (TBC 20505 vs Era 11508), so every lookup is guarded.
 local _, ns = ...
 local L = ns.L
 
@@ -23,21 +9,21 @@ local mod = ns:RegisterModule("minimapstyle", {
     defaults = {
         enabled       = true,
         scale         = 1.15,
-        x             = 0,        -- CENTER offsets once the user has moved it
+        x             = 0,
         y             = 0,
-        moved         = false,    -- false = default top-right corner anchor
+        moved         = false,
         zonePanel     = "top",    -- "top" | "bottom" | "hidden"
         showClock     = true,
-        showDate      = true,     -- date badge next to the clock (opens the calendar)
-        accentRing    = true,     -- thin colored line around the dark ring
+        showDate      = true,
+        accentRing    = true,
         ringColorMode = "accent", -- "accent" | "class" | "custom"
-        ringColor     = { r = 0.608, g = 0.424, b = 1 },   -- used by "custom"
-        shape         = "round",  -- "round" | "square"
-        zoomButtons   = true,     -- flat +/- pair on the map edge (wheel always zooms)
-        showDayNight  = false,    -- the classic sun/moon time button
-        skinButtons   = true,     -- restyle other addons' minimap buttons
-        buttonsOnHover = false,   -- only show addon buttons while hovering
-        showPingChat  = false,    -- print who pinged
+        ringColor     = { r = 0.608, g = 0.424, b = 1 },
+        shape         = "round",
+        zoomButtons   = true,
+        showDayNight  = false,
+        skinButtons   = true,
+        buttonsOnHover = false,
+        showPingChat  = false,
         unlocked      = false,
     },
 })
@@ -45,29 +31,22 @@ local mod = ns:RegisterModule("minimapstyle", {
 local MEDIA = "Interface\\AddOns\\VuloClassicUI\\Media\\Minimap\\"
 local ROUND_MASK = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
 local MAP_SIZE = 140
--- ring texture: map edge sits at r=213 of 256 -> texture must be drawn at
--- mapSize * 256/213 so the ring hugs the map border exactly
+-- Map edge sits at r=213 of the 256px ring texture.
 local RING_SCALE = 256 / 213
 
-local mm = {}   -- frames, collected buttons, original-state snapshots
+local mm = {}
 
 local function db() return mod.db end
 
--- While the base sits on the corner-default anchor, db.x/db.y must still hold
--- the REAL center offsets of that spot (frame-local units, same formula as
--- Core/Mover.lua). Otherwise the first arrow-key nudge / panel edit in edit
--- mode applies from 0,0 and teleports the map to the screen center.
+-- On the corner-default anchor db.x/y must still hold the real center offsets, or the first arrow-key nudge applies from 0,0.
 function mm.syncCornerOffsets()
     if db().moved or not mm.base then return end
-    local x, y = ns:GetCenterOffsets(mm.base)   -- canonical scale-aware capture
+    local x, y = ns:GetCenterOffsets(mm.base)
     if x and y then
         db().x, db().y = x, y
     end
 end
 
--- =========================================================
--- Base frame + mover
--- =========================================================
 function mm.ensureBase()
     if mm.base then return mm.base end
     local base = CreateFrame("Frame", "VCUI_MinimapFrame", UIParent)
@@ -75,15 +54,11 @@ function mm.ensureBase()
     if db().moved then
         base:SetPoint("CENTER", UIParent, "CENTER", db().x or 0, db().y or 0)
     else
-        -- resolution-independent default: the classic top-right corner
         base:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -8, -8)
     end
     base:SetFrameStrata("LOW")
     mm.base = base
 
-    -- zone/clock panel: a modern dark pill (rounded ends, baked light rim).
-    -- A touch wider than the map so the zone name, clock and date get more
-    -- room; it stays centred and overhangs both map edges evenly.
     mm.panel = CreateFrame("Frame", "VCUI_MinimapPanel", base)
     mm.panel:SetSize(MAP_SIZE + 22, 18)
     local pbg = mm.panel:CreateTexture(nil, "BACKGROUND")
@@ -98,16 +73,12 @@ function mm.ensureBase()
         width  = MAP_SIZE + 20,
         height = MAP_SIZE + 40,
         onMove = function(x, y)
-            -- An EXPLICIT reset (flagged by the reset buttons — a drag can
-            -- legitimately snap to 0,0 at the screen centre!) means "back to
-            -- default", which for the minimap is the top-right corner, not
-            -- dead center (onMove runs after applyPos's SetPoint, so this
-            -- override wins).
+            -- Only an explicit reset restores the corner anchor; a drag can legitimately land on 0,0.
             if x == 0 and y == 0 and ns._inMoverReset then
                 db().moved = false
                 mm.base:ClearAllPoints()
                 mm.base:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -8, -8)
-                mm.syncCornerOffsets()   -- keep db in step for arrow keys / panel
+                mm.syncCornerOffsets()
             else
                 db().moved = true
             end
@@ -117,14 +88,10 @@ function mm.ensureBase()
     return base
 end
 
--- =========================================================
--- Map adoption + rings
--- =========================================================
 function mm.adoptMinimap()
     if mm.adopted then return end
     mm.adopted = true
-    -- snapshot for best-effort restore on disable — FIRST adoption only, or a
-    -- disable/re-enable cycle would snapshot our own base as the "original"
+    -- Snapshot on first adoption only, else a re-enable would record our own base as the original.
     if not mm.origParent then
         mm.origParent = Minimap:GetParent()
         mm.origPoints = {}
@@ -138,9 +105,7 @@ function mm.adoptMinimap()
     Minimap:SetPoint("CENTER", mm.base, "CENTER", 0, -11)
     Minimap:SetSize(MAP_SIZE, MAP_SIZE)
 
-    -- decoration is created ONCE; a re-enable only re-adopts the map (frames
-    -- and textures can't be destroyed, recreating them would leak a set per
-    -- disable/enable cycle)
+    -- Decoration is created once: textures can't be destroyed, so recreating would leak per enable cycle.
     if mm.ring then return end
 
     local ringSize = MAP_SIZE * RING_SCALE
@@ -154,14 +119,10 @@ function mm.adoptMinimap()
     end
     mm.shadow = ringTex("ring_shadow.tga", 5)
     mm.shadow:SetVertexColor(0, 0, 0, 0.65)
-    -- near-black seam ring at the map edge (baked, flat — deliberately no
-    -- bright bevel edges: they read as a second gray ring)
     mm.ring = ringTex("ring_main.tga", 6)
-    -- THE ring: the accent band
     mm.accent = ringTex("ring_accent.tga", 7)
     mm.applyRingColor()
 
-    -- square variant: 1px frame + soft shadow, no rings
     mm.squareFrame = CreateFrame("Frame", nil, mm.base)
     mm.squareFrame:SetPoint("TOPLEFT", Minimap, "TOPLEFT", -1, 1)
     mm.squareFrame:SetPoint("BOTTOMRIGHT", Minimap, "BOTTOMRIGHT", 1, -1)
@@ -181,8 +142,6 @@ function mm.adoptMinimap()
     mm.squareFrame:Hide()
 end
 
--- the accent ring's color: house accent, the player's class color, or a
--- user-picked custom color
 function mm.applyRingColor()
     if not mm.accent then return end
     local d = db()
@@ -212,18 +171,14 @@ function mm.applyShape()
         mm.ring:Show()
         mm.accent:SetShown(db().accentRing ~= false)
     end
-    -- addon-button libraries read this to place buttons along the edge
+    -- Global read by button libraries to place icons along the edge.
     function GetMinimapShape()
         if mod.active and db().shape == "square" then return "SQUARE" end
         return "ROUND"
     end
 end
 
--- =========================================================
--- Default clutter off. Split in two: the Hide calls are REPEATABLE (a
--- disable/re-enable cycle must re-hide what OnDisable restored), the
--- Show-hooks are one-shot (hooksecurefunc can't be removed).
--- =========================================================
+-- Hides are repeatable across enable cycles; the Show-hooks below are one-shot since hooksecurefunc can't be removed.
 function mm.hideDefaultArt()
     local function gone(f)
         if f and f.Hide then f:Hide() end
@@ -233,7 +188,7 @@ function mm.hideDefaultArt()
     gone(_G.MinimapToggleButton)
     gone(_G.MiniMapWorldMapButton)
     gone(_G.MinimapNorthTag)
-    gone(_G.MinimapCompassTexture)   -- rotate-minimap compass card; our ring is rotation-safe
+    gone(_G.MinimapCompassTexture)
     if _G.MinimapCluster and _G.MinimapCluster.BorderTop then _G.MinimapCluster.BorderTop:Hide() end
 end
 
@@ -249,7 +204,7 @@ function mm.installDefaultHooks()
     end
     keepHidden(_G.MiniMapWorldMapButton)
     keepHidden(_G.MinimapNorthTag)
-    keepHidden(_G.MinimapCompassTexture)   -- Blizzard shows it when rotate is enabled
+    keepHidden(_G.MinimapCompassTexture)   -- Blizzard re-shows it whenever rotate-minimap is enabled
     if _G.GameTimeFrame then
         hooksecurefunc(_G.GameTimeFrame, "Show", function(self)
             if mod.active and not db().showDayNight then self:Hide() end
@@ -259,7 +214,6 @@ end
 
 function mm.applyToggles()
     local d = db()
-    -- Blizzard's metal pair stays hidden; our flat glyphs replace it
     if _G.MinimapZoomIn and _G.MinimapZoomOut then
         _G.MinimapZoomIn:Hide()
         _G.MinimapZoomOut:Hide()
@@ -280,14 +234,7 @@ function mm.applyToggles()
     end
 end
 
--- =========================================================
--- Zone text + clock panel
--- =========================================================
--- The Blizzard clock ticker inherits a larger number font and can sit a few
--- pixels above the button's center (a locale anchor override on some clients).
--- Apply our font and pin it dead-center so the time lines up on the same
--- baseline as the zone text and date badge. Returns true once it took (the
--- clock addon is lazy, so applyPanel retries this until it succeeds).
+-- Some locales anchor the clock ticker off-center; re-pin it. Returns false until the lazy clock addon exists.
 function mm.styleClockTicker()
     local clock = _G.TimeManagerClockButton
     local ticker = _G.TimeManagerClockTicker
@@ -309,8 +256,6 @@ function mm.setupPanel()
         ztb:ClearAllPoints()
         ztb:SetPoint("LEFT", mm.panel, "LEFT", 6, 0)
         ztb:SetHeight(16)
-        -- comfort: clicking the zone name opens the world map (gated on
-        -- mod.active so the default behavior returns when the module is off)
         ztb:SetScript("OnClick", function()
             if mod.active and ToggleWorldMap then ToggleWorldMap() end
         end)
@@ -327,13 +272,12 @@ function mm.setupPanel()
         end
     end
 
-    -- clock (lazy Blizzard addon)
     local loader = (C_AddOns and C_AddOns.LoadAddOn) or _G.LoadAddOn or _G.UIParentLoadAddOn
     if loader then pcall(loader, "Blizzard_TimeManager") end
     local clock = _G.TimeManagerClockButton
     if clock then
         local regions = { clock:GetRegions() }
-        if regions[1] and regions[1].Hide then regions[1]:Hide() end   -- the swirly border art
+        if regions[1] and regions[1].Hide then regions[1]:Hide() end   -- unnamed border art, only reachable by region index
         clock:SetParent(mm.panel)
         clock:ClearAllPoints()
         clock:SetPoint("RIGHT", mm.panel, "RIGHT", -4, 0)
@@ -341,8 +285,6 @@ function mm.setupPanel()
         mm.clockStyled = mm.styleClockTicker()
     end
 
-    -- date badge: numeric day.month next to the clock (like the reference
-    -- minimap); click opens the calendar, hover shows the full date
     if not mm.dateBtn then
         local dateBtn = CreateFrame("Button", "VCUI_MinimapDate", mm.panel)
         dateBtn:SetSize(34, 16)
@@ -381,8 +323,6 @@ function mm.setupPanel()
     end
 end
 
--- date changes at most once a day, but a 60s ticker keeps it correct across
--- the midnight rollover without any per-frame work
 function mm.updateDate()
     if not mm.dateBtn then return end
     local ok, s = pcall(date, "%d.%m")
@@ -414,13 +354,11 @@ function mm.applyPanel()
     local showDate  = d.showDate ~= false and mm.dateBtn ~= nil
     if clock then clock:SetShown(showClock) end
     if mm.dateBtn then mm.dateBtn:SetShown(showDate) end
-    -- the clock addon can load after setupPanel ran; keep re-styling the
-    -- ticker (font + baseline) until it takes, so the time never sits high
+    -- Clock addon can load after setupPanel ran, so retry styling until it takes.
     if showClock and not mm.clockStyled then
         mm.clockStyled = mm.styleClockTicker()
     end
 
-    -- pack right-to-left: date, then clock; the zone text fills what's left
     local anchor, point, x = mm.panel, "RIGHT", -4
     if showDate then
         mm.dateBtn:ClearAllPoints()
@@ -445,9 +383,6 @@ function mm.applyPanel()
     mm.updateDate()
 end
 
--- =========================================================
--- Tracking + mail + battlefield onto the map edge
--- =========================================================
 function mm.placeLFGEye()
     local eye = _G.LFGMinimapFrame
     if not eye then return end
@@ -466,7 +401,6 @@ function mm.setupCorners()
     if mm.cornersWired then return end
     mm.cornersWired = true
 
-    -- tracking: TBC ships MiniMapTracking (+Button), Era ships MiniMapTrackingFrame
     local tracking = _G.MiniMapTracking or _G.MiniMapTrackingFrame
     if tracking then
         tracking:SetParent(Minimap)
@@ -494,10 +428,8 @@ function mm.setupCorners()
                 icon:AddMaskTexture(mm.trackingMask)
             end
         end
-        -- (no ring behind the icon — the bare round icon reads cleaner)
     end
 
-    -- mail: onto the top-right edge, plain envelope without the gold border
     local mail = _G.MiniMapMailFrame
     if mail then
         mail:SetParent(Minimap)
@@ -512,19 +444,15 @@ function mm.setupCorners()
         end
     end
 
-    -- battleground queue eye
     local bf = _G.MiniMapBattlefieldFrame or _G.MiniMapLFGFrame
     if bf then
         bf:SetParent(Minimap)
         bf:ClearAllPoints()
         bf:SetPoint("CENTER", Minimap, "BOTTOMLEFT", 20, 20)
     end
-    -- Era group-finder eye lives in a load-on-demand Blizzard addon and is
-    -- anchored to the stranded old backdrop — re-home it whenever it exists
-    -- (called again from the ADDON_LOADED watcher once its addon loads)
+    -- Era group-finder eye is anchored to the stranded old backdrop; also re-homed from ADDON_LOADED.
     mm.placeLFGEye()
 
-    -- instance difficulty flag (TBC)
     local diff = _G.MiniMapInstanceDifficulty
     if diff then
         diff:SetParent(Minimap)
@@ -534,10 +462,6 @@ function mm.setupCorners()
     end
 end
 
--- =========================================================
--- Shift+drag ON THE MAP moves it — the foolproof path that works without any
--- edit mode (Blizzard's own Edit Mode only manages its now-empty cluster).
--- =========================================================
 function mm.setupDrag()
     if mm.dragWired then return end
     mm.dragWired = true
@@ -552,7 +476,7 @@ function mm.setupDrag()
         if not mm.dragging then return end
         mm.dragging = false
         mm.base:StopMovingOrSizing()
-        local x, y = ns:GetCenterOffsets(mm.base)   -- canonical scale-aware capture
+        local x, y = ns:GetCenterOffsets(mm.base)
         if x and y then
             db().x, db().y = x, y
             db().moved = true
@@ -562,10 +486,6 @@ function mm.setupDrag()
     end)
 end
 
--- =========================================================
--- Zoom: mouse wheel + optional flat +/- pair on the right arc
--- =========================================================
--- dim the pair at the zoom limits so they read as end stops
 function mm.updateZoomButtons()
     if not mm.zoomIn then return end
     local z, top = Minimap:GetZoom(), Minimap:GetZoomLevels() - 1
@@ -585,10 +505,6 @@ function mm.setupZoom()
         end
         mm.updateZoomButtons()
     end)
-    -- our own flat glyph pair on the upper-right arc (just below the clock
-    -- pill), clear of the mail envelope at 1:30 and the LFG eye / difficulty
-    -- flag at the 4:30 corner. Blizzard's dated metal pair is hidden in
-    -- applyToggles instead of re-homed.
     local function makeZoom(glyph, dz, x, y)
         local b = CreateFrame("Button", nil, Minimap)
         b:SetSize(18, 18)
@@ -617,17 +533,12 @@ function mm.setupZoom()
     mm.zoomOut = makeZoom("–", -1, 6, -26)
 end
 
--- =========================================================
--- Other addons' minimap buttons: collect, skin, hover-hide.
--- Collection is name/child based (no library dependency): every unnamed or
--- foreign Button child of the Minimap that carries the classic tracking-
--- border texture layout is treated as an addon button.
--- =========================================================
+-- Blizzard-owned Minimap children; anything else Button-shaped is treated as a third-party icon.
 local BLIZZ_CHILDREN = {
     MinimapZoomIn = true, MinimapZoomOut = true, MiniMapWorldMapButton = true,
     MinimapToggleButton = true, MiniMapTracking = true, MiniMapTrackingFrame = true,
     MiniMapMailFrame = true, MiniMapBattlefieldFrame = true, MiniMapLFGFrame = true,
-    LFGMinimapFrame = true,   -- Era group-finder eye — never ring/mask Blizzard's eye
+    LFGMinimapFrame = true,
     MiniMapInstanceDifficulty = true, GameTimeFrame = true, TimeManagerClockButton = true,
     MinimapBackdrop = true, MiniMapVoiceChatFrame = true, MinimapZoneTextButton = true,
 }
@@ -638,7 +549,7 @@ function mm.skinAddonButton(btn)
     for _, r in ipairs({ btn:GetRegions() }) do
         if r.IsObjectType and r:IsObjectType("Texture") then
             local tex = r:GetTexture()
-            if tex == 136430 then       -- MiniMap-TrackingBorder (gold ring)
+            if tex == 136430 then       -- MiniMap-TrackingBorder
                 r:SetTexture(nil); r:SetAlpha(0)
             elseif tex == 136467 then   -- UI-Minimap-Background
                 r:SetTexture(nil); r:SetAlpha(0)
@@ -647,7 +558,6 @@ function mm.skinAddonButton(btn)
     end
     local icon = btn.icon
     if not icon then
-        -- common pattern: the biggest ARTWORK texture is the icon
         for _, r in ipairs({ btn:GetRegions() }) do
             if r.IsObjectType and r:IsObjectType("Texture") and r:GetDrawLayer() == "ARTWORK" then
                 icon = r
@@ -681,7 +591,7 @@ function mm.collectAddonButtons()
         local name = child.GetName and child:GetName()
         if child:IsObjectType("Button") and not BLIZZ_CHILDREN[name or ""] then
             local w = child:GetWidth() or 0
-            if w > 20 and w < 44 then   -- classic minimap-button footprint
+            if w > 20 and w < 44 then
                 mm.addonButtons[#mm.addonButtons + 1] = child
                 if db().skinButtons then mm.skinAddonButton(child) end
             end
@@ -696,10 +606,7 @@ function mm.applyButtonVisibility()
     end
 end
 
--- Most addon buttons register through the shared LibDBIcon library, which
--- fires a callback for every button it CREATES — catching late registrations
--- the moment they appear (the child scan stays as fallback for the rest).
--- Purely opportunistic: no hard dependency, retried once the lib exists.
+-- Optional: catches late icon registrations. No hard dependency, retried once the lib exists.
 function mm.hookButtonLib()
     if mm.libHooked then return end
     local ldbi = _G.LibStub and _G.LibStub.GetLibrary
@@ -718,8 +625,6 @@ function mm.setupHover()
     mm.hoverWired = true
     local acc = 0
     mm.base:SetScript("OnUpdate", function(self, elapsed)
-        -- keep the per-frame cost to just the accumulator; the db() lookup and
-        -- IsMouseOver test run at 10Hz, not every rendered frame
         acc = acc + elapsed
         if acc < 0.1 then return end
         acc = 0
@@ -732,9 +637,6 @@ function mm.setupHover()
     end)
 end
 
--- =========================================================
--- Ping reporting
--- =========================================================
 function mm.onPing(_, unit)
     if not db().showPingChat then return end
     if not unit then return end
@@ -744,16 +646,12 @@ function mm.onPing(_, unit)
     end
 end
 
--- =========================================================
--- Apply / lifecycle
--- =========================================================
 function mm.applyAll()
-    -- options setters call this unconditionally — after OnDisable restored
-    -- the default map, re-applying the shape/mask here would re-skin it
+    -- Option setters call this unconditionally; bail while disabled or we would re-skin the restored map.
     if not mod.active then return end
     if not mm.base then return end
     mm.base:SetScale(db().scale or 1)
-    mm.syncCornerOffsets()   -- AFTER SetScale: offsets are frame-local units
+    mm.syncCornerOffsets()   -- must follow SetScale: offsets are frame-local units
     mm.applyRingColor()
     mm.applyShape()
     mm.applyPanel()
@@ -764,19 +662,15 @@ end
 
 function mm.onEnteringWorld()
     if not mod.active then return end
-    -- GetCenter can be nil (and the UI scale not final) at our early
-    -- ADDON_LOADED enable — re-sync here, when layout + scale are settled,
-    -- or the first arrow-key nudge still teleports the corner-anchored map
+    -- GetCenter is nil and UI scale not final at ADDON_LOADED, so re-sync once layout has settled.
     mm.syncCornerOffsets()
-    mm.hookButtonLib()   -- the shared icon lib may have loaded with other addons by now
+    mm.hookButtonLib()
     mm.collectAddonButtons()
     mm.applyButtonVisibility()
 end
 
 function mod:OnEnable()
     mod.active = true
-    -- one-time migration: the default scale grew 1.0 -> 1.15 on user request;
-    -- bump profiles that still sit on the untouched old default
     if not db()._scaleBumped then
         if (db().scale or 1) == 1.0 then db().scale = 1.15 end
         db()._scaleBumped = true
@@ -794,8 +688,8 @@ function mod:OnEnable()
     mm.applyAll()
     ns:RegisterEvent("PLAYER_ENTERING_WORLD", mm.onEnteringWorld)
     ns:RegisterEvent("MINIMAP_PING", mm.onPing)
-    ns:RegisterEvent("ADDON_LOADED", mm.onAddonLoaded)   -- late-loading group-finder eye
-    -- addon buttons often appear a moment after login
+    ns:RegisterEvent("ADDON_LOADED", mm.onAddonLoaded)
+    -- Third-party icons often appear a moment after login.
     if C_Timer and C_Timer.After then
         C_Timer.After(3, function()
             if mod.active then mm.collectAddonButtons(); mm.applyButtonVisibility() end
@@ -808,8 +702,7 @@ function mod:OnDisable()
     ns:UnregisterEvent("PLAYER_ENTERING_WORLD", mm.onEnteringWorld)
     ns:UnregisterEvent("MINIMAP_PING", mm.onPing)
     ns:UnregisterEvent("ADDON_LOADED", mm.onAddonLoaded)
-    -- best-effort restore: give the map back to its original owner; borders,
-    -- fonts and moved children come back fully with a /reload
+    -- Best-effort restore; fonts and moved children only come back fully with a /reload.
     if mm.adopted then
         mm.adopted = false
         if mm.ring then mm.ring:Hide() end
@@ -817,7 +710,7 @@ function mod:OnDisable()
         if mm.shadow then mm.shadow:Hide() end
         if mm.squareFrame then mm.squareFrame:Hide() end
         if mm.panel then mm.panel:Hide() end
-        Minimap:SetMaskTexture(ROUND_MASK)   -- never leave a square map inside the round default border
+        Minimap:SetMaskTexture(ROUND_MASK)
         Minimap:SetParent(mm.origParent or _G.MinimapCluster or UIParent)
         Minimap:ClearAllPoints()
         if mm.origPoints and mm.origPoints[1] then
@@ -830,7 +723,6 @@ function mod:OnDisable()
         if _G.MinimapBorder then _G.MinimapBorder:Show() end
         if mm.zoomIn then mm.zoomIn:Hide(); mm.zoomOut:Hide() end
         if _G.MinimapZoomIn then _G.MinimapZoomIn:Show(); _G.MinimapZoomOut:Show() end
-        -- addon buttons the hover option may have faded out must come back
         mm.hovered = true
         for _, b in ipairs(mm.addonButtons or {}) do b:SetAlpha(1) end
         if mm.base and mm.base.mover then mm.base.mover:Hide() end
@@ -838,9 +730,6 @@ function mod:OnDisable()
     end
 end
 
--- =========================================================
--- Options
--- =========================================================
 local function setUnlocked(state)
     db().unlocked = state
     if not mm.base then return end
@@ -878,7 +767,7 @@ function mod:GetOptions()
           get = function() return d.ringColor end,
           set = function(r, g, b)
               d.ringColor = { r = r, g = g, b = b }
-              d.ringColorMode = "custom"   -- picking a color means: use it
+              d.ringColorMode = "custom"
               mm.applyRingColor()
           end },
         { type = "toggle", label = L["Accent ring"],

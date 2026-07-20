@@ -1,11 +1,6 @@
--- =========================================================
 -- VuloClassicUI / Core / MediaRegistry
--- Registers all bundled sounds, fonts and statusbars
--- via LibSharedMedia-3.0. Any addon that consumes shared media (WeakAuras,
--- boss mods, other UI suites) will then automatically detect it.
---
--- Paths live under Interface\AddOns\VuloClassicUI\Media\
--- =========================================================
+-- Registers all bundled fonts and statusbars as shared media so any consumer
+-- (WeakAuras, boss mods, other UI suites) automatically detects them.
 local _, ns = ...
 local L = ns.L
 
@@ -19,10 +14,7 @@ end
 
 local BASE = "Interface\\Addons\\VuloClassicUI\\Media\\"
 
--- =========================================================
 -- StatusBars — only the textures bundled under Media\textures.
--- These show up in any statusbar texture picker (Swing Timer, other addons, ...).
--- =========================================================
 local TEX = BASE .. "textures\\"
 LSM:Register("statusbar", "Atrocity",           TEX .. "atrocity.tga")
 LSM:Register("statusbar", "Beautiful",          TEX .. "beautiful.tga")
@@ -42,16 +34,10 @@ LSM:Register("statusbar", "Soft Line",          TEX .. "soft-line.tga")
 LSM:Register("statusbar", "Thin Line (Top)",    TEX .. "thin-line-top.tga")
 LSM:Register("statusbar", "Thin Line (Bottom)", TEX .. "thin-line-bottom.tga")
 
--- =========================================================
--- Fonts
--- =========================================================
 LSM:Register("font", "Expressway", BASE .. "Fonts\\Expressway.TTF")
 
 -- (Sounds folder removed — VuloClassicUI doesn't use any of its sounds and
 --  the 118-file pack was only registered for other addons. QueueTimer uses
 --  a built-in Blizzard sound ID, not a bundled file.)
 
--- =========================================================
--- Global convenience pointer for VCUI modules
--- =========================================================
 ns.LSM = LSM

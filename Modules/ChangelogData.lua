@@ -1,8 +1,4 @@
--- =========================================================
--- VuloClassicUI / Modules / ChangelogData
--- AUTO-GENERATED from CHANGELOG.md by tools/gen_changelog.js.
--- Do NOT edit by hand — edit CHANGELOG.md and re-run the generator.
--- =========================================================
+-- Generated from CHANGELOG.md by tools/gen_changelog.js; edit that file, not this one.
 local _, ns = ...
 
 ns.CHANGELOG = {

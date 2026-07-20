@@ -1,11 +1,4 @@
--- =========================================================
--- VuloClassicUI / Modules / FlightTimesDB (generated data file)
--- Default taxi flight durations (seconds) for the flight timer.
--- Old-world routes from MIT-licensed community measurements; Outland
--- routes from community measurements of the unchanged TBC network.
--- Keys are short English node names; FLIGHT_NODE_DE maps German client
--- node names to English. Locally learned times always take precedence.
--- =========================================================
+-- Generated data: default taxi flight durations in seconds, keyed by short English node name.
 local _, ns = ...
 
 ns.FLIGHT_TIMES = {

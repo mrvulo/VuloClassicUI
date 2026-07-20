@@ -1,9 +1,4 @@
--- =========================================================
--- VuloClassicUI / Modules / PlayerCastbar
--- Two modes:
---   "blizzard" -> Original castbar extended (time remaining text, purple ticks, channel coloring)
---   "custom"   -> Custom castbar in VUI style (icon, spell name below bar, etc.)
--- =========================================================
+-- Player castbar in two modes: "blizzard" extends the default bar, "custom" draws our own.
 local _, ns = ...
 local L = ns.L
 
@@ -13,31 +8,28 @@ local mod = ns:RegisterModule("playercastbar", {
     description = "Player castbar with two modes: Original (Blizzard bar extended) or Custom castbar (VUI style).",
     defaults = {
         enabled       = true,
-        mode          = "blizzard",        -- "blizzard" or "custom"
-        -- Shared defaults
+        mode          = "blizzard",
         showTimeText  = true,
-        timeTextMode  = "both",            -- "both" | "remaining" | "seconds"
+        timeTextMode  = "both",
         showTicks     = true,
-        showClipMarker = true,             -- latency window (channels AND casts)
-        showPushback  = true,              -- red "+0.5s" on spell pushback
-        mergeCrafts   = true,              -- "Bandage 3/20" for craft series
+        showClipMarker = true,
+        showPushback  = true,
+        mergeCrafts   = true,
         showSpellName = true,
         showIcon      = true,
-        fillMode      = "texture",         -- "texture" | "accent" | "class" (custom mode)
-        -- Custom mode: size & position
+        fillMode      = "texture",
         width         = 240,
         height        = 18,
         iconSize      = 14,
         iconGap       = 3,
-        iconX         = 0,     -- additional X offset for the icon
-        iconY         = 0,     -- Y offset (positive = up)
+        iconX         = 0,
+        iconY         = 0,
         x             = 0,
         y             = -180,
         unlocked      = false,
-        -- Colors (for both modes)
-        accentColor   = { r = 0.608, g = 0.424, b = 1.000, a = 0.90 },  -- #9b6cff
-        castColor     = { r = 1.00,  g = 0.80,  b = 0.20,  a = 1.00 },  -- yellow
-        channelColor  = { r = 0.608, g = 0.424, b = 1.000, a = 1.00 },  -- #9b6cff
+        accentColor   = { r = 0.608, g = 0.424, b = 1.000, a = 0.90 },
+        castColor     = { r = 1.00,  g = 0.80,  b = 0.20,  a = 1.00 },
+        channelColor  = { r = 0.608, g = 0.424, b = 1.000, a = 1.00 },
         successColor  = { r = 0.40, g = 0.85, b = 0.40, a = 1.00 },
         failColor     = { r = 0.90, g = 0.25, b = 0.25, a = 1.00 },
     },
@@ -45,14 +37,12 @@ local mod = ns:RegisterModule("playercastbar", {
 
 local TEX_PATH    = "Interface\\AddOns\\VuloClassicUI\\Media\\Castbar\\"
 local TEX_BG      = TEX_PATH .. "CastingBarBackground"
-local TEX_FILL    = TEX_PATH .. "CastingBarStandard"     -- yellow tinted -> for normal casts
-local TEX_CHANNEL = TEX_PATH .. "CastingBarChannel"      -- separate channel texture
+local TEX_FILL    = TEX_PATH .. "CastingBarStandard"
+local TEX_CHANNEL = TEX_PATH .. "CastingBarChannel"
 local TEX_SPARK   = TEX_PATH .. "CastingBarSpark"
 local TEX_MASK    = TEX_PATH .. "CastingBarMask"
 
--- deDE names are the REAL client spell names (Seelendieb, Hervorrufung,
--- Gelassenheit, ...), not literal translations — a miss here silently falls
--- back to ~1 tick/second, which is wrong for most of these
+-- Keyed by real localized client spell names; a miss silently falls back to ~1 tick/second.
 local CHANNEL_TICKS = {
     ["Mind Flay"]            = 3,
     ["Gedankenschinden"]     = 3,
@@ -82,8 +72,7 @@ local CHANNEL_TICKS = {
     ["Salve"]                = 6,
 }
 
--- Channels that are NOT tick spells -> never draw ticks, so the ~1/s fallback
--- doesn't turn Fishing / First Aid / professions into a barcode.
+-- Non-tick channels: excluded so the ~1/s fallback doesn't turn them into a barcode.
 local NO_TICKS = {
     ["Fishing"] = true,             ["Angeln"] = true,
     ["First Aid"] = true,           ["Erste Hilfe"] = true,
@@ -94,30 +83,19 @@ local NO_TICKS = {
     ["Summoning Stone"] = true,     ["Beschw\195\182rungsstein"] = true,
 }
 
--- Tick count for a channel: explicit table first; never for excluded/tradeskill
--- channels; else ~1 tick/second (the fallback other cast bars use). The
--- fallback only fires for SHORT channels — every real tick spell longer than
--- 15s is in the explicit table, and long utility channels (summoning rituals,
--- soul wells) must not become a barcode.
+-- The 1.5-15s window keeps the fallback off long utility channels; every real tick spell above 15s is in the table.
 local function tickCountFor(name, duration, isTradeSkill)
     if name and NO_TICKS[name] then return nil end
     local c = name and CHANNEL_TICKS[name]
     if c then return c end
-    if isTradeSkill then return nil end  -- fishing, crafting, gathering, etc.
+    if isTradeSkill then return nil end
     if duration and duration >= 1.5 and duration <= 15 then
         return math.floor(duration + 0.5)
     end
     return nil
 end
 
--- =========================================================================
--- Shared helpers (both modes)
--- =========================================================================
-
--- Width of the latency window in seconds. Channels: world latency (the
--- clip-without-losing-a-tick moment). Casts: the client's spell-queue window
--- (the next cast may be pressed once the fill enters it) — that is a CVar,
--- NOT the latency; fall back to latency if the CVar is missing.
+-- Casts use the spell-queue CVar (not latency); channels use world latency.
 local function clipSeconds(forCast)
     if forCast and GetCVar then
         local q = tonumber(GetCVar("SpellQueueWindow") or "")
@@ -126,7 +104,6 @@ local function clipSeconds(forCast)
     return (select(4, GetNetStats()) or 0) / 1000
 end
 
--- Cast timer text per option: remaining only, remaining/total, whole seconds
 local function fmtTime(remaining, duration)
     local m = mod.db.timeTextMode or "both"
     if m == "seconds" then
@@ -137,9 +114,7 @@ local function fmtTime(remaining, duration)
     return string.format("%.1f", remaining)
 end
 
--- Crafting series ("Heavy Netherweave Bandage 3/20"): armed by the
--- DoTradeSkill/DoCraft hooks, counted up by the cast-start tracker below.
-local craftSeries   -- { name, total, done, stamp }
+local craftSeries   -- { name, total, done, stamp }; armed by the craft hooks, counted by the tracker below
 
 local function seriesLabel(castName)
     if mod.db.mergeCrafts == false or not craftSeries or not castName then return nil end
@@ -153,7 +128,6 @@ end
 local function armCraftHooks()
     if mod._craftHooked then return end
     mod._craftHooked = true
-    -- tradeskill window "Create All / Create x" — num arrives as arg 2
     if type(_G.DoTradeSkill) == "function" and type(_G.GetTradeSkillInfo) == "function" then
         hooksecurefunc("DoTradeSkill", function(index, num)
             local name = GetTradeSkillInfo(index)
@@ -162,8 +136,7 @@ local function armCraftHooks()
             end
         end)
     end
-    -- Craft API (enchanting on this client) is always single-cast — arm it
-    -- anyway so a follow-up different craft clears a stale series cleanly
+    -- Craft API is always single-cast; hooked anyway so a different craft clears a stale series.
     if type(_G.DoCraft) == "function" and type(_G.GetCraftInfo) == "function" then
         hooksecurefunc("DoCraft", function(index)
             local name = GetCraftInfo(index)
@@ -174,12 +147,6 @@ local function armCraftHooks()
     end
 end
 
--- =========================================================================
--- =========================================================================
--- MODE 1: BLIZZARD (original castbar extended)
--- =========================================================================
--- =========================================================================
-
 local Blizzard = {}
 
 local FALLBACK_W, FALLBACK_H = 260, 18
@@ -188,7 +155,6 @@ local function bz_getBar()
     return _G.PlayerCastingBarFrame or _G.CastingBarFrame
 end
 
--- Single walk through the frame tree, collects StatusBars + textures simultaneously
 local function bz_walkAndCollect(frame, depth, statusbars, textures)
     if not frame or depth > 5 then return end
     if frame.GetObjectType and frame:GetObjectType() == "StatusBar" then
@@ -258,7 +224,6 @@ local function bz_ensureOverlay(bar)
     local o = CreateFrame("Frame", nil, bar)
     o:SetAllPoints(bar)
 
-    -- Time remaining text
     o.timeText = o:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     local font, size, flags = o.timeText:GetFont()
     o.timeText:SetFont(font, (size or 10) + 2, flags)
@@ -267,14 +232,12 @@ local function bz_ensureOverlay(bar)
     o.timeText:SetJustifyH("RIGHT")
     o.timeText:SetText("")
 
-    -- Pushback readout ("+0.5s" in red above the bar)
     o.pushText = o:CreateFontString(nil, "OVERLAY")
     o.pushText:SetFont(font, (size or 10) + 2, "OUTLINE")
     o.pushText:SetPoint("BOTTOM", o, "TOP", 0, 4)
     o.pushText:SetTextColor(1, 0.25, 0.25, 1)
     o.pushText:Hide()
 
-    -- Tick pool
     o.ticks = {}
 
     bar._vcui_overlay = o
@@ -291,11 +254,7 @@ local function bz_hideAllTicks(bar)
     if o.clip then o.clip:Hide() end
 end
 
--- Latency "clip window": a shaded zone at the spell's COMPLETION end.
--- Channels drain toward the left -> zone at the LEFT edge (recast as the fill
--- enters it to clip without losing the last tick). Casts fill toward the
--- right -> zone at the RIGHT edge (the spell-queue window: the next cast may
--- be pressed as soon as the fill enters it).
+-- Marks the completion end: channels drain leftward, casts fill rightward.
 local function bz_showClip(bar, duration, atRight)
     local o = bar and bar._vcui_overlay
     if not o then return end
@@ -332,7 +291,7 @@ local function bz_showTicks(bar, count)
     local barH = bar:GetHeight()
     if not barW or barW <= 1 then barW = FALLBACK_W end
     if not barH or barH <= 1 then barH = FALLBACK_H end
-    local tickH = barH  -- full height reads cleaner
+    local tickH = barH
 
     for i = 1, linesToDraw do
         local t = o.ticks[i]
@@ -341,7 +300,7 @@ local function bz_showTicks(bar, count)
             t:SetWidth(2)
             o.ticks[i] = t
         end
-        t:SetColorTexture(1, 1, 1, 0.9)  -- white contrasts with the purple/green channel fill
+        t:SetColorTexture(1, 1, 1, 0.9)
         t:SetHeight(tickH)
         t:ClearAllPoints()
         t:SetPoint("CENTER", o, "LEFT", barW * (i / count), 3)
@@ -367,7 +326,6 @@ function Blizzard:Enable()
         local o = self._vcui_overlay
         if not o then return end
 
-        -- pushback readout fade-out
         if o._pushUntil then
             local rem = o._pushUntil - GetTime()
             if rem <= 0 then
@@ -400,7 +358,7 @@ function Blizzard:Enable()
                 bz_showTicks(self, count)
                 bz_showClip(self, dur, false)
             else
-                bz_hideAllTicks(self)  -- also hides the clip marker
+                bz_hideAllTicks(self)
             end
             bz_setChannelColor(self, true)
             return
@@ -417,8 +375,7 @@ function Blizzard:Enable()
                 o.timeText:SetText("")
             end
             bz_hideAllTicks(self)
-            bz_showClip(self, dur, true)   -- spell-queue window at the fill end
-            -- crafting series counter on the default bar's own label
+            bz_showClip(self, dur, true)
             local lbl = seriesLabel(name)
             if lbl and self.Text and self.Text.SetText then
                 self.Text:SetText(lbl)
@@ -453,16 +410,10 @@ function Blizzard:Disable()
     bz_setChannelColor(bar, false)
 end
 
--- =========================================================================
--- =========================================================================
--- MODE 2: CUSTOM (VUI-Style)
--- =========================================================================
--- =========================================================================
-
 local Custom = {}
 local cFrame
 local castInfo
-local c_showTestContent   -- forward (used by the mover's editPreview)
+local c_showTestContent   -- forward declaration: the mover's editPreview closes over this
 
 local function c_hideAllTicks()
     if not cFrame or not cFrame.ticks then return end
@@ -473,9 +424,6 @@ local function c_hideAllTicks()
     if cFrame.clip then cFrame.clip:Hide() end
 end
 
--- Latency window for the custom bar. Channels drain toward the left -> LEFT
--- edge (recast as the fill enters it to clip cleanly). Casts fill toward the
--- right -> RIGHT edge (spell-queue window: press the next cast on entry).
 local function c_showClip(duration, atRight)
     if not (cFrame and cFrame.bar) then return end
     if not (mod.db.showClipMarker and duration and duration > 0) then
@@ -483,11 +431,9 @@ local function c_showClip(duration, atRight)
         return
     end
     if not cFrame.clip then
-        -- OVERLAY (sublevel below the ticks) so it sits ON the fill, not behind it
         cFrame.clip = cFrame.bar:CreateTexture(nil, "OVERLAY", nil, 6)
         cFrame.clip:SetColorTexture(1, 0.82, 0.20, 0.25)
-        -- clip into the same rounded-corner mask as the fill — a bare square
-        -- block hangs over the bar's rounded end cap otherwise
+        -- Needs the fill's rounded-corner mask or the square block overhangs the end cap.
         if cFrame._mask and cFrame.clip.AddMaskTexture then
             cFrame.clip:AddMaskTexture(cFrame._mask)
         end
@@ -516,17 +462,17 @@ local function c_showTicks(count)
     local barH = cFrame.bar:GetHeight()
     if not barW or barW <= 1 then barW = mod.db.width or 240 end
     if not barH or barH <= 1 then barH = mod.db.height or 18 end
-    local tickH = barH  -- flush with the bar reads cleaner than overhanging
+    local tickH = barH
 
     for i = 1, linesToDraw do
         local t = cFrame.ticks[i]
         if not t then
-            -- On cFrame.bar instead of cFrame: automatically sits on top of the bar StatusBar texture
+            -- Parented to the bar, not cFrame, so it draws above the StatusBar texture.
             t = cFrame.bar:CreateTexture(nil, "OVERLAY", nil, 7)
             t:SetWidth(2)
             cFrame.ticks[i] = t
         end
-        t:SetColorTexture(1, 1, 1, 0.7)  -- soft white: visible on both the green fill and the drained part
+        t:SetColorTexture(1, 1, 1, 0.7)
         t:SetHeight(tickH)
         t:ClearAllPoints()
         t:SetPoint("CENTER", cFrame.bar, "LEFT", barW * (i / count), 0)
@@ -539,19 +485,16 @@ local function c_applyColor(color)
     cFrame.bar:SetStatusBarColor(color.r, color.g, color.b, color.a or 1)
 end
 
--- Neutral (near-white) bar for the tintable fill modes — the yellow/green
--- castbar art muddies any color multiplied onto it
+-- Near-white base for the tintable fill modes; the yellow/green art muddies any color multiplied onto it.
 local TEX_NEUTRAL = "Interface\\AddOns\\VuloClassicUI\\Media\\textures\\matte"
 
--- Fill per mode: "texture" = the classic yellow/green art (tint-free),
--- "accent"/"class" = neutral texture tinted with the chosen color
 local function c_applyFill(isChannel)
     if not (cFrame and cFrame.bar) then return end
     local fm = mod.db.fillMode or "texture"
     if fm == "texture" then
         cFrame.bar:SetStatusBarTexture(isChannel and TEX_CHANNEL or TEX_FILL)
         if cFrame._applyMask then cFrame._applyMask() end
-        c_applyColor({ r = 1, g = 1, b = 1, a = 1 })  -- white = no multiplication
+        c_applyColor({ r = 1, g = 1, b = 1, a = 1 })
         return
     end
     cFrame.bar:SetStatusBarTexture(TEX_NEUTRAL)
@@ -581,7 +524,6 @@ local function c_create()
     cFrame:SetClampedToScreen(false)
     cFrame:Hide()
 
-    -- Mover overlay (clearly visible in unlock mode)
     cFrame.mover = ns:CreateMover(cFrame, {
         key    = "castbar",
         label  = L["|cffffffffCASTBAR|r\n|cffaaaaaaDrag or arrow keys|r"],
@@ -597,7 +539,7 @@ local function c_create()
         end,
     })
 
-    -- No mouse events on cFrame itself (would conflict with the mover overlay)
+    -- Mouse stays off cFrame itself; it would conflict with the mover overlay.
     cFrame:EnableMouse(false)
 
     cFrame.icon = cFrame:CreateTexture(nil, "BORDER")
@@ -606,7 +548,6 @@ local function c_create()
         -(mod.db.iconGap or 3) + (mod.db.iconX or 0), (mod.db.iconY or 0))
     cFrame.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
 
-    -- 1px border around the icon (4 edges, anchored to the icon -> move automatically with it)
     local function makeIconEdge()
         local t = cFrame:CreateTexture(nil, "OVERLAY")
         t:SetColorTexture(0, 0, 0, 1)
@@ -652,7 +593,6 @@ local function c_create()
     cFrame.bg:SetTexture(TEX_BG)
     cFrame.bg:SetVertexColor(0.1, 0.1, 0.1, 0.85)
 
-    -- Mask for rounded corners (created once initially, re-attached after texture change)
     local function applyMask()
         local fillTex = cFrame.bar:GetStatusBarTexture()
         if fillTex and fillTex.AddMaskTexture then
@@ -660,11 +600,9 @@ local function c_create()
                 cFrame._mask = cFrame.bar:CreateMaskTexture()
                 cFrame._mask:SetTexture(TEX_MASK, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
                 cFrame._mask:SetAllPoints(cFrame.bar)
-                -- the bg texture object never changes — mask it exactly once
                 if cFrame.bg.AddMaskTexture then cFrame.bg:AddMaskTexture(cFrame._mask) end
             end
-            -- the StatusBar reuses its texture object across SetStatusBarTexture
-            -- calls; attach the mask once per object, not once per cast
+            -- The StatusBar reuses its texture object across SetStatusBarTexture, so mask once per object.
             if not fillTex._vcui_masked then
                 fillTex:AddMaskTexture(cFrame._mask)
                 fillTex._vcui_masked = true
@@ -680,21 +618,18 @@ local function c_create()
     cFrame.spark:SetSize(16, mod.db.height + 8)
 
     local font = "Fonts\\FRIZQT__.TTF"
-    -- Spell name BOTTOM-LEFT
     cFrame.nameText = cFrame:CreateFontString(nil, "OVERLAY")
     cFrame.nameText:SetFont(font, 11, "OUTLINE")
     cFrame.nameText:SetPoint("TOPLEFT", cFrame, "BOTTOMLEFT", 2, -2)
     cFrame.nameText:SetJustifyH("LEFT")
     cFrame.nameText:SetTextColor(1, 1, 1)
 
-    -- Cast timer BOTTOM-RIGHT (same height as name)
     cFrame.timeText = cFrame:CreateFontString(nil, "OVERLAY")
     cFrame.timeText:SetFont(font, 11, "OUTLINE")
     cFrame.timeText:SetPoint("TOPRIGHT", cFrame, "BOTTOMRIGHT", -2, -2)
     cFrame.timeText:SetJustifyH("RIGHT")
     cFrame.timeText:SetTextColor(1, 1, 1)
 
-    -- Pushback readout ("+0.5s" red above the bar) + short red flash on the fill
     cFrame.pushText = cFrame:CreateFontString(nil, "OVERLAY")
     cFrame.pushText:SetFont(font, 12, "OUTLINE")
     cFrame.pushText:SetPoint("BOTTOM", cFrame, "TOP", 0, 3)
@@ -712,7 +647,6 @@ local function c_create()
     cFrame.ticks = {}
 
     cFrame:SetScript("OnUpdate", function(self, elapsed)
-        -- pushback readout fade-out (independent of the cast lifetime)
         if self._pushUntil then
             local rem = self._pushUntil - GetTime()
             if rem <= 0 then
@@ -727,7 +661,6 @@ local function c_create()
         end
 
         if not castInfo then
-            -- Keep visible in unlock mode, otherwise hide
             if not (mod.db.unlocked or ns:IsMoverEditMode()) then self:Hide() end
             return
         end
@@ -759,9 +692,7 @@ local function c_create()
             remaining = math.max(0, duration - el)
         end
 
-        -- Smoothing: normally the displayed value tracks time exactly, but on
-        -- discontinuities (pushback, channel clipping) the target JUMPS —
-        -- glide there at a bounded speed instead of snapping
+        -- Glide at bounded speed so pushback/clipping jumps don't snap.
         local disp = castInfo.disp
         if disp == nil then
             disp = progress
@@ -778,9 +709,6 @@ local function c_create()
         self.spark:ClearAllPoints()
         self.spark:SetPoint("CENTER", self.bar, "LEFT", self.bar:GetWidth() * disp, 0)
 
-        -- Time text needs only ~10Hz (the %.1f value changes 10x/sec at most);
-        -- refresh on a small accumulator and skip identical strings so the
-        -- per-frame string.format + fontstring relayout stops churning the GC.
         self._textAcc = (self._textAcc or 0) + elapsed
         if self._textAcc >= 0.05 then
             self._textAcc = 0
@@ -812,7 +740,7 @@ local function c_startCast(isChannel)
     if not name or not sMS or not eMS then return end
 
     castInfo = { name = name, icon = icon, startMS = sMS, endMS = eMS, isChannel = isChannel }
-    cFrame._textAcc, cFrame._lastTimeText = 1, nil   -- force the time text on the first tick of the new cast
+    cFrame._textAcc, cFrame._lastTimeText = 1, nil
     cFrame:SetAlpha(1)
     cFrame:Show()
     cFrame.icon:SetTexture(icon)
@@ -827,27 +755,25 @@ local function c_startCast(isChannel)
             c_showTicks(count)
             c_showClip(cdur, false)
         else
-            c_hideAllTicks()  -- also hides the clip marker
+            c_hideAllTicks()
         end
         cFrame.spark:Hide()
     else
         local dur = sMS and eMS and (eMS - sMS) / 1000
         c_hideAllTicks()
-        c_showClip(dur, true)   -- spell-queue window at the fill end
+        c_showClip(dur, true)
         cFrame.spark:Show()
     end
 end
 
 local function c_stopCast(success)
     if not cFrame or not castInfo then return end
-    -- already fading out (e.g. an instant's SUCCEEDED or a late INTERRUPTED
-    -- arriving in the 0.5s fade window) — don't restart/recolor the fade
+    -- A late event inside the 0.5s fade window must not restart or recolor it.
     if castInfo.fadeOut then return end
     c_applyColor(success and mod.db.successColor or mod.db.failColor)
     c_hideAllTicks()
     cFrame.spark:Hide()
-    -- snap to the completed state so the bar reads full (cast) / empty (channel)
-    -- instead of fading from wherever the last OnUpdate frame happened to land
+    -- Snap to the completed state so the fade doesn't start from a mid-frame value.
     if success then cFrame.bar:SetValue(castInfo.isChannel and 0 or 1) end
     castInfo.fadeOut = true
     castInfo.fadeTimer = 0.5
@@ -891,9 +817,8 @@ function Custom:Enable()
             elseif event == "UNIT_SPELLCAST_CHANNEL_STOP" then
                 c_stopCast(true)
             elseif event == "UNIT_SPELLCAST_STOP" then
-                -- STOP also fires on spell pushback, check if cast is really over
+                -- STOP also fires on pushback, so confirm the cast is really over.
                 if castInfo and not castInfo.isChannel and not castInfo.fadeOut then
-                    -- Only stop if UnitCastingInfo really returns nothing anymore
                     local stillCasting = UnitCastingInfo("player")
                     if not stillCasting then
                         c_stopCast(true)
@@ -901,8 +826,7 @@ function Custom:Enable()
                 end
             elseif event == "UNIT_SPELLCAST_FAILED"
                 or event == "UNIT_SPELLCAST_FAILED_QUIET" then
-                -- FAILED_QUIET often fires on attempts during an ongoing cast.
-                -- Only abort if NO cast/channel is running anymore.
+                -- FAILED_QUIET often fires for attempts during an ongoing cast; only abort if nothing is running.
                 if castInfo and not castInfo.fadeOut then
                     local stillCasting = UnitCastingInfo("player") or UnitChannelInfo("player")
                     if not stillCasting then
@@ -910,13 +834,11 @@ function Custom:Enable()
                     end
                 end
             elseif event == "UNIT_SPELLCAST_INTERRUPTED" then
-                -- Real interrupt (e.g. by Kick) -> always stop
                 if castInfo then c_stopCast(false) end
             end
         end)
     end
 
-    -- Hide Blizzard bar
     local b = bz_getBar()
     if b then
         if b.UnregisterAllEvents then b:UnregisterAllEvents() end
@@ -947,7 +869,6 @@ local function c_applyLayout()
     cFrame.spark:SetHeight(mod.db.height + 8)
 end
 
--- Fill the castbar with fake cast content (used by Unlock/Test and edit mode).
 c_showTestContent = function()
     cFrame:Show()
     cFrame:SetAlpha(1)
@@ -956,9 +877,9 @@ c_showTestContent = function()
     cFrame.timeText:SetText("1.5 / 2.0")
     cFrame.icon:SetTexture("Interface\\Icons\\Spell_Nature_Earthbind")
     cFrame.setIconShown(mod.db.showIcon)
-    c_applyFill(true)   -- honours the fill-color mode in the preview
+    c_applyFill(true)
     c_showTicks(3)
-    c_showClip(3, false)  -- preview the clip window too (fake 3s channel)
+    c_showClip(3, false)
 end
 
 local function c_setUnlocked(state)
@@ -966,7 +887,6 @@ local function c_setUnlocked(state)
     c_create()
     if state then
         c_showTestContent()
-        -- Show mover overlay on top
         cFrame.mover:Show()
         ns:Print(L["Castbar mover active. |cff9b6cffDrag purple box|r or use |cff9b6cffarrow keys|r (SHIFT = 5px). Click 'Unlock / Test' again to finish."])
     else
@@ -977,12 +897,7 @@ local function c_setUnlocked(state)
     end
 end
 
--- =========================================================================
--- Shared cast tracker: pushback readout + crafting series bookkeeping.
--- Independent of the mode-specific event handlers, so it keeps its OWN
--- end-time snapshots (frame event order between handlers is undefined).
--- =========================================================================
-
+-- Keeps its own end-time snapshots: event order between this and the mode handlers is undefined.
 local function showPushback(txt)
     if mod.db.showPushback == false then return end
     if mod.db.mode == "custom" then
@@ -1020,7 +935,7 @@ local function ensureTracker()
         if not mod._enabled then return end
 
         if event == "UNIT_SPELLCAST_STOP" then
-            self.castEnd = nil     -- stale snapshots would fake a pushback
+            self.castEnd = nil     -- a stale snapshot would fake a pushback
             return
         elseif event == "UNIT_SPELLCAST_CHANNEL_STOP" then
             self.chanEnd = nil
@@ -1030,7 +945,6 @@ local function ensureTracker()
         if event == "UNIT_SPELLCAST_START" then
             local name, _, _, _, endMS = UnitCastingInfo("player")
             self.castEnd = endMS
-            -- crafting series: count matching repeat casts, drop on mismatch
             if craftSeries and name then
                 if name == craftSeries.name and (GetTime() - craftSeries.stamp) < 30 then
                     craftSeries.done  = (craftSeries.done or 0) + 1
@@ -1038,9 +952,7 @@ local function ensureTracker()
                 else
                     craftSeries = nil
                 end
-                -- the custom bar may have painted its label BEFORE this
-                -- handler ran (frame order is undefined) — repaint it, which
-                -- also strips a stale "3/20" when the series was just dropped
+                -- The custom bar may have painted its label before this handler ran, so repaint it.
                 if mod.db.mode == "custom" and cFrame and castInfo
                    and not castInfo.isChannel and mod.db.showSpellName then
                     cFrame.nameText:SetText(seriesLabel(name) or name)
@@ -1051,7 +963,6 @@ local function ensureTracker()
             self.chanEnd = select(5, UnitChannelInfo("player"))
 
         elseif event == "UNIT_SPELLCAST_DELAYED" then
-            -- pushback on a cast EXTENDS the end time
             local _, _, _, _, endMS = UnitCastingInfo("player")
             if endMS and self.castEnd and endMS > self.castEnd + 10 then
                 showPushback(string.format("+%.1fs", (endMS - self.castEnd) / 1000))
@@ -1059,7 +970,6 @@ local function ensureTracker()
             if endMS then self.castEnd = endMS end
 
         elseif event == "UNIT_SPELLCAST_CHANNEL_UPDATE" then
-            -- pushback on a channel SHORTENS it
             local endMS = select(5, UnitChannelInfo("player"))
             if endMS and self.chanEnd and endMS < self.chanEnd - 10 then
                 showPushback(string.format("-%.1fs", (self.chanEnd - endMS) / 1000))
@@ -1069,20 +979,13 @@ local function ensureTracker()
     end)
 end
 
--- =========================================================================
--- =========================================================================
--- MODE-SWITCH
--- =========================================================================
--- =========================================================================
-
 local function switchMode(newMode)
     if newMode ~= "blizzard" and newMode ~= "custom" then return end
     mod.db.mode = newMode
 
     if newMode == "blizzard" then
         Custom:Disable()
-        -- Without a /reload, reactivating the bar's events is not possible
-        -- -> warn the user about this.
+        -- The default bar's events cannot be re-registered without a /reload.
         Blizzard:Enable()
     else
         Blizzard:Disable()
@@ -1090,15 +993,9 @@ local function switchMode(newMode)
     end
 end
 
--- =========================================================================
--- Lifecycle
--- =========================================================================
-
 function mod:OnEnable()
     ensureTracker()
     armCraftHooks()
-    -- Migration: update old channel color (0.75, 0.35, 1.00) to new #9b6cff.
-    -- Only if the user didn't customize the color themselves.
     local function isOldDefault(c)
         return c and math.abs((c.r or 0) - 0.75) < 0.01
                  and math.abs((c.g or 0) - 0.35) < 0.01
@@ -1122,10 +1019,6 @@ function mod:OnDisable()
     Custom:Disable()
     Blizzard:Disable()
 end
-
--- =========================================================================
--- Options
--- =========================================================================
 
 function mod:GetOptions()
     local items = {}
@@ -1201,7 +1094,6 @@ function mod:GetOptions()
         set = function(_, v) mod.db.mergeCrafts = v end,
     })
 
-    -- Mode-specific options
     if mod.db.mode == "custom" then
         table.insert(items, { type = "spacer", height = 8 })
         table.insert(items, { type = "header", text = L["VUI Style: Position & Size"] })
@@ -1239,14 +1131,12 @@ function mod:GetOptions()
             get = function() return mod.db.fillMode or "texture" end,
             set = function(_, v)
                 mod.db.fillMode = v
-                -- repaint whatever is on screen right now
                 if cFrame and cFrame:IsShown() then
                     if castInfo then c_applyFill(castInfo.isChannel)
                     elseif mod.db.unlocked then c_showTestContent() end
                 end
             end,
         })
-        -- Fine tuning (collapsed -> short page; expand to adjust sizes)
         table.insert(items, { type = "section", title = L["Size & offsets"], collapsed = true, items = {
             { type = "slider", label = L["Width"],
               min = 120, max = 400, step = 5,
@@ -1273,8 +1163,7 @@ function mod:GetOptions()
         } })
     end
 
-    -- Swing Timer lives in its own hidden module; its options are embedded here
-    -- so it doesn't get a separate sidebar entry. Works for any melee class.
+    -- Swing timer is a hidden module; embedding its options here avoids a second sidebar entry.
     local sw = ns.modules and ns.modules.swingtimer
     if sw and sw.GetOptions and sw.db then
         table.insert(items, { type = "spacer", height = 10 })
@@ -1287,9 +1176,6 @@ function mod:GetOptions()
     return items
 end
 
--- =========================================================
--- Slash command for testing
--- =========================================================
 SLASH_SCTTEST1 = "/scttest"
 SlashCmdList.SCTTEST = function()
     if mod.db.mode == "custom" then

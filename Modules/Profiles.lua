@@ -1,8 +1,4 @@
--- =========================================================
--- VuloClassicUI / Modules / Profiles
--- Profile manager as its own "module" in the sidebar.
--- Allows: switch, create, copy, delete, rename profiles, assign per class.
--- =========================================================
+-- Profiles: profile manager module — switch, create, copy, delete, rename profiles, assign per class.
 local _, ns = ...
 local L = ns.L
 
@@ -19,9 +15,6 @@ local mod = ns:RegisterModule("profiles", {
 -- This "module" has no lifecycle logic of its own
 function mod:OnEnable() end
 
--- =========================================================
--- Data for UI
--- =========================================================
 local CLASS_LIST = {
     "WARRIOR", "PALADIN", "HUNTER", "ROGUE", "PRIEST",
     "SHAMAN", "MAGE", "WARLOCK", "DRUID",
@@ -38,7 +31,6 @@ local newProfileNameBuffer = ""
 local copyFromBuffer       = nil
 local renameNewBuffer      = ""
 
--- Helper functions
 local function getProfileValues()
     local values = {}
     for _, name in ipairs(ns:GetProfileNames()) do
@@ -61,17 +53,11 @@ local function refreshUI()
     end
 end
 
--- =========================================================
--- Options page
--- =========================================================
 function mod:GetOptions()
     local items = {}
     local activeName = ns:GetActiveProfileName()
     local myClass    = ns:GetMyClassKey()
 
-    -- =========================================================
-    -- Section: Active Profile
-    -- =========================================================
     table.insert(items, { type = "header", text = L["Active Profile"] })
 
     table.insert(items, {
@@ -102,9 +88,6 @@ function mod:GetOptions()
 
     table.insert(items, { type = "spacer", height = 12 })
 
-    -- =========================================================
-    -- Section: Per-character assignment (beats the class assignment)
-    -- =========================================================
     table.insert(items, { type = "header", text = L["Profile for this character"] })
     table.insert(items, {
         type = "desc",
@@ -126,9 +109,6 @@ function mod:GetOptions()
 
     table.insert(items, { type = "spacer", height = 12 })
 
-    -- =========================================================
-    -- Section: Per-class quick setup
-    -- =========================================================
     table.insert(items, { type = "header", text = L["Per-class profile (quick setup)"] })
     table.insert(items, {
         type = "desc",
@@ -155,9 +135,6 @@ function mod:GetOptions()
 
     table.insert(items, { type = "spacer", height = 12 })
 
-    -- =========================================================
-    -- Section: Create Profile
-    -- =========================================================
     table.insert(items, { type = "header", text = L["Create New Profile"] })
 
     table.insert(items, {
@@ -202,9 +179,6 @@ function mod:GetOptions()
 
     table.insert(items, { type = "spacer", height = 12 })
 
-    -- =========================================================
-    -- Section: Manage Active Profile
-    -- =========================================================
     table.insert(items, { type = "header", text = L["Manage Current Profile"] })
 
     table.insert(items, {
@@ -264,9 +238,6 @@ function mod:GetOptions()
 
     table.insert(items, { type = "spacer", height = 14 })
 
-    -- =========================================================
-    -- Section: Class assignments
-    -- =========================================================
     table.insert(items, { type = "header", text = L["Profile Assignment per Class"] })
 
     table.insert(items, {

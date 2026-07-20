@@ -1,8 +1,4 @@
--- =========================================================
--- VuloClassicUI / UI / Sidebar
--- VuloUI style: modules are listed under group headers (Core, QoL, Reskin, ...).
--- On the right of each entry: power button to enable/disable.
--- =========================================================
+-- VuloClassicUI / UI / Sidebar: module list grouped under headers, each with a power toggle.
 local _, ns = ...
 local L = ns.L
 ns.UI = ns.UI or {}
@@ -12,10 +8,7 @@ local ROW_HEIGHT     = 28
 local GROUP_HEADER_H = 26
 local GROUP_GAP      = 8
 
--- Per-module icons: our own bundled monochrome glyph set (white line art,
--- tinted at runtime — gray idle / accent selected). Rasterized from a freely
--- ISC-licensed icon set; see Media\Icons\modules\LICENSE.txt.
--- Unknown keys fall back to MODULE_ICON_FALLBACK.
+-- Bundled monochrome glyphs, tinted at runtime; see Media\Icons\modules\LICENSE.txt.
 local ICON_DIR = "Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\modules\\"
 local MODULE_ICONS = {}
 for _, key in ipairs({
@@ -35,7 +28,6 @@ for _, key in ipairs({
 end
 local MODULE_ICON_FALLBACK = ICON_DIR .. "_fallback.tga"
 
--- Expose for the dashboard (and anything else that needs per-module icons)
 ns.MODULE_ICONS = MODULE_ICONS
 ns.MODULE_ICON_FALLBACK = MODULE_ICON_FALLBACK
 function ns:GetModuleIcon(key)
@@ -43,12 +35,11 @@ function ns:GetModuleIcon(key)
 end
 
 UI.sidebarButtons     = {}
-UI.sidebarGroupOrder  = { "Global", "Unit Frames", "HUD", "PvP", "QoL", "UI Reskin", "Bugfixes" }  -- desired order
-UI.sidebarHiddenGroups = { ["_hidden"] = true, ["Account"] = true, ["Core"] = true }  -- not shown in sidebar
+UI.sidebarGroupOrder  = { "Global", "Unit Frames", "HUD", "PvP", "QoL", "UI Reskin", "Bugfixes" }
+UI.sidebarHiddenGroups = { ["_hidden"] = true, ["Account"] = true, ["Core"] = true }
 UI.sidebarGroupBuckets = {}
 
 local function highlightSelected()
-    -- Dashboard row (separate from module rows)
     if UI._dashRow then
         local onDash = (UI.currentModule == UI.DASHBOARD_KEY)
         if onDash then UI._dashRow.bg:Show(); UI._dashRow.accentBar:Show()
@@ -73,9 +64,6 @@ local function highlightSelected()
             btn.label:SetTextColor(c.r, c.g, c.b)
         end
 
-        -- Uniform monochrome icon set: every icon desaturated, tinted by state
-        -- (selected = accent, enabled = light gray, disabled = dim gray). One
-        -- consistent style instead of mixed full-color spell art.
         local mod = ns.modules[key]
         local enabled
         if mod and mod.toggleGet then enabled = mod.toggleGet()
@@ -104,7 +92,6 @@ local function createModuleRow(parent, key, mod)
     local row = CreateFrame("Button", nil, parent)
     row:SetHeight(ROW_HEIGHT)
 
-    -- Selected background: accent gradient fading out to the right
     local bg = row:CreateTexture(nil, "BACKGROUND")
     bg:SetAllPoints(row)
     ns.UI.SetGradient(bg, "HORIZONTAL",
@@ -113,7 +100,6 @@ local function createModuleRow(parent, key, mod)
     bg:Hide()
     row.bg = bg
 
-    -- Accent bar on the left edge (shown when selected)
     local accentBar = row:CreateTexture(nil, "ARTWORK")
     accentBar:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 0)
     accentBar:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 0, 0)
@@ -122,27 +108,22 @@ local function createModuleRow(parent, key, mod)
     accentBar:Hide()
     row.accentBar = accentBar
 
-    -- Hover
     local hover = row:CreateTexture(nil, "HIGHLIGHT")
     hover:SetAllPoints(row)
     hover:SetColorTexture(1, 1, 1, 0.04)
 
-    -- Module icon (left) — monochrome treatment, tinted by highlightSelected
     local icon = row:CreateTexture(nil, "ARTWORK")
     icon:SetSize(16, 16)
     icon:SetPoint("LEFT", row, "LEFT", 8, 0)
     icon:SetTexture(MODULE_ICONS[key] or MODULE_ICON_FALLBACK)
-    -- our glyphs are full-frame white line art — no border crop needed
     icon:SetVertexColor(0.76, 0.76, 0.84, 0.95)
     row.icon = icon
 
-    -- hover: brighten the icon (selection tint wins; restored on leave)
     row:HookScript("OnEnter", function()
         if UI.currentModule ~= key then icon:SetVertexColor(0.95, 0.95, 1) end
     end)
     row:HookScript("OnLeave", function() highlightSelected() end)
 
-    -- Power button on the right (toggle) - unless module marks itself as noToggle
     local power
     if not mod.noToggle then
         power = UI:CreatePowerButton(row, {
@@ -158,7 +139,6 @@ local function createModuleRow(parent, key, mod)
         row.power = power
     end
 
-    -- Label (between icon and power button) — truncates instead of overlapping
     local label = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     ns.UI.Font(label, 12)
     label:SetPoint("LEFT", icon, "RIGHT", 7, 0)
@@ -168,8 +148,8 @@ local function createModuleRow(parent, key, mod)
         label:SetPoint("RIGHT", row, "RIGHT", -8, 0)
     end
     label:SetJustifyH("LEFT")
-    label:SetWordWrap(false)  -- single line, truncates with "..." if too long
-    label:SetText(L[mod.name])  -- mod.name is a raw English key; translate live
+    label:SetWordWrap(false)
+    label:SetText(L[mod.name])  -- mod.name is a raw English key, translated live
     row.label = label
 
     row:SetScript("OnClick", function()
@@ -183,8 +163,6 @@ local function createGroupHeader(parent, groupName)
     local h = CreateFrame("Frame", nil, parent)
     h:SetHeight(GROUP_HEADER_H)
 
-    -- Uppercase, slightly smaller — reads as a section label (muted, not accent:
-    -- the accent color is reserved for selection/active states)
     local fs = h:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     ns.UI.Font(fs, 10)
     fs:SetPoint("BOTTOMLEFT", h, "BOTTOMLEFT", 8, 4)
@@ -193,7 +171,6 @@ local function createGroupHeader(parent, groupName)
     fs:SetTextColor(c.r, c.g, c.b)
     h._label = fs
 
-    -- Thin separator line under the header, fading out to the right
     local line = h:CreateTexture(nil, "ARTWORK")
     line:SetPoint("BOTTOMLEFT", h, "BOTTOMLEFT", 8, 0)
     line:SetPoint("BOTTOMRIGHT", h, "BOTTOMRIGHT", -8, 0)
@@ -205,16 +182,13 @@ local function createGroupHeader(parent, groupName)
     return h
 end
 
--- =========================================================
--- Build group buckets
--- =========================================================
 local function rebuildBuckets()
     UI.sidebarGroupBuckets = {}
-    local origIndex = {}   -- registration order, used as a stable-sort tiebreaker
+    local origIndex = {}   -- registration order: stable-sort tiebreaker
     for i, key in ipairs(ns.moduleOrder) do
         local mod = ns.modules[key]
         origIndex[key] = i
-        if not mod.parentTab then   -- consolidated sub-modules show as tabs, not rows
+        if not mod.parentTab then   -- sub-modules show as tabs, not rows
             local g = mod.group or "Core"
             if not UI.sidebarGroupBuckets[g] then
                 UI.sidebarGroupBuckets[g] = {}
@@ -223,8 +197,6 @@ local function rebuildBuckets()
         end
     end
 
-    -- Stable sort each bucket by optional mod.sidebarOrder (lower = higher up);
-    -- ties fall back to registration order so unset modules keep their place.
     for _, bucket in pairs(UI.sidebarGroupBuckets) do
         table.sort(bucket, function(a, b)
             local oa = ns.modules[a].sidebarOrder or 0
@@ -234,8 +206,6 @@ local function rebuildBuckets()
         end)
     end
 
-    -- Groups not in the order list get appended at the end
-    -- (unless explicitly hidden)
     local seen = {}
     for _, g in ipairs(UI.sidebarGroupOrder) do seen[g] = true end
     for g in pairs(UI.sidebarGroupBuckets) do
@@ -245,17 +215,12 @@ local function rebuildBuckets()
     end
 end
 
--- =========================================================
--- Populate sidebar
--- =========================================================
 function UI:PopulateSidebar()
     local f = UI.mainFrame
     if not f then return end
     local parent = f.sidebarContent
 
-    -- Frames are POOLED and reused across opens: WoW frames are never
-    -- garbage-collected, so recreating ~40 rows on every open would leak
-    -- memory permanently. Hide everything, then re-show what's needed.
+    -- Frames are never garbage-collected: rows are pooled and re-shown, never recreated.
     if UI._sidebarChildren then
         for _, c in ipairs(UI._sidebarChildren) do c:Hide() end
     end
@@ -267,7 +232,6 @@ function UI:PopulateSidebar()
 
     local y = 0
 
-    -- "Overview" entry at the very top → opens the dashboard (built once)
     do
         local row = UI._dashRow
         if not row then
@@ -310,7 +274,7 @@ function UI:PopulateSidebar()
             end)
             UI._dashRow = row
         end
-        row.label:SetText(L["Overview"])  -- re-set: locale can change live
+        row.label:SetText(L["Overview"])  -- re-set on every populate: locale can change live
         row:ClearAllPoints()
         row:SetPoint("TOPLEFT",  parent, "TOPLEFT",  0, -y)
         row:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, -y)
@@ -319,7 +283,6 @@ function UI:PopulateSidebar()
         y = y + ROW_HEIGHT + GROUP_GAP
     end
 
-    -- "Patch Notes" entry directly under Overview → opens the changelog page.
     if ns.modules and ns.modules.changelog then
         local row = UI._changelogRow
         if not row then
@@ -357,12 +320,9 @@ function UI:PopulateSidebar()
             label:SetPoint("LEFT", icon, "RIGHT", 7, 0)
             row.label = label
 
-            -- unread-update dot: a small accent circle on the right that pulses
-            -- until the patch notes are opened after an update
             local dot = row:CreateTexture(nil, "OVERLAY")
             dot:SetSize(13, 13)
             dot:SetPoint("RIGHT", row, "RIGHT", -8, 0)
-            -- a real round dot: the game's LED indicator texture, tinted accent
             dot:SetTexture("Interface\\COMMON\\Indicator-Gray")
             dot:SetVertexColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 1)
             local pulse = dot:CreateAnimationGroup()
@@ -374,7 +334,6 @@ function UI:PopulateSidebar()
             row.dot, row.dotPulse = dot, pulse
 
             row:SetScript("OnClick", function(self)
-                -- opening the notes marks this version as read
                 if ns.db and ns.db.global then ns.db.global.patchNotesSeen = ns.VERSION end
                 if self.dotPulse then self.dotPulse:Stop() end
                 if self.dot then self.dot:Hide() end
@@ -382,8 +341,7 @@ function UI:PopulateSidebar()
             end)
             UI._changelogRow = row
         end
-        row.label:SetText(L[ns.modules.changelog.name])  -- raw key → translate live
-        -- pulse while the current version's notes haven't been opened yet
+        row.label:SetText(L[ns.modules.changelog.name])
         local unread = ns.db and ns.db.global and ns.db.global.patchNotesSeen ~= ns.VERSION
         if unread then
             row.dot:Show()
@@ -404,7 +362,6 @@ function UI:PopulateSidebar()
         local moduleKeys = UI.sidebarGroupBuckets[groupName]
         local hidden = UI.sidebarHiddenGroups and UI.sidebarHiddenGroups[groupName]
         if moduleKeys and #moduleKeys > 0 and not hidden then
-            -- Group header (pooled per group name)
             local header = UI._sidebarHeaders[groupName]
             if not header then
                 header = createGroupHeader(parent, groupName)
@@ -418,7 +375,6 @@ function UI:PopulateSidebar()
             table.insert(UI._sidebarChildren, header)
             y = y + GROUP_HEADER_H
 
-            -- Module rows (pooled per module key)
             for _, key in ipairs(moduleKeys) do
                 local mod = ns.modules[key]
                 local row = UI.sidebarButtons[key]
@@ -454,8 +410,7 @@ function UI:RefreshSidebarStates()
 end
 
 function UI:ShowModulePage(key)
-    -- A consolidated sub-module (parentTab) has no sidebar row of its own — open
-    -- its container and select that sub as the active tab instead.
+    -- a parentTab sub-module has no row of its own: open its container, select its tab
     local m = ns.modules[key]
     local subTab
     if m and m.parentTab then
@@ -465,7 +420,6 @@ function UI:ShowModulePage(key)
     UI.currentModule = key
     UI.currentTab    = nil
     UI:BuildTabsForModule(key)
-    -- BuildTabsForModule eventually calls ShowTab(firstTabId), which triggers BuildOptionsPage
     if subTab then UI:ShowTab(subTab) end
     highlightSelected()
 end

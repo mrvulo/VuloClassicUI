@@ -1,20 +1,4 @@
--- =========================================================
--- VuloClassicUI / Modules / DarkSkin
--- The dark look of the UI, in one module. Two independent parts:
---
---   1. BUTTON SKIN — a built-in dark drop-shadow skin for Blizzard action
---      buttons + WeakAuras icons (icons cropped, chunky border removed, rounded
---      shape + soft black rim; several styles). On by default.
---
---   2. DARK MODE — optionally darkens + desaturates Blizzard's DEFAULT UI
---      artwork (unit frames, minimap, action-bar art) to a neutral dark tone,
---      re-tinting Blizzard's own textures. Opt-in (its master toggle defaults
---      off), because it restyles the whole default UI.
---
--- Everything is drawn / recoloured by VuloClassicUI itself — no external
--- skinning library, no secure-frame writes (only textures/regions), fully
--- toggleable and reversible.
--- =========================================================
+-- Dark button skin plus an opt-in re-tint of Blizzard's default UI artwork.
 local _, ns = ...
 local L = ns.L
 
@@ -24,36 +8,27 @@ local mod = ns:RegisterModule("darkskin", {
     description = "The dark look of the UI in one place: a built-in dark skin for action buttons and WeakAuras icons, plus an optional Dark Mode that darkens Blizzard's default frames, minimap and bars.",
     defaults = {
         enabled       = true,
-        -- Button skin (action bars + WeakAuras)
-        style         = "shadow",  -- action bars: shadow | rounded | square | accent | circle | minimal | minimaldark
-        waStyle       = "shadow",  -- WeakAuras icons: same set, configured separately
-        skinPetStance = true,      -- also skin pet + stance buttons
-        skinBars      = true,      -- skin the action bars
+        style         = "shadow",  -- shadow | rounded | square | accent | circle | minimal | minimaldark
+        waStyle       = "shadow",
+        skinPetStance = true,
+        skinBars      = true,
         barIconSize   = 88,        -- shadow style: icon fills this % of the button (rest = rim)
-        skinWeakAuras = true,      -- skin WeakAuras icons
-        hideWABorder  = true,      -- hide WeakAuras' own border subregions when skinning
-        -- Dark Mode (re-tint Blizzard's default artwork) — opt-in
-        darkMode        = false,                          -- master switch (was the old Dark Mode module's enabled)
-        dmDesaturate    = true,                           -- strip colour before tinting (true greyscale)
-        dmColor         = { r = 0.40, g = 0.40, b = 0.40 },  -- neutral grey
+        skinWeakAuras = true,
+        hideWABorder  = true,
+        darkMode        = false,
+        dmDesaturate    = true,
+        dmColor         = { r = 0.40, g = 0.40, b = 0.40 },
         dmUnitframes    = true,
         dmMinimap       = true,
         dmActionbars    = true,
-        dmActionButtons = false,                          -- opt-in (tints the button border art)
-        dmBags          = false,                          -- opt-in
+        dmActionButtons = false,
+        dmBags          = false,
     },
 })
 
--- =========================================================
--- PART 1 — BUTTON SKIN
--- =========================================================
-
--- Action button name prefixes × 12 ids
 local BAR_PREFIXES = {
     "ActionButton", "MultiBarBottomLeftButton", "MultiBarBottomRightButton",
     "MultiBarLeftButton", "MultiBarRightButton", "BonusActionButton",
-    -- VuloClassicUI's own action-bar buttons (present when the Action Bars module
-    -- has taken over) — skin these too, or the visible bars stay unskinned.
     "VuloActionButton", "VuloAB_bottomleftB", "VuloAB_bottomrightB",
     "VuloAB_rightB", "VuloAB_leftB", "VuloAB_extraB", "VuloAB_stanceB",
 }
@@ -61,24 +36,17 @@ local EXTRA_PREFIXES = { "PetActionButton", "StanceButton" }
 
 local ICON_CROP = { 0.08, 0.92, 0.08, 0.92 }
 
--- Bundled textures (shipped under Media\Masks\, load reliably in Classic).
-local MASK_ROUNDED = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\csquare_mask.tga"  -- rounded square
+-- Bundled masks under Media\Masks\; file paths load more reliably than fileIDs in Classic.
+local MASK_ROUNDED = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\csquare_mask.tga"
 local MASK_CIRCLE  = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\circle_mask.tga"
-local MASK_SQUARE  = "Interface\\Buttons\\WHITE8X8"                                      -- plain square
-local TEX_BACKDROP = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\Backdrop.tga"      -- filled rounded fill
-local TEX_BORDER   = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\Normal.tga"        -- black rounded border + soft shadow
+local MASK_SQUARE  = "Interface\\Buttons\\WHITE8X8"
+local TEX_BACKDROP = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\Backdrop.tga"
+local TEX_BORDER   = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\Normal.tga"
 
--- The rim is created by insetting the icon's MASK (icon reads smaller, the dark
--- backdrop shows around it). The inset is a FRACTION of the icon size so the
--- rim looks the same on small and large icons (a fixed px rim is too thick on
--- small icons, too thin on big ones). RIM_OUTSET is a small fixed bleed for the
--- soft shadow past the frame edge. Shrinking via the mask survives game updates.
-local RIM_OUTSET  = 3   -- outward bleed of the rounded dark backdrop (~117% like the reference)
--- (icon shrink for the shadow style is configurable via mod.db.barIconSize)
+-- The rim comes from insetting the icon's MASK by a fraction of icon size, so it
+-- scales with the icon; RIM_OUTSET is a fixed bleed for the soft shadow.
+local RIM_OUTSET  = 3
 
--- The shadow layers behind the icon: filled dark backdrop + black rounded
--- border with a soft drop-shadow (the real "Shadow" look), both bleeding a
--- few px past the frame edge.
 local function attachShadow(frame, store, outset)
     if not frame then return end
     store = store or frame
@@ -89,7 +57,7 @@ local function attachShadow(frame, store, outset)
         back:SetPoint("TOPLEFT",     frame, "TOPLEFT",     -outset,  outset)
         back:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT",  outset, -outset)
         back:SetTexture(TEX_BACKDROP)
-        back:SetVertexColor(0.03, 0.03, 0.04, 1)   -- near-black, merges with the border
+        back:SetVertexColor(0.03, 0.03, 0.04, 1)
         store._vcuiBack = back
 
         local ring = frame:CreateTexture(nil, "BACKGROUND", nil, -6)
@@ -101,25 +69,21 @@ local function attachShadow(frame, store, outset)
     end
 end
 
--- Style table: how each style draws a button
 local STYLES = {
-    shadow   = { border = nil,      bg = true,  mask = nil,          shadow = true  },  -- rounded icon + dark rim
-    rounded  = { border = nil,      bg = true,  mask = MASK_ROUNDED, shadow = false },  -- icon corners masked round
-    square   = { border = "black",  bg = true,  mask = nil,          shadow = false },  -- crisp square, black 1px edge
-    accent   = { border = "accent", bg = true,  mask = nil,          shadow = false },  -- square, purple edge
-    circle   = { border = nil,      bg = true,  mask = MASK_CIRCLE,  shadow = false },  -- circular
-    minimal  = { border = nil,      bg = false, mask = nil,          shadow = false },  -- cropped icon only
+    shadow   = { border = nil,      bg = true,  mask = nil,          shadow = true  },
+    rounded  = { border = nil,      bg = true,  mask = MASK_ROUNDED, shadow = false },
+    square   = { border = "black",  bg = true,  mask = nil,          shadow = false },
+    accent   = { border = "accent", bg = true,  mask = nil,          shadow = false },
+    circle   = { border = nil,      bg = true,  mask = MASK_CIRCLE,  shadow = false },
+    minimal  = { border = nil,      bg = false, mask = nil,          shadow = false },
     minimaldark = { border = nil,   bg = false, mask = nil,          shadow = false, darkenNormal = true },
 }
 
-local DARK_TINT = 0.12   -- "minimaldark" border tint (SUI uses ~0.15; a touch darker)
+local DARK_TINT = 0.12
 
--- Whether the action bars currently show our skin. Drives the NormalTexture
--- re-hide hooks (so after a live unskin Blizzard's gold border stays put) and is
--- flipped by setBarsSkinned().
+-- Gates the NormalTexture re-hide hooks; flipped by setBarsSkinned().
 local barsSkinned = false
 
--- Style for the action bars (key="style") or WeakAuras (key="waStyle")
 local function currentStyle(forWA)
     local key = mod.db and (forWA and mod.db.waStyle or mod.db.style)
     return STYLES[key] or STYLES.shadow
@@ -141,8 +105,6 @@ local function hideNormalTexture(button)
     if slot then slot:SetAlpha(0) end
 end
 
--- Per-style handling of Blizzard's gold border: most styles hide it (we draw our
--- own), but "minimaldark" keeps it and just desaturates + darkens it.
 local function applyNormalTexture(button)
     if not currentStyle().darkenNormal then
         hideNormalTexture(button)
@@ -151,7 +113,7 @@ local function applyNormalTexture(button)
     local nt = (button.GetNormalTexture and button:GetNormalTexture())
             or getRegion(button, "NormalTexture", button.NormalTexture)
     if nt then
-        if button._vcuiNTOrig then nt:SetTexture(button._vcuiNTOrig) end  -- restore after a hide-style
+        if button._vcuiNTOrig then nt:SetTexture(button._vcuiNTOrig) end
         nt:SetAlpha(1)
         if nt.SetDesaturated then nt:SetDesaturated(true) end
         nt:SetVertexColor(DARK_TINT, DARK_TINT, DARK_TINT, 1)
@@ -160,8 +122,7 @@ local function applyNormalTexture(button)
     if slot then slot:SetAlpha(0) end
 end
 
--- Blizzard re-applies the NormalTexture on state changes and this client has
--- no reliable global ActionButton_Update, so hook each button's setter once.
+-- This client has no reliable global ActionButton_Update, so hook each button's setter.
 local function lockNormalTexture(button)
     if button._vcuiNTHook or not button.SetNormalTexture then return end
     button._vcuiNTHook = true
@@ -179,8 +140,7 @@ local function ensureMask(button)
     return button._vcuiMask
 end
 
--- Mask the icon. `pct` insets the mask by that fraction of the icon size, so
--- the icon reads smaller and the dark backdrop shows as a rim around it.
+-- `pct` insets the mask by that fraction of icon size, revealing the backdrop as a rim.
 local function setMasked(button, icon, on, maskTex, pct)
     if on then
         local m = ensureMask(button)
@@ -210,7 +170,6 @@ local function setMasked(button, icon, on, maskTex, pct)
     end
 end
 
--- Apply the current style's look to an already-prepared button
 local function applyStyle(button)
     local st   = currentStyle()
     local icon = getRegion(button, "Icon", button.icon or button.Icon)
@@ -312,8 +271,7 @@ local function refreshAll()
     end)
 end
 
--- Live-remove our skin from a button. Frames are kept (hidden) so re-skinning is
--- cheap. Touches only textures/regions -> combat-safe.
+-- Touches only textures/regions, never secure attributes, so it is combat-safe.
 local function unstyleButton(button)
     if not button or not button._vcuiSkinned then return end
     if button._vcuiBg     then button._vcuiBg:Hide()     end
@@ -339,7 +297,6 @@ local function unstyleButton(button)
     if slot then slot:SetAlpha(1) end
 end
 
--- Turn the action-bar skin on/off live (the skinBars toggle calls this).
 local function setBarsSkinned(on)
     barsSkinned = on and true or false
     if on then
@@ -349,9 +306,6 @@ local function setBarsSkinned(on)
     end
 end
 
--- ---------------------------------------------------------
--- WeakAuras icon skinning (own skin, configured separately from the bars)
--- ---------------------------------------------------------
 local function insetCooldown(region, icon, pct)
     local cd = region.cooldown
     if not (cd and cd.ClearAllPoints) then return end
@@ -545,7 +499,6 @@ local function skinEverything()
     skinAllWAIcons()
 end
 
--- Coalesce bursty re-skin events into a single deferred pass.
 local _skinAllPending, _skinEvtPending
 local function skinAllSoon()
     if not (C_Timer and C_Timer.After) then return skinAll() end
@@ -554,8 +507,7 @@ local function skinAllSoon()
     C_Timer.After(0.1, function() _skinAllPending = false; if mod._enabled then skinAll() end end)
 end
 
--- let other modules (Action Bars, when it rebuilds its own buttons) ask us to
--- re-skin the action buttons so freshly-created ones pick up the skin.
+-- Entry point for other modules to re-skin freshly created action buttons.
 ns.ReskinActionButtons = skinAllSoon
 local function skinEverythingSoon()
     if not (C_Timer and C_Timer.After) then return skinEverything() end
@@ -564,15 +516,7 @@ local function skinEverythingSoon()
     C_Timer.After(0.2, function() _skinEvtPending = false; if mod._enabled then skinEverything() end end)
 end
 
--- =========================================================
--- PART 2 — DARK MODE (re-tint Blizzard's default artwork)
--- =========================================================
--- Our own active flag for the Dark Mode part. We can't gate it on mod._enabled
--- alone: the core sets that to true only AFTER OnEnable returns, so the initial
--- retint in OnEnable would be skipped. We flip `active` ourselves at the top of
--- OnEnable / in OnDisable so the first applyAllDM() (and a manual module
--- toggle-on) takes effect immediately, and so the permanent re-apply hooks stand
--- down while the module is disabled.
+-- Cannot gate on mod._enabled: the core sets it true only AFTER OnEnable returns.
 local active = false
 
 local function dmColorRGB()
@@ -581,8 +525,6 @@ local function dmColorRGB()
     return c.r or 0.4, c.g or 0.4, c.b or 0.4
 end
 
--- on=true  -> desaturate (optional) + tint to the chosen colour
--- on=false -> restore Blizzard's default (full colour, white vertex)
 local function paint(tex, on)
     if not tex or not tex.SetVertexColor then return end
     if on then
@@ -637,9 +579,7 @@ local BAG_BUTTONS = {
     "KeyRingButton",
 }
 
--- The Button Skin part owns the action-button NormalTexture when it is actively
--- skinning the bars; our greyscale tint of that same region would just fight it
--- (and lose, since it hides the texture), so we skip it in that case.
+-- The button skin hides the same NormalTexture, so the tint must stand down.
 local function buttonSkinOwnsBars()
     return (mod.db.skinBars and barsSkinned) and true or false
 end
@@ -660,8 +600,6 @@ local function applyBags(on)
     for _, n in ipairs(BAG_BUTTONS) do paintNormal(n, on) end
 end
 
--- An area is "on" only while the module is active, Dark Mode is switched on, and
--- that area's toggle is set; otherwise we paint it back to default.
 local function isDMOn(area)
     return (active and mod.db.darkMode and mod.db[area]) and true or false
 end
@@ -682,7 +620,7 @@ local function restoreAllDM()
     applyBags(false)
 end
 
--- Dark Mode re-apply hooks (Blizzard resets some textures on redraw).
+-- Blizzard resets these textures on redraw, so the tint has to be re-applied.
 local dmHooked = false
 local function installDMHooks()
     if dmHooked then return end
@@ -704,9 +642,6 @@ local function installDMHooks()
     end
 end
 
--- =========================================================
--- Lifecycle
--- =========================================================
 local hookInstalled = false
 local dmEventsWired = false
 
@@ -727,7 +662,6 @@ local function wireDMEvents()
     end)
 end
 
--- Shared handlers for events both parts care about.
 local function onWorldEnter()
     skinEverythingSoon()
     if mod.db.darkMode then applyAllDM() end
@@ -740,13 +674,13 @@ end
 function mod:OnEnable()
     if not mod.db then return end
     active = true
-    barsSkinned = mod.db.skinBars and true or false   -- gate the NT re-hide hooks
+    barsSkinned = mod.db.skinBars and true or false
 
-    -- Skin everything ourselves. Deferred so all frames exist.
+    -- Deferred so all frames exist; the late pass catches slow-loading aura icons.
     if C_Timer and C_Timer.After then
         C_Timer.After(0.5, skinEverything)
         C_Timer.After(2.0, skinEverything)
-        C_Timer.After(5.0, skinAllWAIcons)   -- WeakAuras icons often load late
+        C_Timer.After(5.0, skinAllWAIcons)
     else
         skinEverything()
     end
@@ -755,7 +689,7 @@ function mod:OnEnable()
     installDMHooks()
     wireDMEvents()
 
-    -- Blizzard rebuilds NormalTexture on button updates — re-hide it after.
+    -- Blizzard rebuilds NormalTexture on button updates, so re-hide it after.
     if not hookInstalled then
         hookInstalled = true
         if _G.ActionButton_Update then
@@ -767,7 +701,6 @@ function mod:OnEnable()
         end
     end
 
-    -- Re-skin when bars / auras show or refresh (+ Dark Mode re-apply)
     ns:RegisterEvent("PLAYER_ENTERING_WORLD",     onWorldEnter)
     ns:RegisterEvent("UPDATE_SHAPESHIFT_FORMS",   skinAllSoon)
     ns:RegisterEvent("PET_BAR_UPDATE",            skinAllSoon)
@@ -777,7 +710,6 @@ function mod:OnEnable()
     ns:RegisterEvent("NAME_PLATE_UNIT_ADDED",     onNamePlateAdded)
     ns:RegisterEvent("UNIT_AURA",                 skinWASoon)
 
-    -- Initial Dark Mode retint (mod._enabled is still false here, hence `active`)
     applyAllDM()
 end
 
@@ -792,15 +724,11 @@ function mod:OnDisable()
     ns:UnregisterEvent("NAME_PLATE_UNIT_ADDED",   onNamePlateAdded)
     ns:UnregisterEvent("UNIT_AURA",               skinWASoon)
 
-    restoreAllDM()   -- put Blizzard's default artwork back
-    -- Button skins stay until /reload (we don't tear down the borders to avoid
-    -- touching buttons in combat). Dark Mode + WeakAuras hooks stay installed but
-    -- are gated by `active` / mod._enabled; a /reload fully removes everything.
+    restoreAllDM()
+    -- Button skins and hooks stay until /reload; tearing them down could touch
+    -- buttons in combat. Remaining hooks are gated by `active` / mod._enabled.
 end
 
--- =========================================================
--- Options
--- =========================================================
 function mod:GetOptions()
     local STYLE_VALUES = {
         { value = "shadow",  text = L["Shadow (dark rounded rim)"] },
@@ -825,7 +753,6 @@ function mod:GetOptions()
         { type = "header", text = L["Dark Skin"] },
         { type = "desc", text = L["|cffaaaaaaThe dark look of the UI in one place: a built-in skin for action buttons and WeakAuras icons, plus an optional Dark Mode that re-tints Blizzard's default frames.|r"] },
 
-        -- ---- Action bars ----
         { type = "header", text = L["Action Bars"] },
         { type = "toggle", label = L["Skin the action bars"],
           tooltip = L["The dark action-bar button skin."],
@@ -848,7 +775,6 @@ function mod:GetOptions()
 
         { type = "spacer", height = 8 },
 
-        -- ---- WeakAuras ----
         { type = "header", text = L["WeakAuras Icons"] },
         { type = "toggle", label = L["Skin WeakAuras icons"],
           get = function() return mod.db.skinWeakAuras end,
@@ -866,7 +792,6 @@ function mod:GetOptions()
 
         { type = "spacer", height = 8 },
 
-        -- ---- Dark Mode (re-tint Blizzard's default artwork) ----
         { type = "header", text = L["Dark Mode"] },
         { type = "desc", text = L["|cffaaaaaaOptional: darkens and desaturates Blizzard's default artwork — unit frames, minimap and action bars — to a neutral dark tone. Reversible: turn it off and the gold look returns.|r"] },
         { type = "toggle", label = L["Enable Dark Mode"],
@@ -897,9 +822,6 @@ function mod:GetOptions()
     }
 end
 
--- =========================================================
--- Debug: /vcuiwa — report every shown WeakAuras icon region.
--- =========================================================
 SLASH_VCUIWA1 = "/vcuiwa"
 SlashCmdList.VCUIWA = function()
     local shown, skinned = 0, 0

@@ -1,15 +1,4 @@
--- =========================================================
 -- VuloClassicUI / Modules / Nameplates
--- Custom enemy/NPC nameplates: our own health bar + cast bar + name + text
--- are attached onto Blizzard's C_NamePlate anchor, and Blizzard's own
--- UnitFrame is suppressed. This is iteration 1 (core): health bar, cast bar,
--- name / health text, reaction & class colours, target highlight and threat.
---
--- Taint discipline: we NEVER store custom keys on Blizzard's C_NamePlate frame
--- (that taints it). Every plate<->unit link lives in the side table ns.plates.
--- The Options screen carries a pixel-accurate LIVE PREVIEW built from the exact
--- same paint helpers, so what you configure is what you see on real plates.
--- =========================================================
 local _, ns = ...
 local L = ns.L
 
@@ -20,101 +9,91 @@ local mod = ns:RegisterModule("nameplates", {
     defaults = {
         enabled = true,
 
-        -- Health bar
         healthWidth   = 120,
         healthHeight  = 10,
         healthTexture = "Atrocity",
         bgAlpha       = 0.85,
         borderSize    = 1,
-        borderStyle   = "lines",             -- lines | texture
-        borderTexture = "Blizzard Tooltip",  -- SharedMedia "border" name (texture style)
+        borderStyle   = "lines",
+        borderTexture = "Blizzard Tooltip",
         borderColor   = { r = 0.067, g = 0.067, b = 0.067 },
 
-        -- Absorb shield overlay on the health bar
         showAbsorb  = true,
         colAbsorb   = { r = 0.70, g = 0.85, b = 1.00 },
         absorbAlpha = 0.55,
 
-        -- Execute line: a marker on the bar at a health percentage
         execLine       = false,
         execPct        = 20,
         colExec        = { r = 1.00, g = 0.35, b = 0.35 },
         execTargetOnly = true,
 
-        -- Target & hover effects
         targetBarColor = false,
         colTargetBar   = { r = 0.75, g = 0.55, b = 1.00 },
         hoverHighlight = false,
         targetScale    = 100,
 
-        -- Plate hitbox (0 = leave the game's default)
         hitboxW = 0,
         hitboxH = 0,
 
-        -- Name + health text
         showName        = true,
         nameSize        = 10,
         showHealthText  = true,
-        healthTextMode  = "percent",     -- none | percent | current | currentmax | both
-        healthTextFormat = "%s (%s)",    -- layout for the "both" mode: value + percent
-        healthTextShort  = false,        -- rounded short values (12.3k)
-        healthTextPercentSign = true,    -- show the % sign on percent values
-        healthSmooth = false,            -- smooth bar movement + damage trail
-        bgTintByBar  = false,            -- tint the bar background with the bar colour
-        fontSize        = 9,             -- shared base text size
-        fontFace        = "",            -- SharedMedia font name ("" = addon font)
-        -- individual text sizes (0 = inherit: fontSize, title inherits nameSize-2)
+        healthTextMode  = "percent",
+        healthTextFormat = "%s (%s)",
+        healthTextShort  = false,
+        healthTextPercentSign = true,
+        healthSmooth = false,
+        bgTintByBar  = false,
+        fontSize        = 9,
+        fontFace        = "",
         healthTextSize  = 0,
         castTextSize    = 0,
         castTimerSize   = 0,
         titleSize       = 0,
 
-        -- Reaction colours
         colHostile  = { r = 0.85, g = 0.20, b = 0.20 },
         colNeutral  = { r = 0.90, g = 0.80, b = 0.20 },
         colFriendly = { r = 0.25, g = 0.70, b = 0.35 },
         colTapped   = { r = 0.55, g = 0.55, b = 0.55 },
-        classColorEnemy    = true,       -- enemy players use their class colour
-        classColorFriendly = false,      -- friendly players use their class colour
+        classColorEnemy    = true,
+        classColorFriendly = false,
 
-        -- Cast bar
         showCastbar   = true,
         castHeight    = 12,
         castTexture   = "Atrocity",
         showCastIcon  = true,
         showCastText  = true,
         colCast              = { r = 0.70, g = 0.40, b = 0.90 },
-        kickReadyColorOn     = false,    -- own colour while YOUR interrupt is ready
+        kickReadyColorOn     = false,
         colCastKickReady     = { r = 0.20, g = 0.85, b = 0.25 },
-        castChannelColor     = false,    -- own colour while channelling
+        castChannelColor     = false,
         colCastChannel       = { r = 0.24, g = 0.75, b = 0.30 },
-        castYouColorOn       = false,    -- own colour when the cast is aimed at YOU
+        castYouColorOn       = false,
         colCastYou           = { r = 1, g = 0.15, b = 0.15 },
-        castInterrupter      = false,    -- show who interrupted on the flash
+        castInterrupter      = false,
         colCastNoInterrupt   = { r = 0.55, g = 0.55, b = 0.55 },
-        castTimer            = false,    -- remaining cast time on the bar
-        kickColorOn          = false,    -- own colour while YOUR interrupt is on cooldown
+        castTimer            = false,
+        kickColorOn          = false,
         colCastKickCd        = { r = 0.35, g = 0.35, b = 0.60 },
-        castOffsetX          = 0,        -- cast bar position/size overrides
+        castOffsetX          = 0,
         castOffsetY          = 0,
-        castWidth            = 0,        -- 0 = match the health bar
-        castBgAlpha          = 0,        -- 0 = use the global background opacity
+        castWidth            = 0,
+        castBgAlpha          = 0,
         castBgColor          = { r = 0.05, g = 0.05, b = 0.06 },
-        castIconScale        = 100,      -- icon size relative to the bar height
+        castIconScale        = 100,
         castIconX            = 0,
         castIconY            = 0,
-        castIconRight        = false,    -- icon on the right side of the bar
-        showCastShield       = true,     -- shield icon on uninterruptible casts
-        castKickTick         = false,    -- tick where YOUR interrupt comes off cooldown
+        castIconRight        = false,
+        showCastShield       = true,
+        castKickTick         = false,
         colKickTick          = { r = 0.30, g = 1.00, b = 0.40 },
-        castInterruptFlash   = true,     -- flash the bar when a cast is interrupted
+        castInterruptFlash   = true,
         colInterruptFlash    = { r = 1.00, g = 0.25, b = 0.20 },
         castTextColor        = { r = 1, g = 1, b = 1 },
-        castTimerSide        = "right",  -- right | left
+        castTimerSide        = "right",
         castTimerColor       = { r = 1, g = 1, b = 1 },
         hideNameWhileCasting = false,
 
-        -- element offsets (fine positioning)
         nameOffsetX       = 0,
         nameOffsetY       = 0,
         healthTextOffsetX = 0,
@@ -122,77 +101,67 @@ local mod = ns:RegisterModule("nameplates", {
         auraOffsetX       = 0,
         auraOffsetY       = 0,
 
-        -- Target highlight
         targetHighlight = true,
         colTarget       = { r = 1, g = 1, b = 1 },
-        nonTargetAlpha  = 1.0,           -- fade non-target plates when you have a target
+        nonTargetAlpha  = 1.0,
 
-        -- Focus highlight (a second, distinct glow ring)
         focusHighlight  = true,
         colFocus        = { r = 0.20, g = 0.60, b = 1.00 },
 
-        -- Threat (role-aware bar colouring; useful in dungeons)
         threatEnabled = false,
-        threatRole    = "dps",                          -- dps | tank
-        colThreatGood = { r = 0.25, g = 0.75, b = 0.30 }, -- tank: securely tanking
-        colThreatWarn = { r = 0.95, g = 0.80, b = 0.20 }, -- transition (gaining/losing)
-        colThreatBad  = { r = 0.95, g = 0.25, b = 0.20 }, -- dps pulled / tank lost aggro
+        threatRole    = "dps",
+        colThreatGood = { r = 0.25, g = 0.75, b = 0.30 },
+        colThreatWarn = { r = 0.95, g = 0.80, b = 0.20 },
+        colThreatBad  = { r = 0.95, g = 0.25, b = 0.20 },
 
-        -- Class power (combo points on the target — Rogue / Druid in cat form)
         showClassPower = true,
         cpSize         = 8,
         cpSpacing      = 3,
         cpColor        = { r = 1.0, g = 0.85, b = 0.20 },
-        cpShape        = "square",   -- square | circle | diamond | triangle
-        cpPos          = "below",    -- below | above (the bar)
+        cpShape        = "square",
+        cpPos          = "below",
         cpOffsetX      = 0,
         cpOffsetY      = 0,
 
-        -- Raid target markers (skull, cross, …)
         showRaidMarker = true,
         raidMarkerSize = 18,
-        raidMarkerPos  = "left",             -- top | left | right
+        raidMarkerPos  = "left",
         raidMarkerX    = 0,
         raidMarkerY    = 0,
 
-        -- Friendly plates
-        friendlyShow      = true,            -- drives the nameplateShowFriends CVar
-        friendlyPlayers   = "nameonly",      -- nameonly | full | hidden
+        friendlyShow      = true,
+        friendlyPlayers   = "nameonly",
         friendlyNPCs      = "nameonly",
         friendlyNameColor = { r = 0.60, g = 0.80, b = 1.00 },
         friendlyNPCColor  = { r = 0.60, g = 1.00, b = 0.60 },
-        showNPCTitle      = true,            -- <subname> under a friendly NPC's name
+        showNPCTitle      = true,
 
-        -- Auras
         showDebuffs    = true,
-        debuffsAll     = false,          -- false = only your own debuffs
+        debuffsAll     = false,
         maxDebuffs     = 5,
         debuffSize     = 22,
         showBuffs      = false,
         maxBuffs       = 4,
         buffSize       = 20,
-        showCC         = true,           -- separate crowd-control row (prominent)
+        showCC         = true,
         maxCC          = 2,
         ccSize         = 28,
-        ccWidth        = 0,              -- 0 = square (ccSize)
-        ccHeight       = 0,              -- 0 = square (ccSize)
+        ccWidth        = 0,
+        ccHeight       = 0,
         ccOffsetX      = 0,
         ccOffsetY      = 0,
         auraSpacing    = 2,
         auraSwipe      = true,
-        showDispelGlow = true,           -- glow buffs you can steal/dispel
+        showDispelGlow = true,
         colDispel      = { r = 0.60, g = 0.40, b = 1.00 },
         showAuraTimer  = true,
-        auraTimerDecimals = true,   -- "3.4" below 10s; off = whole seconds
+        auraTimerDecimals = true,
         showAuraStacks = true,
         auraTimerSize  = 10,
         auraStackSize  = 9,
     },
 })
 
--- =========================================================
--- Upvalues / constants
--- =========================================================
 local UnitHealth, UnitHealthMax = UnitHealth, UnitHealthMax
 local UnitName, UnitReaction, UnitClass = UnitName, UnitReaction, UnitClass
 local UnitIsPlayer, UnitCanAttack, UnitIsUnit = UnitIsPlayer, UnitCanAttack, UnitIsUnit
@@ -222,7 +191,6 @@ local function textureValues()
     return v
 end
 
--- SharedMedia "border" edge file (falls back to a clean solid edge).
 local function lsmBorder(name)
     if ns.LSM and name then
         local hash = ns.LSM:HashTable("border")
@@ -242,8 +210,7 @@ end
 
 local function db() return mod.db end
 
--- Hidden tooltip to read an NPC's subname (<Innkeeper> etc.). There is no direct
--- API for the unit subtitle, so we scan line 2 of its tooltip.
+-- No API for a unit's subname: scan line 2 of a hidden tooltip.
 local scanTip = CreateFrame("GameTooltip", "VCUINameplateScanTip", nil, "GameTooltipTemplate")
 scanTip:SetOwner(UIParent, "ANCHOR_NONE")
 
@@ -254,18 +221,11 @@ local function getNPCTitle(unit)
     local fs = _G["VCUINameplateScanTipTextLeft2"]
     local txt = fs and fs:GetText()
     if not txt or txt == "" then return nil end
-    -- Reject the level line: it has digits, or "??" for a skull-level unit, or
-    -- the localized LEVEL word. A real subname has none of these.
     if txt:find("%d") or txt:find("%?%?") then return nil end
     if LEVEL and txt:find(LEVEL) then return nil end
     return txt
 end
 
--- =========================================================
--- Colour resolution (shared by real plates and the preview)
--- ctx = { player=bool, enemy=bool, class="MAGE", reaction=1..8,
---         tapped=bool, threat=0..3 }
--- =========================================================
 local function classColor(class)
     local c = class and CLASS_COLORS and CLASS_COLORS[class]
     if c then return c.r, c.g, c.b end
@@ -273,11 +233,9 @@ local function classColor(class)
 end
 
 local function reactionColor(d, ctx)
-    -- Tapped mobs first (someone else's kill)
     if ctx.tapped then
         local c = d.colTapped; return c.r, c.g, c.b
     end
-    -- Class colour for players, when enabled for that side
     if ctx.player and ctx.class then
         if ctx.enemy and d.classColorEnemy then
             local r, g, b = classColor(ctx.class); if r then return r, g, b end
@@ -285,7 +243,6 @@ local function reactionColor(d, ctx)
             local r, g, b = classColor(ctx.class); if r then return r, g, b end
         end
     end
-    -- Reaction fallback
     local reaction = ctx.reaction or (ctx.enemy and 2 or 5)
     local c
     if reaction <= 3 then     c = d.colHostile
@@ -294,24 +251,20 @@ local function reactionColor(d, ctx)
     return c.r, c.g, c.b
 end
 
--- Role-aware threat colour from UnitThreatSituation (0..3), or nil to fall back
--- to reaction colour. sit: 0 on table not tanking, 1 higher-not-tanking,
--- 2 tanking-insecure, 3 tanking-secure.
+-- UnitThreatSituation: 0 = not tanking, 1 = higher not tanking, 2 = tanking insecure, 3 = tanking secure.
 local function threatColor(d, sit)
     if d.threatRole == "tank" then
-        if sit == 3 then return d.colThreatGood      -- securely tanking = good
+        if sit == 3 then return d.colThreatGood
         elseif sit == 1 or sit == 2 then return d.colThreatWarn
-        else return d.colThreatBad end               -- sit 0 = lost aggro = bad
-    else -- dps / healer: any tanking = you pulled = bad
+        else return d.colThreatBad end
+    else
         if sit >= 2 then return d.colThreatBad
         elseif sit == 1 then return d.colThreatWarn end
     end
-    return nil                                        -- no aggro concern → reaction
+    return nil
 end
 
--- Final health colour: threat overrides reaction when enabled and in combat.
 local function healthColor(d, ctx)
-    -- the current target's bar may get its own colour (highest priority)
     if d.targetBarColor and ctx.isTarget then
         local c = d.colTargetBar
         return c.r, c.g, c.b
@@ -323,9 +276,6 @@ local function healthColor(d, ctx)
     return reactionColor(d, ctx)
 end
 
--- =========================================================
--- Visual construction — one recipe, used by real plates AND the preview
--- =========================================================
 local function makeEdges(parent, layer)
     local e = {}
     for _, side in ipairs({ "top", "bot", "lft", "rgt" }) do
@@ -336,8 +286,7 @@ local function makeEdges(parent, layer)
     return e
 end
 
--- Lay a 4-edge border exactly `n` physical pixels thick around `anchor`,
--- offset `pad` pixels outward. n<=0 hides it.
+-- Border of n physical pixels around anchor, offset pad outward; n <= 0 hides it.
 local function layoutEdges(edges, anchor, n, r, g, b, a, pad)
     if not edges then return end
     if n <= 0 then for _, t in pairs(edges) do t:Hide() end; return end
@@ -351,9 +300,7 @@ local function layoutEdges(edges, anchor, n, r, g, b, a, pad)
     rgt:ClearAllPoints(); rgt:SetPoint("TOPLEFT", anchor, "TOPRIGHT", off, off); rgt:SetPoint("BOTTOMLEFT", anchor, "BOTTOMRIGHT", off, -off); rgt:SetWidth(th)
 end
 
--- Build the sub-frames of a plate onto `f` (a Frame). Called once per frame.
 local function buildVisuals(f)
-    -- Health bar
     f.health = CreateFrame("StatusBar", nil, f)
     f.healthBG = f.health:CreateTexture(nil, "BACKGROUND")
     f.healthBG:SetAllPoints(f.health)
@@ -364,33 +311,26 @@ local function buildVisuals(f)
     f.healthBD:Hide()
     f.targetGlow   = makeEdges(f.health, "OVERLAY")
     f.focusGlow    = makeEdges(f.health, "OVERLAY")
-    -- Absorb overlay: a segment drawn on the bar just past the current health.
     f.absorb = f.health:CreateTexture(nil, "ARTWORK", nil, 2)
     f.absorb:Hide()
-    -- Execute marker: a thin vertical line at a configurable health percent.
     f.execLine = f.health:CreateTexture(nil, "ARTWORK", nil, 3)
     f.execLine:Hide()
-    -- Damage trail for the smooth-health option: a bright strip over the part
-    -- of the bar currently draining away.
     f.cutaway = f.health:CreateTexture(nil, "ARTWORK", nil, 1)
     f.cutaway:SetColorTexture(1, 1, 1, 0.45)
     f.cutaway:Hide()
-    -- Mouseover wash over the bar.
     f.hover = f.health:CreateTexture(nil, "ARTWORK", nil, 4)
     f.hover:SetAllPoints(f.health)
     f.hover:SetColorTexture(1, 1, 1, 0.12)
     f.hover:Hide()
 
-    -- Name: parented to the plate ROOT (not the health bar) so name-only mode
-    -- can hide the bar without hiding the name. Health text stays on the bar.
+    -- Name parents to the plate root, not the health bar, so name-only mode can hide the bar.
     f.name = f:CreateFontString(nil, "OVERLAY")
     f.name:SetPoint("BOTTOM", f.health, "TOP", 0, 3)
-    f.title = f:CreateFontString(nil, "OVERLAY")   -- friendly NPC subname (name-only)
+    f.title = f:CreateFontString(nil, "OVERLAY")
     f.title:Hide()
     f.healthText = f.health:CreateFontString(nil, "OVERLAY")
     f.healthText:SetPoint("CENTER", f.health, "CENTER", 0, 0)
 
-    -- Cast bar (below the bar)
     f.cast = CreateFrame("StatusBar", nil, f)
     f.castBG = f.cast:CreateTexture(nil, "BACKGROUND")
     f.castBG:SetAllPoints(f.cast)
@@ -408,33 +348,26 @@ local function buildVisuals(f)
     f.castTimer = f.cast:CreateFontString(nil, "OVERLAY")
     f.castTimer:SetPoint("RIGHT", f.cast, "RIGHT", -3, 0)
     f.castTimer:SetJustifyH("RIGHT")
-    -- shield marker for uninterruptible casts
     f.castShield = f.cast:CreateTexture(nil, "OVERLAY", nil, 2)
     f.castShield:SetTexture("Interface\\CastingBar\\UI-CastingBar-Small-Shield")
     f.castShield:SetTexCoord(0, 36 / 64, 0, 1)
     f.castShield:Hide()
-    -- tick marking where YOUR interrupt comes off cooldown during this cast
     f.kickTick = f.cast:CreateTexture(nil, "ARTWORK", nil, 3)
     f.kickTick:Hide()
     f.cast:Hide()
 
-    -- Aura rows (debuffs + buffs + CC). 1px anchor points; icons hang off centre.
     f.debuffGroup = CreateFrame("Frame", nil, f); f.debuffGroup:SetSize(1, 1)
     f.buffGroup   = CreateFrame("Frame", nil, f); f.buffGroup:SetSize(1, 1)
     f.ccGroup     = CreateFrame("Frame", nil, f); f.ccGroup:SetSize(1, 1)
 
-    -- Raid target marker (root-parented so it shows in name-only mode too)
     f.raidIcon = f:CreateTexture(nil, "OVERLAY")
     f.raidIcon:Hide()
 
-    -- Class-power pips (combo points) — centred row below the bar
     f.cpGroup = CreateFrame("Frame", nil, f); f.cpGroup:SetSize(1, 1)
     f.cpGroup.pips = {}
     f.cpGroup:Hide()
 end
 
--- Border for one bar: either our thin colour edges, or a SharedMedia edge-file
--- backdrop. Whichever is active hides the other.
 local function applyBarBorder(bar, edges, bdFrame, d)
     local c = d.borderColor or ns.COLORS.borderDark or { r = 0, g = 0, b = 0 }
     local sz = d.borderSize or 1
@@ -454,9 +387,7 @@ local function applyBarBorders(f, d)
     applyBarBorder(f.cast,   f.castBorder,   f.castBD,   d)
 end
 
--- Cast row placement (bar + icon). `f._castExtra` widens the row while this
--- plate is the target, so the row's outer edge lines up with the health bar
--- INCLUDING its target ring (set from paintTarget; 0 otherwise).
+-- f._castExtra widens the cast row while this plate is the target (set by paintTarget).
 local function layoutCastRow(f, d)
     local w  = ns:PixelSnap(d.healthWidth, f)
     local ch = ns:PixelSnap(d.castHeight, f)
@@ -465,8 +396,6 @@ local function layoutCastRow(f, d)
     local castY = -(4 + ns:Pixel(f, d.borderSize)) + (d.castOffsetY or 0)
     local iconSz = ch * ((d.castIconScale or 100) / 100)
     if d.showCastIcon then
-        -- bar is aligned so icon + bar together span exactly the intended
-        -- width (matches the health bar at 0); the icon side is configurable
         if d.castIconRight then
             f.cast:SetPoint("TOPLEFT", f.health, "BOTTOMLEFT", (d.castOffsetX or 0) - extra / 2, castY)
         else
@@ -480,7 +409,6 @@ local function layoutCastRow(f, d)
     return iconSz
 end
 
--- Position everything from the current settings (unit-independent).
 local function layoutPlate(f)
     local d = db()
     local w  = ns:PixelSnap(d.healthWidth, f)
@@ -505,14 +433,12 @@ local function layoutPlate(f)
     end
     f.castIcon:SetSize(iconSz, iconSz)
 
-    -- cast background: own colour + optional own opacity (0 = global)
     if f.castBG then
         local cbc = d.castBgColor or { r = 0.05, g = 0.05, b = 0.06 }
         f.castBG:SetColorTexture(cbc.r, cbc.g, cbc.b, 1)
         f.castBG:SetAlpha((d.castBgAlpha or 0) > 0 and d.castBgAlpha or (d.bgAlpha or 0.85))
     end
 
-    -- shield marker: over the icon when shown, else at the bar's left edge
     if f.castShield then
         f.castShield:ClearAllPoints()
         f.castShield:SetSize(math.max(12, ch + 4), math.max(12, ch + 4))
@@ -523,7 +449,6 @@ local function layoutPlate(f)
         end
     end
 
-    -- cast text + timer arrangement (the timer side is configurable)
     if f.castTimer then
         f.castTimer:ClearAllPoints()
         f.castText:ClearAllPoints()
@@ -540,11 +465,9 @@ local function layoutPlate(f)
         end
     end
 
-    -- borders track the bars (thin lines or a SharedMedia edge texture)
     applyBarBorders(f, d)
 end
 
--- Plate font: an optional SharedMedia face; empty = the addon's own font.
 local function plateFont(fs, size, flags)
     local d = db()
     local face = d.fontFace
@@ -558,7 +481,6 @@ local function plateFont(fs, size, flags)
     if ns.UI and ns.UI.Font then ns.UI.Font(fs, size, flags or "OUTLINE") end
 end
 
--- Static skin: textures, fonts, background, visibility (unit-independent).
 local function skinPlate(f)
     local d = db()
     f.health:SetStatusBarTexture(lsmStatusbar(d.healthTexture))
@@ -609,12 +531,10 @@ local function healthTextString(d, cur, max)
     elseif d.healthTextMode == "both" then
         return format(d.healthTextFormat or "%s (%s)", curS, pct)
     end
-    return pct   -- percent (default)
+    return pct
 end
 
--- Smooth-health driver: the displayed value glides to the real one; while
--- dropping, the cutaway strip covers the part being lost. OnUpdate runs on the
--- health bar itself (the plate root's OnUpdate belongs to the cast bar).
+-- OnUpdate lives on the health bar; the plate root's OnUpdate belongs to the cast bar.
 local function smoothHealthTo(f, cur)
     local hb = f.health
     f._hGoal = cur
@@ -652,7 +572,6 @@ local function smoothHealthTo(f, cur)
     end)
 end
 
--- Paint health value + colour + text from a data context.
 local function paintHealth(f, ctx, cur, max)
     local d = db()
     if max <= 0 then max = 1 end
@@ -677,8 +596,6 @@ local function paintHealth(f, ctx, cur, max)
     if d.showHealthText then f.healthText:SetText(healthTextString(d, cur, max)) end
 end
 
--- Absorb shield: a coloured segment on the bar from the current health point,
--- extending by the absorb amount (clamped to the bar's right edge).
 local function paintAbsorb(f, cur, max, absorb)
     local d = db()
     local ab = f.absorb
@@ -699,7 +616,6 @@ local function paintAbsorb(f, cur, max, absorb)
     ab:Show()
 end
 
--- Execute marker: thin vertical line on the bar at the configured health percent.
 local function paintExec(f, isTarget)
     local d = db()
     local ln = f.execLine
@@ -717,7 +633,6 @@ local function paintExec(f, isTarget)
     ln:Show()
 end
 
--- Target highlight edges (accent) sit just outside the health bar.
 local function paintTarget(f, isTarget)
     local d = db()
     if d.targetHighlight and isTarget then
@@ -727,8 +642,6 @@ local function paintTarget(f, isTarget)
     else
         if f.targetGlow then for _, t in pairs(f.targetGlow) do t:Hide() end end
     end
-    -- widen the cast row on the target so its own border lines up flush with
-    -- the outer edge of the health bar's target ring (auto-width mode only)
     local extra = 0
     if d.targetHighlight and isTarget and (d.castWidth or 0) == 0 then
         extra = 2 * ns:Pixel(f.health, math.max(1, d.borderSize + 1))
@@ -737,39 +650,30 @@ local function paintTarget(f, isTarget)
         f._castExtra = extra
         layoutCastRow(f, d)
     end
-    -- optional bigger target plate (real plates only — the preview must keep
-    -- its pixel-exact 1.0 scale)
+    -- real plates only: the preview must keep its pixel-exact 1.0 scale
     if f.unit then
         local s = isTarget and (d.targetScale or 100) / 100 or 1
         if f:GetScale() ~= s then f:SetScale(s) end
     end
 end
 
--- Focus highlight: a second ring, own colour, sitting just OUTSIDE the target
--- ring so both can show when the focus is also the target. The offset tracks the
--- target ring's outer edge so they never overlap at thick borders.
 local function paintFocus(f, isFocus)
     local d = db()
     if d.focusHighlight and isFocus then
         local c = d.colFocus
         local thick = math.max(1, d.borderSize + 1)
         layoutEdges(f.focusGlow, f.health, thick,
-            c.r, c.g, c.b, 1, d.borderSize + thick + 1)   -- just past the target ring
+            c.r, c.g, c.b, 1, d.borderSize + thick + 1)
     else
         if f.focusGlow then for _, t in pairs(f.focusGlow) do t:Hide() end end
     end
 end
 
--- =========================================================
--- Cast bar (real plates + preview share the visual; feeding differs)
--- =========================================================
--- Your interrupt spell (highest known rank), for the "interrupt on cooldown"
--- cast colour: while YOUR kick is down, an interruptible cast paints differently.
 local KICK_IDS = {
-    ROGUE   = { 38768, 1769, 1768, 1767, 1766 },                       -- Kick
-    WARRIOR = { 6554, 6552, 29704, 1672, 1671, 72 },                   -- Pummel / Shield Bash
-    MAGE    = { 2139 },                                                -- Counterspell
-    SHAMAN  = { 25454, 10414, 10413, 10412, 8046, 8045, 8044, 8042 },  -- Earth Shock
+    ROGUE   = { 38768, 1769, 1768, 1767, 1766 },
+    WARRIOR = { 6554, 6552, 29704, 1672, 1671, 72 },
+    MAGE    = { 2139 },
+    SHAMAN  = { 25454, 10414, 10413, 10412, 8046, 8045, 8044, 8042 },
 }
 local kickSpell
 local function findKickSpell()
@@ -793,12 +697,10 @@ end
 
 local function castColor(d, notInterruptible, f)
     if notInterruptible then return d.colCastNoInterrupt end
-    -- the mob is casting at YOU → warning colour beats everything else
     if d.castYouColorOn and f and f.unit and UnitIsUnit(f.unit .. "target", "player") then
         return d.colCastYou
     end
     if d.kickColorOn and kickOnCooldown() then return d.colCastKickCd end
-    -- the inverse rule: your interrupt is ready right now → "kickable" colour
     if d.kickReadyColorOn and kickSpell and not kickOnCooldown() then return d.colCastKickReady end
     if d.castChannelColor and f and f._castChannel then return d.colCastChannel end
     return d.colCast
@@ -812,70 +714,65 @@ local function paintCast(f, name, icon, notInterruptible)
     if d.showCastIcon then f.castIcon:SetTexture(icon) end
 end
 
--- =========================================================
--- Auras (debuffs + buffs) — shared by real plates and the preview
--- =========================================================
 local UnitAura = UnitAura     -- Compat.lua guarantees this exists on this client
 local wipe = wipe
 
 local _dbuf, _bbuf, _ccbuf = {}, {}, {}   -- scratch aura lists (single-threaded reuse)
 
--- Crowd-control spell IDs (TBC 2.5.x). There is no CROWD_CONTROL aura filter on
--- this client, so CC is recognised by spell id. Extendable — add ranks/spells.
+-- No CROWD_CONTROL aura filter on this client, so CC is matched by spell id.
 local CC_SPELLS = {}
 for _, id in ipairs({
     -- Mage
-    118, 12824, 12825, 12826, 28271, 28272, 61305, 61721, 61780,   -- Polymorph (+ variants)
-    122, 865, 6131, 10230, 27088,                                  -- Frost Nova (root)
-    33395,                                                         -- Freeze (water elemental)
-    31661, 33041, 33042, 33043,                                    -- Dragon's Breath
-    12355,                                                         -- Impact stun
+    118, 12824, 12825, 12826, 28271, 28272, 61305, 61721, 61780,
+    122, 865, 6131, 10230, 27088,
+    33395,
+    31661, 33041, 33042, 33043,
+    12355,
     -- Warlock
-    5782, 6213, 6215, 6789, 17925, 17926, 27223,                   -- Fear / Death Coil
-    5484, 17928,                                                   -- Howl of Terror
-    6358,                                                          -- Seduction
-    710, 18647,                                                    -- Banish
-    30283, 30413, 30414,                                           -- Shadowfury
+    5782, 6213, 6215, 6789, 17925, 17926, 27223,
+    5484, 17928,
+    6358,
+    710, 18647,
+    30283, 30413, 30414,
     -- Priest
-    8122, 8124, 10888, 10890,                                      -- Psychic Scream
-    9484, 9485, 10955,                                             -- Shackle Undead
-    605, 10911, 10912,                                             -- Mind Control
+    8122, 8124, 10888, 10890,
+    9484, 9485, 10955,
+    605, 10911, 10912,
     -- Rogue
-    6770, 2070, 11297,                                             -- Sap
-    2094,                                                          -- Blind
-    1776, 1777, 8629, 11285, 11286, 38764,                         -- Gouge
-    408, 8643,                                                     -- Kidney Shot
-    1833,                                                          -- Cheap Shot
+    6770, 2070, 11297,
+    2094,
+    1776, 1777, 8629, 11285, 11286, 38764,
+    408, 8643,
+    1833,
     -- Druid
-    33786,                                                         -- Cyclone
-    2637, 18657, 18658,                                            -- Hibernate
-    339, 1062, 5195, 5196, 9852, 9853, 26989,                      -- Entangling Roots
-    19970, 19971, 19972, 19973, 19974, 19975,                      -- Nature's Grasp roots
-    5211, 6798, 8983,                                              -- Bash
-    9005, 9823, 9827, 27006,                                       -- Pounce stun
-    22570,                                                         -- Maim
+    33786,
+    2637, 18657, 18658,
+    339, 1062, 5195, 5196, 9852, 9853, 26989,
+    19970, 19971, 19972, 19973, 19974, 19975,
+    5211, 6798, 8983,
+    9005, 9823, 9827, 27006,
+    22570,
     -- Hunter
-    3355, 14308, 14309,                                            -- Freezing Trap
-    19386, 24132, 24133, 27068,                                    -- Wyvern Sting
-    19503,                                                         -- Scatter Shot
-    24394,                                                         -- Intimidation
-    1513, 14326, 14327,                                            -- Scare Beast
+    3355, 14308, 14309,
+    19386, 24132, 24133, 27068,
+    19503,
+    24394,
+    1513, 14326, 14327,
     -- Paladin
-    853, 5588, 5589, 10308,                                        -- Hammer of Justice
-    20066,                                                         -- Repentance
-    10326,                                                         -- Turn Evil
+    853, 5588, 5589, 10308,
+    20066,
+    10326,
     -- Warrior
-    5246,                                                          -- Intimidating Shout
-    12809,                                                         -- Concussion Blow
-    7922,                                                          -- Charge stun
-    20253, 20614, 20615, 25274,                                    -- Intercept stun
+    5246,
+    12809,
+    7922,
+    20253, 20614, 20615, 25274,
     -- Racials / misc / pets
-    20549,                                                         -- War Stomp
-    1098, 11725, 11726,                                            -- Enslave Demon
+    20549,
+    1098, 11725, 11726,
 }) do CC_SPELLS[id] = true end
 
--- Classes that can remove a Magic buff from an ENEMY (Spellsteal / Purge /
--- Dispel Magic / Devour Magic). `isStealable` from UnitAura flags such buffs.
+-- Classes that can remove a Magic buff from an enemy; UnitAura's isStealable flags such buffs.
 local CAN_REMOVE_MAGIC = { MAGE = true, PRIEST = true, SHAMAN = true, WARLOCK = true }
 local playerCanSteal = false   -- set in OnEnable from the player's class
 
@@ -885,12 +782,11 @@ local function fmtAuraTime(s)
     elseif s >= 10 then return tostring(floor(s))
     elseif s > 0 then
         if db().auraTimerDecimals ~= false then return format("%.1f", s) end
-        return tostring(math.ceil(s))   -- whole seconds, counting 3..2..1
+        return tostring(math.ceil(s))
     end
     return ""
 end
 
--- Fill `out` with up to `max` auras matching `filter` on `unit`.
 -- mode: nil = all, "skipcc" = exclude CC spells, "cconly" = only CC spells.
 local function collectAuras(unit, filter, max, out, mode)
     wipe(out)
@@ -914,15 +810,14 @@ end
 local function makeAuraIcon(container)
     local ic = CreateFrame("Frame", nil, container)
     ic.tex = ic:CreateTexture(nil, "ARTWORK")
-    ic.tex:SetAllPoints(ic)                  -- fill the frame; border hugs the icon
+    ic.tex:SetAllPoints(ic)
     ic.tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
     ic.cd = CreateFrame("Cooldown", nil, ic, "CooldownFrameTemplate")
     ic.cd:SetAllPoints(ic.tex)
-    ic.cd:SetHideCountdownNumbers(true)      -- we draw our own timer
+    ic.cd:SetHideCountdownNumbers(true)
     ic.cd:SetDrawEdge(false)
     ic.border = makeEdges(ic, "OVERLAY")
-    ic.dispelGlow = makeEdges(ic, "OVERLAY")   -- shown around stealable/dispellable buffs
-    -- text overlay above the cooldown swipe so it never gets darkened
+    ic.dispelGlow = makeEdges(ic, "OVERLAY")
     ic.top = CreateFrame("Frame", nil, ic)
     ic.top:SetAllPoints(ic)
     ic.top:SetFrameLevel(ic.cd:GetFrameLevel() + 5)
@@ -940,7 +835,6 @@ local function hideGroup(g)
     if g.icons then for _, ic in ipairs(g.icons) do ic:Hide() end end
 end
 
--- Draw `list` into `g`'s pooled icon row, centred on g.
 local function renderAuraGroup(g, list, size, spacing, showTimer, showStacks, swipe, w, h)
     local d = db()
     local n = #list
@@ -949,7 +843,7 @@ local function renderAuraGroup(g, list, size, spacing, showTimer, showStacks, sw
 
     local iw, ih = (w and w > 0) and w or size, (h and h > 0) and h or size
     local bc = ns.COLORS.borderDark or { r = 0, g = 0, b = 0 }
-    local bsz = d.borderSize or 0     -- 0 = borderless, consistent with the bars
+    local bsz = d.borderSize or 0
     for i, ic in ipairs(g.icons) do
         local a = list[i]
         if a then
@@ -1001,15 +895,13 @@ local function renderAuraGroup(g, list, size, spacing, showTimer, showStacks, sw
     end
 end
 
--- Position + draw the aura rows (debuffs, buffs, CC) stacked upward from the
--- bar. Each list is nil/empty → that row is hidden and doesn't take space.
 local function applyAuras(f, debuffList, buffList, ccList)
     local d = db()
-    local y = (d.showName and (d.nameSize + 6) or 4) + (d.auraOffsetY or 0)   -- running height above the bar
+    local y = (d.showName and (d.nameSize + 6) or 4) + (d.auraOffsetY or 0)
     local ox = d.auraOffsetX or 0
     local function place(group, list, enabled, size, w, h, gx, gy)
         if enabled and list and #list > 0 then
-            local eh = (h and h > 0) and h or size   -- effective row height
+            local eh = (h and h > 0) and h or size
             group:ClearAllPoints()
             group:SetPoint("BOTTOM", f.health, "TOP",
                 ox + (gx or 0), y + eh / 2 + (gy or 0))
@@ -1022,12 +914,10 @@ local function applyAuras(f, debuffList, buffList, ccList)
     end
     place(f.debuffGroup, debuffList, d.showDebuffs, d.debuffSize)
     place(f.buffGroup,   buffList,   d.showBuffs,   d.buffSize)
-    -- CC on top, prominent — own width/height (0 = square) and own offsets
     place(f.ccGroup, ccList, d.showCC, d.ccSize,
         d.ccWidth, d.ccHeight, d.ccOffsetX, d.ccOffsetY)
 end
 
--- Real plate: scan the unit and draw.
 local function plateUpdateAuras(f)
     if not f.unit then return end
     if f._mode and f._mode ~= "full" then
@@ -1036,7 +926,6 @@ local function plateUpdateAuras(f)
     local d = db()
     local dl, bl, cl
     if d.showDebuffs then
-        -- exclude CC spells from the debuff row when the CC row is on (no dupes)
         collectAuras(f.unit, d.debuffsAll and "HARMFUL" or "HARMFUL|PLAYER", d.maxDebuffs, _dbuf,
             d.showCC and "skipcc" or nil)
         dl = _dbuf
@@ -1052,13 +941,10 @@ local function plateUpdateAuras(f)
     applyAuras(f, dl, bl, cl)
 end
 
--- =========================================================
--- REAL PLATE ENGINE
--- =========================================================
 ns.plates = ns.plates or {}          -- unit token -> our plate frame  (side table, taint-safe)
-local platePool = {}                 -- released frames waiting for reuse
-local hookedUFs = {}                 -- Blizzard UnitFrames we've hooked
-local offParent                      -- offscreen parent for suppressed Blizzard bits
+local platePool = {}
+local hookedUFs = {}
+local offParent
 
 local function ensureOffParent()
     if offParent then return offParent end
@@ -1069,10 +955,7 @@ local function ensureOffParent()
     return offParent
 end
 
--- Suppress Blizzard's own nameplate UnitFrame so only ours shows.
--- The modern client flags some children (health bar container etc.) as
--- ignore-parent-alpha — they render semi-transparent through the alpha-0
--- UnitFrame — so those get un-flagged too, with a guard hook.
+-- Some UnitFrame children are flagged ignore-parent-alpha and render through alpha 0; un-flag them.
 local function suppressChild(uf, r)
     if not (r and r.SetIgnoreParentAlpha) then return end
     pcall(r.SetIgnoreParentAlpha, r, false)
@@ -1082,7 +965,7 @@ local function suppressChild(uf, r)
         hooksecurefunc(r, "SetIgnoreParentAlpha", function(self, v)
             if locked or not v then return end
             local u = uf.unit or (uf.GetUnit and uf:GetUnit())
-            if not u or not ns.plates[u] then return end   -- no VCUI plate owns it now
+            if not u or not ns.plates[u] then return end
             locked = true; pcall(self.SetIgnoreParentAlpha, self, false); locked = false
         end)
     end
@@ -1092,9 +975,7 @@ local function hideBlizzard(nameplate)
     local uf = nameplate and nameplate.UnitFrame
     if not uf then return end
     uf:SetAlpha(0)
-    -- alpha alone is not enough on this engine (children can ignore parent
-    -- alpha and still render semi-transparent) — hide the frame outright and
-    -- keep it hidden while a VCUI plate owns the unit.
+    -- Alpha alone is not enough: hide the frame and keep it hidden while our plate owns the unit.
     uf:Hide()
     suppressChild(uf, uf.HealthBarsContainer)
     suppressChild(uf, uf.HealthBarsContainer and uf.HealthBarsContainer.healthBar)
@@ -1112,13 +993,12 @@ local function hideBlizzard(nameplate)
         hooksecurefunc(uf, "SetAlpha", function(self, a)
             if locked or a == 0 then return end
             local u = self.unit or (self.GetUnit and self:GetUnit())
-            if not u or not ns.plates[u] then return end   -- no VCUI plate owns it now
+            if not u or not ns.plates[u] then return end
             locked = true; self:SetAlpha(0); locked = false
         end)
     end
 end
 
--- --- cast handling on a plate -----------------------------------------------
 local function plateCastStop(f)
     f._casting = nil
     f.cast:Hide()
@@ -1131,17 +1011,13 @@ local function plateCastStop(f)
     f:SetScript("OnUpdate", nil)
 end
 
--- interrupted: flash the bar briefly in the flash colour, then hide
--- Who interrupted last (from the combat log): a single record is enough —
--- interrupts are rare and the flash only lives 0.8s. CLEU and the UI event can
--- arrive in either order, so both sides check the other.
+-- CLEU and the UI event can arrive in either order, so both sides check the other.
 local lastInterrupt = { guid = nil, name = nil, t = 0 }
 local function onCombatLogEvent()
     if not db().castInterrupter then return end
     local _, sub, _, _, srcName, _, _, dstGUID = CombatLogGetCurrentEventInfo()
     if sub ~= "SPELL_INTERRUPT" or not dstGUID then return end
     lastInterrupt.guid, lastInterrupt.name, lastInterrupt.t = dstGUID, srcName, GetTime()
-    -- late CLEU: a flash may already be running on that unit's plate
     for _, f in pairs(ns.plates) do
         if f._flashUntil and f._flashUntil > GetTime()
             and f.unit and UnitGUID(f.unit) == dstGUID and srcName then
@@ -1166,7 +1042,6 @@ local function plateCastFlash(f)
     f.cast:Show()
     local untilT = GetTime() + 0.8
     f._flashUntil = untilT
-    -- interrupter name (if the combat log got there first)
     if d.castInterrupter and f.unit and lastInterrupt.name
         and lastInterrupt.guid == UnitGUID(f.unit)
         and GetTime() - lastInterrupt.t < 1 then
@@ -1180,16 +1055,15 @@ local function plateCastFlash(f)
     end)
 end
 
--- tick on the cast bar marking where YOUR interrupt comes off cooldown
 local function updateKickTick(f)
     local d = db()
     local tk = f.kickTick
     if not tk then return end
     if not d.castKickTick or f._castNoInt or not kickSpell or not f._casting then tk:Hide(); return end
     local s, du = GetSpellCooldown(kickSpell)
-    if not s or s == 0 or (du or 0) <= 1.5 then tk:Hide(); return end   -- kick is ready: whole cast is kickable
+    if not s or s == 0 or (du or 0) <= 1.5 then tk:Hide(); return end
     local ready = s + du
-    if ready >= f._castEnd then tk:Hide(); return end                   -- never ready during this cast
+    if ready >= f._castEnd then tk:Hide(); return end
     local frac = (ready - f._castStart) / (f._castEnd - f._castStart)
     if frac < 0 then frac = 0 end
     local w = f.cast:GetWidth() or 0
@@ -1235,8 +1109,6 @@ local function plateCastStart(f)
         if self.castTimer and self.castTimer:IsShown() then
             self.castTimer:SetFormattedText("%.1f", self._castEnd - now)
         end
-        -- your interrupt may come off (or go on) cooldown mid-cast, and the
-        -- mob may switch its target — recheck colour + tick on a throttle
         if not self._castNoInt then
             local d2 = db()
             if d2.kickColorOn or d2.kickReadyColorOn or d2.castKickTick or d2.castYouColorOn then
@@ -1254,8 +1126,6 @@ local function plateCastStart(f)
     end)
 end
 
--- --- plate mode (full / name-only / hidden) ----------------------------------
--- Enemies are always "full". Friendly players/NPCs follow their own setting.
 local function plateModeFor(d, enemy, isPlayer)
     if enemy then return "full" end
     return isPlayer and d.friendlyPlayers or d.friendlyNPCs
@@ -1274,8 +1144,8 @@ local function applyPlateMode(f, mode)
         f.name:SetPoint("CENTER", f, "CENTER", 0, 0)
         f.name:Show()
         f.title:ClearAllPoints()
-        f.title:SetPoint("TOP", f.name, "BOTTOM", 0, -1)   -- shown/hidden in refreshPlate
-    else -- full
+        f.title:SetPoint("TOP", f.name, "BOTTOM", 0, -1)
+    else
         f.health:Show()
         f.name:ClearAllPoints()
         f.name:SetPoint("BOTTOM", f.health, "TOP",
@@ -1296,7 +1166,6 @@ local function applyNameColor(f, d, unit, enemy, isPlayer)
     f.name:SetTextColor(c.r, c.g, c.b)
 end
 
--- --- raid target marker (skull, cross, …) ------------------------------------
 local function positionRaidIcon(f)
     local d = db()
     local ic = f.raidIcon
@@ -1308,7 +1177,7 @@ local function positionRaidIcon(f)
         ic:SetPoint("RIGHT", anchor, "LEFT", -4 + ox, oy)
     elseif pos == "right" then
         ic:SetPoint("LEFT", anchor, "RIGHT", 4 + ox, oy)
-    else -- top
+    else
         ic:SetPoint("BOTTOM", anchor, "TOP", ox, 4 + oy)
     end
 end
@@ -1332,7 +1201,6 @@ local function updateRaidIcon(f)
     ic:Show()
 end
 
--- --- class-power pips (combo points) -----------------------------------------
 local MAX_CP = MAX_COMBO_POINTS or 5
 
 local function makePip(g)
@@ -1341,10 +1209,6 @@ local function makePip(g)
     return p
 end
 
--- Draw `count` filled pips (of MAX_CP) on the plate; hide the row at 0 / off /
--- non-full mode.
--- pip shape textures (white on transparent, tinted via vertex colour);
--- "square" stays a plain colour fill
 local PIP_TEX = {
     circle   = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\pip_circle.tga",
     diamond  = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\pip_diamond.tga",
@@ -1395,7 +1259,6 @@ local function getComboPoints()
     return (ok and cp) or 0
 end
 
--- Combo points live on the current target → only that plate shows pips.
 local function updateAllComboPips()
     local cp = getComboPoints()
     for _, f in pairs(ns.plates) do
@@ -1403,7 +1266,6 @@ local function updateAllComboPips()
     end
 end
 
--- --- refresh a live plate from its unit --------------------------------------
 local function refreshPlate(f)
     local unit = f.unit
     if not unit then return end
@@ -1418,7 +1280,6 @@ local function refreshPlate(f)
     f.name:SetText(UnitName(unit) or "")
     applyNameColor(f, d, unit, enemy, isPlayer)
 
-    -- Friendly NPC subname under the name (name-only mode only)
     if mode == "nameonly" and not enemy and not isPlayer and d.showNPCTitle and f._npcTitle then
         f.title:SetText(f._npcTitle); f.title:Show()
     else
@@ -1449,14 +1310,12 @@ local function refreshAllPlates()
     for _, f in pairs(ns.plates) do refreshPlate(f) end
 end
 
--- Re-apply static appearance to every live plate (after an options change).
 local function restyleAllPlates()
     for _, f in pairs(ns.plates) do
         layoutPlate(f); skinPlate(f); refreshPlate(f); plateUpdateAuras(f)
     end
 end
 
--- Non-target fade when you have a target selected.
 local function updateFades()
     local d = db()
     local haveTarget = UnitExists("target")
@@ -1470,7 +1329,6 @@ local function updateFades()
     end
 end
 
--- --- pooled plate lifecycle --------------------------------------------------
 local onPlateRemoved   -- forward decl (onPlateAdded releases a stale frame via it)
 
 local function acquirePlate()
@@ -1479,7 +1337,6 @@ local function acquirePlate()
     f = CreateFrame("Frame", nil, UIParent)
     f:SetSize(150, 40)
     buildVisuals(f)
-    -- per-plate unit events for health + cast
     f:SetScript("OnEvent", function(self, event)
         if not self.unit then return end
         if event == "UNIT_HEALTH" or event == "UNIT_MAXHEALTH"
@@ -1505,13 +1362,11 @@ local function acquirePlate()
 end
 
 local function onPlateAdded(_, unit)
-    if not unit or UnitIsUnit(unit, "player") then return end   -- skip personal plate
+    if not unit or UnitIsUnit(unit, "player") then return end
     local nameplate = C_NamePlate and C_NamePlate.GetNamePlateForUnit(unit)
     if not nameplate then return end
 
-    -- Guard against a double-add for the same token (adoption loop + a live
-    -- NAME_PLATE_UNIT_ADDED, or a missed REMOVED): release the stale frame
-    -- first so exactly one plate ever owns a unit.
+    -- Guard a double-add: release the stale frame so exactly one plate owns a unit.
     if ns.plates[unit] then onPlateRemoved(nil, unit) end
 
     local f = acquirePlate()
@@ -1545,7 +1400,7 @@ local function onPlateAdded(_, unit)
     f:RegisterUnitEvent("UNIT_SPELLCAST_FAILED", unit)
     f:RegisterUnitEvent("UNIT_AURA", unit)
 
-    plateCastStart(f)      -- catch a cast already in progress
+    plateCastStart(f)
     refreshPlate(f)
     plateUpdateAuras(f)
     updateFades()
@@ -1574,13 +1429,12 @@ end
 
 local function onTargetChanged()
     updateFades()
-    updateAllComboPips()   -- combo points follow the new target
-    -- target-bound extras: bar recolour, execute line, plate scale
+    updateAllComboPips()
     local d = db()
     for unit, f in pairs(ns.plates) do
         if f._mode == "full" then
             if d.targetBarColor then
-                refreshPlate(f)   -- repaints colour + ring + line in one pass
+                refreshPlate(f)
             else
                 local isT = UnitIsUnit(unit, "target")
                 paintTarget(f, isT)
@@ -1590,8 +1444,6 @@ local function onTargetChanged()
     end
 end
 
--- Mouseover wash: a light scan (only while the option is on) — there is no
--- reliable "mouseover ended" event, so a slow ticker keeps it honest.
 local hoverTicker
 local function updateHoverTicker()
     local on = mod.db and mod.db.hoverHighlight
@@ -1617,12 +1469,10 @@ local function updateHoverTicker()
     end
 end
 
--- Raid markers change without any unit event → refresh every plate's icon.
 local function onRaidTargetUpdate()
     for _, f in pairs(ns.plates) do updateRaidIcon(f) end
 end
 
--- Focus changed → repaint every plate's focus ring (only full-mode plates).
 local function updateAllFocus()
     for _, f in pairs(ns.plates) do
         local on = f.unit and (f._mode == nil or f._mode == "full") and UnitIsUnit(f.unit, "focus")
@@ -1630,18 +1480,12 @@ local function updateAllFocus()
     end
 end
 
--- Combo points changed → repaint the target plate's pips. On 2.5.x there is no
--- dedicated combo-point event; combo gain/spend always coincides with a player
--- power (energy) change, so we ride UNIT_POWER_UPDATE filtered to the player.
+-- No combo-point event on 2.5.x; combo changes ride UNIT_POWER_UPDATE for the player.
 local function onComboUpdate(_, unit)
     if unit ~= "player" then return end
     updateAllComboPips()
 end
 
--- =========================================================
--- LIVE PREVIEW (Options screen)
--- A cosmetic plate built from the same helpers, updated in place.
--- =========================================================
 local previewFrame
 
 local PREVIEW_CTX = {
@@ -1649,14 +1493,11 @@ local PREVIEW_CTX = {
     reaction = 2, tapped = false, threat = 0,
 }
 
--- Keep the preview visible while the page scrolls: it stays at its NATURAL
--- spot until the viewport top passes it, then it pins to the viewport top.
 local function stickPreview()
     local f = ns.UI and ns.UI.mainFrame
     if not (previewFrame and previewFrame:IsShown() and f and f.scroll) then return end
     local host = previewFrame
     if not host._natY then
-        -- capture the builder's natural placement (distance from content top)
         local _, _, _, _, py = host:GetPoint(1)
         host._natY = py and -py or 10
     end
@@ -1676,7 +1517,7 @@ local function buildPreview(parent)
         previewFrame:SetFrameLevel((parent:GetFrameLevel() or 1) + 100)   -- SetParent resets it
         previewFrame:ClearAllPoints()
         previewFrame:SetPoint("TOP", parent, "TOP", 0, -10)
-        previewFrame._natY = nil    -- re-captured after the builder places it
+        previewFrame._natY = nil
         previewFrame:Show()
         previewFrame:Update()
         stickPreviewSoon()
@@ -1684,17 +1525,14 @@ local function buildPreview(parent)
     end
 
     local host = CreateFrame("Frame", "VCUINameplatePreview", parent)
-    host:SetSize(420, 210)   -- tall enough for the full aura stack + cast + pips
-    -- it floats over the scrolled content while pinned, so it must sit above
-    -- EVERY page widget (cards/sliders stack quite high) and its backing is
-    -- OPAQUE
+    host:SetSize(420, 210)
+    -- Must sit above every page widget while pinned over the scrolled content.
     host:SetFrameLevel((parent:GetFrameLevel() or 1) + 100)
     local mf = ns.UI and ns.UI.mainFrame
     if mf and mf.scroll and not mf.scroll._vcuiNPStick then
         mf.scroll._vcuiNPStick = true
         mf.scroll:HookScript("OnVerticalScroll", stickPreview)
     end
-    -- panel backing so the preview reads as its own card
     local bg = host:CreateTexture(nil, "BACKGROUND")
     bg:SetAllPoints(host)
     bg:SetColorTexture(0.05, 0.05, 0.065, 1)
@@ -1710,17 +1548,13 @@ local function buildPreview(parent)
     caption:SetText(L["Live preview"])
     caption:SetTextColor(0.62, 0.62, 0.70)
 
-    -- The actual plate, sitting low in the box so the upward aura stack (debuffs
-    -- + buffs + CC + marker) has room and the whole thing stays centred.
     local plate = CreateFrame("Frame", nil, host)
     plate:SetSize(160, 46)
     plate:SetPoint("CENTER", host, "CENTER", 0, -38)
     buildVisuals(plate)
-    plate.unit = nil          -- preview: no real unit
+    plate.unit = nil
     plate.cast:Show()
 
-    -- Click-to-jump: clicking a preview element expands and scrolls to the
-    -- matching options section.
     local function jumpToSection(title)
         local UIW = ns.UI
         local f = UIW and UIW.mainFrame
@@ -1730,7 +1564,6 @@ local function buildPreview(parent)
         UIW:BuildOptionsPage(UIW._currentBuildKey, UIW.currentTab)
         local sc, sf = f.scrollChild, f.scroll
         if not (sc and sf) then return end
-        -- the header label is rendered upper-cased — match the same transform
         local wanted = string.upper(title)
         for _, child in ipairs({ sc:GetChildren() }) do
             if child._vcType == "collapsible" then
@@ -1773,13 +1606,10 @@ local function buildPreview(parent)
         if not region then return end
         makeZone(title, level):SetAllPoints(region)
     end
-    -- specific elements get a HIGHER click priority than the fitted zones
     clickZone(plate.health,   L["Health Bar"],  25)
     clickZone(plate.cast,     L["Cast Bar"],    25)
     clickZone(plate.name,     L["Text"],        25)
     clickZone(plate.raidIcon, L["Raid Marker"], 25)
-    -- the aura groups / pip group are 1x1 anchors (icons hang OFF them), so
-    -- their zones are FITTED to the actually shown icons after every repaint
     local fitted = {}
     local function fittedZone(g, key, title, level)
         if not g then return end
@@ -1813,16 +1643,13 @@ local function buildPreview(parent)
     end
 
     function plate:Update()
-        -- Render at UIParent's effective scale so 1px matches a real nameplate.
-        -- Divide by the PARENT's effective scale (not our own — our own already
-        -- includes our SetScale, which would make this oscillate).
+        -- Divide by the PARENT's effective scale, not our own (ours already includes SetScale).
         local pes = UIParent:GetEffectiveScale()
         local parentES = self:GetParent():GetEffectiveScale()
         if parentES > 0 then self:SetScale(pes / parentES) end
         layoutPlate(self); skinPlate(self)
         local d = db()
         local enemy = PREVIEW_CTX.enemy
-        -- friendly preview follows the friendly-players setting; enemies are full
         local mode = enemy and "full" or d.friendlyPlayers
         applyPlateMode(self, mode)
 
@@ -1838,7 +1665,6 @@ local function buildPreview(parent)
             self.title:Hide()
         end
 
-        -- sample raid marker (skull) — visible in name-only preview too
         if d.showRaidMarker and mode ~= "hidden" then
             setRaidIcon(self.raidIcon, 8)
             positionRaidIcon(self)
@@ -1849,7 +1675,7 @@ local function buildPreview(parent)
         if mode ~= "full" then return end
 
         paintHealth(self, PREVIEW_CTX, 68, 100)
-        paintAbsorb(self, 68, 100, 20)   -- sample 20% absorb shield
+        paintAbsorb(self, 68, 100, 20)
         if d.showCastbar then
             self.cast:SetMinMaxValues(0, 1); self.cast:SetValue(0.6)
             paintCast(self, L["Fireball"], "Interface\\Icons\\Spell_Fire_FlameBolt", false)
@@ -1857,10 +1683,9 @@ local function buildPreview(parent)
         else
             self.cast:Hide()
         end
-        paintTarget(self, true)     -- preview always shows the target highlight
-        paintFocus(self, true)      -- and the focus ring (for colour feedback)
+        paintTarget(self, true)
+        paintFocus(self, true)
 
-        -- sample auras (fresh expirations each paint so the timers stay lively)
         local now = GetTime()
         local dl = {
             { icon = "Interface\\Icons\\Spell_Fire_Immolation",       count = 0, duration = 12, expiration = now + 8 },
@@ -1874,10 +1699,9 @@ local function buildPreview(parent)
         }
         applyAuras(self, d.showDebuffs and dl or nil, d.showBuffs and bl or nil, d.showCC and cl or nil)
 
-        renderComboPips(self, 3)   -- sample 3 / 5 combo points
+        renderComboPips(self, 3)
     end
 
-    -- refit the click zones after every repaint (icon counts/sizes change)
     local baseUpdate = plate.Update
     function plate:Update()
         baseUpdate(self)
@@ -1887,37 +1711,29 @@ local function buildPreview(parent)
     host.Update = function() plate:Update() end
     previewFrame = host
     host:SetPoint("TOP", parent, "TOP", 0, -10)
-    host._natY = nil    -- re-captured after the builder places it
+    host._natY = nil
     plate:Update()
     stickPreviewSoon()
     return host
 end
 
--- Rebuild the open options page → the custom item's build() re-runs → preview
--- repaints. Used by every setter so the preview tracks live.
 local function refreshPage()
     if ns.UI and ns.UI.IsModuleActive and ns.UI:IsModuleActive("nameplates") then
         ns.UI:BuildOptionsPage("nameplates", ns.UI.currentTab)
     end
 end
 
--- Drive Blizzard's friendly-nameplate CVar from our toggle (out of combat only;
--- nameplate CVars are combat-locked). Applied again on the next OnEnable/toggle.
+-- Nameplate CVars are combat-locked.
 local function applyFriendlyCVar()
     if InCombatLockdown and InCombatLockdown() then return end
     pcall(SetCVar, "nameplateShowFriends", db().friendlyShow and "1" or "0")
 end
 
--- After a settings change: restyle live plates AND repaint the preview.
 local function applyAndRefresh()
     if mod.active then restyleAllPlates(); updateFades(); updateAllComboPips() end
     if previewFrame then previewFrame:Update() end
 end
 
--- =========================================================
--- Lifecycle
--- =========================================================
--- plate hitbox: 0 = leave the game's default alone
 local function applyHitbox()
     if InCombatLockdown() then return end
     local w, h = mod.db.hitboxW or 0, mod.db.hitboxH or 0
@@ -1935,8 +1751,7 @@ function mod:OnEnable()
     applyHitbox()
     updateHoverTicker()
     ensureOffParent()
-    -- Mirror the toggle to Blizzard's CURRENT setting instead of forcing it —
-    -- we only write the CVar when the user flips the option themselves.
+    -- Mirror Blizzard's current setting; only write the CVar when the user flips the option.
     local cur = GetCVar and GetCVar("nameplateShowFriends")
     if cur ~= nil then mod.db.friendlyShow = (cur == "1" or cur == 1) end
     ns:RegisterEvent("NAME_PLATE_UNIT_ADDED", onPlateAdded)
@@ -1946,7 +1761,6 @@ function mod:OnEnable()
     ns:RegisterEvent("RAID_TARGET_UPDATE", onRaidTargetUpdate)
     ns:RegisterEvent("UNIT_POWER_UPDATE", onComboUpdate)
     ns:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", onCombatLogEvent)
-    -- adopt any plates already on screen (e.g. /reload in combat)
     if C_NamePlate and C_NamePlate.GetNamePlates then
         for _, p in ipairs(C_NamePlate.GetNamePlates()) do
             local u = p.namePlateUnitToken or (p.UnitFrame and p.UnitFrame.unit)
@@ -1966,7 +1780,6 @@ function mod:OnDisable()
     ns:UnregisterEvent("UNIT_POWER_UPDATE", onComboUpdate)
     ns:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED", onCombatLogEvent)
     for unit in pairs(ns.plates) do onPlateRemoved(nil, unit) end
-    -- restore Blizzard plates that were suppressed
     if C_NamePlate and C_NamePlate.GetNamePlates then
         for _, p in ipairs(C_NamePlate.GetNamePlates()) do
             if p.UnitFrame then p.UnitFrame:SetAlpha(1); p.UnitFrame:Show() end
@@ -1974,9 +1787,6 @@ function mod:OnDisable()
     end
 end
 
--- =========================================================
--- Options
--- =========================================================
 local function fontValues()
     local vals = { { value = "", text = L["Addon font (default)"] } }
     if ns.LSM then
@@ -2034,7 +1844,6 @@ function mod:GetOptions()
         { type = "desc",
           text = L["|cffaaaaaaCustom nameplates for enemies and NPCs. Configure below — the live preview updates as you change each option.|r"] },
 
-        -- Live preview + which reaction to preview
         { type = "custom", height = 214, build = function(parent) return buildPreview(parent) end },
         { type = "group", layout = "row", gap = 8, items = {
             { type = "dropdown", label = L["Preview reaction"], width = 300, values = reactionPreviewValues(),
@@ -2050,7 +1859,6 @@ function mod:GetOptions()
               end },
         } },
 
-        -- ---- Health bar ---------------------------------------------------
         { type = "section", title = L["Health Bar"], collapsed = false, items = {
             { type = "group", layout = "row", gap = 8, items = {
                 { type = "slider", label = L["Width"], min = 60, max = 240, step = 2, width = SLW,
@@ -2070,7 +1878,6 @@ function mod:GetOptions()
                   get = function() return mod.db.bgTintByBar end,
                   set = function(_, v) mod.db.bgTintByBar = v; applyAndRefresh() end },
             } },
-            -- dropdowns + colours auto-arrange into even 2-column rows
             { type = "dropdown", label = L["Bar texture"], width = 300, values = textureValues(),
               get = function() return mod.db.healthTexture end,
               set = function(_, v) mod.db.healthTexture = v; applyAndRefresh() end },
@@ -2083,7 +1890,6 @@ function mod:GetOptions()
             { type = "color", label = L["Border colour"], width = 200,
               get = function() return mod.db.borderColor end,
               set = function(r, g, b) mod.db.borderColor = { r = r, g = g, b = b }; applyAndRefresh() end },
-            -- border thickness: solo slider, full width (never mixed with a dropdown)
             { type = "slider", label = L["Border thickness (px)"], min = 0, max = 12, step = 1,
               get = function() return mod.db.borderSize end,
               set = function(_, v) mod.db.borderSize = v; applyAndRefresh() end },
@@ -2112,7 +1918,6 @@ function mod:GetOptions()
               set = function(_, v) mod.db.execPct = v; applyAndRefresh() end },
         } },
 
-        -- ---- Text ---------------------------------------------------------
         { type = "section", title = L["Text"], collapsed = false, items = {
             { type = "dropdown", label = L["Font"], width = 300, values = fontValues(),
               tooltip = L["The typeface for every text on the plates (name, health, cast, auras)."],
@@ -2174,7 +1979,6 @@ function mod:GetOptions()
             } },
         } },
 
-        -- ---- Colours ------------------------------------------------------
         { type = "section", title = L["Colours"], collapsed = false, items = {
             { type = "checkbox", label = L["Class colour for enemy players"],
               get = function() return mod.db.classColorEnemy end,
@@ -2200,7 +2004,6 @@ function mod:GetOptions()
             } },
         } },
 
-        -- ---- Cast bar -----------------------------------------------------
         { type = "section", title = L["Cast Bar"], collapsed = false, items = {
             { type = "checkbox", label = L["Show cast bar"],
               get = function() return mod.db.showCastbar end,
@@ -2344,7 +2147,6 @@ function mod:GetOptions()
               set = function(_, v) mod.db.hideNameWhileCasting = v; applyAndRefresh() end },
         } },
 
-        -- ---- Target & threat ---------------------------------------------
         { type = "section", title = L["Target & Threat"], collapsed = false, items = {
             { type = "checkbox", label = L["Highlight your target"],
               get = function() return mod.db.targetHighlight end,
@@ -2398,7 +2200,6 @@ function mod:GetOptions()
               set = function(r, g, b) mod.db.colThreatBad = { r = r, g = g, b = b }; applyAndRefresh() end },
         } },
 
-        -- ---- Auras --------------------------------------------------------
         { type = "section", title = L["Auras"], collapsed = false, items = {
             { type = "checkbox", label = L["Show debuffs"],
               get = function() return mod.db.showDebuffs end,
@@ -2467,7 +2268,6 @@ function mod:GetOptions()
             } },
         } },
 
-        -- ---- Crowd control -----------------------------------------------
         { type = "section", title = L["Crowd Control"], collapsed = false, items = {
             { type = "checkbox", label = L["Show crowd control (separate row)"],
               tooltip = L["A separate, prominent row for crowd-control effects (Polymorph, Fear, Sap, …) on the unit, from anyone."],
@@ -2501,7 +2301,6 @@ function mod:GetOptions()
             } },
         } },
 
-        -- ---- Friendly plates ---------------------------------------------
         { type = "section", title = L["Friendly Plates"], collapsed = false, items = {
             { type = "checkbox", label = L["Show friendly nameplates"],
               tooltip = L["Sets Blizzard's friendly-nameplate option (cannot change in combat)."],
@@ -2533,7 +2332,6 @@ function mod:GetOptions()
             } },
         } },
 
-        -- ---- Raid marker -------------------------------------------------
         { type = "section", title = L["Raid Marker"], collapsed = false, items = {
             { type = "checkbox", label = L["Show target markers"],
               tooltip = L["Shows the raid target icon (skull, cross, …) that is set on the unit."],
@@ -2557,7 +2355,6 @@ function mod:GetOptions()
             } },
         } },
 
-        -- ---- Class power (combo points) ----------------------------------
         { type = "section", title = L["Combo Points"], collapsed = false, items = {
             { type = "checkbox", label = L["Show combo points"],
               tooltip = L["Shows your combo points on the target's nameplate (Rogue, or Druid in cat form)."],
@@ -2600,7 +2397,6 @@ function mod:GetOptions()
             } },
         } },
 
-        -- ---- Behaviour (game settings, applied live) ----------------------
         { type = "section", title = L["Behaviour"], collapsed = true, items = {
             { type = "desc",
               text = L["|cffaaaaaaThese are the game's own nameplate settings, changed live (not part of the profile). Not changeable in combat.|r"] },

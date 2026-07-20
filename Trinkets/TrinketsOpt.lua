@@ -97,8 +97,6 @@ function Trinkets.OptFrame_OnShow()
 	end
 end
 
---[[ Minimap button ]]
-
 function Trinkets.MoveMinimapButton()
 	local xpos, ypos
 	if TrinketsOptions.SquareMinimap == "ON" then
@@ -153,8 +151,6 @@ function Trinkets.MinimapButton_OnClick(button)
 		end
 	end
 end
-
---[[ CheckButton ]]
 
 function Trinkets.ValidateChecks()
 	local check, button
@@ -374,8 +370,6 @@ function Trinkets.SetCooldownFont(button)
 	end
 end
 
---[[ Titlebar buttons ]]
-
 function Trinkets.SmallButton_OnClick(self)
 	PlaySound(856)
 	if self == Trinkets_CloseButton then
@@ -386,8 +380,6 @@ function Trinkets.SmallButton_OnClick(self)
 		Trinkets.ReflectLock()
 	end
 end
-
---[[ Tabs ]]
 
 function Trinkets.Tab_OnClick(id)
 	PlaySound(825)

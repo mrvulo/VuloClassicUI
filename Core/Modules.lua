@@ -1,16 +1,4 @@
--- =========================================================
--- VuloClassicUI / Core / Modules
--- Module registry. Each module calls ns:RegisterModule(key, def).
---
--- def = {
---   name        = "Nice display name",
---   description = "What the module does",
---   defaults    = { enabled = true, ... },          -- merged into db.profile.modules[key]
---   OnEnable    = function(self) ... end,           -- self = module, has self.db
---   OnDisable   = function(self) ... end,
---   GetOptions  = function(self) return {...} end,  -- returns options definition (see OptionsBuilder)
--- }
--- =========================================================
+-- Module registry. def.defaults is merged into db.profile.modules[key]; OnEnable/OnDisable/GetOptions take the module as self.
 local _, ns = ...
 local L = ns.L
 
@@ -22,9 +10,8 @@ function ns:RegisterModule(key, def)
 
     def.key      = key
     def.name     = def.name or key
-    def.group    = def.group or "Core"   -- Sidebar group (e.g. "Core", "QoL", "Reskin")
+    def.group    = def.group or "Core"
     def.defaults = def.defaults or {}
-    -- Every module automatically gets an "enabled" flag in the defaults
     if def.defaults.enabled == nil then
         def.defaults.enabled = true
     end
@@ -35,17 +22,7 @@ function ns:RegisterModule(key, def)
     return def
 end
 
--- =========================================================
--- Called in Init.lua after DB is initialized.
--- =========================================================
--- =========================================================
--- Per-character enable override.
--- The "is this module on?" preference lives PER CHARACTER in
--- VuloClassicUICharDB.modEnabled[key], falling back to the shared profile
--- default (mod.db.enabled) when the character has never toggled it. So turning
--- a module off only affects the current character; all other settings stay
--- shared via the profile.
--- =========================================================
+-- Enable state is PER CHARACTER (CharDB.modEnabled[key]), falling back to the shared profile default.
 function ns:IsModuleEnabled(key)
     local mod = ns.modules[key]
     if not mod then return false end
@@ -69,11 +46,7 @@ function ns:EnableModules()
     end
 end
 
--- The FRAMEWORK owns mod.active: true just before OnEnable runs (handlers
--- wired inside OnEnable may fire immediately and gate on it), false just
--- before OnDisable (so event handlers stand down during teardown). Modules
--- may still set it themselves — that's harmlessly redundant now. Forgetting
--- it used to leave every `if mod.active` runtime guard permanently dead.
+-- mod.active must be set BEFORE OnEnable: handlers wired inside it can fire immediately and gate on it.
 function ns:SafeEnable(mod)
     if mod._enabled then return end
     if not mod.OnEnable then
@@ -108,13 +81,12 @@ function ns:ToggleModule(key, state, silent)
     local mod = ns.modules[key]
     if not mod then return end
     state = state and true or false
-    ns:SetModuleEnabledPref(key, state)   -- per-character, not the shared profile
+    ns:SetModuleEnabledPref(key, state)
     if state then
         ns:SafeEnable(mod)
     else
         ns:SafeDisable(mod)
         -- Many hooks can't be removed at runtime -> recommend ReloadUI.
-        -- silent: bulk callers (e.g. the QoL master switch) print one summary.
         if not silent then
             ns:Print(L["Module '%s' disabled. /reload recommended for full effect."], mod.name)
         end

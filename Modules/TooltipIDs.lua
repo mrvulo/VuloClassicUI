@@ -1,16 +1,8 @@
--- =========================================================
--- VuloClassicUI / Modules / TooltipIDs
--- Formerly: idTip by silverwind (https://github.com/silverwind/idTip)
--- Adds various IDs to tooltips (SpellID, ItemID, NPC ID, ...).
---
--- Code ported 1:1. SavedVariables settings are in mod.db instead of idTipConfig.
--- =========================================================
+-- Adds ID lines (SpellID, ItemID, NPC ID, ...) to tooltips.
 local _, ns = ...
 local L = ns.L
 
--- =========================================================
--- API aliases (Retail/Classic compatibility)
--- =========================================================
+-- Retail moved these into C_Spell/C_Item/C_TradeSkillUI; fall back to the globals on Classic.
 local GetSpellTexture = (C_Spell and C_Spell.GetSpellTexture) and C_Spell.GetSpellTexture or GetSpellTexture
 local GetItemIconByID = (C_Item and C_Item.GetItemIconByID) and C_Item.GetItemIconByID or GetItemIconByID
 local GetItemInfoLocal = (C_Item and C_Item.GetItemInfo) and C_Item.GetItemInfo or GetItemInfo
@@ -19,9 +11,6 @@ local GetItemSpell = (C_Item and C_Item.GetItemSpell) and C_Item.GetItemSpell or
 local GetRecipeReagentItemLink = (C_TradeSkillUI and C_TradeSkillUI.GetRecipeReagentItemLink) and C_TradeSkillUI.GetRecipeReagentItemLink or GetTradeSkillReagentItemLink
 local GetItemLinkByGUID = (C_Item and C_Item.GetItemLinkByGUID) and C_Item.GetItemLinkByGUID
 
--- =========================================================
--- Kinds (ID types)
--- =========================================================
 local kinds = {
     spell         = "SpellID",
     item          = "ItemID",
@@ -53,7 +42,6 @@ local kinds = {
     traitdef      = "TraitDefinitionID",
 }
 
--- List in stable order for the UI
 local kindOrder = {
     "spell", "item", "unit", "quest", "talent",
     "achievement", "criteria", "ability", "currency",
@@ -68,7 +56,7 @@ local defaultDisabledKinds = {
     bonus = true, traitnode = true, traitentry = true, traitdef = true,
 }
 
--- TooltipDataProcessor type -> kind mapping (Retail)
+-- TooltipDataProcessor enum value -> kind (Retail only).
 local kindsByID = {
     [0]  = "item",        [1]  = "spell",  [2]  = "unit",      [3]  = "unit",
     [4]  = "object",      [5]  = "currency", [6]  = "unit",    [7]  = "spell",
@@ -79,14 +67,10 @@ local kindsByID = {
     [24] = "quest",       [25] = "macro",  [26] = "",
 }
 
--- =========================================================
--- Register module with defaults for all ID types
--- =========================================================
 local moduleDefaults = { enabled = true }
 for kind in pairs(kinds) do
     moduleDefaults[kind] = not defaultDisabledKinds[kind]
 end
--- Extra features for player tooltips (iLvL + talent distribution)
 moduleDefaults.showPlayerILvl    = true
 moduleDefaults.showPlayerTalents = true
 
@@ -100,11 +84,8 @@ local mod = ns:RegisterModule("tooltipids", {
 mod.kinds      = kinds
 mod.kindOrder  = kindOrder
 
--- =========================================================
--- Helpers
--- =========================================================
 local function isEnabled(kind)
-    if not mod._enabled then return false end   -- runtime flag = per-character effective state
+    if not mod._enabled then return false end
     return mod.db[kind] and true or false
 end
 
@@ -136,9 +117,6 @@ local function isSecret(value)
     return issecretvalue(value) or issecrettable(value)
 end
 
--- =========================================================
--- Core functions: addLine / add / addByKind / addItemInfo
--- =========================================================
 local function addLine(tooltip, id, kind)
     if isSecret(id) then return end
     if not id or id == "" or not tooltip or not tooltip.GetName then return end
@@ -147,7 +125,6 @@ local function addLine(tooltip, id, kind)
     local ok, name = pcall(getTooltipName, tooltip)
     if not ok or not name then return end
 
-    -- Check existing lines to avoid duplicate IDs
     local frame, text
     for i = tooltip:NumLines(), 1, -1 do
         frame = _G[name .. "TextLeft" .. i]
@@ -253,7 +230,6 @@ local function addItemInfo(tooltip, link)
         end
     end
 
-    -- GetMouseFocus for TradeSkill reagents (may differ in TBC Classic, check defensively)
     local itemId = string.match(link, "item:(%d*)")
     if (itemId == "" or itemId == "0") and TradeSkillFrame and TradeSkillFrame.RecipeList
        and TradeSkillFrame:IsVisible() and GetRecipeReagentItemLink and GetMouseFocus then
@@ -305,9 +281,6 @@ local function attachItemTooltip(tooltip, id)
     end
 end
 
--- =========================================================
--- Achievement/Criteria helpers (used in the ADDON_LOADED handler)
--- =========================================================
 local function achievementOnEnter(btn)
     GameTooltip:SetOwner(btn, "ANCHOR_NONE")
     GameTooltip:SetPoint("TOPLEFT", btn, "TOPRIGHT", 0, 0)
@@ -336,9 +309,6 @@ local function criteriaOnEnter(enterIndex)
     end
 end
 
--- =========================================================
--- Scan addon-created tooltips (other UI suites ship their own spellbook tooltips)
--- =========================================================
 local hookedTooltips = {}
 
 local function onSetItem(tooltip) attachItemTooltip(tooltip, nil) end
@@ -373,9 +343,6 @@ local function scanAddonTooltips()
     end
 end
 
--- =========================================================
--- Install all GameTooltip hooks once
--- =========================================================
 local hooksInstalled = false
 local function installHooks()
     if hooksInstalled then return end
@@ -383,7 +350,6 @@ local function installHooks()
 
     hookedTooltips[GameTooltip] = true
 
-    -- Retail TooltipDataProcessor (for modern clients)
     if TooltipDataProcessor then
         TooltipDataProcessor.AddTooltipPostCall(TooltipDataProcessor.AllTypes, function(tooltip, data)
             if not data or not data.type then return end
@@ -534,7 +500,6 @@ local function installHooks()
 
     hookScript(GameTooltip, "OnTooltipSetItem", onSetItem)
 
-    -- Currency hooks
     if C_CurrencyInfo and C_CurrencyInfo.GetCurrencyListLink then
         hook(GameTooltip, "SetCurrencyToken", function(tooltip, index)
             local link = C_CurrencyInfo.GetCurrencyListLink(index)
@@ -547,7 +512,6 @@ local function installHooks()
     hook(GameTooltip, "SetCurrencyByID",        function(tooltip, id) add(tooltip, id, "currency") end)
     hook(GameTooltip, "SetCurrencyTokenByID",   function(tooltip, id) add(tooltip, id, "currency") end)
 
-    -- Quest hooks
     if C_QuestLog and C_QuestLog.GetQuestIDForLogIndex then
         hook(_G, "QuestMapLogTitleButton_OnEnter", function(tooltip)
             if tooltip and tooltip.questLogIndex then
@@ -561,7 +525,7 @@ local function installHooks()
         if tooltip and tooltip.questID then add(GameTooltip, tooltip.questID, "quest") end
     end)
 
-    -- AreaPois / Vignettes (Retail-only, the mixins will be nil in TBC -> hook() ignores)
+    -- Retail-only mixins; nil on TBC, where hook() is a no-op.
     if AreaPOIPinMixin then
         hook(AreaPOIPinMixin, "TryShowTooltip", function(tooltip)
             if tooltip and tooltip.areaPoiID then add(GameTooltip, tooltip.areaPoiID, "areapoi") end
@@ -575,7 +539,6 @@ local function installHooks()
         end)
     end
 
-    -- PetBattle (Retail-only, nil in TBC -> ignored)
     if C_PetBattles and C_PetBattles.GetActivePet and C_PetBattles.GetAbilityInfo then
         hook(_G, "PetBattleAbilityButton_OnEnter", function(btn)
             local petIndex = C_PetBattles.GetActivePet(LE_BATTLE_PET_ALLY)
@@ -606,22 +569,16 @@ local function installHooks()
     end
 end
 
--- =========================================================
--- Lifecycle
--- =========================================================
--- =========================================================
--- Player tooltip enhancement: iLvL + talent distribution
--- =========================================================
 local inspectCache = {}                -- guid -> { talents={t1,t2,t3}, ilvl=N, expiry=time }
-local inspectFail  = {}                -- guid -> expiry: recently failed, don't retry
-local INSPECT_CACHE_TIME = 60          -- seconds cache per player
-local INSPECT_FAIL_TIME  = 30          -- seconds until retry after failure (out of range)
+local inspectFail  = {}                -- guid -> expiry; negative cache, suppresses retry
+local INSPECT_CACHE_TIME = 60
+local INSPECT_FAIL_TIME  = 30
 local INSPECT_THROTTLE   = 1.0
-local INSPECT_PARTIAL_TIME = 5         -- short cache while item data is still loading
+local INSPECT_PARTIAL_TIME = 5
 local lastInspectTime    = 0
 local pendingInspectGUID = nil
 local pendingInspectUnit = nil
-local recomputeGUID      = nil         -- guid whose ilvl was incomplete (items still loading)
+local recomputeGUID      = nil
 local recomputeUnit      = nil
 
 local function getCachedInspect(guid)
@@ -637,25 +594,22 @@ local function requestInspect(unit)
     if (GetTime() - lastInspectTime) < INSPECT_THROTTLE then return end
     local guid = UnitGUID(unit)
     if not guid or getCachedInspect(guid) then return end
-    -- Negative cache: recently failed out-of-range -> don't retry (no sound spam)
     if inspectFail[guid] and inspectFail[guid] > GetTime() then return end
 
     pendingInspectGUID = guid
     pendingInspectUnit = unit
     lastInspectTime    = GetTime()
-    -- Pre-mark as "failed"; clear again on successful INSPECT_READY.
+    -- Pre-mark as failed; INSPECT_READY clears it again.
     inspectFail[guid] = GetTime() + INSPECT_FAIL_TIME
     if NotifyInspect then NotifyInspect(unit) end
 end
 
--- Returns (ilvl, complete). complete is false when an equipped slot has an
--- item link but its level is not in the client cache yet (GetItemInfo nil) --
--- that item is excluded, so the average is too low until it finishes loading.
--- An empty slot (nil link, e.g. off-hand with a 2H) is NOT incomplete.
+-- Returns (ilvl, complete); complete is false while an equipped item's level is
+-- still uncached, which drags the average low until the data streams in.
 local function computeAverageILvl(unit)
     if not GetInventoryItemLink then return 0, true end
     local total, count, missing = 0, 0, 0
-    -- 1-18 = equip slots, skip Shirt (4) and Tabard (19)
+    -- Slots 1-18 are equipment; 4 is Shirt and 19 is Tabard, neither has an ilvl.
     for slot = 1, 18 do
         if slot ~= 4 then
             local link = GetInventoryItemLink(unit, slot)
@@ -666,7 +620,7 @@ local function computeAverageILvl(unit)
                     if ok then ilvl = lvl end
                 end
                 if not ilvl then
-                    local _, _, _, lvl = GetItemInfo(link)  -- also queues an async load if uncached
+                    local _, _, _, lvl = GetItemInfo(link)  -- queues an async load when uncached
                     ilvl = lvl
                 end
                 if ilvl and ilvl > 0 then
@@ -699,19 +653,16 @@ local function computeTalents(isInspect)
 end
 
 local function onInspectReady(_, guid)
-    -- ignore a stale async result for an inspect we didn't request (would
-    -- otherwise cache pendingInspectUnit's gear under another player's GUID)
+    -- A stale async result would cache the pending unit's gear under a foreign GUID.
     if guid and pendingInspectGUID and guid ~= pendingInspectGUID then return end
     guid = guid or pendingInspectGUID
     if not guid then return end
-    inspectFail[guid] = nil  -- successful -> clear negative cache
+    inspectFail[guid] = nil
     local unit = pendingInspectUnit
     pendingInspectGUID = nil
     pendingInspectUnit = nil
     if not unit or not UnitExists(unit) then return end
 
-    -- Prune expired entries while we're here — the cache would otherwise
-    -- grow for the whole session (one entry per player ever moused over).
     local now = GetTime()
     for g, d in pairs(inspectCache) do
         if d.expiry <= now then inspectCache[g] = nil end
@@ -724,8 +675,6 @@ local function onInspectReady(_, guid)
     local ilvl, complete = computeAverageILvl(unit)
     inspectCache[guid] = {
         talents = talents, ilvl = ilvl,
-        -- Don't lock in an incomplete (too-low) value for the full cache time --
-        -- keep recomputing as item data streams in (GET_ITEM_INFO_RECEIVED).
         expiry  = GetTime() + (complete and INSPECT_CACHE_TIME or INSPECT_PARTIAL_TIME),
     }
     if complete then
@@ -733,7 +682,7 @@ local function onInspectReady(_, guid)
     else
         recomputeGUID, recomputeUnit = guid, unit
     end
-    -- Re-render tooltip immediately (SetUnit triggers all hooks again)
+    -- SetUnit re-fires every tooltip hook, which re-renders our lines.
     if GameTooltip and GameTooltip:IsShown() then
         local _, ttUnit = GameTooltip:GetUnit()
         if ttUnit and UnitGUID(ttUnit) == guid then
@@ -742,14 +691,11 @@ local function onInspectReady(_, guid)
     end
 end
 
--- Fires when a previously-uncached item's data arrives from the server. While
--- an inspected player's ilvl was still incomplete, recompute it -- once every
--- equipped item resolves, lock in the full value and refresh the tooltip.
 local function onItemInfoReceived()
     if not recomputeGUID then return end
     local unit = recomputeUnit
     if not unit or not UnitExists(unit) or UnitGUID(unit) ~= recomputeGUID then
-        recomputeGUID, recomputeUnit = nil, nil  -- unit gone; keep last value
+        recomputeGUID, recomputeUnit = nil, nil
         return
     end
     local ilvl, complete = computeAverageILvl(unit)
@@ -796,32 +742,26 @@ function mod:OnEnable()
     installHooks()
     scanAddonTooltips()
 
-    -- Player tooltip: inspect events + tooltip hook (legacy OnTooltipSetUnit
-    -- is the working path in Anniversary — TooltipDataProcessor doesn't fire)
+    -- On Anniversary only the legacy OnTooltipSetUnit fires, not TooltipDataProcessor.
     ns:RegisterEvent("INSPECT_READY",         onInspectReady)
     ns:RegisterEvent("INSPECT_TALENT_READY",  onInspectReady)
     ns:RegisterEvent("GET_ITEM_INFO_RECEIVED", onItemInfoReceived)
-    -- Guard flag: HookScript appends on every call -> on toggle off->on
-    -- onPlayerTooltipUnit would otherwise register twice + tooltip lines doubled.
+    -- HookScript appends every call, so a re-enable would double the tooltip lines.
     if GameTooltip and GameTooltip.HookScript and not mod._tooltipHooked then
         mod._tooltipHooked = true
         GameTooltip:HookScript("OnTooltipSetUnit", onPlayerTooltipUnit)
     end
 
-    -- Register these lazy/one-shot events only once: re-enabling the module
-    -- must not append duplicate ADDON_LOADED/PLAYER_LOGIN handlers (which would
-    -- re-run scanAddonTooltips and re-install hooks). Handlers gate on _enabled.
+    -- Register once: a re-enable must not append duplicate one-shot handlers.
     if mod._lazyEventsHooked then return end
     mod._lazyEventsHooked = true
 
-    -- Achievement/Collection/Garrison frames are loaded lazily
     ns:RegisterEvent("ADDON_LOADED", function(_, addonName)
         if not mod._enabled then return end
         scanAddonTooltips()
 
         if addonName == "Blizzard_AchievementUI" then
             if AchievementTemplateMixin then
-                -- Modern clients only — not present in TBC, so usually skip
                 hook(AchievementTemplateMixin, "OnEnter", achievementOnEnter)
                 hook(AchievementTemplateMixin, "OnLeave", GameTooltip_Hide)
                 local hooked = {}
@@ -848,7 +788,6 @@ function mod:OnEnable()
                 end
             elseif AchievementFrameAchievementsContainer
                    and AchievementFrameAchievementsContainer.buttons then
-                -- Classic/TBC clients — the normal path
                 for _, button in ipairs(AchievementFrameAchievementsContainer.buttons) do
                     hookScript(button, "OnEnter", achievementOnEnter)
                     hookScript(button, "OnLeave", GameTooltip_Hide)
@@ -901,21 +840,15 @@ function mod:OnEnable()
         end
     end)
 
-    -- Login: rescan in case more tooltips were created in the meantime
     ns:RegisterEvent("PLAYER_LOGIN", function()
         if not mod._enabled then return end
         scanAddonTooltips()
     end)
 end
 
--- =========================================================
--- Options
--- =========================================================
-
--- Helper to build a checkbox entry per kind (toggle for the UI)
 function mod:OnDisable()
-    -- pcall: INSPECT_TALENT_READY may not exist in Anniversary,
-    -- UnregisterEvent would otherwise throw and abort SafeDisable.
+    -- INSPECT_TALENT_READY may not exist on Anniversary; an unguarded
+    -- UnregisterEvent would throw and abort SafeDisable.
     pcall(ns.UnregisterEvent, ns, "INSPECT_READY",        onInspectReady)
     pcall(ns.UnregisterEvent, ns, "INSPECT_TALENT_READY", onInspectReady)
     pcall(ns.UnregisterEvent, ns, "GET_ITEM_INFO_RECEIVED", onItemInfoReceived)
@@ -973,7 +906,6 @@ function mod:GetOptions()
         { type = "spacer", height = 4 },
     }
 
-    -- ID checkboxes in 2 columns
     local checkboxes = {}
     for _, kind in ipairs(kindOrder) do
         if kinds[kind] then

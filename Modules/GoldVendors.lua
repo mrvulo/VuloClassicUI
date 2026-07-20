@@ -1,21 +1,5 @@
--- =========================================================
--- VuloClassicUI / Modules / GoldVendors (merged GoldTracker + AutoItemBuy)
--- AUTO-MERGED file. Each former module is wrapped in an isolated
--- IIFE so its file-level locals and any top-level early-return stay
--- self-contained. Modules communicate through the shared ns table.
--- =========================================================
-
--- ============================================================
--- merged from: GoldTracker.lua
--- ============================================================
+-- Gold tracker + auto vendor buy; each in its own IIFE so file-level locals and early returns stay isolated.
 (function(...)
--- =========================================================
--- VuloClassicUI / Modules / GoldTracker
--- Shows in the backpack gold tooltip the balance since the last manual
--- reset: gained, spent, net. Per-char persistent in
--- ns.db.char.goldtracker (survives /reload and logout).
--- Reset via options button or /vcui goldreset.
--- =========================================================
 local _, ns = ...
 local L = ns.L
 
@@ -28,16 +12,13 @@ local mod = ns:RegisterModule("goldtracker", {
     },
 })
 
--- =========================================================
--- Persistent state (per char in VuloClassicUICharDB)
--- =========================================================
 local hooked = false
 
 local function data()
     if not (ns.db and ns.db.char) then return nil end
     if not ns.db.char.goldtracker then
         ns.db.char.goldtracker = {
-            sessionStart = nil,  -- nil = never initialized
+            sessionStart = nil,
             lastMoney    = nil,
             gained       = 0,
             spent        = 0,
@@ -46,9 +27,6 @@ local function data()
     return ns.db.char.goldtracker
 end
 
--- =========================================================
--- Colors
--- =========================================================
 local GOLD_COLOR   = "|cffffd100"
 local SILVER_COLOR = "|cffc7c7cf"
 local COPPER_COLOR = "|cffeda55f"
@@ -57,9 +35,6 @@ local NEG_COLOR    = "|cffff4444"
 local ACCENT       = "|cff9b6cff"
 local GRAY         = "|cffaaaaaa"
 
--- =========================================================
--- Helpers
--- =========================================================
 local function formatCopper(copper)
     copper = math.abs(copper or 0)
     if copper == 0 then return "0" .. COPPER_COLOR .. "c|r" end
@@ -74,8 +49,7 @@ local function formatCopper(copper)
     return table.concat(parts, " ")
 end
 
--- Resets the balance to "now". force=true = explicit (button/slash),
--- without force = only if never initialized.
+-- force=true resets the balance to now; without force only when never initialized.
 local function initSession(force)
     local d = data()
     if not d then return end
@@ -86,9 +60,7 @@ local function initSession(force)
     d.spent        = 0
 end
 
--- On login/reload: sync lastMoney to current WITHOUT including offline delta
--- (AH/mail/trades between sessions) in gained/spent.
--- Initializes the DB if never done.
+-- Resyncs lastMoney on login so offline delta (AH/mail/trade) is never counted as gained/spent.
 local function syncOnLogin()
     local d = data()
     if not d then return end
@@ -99,9 +71,7 @@ local function syncOnLogin()
     end
 end
 
--- Account-wide per-character gold snapshot (for the realm/faction overview in
--- the bag/bank gold tooltip). Lives in ns.db.global (account SavedVariables):
---   charGold[realm][charName] = { money, class, faction }
+-- Account-wide store: db.global.charGold[realm][charName] = { money, class, faction }.
 local function trackCharGold()
     if not (ns.db and ns.db.global) then return end
     local realm, name = GetRealmName(), UnitName("player")
@@ -133,9 +103,6 @@ local function onMoney()
     d.lastMoney = cur
 end
 
--- =========================================================
--- Public API (for /vcui goldreset and options button)
--- =========================================================
 function mod.ResetSession()
     initSession(true)
     local d = data()
@@ -144,17 +111,12 @@ function mod.ResetSession()
     end
 end
 
--- =========================================================
--- Tooltip
--- =========================================================
 local function showTooltip(self)
     if not mod._enabled then return end
     local d = data()
     if not d then return end
     if not d.sessionStart then initSession(false) end
 
-    -- If a tooltip is already on this frame (e.g. Baganator's
-    -- realm/account overview), append lines. Otherwise own tooltip.
     if GameTooltip:GetOwner() ~= self then
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     else
@@ -184,11 +146,7 @@ local function hideTooltip()
     GameTooltip:Hide()
 end
 
--- Published gold tooltip for OUR OWN money displays (bag + bank window):
--- realm/faction character-gold overview on top, then the session balance.
--- Coin icons via GetCoinTextureString; class-colored names.
 function ns.ShowGoldTooltip(owner)
-    -- nothing to show? (module disabled AND no realm data) -> no empty box
     local store0 = ns.db and ns.db.global and ns.db.global.charGold
     local realm0 = GetRealmName and GetRealmName()
     if not mod._enabled and not (store0 and realm0 and store0[realm0]) then return end
@@ -234,16 +192,10 @@ function ns.ShowGoldTooltip(owner)
             GameTooltip:AddLine(GRAY .. L["<Hold Shift to show the account total>|r"])
         end
     end
-    -- session balance (appends, since the owner is already set) + final Show()
     showTooltip(owner)
     GameTooltip:Show()
 end
 
--- =========================================================
--- Frame hook
--- Supports Baganator (BaganatorCurrencyWidgetMixin) AND default
--- Blizzard MoneyFrame as fallback. Retries every 3s until found.
--- =========================================================
 local function findMoneyFontString(frame, depth)
     if not frame or depth > 8 then return nil end
     local m = rawget(frame, "Money")
@@ -270,12 +222,12 @@ local function hookOnce(frame, withLeave)
     return true
 end
 
+-- Bag frames may not exist at load; retries every 3s until a money frame is found.
 local retryCount = 0
 local function tryHook()
     if hooked then return end
     local foundAny = false
 
-    -- 1. Baganator mixin — catches future CurrencyBar instances
     if _G.BaganatorCurrencyWidgetMixin and not mod._baganatorMixinHooked then
         mod._baganatorMixinHooked = true
         hooksecurefunc(_G.BaganatorCurrencyWidgetMixin, "OnLoad", function(widget)
@@ -284,7 +236,6 @@ local function tryHook()
         foundAny = true
     end
 
-    -- 2. Scan existing Baganator frames
     for name, frame in pairs(_G) do
         if type(name) == "string" and name:find("^Baganator_") and type(frame) == "table" then
             local ok = pcall(function() return frame.GetObjectType end)
@@ -297,7 +248,6 @@ local function tryHook()
         end
     end
 
-    -- 3. Default Blizzard MoneyFrames (fallback without Baganator)
     local defaultFrames = {
         "ContainerFrame1MoneyFrame",
         "BackpackTokenFrameMoneyFrame",
@@ -321,17 +271,13 @@ local function tryHook()
     end
 end
 
--- =========================================================
--- Lifecycle
--- =========================================================
 function mod:OnEnable()
-    -- IMPORTANT: NO initSession(true) in OnEnable! Persistent values
-    -- must be preserved. syncOnLogin() only syncs lastMoney.
+    -- Never initSession(true) here: it would wipe the persisted balance on every login.
     ns:RegisterEvent("PLAYER_LOGIN", syncOnLogin)
-    ns:RegisterEvent("PLAYER_LOGIN", trackCharGold)   -- account-wide gold snapshot
+    ns:RegisterEvent("PLAYER_LOGIN", trackCharGold)
     ns:RegisterEvent("PLAYER_MONEY", onMoney)
 
-    -- If module is enabled later (after PLAYER_LOGIN) via toggle:
+    -- Enabled via toggle after PLAYER_LOGIN already fired.
     if ns.isInitialised then syncOnLogin(); trackCharGold() end
 
     tryHook()
@@ -341,13 +287,9 @@ function mod:OnDisable()
     ns:UnregisterEvent("PLAYER_LOGIN", syncOnLogin)
     ns:UnregisterEvent("PLAYER_LOGIN", trackCharGold)
     ns:UnregisterEvent("PLAYER_MONEY", onMoney)
-    -- HookScripts on MoneyFrame can't be removed,
-    -- showTooltip() checks mod._enabled itself.
+    -- HookScript cannot be undone, so showTooltip() gates on mod._enabled instead.
 end
 
--- =========================================================
--- Options
--- =========================================================
 function mod:GetOptions()
     return {
         { type = "header", text = L["Gold Tracker"] },
@@ -360,18 +302,7 @@ end
 
 end)(...);
 
--- ============================================================
--- merged from: AutoItemBuy.lua
--- ============================================================
 (function(...)
--- =========================================================
--- VuloClassicUI / Modules / AutoItemBuy
--- Automatically buys certain items at certain vendors.
--- Hold Shift when opening the merchant window = emergency stop.
---
--- Configurable in the UI: vendor names and item names.
--- Default: off.
--- =========================================================
 local _, ns = ...
 local L = ns.L
 
@@ -380,23 +311,17 @@ local mod = ns:RegisterModule("autoitembuy", {
     group       = "QoL",
     description = "Automatically buys configured items at configured vendors. Shift when opening the merchant window = emergency stop.",
     defaults = {
-        enabled    = false,  -- OFF by default
-        autoClose  = true,   -- close merchant window after purchase
-        chatMsg    = true,   -- print on each purchase
-        vendors    = {},     -- vendors[vendorName] = { itemName1 = true, itemName2 = true, ... }
+        enabled    = false,
+        autoClose  = true,
+        chatMsg    = true,
+        vendors    = {},     -- vendors[vendorName] = { [itemName] = true }
     },
 })
 
--- =========================================================
--- Buffers for UI input (not in the DB)
--- =========================================================
 local addVendorBuffer  = ""
-local selectedVendor   = nil  -- currently selected vendor in the UI
+local selectedVendor   = nil
 local addItemBuffer    = ""
 
--- =========================================================
--- Helper
--- =========================================================
 local function p(fmt, ...)
     if not mod.db.chatMsg then return end
     ns:Print(L["|cffffd200[AutoItemBuy]|r "] .. string.format(fmt, ...))
@@ -428,9 +353,6 @@ local function refreshUI()
     end
 end
 
--- =========================================================
--- Event handling (MERCHANT_SHOW)
--- =========================================================
 local eventFrame
 
 local function setupEvents()
@@ -441,7 +363,7 @@ local function setupEvents()
         if event ~= "MERCHANT_SHOW" then return end
         if not mod._enabled then return end
 
-        -- Hold SHIFT = emergency stop
+        -- Shift held while the merchant opens = emergency stop for this visit.
         if IsShiftKeyDown() then return end
 
         local npcName = UnitName("npc") or UnitName("target")
@@ -461,7 +383,6 @@ local function setupEvents()
             end
         end
 
-        -- Optional: close merchant window automatically
         if mod.db.autoClose and bought > 0 then
             local count = 0
             self:SetScript("OnUpdate", function(s)
@@ -475,22 +396,13 @@ local function setupEvents()
     end)
 end
 
--- =========================================================
--- Lifecycle
--- =========================================================
 function mod:OnEnable()
     setupEvents()
 end
 
--- =========================================================
--- Options page
--- =========================================================
 function mod:GetOptions()
     local items = {}
 
-    -- =========================================================
-    -- General settings
-    -- =========================================================
     table.insert(items, { type = "header", text = L["General"] })
 
     table.insert(items, {
@@ -511,9 +423,6 @@ function mod:GetOptions()
 
     table.insert(items, { type = "spacer", height = 12 })
 
-    -- =========================================================
-    -- Add vendor
-    -- =========================================================
     table.insert(items, { type = "header", text = L["Add Vendor"] })
 
     table.insert(items, {
@@ -550,9 +459,6 @@ function mod:GetOptions()
 
     table.insert(items, { type = "spacer", height = 12 })
 
-    -- =========================================================
-    -- Vendor selection & management
-    -- =========================================================
     table.insert(items, { type = "header", text = L["Manage Vendors"] })
 
     local vendorList = getVendorList()
@@ -560,7 +466,6 @@ function mod:GetOptions()
         table.insert(items, { type = "desc",
             text = L["|cffaaaaaaNo vendors added yet. Add a vendor above, then select it here to configure items.|r"] })
     else
-        -- Auto-select if none chosen yet
         if not selectedVendor or not mod.db.vendors[selectedVendor] then
             selectedVendor = vendorList[1]
         end
@@ -595,9 +500,6 @@ function mod:GetOptions()
 
         table.insert(items, { type = "spacer", height = 12 })
 
-        -- =========================================================
-        -- Items for selected vendor
-        -- =========================================================
         table.insert(items, { type = "header",
             text = string.format(L["Items at '%s'"], selectedVendor) })
 

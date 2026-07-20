@@ -1,35 +1,8 @@
--- =========================================================
--- VuloClassicUI / Modules / BagSort — shared item-sorting engine
--- Used by Modules/Bags.lua + Modules/Bank.lua for
---   * the PHYSICAL sort (actually moving items into order), and
---   * the DISPLAY-ONLY ordering of items inside category sections.
---
--- Design:
---   * Every sort mode is an ordered list of item fields; the first field that
---     differs between two items decides. Descending criteria are expressed as
---     negated ("inverted") fields so the comparator only ever needs "<".
---     Complete ties fall back to a stable per-run index.
---   * Expensive fields (name, item level) are computed lazily via a metatable
---     and cached on the item for the current run. While the client hasn't
---     cached an item's data yet the field returns nil, the run is flagged
---     "incomplete", the data is requested from the server and the driver
---     simply re-runs shortly after — no freeze, no wrong order.
---   * The physical sort is a state machine: every step re-scans the bags
---     fresh, computes target slots (junk at the far end; special bags like
---     herb/soul/ammo bags filled first, preferring the items that fit into
---     the FEWEST special bags) and fires Pickup/Pickup swaps. Locked or
---     still-moving items just mean "try again next tick", so it converges
---     without ever assuming a move succeeded. Only PickupContainerItem +
---     ClearCursor are used — nothing protected, safe from a plain button
---     click, and it bails in combat.
---
--- Lua 5.1 caps a chunk at 200 locals, so (like Modules/Bank.lua) everything
--- lives inside the single `sorting` table below.
--- =========================================================
+-- Shared item-sorting engine for the bag/bank modules (physical sort + display ordering).
+-- Lua 5.1 caps a chunk at 200 locals, so everything lives in the single `sorting` table below.
 local _, ns = ...
 
--- Container API — the bare globals are guaranteed on every flavor we ship for
--- by Core/Compat.lua (GetContainerItemInfo returns the legacy 10-tuple).
+-- The bare container globals are guaranteed by Core/Compat.lua (legacy 10-tuple).
 local GetContainerNumSlots     = _G.GetContainerNumSlots
 local GetContainerItemInfo     = _G.GetContainerItemInfo
 local GetContainerNumFreeSlots = _G.GetContainerNumFreeSlots
@@ -39,11 +12,7 @@ local CI = _G.C_Item or {}
 local sorting = {}
 ns.SortEngine = sorting
 
--- =========================================================
--- Small API shims — modern C_Item first, legacy globals second. GetItemInfo
--- (legacy) exists on 20505 + 11508 and doubles as the "request this item's
--- data from the server" trigger on clients without RequestLoadItemDataByID.
--- =========================================================
+-- API shims: C_Item first, legacy globals second; GetItemInfo doubles as the server-side data request.
 function sorting.isCached(itemID)
     if CI.IsItemDataCachedByID then return CI.IsItemDataCachedByID(itemID) end
     return GetItemInfo(itemID) ~= nil
@@ -76,12 +45,7 @@ end
 sorting.getItemFamily = CI.GetItemFamily or _G.GetItemFamily
 sorting.instantInfo   = CI.GetItemInfoInstant or _G.GetItemInfoInstant
 
--- =========================================================
--- Hand-tuned orderings for item class / subclass / equip slot, so "by type"
--- runs consumables -> weapons -> armor -> trade goods -> quest -> misc and
--- weapons/armor read in a sensible gear order. Anything not listed sorts
--- after the listed entries (raw id + 200).
--- =========================================================
+-- Hand-tuned class/subclass/slot order; anything unlisted sorts after (raw id + 200).
 sorting.rank = {
     classID = {
         18, -- token
@@ -198,7 +162,6 @@ sorting.rank = {
     },
 }
 
--- fast lookup: rankMap.<key>[id] = position in the hand-tuned list
 sorting.rankMap = {}
 for key, list in pairs(sorting.rank) do
     local map = {}
@@ -206,13 +169,8 @@ for key, list in pairs(sorting.rank) do
     sorting.rankMap[key] = map
 end
 
--- =========================================================
--- Lazy per-item sort fields. A field that needs uncached item data requests
--- the load and returns nil — the metatable does NOT cache nil, so the next
--- attempt recomputes it, and the comparator flags the run incomplete.
--- classID constants are fixed on every flavor: 2 weapon, 4 armor, 7 trade
--- goods (Enum.ItemClass matches these values where it exists).
--- =========================================================
+-- Lazy per-item fields: nil is NOT cached, so an uncached item recomputes next run and flags it incomplete.
+-- classID constants are fixed on every flavor: 2 weapon, 4 armor, 7 trade goods.
 sorting.fields = {}
 
 sorting.fields.itemLevelRaw = function(item)
@@ -226,8 +184,6 @@ sorting.fields.invertedItemLevelRaw = function(item)
     return item.itemLevelRaw and -item.itemLevelRaw
 end
 
--- equipment sorts by its level (descending), everything else is a flat 0 so
--- gear floats to the front in "item level" mode
 sorting.fields.invertedItemLevelEquipment = function(item)
     if item.isEquipment then
         return item.itemLevelRaw and -item.itemLevelRaw
@@ -276,9 +232,6 @@ sorting.itemMeta = {
     end,
 }
 
--- =========================================================
--- Sort modes — ordered field lists (first difference decides)
--- =========================================================
 sorting.modes = {
     ["quality"] = {
         "priority", "quality", "sortedClassID", "sortedInvSlotID",
@@ -303,9 +256,6 @@ sorting.modes = {
     },
 }
 
--- =========================================================
--- Key preparation + the comparator itself
--- =========================================================
 local HEARTHSTONE = 6948   -- always sorts to the very front
 
 function sorting.AddSortKeys(list)
@@ -328,18 +278,9 @@ function sorting.AddSortKeys(list)
     end
 end
 
--- Sorts a prepared list (AddSortKeys first!). Returns the sorted list plus an
--- "incomplete" flag when some item data wasn't server-cached yet — callers
--- should re-run shortly after; the missing data has already been requested.
---
--- ORDER-TOTALITY: every key is materialized BEFORE table.sort and the items
--- are frozen (metatable detached), then a missing value consistently sorts
--- AFTER present ones. Skipping missing keys inside the comparator instead
--- (deciding cached pairs by item level but mixed pairs by item id) creates
--- preference cycles, and Lua 5.1's table.sort hard-errors on those
--- ("invalid order function for sorting"). Freezing also stops a value from
--- flipping nil -> real MID-SORT when the server data arrives between two
--- comparisons, which would be just as intransitive.
+-- Sorts a prepared list (AddSortKeys first). Returns the list plus "incomplete" when item data was not cached yet.
+-- ORDER-TOTALITY: every key is materialized and the items frozen before table.sort, and a missing value always
+-- sorts last - Lua 5.1's table.sort hard-errors on an intransitive comparator.
 function sorting.OrderOneListOffline(list, method, reverse)
     local filtered = {}
     for _, item in ipairs(list) do
@@ -349,20 +290,16 @@ function sorting.OrderOneListOffline(list, method, reverse)
     local incomplete = false
     for _, item in ipairs(filtered) do
         for _, key in ipairs(keys) do
-            if item[key] == nil then incomplete = true end   -- computes + caches
+            if item[key] == nil then incomplete = true end
         end
-        setmetatable(item, nil)   -- freeze the snapshot for this sort
+        setmetatable(item, nil)
     end
     table.sort(filtered, function(a, b)
         for _, key in ipairs(keys) do
             local av, bv = a[key], b[key]
             if av == nil or bv == nil then
-                -- uncached data: cluster after the fully-known items, in a
-                -- FIXED direction so the order stays total; the incomplete
-                -- re-run puts them in their real place once the data lands
                 if av ~= nil then return true end
                 if bv ~= nil then return false end
-                -- both missing -> tie on this key, fall through
             elseif av ~= bv then
                 if reverse then return av > bv else return av < bv end
             end
@@ -372,11 +309,7 @@ function sorting.OrderOneListOffline(list, method, reverse)
     return filtered, incomplete
 end
 
--- =========================================================
--- Fresh bag scan -> plain item entries (legacy 10-tuple via Core/Compat.lua:
--- icon, count, locked, quality, readable, lootable, link, filtered, noValue,
--- itemID). Empty slots become {} so slot positions stay addressable.
--- =========================================================
+-- Fresh bag scan via the legacy 10-tuple; empty slots become {} so slot positions stay addressable.
 function sorting.scan(bagIDs)
     local bags = {}
     for i, bagID in ipairs(bagIDs) do
@@ -399,8 +332,7 @@ function sorting.scan(bagIDs)
     return bags
 end
 
--- Special-bag detection: a nonzero bag family (herb/soul/enchanting/ammo…)
--- gets a contents check so only matching items are assigned to it.
+-- A nonzero bag family (herb/soul/enchanting/ammo) gets a contents check so only matching items go in.
 function sorting.bagChecksFor(bagIDs)
     local checks, sortOrder = {}, {}
     for _, bagID in ipairs(bagIDs) do
@@ -412,16 +344,15 @@ function sorting.bagChecksFor(bagIDs)
                 return fam and item.classID ~= 1 and item.classID ~= 11
                     and bit.band(fam, family) ~= 0
             end
-            sortOrder[bagID] = 5     -- special bags fill before regular ones
+            sortOrder[bagID] = 5
         else
-            sortOrder[bagID] = 250   -- regular bags last
+            sortOrder[bagID] = 250
         end
     end
     return { checks = checks, sortOrder = sortOrder }
 end
 
--- stable per-item identity for comparator ties, so re-running after a batch
--- of moves keeps one consistent target order across steps
+-- stable per-item identity for comparator ties, so re-runs keep one consistent target order
 function sorting.guidFor(bagID, slot)
     if ItemLocation and CI.GetItemGUID and CI.DoesItemExist then
         local loc = ItemLocation:CreateFromBagAndSlot(bagID, slot)
@@ -446,15 +377,7 @@ local function isLockedLive(bagID, slot)
     return locked and true or false
 end
 
--- =========================================================
--- One physical ordering step. Scans fresh, assigns every item a target slot
--- and fires the moves it can. Returns a status:
---   "complete"  nothing left to do
---   "move"      moves fired — wait for the bag update, then step again
---   "unlock"    some item was locked — retry shortly
---   "itemdata"  sort keys incomplete — retry shortly
--- plus the number of moves queued (for the driver's stuck detection).
--- =========================================================
+-- One physical ordering step. Returns "complete"/"move"/"unlock"/"itemdata" plus the number of moves queued.
 function sorting.ApplyOrdering(bagIDs, method, reverse)
     if InCombatLockdown() or UnitIsDead("player") then return "complete", 0 end
 
@@ -464,7 +387,6 @@ function sorting.ApplyOrdering(bagIDs, method, reverse)
     local scanIndexOf = {}
     for i, bagID in ipairs(bagIDs) do scanIndexOf[bagID] = i end
 
-    -- one long list of every occupied slot
     local oneList = {}
     for bagIndex, bagContents in ipairs(bags) do
         for slotIndex, item in ipairs(bagContents) do
@@ -482,8 +404,7 @@ function sorting.ApplyOrdering(bagIDs, method, reverse)
 
     local sortedItems, incomplete = sorting.OrderOneListOffline(oneList, method, reverse)
 
-    -- bag fill order: special bags first (sortOrder), ties by list position
-    -- (inverted list for the junk end)
+    -- bag fill order: special bags first, ties by list position
     local function usableBags(fromEnd)
         local order = {}
         for i = 1, #bagIDs do order[i] = i end
@@ -514,8 +435,7 @@ function sorting.ApplyOrdering(bagIDs, method, reverse)
         bagStores[bagID] = { first = 1, last = GetContainerNumSlots(bagID) or 0 }
     end
 
-    -- how many special bags could hold each item — items that fit the fewest
-    -- get first pick of the special-bag space
+    -- items that fit the fewest special bags get first pick of that space
     for _, item in ipairs(sortedItems) do
         item.specialisedBags = 0
         for _, check in pairs(bagChecks.checks) do
@@ -525,7 +445,6 @@ function sorting.ApplyOrdering(bagIDs, method, reverse)
         end
     end
 
-    -- junk (grey with a sell value) goes to the opposite end of the bags
     local groupA, groupB = {}, {}
     for _, item in ipairs(sortedItems) do
         if not item.hasNoValue and item.quality == 0 then
@@ -538,7 +457,7 @@ function sorting.ApplyOrdering(bagIDs, method, reverse)
         groupA, groupB = groupB, groupA
     end
 
-    local moveQueue0, moveQueue1 = {}, {}   -- to-empty first, swaps second
+    local moveQueue0, moveQueue1 = {}, {}
     local function queueSwap(item, bagID, slotID)
         local fromBag, fromSlot = bagIDs[item.from.bagIndex], item.from.slot
         if fromBag == bagID and fromSlot == slotID then return end
@@ -551,7 +470,6 @@ function sorting.ApplyOrdering(bagIDs, method, reverse)
         end
     end
 
-    -- groupB fills bags from the far end backwards
     local function sweepBackwards(group, specialsOnly)
         for _, item in ipairs(group) do
             for bagIndex, bagID in ipairs(bagIDsInverted) do
@@ -570,7 +488,6 @@ function sorting.ApplyOrdering(bagIDs, method, reverse)
         end
     end
 
-    -- groupA fills bags from the front forwards
     local function sweepForwards(group, specialsOnly)
         for _, item in ipairs(group) do
             for bagIndex, bagID in ipairs(bagIDsAvailable) do
@@ -604,13 +521,11 @@ function sorting.ApplyOrdering(bagIDs, method, reverse)
         return out
     end
 
-    -- special bags first (fewest-fits items get first pick), then the rest
     for i = 1, numBagsAffected do
         sweepBackwards(whereSpecialised(groupB, i), true)
     end
     sweepBackwards(unprocessed(groupB), false)
 
-    -- drop bags the backwards sweep exhausted from the forwards sweep too
     local stillOpen = {}
     for _, bagID in ipairs(bagIDsInverted) do stillOpen[bagID] = true end
     local remaining = {}
@@ -624,8 +539,7 @@ function sorting.ApplyOrdering(bagIDs, method, reverse)
     end
     sweepForwards(unprocessed(groupA), false)
 
-    -- fire the moves; live lock checks serialize chained swaps across steps
-    -- (a slot touched by an earlier move in this batch reads as locked)
+    -- live lock checks serialize chained swaps across steps (a slot touched by an earlier move reads as locked)
     local moved, anyLocked = false, false
     if MuteSoundFile then
         for _, id in ipairs(sorting.pickupSounds) do MuteSoundFile(id) end
@@ -662,12 +576,7 @@ function sorting.ApplyOrdering(bagIDs, method, reverse)
     return "complete", queued
 end
 
--- =========================================================
--- One stack-combining step: for every item with more partial stacks than
--- needed, merge the smallest partial onto the largest (the client combines
--- them natively — no manual splitting required). One merge per item per
--- step; repeats via the driver until nothing is left to merge.
--- =========================================================
+-- One stack-combining step: merge the smallest partial onto the largest (the client combines them natively).
 function sorting.CombineStacksStep(bagIDs)
     if InCombatLockdown() then return "complete" end
     local bags = sorting.scan(bagIDs)
@@ -728,13 +637,7 @@ function sorting.CombineStacksStep(bagIDs)
     return "complete"
 end
 
--- =========================================================
--- Driver — repeats combine + ordering steps until everything settles.
---   "move"               wait for the bag-update event (1s fallback timer)
---   "unlock"/"itemdata"  retry shortly
--- onDone(ok) fires EXACTLY once per Run (also on abort/cancel), so callers
--- can safely clear their in-flight flags there.
--- =========================================================
+-- Driver: repeats combine + ordering steps. onDone(ok) fires EXACTLY once per Run (also on abort/cancel).
 sorting.waiter = CreateFrame("Frame")
 sorting.waiter:Hide()
 sorting.waiter:SetScript("OnEvent", function()
@@ -766,8 +669,7 @@ function sorting.Cancel()
     end
 end
 
--- cancel only when the running sort covers the given container (e.g. the bank
--- window cancels a BANK sort on close without touching a running bag sort)
+-- cancel only when the running sort covers the given container
 function sorting.CancelContaining(bagID)
     if not (sorting.active and sorting.activeBags) then return end
     for _, b in ipairs(sorting.activeBags) do
@@ -824,8 +726,7 @@ function sorting.Run(bagIDs, method, reverse, onDone)
         attempts = attempts + 1
         if attempts > 150 then finish(false); return end
 
-        -- pcall-contained: an escaped error would skip finish() and leave the
-        -- caller's in-flight flag stuck true for the whole session
+        -- pcall-contained: an escaped error would skip finish() and leave the caller's in-flight flag stuck
         local ok, status, queued
         if phase == "combine" then
             ok, status = pcall(sorting.CombineStacksStep, bagIDs)
@@ -838,9 +739,7 @@ function sorting.Run(bagIDs, method, reverse, onDone)
         end
         if not ok then finish(false); return end
 
-        -- stuck detection: the same number of pending moves several steps in
-        -- a row means the moves aren't landing (e.g. the bank was closed
-        -- mid-sort) — stop instead of ticking until the attempt cap
+        -- stuck detection: the same pending-move count several steps in a row means the moves are not landing
         if status == "move" and queued ~= nil then
             if queued == lastQueued then
                 stuck = stuck + 1
@@ -862,11 +761,7 @@ function sorting.Run(bagIDs, method, reverse, onDone)
     step()
 end
 
--- =========================================================
--- Display-only ordering for one category bucket ({bag, slot} entries from
--- Modules/Bags.lua). Never moves anything; returns re-ordered {bag, slot}
--- pairs + the incomplete flag (caller schedules one repaint when data lands).
--- =========================================================
+-- Display-only ordering for one category bucket; never moves anything.
 function sorting.OrderBucket(entries, method, reverse)
     local list = {}
     for i, e in ipairs(entries) do
@@ -884,8 +779,7 @@ function sorting.OrderBucket(entries, method, reverse)
     for _, item in ipairs(sorted) do
         out[#out + 1] = { bag = item.bag, slot = item.slot }
     end
-    -- OrderOneListOffline drops link-less entries; keep them (rare race
-    -- between the caller's link check and our scan) at the end instead
+    -- OrderOneListOffline drops link-less entries; keep them at the end
     if #out < #list then
         for _, item in ipairs(list) do
             if not item.itemLink then
@@ -896,16 +790,8 @@ function sorting.OrderBucket(entries, method, reverse)
     return out, incomplete
 end
 
--- =========================================================
--- Smart item search, shared by bags / bank / guild bank. Space-separated
--- terms AND together. Term forms (query arrives lowercased):
---   q:<farbe|0-5>          quality (also qual:/quality:/qualität:)
---   typ:<text>             item type/subtype/slot (also type:/t:)
---   ilvl>NN ilvl<NN ilvl>=NN ilvl<=NN ilvl=NN   (also lvl/stufe; no spaces)
---   anything else          name/type substring (the classic behavior)
--- Cache-safe: quality/ilvl of uncached items read as no-match and correct
--- themselves on the next repaint (the GetItemInfo call requests the load).
--- =========================================================
+-- Item search (shared by bags/bank/guild bank): space-separated terms AND together -
+--   q:<colour|0-5> quality, typ:<text> type/slot, ilvl>NN / ilvl<=NN (also lvl/stufe), else name/type substring.
 local QUALITY_WORDS = {
     grau = 0, gray = 0, grey = 0, poor = 0, schlecht = 0,
     ["weiß"] = 1, weiss = 1, white = 1, common = 1, ["gewöhnlich"] = 1, gewoehnlich = 1,
@@ -941,8 +827,6 @@ local function parseSearch(raw)
     return terms
 end
 
--- ns.ItemSearchMatch(link, quality, rawLowerQuery): quality may be nil
--- (derived from the link then). Published for all three item windows.
 ns.ItemSearchMatch = function(link, quality, raw)
     if not raw or raw == "" then return true end
     if not link then return false end
@@ -952,13 +836,11 @@ ns.ItemSearchMatch = function(link, quality, raw)
         local _, it, ist, el = sorting.instantInfo(link)
         itemType, itemSubType, equipLoc = it, ist, el
     end
-    -- localized slot name ("Schmuckstück"...) searches better than the token
     local slotName = equipLoc and equipLoc ~= "" and _G[equipLoc] or nil
     local typeHay = ((itemType or "") .. " " .. (itemSubType or "") .. " "
         .. (slotName or "")):lower()
     for _, t in ipairs(terms) do
         if t.kind == "name" then
-            -- classic behavior: the whole link (contains the name) + types
             if not (link:lower():find(t.text, 1, true) or typeHay:find(t.text, 1, true)) then
                 return false
             end

@@ -1,18 +1,4 @@
--- =========================================================
--- VuloClassicUI / Modules / PowerBar
--- A movable HUD resource bar (mana / rage / energy / focus).
---
--- The power type follows the character AUTOMATICALLY: UnitPowerType("player")
--- already returns the active resource, so we never special-case classes.
---   * Casters / Healers / Hunter -> Mana   (blue)
---   * Warrior                    -> Rage   (red)
---   * Rogue                      -> Energy (yellow)
---   * Druid: switches live with form — Bear = Rage, Cat = Energy, otherwise
---            (no form / Moonkin / Tree of Life) = Mana. UNIT_DISPLAYPOWER fires
---            on every shapeshift, so the bar recolours itself.
---
--- Size, position (mover + arrow keys) and the bar text are all configurable.
--- =========================================================
+-- Movable HUD resource bar (mana / rage / energy / focus).
 local _, ns = ...
 local L = ns.L
 
@@ -28,55 +14,50 @@ local mod = ns:RegisterModule("powerbar", {
         y          = -200,
         unlocked   = false,
         texture    = "Atrocity",
-        textMode   = "currentmax",   -- none | current | currentmax | percent | full
+        textMode   = "currentmax",
         fontSize   = 12,
-        borderSize = 1,              -- border thickness in physical pixels (0 = off)
-        textAnchor = "CENTER",       -- LEFT | CENTER | RIGHT
-        textX      = 0,              -- text horizontal offset
-        textY      = 0,              -- text vertical offset
+        borderSize = 1,
+        textAnchor = "CENTER",
+        textX      = 0,
+        textY      = 0,
         textColor  = { r = 1, g = 1, b = 1 },
 
-        -- visibility
-        visibility    = "always",    -- always | combat | noncombat | mouseover
-        fadeAlpha     = 20,          -- mouseover: faded opacity in percent
-        groupVis      = "any",       -- any | group | raid | party | solo
+        visibility    = "always",
+        fadeAlpha     = 20,
+        groupVis      = "any",
         onlyInstances = false,
         hideMounted   = false,
         hideNoTarget  = false,
-        hideFull      = false,       -- hide while the resource is full (out of combat)
-        fadeOOC       = false,       -- dim out of combat
-        oocAlpha      = 40,          -- percent
+        hideFull      = false,
+        fadeOOC       = false,
+        oocAlpha      = 40,
 
-        -- colours & style
-        colorMode     = "power",     -- power | class | custom
+        colorMode     = "power",
         customColor   = { r = 0.25, g = 0.45, b = 0.95 },
         gradient      = false,
         gradientColor = { r = 0, g = 0, b = 0 },
         borderColor   = { r = 0, g = 0, b = 0 },
         bgColor       = { r = 0.05, g = 0.05, b = 0.06 },
         bgAlpha       = 0.85,
-        smooth        = false,       -- animate value changes
+        smooth        = false,
 
-        -- hash marks + threshold colouring
-        hashMarks      = "",         -- comma-separated values, e.g. "30,60"
-        hashPct        = true,       -- values are percent (off = absolute)
+        hashMarks      = "",
+        hashPct        = true,
         hashWidth      = 1,
         hashColor      = { r = 0, g = 0, b = 0 },
         thresholdOn    = false,
         threshold      = 20,
         thresholdPct   = true,
-        thresholdDir   = "below",    -- below | above
+        thresholdDir   = "below",
         thresholdColor = { r = 0.9, g = 0.2, b = 0.2 },
-        thresholdText  = false,      -- recolour the text instead of the bar
+        thresholdText  = false,
     },
 })
 
 local UnitPower, UnitPowerMax, UnitPowerType = UnitPower, UnitPowerMax, UnitPowerType
 local format, floor = string.format, math.floor
 
--- =========================================================
--- Power-type colours (keyed by the UnitPowerType token)
--- =========================================================
+-- Keyed by the UnitPowerType token.
 local POWER_COLORS = {
     MANA        = { r = 0.25, g = 0.45, b = 0.95 },
     RAGE        = { r = 0.85, g = 0.22, b = 0.22 },
@@ -86,9 +67,6 @@ local POWER_COLORS = {
 }
 local DEFAULT_COLOR = POWER_COLORS.MANA
 
--- =========================================================
--- Bundled bar textures (same set the Swing Timer offers)
--- =========================================================
 local BUNDLED_TEXTURES = {
     "Atrocity", "Beautiful", "Divide", "Fade", "Glass", "Gradient",
     "Matte", "Melli", "Plating", "Sheer", "Soft Line",
@@ -124,9 +102,6 @@ local function textModeValues()
     }
 end
 
--- =========================================================
--- Frame
--- =========================================================
 local frame, bar, barText, borderEdges
 
 local function applyFont()
@@ -152,7 +127,7 @@ local function currentColor()
     return POWER_COLORS[token] or DEFAULT_COLOR
 end
 
-local bgTex   -- background texture (recoloured from settings)
+local bgTex
 
 local function applyAppearance()
     if not bar then return end
@@ -162,7 +137,6 @@ local function applyAppearance()
     if t and t.SetHorizTile then t:SetHorizTile(false); t:SetVertTile(false) end
     local c = currentColor()
     bar:SetStatusBarColor(c.r, c.g, c.b)
-    -- optional gradient fading into a second colour towards the right
     if t and t.SetGradient and CreateColor then
         if d.gradient then
             local g2 = d.gradientColor or { r = 0, g = 0, b = 0 }
@@ -178,9 +152,6 @@ local function applyAppearance()
     applyFont()
 end
 
--- Pixel-perfect border: 4 edge textures drawn just OUTSIDE the frame, each
--- exactly mod.db.borderSize physical pixels thick (0 = hidden). Edges follow
--- the frame corners, so they auto-track size changes.
 local function applyBorder()
     if not frame or not borderEdges then return end
     local n = mod.db.borderSize or 0
@@ -198,11 +169,10 @@ local function applyBorder()
     rgt:ClearAllPoints(); rgt:SetPoint("TOPLEFT", frame, "TOPRIGHT", 0, 0); rgt:SetPoint("BOTTOMLEFT", frame, "BOTTOMRIGHT", 0, 0); rgt:SetWidth(th)
 end
 
-local applyHashes   -- forward (hash marks track the bar size)
+local applyHashes   -- forward declaration: assigned below, captured as an upvalue here
 
 local function applySize()
     if not frame then return end
-    -- snap to whole physical pixels so the bar + border stay crisp
     frame:SetSize(ns:PixelSnap(mod.db.width, frame), ns:PixelSnap(mod.db.height, frame))
     applyBorder()
     if applyHashes then applyHashes() end
@@ -215,7 +185,6 @@ local function applyPos()
         ns:PixelSnap(mod.db.x or 0, frame), ns:PixelSnap(mod.db.y or 0, frame))
 end
 
--- Text position: anchor (LEFT/CENTER/RIGHT) + fine X/Y offset.
 local function applyText()
     if not barText or not bar then return end
     barText:ClearAllPoints()
@@ -233,9 +202,8 @@ local function applyText()
     end
 end
 
--- hash marks: vertical lines at listed values (percent or absolute)
 local hashPool = {}
-function applyHashes()   -- assigns the forward local above
+function applyHashes()
     for _, t in ipairs(hashPool) do t:Hide() end
     if not bar then return end
     local d = mod.db
@@ -271,7 +239,6 @@ function applyHashes()   -- assigns the forward local above
     end
 end
 
--- smoothing: a short lerp towards the latest value
 local smoothTicker, smoothTarget
 local function ensureSmooth()
     if smoothTicker then return end
@@ -287,7 +254,7 @@ local function ensureSmooth()
     end)
 end
 
-local updateVisibility   -- forward (called from updateValue for hideFull)
+local updateVisibility   -- forward declaration: assigned below, captured as an upvalue here
 
 local function updateValue()
     if not bar then return end
@@ -304,7 +271,6 @@ local function updateValue()
         bar:SetValue(cur)
     end
 
-    -- threshold colouring (bar or text)
     local c = currentColor()
     local tc = d.textColor or { r = 1, g = 1, b = 1 }
     if d.thresholdOn then
@@ -329,23 +295,18 @@ local function updateValue()
         barText:SetText(floor(cur / max * 100 + 0.5) .. "%")
     elseif mode == "full" then
         barText:SetText(format("%d / %d  (%d%%)", cur, max, floor(cur / max * 100 + 0.5)))
-    else -- currentmax
+    else
         barText:SetText(format("%d / %d", cur, max))
     end
-    if updateVisibility then updateVisibility() end   -- hideFull tracks the value
+    if updateVisibility then updateVisibility() end
 end
 
 local function updatePowerType()
-    applyAppearance()  -- recolour for the new resource (Druid form switch)
+    applyAppearance()
     updateValue()
 end
 
--- =========================================================
--- Visibility: mode (always/combat/out-of-combat/mouseover) + extra gates
--- (instances, mounted, target, group state, full resource) + out-of-combat
--- fade. The bar is a plain insecure frame, so plain Lua show/hide is fine.
--- =========================================================
-function updateVisibility()   -- forward-declared above
+function updateVisibility()
     if not frame or not mod.active then return end
     local d = mod.db
     if d.unlocked then frame:Show(); frame:SetAlpha(1); return end
@@ -380,7 +341,7 @@ function updateVisibility()   -- forward-declared above
     end
 end
 
--- mouseover + mounted have no reliable events — a slow ticker keeps them honest
+-- Mouseover and mounted state fire no events; a slow ticker polls them instead.
 local visTicker
 local function updateVisTicker()
     local d = mod.db
@@ -422,7 +383,6 @@ local function build()
     bgTex:SetAllPoints(frame)
     bgTex:SetColorTexture(0.05, 0.05, 0.06, 0.85)
 
-    -- fill the whole frame; the border sits just outside it
     bar = CreateFrame("StatusBar", nil, frame)
     bar:SetAllPoints(frame)
     bar:SetMinMaxValues(0, 1)
@@ -439,7 +399,7 @@ local function build()
         db     = mod.db,
         width  = math.max(mod.db.width + 20, 140),
         height = math.max(mod.db.height + 24, 44),
-        onMove = function() applyPos() end,   -- re-snap to the pixel grid after a drag
+        onMove = function() applyPos() end,
     })
 
     applyBorder()
@@ -447,9 +407,6 @@ local function build()
     return frame
 end
 
--- =========================================================
--- Unlock / move
--- =========================================================
 local function setUnlocked(state)
     mod.db.unlocked = state and true or false
     build()
@@ -463,14 +420,9 @@ local function setUnlocked(state)
     end
 end
 
--- =========================================================
--- Events
--- =========================================================
 local ev
+-- OnDisable calls UnregisterAllEvents, so always re-register, never early-return here.
 local function registerEvents()
-    -- create the frame once, but ALWAYS (re)register — OnDisable clears events
-    -- with UnregisterAllEvents, so an early-return here would leave the bar dead
-    -- after a disable/enable cycle.
     if not ev then
         ev = CreateFrame("Frame")
         ev:SetScript("OnEvent", function(_, event)
@@ -479,7 +431,7 @@ local function registerEvents()
             elseif event == "PLAYER_ENTERING_WORLD" then
                 applyAppearance(); updateValue(); applyHashes(); updateVisibility()
             elseif event == "UNIT_MAXPOWER" then
-                updateValue(); applyHashes()   -- absolute hash marks track the max
+                updateValue(); applyHashes()
             elseif event == "PLAYER_REGEN_ENABLED" or event == "PLAYER_REGEN_DISABLED"
                 or event == "PLAYER_TARGET_CHANGED" or event == "GROUP_ROSTER_UPDATE"
                 or event == "ZONE_CHANGED_NEW_AREA" then
@@ -500,9 +452,6 @@ local function registerEvents()
     ev:RegisterEvent("ZONE_CHANGED_NEW_AREA")
 end
 
--- =========================================================
--- Lifecycle
--- =========================================================
 function mod:OnEnable()
     if not mod.db.texture then mod.db.texture = DEFAULT_TEXTURE end
     build()
@@ -520,16 +469,12 @@ function mod:OnDisable()
     if frame then frame:Hide() end
 end
 
--- =========================================================
--- Options
--- =========================================================
 function mod:GetOptions()
-    local SLW = 180   -- slider track width that fits two-per-row
+    local SLW = 180
     return {
         { type = "desc",
           text = L["|cffaaaaaaResource bar that follows your class automatically (Mana / Rage / Energy). Druids switch with their form: Bear = Rage, Cat = Energy, otherwise Mana.|r"] },
 
-        -- top action buttons
         { type = "group", layout = "row", gap = 8, items = {
             { type = "button", label = L["Unlock / Move"], width = 130,
               onClick = function() setUnlocked(not mod.db.unlocked) end },
@@ -537,7 +482,6 @@ function mod:GetOptions()
               onClick = function() mod.db.x, mod.db.y = 0, -200; applyPos() end },
         } },
 
-        -- ---- Size --------------------------------------------------------
         { type = "section", title = L["Size"], collapsed = false, items = {
             { type = "group", layout = "row", gap = 8, items = {
                 { type = "slider", label = L["Width"], min = 80, max = 600, step = 2, width = SLW,
@@ -549,7 +493,6 @@ function mod:GetOptions()
             } },
         } },
 
-        -- ---- Text --------------------------------------------------------
         { type = "section", title = L["Text"], collapsed = false, items = {
             { type = "group", layout = "row", gap = 8, items = {
                 { type = "dropdown", label = L["Bar text"], width = 300, values = textModeValues(),
@@ -582,7 +525,6 @@ function mod:GetOptions()
             } },
         } },
 
-        -- ---- Appearance --------------------------------------------------
         { type = "section", title = L["Appearance"], collapsed = false, items = {
             { type = "group", layout = "row", gap = 8, items = {
                 { type = "slider", label = L["Border thickness (px)"], min = 0, max = 4, step = 1, width = SLW,
@@ -626,7 +568,6 @@ function mod:GetOptions()
               set = function(_, v) mod.db.smooth = v end },
         } },
 
-        -- ---- Visibility --------------------------------------------------
         { type = "section", title = L["Visibility"], collapsed = false, items = {
             { type = "group", layout = "row", gap = 8, items = {
                 { type = "dropdown", label = L["Visibility"], width = 220,
@@ -679,7 +620,6 @@ function mod:GetOptions()
               set = function(_, v) mod.db.fadeAlpha = v; updateVisibility() end },
         } },
 
-        -- ---- Marks & threshold -------------------------------------------
         { type = "section", title = L["Marks & threshold"], collapsed = true, items = {
             { type = "editbox", label = L["Hash marks"], width = 260,
               tooltip = L["Comma-separated values, e.g. 30,60 — draws a line at each (great for tick or breakpoint marks)."],

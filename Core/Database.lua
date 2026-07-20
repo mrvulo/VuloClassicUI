@@ -1,23 +1,11 @@
--- =========================================================
--- VuloClassicUI / Core / Database
--- SavedVariables with profile system.
---
--- Structure:
---   VuloClassicUIDB.global              -- account-wide settings (debug, migration flags)
---   VuloClassicUIDB.profiles[name]      -- each profile contains modules.X.* settings
---   VuloClassicUIDB.classAssignments    -- "WARRIOR" -> "Warrior PvP"
---   VuloClassicUIDB.activeProfile       -- currently loaded profile (for char-specific overrides)
---
---   ns.db.profile.modules[key]          -- pointer to the current profile (same as before)
--- =========================================================
+-- SavedVariables: VuloClassicUIDB holds global/profiles[name]/classAssignments/activeProfile; ns.db.profile points at the active profile.
 local _, ns = ...
 local L = ns.L
 
 ns.defaults = {
     global = {
         debug = false,
-        -- Named Edit Mode layouts (account-wide so they're shared across profiles
-        -- and characters). name -> { key = {x,y,scale,anchor}, ... }
+        -- account-wide so layouts are shared across profiles and characters
         editLayouts = {},
     },
     profile = {
@@ -26,54 +14,40 @@ ns.defaults = {
             scale = 1.0,
         },
         editmode = {
-            -- Edit Mode HUD (UI/EditMode.lua): alignment grid + snapping.
             grid = { show = false, snap = true, size = 32 },
         },
         modules = {
-            -- populated dynamically from mod.defaults
+            -- filled from mod.defaults at load
         },
     },
 }
 
 local DEFAULT_PROFILE = "Default"
 
--- =========================================================
--- Helpers
--- =========================================================
 local function getClassKey()
     local _, class = UnitClass("player")
     return class or "UNKNOWN"
 end
 
--- Class token -> the L[] key used for its display name. Kept in sync with the
--- CLASS_LABELS map in Modules/Profiles.lua so the auto per-class profile name
--- matches the "Set up a <class> profile" button (both resolve to the same
--- localized string, e.g. "Priester").
+-- Must stay in sync with CLASS_LABELS in Modules/Profiles.lua so the auto per-class profile name matches the button.
 local CLASS_ENGLISH = {
     WARRIOR = "Warrior", PALADIN = "Paladin", HUNTER = "Hunter", ROGUE = "Rogue",
     PRIEST = "Priest", SHAMAN = "Shaman", MAGE = "Mage", WARLOCK = "Warlock",
     DRUID = "Druid",
 }
--- Profile name used by default for a class (localized). Falls back to the raw
--- token for anything not in the map.
 function ns:GetClassProfileName(classKey)
     local eng = CLASS_ENGLISH[classKey]
     return (eng and L[eng]) or classKey
 end
 
--- =========================================================
--- Init after ADDON_LOADED
--- =========================================================
+-- Runs on ADDON_LOADED, once SavedVariables exist.
 function ns:InitDB()
     VuloClassicUIDB     = VuloClassicUIDB     or {}
     VuloClassicUICharDB = VuloClassicUICharDB or {}
 
-    -- SavedVariables are now available — re-resolve the locale so the override
-    -- (stored in VuloClassicUIDB.localeOverride) takes effect. Without this the
-    -- locale would be stuck on the client language read at file-load time.
     if ns.RefreshLocale then ns:RefreshLocale() end
 
-    -- Migration: old structure (db.profile.modules.X) to new (db.profiles.Default.modules.X)
+    -- Migration: single db.profile -> db.profiles.Default
     if VuloClassicUIDB.profile and not VuloClassicUIDB.profiles then
         VuloClassicUIDB.profiles = {
             [DEFAULT_PROFILE] = VuloClassicUIDB.profile,
@@ -86,10 +60,8 @@ function ns:InitDB()
     VuloClassicUIDB.profiles          = VuloClassicUIDB.profiles          or {}
     VuloClassicUIDB.classAssignments  = VuloClassicUIDB.classAssignments  or {}
 
-    -- Global defaults
     VuloClassicUIDB.global = ns:ApplyDefaults(VuloClassicUIDB.global, ns.defaults.global)
 
-    -- Make sure the Default profile exists
     if not VuloClassicUIDB.profiles[DEFAULT_PROFILE] then
         VuloClassicUIDB.profiles[DEFAULT_PROFILE] = {}
     end
@@ -97,38 +69,26 @@ function ns:InitDB()
         VuloClassicUIDB.profiles[DEFAULT_PROFILE], ns.defaults.profile
     )
 
-    -- Carry old per-module settings into the merged modules.
     ns:MigrateUnitFramesMerge()
     ns:MigrateDarkSkinMerge()
 
-    -- Determine active profile:
-    --   1. Character assignment (this char's own pick, VuloClassicUICharDB)
-    --   2. Class assignment
-    --   3. Default: this character's OWN class profile (auto-created, seeded
-    --      from Default) so classes never share settings — a Priest's config
-    --      must never bleed onto a Shaman.
+    -- Precedence: char assignment > class assignment > this char's own auto-created class profile, so class settings never bleed onto another class.
     local charAssigned = VuloClassicUICharDB.profileOverride
     if charAssigned and not VuloClassicUIDB.profiles[charAssigned] then
-        -- profile was deleted/renamed on another character — self-heal
         VuloClassicUICharDB.profileOverride = nil
         charAssigned = nil
     end
     local classKey   = getClassKey()
     local assigned   = VuloClassicUIDB.classAssignments[classKey]
     if assigned and not VuloClassicUIDB.profiles[assigned] then
-        -- class profile was deleted/renamed elsewhere — self-heal and fall
-        -- through to re-create a fresh class profile below
+        -- deleted/renamed elsewhere — self-heal, a fresh class profile is made below
         VuloClassicUIDB.classAssignments[classKey] = nil
         assigned = nil
     end
     local activeName = charAssigned or assigned
 
     if not activeName then
-        -- No explicit pick for this character/class yet. Default to a per-class
-        -- profile instead of the shared Default, so each class keeps its own
-        -- settings. Seed it from Default the first time each class logs in
-        -- (existing users keep their look — Default still holds it), then it
-        -- diverges freely. Persist the assignment so the Profiles UI shows it.
+        -- Seed the per-class profile from Default on that class's first login, so existing users keep their look; it diverges freely afterwards.
         if classKey ~= "UNKNOWN" then
             activeName = ns:GetClassProfileName(classKey)
             if not VuloClassicUIDB.profiles[activeName] then
@@ -137,34 +97,27 @@ function ns:InitDB()
             end
             VuloClassicUIDB.classAssignments[classKey] = activeName
         else
-            -- class not readable yet (very early login) — fall back safely
             activeName = VuloClassicUIDB.activeProfile or DEFAULT_PROFILE
         end
     end
 
-    -- If the chosen profile no longer exists: use Default
     if not VuloClassicUIDB.profiles[activeName] then
         activeName = DEFAULT_PROFILE
     end
 
     ns:LoadProfile(activeName)
 
-    -- Per-character bits of the Dark Skin merge (needs the active profile loaded).
+    -- needs the active profile loaded
     ns:MigrateDarkSkinPerChar()
 
-    -- Char DB
     VuloClassicUICharDB = ns:ApplyDefaults(VuloClassicUICharDB, ns.defaults.char or {})
 
     ns.db.global = VuloClassicUIDB.global
     ns.db.char   = VuloClassicUICharDB
 
-    -- Migrate old standalone addon SVs (one-time only)
     ns:MigrateLegacyDBs()
 end
 
--- =========================================================
--- Load profile (sets ns.db.profile to the selected profile)
--- =========================================================
 function ns:LoadProfile(profileName)
     local profileData = VuloClassicUIDB.profiles[profileName]
     if not profileData then
@@ -172,10 +125,8 @@ function ns:LoadProfile(profileName)
         return false
     end
 
-    -- Apply defaults to the profile (for new settings the profile doesn't know yet)
     profileData = ns:ApplyDefaults(profileData, ns.defaults.profile)
 
-    -- Apply module-specific defaults
     for key, mod in pairs(ns.modules or {}) do
         profileData.modules[key] = ns:ApplyDefaults(
             profileData.modules[key], mod.defaults or {}
@@ -188,30 +139,23 @@ function ns:LoadProfile(profileName)
     ns.db = ns.db or {}
     ns.db.profile = profileData
 
-    -- Re-link modules with their mod.db
     for key, mod in pairs(ns.modules or {}) do
         mod.db = profileData.modules[key]
     end
 
-    -- theme color rides the profile — apply BEFORE modules paint anything
+    -- theme color rides the profile — must run BEFORE modules paint anything
     if ns.ApplyThemeColor then ns:ApplyThemeColor() end
 
     return true
 end
 
--- =========================================================
--- Theme color: mutates ns.COLORS.accent / accentDim (and the chat escape)
--- IN PLACE, so every module holding a reference to those tables picks the
--- color up. Runs on every profile load, before modules enable — everything
--- painted afterwards uses it; textures already painted this session keep
--- the old color until /reload.
--- =========================================================
+-- Mutates the ns.COLORS tables IN PLACE so modules holding a reference pick the color up; already-painted textures keep the old color until /reload.
 function ns:ApplyThemeColor()
     local gs = ns.db and ns.db.profile and ns.db.profile.modules
         and ns.db.profile.modules.globalsettings
     local c = gs and gs.themeColor
     if not (c and c.r and c.g and c.b) then
-        c = { r = 0.608, g = 0.424, b = 1.000 }   -- house purple
+        c = { r = 0.608, g = 0.424, b = 1.000 }
     end
     local A = ns.COLORS.accent
     A.r, A.g, A.b = c.r, c.g, c.b
@@ -221,14 +165,10 @@ function ns:ApplyThemeColor()
         ns.C.accent = string.format("|cff%02x%02x%02x",
             math.floor(c.r * 255 + 0.5), math.floor(c.g * 255 + 0.5),
             math.floor(c.b * 255 + 0.5))
-        -- the chat prefix was concatenated at file load — rebuild it
         ns.PREFIX = ns.C.accent .. "VuloClassicUI|r"
     end
 end
 
--- =========================================================
--- Profile API
--- =========================================================
 function ns:GetActiveProfileName()
     return VuloClassicUIDB and VuloClassicUIDB.activeProfile or DEFAULT_PROFILE
 end
@@ -267,18 +207,15 @@ function ns:DeleteProfile(name)
 
     VuloClassicUIDB.profiles[name] = nil
 
-    -- Clean up class assignments
     for classKey, assigned in pairs(VuloClassicUIDB.classAssignments) do
         if assigned == name then
             VuloClassicUIDB.classAssignments[classKey] = nil
         end
     end
-    -- this character's own assignment (other chars self-heal at login)
     if VuloClassicUICharDB and VuloClassicUICharDB.profileOverride == name then
         VuloClassicUICharDB.profileOverride = nil
     end
 
-    -- If active profile was deleted: revert to Default
     if ns:GetActiveProfileName() == name then
         ns:LoadProfile(DEFAULT_PROFILE)
         ns:Print(L["Active profile deleted. Default loaded. /reload recommended."])
@@ -326,9 +263,7 @@ function ns:SwitchProfile(name)
     return true
 end
 
--- Per-CHARACTER assignment (lives in the char SavedVariables, beats the class
--- assignment at login). NOTE: other characters' assignments cannot be edited
--- from this session — a rename/delete self-heals on their next login instead.
+-- Lives in the char SavedVariables and beats the class assignment at login.
 function ns:AssignCharToProfile(profileName)
     if profileName and profileName ~= "" and not ns:ProfileExists(profileName) then
         return false
@@ -360,15 +295,10 @@ end
 
 function ns:GetMyClassKey() return getClassKey() end
 
--- =========================================================
--- Migration of old standalone addons (one-time, moves into Default profile)
--- =========================================================
 function ns:MigrateLegacyDBs()
     if ns.db.global.migratedLegacy then return end
 
-    -- Import into the ACTIVE profile (the one the player is actually on, and
-    -- that every mod.db is linked to) — not the hard-coded Default, which the
-    -- live modules may never load. Runs after LoadProfile, so ns.db.profile is set.
+    -- Import into the ACTIVE profile (what every mod.db is linked to), not Default. Runs after LoadProfile.
     local target = ns.db and ns.db.profile
     if not target or not target.modules then return end
 
@@ -418,15 +348,9 @@ function ns:MigrateLegacyDBs()
     ns.db.global.migratedLegacy = true
 end
 
--- =========================================================
--- One-time migration: the separate "targetframe" + "elitevuloframe" modules
--- were merged into one "unitframes" module. Copy each profile's old settings
--- (and this character's enable override) into the new key so nobody loses
--- their configuration on upgrade. Runs before the active profile loads.
--- =========================================================
+-- One-time migration: "targetframe" + "elitevuloframe" merged into "unitframes". Must run before the active profile loads.
 function ns:MigrateUnitFramesMerge()
-    -- Profile settings live in the ACCOUNT-wide DB, so this pass migrates every
-    -- profile once and is guarded by an account-wide flag.
+    -- profiles live account-wide, so one account-wide flag guards all of them
     if not VuloClassicUIDB.global.migratedUnitFrames then
         for _, profile in pairs(VuloClassicUIDB.profiles or {}) do
             local m = profile.modules
@@ -440,8 +364,7 @@ function ns:MigrateUnitFramesMerge()
                     end
                 end
                 if el and el.style ~= nil then uf.playerStyle = el.style end
-                -- Merged module is on if EITHER old module was on; if only the elite
-                -- border was switched off, keep the target extras but drop the dragon.
+                -- on if EITHER old module was on; elite border off alone only drops the dragon
                 local tfOn = not tf or tf.enabled ~= false
                 local elOn = not el or el.enabled ~= false
                 uf.enabled = tfOn or elOn
@@ -452,10 +375,7 @@ function ns:MigrateUnitFramesMerge()
         VuloClassicUIDB.global.migratedUnitFrames = true
     end
 
-    -- The enable override is PER CHARACTER, so it needs its own per-character
-    -- guard — the account flag above is set by whichever character logs in
-    -- first and would otherwise skip every other character's override.
-    -- Off only when BOTH old modules were explicitly turned off.
+    -- Needs its own per-char guard: the account flag above is set by whoever logs in first and would skip everyone else's override.
     if not VuloClassicUICharDB.migratedUnitFrames then
         local me = VuloClassicUICharDB.modEnabled
         if me and me.unitframes == nil then
@@ -468,12 +388,7 @@ function ns:MigrateUnitFramesMerge()
     end
 end
 
--- =========================================================
--- One-time migration: the separate "buttonskin" + "darkmode" modules were
--- merged into one "darkskin" module. The Button Skin settings map straight
--- across; the Dark Mode settings become the "dm*" keys plus a "darkMode" master
--- toggle (Dark Mode used to be a whole opt-in module, now it's a sub-toggle).
--- =========================================================
+-- One-time migration: "buttonskin" + "darkmode" merged into "darkskin"; old Dark Mode settings become the "dm*" keys.
 function ns:MigrateDarkSkinMerge()
     if VuloClassicUIDB.global.migratedDarkSkin then return end
 
@@ -485,7 +400,7 @@ function ns:MigrateDarkSkinMerge()
             if bs then
                 for _, k in ipairs({ "style", "waStyle", "skinPetStance", "skinBars",
                                      "barIconSize", "skinWeakAuras", "hideWABorder", "enabled" }) do
-                    if bs[k] ~= nil then ds[k] = bs[k] end   -- merged module follows Button Skin
+                    if bs[k] ~= nil then ds[k] = bs[k] end
                 end
             end
             if dm then
@@ -496,8 +411,7 @@ function ns:MigrateDarkSkinMerge()
                 if dm.actionbars    ~= nil then ds.dmActionbars    = dm.actionbars end
                 if dm.actionButtons ~= nil then ds.dmActionButtons = dm.actionButtons end
                 if dm.bags          ~= nil then ds.dmBags          = dm.bags end
-                -- dm.enabled was the profile default (off); the real per-character
-                -- on/off is carried into the darkMode toggle in MigrateDarkSkinPerChar.
+                -- dm.enabled is deliberately skipped: the real per-character on/off is carried over in MigrateDarkSkinPerChar.
             end
             m.darkskin = ds
         end
@@ -506,20 +420,15 @@ function ns:MigrateDarkSkinMerge()
     VuloClassicUIDB.global.migratedDarkSkin = true
 end
 
--- Per-character half of the Dark Skin merge: the merged module's on/off follows
--- the old Button Skin per-character state, and the old Dark Mode module's
--- per-character on/off becomes the darkMode toggle in this character's active
--- profile. Runs after LoadProfile so ns.db.profile is set.
+-- Per-character half of the Dark Skin merge. Must run after LoadProfile so ns.db.profile is set.
 function ns:MigrateDarkSkinPerChar()
     if VuloClassicUICharDB.migratedDarkSkin then return end
     local me = VuloClassicUICharDB.modEnabled
     if me then
-        -- Merged module is on if EITHER old module was on (Button Skin defaults
-        -- on, Dark Mode defaults off). Only write when the char actually
-        -- overrode one of them; otherwise fall through to the profile default.
+        -- Only write when the char actually overrode one of the old modules; otherwise fall through to the profile default.
         if me.darkskin == nil and (me.buttonskin ~= nil or me.darkmode ~= nil) then
-            local bsOn = (me.buttonskin ~= false)   -- Button Skin default: on
-            local dmOn = (me.darkmode == true)      -- Dark Mode default: off
+            local bsOn = (me.buttonskin ~= false)
+            local dmOn = (me.darkmode == true)
             me.darkskin = bsOn or dmOn
         end
         if me.darkmode == true then
@@ -531,9 +440,6 @@ function ns:MigrateDarkSkinPerChar()
     VuloClassicUICharDB.migratedDarkSkin = true
 end
 
--- =========================================================
--- Convenience accessor
--- =========================================================
 function ns:GetModuleDB(key)
     if not ns.db or not ns.db.profile then return nil end
     return ns.db.profile.modules[key]

@@ -1,11 +1,4 @@
--- =========================================================
--- VuloClassicUI / Modules / VulTraining
--- Adds a tab to the Blizzard spell book listing every ability you can learn
--- from your class trainer, grouped by status (available now / coming soon /
--- not yet / missing requirement or talent / already known) and coloured by
--- level. Data is built from per-class spell tables (Modules/VulTraining/Classes),
--- so it works without visiting a trainer. Registered as a QoL sub-module.
--- =========================================================
+-- VulTraining: spell book tab listing trainable class abilities, built from per-class spell tables (Modules/VulTraining/Classes) so no trainer visit is needed.
 local _, ns = ...
 
 local mod = ns:RegisterModule("vultraining", {
@@ -18,9 +11,6 @@ local mod = ns:RegisterModule("vultraining", {
 local format, strlower, strfind, sort = string.format, string.lower, string.find, table.sort
 local tinsert, wipe, ipairs, pairs = table.insert, wipe, ipairs, pairs
 
--- ---------------------------------------------------------
--- Localization (English default, German overrides for this client)
--- ---------------------------------------------------------
 local L = {
     AVAILABLE     = "Available Now",
     MISSINGREQS   = "Available but Missing Requirements",
@@ -54,9 +44,6 @@ do
     if o then for k, v in pairs(o) do L[k] = v end end
 end
 
--- ---------------------------------------------------------
--- Constants
--- ---------------------------------------------------------
 local MAX_ROWS, ROW_HEIGHT = 22, 14
 local SKILL_LINE_TAB = (MAX_SKILLLINE_TABS or 8) - 1
 local SPELLBOOK_SPELL = BOOKTYPE_SPELL or "spell"
@@ -67,9 +54,7 @@ local TAB_ICON = "Interface\\Icons\\INV_Misc_QuestionMark"
 local CLOSE = FONT_COLOR_CODE_CLOSE
 local COMINGSOON = "|cff82c5ff"
 
--- ---------------------------------------------------------
--- Spell info cache (force-loads spell data so name/icon/subtext are present)
--- ---------------------------------------------------------
+-- Spell info cache: force-loads spell data so name/icon/subtext are present
 local spellInfoCache = {}
 local function cacheSpell(spell, level, done)
     local id = spell.id
@@ -103,9 +88,6 @@ local function cacheSpell(spell, level, done)
     end
 end
 
--- ---------------------------------------------------------
--- Known-ability checks
--- ---------------------------------------------------------
 local function isPreviouslyLearned(spellId)
     local map = ns.VTData and ns.VTData.overriddenSpellsMap
     if not map or not map[spellId] then return false end
@@ -120,9 +102,6 @@ local function isAbilityKnown(spellId)
     return IsSpellKnown(spellId) or IsPlayerSpell(spellId) or isPreviouslyLearned(spellId)
 end
 
--- ---------------------------------------------------------
--- Categories
--- ---------------------------------------------------------
 local categories = {
     { key = "available",     name = L.AVAILABLE,     color = GREEN_FONT_COLOR_CODE,  hideLevel = true },
     { key = "missingReqs",   name = L.MISSINGREQS,   color = ORANGE_FONT_COLOR_CODE, hideLevel = true },
@@ -148,9 +127,6 @@ local function byNameThenLevel(a, b)
     return a.name < b.name
 end
 
--- ---------------------------------------------------------
--- Build + filter the flat render list (mod._data)
--- ---------------------------------------------------------
 mod._data = {}
 mod._filter = ""
 local categoryData = {}
@@ -231,9 +207,6 @@ local function rebuild()
     if mod._frame and mod._frame:IsVisible() then mod.Update(true) end
 end
 
--- ---------------------------------------------------------
--- Rendering
--- ---------------------------------------------------------
 local function setRowSpell(row, spell)
     if spell == nil then
         row.currentSpell = nil
@@ -280,9 +253,6 @@ function mod.Update(force)
     lastOffset = offset
 end
 
--- ---------------------------------------------------------
--- Frame / spell-book tab
--- ---------------------------------------------------------
 local function createFrame()
     if mod._frame or not SpellBookFrame then return end
 
@@ -313,7 +283,6 @@ local function createFrame()
     frame:Hide()
     mod._frame = frame
 
-    -- scroll list
     local scrollBar = CreateFrame("ScrollFrame", "$parentScrollBar", frame, "FauxScrollFrameTemplate")
     scrollBar:SetPoint("TOPLEFT", 0, -75)
     scrollBar:SetPoint("BOTTOMRIGHT", -65, 81)
@@ -326,7 +295,6 @@ local function createFrame()
     end)
     frame.scrollBar = scrollBar
 
-    -- rows
     local rows = {}
     for i = 1, MAX_ROWS do
         local row = CreateFrame("Button", "$parentRow" .. i, frame)
@@ -449,9 +417,6 @@ local function cacheAllSpells()
     end
 end
 
--- ---------------------------------------------------------
--- Lifecycle
--- ---------------------------------------------------------
 local function onLevelOrLearn()
     rebuild()
 end

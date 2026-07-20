@@ -1,25 +1,4 @@
--- =========================================================
--- VuloClassicUI / Modules / AddonSkins
--- Restyles OTHER installed addons' windows to the house look (dark panel,
--- accent border, own font/buttons). Cosmetic runtime-only changes — nothing
--- of the target addons is modified on disk or redistributed.
---
--- Per-target notes (all frame names verified against the installed versions):
---   * BugSack        — window is created lazily on first open -> hook
---                      BugSack:OpenSack; raw-texture chrome, no re-paint.
---   * Questie        — the CLEAN path: drive Questie's own profile settings
---                      (LSM font "Expressway", backdrop keys + their current*
---                      mirrors) and let its tracker keep the look itself.
---                      Original values are backed up and restored on disable.
---   * AtlasLoot      — eager GUI; its refresh only re-colors ITS backdrop
---                      (behind our overlay textures) -> overlay wins.
---   * HealPredict    — options window is already dark; align backdrop/border.
---   * AddonProfiler  — eager ButtonFrameTemplate window; same chrome-strip
---                      recipe as the friends frame.
---
--- Toggling a skin OFF generally needs a /reload (texture strips are
--- session-permanent); the Questie toggle restores live.
--- =========================================================
+-- Addon skins: runtime-only restyling of other addons' windows; texture strips are session-permanent (/reload to undo).
 local _, ns = ...
 local L = ns.L
 
@@ -39,12 +18,12 @@ local mod = ns:RegisterModule("addonskins", {
         gargul        = true,
         attune        = true,
         wowsims       = true,
-        leamaps       = true,   -- world-map options addon (referenced by frame only)
-        questieBackup = nil,   -- Questie settings before we touched them
+        leamaps       = true,
+        questieBackup = nil,
     },
 })
 
-local sk = { done = {} }   -- [key] = true once a skin is applied
+local sk = { done = {} }
 
 local function loaded(name)
     if C_AddOns and C_AddOns.IsAddOnLoaded then return C_AddOns.IsAddOnLoaded(name) end
@@ -52,9 +31,6 @@ local function loaded(name)
     return false
 end
 
--- =========================================================
--- Shared recipes (the proven house kit)
--- =========================================================
 local function stripTextures(region)
     for _, r in ipairs({ region:GetRegions() }) do
         if r.IsObjectType and r:IsObjectType("Texture") then
@@ -132,8 +108,6 @@ local function skinButton(b)
     end)
 end
 
--- flat tab: strip the art, keep the label (PanelTemplates keeps toggling the
--- alpha-0 pieces — harmless)
 local function skinTab(tab)
     if not tab or tab._vcuiSkin then return end
     tab._vcuiSkin = true
@@ -150,10 +124,7 @@ local function skinTab(tab)
     end
 end
 
--- ButtonFrameTemplate chrome off. On the classic client the template's look
--- is built from INDIVIDUALLY NAMED corner/border textures (the NineSlice is
--- inert there — same finding as the friends frame), so hide every piece via
--- parentKey AND its "$parentPiece" global name.
+-- on this client the template chrome is built from individually named textures (the NineSlice is inert), so hide both the parentKey and the $parent global
 local BFT_PIECES = {
     "Bg", "TitleBg", "Portrait", "PortraitFrame", "PortraitOverlay",
     "TopRightCorner", "TopLeftCorner", "TopBorder", "TopTileStreaks",
@@ -178,7 +149,6 @@ local function stripButtonFrame(f)
     end
 end
 
--- red round close button -> flat × with accent hover
 local function skinClose(cb)
     if not cb or cb._vcuiClose then return end
     cb._vcuiClose = true
@@ -193,15 +163,12 @@ local function skinClose(cb)
     cb:HookScript("OnLeave", function() x:SetTextColor(0.8, 0.8, 0.85) end)
 end
 
--- =========================================================
--- BugSack (lazy window; hook OpenSack)
--- =========================================================
 function sk.skinBugSack()
     if sk.done.bugsack or mod.db.bugsack == false then return end
     local f = _G.BugSackFrame
     if not f then return end
     sk.done.bugsack = true
-    stripTextures(f)                    -- 8-piece border + dialog/title art
+    stripTextures(f)
     panelize(f)
     skinButton(_G.BugSackNextButton)
     skinButton(_G.BugSackPrevButton)
@@ -219,12 +186,9 @@ function sk.armBugSack()
         if mod.active then sk.skinBugSack() end
     end)
     sk.armed_bugsack = true   -- after the hook: a hook error must not latch
-    sk.skinBugSack()   -- in case it is already open
+    sk.skinBugSack()
 end
 
--- =========================================================
--- Questie tracker (drive its OWN profile settings; backup + live restore)
--- =========================================================
 function sk.questieUpdate()
     local ok, QT = pcall(function()
         return QuestieLoader and QuestieLoader.ImportModule
@@ -233,10 +197,7 @@ function sk.questieUpdate()
     if ok and QT and QT.Update then pcall(QT.Update, QT) end
 end
 
--- accent decoration: zone/section header lines get the accent color and a
--- thin underline (the modern-tracker look). Lines are pooled globals
--- ("linePool1".."linePool250") repainted on every tracker update, so this
--- runs as a posthook on QuestieTracker:Update and always wins.
+-- the lines are pooled globals "linePool1".."linePool250" repainted on every tracker update, so decorate as a posthook
 function sk.questieDecorate()
     if not mod.active or mod.db.questie == false then return end
     local ac = ns.COLORS.accent
@@ -247,19 +208,17 @@ function sk.questieDecorate()
         local line = _G["linePool" .. i]
         if not (line and line.IsShown) then break end
         if line:IsShown() and line.mode == "zone" and line.label then
-            -- zone headers carry an EMBEDDED |cFF..|r escape in the label
-            -- text which overrides SetTextColor — rewrite the escape itself
+            -- the label carries an embedded |cFF..|r escape that overrides SetTextColor; rewrite the escape itself
             local txt = line.label:GetText()
             if txt then
                 local newTxt, nrep = txt:gsub("^|c%x%x%x%x%x%x%x%x", "|cff" .. hex)
                 if nrep > 0 and newTxt ~= txt then line.label:SetText(newTxt) end
             end
-            line.label:SetTextColor(ac.r, ac.g, ac.b, 1)  -- escape-less builds
+            line.label:SetTextColor(ac.r, ac.g, ac.b, 1)
             if not line._vcUnderline then
                 local u = line:CreateTexture(nil, "ARTWORK")
                 u:SetHeight(1)
-                -- both points on the label's bottom edge: a second vertical
-                -- constraint anywhere else overrides SetHeight entirely
+                -- both points on the label's bottom edge: any second vertical constraint overrides SetHeight
                 u:SetPoint("TOPLEFT",  line.label, "BOTTOMLEFT",  0, -2)
                 u:SetPoint("TOPRIGHT", line.label, "BOTTOMRIGHT", 0, -2)
                 line._vcUnderline = u
@@ -286,17 +245,14 @@ end
 
 function sk.skinQuestie()
     if mod.db.questie == false then return end
-    -- once per session: without this, every loading screen re-stomps the
-    -- profile keys and reverts tracker changes the user made in between
+    -- once per session: otherwise every loading screen re-stomps the profile keys
     if sk.done.questie then sk.hookQuestieTracker(); return end
     local q = _G.Questie
     local p = q and q.db and q.db.profile
     if not p then return end
     sk.hookQuestieTracker()
     if not mod.db.questieBackup
-       -- if the profile ALREADY carries our exact skin values (fresh VCUI
-       -- profile mid-session while the tracker is skinned), backing them up
-       -- would enshrine the skin as "original" — leave the backup empty
+       -- the profile already holds our skin values: backing them up would enshrine the skin as the original
        and not (p.trackerFontQuest == "Expressway"
                 and p.trackerBackdropEnabled == true
                 and p.trackerBorderEnabled == false) then
@@ -315,8 +271,7 @@ function sk.skinQuestie()
     p.trackerBorderEnabled   = false
     local bg = ns.COLORS.bg
     p.trackerBackdropColor = { r = bg.r, g = bg.g, b = bg.b, a = 0.78 }
-    -- the resize handler restores from these mirrors — keep them in sync or
-    -- a single tracker resize reverts the whole skin
+    -- the resize handler restores from these mirrors; keep them in sync
     p.currentBackdropEnabled = true
     p.currentBorderEnabled   = false
     sk.done.questie = true
@@ -342,9 +297,6 @@ function sk.restoreQuestie()
     sk.questieUpdate()
 end
 
--- =========================================================
--- AtlasLoot browser (eager GUI; overlay textures beat its color refreshes)
--- =========================================================
 function sk.skinAtlasLoot()
     if sk.done.atlasloot or mod.db.atlasloot == false then return end
     local f = _G["AtlasLoot_GUI-Frame"]
@@ -364,9 +316,6 @@ function sk.skinAtlasLoot()
     skinClose(f.CloseButton or _G["AtlasLoot_GUI-Frame-CloseButton"])
 end
 
--- AtlasLoot arena-points side panel (honor tab): house look, docked flush
--- beside the equipment-set sidebar at its exact height so window, sidebar and
--- calculator read as one row of panels.
 function sk.skinAtlasLootPVP()
     if sk.done.atlaslootpvp or mod.db.atlasloot == false then return end
     local p = _G.AtlasLootPVPSidePanel
@@ -374,7 +323,6 @@ function sk.skinAtlasLootPVP()
     sk.done.atlaslootpvp = true
     if p.SetBackdrop then p:SetBackdrop(nil) end
     panelize(p)
-    -- our font on every label; sizes and the panel's own colours stay
     if ns.UI and ns.UI.Font then
         for _, r in ipairs({ p:GetRegions() }) do
             if r.IsObjectType and r:IsObjectType("FontString") then
@@ -389,7 +337,6 @@ function sk.skinAtlasLootPVP()
             skinButton(child)
         end
     end
-    -- the "Calculator" toggle button on the arena section of the honor tab
     skinButton(_G.AtlasLootPVPCalcToggleButton)
     local function dock()
         local sb = _G.VCUI_LoadoutsSidebar
@@ -420,22 +367,17 @@ function sk.armAtlasLoot()
             if mod.active then sk.skinAtlasLoot() end
         end)
     end
-    -- the arena-points panel is created lazily — skin it when the honor tab opens
     if _G.PVPFrame and not sk.armed_atlaslootpvp then
         sk.armed_atlaslootpvp = true
         _G.PVPFrame:HookScript("OnShow", function()
             if mod.active then sk.skinAtlasLootPVP() end
         end)
     end
-    sk.armed_atlasloot = true   -- after the hooks: a hook error must not latch
+    sk.armed_atlasloot = true
     sk.skinAtlasLoot()
     sk.skinAtlasLootPVP()
 end
 
--- =========================================================
--- HealPredict options window (already dark — align panel + border)
--- =========================================================
--- cyan accent text -> our accent (title, active tab labels, links)
 function sk.hpRecolorText(frame)
     if not frame then return end
     local ac = ns.COLORS.accent
@@ -452,7 +394,7 @@ end
 function sk.skinHealPredict()
     if sk.done.healpredict or mod.db.healpredict == false then return end
     local f = _G.HP_OptionsFrame
-    if not f then return end   -- created during the addon's init; retried later
+    if not f then return end
     sk.done.healpredict = true
     if f.SetBackdropColor then
         local bg = ns.COLORS.bg
@@ -465,8 +407,6 @@ function sk.skinHealPredict()
     if ns.UI and ns.UI.CreateShadow then ns.UI:CreateShadow(f) end
     sk.hpRecolorText(f)
 
-    -- text buttons (profile row, Defaults / Layout / Test Mode ...) -> house
-    -- style. Checkboxes, sliders and textured icon buttons stay untouched.
     local function skinButtonsIn(frame, depth)
         for _, child in ipairs({ frame:GetChildren() }) do
             local ot = child.GetObjectType and child:GetObjectType()
@@ -480,8 +420,7 @@ function sk.skinHealPredict()
     end
     skinButtonsIn(f, 2)
 
-    -- the active-tab cyan is re-applied on every tab switch -> recolor a
-    -- frame later, after its own paint ran
+    -- the active-tab color is re-applied on every tab switch, so recolor after its own paint
     for i = 1, 5 do
         local tab = _G["HP_Tab" .. i]
         if tab then
@@ -498,14 +437,10 @@ function sk.skinHealPredict()
 end
 
 function sk.armHealPredict()
-    -- no global addon table to hook — the options window is built during the
-    -- addon's own init sequence; applyLoaded's retries pick it up
+    -- no global table to hook; the retries in applyLoaded pick the window up
     sk.skinHealPredict()
 end
 
--- =========================================================
--- Addon Profiler (eager ButtonFrameTemplate window)
--- =========================================================
 function sk.skinAddonProfiler()
     if sk.done.addonprofiler or mod.db.addonprofiler == false then return end
     local nap = _G.NumyAddonProfiler
@@ -521,20 +456,11 @@ function sk.skinAddonProfiler()
     end
     skinButton(_G.NumyAddonProfilerFrameToggle)
     skinButton(_G.NumyAddonProfilerFrameReset)
-    -- pin window: plain dark frame with its own bg texture — align it
     local pin = nap and nap.PinContainer
     if pin then panelize(pin, { noStrip = true }) end
 end
 
--- =========================================================
--- Nova-family windows (world-buff timers + instance tracker, same author,
--- same architecture): every window is a ScrollFrame on an InputScrollFrame
--- template whose visible chrome is a set of input-border TEXTURES
--- (parentKeys below), plus a WHITE8x8 backdrop painted ONCE at load — so a
--- restyle applied after load is durable. All windows exist right after the
--- addon loads (nothing lazy except two tracker sub-windows, hooked below);
--- nothing in these windows is secure.
--- =========================================================
+-- the visible chrome is a set of named border textures plus a backdrop painted once at load, so a late restyle is durable
 local NOVA_BORDER_KEYS = {
     "TopLeftTex", "TopRightTex", "BottomLeftTex", "BottomRightTex",
     "TopTex", "BottomTex", "LeftTex", "RightTex", "MiddleTex",
@@ -547,9 +473,7 @@ function sk.novaWindow(f, opts)
         local t = f[k]
         if t and t.SetAlpha then t:SetAlpha(0) end
     end
-    -- some of their windows use a backdrop EDGE file (gold tooltip ring /
-    -- orange chat-border) instead of the texture set — the edge draws above
-    -- our overlay panel, so tint it away
+    -- some windows use a backdrop edge file that draws above our panel; tint it away
     if f.SetBackdropBorderColor then
         pcall(f.SetBackdropBorderColor, f, 0, 0, 0, 0)
     end
@@ -571,7 +495,6 @@ function sk.skinNovaWorldBuffs()
     }) do
         sk.novaWindow(_G[name])
     end
-    -- the layer window's bottom button row + the copy button
     skinButton(_G.NWBlayerFrameConfButton)
     skinButton(_G.NWBlayerFrameBuffsButton)
     skinButton(_G.NWBlayerFrameMapButton)
@@ -580,9 +503,7 @@ function sk.skinNovaWorldBuffs()
     -- the darkmoon window's close carries a doubled-name typo upstream
     skinClose(_G.NWBDmfFrameFrameClose)
 
-    -- the on-minimap LAYER READOUT: gold-edge template art off, thin dark
-    -- panel + accent text instead (its frame has no backdrop mixin — build
-    -- the panel from plain textures like the button recipe does)
+    -- this frame has no backdrop mixin, so build the panel from plain textures
     local ml = _G.MinimapLayerFrame
     if ml and not ml._vcuiSkin then
         ml._vcuiSkin = true
@@ -620,19 +541,15 @@ function sk.skinNovaInstanceTracker()
     }) do
         sk.novaWindow(_G[name])
     end
-    -- window buttons + off-pattern close names
     skinButton(_G.NITInstanceFrameConfButton)
     skinButton(_G.NITInstanceFrameTradesButton)
     skinButton(_G.NITInstanceFrameLockoutsButton)
     skinButton(_G.NITInstanceFrameRestedButton)
     skinButton(_G.NITTradeFrameCopyButton)
-    -- both delete-confirm closes sit on off-pattern global names
     skinClose(_G.NITInstanceDCFrameClose)
     skinClose(_G.NITCharsDCFrameClose)
-    -- gold-edge top bar of the copy popup
     if _G.NITCopyFrameTopBar then stripTextures(_G.NITCopyFrameTopBar) end
-    -- two windows build lazily on first open — hook their loaders (the
-    -- tracker's addon object IS global, unlike its sibling addon)
+    -- two windows build lazily on first open; hook their loaders
     local nit = _G.NIT
     if nit and not sk.nitHooked then
         sk.nitHooked = true
@@ -648,7 +565,6 @@ function sk.skinNovaInstanceTracker()
                 if mod.active and mod.db.novainstancetracker ~= false then
                     local llf = _G.NITLevelLogFrame
                     sk.novaWindow(llf)
-                    -- its attached header bar has its own backdrop + border
                     if llf and llf.topFrame then
                         sk.novaWindow(llf.topFrame, { noShadow = true })
                     end
@@ -658,26 +574,15 @@ function sk.skinNovaInstanceTracker()
     end
 end
 
--- =========================================================
--- Shared: an AceGUI-3.0 "Frame" window (dark dialog backdrop + a gold
--- three-piece header + a bottom "Close" text button and a status bar). The
--- backdrop is a real Backdrop frame, so we just make the native art
--- transparent and lay our own dark panel + accent border over it, then hide
--- the gold header textures and recolor the title. Reached as the raw .frame
--- of the widget; the widget itself is the .obj back-reference (titletext etc.
--- live on the widget, not the frame). One-shot guarded — safe to call again.
--- =========================================================
+-- AceGUI-3.0 frame: the widget back-reference is frame.obj (titletext/titlebg live on the widget, not the frame)
 function sk.skinAceGUIFrame(f)
     if not f or f._vcuiSkin then return end
     f._vcuiSkin = true
-    local w = f.obj   -- AceGUI widget back-reference (titletext/statustext/titlebg)
-    -- make the native dialog backdrop (bg fill + gold edge) invisible; our
-    -- panel provides the fill and a 1px accent border instead
+    local w = f.obj
     if f.SetBackdropColor then pcall(f.SetBackdropColor, f, 0, 0, 0, 0) end
     if f.SetBackdropBorderColor then pcall(f.SetBackdropBorderColor, f, 0, 0, 0, 0) end
     panelize(f)
-    -- gold three-piece header: the widget's own titlebg + the two unnamed
-    -- sibling textures (UI-DialogBox-Header, file id 131080)
+    -- header art: the widget's titlebg plus two unnamed sibling textures (file id 131080)
     if w and w.titlebg and w.titlebg.SetAlpha then w.titlebg:SetAlpha(0) end
     for _, r in ipairs({ f:GetRegions() }) do
         if r.IsObjectType and r:IsObjectType("Texture") then
@@ -687,7 +592,6 @@ function sk.skinAceGUIFrame(f)
             end
         end
     end
-    -- title + status text -> house font/accent
     if w then
         if w.titletext then
             if ns.UI and ns.UI.Font then ns.UI.Font(w.titletext, 13) end
@@ -707,19 +611,7 @@ function sk.skinAceGUIFrame(f)
     end
 end
 
--- =========================================================
--- Gargul (loot distribution). Two render paths + two bespoke bars:
---   * ~25 "builder" windows: BackdropTemplate frames reachable as _G[name],
---     with .CloseButton (round ×) and a .Watermark FontString. Caught via a
---     posthook on Interface:createWindow (the name is in the passed table,
---     _G[name] is populated by the time the hook fires).
---   * ~20 AceGUI windows (award / master loot / settings / overviews): caught
---     via a posthook on Interface:set, skinning every stored top-level widget
---     whose .type == "Frame" through its .frame (see skinAceGUIFrame).
---   * two always-on bars (roll prompt + GDKP bid): plain frames, hooked on
---     their :draw and given the dark panel treatment.
--- Nothing here is secure — all cosmetic posthooks.
--- =========================================================
+-- two render paths: named builder windows via Interface:createWindow, AceGUI widgets via Interface:set, plus two bars hooked on :draw
 function sk.skinGargulBuilder(f)
     if not f or f._vcuiSkin then return end
     f._vcuiSkin = true
@@ -738,7 +630,6 @@ end
 
 function sk.skinGargulExisting()
     if not (mod.active and mod.db.gargul ~= false) then return end
-    -- windows opened before we armed (the hooks cover everything opened after)
     sk.skinGargulBar(_G.GargulUI_RollerUI_Window)
     sk.skinGargulBar(_G.GARGUL_GDKP_BIDDER_WINDOW)
     for _, n in ipairs({
@@ -756,7 +647,7 @@ function sk.armGargul()
     if sk.armed_gargul then return end
     local G = _G.Gargul
     if not (G and G.Interface and type(G.Interface.createWindow) == "function") then return end
-    sk.armed_gargul = true   -- after the guard; a hook error must not re-arm
+    sk.armed_gargul = true
     hooksecurefunc(G.Interface, "createWindow", function(_, opts)
         if not (mod.active and mod.db.gargul ~= false) then return end
         if type(opts) == "table" and opts.name then
@@ -785,21 +676,13 @@ function sk.armGargul()
     sk.skinGargulExisting()
 end
 
--- =========================================================
--- Attune (attunement tracker). A single AceGUI-3.0 "Frame" reachable as the
--- global Attune_MainFrame, built lazily by the global Attune_Frame() on first
--- open. Skin the shell with the shared recipe, then the bottom text buttons.
--- The per-row node colors carry attunement STATE (blue/green/red) — left
--- untouched on purpose.
--- =========================================================
+-- built lazily on first open; the per-row node colors carry state and stay untouched
 function sk.skinAttune()
     if sk.done.attune or mod.db.attune == false then return end
     local f = _G.Attune_MainFrame
-    if not f then return end   -- only exists after Attune_Frame() has run
+    if not f then return end   -- only exists after its lazy builder ran
     sk.done.attune = true
     sk.skinAceGUIFrame(f)
-    -- bottom text buttons (survey / results / planner); the AceGUI close was
-    -- already handled by skinAceGUIFrame and self-guards against a repeat
     for _, child in ipairs({ f:GetChildren() }) do
         if child.GetObjectType and child:GetObjectType() == "Button" then
             local fs = child.GetFontString and child:GetFontString()
@@ -812,26 +695,17 @@ end
 function sk.armAttune()
     if sk.armed_attune then return end
     if type(_G.Attune_Frame) ~= "function" then return end
-    sk.armed_attune = true   -- after the guard; a hook error must not re-arm
+    sk.armed_attune = true
     hooksecurefunc("Attune_Frame", function()
         if mod.active and mod.db.attune ~= false then sk.skinAttune() end
     end)
-    if _G.Attune_MainFrame then sk.skinAttune() end   -- already open
+    if _G.Attune_MainFrame then sk.skinAttune() end
 end
 
--- =========================================================
--- World-map options addon. Its window is a plain frame reachable as the global
--- LeaMapsGlobalPanel (built eagerly at load), with two parchment "gold" overlay
--- textures over a dark fill, a title, checkboxes, a dropdown and two text
--- buttons carrying their own gold skin. The addon's own tables are local, so
--- every control is reached by walking the frame's regions/children. We detect
--- and reference it only through its LeaMaps* frame globals — its name never
--- appears in our code, options or changelog.
--- =========================================================
+-- the addon's own tables are local, so every control is reached by walking the frame's regions/children
 function sk.skinMapAddonPanel(f)
     if not f or f._vcuiSkin then return end
     f._vcuiSkin = true
-    -- kill the parchment overlays (the gold look), then lay our dark panel
     for _, r in ipairs({ f:GetRegions() }) do
         if r.IsObjectType and r:IsObjectType("Texture") then
             local tex = r.GetTexture and r:GetTexture()
@@ -841,9 +715,6 @@ function sk.skinMapAddonPanel(f)
         end
     end
     panelize(f)
-    -- title + section headers (the gold GameFontNormal text) -> accent; the
-    -- version subtitle stays dim; white body text is left alone so the config
-    -- sub-panels keep readable descriptions
     local ac = ns.COLORS.accent
     for _, r in ipairs({ f:GetRegions() }) do
         if r.IsObjectType and r:IsObjectType("FontString") then
@@ -857,18 +728,15 @@ function sk.skinMapAddonPanel(f)
             end
         end
     end
-    -- children: text buttons (reset / reload), the close X, checkbox labels
     for _, c in ipairs({ f:GetChildren() }) do
         local ot = c.GetObjectType and c:GetObjectType()
-        -- the zone-map dropdown is a direct child too; never treat a dropdown
-        -- as a plain button (it would lose its arrow/box art)
+        -- a dropdown is a direct child too; never skin it as a plain button
         local isDropdown = c.SetupMenu ~= nil or c.OpenMenu ~= nil or c.Arrow ~= nil
         if ot == "Button" and not isDropdown then
             local fs = c.GetFontString and c:GetFontString()
             local txt = fs and fs:GetText()
             if txt and txt ~= "" then
                 skinButton(c)
-                -- these buttons carry a second gold label fontstring for sizing
                 if c.f and c.f.SetTextColor then c.f:SetTextColor(0.9, 0.9, 0.95) end
             else
                 local w = (c.GetWidth and c:GetWidth()) or 0
@@ -876,7 +744,6 @@ function sk.skinMapAddonPanel(f)
                 if w >= 28 and h >= 28 and math.abs(w - h) < 6 then
                     skinClose(c)   -- the 30x30 UIPanelCloseButton
                 end
-                -- other art buttons (gear cogs) are left functional
             end
         elseif ot == "CheckButton" then
             if c.f and c.f.SetTextColor then c.f:SetTextColor(0.9, 0.9, 0.95) end
@@ -887,8 +754,7 @@ end
 function sk.skinMapAddon()
     if not (mod.active and mod.db.leamaps ~= false) then return end
     if _G.LeaMapsGlobalPanel then sk.skinMapAddonPanel(_G.LeaMapsGlobalPanel) end
-    -- the secondary config sub-panels share the LeaMapsGlobalPanel_ prefix and
-    -- the same chrome; a one-time scan catches the ones built at load
+    -- the sub-panels share the same global-name prefix; one-time scan for the ones built at load
     if not sk.leamapsSubsScanned then
         sk.leamapsSubsScanned = true
         for k, v in pairs(_G) do
@@ -904,16 +770,13 @@ function sk.armMapAddon()
     if sk.armed_leamaps then return end
     local f = _G.LeaMapsGlobalPanel
     if not f then return end
-    sk.armed_leamaps = true   -- after the guard; a hook error must not re-arm
+    sk.armed_leamaps = true
     sk.skinMapAddon()
     f:HookScript("OnShow", function()
         if mod.active and mod.db.leamaps ~= false then sk.skinMapAddon() end
     end)
 end
 
--- =========================================================
--- Arming: apply what's loaded now, watch ADDON_LOADED for the rest
--- =========================================================
 local TARGETS = {
     { key = "bugsack",       addon = "BugSack" },
     { key = "questie",       addon = "Questie" },
@@ -927,11 +790,7 @@ local TARGETS = {
     { key = "wowsims",             addon = "WowSimsExporter" },
 }
 
--- =========================================================
--- Simulation exporter button on the character window: skin it and slot it into
--- the bottom tab row. The button is created WITHOUT a name, so it is found by
--- its text among the character window's children.
--- =========================================================
+-- the button is created without a name, so it is found by its text among CharacterFrame's children
 function sk.skinWowSims()
     if sk.done.wowsims or mod.db.wowsims == false then return end
     if not _G.CharacterFrame then return end
@@ -947,7 +806,6 @@ function sk.skinWowSims()
     if not btn then return end   -- not created yet; retried by applyLoaded
     sk.done.wowsims = true
     skinButton(btn)
-    -- line it up with the bottom character tabs (after the last visible one)
     local lastTab
     for i = 1, 6 do
         local tab = _G["CharacterFrameTab" .. i]
@@ -958,14 +816,12 @@ function sk.skinWowSims()
         btn:SetPoint("LEFT", lastTab, "RIGHT", 8, 0)
         btn:SetHeight(22)
     end
-    -- the same addon's inspect-window button, when present
     skinButton(_G.WSEInspectButton)
 end
 
 function sk.applyLoaded()
     if not mod.active then return end
-    -- leftover skin from a session where the option was ON but this session
-    -- has it OFF (restore only ever ran behind the session-local done flag)
+    -- leftover skin from a session where the option was on
     if mod.db.questie == false and mod.db.questieBackup then
         sk.restoreQuestie()
     end
@@ -987,8 +843,7 @@ local function onEvent(event, arg1)
     if event == "ADDON_LOADED" then
         if arg1 == "BugSack" then sk.armBugSack()
         elseif arg1 == "Questie" then
-            -- Questie's db exists after its load; the tracker starts later and
-            -- reads the profile keys when it does
+            -- the db exists after its load; the tracker reads the profile keys when it starts
             sk.skinQuestie()
         elseif arg1 == "AtlasLootClassic" then sk.armAtlasLoot()
         elseif arg1 == "HealPredict" then sk.armHealPredict()
@@ -999,13 +854,10 @@ local function onEvent(event, arg1)
         elseif arg1 == "Attune" then sk.armAttune()
         elseif arg1 == "WowSimsExporter" then sk.skinWowSims()
         end
-        -- world-map options addon: detect by its frame, not its name
         if _G.LeaMapsGlobalPanel then sk.armMapAddon() end
     elseif event == "PLAYER_ENTERING_WORLD" then
         sk.applyLoaded()
-        -- several targets build their windows in their own deferred init
-        -- sequences (Questie tracker coroutine, lazily-built options) —
-        -- re-apply a few times; every skin function is one-shot-guarded
+        -- targets build their windows in deferred init; re-apply, every skin is one-shot-guarded
         if C_Timer and C_Timer.After then
             C_Timer.After(3, function() if mod.active then sk.applyLoaded() end end)
             C_Timer.After(8, function()
@@ -1034,9 +886,6 @@ function mod:OnDisable()
     -- texture strips on the other targets are session-permanent -> /reload
 end
 
--- =========================================================
--- Options
--- =========================================================
 function mod:GetOptions()
     local items = {
         { type = "header", text = L["Addon Skins"] },
@@ -1060,8 +909,6 @@ function mod:GetOptions()
             end,
         })
     end
-    -- world-map options addon: a nameless toggle (its name is never shipped);
-    -- detected by its frame, so it shows "not loaded" until the addon is present
     do
         local isLoaded = _G.LeaMapsGlobalPanel ~= nil
         table.insert(items, {

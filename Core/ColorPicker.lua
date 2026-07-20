@@ -1,23 +1,8 @@
--- =========================================================
--- VuloClassicUI / Core / ColorPicker
--- A custom HSV colour picker popup, used everywhere a colour is chosen
--- (replaces Blizzard's ColorPickerFrame). Singleton: built once, reused.
---
---   ns:ShowColorPicker({
---       r, g, b,                       -- starting colour (0..1)
---       onChange = function(r,g,b) end, -- called live as the user picks
---       onCancel = function() end,      -- optional; colour already restored
---   })
---
--- The picker calls onChange continuously while dragging so the target updates
--- in real time; Cancel / click-away restores the original colour via onChange.
--- =========================================================
+-- Custom HSV colour picker singleton, replacing Blizzard's ColorPickerFrame; onChange fires live while dragging, Cancel/click-away restores via onChange.
 local _, ns = ...
 local L = ns.L
 
--- ---------------------------------------------------------
 -- HSV <-> RGB (h in [0,360], s/v/r/g/b in [0,1])
--- ---------------------------------------------------------
 local floor, abs, max, min = math.floor, math.abs, math.max, math.min
 
 local function HSVtoRGB(h, s, v)
@@ -49,9 +34,6 @@ local function RGBtoHSV(r, g, b)
     return h, (mx == 0) and 0 or (d / mx), mx
 end
 
--- ---------------------------------------------------------
--- Layout constants
--- ---------------------------------------------------------
 local SV      = 200    -- saturation/value square
 local BARW    = 22     -- hue bar width
 local RIGHTW  = 104    -- right column (swatches / hex / buttons)
@@ -60,7 +42,6 @@ local TITLE_H = 30
 
 local picker  -- singleton
 
--- thin accent-ish border around a frame
 local function addBorder(frame, r, g, b, a)
     local function edge()
         local t = frame:CreateTexture(nil, "BORDER")
@@ -97,7 +78,7 @@ local function build()
     bg:SetAllPoints(); bg:SetColorTexture(0.05, 0.06, 0.09, 0.98)
     addBorder(f, accent.r, accent.g, accent.b, 0.5)
 
-    -- Full-screen click catcher (cancel on click outside) -----------------
+    -- Full-screen click catcher (cancel on click outside)
     local catcher = CreateFrame("Button", nil, UIParent)
     catcher:SetAllPoints(UIParent)
     catcher:SetFrameStrata("FULLSCREEN_DIALOG")
@@ -105,7 +86,6 @@ local function build()
     catcher:Hide()
     f._catcher = catcher
 
-    -- Title bar (draggable) ----------------------------------------------
     local title = CreateFrame("Frame", nil, f)
     title:SetHeight(TITLE_H)
     title:SetPoint("TOPLEFT"); title:SetPoint("TOPRIGHT")
@@ -127,11 +107,9 @@ local function build()
     closeBtn:SetScript("OnLeave", function() cx:SetTextColor(0.7, 0.7, 0.75) end)
     closeBtn:SetScript("OnClick", function() f._cancel() end)
 
-    -- state
     f._h, f._s, f._v = 0, 1, 1
     f._suppress = false
 
-    -- ---- SV square ------------------------------------------------------
     local svPad = CreateFrame("Frame", nil, f)
     svPad:SetSize(SV, SV)
     svPad:SetPoint("TOPLEFT", f, "TOPLEFT", PAD, -TITLE_H)
@@ -144,7 +122,6 @@ local function build()
     ns.UI.SetGradient(svBlack, "VERTICAL", 0, 0, 0, 1, 0, 0, 0, 0)     -- bottom black -> top clear
     addBorder(svPad, 1, 1, 1, 0.10)
 
-    -- crosshair (4 arms)
     local ARM = 5
     local chT = svPad:CreateTexture(nil, "OVERLAY"); chT:SetSize(1, ARM); chT:SetColorTexture(1, 1, 1, 0.9)
     local chB = svPad:CreateTexture(nil, "OVERLAY"); chB:SetSize(1, ARM); chB:SetColorTexture(1, 1, 1, 0.9)
@@ -176,7 +153,6 @@ local function build()
     end)
     svPad:SetScript("OnMouseUp", function(self) self:SetScript("OnUpdate", nil) end)
 
-    -- ---- Hue bar (6 gradient segments) ----------------------------------
     local hueBar = CreateFrame("Frame", nil, f)
     hueBar:SetSize(BARW, SV)
     hueBar:SetPoint("TOPLEFT", svPad, "TOPRIGHT", 12, 0)
@@ -208,7 +184,6 @@ local function build()
     end)
     hueBar:SetScript("OnMouseUp", function(self) self:SetScript("OnUpdate", nil) end)
 
-    -- ---- Right column: New / Prev swatches, Hex#, OK / Cancel -----------
     local rx = -PAD  -- anchored from TOPRIGHT
     local newLbl = font(f:CreateFontString(nil, "OVERLAY"), 12)
     newLbl:SetPoint("TOPRIGHT", f, "TOPRIGHT", rx - RIGHTW + 2, -(TITLE_H + 2))
@@ -269,7 +244,6 @@ local function build()
     })
     cancelBtn:SetPoint("BOTTOMRIGHT", okBtn, "TOPRIGHT", 0, 6)
 
-    -- ---- Update / lifecycle --------------------------------------------
     f._updateAll = function()
         if f._suppress then return end
         local r, g, b = HSVtoRGB(f._h, f._s, f._v)
@@ -300,13 +274,10 @@ local function build()
     end
     catcher:SetScript("OnClick", function() f._cancel() end)
 
-    picker = f   -- store the singleton (the guard at the top relies on this)
+    picker = f
     return f
 end
 
--- =========================================================
--- Public API
--- =========================================================
 function ns:ShowColorPicker(opts)
     opts = opts or {}
     local f = build()

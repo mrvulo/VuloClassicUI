@@ -1,14 +1,4 @@
--- =========================================================
--- VuloClassicUI / Modules / CombatText
--- Two on-screen systems sharing one position:
---   1. NOTIFICATIONS (combatStart / combatEnd / lowDurability)
---      flash in place and stack vertically, centred on the anchor.
---      lowDurability is persistent (stays until the gear is repaired).
---      A Preview mode shows all three at once for styling/positioning.
---   2. SCROLLING combat-log text (interrupts / dispels / misses)
---      floats upward and fades, like classic FCT.
--- Anniversary disabled Blizzard's old player FCT, hence the custom engine.
--- =========================================================
+-- VuloClassicUI / Modules / CombatText: flashing notifications + scrolling combat-log text.
 local _, ns = ...
 local L = ns.L
 
@@ -18,17 +8,11 @@ local mod = ns:RegisterModule("combattext", {
     description = "Flashing combat notifications (with live preview) plus a scrolling combat-log text engine.",
     defaults    = {
         enabled        = true,
-        -- Master categories (quick on/off, do NOT override per-event enabled)
-        showCombatState     = true,   -- combatStart + combatEnd
-        showCombatLog       = true,   -- spellInterrupt + dispels + missed
-        showDurability      = true,   -- lowDurability
-        -- Font (global) — path as value
+        showCombatState     = true,
+        showCombatLog       = true,
+        showDurability      = true,
         fontFace       = "Interface\\AddOns\\VuloClassicUI\\Media\\Fonts\\Expressway.TTF",
-        -- Change DAMAGE_TEXT_FONT (Blizzard's mob FCT) at the same time as fontFace
         applyToMobFCT  = true,
-        -- Per-event customization (color, size, outline, shadow + shadowColor + shadowOffset)
-        -- The three notification events also carry an editable `text`.
-        -- Inline spell icon next to the spell name in scroll messages
         showSpellIcons = true,
         events = {
             combatStart    = { enabled = true, text = "", color = { r = 0.93, g = 0.26, b = 0.0 }, size = 0, outline = true, shadow = true, shadowColor = { r = 0, g = 0, b = 0 }, shadowX = 2, shadowY = -2 },
@@ -44,58 +28,46 @@ local mod = ns:RegisterModule("combattext", {
             missed         = { enabled = true, color = { r = 1.0, g = 0.7, b = 0.2 }, size = 0, outline = true,  shadow = true, shadowColor = { r = 0, g = 0, b = 0 }, shadowX = 2, shadowY = -2 },
             lowDurability  = { enabled = true, text = "", color = { r = 1.0, g = 0.3, b = 0.3 }, size = 0, outline = true, shadow = true, shadowColor = { r = 0, g = 0, b = 0 }, shadowX = 2, shadowY = -2 },
         },
-        -- Low durability threshold (percent)
         durabilityThreshold = 15,
-        -- Party/raid death announcements: class-colored names
         deathClassColor = true,
-        -- Engine FCT
         worldTextScale = 1.0,
         sharpFonts     = true,
-        -- Global defaults (for events with size=0 or outline/shadow=nil)
         fontSize       = 18,
         color          = { r = 1, g = 1, b = 0 },
         scrollDuration = 2.0,
         scrollDistance = 80,
-        flashDuration  = 1.5,           -- notification flash fade time
+        flashDuration  = 1.5,
         fontOutlineMode = "THICKOUTLINE", -- NONE | OUTLINE | THICKOUTLINE
         fontOutline    = true,          -- legacy fallback for fontOutlineMode
         fontShadow     = true,
         shadowX        = 2,
         shadowY        = -2,
-        -- Position / anchor system
         x              = 0,
-        y              = 180,   -- above screen centre by default
+        y              = 180,
         unlocked       = false,
-        centerOnScreen = false,   -- legacy (superseded by the anchor fields)
-        anchorTo       = "UIParent",   -- target frame ("Anchored To")
-        anchorFrom     = "CENTER",     -- point on our text block ("Anchor From")
-        anchorPoint    = "CENTER",     -- point on the target ("To Frame's")
+        centerOnScreen = false,
+        anchorTo       = "UIParent",
+        anchorFrom     = "CENTER",
+        anchorPoint    = "CENTER",
         strata         = "HIGH",
-        -- Spacing between stacked notifications
         messageSpacing = 6,
-        -- Global text shadow colour
         shadowColor    = { r = 0, g = 0, b = 0 },
     },
 })
 
--- =========================================================
--- Shared state + forward declarations (resolve def-order cycles)
--- =========================================================
-local container       -- anchor frame (both systems centre on it)
+local container
 local POOL_SIZE = 20
 local fontStringPool = {}
-local activeMessages = {}   -- scrolling messages
-local notifyFrames   = {}   -- key -> flash/persistent notification frame
+local activeMessages = {}
+local notifyFrames   = {}
 local isPreview      = false
 
 local NOTIFY_TYPES   = { "combatStart", "combatEnd", "lowDurability" }
 local NOTIFY_SPACING = 6
 
+-- Forward declarations: these are referenced by closures defined before them.
 local showNotify, hideNotify, doCheckDurability, scheduleDurabilityCheck
 
--- =========================================================
--- Fonts
--- =========================================================
 local EXPRESSWAY_PATH = "Interface\\AddOns\\VuloClassicUI\\Media\\Fonts\\Expressway.TTF"
 local FONT_VALUES = {
     { value = EXPRESSWAY_PATH,         text = L["Expressway (Default)"] },
@@ -111,8 +83,6 @@ local function getActiveFontPath()
     return EXPRESSWAY_PATH
 end
 
--- Resolve an outline override (per-event boolean, explicit string, or nil ->
--- the global dropdown) into a SetFont flag string.
 local function resolveOutline(outlineOverride)
     local mode
     if type(outlineOverride) == "string" then mode = outlineOverride
@@ -135,9 +105,6 @@ local function applyStyleToFS(fs, size, outlineOverride, shadowOverride, shadowC
     end
 end
 
--- =========================================================
--- Scrolling engine
--- =========================================================
 local function createContainer()
     if container then return container end
     container = CreateFrame("Frame", "VCUI_CombatTextContainer", UIParent)
@@ -153,7 +120,6 @@ local function createContainer()
     return container
 end
 
--- Animates active scroll messages; self-detaches when the list empties.
 local function animateMessages(self, elapsed)
     for i = #activeMessages, 1, -1 do
         local m = activeMessages[i]
@@ -175,7 +141,6 @@ local function animateMessages(self, elapsed)
     end
 end
 
--- Anchor targets offered in the "Anchored To" dropdown.
 local ANCHOR_FRAMES = {
     { value = "UIParent",    text = L["Screen (UIParent)"] },
     { value = "PlayerFrame", text = L["Player Frame"] },
@@ -194,7 +159,6 @@ local function reAnchorContainer()
     container:SetFrameStrata(mod.db.strata or "HIGH")
 end
 
--- Mapping event key -> master category toggle
 local EVENT_CATEGORY = {
     combatStart    = "showCombatState",
     combatEnd      = "showCombatState",
@@ -224,15 +188,12 @@ local function spawnScroll(eventKey, text)
         if oldest then fs = oldest.fs else return end
     end
     local sz = (ev.size and ev.size > 0) and ev.size or nil
-    applyStyleToFS(fs, sz, nil, nil, nil, nil, nil)  -- font/outline/shadow are global
+    applyStyleToFS(fs, sz, nil, nil, nil, nil, nil)
     fs:SetText(text)
     local c = ev.color or mod.db.color or { r = 1, g = 1, b = 1 }
     fs:SetTextColor(c.r or 1, c.g or 1, c.b or 1, 1)
     fs:SetAlpha(1)
-    -- Stagger a burst of messages so simultaneous events queue below one another
-    -- instead of stacking on the same spot. A new line starts at least one
-    -- line-height below the most-recent line still rising; because every message
-    -- rises the same distance in lockstep, that gap is preserved until they fade.
+    -- Stagger a burst: start one line-height below the newest still-rising line.
     local startOffset = 0
     local newest = activeMessages[#activeMessages]
     if newest then
@@ -253,9 +214,6 @@ local function spawnScroll(eventKey, text)
     container:SetScript("OnUpdate", animateMessages)
 end
 
--- =========================================================
--- Notification engine (flash + stack, centred on the container)
--- =========================================================
 local FALLBACK_TEXT = {
     combatStart   = L["+Combat"],
     combatEnd     = L["-Combat"],
@@ -284,8 +242,6 @@ local function getNotifyFrame(key)
     return f
 end
 
--- Style + size a notification frame to its text. Font, outline and shadow all
--- follow the global Font Settings (pass nil); only the colour is per-event.
 local function styleNotify(f, key)
     local ev = mod.db.events and mod.db.events[key] or {}
     local sz = (ev.size and ev.size > 0) and ev.size or (mod.db.fontSize or 18)
@@ -298,7 +254,6 @@ local function styleNotify(f, key)
     f:SetSize(w + 6, h + 2)
 end
 
--- Stack the visible notifications as a vertically-centred block.
 local function arrangeNotify()
     if not container then return end
     local visible, totalH = {}, 0
@@ -335,7 +290,6 @@ showNotify = function(key)
     f:Show()
     arrangeNotify()
     if key ~= "lowDurability" then
-        -- transient flash -> fade out and hide
         f.gen = f.gen + 1
         local myGen = f.gen
         local dur = mod.db.flashDuration or 1.5
@@ -364,7 +318,6 @@ local function applyFontToNotify()
     arrangeNotify()
 end
 
--- ── Preview (Options page) ──────────────────────────────────────────────
 local function showPreview()
     if not mod.db then return end
     createContainer()
@@ -389,7 +342,6 @@ local function hidePreview()
         end
     end
     arrangeNotify()
-    -- restore the real persistent low-durability state
     if not InCombatLockdown() then scheduleDurabilityCheck() end
 end
 
@@ -401,9 +353,6 @@ local function applyFontToPool()
     for _, m in ipairs(activeMessages) do applyStyleToFS(m.fs, size) end
 end
 
--- =========================================================
--- Durability (persistent notification while out of combat)
--- =========================================================
 local playerGUID
 local EQUIP_SLOTS = { 1, 2, 3, 5, 6, 7, 8, 9, 10, 15, 16, 17, 18 }
 local _durabilityPending = false
@@ -439,9 +388,6 @@ scheduleDurabilityCheck = function()
     end)
 end
 
--- =========================================================
--- Combat events
--- =========================================================
 local function onCombatStart()
     if not mod._enabled then return end
     hideNotify("lowDurability")   -- never warn during combat
@@ -454,9 +400,6 @@ local function onCombatEnd()
     scheduleDurabilityCheck()
 end
 
--- ── Rich message parts: colored label + inline icon + white [Spell Name] ──
--- The event color paints the LABEL (SetTextColor); the spell name is forced
--- white via an embedded color code, the icon rides the font height (|T..:0|t).
 local function iconTag(spellId)
     if mod.db.showSpellIcons == false then return "" end
     local tex = spellId and GetSpellTexture and GetSpellTexture(spellId)
@@ -475,9 +418,7 @@ local function isPlayerGUID(guid)
     return guid and guid:find("^Player%-") ~= nil
 end
 
--- Per-(event, spell) throttle for the buff messages: a raid-wide Prayer or a
--- paladin aura re-entering range would otherwise flood the pool with dozens
--- of identical lines in one instant.
+-- Per-(event, spell) throttle: raid-wide buffs would otherwise flood the pool.
 local _lastRich = {}
 local function throttled(eventKey, spellId)
     local k = eventKey .. ":" .. (spellId or 0)
@@ -487,7 +428,7 @@ local function throttled(eventKey, spellId)
     return false
 end
 
--- Death announcements: at most 4 in 10s (a raid wipe is obvious enough)
+-- Death announcements: at most 4 in 10s.
 local _deathStamps = {}
 local function deathThrottled()
     local now = GetTime()
@@ -499,8 +440,7 @@ local function deathThrottled()
     return false
 end
 
--- GUID -> group unit token (nil if not in our party/raid). Deaths are rare,
--- the scan is fine — and it lets us check for a feigning hunter.
+-- GUID -> group unit token (nil if not in our party/raid).
 local function groupUnitByGUID(guid)
     if IsInRaid and IsInRaid() then
         for i = 1, 40 do
@@ -516,8 +456,6 @@ local function groupUnitByGUID(guid)
     return nil
 end
 
--- Only these subevents ever produce combat text. Reading just the subevent
--- first lets the hot path bail before the full destructure.
 local CLEU_WANTED = {
     SPELL_INTERRUPT = true, SPELL_DISPEL = true, SPELL_STOLEN = true,
     SWING_MISSED    = true, RANGE_MISSED = true, SPELL_MISSED = true,
@@ -530,16 +468,12 @@ local function onCLEU()
         playerGUID = UnitGUID("player")
         if not playerGUID then return end
     end
-    -- single fetch; slot 12 = spellId (or SWING missType), 13 = spellName,
-    -- 15 = extraSpellId / SPELL missType / auraType(APPLIED), 16 = extraSpellName,
-    -- 18 = auraType for DISPEL/STOLEN (slot 17 is the extra school)
+    -- Slots: 12=spellId/SWING missType, 15=extraSpellId/SPELL missType/auraType(APPLIED), 18=auraType(DISPEL/STOLEN).
     local _, subEvent, _, sourceGUID, _, _, _, destGUID, destName, _, _,
           arg12, spellName, _, arg15, extraSpellName, _, auraType18
           = CombatLogGetCurrentEventInfo()
 
     if subEvent == "UNIT_DIED" then
-        -- another PLAYER in our group died (never ourselves — the release
-        -- dialog says it loudly enough)
         if not destGUID or destGUID == playerGUID or not isPlayerGUID(destGUID) then return end
         local unit = groupUnitByGUID(destGUID)
         if not unit then return end
@@ -562,8 +496,7 @@ local function onCLEU()
     end
 
     if subEvent == "SPELL_AURA_APPLIED" then
-        -- external buffs only: someone else buffed YOU, or YOU buffed someone
-        -- else (both sides real players — no self-buffs, no NPC auras)
+        -- external player buffs only: no self-buffs, no NPC auras
         if arg15 ~= "BUFF" then return end
         if destGUID == playerGUID and sourceGUID and sourceGUID ~= playerGUID
            and isPlayerGUID(sourceGUID) then
@@ -583,8 +516,7 @@ local function onCLEU()
         spawnScroll("spellInterrupt",
             richMsg(L["Interrupted"], arg15, extraSpellName or spellName))
     elseif subEvent == "SPELL_DISPEL" then
-        -- auraType (slot 18) decides the flavor: removing a BUFF from an
-        -- enemy is a purge, removing a DEBUFF from a friend is a cleanse
+        -- slot-18 auraType: BUFF off an enemy = purge, DEBUFF off a friend = cleanse
         if sourceGUID == playerGUID then
             if auraType18 == "BUFF" then
                 spawnScroll("purged", richMsg(L["Purged"], arg15, extraSpellName))
@@ -592,20 +524,14 @@ local function onCLEU()
                 spawnScroll("dispels", richMsg(L["Dispelled"], arg15, extraSpellName))
             end
         elseif destGUID == playerGUID and auraType18 == "BUFF" then
-            -- an enemy stripped one of YOUR buffs (a friendly cleanse on you
-            -- removes a DEBUFF and stays silent)
             spawnScroll("dispelledBy", richMsg(L["dispelled"], arg15, extraSpellName))
         end
     elseif subEvent == "SPELL_STOLEN" and sourceGUID == playerGUID then
-        -- spellsteal behaves like a purge
         spawnScroll("purged", richMsg(L["Purged"], arg15, extraSpellName))
     elseif (subEvent == "SWING_MISSED" or subEvent == "RANGE_MISSED" or subEvent == "SPELL_MISSED") then
-        -- missType: slot 12 (SWING) or 15 (SPELL/RANGE), already captured above
         local realMissType = (subEvent == "SWING_MISSED") and arg12 or arg15
-        -- swings can't be reflected — and for SWING_MISSED slot 13 is not a
-        -- spell name, so the reflect message must never touch it
+        -- SWING_MISSED excluded: its slot 13 is not a spell name
         if realMissType == "REFLECT" and subEvent ~= "SWING_MISSED" then
-            -- either direction reads the same: that spell bounced
             if destGUID == playerGUID or sourceGUID == playerGUID then
                 spawnScroll("reflected", richMsg(L["reflected"], arg12, spellName, true))
             end
@@ -623,9 +549,6 @@ local function onCLEU()
     end
 end
 
--- =========================================================
--- Hit indicator font sharpening (PetHitIndicator, NumberFont*)
--- =========================================================
 local FONTS_TO_SHARPEN = {
     "NumberFont_Outline_Huge", "NumberFont_Outline_Large", "NumberFont_Outline_Med",
     "NumberFontNormalHuge", "PetHitIndicator", "PlayerHitIndicator",
@@ -648,7 +571,6 @@ local function applySharpFonts()
     end
 end
 
--- Blizzard mob FCT font (DAMAGE_TEXT_FONT global + CombatTextFont)
 local function applyDamageTextFont()
     if not mod.db or mod.db.applyToMobFCT == false then return end
     local path = getActiveFontPath()
@@ -664,20 +586,12 @@ local function applyWorldTextScale()
     pcall(SetCVar, "damageTextScale", v)
 end
 
--- =========================================================
--- Mover (position of both systems) — a unified Edit Mode box (/vedit) anchored
--- to the REAL text container, so the purple box sits exactly where the combat
--- text appears (left/right click selects it -> per-frame panel, arrow keys
--- nudge, magnetism, etc., just like every other VuloUI window).
--- =========================================================
--- Re-pin the text in our anchor model. Called by the option setters and as the
--- mover's applyPos (arrow-key nudge / layout).
 local function applyMoverPosition()
     reAnchorContainer()
     arrangeNotify()
 end
 
--- Screen coords of a named point on a frame (raw; both frames share UIParent scale).
+-- Raw screen coords of a named point; valid only because both frames share UIParent scale.
 local function pointOf(frame, point)
     local l, b, w, h = frame:GetLeft(), frame:GetBottom(), frame:GetWidth(), frame:GetHeight()
     if not (l and b and w and h) then return nil end
@@ -686,9 +600,7 @@ local function pointOf(frame, point)
     return x, y
 end
 
--- After a drag, the engine has placed the container at a screen CENTER offset.
--- Translate that back into our configurable anchor model (anchorFrom point ->
--- anchorPoint on the chosen target) so "Anchored To" etc. keep working.
+-- Translate the mover's CENTER-offset drop back into our anchorFrom/anchorPoint model.
 local function moverOnMove()
     local from = mod.db.anchorFrom  or "CENTER"
     local pt   = mod.db.anchorPoint or "CENTER"
@@ -709,7 +621,7 @@ local function setupMover()
     mod._mover = ns:CreateMover(container, {
         key    = "combattext",
         label  = "|cffffffffCOMBAT TEXT|r",
-        db     = mod.db,                 -- mod.db.x / mod.db.y are the anchor offsets
+        db     = mod.db,
         width  = 220, height = 56,
         applyPos    = applyMoverPosition,
         onMove      = moverOnMove,
@@ -717,15 +629,11 @@ local function setupMover()
     })
 end
 
--- =========================================================
--- Lifecycle
--- =========================================================
 function mod:OnEnable()
     if not mod.db then return end
-    mod.db.unlocked = false   -- clear any stale saved "unlocked" so the box only shows in /vedit
+    mod.db.unlocked = false   -- clear stale saved unlock so the box only shows in /vedit
 
-    -- Migration to the two-tone look: retint events still on their OLD default
-    -- color (user-customized colors are left alone — same pattern as the castbar)
+    -- Migration: retint only events still on their OLD default color.
     local function isNear(c, r, g, b)
         return c and math.abs((c.r or 0) - r) < 0.01
                  and math.abs((c.g or 0) - g) < 0.01
@@ -743,7 +651,7 @@ function mod:OnEnable()
     end
     playerGUID = UnitGUID("player")
     createContainer()
-    if container then container:Show() end   -- re-show after a disable->enable cycle (createContainer early-returns)
+    if container then container:Show() end   -- createContainer early-returns after a disable->enable cycle
     reAnchorContainer()
     setupMover()
     applySharpFonts()
@@ -768,22 +676,17 @@ function mod:OnDisable()
     if container then container:Hide() end
 end
 
--- =========================================================
--- Options
--- =========================================================
--- Auto-stop the preview when the options window closes.
 local function ensurePreviewAutoStop()
     local f = _G.VuloClassicUIMainFrame
     if f and not f._vcCTPreviewHooked then
         f._vcCTPreviewHooked = true
         f:HookScript("OnHide", function()
-            -- don't kill the positioning preview if /vedit is still driving it
+            -- keep the preview alive if /vedit is still driving it
             if not (ns.IsEditModeActive and ns:IsEditModeActive()) then hidePreview() end
         end)
     end
 end
 
--- Per-message section: [Enabled | Color] (+ editable Text for notifications).
 local function eventColorSet(key)
     return function(r, g, b)
         mod.db.events[key].color = { r = r, g = g, b = b }
@@ -791,8 +694,6 @@ local function eventColorSet(key)
     end
 end
 local function msgSection(key, title, hasText)
-    -- Consecutive compact items auto-arrange into two filled columns:
-    -- [Enabled | Color], then (Text) full-width on its own row.
     local secItems = {
         { type = "toggle", label = L["Enabled"],
           get = function() return mod.db.events[key].enabled end,
@@ -834,7 +735,6 @@ function mod:GetOptions()
         set = function(_, v) mod.db.durabilityThreshold = v; scheduleDurabilityCheck() end }
 
     return {
-        -- ---- Display Settings -------------------------------------------
         { type = "section", title = L["Display Settings"], collapsed = false, items = {
             { type = "toggle", label = L["Enable Combat Messages"],
               get = function() return ns:IsModuleEnabled("combattext") end,
@@ -852,7 +752,6 @@ function mod:GetOptions()
             } },
         } },
 
-        -- ---- Position Settings ------------------------------------------
         { type = "section", title = L["Position Settings"], collapsed = false, items = {
             { type = "button", label = L["Open Edit Mode"], width = 140,
               tooltip = L["Drag the combat-text box in the unified Edit Mode (/vedit)."],
@@ -881,7 +780,6 @@ function mod:GetOptions()
             } },
         } },
 
-        -- ---- Font Settings ----------------------------------------------
         { type = "section", title = L["Font Settings"], collapsed = false, items = {
             { type = "dropdown", label = L["Font"], values = FONT_VALUES,
               get = function() return getActiveFontPath() end,
@@ -915,7 +813,6 @@ function mod:GetOptions()
             } },
         } },
 
-        -- ---- Per-message ------------------------------------------------
         msgSection("combatStart", L["Enter Combat Message"], true),
         msgSection("combatEnd",   L["Exit Combat Message"], true),
         lowDura,
@@ -944,8 +841,6 @@ function mod:GetOptions()
             { type = "button", label = L["Test (all events)"], width = 170,
               onClick = function()
                   showNotify("combatStart")
-                  -- 116 = Frostbolt, 133 = Fireball, 1459 = Arcane Intellect,
-                  -- 687 = Demon Skin — stable classic spell ids for the preview
                   C_Timer.After(0.3, function() spawnScroll("spellInterrupt", richMsg(L["Interrupted"], 116, GetSpellInfo and GetSpellInfo(116) or "Frostbolt")) end)
                   C_Timer.After(0.6, function() spawnScroll("purged",         richMsg(L["Purged"], 1459, GetSpellInfo and GetSpellInfo(1459) or "Arcane Intellect")) end)
                   C_Timer.After(0.9, function() spawnScroll("dispels",        richMsg(L["Dispelled"], 687, GetSpellInfo and GetSpellInfo(687) or "Demon Skin")) end)

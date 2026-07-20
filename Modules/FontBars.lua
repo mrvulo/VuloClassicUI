@@ -1,9 +1,4 @@
--- =========================================================
--- VuloClassicUI / Modules / FontBars
--- Formerly: VuloFontBars
--- Smaller font sizes on Player/Target/Pet Health & Mana bars,
--- plus permanently hiding the TargetFrameBackground.
--- =========================================================
+-- FontBars: smaller font sizes on Player/Target/Pet Health & Mana bars, plus permanently hiding the TargetFrameBackground.
 local _, ns = ...
 local L = ns.L
 
@@ -20,9 +15,6 @@ local mod = ns:RegisterModule("fontbars", {
     },
 })
 
--- =========================================================
--- Helpers
--- =========================================================
 local function isOurBar(bar)
     if not mod.db.onlyTheseBars then return true end
     return bar == PlayerFrameHealthBar
@@ -76,9 +68,6 @@ end
 
 mod.applyAll = applyAll  -- exposed for slider live updates
 
--- =========================================================
--- Hooks (installed once, not on every enable)
--- =========================================================
 local hooksInstalled = false
 local function installHooks()
     if hooksInstalled or not hooksecurefunc then return end
@@ -110,9 +99,6 @@ local function installHooks()
     end
 end
 
--- =========================================================
--- Lifecycle
--- =========================================================
 -- named handlers so OnDisable can unregister them, and re-enable doesn't stack
 -- duplicate anonymous closures (ns:RegisterEvent doesn't dedupe)
 local function fbOnPEW()
@@ -141,9 +127,6 @@ function mod:OnDisable()
     ns:UnregisterEvent("UNIT_PET", fbOnPet)
 end
 
--- =========================================================
--- Options
--- =========================================================
 function mod:GetOptions()
     return {
         { type = "header", text = L["Font Sizes"] },

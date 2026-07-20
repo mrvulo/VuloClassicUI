@@ -1,9 +1,5 @@
--- =========================================================
--- VuloClassicUI / UI / OptionsBuilder
--- Builds the content page for a module from mod:GetOptions().
--- Tab-aware: mod:GetOptions(tabId) when the module defines tabs.
---
--- Item types:
+-- VuloClassicUI / UI / OptionsBuilder: builds a module page from mod:GetOptions(tabId).
+-- Item spec:
 --   { type = "header",    text }
 --   { type = "desc",      text, width? }
 --   { type = "checkbox" / "toggle", label, tooltip, get, set, width? }
@@ -14,7 +10,6 @@
 --   { type = "spacer",    height? }
 --   { type = "group",     layout = "row" | "columns", items, columns?, gap? }
 --   { type = "custom",    build = function(parent) -> frame end, height?, width? }
--- =========================================================
 local _, ns = ...
 ns.UI = ns.UI or {}
 local UI = ns.UI
@@ -22,13 +17,7 @@ local L = ns.L
 
 local CONTENT_PADDING = 14
 
--- =========================================================
--- Widget pooling
--- WoW frames are never garbage-collected, so rebuilding a page must not
--- create fresh widgets each time. On clear, widgets go back into
--- type-keyed pools (parked under a hidden host); on build they are
--- reconfigured via their _vcSetup instead of recreated.
--- =========================================================
+-- Frames are never garbage-collected: widgets are pooled by type and reconfigured via _vcSetup.
 local poolHost = CreateFrame("Frame")
 poolHost:Hide()
 local pools = {}
@@ -54,8 +43,6 @@ local function release(w)
     return true
 end
 
--- Clears a page: pooled widgets are released for reuse; the dashboard's
--- persistent container is only hidden; anything else detaches as before.
 local function clearChildren(parent)
     local kids = { parent:GetChildren() }
     for _, k in ipairs(kids) do
@@ -76,9 +63,8 @@ local function clearChildren(parent)
         r:ClearAllPoints()
     end
 end
-UI.ClearOptionsChildren = clearChildren  -- shared with the dashboard
+UI.ClearOptionsChildren = clearChildren
 
--- Acquire a pooled widget of the type or create a fresh one
 local function obtain(vctype, parent, item, factory)
     local w = acquire(vctype, parent)
     if w then
@@ -137,9 +123,7 @@ local function createWidget(parent, item)
         end)
         return w, 28, item.width or 28
     elseif t == "custom" then
-        -- A module-owned frame (e.g. a live preview). The module keeps the
-        -- reference and memoises creation; build(parent) just re-parents it back
-        -- onto the page and returns it, so it survives clearChildren untouched.
+        -- build(parent) must return a module-owned, memoised frame: it survives clearChildren.
         local w = item.build and item.build(parent)
         if not w then return nil, 0, 0 end
         return w, item.height or (w:GetHeight() or 100), item.width or 480
@@ -162,24 +146,16 @@ local function estimateHeight(item)
     return 26
 end
 
--- Collapsible-section state, keyed by "<moduleKey>/<tab>/<title>"
 UI.sectionCollapsed = UI.sectionCollapsed or {}
 
--- =========================================================
--- Layout: consecutive compact controls (toggle/dropdown/editbox) auto-arrange
--- into a two-column grid of subtle "card" rows; headers, sliders, groups,
--- sections and buttons span the full width on their own row.
--- =========================================================
+-- Consecutive compact controls auto-arrange into a two-column grid; everything else is full width.
 local COMPACT = { toggle = true, checkbox = true, dropdown = true, editbox = true, color = true }
 local COL_GAP  = 14
-local ROW_H    = 38          -- vertical pitch of a card row
-local CARD_GAP = 8           -- empty space between stacked cards
+local ROW_H    = 38
+local CARD_GAP = 8
 local CARD_H   = ROW_H - CARD_GAP
-local CARD_VPAD = 11         -- vertical breathing room inside button/group cards
+local CARD_VPAD = 11
 
--- Pooled row panel (rides the widget pool via _vcType / _vcSetup).
--- A raised "card": fill slightly lighter than the content bg + a thin border,
--- so each option row reads as its own panel like the reference design.
 local function makePanel(parent)
     local p = acquire("panel", parent)
     if p then return p end
@@ -188,10 +164,10 @@ local function makePanel(parent)
     p._vcSetup = function() end
     p.bg = p:CreateTexture(nil, "BACKGROUND")
     p.bg:SetAllPoints(p)
-    p.bg:SetColorTexture(0.075, 0.075, 0.095, 0.9)   -- subtle, like the mockup row
+    p.bg:SetColorTexture(0.075, 0.075, 0.095, 0.9)
     for _, s in ipairs({ "TOP", "BOTTOM", "LEFT", "RIGHT" }) do
         local t = p:CreateTexture(nil, "BORDER")
-        t:SetColorTexture(0.15, 0.15, 0.19, 1)       -- thin, low-key border
+        t:SetColorTexture(0.15, 0.15, 0.19, 1)
         if s == "TOP" or s == "BOTTOM" then
             t:SetPoint(s .. "LEFT"); t:SetPoint(s .. "RIGHT"); t:SetHeight(1)
         else
@@ -201,17 +177,10 @@ local function makePanel(parent)
     return p
 end
 
--- =========================================================
--- Per-row icons: eye = help/info (shows the option's tooltip), gear = extra
--- settings (toggles an inline expansion of item.subOptions).
--- =========================================================
--- Custom row icons. Drop your TGA files here (see chat instructions); until
--- then WoW shows a placeholder box. They fall back to clean Blizzard textures
--- only if you delete the files. Path = Interface\AddOns\VuloClassicUI\Media\Icons
+-- Row icons: info shows item.tooltip, gear expands item.subOptions inline.
 local ICON_DIR  = "Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\"
-local ICON_INFO = ICON_DIR .. "info.tga"     -- "i" = info/help (eye is only for show/hide toggles)
-local ICON_GEAR = ICON_DIR .. "gear.tga"     -- gear = extra settings
--- custom icons are clean line art: no crop, no desaturate
+local ICON_INFO = ICON_DIR .. "info.tga"
+local ICON_GEAR = ICON_DIR .. "gear.tga"
 local ICON_CFG = {
     [ICON_INFO] = { crop = false, desat = false },
     [ICON_GEAR] = { crop = false, desat = false },
@@ -259,7 +228,7 @@ local function setRowIcon(b, tex, tip, onClick, level)
     return b
 end
 
-local placeItem, placeItemList  -- forward (mutual recursion via sections)
+local placeItem, placeItemList  -- forward decls: mutually recursive via sections
 
 local function placeColumns(parent, run, y)
     local availW = (parent:GetWidth() or 540) - 2 * CONTENT_PADDING
@@ -270,7 +239,6 @@ local function placeColumns(parent, run, y)
         local item  = run[idx]
         local col   = (idx - 1) % 2
         local row   = math.floor((idx - 1) / 2)
-        -- a lone trailing item (odd count) spans the full width
         local fullW = (idx == n) and (n % 2 == 1)
         local cellX = CONTENT_PADDING + (fullW and 0 or col * (colW + COL_GAP))
         local cellY = y - row * ROW_H
@@ -283,7 +251,6 @@ local function placeColumns(parent, run, y)
         p:SetFrameLevel(base + 1)
         p:Show()
 
-        -- eye = info: shows the option's help tooltip
         local lead = 0
         if item.tooltip then
             local e = setRowIcon(makeRowIcon(parent), ICON_INFO, item.tooltip, nil, base + 5)
@@ -312,7 +279,7 @@ local function placeSection(parent, section, y)
     local collapsed = UI.sectionCollapsed[stateKey]
     if collapsed == nil then collapsed = section.collapsed and true or false end
 
-    y = y - 10  -- breathing room above
+    y = y - 10
 
     local onClick = function()
         UI.sectionCollapsed[stateKey] = not collapsed
@@ -333,7 +300,6 @@ local function placeSection(parent, section, y)
     return y
 end
 
--- Full-width rows that get a card + (optional) gear/eye icons
 local CARD_TYPES = { toggle = true, checkbox = true, dropdown = true, editbox = true, slider = true, color = true }
 
 placeItem = function(parent, item, y)
@@ -347,7 +313,7 @@ placeItem = function(parent, item, y)
         return placeSection(parent, item, y)
     end
     if item.type == "header" then
-        y = y - 12  -- breathing room above section labels
+        y = y - 12
     end
 
     local widget, h = createWidget(parent, item)
@@ -369,7 +335,6 @@ placeItem = function(parent, item, y)
             .. "/r/" .. tostring(item.label or item.text or item)
         local expanded = UI.rowExpanded[key]
 
-        -- right-aligned icon cluster: gear (extra settings) then eye (info)
         local iconRight = CONTENT_PADDING + availW - 6
         local nIcons = (item.subOptions and 1 or 0) + (item.tooltip and 1 or 0)
         if item.subOptions then
@@ -389,12 +354,10 @@ placeItem = function(parent, item, y)
         local yOff = y
         if item.type == "slider" then
             yOff = y - 14
-            -- stretch the track across the card, leaving room for the ± value
-            -- stepper that sits to the right of the slider frame (~100px)
+            -- reserve ~100px right of the slider frame for the +/- value stepper
             widget:SetWidth(math.max(120, availW - 130 - nIcons * 21))
             if widget._updateFill then widget._updateFill(widget:GetValue() or 0) end
         else
-            -- fill the row up to the icon cluster so the control right-aligns
             widget:SetWidth(math.max(120, availW - 20 - nIcons * 21))
         end
         widget:SetPoint("TOPLEFT", parent, "TOPLEFT", CONTENT_PADDING + 10, yOff)
@@ -406,8 +369,6 @@ placeItem = function(parent, item, y)
         return y
     end
 
-    -- standalone buttons sit on their own card too, so nothing floats
-    -- frameless next to the carded rows
     if item.type == "button" or item.type == "iconbutton" then
         local wh    = widget:GetHeight() or 24
         local cardH = wh + CARD_VPAD * 2
@@ -422,20 +383,15 @@ placeItem = function(parent, item, y)
         return y - cardH - CARD_GAP
     end
 
-    -- descriptions / tips: breathing room above and below so the text never
-    -- hugs the card it follows
     if item.type == "desc" then
         widget:SetPoint("TOPLEFT", parent, "TOPLEFT", CONTENT_PADDING, y - 5)
         return y - h - 10
     end
 
-    -- headers: no card
     widget:SetPoint("TOPLEFT", parent, "TOPLEFT", CONTENT_PADDING, y)
     return y - h
 end
 
--- Gather runs of consecutive compact controls into 2-column rows. Items with
--- extra settings (subOptions) break out to full-width rows (with the gear).
 placeItemList = function(parent, items, y)
     local i = 1
     while i <= #items do
@@ -460,7 +416,6 @@ function UI:PlaceGroup(parent, group, y)
     local availW = (parent:GetWidth() or 540) - 2 * CONTENT_PADDING
     local base   = parent:GetFrameLevel()
 
-    -- Full-width card behind the whole group row
     local panel = (group.noCard ~= true) and makePanel(parent) or nil
     if panel then
         panel:ClearAllPoints()
@@ -470,8 +425,6 @@ function UI:PlaceGroup(parent, group, y)
     end
 
     if layout == "row" then
-        -- create + measure all items first, so a button/toggle-only row can be
-        -- centred (input/dropdown rows stay left-aligned, which reads better)
         local placed, totalW = {}, 0
         local gap = group.gap or 8
         for i, item in ipairs(items) do
@@ -482,8 +435,7 @@ function UI:PlaceGroup(parent, group, y)
             end
         end
 
-        -- card height + true vertical centring use the ACTUAL widget heights
-        -- (the createWidget row estimate differs from e.g. a 26px button)
+        -- centre on ACTUAL widget heights: the createWidget row estimate differs
         local maxWH = 0
         for _, p in ipairs(placed) do
             p.wh = p.widget:GetHeight() or p.h
@@ -492,8 +444,6 @@ function UI:PlaceGroup(parent, group, y)
         local PAD   = CARD_VPAD
         local cardH = maxWH + PAD * 2
 
-        -- left-aligned by default (grows rightward as items are added);
-        -- a group can opt into centering with align = "center"
         local startX = CONTENT_PADDING + 10
         if group.align == "center" then
             startX = CONTENT_PADDING + math.max(10, math.floor((availW - totalW) / 2))
@@ -521,9 +471,8 @@ function UI:PlaceGroup(parent, group, y)
 
         local function flushRow()
             for i, ri in ipairs(rowItems) do
-                -- Constrain the widget to the column width so a toggle's switch
-                -- (right-anchored) stays inside its column instead of overlapping
-                -- the next column's label.
+                -- clamp to column width: a toggle's right-anchored switch would
+                -- otherwise overlap the next column's label
                 if ri.width == nil and (ri.type == "toggle" or ri.type == "checkbox") then
                     ri.width = colWidth - 14
                 end
@@ -531,9 +480,6 @@ function UI:PlaceGroup(parent, group, y)
                 if widget then
                     if panel then widget:SetFrameLevel(base + 4) end
                     local xo = CONTENT_PADDING + (panel and 6 or 0) + (i - 1) * colWidth
-                    -- a slider carries its label above the track, so it needs the
-                    -- same downward nudge the card/row layouts use — otherwise it
-                    -- sits too high with empty space below it in the card.
                     local yo = (ri.type == "slider") and (curY - 14) or (curY - (panel and 4 or 0))
                     widget:SetPoint("TOPLEFT", parent, "TOPLEFT", xo, yo)
                 end
@@ -545,8 +491,7 @@ function UI:PlaceGroup(parent, group, y)
 
         for _, item in ipairs(items) do
             table.insert(rowItems, item)
-            -- The slider estimate (38) over-counts the hidden min/max text area;
-            -- 30 keeps the card snug so the slider ends up vertically centred.
+            -- 38 over-counts the hidden min/max text area; 30 keeps the card snug
             local eh = (item.type == "slider") and 30 or estimateHeight(item)
             if eh > rowMaxH then rowMaxH = eh end
             if #rowItems >= cols then flushRow() end
@@ -557,15 +502,11 @@ function UI:PlaceGroup(parent, group, y)
         return curY
     end
 
-    if panel then panel:Hide() end  -- unknown layout: no card
+    if panel then panel:Hide() end
     return y
 end
 
--- =========================================================
--- Main function
--- =========================================================
--- True if a module's options are currently on screen — directly, or as the
--- active tab of a container it was consolidated into (parentTab).
+-- True if the module's options are on screen, directly or as its container's active tab.
 function UI:IsModuleActive(key)
     if UI.currentModule == key then return true end
     local m = ns.modules[key]
@@ -576,8 +517,7 @@ end
 function UI:BuildOptionsPage(key, tabId)
     local f = UI.mainFrame
     if not f then return end
-    -- A consolidated sub-module redirects to its container + its own tab, so
-    -- the sub-module's rebuildPage("itskey") calls keep working.
+    -- a sub-module redirects to its container + own tab, so rebuildPage("itskey") keeps working
     local m0 = ns.modules[key]
     if m0 and m0.parentTab then
         tabId = key
@@ -589,11 +529,11 @@ function UI:BuildOptionsPage(key, tabId)
     local parent = f.scrollChild
     clearChildren(parent)
     parent:SetWidth((f.scroll:GetWidth() or 540) - 8)
-    UI._currentBuildKey = key  -- for collapsible-section state keys
+    UI._currentBuildKey = key
 
     local y = -8
 
-    -- Module description on top (small, dim) — mod.description is a raw English key
+    -- mod.description is a raw English key, translated live
     if mod.description and mod.description ~= "" then
         local pw = parent:GetWidth()
         if not pw or pw < 100 then pw = 540 end
@@ -606,7 +546,6 @@ function UI:BuildOptionsPage(key, tabId)
         y = y - math.max(20, desc:GetDescHeight() + 8)
     end
 
-    -- Fetch options, optionally with tabId
     local items
     if mod.GetOptions then
         items = mod:GetOptions(tabId)

@@ -1,65 +1,30 @@
--- =========================================================
--- VuloClassicUI / Modules / Bank  (Phase 4 STAGE-1 — core bank window)
--- Companion to Modules/Bags.lua: same module key "bags", same options page,
--- shared profile db. Opens on BANKFRAME_OPENED (and auto-opens the bag window),
--- closes on BANKFRAME_CLOSED, and ends the server-side bank session
--- (CloseBankFrame) when the user closes it manually (X / Escape).
---
--- TAINT DISCIPLINE (same rules as Bags.lua):
---   * every ITEM slot inherits Blizzard's own "ContainerFrameItemButtonTemplate"
---     (global name required on Classic). Pickup/use/split is the template's own
---     handler, which on these clients routes through C_Container with the
---     parent's bag id — including -1, exactly like Blizzard's own bank buttons
---     (Blizzard_UIPanels_Game/Vanilla/BankFrame.lua: BankFrameItemButtonGeneric_
---     OnClick -> C_Container.PickupContainerItem(-1, slot) / UseContainerItem).
---     We NEVER SetScript OnClick/OnDragStart. OnEnter/OnLeave ARE replaced —
---     that is tooltip-only, not a secure path, and mirrors Blizzard's own
---     BankFrameItemButton_OnEnter (the -1 container is inventory-slot-backed
---     for tooltips: BankButtonIDToInvSlotID + SetInventoryItem).
---   * bag id lives on the button's PARENT (SetID), slot id on the button.
---   * bank-bag-bar buttons are PLAIN insecure buttons: PutItemInBag,
---     PickupBagFromSlot, PurchaseSlot, GetNumBankSlots, GetBankSlotCost are all
---     unprotected on Classic (Blizzard calls PurchaseSlot from a plain
---     StaticPopup OnAccept). Disabled in combat, where bag pickup/drop fails.
---   * the default BankFrame is suppressed by REPARENTING to a hidden frame and
---     clearing its OnEvent/OnShow/OnHide (it is NOT a protected frame on
---     Classic). NEVER BankFrame:Hide() — that fires BANKFRAME_CLOSED and kills
---     the live session. Fully restored on module disable.
---
--- LOCALS BUDGET: exactly 8 top-level locals (_, ns, L, mod, BTN, GAP, PAD,
--- bank). ALL other state/functions are fields of `bank`, resolved through the
--- table at call time — so this file needs NO forward declarations at all.
--- =========================================================
+-- VuloClassicUI / Modules / Bank
 local _, ns = ...
 local L   = ns.L
-local mod = ns.modules.bags   -- Bags.lua loads first (TOC order). mod.db is NOT
-                              -- valid at file scope — read it only in handlers.
-local BTN, GAP, PAD = 37, 4, 12   -- same grid metrics as the bag window
+local mod = ns.modules.bags   -- loads after Bags.lua; mod.db is only valid inside handlers
+local BTN, GAP, PAD = 37, 4, 12
 
 local bank = {
-    frame        = nil,       -- the bank window (built at PLAYER_ENTERING_WORLD)
-    buttons      = {},        -- pooled item buttons, by visual position
-    indexFrames  = {},        -- [bagID] = plain Frame carrying SetID(bagID)
-    bags         = {},        -- ordered container ids: -1 then 5..N (filled below)
-    btnCounter   = 0,         -- global-name counter ("VuloClassicUIBankItem"..n)
-    open         = false,     -- true between BANKFRAME_OPENED and (first) CLOSED
-    autoOpenedBags   = false, -- we auto-opened the bag window -> auto-close it
+    frame        = nil,
+    buttons      = {},
+    indexFrames  = {},
+    bags         = {},
+    btnCounter   = 0,
+    open         = false,
+    autoOpenedBags   = false,
     refreshScheduled = false,
-    pendingRelayout  = false, -- combat-blocked layout; rerun on REGEN_ENABLED
-    suppressed   = false,     -- default BankFrame currently suppressed
-    origParent   = {},        -- [7..13] original ContainerFrame parents
-    origScripts  = nil,       -- BankFrame's original parent + scripts (restore)
-    hiddenHost   = nil,       -- permanently hidden parent (created below)
+    pendingRelayout  = false,
+    suppressed   = false,
+    origParent   = {},
+    origScripts  = nil,
+    hiddenHost   = nil,
     mover        = nil,
-    bindTypeCache = {},       -- [itemID] = bindType (0 = binds never/other)
-    TOP          = 40,        -- title row (equip/purchase lives in the filter strip)
-    BOTTOM       = 38,        -- footer (26) + bottom padding (12)
+    bindTypeCache = {},
+    TOP          = 40,
+    BOTTOM       = 38,
 }
 
--- Bank container ids: -1 (BANK_CONTAINER, the 24/28 generic slots) plus the
--- bank bags NUM_BAG_SLOTS+1 .. NUM_BAG_SLOTS+NUM_BANKBAGSLOTS (5..10 on Era,
--- 5..11 on TBC). NEVER use Enum.BagIndex.BankBag_1..7 here — on the Classic
--- clients that enum still carries values from an old retail layout (6..12).
+-- Bank containers: -1 plus NUM_BAG_SLOTS+1..N. Never Enum.BagIndex.BankBag_* (stale retail values on Classic).
 bank.bags[1] = _G.BANK_CONTAINER or -1
 for i = 1, (_G.NUM_BANKBAGSLOTS or 6) do
     bank.bags[#bank.bags + 1] = (_G.NUM_BAG_SLOTS or 4) + i
@@ -68,13 +33,9 @@ end
 bank.hiddenHost = CreateFrame("Frame")
 bank.hiddenHost:Hide()
 
--- Cost-confirm for buying the next bank bag slot. We need our OWN dialog:
--- Blizzard's CONFIRM_BUY_BANK_SLOT dialog reads BankFrame.nextSlotCost, which
--- only BankFrame's OnEvent sets — and we clear that script while suppressing
--- the default bank. PurchaseSlot() is NOT protected on Classic (Blizzard calls
--- it from a plain StaticPopup OnAccept), so an insecure dialog is safe.
+-- Own dialog: Blizzard's reads BankFrame.nextSlotCost, which only the OnEvent we clear sets. PurchaseSlot is unprotected.
 StaticPopupDialogs["VCUI_BANK_BUY_SLOT"] = {
-    text = CONFIRM_BUY_BANK_SLOT,   -- Blizzard's already-localized confirm text
+    text = CONFIRM_BUY_BANK_SLOT,
     button1 = YES, button2 = NO,
     hasMoneyFrame = 1,
     OnShow = function(self)
@@ -88,14 +49,11 @@ StaticPopupDialogs["VCUI_BANK_BUY_SLOT"] = {
     timeout = 0, whileDead = false, hideOnEscape = true, preferredIndex = 3,
 }
 
--- ---------------------------------------------------------
--- db / gates
--- ---------------------------------------------------------
 function bank.db()
     local root = mod.db
-    if not root then return { enabled = false } end   -- pre-init call: inert
+    if not root then return { enabled = false } end
     local d = root.bank
-    if not d then   -- belt+suspenders; defaults normally merge this in
+    if not d then
         d = { enabled = true, x = -280, y = 0, scale = 1.0, columns = 14, hiddenBags = {} }
         root.bank = d
     end
@@ -103,7 +61,6 @@ function bank.db()
     return d
 end
 
--- STAGE-2: the DISPLAYED container list (user can hide individual bank bags).
 function bank.visibleBags()
     local hidden = bank.db().hiddenBags
     local out = {}
@@ -113,10 +70,9 @@ function bank.visibleBags()
     return out
 end
 
--- Localized display name for a bank container (the -1 main bank / a bank bag).
 function bank.bagName(bag)
     if bag == (_G.BANK_CONTAINER or -1) then return L["Bank"] end
-    local i = bag - (_G.NUM_BAG_SLOTS or 4)   -- bank bag index 1..N
+    local i = bag - (_G.NUM_BAG_SLOTS or 4)
     if BankButtonIDToInvSlotID and GetInventoryItemLink then
         local inv  = BankButtonIDToInvSlotID(i, 1)
         local link = inv and GetInventoryItemLink("player", inv)
@@ -130,13 +86,8 @@ function bank.enabled()
     return mod.active and bank.db().enabled ~= false
 end
 
--- ---------------------------------------------------------
--- Default bank suppression (reparent + clear scripts; restore on disable).
--- BankFrame's OnEvent would ShowUIPanel it — and then CloseBankFrame() if it
--- isn't shown; its OnHide calls CloseBankFrame(). Both must be silenced so the
--- session belongs to OUR window. Bags.lua already handles ContainerFrame1..6;
--- the bank bags open into ContainerFrame7..13.
--- ---------------------------------------------------------
+-- Suppress the default bank: reparent + clear scripts (restored on disable).
+-- Never BankFrame:Hide() with live scripts - OnHide/OnEvent call CloseBankFrame.
 function bank.suppressDefault()
     if bank.suppressed or InCombatLockdown() then return end
     bank.suppressed = true
@@ -161,9 +112,7 @@ function bank.suppressDefault()
         bf:SetScript("OnEvent", nil)
         bf:SetScript("OnShow", nil)
         bf:SetScript("OnHide", nil)
-        -- if a race let the default bank open before we suppressed (e.g. module
-        -- re-enable without /reload), clear its shown-flag now — safe: OnHide is
-        -- already nil'd, so no CloseBankFrame fires and the session survives.
+        -- safe: OnHide is already nil'd, so no CloseBankFrame fires
         if bf:IsShown() then bf:Hide() end
     end
 end
@@ -177,8 +126,7 @@ function bank.restoreDefault()
     end
     local bf = _G.BankFrame
     if bf and bank.origScripts then
-        -- never hand back a stranded-shown frame: hide while the scripts are
-        -- still nil'd (no OnHide side effects), THEN restore parent + scripts.
+        -- hide while the scripts are still nil'd, then restore
         if bf:IsShown() then bf:Hide() end
         bf:SetParent(bank.origScripts.parent or UIParent)
         bf:SetScript("OnEvent", bank.origScripts.OnEvent)
@@ -187,15 +135,10 @@ function bank.restoreDefault()
     end
 end
 
--- ---------------------------------------------------------
--- Item buttons (visuals mirror Bags.lua's updateButton, minus search dimming —
--- the bank has no search box in this stage)
--- ---------------------------------------------------------
 function bank.updateButton(btn)
     local bag  = btn:GetParent():GetID()
     local slot = btn:GetID()
-    -- the container API accepts -1 here — Blizzard's own bank reads item info
-    -- exactly this way (BankFrame.lua: BankFrameItemButton_Update)
+    -- the container API accepts -1 here, like Blizzard's own bank
     local icon, count, locked, quality, _, _, link, _, _, itemID, isBound = GetContainerItemInfo(bag, slot)
 
     SetItemButtonTexture(btn, icon)
@@ -207,8 +150,6 @@ function bank.updateButton(btn)
     local bp = btn.BattlepayItemTexture or _G[btn:GetName() .. "BattlepayItemTexture"]
     if bp and bp:IsShown() then bp:Hide() end
 
-    -- quality border + item level: same recipe as the bag window (crisp 1px
-    -- edge for uncommon+; ilvl on weapons/armor, quality-coloured)
     local qf = btn._qborder
     if qf then
         if mod.db.qualityBorders ~= false and quality and quality >= 2 and GetItemQualityColor then
@@ -230,11 +171,10 @@ function bank.updateButton(btn)
             end
         end
         if lvl and lvl > 1 then
-            -- same font/size as the stack-count numbers (follows the option live)
             if ns.UI and ns.UI.FONT_PATH then
                 pcall(fs.SetFont, fs, ns.UI.FONT_PATH, mod.db.countFontSize or 12, "OUTLINE")
             end
-            fs:SetText(lvl)   -- plain white (set at creation)
+            fs:SetText(lvl)
             fs:Show()
         else
             fs:Hide()
@@ -246,7 +186,6 @@ function bank.updateButton(btn)
         pcall(cnt.SetFont, cnt, ns.UI.FONT_PATH, mod.db.countFontSize or 12, "OUTLINE")
     end
 
-    -- bind marker: BoE/BoU on still-tradeable equipment (same recipe as bags)
     local bm = btn._bind
     if bm then
         local tag
@@ -288,8 +227,7 @@ function bank.updateButton(btn)
         end
     end
 
-    -- STAGE-2: search dimming (same shared matcher as the bag window; alpha
-    -- only — never Enable/Hide, so the secure click paths stay intact)
+    -- alpha only - never Enable/Hide, so the secure click paths stay intact
     if (bank.searchText or "") == "" then
         btn:SetAlpha(1)
     else
@@ -310,12 +248,8 @@ function bank.ensureIndexFrame(bag)
     return f
 end
 
--- -1 tooltips: the bank main container is inventory-slot-backed, so the
--- template's own OnEnter (SetBagItem) is wrong for it. We REPLACE OnEnter/
--- OnLeave (tooltip-only scripts, not a secure path) and point UpdateTooltip at
--- the same function — the game calls button.UpdateTooltip directly to refresh
--- a held tooltip, which would otherwise bypass any hook. This mirrors
--- Blizzard's own BankFrameItemButton_OnEnter.
+-- The -1 container is inventory-slot-backed, so the template's OnEnter is wrong for it.
+-- OnEnter/OnLeave are tooltip-only; UpdateTooltip must point at the same function.
 function bank.onEnterItem(self)
     local parent = self:GetParent()
     if parent and parent:GetID() == -1 and BankButtonIDToInvSlotID then
@@ -323,14 +257,14 @@ function bank.onEnterItem(self)
         if GameTooltip:SetInventoryItem("player", BankButtonIDToInvSlotID(self:GetID())) then
             GameTooltip:Show()
         else
-            GameTooltip:Hide()   -- empty -1 slot: no tooltip
+            GameTooltip:Hide()
         end
     elseif self._origOnEnter then
-        self._origOnEnter(self)                  -- the template's own handler, captured at creation
+        self._origOnEnter(self)
     elseif ContainerFrameItemButton_OnEnter then
-        ContainerFrameItemButton_OnEnter(self)   -- regular bank bags: template path
+        ContainerFrameItemButton_OnEnter(self)
     else
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")   -- last-resort: plain bag tooltip
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:SetBagItem(parent and parent:GetID(), self:GetID())
         GameTooltip:Show()
     end
@@ -359,15 +293,11 @@ function bank.acquireButton(n)
     btn = CreateFrame("Button", "VuloClassicUIBankItem" .. bank.btnCounter,
         bank.frame.content, "ContainerFrameItemButtonTemplate")
     btn:SetSize(BTN, BTN)
-    -- capture the template's own tooltip handlers before replacing, so the
-    -- non--1 branch can delegate to exactly what would have run anyway
     btn._origOnEnter = btn:GetScript("OnEnter")
     btn._origOnLeave = btn:GetScript("OnLeave")
     btn:SetScript("OnEnter", bank.onEnterItem)
     btn:SetScript("OnLeave", bank.onLeaveItem)
     btn.UpdateTooltip = bank.onEnterItem
-    -- clean dark slots — same strip as the bag window (suppressed default bags
-    -- mean "new item" flags never clear, so every overlay must go)
     local bname = btn:GetName()
     if btn.SetNormalTexture then pcall(btn.SetNormalTexture, btn, nil) end
     local nt = _G[bname .. "NormalTexture"]; if nt then nt:SetTexture(nil); nt:Hide() end
@@ -389,13 +319,8 @@ function bank.acquireButton(n)
     sb:SetPoint("TOPLEFT", btn, "TOPLEFT", 1, -1)
     sb:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -1, 1)
     sb:SetColorTexture(0.10, 0.10, 0.13, 0.55)
-    -- quality border + item level (same recipe as the bag window: a full-button
-    -- colour layer behind the 1px-inset icon — a filled ring can never drop a
-    -- side and stays evenly thin at every resolution/scale)
     local qb = btn:CreateTexture(nil, "BACKGROUND", nil, -1)
     qb:SetAllPoints(btn)
-    -- no pixel snapping on ring/icon: anti-aliased edges keep the ring evenly
-    -- thick on all sides (see the bag window's note)
     if qb.SetSnapToPixelGrid then qb:SetSnapToPixelGrid(false); qb:SetTexelSnappingBias(0) end
     qb:Hide()
     btn._qborder = qb
@@ -404,7 +329,7 @@ function bank.acquireButton(n)
         iconTex:ClearAllPoints()
         iconTex:SetPoint("TOPLEFT", btn, "TOPLEFT", 1, -1)
         iconTex:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -1, 1)
-        iconTex:SetTexCoord(0.07, 0.93, 0.07, 0.93)   -- crop the icon's own dark bevel
+        iconTex:SetTexCoord(0.07, 0.93, 0.07, 0.93)
         if iconTex.SetSnapToPixelGrid then iconTex:SetSnapToPixelGrid(false); iconTex:SetTexelSnappingBias(0) end
     end
     local il = btn:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
@@ -422,10 +347,7 @@ function bank.acquireButton(n)
     return btn
 end
 
--- Pre-allocate index frames + item buttons for the CURRENT bank size. Called
--- out of combat (login build + BANKFRAME_OPENED — bankers can't be used in
--- combat). Container SIZES are readable already at OPENED (Blizzard reads them
--- there); only item CONTENT reads are deferred a frame (bank.refresh).
+-- Container sizes are readable at BANKFRAME_OPENED; item reads are deferred a frame.
 function bank.preallocate()
     if not bank.frame or InCombatLockdown() then return end
     local need = 8
@@ -438,13 +360,7 @@ function bank.preallocate()
     end
 end
 
--- (The old in-window equip/purchase bag row was removed: the filter strip above
--- the window covers show/hide, equip/pickup AND purchase — see build().)
-
--- ---------------------------------------------------------
--- Frame construction (out of combat; built eagerly at PLAYER_ENTERING_WORLD so
--- even a first-ever banker visit that happens mid-combat has a window ready)
--- ---------------------------------------------------------
+-- Built eagerly at PLAYER_ENTERING_WORLD so a mid-combat first visit has a window.
 function bank.build()
     if bank.frame or InCombatLockdown() then return bank.frame end
     local UI = ns.UI
@@ -460,10 +376,7 @@ function bank.build()
     if UI and UI.CreateShadow then UI:CreateShadow(f) end
     if _G.tinsert and _G.UISpecialFrames then tinsert(UISpecialFrames, "VuloClassicUIBankFrame") end
 
-    -- Manual close (X / Escape via UISpecialFrames) must END the server bank
-    -- session, or right-click deposits keep working with no window and no fresh
-    -- BANKFRAME_OPENED can arrive. Guarded by bank.open so the
-    -- BANKFRAME_CLOSED -> Hide() path doesn't re-call it.
+    -- Manual close must END the server bank session; bank.open guards the reverse path.
     f:HookScript("OnHide", function()
         if bank.open and CloseBankFrame then CloseBankFrame() end
     end)
@@ -490,9 +403,8 @@ function bank.build()
     cx:SetPoint("CENTER"); cx:SetText("x"); cx:SetTextColor(0.7, 0.7, 0.75)
     close:SetScript("OnEnter", function() cx:SetTextColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b) end)
     close:SetScript("OnLeave", function() cx:SetTextColor(0.7, 0.7, 0.75) end)
-    close:SetScript("OnClick", function() f:Hide() end)   -- OnHide ends the session
+    close:SetScript("OnClick", function() f:Hide() end)
 
-    -- STAGE-2: search box (mirrors the bag window's; dims non-matches only)
     local sb = CreateFrame("EditBox", nil, f)
     f.search = sb
     sb:SetAutoFocus(false)
@@ -528,8 +440,6 @@ function bank.build()
     sb:SetScript("OnEscapePressed", function(self) self:SetText(""); self:ClearFocus() end)
     sb:SetScript("OnEnterPressed",  function(self) self:ClearFocus() end)
 
-    -- STAGE-2: sort button (left of the search box). Uses the shared machinery
-    -- + settings from the bag window; native bank sort when the client has one.
     local sortBtn = CreateFrame("Button", nil, f)
     sortBtn:SetSize(18, 18)
     sortBtn:SetPoint("RIGHT", sb, "LEFT", -8, 0)
@@ -553,13 +463,10 @@ function bank.build()
         end
     end)
 
-    -- STAGE-2: bank-bag filter button (left of sort) — checkable menu with the
-    -- main bank (-1) + every equipped bank bag; hidden ones aren't rendered.
     local bagsBtn = CreateFrame("Button", nil, f)
     bagsBtn:SetSize(18, 18)
     bagsBtn:SetPoint("RIGHT", sortBtn, "LEFT", -8, 0)
     local bfi = bagsBtn:CreateTexture(nil, "ARTWORK")
-    -- same line-art set as the bag window's header (own glyphs: no crop)
     bfi:SetAllPoints(); bfi:SetTexture("Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\modules\\bags.tga")
     bfi:SetVertexColor(0.7, 0.7, 0.75)
     bagsBtn:SetScript("OnEnter", function()
@@ -572,13 +479,7 @@ function bank.build()
     end)
     bagsBtn:SetScript("OnLeave", function() bfi:SetVertexColor(0.7, 0.7, 0.75); if GameTooltip then GameTooltip:Hide() end end)
 
-    -- STAGE-2: visual filter strip (same UX as the bag window) — icons for the
-    -- main bank + every bank bag SLOT. It replaces the old in-window equip row:
-    --   left-click  = show/hide that container in the grid (hidden = dimmed)
-    --   right-click = pick up / equip the bag, or BUY the next slot (green)
-    --   drag a bag onto an owned slot = equip it
-    -- Plain insecure buttons; equip/purchase APIs are unprotected on Classic
-    -- but fail in combat -> handlers combat-guard themselves.
+    -- Filter strip: left-click show/hide, right-click equip/buy. Equip and purchase APIs are unprotected but fail in combat.
     local fbar = CreateFrame("Frame", nil, f)
     f.filterBar = fbar
     fbar:SetSize(#bank.bags * (26 + GAP) - GAP + 12, 34)
@@ -586,7 +487,7 @@ function bank.build()
     if UI and UI.StyleBackdrop then UI:StyleBackdrop(fbar, { bg = ns.COLORS.bg, border = ns.COLORS.accentDim or ns.COLORS.border }) end
     fbar:Hide()
     fbar._icons = {}
-    local function slotIndexOf(bag)   -- bank bag index 1..N; nil for the -1 container
+    local function slotIndexOf(bag)
         if bag == (_G.BANK_CONTAINER or -1) then return nil end
         return bag - (_G.NUM_BAG_SLOTS or 4)
     end
@@ -599,15 +500,15 @@ function bank.build()
             local i  = slotIndexOf(ic._bag)
             local tex, vr, vg, vb, desat = "Interface\\PaperDoll\\UI-PaperDoll-Slot-Bag", 1, 1, 1, false
             if not i then
-                tex = "Interface\\Icons\\INV_Box_02"            -- the main bank
+                tex = "Interface\\Icons\\INV_Box_02"
             elseif i <= owned then
                 local inv = BankButtonIDToInvSlotID and BankButtonIDToInvSlotID(i, 1)
                 local t = inv and GetInventoryItemTexture("player", inv)
-                if t then tex = t else desat = true end          -- owned but empty slot
+                if t then tex = t else desat = true end
             elseif i == owned + 1 then
-                vr, vg, vb = 0.4, 1, 0.4                         -- next purchasable
+                vr, vg, vb = 0.4, 1, 0.4
             else
-                vr, vg, vb, desat = 1, 0.25, 0.25, true          -- locked
+                vr, vg, vb, desat = 1, 0.25, 0.25, true
             end
             ic._tex:SetTexture(tex)
             ic._tex:SetTexCoord(0.07, 0.93, 0.07, 0.93)
@@ -615,10 +516,10 @@ function bank.build()
             ic._tex:SetVertexColor(vr, vg, vb, on and 1 or 0.35)
         end
     end
-    local function equipOrBuy(b)   -- right-click / drag action for one strip icon
+    local function equipOrBuy(b)
         if InCombatLockdown() then return end
         local i = slotIndexOf(b)
-        if not i then return end                                 -- -1: nothing to equip
+        if not i then return end
         local owned = GetNumBankSlots() or 0
         if i > owned then
             if i == owned + 1 then StaticPopup_Show("VCUI_BANK_BUY_SLOT") end
@@ -643,7 +544,7 @@ function bank.build()
         ic:RegisterForClicks("LeftButtonUp", "RightButtonUp")
         ic:SetScript("OnClick", function(_, mouseButton)
             if mouseButton == "RightButton" then equipOrBuy(b); return end
-            if CursorHasItem and CursorHasItem() then equipOrBuy(b); return end  -- click-with-bag = equip
+            if CursorHasItem and CursorHasItem() then equipOrBuy(b); return end
             local hidden = bank.db().hiddenBags
             hidden[b] = not hidden[b] or nil
             bank.updateFilterBar()
@@ -682,13 +583,11 @@ function bank.build()
 
     f.content = CreateFrame("Frame", nil, f)
     f.content:SetPoint("TOPLEFT", f, "TOPLEFT", PAD, -bank.TOP)
-    f.content:SetSize(100, 100)   -- real size set by layout()
+    f.content:SetSize(100, 100)
 
     f.free = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     f.free:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", PAD, 8)
 
-    -- STAGE-2: money display (bottom right, mirrors the bag window) + the
-    -- account-gold tooltip on mouseover
     f.money = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     f.money:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -PAD, 8)
     local moneyBtn = CreateFrame("Button", nil, f)
@@ -700,9 +599,7 @@ function bank.build()
     moneyBtn:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
     bank.updateMoney()
 
-    -- movable + scalable via our mover; SEPARATE db keys (mod.db.bank.*) so the
-    -- bank never collides with the bag window's coordinates. The distinct frame
-    -- name also gives layouts/export a distinct key.
+    -- separate db keys (mod.db.bank.*) so bank and bag positions never collide
     if ns.CreateMover then
         bank.mover = ns:CreateMover(f, {
             db = bank.db(), scalable = true, anchorable = true,
@@ -717,7 +614,7 @@ function bank.build()
     end)
     f:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
-        local x, y = ns:GetCenterOffsets(self)   -- canonical scale-aware capture
+        local x, y = ns:GetCenterOffsets(self)
         if x and y then
             local d = bank.db()
             d.x, d.y = x, y
@@ -729,21 +626,13 @@ function bank.build()
     return f
 end
 
--- ---------------------------------------------------------
--- Layout: one flat grid across -1 then each purchased bank bag, in slot order.
--- (Categories/search/keyring are later stages.)
--- ---------------------------------------------------------
 function bank.layout()
     if not (bank.frame and bank.open) then return end
     local cols = bank.db().columns or 14
     if cols < 1 then cols = 1 end
     local f = bank.frame
 
-    -- Height cap: a fully-bagged bank (TBC: 28 + 7 big bags) at a low column
-    -- setting would push the window past the screen edges (movers don't clamp),
-    -- leaving the close button unreachable. If the user's column count would
-    -- exceed ~70% of the screen height, raise the EFFECTIVE column count for
-    -- this layout only — the saved setting stays untouched.
+    -- Height cap: raise the EFFECTIVE column count (saved setting untouched).
     local shown = bank.visibleBags()
     local total = 0
     for _, bag in ipairs(shown) do total = total + (GetContainerNumSlots(bag) or 0) end
@@ -756,7 +645,6 @@ function bank.layout()
     local n, blocked = 0, false
     for _, bag in ipairs(shown) do
         -- GetContainerNumSlots(-1) is only valid while the bank session is open
-        -- (gated above); unpurchased/empty bag slots return 0 and don't render.
         local slots = GetContainerNumSlots(bag) or 0
         if slots > 0 then
             local idx = bank.ensureIndexFrame(bag)
@@ -804,8 +692,7 @@ function bank.updateMoney()
     end
 end
 
--- coalesce event bursts into ONE relayout next frame. This also covers the
--- "item data lags BANKFRAME_OPENED" rule: never scan in the event itself.
+-- Coalesce event bursts into ONE relayout next frame; item data lags the events.
 function bank.refresh()
     if not (bank.open and bank.frame and bank.frame:IsShown()) then return end
     if bank.refreshScheduled then return end
@@ -814,18 +701,13 @@ function bank.refresh()
         bank.refreshScheduled = false
         if bank.open and bank.frame and bank.frame:IsShown() then
             bank.layout()
-            bank.snapshotMirror()   -- keep the offline mirror current per change
+            bank.snapshotMirror()
         end
     end
     if C_Timer and C_Timer.After then C_Timer.After(0, run) else run() end
 end
 
--- ---------------------------------------------------------
--- Offline bank mirror: a per-character snapshot taken on every refresh while
--- the bank is open, plus a read-only viewer window that works ANYWHERE (the
--- bag header's bank button opens it). Plain frames only — the buttons carry
--- no container wiring, tooltips come from the stored hyperlinks.
--- ---------------------------------------------------------
+-- Offline mirror: per-character snapshot plus a read-only viewer usable anywhere.
 function bank.snapshotMirror(closing)
     if not bank.open then return end
     _G.VuloClassicUICharDB = _G.VuloClassicUICharDB or {}
@@ -849,13 +731,10 @@ function bank.snapshotMirror(closing)
 
     local old = _G.VuloClassicUICharDB.bankMirror
     if closing then
-        -- final pass during BANKFRAME_CLOSED (catches a deposit in the very
-        -- last frame). If the server already dropped the data the scan reads
-        -- FEWER items than the live snapshots recorded — keep the good one.
+        -- final pass: a post-drop scan reads fewer items - keep the good one
         if old and (old.items or 0) > mir.items then return end
     elseif (bank.mirrorScans or 0) == 0 and old and (old.items or 0) > mir.items then
-        -- first scan of a visit: item data can still lag OPENED, so an
-        -- understated scan must not clobber a good mirror — rescan shortly
+        -- first scan can lag OPENED: don't clobber a good mirror, rescan shortly
         bank.mirrorScans = 1
         if C_Timer and C_Timer.After then
             C_Timer.After(0.7, function() if bank.open then bank.snapshotMirror() end end)
@@ -864,7 +743,6 @@ function bank.snapshotMirror(closing)
     end
     bank.mirrorScans = (bank.mirrorScans or 0) + 1
     _G.VuloClassicUICharDB.bankMirror = mir
-    -- live-update an open viewer (e.g. both windows visible at the banker)
     if bank.mirrorFrame and bank.mirrorFrame:IsShown() then bank.renderMirror() end
 end
 
@@ -908,7 +786,6 @@ function bank.mirrorHeader(i)
     return h
 end
 
--- dim non-matching buttons for the viewer's search box (smart search engine)
 function bank.mirrorApplySearch()
     local f = bank.mirrorFrame
     if not f then return end
@@ -928,7 +805,7 @@ function bank.renderMirror()
     if not f then return end
     local mir = _G.VuloClassicUICharDB and _G.VuloClassicUICharDB.bankMirror
     local S, G, COLS = 30, 3, 12
-    local left, top = PAD, 64          -- below title + search row
+    local left, top = PAD, 64
     local width = PAD * 2 + COLS * (S + G) - G
 
     for _, b in ipairs(f.btns) do b:Hide() end
@@ -1005,7 +882,6 @@ function bank.buildMirror()
         local ux, uy = UIParent:GetCenter()
         if cx and ux then d.mirrorX, d.mirrorY = cx - ux, cy - uy end
     end)
-    -- Escape-close mid-drag never fires OnDragStop — clear the moving state
     f:SetScript("OnHide", function(self) self:StopMovingOrSizing() end)
     if ns.UI and ns.UI.StyleBackdrop then
         ns.UI:StyleBackdrop(f, { bg = ns.COLORS.bg, border = ns.COLORS.accentDim or ns.COLORS.border })
@@ -1030,7 +906,6 @@ function bank.buildMirror()
     f.hint:SetText(L["No bank visit recorded on this character yet."])
     f.hint:Hide()
 
-    -- flat close ×
     local close = CreateFrame("Button", nil, f)
     close:SetSize(20, 20)
     close:SetPoint("TOPRIGHT", -6, -6)
@@ -1043,12 +918,11 @@ function bank.buildMirror()
     close:SetScript("OnLeave", function() close.x:SetTextColor(0.7, 0.7, 0.75, 1) end)
     close:SetScript("OnClick", function() f:Hide() end)
 
-    -- search row (same smart matcher as the bag/bank windows)
     f.search = CreateFrame("EditBox", nil, f)
     f.search:SetSize(180, 18)
     f.search:SetPoint("TOPLEFT", PAD + 2, -42)
     f.search:SetAutoFocus(false)
-    -- an EditBox WITHOUT a font hard-errors on input — always set one
+    -- an EditBox WITHOUT a font hard-errors on input
     if ns.UI and ns.UI.Font then ns.UI.Font(f.search, 11)
     else f.search:SetFontObject(_G.ChatFontNormal or GameFontNormalSmall) end
     f.search:SetTextColor(0.9, 0.9, 0.95, 1)
@@ -1061,12 +935,10 @@ function bank.buildMirror()
     f.search:SetScript("OnEscapePressed", function(self) self:SetText(""); self:ClearFocus() end)
     f.search:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
 
-    -- Escape closes the window like any panel
     table.insert(UISpecialFrames, "VCUI_BankMirror")
     return f
 end
 
--- Published for the bag window's header button: toggle the offline viewer.
 function ns.ToggleBankMirror()
     local f = bank.buildMirror()
     if f:IsShown() then f:Hide(); return end
@@ -1077,17 +949,9 @@ function ns.ToggleBankMirror()
     f:Show()
 end
 
--- ---------------------------------------------------------
--- Events
--- ---------------------------------------------------------
 function bank.onEvent(event, arg1, arg2)
-    -- lifecycle / combat first: these run even while the bank is closed
     if event == "PLAYER_ENTERING_WORLD" then
-        -- suppress BEFORE the first banker visit: Blizzard's BankFrame OnEvent
-        -- (registered long before ours) would otherwise ShowUIPanel on the very
-        -- BANKFRAME_OPENED we react to. Idempotent; zoning re-fires are no-ops.
-        -- Build the window eagerly too (out of combat here), so even a
-        -- first-ever banker visit that lands mid-combat has a frame ready.
+        -- suppress BEFORE the first banker visit: Blizzard's BankFrame OnEvent would otherwise ShowUIPanel on the very BANKFRAME_OPENED we react to
         if bank.enabled() then
             bank.suppressDefault()
             bank.build()
@@ -1099,7 +963,6 @@ function bank.onEvent(event, arg1, arg2)
         return
     end
     if event == "PLAYER_REGEN_ENABLED" then
-        -- suppression/restore may have been combat-deferred in either direction
         if bank.enabled() and not bank.suppressed then
             bank.suppressDefault()
         elseif bank.suppressed and not bank.enabled() then
@@ -1110,28 +973,23 @@ function bank.onEvent(event, arg1, arg2)
     end
 
     if event == "BANKFRAME_OPENED" then
-        if not bank.enabled() then return end   -- leave the default bank alone
+        if not bank.enabled() then return end
         bank.open = true
-        bank.mirrorScans = 0     -- fresh visit: re-arm the first-scan guard
+        bank.mirrorScans = 0
         bank.suppressDefault()
-        if not bank.frame then bank.build() end -- normally pre-built at login
+        if not bank.frame then bank.build() end
         if not bank.frame then bank.open = false; return end
-        bank.preallocate()   -- sizes are readable at OPENED; contents come a frame later
+        bank.preallocate()
         bank.frame:Show()
         if bank.updateFilterBar then bank.updateFilterBar() end
-        bank.refresh()   -- one-frame deferral: item data lags BANKFRAME_OPENED
+        bank.refresh()   -- item data lags BANKFRAME_OPENED
         if not mod:IsOpen() then bank.autoOpenedBags = true; mod:Open() end
         return
     end
     if event == "BANKFRAME_CLOSED" then
-        -- fires TWICE, and also when just walking away; everything here is
-        -- idempotent. Clear bank.open FIRST so OnHide skips CloseBankFrame.
-        -- (Mirror snapshot BEFORE that — item data is still readable inside
-        -- this event, and the guard keeps a dropped-data scan from writing.)
+        -- fires TWICE and on walking away; idempotent. Snapshot first, then clear bank.open so OnHide skips CloseBankFrame.
         bank.snapshotMirror(true)
         bank.open = false
-        -- a bank sort can't move items once the session is gone; stop it
-        -- (leaves a running BAG sort alone — that one doesn't cover -1)
         if ns.SortEngine and ns.SortEngine.CancelContaining then
             ns.SortEngine.CancelContaining(-1)
         end
@@ -1141,27 +999,20 @@ function bank.onEvent(event, arg1, arg2)
         return
     end
 
-    -- content events — only while our bank window is live and shown
     if not (bank.open and bank.frame and bank.frame:IsShown()) then return end
     if event == "PLAYERBANKBAGSLOTS_CHANGED" then
-        if bank.updateFilterBar then bank.updateFilterBar() end   -- a bag slot was purchased
+        if bank.updateFilterBar then bank.updateFilterBar() end
         bank.refresh()
     elseif event == "PLAYERBANKSLOTS_CHANGED" then
-        -- arg1 <= NUM_BANKGENERIC_SLOTS: a -1 slot changed. Above that: an
-        -- equipped bank BAG changed (equip/remove) -> bar icons + grid size.
-        -- The event bursts one-per-slot; refresh() coalesces to one relayout.
+        -- arg1 above NUM_BANKGENERIC_SLOTS means an equipped bank BAG changed
         if arg1 and arg1 > (_G.NUM_BANKGENERIC_SLOTS or 24) then
             if bank.updateFilterBar then bank.updateFilterBar() end
         end
         bank.refresh()
     elseif event == "BAG_UPDATE" then
-        -- only bank bags concern this window (contents of -1 come via
-        -- PLAYERBANKSLOTS_CHANGED, never BAG_UPDATE); bags 0..4 are the bag
-        -- window's business.
         if arg1 and arg1 > (_G.NUM_BAG_SLOTS or 4) then bank.refresh() end
     elseif event == "ITEM_LOCK_CHANGED" then
-        -- container locks pass (bagID, slot); equipment locks pass a nil slot.
-        -- Lock changes for the bank main container arrive with bagID == -1.
+        -- equipment locks pass a nil slot
         if arg2 and (arg1 == (_G.BANK_CONTAINER or -1) or arg1 > (_G.NUM_BAG_SLOTS or 4)) then
             bank.refresh()
         end
@@ -1170,9 +1021,6 @@ function bank.onEvent(event, arg1, arg2)
     end
 end
 
--- ---------------------------------------------------------
--- Published hooks for Bags.lua (options splice + module disable)
--- ---------------------------------------------------------
 function ns.BankOptions()
     local items = {}
     table.insert(items, { type = "spacer", height = 6 })
@@ -1186,7 +1034,7 @@ function ns.BankOptions()
             if v then
                 if mod.active then bank.suppressDefault() end
             else
-                if bank.frame and bank.frame:IsShown() then bank.frame:Hide() end -- ends a live session
+                if bank.frame and bank.frame:IsShown() then bank.frame:Hide() end
                 bank.restoreDefault()
             end
         end,
@@ -1212,24 +1060,20 @@ function ns.BankOptions()
         type = "button", label = L["Reset bank position"], width = 200,
         onClick = function()
             if bank.mover and ns.MoverSetCenter then
-                ns:MoverSetCenter(bank.mover, -280, 0)   -- stage-1 default offset
+                ns:MoverSetCenter(bank.mover, -280, 0)
             else
-                local d = bank.db(); d.x, d.y = -280, 0  -- window not built yet
+                local d = bank.db(); d.x, d.y = -280, 0
             end
         end,
     })
     return items
 end
 
--- Published: repaint the bank grid (used by shared appearance options in
--- Bags.lua — quality borders / item levels / count size affect both windows).
 function ns.BankRefresh()
     bank.refresh()
 end
 
--- Published: the bag window's search mirrors into an OPEN bank window (one
--- query, every visible container). Setting the box text routes through its
--- own OnTextChanged, which stores + refreshes — no recursion back to bags.
+-- Bag search mirrors into an OPEN bank window; SetText routes through OnTextChanged, so there is no recursion back to bags.
 function ns.BankMirrorSearch(text)
     if not (bank.open and bank.frame and bank.frame:IsShown() and bank.frame.search) then return end
     if bank.frame.search:GetText() ~= text then
@@ -1237,10 +1081,7 @@ function ns.BankMirrorSearch(text)
     end
 end
 
--- Called from mod:OnEnable() in Bags.lua — a module re-enable without /reload
--- must re-suppress the default bank immediately (PLAYER_ENTERING_WORLD won't
--- re-fire until the next loading screen, and Blizzard's BankFrame would win
--- the next BANKFRAME_OPENED otherwise).
+-- A re-enable without /reload must re-suppress now: PLAYER_ENTERING_WORLD won't re-fire until the next loading screen.
 function ns.BankOnEnable()
     if bank.enabled() then
         bank.suppressDefault()
@@ -1248,28 +1089,20 @@ function ns.BankOnEnable()
     end
 end
 
--- Called from mod:OnDisable() in Bags.lua — hide our window (which ends any
--- live bank session via OnHide) and give Blizzard's default bank back.
 function ns.BankOnDisable()
     if bank.frame and bank.frame:IsShown() then bank.frame:Hide() end
     bank.restoreDefault()
 end
 
--- ---------------------------------------------------------
--- Event wiring — LAST in the file, so every bank.* handler above is defined.
--- Registered through the central dispatcher (Core/Events.lua), the same one
--- the bag module's own handler hangs off; handlers are pcall-isolated there.
--- Everything gates at runtime on mod.active + mod.db.bank.enabled, so a
--- disabled module/feature leaves the default bank completely alone.
--- ---------------------------------------------------------
+-- Wired LAST: every bank.* handler above must already be defined.
 for _, ev in ipairs({
-    "PLAYER_ENTERING_WORLD",           -- suppress the default bank BEFORE first use
+    "PLAYER_ENTERING_WORLD",
     "PLAYER_REGEN_ENABLED",
     "BANKFRAME_OPENED", "BANKFRAME_CLOSED",
-    "PLAYERBANKSLOTS_CHANGED",         -- -1 contents AND equipped-bank-bag swaps
-    "PLAYERBANKBAGSLOTS_CHANGED",      -- fires only when a bag slot is purchased
+    "PLAYERBANKSLOTS_CHANGED",
+    "PLAYERBANKBAGSLOTS_CHANGED",
     "BAG_UPDATE", "ITEM_LOCK_CHANGED", "BAG_UPDATE_COOLDOWN",
-    "PLAYER_MONEY",                    -- STAGE-2: money display bottom right
+    "PLAYER_MONEY",
 }) do
     ns:RegisterEvent(ev, bank.onEvent)
 end

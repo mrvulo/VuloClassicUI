@@ -1,43 +1,20 @@
--- =========================================================
 -- VuloClassicUI / Modules / ActionBars
---
--- Builds our OWN buttons for all 5 action bars on this modern EditMode client,
--- because Blizzard's own bars are PROTECTED — an addon cannot move them
--- (frame:StartMoving errors + taints). Each of our bars lives on its own
--- SecureHandlerStateTemplate frame, movable via the addon's Edit Mode mover.
---
---   * MAIN bar (VuloActionButton1-12) — dynamic paging (druid/rogue via
---     [bonusbar:N], warrior/priest via [form:N]) driven by a state driver.
---   * MULTIBARS 2-5 (VuloAB_<key>B1-12) — a FIXED action offset (base) pushed to
---     the buttons via the frame's secure ChildUpdate. Action is only ever set
---     from SECURE code, so casting never taints.
---   * Keybinds: override bindings route the native command keys (ACTIONBUTTONn /
---     MULTIACTIONBARxBUTTONn) onto our buttons; hotkey text filled in manually.
---   * Blizzard's own action bars are hidden TAINT-FREE in place via SetAlpha(0)
---     + EnableMouse(false) (never moved/reparented). MainActionBar art + the blue
---     XP/reputation status bar are parked too. STANCE/PET are left fully native
---     (a different secure button type — arranged with Blizzard's own Edit Mode).
---
--- Every protected op (create/SetPoint/RegisterStateDriver/override bindings/
--- SetAttribute/Execute) runs OUT OF COMBAT; the secure snippets run in combat.
--- Disabling un-hides Blizzard's bars; a /reload fully re-inits them.
--- =========================================================
+-- Protected ops (frame creation, SetPoint, state drivers, override bindings,
+-- SetAttribute) must run out of combat; only the secure snippets run in combat.
 local _, ns = ...
 local L = ns.L
 
--- per-bar defaults: shared keys once, per-bar overrides on top
 local function barDefaults(over)
     local d = {
         on = true, visibility = "always", fadeAlpha = 0, scale = 1,
         perRow = 12, spacing = 4, x = 0, y = -300,
         alpha = 100, showEmpty = true, clickThrough = false,
         textKeybindSize = 0, textMacroSize = 0, textCountSize = 0, textCooldownSize = 0,
-        growH = "right",   -- right | left  (which side the buttons grow from)
-        growV = "down",    -- down | up     (which way extra rows stack)
-        -- extra visibility conditions (combined with the visibility mode)
+        growH = "right",
+        growV = "down",
         onlyInstances = false, hideMounted = false,
         hideNoTarget = false, hideNoEnemyTarget = false,
-        groupVis = "any",   -- any | group | raid | party | solo
+        groupVis = "any",
     }
     for k, v in pairs(over) do d[k] = v end
     return d
@@ -48,52 +25,42 @@ local mod = ns:RegisterModule("actionbars", {
     group       = "HUD",
     description = "Takes over every action bar with its own movable frames: real combat/mouseover show-hide, scale and grid layout per bar, correct main-bar paging (druid/rogue/warrior/priest forms) and your keybinds. EXPERIMENTAL — test ability clicks and paging in combat; /reload after disabling.",
     defaults = {
-        -- OFF by default: Blizzard's standard bars load normally; enabling this
-        -- module is what switches them over to the takeover.
         enabled        = false,
         fadeSpeed      = 0.18,
-        hideStatusBars = true,   -- hide Blizzard's leftover XP/reputation bar
-        hidePerfBar    = true,   -- hide Blizzard's green FPS/latency performance bar
-        hideMicroMenu  = false,  -- hide the micro menu (menu buttons)
-        microStyle     = "classic",  -- classic (Blizzard buttons) | modern (flat icon strip)
-        hideBags       = false,  -- hide the bag bar
-        bagStyle       = "classic",  -- classic (Blizzard buttons) | modern (flat dark strip)
-        -- text styling (applies to all bars; colours + fine offsets)
+        hideStatusBars = true,
+        hidePerfBar    = true,
+        hideMicroMenu  = false,
+        microStyle     = "classic",
+        hideBags       = false,
+        bagStyle       = "classic",
         textKeybindColor = { r = 1, g = 1, b = 1 },
         textMacroColor   = { r = 1, g = 1, b = 1 },
         textCountColor   = { r = 1, g = 1, b = 1 },
         textKeybindX = 0, textKeybindY = 0,
         textMacroX   = 0, textMacroY   = 0,
         textCountX   = 0, textCountY   = 0,
-        -- hovering one mouseover bar reveals ALL mouseover bars
         hoverShowsAll = false,
-        -- look (applies to all bars)
-        cdSwipe       = 80,      -- cooldown swipe opacity in percent
+        cdSwipe       = 80,
         cdSwipeColor  = { r = 0, g = 0, b = 0 },
-        cdAlpha       = 100,     -- icon opacity while on cooldown (100 = off)
-        desatOnCd     = false,   -- desaturate icons while on cooldown
-        rangeColoring = false,   -- tint icons when the target is out of range
+        cdAlpha       = 100,
+        desatOnCd     = false,
+        rangeColoring = false,
         rangeColor    = { r = 0.8, g = 0.15, b = 0.15 },
-        tooltipMode   = "show",  -- show | combat | never
-        -- movable holders for Blizzard chrome (x/y = CENTER offset, Edit Mode)
+        tooltipMode   = "show",
         chrome = {
             micro = { x = 300,  y = -350, scale = 1 },
             bags  = { x = 560,  y = -350, scale = 1 },
             perf  = { x = 60,   y = -350, scale = 1 },
         },
-        -- our own XP bar (replaces the hidden Blizzard one)
         xpbar = { on = true, width = 420, height = 14, x = 0, y = -320, scale = 1,
                   color = { r = 0.58, g = 0.0, b = 0.55 } },
-        -- per bar: on/visibility/fade/perRow/spacing + mover position (x,y = CENTER
-        -- offset) and scale (multiplier). Position/scale are edited in Edit Mode.
         bars = {
-            -- main also carries the modifier/target paging (page number 2-6, 0 = off)
             main        = barDefaults({ y = -300, pageShift = 0, pageCtrl = 0, pageAlt = 0, pageHelp = 0, pageHarm = 0 }),
             bottomleft  = barDefaults({ y = -338 }),
             bottomright = barDefaults({ y = -376 }),
             right       = barDefaults({ perRow = 6,  x = 520,  y = -40 }),
             left        = barDefaults({ perRow = 6,  x = 452,  y = -40 }),
-            extra       = barDefaults({ on = false, y = -262 }),   -- spare page (actions 13-24)
+            extra       = barDefaults({ on = false, y = -262 }),
             stance      = barDefaults({ perRow = 10, x = -380, y = -250 }),
             pet         = barDefaults({ perRow = 10, x = 380,  y = -250 }),
         },
@@ -104,15 +71,13 @@ local InCombatLockdown = InCombatLockdown
 local GetBindingKey = GetBindingKey
 local abs = math.abs
 
--- bar descriptors ------------------------------------------------------------
 local BARS = {
     { key = "main",        kind = "own",    count = 12, cmd = "ACTIONBUTTON%d",         label = "Action Bar 1 (Main)" },
     { key = "bottomleft",  kind = "reuse",  count = 12, base = 60, prefix = "MultiBarBottomLeft",  cmd = "MULTIACTIONBAR1BUTTON%d", label = "Action Bar 2" },
     { key = "bottomright", kind = "reuse",  count = 12, base = 48, prefix = "MultiBarBottomRight", cmd = "MULTIACTIONBAR2BUTTON%d", label = "Action Bar 3" },
     { key = "right",       kind = "reuse",  count = 12, base = 24, prefix = "MultiBarRight",       cmd = "MULTIACTIONBAR3BUTTON%d", label = "Action Bar 4" },
     { key = "left",        kind = "reuse",  count = 12, base = 36, prefix = "MultiBarLeft",        cmd = "MULTIACTIONBAR4BUTTON%d", label = "Action Bar 5" },
-    -- spare page 2 (actions 13-24): no Blizzard bar shows these — a free extra
-    -- bar; its buttons are bound via the quick keybind mode (click bindings)
+    -- no Blizzard command exists for actions 13-24; bound via click bindings
     { key = "extra",       kind = "reuse",  count = 12, base = 12, cmd = "CLICK VuloAB_extraB%d:LeftButton", label = "Action Bar 6 (Extra)" },
     { key = "stance",      kind = "stance", count = 10, prefix = "StanceButton",    blizz = "StanceBarFrame",     cmd = "SHAPESHIFTBUTTON%d", label = "Stance bar" },
     { key = "pet",         kind = "pet",    count = 10, prefix = "PetActionButton", blizz = "PetActionBarFrame",  cmd = "BONUSACTIONBUTTON%d", label = "Pet bar" },
@@ -120,49 +85,39 @@ local BARS = {
 local BAR_BY_KEY = {}
 for _, d in ipairs(BARS) do BAR_BY_KEY[d.key] = d end
 
-local state = {}          -- key -> { frame, buttons={}, curAlpha, tgtAlpha, hovered }
-local shadow              -- hidden dump parent for Blizzard's frames
+local state = {}
+local shadow
 local taken = false
 local hidden = {}         -- Blizzard frame -> original parent (restore)
 local pendingRestore = false
 local updater
 
--- Blizzard main-bar art (hidden while taken) + legacy xp frames (nil on 20506)
 local MAIN_ART = {
     "MainMenuBarLeftEndCap", "MainMenuBarRightEndCap",
     "MainMenuBarTexture0", "MainMenuBarTexture1",
     "MainMenuBarTexture2", "MainMenuBarTexture3", "MainMenuBarTextureExtender",
 }
 local LEGACY_BARS = { "MainMenuExpBar", "ReputationWatchBar", "MainMenuBarMaxLevelBar" }
--- Blizzard multibar containers we hide (alpha) because we render our own buttons
 local MULTIBAR_FRAMES = { "MultiBarBottomLeft", "MultiBarBottomRight", "MultiBarRight", "MultiBarLeft" }
--- Blizzard's stance bar container (hidden when our own stance bar is active)
 local STANCE_HIDE = { "StanceBar", "StanceBarFrame" }
--- micro menu + bag bar frames (best-effort names across client versions).
--- Only the actual button row (MicroMenu) — its MicroMenuContainer shell stays
--- parked and mouse-off (an invisible shell with mouse eats micro-button clicks).
 local MICRO_FRAMES = { "MicroMenu" }
 local BAG_FRAMES   = {
     "BagsBar", "MainMenuBarBackpackButton",
     "CharacterBag0Slot", "CharacterBag1Slot", "CharacterBag2Slot", "CharacterBag3Slot",
 }
 
--- Class paging states for the MAIN bar. page = 1 + reference mainbar offset.
 local CLASS_STATES = {
     DRUID = {
-        { m = "[bonusbar:3]", page = 9 },   -- bear
-        { m = "[bonusbar:1]", page = 7 },   -- cat (also covers prowl)
-        { f = 24858,          page = 10 },  -- moonkin
-        { f = 33891,          page = 8 },   -- tree
+        { m = "[bonusbar:3]", page = 9 },
+        { m = "[bonusbar:1]", page = 7 },
+        { f = 24858,          page = 10 },
+        { f = 33891,          page = 8 },
     },
-    ROGUE   = { { m = "[bonusbar:1]", page = 7 } },                                    -- stealth
-    WARRIOR = { { f = 2457, page = 7 }, { f = 71, page = 8 }, { f = 2458, page = 9 } },-- battle/def/berserker
-    PRIEST  = { { m = "[form:1]", page = 7 } },                                        -- shadowform
+    ROGUE   = { { m = "[bonusbar:1]", page = 7 } },
+    WARRIOR = { { f = 2457, page = 7 }, { f = 71, page = 8 }, { f = 2458, page = 9 } },
+    PRIEST  = { { m = "[form:1]", page = 7 } },
 }
 
--- =========================================================
--- Helpers
--- =========================================================
 local function ensureShadow()
     if shadow then return end
     shadow = CreateFrame("Frame", "VuloABShadow", UIParent)
@@ -172,7 +127,6 @@ end
 
 local function barDB(key) return mod.db.bars[key] end
 
--- resolve a form spell id (or list) to "[form:N]" via the live form table
 local function formCond(spells)
     if type(spells) ~= "table" then spells = { spells } end
     for i = 1, (GetNumShapeshiftForms() or 0) do
@@ -185,7 +139,7 @@ end
 
 local function pageDriver()
     local conds = {}
-    -- user-configured modifier / target paging comes FIRST (highest precedence)
+    -- order matters: first matching condition wins in a state driver
     local db = barDB("main")
     local function modpage(cond, page)
         page = tonumber(page) or 0
@@ -209,7 +163,6 @@ local function pageDriver()
     return table.concat(conds, ";")
 end
 
--- shorten a binding key the way the stock buttons do (SHIFT-Q -> s-Q, etc.)
 local function keyAbbr(key)
     if not key then return nil end
     return (key
@@ -218,10 +171,7 @@ local function keyAbbr(key)
         :gsub("NUMPAD", "N"):gsub("SPACE", "Sp"))
 end
 
--- make one of our own buttons respond to Blizzard's quick-keybind mode: the
--- mode works off a visible button's `commandName` FIELD plus the quick-keybind
--- mixin's mouse scripts. Never call the mixin's OnShow eagerly (it registers
--- persistent callbacks that would poke secure scripts on every mode change).
+-- never call the mixin's OnShow eagerly: it registers callbacks that poke secure scripts
 local function wireQuickKeybind(b, command)
     b.commandName = command
     if not _G.QuickKeybindButtonTemplateMixin or b._vcuiQKB then return end
@@ -234,9 +184,6 @@ local function wireQuickKeybind(b, command)
     b:HookScript("OnLeave", b.QuickKeybindButtonOnLeave)
 end
 
--- =========================================================
--- Bar frame + button setup (out of combat)
--- =========================================================
 local function ensureBar(desc)
     local st = state[desc.key]
     if not st then st = { buttons = {}, curAlpha = 1, tgtAlpha = 1, hovered = false }; state[desc.key] = st end
@@ -246,7 +193,7 @@ local function ensureBar(desc)
         f:SetSize(desc.count * 40, 40)
         f:SetFrameStrata("MEDIUM")
         st.frame = f
-        if desc.kind == "own" then   -- MAIN bar needs the dynamic paging controller
+        if desc.kind == "own" then
             f:SetAttribute("checkselfcast", true)
             f:SetAttribute("checkfocuscast", true)
             f:SetAttribute("checkmouseovercast", true)
@@ -270,7 +217,6 @@ local function ensureBar(desc)
 
     for i = 1, desc.count do
         if desc.kind == "own" then
-            -- MAIN: own button, action driven by paging (seed 0 so first page paints)
             local b = _G["VuloActionButton" .. i] or CreateFrame("CheckButton", "VuloActionButton" .. i, st.frame, "ActionBarButtonTemplate")
             b:SetParent(st.frame)
             b:SetAttributeNoHandler("action", 0)
@@ -290,10 +236,7 @@ local function ensureBar(desc)
             b:Show()
             st.buttons[i] = b
         elseif desc.kind == "pet" then
-            -- PET: reuse Blizzard's PetActionButton1-10 (the proven recipe on this
-            -- client): reparent onto our frame, keep the container's events so
-            -- Blizzard keeps painting + showing/hiding them; native BONUSACTIONBUTTON
-            -- keybinds keep working (buttons stay in the container's actionButtons).
+            -- pet buttons must stay in the container's actionButtons or Blizzard's events and keybinds break
             local bf = _G.PetActionBar or _G.PetActionBarFrame
             local b = (bf and bf.actionButtons and bf.actionButtons[i]) or _G["PetActionButton" .. i]
             if b then
@@ -302,9 +245,7 @@ local function ensureBar(desc)
                 st.buttons[i] = b
             end
         elseif desc.kind == "stance" then
-            -- STANCE: own StanceButtonTemplate button. Passing the id to CreateFrame
-            -- wires up the secure form-cast (no insecure attribute = no taint); we
-            -- paint icon/cooldown/checked ourselves in updateStance().
+            -- the id passed to CreateFrame wires the secure form-cast without an insecure attribute set
             local name = "VuloAB_stanceB" .. i
             local b = _G[name] or CreateFrame("CheckButton", name, st.frame, "StanceButtonTemplate", i)
             b:SetParent(st.frame)
@@ -314,9 +255,7 @@ local function ensureBar(desc)
             b:EnableMouseWheel()
             st.buttons[i] = b
         else
-            -- MULTIBAR: own button, FIXED action slot (base + i). The action MUST be
-            -- set from SECURE code (the frame's ChildUpdate), never insecure
-            -- SetAttribute, or casting taints and gets blocked in combat.
+            -- `action` may only be set from the secure ChildUpdate snippet; an insecure set taints casting
             local name = "VuloAB_" .. desc.key .. "B" .. i
             local b = _G[name] or CreateFrame("CheckButton", name, st.frame, "ActionBarButtonTemplate")
             b:SetParent(st.frame)
@@ -337,8 +276,7 @@ local function ensureBar(desc)
     end
 end
 
--- paint the own stance buttons (icon/cooldown/checked) — the template doesn't
--- self-update when created standalone, so we drive it from shapeshift events.
+-- the template does not self-update when created standalone
 local function updateStance()
     local st = state.stance
     if not st then return end
@@ -364,15 +302,13 @@ local function updateStance()
     end
 end
 
--- size the frame + grid the buttons. The FRAME's screen position + scale are
--- owned by the mover (Edit Mode); we only size it, then re-apply the mover so the
--- grab box tracks the new size and the position/scale get applied.
+-- position + scale belong to the mover; only size here, then re-apply the mover
 local function layoutBar(desc)
     local st = state[desc.key]
     if not st or not st.frame or InCombatLockdown() then return end
     local db = barDB(desc.key)
     local buttons = st.buttons
-    if desc.kind == "stance" then   -- only lay out the forms the class actually has
+    if desc.kind == "stance" then
         local nf = GetNumShapeshiftForms() or 0
         buttons = {}
         for i = 1, nf do if st.buttons[i] then buttons[#buttons + 1] = st.buttons[i] end end
@@ -382,13 +318,9 @@ local function layoutBar(desc)
     local sp = db.spacing or 4
     local iconSize = (db.iconSize and db.iconSize > 0) and db.iconSize or nil
 
-    -- per-button styling: icon size, text visibility + sizes + colours +
-    -- fine offsets, click-through
     local function fontSize(fs, size)
         if fs and size and size > 0 and ns.ApplyFontSize then ns:ApplyFontSize(fs, size) end
     end
-    -- colour + nudge a button text; the original anchor is captured once so
-    -- offsets stay relative to Blizzard's default placement
     local function styleText(fs, color, ox2, oy2)
         if not fs then return end
         if color then fs:SetTextColor(color.r or 1, color.g or 1, color.b or 1) end
@@ -450,7 +382,6 @@ local function layoutBar(desc)
             local col, row
             if db.vertical then row = slot % perRow; col = math.floor(slot / perRow)
             else               col = slot % perRow; row = math.floor(slot / perRow) end
-            -- grow direction: mirror columns / rows on demand
             if db.growH == "left" then col = cols - 1 - col end
             if db.growV == "up" then row = rows - 1 - row end
             b:ClearAllPoints()
@@ -458,27 +389,21 @@ local function layoutBar(desc)
         end
     end
     if st.mover and st.mover.SetSize then st.mover:SetSize(st.frame:GetWidth(), st.frame:GetHeight()) end
-    if ns.ApplyMover and st.mover then ns:ApplyMover(st.mover) end   -- position + scale
+    if ns.ApplyMover and st.mover then ns:ApplyMover(st.mover) end
 end
 
 local function pageBar(desc)
     local st = state[desc.key]
     if not st or not st.frame or InCombatLockdown() then return end
     if desc.kind == "own" then
-        RegisterStateDriver(st.frame, "page", pageDriver())   -- fires _onstate-page → initial paging
+        RegisterStateDriver(st.frame, "page", pageDriver())
     else
-        -- multibar: push the FIXED action offset (base) to the buttons securely so
-        -- each ends up with action = index + base (no insecure action set = no taint)
         st.frame:SetAttribute("actionOffset", desc.base)
         st.frame:Execute([[ self:ChildUpdate('offset', self:GetAttribute('actionOffset') or 0) ]])
     end
 end
 
--- Visibility: the mode (always/combat/out of combat) plus the extra conditions
--- are folded into ONE secure driver bracket (conditions inside a bracket are
--- AND-ed), so everything keeps working in combat. "Only in instances" has no
--- macro conditional — it is pre-gated insecurely and re-evaluated on zone
--- changes. Mouseover stays an alpha fade on top of the driver.
+-- all conditions must fold into ONE bracket (they AND) to stay secure in combat
 local function visBar(desc)
     local st = state[desc.key]
     if not st or not st.frame or InCombatLockdown() then return end
@@ -509,13 +434,9 @@ local function visBar(desc)
     end
 end
 
--- Our own buttons have no Blizzard binding of their own, so we route the native
--- command keys (ACTIONBUTTONn for main, MULTIACTIONBARxBUTTONn for the multibars)
--- onto them via override bindings, and fill the hotkey text ourselves.
+-- our buttons have no native binding, so route the command keys via overrides
 local function bindBar(desc)
-    -- pet buttons are Blizzard's own (names + container entry intact), so their
-    -- native BONUSACTIONBUTTON bindings and hotkey text still work — skip them.
-    if desc.kind == "pet" then return end
+    if desc.kind == "pet" then return end   -- Blizzard's own buttons, already bound
     local st = state[desc.key]
     if not st or not st.frame or InCombatLockdown() or not desc.cmd then return end
     ClearOverrideBindings(st.frame)
@@ -527,18 +448,12 @@ local function bindBar(desc)
         local hk = b.HotKey or _G[b:GetName() .. "HotKey"]
         if hk then
             hk:SetText(keyAbbr(keys[1]) or "")
-            -- respect the per-bar "hide keybind text" toggle (bindBar runs AFTER
-            -- layoutBar, so it must not undo it)
+            -- bindBar runs after layoutBar, so it must not undo the hide toggle
             hk:SetShown(keys[1] ~= nil and not barDB(desc.key).hideKeybind)
         end
     end
 end
 
--- =========================================================
--- Hide / restore Blizzard chrome
--- =========================================================
--- Blizzard's XP/rep bar goes away when the user hides it OR when our own XP bar
--- is on (two experience bars at once makes no sense).
 local function wantStatusHidden()
     return mod.active and (mod.db.hideStatusBars or (mod.db.xpbar and mod.db.xpbar.on)) and true or false
 end
@@ -567,8 +482,6 @@ local function applyStatusBar()
     end
 end
 
--- Blizzard's green FPS/latency performance bar (MainMenuBarPerformanceBar).
--- Hidden taint-free via alpha + mouse, since it's chrome on the bar we replaced.
 local function applyPerfBar()
     local hide = mod.active and mod.db.hidePerfBar
     local f = _G.MainMenuBarPerformanceBarFrame
@@ -577,9 +490,8 @@ local function applyPerfBar()
     if b then b:SetAlpha(hide and 0 or 1); if b.EnableMouse then b:EnableMouse(not hide) end end
 end
 
--- hide/show a set of frames taint-free (alpha + mouse), never moving them.
--- The original mouse state is remembered — force-enabling mouse on a frame that
--- never had it turns invisible shells into click-eaters.
+-- alpha + mouse only (never move) is taint-free; the original mouse state is kept
+-- because enabling mouse on a frame that never had it makes it eat clicks
 local function setFramesHidden(names, hide)
     for _, n in ipairs(names) do
         local f = _G[n]
@@ -593,24 +505,18 @@ local function setFramesHidden(names, hide)
     end
 end
 
--- micro menu + bag bar hide toggles (alpha — works wherever the frames live).
--- The modern micro style also blanks Blizzard's row: our own strip replaces it.
 local function applyMicroBags()
     setFramesHidden(MICRO_FRAMES, mod.active and (mod.db.hideMicroMenu or (taken and mod.db.microStyle == "modern")))
     setFramesHidden(BAG_FRAMES, mod.active and mod.db.hideBags)
 end
 
--- =========================================================
--- Chrome holders: micro menu / bag bar / FPS-latency bar re-homed onto small
--- movable holder frames. None of these are protected action frames, so the
--- reparent + SetPoint is taint-free — unlike the action bars themselves.
--- =========================================================
+-- these are not protected action frames, so reparent + SetPoint is taint-free
 local CHROME = {
     { key = "micro", label = "Micro menu" },
     { key = "bags",  label = "Bag bar" },
     { key = "perf",  label = "FPS / latency bar" },
 }
-local chromeState = {}   -- key -> { holder, mover, targets }
+local chromeState = {}
 local chromeOrig = {}    -- reparented frame -> original parent
 
 local BAG_SLOT_BUTTONS = {
@@ -634,9 +540,7 @@ local function chromeTargets(key)
     end
 end
 
--- keep a reparented chrome frame glued to its holder: Blizzard's layout code
--- re-anchors these frames (that's why the bags snapped back), so we hook SetPoint
--- and immediately re-pin. Insecure frames — taint-free even in combat.
+-- Blizzard's layout code re-anchors these frames, so hook SetPoint and re-pin
 local function pinFrame(f, point, holder, relPoint, x, y)
     f._vcuiPinTo = { point, holder, relPoint, x, y }
     f._vcuiPinning = true
@@ -698,10 +602,7 @@ local function ensureChrome(c)
     end
 end
 
--- Blizzard's keyring layout updater re-anchors the performance bar to the keyring
--- button; with both re-homed onto our holders that SetPoint is refused ("anchor
--- family connection") and spams errors. We own those positions now, so the
--- updater is neutralised while the module is active (restored on disable).
+-- with both frames re-homed, Blizzard's keyring updater errors on every SetPoint
 local origUpdateKeyRing
 local function muteKeyRingLayout(mute)
     if mute then
@@ -715,11 +616,7 @@ local function muteKeyRingLayout(mute)
     end
 end
 
--- Blizzard hides individual micro buttons situationally and re-anchors the rest
--- in a chain — force-shown buttons can end up stacked on top of each other (a
--- button "disappears" underneath a neighbour). So: force-show the FULL set AND
--- lay the row out ourselves in a fixed, gap-free order. Micro buttons are
--- insecure, so all of this is taint-free.
+-- Blizzard anchors micro buttons in a chain, so force-shown ones stack unless the row is laid out here
 local MICRO_ORDER = {
     CharacterMicroButton = 1, SpellbookMicroButton = 2, TalentMicroButton = 3,
     QuestLogMicroButton = 4, SocialsMicroButton = 5, GuildMicroButton = 5,
@@ -727,7 +624,7 @@ local MICRO_ORDER = {
     MainMenuMicroButton = 8, HelpMicroButton = 9,
 }
 local microHooked = false
-local microSeen = {}   -- buttons Blizzard itself has shown this session
+local microSeen = {}
 local function showAllMicro()
     local cs = chromeState.micro
     local container = cs and cs.targets and cs.targets[1]
@@ -735,9 +632,7 @@ local function showAllMicro()
     local btns = {}
     for _, b in ipairs({ container:GetChildren() }) do
         if b.IsObjectType and b:IsObjectType("Button") then
-            -- keep every button Blizzard has EVER shown this session visible
-            -- (covers situational hiding, e.g. the shop) — but never resurrect
-            -- buttons Blizzard itself never shows (deprecated hidden twins)
+            -- never resurrect buttons Blizzard never shows (deprecated twins)
             if b:IsShown() then
                 microSeen[b] = true
             elseif microSeen[b] then
@@ -765,7 +660,7 @@ local function showAllMicro()
     end
 end
 
-local applyMicroStyle, applyBagStyle   -- fwd: modern strips, defined below restoreChrome
+local applyMicroStyle, applyBagStyle   -- forward decls; defined below restoreChrome
 
 local function applyChrome()
     if InCombatLockdown() then return end
@@ -781,8 +676,7 @@ local function applyChrome()
         end)
     end
     showAllMicro()
-    -- the emptied MicroMenuContainer shell stays at its old spot, invisible but
-    -- mouse-enabled — it swallows clicks on the relocated micro buttons.
+    -- the emptied container shell stays mouse-enabled and swallows clicks
     local shell = _G.MicroMenuContainer
     local microTarget = chromeState.micro and chromeState.micro.targets and chromeState.micro.targets[1]
     if shell and shell ~= microTarget then
@@ -807,17 +701,8 @@ local function restoreChrome()
     end
 end
 
--- =========================================================
--- Modern micro menu: our own flat dark strip (same look as the chat panel /
--- sidebar) with monochrome line icons. Clicks forward to Blizzard's blanked
--- micro buttons, so every button keeps its exact behaviour and tooltip.
--- Everything here is insecure — taint-free.
--- =========================================================
 local MICRO_ICON_DIR = "Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\"
--- `action` overrides the click-forward: the character and main-menu buttons do
--- their work in Blizzard's OnMouseUp (with an IsMouseOver check), so a
--- forwarded Click() is a no-op there — call the toggles directly instead.
--- `custom` entries have no Blizzard twin at all (map / friends list).
+-- `action`: the twin acts in OnMouseUp behind an IsMouseOver check, so a forwarded Click() is a no-op
 local MODERN_MICRO = {
     { names = { "CharacterMicroButton" }, icon = "micro\\character",
       action = function() if ToggleCharacter then ToggleCharacter("PaperDollFrame") end end },
@@ -831,8 +716,6 @@ local MODERN_MICRO = {
     { custom = true, icon = "friends",
       tip = function() return _G.FRIENDS_LIST or L["Friends list"] end,
       action = function() if ToggleFriendsFrame then ToggleFriendsFrame(1) end end },
-    -- group finder + shop: always shown; prefer Blizzard's own button when the
-    -- client has one, otherwise toggle the frames directly
     { names = { "LFGMicroButton" }, custom = true, icon = "micro\\lfg",
       tip = function()
           local t = _G.LFGMicroButton
@@ -847,9 +730,7 @@ local MODERN_MICRO = {
               if _G.LFGParentFrame:IsShown() then HideUIPanel(_G.LFGParentFrame) else ShowUIPanel(_G.LFGParentFrame) end
           end
       end },
-    -- the shop is hard-protected on this client (addons may not open it, not
-    -- even via a forwarded click) — so the REAL store button joins the strip,
-    -- only restyled; its click then runs in Blizzard's own, permitted context
+    -- the shop is protected (a forwarded click is refused), so the real button is adopted
     { adopt = "StoreMicroButton", icon = "micro\\store" },
     { names = { "MainMenuMicroButton" }, icon = "gear",
       action = function()
@@ -867,10 +748,8 @@ local MODERN_MICRO = {
 }
 local MICRO_BTN, MICRO_GAP, MICRO_PAD, MICRO_H, MICRO_ICON = 26, 3, 6, 34, 20
 local modernMicro
-local adoptSkin = {}   -- Blizzard button adopted into the strip -> original state
+local adoptSkin = {}   -- adopted Blizzard button -> original state
 
--- take a real Blizzard micro button into the strip: blank its artwork, put our
--- glyph on top. Function, tooltip and (secure) click path stay Blizzard's own.
 local function adoptMicroButton(b, icon)
     if not adoptSkin[b] then
         local st = { parent = b:GetParent() or UIParent, scale = b:GetScale() or 1, alphas = {} }
@@ -922,7 +801,7 @@ local function ensureModernMicro()
         if def.adopt then
             local t = _G[def.adopt]
             if t then
-                t._vcuiAdopt = def.icon   -- marker: re-adopted lazily in layout
+                t._vcuiAdopt = def.icon
                 adoptMicroButton(t, def.icon)
                 t:SetParent(f)
                 f.buttons[#f.buttons + 1] = t
@@ -969,15 +848,11 @@ local function ensureModernMicro()
     modernMicro = f
 end
 
--- only rows Blizzard itself shows (or has shown this session) get a slot —
--- mirrors the classic showAllMicro rule, so e.g. a shop button that never
--- exists on this client doesn't leave an empty gap
 local function layoutModernMicro()
     if not modernMicro then return end
     local x = MICRO_PAD
     for _, b in ipairs(modernMicro.buttons) do
         if b._vcuiAdopt then
-            -- a real Blizzard button riding in the strip: scale to slot height
             if not adoptSkin[b] then adoptMicroButton(b, b._vcuiAdopt) end
             local vis = (b:IsShown() or microSeen[b]) and true or false
             b:SetShown(vis)
@@ -1004,8 +879,7 @@ local function layoutModernMicro()
     modernMicro:SetSize(math.max(MICRO_BTN, x - MICRO_GAP + MICRO_PAD), MICRO_H)
 end
 
--- Blizzard's micro buttons are only blanked via alpha, so they would still
--- swallow clicks underneath our strip — cut their mouse too while modern is on.
+-- alpha-blanked buttons still take clicks, so their mouse must be cut too
 local function setMicroChildrenMouse(on)
     local cs = chromeState.micro
     local container = cs and cs.targets and cs.targets[1]
@@ -1015,7 +889,7 @@ local function setMicroChildrenMouse(on)
     end
 end
 
-function applyMicroStyle()   -- assigns the forward local above applyChrome
+function applyMicroStyle()
     local modern = mod.active and taken and mod.db.microStyle == "modern" and not mod.db.hideMicroMenu
     if modern then
         ensureModernMicro()
@@ -1041,14 +915,7 @@ function applyMicroStyle()   -- assigns the forward local above applyChrome
     end
 end
 
--- =========================================================
--- Modern bag bar: the REAL Blizzard bag buttons, re-homed onto a flat dark
--- strip in the same look as the modern micro menu. The buttons stay fully
--- functional (open bag, drop a bag in, tooltips) — only the chrome changes:
--- gold ring off, icon cropped, thin dark edge, uniform size.
--- =========================================================
 local BAG_BTN_H = 26
--- our own monochrome glyphs replace the bag item textures on the strip
 local BAG_GLYPHS = {
     MainMenuBarBackpackButton = "micro\\backpack",
     CharacterBag0Slot = "micro\\bag", CharacterBag1Slot = "micro\\bag",
@@ -1056,7 +923,7 @@ local BAG_GLYPHS = {
     KeyRingButton = "micro\\key",
 }
 local modernBags
-local bagSkin = {}   -- button -> { parent, scale, width } original state
+local bagSkin = {}
 
 local function ensureModernBags()
     if modernBags then return end
@@ -1073,7 +940,6 @@ local function skinBagButton(b, glyph)
         bagSkin[b] = { parent = b:GetParent() or UIParent, scale = b:GetScale() or 1,
                        width = b:GetWidth(), wasShown = b:IsShown() }
     end
-    -- blank Blizzard's artwork entirely — our monochrome glyph replaces it
     local ic = b.icon or _G[(b:GetName() or "") .. "IconTexture"]
     local nt = b.GetNormalTexture and b:GetNormalTexture()
     if nt then nt:SetAlpha(0) end
@@ -1095,8 +961,6 @@ local function skinBagButton(b, glyph)
     end
     b._vcuiGlyph:SetTexture(MICRO_ICON_DIR .. glyph .. ".tga")
     b._vcuiGlyph:Show()
-    -- item count (backpack): tuck it into the bottom-right corner instead of
-    -- sitting across the glyph
     local cnt = _G[(b:GetName() or "") .. "Count"]
     if cnt then
         if not bagSkin[b].countPoint then
@@ -1125,8 +989,7 @@ local function unskinBagButton(b)
     b:SetScale(o.scale)
     if o.width and o.width > 0 then b:SetWidth(o.width) end
     b:SetParent(o.parent)
-    -- never re-show the key ring button: its OnShow is broken on this client
-    -- (calls a function that does not exist) — it stays hidden either way
+    -- never re-show the key ring button: its OnShow errors on this client
     if o.wasShown ~= nil and b ~= _G.KeyRingButton then
         b:SetShown(o.wasShown)
     elseif b == _G.KeyRingButton then
@@ -1135,7 +998,7 @@ local function unskinBagButton(b)
     bagSkin[b] = nil
 end
 
-function applyBagStyle()   -- assigns the forward local above applyChrome
+function applyBagStyle()
     local modern = mod.active and taken and mod.db.bagStyle == "modern" and not mod.db.hideBags
     local shell = _G.BagsBar
     if modern then
@@ -1147,8 +1010,6 @@ function applyBagStyle()   -- assigns the forward local above applyChrome
         modernBags:ClearAllPoints()
         modernBags:SetPoint("CENTER", cs.holder, "CENTER", 0, 0)
         local x = MICRO_PAD
-        -- Blizzard's key ring button (an odd half-height slot) stays out of the
-        -- strip entirely — the strip carries its OWN key-ring opener below
         local krb = _G.KeyRingButton
         if krb and bagSkin[krb] then unskinBagButton(krb); krb:Hide() end
         for _, n in ipairs(BAG_SLOT_BUTTONS) do
@@ -1165,7 +1026,6 @@ function applyBagStyle()   -- assigns the forward local above applyChrome
                 x = x + (b:GetWidth() or BAG_BTN_H) * sc + MICRO_GAP
             end
         end
-        -- our own key-ring opener, styled exactly like the micro strip buttons
         local kb = modernBags._keyBtn
         if not kb then
             kb = CreateFrame("Button", nil, modernBags)
@@ -1188,8 +1048,7 @@ function applyBagStyle()   -- assigns the forward local above applyChrome
                 if GameTooltip then GameTooltip:Hide() end
             end)
             kb:SetScript("OnClick", function()
-                -- direct toggles only — the Blizzard button's handlers are
-                -- broken on this client (see OnShow note above)
+                -- direct toggles only: the Blizzard button's handlers error here
                 if _G.ToggleKeyRing then _G.ToggleKeyRing()
                 elseif ToggleBag and KEYRING_CONTAINER then ToggleBag(KEYRING_CONTAINER) end
             end)
@@ -1205,7 +1064,6 @@ function applyBagStyle()   -- assigns the forward local above applyChrome
             cs.mover:SetSize(cs.holder:GetWidth(), cs.holder:GetHeight())
             if ns.ApplyMover then ns:ApplyMover(cs.mover) end
         end
-        -- the emptied container shell must not swallow clicks on our strip
         if shell then
             if shell._vcuiMouse == nil and shell.IsMouseEnabled then
                 shell._vcuiMouse = shell:IsMouseEnabled() and true or false
@@ -1218,16 +1076,12 @@ function applyBagStyle()   -- assigns the forward local above applyChrome
         if shell and shell._vcuiMouse ~= nil then shell:EnableMouse(shell._vcuiMouse) end
         local restored = false
         for b in pairs(bagSkin) do unskinBagButton(b); restored = true end
-        -- hand the buttons back to the classic holder layout
         if restored and mod.active and taken and not InCombatLockdown() then
             for _, c in ipairs(CHROME) do if c.key == "bags" then ensureChrome(c) end end
         end
     end
 end
 
--- =========================================================
--- Own XP bar (movable / resizable; Blizzard's status bar stays hidden)
--- =========================================================
 local xpBar
 
 local function ensureXPBar()
@@ -1289,10 +1143,7 @@ local function applyXPBar()
     updateXPBar()
 end
 
--- park a Blizzard container frame under the hidden shadow (records its parent)
--- park a Blizzard container out of the way. We do NOT wipe its actionButtons:
--- Blizzard's own keybind handlers (MultiActionButtonDown/Up etc.) index that
--- table and error if it's empty, and the buttons we reparented still live in it.
+-- never wipe the container's actionButtons: Blizzard's keybind handlers index it
 local function parkFrame(name, keepEvents)
     local f = _G[name]
     if f and hidden[f] == nil then
@@ -1305,7 +1156,6 @@ end
 
 local function hideBlizzard()
     ensureShadow()
-    -- main bar frame + its buttons + art
     parkFrame("MainActionBar", true)
     for i = 1, 12 do
         local b = _G["ActionButton" .. i]
@@ -1314,9 +1164,7 @@ local function hideBlizzard()
     for _, n in ipairs(MAIN_ART) do local t = _G[n]; if t then t:Hide() end end
     local art = _G.MainMenuBarArtFrame
     if art then art:SetAlpha(0) end
-    -- Blizzard's multibar containers: we can't move them (protected EditMode), so
-    -- just make them invisible + click-through in place — TAINT-FREE (SetAlpha /
-    -- EnableMouse aren't protected). Our own buttons render at the mover position.
+    -- the multibar containers are protected and cannot be moved; alpha + mouse off in place is taint-free
     for _, n in ipairs(MULTIBAR_FRAMES) do
         local f = _G[n]
         if f then
@@ -1327,8 +1175,7 @@ local function hideBlizzard()
             end
         end
     end
-    -- pet container: parent it away (recorded) but KEEP its events + no Hide —
-    -- Blizzard's handlers must keep updating the reparented pet buttons.
+    -- pet container: reparent only, keep events and do not Hide, or its buttons stop updating
     local pab = _G.PetActionBar or _G.PetActionBarFrame
     if pab and hidden[pab] == nil then
         hidden[pab] = pab:GetParent() or UIParent
@@ -1348,14 +1195,11 @@ local function unpark(name)
     end
 end
 
--- =========================================================
--- Fade (mouseover) — insecure alpha per bar frame
--- =========================================================
 local function refreshFade(desc)
     local st = state[desc.key]
     if not (mod.active and st and st.frame) then return end
     local db = barDB(desc.key)
-    local base = (db.alpha or 100) / 100   -- the bar's configured opacity
+    local base = (db.alpha or 100) / 100
     if db.visibility == "mouseover" then
         st.tgtAlpha = st.hovered and base or (db.fadeAlpha or 0) / 100
     else
@@ -1364,8 +1208,6 @@ local function refreshFade(desc)
     if abs(st.curAlpha - st.tgtAlpha) > 0.001 and updater then updater:Show() end
 end
 
--- set the hovered flag on one mouseover bar — or, with "hover shows all", on
--- EVERY mouseover bar at once
 local function setHovered(on)
     for _, d2 in ipairs(BARS) do
         local st2 = state[d2.key]
@@ -1427,9 +1269,7 @@ local function ensureUpdater()
     end)
 end
 
--- show/hide EMPTY slots on the action bars (own buttons — insecure show/hide,
--- so out of combat only). While dragging an ability the grid events force-show
--- everything so empty slots stay valid drop targets.
+-- insecure Show/Hide, so out of combat only
 local gridForced = false
 local function refreshEmpty(desc)
     if InCombatLockdown() then return end
@@ -1449,10 +1289,6 @@ local function refreshEmptyAll()
     for _, desc in ipairs(BARS) do refreshEmpty(desc) end
 end
 
--- =========================================================
--- Look: cooldown swipe opacity, desaturate-on-cooldown, out-of-range colouring,
--- tooltip suppression. All texture / tooltip work — insecure, combat-safe.
--- =========================================================
 local lookTicker
 
 local function forAllButtons(fn)
@@ -1476,7 +1312,6 @@ local function ttHook()
     end
 end
 
--- periodic pass (0.2 s): cooldown desaturation + range tint on the action bars
 local function lookTick()
     local desat = mod.db.desatOnCd
     local range = mod.db.rangeColoring
@@ -1524,8 +1359,6 @@ local function applyLook()
             b._vcuiTT = true
             b:HookScript("OnEnter", ttHook)
         end
-        -- reset whatever a just-disabled option left behind (Blizzard re-dims
-        -- unusable icons on its next update)
         local icon = buttonIcon(b)
         if icon then
             if not mod.db.desatOnCd and icon.SetDesaturated then icon:SetDesaturated(false) end
@@ -1551,21 +1384,17 @@ local function applyLook()
     end
 end
 
--- =========================================================
--- Take over / restore
--- =========================================================
 local function applyBar(desc)
     local st = state[desc.key]
     if not st or not st.frame or InCombatLockdown() then return end
     local on = barDB(desc.key).on
-    -- stance: hide the whole bar when the class has no forms
     if on and desc.kind == "stance" and (GetNumShapeshiftForms() or 0) == 0 then on = false end
-    if desc.kind == "stance" then setFramesHidden(STANCE_HIDE, on) end   -- hide Blizzard's when ours is up
+    if desc.kind == "stance" then setFramesHidden(STANCE_HIDE, on) end
     if on then
         st.frame:Show()
         layoutBar(desc)
         if desc.kind == "stance" then updateStance()
-        elseif desc.kind ~= "pet" then pageBar(desc) end   -- pet: Blizzard drives the buttons
+        elseif desc.kind ~= "pet" then pageBar(desc) end
         visBar(desc); bindBar(desc); refreshEmpty(desc)
         hookHover(desc); refreshFade(desc)
     else
@@ -1585,16 +1414,14 @@ local function takeOver()
     for _, desc in ipairs(BARS) do applyBar(desc) end
     applyChrome(); applyXPBar(); applyLook()
     taken = true
-    -- these gate on `taken`, so they run again now that it is set
+    -- these gate on `taken`, so they must run again now that it is set
     applyMicroBags(); applyMicroStyle(); applyBagStyle()
-    -- ask the Dark Skin module to skin our freshly-created buttons
     if ns.ReskinActionButtons then ns.ReskinActionButtons() end
 end
 
 local function restore()
     if not taken then return end
     if InCombatLockdown() then pendingRestore = true; return end
-    -- hide our own frames (main + multibars)
     for _, desc in ipairs(BARS) do
         local st = state[desc.key]
         if st and st.frame then
@@ -1604,7 +1431,6 @@ local function restore()
             st.frame:Hide()
         end
     end
-    -- un-hide Blizzard's multibars (a /reload restores their full native state)
     for _, n in ipairs(MULTIBAR_FRAMES) do
         local f = _G[n]
         if f then
@@ -1643,9 +1469,6 @@ local function restore()
     ns:Print(L["|cffffcc00Action Bars disabled — type /reload to fully restore the default bars.|r"])
 end
 
--- =========================================================
--- Apply / events
--- =========================================================
 local function applyAll()
     if not mod.active then return end
     if InCombatLockdown() then return end   -- flushed on PLAYER_REGEN_ENABLED
@@ -1657,8 +1480,6 @@ local function applyAll()
     end
 end
 
--- While Edit Mode is open, force-show every bar (even ones hidden by visibility
--- rules, no forms or no pet) so their boxes can be placed; restore on exit.
 local editForced = false
 local function onEditMode(active)
     if not (mod.active and taken) or InCombatLockdown() then return end
@@ -1675,14 +1496,11 @@ local function onEditMode(active)
         if xpBar then xpBar:Show() end
     elseif editForced then
         editForced = false
-        applyAll()   -- re-applies visibility drivers, alpha and stance/pet gating
+        applyAll()
     end
 end
 if ns.RegisterEditModeHook then ns:RegisterEditModeHook(onEditMode) end
 
--- Quick keybind mode: Blizzard's hover-a-button-press-a-key binding screen.
--- While it is open, every bar is force-shown (same as Edit Mode) so hidden /
--- mouseover bars can be bound too.
 local function openQuickKeybind()
     if InCombatLockdown() then ns:Print(L["Not possible in combat."]); return end
     if C_AddOns and C_AddOns.LoadAddOn then pcall(C_AddOns.LoadAddOn, "Blizzard_QuickKeybind")
@@ -1709,7 +1527,6 @@ local function onRegen()
     applyAll()
 end
 local function onWorld() applyAll() end
--- re-evaluate the "only in instances" gate on zone changes
 local function onZone() if mod.active and taken and not InCombatLockdown() then
     for _, desc in ipairs(BARS) do visBar(desc) end
 end end
@@ -1721,8 +1538,6 @@ end
 local function onPet()
     if mod.active and not InCombatLockdown() and taken then applyBar(BAR_BY_KEY.pet) end
 end
--- form activated / usability / cooldown → repaint our stance buttons (insecure,
--- so this is safe in combat, unlike re-layout).
 local function onStance() if mod.active and taken then updateStance() end end
 local function onXP() if mod.active and taken then updateXPBar() end end
 local function onGridShow() if mod.active and taken then gridForced = true;  refreshEmptyAll() end end
@@ -1734,13 +1549,9 @@ local function onBindings()
     end
 end
 
--- =========================================================
--- Lifecycle
--- =========================================================
 function mod:OnEnable()
     pendingRestore = false
-    -- migrate a previous version's per-bar scale (stored as a 50-150 percent) to
-    -- the mover's multiplier, so a saved 100 doesn't become SetScale(100).
+    -- migrate old per-bar scale stored as percent to the mover's multiplier
     for _, desc in ipairs(BARS) do
         local db = barDB(desc.key)
         if db then
@@ -1798,9 +1609,6 @@ function mod:OnDisable()
     end
 end
 
--- =========================================================
--- Options
--- =========================================================
 local function reapply() if mod.active then applyAll() end end
 
 local VIS_VALUES = {
@@ -1815,7 +1623,6 @@ local function moverApply(key)
     if st and st.mover and ns.ApplyMover then ns:ApplyMover(st.mover) end
 end
 
--- modifier/target paging targets: page number -> the bar whose actions it shows
 local PAGE_VALUES = {
     { value = 0, text = "—" },
     { value = 6, text = L["Action Bar 2"] },

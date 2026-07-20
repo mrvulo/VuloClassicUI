@@ -1,9 +1,4 @@
--- =========================================================
--- VuloClassicUI / Modules / GlobalSettings
--- Single sidebar entry with two tabs:
---   General — UI scale, camera distance, minimap button
---   Profile — pointer to the Profiles module
--- =========================================================
+-- GlobalSettings: sidebar entry with two tabs — General (UI scale, camera, minimap button) and Profile (delegates to the Profiles module).
 local _, ns = ...
 local L = ns.L
 
@@ -22,9 +17,6 @@ mod.tabs = {
     { id = "profile", label = "Profile" },
 }
 
--- =========================================================
--- Helpers
--- =========================================================
 local function setCVar(cvar, val)
     pcall(SetCVar, cvar, tostring(val))
 end
@@ -92,9 +84,6 @@ StaticPopupDialogs["VCUI_RELOAD_THEME"] = {
     preferredIndex = 3,
 }
 
--- =========================================================
--- Theme color (what is purple today becomes this color)
--- =========================================================
 local THEME_PRESETS = {
     { value = "9b6cff", text = L["Purple (default)"] },
     { value = "4f9bff", text = L["Blue"] },
@@ -120,9 +109,6 @@ local function setTheme(r, g, b)
     StaticPopup_Show("VCUI_RELOAD_THEME")
 end
 
--- =========================================================
--- Tab: General
--- =========================================================
 local function generalOptions()
     return {
         { type = "header", text = L["Language"] },
@@ -208,9 +194,6 @@ local function generalOptions()
     }
 end
 
--- =========================================================
--- Tab: Profile (delegates to the Profiles module)
--- =========================================================
 local function profileOptions()
     local p = ns.modules and ns.modules.profiles
     if p and p.GetOptions then
@@ -223,9 +206,6 @@ local function profileOptions()
     }
 end
 
--- =========================================================
--- Options dispatcher
--- =========================================================
 function mod:GetOptions(tabId)
     if tabId == "profile" then return profileOptions() end
     return generalOptions()

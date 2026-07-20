@@ -1,11 +1,4 @@
--- =========================================================
--- VuloClassicUI / Modules / Trinkets
--- Two trinket slots with cooldown, dropdown and queue.
--- Embedded engine under Trinkets/* (code unchanged).
--- This module:
---   * hides the engine's own options window + minimap icon
---   * brings all relevant settings directly into the VCUI module page
--- =========================================================
+-- Wraps the embedded engine under Trinkets/*: hides its own options window and minimap icon.
 local _, ns = ...
 local L = ns.L
 
@@ -19,9 +12,6 @@ local mod = ns:RegisterModule("trinkets", {
     },
 })
 
--- =========================================================
--- Helpers
--- =========================================================
 local function getMainFrame()    return _G.Trinkets_MainFrame end
 local function getIconFrame()    return _G.Trinkets_IconFrame end
 local function getOptFrame()     return _G.Trinkets_OptFrame  end
@@ -29,8 +19,7 @@ local function getOptFrame()     return _G.Trinkets_OptFrame  end
 local function setShown(state)
     local f = getMainFrame()
     if not f then return end
-    -- Secure frame: Show/Hide from insecure addon code is blocked by WoW
-    -- security. Skip in combat, pcall to catch other action-blocked pings.
+    -- Secure frame: Show/Hide from insecure code is blocked, so bail in combat and pcall otherwise.
     if InCombatLockdown and InCombatLockdown() then return end
     if state and f:IsShown() then return end
     if not state and not f:IsShown() then return end
@@ -46,10 +35,8 @@ local function rescaleMain()
     end
 end
 
--- Permanently hides the engine's minimap icon + options window.
--- With HookScript: if the engine wants to show them again later, hide immediately.
+-- HookScript keeps them hidden if the engine tries to show them again later.
 local function suppressEngineUI()
-    -- SavedVar flag (in case the engine relies on it)
     if _G.TrinketsOptions then
         _G.TrinketsOptions.ShowIcon = "OFF"
     end
@@ -74,13 +61,8 @@ local function suppressEngineUI()
     end
 end
 
--- =========================================================
--- Lifecycle
--- =========================================================
 function mod:OnEnable()
-    -- Engine initializes on load — we wait briefly with the suppress.
-    -- NO setShown on init (Trinkets_MainFrame is secure -> Show()
-    -- from insecure code is blocked by WoW security). Engine shows itself.
+    -- Engine initializes on load, so delay the suppress; never call setShown here (secure frame).
     if C_Timer and C_Timer.After then
         C_Timer.After(0.3, suppressEngineUI)
         C_Timer.After(2,   suppressEngineUI)
@@ -93,9 +75,6 @@ function mod:OnDisable()
     setShown(false)
 end
 
--- =========================================================
--- Options
--- =========================================================
 function mod:GetOptions()
     return {
         { type = "header", text = L["Trinkets"] },

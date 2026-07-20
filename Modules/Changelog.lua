@@ -1,10 +1,5 @@
--- =========================================================
--- VuloClassicUI / Modules / Changelog
--- "Patch Notes" page — shows every version's changes from ns.CHANGELOG
--- (auto-generated from CHANGELOG.md by tools/gen_changelog.js). Reached from
--- its own sidebar row directly under "Overview" (see UI/Sidebar.lua); it lives
--- in the hidden group so it doesn't also appear as a normal group row.
--- =========================================================
+-- Changelog: "Patch Notes" page showing ns.CHANGELOG (auto-generated from CHANGELOG.md by tools/gen_changelog.js).
+-- Reached from its own sidebar row under "Overview" (UI/Sidebar.lua); lives in the hidden group so it doesn't also appear as a normal group row.
 local _, ns = ...
 local L = ns.L
 
@@ -16,7 +11,6 @@ local mod = ns:RegisterModule("changelog", {
     defaults    = { enabled = true },
 })
 
--- Wrap text in the current accent colour (theme-aware); plain if unavailable.
 local function accent(text)
     local a = ns.C and ns.C.accent
     if a then return a .. text .. "|r" end
@@ -43,7 +37,6 @@ function mod:GetOptions()
             end
             for _, line in ipairs(sec.lines or {}) do
                 local text = tostring(line)
-                -- highlight a leading "NEW:" marker in green
                 local rest = text:match("^NEW:%s*(.+)$")
                 if rest then text = "|cff66ff66NEW:|r " .. rest end
                 items[#items + 1] = { type = "desc", text = "|cffb0b0b0\226\128\162|r " .. text }

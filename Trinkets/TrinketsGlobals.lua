@@ -1,3 +1,4 @@
+-- Backdrop tables plus a polyfill of BackdropTemplateMixin for pre-9.x clients.
 Trinkets_BACKDROP_16_16_4444 = {
 	bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
 	edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
@@ -57,9 +58,6 @@ function BackdropTemplatePolyfillMixin:OnBackdropSizeChanged()
 end
 
 function BackdropTemplatePolyfillMixin:ApplyBackdrop()
-	-- The SetBackdrop call will implicitly reset the background and border
-	-- texture vertex colors to white, consistent across all client versions.
-
 	self:SetBackdrop(self.backdropInfo)
 end
 
@@ -69,9 +67,7 @@ function BackdropTemplatePolyfillMixin:ClearBackdrop()
 end
 
 function BackdropTemplatePolyfillMixin:GetEdgeSize()
-	-- The below will indeed error if there's no backdrop assigned this is
-	-- consistent with how it works on 9.x clients.
-
+	-- Errors without a backdrop assigned, matching 9.x behaviour.
 	return self.backdropInfo.edgeSize or 39
 end
 
@@ -80,17 +76,15 @@ function BackdropTemplatePolyfillMixin:HasBackdropInfo(backdropInfo)
 end
 
 function BackdropTemplatePolyfillMixin:SetBorderBlendMode()
-	-- The pre-9.x API doesn't support setting blend modes for backdrop
-	-- borders, so this is a no-op that just exists in case we ever assume
-	-- it exists.
+	-- No-op: pre-9.x has no backdrop border blend mode.
 end
 
 function BackdropTemplatePolyfillMixin:SetupPieceVisuals()
-	-- Deliberate no-op as backdrop internals are handled C-side pre-9.x.
+	-- No-op: backdrop internals are handled C-side pre-9.x.
 end
 
 function BackdropTemplatePolyfillMixin:SetupTextureCoordinates()
-	-- Deliberate no-op as texture coordinates are handled C-side pre-9.x.
+	-- No-op: texture coordinates are handled C-side pre-9.x.
 end
 
 TrinketsBackdropTemplateMixin = CreateFromMixins(BackdropTemplateMixin or BackdropTemplatePolyfillMixin)

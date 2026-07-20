@@ -1,49 +1,28 @@
--- =========================================================
--- VuloClassicUI / Modules / SlotPicker
--- Two ways to swap gear from a character equipment slot:
---   * HOVER a slot -> a compact flyout of compatible bag items appears next
---     to it (the ItemRack-style paperdoll popout). Click to equip.
---   * Modifier-click a slot -> the same items in a larger pinnable popup.
---
--- Equipping uses the slot-aware EquipBagItemToSlot / UseContainerItem
--- (works out-of-combat in Anniversary, same approach as Loadouts).
--- =========================================================
+-- Equipment slot flyout / picker; settings are surfaced on the Loadouts page, hence group "_hidden".
 local _, ns = ...
 local L = ns.L
 
--- Registered as a hidden module: its settings live inside the Loadouts
--- ("Equipment Sets") page, not as a separate sidebar entry. The module still
--- runs (hooks slots, exposes ns:ScanBagsForSlot) — it's just not shown on its own.
 local mod = ns:RegisterModule("slotpicker", {
     name        = "Slot Picker",
     group       = "_hidden",
     description = "Hover an equipment slot for a compact flyout of compatible bag items, or modifier-click for a larger picker. Click an item to equip it.",
     defaults = {
         enabled     = true,
-        hoverFlyout = true,   -- hover a slot -> compact flyout (ItemRack style)
+        hoverFlyout = true,
         modifier    = "right",  -- "right" | "shift-right" | "alt-right" | "ctrl-right"
         cols        = 8,
-        autoClose   = true,   -- hide shortly after the mouse leaves the popup
+        autoClose   = true,
     },
 })
 
--- =========================================================
--- API compat
--- =========================================================
+-- C_Container namespace on newer clients, globals on older ones
 local GetContainerItemID    = (C_Container and C_Container.GetContainerItemID)    or _G.GetContainerItemID
 local GetContainerItemLink  = (C_Container and C_Container.GetContainerItemLink)  or _G.GetContainerItemLink
 local GetContainerNumSlots  = (C_Container and C_Container.GetContainerNumSlots)  or _G.GetContainerNumSlots
 local UseContainerItem      = (C_Container and C_Container.UseContainerItem)      or _G.UseContainerItem
 local GetItemInfoInstant    = _G.GetItemInfoInstant
--- EquipItemByName(link, slot) honours the exact slot AND routes bind-on-equip
--- items through the engine's own EQUIP_BIND_CONFIRM -> "this will bind to you"
--- dialog (already-bound items just equip). No cursor juggling, no lost popup.
 local EquipItemByName       = (C_Item and C_Item.EquipItemByName)                or _G.EquipItemByName
 
--- =========================================================
--- Slot → INVTYPE mapping
--- =========================================================
--- For each character slot ID, which INVTYPEs are valid?
 local SLOT_INVTYPES = {
     [1]  = { INVTYPE_HEAD     = true },
     [2]  = { INVTYPE_NECK     = true },
@@ -64,7 +43,6 @@ local SLOT_INVTYPES = {
     [18] = { INVTYPE_RANGED = true, INVTYPE_RANGEDRIGHT = true, INVTYPE_THROWN = true, INVTYPE_RELIC = true },
 }
 
--- Map slot ID → character-frame name suffix (so we can hook the right button)
 local SLOT_FRAME_NAMES = {
     [1]  = "Head",    [2]  = "Neck",     [3]  = "Shoulder", [15] = "Back",
     [5]  = "Chest",   [9]  = "Wrist",    [10] = "Hands",    [6]  = "Waist",
@@ -74,9 +52,6 @@ local SLOT_FRAME_NAMES = {
     [16] = "MainHand", [17] = "SecondaryHand", [18] = "Ranged",
 }
 
--- =========================================================
--- Modifier check
--- =========================================================
 local function checkModifier(button)
     local mode = mod.db.modifier or "right"
     if mode == "right" then
@@ -91,10 +66,6 @@ local function checkModifier(button)
     return false
 end
 
--- =========================================================
--- Scan bags for items matching a slot
--- Exposed as ns:ScanBagsForSlot so other modules (Loadouts) can reuse it
--- =========================================================
 local function scanBagsForSlot(slotID)
     local validTypes = SLOT_INVTYPES[slotID]
     if not validTypes or not GetContainerNumSlots or not GetItemInfoInstant then
@@ -128,9 +99,6 @@ local function scanBagsForSlot(slotID)
     return results
 end
 
--- =========================================================
--- Popup with item grid
--- =========================================================
 local popup
 local itemButtons = {}
 local BTN_SIZE = 36
@@ -146,7 +114,6 @@ local function createPopup()
     popup:SetClampedToScreen(true)
     popup:SetMovable(true)
 
-    -- house look: dark panel + accent border, soft shadow, gradient strip
     local UI = ns.UI
     if UI and UI.StyleBackdrop then
         UI:StyleBackdrop(popup, { bg = ns.COLORS.bg, border = ns.COLORS.accentDim or ns.COLORS.border })
@@ -171,8 +138,7 @@ local function createPopup()
     end
     tinsert(UISpecialFrames, "VCUI_SlotPickerPopup")
 
-    -- Close button (styled ×) — created BEFORE the title so the title can
-    -- end-elide against it instead of overflowing (truncated titles)
+    -- must exist before the title: the title anchors its RIGHT edge to this button
     local closeBtn = CreateFrame("Button", nil, popup)
     closeBtn:SetSize(18, 18)
     closeBtn:SetPoint("TOPRIGHT", popup, "TOPRIGHT", -4, -4)
@@ -186,7 +152,6 @@ local function createPopup()
     closeBtn:SetScript("OnClick", function() popup:Hide() end)
     popup.closeBtn = closeBtn
 
-    -- Title: our font, white, elides at the END against the close button
     local title = popup:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     title:SetPoint("TOPLEFT", popup, "TOPLEFT", 10, -8)
     title:SetPoint("RIGHT", closeBtn, "LEFT", -4, 0)
@@ -196,8 +161,6 @@ local function createPopup()
     title:SetTextColor(0.95, 0.95, 1)
     popup.title = title
 
-    -- Drag to move; dragging pins the popup (auto-close stands down until
-    -- it is closed and reopened)
     popup:RegisterForDrag("LeftButton")
     popup:SetScript("OnDragStart", function(self)
         self.pinned = true
@@ -205,25 +168,17 @@ local function createPopup()
     end)
     popup:SetScript("OnDragStop", popup.StopMovingOrSizing)
 
-    -- Flyout feel: close shortly after the mouse leaves popup + anchor slot.
-    -- Arms only once the mouse has actually been over the popup, so it never
-    -- vanishes before you reach it.
     popup:SetScript("OnUpdate", function(self, elapsed)
-        -- the compact hover flyout always auto-closes; the click popup honours
-        -- the option and can be pinned by dragging
         local auto = self._compact or (mod.db and mod.db.autoClose ~= false)
         if not auto then return end
         if self.pinned and not self._compact then return end
-        local overSelf   = self:IsMouseOver(8, -8, -8, 8)   -- grace margin bridges the slot gap
+        local overSelf   = self:IsMouseOver(8, -8, -8, 8)   -- grace margin bridges the gap to the slot
         local overAnchor = self.anchorBtn and self.anchorBtn.IsMouseOver
                            and self.anchorBtn:IsMouseOver()
         if overSelf then self.armed = true end
         if overSelf or overAnchor then
             self.outTime = 0
         elseif self._compact or self.armed then
-            -- compact: close once the mouse is off BOTH the slot and the flyout
-            -- (the slot is the origin, so no "armed" gate is needed); click
-            -- popup keeps the arm-first rule so it never vanishes before reached
             self.outTime = (self.outTime or 0) + elapsed
             if self.outTime > (self._compact and 0.35 or 0.5) then self:Hide() end
         end
@@ -236,8 +191,6 @@ local function createPopup()
     return popup
 end
 
--- Localized slot label ("Hands" -> HANDSSLOT global -> "Hände" on deDE);
--- falls back to the English frame suffix when the global is missing.
 local function slotLabel(slotID)
     local suffix = SLOT_FRAME_NAMES[slotID]
     if not suffix then return string.format("Slot %d", slotID) end
@@ -249,15 +202,13 @@ local function getItemButton(idx)
     if btn then return btn end
     btn = CreateFrame("Button", nil, popup, "ItemButtonTemplate")
     if not btn.icon then
-        -- Fallback in case ItemButtonTemplate doesn't expose .icon
+        -- older ItemButtonTemplate revisions don't expose .icon
         btn.icon = btn:CreateTexture(nil, "ARTWORK")
         btn.icon:SetAllPoints(btn)
     end
     btn:SetSize(BTN_SIZE, BTN_SIZE)
     btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 
-    -- house look: hide the template's metal rim, draw a filled quality ring
-    -- behind a 1px-inset icon (the proven bag-button recipe)
     local nt = btn.GetNormalTexture and btn:GetNormalTexture()
     if nt then nt:SetAlpha(0) end
     btn.ring = btn:CreateTexture(nil, "BACKGROUND", nil, -1)
@@ -302,10 +253,7 @@ local function getItemButton(idx)
         end
         if button == "LeftButton" and self.bag and self.slot then
             local link = GetContainerItemLink and GetContainerItemLink(self.bag, self.slot)
-            -- EquipItemByName honours the exact slot (lower ring/trinket) AND,
-            -- for a not-yet-bound BoE item, pops the game's own "this will bind
-            -- to you" confirmation instead of binding it silently; an already
-            -- soulbound item just equips.
+            -- EquipItemByName honours the exact slot (lower ring/trinket) and keeps the BoE bind prompt
             if self.equipSlot and EquipItemByName and link then
                 pcall(EquipItemByName, link, self.equipSlot)
             elseif self.equipSlot and ns.EquipBagItemToSlot then
@@ -320,8 +268,6 @@ local function getItemButton(idx)
     return btn
 end
 
--- Quality ring + item level per button; uncached item data self-heals via
--- the deferred repaint in showSlotPicker (the request is fired here).
 local function applyItemLook(btn)
     local q, lvl
     if btn.itemID then
@@ -334,10 +280,9 @@ local function applyItemLook(btn)
     if q and q >= 2 and GetItemQualityColor then
         btn._qr, btn._qg, btn._qb = GetItemQualityColor(q)
     else
-        btn._qr, btn._qg, btn._qb = 0.25, 0.25, 0.3   -- neutral (grey/white gear)
+        btn._qr, btn._qg, btn._qb = 0.25, 0.25, 0.3
     end
-    -- don't stomp the white hover highlight when the cursor is sitting on
-    -- this button (deferred repaint / popup reuse)
+    -- don't stomp the hover highlight when the cursor is on this button (deferred repaint)
     if btn.IsMouseOver and btn:IsMouseOver() then
         btn.ring:SetColorTexture(1, 1, 1, 0.9)
     else
@@ -354,25 +299,19 @@ local function showSlotPicker(slotID, anchorBtn, compact)
 
     createPopup()
 
-    -- the hover flyout shares one pooled popup with the click picker — it must
-    -- never hijack or close a click popup the user opened (a pinned one, or any
-    -- click popup still up). Only take over when nothing is shown or the popup
-    -- currently up is itself a flyout.
+    -- flyout and click picker share one pooled popup; never hijack a click popup
     if compact and popup:IsShown() and (popup.pinned or not popup._compact) then
         return
     end
 
     local results = scanBagsForSlot(slotID)
 
-    -- the compact hover flyout shows nothing when there's nothing to swap to
     if compact and #results == 0 then
         popup:Hide()
         return
     end
 
     popup._compact = compact and true or nil
-    -- chrome: the flyout drops the title bar + close button for a clean popout;
-    -- the click popup keeps them (and stays pinnable)
     if compact then
         popup.title:Hide()
         if popup.closeBtn then popup.closeBtn:Hide() end
@@ -383,14 +322,12 @@ local function showSlotPicker(slotID, anchorBtn, compact)
             .. string.format(" |cff888888(%d)|r", #results))
     end
 
-    -- Hide leftover buttons
     for _, b in ipairs(itemButtons) do b:Hide() end
 
-    -- click popup: CONSTANT full-grid width so it never jumps between slots.
-    -- compact flyout: a tight block that hugs the item count (sqrt-ish wrap).
+    -- click popup keeps a constant full-grid width so it never jumps between slots
     local btnPad    = 4
     local padding   = compact and 6 or 10
-    local gridStart = compact and 6 or 30  -- flyout has no title bar
+    local gridStart = compact and 6 or 30
     local cols
     if compact then
         cols = math.min(mod.db.cols or 8, math.max(1, math.ceil(math.sqrt(#results))))
@@ -406,7 +343,6 @@ local function showSlotPicker(slotID, anchorBtn, compact)
 
     if #results == 0 then
         popup:SetSize(width, 64)
-        -- Show "no items" message inline
         if not popup.noItemsText then
             popup.noItemsText = popup:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
             popup.noItemsText:SetPoint("CENTER", popup, "CENTER", 0, -8)
@@ -429,9 +365,8 @@ local function showSlotPicker(slotID, anchorBtn, compact)
             btn.bag      = entry.bag
             btn.slot     = entry.slot
             btn.itemID   = entry.itemID
-            btn.equipSlot = slotID  -- the character slot this picker is for
+            btn.equipSlot = slotID
 
-            -- Set icon
             local iconTex = entry.icon
             if not iconTex then
                 local _, _, _, _, ic = GetItemInfoInstant(entry.itemID)
@@ -453,8 +388,7 @@ local function showSlotPicker(slotID, anchorBtn, compact)
                 -(gridStart + row * (BTN_SIZE + btnPad)))
         end
 
-        -- one deferred pass for quality/ilvl of items the client hadn't
-        -- cached yet (requests were fired in applyItemLook)
+        -- one deferred pass for items the client hadn't cached yet
         if C_Timer and C_Timer.After then
             C_Timer.After(0.5, function()
                 if not popup:IsShown() then return end
@@ -465,9 +399,7 @@ local function showSlotPicker(slotID, anchorBtn, compact)
         end
     end
 
-    -- Open DIRECTLY at the clicked slot: to its right, or to its left when
-    -- the slot sits in the right half of the screen (right slot column /
-    -- right-positioned character window). Clamped to the screen either way.
+    -- open on the far side of the slot when it sits in the right screen half
     popup.pinned = false
     popup.armed  = false
     popup.anchorBtn = anchorBtn
@@ -488,19 +420,13 @@ local function showSlotPicker(slotID, anchorBtn, compact)
     popup:Show()
 end
 
--- Public API — Loadouts uses this to populate its expandable item picker
 function ns:ScanBagsForSlot(slotID)
     return scanBagsForSlot(slotID)
 end
 
--- =========================================================
--- Hook character slot buttons
--- =========================================================
 local _hooked = false
 
--- Hover flyout with a short delay + generation token, so brushing the mouse
--- across several slots doesn't spawn a flyout on each one — only the slot the
--- cursor settles on (for ~0.15s) opens.
+-- generation token: brushing across slots must not spawn a flyout on each one
 local hoverGen = 0
 local function scheduleFlyout(slotID, btn)
     if not (mod._enabled and mod.db and mod.db.hoverFlyout) then return end
@@ -510,7 +436,7 @@ local function scheduleFlyout(slotID, btn)
         showSlotPicker(slotID, btn, true); return
     end
     C_Timer.After(0.15, function()
-        if myGen ~= hoverGen then return end            -- moved on / left the slot
+        if myGen ~= hoverGen then return end
         if not (mod._enabled and mod.db and mod.db.hoverFlyout) then return end
         if btn.IsMouseOver and btn:IsMouseOver() then
             showSlotPicker(slotID, btn, true)
@@ -526,29 +452,24 @@ local function hookSlots()
             slotBtn:HookScript("OnClick", function(self, button)
                 if not mod._enabled then return end
                 if checkModifier(button) then
-                    showSlotPicker(slotID, self)   -- anchor the click popup to this slot
+                    showSlotPicker(slotID, self)
                 end
             end)
             slotBtn:HookScript("OnEnter", function(self)
                 scheduleFlyout(slotID, self)
             end)
             slotBtn:HookScript("OnLeave", function()
-                hoverGen = hoverGen + 1   -- cancel a pending (not-yet-shown) flyout
+                hoverGen = hoverGen + 1
             end)
         end
     end
     _hooked = true
 end
 
--- =========================================================
--- Lifecycle
--- =========================================================
 function mod:OnEnable()
     if not mod.db then return end
 
-    -- One-time migration: previous default modifier was "shift-right".
-    -- Switch existing users to the new "right" default. If a user actively
-    -- prefers shift/alt/ctrl, they can change it back in the dropdown.
+    -- one-time migration off the old "shift-right" default
     if not mod.db._defaultMigrated_v2 then
         if mod.db.modifier == "shift-right" then
             mod.db.modifier = "right"
@@ -559,9 +480,6 @@ function mod:OnEnable()
     hookSlots()
 end
 
--- =========================================================
--- Options
--- =========================================================
 function mod:GetOptions()
     return {
         { type = "header", text = L["Slot Picker"] },

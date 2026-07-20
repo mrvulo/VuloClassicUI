@@ -1,21 +1,7 @@
--- =========================================================
--- VuloClassicUI / Modules / VTManaDisplay (merged with Classes/Priest+Warlock DoT data)
--- AUTO-MERGED file. Each former module is wrapped in an isolated
--- IIFE so its file-level locals and any top-level early-return stay
--- self-contained. Modules communicate through the shared ns table.
--- =========================================================
+-- VuloClassicUI / Modules / VTManaDisplay: auto-merged; each IIFE keeps its file-level locals and early-returns self-contained.
 
--- ============================================================
 -- merged from: VTManaDisplay.lua
--- ============================================================
 (function(...)
--- =========================================================
--- VuloClassicUI / Modules / VTManaDisplay (Class Specific)
--- Container module for class-specific tools, organized by class tabs.
--- Currently: Priest → Shadow → Vampiric Touch mana tracker
---   (tracks 5% of shadow damage per tick given back to the group as mana).
--- Built to be extended: add a class to CLASS_TABS to give it its own tab.
--- =========================================================
 local _, ns = ...
 local L = ns.L
 
@@ -31,23 +17,20 @@ local mod = ns:RegisterModule("vtmanadisplay", {
         y          = -220,
         fontSize   = 14,
         unlocked   = false,
-        -- DoT tracker (Priest → Shadow, Warlock → Affliction/Destruction)
         dots = {
             layout      = "bars",   -- "bars" | "icons"
-            -- Priest
             showSWP     = true,
             showVT      = true,
-            showDP      = false,  -- Undead only; off by default
-            -- Warlock
+            showDP      = false,
             showCorruption = true,
             showCoA        = true,
             showUA         = true,
             showSiphon     = true,
             showImmolate   = true,
-            showCoDoom     = false,  -- long/niche; off by default
+            showCoDoom     = false,
             warnSeconds = 3,
             colorText   = true,
-            showGain    = true,   -- "+12%" recast-gain readout next to the timer
+            showGain    = true,
             barWidth    = 150,
             barHeight   = 18,
             iconSize    = 32,
@@ -60,9 +43,6 @@ local mod = ns:RegisterModule("vtmanadisplay", {
     },
 })
 
--- One tab per class. Priest first (it has tools), the rest alphabetical.
--- Classes without tools show a placeholder; add their options in GetOptions
--- as more class tools are built.
 mod.tabs = {
     { id = "priest",  label = "Priest"  },
     { id = "druid",   label = "Druid"   },
@@ -75,19 +55,15 @@ mod.tabs = {
     { id = "warrior", label = "Warrior" },
 }
 
--- Pluggable per-class tools. Other files (e.g. Classes/Shaman) register here,
--- keyed by class token ("SHAMAN"). Each tool: { onEnable, onDisable, getOptions }.
+-- classToken -> { onEnable, onDisable, getOptions }, registered by class files.
 mod.classTools = {}
 function mod:RegisterClassTool(classToken, def)
     self.classTools[classToken] = def
 end
 
--- Per-class DoT sets live in their own file (Modules/Classes/<Class>.lua) and
--- register here at load. The DoT *engine* (rendering, snapshots, options) is
--- shared below — class files only contribute data, so nothing is duplicated.
 local DOT_SETS     = {}   -- classToken -> { dot defs }
-local DOT_SET_META = {}   -- classToken -> { desc = "..." }
-local dotDefs      = {}   -- the active set, chosen by class in OnEnable
+local DOT_SET_META = {}
+local dotDefs      = {}   -- active set, chosen by class in OnEnable
 
 function mod:RegisterDotSet(classToken, dots, meta)
     DOT_SETS[classToken] = dots
@@ -97,19 +73,13 @@ end
 local VT_SPELL_ID_BASE = 34914  -- Vampiric Touch base (TBC)
 local SHADOW_SCHOOL    = 32
 
--- =========================================================
--- Runtime state
--- =========================================================
 local playerGUID
 local vtSpellName          -- localized name, filters all ranks
-local vtTargets  = {}      -- destGUID -> true (active VTs)
+local vtTargets  = {}
 local totalMana  = 0
 local lastTick   = 0
-local cFrame              -- display frame
+local cFrame
 
--- =========================================================
--- Helpers
--- =========================================================
 local function updateFrame()
     if not cFrame or not cFrame.text then return end
     cFrame.text:SetText(string.format(L["|cff9b6cffVT Mana:|r %d"], math.floor(totalMana)))
@@ -131,11 +101,6 @@ local function refreshSpell()
     vtSpellName = GetSpellInfo(VT_SPELL_ID_BASE)
 end
 
--- =========================================================
--- Combat log handler
--- Anniversary uses the modern backend — args via CombatLogGetCurrentEventInfo().
--- Lookup table instead of multiple string compares per event (hot-path filter).
--- =========================================================
 local TRACKED_EVENTS = {
     SPELL_AURA_APPLIED    = "apply",
     SPELL_AURA_REMOVED    = "remove",
@@ -143,14 +108,6 @@ local TRACKED_EVENTS = {
     SPELL_PERIODIC_DAMAGE = "damage",
 }
 
--- NOTE: combat-log handling lives in onCombatLog further down — ONE shared
--- handler for VT mana AND the DoT snapshots. The combat log is the hottest
--- event there is; two separate handlers would destructure every log line
--- twice (dispatch + CombatLogGetCurrentEventInfo each).
-
--- =========================================================
--- Frame + mover
--- =========================================================
 local function createFrame()
     if cFrame then return cFrame end
 
@@ -198,25 +155,8 @@ local function setUnlocked(state)
     end
 end
 
--- =========================================================
--- Shadow DoT tracker (Priest → Shadow)
--- Tracks YOUR Shadow Word: Pain / Vampiric Touch / Devouring Plague
--- on the current target, as bars or icons, with a refresh warning.
--- Reads UnitAura duration/expiration (caster = player), matched by name
--- so every rank is covered. No Mastery/Pandemic API exists in 2.5.5.
--- =========================================================
--- DoT defs (base / coef / school / color / toggle) live in the per-class
--- files and arrive via mod:RegisterDotSet. base = approx base damage over the
--- full duration; coef = spell-power coefficient over the full duration;
--- school = GetSpellBonusDamage index (6 = Shadow, 3 = Fire). Exact values
--- barely matter — the "is a recast stronger now?" check is relative (each DoT
--- vs its OWN snapshot), so base/coef only weight spell power against % buffs.
--- DOT_SETS / dotDefs are declared up top next to the registration API.
-
--- Caster-side TEMPORARY % spell-damage buffs that snapshot onto a DoT at cast.
--- Target debuffs (Shadow Weaving / Misery) are dynamic -> NOT here. Constant
--- modifiers (Shadowform / Darkness) cancel out in the comparison -> also skip.
--- spellId -> multiplier. Extend as needed.
+-- Only caster-side TEMPORARY % spell-damage buffs belong here: dynamic target
+-- debuffs never snapshot, and constant modifiers cancel out in the comparison.
 local DOT_DMG_BUFFS = {
     [34457] = 1.03, [34459] = 1.03, [34460] = 1.03,  -- Ferocious Inspiration (+3%)
 }
@@ -232,14 +172,12 @@ local dotsThrottle = 0
 local DOT_GREEN     = { 0.20, 1.00, 0.20 }
 local dotsSnapshots = {}  -- destGUID..dotKey -> damage-estimate snapshot at cast
 
--- Spell power right now for a given school (6 = Shadow, 3 = Fire).
+-- school: GetSpellBonusDamage index (6 = Shadow, 3 = Fire).
 local function dotsCurrentPower(school)
     return (GetSpellBonusDamage and GetSpellBonusDamage(school or 6)) or 0
 end
 
--- Product of active caster-side % spell-damage buffs (1.0 if none).
--- Cached: scanning 40 player buffs 10x/second from OnUpdate is wasted work —
--- the value only changes on UNIT_AURA("player"), so recompute it there.
+-- Cached: only changes on UNIT_AURA("player"), so never rescan from OnUpdate.
 local dotsMultCache = 1
 
 local function dotsDamageMult()
@@ -261,18 +199,12 @@ local function dotsOnUnitAura(_, unit)
     if unit == "player" then dotsRecomputeMult() end
 end
 
--- Estimated DoT damage = (base + spellpower[school] * coef) * % damage mult.
--- AffDots-style: snapshot this at cast, then compare to the live value.
--- Spell power is read per the DoT's own school (Shadow vs Fire).
 local function dotsFactor(dot, mult)
     return (dot.base + dotsCurrentPower(dot.school) * dot.coef) * mult
 end
 
--- How much would a recast on the current target gain (in %) vs. the value the
--- running DoT snapshotted at cast? TBC DoTs freeze spell power AND caster
--- % buffs on cast, so with a spell-power proc up a fresh cast deals more.
--- Returns a percentage (+14 = recast hits 14% harder, -8 = the running DoT
--- is 8% stronger than a fresh cast would be), or nil without a snapshot.
+-- Recast gain in % vs the running DoT's cast-time snapshot (TBC freezes spell
+-- power and caster % buffs on cast); nil without a snapshot.
 local function dotsGain(dot, mult)
     local guid = UnitGUID("target")
     if not guid then return nil end
@@ -281,18 +213,14 @@ local function dotsGain(dot, mult)
     return (dotsFactor(dot, mult) / snap - 1) * 100
 end
 
--- ONE combat-log handler for both trackers. VT mana: count shadow damage on
--- VT'd targets (5% -> mana). DoT snapshots: record the spell-power estimate
--- when a tracked DoT is (re)applied, drop it when it falls off — keeps
--- dotsSnapshots from growing unbounded and avoids stale recycled GUIDs.
+-- ONE handler for both trackers: the combat log is too hot to destructure twice.
 local function onCombatLog()
     if not playerGUID then
         playerGUID = UnitGUID("player")
         if not playerGUID then return end
     end
 
-    -- Cheap pre-filter: read only subevent + source, bail before the full
-    -- destructure for anything that isn't ours.
+    -- Cheap pre-filter: bail before the full destructure.
     local _, subEvent, _, sourceGUID = CombatLogGetCurrentEventInfo()
     if sourceGUID ~= playerGUID then return end
 
@@ -304,7 +232,6 @@ local function onCombatLog()
     local _, _, _, _, _, _, _, destGUID, _, _, _,
           _, spellName, _, amount, _, school = CombatLogGetCurrentEventInfo()
 
-    -- VT mana tracking
     if kind == "apply" then
         if spellName == vtSpellName then
             vtTargets[destGUID] = true
@@ -325,7 +252,6 @@ local function onCombatLog()
         end
     end
 
-    -- DoT snapshots
     if apply or remove then
         for _, dot in ipairs(dotDefs) do
             if dot.name and spellName == dot.name then
@@ -337,9 +263,10 @@ local function onCombatLog()
     end
 end
 
-local dotsWanted  = {}   -- spell name -> true (the DoTs we track)
-local dotsAuraDur = {}   -- spell name -> duration   (refreshed per scan)
-local dotsAuraExp = {}   -- spell name -> expiration
+-- All three are keyed by spell name.
+local dotsWanted  = {}
+local dotsAuraDur = {}
+local dotsAuraExp = {}
 
 local function dotsRefreshSpellData()
     for k in pairs(dotsWanted) do dotsWanted[k] = nil end
@@ -354,9 +281,7 @@ local function dotsRefreshSpellData()
     end
 end
 
--- ONE pass over the target's debuffs for ALL tracked DoTs (instead of one
--- 40-slot scan per row per tick). Results land in the reused name-keyed
--- tables — no per-tick table allocations, no GC churn.
+-- One 40-slot pass for ALL DoTs; results reuse the tables above to avoid GC churn.
 local function dotsScanTarget()
     for k in pairs(dotsAuraDur) do dotsAuraDur[k] = nil end
     for k in pairs(dotsAuraExp) do dotsAuraExp[k] = nil end
@@ -404,7 +329,6 @@ local function dotsCreateRow(dot)
     row.time = row:CreateFontString(nil, "OVERLAY")
     row.time:SetFont(DOT_FONT, mod.db.dots.fontSize, "OUTLINE")
 
-    -- Recast-gain readout ("+12%"): how much harder a fresh cast would hit
     row.pct = row:CreateFontString(nil, "OVERLAY")
     row.pct:SetFont(DOT_FONT, mod.db.dots.fontSize, "OUTLINE")
     row.pct:Hide()
@@ -455,7 +379,7 @@ local function dotsApplyLayout()
             row:Show()
         end
         dotsContainer:SetSize(#active * s + (#active - 1) * db.spacing, s)
-    else -- bars
+    else
         local h, w = db.barHeight, db.barWidth
         local iconW = h
         for i, dot in ipairs(active) do
@@ -518,7 +442,7 @@ local function dotsUpdateRow(row, hasTarget, preview, mult)
         local warn = remaining <= db.warnSeconds
         local gain
         if preview then
-            gain = 12  -- sample value while positioning
+            gain = 12
         elseif hasTarget then
             gain = dotsGain(dot, mult)
         end
@@ -538,8 +462,6 @@ local function dotsUpdateRow(row, hasTarget, preview, mult)
             row.time:SetTextColor(1, 1, 1)
         end
 
-        -- "+12%" = a fresh cast right now hits 12% harder than the running DoT
-        -- (spell-power/damage procs vs. its snapshot). Negative = keep the DoT.
         if db.showGain and gain and math.abs(gain) >= 1 then
             row.pct:SetText(string.format("%+.0f%%", gain))
             if gain > 0 then
@@ -622,7 +544,7 @@ local function dotsRefresh()
     end
 
     dotsContainer:Show()
-    dotsScanTarget()  -- one debuff pass for all rows
+    dotsScanTarget()
     local mult = dotsDamageMult()
     for _, dot in ipairs(dotDefs) do
         local row = dotsRows[dot.key]
@@ -659,7 +581,7 @@ local function dotsBuild()
         onMove = function(x, y)
             ns:Print(string.format(L["Shadow DoTs: x=%.0f, y=%.0f"], x, y))
         end,
-        editPreview = function() dotsRefresh() end,   -- show DoT preview while editing
+        editPreview = function() dotsRefresh() end,
     })
 
     dotsRefreshSpellData()
@@ -682,11 +604,8 @@ local function dotsSetUnlocked(state)
     end
 end
 
--- =========================================================
--- Lifecycle
--- =========================================================
 function mod:OnEnable()
-    -- Migration: take over old settings under "vampirictouchmana"
+    -- Migration from the old "vampirictouchmana" module
     if ns.db and ns.db.profile and ns.db.profile.modules then
         local old = ns.db.profile.modules.vampirictouchmana
         if old then
@@ -699,7 +618,6 @@ function mod:OnEnable()
         end
     end
 
-    -- Run any registered per-class tool for this class (e.g. Shaman totems)
     local _, class = UnitClass("player")
     local tool = mod.classTools and mod.classTools[class]
     if tool and tool.onEnable then
@@ -707,8 +625,7 @@ function mod:OnEnable()
         if not ok then ns:Print(L["|cffff5555Class tool error:|r %s"], tostring(err)) end
     end
 
-    -- Pick the DoT set for this class. VT mana stays Priest-only; the DoT
-    -- tracker runs for any class that has a set (Priest + Warlock).
+    -- VT mana is Priest-only; the DoT tracker runs for any class with a set.
     local hasDots  = DOT_SETS[class] ~= nil
     dotDefs = DOT_SETS[class] or {}
     local isPriest = class == "PRIEST"
@@ -716,7 +633,6 @@ function mod:OnEnable()
 
     playerGUID = UnitGUID("player")
 
-    -- Priest: Vampiric Touch mana frame
     if isPriest then
         vtSpellName = GetSpellInfo(VT_SPELL_ID_BASE)
         createFrame()
@@ -727,12 +643,10 @@ function mod:OnEnable()
         ns:RegisterEvent("SPELLS_CHANGED",        refreshSpell)
     end
 
-    -- DoT tracker (Priest + Warlock). The combat-log handler also feeds the
-    -- VT mana counter, so it's registered whenever either system is active.
     if hasDots then
         ns:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", onCombatLog)
 
-        -- migrate the old standalone "shadowdots" module
+        -- Migration from the old standalone "shadowdots" module
         if ns.db and ns.db.profile and ns.db.profile.modules then
             local oldDots = ns.db.profile.modules.shadowdots
             if oldDots then
@@ -764,7 +678,6 @@ function mod:OnDisable()
     ns:UnregisterEvent("SPELLS_CHANGED",              refreshSpell)
     if cFrame then cFrame:Hide() end
 
-    -- Shadow DoT tracker
     ns:UnregisterEvent("UNIT_AURA",             dotsOnUnitAura)
     ns:UnregisterEvent("SPELLS_CHANGED",        dotsRefreshSpellData)
     ns:UnregisterEvent("PLAYER_TARGET_CHANGED", dotsRefresh)
@@ -775,20 +688,13 @@ function mod:OnDisable()
         dotsContainer:Hide()
     end
 
-    -- Per-class tool teardown
     local _, class = UnitClass("player")
     local tool = mod.classTools and mod.classTools[class]
     if tool and tool.onDisable then pcall(tool.onDisable) end
 end
 
--- =========================================================
--- Options
--- =========================================================
 local CLASS_NAME = { PRIEST = L["Priest"], WARLOCK = L["Warlock"], SHAMAN = L["Shaman"] }
 
--- Shared DoT-tracker options, built for a specific class' DoT set. Used by
--- both the Priest and Warlock tabs. The tracker only RUNS for the player's
--- own class, so a note is shown when viewing another class' tab.
 local function appendDotTracker(items, forClass)
     table.insert(items, { type = "spacer", height = 10 })
     table.insert(items, { type = "header", text = L["DoT Tracker"] })
@@ -808,7 +714,6 @@ local function appendDotTracker(items, forClass)
         get = function() return mod.db.dots.layout end,
         set = function(_, v) mod.db.dots.layout = v; dotsApplyLayout(); dotsRefresh() end })
 
-    -- One toggle per DoT in this class' set
     for _, dot in ipairs(DOT_SETS[forClass] or {}) do
         local toggleKey = dot.toggle
         table.insert(items, { type = "toggle", label = L[dot.label],
@@ -865,7 +770,6 @@ local function appendDotTracker(items, forClass)
     return items
 end
 
--- Priest tab: Shadow → Vampiric Touch mana tracker + DoT tracker
 local function priestOptions()
     local isPriest = select(2, UnitClass("player")) == "PRIEST"
     local items = {
@@ -917,12 +821,10 @@ local function priestOptions()
         },
     })
 
-    -- Shadow DoT tracker (shared engine, Priest set)
     appendDotTracker(items, "PRIEST")
     return items
 end
 
--- Tab id -> display label (from mod.tabs), for generic class option headers.
 local TAB_LABEL = {}
 for _, t in ipairs(mod.tabs) do TAB_LABEL[t.id] = t.label end
 
@@ -933,13 +835,11 @@ function mod:GetOptions(tabId)
 
     local classToken = tabId and tabId:upper() or ""
 
-    -- A custom class tool (e.g. the Shaman totem bar) supplies its own options.
     local tool = self.classTools and self.classTools[classToken]
     if tool and tool.getOptions then
         return tool.getOptions()
     end
 
-    -- Any class that registered a DoT set gets the generic DoT tracker page.
     if DOT_SETS[classToken] then
         local label = TAB_LABEL[tabId] or classToken
         local items = { { type = "header", text = L[label] or label } }
@@ -951,7 +851,6 @@ function mod:GetOptions(tabId)
         return items
     end
 
-    -- Nothing class-specific yet.
     return {
         { type = "header", text = L["No tools yet"] },
         { type = "desc", text = L["|cffaaaaaaNo class-specific tools for this class yet. Got an idea? Let me know!|r"] },
@@ -960,30 +859,14 @@ end
 
 end)(...);
 
--- ============================================================
 -- merged from: Classes/Priest.lua
--- ============================================================
 (function(...)
--- =========================================================
--- VuloClassicUI / Modules / Classes / Priest
--- Priest-specific data for the "Class Specific" module (Priest tab).
--- Registers the Shadow DoT set into the shared DoT-tracker engine.
---
--- NOTE: the Vampiric Touch mana tracker itself stays in the container module
--- (VTManaDisplay.lua) on purpose — it shares the SINGLE combat-log pass with
--- the DoT snapshots, and the combat log is the hottest event in the game.
--- Splitting it into a second handler would destructure every log line twice.
--- Class files contribute DATA; the shared engine is never duplicated.
--- =========================================================
 local _, ns = ...
 
 local csMod = ns.modules and ns.modules.vtmanadisplay
 if not csMod or not csMod.RegisterDotSet then return end
 
--- key:    unique across classes (snapshot / row keying)
--- id:     base-rank spell id (name filters every rank)
--- toggle: db.dots flag (defaults live in the container's db schema)
--- school: GetSpellBonusDamage index (6 = Shadow)
+-- id is the base rank; the resolved name filters every rank.
 csMod:RegisterDotSet("PRIEST", {
     { key = "swp", id = 589,   toggle = "showSWP", label = "Shadow Word: Pain", school = 6, color = { 0.62, 0.40, 0.94 }, base = 1236, coef = 1.10 },
     { key = "vt",  id = 34917, toggle = "showVT",  label = "Vampiric Touch",    school = 6, color = { 0.85, 0.30, 0.85 }, base = 850,  coef = 1.00 },
@@ -992,27 +875,14 @@ csMod:RegisterDotSet("PRIEST", {
 
 end)(...);
 
--- ============================================================
 -- merged from: Classes/Warlock.lua
--- ============================================================
 (function(...)
--- =========================================================
--- VuloClassicUI / Modules / Classes / Warlock
--- Warlock-specific data for the "Class Specific" module (Warlock tab).
--- Registers the Affliction / Destruction DoT set into the shared DoT-tracker
--- engine — the container builds the Warlock tab's options generically from it.
--- Class files contribute DATA only; the engine is shared, never duplicated.
--- =========================================================
 local _, ns = ...
 local L = ns.L
 
 local csMod = ns.modules and ns.modules.vtmanadisplay
 if not csMod or not csMod.RegisterDotSet then return end
 
--- key:    unique across classes (snapshot / row keying)
--- id:     base-rank spell id (name filters every rank)
--- toggle: db.dots flag (defaults live in the container's db schema)
--- school: GetSpellBonusDamage index (6 = Shadow, 3 = Fire)
 csMod:RegisterDotSet("WARLOCK", {
     { key = "corr",   id = 172,   toggle = "showCorruption", label = "Corruption",          school = 6, color = { 0.55, 0.35, 0.85 }, base = 900,  coef = 0.94 },
     { key = "coa",    id = 980,   toggle = "showCoA",        label = "Curse of Agony",      school = 6, color = { 0.45, 0.30, 0.70 }, base = 1356, coef = 1.20 },

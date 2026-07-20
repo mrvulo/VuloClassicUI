@@ -1,11 +1,4 @@
--- =========================================================
--- VuloClassicUI / Modules / Vulslot
--- Named snapshots of your complete bar setup: all 120 action slots
--- (spells, macros, items), your macros and your keybindings — saved
--- to SavedVariables and restorable with one click. Spells are matched
--- by ID with a name fallback, macros by name, so snapshots survive
--- relogs and macro reshuffles.
--- =========================================================
+-- Vulslot: named snapshots of action bars, macros and keybindings. Spells match by ID with name fallback, macros by name, so snapshots survive relogs and macro reshuffles.
 local _, ns = ...
 local L = ns.L
 
@@ -30,9 +23,6 @@ local function characterMacroCap()
     return _G.MAX_CHARACTER_MACROS or 18
 end
 
--- =========================================================
--- Snapshot (save)
--- =========================================================
 local function snapshotActions()
     local out = {}
     for slot = 1, MAX_SLOTS do
@@ -45,7 +35,6 @@ local function snapshotActions()
         elseif t == "item" and id then
             out[slot] = { type = "item", id = id, name = GetItemInfo(id) }
         end
-        -- anything else (empty / unsupported type) -> slot stays nil
     end
     return out
 end
@@ -92,9 +81,6 @@ local function saveProfile(name)
     ns:Print(L["Vulslot profile '%s' saved."], name)
 end
 
--- =========================================================
--- Restore (load)
--- =========================================================
 local function restoreMacros(list)
     local edited, created, failed = 0, 0, 0
     ClearCursor()
@@ -217,15 +203,10 @@ local function loadProfile(name)
     end
 end
 
--- =========================================================
--- Lifecycle (pure on-demand module: nothing to wire up)
--- =========================================================
+-- Pure on-demand module: nothing to wire up in lifecycle
 function mod:OnEnable() end
 function mod:OnDisable() end
 
--- =========================================================
--- Options
--- =========================================================
 local newName  = ""
 local selected = nil
 

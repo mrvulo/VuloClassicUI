@@ -1,69 +1,48 @@
--- =========================================================
--- VuloClassicUI / Modules / SwingTimer
--- Weapon swing timer bars (main hand / off hand) for melee auto-attacks.
---
--- How it works:
---   * UnitAttackSpeed("player") gives the current MH/OH swing durations.
---   * The combat log (SWING_DAMAGE / SWING_MISSED from the player) tells us
---     exactly when a hand swings -> we restart that hand's bar.
---   * PLAYER_ENTER_COMBAT / PLAYER_LEAVE_COMBAT mark auto-attack start/stop.
---   * UNIT_ATTACK_SPEED rescales an in-progress swing on haste changes.
---
--- The off-hand bar only appears while dual-wielding, so it's most relevant
--- for Rogue / Warrior (hence the "Class" group).
--- =========================================================
+-- Swing bars restart on the player's own SWING_DAMAGE/SWING_MISSED combat-log lines, not on attack input.
 local _, ns = ...
 local L = ns.L
 
--- Melee classes (TBC): the swing timer defaults ON for these, OFF for pure
--- casters (Mage / Priest / Warlock). Users can still toggle it per character.
 local MELEE_CLASSES = {
     WARRIOR = true, ROGUE = true, PALADIN = true,
     SHAMAN  = true, DRUID = true, HUNTER  = true,
 }
 local function isMeleeClass()
     local _, classFile = UnitClass("player")
-    if not classFile then return true end  -- class not known yet (file load): default on; the OnEnable migration re-checks once it is
+    if not classFile then return true end  -- class unknown at file load; OnEnable re-checks
     return MELEE_CLASSES[classFile] == true
 end
 
--- group "_hidden": no own sidebar entry. The options live as a section inside
--- the Player Castbar module (see PlayerCastbar:GetOptions). Defaults ON for
--- melee classes and OFF for pure casters; the off-hand bar only shows while
--- dual-wielding. Users can still toggle it per character.
+-- group "_hidden": no sidebar entry; options are rendered by PlayerCastbar:GetOptions.
 local mod = ns:RegisterModule("swingtimer", {
     name        = "Swing Timer",
     group       = "_hidden",
     description = "Weapon swing timer for your melee auto-attacks (any melee class). Shows a main-hand bar and, while dual-wielding, an off-hand bar.",
     defaults = {
-        enabled         = isMeleeClass(),  -- ON for melee classes, OFF for casters
+        enabled         = isMeleeClass(),
         width           = 200,
         height          = 18,
         gap             = 3,
         x               = 0,
         y               = -140,
         unlocked        = false,
-        showOffHand     = true,      -- show OH bar while dual-wielding
-        showText        = true,      -- show the remaining-time number
-        onlyWhileActive = true,      -- hide the frame unless you're swinging
-        colorPreset     = "blue",    -- matches the reference screenshot
-        texture         = "Atrocity",-- foreground (fill) statusbar texture
-        bgTexture       = "Atrocity",-- background statusbar texture
-        fillAlpha       = 1.0,       -- foreground transparency (0..1)
-        bgAlpha         = 0.9,       -- background transparency (0..1)
+        showOffHand     = true,
+        showText        = true,
+        onlyWhileActive = true,
+        colorPreset     = "blue",
+        texture         = "Atrocity",
+        bgTexture       = "Atrocity",
+        fillAlpha       = 1.0,
+        bgAlpha         = 0.9,
     },
 })
 
--- =========================================================
--- Constants / locals
--- =========================================================
 local GetTime         = GetTime
 local UnitAttackSpeed = UnitAttackSpeed
 local UnitGUID        = UnitGUID
 local CLGetInfo       = CombatLogGetCurrentEventInfo
 local format          = string.format
 
-local TEX_FILL  = "Interface\\TargetingFrame\\UI-StatusBar"  -- neutral white -> tints cleanly
+local TEX_FILL  = "Interface\\TargetingFrame\\UI-StatusBar"
 local TEX_SPARK = "Interface\\AddOns\\VuloClassicUI\\Media\\Castbar\\CastingBarSpark"
 
 local COLOR_PRESETS = {
@@ -78,10 +57,7 @@ local function barColor()
     return COLOR_PRESETS[mod.db.colorPreset] or COLOR_PRESETS.blue
 end
 
--- Resolve a statusbar texture by LibSharedMedia name. IMPORTANT: we read from
--- the HashTable directly instead of LSM:Fetch — Fetch honours a global texture
--- override (set by some skin addons), which would make every choice resolve to
--- the same texture. HashTable always returns exactly the chosen one.
+-- HashTable, not LSM:Fetch: Fetch honours a global texture override and would collapse every choice to one texture.
 local function lsmStatusbar(name)
     if ns.LSM and name then
         local hash = ns.LSM:HashTable("statusbar")
@@ -93,9 +69,6 @@ end
 local function fillTexture() return lsmStatusbar(mod.db.texture) end
 local function bgTexture()   return lsmStatusbar(mod.db.bgTexture) end
 
--- The bundled bar textures (Media\textures), registered in Core/MediaRegistry.
--- The picker is limited to these on purpose — no Blizzard default, no other
--- addons' textures.
 local BUNDLED_TEXTURES = {
     "Atrocity", "Beautiful", "Divide", "Fade", "Fade Right", "Glass",
     "Gradient", "Gradient (B-T)", "Gradient (R-L)", "Gradient (T-B)",
@@ -111,7 +84,6 @@ local function isBundledTexture(name)
     return false
 end
 
--- Dropdown values: only the bundled Media\textures bars.
 local function textureValues()
     local vals = {}
     for _, name in ipairs(BUNDLED_TEXTURES) do
@@ -120,11 +92,8 @@ local function textureValues()
     return vals
 end
 
--- Apply the foreground (fill) + background textures, colours and transparency
--- to a bar. Robust: re-set on the texture object and disable tiling so narrow
--- LSM textures don't repeat.
+-- Tiling must be disabled on the texture object or narrow LSM textures repeat instead of stretching.
 local function applyBarTexture(bar)
-    -- Foreground (fill)
     local path = fillTexture()
     bar:SetStatusBarTexture(path)
     local t = bar:GetStatusBarTexture()
@@ -136,7 +105,6 @@ local function applyBarTexture(bar)
     local c = barColor()
     bar:SetStatusBarColor(c.r, c.g, c.b, mod.db.fillAlpha or 1)
 
-    -- Background
     if bar.bg then
         bar.bg:SetTexture(bgTexture())
         if bar.bg.SetHorizTile then bar.bg:SetHorizTile(false) end
@@ -148,18 +116,14 @@ end
 local playerGUID
 local dualWield = false
 
--- swing state for each hand
 local mh = { start = 0, dur = 0, active = false }
 local oh = { start = 0, dur = 0, active = false }
 
-local frame          -- container (movable)
-local mhBar, ohBar   -- the two StatusBars
+local frame
+local mhBar, ohBar
 local eventFrame
-local previewActive, previewExpire = false, 0  -- short demo when settings change
+local previewActive, previewExpire = false, 0
 
--- =========================================================
--- Swing math
--- =========================================================
 local function recomputeDualWield()
     local _, offSpeed = UnitAttackSpeed("player")
     dualWield = (offSpeed ~= nil and offSpeed > 0)
@@ -168,7 +132,7 @@ end
 local function resetMH()
     local mainSpeed = UnitAttackSpeed("player")
     if not mainSpeed or mainSpeed <= 0 then return end
-    previewActive = false  -- real swing supersedes a settings preview
+    previewActive = false  -- a real swing supersedes the settings preview
     mh.start, mh.dur, mh.active = GetTime(), mainSpeed, true
 end
 
@@ -179,7 +143,7 @@ local function resetOH()
     oh.start, oh.dur, oh.active = GetTime(), offSpeed, true
 end
 
--- Haste changed mid-swing: keep the same elapsed fraction with the new speed.
+-- Haste change mid-swing keeps the elapsed fraction; it does not restart the swing.
 local function rescale()
     local mainSpeed, offSpeed = UnitAttackSpeed("player")
     local t = GetTime()
@@ -193,9 +157,6 @@ local function rescale()
     end
 end
 
--- =========================================================
--- Visuals
--- =========================================================
 local function addBorder(bar)
     local function edge()
         local t = bar:CreateTexture(nil, "OVERLAY")
@@ -225,7 +186,6 @@ local function createBar(parent, labelText)
 
     addBorder(bar)
 
-    -- subtle top gloss for a glossy look
     bar.gloss = bar:CreateTexture(nil, "ARTWORK", nil, 1)
     bar.gloss:SetColorTexture(1, 1, 1, 0.06)
 
@@ -262,8 +222,7 @@ local function updateBar(bar, sw, t)
     local elapsed = t - sw.start
     local frac, remaining
     if elapsed >= sw.dur then
-        -- Safety net: if no new swing arrived well past the expected time
-        -- (e.g. PLAYER_LEAVE_COMBAT was missed), let the bar expire.
+        -- Expire the bar if no new swing arrived 2s past due (a missed PLAYER_LEAVE_COMBAT).
         if not mod.db.unlocked and elapsed > sw.dur + 2 then
             sw.active = false
             bar:SetValue(0)
@@ -323,19 +282,16 @@ local function applyVisibility()
     if mh.active or oh.active then frame:Show() else frame:Hide() end
 end
 
--- Briefly show animated demo bars so a settings change is visible even when
--- you're not currently attacking. Skipped in combat (the real bars show then)
--- and when the test/unlock mover is active (those bars are already visible).
 local function startPreview()
     if not frame then return end
     if mod.db.unlocked then return end
     if InCombatLockdown and InCombatLockdown() then return end
     local t = GetTime()
     if previewActive then
-        previewExpire = t + 4  -- keep extending while the user tweaks settings
+        previewExpire = t + 4
         return
     end
-    if mh.active or oh.active then return end  -- real bars already showing (attacking)
+    if mh.active or oh.active then return end
     mh.start, mh.dur, mh.active = t, 2.6, true
     oh.start, oh.dur, oh.active = t, 1.8, true
     previewActive = true
@@ -343,15 +299,11 @@ local function startPreview()
     frame:Show()
 end
 
--- Apply a display change (layout) and show a short preview if hidden.
 local function applyDisplay()
     layout()
     startPreview()
 end
 
--- =========================================================
--- Build (once)
--- =========================================================
 local function create()
     if frame then return frame end
 
@@ -376,8 +328,6 @@ local function create()
         editPreview = function() applyVisibility() end,
     })
 
-    -- Throttle to ~50 fps: smooth enough for the spark/text, but caps the cost
-    -- on high-refresh monitors (and it only runs while the bars are visible).
     local acc = 0
     frame:SetScript("OnUpdate", function(self, elapsed)
         acc = acc + (elapsed or 0)
@@ -385,7 +335,6 @@ local function create()
         acc = 0
         local t = GetTime()
         if mod.db.unlocked or previewActive then
-            -- demo loop so the bars animate (positioning / settings preview)
             if t - mh.start >= mh.dur then mh.start = t end
             if t - oh.start >= oh.dur then oh.start = t end
         end
@@ -396,7 +345,6 @@ local function create()
         end
         updateBar(mhBar, mh, t)
         if ohBar:IsShown() then updateBar(ohBar, oh, t) end
-        -- Auto-hide once both hands have expired (covers a missed leave-combat)
         if not mod.db.unlocked and not previewActive and mod.db.onlyWhileActive
            and not mh.active and not oh.active then
             self:Hide()
@@ -406,18 +354,16 @@ local function create()
     return frame
 end
 
--- =========================================================
--- Events
--- =========================================================
 local function onCombatLog()
     local _, subevent, _, sourceGUID = CLGetInfo()
     if sourceGUID ~= playerGUID then return end
     if subevent == "SWING_DAMAGE" then
+        -- isOffHand is param 21 of SWING_DAMAGE.
         local isOffHand = select(21, CLGetInfo())
         if isOffHand then resetOH() else resetMH() end
         applyVisibility()
     elseif subevent == "SWING_MISSED" then
-        -- isOffHand is param 13 (or 14 when an amount is present); check both.
+        -- SWING_MISSED puts isOffHand at param 13, or 14 when an amount is present.
         local p13, p14 = select(13, CLGetInfo())
         if (p13 == true) or (p14 == true) then resetOH() else resetMH() end
         applyVisibility()
@@ -474,9 +420,6 @@ local function registerEvents()
     end
 end
 
--- =========================================================
--- Unlock / test
--- =========================================================
 local function setUnlocked(state)
     mod.db.unlocked = state
     create()
@@ -497,20 +440,14 @@ local function setUnlocked(state)
     end
 end
 
--- =========================================================
--- Lifecycle
--- =========================================================
 function mod:OnEnable()
-    -- One-time PER CHARACTER: melee classes default the swing timer ON, casters
-    -- OFF. Once the user toggles it on this character, that per-char choice sticks.
+    -- Per-character default only: melee ON, casters OFF, and never re-applied once the user has chosen.
     local pref = VuloClassicUICharDB and VuloClassicUICharDB.modEnabled
     if not (pref and pref.swingtimer ~= nil) then
         local on = isMeleeClass()
         ns:SetModuleEnabledPref("swingtimer", on)
         if not on then
-            -- Caster: switch the module off cleanly. Deferred so the core's
-            -- _enabled flag (set right after OnEnable returns) gets reset —
-            -- otherwise a later manual re-enable would be a no-op.
+            -- Deferred: the core sets _enabled right after OnEnable returns, so disabling inline would be overwritten.
             if C_Timer and C_Timer.After then
                 C_Timer.After(0, function() if ns.SafeDisable then ns:SafeDisable(mod) end end)
             end
@@ -519,7 +456,7 @@ function mod:OnEnable()
     end
 
     playerGUID = UnitGUID("player")
-    -- Migrate old/removed texture choices (e.g. "Blizzard") to a bundled one
+    -- Migrate texture names that no longer exist in the bundled set.
     if not isBundledTexture(mod.db.texture)   then mod.db.texture   = DEFAULT_TEXTURE end
     if not isBundledTexture(mod.db.bgTexture) then mod.db.bgTexture = DEFAULT_TEXTURE end
     create()
@@ -535,9 +472,6 @@ function mod:OnDisable()
     if frame then frame:Hide() end
 end
 
--- =========================================================
--- Options
--- =========================================================
 function mod:GetOptions()
     local items = {}
 
@@ -645,9 +579,6 @@ function mod:GetOptions()
     return items
 end
 
--- =========================================================
--- Slash test
--- =========================================================
 SLASH_VCUISWING1 = "/swingtest"
 SlashCmdList.VCUISWING = function(msg)
     if msg == "debug" then

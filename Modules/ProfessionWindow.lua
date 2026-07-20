@@ -1,13 +1,4 @@
--- =========================================================
--- VuloClassicUI / Modules / ProfessionWindow
--- Enlarges and themes the profession windows to match the quest log:
---   * TradeSkillFrame  (most professions + secondary skills)
---   * CraftFrame       (Enchanting / Beast Training)
--- Each gets a wider frame with the detail pane beside the recipe list and a
--- Parchment or Dark theme, using the same bundled parchment image as the quest
--- log. Both Blizzard UIs are load-on-demand, so we wait for ADDON_LOADED.
--- Everything is guarded; a /reload fully restores the frames.
--- =========================================================
+-- Reskins TradeSkillFrame and CraftFrame; both Blizzard UIs are load-on-demand, so setup waits for ADDON_LOADED.
 local _, ns = ...
 local L = ns.L
 
@@ -17,27 +8,24 @@ local mod = ns:RegisterModule("professionwindow", {
     description = "Enlarges and themes the profession windows (Tradeskill & Craft) to match the quest log: the detail pane sits beside the recipe list, with a Parchment or Dark theme.",
     defaults = {
         enabled   = true,
-        larger    = true,        -- enlarge the frames (detail beside the list)
-        theme     = "parchment", -- "parchment" | "dark"
-        counts    = true,        -- show "[N] craftable" after each recipe
-        bankmats  = true,        -- detail: craftable count incl. bank + what's missing
-        favorites = {},          -- [recipeName] = true (right-click a recipe)
-        favFirst  = true,        -- favourites float to the top of the list
-        bank      = {},          -- [charKey] = { [itemID] = count }  (cached at the bank)
-        prices    = true,        -- show AH value / cost / profit (needs Auctionator)
-        showSource     = true,   -- CraftLib: where the recipe comes from
-        showThresholds = true,   -- CraftLib: orange/yellow/green/grey skill levels
-        showSkillup    = true,   -- CraftLib: skill-up chance colour at your skill
+        larger    = true,
+        theme     = "parchment",
+        counts    = true,
+        bankmats  = true,
+        favorites = {},          -- [recipeName] = true
+        favFirst  = true,
+        bank      = {},          -- [charKey] = { [itemID] = count }
+        prices    = true,
+        showSource     = true,
+        showThresholds = true,
+        showSkillup    = true,
     },
 })
 
--- Same bundled parchment the quest log uses (atlas: top half is the parchment).
 local PARCHMENT = "Interface\\AddOns\\VuloClassicUI\\Media\\textures\\questlog-parchment"
 
 local TALL = 73
 
--- Per-frame configuration. The two profession frames share one structure but
--- use different element names; this table captures the differences.
 local FRAMES = {
     {
         addon       = "Blizzard_TradeSkillUI",
@@ -50,7 +38,7 @@ local FRAMES = {
         displayed   = "TRADE_SKILLS_DISPLAYED",
         scrollBar   = "TradeSkillListScrollFrameScrollBar",
         updateHook  = "TradeSkillFrame_Update",
-        info        = function(idx) return GetTradeSkillInfo(idx) end,  -- name, type, numAvailable
+        info        = function(idx) return GetTradeSkillInfo(idx) end,
         numFn       = function() return GetNumTradeSkills() end,
         selFn       = function() return GetTradeSkillSelectionIndex() end,
         colorTable  = "TradeSkillTypeColor",
@@ -61,8 +49,7 @@ local FRAMES = {
         expand      = "TradeSkillExpandTabLeft",
         extraHide   = { "TradeSkillHorizontalBarLeft" },
         detailTex   = { "TradeSkillDetailScrollFrameTop", "TradeSkillDetailScrollFrameBottom" },
-        -- regions 9/10 are the horizontal bars (barLeft/barRight); on the taller
-        -- frame they sit across the recipe text, so hide them too.
+        -- Regions 9/10 are the horizontal bars; on the taller frame they cross the recipe text.
         hideRegions = { 4, 5, 8, 9, 10 },
         repos = function(f)
             local inv    = _G.TradeSkillInvSlotDropdown
@@ -95,7 +82,7 @@ local FRAMES = {
         create      = "CraftCreateButton",
         close       = "CraftFrameCloseButton",
         expand      = "CraftExpandTabLeft",
-        costFmt     = "Craft%dCost",   -- craft rows carry a cost sub-element
+        costFmt     = "Craft%dCost",
         detailTex   = { "CraftDetailScrollFrameTop", "CraftDetailScrollFrameBottom" },
         hideRegions = { 4, 5, 9, 10 },
         repos = function(f)
@@ -105,7 +92,7 @@ local FRAMES = {
     },
 }
 
-local states = {}  -- [frameName] = { done = bool, regs = { tex, tex } }
+local states = {}
 
 local function isLoaded(name)
     if C_AddOns and C_AddOns.IsAddOnLoaded then return C_AddOns.IsAddOnLoaded(name) end
@@ -113,50 +100,37 @@ local function isLoaded(name)
     return false
 end
 
--- =========================================================
--- Theme (tint the bundled parchment, or desaturate + darken it)
--- =========================================================
 local function applyTheme(cfg)
     local st = states[cfg.frame]
     if not (st and st.regs) then return end
     local dark = (mod.db.theme == "dark")
     for _, r in ipairs(st.regs) do
-        -- Parchment shows the image as-is; dark desaturates + tints it dark.
         if r.SetDesaturated then r:SetDesaturated(dark) end
         if dark then r:SetVertexColor(0.16, 0.15, 0.14, 1)
         else        r:SetVertexColor(1, 1, 1, 1) end
     end
 end
 
--- =========================================================
--- Recipe list: craftable count "[N]" + right-click favourite star
--- =========================================================
-local STAR = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_1"  -- the single yellow star
+local STAR = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_1"
 
 local function enhanceRow(btn, cfg)
     if btn._vcuiStarBtn then return end
 
-    -- An always-visible star on each recipe row: dim when not a favourite, gold
-    -- when it is. Click the star (or right-click the row) to toggle.
     local sb = CreateFrame("Button", nil, btn)
     sb:SetSize(14, 14)
     sb:SetPoint("RIGHT", btn, "RIGHT", -16, 0)
     local tex = sb:CreateTexture(nil, "OVERLAY")
     tex:SetAllPoints()
-    tex:SetTexture(STAR)   -- full single-icon file, no cropping
+    tex:SetTexture(STAR)
     sb._tex = tex
     btn._vcuiStarBtn = sb
 
-    -- Some rows carry textureless, solid overlay textures that render as a box
-    -- around the text (e.g. from a movable-frame addon). Hide those; real icon
-    -- textures keep a texture path, so they're left alone.
+    -- Textureless overlays render as a box around the row text; real icons keep a texture path.
     btn._vcuiBoxes = {}
     for _, r in ipairs({ btn:GetRegions() }) do
         if r.GetObjectType and r:GetObjectType() == "Texture" then
             local t = r.GetTexture and r:GetTexture()
-            -- textureless overlays, OR the rounded highlight/selection box
-            -- (UI-QuestTitleHighlight, fileID 130835 on this client). The
-            -- selected recipe stays visible via its bold/white text.
+            -- 130835 is UI-QuestTitleHighlight; the selection stays readable via its bold text.
             if not t or t == 130835 or (type(t) == "string" and t:lower():find("highlight")) then
                 btn._vcuiBoxes[#btn._vcuiBoxes + 1] = r
                 r:Hide()
@@ -180,22 +154,13 @@ local function enhanceRow(btn, cfg)
     end)
     sb:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
-    -- Right-click anywhere on the row also toggles (left-click still selects).
     btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     btn:HookScript("OnClick", function(_, mouseButton)
         if mouseButton == "RightButton" then toggle() end
     end)
 end
 
--- =========================================================
--- Favourites first: when any favourite exists, the visible rows are repainted
--- with a PERMUTED index order (favourites on top, then everything else incl.
--- headers in natural order) and re-SetID so click/selection/expand keep
--- working. The painting mirrors Blizzard's own 2.5.5 row recipe verbatim
--- (SetNormalFontObject via the type color table, plus/minus header textures,
--- " name [N]" text, highlight frame + LockHighlight on the selection).
--- Zero favourites -> nil -> Blizzard's own order stays untouched.
--- =========================================================
+-- Returns nil when there are no favourites, leaving Blizzard's own row order untouched.
 local function buildFavOrder(cfg)
     if mod.db.favFirst == false or not next(mod.db.favorites) then return nil end
     local num = cfg.numFn and cfg.numFn() or 0
@@ -214,6 +179,7 @@ local function buildFavOrder(cfg)
     return favs
 end
 
+-- Repaints rows against a permuted index order and re-SetIDs them; must mirror Blizzard's row recipe exactly.
 local function repaintReordered(cfg)
     local order = buildFavOrder(cfg)
     if not order then return end
@@ -240,9 +206,7 @@ local function repaintReordered(cfg)
                     if cost then cost:SetTextColor(color.r, color.g, color.b) end
                     if Craft_SetSubTextColor then Craft_SetSubTextColor(btn, color.r, color.g, color.b) end
                 end
-                -- Blizzard's Text-width sequence (beast-training "(Rank)" hack
-                -- first, header/subtext overrides after) — the widths are per-
-                -- ENTRY, so a permuted row must re-run all of it
+                -- Text widths are per-entry, so a permuted row must re-run Blizzard's whole width sequence.
                 if txtFS and not tpCost then
                     txtFS:SetWidth(list and list:IsVisible() and 290 or 320)
                 end
@@ -250,7 +214,7 @@ local function repaintReordered(cfg)
                     btn:SetID(idx)
                     btn:SetText(name)
                     if subT then subT:SetText("") end
-                    if cost then cost:SetText("") end   -- a TP-cost row may lurk under the header
+                    if cost then cost:SetText("") end
                     if txtFS then txtFS:SetWidth(0) end
                     btn:SetNormalTexture(isExpanded and "Interface\\Buttons\\UI-MinusButton-Up"
                         or "Interface\\Buttons\\UI-PlusButton-Up")
@@ -280,7 +244,6 @@ local function repaintReordered(cfg)
                     if sel == idx then
                         if hl then hl:ClearAllPoints(); hl:SetPoint("TOPLEFT", btn, "TOPLEFT", 0, 0); hl:Show() end
                         btn:LockHighlight()
-                        -- Blizzard whitens the selected row's sub/cost texts
                         if Craft_SetSubTextColor then Craft_SetSubTextColor(btn, 1, 1, 1) end
                         if cost then cost:SetTextColor(1, 1, 1) end
                     else
@@ -291,8 +254,7 @@ local function repaintReordered(cfg)
                 local name, skillType, avail, isExpanded = GetTradeSkillInfo(idx)
                 local color = colorT[skillType]
                 if color then btn:SetNormalFontObject(color.font) end
-                -- SetID only with valid data: a nil-name race must not leave a
-                -- row whose ID disagrees with its shown text
+                -- SetID only with valid data, or a nil-name race leaves a row whose ID disagrees with its text.
                 if skillType == "header" and name then
                     btn:SetID(idx)
                     btn:SetText(name)
@@ -320,9 +282,7 @@ end
 local function refreshList(cfg)
     if not mod._enabled then return end
 
-    -- Hide leftover thin horizontal divider bars that sit across the recipe text
-    -- on the enlarged frame. The region index varies by client and Blizzard
-    -- re-shows them on every update, so scan once then re-hide each refresh.
+    -- Divider bars have client-varying region indices and Blizzard re-shows them every update: scan once, re-hide always.
     local st = states[cfg.frame]
     if st then
         if not st.barsScanned then
@@ -335,8 +295,7 @@ local function refreshList(cfg)
                     if r.GetObjectType and r:GetObjectType() == "Texture" and r.GetHeight then
                         local h, w = r:GetHeight() or 0, r:GetWidth() or 0
                         local top  = r.GetTop and r:GetTop()
-                        -- thin + wide = a horizontal divider bar; skip the tall
-                        -- parchment/vertical borders and the title area at the top
+                        -- Thin and wide identifies a divider; skip the parchment borders and the title area.
                         local nearTop = (ftop and top and (ftop - top) < 45)
                         if h > 0 and h <= 20 and w >= 100 and not nearTop then
                             st.bars[#st.bars + 1] = r
@@ -344,8 +303,6 @@ local function refreshList(cfg)
                     end
                 end
             end
-            -- The recipe list scroll frame carries border textures (fileID
-            -- 130969) that draw a frame/box around the list. Hide them too.
             local list = _G[cfg.list]
             if list then
                 for _, r in ipairs({ list:GetRegions() }) do
@@ -358,13 +315,10 @@ local function refreshList(cfg)
         for _, r in ipairs(st.bars) do r:Hide() end
     end
 
-    -- favourites first (repaints rows with permuted indices; the decoration
-    -- loop below then reads the MAPPED index off each button's new ID)
+    -- Must run first: the loop below reads the remapped index off each button's new ID.
     repaintReordered(cfg)
 
     local displayed = _G[cfg.displayed] or 0
-    -- Pull the favourite stars further in when a scrollbar is showing, so they
-    -- don't sit crammed at the far right edge (e.g. First Aid's long list).
     local sbShown   = cfg.scrollBar and _G[cfg.scrollBar] and _G[cfg.scrollBar]:IsShown()
     local starInset = sbShown and -34 or -16
     for i = 1, displayed do
@@ -379,7 +333,6 @@ local function refreshList(cfg)
             local name, skillType, numAvailable = cfg.info(btn:GetID())
             local sb = btn._vcuiStarBtn
             if name and skillType and skillType ~= "header" then
-                -- Star on every recipe row: faint when not a favourite, gold when it is.
                 sb:Show()
                 if mod.db.favorites[name] then
                     sb._tex:SetDesaturated(false); sb._tex:SetAlpha(1)
@@ -388,10 +341,7 @@ local function refreshList(cfg)
                 end
                 if mod.db.counts and numAvailable and numAvailable > 0 then
                     local txt = btn:GetText()
-                    -- Blizzard re-sets the plain name each update, so append
-                    -- once. Non-anchored check: a rare early-return in
-                    -- Blizzard's update can leave our |r-terminated suffix
-                    -- standing, which an anchored pattern would re-append to.
+                    -- Unanchored check: an early return in Blizzard's update can leave our suffix standing.
                     if txt and not txt:find("%[%d+%]") then
                         btn:SetText(txt .. "  |cffffffff[" .. numAvailable .. "]|r")
                     end
@@ -411,9 +361,6 @@ local function installListEnhancements(cfg)
     refreshList(cfg)
 end
 
--- =========================================================
--- Auction value + profit (TradeSkill only; needs Auctionator for prices)
--- =========================================================
 local AUC_ID = "VuloClassicUI"
 
 local function hasAuctionator()
@@ -434,16 +381,12 @@ end
 
 local function coin(c) return GetCoinTextureString and GetCoinTextureString(c) or (math.floor((c or 0) / 10000) .. "g") end
 
--- =========================================================
--- Reagent counting: bags come live from the tradeskill API (playerReagentCount);
--- bank mats are cached per character whenever the bank is open, so the true
--- craftable count and "what's missing" still work away from the bank.
--- =========================================================
+-- Bags come live from the tradeskill API; bank mats are cached per character so counts work away from the bank.
 local function charKey()
     return (UnitName("player") or "?") .. " - " .. (GetRealmName() or "?")
 end
 
--- Container API moved to C_Container on newer clients; support both.
+-- Container API moved to C_Container on newer clients; both paths are needed.
 local function cSlots(bag)
     if C_Container and C_Container.GetContainerNumSlots then return C_Container.GetContainerNumSlots(bag) end
     return GetContainerNumSlots and GetContainerNumSlots(bag) or 0
@@ -461,8 +404,7 @@ local function cItemCount(bag, slot)
     return 0
 end
 
--- Bank container IDs in TBC: -1 (main bank) + 5..11 (bank bags). Only readable
--- while the bank window is open, so we snapshot them into the saved cache.
+-- TBC bank containers; only readable while the bank window is open, hence the cache.
 local BANK_BAGS = { -1, 5, 6, 7, 8, 9, 10, 11 }
 local function scanBank()
     if not (mod._enabled and mod.db) then return end
@@ -483,7 +425,6 @@ local function bankCount(itemID)
     return (c and c[itemID]) or 0
 end
 
--- Snapshot the bank while it's open (and keep it fresh on bag moves).
 local bankWatcher = CreateFrame("Frame")
 local bankOpen = false
 bankWatcher:RegisterEvent("BANKFRAME_OPENED")
@@ -498,16 +439,12 @@ bankWatcher:SetScript("OnEvent", function(_, event)
     end
 end)
 
--- =========================================================
--- CraftLib (optional): recipe source, skill thresholds, skill-up colour.
--- =========================================================
 local function hasCraftLib()
     local c = _G.CraftLib
     return (c and c.GetRecipeByItemId and c.IsReady and c:IsReady()) and true or false
 end
 
--- Look up the CraftLib recipe for the selected craft: by crafted item id, or
--- (enchants, which make no item) by the enchant spell id in the link.
+-- Enchants produce no item, so they must be looked up by the enchant spell id in the link.
 local function craftLibRecipe(dcfg)
     if not hasCraftLib() then return nil end
     local idx = dcfg.sel()
@@ -556,11 +493,6 @@ local function skillupText(recipe, rank)
     return L["Skill-up"] .. ": " .. (DIFF_COL[diff] or "|cffffffff") .. L[diff] .. "|r"
 end
 
--- =========================================================
--- Detail info block (auction value/profit + CraftLib lines), bottom of detail.
--- Parameterised by a per-frame config so it serves both TradeSkillFrame (with
--- prices) and CraftFrame / enchanting (CraftLib info only, no sellable item).
--- =========================================================
 local DETAIL_KEYS = { "missing", "craftable", "value", "cost", "profit", "skillup", "thresholds", "source" }
 
 local function buildBlock(dcfg)
@@ -569,14 +501,12 @@ local function buildBlock(dcfg)
     if not (f and detail) then return end
     local fs = {}
     local function line(prev)
-        -- GameFontNormal = the gold label font Auctionator's crafting info uses.
         local t = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
         if prev then t:SetPoint("BOTTOMLEFT", prev, "TOPLEFT", 0, 3)
         else         t:SetPoint("BOTTOMLEFT", detail, "BOTTOMLEFT", 16, 22) end
         t:SetJustifyH("LEFT")
         return t
     end
-    -- stacked bottom-up; empty lines collapse so hidden rows take no space
     fs.missing    = line(nil)
     fs.craftable  = line(fs.missing)
     fs.profit     = line(fs.craftable)
@@ -601,8 +531,6 @@ local function updateDetail(dcfg)
     local idx = dcfg.sel()
     if not idx or idx < 1 then clearBlock(dcfg); return end
 
-    -- True craftable count (bags via the API + cached bank mats) and, when you
-    -- can't make even one, exactly what's missing.
     if mod.db.bankmats then
         local n = dcfg.numReagents(idx) or 0
         if n > 0 then
@@ -627,8 +555,6 @@ local function updateDetail(dcfg)
         fs.craftable:SetText(""); fs.missing:SetText("")
     end
 
-    -- Auction value / material cost / profit (frames with a sellable item only,
-    -- and only with Auctionator)
     if dcfg.prices and mod.db.prices and hasAuctionator() then
         local craftedID = linkToID(dcfg.itemLink(idx))
         local minMade = dcfg.numMade(idx) or 1
@@ -656,7 +582,6 @@ local function updateDetail(dcfg)
         fs.value:SetText(""); fs.cost:SetText(""); fs.profit:SetText("")
     end
 
-    -- CraftLib lines (need CraftLib); toggled by the bottom buttons
     local cr = craftLibRecipe(dcfg)
     fs.skillup:SetText((mod.db.showSkillup and skillupText(cr, dcfg.skill())) or "")
     fs.thresholds:SetText((mod.db.showThresholds and thresholdText(cr)) or "")
@@ -669,10 +594,8 @@ local function installDetail(dcfg)
     dcfg._hooked = true
     hooksecurefunc(dcfg.updateHook, function() updateDetail(dcfg) end)
 
-    -- CraftLib toggle buttons just under the list (only if CraftLib is present)
     if hasCraftLib() and _G[dcfg.list] then
-        -- {label, dbKey, gap, width}: gap = x from the list (1st) or from the
-        -- prev button. Smaller gaps pull a button further left.
+        -- {label, dbKey, gap, width}; gap is measured from the list for the first entry, else from the previous button.
         local defs = {
             { L["Source"],   "showSource",     -8, 108 },
             { L["Levels"],   "showThresholds", 2,  96 },
@@ -699,8 +622,7 @@ local function installDetail(dcfg)
     updateDetail(dcfg)
 end
 
--- Per-frame API config. TradeSkillFrame produces sellable items (prices on);
--- CraftFrame is enchanting/beast training (no item -> prices off, spell-id lookup).
+-- CraftFrame has no sellable item, so prices are off and lookups go through the spell id.
 local DETAIL_CFG = {
     TradeSkillFrame = {
         frame = "TradeSkillFrame", detail = "TradeSkillDetailScrollFrame", list = "TradeSkillListScrollFrame",
@@ -733,9 +655,6 @@ local function refreshAllDetails()
     end
 end
 
--- =========================================================
--- Enlarge + parchment background (runs once per frame)
--- =========================================================
 local function setupFrame(cfg)
     local st = states[cfg.frame]
     if not st then st = {}; states[cfg.frame] = st end
@@ -746,7 +665,6 @@ local function setupFrame(cfg)
 
     if mod.db.larger then
         pcall(function()
-            -- Double-wide override + size
             if _G.UIPanelWindows and _G.UIPanelWindows[cfg.frame] then
                 _G.UIPanelWindows[cfg.frame] = { area = "override", pushable = 1,
                     xoffset = -16, yoffset = 12, bottomClampOverride = 152, width = 685, height = 487, whileDead = 1 }
@@ -757,8 +675,6 @@ local function setupFrame(cfg)
             local title = _G[cfg.title]
             if title then title:ClearAllPoints(); title:SetPoint("TOP", f, "TOP", 0, -18) end
 
-            -- Recipe list: a touch shorter than the frame so the last row keeps
-            -- a clear margin above the bottom buttons.
             local listH = 336 + TALL
             local list = _G[cfg.list]
             if list then
@@ -767,7 +683,6 @@ local function setupFrame(cfg)
                 list:SetSize(295, listH)
             end
 
-            -- Reposition the client's original rows (+ their cost column, if any)
             local old = _G[cfg.displayed] or 0
             if cfg.costFmt then
                 local c1, b1 = _G[cfg.costFmt:format(1)], _G[cfg.rowFmt:format(1)]
@@ -782,8 +697,7 @@ local function setupFrame(cfg)
                 end
             end
 
-            -- Fit the displayed row count to the list height so rows never spill
-            -- into the button row (independent of the client's default count).
+            -- Derive the row count from the list height; the client's default no longer fits.
             local rowH = 16
             local b1 = _G[cfg.rowFmt:format(1)]
             if b1 and b1.GetHeight and (b1:GetHeight() or 0) > 0 then rowH = b1:GetHeight() end
@@ -801,21 +715,19 @@ local function setupFrame(cfg)
                     end
                 end
             end
-            -- Hide any default rows beyond the fit (if the client showed more).
             for i = fitRows + 1, old do
                 local b = _G[cfg.rowFmt:format(i)]
                 if b then b:Hide() end
             end
             _G[cfg.displayed] = fitRows
 
-            -- Highlight bar spans the wider list
+            -- Blizzard resets the width on every Show, so the hook has to reapply it.
             if cfg.highlight and _G[cfg.highlight] then
                 hooksecurefunc(_G[cfg.highlight], "Show", function()
                     _G[cfg.highlight]:SetWidth(290)
                 end)
             end
 
-            -- Detail pane to the right, full height; hide its own edge textures
             local detail = _G[cfg.detail]
             if detail then
                 detail:ClearAllPoints()
@@ -826,7 +738,6 @@ local function setupFrame(cfg)
                 local t = _G[tn]; if t and t.SetAlpha then t:SetAlpha(0) end
             end
 
-            -- Bottom buttons
             local create, cancel, close = _G[cfg.create], _G[cfg.cancel], _G[cfg.close]
             if create and cancel then create:ClearAllPoints(); create:SetPoint("RIGHT", cancel, "LEFT", -1, 0) end
             if cancel then
@@ -842,11 +753,9 @@ local function setupFrame(cfg)
                 if e then if e.SetSize then e:SetSize(1, 1) end; if e.Hide then e:Hide() end end
             end
 
-            -- Reposition the filter dropdowns / search box for the wider frame
             if cfg.repos then cfg.repos(f) end
 
-            -- Parchment background: two slices of the bundled image fill the
-            -- whole frame at ~1:1 (left = list, right = detail).
+            -- Two slices of the parchment atlas cover the frame; regions 2/3 are its background textures.
             local regs = { f:GetRegions() }
             local r2, r3 = regs[2], regs[3]
             if r2 and r3 and r2.SetTexture and r3.SetTexture then
@@ -862,13 +771,10 @@ local function setupFrame(cfg)
     end
 
     applyTheme(cfg)
-    installListEnhancements(cfg)   -- count + favourites work with or without enlarge
-    installDetail(DETAIL_CFG[cfg.frame])   -- TradeSkill (with prices) or Craft
+    installListEnhancements(cfg)
+    installDetail(DETAIL_CFG[cfg.frame])
 end
 
--- =========================================================
--- Lifecycle
--- =========================================================
 local loader = CreateFrame("Frame")
 loader:RegisterEvent("ADDON_LOADED")
 loader:SetScript("OnEvent", function(_, _, name)
@@ -879,7 +785,6 @@ loader:SetScript("OnEvent", function(_, _, name)
 end)
 
 function mod:OnEnable()
-    -- Frames already loaded this session (professions opened before login reload)
     for _, cfg in ipairs(FRAMES) do
         if isLoaded(cfg.addon) then setupFrame(cfg) end
     end
@@ -889,9 +794,6 @@ function mod:OnDisable()
     -- The enlarge isn't cleanly reversible at runtime; a /reload restores it.
 end
 
--- =========================================================
--- Options
--- =========================================================
 function mod:GetOptions()
     return {
         { type = "header", text = L["Profession Window"] },

@@ -1,17 +1,4 @@
--- =========================================================
--- VuloClassicUI / Modules / Classes / Shaman
--- Shaman-specific code for the "Class Specific" module (Shaman tab) — the
--- counterpart to Classes/Priest and Classes/Warlock. Where those contribute
--- DoT data, the Shaman registers a full class tool: a totem bar.
---   * timer bars or icons for the 4 elements (Fire/Earth/Water/Air)
---   * the icons are clickable SECURE buttons -> one click recasts the totem
---   * totems are learned automatically from what you cast (per element)
---   * per-element totem selection + named totem sets
---   * optional sound when a totem is about to expire
--- Reads GetTotemInfo(slot); casting goes through SecureActionButtonTemplate so
--- there is no taint. Secure attributes are only changed out of combat (queued
--- otherwise). Settings live under the Class Specific db (csMod.db.totems).
--- =========================================================
+-- Shaman totem bar (class tool).
 local _, ns = ...
 local L = ns.L
 
@@ -19,11 +6,11 @@ local csMod = ns.modules and ns.modules.vtmanadisplay
 if not csMod or not csMod.RegisterClassTool then return end
 
 local TOTEM_DEFAULTS = {
-    layout      = "icons",  -- "bars" | "icons"
-    style       = "vulo",   -- "vulo" (dark + accent) | "classic" (metal rim)
-    flyoutDirection = "auto",  -- "auto" | "up" | "down" | "left" | "right"
-    flyoutInCombat  = true,    -- false = hovering never opens the picker in combat
-    hoverTooltip    = true,    -- tooltip with name + remaining cooldown on hover
+    layout      = "icons",
+    style       = "vulo",
+    flyoutDirection = "auto",
+    flyoutInCombat  = true,
+    hoverTooltip    = true,
     showFire    = true,
     showEarth   = true,
     showWater   = true,
@@ -40,14 +27,13 @@ local TOTEM_DEFAULTS = {
     x           = -250,
     y           = 0,
     unlocked    = false,
-    sets        = {},   -- [name] = { fire=spell, earth=spell, water=spell, air=spell }
-    setOrder    = {},   -- ordered set names
+    sets        = {},
+    setOrder    = {},
     activeSet   = "",
-    lastCast    = {},   -- [elementKey] = last totem name cast in that slot
-    learned     = {},   -- [elementKey] = { [totemName]=true }
+    lastCast    = {},
+    learned     = {},
 }
 
--- Slot order: Fire(1), Earth(2), Water(3), Air(4). Blizzard globals + fallback.
 local TOTEMS = {
     { key = "fire",  slot = _G.FIRE_TOTEM_SLOT  or 1, toggle = "showFire",  label = "Fire",  color = { 0.95, 0.35, 0.10 }, icon = "Interface\\Icons\\Spell_Fire_SearingTotem" },
     { key = "earth", slot = _G.EARTH_TOTEM_SLOT or 2, toggle = "showEarth", label = "Earth", color = { 0.70, 0.50, 0.25 }, icon = "Interface\\Icons\\Spell_Nature_StoneClawTotem" },
@@ -57,18 +43,14 @@ local TOTEMS = {
 local SLOT_KEY = {}
 for _, t in ipairs(TOTEMS) do SLOT_KEY[t.slot] = t.key end
 
--- Representative spell ID per totem, so the picker can list the totems you KNOW
--- without you having to cast each one first. (TBC data from SUI's _TotemIcons.)
--- "Known" is checked by name lookup (GetSpellInfo by name = nil if not learned).
+-- Representative spell IDs per element; "known" = GetSpellInfo(name) resolves.
 local TOTEM_IDS = {
     fire  = { 3599, 1535, 8187, 8227, 8181, 30706, 2894 },        -- Searing, Fire Nova, Magma, Flametongue, Frost Resist, Totem of Wrath, Fire Elemental
     earth = { 2484, 5730, 8071, 8075, 8143, 2062 },               -- Earthbind, Stoneclaw, Stoneskin, Strength of Earth, Tremor, Earth Elemental
     water = { 5394, 5675, 16190, 8166, 8170, 8184 },              -- Healing Stream, Mana Spring, Mana Tide, Poison Cleansing, Disease Cleansing, Fire Resist
     air   = { 8512, 8835, 8177, 10595, 15107, 6495, 25908, 3738 },-- Windfury, Grace of Air, Grounding, Nature Resist, Windwall, Sentry, Tranquil Air, Wrath of Air
 }
--- "Totemic Call" / "Totemic Recall" (recall all totems) — middle-click.
--- Both TBC and Classic Era use 36936; resolve the known id at apply time so it
--- stays correct across clients and no-ops cleanly if the shaman hasn't learned it.
+-- Totemic Call / Recall (all totems, middle-click) - 36936 on TBC and Classic Era.
 local TOTEMIC_CALL_IDS = { 36936 }
 local function totemicRecallSpell()
     for _, id in ipairs(TOTEMIC_CALL_IDS) do
@@ -80,9 +62,8 @@ local WARN_COLOR  = { 1.0, 0.25, 0.25 }
 local BAR_TEX     = "Interface\\Buttons\\WHITE8X8"
 local SPARK_TEX   = "Interface\\CastingBar\\UI-CastingBar-Spark"
 local FONT        = "Fonts\\FRIZQT__.TTF"
-local EXPIRE_SOUND = 567458  -- same alert used by the queue timer
+local EXPIRE_SOUND = 567458
 
--- "vulo" style uses the addon font; "classic" keeps the Blizzard one
 local function isVulo() return (csMod.db.totems and csMod.db.totems.style) ~= "classic" end
 local function fontPath()
     if isVulo() and ns.UI and ns.UI.FONT_PATH then return ns.UI.FONT_PATH end
@@ -93,14 +74,11 @@ local container
 local rows         = {}
 local throttle     = 0
 local pendingAttr  = false  -- secure attr update queued for end of combat
-local showTotemMenu         -- forward decl (defined after refresh)
-local rebuildFlyouts        -- forward decl (defined with the flyout code)
-local paintTotemTooltip     -- forward decl (defined after refresh)
-local hoverBtn              -- button currently owning our tooltip (slot or flyout icon)
+local showTotemMenu  -- forward decls (upvalue order matters)
+local rebuildFlyouts
+local paintTotemTooltip
+local hoverBtn
 
--- ---------------------------------------------------------
--- Settings (created with defaults on first use)
--- ---------------------------------------------------------
 local function ensureDB()
     local d = ns:ApplyDefaults(csMod.db.totems, TOTEM_DEFAULTS)
     if not next(d.sets) then
@@ -116,48 +94,39 @@ local function ensureDB()
 end
 local function db() return csMod.db.totems end
 
--- Spell the button for this element should cast: the active set's choice, or
--- (auto) the last totem you actually cast in that element slot.
 local function buttonSpell(t)
     local d = db()
     local set = d.sets[d.activeSet]
     local chosen = set and set[t.key]
     if chosen and chosen ~= "" then return chosen end
     if d.lastCast[t.key] then return d.lastCast[t.key] end
-    -- fall back to the first totem of this element the player knows, so a click
-    -- always casts something even before you pick one.
     for _, id in ipairs(TOTEM_IDS[t.key] or {}) do
         local name = GetSpellInfo(id)
         if name and GetSpellInfo(name) then return name end
     end
 end
 
--- All totems of an element the player KNOWS (resolved to the highest-rank name),
--- merged with any learned-by-casting names. Used by the right-click picker.
 local function knownTotemsFor(key)
     local out, seen = {}, {}
-    -- only add a totem we can actually show an icon for (no empty squares)
     local function add(name)
         if not name or name == "" or seen[name] then return end
-        if not select(3, GetSpellInfo(name)) then return end  -- no icon -> skip
+        if not select(3, GetSpellInfo(name)) then return end
         seen[name] = true
         out[#out + 1] = name
     end
     for _, id in ipairs(TOTEM_IDS[key] or {}) do
         local name = GetSpellInfo(id)
-        if name and GetSpellInfo(name) then add(name) end       -- known by name
+        if name and GetSpellInfo(name) then add(name) end
     end
     local learned = db().learned and db().learned[key]
     if learned then
-        for name in pairs(learned) do add(name) end             -- learned by casting
+        for name in pairs(learned) do add(name) end
     end
     table.sort(out)
     return out
 end
 
--- Reduce a (possibly rank-suffixed) totem name like "Healing Stream Totem V" to
--- its rank-less, castable base name. CastSpellByName(base) casts the highest rank
--- you know; the ranked DISPLAY name from GetTotemInfo is NOT a castable string.
+-- Ranked display names from GetTotemInfo are not castable; reduce to the base name (casts the highest rank).
 local function castableName(name, key)
     if not name or name == "" then return name end
     for _, id in ipairs(TOTEM_IDS[key] or {}) do
@@ -169,9 +138,7 @@ local function castableName(name, key)
     return name
 end
 
--- Push the cast spell onto each secure button (out of combat only). We cast by
--- spell ID (a number), not by name: the Anniversary client is unreliable casting
--- totems by name; the working Disenchant button uses IDs, so we do too.
+-- Cast by numeric spell ID: this client is unreliable casting totems by name. Out of combat only.
 local function applyButtonSpells()
     if InCombatLockdown and InCombatLockdown() then pendingAttr = true; return end
     pendingAttr = false
@@ -179,21 +146,20 @@ local function applyButtonSpells()
         local row = rows[t.key]
         if row then
             local name = castableName(buttonSpell(t), t.key)
-            local id   = name and select(7, GetSpellInfo(name))  -- numeric spell ID
+            local id   = name and select(7, GetSpellInfo(name))
             row:SetAttribute("*spell1", id or name)
             row:SetAttribute("*spell3", totemicRecallSpell())
         end
     end
 end
 
--- Learn the totems currently down (called on PLAYER_TOTEM_UPDATE).
 local function learnActiveTotems()
     local d = db()
     local changed = false
     for _, t in ipairs(TOTEMS) do
         local have, name = GetTotemInfo(t.slot)
         if have and name and name ~= "" then
-            name = castableName(name, t.key)  -- store the rank-less, castable name
+            name = castableName(name, t.key)
             if d.lastCast[t.key] ~= name then d.lastCast[t.key] = name; changed = true end
             d.learned[t.key] = d.learned[t.key] or {}
             if not d.learned[t.key][name] then d.learned[t.key][name] = true; changed = true end
@@ -202,19 +168,12 @@ local function learnActiveTotems()
     if changed then applyButtonSpells() end
 end
 
--- ---------------------------------------------------------
--- Row creation (a secure button with icon + timer visuals)
--- ---------------------------------------------------------
 local function createRow(totem)
-    -- SecureHandlerEnterLeaveTemplate: hovering must open the flyout via a
-    -- SECURE snippet — the flyout parents protected cast buttons, so insecure
-    -- code may not move/show it in combat (protection propagates to parents).
+    -- Secure enter/leave: the flyout parents protected buttons, so only secure snippets may show/move it in combat.
     local row = CreateFrame("Button", "VCUI_TotemBtn_" .. totem.key, container,
         "SecureActionButtonTemplate,SecureHandlerEnterLeaveTemplate")
     row:RegisterForClicks("AnyUp", "AnyDown")
     row:SetAttribute("_onenter", [=[
-        -- optional "keep the picker away while fighting" gate: the combatlock
-        -- attribute is fed by a [combat] driver (numbers 1/0)
         if self:GetAttribute("combatlock") == 1 and self:GetAttribute("flyincombat") == 0 then
             return
         end
@@ -230,26 +189,18 @@ local function createRow(totem)
             fl:Show()
         end
     ]=])
-    -- Secure mouse-out close: leaving the slot hides the flyout UNLESS the
-    -- mouse moved onto it (they touch, so slot->flyout keeps it open). Runs in
-    -- the restricted environment, so this works IN COMBAT too — the insecure
-    -- OnUpdate poll only backs this up out of combat. IsUnderMouse exists on
-    -- these clients (feature-guarded anyway: dot-indexing a handle is safe).
+    -- Secure mouse-out close: runs in the restricted environment, so it works in combat too.
     row:SetAttribute("_onleave", [=[
         local fl = self:GetFrameRef("flyout")
         if fl and fl:IsShown() and fl.IsUnderMouse and not fl:IsUnderMouse(true) then
             fl:Hide()
         end
     ]=])
-    -- [combat] 1; 0 -> combatlock attribute (SecureStateDriver converts to NUMBERS)
+    -- driver feeds combatlock as numbers 1/0
     if RegisterAttributeDriver then
         RegisterAttributeDriver(row, "combatlock", "[combat] 1; 0")
     end
-    -- After casting via the slot itself, close its picker (secure wrap ->
-    -- legal in combat; a nil return from the pre-body does NOT block the cast,
-    -- same production-proven form as the flyout buttons' own click wrap).
-    -- Right-click is exempt: that's the "open the picker" click, hiding here
-    -- would close it with no way to reopen without re-hovering.
+    -- Close the picker after a cast; right-click is exempt (it is what opens the picker).
     if SecureHandlerWrapScript then
         SecureHandlerWrapScript(row, "OnClick", row, [=[
             if not down and button ~= "RightButton" then
@@ -258,17 +209,12 @@ local function createRow(totem)
             end
         ]=])
     end
-    -- IMPORTANT: the 2.5.5 client only fires the protected cast through the "*"
-    -- wildcard attributes (*type1/*spell1), NOT plain type/spell. (Verified vs
-    -- the established totem addons, which use the same form.)
-    row:SetAttribute("*type1", "spell")  -- left-click: cast this element's totem (*spell1)
-    row:SetAttribute("*type3", "spell")  -- middle-click: Totemic Call / recall all (*spell3)
-    -- (no *type2 -> right-click casts nothing; it opens the picker below)
+    -- This client only fires the protected cast through the wildcard attributes (*type1/*spell1).
+    row:SetAttribute("*type1", "spell")
+    row:SetAttribute("*type3", "spell")
     row:SetScript("PostClick", function(self, button, down)
         if button == "RightButton" and not down then showTotemMenu(self.totem) end
     end)
-    -- Hover a slot to open the icon picker (it opens away from the slot so it
-    -- can't sit on top of it and eat the click).
     row:HookScript("OnEnter", function(self)
         showTotemMenu(self.totem)
         paintTotemTooltip(self)
@@ -278,7 +224,6 @@ local function createRow(totem)
         if GameTooltip and GameTooltip:IsOwned(self) then GameTooltip:Hide() end
     end)
 
-    -- WeakAura-style soft drop shadow behind the icon
     row.shadow = row:CreateTexture(nil, "BACKGROUND", nil, -1)
     row.shadow:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
     row.shadow:SetBlendMode("BLEND")
@@ -288,14 +233,9 @@ local function createRow(totem)
     row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
     row.icon:SetTexture(totem.icon)
 
-    -- action-bar style metal border BEHIND the icon, so the icon shows on top and
-    -- only the slot frame rim is visible around it (tinted by state in updateRow)
     row.border = row:CreateTexture(nil, "BORDER")
     row.border:SetTexture("Interface\\Buttons\\UI-Quickslot2")
 
-    -- "vulo" style: filled ring behind a 1px-inset icon (the proven bag-button
-    -- recipe — a filled layer can never drop a side) + a 2px element-colored
-    -- strip under the icon so the element stays readable when dimmed
     row.ring = row:CreateTexture(nil, "BACKGROUND", nil, -1)
     row.ring:SetPoint("TOPLEFT", row.icon, "TOPLEFT", -1, 1)
     row.ring:SetPoint("BOTTOMRIGHT", row.icon, "BOTTOMRIGHT", 1, -1)
@@ -314,8 +254,7 @@ local function createRow(totem)
     row.elem:SetColorTexture(totem.color[1], totem.color[2], totem.color[3], 0.9)
     row.elem:Hide()
 
-    -- (no Cooldown frame: hiding a child frame every tick from insecure code
-    --  taints the secure button and blocks its cast; the timer text is enough)
+    -- No Cooldown frame: hiding a child frame every tick from insecure code taints the secure button.
 
     row.bg = row:CreateTexture(nil, "BACKGROUND")
     row.bg:SetTexture(BAR_TEX)
@@ -333,10 +272,8 @@ local function createRow(totem)
     row.time = row:CreateFontString(nil, "OVERLAY")
     row.time:SetFont(FONT, db().fontSize, "OUTLINE")
 
-    -- a subtle hover highlight so it reads as clickable
     row:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
 
-    -- shadow + border follow the icon's size/position
     row.shadow:SetPoint("TOPLEFT", row.icon, "TOPLEFT", -5, 5)
     row.shadow:SetPoint("BOTTOMRIGHT", row.icon, "BOTTOMRIGHT", 5, -5)
     row.border:SetPoint("TOPLEFT", row.icon, "TOPLEFT", -3, 3)
@@ -347,9 +284,6 @@ local function createRow(totem)
     return row
 end
 
--- ---------------------------------------------------------
--- Layout (combat-guarded: secure frames can't move in combat)
--- ---------------------------------------------------------
 local function applyLayout()
     if not container then return end
     if InCombatLockdown and InCombatLockdown() then pendingAttr = true; return end
@@ -376,8 +310,6 @@ local function applyLayout()
             row:SetSize(s, s)
             row:SetPoint("LEFT", container, "LEFT", (i - 1) * (s + d.spacing), 0)
 
-            -- vulo: 1px inset so the filled ring shows as an even border;
-            -- classic: 3px inset so the metal rim shows
             local inset = vulo and 1 or (d.shadowBorder and 3 or 0)
             row.icon:ClearAllPoints()
             row.icon:SetPoint("TOPLEFT", row, "TOPLEFT", inset, -inset)
@@ -425,9 +357,6 @@ local function applyLayout()
         container:SetSize(iconW + w, #active * h + (#active - 1) * d.spacing)
     end
 
-    -- per-style dressing (runs out of combat -> safe): classic = metal rim +
-    -- soft shadow; vulo = filled ring + element underline (icons layout only,
-    -- bars already carry the element color in their fill)
     for _, t in ipairs(active) do
         local row = rows[t.key]
         if row then
@@ -439,15 +368,10 @@ local function applyLayout()
     end
 end
 
--- ---------------------------------------------------------
--- Per-row display update (combat-safe; only textures/text)
--- ---------------------------------------------------------
 local function updateRow(row, preview)
     local d = db()
     local t = row.totem
 
-    -- Icon to show: the active totem's icon, else the configured/last spell's
-    -- icon (so you can see what a click would cast), else the element default.
     local have, _, startTime, duration, icon = GetTotemInfo(t.slot)
     if preview then have, startTime, duration = true, GetTime(), 60 end
 
@@ -458,20 +382,17 @@ local function updateRow(row, preview)
     end
     row.icon:SetTexture(icon or t.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
 
-    -- remaining time; 0 once the totem is gone or has expired
     local remaining = 0
     if have and duration and duration > 0 then
         remaining = (startTime + duration) - GetTime()
         if remaining < 0 then remaining = 0 end
     end
 
-    -- treat <= 0 as "down" so there's no bright "0.0" frame before it dims
     if have and remaining > 0 then
         local frac = remaining / duration
         if frac > 1 then frac = 1 end
         local warn = remaining <= d.warnSeconds
 
-        -- expiry sound: once as it crosses into the warning window
         if warn and not row.warned then
             row.warned = true
             if d.expirySound and not preview then PlaySoundFile(EXPIRE_SOUND, "Master") end
@@ -482,10 +403,10 @@ local function updateRow(row, preview)
         row.icon:SetDesaturated(false)
         row.icon:SetVertexColor(1, 1, 1)
         if warn then
-            row.border:SetVertexColor(1, 0.4, 0.4)   -- expiring (classic rim)
+            row.border:SetVertexColor(1, 0.4, 0.4)
             row.ring:SetColorTexture(WARN_COLOR[1], WARN_COLOR[2], WARN_COLOR[3], 1)
         else
-            row.border:SetVertexColor(1, 1, 1)       -- active = normal/bright
+            row.border:SetVertexColor(1, 1, 1)
             row.ring:SetColorTexture(t.color[1], t.color[2], t.color[3], 1)
         end
         row.elem:SetColorTexture(t.color[1], t.color[2], t.color[3], 0.9)
@@ -502,7 +423,7 @@ local function updateRow(row, preview)
             row.time:SetTextColor(1, 1, 1)
         end
 
-        if d.layout ~= "icons" then  -- bars: fill + spark (icons just show the number)
+        if d.layout ~= "icons" then
             local fw = d.barWidth * frac
             if fw < 1 then fw = 1 end
             row.fill:SetWidth(fw)
@@ -517,11 +438,10 @@ local function updateRow(row, preview)
             if frac > 0.02 and frac < 0.99 then row.spark:Show() else row.spark:Hide() end
         end
     else
-        -- No totem down -> dimmed icon (still clickable to cast)
         row.warned = false
         row.icon:SetDesaturated(true)
         row.icon:SetVertexColor(0.55, 0.55, 0.55)
-        row.border:SetVertexColor(0.55, 0.55, 0.55)  -- not down = dimmed
+        row.border:SetVertexColor(0.55, 0.55, 0.55)
         row.ring:SetColorTexture(0.22, 0.22, 0.26, 1)
         row.elem:SetColorTexture(t.color[1], t.color[2], t.color[3], 0.35)
         row.time:SetText("")
@@ -533,13 +453,9 @@ local function updateRow(row, preview)
     end
 end
 
--- ---------------------------------------------------------
--- Refresh / loop. The bar is always shown (so you can always click to cast).
--- ---------------------------------------------------------
 local function refresh()
     if not container then return end
-    -- The container parents secure buttons, so Show() is protected in combat.
-    -- Only ever show it out of combat; it then stays shown across the fight.
+    -- container parents secure buttons -> only Show() out of combat
     if not container:IsShown() and not (InCombatLockdown and InCombatLockdown()) then
         container:Show()
     end
@@ -548,7 +464,6 @@ local function refresh()
         local row = rows[t.key]
         if row and row:IsShown() then updateRow(row, preview) end
     end
-    -- keep the hover tooltip's cooldown line counting down
     if hoverBtn then
         if GameTooltip and GameTooltip:IsOwned(hoverBtn) and hoverBtn:IsVisible() then
             paintTotemTooltip(hoverBtn)
@@ -558,30 +473,23 @@ local function refresh()
     end
 end
 
--- ---------------------------------------------------------
--- Hover tooltip: totem name + remaining cooldown (e.g. Mana Tide, Fire Nova,
--- the elementals). Tooltips are never protected -> fully combat-safe, unlike
--- a Cooldown swipe frame on the secure buttons (see the taint note above).
--- ---------------------------------------------------------
 local function fmtCD(s)
     if s >= 60 then return string.format("%d:%02d", math.floor(s / 60), math.floor(s % 60)) end
     return string.format("%ds", math.ceil(s))
 end
 
--- Tooltip anchor OPPOSITE the side the flyout opens on, so they never overlap.
 local TIP_ANCHOR = { BOTTOM = "ANCHOR_BOTTOM", TOP = "ANCHOR_TOP",
                      LEFT = "ANCHOR_LEFT", RIGHT = "ANCHOR_RIGHT" }
 
 paintTotemTooltip = function(btn)
     if db().hoverTooltip == false or not GameTooltip then return end
-    -- flyout icon carries its totem name; a slot shows what a click would cast
     local name = btn.totemName
         or (btn.totem and castableName(buttonSpell(btn.totem), btn.totem.key))
     if not name or name == "" then return end
     local id = select(7, GetSpellInfo(name))
     hoverBtn = btn
     local anchor = "ANCHOR_RIGHT"
-    if btn.totem then  -- slot row: flypoint is where the flyout attaches to us
+    if btn.totem then
         anchor = TIP_ANCHOR[btn:GetAttribute("flypoint")] or "ANCHOR_BOTTOM"
     end
     GameTooltip:SetOwner(btn, anchor)
@@ -597,18 +505,10 @@ paintTotemTooltip = function(btn)
     GameTooltip:Show()
 end
 
--- Icon flyout: hovering (or right-clicking) a slot opens a column of totem ICONS
--- to pick from. It hides itself when the mouse leaves both it and the slot.
---
--- Combat-safe design: ONE flyout per element, fully pre-built OUT of combat
--- (button size/anchors/cast attributes are protected operations on secure
--- buttons). Hovering then only touches the plain parent frame (SetPoint/Show)
--- and textures — both legal in combat — so the picker works while fighting.
-local flyouts = {}  -- element key -> pre-built flyout frame
+-- Icon flyout: one panel per element, fully pre-built out of combat (button geometry/attributes are protected).
+local flyouts = {}
 
--- Set a secure frame ref with every known mechanism (this client lacks the
--- template :SetFrameRef method; the global is the standard path; the raw
--- frameref attribute is what both do internally).
+-- This client lacks the template :SetFrameRef method; fall back through every known mechanism.
 local function setSecureRef(owner, label, target)
     if SecureHandlerSetFrameRef then
         SecureHandlerSetFrameRef(owner, label, target)
@@ -622,10 +522,6 @@ end
 local function ensureFlyout(key)
     local fl = flyouts[key]
     if fl then return fl end
-    -- SecureHandlerEnterLeaveTemplate (includes the base handler): the flyout
-    -- is an explicitly protected handler, so the rows' secure _onenter
-    -- snippets can show/move it in combat, it can secure-wrap its buttons'
-    -- clicks (hide after cast) AND close itself on mouse-out via _onleave.
     fl = CreateFrame("Frame", "VCUI_TotemFlyout_" .. key, UIParent,
         BackdropTemplateMixin and "SecureHandlerEnterLeaveTemplate,BackdropTemplate"
                                or "SecureHandlerEnterLeaveTemplate")
@@ -634,8 +530,6 @@ local function ensureFlyout(key)
         fl:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8",
             edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
     end
-    -- Secure mouse-out close (works in combat): leaving the panel hides it
-    -- unless the mouse is still over it or one of its (protected) buttons.
     fl:SetAttribute("_onleave", [=[
         if self.IsUnderMouse and not self:IsUnderMouse(true) then
             self:Hide()
@@ -645,8 +539,7 @@ local function ensureFlyout(key)
     fl.count = 0
     fl:Hide()
     fl:SetScript("OnUpdate", function(self)
-        -- Out-of-combat backup for odd mouse paths (e.g. leaving the screen);
-        -- in combat the secure _onleave snippets do the closing.
+        -- out-of-combat backup; in combat the secure _onleave snippets close it
         if InCombatLockdown and InCombatLockdown() then return end
         if not self:IsMouseOver() and not (self.anchor and self.anchor:IsMouseOver()) then
             self:Hide()
@@ -656,8 +549,6 @@ local function ensureFlyout(key)
     return fl
 end
 
--- Per-style dressing of the flyout panel + one button (insecure texture work,
--- also safe to re-run; secure geometry stays in rebuildFlyout)
 local function styleFlyoutPanel(fl)
     if not fl.SetBackdropColor then return end
     local vulo = isVulo()
@@ -675,8 +566,6 @@ local function styleFlyoutPanel(fl)
         fl:SetBackdropColor(0.05, 0.05, 0.08, 0.92)
         fl:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
     end
-    -- the soft drop shadow belongs to the vulo look only; hide it (textures,
-    -- combat-legal) when the user switches back to classic mid-session
     if fl._vcShadow then
         for _, t in ipairs(fl._vcShadow) do t:SetShown(vulo) end
     end
@@ -684,8 +573,8 @@ end
 
 local function styleFlyoutButton(b, selected)
     local vulo = isVulo()
-    b.frame:SetShown(not vulo)                    -- classic metal rim
-    b.ring:SetShown(vulo)                         -- vulo filled ring
+    b.frame:SetShown(not vulo)
+    b.ring:SetShown(vulo)
     local zoom = vulo and 0.07 or 0.08
     b.icon:SetTexCoord(zoom, 1 - zoom, zoom, 1 - zoom)
     local inset = vulo and 1 or 3
@@ -693,7 +582,7 @@ local function styleFlyoutButton(b, selected)
     b.icon:SetPoint("TOPLEFT", b, "TOPLEFT", inset, -inset)
     b.icon:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -inset, inset)
     if vulo then
-        b.sel:Hide()                              -- selection lives on the ring
+        b.sel:Hide()
         local ac = ns.COLORS and ns.COLORS.accent or { r = 0.608, g = 0.424, b = 1 }
         if selected then
             b.ring:SetColorTexture(ac.r, ac.g, ac.b, 1)
@@ -706,7 +595,6 @@ local function styleFlyoutButton(b, selected)
     end
 end
 
--- (Re)build one element's flyout: secure buttons + size/anchors/attributes.
 -- Protected operations -> out of combat only; callers defer via pendingAttr.
 local function rebuildFlyout(t)
     if InCombatLockdown and InCombatLockdown() then pendingAttr = true; return end
@@ -715,8 +603,6 @@ local function rebuildFlyout(t)
     local names = knownTotemsFor(t.key)
     fl.count = #names
 
-    -- Which side the picker opens on: user choice, or (auto) away from the
-    -- nearest screen edge — icons layout opens up/down, bars open sideways.
     local slot = rows[t.key]
     local dir = d.flyoutDirection or "auto"
     local p, rp
@@ -736,19 +622,16 @@ local function rebuildFlyout(t)
         end
     end
     p, rp = p or "LEFT", rp or "RIGHT"
-    local upwards = (p == "BOTTOM")   -- stack nearest-first when opening up
+    local upwards = (p == "BOTTOM")
 
     local size, pad = math.max(28, d.iconSize), 4
     for i, name in ipairs(names) do
         local b = fl.btns[i]
         if not b then
-            -- EnterLeave on top of the action template: the button's secure
-            -- _onleave closes the panel on mouse-out — in combat too (same
-            -- field-proven pattern the popular totem addons use).
             b = CreateFrame("Button", nil, fl,
                 "SecureActionButtonTemplate,SecureHandlerEnterLeaveTemplate")
             b:RegisterForClicks("AnyUp", "AnyDown")
-            b:SetAttribute("*type1", "spell")  -- clicking an icon CASTS that totem
+            b:SetAttribute("*type1", "spell")
             b:SetAttribute("_onleave", [=[
                 local fp = self:GetParent()
                 if fp and fp.IsUnderMouse and not fp:IsUnderMouse(true) then
@@ -775,7 +658,6 @@ local function rebuildFlyout(t)
             b.sel:SetTexture("Interface\\Buttons\\CheckButtonHilight")
             b.sel:SetBlendMode("ADD"); b.sel:SetAllPoints(b); b.sel:Hide()
             b:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
-            -- vulo hover: brighten the ring (texture work — combat-legal)
             b:HookScript("OnEnter", function(self)
                 if self.ring:IsShown() and not self._vcuiSelected then
                     self.ring:SetColorTexture(1, 1, 1, 0.9)
@@ -789,16 +671,12 @@ local function rebuildFlyout(t)
                 if hoverBtn == self then hoverBtn = nil end
                 if GameTooltip and GameTooltip:IsOwned(self) then GameTooltip:Hide() end
             end)
-            -- the secure click casts it; the secure wrap hides the flyout
-            -- after the cast (legal in combat, unlike an insecure Hide).
-            -- Global form: the template method is missing in this client.
+            -- Secure wrap hides the flyout after the cast (legal in combat); global form, template method missing.
             if SecureHandlerWrapScript then
                 SecureHandlerWrapScript(b, "OnClick", fl, [=[
                     if not down then self:GetParent():Hide() end
                 ]=])
             end
-            -- PostClick (insecure) remembers the pick as this element's choice
-            -- so left-clicking the slot recasts the same totem.
             b:SetScript("PostClick", function(self, button, down)
                 if down then return end
                 local dd = db()
@@ -828,8 +706,6 @@ local function rebuildFlyout(t)
     fl:SetSize(size + pad * 2, math.max(1, #names * (size + 2) - 2 + pad * 2))
     styleFlyoutPanel(fl)
 
-    -- Wire the slot for the secure _onenter snippet: open side, combat gate
-    -- and the frame ref to this flyout.
     if slot then
         slot:SetAttribute("flypoint", p)
         slot:SetAttribute("flyrelpoint", rp)
@@ -838,13 +714,12 @@ local function rebuildFlyout(t)
     end
 end
 
--- Pre-build every element's flyout (login / end of combat / spell changes).
 rebuildFlyouts = function()
     if InCombatLockdown and InCombatLockdown() then pendingAttr = true; return end
     for _, t in ipairs(TOTEMS) do
         if rows[t.key] then rebuildFlyout(t) end
     end
-    -- Every slot gets refs to ALL flyouts so its _onenter can close the others
+    -- every slot gets refs to all flyouts so its _onenter can close the others
     for _, t in ipairs(TOTEMS) do
         local slot = rows[t.key]
         if slot then
@@ -858,12 +733,10 @@ rebuildFlyouts = function()
 end
 
 showTotemMenu = function(t)
-    -- The flyout frame is protected (it parents secure cast buttons), so ALL
-    -- show/move calls on it run in the slots' secure _onenter snippet — in
-    -- combat AND out. This insecure part only refreshes content/markers.
+    -- The protected flyout is shown/moved by the slots' secure _onenter; this part only refreshes content.
     local inCombat = InCombatLockdown and InCombatLockdown()
     if not inCombat then
-        rebuildFlyout(t)  -- fresh ranks/totems/sizes + side attributes
+        rebuildFlyout(t)
     end
     local fl = flyouts[t.key]
     if not fl then return end
@@ -876,13 +749,12 @@ showTotemMenu = function(t)
     local set = d.sets[d.activeSet] or { fire = "", earth = "", water = "", air = "" }
     d.sets[d.activeSet] = set
 
-    -- Selection highlight (textures are not protected, fine in combat)
     for i = 1, fl.count do
         local b = fl.btns[i]
         if b then styleFlyoutButton(b, set[t.key] == b.totemName) end
     end
 
-    fl.anchor = rows[t.key]  -- for the out-of-combat auto-hide check
+    fl.anchor = rows[t.key]
 end
 
 local function onUpdate(self, elapsed)
@@ -892,9 +764,6 @@ local function onUpdate(self, elapsed)
     refresh()
 end
 
--- ---------------------------------------------------------
--- Build / mover
--- ---------------------------------------------------------
 local function build()
     if container then return end
 
@@ -903,9 +772,7 @@ local function build()
     container:SetPoint("CENTER", UIParent, "CENTER", db().x, db().y)
     container:SetFrameStrata("MEDIUM")
 
-    -- Only create the ENABLED elements. We never Show()/Hide() a secure button
-    -- from insecure code (that taints it and blocks the protected cast), so we
-    -- simply don't create the ones you've turned off. Toggling needs a /reload.
+    -- Never Show/Hide a secure button from insecure code -> only create enabled elements (toggling needs /reload).
     for _, t in ipairs(TOTEMS) do
         if db()[t.toggle] then
             rows[t.key] = createRow(t)
@@ -947,20 +814,16 @@ local function setUnlocked(state)
     end
 end
 
--- ---------------------------------------------------------
--- Class tool lifecycle (called by the Class Specific module for shamans)
--- ---------------------------------------------------------
 -- Apply queued layout / secure-attribute changes once combat ends.
 local function applyPending()
     if pendingAttr then
         applyLayout()
         applyButtonSpells()
-        rebuildFlyouts()  -- refresh the pre-built combat-safe pickers
+        rebuildFlyouts()
     end
 end
 
--- named upvalue so it can actually be unregistered (Events.lua matches by
--- identity; an inline closure would leak + keep firing after disable)
+-- named upvalue: Events.lua unregisters by identity
 local function onSpellsChanged()
     applyButtonSpells()
     rebuildFlyouts()
@@ -976,7 +839,7 @@ local function onEnable()
     ns:RegisterEvent("SPELLS_CHANGED",        onSpellsChanged)
     learnActiveTotems()
     refresh()
-    rebuildFlyouts()  -- pre-build so the picker also works in combat
+    rebuildFlyouts()
 end
 
 local function onDisable()
@@ -991,9 +854,6 @@ local function onDisable()
     end
 end
 
--- ---------------------------------------------------------
--- Set helpers
--- ---------------------------------------------------------
 local function newSet()
     local d = db()
     local n, name = 1
@@ -1009,7 +869,7 @@ end
 
 local function deleteActiveSet()
     local d = db()
-    if #d.setOrder <= 1 then return end  -- keep at least one
+    if #d.setOrder <= 1 then return end
     local name = d.activeSet
     d.sets[name] = nil
     for i, n in ipairs(d.setOrder) do
@@ -1019,13 +879,12 @@ local function deleteActiveSet()
     applyButtonSpells()
 end
 
--- Rename the active set to a custom name (e.g. "PvP", "Magma", "Burst").
 local function renameActiveSet(newName)
     local d = db()
     newName = tostring(newName or ""):gsub("^%s+", ""):gsub("%s+$", "")
     if newName == "" then return end
     local old = d.activeSet
-    if newName == old or d.sets[newName] then return end  -- empty / unchanged / taken
+    if newName == old or d.sets[newName] then return end
     d.sets[newName] = d.sets[old]
     d.sets[old]     = nil
     for i, n in ipairs(d.setOrder) do
@@ -1034,16 +893,12 @@ local function renameActiveSet(newName)
     d.activeSet = newName
 end
 
--- Re-render the current options page (keeps the active class tab).
 local function rebuildOptions()
     if ns.UI and ns.UI.BuildOptionsPage then
         ns.UI:BuildOptionsPage("vtmanadisplay", ns.UI.currentTab)
     end
 end
 
--- ---------------------------------------------------------
--- Options (Shaman tab)
--- ---------------------------------------------------------
 local function getOptions()
     ensureDB()
     local d = db()
@@ -1057,7 +912,6 @@ local function getOptions()
         items[#items + 1] = { type = "desc", text = L["|cffff8800Only active while playing a Shaman.|r"] }
     end
 
-    -- Sets
     items[#items + 1] = { type = "header", text = L["Totem set"] }
     local setValues = {}
     for _, name in ipairs(d.setOrder) do setValues[#setValues + 1] = { value = name, text = name } end
@@ -1075,7 +929,6 @@ local function getOptions()
           onClick = function() deleteActiveSet(); rebuildOptions() end },
     } }
 
-    -- Which elements to show
     items[#items + 1] = { type = "header", text = L["Shown elements"] }
     items[#items + 1] = { type = "toggle", label = L["Fire"],
         get = function() return d.showFire end,
@@ -1090,7 +943,6 @@ local function getOptions()
         get = function() return d.showAir end,
         set = function(_, v) d.showAir = v; applyLayout(); refresh() end }
 
-    -- Appearance
     items[#items + 1] = { type = "header", text = L["Appearance"] }
     items[#items + 1] = { type = "dropdown", label = L["Layout"],
         values = { { value = "icons", text = L["Icons"] }, { value = "bars", text = L["Bars"] } },
@@ -1173,9 +1025,6 @@ local function getOptions()
     return items
 end
 
--- ---------------------------------------------------------
--- Register with the Class Specific module
--- ---------------------------------------------------------
 csMod:RegisterClassTool("SHAMAN", {
     onEnable   = onEnable,
     onDisable  = onDisable,

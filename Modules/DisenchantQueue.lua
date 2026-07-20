@@ -1,21 +1,4 @@
--- =========================================================
--- VuloClassicUI / Modules / DisenchantQueue
--- A "click once per item" disenchant helper for enchanters.
---
--- WoW does NOT allow unattended automation here: UseContainerItem / casting a
--- spell on a bag item is a protected action. The only legal way is a
--- SecureActionButton the player clicks; one hardware click = one disenchant.
--- The technique (confirmed working on Classic/TBC/Anniversary, e.g. by
--- DisenchanterPlus) is a secure button with:
---     type        = "spell"
---     spell       = 13262           (Disenchant)
---     target-bag  / target-slot     (the item to disenchant)
--- After each disenchant we load the next eligible bag item onto the same button
--- (out of combat), so the player just keeps clicking one button to work through
--- the whole queue instead of casting + picking each item by hand.
---
--- Everything that touches secure attributes is guarded by InCombatLockdown().
--- =========================================================
+-- Casting on a bag item is protected: one hardware click on a SecureActionButton = one disenchant, and every secure attribute write is guarded by InCombatLockdown().
 local _, ns = ...
 local L = ns.L
 
@@ -29,28 +12,22 @@ local mod = ns:RegisterModule("disenchantqueue", {
         enabled    = true,
         minQuality = 2,   -- 2 Uncommon, 3 Rare, 4 Epic
         maxQuality = 3,
-        point      = nil, -- saved window position { p, x, y }
-        ignore     = {},  -- [itemID] = itemLink — never queue these (persistent)
+        point      = nil,
+        ignore     = {},  -- [itemID] = itemLink, persistent
     },
 })
 
--- Armor slots that are never disenchantable
 local EXCLUDE_EQUIP = { INVTYPE_TABARD = true, INVTYPE_BODY = true }
 
-local sessionIgnore = {}  -- [bag.."-"..slot] = true (skipped this session)
-local win                 -- the window frame (built lazily)
+local sessionIgnore = {}
+local win
 
--- =========================================================
--- Helpers
--- =========================================================
 local function isEnchanter()
     if IsSpellKnown and IsSpellKnown(DISENCHANT_SPELL_ID) then return true end
     if IsPlayerSpell and IsPlayerSpell(DISENCHANT_SPELL_ID) then return true end
     return false
 end
 
--- Container info across the C_Container / legacy split (2.5.5 has C_Container,
--- but we stay defensive).
 local function containerInfo(bag, slot)
     if C_Container and C_Container.GetContainerItemInfo then
         local i = C_Container.GetContainerItemInfo(bag, slot)
@@ -67,7 +44,6 @@ local function numSlots(bag)
     return _G.GetContainerNumSlots and _G.GetContainerNumSlots(bag) or 0
 end
 
--- Is the item a disenchant candidate? (weapon/armour of the chosen quality)
 local function eligible(itemID, quality, locked)
     if not itemID or locked then return false end
     if not quality or quality < mod.db.minQuality or quality > mod.db.maxQuality then return false end
@@ -78,7 +54,6 @@ local function eligible(itemID, quality, locked)
     return true
 end
 
--- Find the first eligible item in bags (0-4). Returns a table or nil.
 local function findNext()
     for bag = 0, 4 do
         for slot = 1, numSlots(bag) do
@@ -93,7 +68,6 @@ local function findNext()
     end
 end
 
--- Count remaining eligible items (for the progress text)
 local function countRemaining()
     local n = 0
     for bag = 0, 4 do
@@ -107,10 +81,7 @@ local function countRemaining()
     return n
 end
 
--- =========================================================
--- Window: current item + a secure "Disenchant" button + skip / close
--- =========================================================
-local current  -- the entry currently loaded on the secure button
+local current
 
 local function clearButton()
     local b = win and win.cast
@@ -121,7 +92,6 @@ local function clearButton()
     b:Disable()
 end
 
--- Load the next eligible item onto the secure button (out of combat only).
 local function loadNext()
     if not win or not win:IsShown() then return end
     if InCombatLockdown() then return end  -- retried on PLAYER_REGEN_ENABLED
@@ -140,7 +110,6 @@ local function loadNext()
         win.icon:Show()
         win.itemText:SetText(e.link or "?")
         win.countText:SetText(string.format(L["%d item(s) to disenchant"], countRemaining()))
-        -- item level (top-left) + bind state (bottom-right) on the icon
         if win.ilvl then
             local lvl = e.link and ((GetDetailedItemLevelInfo and GetDetailedItemLevelInfo(e.link))
                 or (GetItemInfo and select(4, GetItemInfo(e.link))))
@@ -149,7 +118,7 @@ local function loadNext()
         if win.bind then
             local tag = ""
             if e.bound then
-                tag = "|cff9d9d9dBoP|r"   -- soulbound: shard-only
+                tag = "|cff9d9d9dBoP|r"
             elseif e.link and GetItemInfo then
                 local bindType = select(14, GetItemInfo(e.link))
                 if bindType == 2 then tag = "|cff73bfffBoE|r"
@@ -157,7 +126,6 @@ local function loadNext()
             end
             win.bind:SetText(tag)
         end
-        -- loud warning when this item belongs to a saved equipment set
         if win.setWarn then
             local sets = ns.ItemSetMembership and ns.ItemSetMembership(e.itemID)
             if sets then
@@ -197,7 +165,7 @@ local function buildWindow()
     f:SetBackdropBorderColor(0, 0, 0, 1)
 
     f:EnableMouse(true)
-    -- one-time migrate the legacy point-anchor save to the engine's CENTER offset
+    -- one-time migration of the legacy point-anchor save to a CENTER offset
     local p = mod.db.point
     if p then
         f:ClearAllPoints()
@@ -212,9 +180,7 @@ local function buildWindow()
     f.mover = ns:CreateMover(f, { key = "disenchantqueue", label = "|cffffffff" .. L["Disenchant Queue"] .. "|r", db = mod.db, width = 280, height = 184,
         scalable = true, anchorable = true })
 
-    -- direct drag (in addition to Edit Mode): same canonical capture as the
-    -- bag/bank windows. The frame itself is not protected — only the cast
-    -- button child is — so StartMoving is legal; combat guard for symmetry.
+    -- only the cast button child is protected, so moving the frame itself is legal
     f:SetMovable(true)
     f:RegisterForDrag("LeftButton")
     f:SetScript("OnDragStart", function(self)
@@ -229,17 +195,14 @@ local function buildWindow()
         end
     end)
 
-    -- title
     local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     title:SetPoint("TOPLEFT", 10, -8)
     title:SetText((ns.C and ns.C.accent or "|cff9b6cff") .. L["Disenchant Queue"] .. "|r")
 
-    -- close (X)
     local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
     close:SetPoint("TOPRIGHT", 2, 2)
     close:SetScript("OnClick", function() f:Hide() end)
 
-    -- current item icon + name
     f.icon = f:CreateTexture(nil, "ARTWORK")
     f.icon:SetSize(32, 32)
     f.icon:SetPoint("TOPLEFT", 12, -34)
@@ -251,7 +214,6 @@ local function buildWindow()
     f.itemText:SetJustifyH("LEFT")
     f.itemText:SetWordWrap(false)
 
-    -- item level (top-left) + bind state (bottom-right) on the icon
     f.ilvl = f:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
     f.ilvl:SetPoint("TOPLEFT", f.icon, "TOPLEFT", 1, -1)
     f.ilvl:SetTextColor(1, 1, 1)
@@ -262,7 +224,6 @@ local function buildWindow()
         pcall(f.bind.SetFont, f.bind, ns.UI.FONT_PATH, 9, "OUTLINE")
     end
 
-    -- hovering the item row shows the real bag tooltip (incl. bind line)
     local hover = CreateFrame("Button", nil, f)
     hover:SetPoint("TOPLEFT", f.icon, "TOPLEFT", 0, 0)
     hover:SetPoint("BOTTOMLEFT", f.icon, "BOTTOMLEFT", 0, 0)
@@ -275,7 +236,6 @@ local function buildWindow()
         end
     end)
     hover:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
-    -- the button strip would otherwise swallow drag on the item row
     hover:RegisterForDrag("LeftButton")
     hover:SetScript("OnDragStart", function() local h = f:GetScript("OnDragStart"); if h then h(f) end end)
     hover:SetScript("OnDragStop",  function() local h = f:GetScript("OnDragStop");  if h then h(f) end end)
@@ -283,7 +243,6 @@ local function buildWindow()
     f.countText = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     f.countText:SetPoint("TOPLEFT", f.icon, "BOTTOMLEFT", 0, -6)
 
-    -- warning line: the queued item belongs to a saved equipment set
     f.setWarn = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     f.setWarn:SetPoint("TOPLEFT", f.countText, "BOTTOMLEFT", 0, -3)
     f.setWarn:SetPoint("RIGHT", f, "RIGHT", -12, 0)
@@ -292,22 +251,17 @@ local function buildWindow()
     f.setWarn:SetTextColor(1, 0.55, 0.2)
     f.setWarn:Hide()
 
-    -- the secure cast button (visible main action)
     local cast = CreateFrame("Button", "VuloClassicUIDisenchantButton", f,
         "UIPanelButtonTemplate, SecureActionButtonTemplate")
     cast:SetSize(256, 28)
     cast:SetPoint("BOTTOMLEFT", 12, 46)
     cast:SetText(L["Disenchant"])
-    -- 2.5.5 quirk (same as the totem bar, verified in the field): the secure
-    -- cast only fires via the "*" wildcard attributes with AnyUp+AnyDown
-    -- registration — plain type/spell + LeftButtonUp never triggers it.
+    -- 2.5.5: the secure cast only fires via the "*" wildcard attributes with AnyUp+AnyDown registration
     cast:RegisterForClicks("AnyUp", "AnyDown")
     cast:SetAttribute("type", "spell")
     cast:SetAttribute("*type1", "spell")
     cast:SetAttribute("unit", "none")
     cast:Disable()
-    -- After the secure cast fires, the item gets consumed and BAG_UPDATE_DELAYED
-    -- advances the queue; here we just give immediate feedback.
     cast:HookScript("PostClick", function()
         if current then win.countText:SetText(L["Disenchanting…"]) end
     end)
@@ -322,7 +276,6 @@ local function buildWindow()
         button:SetScript("OnLeave", function() GameTooltip:Hide() end)
     end
 
-    -- skip current for this session only (it returns next time)
     local skip = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
     skip:SetSize(124, 24)
     skip:SetPoint("BOTTOMLEFT", 12, 12)
@@ -333,7 +286,6 @@ local function buildWindow()
     end)
     tip(skip, "Skip this item for now (it comes back next time).")
 
-    -- permanently ignore the current item type (never list it again)
     local ignore = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
     ignore:SetSize(124, 24)
     ignore:SetPoint("BOTTOMRIGHT", -12, 12)
@@ -346,7 +298,6 @@ local function buildWindow()
     end)
     tip(ignore, "Never disenchant this item (add it to the ignore list).")
 
-    -- events: advance the queue when bags change, retry after combat
     f:RegisterEvent("BAG_UPDATE_DELAYED")
     f:RegisterEvent("PLAYER_REGEN_ENABLED")
     f:SetScript("OnEvent", function(_, event)
@@ -362,9 +313,6 @@ local function buildWindow()
     return f
 end
 
--- =========================================================
--- Public open/toggle
--- =========================================================
 function mod:OpenWindow()
     if not isEnchanter() then
         ns:Print(L["You need the Enchanting profession (Disenchant) to use this."])
@@ -378,11 +326,7 @@ function mod:ToggleWindow()
     if win and win:IsShown() then win:Hide() else mod:OpenWindow() end
 end
 
--- =========================================================
--- Lifecycle
--- =========================================================
 function mod:OnEnable()
-    -- slash commands
     _G.SLASH_VCUIDISENCHANT1 = "/disenchant"
     _G.SLASH_VCUIDISENCHANT2 = "/entzaubern"
     _G.SlashCmdList["VCUIDISENCHANT"] = function()
@@ -394,16 +338,12 @@ function mod:OnDisable()
     if win then win:Hide() end
 end
 
--- =========================================================
--- Options
--- =========================================================
 local QUALITY_VALUES = {
     { value = 2, text = "|cff1eff00" .. (_G.ITEM_QUALITY2_DESC or "Uncommon") .. "|r" },
     { value = 3, text = "|cff0070dd" .. (_G.ITEM_QUALITY3_DESC or "Rare") .. "|r" },
     { value = 4, text = "|cffa335ee" .. (_G.ITEM_QUALITY4_DESC or "Epic") .. "|r" },
 }
 
--- Re-render the currently shown options page (so the ignore list updates live).
 local function refreshOptions()
     local UI = ns.UI
     if UI and UI.BuildOptionsPage and UI.currentModule then
@@ -447,7 +387,6 @@ function mod:GetOptions()
         { type = "header", text = L["Ignored items"] },
     }
 
-    -- Persistent ignore list (protect items you still need)
     local ids = {}
     for id in pairs(mod.db.ignore) do ids[#ids + 1] = id end
     table.sort(ids)

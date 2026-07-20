@@ -1,19 +1,6 @@
--- =========================================================
--- VuloClassicUI / Modules / CharacterPanel (merged with _Impl)
--- AUTO-MERGED file. Each former module is wrapped in an isolated
--- IIFE so its file-level locals and any top-level early-return stay
--- self-contained. Modules communicate through the shared ns table.
--- =========================================================
+-- Character panel: per-slot item level, sockets, enchant text.
 
--- ============================================================
--- merged from: CharacterPanel.lua
--- ============================================================
 (function(...)
--- =========================================================
--- VuloClassicUI / Modules / CharacterPanel
--- Enhanced character panel (iLvL per slot, sockets, enchant shortening).
--- The actual code lives in CharacterPanel_Impl.lua and reads mod.db.
--- =========================================================
 local _, ns = ...
 local L = ns.L
 
@@ -22,7 +9,7 @@ local mod = ns:RegisterModule("characterpanel", {
     group       = "UI Reskin",
     description = "Enhances the character panel: iLvL per slot, socket display, shortened enchant text.",
     defaults = {
-        style               = "classic",   -- "classic" (current look) | "modern" (built later)
+        style               = "classic",
         showItemLevel       = true,
         showSockets         = true,
         markEmptySockets    = true,
@@ -34,9 +21,6 @@ local mod = ns:RegisterModule("characterpanel", {
     },
 })
 
--- =========================================================
--- Apply iLvL font size to all existing slot displays
--- =========================================================
 local SLOTS = {
     "Head","Neck","Shoulder","Back","Chest","Wrist","Hands","Waist",
     "Legs","Feet","Finger0","Finger1","Trinket0","Trinket1",
@@ -56,7 +40,6 @@ end
 local function reapplyItemLevelSize()
     local size = mod.db.itemLevelSize or 11
 
-    -- Path 1: direct slot access (if slot is named and ilvlDisplay is attached directly)
     for _, slot in ipairs(SLOTS) do
         local f = _G["Character" .. slot .. "Slot"]
         if f and f.ilvlDisplay then
@@ -64,7 +47,7 @@ local function reapplyItemLevelSize()
         end
     end
 
-    -- Path 2: Anniversary — ilvlDisplay hangs on anonymous sub-frames of PaperDollItemsFrame
+    -- ilvlDisplay hangs on anonymous sub-frames of PaperDollItemsFrame
     local pdi = _G.PaperDollItemsFrame
     if pdi and pdi.GetChildren then
         for _, child in ipairs({ pdi:GetChildren() }) do
@@ -77,8 +60,7 @@ end
 mod.reapplyItemLevelSize = reapplyItemLevelSize
 
 function mod:OnEnable()
-    -- Hook on CharacterFrame:OnShow -> iLvL FontStrings are recreated by Impl
-    -- with a hard default (11), so reapply after each open with the current slider size
+    -- the impl recreates the iLvL font strings at a fixed size on each open, so reapply
     if _G.CharacterFrame and not _G.CharacterFrame._vcui_ilvlHook then
         _G.CharacterFrame._vcui_ilvlHook = true
         _G.CharacterFrame:HookScript("OnShow", function()
@@ -92,7 +74,6 @@ function mod:OnEnable()
 end
 
 function mod:GetOptions()
-    -- Refresh the open character panel so toggles take effect immediately
     local function refreshPanel()
         if ns.RefreshCharacterPanel then ns.RefreshCharacterPanel() end
     end
@@ -161,28 +142,16 @@ end
 
 end)(...);
 
--- ============================================================
--- merged from: CharacterPanel_Impl.lua
--- ============================================================
 (function(...)
--- =========================================================
--- VuloClassicUI / Modules / CharacterPanel_Impl
--- Ported from BetterCharacterPanel (TBC ANNIVERSARY).
--- Only works if the "characterpanel" module is enabled.
--- =========================================================
 local _, ns = ...
 local L = ns.L
 
--- Runs on BCC/Anniversary and Classic Era: the PaperDoll hooks
--- (PaperDollItemSlotButton_Update / InspectPaperDollItemSlotButton_Update) and the
--- slot frames exist on both. Sockets simply scan empty on Era (no gems in Vanilla),
--- and ring enchants (TBC+) are suppressed below. Other flavors are not supported.
+-- BCC/Era only: the PaperDoll hooks and slot frames exist on both
 if not (ns.isBCC or ns.isEra) then
     return
 end
 
--- We wait for PLAYER_LOGIN so the module registry and DB are ready.
--- If the module is disabled, we return early.
+-- wait for PLAYER_LOGIN: module registry and DB are ready only then
 local initFrame = CreateFrame("Frame")
 initFrame:RegisterEvent("PLAYER_LOGIN")
 initFrame:SetScript("OnEvent", function(self)
@@ -191,44 +160,32 @@ initFrame:SetScript("OnEvent", function(self)
     if not mod or not ns:IsModuleEnabled("characterpanel") then
         return
     end
-    -- Module is active -> the rest of this file runs as initialization
     if ns.RunCharacterPanelInit then
         ns:RunCharacterPanelInit()
     end
 end)
 
--- The actual code is wrapped in a function so we can start it lazily.
 function ns:RunCharacterPanelInit()
     if ns._characterPanelInitialised then return end
     ns._characterPanelInitialised = true
 
-    -- "addon" is just an event handler collection in the original code.
-    -- We rebuild it here locally.
     local addon = {}
 
-    -- Read CharacterPanel module settings (the toggles on its options page).
     local cpMod = ns.modules and ns.modules.characterpanel
     local function cpOpt(key, default)
         local d = cpMod and cpMod.db
         if d and d[key] ~= nil then return d[key] end
         return default
     end
-    -- Which look is selected: "classic" (the current Classic+ enhancements) or
-    -- "modern" (the new style we build together later). Everything Classic+
-    -- draws is gated on this, so picking "modern" leaves a clean slate.
     local function cpStyle() return cpOpt("style", "classic") end
 
--- =========================================================
--- Constants / Layout
--- =========================================================
 local NUM_SOCKET_TEXTURES = 4
 
 local ILVL_FONT_SIZE = 11
 local ILVL_Y_OFFSET  = 4
 
--- Per-slot vertical nudges for the enchant text (positive = up, negative = down)
-local WRIST_ENCH_Y   = -8   -- wrist enchant text a bit lower
-local WEAPON_ENCH_Y  = 6    -- weapon enchant text a bit higher
+local WRIST_ENCH_Y   = -8
+local WEAPON_ENCH_Y  = 6
 
 local SOCKET_SIZE = 11
 local SOCKET_GAP  = 2
@@ -261,8 +218,7 @@ if ENABLE_AMMO and INVSLOT_AMMO then
 	buttonLayout[INVSLOT_AMMO] = "right"
 end
 
--- Ring enchanting only exists from TBC onward; on Classic Era never treat rings
--- as enchantable, otherwise every ring would falsely show the red "No Ench".
+-- ring enchants are TBC+; on Era every ring would falsely show "No Ench"
 local RINGS_ENCH = cpOpt("ringsEnchantable", true) and not ns.isEra
 
 local enchantableSlots = {
@@ -285,7 +241,6 @@ if RINGS_ENCH then
 end
 
 local enchantReplacementTable = {
-	-- English
 	["Stamina"] = "Stam",
 	["Intellect"] = "Int",
 	["Agility"] = "Agi",
@@ -310,7 +265,6 @@ local enchantReplacementTable = {
 	["Hit Rating"] = "Hit",
 	["Attack Power"] = "AP",
 
-	-- German
 	["Ausdauer"] = "Ausd",
 	["Intelligenz"] = "Int",
 	["Beweglichkeit"] = "Bew",
@@ -354,15 +308,13 @@ local enchantReplacementTable = {
 	["Mana pro 5 Sek."] = "MP5",
 	["Manaregeneration"] = "MP5",
 
-	-- Cleanup
 	["Rating"] = "",
 	[" und "] = " ",
 	[" and "] = " ",
 	["+"] = "",
 }
 
--- Replacement order, precomputed once (longest key first). The table is static,
--- so there's no need to rebuild + sort it on every ProcessEnchantText call.
+-- longest key first; the table is static, so sort once
 local enchantOrder = {}
 for k in pairs(enchantReplacementTable) do enchantOrder[#enchantOrder + 1] = k end
 table.sort(enchantOrder, function(a, b) return #a > #b end)
@@ -370,7 +322,6 @@ table.sort(enchantOrder, function(a, b) return #a > #b end)
 local function ProcessEnchantText(enchantText)
 	if not enchantText then return enchantText end
 
-	-- Only abbreviate when the "shorten enchant text" toggle is on
 	if cpOpt("shortenEnchants", true) then
 		for _, seek in ipairs(enchantOrder) do
 			enchantText = enchantText:gsub((seek:gsub("(%W)", "%%%1")), enchantReplacementTable[seek])
@@ -381,9 +332,6 @@ local function ProcessEnchantText(enchantText)
 	return enchantText
 end
 
--- =========================================================
--- Tooltip scanner
--- =========================================================
 local scanningTooltip = CreateFrame("GameTooltip", "BCPScanningTooltip", nil, "GameTooltipTemplate")
 scanningTooltip:SetOwner(UIParent, "ANCHOR_NONE")
 
@@ -447,9 +395,7 @@ local function CanEnchantSlot(unit, slot)
 		local link = GetInventoryItemLink(unit, slot)
 		if not link then return false end
 
-		-- Only bows (2), guns (3) and crossbows (18) can take a scope.
-		-- Wands (19), thrown (16), relics etc. can't be enchanted, so don't
-		-- nag with "No Ench" on them.
+		-- only bows (2), guns (3) and crossbows (18) can take a scope
 		local classID, subClassID = GetWeaponSubClass(link)
 		if classID ~= 2 or not (subClassID == 2 or subClassID == 3 or subClassID == 18) then
 			return false
@@ -515,9 +461,6 @@ local function GetSocketTextures(unit, slot)
 	return textures
 end
 
--- =========================================================
--- Color helpers
--- =========================================================
 local function ColorGradient(perc, ...)
 	if perc >= 1 then
 		local r, g, b = select(select("#", ...) - 2, ...)
@@ -540,9 +483,6 @@ local function ColorGradientHP(perc)
 	return ColorGradient(perc, 1, 0, 0, 1, 1, 0, 0, 1, 0)
 end
 
--- =========================================================
--- Quality border
--- =========================================================
 local function EnsureQualityBorder(button)
 	if button.IconBorder then
 		return button.IconBorder, true
@@ -587,9 +527,6 @@ local function UpdateQualityBorder(button, unit, slot, itemLink)
 	border:Hide()
 end
 
--- =========================================================
--- UI
--- =========================================================
 local function AnchorSocketsBelowCentered(ilvlFS, textures)
 	local shown = 0
 
@@ -605,9 +542,7 @@ local function AnchorSocketsBelowCentered(ilvlFS, textures)
 	local gap = SOCKET_GAP
 	local step = size + gap
 
-	-- Total width of visible sockets + gaps between them
 	local totalW = shown * size + (shown - 1) * gap
-	-- StartX: left edge of the first socket relative to center, then to socket center
 	local startX = -totalW / 2 + size / 2
 
 	local idx = 0
@@ -617,7 +552,6 @@ local function AnchorSocketsBelowCentered(ilvlFS, textures)
 		t:ClearAllPoints()
 
 		if t:IsShown() then
-			-- Round to whole pixels so no subpixel offsets occur
 			local x = math.floor(startX + idx * step + 0.5)
 			t:SetPoint("TOP", ilvlFS, "BOTTOM", x, SOCKET_Y_GAP)
 			idx = idx + 1
@@ -625,9 +559,6 @@ local function AnchorSocketsBelowCentered(ilvlFS, textures)
 	end
 end
 
--- =========================================================
--- Text style (drop shadow vs. outline) + empty-socket helper
--- =========================================================
 local function StyleText(fs, size)
 	if not fs then return end
 	if cpOpt("textShadow", true) then
@@ -641,7 +572,6 @@ local function StyleText(fs, size)
 	end
 end
 
--- Re-apply the current style to an existing font string, keeping its size.
 local function RestyleText(fs)
 	if not fs or not fs.GetFont then return end
 	local file, size = fs:GetFont()
@@ -657,7 +587,6 @@ local function RestyleText(fs)
 	end
 end
 
--- Live toggle: walk the slot displays and re-apply the text style.
 function cpMod.restyleAllText()
 	local pdi = _G.PaperDollItemsFrame
 	if pdi and pdi.GetChildren then
@@ -668,11 +597,7 @@ function cpMod.restyleAllText()
 	end
 end
 
--- Detect an empty gem socket via the item link's gem fields.
--- This is locale- AND fileID-independent: in 2.5.5 texture:GetTexture()
--- returns a numeric fileID (not a path), so matching the texture path does
--- not work. Socket display index i maps to the i-th gem field of the link
--- (item:itemID:enchant:gem1:gem2:gem3:gem4:...).
+-- empty-socket check via the link's gem fields: GetTexture() returns numeric fileIDs here, so texture matching fails
 local function SocketIsEmpty(itemLink, index)
 	if not itemLink or not index then return false end
 	local itemString = itemLink:match("item[%-?%d:]+")
@@ -712,7 +637,6 @@ local function CreateAdditionalDisplayForButton(button)
 		f.socketDisplay[i]:SetWidth(SOCKET_SIZE)
 		f.socketDisplay[i]:SetHeight(SOCKET_SIZE)
 
-		-- Red glow ring shown around empty (ungemmed) sockets
 		f.socketRing[i] = f:CreateTexture(nil, "ARTWORK")
 		f.socketRing[i]:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
 		f.socketRing[i]:SetBlendMode("ADD")
@@ -806,9 +730,6 @@ local function AnchorAdditionalDisplay(button)
 	end
 end
 
--- =========================================================
--- Update logic
--- =========================================================
 local function UpdateAdditionalDisplay(button, unit)
 	local f = button.BCPDisplay
 	if not f then return end
@@ -840,7 +761,6 @@ local function UpdateAdditionalDisplay(button, unit)
 			end
 		end
 
-		-- "Show item level per slot" toggle
 		if not cpOpt("showItemLevel", true) then itemiLvlText = "" end
 		f.ilvlDisplay:SetText(itemiLvlText)
 
@@ -867,7 +787,6 @@ local function UpdateAdditionalDisplay(button, unit)
 			f.enchantDisplay:SetText(enchantText)
 		end
 
-		-- Socket display honours the "Show sockets" toggle
 		local textures = (cpOpt("showSockets", true) and itemLink and GetSocketTextures(unit, slot)) or {}
 
 		for i = 1, NUM_SOCKET_TEXTURES do
@@ -916,8 +835,6 @@ local function UpdateButton(button, unit)
 	local slot = button:GetID()
 	if not buttonLayout[slot] then return end
 
-	-- Both styles keep the per-slot item level (the Modern look shows it too);
-	-- Modern only adds the stats panel and hides the small average readout.
 	if not button.BCPDisplay then
 		button.BCPDisplay = CreateAdditionalDisplayForButton(button)
 		AnchorAdditionalDisplay(button)
@@ -930,9 +847,6 @@ hooksecurefunc("PaperDollItemSlotButton_Update", function(button)
 	UpdateButton(button, "player")
 end)
 
--- =========================================================
--- Avg iLvL
--- =========================================================
 local inspectSlots = {
 	INVSLOT_HEAD,
 	INVSLOT_NECK,
@@ -1003,7 +917,6 @@ local function CreatePlayerAvgIlvlDisplay()
 	fs:SetJustifyV("MIDDLE")
 	fs:SetText("")
 
-	-- Centered above the hands slot
 	fs:SetPoint("BOTTOM", anchor, "TOP", -8, 9)
 
 	PaperDollFrame.avgIlvlDisplay = fs
@@ -1016,13 +929,11 @@ local function UpdatePlayerAvgIlvlDisplay()
 
 	if not PaperDollFrame or not PaperDollFrame.avgIlvlDisplay then return end
 
-	-- Modern style suppresses the Classic+ average readout too
 	if cpStyle() ~= "classic" then
 		PaperDollFrame.avgIlvlDisplay:SetText("")
 		return
 	end
 
-	-- "Show average item level" toggle — hide the display when off
 	if not cpOpt("showAvgItemLevel", true) then
 		PaperDollFrame.avgIlvlDisplay:SetText("")
 		return
@@ -1037,9 +948,6 @@ local function UpdatePlayerAvgIlvlDisplay()
 	PaperDollFrame.avgIlvlDisplay:SetText(string.format(L["|c%siLvL - %d|r"], colorHex, ilvl))
 end
 
--- =========================================================
--- Inspect
--- =========================================================
 local function CreateInspectIlvlDisplay()
 	if not InspectPaperDollItemsFrame or InspectPaperDollItemsFrame.ilvlDisplay then return end
 
@@ -1093,9 +1001,6 @@ local function UpdateAllInspectSlots()
 	end
 end
 
--- =========================================================
--- Player bulk update
--- =========================================================
 local characterSlots = {
 	"CharacterHeadSlot",
 	"CharacterNeckSlot",
@@ -1126,16 +1031,9 @@ local function UpdateAllCharacterSlots()
 	end
 end
 
--- =========================================================
--- Modern style: a dark stats panel docked to the right of the character
--- frame (big equipped item level + collapsible stat categories). Reads only
--- non-protected player APIs and lives in its own frame parented to
--- CharacterFrame, so nothing here taints the secure paper doll. Retail-only
--- stats (mastery, versatility, tertiary, ratings on Era) are simply not built.
--- =========================================================
+-- Modern style: own frame, non-protected player APIs only, so the secure paper doll stays untainted
 local modernPanel
 
--- safe numeric read: a missing API or bad return never errors the panel
 local function num(fn)
 	local ok, v = pcall(fn)
 	if ok and type(v) == "number" then return v end
@@ -1156,11 +1054,7 @@ local function maxSpellCrit()
 	return m
 end
 
--- The stat table, adapted to the running client. TBC (2.5.x) has the combat
--- rating model (haste/hit/spell hit); Classic Era / SoD do not, so those rows
--- are only added on BCC.
--- spell schools 2..7 (Holy/Fire/Nature/Frost/Shadow/Arcane), matching the
--- Blizzard paper doll. Used for the hover breakdowns on Spell Power / Crit.
+-- combat-rating rows exist on BCC only; spell schools 2..7 match the Blizzard paper doll
 local SCHOOL_NAMES
 local function schoolNames()
 	if not SCHOOL_NAMES then
@@ -1224,9 +1118,7 @@ local function buildModernSections()
 	row(def, L["Parry"], function() return GetParryChance and GetParryChance() or 0 end, "%.2f%%")
 	row(def, L["Block"], function() return GetBlockChance and GetBlockChance() or 0 end, "%.2f%%")
 
-	-- Resistances live here on the right now (the Blizzard icons on the paper
-	-- doll are hidden under Modern). UnitResistance index: 6 Arcane, 2 Fire,
-	-- 3 Nature, 4 Frost, 5 Shadow.
+	-- UnitResistance index: 6 Arcane, 2 Fire, 3 Nature, 4 Frost, 5 Shadow
 	local res = sec("resistances", L["Resistances"])
 	row(res, L["Arcane"], function() return select(2, UnitResistance("player", 6)) end)
 	row(res, L["Fire"],   function() return select(2, UnitResistance("player", 2)) end)
@@ -1257,8 +1149,7 @@ local function layoutModern()
 				r.name:ClearAllPoints();  r.name:SetPoint("TOPLEFT",  c, "TOPLEFT",  10, y)
 				r.value:ClearAllPoints(); r.value:SetPoint("TOPRIGHT", c, "TOPRIGHT", -8, y)
 				r.hover:ClearAllPoints()
-				-- both points on the TOP edge only, so the fixed SetHeight(15)
-				-- is honored (a second vertical constraint would override it)
+				-- both points on the TOP edge only, or a second vertical constraint overrides SetHeight
 				r.hover:SetPoint("TOPLEFT", c, "TOPLEFT", 4, y + 2)
 				r.hover:SetPoint("TOPRIGHT", c, "TOPRIGHT", -4, y + 2)
 				y = y - 15
@@ -1267,7 +1158,6 @@ local function layoutModern()
 		y = y - 8
 	end
 	c:SetHeight(math.max(10, -y + 6))
-	-- keep the scroll position valid after a collapse shrinks the content
 	local range = math.max(0, c:GetHeight() - (p.scroll:GetHeight() or 0))
 	if p.scroll:GetVerticalScroll() > range then p.scroll:SetVerticalScroll(range) end
 end
@@ -1288,26 +1178,13 @@ local function updateModernValues()
 	end
 end
 
--- =========================================================
--- "One window" chrome: instead of a separate floating panel, we hide the
--- Blizzard tan window art + built-in stats and lay ONE dark rectangle (a
--- texture on CharacterFrame's BACKGROUND, so it sits behind every child:
--- model, slots, name, tabs) that extends to the RIGHT to also back the stats.
--- The stats panel itself is transparent. Everything is reversible so the
--- Classic+ style restores Blizzard's frame live. Offsets are first-pass and
--- meant to be nudged after seeing it in-game.
--- =========================================================
+-- Modern chrome: one dark texture on CharacterFrame's BACKGROUND, extended right to back the stats panel
 local modernChrome
--- how far the dark rectangle reaches to the right of the frame (holds the stats)
 local MODERN_RIGHT_EXT = 172
 
--- Exposed: how far the Modern style extends the character window to the right,
--- plus its top/bottom edge offsets — so frames docked right of the window (the
--- loadouts sidebar) can shift over and match the Modern chrome's height.
+-- exposed for frames docked right of the window
 ns.CharacterPanelModernExt = function()
-    -- 4th return: is the Modern style active at all (its window edges apply on
-    -- EVERY tab). The right extension itself only exists while the paperdoll
-    -- tab shows the stats panel.
+    -- 4th return: Modern active at all; the right extension applies on the paperdoll tab only
     if cpMod and cpMod.active and cpStyle() == "modern" then
         local ext = (_G.PaperDollFrame and _G.PaperDollFrame:IsShown()) and MODERN_RIGHT_EXT or 0
         return ext, -6, 72, true
@@ -1341,7 +1218,6 @@ local function ensureModernChrome()
 	e[3]:SetPoint("TOPLEFT", bg, "TOPLEFT");     e[3]:SetPoint("BOTTOMLEFT", bg, "BOTTOMLEFT");   e[3]:SetWidth(1)
 	e[4]:SetPoint("TOPRIGHT", bg, "TOPRIGHT");   e[4]:SetPoint("BOTTOMRIGHT", bg, "BOTTOMRIGHT"); e[4]:SetWidth(1)
 
-	-- Blizzard chrome to hide under Modern
 	local h = modernChrome.hidden
 	if _G.CharacterFramePortrait then h[#h + 1] = _G.CharacterFramePortrait end
 	if _G.PaperDollFrame then
@@ -1353,13 +1229,9 @@ local function ensureModernChrome()
 			end
 		end
 	end
-	-- Blizzard's built-in attribute/stat block (our panel replaces it)
 	local attr = _G.CharacterAttributesFrame or (_G.PaperDollFrame and _G.PaperDollFrame.Attributes)
 	if attr then h[#h + 1] = attr end
-	-- the 5 magic-resistance icons are a SEPARATE frame; hide them too (their
-	-- values now live in the panel's Resistances category)
 	if _G.CharacterResistanceFrame then h[#h + 1] = _G.CharacterResistanceFrame end
-	-- the two model-rotate arrows
 	if _G.CharacterModelFrameRotateLeftButton  then h[#h + 1] = _G.CharacterModelFrameRotateLeftButton  end
 	if _G.CharacterModelFrameRotateRightButton then h[#h + 1] = _G.CharacterModelFrameRotateRightButton end
 
@@ -1381,11 +1253,7 @@ local function applyModernChrome(on)
 	end
 end
 
--- The other character sub-tabs (Reputation / Skills / PvP / Honor) each carry
--- their own tan window chrome. Under Modern we hide that chrome (the BACKGROUND
--- and BORDER direct textures — content lives in child frames / ARTWORK, which
--- we leave alone) and lay a dark panel + accent border on each, parented to the
--- pane so it shows and hides with its tab automatically. Fully reversible.
+-- sub-tab panes: hide their BACKGROUND/BORDER textures, lay our own panel; reversible
 local modernPanes
 
 local function ensureModernPanes()
@@ -1397,8 +1265,7 @@ local function ensureModernPanes()
 		local f = _G[name]
 		if f and f.CreateTexture and f.GetRegions then
 			local rec = { hidden = {}, edges = {} }
-			-- collect the existing tan chrome FIRST, before we add our own
-			-- textures (so our bg/edges are never swept into the hide list)
+			-- collect the existing chrome FIRST, before our own textures are added
 			for _, r in ipairs({ f:GetRegions() }) do
 				if r.IsObjectType and r:IsObjectType("Texture") and r.GetDrawLayer then
 					local dl = r:GetDrawLayer()
@@ -1431,7 +1298,7 @@ local function ensureModernPanes()
 end
 
 local function applyModernPanes(on)
-	if not on and not modernPanes then return end   -- nothing built yet, nothing to restore
+	if not on and not modernPanes then return end
 	ensureModernPanes()
 	for _, rec in ipairs(modernPanes) do
 		for _, r in ipairs(rec.hidden) do
@@ -1447,10 +1314,7 @@ local function applyModernPanes(on)
 	end
 end
 
--- The bottom tabs (Character / Pet / Reputation / Skills / PvP) carry tan tab
--- art. Under Modern we hide that art (all their Texture regions; the label
--- FontString stays), put a dark strip behind each label and an accent
--- underline on the active tab. Reversible; the original label colors are kept.
+-- bottom tabs: hide the tab art textures, keep the label font strings; reversible
 local modernTabs
 
 local function tabSelectedId()
@@ -1462,7 +1326,7 @@ local function tabSelectedId()
 	return 1
 end
 
--- re-hide the art (Blizzard re-styles a tab on click) and move the underline
+-- Blizzard restyles a tab on click, so re-hide the art each time
 local function layoutModernTabs()
 	if not modernTabs or cpStyle() ~= "modern" then return end
 	local sel = tabSelectedId()
@@ -1544,7 +1408,6 @@ local function ensureModernPanel()
 
 	local p = CreateFrame("Frame", "VCUI_ModernCharStats", CharacterFrame)
 	p:SetWidth(188)
-	-- transparent panel filling the right part of the shared dark rectangle
 	if bg then
 		p:SetPoint("TOPRIGHT", bg, "TOPRIGHT", -6, -6)
 		p:SetPoint("BOTTOMRIGHT", bg, "BOTTOMRIGHT", -6, 6)
@@ -1555,7 +1418,6 @@ local function ensureModernPanel()
 	p:SetFrameStrata(CharacterFrame:GetFrameStrata())
 	p:SetFrameLevel((CharacterFrame:GetFrameLevel() or 0) + 6)
 
-	-- fixed header: caption + big item level (does not scroll)
 	local cap = p:CreateFontString(nil, "OVERLAY")
 	font(cap, 10, "GameFontNormalSmall")
 	cap:SetPoint("TOP", p, "TOP", 0, -8)
@@ -1568,7 +1430,6 @@ local function ensureModernPanel()
 	il:SetTextColor(ac.r, ac.g, ac.b)
 	p.ilvl = il
 
-	-- scrollable body below the item level
 	local scroll = CreateFrame("ScrollFrame", nil, p)
 	scroll:SetPoint("TOPLEFT", p, "TOPLEFT", 0, -50)
 	scroll:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", 0, 6)
@@ -1620,7 +1481,6 @@ local function ensureModernPanel()
 			font(valueFS, 11, "GameFontHighlightSmall")
 			valueFS:SetTextColor(0.92, 0.92, 0.96)
 			valueFS:SetJustifyH("RIGHT")
-			-- transparent hover strip for the Blizzard-style detail tooltip
 			local hover = CreateFrame("Button", nil, content)
 			hover:SetHeight(15)
 			hover.def = r
@@ -1641,8 +1501,6 @@ local function ensureModernPanel()
 	return p
 end
 
--- Called from UpdateCharacterPanel when the Modern style is active and the
--- character frame is open.
 function ns:RenderModernCharacterPanel()
 	applyModernChrome(true)
 	local p = ensureModernPanel()
@@ -1654,14 +1512,12 @@ end
 
 local function UpdateCharacterPanel()
 	if CharacterFrame and CharacterFrame:IsShown() then
-		-- both self-gate on the style; on "modern" they clear the Classic+ overlays
 		UpdateAllCharacterSlots()
 		UpdatePlayerAvgIlvlDisplay()
 		if cpStyle() == "modern" then
 			applyModernPanes(true)
 			applyModernTabs(true)
-			-- the stats panel + right extension belong to the PAPERDOLL tab only;
-			-- on skills / reputation / honor tabs they must go away
+			-- the stats panel and right extension belong to the paperdoll tab only
 			if _G.PaperDollFrame and _G.PaperDollFrame:IsShown() then
 				ns:RenderModernCharacterPanel()
 			else
@@ -1674,25 +1530,18 @@ local function UpdateCharacterPanel()
 			applyModernPanes(false)
 			applyModernTabs(false)
 		end
-		-- frames docked right of the window follow the style's extension
 		if ns.ReanchorLoadoutsSidebar then ns.ReanchorLoadoutsSidebar() end
 	end
 end
 
--- Exposed so the options toggles can refresh the open panel immediately
 ns.RefreshCharacterPanel = UpdateCharacterPanel
 
--- Tab switches inside the character window toggle the sub-frames without any
--- of our events firing — follow the paperdoll's own show/hide so the Modern
--- stats panel appears and disappears with its tab.
+-- tab switches fire none of our events; follow the paperdoll's own show/hide
 if _G.PaperDollFrame then
 	_G.PaperDollFrame:HookScript("OnShow", UpdateCharacterPanel)
 	_G.PaperDollFrame:HookScript("OnHide", UpdateCharacterPanel)
 end
 
--- =========================================================
--- Events
--- =========================================================
 local eventListener = CreateFrame("Frame")
 
 eventListener:SetScript("OnEvent", function(self, event, ...)
@@ -1767,10 +1616,7 @@ if CharacterFrame then
 	end)
 end
 
--- The Modern chrome belongs to the paper-doll (Character) sub-tab only. When
--- the user switches to Reputation/Skills/Honor the character frame stays open
--- but PaperDollFrame hides, so follow it: drop the dark bg + stats panel when
--- the paper doll leaves, restore them when it returns.
+-- PaperDollFrame hides on the other sub-tabs while CharacterFrame stays open
 if _G.PaperDollFrame then
 	_G.PaperDollFrame:HookScript("OnHide", function()
 		if modernPanel then modernPanel:Hide() end
@@ -1780,6 +1626,6 @@ if _G.PaperDollFrame then
 		if cpStyle() == "modern" then ns:RenderModernCharacterPanel() end
 	end)
 end
-end  -- ns:RunCharacterPanelInit
+end
 
 end)(...);

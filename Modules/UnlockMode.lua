@@ -1,44 +1,19 @@
--- =========================================================
--- VuloClassicUI / Modules / UnlockMode  ("Edit Mode")
--- The single Global entry for our Edit Mode HUD. It:
---   * toggles the HUD (Core/Mover.lua + UI/EditMode.lua),
---   * AND makes Blizzard's default frames movable inside the SAME HUD.
---
--- Blizzard frames use the "anchor frame" technique: one invisible addon frame
--- per Blizzard frame as the drag handle. The REAL unit frame is never left
--- anchored to an addon frame (that propagates combat protection onto the
--- anchor and taints Blizzard's secure unit-frame paths -> blocked
--- "TargetFrameToT:Show()" in combat).
---   * Edit Mode client (TBC Anniversary 20505): positions are written into the
---     Edit Mode layout via LibEditModeOverride as UIPARENT-relative offsets —
---     taint-free, applied and persisted by Blizzard's own manager. No raw
---     SetPoint ever touches an Edit-Mode-managed frame here.
---   * No Edit Mode (Classic Era): the field-proven recipe — SetMovable(true),
---     ClearAllPoints, SetPoint onto UIParent, SetUserPlaced(true) — applied on
---     drop and (only if drifted) once per login, never in combat. Unit frames
---     follow the box live only DURING a drag (transient link, detached on drop).
--- =========================================================
+-- Edit Mode HUD; Blizzard frames are never left anchored to an addon frame (taints secure unit-frame paths).
 local _, ns = ...
 local L = ns.L
 
 local mod = ns:RegisterModule("unlockmode", {
     name        = "Edit Mode",
     group       = "Global",
-    noToggle    = true,   -- it's an action, not an on/off feature
+    noToggle    = true,
     description = "Move every VuloUI window and Blizzard's default frames in one editor.",
     defaults    = { enabled = true, frames = {} },
 })
 
--- Edit Mode availability is checked at CALL time, not file-load time: on 20505
--- Blizzard_EditMode can load on demand AFTER this addon, which used to freeze
--- the check to false and route unit frames through raw SetPoint on an Edit-Mode
--- client — the exact taint behind blocked TargetFrameToT:Show()/Hide()
--- (Blizzard TargetFrame.lua:954, Update).
+-- Checked at call time, not load time: Blizzard_EditMode may load on demand after this addon.
 local function emClient()
     return (C_EditMode ~= nil) and (EditModeManagerFrame ~= nil)
 end
--- On an EM-capable client make sure Blizzard_EditMode is actually loaded before
--- the first layout write (mirrors the Blizzard_ArenaUI force-load pattern).
 local function ensureEMLoaded()
     if C_EditMode and not EditModeManagerFrame and not InCombatLockdown() then
         pcall(C_AddOns and C_AddOns.LoadAddOn or UIParentLoadAddOn or LoadAddOn, "Blizzard_EditMode")
@@ -54,7 +29,7 @@ local BLIZZ = {
     { key = "minimap", name = "MinimapCluster", label = "MINIMAP" },
     { key = "buffs",   name = "BuffFrame",      label = "BUFFS"   },
 }
-local anchors = {}   -- key -> our invisible anchor frame
+local anchors = {}
 
 local function rebuild()
     if ns.UI and ns.UI.BuildOptionsPage then
@@ -63,8 +38,7 @@ local function rebuild()
 end
 
 local function centerOffset(frame)
-    -- canonical scale-aware capture — Edit-Mode-scaled Blizzard frames
-    -- (player/target scale settings) would otherwise park their anchors off
+    -- scale-aware: Edit-Mode-scaled frames would otherwise park their anchors off
     local x, y = ns:GetCenterOffsets(frame)
     if not x then return 0, 0 end
     return x, y
@@ -75,16 +49,8 @@ local function placeAnchor(anchor, x, y)
     anchor:SetPoint("CENTER", UIParent, "CENTER", x or 0, y or 0)
 end
 
--- ---------------------------------------------------------
--- Non-Edit-Mode path (Classic Era). Protected unit frames get the field-proven
--- recipe: anchored to UIPARENT (never to an addon frame) with the user-placed
--- flag set, so the client itself treats and restores the position as
--- player-chosen (C-side, secure). SetMovable(true) must precede
--- SetUserPlaced(true) or the flag silently fails to stick.
--- Non-protected frames (minimap, buffs) keep the old live anchor link.
--- HARD RULE: never runs on an Edit Mode client (C_EditMode present), never in
--- combat.
--- ---------------------------------------------------------
+-- Classic Era path only (never on an Edit Mode client, never in combat).
+-- SetMovable(true) must precede SetUserPlaced(true) or the flag fails to stick.
 local function linkDirect(def)
     if InCombatLockdown() or C_EditMode then return end
     local frame, anchor = _G[def.name], anchors[def.key]
@@ -95,17 +61,14 @@ local function linkDirect(def)
         frame:ClearAllPoints()
         frame:SetPoint("CENTER", UIParent, "CENTER", fdb.x or 0, fdb.y or 0)
         pcall(frame.SetUserPlaced, frame, true)
-        -- deliberately left movable; an immovable user-placed frame may not
-        -- persist in the client's layout cache
+        -- left movable on purpose; an immovable user-placed frame may not persist in the layout cache
     else
         frame:ClearAllPoints()
         frame:SetPoint("CENTER", anchor, "CENTER", 0, 0)
     end
 end
 
--- Live-follow ONLY while a unit-frame box is actually being dragged (HUD open,
--- out of combat, non-EM client); linkDirect() detaches it back onto UIParent on
--- drop. Box and frame are coincident before the drag, so linking causes no jump.
+-- Transient link during a drag only; linkDirect() detaches back onto UIParent on drop.
 local function dragLink(def)
     if InCombatLockdown() or C_EditMode then return end
     local frame, anchor = _G[def.name], anchors[def.key]
@@ -115,16 +78,13 @@ local function dragLink(def)
     end
 end
 
--- ---------------------------------------------------------
--- TBC path: LibEditModeOverride writes the follow link into the Edit Mode layout.
--- ---------------------------------------------------------
 local function emEnsure()
     if not (lib and lib.IsReady and lib:IsReady()) then return false end
     return (pcall(function()
         lib:LoadLayouts()
         if not lib:CanEditActiveLayout() then
             if not lib:DoesLayoutExist(LAYOUT) then
-                lib:AddLayout(Enum.EditModeLayoutType.Character, LAYOUT)  -- also activates it
+                lib:AddLayout(Enum.EditModeLayoutType.Character, LAYOUT)
             else
                 lib:SetActiveLayout(LAYOUT)
             end
@@ -132,14 +92,8 @@ local function emEnsure()
     end))
 end
 
--- Write the frame's position into the Edit Mode layout as a UIPARENT-relative
--- offset (no apply). NEVER reference an addon frame as relativeTo in the
--- layout: the layout stores the addon frame's NAME as relativeTo (the lib
--- resolves it via GetName()), leaving the protected frame's rect permanently
--- dependent on an insecurely-positioned addon frame — every anchor write then
--- taints the unit frame's anchor chain (-> blocked protected Show/Hide in
--- combat). The follow link was static anyway, so UX is unchanged.
--- Caller must have run emEnsure() first. Returns true if a link was written.
+-- Never pass an addon frame as relativeTo: the layout stores its name and taints
+-- the protected frame's anchor chain. Caller must have run emEnsure() first.
 local function emReanchor(def)
     local done = false
     pcall(function()
@@ -150,8 +104,7 @@ local function emReanchor(def)
             lib:ReanchorFrame(frame, "CENTER", UIParent, "CENTER", fdb.x or 0, fdb.y or 0)
             done = true
         elseif frame and (def.key == "target" or def.key == "focus") then
-            -- Edit Mode manages Target/Focus only while the account setting
-            -- "Target and Focus" is enabled; without it our write is void.
+            -- Edit Mode manages Target/Focus only with the "Target and Focus" account setting on
             mod._needsTargetFocusSetting = true
         end
     end)
@@ -164,9 +117,6 @@ local function emApply()
     end)
 end
 
--- Coalesce layout applies: held arrow keys / panel edits fire onMove per step,
--- and every ApplyChanges flushes the Edit Mode manager panel. One flush per
--- burst is enough (the emReanchor WRITES still happen immediately).
 local function emApplyDebounced()
     if mod._emApplyPending then return end
     mod._emApplyPending = true
@@ -181,8 +131,6 @@ local function emApplyDebounced()
     end
 end
 
--- Called by UI/EditMode.lua when the HUD opens: park each anchor box over its
--- frame and (re)link the frames the user has already placed.
 function ns:PrepareBlizzMovers()
     ensureEMLoaded()
     if not emClient() or InCombatLockdown() then return end
@@ -196,8 +144,7 @@ function ns:PrepareBlizzMovers()
                 placeAnchor(anchor, fdb.x, fdb.y)
                 if emReanchor(def) then any = true end
             else
-                -- not yet placed: park the box over the frame, don't link it
-                -- (linking an unplaced frame would yank it to the anchor on login)
+                -- unplaced: park the box over the frame, don't link (would yank it on login)
                 local x, y = centerOffset(frame)
                 placeAnchor(anchor, x, y)
                 if fdb then fdb.x, fdb.y = x, y end
@@ -212,9 +159,7 @@ function mod:OnEnable()
 
     for _, def in ipairs(BLIZZ) do
         local frame = _G[def.name]
-        -- the minimap module adopts the map into its OWN mover; wiring the
-        -- cluster here too would show two identical MINIMAP boxes in edit
-        -- mode, one of them dragging an empty husk
+        -- the minimap module owns its own mover; wiring the cluster here would duplicate the box
         if def.key == "minimap" and ns.IsModuleEnabled and ns:IsModuleEnabled("minimapstyle") then
             frame = nil
         end
@@ -240,10 +185,6 @@ function mod:OnEnable()
                 scope  = "blizz",
                 width  = anchor:GetWidth(),
                 height = anchor:GetHeight(),
-                -- Fires on every drag stop / arrow nudge / panel edit (fdb.x/y
-                -- already updated by Core/Mover.lua). Both paths re-link every
-                -- time: EM because the layout offset is static, Era because the
-                -- frame must be detached from the anchor back onto UIParent.
                 onMove = function()
                     fdb.placed = true
                     if emClient() then
@@ -253,24 +194,18 @@ function mod:OnEnable()
                             ns:Print(L["Enable 'Target and Focus' in Blizzard's Edit Mode settings, then /reload, so VuloUI can move the target/focus frame."])
                         end
                     elseif InCombatLockdown() then
-                        mod._restorePending = true   -- re-link once combat drops
+                        mod._restorePending = true
                     else
                         linkDirect(def)
                     end
                 end,
             })
-            -- Era unit frames: glide with the box during the drag gesture only.
             if def.secure and mover and mover.HookScript then
                 mover:HookScript("OnDragStart", function() dragLink(def) end)
             end
         end
     end
 
-    -- Restore placed frames on login/zone-in — never in combat; retried once
-    -- combat drops. Writes are skipped when the frame already sits where our
-    -- SavedVariables say (steady state after the first session is zero-write:
-    -- on EM clients Blizzard's layout persists itself, on Era the client
-    -- restores user-placed frames C-side from its layout cache).
     local function drifted(frame, fdb)
         local cx, cy = centerOffset(frame)
         return math.abs(cx - (fdb.x or 0)) > 1.5 or math.abs(cy - (fdb.y or 0)) > 1.5
@@ -281,8 +216,7 @@ function mod:OnEnable()
         ensureEMLoaded()
         local em      = emClient()
         local ensured = em and emEnsure()
-        -- one-time migration: older versions wrote VCUIAnchor_* frames as
-        -- relativeTo into the EM layout; force one rewrite to UIParent anchors.
+        -- one-time migration: older versions wrote anchor frames as relativeTo into the EM layout
         local force   = em and not mod.db.emMigrated
         local any = false
         for _, def in ipairs(BLIZZ) do
@@ -296,7 +230,7 @@ function mod:OnEnable()
                     end
                 elseif def.secure and frame.IsUserPlaced and frame:IsUserPlaced()
                        and not drifted(frame, fdb) then
-                    -- client already restored it natively — write nothing
+                    -- client already restored it natively
                 else
                     linkDirect(def)
                 end
@@ -314,9 +248,6 @@ function mod:OnEnable()
     end
 end
 
--- =========================================================
--- Options page (English; one entry for the whole Edit Mode)
--- =========================================================
 function mod:GetOptions()
     local on = (ns.IsEditModeActive and ns:IsEditModeActive()) or ns:IsMoverEditMode()
     local items = {
