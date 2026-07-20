@@ -1,13 +1,6 @@
 -- VuloClassicUI / Modules / SpamFilter
--- Hides (and optionally ignores) chat spammers whose names spell "casino" & co.
--- using look-alike letters (Gãsïnô, Casinòbâbe, ...). The name is normalized to
--- plain ASCII (accents + common Cyrillic/Greek homoglyphs -> a/c/s/i/n/o/...),
--- then matched against a keyword list.
---
--- Note: Blizzard does not allow add-ons to file spam reports (anti-abuse), so
--- we hide the messages (reliable, no limit) and can optionally /ignore the
--- sender (limited to ~50 slots, and spammers rotate names — hence off by
--- default; hiding is the effective part).
+-- Blizzard does not allow add-ons to file spam reports, so we hide messages
+-- instead; /ignore is optional (~50 slots, spammers rotate names) and off by default.
 local _, ns = ...
 local L = ns.L
 
@@ -26,9 +19,6 @@ local mod = ns:RegisterModule("spamfilter", {
     },
 })
 
--- Look-alike normalization
--- Map accented / Cyrillic / Greek look-alike letters to plain ASCII so an
--- obfuscated name collapses to a comparable form (Gãsïnô -> gasino).
 local CONFUSABLES = {
     -- a
     ["á"]="a",["à"]="a",["â"]="a",["ä"]="a",["ã"]="a",["å"]="a",["ā"]="a",["ă"]="a",["ą"]="a",
@@ -62,12 +52,9 @@ local CONFUSABLES = {
 
 local DEFAULT_KEYWORDS = { "asino", "casino", "kasino", "gasino" }
 
--- normalize(str) -> ascii-lower, letters only, look-alikes folded
 local function normalize(s)
     if not s or s == "" then return "" end
-    -- Only fold look-alikes when the text actually contains non-ASCII bytes.
-    -- CONFUSABLES keys are all multi-byte UTF-8, so on plain-ASCII text (the
-    -- common case) none can match — skip ~110 gsub passes per chat line.
+    -- CONFUSABLES keys are all multi-byte, so ASCII-only text skips ~110 gsub passes.
     if s:find("[\128-\255]") then
         for from, to in pairs(CONFUSABLES) do
             s = s:gsub(from, to)
@@ -78,7 +65,6 @@ local function normalize(s)
     return s
 end
 
--- Active keyword list = defaults + user extras (each normalized). Cached.
 local cachedKeywords
 local function buildKeywords()
     local list, seen = {}, {}
@@ -119,7 +105,6 @@ end
 
 mod._blocked = 0  -- session counter (shown in options)
 
--- Whitelist: names that are never filtered (cached set, rebuilt on change).
 local cachedWhitelist
 local function buildWhitelist()
     local set = {}
@@ -135,7 +120,6 @@ local function isWhitelisted(name)
     return set[normalize(name)] == true
 end
 
--- Toggle a name on/off the whitelist (used by /vcui spam <name>).
 function mod.ToggleWhitelist(name)
     if not (name and name ~= "" and mod.db) then return end
     local key = normalize(name)
@@ -155,7 +139,6 @@ function mod.ToggleWhitelist(name)
     end
 end
 
--- Web-link detection for the optional link blocker.
 local TLDS = { "com","net","org","io","gg","ru","xyz","info","vip","club","online","shop","site","top","live","biz" }
 local function hasLink(s)
     s = (s or ""):lower()
@@ -166,7 +149,7 @@ local function hasLink(s)
     return false
 end
 
--- Chat message filter: return true to swallow the message.
+-- Returns true to swallow the message.
 local function chatFilter(_, _, msg, author)
     if not (mod._enabled and mod.db) then return false end
     local name = author and author:gsub("%-.*$", "") or ""   -- drop -Realm
@@ -201,8 +184,7 @@ function mod:OnEnable()
 end
 
 function mod:OnDisable()
-    -- The filters stay registered but no-op via the mod._enabled gate in
-    -- chatFilter, so disabling takes effect immediately without a /reload.
+    -- Filters stay registered but no-op via the mod._enabled gate, so disabling needs no /reload.
 end
 
 function mod:GetOptions()

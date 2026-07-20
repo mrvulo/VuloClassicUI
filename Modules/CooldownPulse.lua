@@ -1,6 +1,4 @@
 -- VuloClassicUI / Modules / CooldownPulse
--- Briefly flashes the icon of a spell/item large in the screen center
--- when its cooldown expires.
 -- Ported for TBC 2.5.5 (no C_Spell / C_Container / Settings APIs).
 local _, ns = ...
 local L = ns.L
@@ -20,19 +18,15 @@ local mod = ns:RegisterModule("cooldownpulse", {
         remainingTime = 0,      -- Cooldown must be UNDER this value to trigger
         showSpellName = false,
         unlocked      = false,
-        x             = nil,    -- set on first run (screen center)
+        x             = nil,
         y             = nil,
-        ignoredSpells = "",     -- comma-separated
+        ignoredSpells = "",
         invertIgnored = false,  -- false = blacklist, true = whitelist
     },
 })
 
--- API compat: GetItemCooldown is not available globally in 2.5.5.
--- Possible locations depending on client version:
---   - global GetItemCooldown (Classic Era)
---   - C_Item.GetItemCooldown (Retail 10.2+)
---   - C_Container.GetItemCooldown (Retail 10.0+)
--- Fallback: scan bags with GetContainerItemCooldown.
+-- GetItemCooldown lives in different places per client: global (Classic Era),
+-- C_Item (Retail 10.2+), C_Container (Retail 10.0+); else scan bags with GetContainerItemCooldown.
 local function getItemCooldown(itemID)
     if not itemID then return 0, 0, 0 end
 
@@ -47,7 +41,6 @@ local function getItemCooldown(itemID)
         return C_Container.GetItemCooldown(itemID)
     end
 
-    -- Fallback: scan all bags
     local getContainerItemInfo = _G.GetContainerItemInfo
     local getContainerItemCooldown = _G.GetContainerItemCooldown
     if _G.C_Container then
@@ -83,17 +76,15 @@ local function getContainerItemID(bag, slot)
     return nil
 end
 
--- Local state
-local cooldowns = {}   -- [id] = getCooldownDetailsFn
+local cooldowns = {}
 local animating = {}   -- queue of {texture, isPet, name}
 local watching  = {}   -- [id] = {startTime, type, ref}
-local itemSpells = {}  -- [spellID] = itemID
+local itemSpells = {}
 
-local DCP        -- main frame
-local DCPT       -- texture child
-local TextFrame  -- font string child
+local DCP
+local DCPT
+local TextFrame
 
--- Helper
 local function tcount(tab)
     local n = 0
     for _ in pairs(tab) do n = n + 1 end
@@ -123,8 +114,7 @@ local function getPetActionIndexByName(name)
     return nil
 end
 
--- cached by the raw editbox string so the 0.05s OnUpdate doesn't rebuild the
--- ignore set every tick; only re-parses when the string actually changes
+-- Cached by the raw editbox string so the 0.05s OnUpdate only re-parses when it changes.
 local _ignoredCache, _ignoredRaw
 local function parseIgnoredSpells()
     local raw = mod.db.ignoredSpells or ""
@@ -155,7 +145,6 @@ local function trackItemSpell(itemID)
     return false
 end
 
--- Cooldown/animation update (OnUpdate)
 local elapsed = 0
 local runtimer = 0
 local function OnUpdate(_, update)
@@ -281,7 +270,6 @@ local function OnUpdate(_, update)
     end
 end
 
--- Frame setup
 local function ensureFrame()
     if DCP then return DCP end
 
@@ -301,7 +289,7 @@ local function ensureFrame()
     DCP:SetWidth(mod.db.iconSize or 75)
     DCP:SetHeight(mod.db.iconSize or 75)
 
-    -- one-time migrate the legacy BOTTOMLEFT-pixel position to a CENTER offset
+    -- One-time migration of the legacy BOTTOMLEFT-pixel position to a CENTER offset.
     if mod.db.x and not mod.db._cmoffset then
         DCP:ClearAllPoints()
         DCP:SetPoint("CENTER", UIParent, "BOTTOMLEFT", mod.db.x, mod.db.y)
@@ -315,16 +303,14 @@ local function ensureFrame()
     DCP:SetAlpha(0)
     DCP:EnableMouse(false)
 
-    -- Join the unified Edit Mode. The frame is normally invisible (alpha 0), so
-    -- editPreview shows a sample icon + enables mouse while editing — which also
-    -- drives the existing "is being moved" guards (DCP:IsMouseEnabled()).
+    -- Frame is invisible (alpha 0), so editPreview shows a sample icon and enables mouse, which also drives the DCP:IsMouseEnabled() "being moved" guards.
     DCP.mover = ns:CreateMover(DCP, {
         key    = "cooldownpulse",
         label  = "|cffffffffCOOLDOWN PULSE|r",
         db     = mod.db,
         width  = mod.db.iconSize or 75,
         height = mod.db.iconSize or 75,
-        anchorable = true,   -- size is via the icon-size slider, so no scale row
+        anchorable = true,
         editPreview = function(show)
             if show then
                 DCP:SetScript("OnUpdate", nil)
@@ -343,7 +329,6 @@ local function ensureFrame()
     return DCP
 end
 
--- Events
 local function triggerSpell(spellID)
     watching[spellID] = { GetTime(), "spell", spellID }
     if DCP and not DCP:IsMouseEnabled() then
@@ -353,7 +338,7 @@ end
 
 local function triggerItem(itemID)
     if not itemID then return end
-    -- Get texture from GetItemInfo (index 10 = icon)
+    -- GetItemInfo index 10 = icon
     local texture = select(10, GetItemInfo(itemID))
     watching[itemID] = { GetTime(), "item", texture }
     itemSpells[itemID] = nil
@@ -392,9 +377,7 @@ local function setupEvents()
             end
 
         elseif event == "COMBAT_LOG_EVENT_UNFILTERED" then
-            -- Hot path: fires on every combat-log line. Bail on the cheap
-            -- subevent read BEFORE the UnitExists call and the full destructure
-            -- (this branch only ever tracks the player's pet casts).
+            -- Hot path: bail on the cheap subevent read before UnitExists and the full destructure.
             if select(2, CombatLogGetCurrentEventInfo()) ~= "SPELL_CAST_SUCCESS" then return end
             if not UnitExists("pet") then return end
             local _, _, _, _, _, sourceFlags, _, _, _, _, _, spellID = CombatLogGetCurrentEventInfo()
@@ -416,7 +399,7 @@ local function setupEvents()
             end
 
         elseif event == "PLAYER_ENTERING_WORLD" then
-            -- In arena: clear queue (animations are distracting)
+            -- Clear the queue in arena.
             local inInstance, instanceType = IsInInstance()
             if inInstance and instanceType == "arena" then
                 if DCP then DCP:SetScript("OnUpdate", nil) end
@@ -426,7 +409,6 @@ local function setupEvents()
         end
     end)
 
-    -- Hooks for item usage (action bars, bag slots, inventory)
     if UseAction then
         hooksecurefunc("UseAction", function(slot)
             if not mod._enabled then return end
@@ -455,7 +437,7 @@ local function setupEvents()
         end)
     end
 
-    -- UseContainerItem: global hook (global in 2.5.5, in C_Container as of Retail 10.0+)
+    -- UseContainerItem is global in 2.5.5, in C_Container as of Retail 10.0+.
     if _G.UseContainerItem then
         hooksecurefunc("UseContainerItem", function(bag, slot)
             if not mod._enabled then return end
@@ -483,14 +465,12 @@ local function setupEvents()
     end
 end
 
--- Test animation
 local function testAnimation()
     ensureFrame()
     tinsert(animating, { "Interface\\Icons\\Spell_Nature_Earthbind", nil, L["Test Spell"] })
     DCP:SetScript("OnUpdate", OnUpdate)
 end
 
--- Lifecycle
 function mod:OnEnable()
     ensureFrame()
     setupEvents()
@@ -507,7 +487,6 @@ function mod:OnDisable()
     wipe(watching)
 end
 
--- Options page
 function mod:GetOptions()
     return {
         { type = "header", text = L["Position"] },
@@ -618,7 +597,6 @@ function mod:GetOptions()
     }
 end
 
--- Slash commands
 SLASH_VCUI_DCP1 = "/dcp"
 SLASH_VCUI_DCP2 = "/cooldownpulse"
 SlashCmdList.VCUI_DCP = function() SlashCmdList["VULOCLASSICUI"]("cooldownpulse") end

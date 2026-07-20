@@ -1,12 +1,6 @@
 -- VuloClassicUI / Modules / LazyVulo
--- Helper for the Apexis Relic memory minigame (Ogri'la dailies,
--- Blade's Edge): record the flashing color sequence with buttons or
--- hotkeys; the queue always shows what to click next.
---   - A correct crystal click refreshes the Introspection debuff on
---     you -> the first queue entry is consumed automatically.
---   - A wrong click zaps you with Reprisal self-damage -> the entry
---     is restored (it was not actually consumed).
--- Auto-opens when you start the minigame at the relic (gossip hook).
+-- A correct crystal click refreshes the Introspection debuff -> first queue entry is consumed.
+-- A wrong click deals Reprisal self-damage -> the consumed entry is restored.
 local _, ns = ...
 local L = ns.L
 
@@ -22,17 +16,16 @@ local mod = ns:RegisterModule("lazyvulo", {
         showTooltips   = true,
         scale          = 1.25,
         keys           = { "G", "Y", "B", "R" },
-        x              = 0,    -- CENTER offset (legacy point/relPoint migrated on first load)
+        x              = 0,
         y              = 120,
     },
 })
 
--- Game data (Apexis Relic minigame, TBC)
--- The two relic game objects; selecting their gossip option starts the game
+-- Relic game objects; their gossip option starts the game
 local RELIC_OBJECTS = { [185890] = true, [185944] = true }
--- "Introspection": refreshed on every crystal click -> consume a queue entry
+-- "Introspection" debuff ids
 local INTROSPECTION = { [40055] = true, [40165] = true, [40166] = true, [40167] = true }
--- "Reprisal": self-damage on a wrong click -> restore the consumed entry
+-- "Reprisal" self-damage spell id
 local REPRISAL_ID   = 40065
 local SELF_FLAGS    = 0x511  -- mine + friendly + player-controlled + player
 
@@ -43,9 +36,7 @@ local RELIC_COLORS = {
     { label = "Red relic",    r = 0.95, g = 0.15, b = 0.10 },
 }
 
--- Record buttons as a 2x2 grid mirroring the in-game crystal layout:
--- top-left RED, top-right GREEN, bottom-left BLUE, bottom-right YELLOW.
--- (keyed by color index: 1=green 2=yellow 3=blue 4=red)
+-- 2x2 grid mirroring the in-game crystal layout, keyed by color index (1=green 2=yellow 3=blue 4=red)
 local RECORD_POS = {
     [4] = { 60, 42 },   -- red    -> top-left
     [1] = { 94, 42 },   -- green  -> top-right
@@ -53,23 +44,21 @@ local RECORD_POS = {
     [2] = { 94,  8 },   -- yellow -> bottom-right
 }
 
-local MAX_SHOWN = 12   -- queue icons drawn (overflow shows "+N")
+local MAX_SHOWN = 12
 local FRAME_W   = 184
 local FRAME_H   = 166
 
--- State
-local f                   -- main window
-local queue    = {}       -- recorded color indices, [1] = next click
-local consumed            -- last consumed color (restored on Reprisal)
-local lastExpire = 0      -- Introspection expiration we already handled
+local f
+local queue    = {}
+local consumed
+local lastExpire = 0
 
 local function playClickSound()
     local snd = SOUNDKIT and SOUNDKIT.U_CHAT_SCROLL_BUTTON
     if snd and PlaySound then PlaySound(snd) end
 end
 
--- Queue handling
-local updateQueue  -- forward (defined after the frame builder)
+local updateQueue  -- forward
 
 local function shiftQueue()
     consumed = queue[1]
@@ -90,7 +79,6 @@ local function recordColor(colorIndex)
     updateQueue()
 end
 
--- Current Introspection expiration time on the player (nil if absent)
 local function introspectionExpire()
     for i = 1, 40 do
         local name, _, _, _, _, exp, _, _, _, sid = UnitDebuff("player", i)
@@ -100,7 +88,6 @@ local function introspectionExpire()
     return nil
 end
 
--- Hotkeys (override bindings while the window is shown)
 local function unbindKeys()
     if not f then return end
     ClearOverrideBindings(f)
@@ -128,7 +115,7 @@ end
 local function onRegenDisabled()
     if not f or not f._bound then return end
     if mod.db.unbindInCombat then
-        -- PLAYER_REGEN_DISABLED fires just before lockdown engages
+        -- fires just before lockdown engages, so unbinding is still allowed
         unbindKeys()
         f._pendingBind = true
     end
@@ -145,7 +132,6 @@ local function onRegenEnabled()
     end
 end
 
--- Window
 local function attachHelpTooltip(btn)
     btn:SetScript("OnEnter", function(self)
         if not mod.db.showTooltips then return end
@@ -160,7 +146,6 @@ local function attachHelpTooltip(btn)
     btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
 end
 
--- Plain color square with a thin dark rim (clearer than spell icons)
 local function makeIconButton(parent, name, size)
     local b = CreateFrame("Button", name, parent)
     b:SetSize(size, size)
@@ -189,7 +174,7 @@ local function onQueueClick(self, button)
     playClickSound()
     if button == "LeftButton" then
         table.remove(queue, idx)
-    else -- remove this entry and everything after it
+    else
         for i = #queue, idx, -1 do
             queue[i] = nil
         end
@@ -202,7 +187,7 @@ local function buildFrame()
 
     f = CreateFrame("Frame", "VCUI_LazyVulo", UIParent)
     f:SetSize(FRAME_W, FRAME_H)
-    -- one-time migrate the legacy point/relPoint anchor save to a CENTER offset
+    -- one-time migration of the legacy point/relPoint anchor save to a CENTER offset
     if mod.db.point then
         f:ClearAllPoints()
         f:SetPoint(mod.db.point, UIParent, mod.db.relPoint or "CENTER", mod.db.x or 0, mod.db.y or 0)
@@ -223,7 +208,6 @@ local function buildFrame()
         if ns.UI.CreateShadow then ns.UI:CreateShadow(f) end
     end
 
-    -- Drag / position are now handled by the unified Edit Mode HUD (/vedit).
     ns:CreateMover(f, { key = "lazyvulo", label = "|cffffffffLAZYVULO|r", db = mod.db, width = FRAME_W, height = FRAME_H,
         scalable = true, anchorable = true })
 
@@ -243,7 +227,6 @@ local function buildFrame()
     close:SetScript("OnLeave", function() closeText:SetTextColor(0.7, 0.7, 0.7) end)
     close:SetScript("OnClick", function() f:Hide() end)
 
-    -- Queue slots: big "next" icon, then two rows of small ones
     f.slots = {}
     for i = 1, MAX_SHOWN do
         local size = (i == 1) and 34 or 22
@@ -262,13 +245,11 @@ local function buildFrame()
         f.slots[i] = b
     end
 
-    -- Overflow counter ("+N" when the sequence is longer than the slots)
     f.overflow = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     if ns.UI and ns.UI.Font then ns.UI.Font(f.overflow, 11) end
     f.overflow:SetPoint("TOPLEFT", f, "TOPLEFT", 8 + 6 * 26, -68)
     f.overflow:SetText("")
 
-    -- Record buttons: 2x2 grid in the in-game crystal arrangement
     for i, c in ipairs(RELIC_COLORS) do
         local b = makeIconButton(f, "VCUI_LazyVuloRecord" .. i, 30)
         local pos = RECORD_POS[i]
@@ -285,7 +266,7 @@ local function buildFrame()
     sep:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -6, 78)
     sep:SetHeight(1)
 
-    -- Watch Introspection refreshes while shown (0.1s poll, like a HOT tick)
+    -- 0.1s poll for Introspection refreshes while shown
     local throttle = 0
     f:SetScript("OnUpdate", function(_, elapsed)
         throttle = throttle + elapsed
@@ -298,7 +279,6 @@ local function buildFrame()
         end
     end)
 
-    -- Reprisal self-damage (wrong click) -> restore the consumed entry
     f:SetScript("OnEvent", function()
         local _, sub, _, _, _, _, _, _, _, destFlags, _, sid = CombatLogGetCurrentEventInfo()
         if sub == "SPELL_DAMAGE" and sid == REPRISAL_ID
@@ -308,8 +288,7 @@ local function buildFrame()
     end)
 
     f:SetScript("OnShow", function(self)
-        -- Sync to a possibly running Introspection so reopening the window
-        -- mid-game doesn't immediately eat a queue entry.
+        -- sync to a running Introspection so reopening mid-game doesn't eat a queue entry
         lastExpire = introspectionExpire() or 0
         self:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
         bindKeys()
@@ -317,7 +296,7 @@ local function buildFrame()
     f:SetScript("OnHide", function(self)
         self:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
         if InCombatLockdown() and self._bound then
-            self._pendingUnbind = true  -- cleared on PLAYER_REGEN_ENABLED
+            self._pendingUnbind = true
         else
             unbindKeys()
         end
@@ -326,7 +305,6 @@ local function buildFrame()
     return f
 end
 
--- Hotkey hints on the record buttons
 local function updateKeyHints()
     if not f then return end
     for i = 1, 4 do
@@ -371,7 +349,6 @@ local function toggleWindow()
     if f:IsShown() then f:Hide() else showWindow() end
 end
 
--- Auto-show: selecting the relic's gossip option starts the game
 local gossipHooked = false
 
 local function onGossipSelect()
@@ -394,7 +371,6 @@ local function installGossipHook()
     end
 end
 
--- Lifecycle
 function mod:OnEnable()
     installGossipHook()
     ns:RegisterEvent("PLAYER_REGEN_DISABLED", onRegenDisabled)
@@ -420,7 +396,6 @@ SlashCmdList.VCUILAZYVULO = function()
     toggleWindow()
 end
 
--- Options
 function mod:GetOptions()
     local items = {
         { type = "header", text = L["LazyVulo"] },

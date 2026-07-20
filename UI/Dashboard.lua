@@ -1,9 +1,4 @@
--- =========================================================
 -- VuloClassicUI / UI / Dashboard
--- Home screen shown when the config window opens: a card grid of every
--- module with an icon, name and an on/off switch — toggle and overview at
--- a glance. Click a card to jump into that module's settings.
--- =========================================================
 local _, ns = ...
 local L = ns.L
 ns.UI = ns.UI or {}
@@ -18,20 +13,16 @@ local COLS        = 2
 
 UI.DASHBOARD_KEY = "__dashboard__"
 
--- Groups shown on the dashboard, in order (matches the sidebar)
 local GROUP_ORDER = { "Global", "Unit Frames", "HUD", "PvP", "QoL", "UI Reskin", "Bugfixes" }
 local HIDDEN_GROUPS = { ["_hidden"] = true, ["Account"] = true, ["Core"] = true }
 
 local function clearDashboard(parent)
-    -- Module pages leave POOLED option widgets on the shared scroll child:
-    -- route the clear through the OptionsBuilder so they are released back
-    -- into their pools (it also keeps our persistent dashboard container,
-    -- merely hiding it — ShowDashboard re-shows it right after).
+    -- must clear via OptionsBuilder: module pages leave POOLED widgets here that
+    -- have to be released back into their pools, not just detached
     if UI.ClearOptionsChildren then
         UI.ClearOptionsChildren(parent)
         return
     end
-    -- Fallback (OptionsBuilder not loaded yet): old detach behaviour
     for _, child in ipairs({ parent:GetChildren() }) do
         if child ~= UI._dashContainer then
             child:Hide()
@@ -46,9 +37,6 @@ local function clearDashboard(parent)
     end
 end
 
--- =========================================================
--- One module card
--- =========================================================
 local function createCard(parent, key, mod)
     local card = CreateFrame("Button", nil, parent, BackdropTemplateMixin and "BackdropTemplate")
     card:SetSize(CARD_W, CARD_H)
@@ -67,7 +55,6 @@ local function createCard(parent, key, mod)
         card:SetBackdropBorderColor(borderDark.r, borderDark.g, borderDark.b, 1)
     end
 
-    -- Subtle vertical gradient over the card body (lighter towards the top)
     local gloss = card:CreateTexture(nil, "BORDER")
     gloss:SetPoint("TOPLEFT", card, "TOPLEFT", 1, -1)
     gloss:SetPoint("BOTTOMRIGHT", card, "BOTTOMRIGHT", -1, 1)
@@ -75,7 +62,6 @@ local function createCard(parent, key, mod)
         0.085, 0.085, 0.105, 1,
         0.125, 0.125, 0.155, 1)
 
-    -- Accent edge on the left while the module is enabled
     local edge = card:CreateTexture(nil, "ARTWORK")
     edge:SetPoint("TOPLEFT", card, "TOPLEFT", 1, -1)
     edge:SetPoint("BOTTOMLEFT", card, "BOTTOMLEFT", 1, 1)
@@ -83,7 +69,6 @@ local function createCard(parent, key, mod)
     edge:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 0.9)
     card.edge = edge
 
-    -- Hover: accent border + soft highlight
     local hl = card:CreateTexture(nil, "HIGHLIGHT")
     hl:SetAllPoints(card)
     hl:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 0.06)
@@ -98,8 +83,7 @@ local function createCard(parent, key, mod)
         end
     end)
 
-    -- Icon (our bundled monochrome glyph set: full-frame white line art,
-    -- tinted here — no border crop like the old Blizzard spell icons)
+    -- bundled glyphs are full-frame line art: tint, never crop
     local icon = card:CreateTexture(nil, "ARTWORK")
     icon:SetSize(30, 30)
     icon:SetPoint("LEFT", card, "LEFT", 13, 0)
@@ -107,7 +91,6 @@ local function createCard(parent, key, mod)
     icon:SetVertexColor(0.76, 0.76, 0.84, 0.95)
     card.icon = icon
 
-    -- Name
     local name = card:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     UIW.Font(name, 12)
     name:SetPoint("TOPLEFT", icon, "TOPRIGHT", 10, -2)
@@ -117,7 +100,6 @@ local function createCard(parent, key, mod)
     name:SetText(L[mod.name])
     card.nameFS = name
 
-    -- Status: small colored dot + text under the name
     local dot = card:CreateTexture(nil, "OVERLAY")
     dot:SetSize(6, 6)
     dot:SetPoint("TOPLEFT", name, "BOTTOMLEFT", 1, -7)
@@ -130,7 +112,6 @@ local function createCard(parent, key, mod)
     status:SetJustifyH("LEFT")
     card.statusFS = status
 
-    -- Power toggle (right)
     local power
     if not mod.noToggle then
         power = UI:CreatePowerButton(card, {
@@ -170,7 +151,6 @@ local function createCard(parent, key, mod)
     card._refresh = refresh
     refresh()
 
-    -- Click the card body (not the toggle) → open module settings
     card:RegisterForClicks("LeftButtonUp")
     card:SetScript("OnClick", function()
         UI:ShowModulePage(key)
@@ -179,9 +159,6 @@ local function createCard(parent, key, mod)
     return card
 end
 
--- =========================================================
--- Build the dashboard into the content scroll area
--- =========================================================
 function UI:ShowDashboard()
     local f = UI.mainFrame
     if not f then return end
@@ -189,11 +166,9 @@ function UI:ShowDashboard()
     UI.currentModule = UI.DASHBOARD_KEY
     UI.currentTab    = nil
 
-    -- Hide the tab bar + vertical column; content fills the whole right pane
     if f.tabBar then f.tabBar:Hide() end
     if f.tabSep then f.tabSep:Hide() end
     if f.tabColumn then f.tabColumn:Hide() end
-    -- Leftover tab buttons go back into the pool
     if UI.ReleaseTabs then UI:ReleaseTabs() end
     f.content:ClearAllPoints()
     f.content:SetPoint("TOPLEFT",     f.sidebar, "TOPRIGHT",  1, 0)
@@ -204,11 +179,9 @@ function UI:ShowDashboard()
     parent:SetWidth((f.scroll:GetWidth() or 540) - 8)
     if f.scroll.SetVerticalScroll then f.scroll:SetVerticalScroll(0) end
 
-    -- Reflect selection in the sidebar (deselect all module rows)
     if UI.RefreshSidebarStates then UI:RefreshSidebarStates() end
 
-    -- Persistent container: cards/headers live inside and are reused. Module
-    -- pages orphan it from the scroll child (SetParent(nil)) — re-adopt it.
+    -- module pages orphan this container via SetParent(nil) — re-adopt it below
     local cont = UI._dashContainer
     if not cont then
         cont = CreateFrame("Frame", nil, parent)
@@ -231,7 +204,6 @@ function UI:ShowDashboard()
     cont:SetPoint("RIGHT", parent, "RIGHT", 0, 0)
     cont:Show()
 
-    -- Hide pooled pieces from the previous visit, then re-lay-out
     for _, c in pairs(UI._dashCards) do c:Hide() end
     for _, h in pairs(UI._dashHeaders) do h:Hide() end
 
@@ -241,13 +213,12 @@ function UI:ShowDashboard()
     cont.title:SetPoint("TOPLEFT", cont, "TOPLEFT", PAD, y)
     cont.title:SetText(L["Overview"])
 
-    -- Count active modules
     local total, active = 0, 0
     for _, key in ipairs(ns.moduleOrder) do
         local m = ns.modules[key]
         if m and not (HIDDEN_GROUPS[m.group or "Core"]) and not m.noToggle then
             total = total + 1
-            -- mirror the card's exclusive logic: a custom toggleGet wins outright
+            -- must mirror the card: a custom toggleGet wins outright
             local enabled
             if m.toggleGet then enabled = m.toggleGet() else enabled = ns:IsModuleEnabled(key) end
             if enabled then active = active + 1 end
@@ -257,7 +228,6 @@ function UI:ShowDashboard()
 
     y = y - 30
 
-    -- Bucket modules by group
     local buckets = {}
     for _, key in ipairs(ns.moduleOrder) do
         local m = ns.modules[key]
@@ -268,7 +238,7 @@ function UI:ShowDashboard()
         end
     end
 
-    -- Append any groups not in GROUP_ORDER
+    -- groups not in GROUP_ORDER get appended, never dropped
     local order = {}
     local seen = {}
     for _, g in ipairs(GROUP_ORDER) do
@@ -278,7 +248,6 @@ function UI:ShowDashboard()
         if not seen[g] then table.insert(order, g) end
     end
 
-    -- Render each group: a section label, then a grid of cards (all pooled)
     for _, g in ipairs(order) do
         local keys = buckets[g]
         if keys and #keys > 0 then
