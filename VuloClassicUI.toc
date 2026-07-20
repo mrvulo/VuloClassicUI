@@ -89,6 +89,7 @@ Modules\CombatText.lua
 Modules\Loadouts.lua
 Modules\SlotPicker.lua
 Modules\AddonSkins.lua
+Modules\PopupSkin.lua
 Trinkets\TrinketsGlobals.lua
 Trinkets\Trinkets.lua
 Trinkets\Trinkets.xml

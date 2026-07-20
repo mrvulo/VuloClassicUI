@@ -447,6 +447,12 @@ ns:RegisterLocale("deDE", {
     -- FriendList
     ["Friends List"] = "Freundesliste",
     ["Class-coloured friend names, class icons, faction accent and optional auto-accept for Battle.net invites."] = "Freundesnamen in Klassenfarbe, Klassen-Icons, Fraktions-Akzent und optionales Auto-Annehmen von Battle.net-Anfragen.",
+    -- Dialog popups
+    ["Dialog Popups"] = "Dialogfenster",
+    ["Restyles Blizzard's confirmation dialogs (logout countdown, delete item, resurrect, group invite) to match the dark look."] = "Gestaltet Blizzards Bestätigungsdialoge (Logout-Countdown, Gegenstand zerstören, Wiederbeleben, Gruppeneinladung) im dunklen Look.",
+    ["|cffaaaaaaRestyles Blizzard's confirmation dialogs — logout countdown, delete item, resurrect, group invite — to match the dark look.|r"] = "|cffaaaaaaGestaltet Blizzards Bestätigungsdialoge – Logout-Countdown, Gegenstand zerstören, Wiederbeleben, Gruppeneinladung – im dunklen Look.|r",
+    ["Accent strip"] = "Akzentstreifen",
+    ["Draws a thin accent gradient along the top edge of each dialog."] = "Zeichnet einen dünnen Akzent-Verlauf an der Oberkante jedes Dialogs.",
     -- Addon skins
     ["Addon Skins"] = "Addon-Skins",
     ["Restyles supported third-party addon windows to match the dark look: error list, quest tracker, loot browser, profiler and more."] = "Gestaltet die Fenster unterstützter Fremd-Addons im dunklen Look: Fehlerliste, Quest-Tracker, Loot-Browser, Profiler und mehr.",
