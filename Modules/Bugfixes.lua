@@ -702,6 +702,54 @@ end
 end)(...);
 
 (function(...)
+-- Blizzard (2.5.5): nameplate code calls GetSpecializationRole, which this client
+-- rejects ("API unsupported") — the error aborts CompactUnitFrame_UpdateAll on
+-- every nameplate spawn. Shim the global with a nil-returning Lua function so
+-- IsPlayerEffectivelyTank cleanly answers "not a tank".
+-- Taint: the shim's return value feeds display-only branches (health border
+-- tint); no protected call consumes it. Installed only while the real API
+-- throws, so a future Blizzard fix wins automatically.
+local _, ns = ...
+local L = ns.L
+
+local mod = ns:RegisterModule("fixnameplaterole", {
+    name        = "Nameplate Role Fix",
+    group       = "Bugfixes",
+    description = "Stops the Lua error that fires every time a nameplate appears (Blizzard's nameplate code calls a specialization API this client does not support).",
+    defaults = { enabled = true },
+})
+
+local installed = false
+
+local function installFix()
+    if installed then return end
+    local orig = _G.GetSpecializationRole
+    if type(orig) ~= "function" then return end   -- Era: global absent, error path can't occur
+    if pcall(orig, 1) then return end             -- API works — nothing to fix
+    installed = true
+    _G.GetSpecializationRole = function(...)
+        if not mod._enabled then return orig(...) end
+        return nil   -- no specializations on this client: never a spec role
+    end
+end
+
+function mod:OnEnable()
+    installFix()
+end
+
+function mod:GetOptions()
+    return {
+        { type = "header", text = L["Nameplate Role Fix"] },
+        { type = "desc", text = L["Blizzard's own nameplate code asks for your specialization role - an API the Anniversary client rejects. The resulting Lua error fires on every nameplate spawn and aborts part of the nameplate setup. This fix answers the question safely with 'no role'."] },
+        { type = "spacer", height = 6 },
+        { type = "desc", text = string.format(L["|cffaaaaaaStatus: %s|r"],
+            installed and L["|cff66ff66applied|r"] or L["not needed on this client"]) },
+    }
+end
+
+end)(...);
+
+(function(...)
 -- Container: must come LAST so every Fix* sub-module is registered before the factory scans ns.moduleOrder.
 local _, ns = ...
 

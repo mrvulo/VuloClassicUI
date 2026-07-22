@@ -91,6 +91,12 @@ ns:RegisterLocale("deDE", {
     ["|cff66ff66Dialog defined|r"] = "|cff66ff66Dialog definiert|r",
     ["not defined yet"] = "noch nicht definiert",
 
+    -- Nameplate Role Fix
+    ["Nameplate Role Fix"] = "Namensplaketten-Rollen-Fix",
+    ["Stops the Lua error that fires every time a nameplate appears (Blizzard's nameplate code calls a specialization API this client does not support)."] = "Stoppt den Lua-Fehler, der bei jeder erscheinenden Namensplakette auftritt (Blizzards Plaketten-Code ruft eine Spezialisierungs-API auf, die dieser Client nicht unterstützt).",
+    ["Blizzard's own nameplate code asks for your specialization role - an API the Anniversary client rejects. The resulting Lua error fires on every nameplate spawn and aborts part of the nameplate setup. This fix answers the question safely with 'no role'."] = "Blizzards eigener Plaketten-Code fragt nach deiner Spezialisierungs-Rolle – eine API, die der Anniversary-Client ablehnt. Der Lua-Fehler feuert bei jeder erscheinenden Namensplakette und bricht einen Teil des Plaketten-Aufbaus ab. Dieser Fix beantwortet die Frage sicher mit 'keine Rolle'.",
+    ["not needed on this client"] = "auf diesem Client nicht nötig",
+
     -- Combat Indicator
     ["Combat Indicator"] = "Kampf-Anzeige",
     ["Restores the missing 'in combat' glow on the Player frame (Anniversary default-UI bug). Pulses a red glow around your portrait while you are in combat."] = "Stellt den fehlenden 'im Kampf'-Glow am Spielerframe wieder her (Anniversary-Default-UI-Bug). Pulsierender roter Glow um dein Portrait, solange du im Kampf bist.",
