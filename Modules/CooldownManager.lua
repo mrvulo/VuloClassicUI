@@ -43,6 +43,10 @@ end
 local GCD_MAX = 1.5
 local FONT = "Fonts\\FRIZQT__.TTF"
 
+local function fontPath()
+    return (ns.UI and ns.UI.FONT_PATH) or FONT
+end
+
 local ARROW_LEFT  = "Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\arrow_left.tga"
 local ARROW_RIGHT = "Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\arrow_right.tga"
 
@@ -77,6 +81,35 @@ local AURA_COLORS = {
     white  = { 1, 1, 1 },
 }
 
+local function borderVisible(group)
+    local i = group.borderSize
+    if i == nil then i = 1 end
+    return i > 0
+end
+
+local function groupBorderColor(group)
+    if group.borderClassColor then
+        local _, class = UnitClass("player")
+        local c = class and RAID_CLASS_COLORS and RAID_CLASS_COLORS[class]
+        if c then return c.r, c.g, c.b end
+    end
+    local c = group.borderColor
+    return (c and c.r) or 0, (c and c.g) or 0, (c and c.b) or 0
+end
+
+local function applyTimerColor(group, fs, remain)
+    local thr = group.lowThreshold
+    if thr == nil then thr = 3 end
+    local c
+    if thr > 0 and remain <= thr then
+        c = group.textLowColor
+        fs:SetTextColor((c and c.r) or 1, (c and c.g) or 0.4, (c and c.b) or 0.4)
+    else
+        c = group.textColor
+        fs:SetTextColor((c and c.r) or 1, (c and c.g) or 1, (c and c.b) or 1)
+    end
+end
+
 -- keyed by group TABLE, not index: frames must never enter the saved DB, and table identity survives reorders
 local barOf   = {}
 local allBars = {}
@@ -88,6 +121,15 @@ local function db() return mod.db end
 
 local function barVisible(group)
     if ns:IsMoverEditMode("cooldownmanager") or group.unlocked then return true end
+    local gf = group.groupFilter
+    if gf and gf ~= "always" then
+        if gf == "never" then return false end
+        local inRaid  = (IsInRaid and IsInRaid()) or false
+        local inGroup = (IsInGroup and IsInGroup()) or inRaid
+        if gf == "raid"  and not inRaid then return false end
+        if gf == "party" and not (inGroup and not inRaid) then return false end
+        if gf == "solo"  and inGroup then return false end
+    end
     if group.onlyInCombat and not inCombat then return false end
     if group.hideMounted and IsMounted and IsMounted() then return false end
     if group.onlyInInstance and IsInInstance and not IsInInstance() then return false end
@@ -126,6 +168,25 @@ local function defaultGroup(name)
         iconShape      = "square",
         iconZoom       = 0.08,
         swipeAlpha     = 0.6,
+        scale          = 1,
+        alpha          = 1,
+        textScale      = 0.4,
+        textColor      = { r = 1, g = 1, b = 1 },
+        textLowColor   = { r = 1, g = 0.4, b = 0.4 },
+        lowThreshold   = 3,
+        borderSize     = 1,
+        borderColor    = { r = 0, g = 0, b = 0 },
+        borderClassColor = false,
+        barBg          = false,
+        barBgColor     = { r = 0, g = 0, b = 0 },
+        barBgAlpha     = 0.5,
+        readyGlow      = false,
+        readyGlowColor = "yellow",
+        showInactive   = false,
+        showKeybind    = false,
+        keybindSize    = 10,
+        keybindColor   = { r = 0.9, g = 0.9, b = 0.9 },
+        groupFilter    = "always",
         onlyInCombat   = false,
         hideNoTarget   = false,
         hideNoEnemy    = false,
@@ -180,7 +241,7 @@ local function ensureGroups()
         g.anchorSide = g.anchorSide or "BELOW"
         g.iconShape  = g.iconShape or "square"
         if g.iconZoom   == nil then g.iconZoom   = 0.08 end
-        if g.swipeAlpha == nil then g.swipeAlpha = 0.8 end
+        if g.swipeAlpha == nil then g.swipeAlpha = 0.6 end
         g.stackPos   = g.stackPos or "BOTTOMRIGHT"
         if g.minDuration == nil then g.minDuration = 1.5 end
         if g.stackSize  == nil then g.stackSize  = 13 end
@@ -293,6 +354,78 @@ local function entryUsable(e)
 end
 
 local relayoutGroup, refreshGroup, refreshAll, layoutIcons, positionBar  -- forward declarations
+
+-- Keybind lookup: action slot base -> binding command. Only the always-active
+-- bars; stance/page slots are deliberately excluded (their binding follows the
+-- page, not the slot).
+local SLOT_BINDINGS = {
+    [0]  = "ACTIONBUTTON",          -- 1-12 main bar
+    [24] = "MULTIACTIONBAR3BUTTON", -- 25-36 right bar
+    [36] = "MULTIACTIONBAR4BUTTON", -- 37-48 right bar 2
+    [48] = "MULTIACTIONBAR2BUTTON", -- 49-60 bottom right
+    [60] = "MULTIACTIONBAR1BUTTON", -- 61-72 bottom left
+}
+local KEY_ABBREV = {
+    { "SHIFT%-", "s" }, { "CTRL%-", "c" }, { "ALT%-", "a" },
+    { "MOUSEWHEELUP", "wU" }, { "MOUSEWHEELDOWN", "wD" },
+    { "BUTTON", "m" }, { "NUMPAD", "n" },
+    { "PAGEUP", "PU" }, { "PAGEDOWN", "PD" }, { "SPACE", "Sp" },
+}
+local function abbrevKey(key)
+    if not key then return nil end
+    for _, p in ipairs(KEY_ABBREV) do key = key:gsub(p[1], p[2]) end
+    return key
+end
+
+-- ranks differ between the tracked entry and the slotted action, so spells are
+-- matched by id AND by lowercase name
+local kbBySpellName, kbBySpellID, kbByItemID = {}, {}, {}
+local kbDirty = true
+local function rebuildKeybinds()
+    kbDirty = false
+    wipe(kbBySpellName); wipe(kbBySpellID); wipe(kbByItemID)
+    if not (GetActionInfo and GetBindingKey) then return end
+    for base, cmd in pairs(SLOT_BINDINGS) do
+        for i = 1, 12 do
+            local aType, id = GetActionInfo(base + i)
+            if aType == "spell" or aType == "item" then
+                local key = abbrevKey(GetBindingKey(cmd .. i))
+                if key and key ~= "" then
+                    if aType == "spell" and id and id ~= 0 then
+                        if not kbBySpellID[id] then kbBySpellID[id] = key end
+                        local n = GetSpellInfo(id)
+                        if n and not kbBySpellName[n:lower()] then kbBySpellName[n:lower()] = key end
+                    elseif aType == "item" and id and not kbByItemID[id] then
+                        kbByItemID[id] = key
+                    end
+                end
+            end
+        end
+    end
+end
+
+local function keybindFor(e, ename)
+    if kbDirty then rebuildKeybinds() end
+    if e.kind == "item" then return kbByItemID[e.id] end
+    local k = type(e.id) == "number" and kbBySpellID[e.id] or nil
+    if not k and ename then k = kbBySpellName[ename:lower()] end
+    return k
+end
+
+-- ACTIONBAR_SLOT_CHANGED storms on login (one event per slot); coalesce
+local kbQueued = false
+local function onBindingsChanged()
+    kbDirty = true
+    if kbQueued then return end
+    kbQueued = true
+    C_Timer.After(0.2, function()
+        kbQueued = false
+        if not mod._enabled then return end
+        for _, group in ipairs(db().groups) do
+            if group.showKeybind then relayoutGroup(group) end
+        end
+    end)
+end
 
 -- one snapshot per refresh instead of 40 buffs per icon; UnitAura's spellId is the 10th return in 2.5.5
 local auraByName, auraByID = {}, {}
@@ -469,16 +602,21 @@ local function makeIcon(bar, i)
     f.textHost:SetFrameLevel(f.cd:GetFrameLevel() + 5)
 
     f.text = f.textHost:CreateFontString(nil, "OVERLAY")
-    f.text:SetFont(FONT, 16, "OUTLINE")
+    f.text:SetFont(fontPath(), 16, "OUTLINE")
     f.text:SetPoint("CENTER", f.textHost, "CENTER", 0, 0)
     f.text:SetShadowColor(0, 0, 0, 1)
     f.text:SetShadowOffset(1, -1)
 
     f.stack = f.textHost:CreateFontString(nil, "OVERLAY")
-    f.stack:SetFont(FONT, 13, "OUTLINE")
+    f.stack:SetFont(fontPath(), 13, "OUTLINE")
     f.stack:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -1, 1)
     f.stack:SetTextColor(1, 0.95, 0.6)
     f.stack:Hide()
+
+    f.keybind = f.textHost:CreateFontString(nil, "OVERLAY")
+    f.keybind:SetFont(fontPath(), 10, "OUTLINE")
+    f.keybind:SetPoint("TOPLEFT", f, "TOPLEFT", 1, -1)
+    f.keybind:Hide()
 
     f.flash = f.textHost:CreateTexture(nil, "OVERLAY")
     f.flash:SetTexture("Interface\\Cooldown\\star4")
@@ -536,6 +674,11 @@ local function ensureBar(group)
     bar:SetSize(group.iconSize, group.iconSize)
     bar:SetPoint("CENTER", UIParent, "CENTER", group.x or 0, group.y or -160)
     bar:SetFrameStrata("MEDIUM")
+    -- sublevel below the icons' own BACKGROUND textures so borders stay on top
+    bar.bg = bar:CreateTexture(nil, "BACKGROUND", nil, -7)
+    bar.bg:SetPoint("TOPLEFT", bar, "TOPLEFT", -4, 4)
+    bar.bg:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", 4, -4)
+    bar.bg:Hide()
     bar._icons = {}
     bar._group = group
     bar:SetScript("OnReceiveDrag", function(self) onReceiveDrag(self) end)
@@ -641,6 +784,8 @@ layoutIcons = function(group, list)
     end
     bar:SetSize(totalCols * size + (totalCols - 1) * pad,
                 totalRows * size + (totalRows - 1) * pad)
+    -- an icon-less bar must not leave a floating background rectangle behind
+    if bar.bg then bar.bg:SetShown(group.barBg == true and count > 0) end
 end
 
 relayoutGroup = function(group)
@@ -651,6 +796,17 @@ relayoutGroup = function(group)
     local entries = group.entries
     local icons = bar._icons
 
+    bar:SetScale(group.scale or 1)
+    do
+        -- color only; layoutIcons owns visibility (an empty bar must show no bg)
+        local c = group.barBgColor
+        bar.bg:SetColorTexture((c and c.r) or 0, (c and c.g) or 0, (c and c.b) or 0,
+            group.barBgAlpha or 0.5)
+    end
+    local inset = group.borderSize
+    if inset == nil then inset = 1 end
+    local br, bgc, bbc = groupBorderColor(group)
+
     for i, e in ipairs(entries) do
         local f = icons[i]
         if not f then f = makeIcon(bar, i); icons[i] = f end
@@ -658,25 +814,42 @@ relayoutGroup = function(group)
         f.tex:SetTexture(icon or "Interface\\Icons\\INV_Misc_QuestionMark")
         local z = group.iconZoom or 0.08
         f.tex:SetTexCoord(z, 1 - z, z, 1 - z)
+        f.tex:ClearAllPoints()
+        f.tex:SetPoint("TOPLEFT", f, "TOPLEFT", inset, -inset)
+        f.tex:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -inset, inset)
         if f.mask then
             f.mask:SetTexture(shapeMask(group.iconShape), "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
         end
         -- SetSwipeColor's alpha can be a no-op in 2.5.5, so dim the whole cooldown frame instead
         if f.cd.SetSwipeColor then f.cd:SetSwipeColor(0, 0, 0, 1) end
-        f.cd:SetAlpha(group.swipeAlpha or 0.8)
-        f.text:SetFont(FONT, math.max(8, math.floor(size * 0.4)), "OUTLINE")
+        f.cd:SetAlpha(group.swipeAlpha or 0.6)
+        f.text:SetFont(fontPath(), math.max(8, math.floor(size * (group.textScale or 0.4))), "OUTLINE")
         local si = STACK_INSETS[group.stackPos or "BOTTOMRIGHT"] or STACK_INSETS.BOTTOMRIGHT
         f.stack:ClearAllPoints()
         f.stack:SetPoint(si[1], f, si[1], si[2], si[3])
-        f.stack:SetFont(FONT, group.stackSize or 13, "OUTLINE")
+        f.stack:SetFont(fontPath(), group.stackSize or 13, "OUTLINE")
         local sc = group.stackColor or { r = 1, g = 0.95, b = 0.6 }
         f.stack:SetTextColor(sc.r or 1, sc.g or 0.95, sc.b or 0.6)
+        -- cooldown mode only: the toggle lives in that options branch, so an
+        -- aura group could otherwise wear a keybind it can no longer turn off
+        if group.showKeybind and group.mode == "cooldown" then
+            f.keybind:SetFont(fontPath(), group.keybindSize or 10, "OUTLINE")
+            local kc = group.keybindColor
+            f.keybind:SetTextColor((kc and kc.r) or 0.9, (kc and kc.g) or 0.9, (kc and kc.b) or 0.9)
+            f.keybind:SetText(keybindFor(e, ename) or "")
+            f.keybind:Show()
+        else
+            f.keybind:Hide()
+        end
         f.entry     = e
         f.entryName = ename
         f._auraIconTex = nil
         f.prevRemain = 0
         f.flashT = nil
-        f.border:SetColorTexture(0, 0, 0, 1)
+        f.border:SetColorTexture(br, bgc, bbc, 1)
+        -- at 0 thickness the plate must vanish: circle/rounded masks only cut the
+        -- ICON, so the square border plate would peek out at the corners
+        f.border:SetShown(borderVisible(group))
         f.glow:Hide()
         if f.proc then
             f.proc:Hide(); f.proc:SetSize(size * 1.4, size * 1.4)
@@ -700,7 +873,12 @@ relayoutGroup = function(group)
             local f = icons[i]
             if f.usable then all[#all + 1] = f else f:Hide() end
         end
-        if #all == 0 then bar:SetSize(size, size) else layoutIcons(group, all) end
+        if #all == 0 then
+            bar:SetSize(size, size)
+            if bar.bg then bar.bg:Hide() end
+        else
+            layoutIcons(group, all)
+        end
     end
 end
 
@@ -717,14 +895,14 @@ local function updateIcon(group, f, now)
         f.cd:SetCooldown(start, duration)
         if group.showText then
             f.text:SetText(fmtRemain(remain))
-            if remain <= 3 then f.text:SetTextColor(1, 0.4, 0.4)
-            else f.text:SetTextColor(1, 1, 1) end
+            applyTimerColor(group, f.text, remain)
             f.text:Show()
         else
             f.text:Hide()
         end
         if group.desaturate then f.tex:SetDesaturated(true); f.tex:SetVertexColor(0.6, 0.6, 0.6)
         else f.tex:SetDesaturated(false); f.tex:SetVertexColor(1, 1, 1) end
+        f.glow:Hide()
         f.prevRemain = remain
         if group.onlyOnCooldown then f:Show() end
     else
@@ -754,6 +932,21 @@ local function updateIcon(group, f, now)
             f.flash:SetAlpha(0.9)
             f.flash:Show()
         end
+        if group.readyGlow then
+            local usable = true
+            if e.kind == "spell" and IsUsableSpell then
+                usable = IsUsableSpell(e.id) and true or false
+            end
+            if usable then
+                local c = AURA_COLORS[group.readyGlowColor or "yellow"] or AURA_COLORS.yellow
+                f.glow:SetVertexColor(c[1], c[2], c[3], 0.9)
+                f.glow:Show()
+            else
+                f.glow:Hide()
+            end
+        else
+            f.glow:Hide()
+        end
         f.prevRemain = 0
         if group.onlyOnCooldown then f:Hide() end
     end
@@ -782,8 +975,13 @@ end
 local function applyAuraStyle(group, f)
     local style = group.auraStyle or "glow"
     local c = AURA_COLORS[group.auraColor or "yellow"] or AURA_COLORS.yellow
+    local br, bg, bb = groupBorderColor(group)
+    -- the "border" highlight style needs the plate even at 0 thickness; every
+    -- other style re-asserts the group's border visibility (the style dropdown
+    -- refreshes without a relayout)
     if style == "proc" then
-        f.glow:Hide(); f.border:SetColorTexture(0, 0, 0, 1)
+        f.glow:Hide(); f.border:SetColorTexture(br, bg, bb, 1)
+        f.border:SetShown(borderVisible(group))
         if f.proc then
             f.proc:SetVertexColor(c[1], c[2], c[3], 1)
             f.proc:Show()
@@ -792,14 +990,30 @@ local function applyAuraStyle(group, f)
     elseif style == "glow" then
         stopProc(f)
         f.glow:SetVertexColor(c[1], c[2], c[3], 0.9); f.glow:Show()
-        f.border:SetColorTexture(0, 0, 0, 1)
+        f.border:SetColorTexture(br, bg, bb, 1)
+        f.border:SetShown(borderVisible(group))
     elseif style == "border" then
         stopProc(f)
         f.glow:Hide(); f.border:SetColorTexture(c[1], c[2], c[3], 1)
+        f.border:Show()
     else
         stopProc(f)
-        f.glow:Hide(); f.border:SetColorTexture(0, 0, 0, 1)
+        f.glow:Hide(); f.border:SetColorTexture(br, bg, bb, 1)
+        f.border:SetShown(borderVisible(group))
     end
+end
+
+-- aura groups with "show inactive": the buff is gone, keep the icon greyed out
+local function updateInactiveIcon(group, f)
+    f.tex:SetDesaturated(true)
+    f.tex:SetVertexColor(0.55, 0.55, 0.55)
+    f.cd:Clear()
+    f.text:Hide()
+    f.stack:Hide()
+    stopProc(f)
+    f.glow:Hide()
+    f.border:SetColorTexture(groupBorderColor(group))
+    f.border:SetShown(borderVisible(group))
 end
 
 local function updateMissingIcon(group, f)
@@ -820,8 +1034,7 @@ local function updateAuraIcon(group, f, rec, now)
         local remain = rec.exp - now
         if group.showText and remain > 0 then
             f.text:SetText(fmtRemain(remain))
-            if remain <= 3 then f.text:SetTextColor(1, 0.4, 0.4)
-            else f.text:SetTextColor(1, 1, 1) end
+            applyTimerColor(group, f.text, remain)
             f.text:Show()
         else
             f.text:Hide()
@@ -856,6 +1069,8 @@ refreshGroup = function(group, now)
                     if rec.icon and not e.savedIcon then e.savedIcon = rec.icon end
                 end
                 local show = invert and (rec == nil) or (not invert and rec ~= nil)
+                -- "show inactive" keeps expired buffs visible (greyed) so the layout never jumps
+                if not show and mode == "aura" and group.showInactive then show = true end
                 if show then
                     active[#active + 1] = f
                     f._rec = rec
@@ -872,7 +1087,8 @@ refreshGroup = function(group, now)
         packIfChanged(group, active)
         for _, f in ipairs(active) do
             if invert then updateMissingIcon(group, f)
-            else updateAuraIcon(group, f, f._rec, now) end
+            elseif f._rec then updateAuraIcon(group, f, f._rec, now)
+            else updateInactiveIcon(group, f) end
         end
         return
     end
@@ -904,7 +1120,12 @@ refreshAll = function()
     for _, group in ipairs(groups) do
         local bar = barOf[group]
         local vis = barVisible(group)
-        if bar then bar:SetShown(vis) end
+        if bar then
+            bar:SetShown(vis)
+            -- full opacity while editing, or the bar could be dragged invisibly
+            local editing = ns:IsMoverEditMode("cooldownmanager") or group.unlocked
+            bar:SetAlpha(editing and 1 or (group.alpha or 1))
+        end
         if vis then refreshGroup(group, now) end
     end
 end
@@ -1026,9 +1247,13 @@ function mod:OnEnable()
     ns:RegisterEvent("PLAYER_REGEN_ENABLED",  onCombat)
     ns:RegisterEvent("PLAYER_TARGET_CHANGED", refreshSoon)
     ns:RegisterEvent("PLAYER_EQUIPMENT_CHANGED", onEquipChanged)
+    ns:RegisterEvent("ACTIONBAR_SLOT_CHANGED", onBindingsChanged)
+    ns:RegisterEvent("UPDATE_BINDINGS",        onBindingsChanged)
 end
 
 function mod:OnDisable()
+    ns:UnregisterEvent("ACTIONBAR_SLOT_CHANGED", onBindingsChanged)
+    ns:UnregisterEvent("UPDATE_BINDINGS",        onBindingsChanged)
     ns:UnregisterEvent("SPELL_UPDATE_COOLDOWN", refreshSoon)
     ns:UnregisterEvent("BAG_UPDATE_COOLDOWN",   refreshSoon)
     ns:UnregisterEvent("PLAYER_ENTERING_WORLD", refreshAll)
@@ -1313,11 +1538,57 @@ function mod:GetOptions()
           get = function() return group.iconZoom or 0.08 end,
           set = function(_, v) group.iconZoom = v; relayoutGroup(group) end },
         { type = "slider", label = L["Cooldown swipe darkness"], min = 0, max = 1, step = 0.05,
-          get = function() return group.swipeAlpha or 0.8 end,
+          get = function() return group.swipeAlpha or 0.6 end,
           set = function(_, v) group.swipeAlpha = v; relayoutGroup(group) end },
+        { type = "slider", label = L["Bar scale"], min = 0.5, max = 2, step = 0.05,
+          get = function() return group.scale or 1 end,
+          set = function(_, v) group.scale = v; relayoutGroup(group); positionBar(group) end },
+        { type = "slider", label = L["Bar opacity"], min = 0.1, max = 1, step = 0.05,
+          get = function() return group.alpha or 1 end,
+          set = function(_, v) group.alpha = v; refreshAll() end },
+        { type = "slider", label = L["Icon border thickness"], min = 0, max = 3, step = 1,
+          get = function()
+              local v = group.borderSize
+              if v == nil then v = 1 end
+              return v
+          end,
+          set = function(_, v) group.borderSize = v; relayoutGroup(group) end },
+        { type = "toggle", label = L["Class-colored border"],
+          get = function() return group.borderClassColor == true end,
+          set = function(_, v) group.borderClassColor = v; relayoutGroup(group) end,
+          subOptions = {
+              { type = "button", label = L["Border color..."], width = 180,
+                onClick = function()
+                    openColorPicker(function() return group.borderColor end,
+                        function(c) group.borderColor = c; relayoutGroup(group) end)
+                end },
+          } },
+        { type = "toggle", label = L["Bar background"],
+          get = function() return group.barBg == true end,
+          set = function(_, v) group.barBg = v; relayoutGroup(group) end,
+          subOptions = {
+              { type = "button", label = L["Background color..."], width = 180,
+                onClick = function()
+                    openColorPicker(function() return group.barBgColor end,
+                        function(c) group.barBgColor = c; relayoutGroup(group) end)
+                end },
+              { type = "slider", label = L["Background opacity"], min = 0.1, max = 1, step = 0.05,
+                get = function() return group.barBgAlpha or 0.5 end,
+                set = function(_, v) group.barBgAlpha = v; relayoutGroup(group) end },
+          } },
     } }
 
     items[#items + 1] = { type = "section", title = L["Visibility"], collapsed = true, items = {
+        { type = "dropdown", label = L["Show this bar"], width = 260,
+          values = {
+              { value = "always", text = L["Always"] },
+              { value = "party",  text = L["Only in a party (not raid)"] },
+              { value = "raid",   text = L["Only in a raid"] },
+              { value = "solo",   text = L["Only while solo"] },
+              { value = "never",  text = L["Never (temporarily off)"] },
+          },
+          get = function() return group.groupFilter or "always" end,
+          set = function(_, v) group.groupFilter = v; refreshAll() end },
         { type = "toggle", label = L["Only in combat"],
           get = function() return group.onlyInCombat end,
           set = function(_, v) group.onlyInCombat = v; refreshAll() end },
@@ -1338,7 +1609,27 @@ function mod:GetOptions()
     local displayItems = {
         { type = "toggle", label = L["Show countdown text"],
           get = function() return group.showText end,
-          set = function(_, v) group.showText = v; refreshAll() end },
+          set = function(_, v) group.showText = v; refreshAll() end,
+          subOptions = {
+              { type = "slider", label = L["Countdown text size"], min = 25, max = 60, step = 5,
+                tooltip = L["Percent of the icon size."],
+                get = function() return math.floor((group.textScale or 0.4) * 100 + 0.5) end,
+                set = function(_, v) group.textScale = v / 100; relayoutGroup(group) end },
+              { type = "button", label = L["Countdown text color..."], width = 200,
+                onClick = function()
+                    openColorPicker(function() return group.textColor end,
+                        function(c) group.textColor = c; refreshAll() end)
+                end },
+              { type = "slider", label = L["Warn color under (sec)"], min = 0, max = 10, step = 1,
+                tooltip = L["Below this many seconds the countdown switches to the warn color; 0 turns the warn color off."],
+                get = function() return group.lowThreshold or 3 end,
+                set = function(_, v) group.lowThreshold = v; refreshAll() end },
+              { type = "button", label = L["Warn color..."], width = 200,
+                onClick = function()
+                    openColorPicker(function() return group.textLowColor end,
+                        function(c) group.textLowColor = c; refreshAll() end)
+                end },
+          } },
         { type = "toggle", style = "eye", label = L["Show stacks"],
           get = function() return group.showStacks ~= false end,
           set = function(_, v) group.showStacks = v; refreshAll() end },
@@ -1388,6 +1679,12 @@ function mod:GetOptions()
                   get = function() return group.auraColor end,
                   set = function(_, v) group.auraColor = v; refreshAll() end },
             } }
+        if group.mode == "aura" then
+            displayItems[#displayItems + 1] = { type = "toggle", label = L["Keep inactive buffs visible (greyed out)"],
+                tooltip = L["Icons stay in place when the buff runs out, just desaturated - the bar never jumps around."],
+                get = function() return group.showInactive == true end,
+                set = function(_, v) group.showInactive = v; relayoutGroup(group); refreshAll() end }
+        end
     else
         displayItems[#displayItems + 1] = { type = "slider", label = L["Hide cooldowns under (sec)"],
             min = 0, max = 5, step = 0.5,
@@ -1404,6 +1701,35 @@ function mod:GetOptions()
         displayItems[#displayItems + 1] = { type = "toggle", label = L["Flash when ready"],
             get = function() return group.readyFlash end,
             set = function(_, v) group.readyFlash = v end }
+        displayItems[#displayItems + 1] = { type = "toggle", label = L["Glow while ready"],
+            tooltip = L["A steady glow while the cooldown is ready - and, for spells, only while it is actually usable (enough mana etc.)."],
+            get = function() return group.readyGlow == true end,
+            set = function(_, v) group.readyGlow = v; refreshAll() end,
+            subOptions = {
+                { type = "dropdown", label = L["Glow color"], width = 220,
+                  values = {
+                      { value = "yellow", text = L["Yellow"] }, { value = "gold",   text = L["Gold"] },
+                      { value = "green",  text = L["Green"]  }, { value = "purple", text = L["Purple"] },
+                      { value = "red",    text = L["Red"]    }, { value = "blue",   text = L["Blue"] },
+                      { value = "white",  text = L["White"]  },
+                  },
+                  get = function() return group.readyGlowColor or "yellow" end,
+                  set = function(_, v) group.readyGlowColor = v; refreshAll() end },
+            } }
+        displayItems[#displayItems + 1] = { type = "toggle", label = L["Show keybinds"],
+            tooltip = L["Shows the key the spell/item is bound to on your action bars. Macros are not matched; stance pages follow the main bar."],
+            get = function() return group.showKeybind == true end,
+            set = function(_, v) group.showKeybind = v; relayoutGroup(group) end,
+            subOptions = {
+                { type = "slider", label = L["Keybind text size"], min = 6, max = 16, step = 1,
+                  get = function() return group.keybindSize or 10 end,
+                  set = function(_, v) group.keybindSize = v; relayoutGroup(group) end },
+                { type = "button", label = L["Keybind color..."], width = 200,
+                  onClick = function()
+                      openColorPicker(function() return group.keybindColor end,
+                          function(c) group.keybindColor = c; relayoutGroup(group) end)
+                  end },
+            } }
         displayItems[#displayItems + 1] = { type = "toggle", label = L["Tint blue when out of mana"],
             get = function() return group.tintUnusable ~= false end,
             set = function(_, v) group.tintUnusable = v; refreshAll() end }
