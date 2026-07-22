@@ -30,6 +30,102 @@ local CLASS_LABELS = {
 local newProfileNameBuffer = ""
 local copyFromBuffer       = nil
 local renameNewBuffer      = ""
+local manageBuffer         = nil   -- profile selected in the manage section
+
+local function refreshUI()
+    if ns.UI and ns.UI.currentModule == "profiles" then
+        ns.UI:BuildOptionsPage("profiles", "default")
+    end
+end
+
+StaticPopupDialogs["VCUI_PROFILE_RELOAD"] = {
+    text = L["Profile changed. Reload the UI now so every module picks it up?"],
+    button1 = L["Reload now"],
+    button2 = L["Later"],
+    OnAccept = function() ReloadUI() end,
+    timeout = 0, whileDead = 1, hideOnEscape = 1, preferredIndex = 3,
+}
+local function askReload()
+    StaticPopup_Show("VCUI_PROFILE_RELOAD")
+end
+
+StaticPopupDialogs["VCUI_PROFILE_DELETE"] = {
+    text = L["Delete profile '%s'? This cannot be undone."],
+    button1 = L["Delete"],
+    button2 = CANCEL,
+    OnAccept = function(self, data)
+        local wasActive = ns:GetActiveProfileName() == data
+        local ok, err = ns:DeleteProfile(data)
+        if not ok then ns:Print("|cffff5555%s|r", err or L["Error."]) end
+        if manageBuffer == data then manageBuffer = nil end
+        refreshUI()
+        if ok and wasActive then askReload() end
+    end,
+    timeout = 0, whileDead = 1, hideOnEscape = 1, preferredIndex = 3,
+    showAlert = 1,
+}
+
+StaticPopupDialogs["VCUI_PROFILE_RESET"] = {
+    text = L["Reset profile '%s' to the default settings? This cannot be undone."],
+    button1 = L["Reset"],
+    button2 = CANCEL,
+    OnAccept = function(self, data)
+        local ok, err = ns:ResetProfile(data)
+        if not ok then ns:Print("|cffff5555%s|r", err or L["Error."]) end
+        refreshUI()
+        if ok and ns:GetActiveProfileName() == data then askReload() end
+    end,
+    timeout = 0, whileDead = 1, hideOnEscape = 1, preferredIndex = 3,
+    showAlert = 1,
+}
+
+-- newer clients expose the box as .EditBox, older as .editBox
+local function popupEditBox(self)
+    return self.EditBox or self.editBox
+        or (self.GetName and _G[(self:GetName() or "") .. "EditBox"])
+end
+
+StaticPopupDialogs["VCUI_PROFILE_EXPORT"] = {
+    text = L["Copy the profile string (Ctrl+C):"],
+    button1 = CLOSE,
+    hasEditBox = 1, editBoxWidth = 280,
+    OnShow = function(self, data)
+        local eb = popupEditBox(self)
+        if eb then
+            eb:SetMaxLetters(0)
+            eb:SetText(data or "")
+            eb:HighlightText()
+            eb:SetFocus()
+        end
+    end,
+    EditBoxOnEscapePressed = function(eb) eb:GetParent():Hide() end,
+    EditBoxOnEnterPressed  = function(eb) eb:GetParent():Hide() end,
+    timeout = 0, whileDead = 1, hideOnEscape = 1, preferredIndex = 3,
+}
+
+StaticPopupDialogs["VCUI_PROFILE_IMPORT"] = {
+    text = L["Paste the profile string:"],
+    button1 = L["Import"],
+    button2 = CANCEL,
+    hasEditBox = 1, editBoxWidth = 280,
+    OnShow = function(self)
+        local eb = popupEditBox(self)
+        if eb then eb:SetMaxLetters(0); eb:SetText(""); eb:SetFocus() end
+    end,
+    OnAccept = function(self)
+        local eb = popupEditBox(self)
+        local name, err = ns:ImportProfileString(eb and eb:GetText() or "")
+        if not name then
+            ns:Print("|cffff5555%s|r", err or L["Error."])
+            -- truthy return keeps the dialog (and the pasted text) open
+            return true
+        end
+        ns:Print(L["Profile '%s' imported. Activate it via 'Switch Profile'."], name)
+        refreshUI()
+    end,
+    EditBoxOnEscapePressed = function(eb) eb:GetParent():Hide() end,
+    timeout = 0, whileDead = 1, hideOnEscape = 1, preferredIndex = 3,
+}
 
 local function getProfileValues()
     local values = {}
@@ -45,12 +141,6 @@ local function getProfileValuesWithNone()
         table.insert(values, { value = name, text = name })
     end
     return values
-end
-
-local function refreshUI()
-    if ns.UI and ns.UI.currentModule == "profiles" then
-        ns.UI:BuildOptionsPage("profiles", "default")
-    end
 end
 
 function mod:GetOptions()
@@ -72,6 +162,7 @@ function mod:GetOptions()
         values = getProfileValues(),
         get = function() return ns:GetActiveProfileName() end,
         set = function(_, v)
+            local prev = ns:GetActiveProfileName()
             ns:SwitchProfile(v)
             -- Persist the switch so it survives relog. A pinned character keeps
             -- its pin in step; otherwise the choice sticks at CLASS scope (the
@@ -83,6 +174,7 @@ function mod:GetOptions()
                 ns:AssignClassToProfile(ns:GetMyClassKey(), v)
             end
             refreshUI()
+            if v ~= prev then askReload() end
         end,
     })
 
@@ -102,8 +194,11 @@ function mod:GetOptions()
             ns:AssignCharToProfile(v)
             if v ~= "" and v ~= ns:GetActiveProfileName() then
                 ns:SwitchProfile(v)
+                refreshUI()
+                askReload()
+            else
+                refreshUI()
             end
-            refreshUI()
         end,
     })
 
@@ -130,6 +225,7 @@ function mod:GetOptions()
             ns:Print(L["'%s' is now the %s profile. |cffffff00/reload|r to apply."],
                 pname, CLASS_LABELS[myClass] or myClass)
             refreshUI()
+            askReload()
         end,
     })
 
@@ -179,7 +275,43 @@ function mod:GetOptions()
 
     table.insert(items, { type = "spacer", height = 12 })
 
-    table.insert(items, { type = "header", text = L["Manage Current Profile"] })
+    table.insert(items, { type = "header", text = L["Share Profile"] })
+    table.insert(items, {
+        type = "desc",
+        text = L["|cffaaaaaaExport the current profile as a text string - as a backup or to share it. Importing always creates a NEW profile and never overwrites anything.|r"],
+    })
+    table.insert(items, {
+        type = "group", layout = "row", gap = 6,
+        items = {
+            { type = "button", label = L["Export as string"], width = 180,
+              onClick = function()
+                  local s = ns:ExportProfileString()
+                  if s then
+                      StaticPopup_Show("VCUI_PROFILE_EXPORT", nil, nil, s)
+                  end
+              end },
+            { type = "button", label = L["Import from string"], width = 180,
+              onClick = function()
+                  StaticPopup_Show("VCUI_PROFILE_IMPORT")
+              end },
+        },
+    })
+
+    table.insert(items, { type = "spacer", height = 12 })
+
+    table.insert(items, { type = "header", text = L["Manage Profiles"] })
+
+    local manageName = manageBuffer
+    if not manageName or not ns:ProfileExists(manageName) then
+        manageName = activeName
+    end
+
+    table.insert(items, {
+        type = "dropdown", label = L["Profile"], width = 220,
+        values = getProfileValues(),
+        get = function() return manageName end,
+        set = function(_, v) manageBuffer = v; refreshUI() end,
+    })
 
     table.insert(items, {
         type = "group", layout = "row", gap = 6,
@@ -198,11 +330,12 @@ function mod:GetOptions()
                         ns:Print(L["|cffff5555Please enter a new name.|r"])
                         return
                     end
-                    local ok, err = ns:RenameProfile(ns:GetActiveProfileName(), newName)
+                    local ok, err = ns:RenameProfile(manageName, newName)
                     if not ok then
                         ns:Print("|cffff5555%s|r", err or L["Error."])
                     else
                         renameNewBuffer = ""
+                        if manageBuffer == manageName then manageBuffer = newName end
                         refreshUI()
                     end
                 end,
@@ -211,17 +344,21 @@ function mod:GetOptions()
     })
 
     table.insert(items, {
-        type = "button", label = L["Delete Active Profile"], width = 200,
-        onClick = function()
-            local active = ns:GetActiveProfileName()
-            if active == "Default" then
-                ns:Print(L["|cffff5555Default profile cannot be deleted.|r"])
-                return
-            end
-            local ok, err = ns:DeleteProfile(active)
-            if not ok then ns:Print("|cffff5555%s|r", err or L["Error."]) end
-            refreshUI()
-        end,
+        type = "group", layout = "row", gap = 6,
+        items = {
+            { type = "button", label = L["Delete..."], width = 130,
+              onClick = function()
+                  if manageName == "Default" then
+                      ns:Print(L["|cffff5555Default profile cannot be deleted.|r"])
+                      return
+                  end
+                  StaticPopup_Show("VCUI_PROFILE_DELETE", manageName, nil, manageName)
+              end },
+            { type = "button", label = L["Reset to defaults..."], width = 200,
+              onClick = function()
+                  StaticPopup_Show("VCUI_PROFILE_RESET", manageName, nil, manageName)
+              end },
+        },
     })
 
     table.insert(items, {

@@ -154,7 +154,8 @@ function ns:ApplyThemeColor()
     local gs = ns.db and ns.db.profile and ns.db.profile.modules
         and ns.db.profile.modules.globalsettings
     local c = gs and gs.themeColor
-    if not (c and c.r and c.g and c.b) then
+    -- hard type check: an imported profile may carry arbitrary values here
+    if not (c and type(c.r) == "number" and type(c.g) == "number" and type(c.b) == "number") then
         c = { r = 0.608, g = 0.424, b = 1.000 }
     end
     local A = ns.COLORS.accent
@@ -256,9 +257,17 @@ function ns:SwitchProfile(name)
         ns:Print(L["|cffff5555Profile '%s' does not exist.|r"], name)
         return false
     end
-    if ns:GetActiveProfileName() == name then return true end
+    local prev = ns:GetActiveProfileName()
+    if prev == name then return true end
 
-    ns:LoadProfile(name)
+    -- an imported profile can hold junk that makes LoadProfile throw halfway
+    -- (activeProfile already flipped, mod.db not repointed) — roll back
+    local ok, err = pcall(ns.LoadProfile, ns, name)
+    if not ok then
+        pcall(ns.LoadProfile, ns, prev)
+        ns:Print(L["|cffff5555Profile '%s' could not be loaded:|r %s"], name, tostring(err))
+        return false
+    end
     ns:Print(L["Profile '%s' loaded. |cffffff00/reload|r recommended so all modules use the new settings."], name)
     return true
 end
@@ -443,4 +452,207 @@ end
 function ns:GetModuleDB(key)
     if not ns.db or not ns.db.profile then return nil end
     return ns.db.profile.modules[key]
+end
+
+-- ---------------------------------------------------------------------------
+-- Slim SavedVariables + profile strings
+
+-- ns.defaults.profile plus every registered module's defaults, as one tree
+local function fullProfileDefaults()
+    local d = ns:DeepCopy(ns.defaults.profile)
+    d.modules = d.modules or {}
+    for key, mod in pairs(ns.modules or {}) do
+        d.modules[key] = ns:DeepCopy(mod.defaults or {})
+    end
+    return d
+end
+
+-- Removes every value equal to its default; ApplyDefaults refills the gaps on
+-- the next load, so this is lossless. Only keys present in the defaults tree
+-- are touched — user data (entries, custom categories) is never stripped.
+local function stripDefaults(target, defaults)
+    if type(target) ~= "table" or type(defaults) ~= "table" then return end
+    for k, dv in pairs(defaults) do
+        local tv = target[k]
+        if type(dv) == "table" then
+            if type(tv) == "table" then
+                stripDefaults(tv, dv)
+                if next(tv) == nil then target[k] = nil end
+            end
+        elseif tv == dv then
+            target[k] = nil
+        end
+    end
+end
+
+function ns:StripProfileDefaults()
+    if not (VuloClassicUIDB and VuloClassicUIDB.profiles) then return end
+    local defs = fullProfileDefaults()
+    for _, profile in pairs(VuloClassicUIDB.profiles) do
+        stripDefaults(profile, defs)
+    end
+end
+
+-- at logout the session is over — stripping the live tables is safe
+local logoutFrame = CreateFrame("Frame")
+logoutFrame:RegisterEvent("PLAYER_LOGOUT")
+logoutFrame:SetScript("OnEvent", function() ns:StripProfileDefaults() end)
+
+function ns:ResetProfile(name)
+    name = name or ns:GetActiveProfileName()
+    if not ns:ProfileExists(name) then return false, L["Profile does not exist."] end
+    VuloClassicUIDB.profiles[name] = ns:DeepCopy(ns.defaults.profile)
+    if ns:GetActiveProfileName() == name then
+        ns:LoadProfile(name)
+    end
+    return true
+end
+
+-- Profile strings: own compact serializer + base64, no external libs. Values
+-- equal to the defaults are stripped first, so the strings stay short.
+local SERIALIZABLE = { number = true, boolean = true, string = true, table = true }
+
+local function serialize(v, out)
+    local t = type(v)
+    if t == "number" then
+        -- NaN/Inf stringify unparseably and would brick the whole string
+        if v ~= v or v == math.huge or v == -math.huge then v = 0 end
+        out[#out + 1] = "n" .. tostring(v) .. ";"
+    elseif t == "boolean" then
+        out[#out + 1] = v and "t" or "f"
+    elseif t == "string" then
+        out[#out + 1] = "s" .. #v .. ":" .. v
+    elseif t == "table" then
+        out[#out + 1] = "{"
+        for k, val in pairs(v) do
+            if SERIALIZABLE[type(k)] and SERIALIZABLE[type(val)] then
+                serialize(k, out)
+                serialize(val, out)
+            end
+        end
+        out[#out + 1] = "}"
+    end
+end
+
+-- returns value, nextPos; nextPos == nil signals a corrupt stream (a plain
+-- nil value is legal for booleans-false keys, so nil alone is not the marker)
+local function deserialize(str, pos)
+    local c = str:sub(pos, pos)
+    if c == "t" then return true, pos + 1 end
+    if c == "f" then return false, pos + 1 end
+    if c == "n" then
+        local semi = str:find(";", pos + 1, true)
+        if not semi then return nil, nil end
+        local num = tonumber(str:sub(pos + 1, semi - 1))
+        if num == nil then return nil, nil end
+        return num, semi + 1
+    end
+    if c == "s" then
+        local colon = str:find(":", pos + 1, true)
+        if not colon then return nil, nil end
+        local len = tonumber(str:sub(pos + 1, colon - 1))
+        if not len or len < 0 then return nil, nil end
+        local s = str:sub(colon + 1, colon + len)
+        if #s ~= len then return nil, nil end
+        return s, colon + len + 1
+    end
+    if c == "{" then
+        local tbl = {}
+        pos = pos + 1
+        while true do
+            if str:sub(pos, pos) == "}" then return tbl, pos + 1 end
+            if pos > #str then return nil, nil end
+            local k, v
+            k, pos = deserialize(str, pos)
+            if pos == nil then return nil, nil end
+            v, pos = deserialize(str, pos)
+            if pos == nil then return nil, nil end
+            if k ~= nil then tbl[k] = v end
+        end
+    end
+    return nil, nil
+end
+
+local B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+local B64REV
+
+local function b64encode(data)
+    local out = {}
+    for i = 1, #data, 3 do
+        local a, b, c = data:byte(i, i + 2)
+        local n = a * 65536 + (b or 0) * 256 + (c or 0)
+        local c1 = math.floor(n / 262144) % 64
+        local c2 = math.floor(n / 4096) % 64
+        local c3 = math.floor(n / 64) % 64
+        local c4 = n % 64
+        out[#out + 1] = B64:sub(c1 + 1, c1 + 1) .. B64:sub(c2 + 1, c2 + 1)
+            .. (b and B64:sub(c3 + 1, c3 + 1) or "=")
+            .. (c and B64:sub(c4 + 1, c4 + 1) or "=")
+    end
+    return table.concat(out)
+end
+
+local function b64decode(s)
+    if not B64REV then
+        B64REV = {}
+        for i = 1, 64 do B64REV[B64:byte(i)] = i - 1 end
+    end
+    local out = {}
+    for i = 1, #s, 4 do
+        local c1, c2, c3, c4 = s:byte(i, i + 3)
+        local v1, v2 = c1 and B64REV[c1], c2 and B64REV[c2]
+        if not (v1 and v2) then return nil end
+        local v3 = c3 and B64REV[c3]   -- nil on '=' padding
+        local v4 = c4 and B64REV[c4]
+        local n = v1 * 262144 + v2 * 4096 + (v3 or 0) * 64 + (v4 or 0)
+        out[#out + 1] = string.char(math.floor(n / 65536) % 256)
+        if v3 then out[#out + 1] = string.char(math.floor(n / 256) % 256) end
+        if v4 then out[#out + 1] = string.char(n % 256) end
+    end
+    return table.concat(out)
+end
+
+local PROFILE_STRING_PREFIX = "!VCUI1"
+
+function ns:ExportProfileString(name)
+    name = name or ns:GetActiveProfileName()
+    local profile = VuloClassicUIDB.profiles and VuloClassicUIDB.profiles[name]
+    if not profile then return nil end
+    local copy = ns:DeepCopy(profile)
+    stripDefaults(copy, fullProfileDefaults())
+    local out = {}
+    serialize({ v = 1, n = name, d = copy }, out)
+    return PROFILE_STRING_PREFIX .. b64encode(table.concat(out))
+end
+
+-- creates a NEW profile from the string (never merges into an existing one);
+-- returns the profile name, or nil + error text
+function ns:ImportProfileString(text)
+    text = tostring(text or ""):gsub("%s+", "")
+    if text:sub(1, #PROFILE_STRING_PREFIX) ~= PROFILE_STRING_PREFIX then
+        return nil, L["This is not a VuloClassicUI profile string."]
+    end
+    local raw = b64decode(text:sub(#PROFILE_STRING_PREFIX + 1))
+    if not raw then return nil, L["The profile string is damaged."] end
+    local payload, pos = deserialize(raw, 1)
+    if pos == nil or type(payload) ~= "table" or payload.v ~= 1
+        or type(payload.d) ~= "table" then
+        return nil, L["The profile string is damaged."]
+    end
+
+    -- the name travels inside the string: strip UI escapes/control chars and
+    -- cap the length before it becomes a table key and dropdown label
+    local base = type(payload.n) == "string" and payload.n or ""
+    base = base:gsub("|", ""):gsub("%c", ""):sub(1, 48):match("^%s*(.-)%s*$")
+    if base == "" then base = L["Imported"] end
+    local name = base
+    local i = 2
+    while ns:ProfileExists(name) do
+        name = base .. " " .. i
+        i = i + 1
+    end
+
+    -- defaults are refilled by LoadProfile when the profile gets activated
+    VuloClassicUIDB.profiles[name] = payload.d
+    return name
 end
