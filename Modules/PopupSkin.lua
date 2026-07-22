@@ -184,10 +184,35 @@ local function ensureStrip(entry)
     entry.strip = strip
 end
 
+-- popups that were visible when we wanted to skin them; skinned on OnHide
+local pending = {}
+
 local function skinPopup(f)
     if not f then return end
     local entry = skinned[f]
     if entry then return entry end
+
+    -- A dialog that is on screen right now carries its situational art (item
+    -- icon, alert icon) as VISIBLE regions — capturing here would fade them
+    -- forever. The IsShown filter in fadeRegions only protects while the frame
+    -- is hidden, so defer this popup until it closes.
+    if f.IsShown and f:IsShown() then
+        pending[f] = true
+        -- the hook must go in exactly once — HookScript stacks, and `pending`
+        -- gets cleared, so it cannot double as the installed-marker
+        if not f._vcHideHooked then
+            f._vcHideHooked = true
+            f:HookScript("OnHide", function()
+                -- fonts arrive via the Show-hook's setShown on the next show
+                if pending[f] and not skinned[f] and mod.active then
+                    skinPopup(f)
+                end
+                pending[f] = nil
+            end)
+        end
+        return
+    end
+    pending[f] = nil
 
     entry = { frame = f, ours = {}, faded = {}, fonts = {}, rests = {} }
     -- registered before the work below so a mid-way error still leaves us the
@@ -243,7 +268,8 @@ local function skinAll()
     -- read at call time: the global is not guaranteed to exist while files load
     for i = 1, (_G.STATICPOPUP_NUMDIALOGS or 4) do
         -- one odd dialog must not stop the others from being skinned
-        pcall(skinPopup, _G["StaticPopup" .. i])
+        local ok, err = pcall(skinPopup, _G["StaticPopup" .. i])
+        if not ok and ns.Debug then ns:Debug("PopupSkin: StaticPopup%d: %s", i, tostring(err)) end
     end
 end
 
@@ -256,13 +282,7 @@ local function setShown(on)
             pair[1]:SetAlpha(on and 0 or pair[2])
         end
         applyFonts(entry, on)
-        if on then
-            stripBackdrop(f)
-            -- clear any hover left frozen by a toggle-off mid-hover
-            for _, rest in ipairs(entry.rests) do rest() end
-        else
-            restoreBackdrop(f)
-        end
+        if on then stripBackdrop(f) else restoreBackdrop(f) end
         if on then ensureStrip(entry) end
         if entry.strip then
             if on and mod.db.accentStrip then entry.strip:Show() else entry.strip:Hide() end
@@ -292,6 +312,12 @@ local function setup()
     installHooks()
     skinAll()
     setShown(true)
+    -- clear any hover left frozen by a toggle-off mid-hover (OnLeave bails
+    -- while inactive). Deliberately NOT in the Show-hook: there it would reset
+    -- a button the mouse is legitimately resting on.
+    for _, entry in pairs(skinned) do
+        for _, rest in ipairs(entry.rests) do rest() end
+    end
 end
 
 local retry = CreateFrame("Frame")
