@@ -29,6 +29,8 @@ local mod = ns:RegisterModule("chat", {
         scrollbackLines = 512,
         linkItemLevel   = true,
         tabFontSize     = 12,
+        -- Edit-Mode position for ChatFrame1; moved=false leaves Blizzard in charge
+        chatPos         = { moved = false, x = 0, y = 0 },
         chatFontSize    = 0,       -- 0 = keep each window's Blizzard size
         panelOpacity    = 78,
         indent          = true,
@@ -1203,8 +1205,61 @@ end
 local _filtersInstalled = false
 local _eventsWired = false
 
+-- Chat window mover: drives ChatFrame1 (docked tabs follow it). Blizzard keeps
+-- control of the position until the first drag; from then on our saved CENTER
+-- offset wins, re-asserted after Blizzard's own position restore.
+local chatMover
+local _chatPosHooked = false
+
+local function applyChatPos()
+    if not mod.active then return end
+    local db = mod.db and mod.db.chatPos
+    local f = _G.ChatFrame1
+    if not (db and db.moved and f) then return end
+    f:SetMovable(true)
+    if f.SetUserPlaced then pcall(f.SetUserPlaced, f, true) end
+    f:ClearAllPoints()
+    f:SetPoint("CENTER", UIParent, "CENTER", db.x or 0, db.y or 0)
+end
+
+local function ensureChatMover()
+    if chatMover then return end
+    local f = _G.ChatFrame1
+    if not (f and ns.CreateMover) then return end
+    local db = mod.db.chatPos
+    if type(db) ~= "table" then
+        db = { moved = false, x = 0, y = 0 }
+        mod.db.chatPos = db
+    end
+    if not db.moved then
+        -- seed from the live position so the first drag doesn't teleport
+        local x, y = ns:GetCenterOffsets(f)
+        if x then db.x, db.y = x, y end
+    end
+    chatMover = ns:CreateMover(f, {
+        key      = "chatframe",
+        label    = L["Chat"],
+        db       = db,
+        width    = 240,
+        height   = 100,
+        onMove   = function() db.moved = true end,
+        applyPos = applyChatPos,
+    })
+
+    if not _chatPosHooked then
+        _chatPosHooked = true
+        -- Blizzard re-applies its own chat layout on login/resize; re-assert ours
+        if _G.FCF_RestorePositionAndDimensions then
+            hooksecurefunc("FCF_RestorePositionAndDimensions", function(frame)
+                if frame == _G.ChatFrame1 then applyChatPos() end
+            end)
+        end
+    end
+end
+
 function mod:OnEnable()
     active = true
+    ensureChatMover()
 
     if not _filtersInstalled then
         _filtersInstalled = true
@@ -1233,7 +1288,7 @@ function mod:OnEnable()
             if C_FriendList and C_FriendList.ShowFriends then pcall(C_FriendList.ShowFriends) end
             if C_Timer and C_Timer.After then
                 -- chat frames/dock settle after login; delay so anchors land on final positions
-                C_Timer.After(0.5, function() applyPanel(); applyFont() end)
+                C_Timer.After(0.5, function() applyPanel(); applyFont(); applyChatPos() end)
                 C_Timer.After(1, updateTabs)
                 C_Timer.After(2, function() applyTimestamps(); applyClassColors(); applyPanel(); applyFont() end)
                 C_Timer.After(2, restoreHistory)

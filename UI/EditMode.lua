@@ -466,6 +466,31 @@ local function buildPanel()
         set = function(_, v) local m = ns._selectedMover; if m then ns:MoverSetAnchor(m, v) end end,
     })
 
+    panel.linkCap = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    UI.Font(panel.linkCap, 10)
+    panel.linkCap:SetText(L["FOLLOW WINDOW"])
+    panel.linkCap:SetTextColor(0.55, 0.55, 0.62)
+
+    panel.linkDrop = UI:CreateDropdown(panel, {
+        label = "", width = 172, values = {},
+        tooltip = L["Pins this window to another one - it then moves along whenever that window is moved. Dragging this window keeps the pin and just updates the distance."],
+        get = function()
+            local m = ns._selectedMover
+            local l = m and m.key and ns:GetMoverLink(m.key)
+            return (l and l.to) or ""
+        end,
+        set = function(_, v)
+            local m = ns._selectedMover
+            if not m then return end
+            if not ns:SetMoverLink(m, v ~= "" and v or nil) then
+                ns:Print(L["Not possible - that would create a loop."])
+            end
+            if panel.linkDrop._button and panel.linkDrop._button._refresh then
+                panel.linkDrop._button._refresh()
+            end
+        end,
+    })
+
     panel.freeCap = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     UI.Font(panel.freeCap, 10)
     panel.freeCap:SetText(L["FREE MOVE"])
@@ -553,6 +578,17 @@ local function layoutPanel(m)
         panel.anchorCap:Hide(); panel.anchorToggle:Hide(); panel.anchorDrop:Hide()
     end
 
+    if m and m.key then
+        panel.linkCap:Show(); panel.linkDrop:Show()
+        panel.linkCap:ClearAllPoints()
+        panel.linkCap:SetPoint("LEFT", panel, "TOPLEFT", 18, y - 13)
+        panel.linkDrop:ClearAllPoints()
+        panel.linkDrop:SetPoint("LEFT", panel.linkCap, "RIGHT", 10, 0)
+        y = y - 36
+    else
+        panel.linkCap:Hide(); panel.linkDrop:Hide()
+    end
+
     panel.freeCap:Show(); panel.freeToggle:Show()
     panel.freeCap:ClearAllPoints()
     panel.freeCap:SetPoint("LEFT", panel, "TOPLEFT", 18, y - 13)
@@ -565,6 +601,28 @@ local function layoutPanel(m)
     panel:SetHeight(-(y - 8) + 92)
 end
 
+-- the candidate list depends on the selected mover (no self, no loops), so it
+-- is rebuilt into the live config each time — the popup reads values at click
+local function rebuildLinkValues(m)
+    if not (panel and panel.linkDrop and panel.linkDrop._vcConfig) then return end
+    local vals = { { value = "", text = L["- none -"] } }
+    if m and m.key then
+        local sorted = {}
+        for _, other in ipairs(ns._movers) do
+            if other ~= m and other.key
+                and not ns:MoverLinkWouldCycle(m.key, other.key) then
+                sorted[#sorted + 1] = {
+                    value = other.key,
+                    text  = (other.opts and other.opts.label) or other.key,
+                }
+            end
+        end
+        table.sort(sorted, function(a, b) return tostring(a.text) < tostring(b.text) end)
+        for _, v in ipairs(sorted) do vals[#vals + 1] = v end
+    end
+    panel.linkDrop._vcConfig.values = vals
+end
+
 local function refreshCaps(m)
     if m and m.opts and m.opts.scalable and panel.scaleSlider._vcSetup then
         panel.scaleSlider._vcSetup(panel.scaleSlider, panel.scaleSlider._vcConfig)
@@ -573,6 +631,10 @@ local function refreshCaps(m)
         if panel.anchorDrop._button then panel.anchorDrop._button._refresh() end
         if panel.anchorToggle._refresh then panel.anchorToggle._refresh() end
         refreshAnchorEnabled(m)
+    end
+    rebuildLinkValues(m)
+    if panel.linkDrop and panel.linkDrop._button and panel.linkDrop._button._refresh then
+        panel.linkDrop._button._refresh()
     end
     if panel.freeToggle._refresh then panel.freeToggle._refresh() end
 end

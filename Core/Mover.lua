@@ -81,6 +81,138 @@ local function commitPos(mover)
     end
 end
 
+-- ---------------------------------------------------------------------------
+-- Persistent window links: a mover can be pinned to another mover and follows
+-- whenever that one moves. Stored PER PROFILE (class isolation intact) as
+-- moverLinks[childKey] = { to = parentKey, dx, dy } with dx/dy in UIParent units.
+
+local function linkStore()
+    local p = ns.db and ns.db.profile
+    if not p then return nil end
+    p.moverLinks = p.moverLinks or {}
+    return p.moverLinks
+end
+
+function ns:GetMoverByKey(key)
+    if not key then return nil end
+    for _, m in ipairs(ns._movers) do
+        if m.key == key then return m end
+    end
+    return nil
+end
+
+-- frame centre as an offset from UIParent's centre, in UIParent units —
+-- comparable across frames with different effective scales
+local function screenCenter(frame)
+    if not (frame and frame.GetCenter) then return nil end
+    local fx, fy = frame:GetCenter()
+    local px, py = UIParent:GetCenter()
+    if not (fx and px) then return nil end
+    local fs = frame:GetEffectiveScale() or 1
+    local us = UIParent:GetEffectiveScale() or 1
+    if us == 0 then return nil end
+    return (fx * fs - px * us) / us, (fy * fs - py * us) / us
+end
+
+function ns:GetMoverLink(key)
+    local store = linkStore()
+    return (store and key) and store[key] or nil
+end
+
+function ns:MoverLinkWouldCycle(childKey, parentKey)
+    local store = linkStore()
+    if not store then return false end
+    local seen, cur = {}, parentKey
+    while cur do
+        if cur == childKey then return true end
+        if seen[cur] then return false end
+        seen[cur] = true
+        local l = store[cur]
+        cur = (type(l) == "table" and type(l.to) == "string") and l.to or nil
+    end
+    return false
+end
+
+function ns:SetMoverLink(child, parentKey)
+    local store = linkStore()
+    if not (store and child and child.key) then return false end
+    if not parentKey or parentKey == "" then
+        store[child.key] = nil
+        return true
+    end
+    if parentKey == child.key or ns:MoverLinkWouldCycle(child.key, parentKey) then
+        return false
+    end
+    local parent = ns:GetMoverByKey(parentKey)
+    if not (parent and parent.target) then return false end
+    local cx, cy = screenCenter(child.target)
+    local px, py = screenCenter(parent.target)
+    if not (cx and px) then return false end
+    store[child.key] = { to = parentKey, dx = cx - px, dy = cy - py }
+    return true
+end
+
+local function applyLink(child, link)
+    -- link may come from an imported profile: tolerate any garbage in it
+    if type(link) ~= "table" or type(link.to) ~= "string" then return end
+    local dx = type(link.dx) == "number" and link.dx or 0
+    local dy = type(link.dy) == "number" and link.dy or 0
+    local parent = ns:GetMoverByKey(link.to)
+    if not (parent and parent.target and child.opts and child.opts.db) then return end
+    local px, py = screenCenter(parent.target)
+    if not px then return end
+    local r = ns:GetScaleRatio(child.target)
+    child.opts.db.x = (px + dx) / r
+    child.opts.db.y = (py + dy) / r
+    commitPos(child)
+end
+
+-- After ANY reposition of `mover`: a moved child keeps its link at the new
+-- distance, and every child linked to `mover` is dragged along (chains included;
+-- `visited` guards against runtime cycles).
+function ns:OnMoverRepositioned(mover, visited)
+    local store = linkStore()
+    if not (store and mover and mover.key) then return end
+    visited = visited or {}
+    if visited[mover.key] then return end
+    visited[mover.key] = true
+
+    local own = store[mover.key]
+    if own then
+        local parent = ns:GetMoverByKey(own.to)
+        local cx, cy = screenCenter(mover.target)
+        local px, py = parent and parent.target and screenCenter(parent.target)
+        if cx and px then own.dx, own.dy = cx - px, cy - py end
+    end
+
+    for key, link in pairs(store) do
+        if link.to == mover.key and not visited[key] then
+            local child = ns:GetMoverByKey(key)
+            if child then
+                applyLink(child, link)
+                ns:OnMoverRepositioned(child, visited)
+            end
+        end
+    end
+end
+
+-- login / layout import / reset: apply every link parent-first
+function ns:ApplyAllMoverLinks()
+    local store = linkStore()
+    if not store then return end
+    local resolved = {}
+    local function resolve(key)
+        if resolved[key] then return end
+        resolved[key] = true
+        local link = store[key]
+        if not link then return end
+        if store[link.to] then resolve(link.to) end
+        local child = ns:GetMoverByKey(key)
+        if child then applyLink(child, link) end
+    end
+    for key in pairs(store) do resolve(key) end
+end
+
 function ns:ResetAllMovers()
     -- lets onMove callbacks tell an explicit reset apart from a drag snapped to 0,0
     ns._inMoverReset = true
@@ -93,6 +225,7 @@ function ns:ResetAllMovers()
         end
     end
     ns._inMoverReset = false
+    ns:ApplyAllMoverLinks()
 end
 
 function ns:ApplyMover(mover)
@@ -103,6 +236,7 @@ function ns:MoverSetCenter(mover, x, y)
     if not (mover and mover.target and mover.opts and mover.opts.db) then return end
     mover.opts.db.x, mover.opts.db.y = x, y
     commitPos(mover)
+    ns:OnMoverRepositioned(mover)
 end
 
 function ns:MoverSetScale(mover, s)
@@ -191,6 +325,7 @@ function ns:ApplyLayout(snap)
             n = n + 1
         end
     end
+    ns:ApplyAllMoverLinks()
     -- On the Edit-Mode client (TBC) the Blizzard follow link is a static snapshot,
     -- so moving the anchor alone doesn't move the frame; re-establish the links.
     if ns.PrepareBlizzMovers then ns:PrepareBlizzMovers() end
@@ -325,6 +460,7 @@ function ns:CreateMover(target, opts)
             commitPos(mover)
             -- shift followers by the leader's snap delta so the group stays rigid
             if ns.EndGroupDrag then ns:EndGroupDrag(x - rawx, y - rawy) end
+            ns:OnMoverRepositioned(mover)
             if ns.OnMoverMoved then ns:OnMoverMoved(mover) end
         elseif ns.EndGroupDrag then
             ns:EndGroupDrag(0, 0)
@@ -360,6 +496,7 @@ function ns:CreateMover(target, opts)
         db.y = (db.y or 0) + dy
         applyPos(self)
         if ns.NudgeGroupFollowers then ns:NudgeGroupFollowers(self, dx, dy) end
+        ns:OnMoverRepositioned(self)
         if ns.OnMoverMoved then ns:OnMoverMoved(self) end
     end)
 
@@ -373,6 +510,24 @@ function ns:CreateMover(target, opts)
     if db.freeMove then
         mover:Show()
         if ns.RefreshMoverStyles then ns:RefreshMoverStyles() end
+    end
+
+    -- A mover built after the login link pass must still honour its saved link,
+    -- and pull in any child already waiting on it. Deferred so the frame has a
+    -- rect (screenCenter needs one) before the offsets are computed.
+    if mover.key and ns._movers and C_Timer and C_Timer.After then
+        C_Timer.After(0, function()
+            local store = linkStore()
+            if not store then return end
+            local own = store[mover.key]
+            if own then applyLink(mover, own) end
+            for k, link in pairs(store) do
+                if type(link) == "table" and link.to == mover.key then
+                    local child = ns:GetMoverByKey(k)
+                    if child then applyLink(child, link) end
+                end
+            end
+        end)
     end
 
     return mover
@@ -417,7 +572,17 @@ end
 local boot = CreateFrame("Frame")
 boot:RegisterEvent("PLAYER_LOGIN")
 boot:RegisterEvent("ADDON_LOADED")
+boot:RegisterEvent("PLAYER_ENTERING_WORLD")
 boot:SetScript("OnEvent", function(_, evt, name)
+    if evt == "PLAYER_ENTERING_WORLD" then
+        -- after every module applied its own saved position; links win last
+        if C_Timer and C_Timer.After then
+            C_Timer.After(0.8, function() ns:ApplyAllMoverLinks() end)
+        else
+            ns:ApplyAllMoverLinks()
+        end
+        return
+    end
     if evt == "ADDON_LOADED" and name ~= "Blizzard_EditMode" then return end
     ns:HookBlizzardEditMode()
 end)

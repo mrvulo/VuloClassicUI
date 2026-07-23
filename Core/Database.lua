@@ -16,6 +16,8 @@ ns.defaults = {
         editmode = {
             grid = { show = false, snap = true, size = 32 },
         },
+        -- window-to-window pins: [childMoverKey] = { to, dx, dy } (Core/Mover.lua)
+        moverLinks = {},
         modules = {
             -- filled from mod.defaults at load
         },

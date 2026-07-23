@@ -1615,6 +1615,9 @@ ns:RegisterLocale("deDE", {
     ["POSITION"] = "POSITION",
     ["SCALE"] = "SKALIERUNG",
     ["FREE MOVE"] = "FREI",
+    ["FOLLOW WINDOW"] = "FOLGT FENSTER",
+    ["Pins this window to another one - it then moves along whenever that window is moved. Dragging this window keeps the pin and just updates the distance."] = "Heftet dieses Fenster an ein anderes – es wandert dann mit, sobald das andere Fenster bewegt wird. Dieses Fenster selbst zu ziehen behält die Verbindung und passt nur den Abstand an.",
+    ["Not possible - that would create a loop."] = "Nicht möglich – das würde eine Schleife erzeugen.",
     ["Pin this frame to a screen edge/corner so it stays put across resolution changes. Off keeps it centred."] = "Verankert das Fenster an einer Bildschirmkante/-ecke, damit es bei Auflösungsänderungen an Ort und Stelle bleibt. Aus = bleibt zentriert.",
     ["Leave this window unlocked so you can still drag it after closing Edit Mode. Stays unlocked through /reload."] = "Lässt dieses Fenster entsperrt, sodass du es auch nach dem Schließen des Edit-Modus noch ziehen kannst. Bleibt über /reload hinweg entsperrt.",
 
