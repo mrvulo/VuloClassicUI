@@ -1,7 +1,23 @@
--- Generated from CHANGELOG.md by tools/gen_changelog.js; edit that file, not this one.
+-- =========================================================
+-- VuloClassicUI / Modules / ChangelogData
+-- AUTO-GENERATED from CHANGELOG.md by tools/gen_changelog.js.
+-- Do NOT edit by hand — edit CHANGELOG.md and re-run the generator.
+-- =========================================================
 local _, ns = ...
 
 ns.CHANGELOG = {
+    { version = "1.36.0", sections = {
+        { category = "Edit Mode", lines = {
+            "NEW: Anchor a window to another one's edge (left/right/top/bottom) — the gap is kept edge-to-edge, so it survives either window being resized.",
+            "NEW: Click-to-anchor: press \"Anchor to window...\" in a window's panel, then click the target window. Loop and self-anchor are blocked.",
+            "NEW: While dragging, alignment lines now also show the pixel distance to the window you line up with.",
+            "NEW: Discard button — snapshots the layout when you open Edit Mode and restores it (positions, scale, anchors and links) if you discard.",
+        } },
+        { category = "Chat", lines = {
+            "The drag area now covers the whole dark chat panel down to the edit box, not just the narrow message strip.",
+            "Fixed right-click on the chat window not opening its settings panel in Edit Mode.",
+        } },
+    } },
     { version = "1.35.0", sections = {
         { category = "Nameplates", lines = {
             "NEW: Interrupt help on the cast bar: own colours while your interrupt is on cooldown or ready, a tick marking where it comes back mid-cast, a shield on uninterruptible casts and an interrupt flash that can show who landed the kick.",
@@ -248,14 +264,6 @@ ns.CHANGELOG = {
     { version = "1.17.0", sections = {
         { category = "Quality of Life", lines = {
             "General fixes and polish.",
-        } },
-    } },
-    { version = "1.16.0", sections = {
-        { category = "Quality of Life", lines = {
-            "NEW: The Loadouts sidebar on the character window can now be moved. Turn on edit mode, then drag the purple box (arrow keys fine-tune, right-click to reset its position).",
-        } },
-        { category = "Unit Frames", lines = {
-            "Classic Era: fixed the elite player-frame border alignment and moved the level badge into place.",
         } },
     } },
 }

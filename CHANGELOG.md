@@ -16,6 +16,17 @@
   ~1900 characters or it gets truncated with a link to the full notes.
 -->
 
+## 1.36.0
+**Edit Mode:**
+- **NEW:** Anchor a window to another one's edge (left/right/top/bottom) — the gap is kept edge-to-edge, so it survives either window being resized.
+- **NEW:** Click-to-anchor: press "Anchor to window..." in a window's panel, then click the target window. Loop and self-anchor are blocked.
+- **NEW:** While dragging, alignment lines now also show the pixel distance to the window you line up with.
+- **NEW:** Discard button — snapshots the layout when you open Edit Mode and restores it (positions, scale, anchors and links) if you discard.
+
+**Chat:**
+- The drag area now covers the whole dark chat panel down to the edit box, not just the narrow message strip.
+- Fixed right-click on the chat window not opening its settings panel in Edit Mode.
+
 ## 1.35.0
 **Nameplates:**
 - **NEW:** Interrupt help on the cast bar: own colours while your interrupt is on cooldown or ready, a tick marking where it comes back mid-cast, a shield on uninterruptible casts and an interrupt flash that can show who landed the kick.
