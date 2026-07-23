@@ -1244,6 +1244,20 @@ local function ensureChatMover()
         onMove   = function() db.moved = true end,
         applyPos = applyChatPos,
     })
+    -- ChatFrame1 is only the message area; the visible "window" is our dark panel,
+    -- which reaches past it (and down to the edit box). Match that exact region so
+    -- the whole thing is grabbable, not just the narrower text strip.
+    if chatMover then
+        local eb = _G["ChatFrame1EditBox"]
+        chatMover:ClearAllPoints()
+        chatMover:SetPoint("TOPLEFT", f, "TOPLEFT", -10, 4)
+        chatMover:SetPoint("BOTTOMRIGHT", eb or f, "BOTTOMRIGHT", 6, eb and -4 or -6)
+        -- ChatFrame1 captures clicks over its text (hyperlinks/menu) at its own high
+        -- stack position, so a HIGH child mover never sees the right-click. Lift the
+        -- mover clear above it so right-click reaches our handler (-> settings panel).
+        chatMover:SetFrameStrata("DIALOG")
+        chatMover:SetToplevel(true)
+    end
 
     if not _chatPosHooked then
         _chatPosHooked = true
