@@ -114,6 +114,57 @@ local function screenCenter(frame)
     return (fx * fs - px * us) / us, (fy * fs - py * us) / us
 end
 
+-- half width / height in UIParent units (so edge math is scale-agnostic)
+local function screenExtent(frame)
+    if not (frame and frame.GetWidth) then return 0, 0 end
+    local s = (frame:GetEffectiveScale() or 1) / (UIParent:GetEffectiveScale() or 1)
+    return (frame:GetWidth() or 0) * s / 2, (frame:GetHeight() or 0) * s / 2
+end
+
+-- Offsets that keep `child` invariant relative to `parent` for a given side.
+-- side CENTER (or nil): dx,dy are the centre-to-centre delta (legacy behaviour).
+-- LEFT/RIGHT: dx is the signed EDGE gap on X, dy the centre delta on Y.
+-- TOP/BOTTOM: dy is the signed EDGE gap on Y, dx the centre delta on X.
+-- Edge gaps survive either frame being resized; centre deltas keep the cross axis.
+local function computeLinkOffsets(childFrame, parentFrame, side)
+    local ccx, ccy = screenCenter(childFrame)
+    local pcx, pcy = screenCenter(parentFrame)
+    if not (ccx and pcx) then return nil end
+    local chw, chh = screenExtent(childFrame)
+    local phw, phh = screenExtent(parentFrame)
+    if side == "LEFT" then
+        return (pcx - phw) - (ccx + chw), ccy - pcy
+    elseif side == "RIGHT" then
+        return (ccx - chw) - (pcx + phw), ccy - pcy
+    elseif side == "TOP" then
+        return ccx - pcx, (ccy - chh) - (pcy + phh)
+    elseif side == "BOTTOM" then
+        return ccx - pcx, (pcy - phh) - (ccy + chh)
+    end
+    return ccx - pcx, ccy - pcy
+end
+
+-- Child centre (UIParent units) reproduced from parent + stored offsets + side.
+local function linkChildCenter(childFrame, parentFrame, link)
+    local pcx, pcy = screenCenter(parentFrame)
+    if not pcx then return nil end
+    local dx = type(link.dx) == "number" and link.dx or 0
+    local dy = type(link.dy) == "number" and link.dy or 0
+    local chw, chh = screenExtent(childFrame)
+    local phw, phh = screenExtent(parentFrame)
+    local side = link.side
+    if side == "LEFT" then
+        return (pcx - phw) - dx - chw, pcy + dy
+    elseif side == "RIGHT" then
+        return (pcx + phw) + dx + chw, pcy + dy
+    elseif side == "TOP" then
+        return pcx + dx, (pcy + phh) + dy + chh
+    elseif side == "BOTTOM" then
+        return pcx + dx, (pcy - phh) - dy - chh
+    end
+    return pcx + dx, pcy + dy
+end
+
 function ns:GetMoverLink(key)
     local store = linkStore()
     return (store and key) and store[key] or nil
@@ -133,7 +184,10 @@ function ns:MoverLinkWouldCycle(childKey, parentKey)
     return false
 end
 
-function ns:SetMoverLink(child, parentKey)
+local VALID_SIDE = { CENTER = true, LEFT = true, RIGHT = true, TOP = true, BOTTOM = true }
+
+-- side defaults to the child's current side, else CENTER (keeps legacy links intact).
+function ns:SetMoverLink(child, parentKey, side)
     local store = linkStore()
     if not (store and child and child.key) then return false end
     if not parentKey or parentKey == "" then
@@ -145,25 +199,46 @@ function ns:SetMoverLink(child, parentKey)
     end
     local parent = ns:GetMoverByKey(parentKey)
     if not (parent and parent.target) then return false end
-    local cx, cy = screenCenter(child.target)
-    local px, py = screenCenter(parent.target)
-    if not (cx and px) then return false end
-    store[child.key] = { to = parentKey, dx = cx - px, dy = cy - py }
+    local prev = store[child.key]
+    side = (side and VALID_SIDE[side] and side)
+        or (prev and prev.side and VALID_SIDE[prev.side] and prev.side)
+        or "CENTER"
+    local dx, dy = computeLinkOffsets(child.target, parent.target, side)
+    if not dx then return false end
+    store[child.key] = { to = parentKey, side = side, dx = dx, dy = dy }
     return true
+end
+
+-- Change only the side, re-measuring so the child does NOT jump; the new side
+-- then governs how it follows future parent moves/resizes.
+function ns:SetMoverLinkSide(child, side)
+    local store = linkStore()
+    if not (store and child and child.key and VALID_SIDE[side]) then return false end
+    local link = store[child.key]
+    if not link then return false end
+    local parent = ns:GetMoverByKey(link.to)
+    if not (parent and parent.target) then return false end
+    local dx, dy = computeLinkOffsets(child.target, parent.target, side)
+    if not dx then return false end
+    link.side, link.dx, link.dy = side, dx, dy
+    return true
+end
+
+function ns:GetMoverLinkSide(key)
+    local l = ns:GetMoverLink(key)
+    return (l and l.side and VALID_SIDE[l.side] and l.side) or "CENTER"
 end
 
 local function applyLink(child, link)
     -- link may come from an imported profile: tolerate any garbage in it
     if type(link) ~= "table" or type(link.to) ~= "string" then return end
-    local dx = type(link.dx) == "number" and link.dx or 0
-    local dy = type(link.dy) == "number" and link.dy or 0
     local parent = ns:GetMoverByKey(link.to)
     if not (parent and parent.target and child.opts and child.opts.db) then return end
-    local px, py = screenCenter(parent.target)
-    if not px then return end
+    local cx, cy = linkChildCenter(child.target, parent.target, link)
+    if not cx then return end
     local r = ns:GetScaleRatio(child.target)
-    child.opts.db.x = (px + dx) / r
-    child.opts.db.y = (py + dy) / r
+    child.opts.db.x = cx / r
+    child.opts.db.y = cy / r
     commitPos(child)
 end
 
@@ -180,9 +255,10 @@ function ns:OnMoverRepositioned(mover, visited)
     local own = store[mover.key]
     if own then
         local parent = ns:GetMoverByKey(own.to)
-        local cx, cy = screenCenter(mover.target)
-        local px, py = parent and parent.target and screenCenter(parent.target)
-        if cx and px then own.dx, own.dy = cx - px, cy - py end
+        if parent and parent.target then
+            local dx, dy = computeLinkOffsets(mover.target, parent.target, own.side or "CENTER")
+            if dx then own.dx, own.dy = dx, dy end
+        end
     end
 
     for key, link in pairs(store) do
@@ -211,6 +287,57 @@ function ns:ApplyAllMoverLinks()
         if child then applyLink(child, link) end
     end
     for key in pairs(store) do resolve(key) end
+end
+
+-- Discard transaction: snapshot every mover's position state + the whole link
+-- table on Edit-Mode open, so a "Discard" restores exactly the opening layout.
+function ns:SnapshotEditState()
+    local snap = { movers = {}, links = {} }
+    for _, m in ipairs(ns._movers) do
+        local db = m.key and m.opts and m.opts.db
+        if db then
+            snap.movers[m.key] = {
+                x = db.x, y = db.y, scale = db.scale,
+                anchor = db.anchor, anchorEnabled = db.anchorEnabled, moved = db.moved,
+            }
+        end
+    end
+    local store = linkStore()
+    if store then
+        for k, l in pairs(store) do
+            if type(l) == "table" then
+                snap.links[k] = { to = l.to, side = l.side, dx = l.dx, dy = l.dy }
+            end
+        end
+    end
+    ns._editSnapshot = snap
+end
+
+function ns:ClearEditSnapshot()
+    ns._editSnapshot = nil
+end
+
+function ns:RestoreEditState()
+    local snap = ns._editSnapshot
+    if not snap then return end
+    local store = linkStore()
+    if store then
+        wipe(store)
+        for k, l in pairs(snap.links) do
+            store[k] = { to = l.to, side = l.side, dx = l.dx, dy = l.dy }
+        end
+    end
+    for _, m in ipairs(ns._movers) do
+        local e  = m.key and snap.movers[m.key]
+        local db = m.opts and m.opts.db
+        if e and db then
+            db.x, db.y = e.x, e.y
+            db.scale, db.anchor, db.anchorEnabled = e.scale, e.anchor, e.anchorEnabled
+            if e.moved ~= nil then db.moved = e.moved end
+            pcall(commitPos, m)
+        end
+    end
+    ns:ApplyAllMoverLinks()
 end
 
 function ns:ResetAllMovers()
@@ -446,6 +573,8 @@ function ns:CreateMover(target, opts)
 
     mover:RegisterForDrag("LeftButton")
     mover:SetScript("OnDragStart", function()
+        -- Picking an anchor target: a click must not turn into a drag.
+        if ns.IsAnchorPicking and ns:IsAnchorPicking() then return end
         ns._draggingMover = mover
         if ns.BeginGroupDrag then ns:BeginGroupDrag(mover) end
         target:StartMoving()
@@ -474,6 +603,11 @@ function ns:CreateMover(target, opts)
     end)
 
     mover:SetScript("OnMouseUp", function(self, button)
+        if ns.IsAnchorPicking and ns:IsAnchorPicking() then
+            -- right-click aborts the pick; left-click on a target is handled on mouse-down
+            if button == "RightButton" and ns.CancelAnchorPick then ns:CancelAnchorPick() end
+            return
+        end
         if button == "RightButton" and ns.SelectMover then ns:SelectMover(self, IsShiftKeyDown()) end
     end)
 
@@ -507,6 +641,10 @@ function ns:CreateMover(target, opts)
     end)
 
     mover:HookScript("OnMouseDown", function(self, button)
+        if button == "LeftButton" and ns.IsAnchorPicking and ns:IsAnchorPicking() then
+            if ns.AnchorPickPick then ns:AnchorPickPick(self) end
+            return
+        end
         if button == "LeftButton" and ns.SelectMover then ns:SelectMover(self, IsShiftKeyDown()) end
     end)
 

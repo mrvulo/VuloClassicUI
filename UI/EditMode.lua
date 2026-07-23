@@ -97,7 +97,13 @@ local function build()
     dim:SetAllPoints(UIParent)
     dim:SetFrameStrata("MEDIUM")
     dim:EnableMouse(true)
-    dim:SetScript("OnMouseDown", function() if ns.DeselectMover then ns:DeselectMover() end end)
+    dim:SetScript("OnMouseDown", function()
+        if ns.IsAnchorPicking and ns:IsAnchorPicking() then
+            if ns.CancelAnchorPick then ns:CancelAnchorPick() end
+            return
+        end
+        if ns.DeselectMover then ns:DeselectMover() end
+    end)
     local fill = dim:CreateTexture(nil, "BACKGROUND")
     fill:SetAllPoints(dim)
     fill:SetColorTexture(0, 0, 0, 0.35)
@@ -134,11 +140,19 @@ local function build()
     local exitBtn = UI:CreateButton(toolbar, {
         label   = L["Exit"],
         primary = true,
-        width   = 96,
+        width   = 90,
         tooltip = L["Close Edit Mode and lock all windows."],
         onClick = function() ns:SetEditMode(false) end,
     })
     exitBtn:SetPoint("TOPLEFT", toolbar, "TOPLEFT", 14, ROWY)
+
+    local discardBtn = UI:CreateButton(toolbar, {
+        label   = L["Discard"],
+        width   = 96,
+        tooltip = L["Discard changes and revert every window to how it was when Edit Mode opened."],
+        onClick = function() StaticPopup_Show("VCUI_EDIT_DISCARD") end,
+    })
+    discardBtn:SetPoint("LEFT", exitBtn, "RIGHT", 8, 0)
 
     local gridTog = UI:CreateToggle(toolbar, {
         label   = L["Grid"],
@@ -147,7 +161,7 @@ local function build()
         set     = function(_, v) gridState().show = v; refreshGrid() end,
     })
     gridTog:SetSize(108, 24)
-    gridTog:SetPoint("LEFT", exitBtn, "RIGHT", 18, 0)
+    gridTog:SetPoint("LEFT", discardBtn, "RIGHT", 16, 0)
 
     local snapTog = UI:CreateToggle(toolbar, {
         label   = L["Snap"],
@@ -200,7 +214,9 @@ function ns:RegisterEditModeHook(fn)
     if type(fn) == "function" then ns._editHooks[#ns._editHooks + 1] = fn end
 end
 
-function ns:SetEditMode(state)
+-- opts.keepSnapshot: a combat auto-suspend closes edit mode but must NOT clear the
+-- discard snapshot, so a later Discard still reverts to the original session layout.
+function ns:SetEditMode(state, opts)
     state = state and true or false
     if state and ns:InCombat() then
         ns:Print(L["Not possible in combat."])
@@ -209,6 +225,7 @@ function ns:SetEditMode(state)
     build()
     ns._editActive = state
     if state then
+        if not ns._editSnapshot and ns.SnapshotEditState then ns:SnapshotEditState() end
         if ns.PrepareBlizzMovers then ns:PrepareBlizzMovers() end
         dim:Show()
         toolbar:Show()
@@ -217,12 +234,14 @@ function ns:SetEditMode(state)
         -- Abort an in-flight drag (combat auto-exit can fire mid-drag) or the frame sticks to the cursor.
         local d = ns._draggingMover
         if d and d.target and d.target.StopMovingOrSizing then d.target:StopMovingOrSizing() end
+        if ns.CancelAnchorPick then ns:CancelAnchorPick() end
         if ns.DeselectMover then ns:DeselectMover() end
         if ns.HideLayouts then ns:HideLayouts() end
         ns._draggingMover = nil
         if ns._hideGuides then ns._hideGuides() end
         dim:Hide()
         toolbar:Hide()
+        if not (opts and opts.keepSnapshot) and ns.ClearEditSnapshot then ns:ClearEditSnapshot() end
     end
     ns:SetMoversEditMode(state)
     -- Restyle on both edges: leaving must drop free-move boxes back to their quiet look.
@@ -241,6 +260,20 @@ StaticPopupDialogs["VCUI_EDIT_RESET"] = {
     preferredIndex = 3,
 }
 
+StaticPopupDialogs["VCUI_EDIT_DISCARD"] = {
+    text         = L["Discard all changes made since opening Edit Mode?"],
+    button1      = YES,
+    button2      = NO,
+    OnAccept     = function()
+        if ns.RestoreEditState then ns:RestoreEditState() end
+        ns:SetEditMode(false)
+    end,
+    timeout      = 0,
+    whileDead    = true,
+    hideOnEscape = true,
+    preferredIndex = 3,
+}
+
 local combat = CreateFrame("Frame")
 combat:RegisterEvent("PLAYER_REGEN_DISABLED")
 combat:RegisterEvent("PLAYER_REGEN_ENABLED")
@@ -248,7 +281,7 @@ combat:SetScript("OnEvent", function(_, event)
     if event == "PLAYER_REGEN_DISABLED" then
         if ns:IsEditModeActive() then
             ns._editResume = true
-            ns:SetEditMode(false)
+            ns:SetEditMode(false, { keepSnapshot = true })
         end
     elseif event == "PLAYER_REGEN_ENABLED" then
         if ns._editResume then
@@ -332,6 +365,16 @@ local ANCHOR_POINTS = {
     { value = "TOPRIGHT",    text = "Top-Right" },
     { value = "BOTTOMLEFT",  text = "Bottom-Left" },
     { value = "BOTTOMRIGHT", text = "Bottom-Right" },
+}
+
+-- Which side of the target window this one attaches to; the offset is kept
+-- edge-to-edge so it survives either frame being resized.
+local SIDE_POINTS = {
+    { value = "CENTER", text = L["Centered"] },
+    { value = "LEFT",   text = L["Left of"] },
+    { value = "RIGHT",  text = L["Right of"] },
+    { value = "TOP",    text = L["Top of"] },
+    { value = "BOTTOM", text = L["Bottom of"] },
 }
 
 -- Reads the live target, not the stored db (which only updates on drop), so X/Y track a drag.
@@ -488,6 +531,35 @@ local function buildPanel()
             if panel.linkDrop._button and panel.linkDrop._button._refresh then
                 panel.linkDrop._button._refresh()
             end
+            if ns.RelayoutEditPanel then ns:RelayoutEditPanel() end
+        end,
+    })
+
+    panel.pickBtn = UI:CreateButton(panel, {
+        label   = L["Anchor to window..."],
+        width   = 264,
+        tooltip = L["Then click any window to anchor this one to it."],
+        onClick = function()
+            local m = ns._selectedMover
+            if m and ns.BeginAnchorPick then ns:BeginAnchorPick(m) end
+        end,
+    })
+
+    panel.sideCap = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    UI.Font(panel.sideCap, 10)
+    panel.sideCap:SetText(L["ANCHOR SIDE"])
+    panel.sideCap:SetTextColor(0.55, 0.55, 0.62)
+
+    panel.sideDrop = UI:CreateDropdown(panel, {
+        label = "", width = 150, values = SIDE_POINTS,
+        tooltip = L["Which side of the target window this one sticks to. The gap is kept edge-to-edge, so it survives either window being resized."],
+        get = function()
+            local m = ns._selectedMover
+            return (m and m.key and ns:GetMoverLinkSide(m.key)) or "CENTER"
+        end,
+        set = function(_, v)
+            local m = ns._selectedMover
+            if m and ns:SetMoverLinkSide(m, v) then ns:OnMoverRepositioned(m) end
         end,
     })
 
@@ -579,14 +651,28 @@ local function layoutPanel(m)
     end
 
     if m and m.key then
-        panel.linkCap:Show(); panel.linkDrop:Show()
+        panel.linkCap:Show(); panel.linkDrop:Show(); panel.pickBtn:Show()
         panel.linkCap:ClearAllPoints()
         panel.linkCap:SetPoint("LEFT", panel, "TOPLEFT", 18, y - 13)
         panel.linkDrop:ClearAllPoints()
         panel.linkDrop:SetPoint("LEFT", panel.linkCap, "RIGHT", 10, 0)
-        y = y - 36
+        y = y - 32
+        panel.pickBtn:ClearAllPoints()
+        panel.pickBtn:SetPoint("TOPLEFT", panel, "TOPLEFT", 18, y - 8)
+        y = y - 30
+        if ns:GetMoverLink(m.key) then
+            panel.sideCap:Show(); panel.sideDrop:Show()
+            panel.sideCap:ClearAllPoints()
+            panel.sideCap:SetPoint("LEFT", panel, "TOPLEFT", 18, y - 13)
+            panel.sideDrop:ClearAllPoints()
+            panel.sideDrop:SetPoint("LEFT", panel.sideCap, "RIGHT", 10, 0)
+            y = y - 36
+        else
+            panel.sideCap:Hide(); panel.sideDrop:Hide()
+        end
     else
-        panel.linkCap:Hide(); panel.linkDrop:Hide()
+        panel.linkCap:Hide(); panel.linkDrop:Hide(); panel.pickBtn:Hide()
+        panel.sideCap:Hide(); panel.sideDrop:Hide()
     end
 
     panel.freeCap:Show(); panel.freeToggle:Show()
@@ -636,6 +722,9 @@ local function refreshCaps(m)
     if panel.linkDrop and panel.linkDrop._button and panel.linkDrop._button._refresh then
         panel.linkDrop._button._refresh()
     end
+    if panel.sideDrop and panel.sideDrop._button and panel.sideDrop._button._refresh then
+        panel.sideDrop._button._refresh()
+    end
     if panel.freeToggle._refresh then panel.freeToggle._refresh() end
 end
 
@@ -682,11 +771,58 @@ function ns:SelectMover(mover, additive)
 end
 
 function ns:DeselectMover()
+    if ns.CancelAnchorPick then ns:CancelAnchorPick() end
     wipe(ns._selection)
     ns._selectedMover = nil
     ns._groupDrag = nil
     if panel then panel:Hide() end
     ns:RefreshMoverStyles()
+end
+
+-- Re-run the panel layout for the current selection (rows appear/vanish as links change).
+function ns:RelayoutEditPanel()
+    local m = ns._selectedMover
+    if not (panel and panel:IsShown() and m) then return end
+    layoutPanel(m)
+    refreshCaps(m)
+    refreshPanel()
+end
+
+-- Click-to-pick anchoring: BeginAnchorPick arms it from the panel, then the next
+-- mover the user clicks becomes this frame's anchor target (see Core/Mover.lua handlers).
+local pickHint
+function ns:IsAnchorPicking() return ns._anchorPick ~= nil end
+
+function ns:BeginAnchorPick(child)
+    if not (child and child.key and ns:IsEditModeActive()) then return end
+    ns._anchorPick = child
+    if not pickHint and dim then
+        pickHint = dim:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+        pickHint:SetPoint("TOP", UIParent, "TOP", 0, -230)
+        pickHint:SetTextColor(accent.r, accent.g, accent.b)
+    end
+    if pickHint then
+        pickHint:SetText(L["Click a window to anchor it (right-click to cancel)."])
+        pickHint:Show()
+    end
+end
+
+function ns:CancelAnchorPick()
+    ns._anchorPick = nil
+    if pickHint then pickHint:Hide() end
+end
+
+function ns:AnchorPickPick(targetMover)
+    local child = ns._anchorPick
+    ns:CancelAnchorPick()
+    if not (child and targetMover) then return end
+    if targetMover == child or not targetMover.key then return end
+    if ns:SetMoverLink(child, targetMover.key) then
+        ns:OnMoverRepositioned(targetMover)   -- settle the child onto its new anchor
+    else
+        ns:Print(L["Not possible - that would create a loop."])
+    end
+    if ns._selectedMover == child then ns:RelayoutEditPanel() end
 end
 
 -- Only the leader snaps; followers keep their relative offset so the group stays rigid.
@@ -763,8 +899,13 @@ local function ensureGuideFrame()
     guideFrame:SetFrameStrata("DIALOG")   -- above the mover boxes (HIGH)
     guideFrame:EnableMouse(false)
 end
+local measurePool = {}
+local function hideMeasures()
+    for _, t in ipairs(measurePool) do t:Hide() end
+end
 local function hideGuides()
     for _, t in ipairs(guidePool) do t:Hide() end
+    hideMeasures()
 end
 ns._hideGuides = hideGuides
 local function drawGuides(gx, gy, persist)
@@ -799,6 +940,63 @@ local function drawGuides(gx, gy, persist)
     end
 end
 
+-- frame centre + half-extents as offsets from the screen centre, in UIParent units
+local function boxUI(frame)
+    local cx, cy = ns:GetCenterOffsets(frame)
+    if not cx then return nil end
+    local r = ns.GetScaleRatio and ns:GetScaleRatio(frame) or 1
+    return cx * r, cy * r,
+           (frame:GetWidth()  or 0) / 2 * r,
+           (frame:GetHeight() or 0) / 2 * r
+end
+
+-- Distance readout: for each active alignment guide, label the edge-to-edge gap
+-- between the dragged frame and the partner frame it lined up with.
+local function drawMeasures(mover, moverX, moverY)
+    hideMeasures()
+    if not (mover and mover.target) then return end
+    if not (moverX or moverY) then return end
+    ensureGuideFrame()
+    local w, h = UIParent:GetWidth(), UIParent:GetHeight()
+    local acx, acy, ahw, ahh = boxUI(mover.target)
+    if not acx then return end
+    local n = 0
+    local function mtex()
+        n = n + 1
+        local t = measurePool[n]
+        if not t then
+            t = guideFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+            UI.Font(t, 11)
+            measurePool[n] = t
+        end
+        t:ClearAllPoints()
+        t:SetTextColor(accent.r, accent.g, accent.b)
+        return t
+    end
+    -- vertical guide (shared X) -> vertical gap to the partner
+    if moverX and moverX.target then
+        local bcx, bcy, bhw, bhh = boxUI(moverX.target)
+        if bcx then
+            local gap = math.abs(acy - bcy) - (ahh + bhh)
+            local t = mtex()
+            t:SetText(tostring(math.floor(gap + 0.5)))
+            t:SetPoint("CENTER", guideFrame, "BOTTOMLEFT", w / 2 + acx + 14, h / 2 + (acy + bcy) / 2)
+            t:Show()
+        end
+    end
+    -- horizontal guide (shared Y) -> horizontal gap to the partner
+    if moverY and moverY.target then
+        local bcx, bcy, bhw, bhh = boxUI(moverY.target)
+        if bcx then
+            local gap = math.abs(acx - bcx) - (ahw + bhw)
+            local t = mtex()
+            t:SetText(tostring(math.floor(gap + 0.5)))
+            t:SetPoint("CENTER", guideFrame, "BOTTOMLEFT", w / 2 + (acx + bcx) / 2, h / 2 + acy + 14)
+            t:Show()
+        end
+    end
+end
+
 local MAG_THRESH = 12
 
 -- Math runs in UIParent units (where guides are drawn); returned dx/dy convert back to frame-local, lineX/lineY stay UI-space.
@@ -810,7 +1008,8 @@ local function computeSnap(mover, x, y)
     local hw = (target:GetWidth()  or 0) / 2 * r
     local hh = (target:GetHeight() or 0) / 2 * r
 
-    local xLines, yLines = { 0 }, { 0 }
+    -- each candidate line carries its owning mover (nil = the screen-centre line)
+    local xLines, yLines = { { v = 0 } }, { { v = 0 } }
     for _, o in ipairs(ns._movers) do
         if o ~= mover and o.target and o:IsShown() then
             local ox, oy = ns:GetCenterOffsets(o.target)
@@ -819,30 +1018,34 @@ local function computeSnap(mover, x, y)
                 local ocx, ocy = ox * orr, oy * orr
                 local ohw = (o.target:GetWidth()  or 0) / 2 * orr
                 local ohh = (o.target:GetHeight() or 0) / 2 * orr
-                xLines[#xLines + 1] = ocx; xLines[#xLines + 1] = ocx - ohw; xLines[#xLines + 1] = ocx + ohw
-                yLines[#yLines + 1] = ocy; yLines[#yLines + 1] = ocy - ohh; yLines[#yLines + 1] = ocy + ohh
+                xLines[#xLines + 1] = { v = ocx, m = o }
+                xLines[#xLines + 1] = { v = ocx - ohw, m = o }
+                xLines[#xLines + 1] = { v = ocx + ohw, m = o }
+                yLines[#yLines + 1] = { v = ocy, m = o }
+                yLines[#yLines + 1] = { v = ocy - ohh, m = o }
+                yLines[#yLines + 1] = { v = ocy + ohh, m = o }
             end
         end
     end
 
     local function best(features, lines)
-        local bd, bl
+        local bd, bl, bm
         for _, f in ipairs(features) do
             for _, cl in ipairs(lines) do
-                local d = cl - f
+                local d = cl.v - f
                 if math.abs(d) <= MAG_THRESH and (not bd or math.abs(d) < math.abs(bd)) then
-                    bd, bl = d, cl
+                    bd, bl, bm = d, cl.v, cl.m
                 end
             end
         end
-        return bd, bl
+        return bd, bl, bm
     end
 
-    local dx, lineX = best({ xu - hw, xu, xu + hw }, xLines)
-    local dy, lineY = best({ yu - hh, yu, yu + hh }, yLines)
+    local dx, lineX, moverX = best({ xu - hw, xu, xu + hw }, xLines)
+    local dy, lineY, moverY = best({ yu - hh, yu, yu + hh }, yLines)
     if dx then dx = dx / r end
     if dy then dy = dy / r end
-    return dx, lineX, dy, lineY
+    return dx, lineX, dy, lineY, moverX, moverY
 end
 
 function ns:EditResolveDrop(mover, x, y)
@@ -863,8 +1066,9 @@ liveGuideDriver:SetScript("OnUpdate", function()
     if ns._groupDrag then ns:UpdateGroupDrag() end
     local lx, ly = ns:GetCenterOffsets(m.target)
     if not lx then return end
-    local dx, lineX, dy, lineY = computeSnap(m, lx, ly)
+    local dx, lineX, dy, lineY, moverX, moverY = computeSnap(m, lx, ly)
     drawGuides(dx and lineX or nil, dy and lineY or nil, true)
+    drawMeasures(m, dx and moverX or nil, dy and moverY or nil)
 end)
 
 local cycleHint, altWasDown
