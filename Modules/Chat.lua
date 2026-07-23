@@ -1240,8 +1240,7 @@ local function ensureChatMover()
         key      = "chatframe",
         label    = L["Chat"],
         db       = db,
-        width    = 240,
-        height   = 100,
+        fill     = true,   -- overlay covers the whole chat window, not a small box
         onMove   = function() db.moved = true end,
         applyPos = applyChatPos,
     })

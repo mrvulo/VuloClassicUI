@@ -407,8 +407,14 @@ function ns:CreateMover(target, opts)
     mover.opts   = opts
     -- Stable identity for layouts; unkeyed movers are simply not captured.
     mover.key    = opts.key or (target.GetName and target:GetName()) or nil
-    mover:SetPoint("CENTER", target, "CENTER", 0, 0)
-    mover:SetSize(opts.width or 200, opts.height or 40)
+    -- opts.fill: cover the whole target (and track its size live); otherwise a
+    -- fixed handle box centred on it.
+    if opts.fill then
+        mover:SetAllPoints(target)
+    else
+        mover:SetPoint("CENTER", target, "CENTER", 0, 0)
+        mover:SetSize(opts.width or 200, opts.height or 40)
+    end
     mover:SetFrameStrata("HIGH")
     mover:EnableMouse(true)
     mover:Hide()
