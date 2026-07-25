@@ -428,6 +428,20 @@ function UI:CreateCheckbox(parent, config)
 end
 
 -- Slider config: { label, tooltip?, min, max, step, get, set, width? }
+-- Rounds a flat colour texture with one of the bundled masks. Turning texel
+-- snapping off matters as much as the mask: with it on, small rounded art is
+-- snapped hard onto the pixel grid and the curve comes out visibly stepped.
+local function roundTexture(owner, tex, maskFile)
+    if not (owner and tex and owner.CreateMaskTexture and tex.AddMaskTexture) then return end
+    local m = owner:CreateMaskTexture()
+    m:SetTexture(maskFile, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+    m:SetAllPoints(tex)          -- tracks the fill as it grows
+    tex:AddMaskTexture(m)
+    if tex.SetSnapToPixelGrid   then tex:SetSnapToPixelGrid(false) end
+    if tex.SetTexelSnappingBias then tex:SetTexelSnappingBias(0) end
+    return m
+end
+
 local function sliderUpdateFill(s, v)
     local sMin, sMax = s._min or 0, s._max or 100
     local frac = 0
@@ -475,26 +489,111 @@ function UI:CreateSlider(parent, config)
     end
 
     local accent = ns.COLORS.accent
+    local thumb  = s:GetThumbTexture()
 
+    -- The template ships its own groove art, which sits under our flat track and
+    -- reads as a second, misaligned bar. Drop it before we draw anything.
+    for _, r in ipairs({ s:GetRegions() }) do
+        if r ~= thumb and r.GetObjectType and r:GetObjectType() == "Texture" then
+            r:SetTexture(nil)
+        end
+    end
+
+    -- A 6px bar is only the drawing; the frame stays the grab target, and a few
+    -- px of slack on top of that is the difference between precise and fiddly.
+    s:SetHitRectInsets(0, 0, -3, -3)
+
+    -- White at low alpha rather than a fixed grey: it stays hue-neutral, so the
+    -- track keeps the same relationship to any panel colour behind it.
+    local TRACK_IDLE, TRACK_HOVER = 0.16, 0.24
     local trackBg = s:CreateTexture(nil, "ARTWORK", nil, 1)
-    trackBg:SetHeight(4)
+    trackBg:SetHeight(6)
     trackBg:SetPoint("LEFT", s, "LEFT", 2, 0)
     trackBg:SetPoint("RIGHT", s, "RIGHT", -2, 0)
-    trackBg:SetColorTexture(0.16, 0.16, 0.20, 1)
+    trackBg:SetColorTexture(1, 1, 1, TRACK_IDLE)
+    roundTexture(s, trackBg, MASK_ROUNDED)
 
-    local trackFill = s:CreateTexture(nil, "ARTWORK", nil, 2)
-    trackFill:SetHeight(4)
+    -- Inner shadow along the top lip: reads as carved into the panel instead of
+    -- laid on top of it. Two pixels is enough; more looks like a smudge.
+    local trackShade = s:CreateTexture(nil, "ARTWORK", nil, 2)
+    trackShade:SetPoint("TOPLEFT",  trackBg, "TOPLEFT",  0, 0)
+    trackShade:SetPoint("TOPRIGHT", trackBg, "TOPRIGHT", 0, 0)
+    trackShade:SetHeight(2)
+    UI.SetGradient(trackShade, "VERTICAL", 0, 0, 0, 0, 0, 0, 0, 0.45)
+    roundTexture(s, trackShade, MASK_ROUNDED)
+
+    local trackFill = s:CreateTexture(nil, "ARTWORK", nil, 3)
+    trackFill:SetHeight(6)
     trackFill:SetPoint("LEFT", trackBg, "LEFT", 0, 0)
     trackFill:SetColorTexture(accent.r, accent.g, accent.b, 0.95)
+    roundTexture(s, trackFill, MASK_ROUNDED)
+
+    -- One-pixel gloss on the fill's top edge; the classic glass cue. Inset by a
+    -- pixel so it cannot poke out of the fill's rounded corners.
+    local fillGloss = s:CreateTexture(nil, "ARTWORK", nil, 4)
+    fillGloss:SetPoint("TOPLEFT",  trackFill, "TOPLEFT",   1, 0)
+    fillGloss:SetPoint("TOPRIGHT", trackFill, "TOPRIGHT", -1, 0)
+    fillGloss:SetHeight(1)
+    fillGloss:SetColorTexture(1, 1, 1, 0.12)
 
     s._trackBg, s._trackFill = trackBg, trackFill
     s._updateFill = function(v) sliderUpdateFill(s, v) end
 
-    local thumb = s:GetThumbTexture()
+    -- Accent halo behind the knob, so it reads as a control rather than a blob.
+    -- ~1.3x the knob; at 2x it stops looking deliberate and starts looking broken.
+    local thumbGlow = s:CreateTexture(nil, "ARTWORK", nil, 5)
+    thumbGlow:SetSize(20, 20)
+    thumbGlow:SetColorTexture(accent.r, accent.g, accent.b, 0.5)
+    roundTexture(s, thumbGlow, MASK_CIRCLE)
+    thumbGlow:Hide()
+
     if thumb then
-        thumb:SetColorTexture(0.95, 0.95, 1.0, 1)
-        thumb:SetSize(14, 14)
+        -- Desaturated knob over a saturated fill separates on two channels at
+        -- once, which holds up far better than brightness alone.
+        thumb:SetColorTexture(0.97, 0.97, 1.0, 1)
+        thumb:SetSize(15, 15)
+        thumb:SetDrawLayer("OVERLAY")     -- keep it above the halo
+        roundTexture(s, thumb, MASK_CIRCLE)
+        thumbGlow:SetPoint("CENTER", thumb, "CENTER", 0, 0)
+        thumbGlow:Show()
     end
+
+    -- Eased hover, instant press. Current values live in upvalues so an
+    -- interrupted fade continues from where it actually is rather than snapping
+    -- back to a base value first.
+    local GLOW_IDLE, GLOW_HOVER, GLOW_PRESS = 0.55, 0.9, 1.0
+    local glowNow,  glowGoal  = GLOW_IDLE, GLOW_IDLE
+    local trackNow, trackGoal = TRACK_IDLE, TRACK_IDLE
+    local function paintState()
+        thumbGlow:SetAlpha(glowNow)
+        trackBg:SetColorTexture(1, 1, 1, trackNow)
+    end
+    local function fadeTick(self, elapsed)
+        local k = math.min(1, (elapsed or 0) / 0.18 * 3)
+        local settled = true
+        if math.abs(glowGoal - glowNow) > 0.004 then
+            glowNow = glowNow + (glowGoal - glowNow) * k; settled = false
+        else glowNow = glowGoal end
+        if math.abs(trackGoal - trackNow) > 0.003 then
+            trackNow = trackNow + (trackGoal - trackNow) * k; settled = false
+        else trackNow = trackGoal end
+        paintState()
+        if settled then self:SetScript("OnUpdate", nil) end
+    end
+    s._setSliderState = function(hovered, pressed)
+        glowGoal  = pressed and GLOW_PRESS or (hovered and GLOW_HOVER or GLOW_IDLE)
+        trackGoal = (hovered or pressed) and TRACK_HOVER or TRACK_IDLE
+        if pressed then
+            -- ease OUT of a press, never into it: a fading press feels laggy
+            glowNow, trackNow = glowGoal, trackGoal
+            s:SetScript("OnUpdate", nil)
+            paintState()
+        else
+            s:SetScript("OnUpdate", fadeTick)
+        end
+    end
+    paintState()
+    s._thumbGlow = thumbGlow
 
     local function makeStepButton(label, dir)
         local b = CreateFrame("Button", nil, s)
@@ -502,10 +601,12 @@ function UI:CreateSlider(parent, config)
         local border = b:CreateTexture(nil, "BACKGROUND")
         border:SetAllPoints(b)
         border:SetColorTexture(0.3, 0.3, 0.35, 1)
+        roundTexture(b, border, MASK_ROUNDED)
         local fill = b:CreateTexture(nil, "ARTWORK")
         fill:SetPoint("TOPLEFT", b, "TOPLEFT", 1, -1)
         fill:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -1, 1)
         fill:SetColorTexture(0.14, 0.14, 0.16, 1)
+        roundTexture(b, fill, MASK_ROUNDED)
         local txt = b:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
         UI.Font(txt, 12)
         txt:SetPoint("CENTER", b, "CENTER", 0, 1)
@@ -546,6 +647,23 @@ function UI:CreateSlider(parent, config)
     end)
 
     attachTooltip(s)
+    -- hooked after attachTooltip so its own handlers can't displace these
+    s:HookScript("OnEnter", function(self)
+        if self._setSliderState then self._setSliderState(true, self._pressed) end
+    end)
+    s:HookScript("OnLeave", function(self)
+        if self._setSliderState then self._setSliderState(false, self._pressed) end
+    end)
+    s:HookScript("OnMouseDown", function(self)
+        self._pressed = true
+        if self._setSliderState then self._setSliderState(true, true) end
+    end)
+    -- IsMouseOver decides the target, or letting go off-frame strands it bright
+    s:HookScript("OnMouseUp", function(self)
+        self._pressed = nil
+        if self._setSliderState then self._setSliderState(self:IsMouseOver(), false) end
+    end)
+
     s._vcType  = "slider"
     s._vcSetup = sliderSetup
     sliderSetup(s, config)
