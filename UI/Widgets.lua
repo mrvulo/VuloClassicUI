@@ -830,20 +830,10 @@ function UI:CreateDropdown(parent, config)
     btn:SetHeight(24)
     container._button = btn
 
-    local bg = btn:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints(btn)
-    bg:SetColorTexture(0.06, 0.06, 0.08, 1)
-
-    local borders = {}
-    for i = 1, 4 do
-        local b = btn:CreateTexture(nil, "BORDER")
-        b:SetColorTexture(ns.COLORS.border.r, ns.COLORS.border.g, ns.COLORS.border.b, 1)
-        borders[i] = b
-    end
-    borders[1]:SetPoint("TOPLEFT", btn, "TOPLEFT"); borders[1]:SetPoint("TOPRIGHT", btn, "TOPRIGHT"); borders[1]:SetHeight(1)
-    borders[2]:SetPoint("BOTTOMLEFT", btn, "BOTTOMLEFT"); borders[2]:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT"); borders[2]:SetHeight(1)
-    borders[3]:SetPoint("TOPLEFT", btn, "TOPLEFT"); borders[3]:SetPoint("BOTTOMLEFT", btn, "BOTTOMLEFT"); borders[3]:SetWidth(1)
-    borders[4]:SetPoint("TOPRIGHT", btn, "TOPRIGHT"); borders[4]:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT"); borders[4]:SetWidth(1)
+    -- same geometry StyleBackdrop draws; it keeps the four edges on the frame as
+    -- _vcBorders, which is what the hover recolour below uses
+    UI:StyleBackdrop(btn, { bg = { r = 0.06, g = 0.06, b = 0.08, a = 1 } })
+    local borders = btn._vcBorders
 
     local valueText = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     UI.Font(valueText, 12)

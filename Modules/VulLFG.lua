@@ -323,13 +323,10 @@ local function buildWindow()
     f:Hide()
     ns:CreateMover(f, { key = "groupboard", label = "|cffffffffGROUP BOARD|r", db = mod.db, width = 440, height = 420,
         scalable = true, anchorable = true })
-    local bg = f:CreateTexture(nil, "BACKGROUND"); bg:SetAllPoints(); bg:SetColorTexture(0.06, 0.06, 0.08, 0.97)
-    local b = {}
-    for i = 1, 4 do local t = f:CreateTexture(nil, "BORDER"); t:SetColorTexture(ACCENT.r, ACCENT.g, ACCENT.b, 1); b[i] = t end
-    b[1]:SetPoint("TOPLEFT"); b[1]:SetPoint("TOPRIGHT"); b[1]:SetHeight(1)
-    b[2]:SetPoint("BOTTOMLEFT"); b[2]:SetPoint("BOTTOMRIGHT"); b[2]:SetHeight(1)
-    b[3]:SetPoint("TOPLEFT"); b[3]:SetPoint("BOTTOMLEFT"); b[3]:SetWidth(1)
-    b[4]:SetPoint("TOPRIGHT"); b[4]:SetPoint("BOTTOMRIGHT"); b[4]:SetWidth(1)
+    ns.UI:StyleBackdrop(f, {
+        bg     = { r = 0.06, g = 0.06, b = 0.08, a = 0.97 },
+        border = ACCENT,
+    })
 
     f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     f.title:SetPoint("TOP", f, "TOP", 0, -8); f.title:SetText(L["Group Board"])
