@@ -48,6 +48,7 @@ Modules\SwingTimer.lua
 Modules\PowerBar.lua
 Modules\ActionBars.lua
 Modules\CooldownPulse.lua
+Modules\Reminders.lua
 Modules\Arena.lua
 Modules\CharacterPanel.lua
 Modules\DarkSkin.lua
