@@ -17,6 +17,7 @@ for _, key in ipairs({
     "cooldownpulse", "cooldownmanager", "powerbar", "actionbars",
     "arenaframes", "characterpanel", "darkskin", "friendlist",
     "miscqol", "queuetimer", "tooltipids", "autoitembuy", "goldtracker",
+    "addonskins", "popupskin", "reminders",
     "spamfilter", "chat", "bags", "questlog",
     "professionwindow", "disenchantqueue", "vtmanadisplay", "lazyvulo",
     "vulslot", "combattext", "loadouts", "slotpicker", "trinkets",

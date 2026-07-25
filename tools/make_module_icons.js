@@ -30,6 +30,11 @@ const MAP = {
   arenaframes:        'swords',
   characterpanel:     'user',
   darkskin:           'palette',
+  // addonskins makes OTHER addons match, so it must not read as another paint
+  // pot next to darkskin's palette
+  addonskins:         'puzzle',
+  popupskin:          'picture-in-picture',
+  reminders:          'bell',
   friendlist:         'users',
   miscqol:            'wrench',
   queuetimer:         'hourglass',
@@ -142,7 +147,15 @@ function pngToTga(pngBuf, outFile) {
   const failed = [];
   for (const [key, icon] of Object.entries(MAP)) {
     try {
-      let svg = await fetchText('https://unpkg.com/lucide-static@latest/icons/' + icon + '.svg');
+      // unpkg answers HTTP 500 for perfectly valid icon names often enough that
+      // a single source makes this script unreliable; jsdelivr serves the same
+      // package and is tried first.
+      let svg;
+      for (const host of ['https://cdn.jsdelivr.net/npm/lucide-static@latest/icons/',
+                          'https://unpkg.com/lucide-static@latest/icons/']) {
+        try { svg = await fetchText(host + icon + '.svg'); break; } catch (e) { /* next host */ }
+      }
+      if (!svg) throw new Error('no host served ' + icon + '.svg');
       // white strokes on transparent (lucide uses currentColor)
       svg = svg.replace(/stroke="currentColor"/g, 'stroke="#FFFFFF"')
                .replace(/fill="currentColor"/g, 'fill="#FFFFFF"');
