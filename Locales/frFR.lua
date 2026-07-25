@@ -2399,6 +2399,18 @@ local T = {
     ["Reset ALL VuloClassicUI settings for every character on this account? This cannot be undone."] = "Réinitialiser TOUS les réglages de VuloClassicUI pour chaque personnage de ce compte ? Cette action est irréversible.",
     ["Swing Timer switched off: it only tracks melee auto-attacks, which this character's talents do not use."] = "Minuteur d’attaque désactivé : il ne suit que les attaques automatiques en mêlée, que les talents de ce personnage n’utilisent pas.",
     ["|cffff5555Settings migration %s failed:|r %s"] = "|cffff5555Échec de la migration des réglages %s :|r %s",
+    ["Plays a raid warning sound the moment an opponent uses their PvP trinket."] = "Joue un son d’alerte de raid dès qu’un adversaire utilise son bijou JcJ.",
+    ["Flashes the icon briefly when an opponent uses their PvP trinket."] = "Fait clignoter brièvement l’icône quand un adversaire utilise son bijou JcJ.",
+    ["Icon gap"] = "Écart de l’icône",
+    ["Distance between the icon and the bar."] = "Distance entre l’icône et la barre.",
+    ["Accent colour"] = "Couleur d’accent",
+    ["Used for the bar while the fill mode is not a texture, and for channelled casts on Blizzard's own castbar."] = "Utilisée pour la barre quand le mode de remplissage n’est pas une texture, et pour les incantations canalisées sur la barre de Blizzard.",
+    ["Cast finished"] = "Incantation terminée",
+    ["The bar flashes in this colour when a cast completes."] = "La barre clignote dans cette couleur quand une incantation se termine.",
+    ["Cast interrupted"] = "Incantation interrompue",
+    ["The bar flashes in this colour when a cast is interrupted or fails."] = "La barre clignote dans cette couleur quand une incantation est interrompue ou échoue.",
+    ["Fade-in time"] = "Durée d’apparition",
+    ["How long an icon takes to appear. 0 makes it show instantly."] = "Temps que met une icône à apparaître. 0 l’affiche instantanément.",
 }
 
 ns:RegisterLocale("frFR", T)

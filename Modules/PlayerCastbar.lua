@@ -28,7 +28,6 @@ local mod = ns:RegisterModule("playercastbar", {
         y             = -180,
         unlocked      = false,
         accentColor   = { r = 0.608, g = 0.424, b = 1.000, a = 0.90 },
-        castColor     = { r = 1.00,  g = 0.80,  b = 0.20,  a = 1.00 },
         channelColor  = { r = 0.608, g = 0.424, b = 1.000, a = 1.00 },
         successColor  = { r = 0.40, g = 0.85, b = 0.40, a = 1.00 },
         failColor     = { r = 0.90, g = 0.25, b = 0.25, a = 1.00 },
@@ -586,7 +585,11 @@ local function c_create()
     cFrame.bar:SetStatusBarTexture(TEX_FILL)
     cFrame.bar:SetMinMaxValues(0, 1)
     cFrame.bar:SetValue(0)
-    c_applyColor(mod.db.castColor)
+    -- Just an initial value on a frame that is still hidden: every cast runs
+    -- c_applyFill before showing it, so this is never what anyone sees. It used
+    -- to read a saved castColor, which is why that setting could not be exposed
+    -- as an option - it would have been a control with nothing to change.
+    c_applyColor({ r = 1, g = 1, b = 1, a = 1 })
 
     cFrame.bg = cFrame.bar:CreateTexture(nil, "BACKGROUND")
     cFrame.bg:SetAllPoints(cFrame.bar)
@@ -1163,6 +1166,30 @@ function mod:GetOptions()
               tooltip = L["Moves the icon vertically. Positive = up, negative = down."],
               get = function() return mod.db.iconY or 0 end,
               set = function(_, v) mod.db.iconY = v; c_applyLayout() end },
+            { type = "slider", label = L["Icon gap"],
+              min = 0, max = 20, step = 1,
+              tooltip = L["Distance between the icon and the bar."],
+              get = function() return mod.db.iconGap or 3 end,
+              set = function(_, v) mod.db.iconGap = v; c_applyLayout() end },
+        } })
+
+        table.insert(items, { type = "section", title = L["Colours"], collapsed = true, items = {
+            { type = "color", label = L["Accent colour"],
+              tooltip = L["Used for the bar while the fill mode is not a texture, and for channelled casts on Blizzard's own castbar."],
+              get = function() return mod.db.accentColor end,
+              set = function(r, g, b)
+                  local a = (mod.db.accentColor and mod.db.accentColor.a) or 0.90
+                  mod.db.accentColor = { r = r, g = g, b = b, a = a }
+                  c_applyFill(false)
+              end },
+            { type = "color", label = L["Cast finished"],
+              tooltip = L["The bar flashes in this colour when a cast completes."],
+              get = function() return mod.db.successColor end,
+              set = function(r, g, b) mod.db.successColor = { r = r, g = g, b = b, a = 1 } end },
+            { type = "color", label = L["Cast interrupted"],
+              tooltip = L["The bar flashes in this colour when a cast is interrupted or fails."],
+              get = function() return mod.db.failColor end,
+              set = function(r, g, b) mod.db.failColor = { r = r, g = g, b = b, a = 1 } end },
         } })
     end
 

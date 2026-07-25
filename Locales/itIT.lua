@@ -2250,6 +2250,18 @@ local T = {
     ["Reset ALL VuloClassicUI settings for every character on this account? This cannot be undone."] = "Reimpostare TUTTE le impostazioni di VuloClassicUI per ogni personaggio di questo account? L'operazione non può essere annullata.",
     ["Swing Timer switched off: it only tracks melee auto-attacks, which this character's talents do not use."] = "Swing Timer disattivato: registra solo gli attacchi automatici in mischia, che i talenti di questo personaggio non usano.",
     ["|cffff5555Settings migration %s failed:|r %s"] = "|cffff5555Migrazione delle impostazioni %s non riuscita:|r %s",
+    ["Plays a raid warning sound the moment an opponent uses their PvP trinket."] = "Riproduce un suono di avviso incursione appena un avversario usa il suo monile PvP.",
+    ["Flashes the icon briefly when an opponent uses their PvP trinket."] = "Fa lampeggiare brevemente l’icona quando un avversario usa il suo monile PvP.",
+    ["Icon gap"] = "Distanza icona",
+    ["Distance between the icon and the bar."] = "Distanza tra l’icona e la barra.",
+    ["Accent colour"] = "Colore d’accento",
+    ["Used for the bar while the fill mode is not a texture, and for channelled casts on Blizzard's own castbar."] = "Usato per la barra quando la modalità di riempimento non è una texture, e per le magie incanalate sulla barra di Blizzard.",
+    ["Cast finished"] = "Magia completata",
+    ["The bar flashes in this colour when a cast completes."] = "La barra lampeggia in questo colore quando una magia si completa.",
+    ["Cast interrupted"] = "Magia interrotta",
+    ["The bar flashes in this colour when a cast is interrupted or fails."] = "La barra lampeggia in questo colore quando una magia viene interrotta o fallisce.",
+    ["Fade-in time"] = "Tempo di comparsa",
+    ["How long an icon takes to appear. 0 makes it show instantly."] = "Quanto tempo impiega un’icona ad apparire. 0 la mostra subito.",
 }
 
 ns:RegisterLocale("itIT", T)

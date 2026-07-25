@@ -1183,6 +1183,18 @@ mod:AddOptionsSection("trinket", function()
             get = function() return mod.db.trinketOffsetY end,
             set = function(_, v) mod.db.trinketOffsetY = v; mod.RefreshTrinkets() end,
         },
+        {
+            type = "checkbox", label = L["Sound"],
+            tooltip = L["Plays a raid warning sound the moment an opponent uses their PvP trinket."],
+            get = function() return mod.db.trinketSound end,
+            set = function(_, v) mod.db.trinketSound = v end,
+        },
+        {
+            type = "checkbox", label = L["Glow"],
+            tooltip = L["Flashes the icon briefly when an opponent uses their PvP trinket."],
+            get = function() return mod.db.trinketGlow end,
+            set = function(_, v) mod.db.trinketGlow = v end,
+        },
     }
 end)
 
@@ -2310,6 +2322,11 @@ local function haveCooldownAddon()
     return false
 end
 
+-- cdTextEnabled has deliberately no option. The styling is one-shot per cooldown
+-- frame (_vcStyled), so a control would only affect frames styled after the
+-- change and read as a switch that does nothing. It exists to avoid doubled
+-- numbers when a cooldown-count addon is present, and haveCooldownAddon below
+-- already handles that case on its own.
 local function styleCooldown(cd)
     if not cd or cd._vcStyled or not mod.db.cdTextEnabled then return end
     if haveCooldownAddon() then return end

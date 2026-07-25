@@ -2250,6 +2250,18 @@ local T = {
     ["Reset ALL VuloClassicUI settings for every character on this account? This cannot be undone."] = "¿Restablecer TODOS los ajustes de VuloClassicUI para todos los personajes de esta cuenta? Esta acción no se puede deshacer.",
     ["Swing Timer switched off: it only tracks melee auto-attacks, which this character's talents do not use."] = "Temporizador de golpe desactivado: solo registra los ataques automáticos cuerpo a cuerpo, que los talentos de este personaje no usan.",
     ["|cffff5555Settings migration %s failed:|r %s"] = "|cffff5555Error en la migración de ajustes %s:|r %s",
+    ["Plays a raid warning sound the moment an opponent uses their PvP trinket."] = "Reproduce un sonido de aviso de banda en cuanto un rival usa su abalorio JcJ.",
+    ["Flashes the icon briefly when an opponent uses their PvP trinket."] = "Hace destellar el icono brevemente cuando un rival usa su abalorio JcJ.",
+    ["Icon gap"] = "Separación del icono",
+    ["Distance between the icon and the bar."] = "Distancia entre el icono y la barra.",
+    ["Accent colour"] = "Color de acento",
+    ["Used for the bar while the fill mode is not a texture, and for channelled casts on Blizzard's own castbar."] = "Se usa para la barra mientras el modo de relleno no sea una textura, y para los lanzamientos canalizados en la barra de Blizzard.",
+    ["Cast finished"] = "Lanzamiento completado",
+    ["The bar flashes in this colour when a cast completes."] = "La barra destella con este color cuando un lanzamiento termina.",
+    ["Cast interrupted"] = "Lanzamiento interrumpido",
+    ["The bar flashes in this colour when a cast is interrupted or fails."] = "La barra destella con este color cuando un lanzamiento se interrumpe o falla.",
+    ["Fade-in time"] = "Tiempo de aparición",
+    ["How long an icon takes to appear. 0 makes it show instantly."] = "Cuánto tarda un icono en aparecer. 0 lo muestra al instante.",
 }
 
 ns:RegisterLocale("esES", T)

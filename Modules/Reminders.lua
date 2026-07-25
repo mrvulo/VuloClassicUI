@@ -745,6 +745,10 @@ function mod:GetOptions()
           get = function() return mod.db.spacing end,
           set = function(_, v) mod.db.spacing = v; requestRefresh() end },
     } }
+    items[#items + 1] = { type = "slider", label = L["Fade-in time"], min = 0, max = 1, step = 0.05,
+        tooltip = L["How long an icon takes to appear. 0 makes it show instantly."],
+        get = function() return mod.db.fadeTime or 0.15 end,
+        set = function(_, v) mod.db.fadeTime = v end }
     items[#items + 1] = { type = "slider", label = L["Most icons at once"], min = 1, max = 8, step = 1,
         tooltip = L["Anything past this is bundled into a single counter instead of adding another icon."],
         get = function() return mod.db.maxIcons end,

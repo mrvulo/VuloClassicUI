@@ -161,8 +161,6 @@ local mod = ns:RegisterModule("nameplates", {
         ccSize         = 28,
         ccWidth        = 0,
         ccHeight       = 0,
-        ccOffsetX      = 0,
-        ccOffsetY      = 0,
         auraSpacing    = 2,
         auraSwipe      = true,
         auraTypeBorder = true,
@@ -1154,6 +1152,9 @@ local function migrateAuraRows()
     if (d.ccOffsetX or 0) ~= 0 then cc.x = d.ccOffsetX end
     if (d.ccOffsetY or 0) ~= 0 then cc.y = d.ccOffsetY end
     d.auraRowsMigrated = true      -- only after the work, never before
+    -- Nothing reads these again; the per-row placement controls own the offsets
+    -- now. Leaving them behind makes them look like settings with no control.
+    d.ccOffsetX, d.ccOffsetY = nil, nil
 end
 
 local function applyAuras(f, lists)

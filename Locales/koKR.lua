@@ -2250,6 +2250,18 @@ local T = {
     ["Reset ALL VuloClassicUI settings for every character on this account? This cannot be undone."] = "이 계정의 모든 캐릭터에 대해 VuloClassicUI의 모든 설정을 초기화합니까? 되돌릴 수 없습니다.",
     ["Swing Timer switched off: it only tracks melee auto-attacks, which this character's talents do not use."] = "공격 타이머를 끓습니다: 근접 자동 공격만 추적하는데, 이 캐릭터의 특성은 근접 공격을 사용하지 않습니다.",
     ["|cffff5555Settings migration %s failed:|r %s"] = "|cffff5555설정 이전 %s 실패:|r %s",
+    ["Plays a raid warning sound the moment an opponent uses their PvP trinket."] = "상대가 PvP 장신구를 사용하는 즉시 공격대 경고음을 재생합니다.",
+    ["Flashes the icon briefly when an opponent uses their PvP trinket."] = "상대가 PvP 장신구를 사용하면 아이콘이 잠긐 빛납니다.",
+    ["Icon gap"] = "아이콘 간격",
+    ["Distance between the icon and the bar."] = "아이콘과 바 사이의 거리입니다.",
+    ["Accent colour"] = "강조 색상",
+    ["Used for the bar while the fill mode is not a texture, and for channelled casts on Blizzard's own castbar."] = "채우기 방식이 텍스처가 아닐 때 바에 사용되며, 블리자드 기본 시전 바의 시전 유지 주문에도 사용됩니다.",
+    ["Cast finished"] = "시전 완료",
+    ["The bar flashes in this colour when a cast completes."] = "시전이 끝나면 바가 이 색으로 번쌝입니다.",
+    ["Cast interrupted"] = "시전 중단",
+    ["The bar flashes in this colour when a cast is interrupted or fails."] = "시전이 중단되거나 실패하면 바가 이 색으로 번쌝입니다.",
+    ["Fade-in time"] = "나타나는 시간",
+    ["How long an icon takes to appear. 0 makes it show instantly."] = "아이콘이 나타나는 데 걸리는 시간입니다. 0이면 즉시 표시됩니다.",
 }
 
 ns:RegisterLocale("koKR", T)

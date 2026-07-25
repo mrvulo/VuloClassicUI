@@ -2250,6 +2250,18 @@ local T = {
     ["Reset ALL VuloClassicUI settings for every character on this account? This cannot be undone."] = "Redefinir TODAS as configurações do VuloClassicUI para todos os personagens desta conta? Esta ação não pode ser desfeita.",
     ["Swing Timer switched off: it only tracks melee auto-attacks, which this character's talents do not use."] = "Temporizador de Golpe desativado: ele só acompanha os ataques automáticos corpo a corpo, que os talentos deste personagem não usam.",
     ["|cffff5555Settings migration %s failed:|r %s"] = "|cffff5555Falha na migração de configurações %s:|r %s",
+    ["Plays a raid warning sound the moment an opponent uses their PvP trinket."] = "Toca um som de aviso de raide assim que um oponente usa seu berloque PvP.",
+    ["Flashes the icon briefly when an opponent uses their PvP trinket."] = "Faz o ícone piscar brevemente quando um oponente usa seu berloque PvP.",
+    ["Icon gap"] = "Espaço do ícone",
+    ["Distance between the icon and the bar."] = "Distância entre o ícone e a barra.",
+    ["Accent colour"] = "Cor de destaque",
+    ["Used for the bar while the fill mode is not a texture, and for channelled casts on Blizzard's own castbar."] = "Usada na barra enquanto o modo de preenchimento não for uma textura, e nas conjurações canalizadas na barra da Blizzard.",
+    ["Cast finished"] = "Conjuração concluída",
+    ["The bar flashes in this colour when a cast completes."] = "A barra pisca nesta cor quando uma conjuração termina.",
+    ["Cast interrupted"] = "Conjuração interrompida",
+    ["The bar flashes in this colour when a cast is interrupted or fails."] = "A barra pisca nesta cor quando uma conjuração é interrompida ou falha.",
+    ["Fade-in time"] = "Tempo de surgimento",
+    ["How long an icon takes to appear. 0 makes it show instantly."] = "Quanto tempo um ícone leva para aparecer. 0 o mostra na hora.",
 }
 
 ns:RegisterLocale("ptBR", T)

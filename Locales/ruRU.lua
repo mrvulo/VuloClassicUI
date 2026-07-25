@@ -2250,6 +2250,18 @@ local T = {
     ["Reset ALL VuloClassicUI settings for every character on this account? This cannot be undone."] = "Сбросить ВСЕ настройки VuloClassicUI для всех персонажей этой учетной записи? Отменить это действие нельзя.",
     ["Swing Timer switched off: it only tracks melee auto-attacks, which this character's talents do not use."] = "Таймер атаки отключён: он отслеживает только автоатаки в ближнем бою, которые таланты этого персонажа не используют.",
     ["|cffff5555Settings migration %s failed:|r %s"] = "|cffff5555Не удалось перенести настройки %s:|r %s",
+    ["Plays a raid warning sound the moment an opponent uses their PvP trinket."] = "Проигрывает звук рейдового предупреждения, как только противник использует PvP-аксессуар.",
+    ["Flashes the icon briefly when an opponent uses their PvP trinket."] = "Кратко подсвечивает значок, когда противник использует PvP-аксессуар.",
+    ["Icon gap"] = "Отступ значка",
+    ["Distance between the icon and the bar."] = "Расстояние между значком и полосой.",
+    ["Accent colour"] = "Цвет акцента",
+    ["Used for the bar while the fill mode is not a texture, and for channelled casts on Blizzard's own castbar."] = "Используется для полосы, пока режим заливки не является текстурой, и для поддерживаемых заклинаний на собственной полосе Blizzard.",
+    ["Cast finished"] = "Заклинание завершено",
+    ["The bar flashes in this colour when a cast completes."] = "Полоса вспыхивает этим цветом, когда заклинание завершается.",
+    ["Cast interrupted"] = "Заклинание прервано",
+    ["The bar flashes in this colour when a cast is interrupted or fails."] = "Полоса вспыхивает этим цветом, когда заклинание прерывают или оно не удаётся.",
+    ["Fade-in time"] = "Время появления",
+    ["How long an icon takes to appear. 0 makes it show instantly."] = "Сколько значок появляется. 0 показывает его сразу.",
 }
 
 ns:RegisterLocale("ruRU", T)
