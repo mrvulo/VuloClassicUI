@@ -114,7 +114,7 @@ local function restorePlayerDefaults()
 end
 
 local function playerStyleActive()
-    return mod._enabled and mod.db.playerStyle ~= "off" and STYLES[mod.db.playerStyle] ~= nil
+    return mod.active and mod.db.playerStyle ~= "off" and STYLES[mod.db.playerStyle] ~= nil
 end
 
 local function applyPlayerTextPositions()
@@ -230,7 +230,7 @@ local function updateIndicator(frame)
 
     local unit    = unitForFrame(frame)
     local isFocus = (frame == _G.FocusFrame)
-    local allowed = mod._enabled and (not isFocus or mod.db.focus)
+    local allowed = mod.active and (not isFocus or mod.db.focus)
     local numeric = allowed and mod.db.threatNumeric
     local glowOn  = allowed and mod.db.threatGlow
 
@@ -306,7 +306,7 @@ local function updateClassIcon(frame)
     if not badge then return end
     local unit    = unitForFrame(frame)
     local isFocus = (frame == _G.FocusFrame)
-    if mod._enabled and mod.db.classIcon and (not isFocus or mod.db.focus)
+    if mod.active and mod.db.classIcon and (not isFocus or mod.db.focus)
         and unit and UnitExists(unit) and UnitIsPlayer(unit) then
         local _, class = UnitClass(unit)
         local coords = class and CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS[class]
@@ -330,7 +330,7 @@ end
 local RARE_ELITE_TEX = "Interface\\TargetingFrame\\UI-TargetingFrame-Rare-Elite"
 
 local function applyClassification(frame, lock)
-    if not (mod._enabled and mod.db.rareElite) then return end
+    if not (mod.active and mod.db.rareElite) then return end
     if frame ~= _G.TargetFrame and frame ~= _G.FocusFrame then return end
     if frame == _G.FocusFrame and not mod.db.focus then return end
     local unit = unitForFrame(frame)
@@ -358,7 +358,7 @@ local function healthUnitFor(bar)
 end
 
 local function applyRealHealth(bar)
-    if not (mod._enabled and mod.db.realHealth) then return end
+    if not (mod.active and mod.db.realHealth) then return end
     local unit = healthUnitFor(bar)
     if not unit then return end
     if unit == "focus" and not mod.db.focus then return end
@@ -464,7 +464,7 @@ local function refreshTargetFrames()
 end
 
 local function onWorldEnter()
-    if not mod._enabled then return end
+    if not mod.active then return end
     applyPlayerStyle()
     ensureSetup()
     refreshTargetFrames()
@@ -495,7 +495,7 @@ function mod:OnDisable()
         if classIcons[frame] then classIcons[frame]:Hide() end
     end
     refreshHealth()
-    -- Hooks cannot be removed; they stay installed and gate on mod._enabled.
+    -- Hooks cannot be removed; they stay installed and gate on mod.active.
 end
 
 function mod:GetOptions()

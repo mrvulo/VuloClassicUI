@@ -32,9 +32,15 @@ local copyFromBuffer       = nil
 local renameNewBuffer      = ""
 local manageBuffer         = nil   -- profile selected in the manage section
 
+-- This page is reachable two ways: directly via /vcui profiles, and - the only
+-- way anyone actually finds it - as the "Profile" tab of Global Settings, where
+-- currentModule is "globalsettings". Checking for "profiles" alone meant every
+-- refresh here did nothing on the path people use, leaving all dropdowns stale.
 local function refreshUI()
-    if ns.UI and ns.UI.currentModule == "profiles" then
-        ns.UI:BuildOptionsPage("profiles", "default")
+    local UI = ns.UI
+    if not (UI and UI.BuildOptionsPage and UI._currentBuildKey) then return end
+    if UI._currentBuildKey == "profiles" or UI._currentBuildKey == "globalsettings" then
+        UI:BuildOptionsPage(UI._currentBuildKey, UI.currentTab)
     end
 end
 
@@ -301,15 +307,20 @@ function mod:GetOptions()
 
     table.insert(items, { type = "header", text = L["Manage Profiles"] })
 
-    local manageName = manageBuffer
-    if not manageName or not ns:ProfileExists(manageName) then
-        manageName = activeName
+    -- Read at the moment a button is pressed, never captured. Rename, Delete and
+    -- Reset all act on this name, so a copy taken while the page was built would
+    -- point at whatever was selected back then - and rename does its work without
+    -- a confirmation dialog, so the wrong profile would be renamed unnoticed.
+    local function managedName()
+        local n = manageBuffer
+        if not n or not ns:ProfileExists(n) then return ns:GetActiveProfileName() end
+        return n
     end
 
     table.insert(items, {
         type = "dropdown", label = L["Profile"], width = 220,
         values = getProfileValues(),
-        get = function() return manageName end,
+        get = function() return managedName() end,
         set = function(_, v) manageBuffer = v; refreshUI() end,
     })
 
@@ -330,12 +341,13 @@ function mod:GetOptions()
                         ns:Print(L["|cffff5555Please enter a new name.|r"])
                         return
                     end
-                    local ok, err = ns:RenameProfile(manageName, newName)
+                    local oldName = managedName()
+                    local ok, err = ns:RenameProfile(oldName, newName)
                     if not ok then
                         ns:Print("|cffff5555%s|r", err or L["Error."])
                     else
                         renameNewBuffer = ""
-                        if manageBuffer == manageName then manageBuffer = newName end
+                        if manageBuffer == oldName then manageBuffer = newName end
                         refreshUI()
                     end
                 end,
@@ -348,15 +360,17 @@ function mod:GetOptions()
         items = {
             { type = "button", label = L["Delete..."], width = 130,
               onClick = function()
-                  if manageName == "Default" then
+                  local name = managedName()
+                  if name == "Default" then
                       ns:Print(L["|cffff5555Default profile cannot be deleted.|r"])
                       return
                   end
-                  StaticPopup_Show("VCUI_PROFILE_DELETE", manageName, nil, manageName)
+                  StaticPopup_Show("VCUI_PROFILE_DELETE", name, nil, name)
               end },
             { type = "button", label = L["Reset to defaults..."], width = 200,
               onClick = function()
-                  StaticPopup_Show("VCUI_PROFILE_RESET", manageName, nil, manageName)
+                  local name = managedName()
+                  StaticPopup_Show("VCUI_PROFILE_RESET", name, nil, name)
               end },
         },
     })

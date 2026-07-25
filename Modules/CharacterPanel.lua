@@ -60,6 +60,14 @@ end
 mod.reapplyItemLevelSize = reapplyItemLevelSize
 
 function mod:OnEnable()
+    -- The implementation below only ever ran from a one-shot PLAYER_LOGIN
+    -- handler, so switching this module on during a session did nothing at all
+    -- and needed a /reload nobody was told about. The init guards itself against
+    -- running twice; before login the handler is still pending and does the job.
+    if ns.isInitialised and ns.RunCharacterPanelInit then
+        ns:RunCharacterPanelInit()
+    end
+
     -- the impl recreates the iLvL font strings at a fixed size on each open, so reapply
     if _G.CharacterFrame and not _G.CharacterFrame._vcui_ilvlHook then
         _G.CharacterFrame._vcui_ilvlHook = true

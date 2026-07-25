@@ -2406,4 +2406,5 @@ ns:RegisterLocale("deDE", {
     ["Buttons per row"] = "Buttons pro Reihe",
     ["Button spacing"] = "Button-Abstand",
     ["Reset ALL VuloClassicUI settings for every character on this account? This cannot be undone."] = "Wirklich ALLE Einstellungen von VuloClassicUI für jeden Charakter dieses Accounts zurücksetzen? Das lässt sich nicht rückgängig machen.",
+    ["Swing Timer switched off: it only tracks melee auto-attacks, which this character's talents do not use."] = "Waffen-Swingtimer abgeschaltet: Er verfolgt nur Nahkampf-Autoangriffe, die dieser Charakter mit seinen Talenten nicht nutzt.",
 })

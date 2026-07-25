@@ -2248,6 +2248,7 @@ local T = {
     ["Pins this window to another one - it then moves along whenever that window is moved. Dragging this window keeps the pin and just updates the distance."] = "Ancora questa finestra a un'altra: si sposterà insieme a essa ogni volta che quella viene mossa. Trascinando questa finestra l'ancoraggio resta e viene solo aggiornata la distanza.",
     ["Not possible - that would create a loop."] = "Non è possibile: si creerebbe un ciclo.",
     ["Reset ALL VuloClassicUI settings for every character on this account? This cannot be undone."] = "Reimpostare TUTTE le impostazioni di VuloClassicUI per ogni personaggio di questo account? L'operazione non può essere annullata.",
+    ["Swing Timer switched off: it only tracks melee auto-attacks, which this character's talents do not use."] = "Swing Timer disattivato: registra solo gli attacchi automatici in mischia, che i talenti di questo personaggio non usano.",
 }
 
 ns:RegisterLocale("itIT", T)

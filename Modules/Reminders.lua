@@ -510,9 +510,26 @@ local function ensureOverflow()
     return overflow
 end
 
+-- Every caller checked for combat before getting here except module shutdown,
+-- which is the one case where nothing is left running to catch up afterwards:
+-- the ticker is cancelled and the events are unregistered one statement earlier,
+-- so a blocked Hide() would leave the row on screen until /reload. The guard
+-- lives here so it covers every caller, and it leaves one handler behind to
+-- finish the job the moment combat ends.
+local hideWhenSafe
+
 local function hideAll()
+    if InCombatLockdown() then
+        ns:RegisterEvent("PLAYER_REGEN_ENABLED", hideWhenSafe)
+        return
+    end
     for _, f in ipairs(icons) do f:Hide() end
     if overflow then overflow:Hide() end
+end
+
+function hideWhenSafe()
+    ns:UnregisterEvent("PLAYER_REGEN_ENABLED", hideWhenSafe)
+    hideAll()
 end
 
 local function layout(list, extra)

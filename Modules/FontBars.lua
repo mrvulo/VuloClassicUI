@@ -37,7 +37,7 @@ local function applyPetFeedbackFont()
 end
 
 local function applyAll()
-    if not mod._enabled then return end
+    if not mod.active then return end
     local hs = mod.db.healthSize
     local ps = mod.db.powerSize
 
@@ -61,7 +61,7 @@ local function applyAll()
 end
 
 local function hideTargetBackground()
-    if not mod._enabled then return end
+    if not mod.active then return end
     if not mod.db.hideTargetBackground then return end
     if TargetFrameBackground then TargetFrameBackground:Hide() end
 end
@@ -75,7 +75,7 @@ local function installHooks()
 
     if TextStatusBar_UpdateTextString then
         hooksecurefunc("TextStatusBar_UpdateTextString", function(bar)
-            if not mod._enabled then return end
+            if not mod.active then return end
             if not bar or not isOurBar(bar) then return end
             if bar == PlayerFrameHealthBar or bar == TargetFrameHealthBar or bar == PetFrameHealthBar then
                 ns:SetBarTextFontSize(bar, mod.db.healthSize)

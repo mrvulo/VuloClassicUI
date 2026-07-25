@@ -280,7 +280,7 @@ local function repaintReordered(cfg)
 end
 
 local function refreshList(cfg)
-    if not mod._enabled then return end
+    if not mod.active then return end
 
     -- Divider bars have client-varying region indices and Blizzard re-shows them every update: scan once, re-hide always.
     local st = states[cfg.frame]
@@ -407,7 +407,7 @@ end
 -- TBC bank containers; only readable while the bank window is open, hence the cache.
 local BANK_BAGS = { -1, 5, 6, 7, 8, 9, 10, 11 }
 local function scanBank()
-    if not (mod._enabled and mod.db) then return end
+    if not (mod.active and mod.db) then return end
     local counts = {}
     for _, bag in ipairs(BANK_BAGS) do
         for slot = 1, (cSlots(bag) or 0) do
@@ -779,7 +779,7 @@ end
 local loader = CreateFrame("Frame")
 loader:RegisterEvent("ADDON_LOADED")
 loader:SetScript("OnEvent", function(_, _, name)
-    if not mod._enabled then return end
+    if not mod.active then return end
     for _, cfg in ipairs(FRAMES) do
         if name == cfg.addon then C_Timer.After(0, function() setupFrame(cfg) end) end
     end

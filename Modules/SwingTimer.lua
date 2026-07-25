@@ -486,8 +486,13 @@ function mod:OnEnable()
     end
 
     -- A swing timer means nothing without melee auto-attacks, so it stays shut
-    -- for casting specs even if an old saved preference says otherwise.
+    -- for casting specs even if an old saved preference says otherwise. Say so,
+    -- and record it: switching a module off behind the player's back while the
+    -- sidebar keeps showing it as enabled gives them nothing to go on, and
+    -- leaving the preference alone repeats the whole thing on every login.
     if not isMeleeSpec() then
+        ns:SetModuleEnabledPref("swingtimer", false)
+        ns:Print(L["Swing Timer switched off: it only tracks melee auto-attacks, which this character's talents do not use."])
         bailOut()
         return
     end

@@ -2248,6 +2248,7 @@ local T = {
     ["Colour border by school"] = "Окрашивать кайму по школе магии",
     ["Aura borders take the colour of their school: magic blue, curse purple, disease orange, poison green."] = "Каймы эффектов принимают цвет своей школы магии: магия — синий, проклятие — фиолетовый, болезнь — оранжевый, яд — зеленый.",
     ["Reset ALL VuloClassicUI settings for every character on this account? This cannot be undone."] = "Сбросить ВСЕ настройки VuloClassicUI для всех персонажей этой учетной записи? Отменить это действие нельзя.",
+    ["Swing Timer switched off: it only tracks melee auto-attacks, which this character's talents do not use."] = "Таймер атаки отключён: он отслеживает только автоатаки в ближнем бою, которые таланты этого персонажа не используют.",
 }
 
 ns:RegisterLocale("ruRU", T)

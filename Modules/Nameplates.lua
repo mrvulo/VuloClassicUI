@@ -1783,10 +1783,15 @@ local function onPlateAdded(_, unit)
 
     f:RegisterUnitEvent("UNIT_HEALTH", unit)
     f:RegisterUnitEvent("UNIT_MAXHEALTH", unit)
-    f:RegisterUnitEvent("UNIT_ABSORB_AMOUNT_CHANGED", unit)
+    -- Absorbs and the threat list do not exist on every flavour we ship to, and
+    -- registering an unknown event throws. This runs for every plate that
+    -- appears, so an unguarded call would break nameplates outright rather than
+    -- just dropping one feature. The absorb value itself is already guarded
+    -- where it is read; only the registration was not.
+    pcall(f.RegisterUnitEvent, f, "UNIT_ABSORB_AMOUNT_CHANGED", unit)
     f:RegisterUnitEvent("UNIT_NAME_UPDATE", unit)
     f:RegisterUnitEvent("UNIT_FACTION", unit)
-    f:RegisterUnitEvent("UNIT_THREAT_LIST_UPDATE", unit)
+    pcall(f.RegisterUnitEvent, f, "UNIT_THREAT_LIST_UPDATE", unit)
     f:RegisterUnitEvent("UNIT_SPELLCAST_START", unit)
     f:RegisterUnitEvent("UNIT_SPELLCAST_STOP", unit)
     f:RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_START", unit)
