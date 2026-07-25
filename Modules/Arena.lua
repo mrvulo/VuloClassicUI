@@ -129,12 +129,60 @@ function mod:RegisterOnEnable(handler)
     table.insert(self._onEnableHandlers, handler)
 end
 
+-- ns:RegisterEvent appends and unregisters by function identity, so a handler
+-- passed as an anonymous function can never be taken back out again - which is
+-- why this module had no OnDisable at all. Every handler in this file is named
+-- and recorded here instead. The five installed from OnEnableCore had a second
+-- problem on top: nothing de-duplicates, so each enable added another copy of
+-- all five, for the rest of the session.
+mod._events = {}
+mod._eventsLive = true
+
+function mod.RegEvent(event, fn)
+    mod._events[#mod._events + 1] = { event, fn }
+    ns:RegisterEvent(event, fn)
+end
+
+local function reinstallEvents()
+    if mod._eventsLive then return end
+    for i = 1, #mod._events do
+        ns:RegisterEvent(mod._events[i][1], mod._events[i][2])
+    end
+    mod._eventsLive = true
+end
+
+local function removeEvents()
+    if not mod._eventsLive then return end
+    for i = 1, #mod._events do
+        ns:UnregisterEvent(mod._events[i][1], mod._events[i][2])
+    end
+    mod._eventsLive = false
+end
+
 function mod:OnEnable()
+    -- before OnEnableCore, so the handlers it wires on a first enable are not
+    -- also caught by the re-install loop and registered twice
+    reinstallEvents()
     if self.OnEnableCore then self:OnEnableCore() end
     for _, h in ipairs(self._onEnableHandlers) do
         local ok, err = pcall(h, self)
         if not ok then
             ns:Print(L["|cffff5555Arena submodule OnEnable error:|r %s"], tostring(err))
+        end
+    end
+end
+
+mod._onDisableHandlers = {}
+function mod:RegisterOnDisable(handler)
+    table.insert(self._onDisableHandlers, handler)
+end
+
+function mod:OnDisable()
+    removeEvents()
+    for _, h in ipairs(self._onDisableHandlers) do
+        local ok, err = pcall(h, self)
+        if not ok then
+            ns:Print(L["|cffff5555Arena submodule OnDisable error:|r %s"], tostring(err))
         end
     end
 end
@@ -441,6 +489,21 @@ local function applyBGUnitWatch()
 end
 mod.ApplyBGUnitWatch = applyBGUnitWatch
 
+local function ev_core_refresh()
+    mod:Refresh()
+end
+
+local function ev_core_ADDON_LOADED(_, name)
+    if name == "Blizzard_ArenaUI" then mod:Refresh() end
+end
+
+local function ev_core_PLAYER_REGEN_ENABLED()
+    if pendingApply then pendingApply = false; mod:Refresh() end
+    applyBGUnitWatch()
+end
+
+local coreEventsWired = false
+
 function mod:OnEnableCore()
     installFontHooks()
     hookManageFramePositions()
@@ -450,16 +513,16 @@ function mod:OnEnableCore()
         applyArenaFonts(frame)
     end)
 
-    ns:RegisterEvent("PLAYER_LOGIN",          function() mod:Refresh() end)
-    ns:RegisterEvent("PLAYER_ENTERING_WORLD", function() mod:Refresh() end)
-    ns:RegisterEvent("ZONE_CHANGED_NEW_AREA", function() mod:Refresh() end)
-    ns:RegisterEvent("ADDON_LOADED", function(_, name)
-        if name == "Blizzard_ArenaUI" then mod:Refresh() end
-    end)
-    ns:RegisterEvent("PLAYER_REGEN_ENABLED", function()
-        if pendingApply then pendingApply = false; mod:Refresh() end
-        applyBGUnitWatch()
-    end)
+    -- Once per session: OnEnable re-installs the recorded set on a later enable,
+    -- and wiring these again here would add a second copy of each.
+    if not coreEventsWired then
+        coreEventsWired = true
+        mod.RegEvent("PLAYER_LOGIN",          ev_core_refresh)
+        mod.RegEvent("PLAYER_ENTERING_WORLD", ev_core_refresh)
+        mod.RegEvent("ZONE_CHANGED_NEW_AREA", ev_core_refresh)
+        mod.RegEvent("ADDON_LOADED",          ev_core_ADDON_LOADED)
+        mod.RegEvent("PLAYER_REGEN_ENABLED",  ev_core_PLAYER_REGEN_ENABLED)
+    end
 
     self:Refresh()
 end
@@ -576,6 +639,10 @@ end
 
 mod.ApplyLayout = applyLayout
 
+local function ev_layout_PLAYER_REGEN_ENABLED()
+    if mod._enabled then applyLayout() end
+end
+
 local layoutHooked = false
 local function hookLayout()
     if layoutHooked or not hooksecurefunc then return end
@@ -595,9 +662,7 @@ local function hookLayout()
     end
 
     -- catches updates the in-combat guard above skipped
-    ns:RegisterEvent("PLAYER_REGEN_ENABLED", function()
-        if mod._enabled then applyLayout() end
-    end)
+    mod.RegEvent("PLAYER_REGEN_ENABLED", ev_layout_PLAYER_REGEN_ENABLED)
 end
 
 local function moveSlot(slotIndex, direction)
@@ -805,23 +870,25 @@ local function installHooks()
     end
 end
 
-ns:RegisterEvent("UNIT_PORTRAIT_UPDATE", function(_, unit)
+local function ev_UNIT_PORTRAIT_UPDATE(_, unit)
     if not mod._enabled then return end
     if unit and unit:match("^arena[1-5]$") then
         local i = tonumber(unit:match("arena(%d)"))
         local frame = _G["ArenaEnemyFrame" .. i]
         if frame then applyToFrame(frame, i) end
     end
-end)
+end
+mod.RegEvent("UNIT_PORTRAIT_UPDATE", ev_UNIT_PORTRAIT_UPDATE)
 
-ns:RegisterEvent("ARENA_OPPONENT_UPDATE", function()
+local function ev_ARENA_OPPONENT_UPDATE()
     if not mod._enabled then return end
     if C_Timer and C_Timer.After then
         C_Timer.After(0.05, applyAll)
     else
         applyAll()
     end
-end)
+end
+mod.RegEvent("ARENA_OPPONENT_UPDATE", ev_ARENA_OPPONENT_UPDATE)
 
 mod:RegisterOnEnable(function()
     installHooks()
@@ -1110,7 +1177,7 @@ local function setCombatLog(active)
     end
 end
 
-ns:RegisterEvent("PLAYER_ENTERING_WORLD", function()
+local function ev_PLAYER_ENTERING_WORLD()
     local inArena = false
     if IsInInstance then
         local _, instanceType = IsInInstance()
@@ -1124,8 +1191,9 @@ ns:RegisterEvent("PLAYER_ENTERING_WORLD", function()
         C_Timer.After(2, requestTrinketInfo)
         C_Timer.After(6, function() requestTrinketInfo(); refreshAllTrinketsFromAPI() end)
     end
-end)
-ns:RegisterEvent("ARENA_OPPONENT_UPDATE", function(_, unit, eventType)
+end
+mod.RegEvent("PLAYER_ENTERING_WORLD", ev_PLAYER_ENTERING_WORLD)
+local function ev_ARENA_OPPONENT_UPDATE_2(_, unit, eventType)
     if eventType == "seen" then
         -- Ask the client what it knows; one opponent walking into view must not
         -- wipe the cooldowns we are already tracking for the others.
@@ -1134,18 +1202,21 @@ ns:RegisterEvent("ARENA_OPPONENT_UPDATE", function(_, unit, eventType)
             if unit then refreshTrinketFromAPI(unit) end
         end
     end
-end)
+end
+mod.RegEvent("ARENA_OPPONENT_UPDATE", ev_ARENA_OPPONENT_UPDATE_2)
 
 -- On this client ARENA_COOLDOWNS_UPDATE fires with no unit at all, so the
 -- refresh has to cover every opponent rather than keying off the argument.
-ns:RegisterEvent("ARENA_COOLDOWNS_UPDATE", function(_, unit)
+local function ev_ARENA_COOLDOWNS_UPDATE(_, unit)
     if not mod.db.trinketEnabled then return end
     if unit then refreshTrinketFromAPI(unit) else refreshAllTrinketsFromAPI() end
-end)
+end
+mod.RegEvent("ARENA_COOLDOWNS_UPDATE", ev_ARENA_COOLDOWNS_UPDATE)
 
-ns:RegisterEvent("ARENA_CROWD_CONTROL_SPELL_UPDATE", function(_, unit)
+local function ev_ARENA_CROWD_CONTROL_SPELL_UPDATE(_, unit)
     if unit then refreshTrinketFromAPI(unit) end
-end)
+end
+mod.RegEvent("ARENA_CROWD_CONTROL_SPELL_UPDATE", ev_ARENA_CROWD_CONTROL_SPELL_UPDATE)
 
 mod:AddOptionsSection("trinket", function()
     return {
@@ -1443,7 +1514,7 @@ local function setCombatLog(active)
     end
 end
 
-ns:RegisterEvent("PLAYER_ENTERING_WORLD", function()
+local function ev_PLAYER_ENTERING_WORLD_2()
     resetAll()
     local inArena = false
     if IsInInstance then
@@ -1452,7 +1523,8 @@ ns:RegisterEvent("PLAYER_ENTERING_WORLD", function()
     end
     if inArena then ensureUpdater() end
     setCombatLog(inArena)
-end)
+end
+mod.RegEvent("PLAYER_ENTERING_WORLD", ev_PLAYER_ENTERING_WORLD_2)
 
 mod:AddOptionsSection("dr", function()
     return {
@@ -1641,30 +1713,36 @@ mod:OnArenaFramesReady(function(frame, i)
     ensureCastbar(frame, i)
 end)
 
-ns:RegisterEvent("UNIT_SPELLCAST_START", function(_, unit)
+local function ev_UNIT_SPELLCAST_START(_, unit)
     if not mod._enabled or not mod.db.castbarEnabled or not isArenaUnit(unit) then return end
     startCast(unit, false)
-end)
-ns:RegisterEvent("UNIT_SPELLCAST_CHANNEL_START", function(_, unit)
+end
+mod.RegEvent("UNIT_SPELLCAST_START", ev_UNIT_SPELLCAST_START)
+local function ev_UNIT_SPELLCAST_CHANNEL_START(_, unit)
     if not mod._enabled or not mod.db.castbarEnabled or not isArenaUnit(unit) then return end
     startCast(unit, true)
-end)
-ns:RegisterEvent("UNIT_SPELLCAST_STOP", function(_, unit)
+end
+mod.RegEvent("UNIT_SPELLCAST_CHANNEL_START", ev_UNIT_SPELLCAST_CHANNEL_START)
+local function ev_UNIT_SPELLCAST_STOP(_, unit)
     if not mod._enabled or not isArenaUnit(unit) then return end
     stopCast(unit, false)
-end)
-ns:RegisterEvent("UNIT_SPELLCAST_CHANNEL_STOP", function(_, unit)
+end
+mod.RegEvent("UNIT_SPELLCAST_STOP", ev_UNIT_SPELLCAST_STOP)
+local function ev_UNIT_SPELLCAST_CHANNEL_STOP(_, unit)
     if not mod._enabled or not isArenaUnit(unit) then return end
     stopCast(unit, false)
-end)
-ns:RegisterEvent("UNIT_SPELLCAST_INTERRUPTED", function(_, unit)
+end
+mod.RegEvent("UNIT_SPELLCAST_CHANNEL_STOP", ev_UNIT_SPELLCAST_CHANNEL_STOP)
+local function ev_UNIT_SPELLCAST_INTERRUPTED(_, unit)
     if not mod._enabled or not isArenaUnit(unit) then return end
     stopCast(unit, true)
-end)
-ns:RegisterEvent("UNIT_SPELLCAST_FAILED", function(_, unit)
+end
+mod.RegEvent("UNIT_SPELLCAST_INTERRUPTED", ev_UNIT_SPELLCAST_INTERRUPTED)
+local function ev_UNIT_SPELLCAST_FAILED(_, unit)
     if not mod._enabled or not isArenaUnit(unit) then return end
     stopCast(unit, false)
-end)
+end
+mod.RegEvent("UNIT_SPELLCAST_FAILED", ev_UNIT_SPELLCAST_FAILED)
 
 mod:AddOptionsSection("castbar", function()
     return {
@@ -2404,7 +2482,7 @@ local function setPvPCombatLog(on)
     end
 end
 
-ns:RegisterEvent("PLAYER_ENTERING_WORLD", function()
+local function ev_PLAYER_ENTERING_WORLD_3()
     local inArena = false
     if IsInInstance then
         local _, instanceType = IsInInstance()
@@ -2421,12 +2499,13 @@ ns:RegisterEvent("PLAYER_ENTERING_WORLD", function()
         if mod.ResetRacials then mod.ResetRacials() end
         if mod.ResetDispels then mod.ResetDispels() end
     end
-end)
+end
+mod.RegEvent("PLAYER_ENTERING_WORLD", ev_PLAYER_ENTERING_WORLD_3)
 
 -- Gates opening is what starts the orb clock; the first opponent becoming
 -- visible is the closest reliable signal for it on this client.
 local gatesOpen = false
-ns:RegisterEvent("ARENA_OPPONENT_UPDATE", function(_, unit, eventType)
+local function ev_ARENA_OPPONENT_UPDATE_3(_, unit, eventType)
     if eventType ~= "seen" then return end
     if not gatesOpen then
         gatesOpen = true
@@ -2434,13 +2513,18 @@ ns:RegisterEvent("ARENA_OPPONENT_UPDATE", function(_, unit, eventType)
     end
     if mod.RefreshRacials then mod.RefreshRacials() end
     if unit and mod.AuraIconUpdate then mod.AuraIconUpdate(unit) end
-end)
+end
+mod.RegEvent("ARENA_OPPONENT_UPDATE", ev_ARENA_OPPONENT_UPDATE_3)
 
-ns:RegisterEvent("UNIT_AURA", function(_, unit)
+local function ev_UNIT_AURA(_, unit)
     if not mod._enabled then return end
     if unit and mod.AuraIconUpdate then mod.AuraIconUpdate(unit) end
-end)
+end
+mod.RegEvent("UNIT_AURA", ev_UNIT_AURA)
 
-ns:RegisterEvent("PLAYER_LEAVING_WORLD", function() gatesOpen = false end)
+local function ev_PLAYER_LEAVING_WORLD()
+    gatesOpen = false
+end
+mod.RegEvent("PLAYER_LEAVING_WORLD", ev_PLAYER_LEAVING_WORLD)
 
 end)(...);

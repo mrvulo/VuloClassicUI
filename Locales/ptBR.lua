@@ -2316,6 +2316,7 @@ local T = {
     ["|cffaaaaaaAdds an 'Open All' button to the mailbox. It takes every attachment and coin, skipping CoD and GM mail. Shift-click the button to ignore the filters and take everything.|r"] = "|cffaaaaaaAdiciona um botão «Abrir tudo» à caixa de correio. Ele pega todos os anexos e moedas, pulando encomendas com cobrança e correio de MJ. Shift+clique no botão para ignorar os filtros e pegar tudo.|r",
     ["|cffaaaaaaItems or macros also used by the key while fishing — only when ready (off cooldown, buff missing, conditions met), then it goes back to casting. Type an item name or ID, shift-click an item into the box, or paste a /macro.|r"] = "|cffaaaaaaItens ou macros que a tecla também usa enquanto pesca — só quando estão prontos (fora da recarga, sem o benefício, condições atendidas), depois volta a lançar. Digite o nome ou o ID de um item, Shift+clique para inserir um item, ou cole uma /macro.|r",
     ["|cffaaaaaaOne key does it all: cast, reel in, and apply a lure — then auto-loots. Set a key below, face some water, and press it.|r"] = "|cffaaaaaaUma tecla faz tudo: lançar, recolher e aplicar isca — depois saqueia sozinho. Defina uma tecla abaixo, vire-se para a água e pressione.|r",
+    ["|cffff5555Arena submodule OnDisable error:|r %s"] = "|cffff5555Erro em OnDisable do submódulo de Arena:|r %s",
 }
 
 ns:RegisterLocale("ptBR", T)

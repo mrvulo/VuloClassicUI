@@ -2316,6 +2316,7 @@ local T = {
     ["|cffaaaaaaAdds an 'Open All' button to the mailbox. It takes every attachment and coin, skipping CoD and GM mail. Shift-click the button to ignore the filters and take everything.|r"] = "|cffaaaaaa우편함에 모두 열기 단추를 추가합니다. 착불 우편과 GM 우편을 건너뛰고 모든 첨부물과 돈을 받습니다. 단추를 Shift+클릭하면 필터를 무시하고 전부 받습니다.|r",
     ["|cffaaaaaaItems or macros also used by the key while fishing — only when ready (off cooldown, buff missing, conditions met), then it goes back to casting. Type an item name or ID, shift-click an item into the box, or paste a /macro.|r"] = "|cffaaaaaa낚시 중에 키가 함께 사용하는 아이템이나 매크로입니다 — 준비된 경우에만(재사용 대기 없음, 효과 없음, 조건 충족), 그 뒤에는 다시 던집니다. 아이템 이름이나 ID를 입력하거나, Shift+클릭으로 아이템을 넣거나, /매크로를 붙여넣으세요.|r",
     ["|cffaaaaaaOne key does it all: cast, reel in, and apply a lure — then auto-loots. Set a key below, face some water, and press it.|r"] = "|cffaaaaaa키 하나로 모두 해결합니다: 던지기, 끌어올리기, 미띄 바르기 — 그리고 자동으로 획득합니다. 아래에서 키를 정하고 물을 바라본 뒤 누르세요.|r",
+    ["|cffff5555Arena submodule OnDisable error:|r %s"] = "|cffff5555투기장 하위 모듈 OnDisable 오류:|r %s",
 }
 
 ns:RegisterLocale("koKR", T)
