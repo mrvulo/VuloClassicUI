@@ -43,7 +43,10 @@ local mod = ns:RegisterModule("vtmanadisplay", {
     },
 })
 
-mod.tabs = {
+-- Real class icons rather than nine identical fallback cogs. They come from
+-- Blizzard's own atlas, so nothing ships and no client restart is needed.
+mod.tabs = {}
+for _, t in ipairs({
     { id = "priest",  label = "Priest"  },
     { id = "druid",   label = "Druid"   },
     { id = "hunter",  label = "Hunter"  },
@@ -53,7 +56,11 @@ mod.tabs = {
     { id = "shaman",  label = "Shaman"  },
     { id = "warlock", label = "Warlock" },
     { id = "warrior", label = "Warrior" },
-}
+}) do
+    local tex, coords = ns:GetClassIcon(t.id)
+    if tex then t.icon, t.iconCoords = tex, coords end
+    mod.tabs[#mod.tabs + 1] = t
+end
 
 -- classToken -> { onEnable, onDisable, getOptions }, registered by class files.
 mod.classTools = {}

@@ -62,6 +62,15 @@ const MAP = {
   fixbindsocket:      'diamond',
   fixcombatglow:      'sun',
   changelog:          'file-text',
+
+  // Aggregate pages from Modules/Pages.lua. Each one deliberately differs from
+  // the glyphs of the modules it collects, so a page and its members never look
+  // like the same entry: questlog owns book-open, chat owns message-circle,
+  // goldtracker owns coins.
+  pg_windows:         'app-window',
+  pg_gold:            'store',
+  pg_chat:            'messages-square',
+
   _fallback:          'settings',
   _dashboard:         'home',
 };

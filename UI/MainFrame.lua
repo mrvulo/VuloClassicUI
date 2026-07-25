@@ -657,7 +657,17 @@ function UI:BuildTabsForModule(key)
 
         if tab._icon then
             tab._icon:Show()
-            tab._icon:SetTexture(ns:GetModuleIcon(tabDef.id))
+            -- A tab may carry its own texture plus a crop (class icons live in
+            -- one atlas). Tabs are pooled, so the plain case has to put the
+            -- coordinates back or a reused tab keeps the previous tab's crop.
+            if tabDef.icon and tabDef.iconCoords then
+                tab._icon:SetTexture(tabDef.icon)
+                tab._icon:SetTexCoord(tabDef.iconCoords[1], tabDef.iconCoords[2],
+                                      tabDef.iconCoords[3], tabDef.iconCoords[4])
+            else
+                tab._icon:SetTexture(ns:GetModuleIcon(tabDef.id))
+                tab._icon:SetTexCoord(0, 1, 0, 1)
+            end
         end
         tab._text:ClearAllPoints()
         tab._text:SetPoint("LEFT", tab, "LEFT", 30, 0)
