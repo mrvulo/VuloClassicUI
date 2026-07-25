@@ -424,11 +424,6 @@ function UI:CreateToggle(parent, config)
     return container
 end
 
--- API compat: CreateCheckbox is an alias for CreateToggle
-function UI:CreateCheckbox(parent, config)
-    return UI:CreateToggle(parent, config)
-end
-
 -- Slider config: { label, tooltip?, min, max, step, get, set, width? }
 -- Rounds a flat colour texture with one of the bundled masks. Turning texel
 -- snapping off matters as much as the mask: with it on, small rounded art is

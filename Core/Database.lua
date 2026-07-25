@@ -11,7 +11,6 @@ ns.defaults = {
     profile = {
         ui = {
             mainFramePos = { point = "CENTER", relPoint = "CENTER", x = 0, y = 0 },
-            scale = 1.0,
         },
         editmode = {
             grid = { show = false, snap = true, size = 32 },
@@ -497,11 +496,6 @@ function ns:MigrateDarkSkinPerChar()
         end
     end
     VuloClassicUICharDB.migratedDarkSkin = true
-end
-
-function ns:GetModuleDB(key)
-    if not ns.db or not ns.db.profile then return nil end
-    return ns.db.profile.modules[key]
 end
 
 -- ---------------------------------------------------------------------------

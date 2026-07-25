@@ -1021,7 +1021,7 @@ local function layoutFlat()
     for i = 1, #groupHeaders do groupHeaders[i]:Hide() end
     local rows = math.max(1, math.ceil(math.max(n, 1) / cols))
     local h = rows * (BTN + GAP) - GAP + yExtra
-    h = h + GAP + placeDropSlot(h + GAP)
+    h = h + GAP + placeDropSlot(h + GAP, blocked)
     finishSize(cols, h, blocked)
 end
 
@@ -1149,7 +1149,7 @@ local function layoutCategorized()
     for i = btnN + 1, #buttons do buttons[i]:Hide() end
     for i = hdrN + 1, #sectionHeaders do sectionHeaders[i]:Hide() end
     for i = ghN + 1, #groupHeaders do groupHeaders[i]:Hide() end
-    local dropH = placeDropSlot(y)
+    local dropH = placeDropSlot(y, blocked)
     finishSize(cols, y + dropH, blocked, (ghN > 0) and GROUP_INDENT or 0)
 end
 
@@ -1218,7 +1218,7 @@ layoutOneBag = function()
     for i = btnN + 1, #buttons do buttons[i]:Hide() end
     for i = keyHeaderN + 1, #sectionHeaders do sectionHeaders[i]:Hide() end
     for i = 1, #groupHeaders do groupHeaders[i]:Hide() end
-    local dropH = placeDropSlot(y)
+    local dropH = placeDropSlot(y, blocked)
     finishSize(cols, y + dropH, blocked)
 end
 
@@ -1265,7 +1265,7 @@ layoutMultiBag = function()
     for i = btnN + 1, #buttons do buttons[i]:Hide() end
     for i = hdrN + 1, #sectionHeaders do sectionHeaders[i]:Hide() end
     for i = 1, #groupHeaders do groupHeaders[i]:Hide() end
-    local dropH = placeDropSlot(y)
+    local dropH = placeDropSlot(y, blocked)
     finishSize(cols, math.max(y + dropH, BTN), blocked)
 end
 

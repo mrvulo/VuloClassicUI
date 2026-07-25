@@ -154,7 +154,3 @@ function ns:ShowPopupMenu(entries, anchor)
         menu:Show()
     end
 end
-
-function ns:HidePopupMenu()
-    if _menuFrame and _menuFrame:IsShown() then _menuFrame:Hide() end
-end

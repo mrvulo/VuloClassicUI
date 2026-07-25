@@ -200,7 +200,6 @@ local UnitIsPlayer, UnitCanAttack, UnitIsUnit = UnitIsPlayer, UnitCanAttack, Uni
 local UnitIsTapDenied = UnitIsTapDenied
 local UnitCastingInfo, UnitChannelInfo = UnitCastingInfo, UnitChannelInfo
 local UnitThreatSituation, UnitAffectingCombat = UnitThreatSituation, UnitAffectingCombat
-local CLASS_COLORS = RAID_CLASS_COLORS or CUSTOM_CLASS_COLORS
 local format, floor = string.format, math.floor
 
 local BUNDLED_TEXTURES = {
@@ -258,8 +257,14 @@ local function getNPCTitle(unit)
     return txt
 end
 
+-- Custom class colours have to win, and the table has to be looked up when the
+-- colour is needed. The old version took RAID_CLASS_COLORS first - which is
+-- always defined, so the custom branch was unreachable - and did it once at file
+-- load, before an addon providing custom colours had necessarily loaded.
 local function classColor(class)
-    local c = class and CLASS_COLORS and CLASS_COLORS[class]
+    if not class then return nil end
+    local t = _G.CUSTOM_CLASS_COLORS or _G.RAID_CLASS_COLORS
+    local c = t and t[class]
     if c then return c.r, c.g, c.b end
     return nil
 end
@@ -1703,10 +1708,6 @@ local function refreshPlate(f)
     paintTarget(f, isTarget)
     paintExec(f, isTarget)
     paintFocus(f, UnitIsUnit(unit, "focus"))
-end
-
-local function refreshAllPlates()
-    for _, f in pairs(ns.plates) do refreshPlate(f) end
 end
 
 local function restyleAllPlates()

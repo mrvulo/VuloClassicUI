@@ -20,12 +20,6 @@ function ns:InCombat()
     return InCombatLockdown and InCombatLockdown()
 end
 
-function ns:Clamp(v, lo, hi)
-    if v < lo then return lo end
-    if v > hi then return hi end
-    return v
-end
-
 -- 1 physical pixel == (768 / physicalScreenHeight) coord units at scale 1.0, divided by the frame's effective scale.
 function ns:Pixel(frame, n)
     local _, physH = GetPhysicalScreenSize()

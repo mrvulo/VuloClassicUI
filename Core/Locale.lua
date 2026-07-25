@@ -53,15 +53,6 @@ function ns:RegisterLocale(code, tbl)
     end
 end
 
-function ns:GetActiveLocale()
-    return resolveLocale()
-end
-
-function ns:HasTranslation(key)
-    local data = ns.localeData[resolveLocale()]
-    return data and data[key] ~= nil
-end
-
 -- Takes full effect only on /reload: module strings are evaluated at file-load time.
 function ns:SetLocaleOverride(code)
     _G.VuloClassicUIDB = _G.VuloClassicUIDB or {}
