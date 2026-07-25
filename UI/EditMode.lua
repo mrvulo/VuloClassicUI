@@ -107,11 +107,12 @@ local function build()
     local fill = dim:CreateTexture(nil, "BACKGROUND")
     fill:SetAllPoints(dim)
     fill:SetColorTexture(0, 0, 0, 0.35)
+    dim.fill = fill
     dim:Hide()
 
     -- DIALOG keeps the toolbar above the movers (HIGH) so its controls stay clickable.
     toolbar = CreateFrame("Frame", "VCUIEditToolbar", UIParent)
-    toolbar:SetSize(960, 64)
+    toolbar:SetSize(1120, 64)
     toolbar:SetPoint("TOP", UIParent, "TOP", 0, -140)
     toolbar:SetFrameStrata("DIALOG")
     toolbar:SetClampedToScreen(true)
@@ -137,19 +138,36 @@ local function build()
 
     local ROWY = -32
 
+    -- Changes already live in the DB, so this is a checkpoint rather than a
+    -- write: it re-bases the snapshot so Discard returns here, not to the state
+    -- the session opened in, and lets you keep editing.
+    local saveBtn = UI:CreateButton(toolbar, {
+        label   = L["Save"],
+        primary = true,
+        width   = 96,
+        tooltip = L["Keep the current arrangement and carry on editing. Discard then returns to this point instead of to how things looked when Edit Mode opened."],
+        onClick = function()
+            if ns.SnapshotEditState then
+                ns:ClearEditSnapshot()
+                ns:SnapshotEditState()
+            end
+            ns:Print(L["Window positions saved."])
+        end,
+    })
+    saveBtn:SetPoint("TOPLEFT", toolbar, "TOPLEFT", 14, ROWY)
+
     local exitBtn = UI:CreateButton(toolbar, {
         label   = L["Exit"],
-        primary = true,
         width   = 90,
-        tooltip = L["Close Edit Mode and lock all windows."],
+        tooltip = L["Close Edit Mode and lock all windows. Your changes stay applied."],
         onClick = function() ns:SetEditMode(false) end,
     })
-    exitBtn:SetPoint("TOPLEFT", toolbar, "TOPLEFT", 14, ROWY)
+    exitBtn:SetPoint("LEFT", saveBtn, "RIGHT", 8, 0)
 
     local discardBtn = UI:CreateButton(toolbar, {
         label   = L["Discard"],
         width   = 96,
-        tooltip = L["Discard changes and revert every window to how it was when Edit Mode opened."],
+        tooltip = L["Discard changes and revert every window to the last save point, or to how it was when Edit Mode opened."],
         onClick = function() StaticPopup_Show("VCUI_EDIT_DISCARD") end,
     })
     discardBtn:SetPoint("LEFT", exitBtn, "RIGHT", 8, 0)
@@ -178,10 +196,13 @@ local function build()
     cap:SetTextColor(0.65, 0.65, 0.70)
     cap:SetPoint("LEFT", snapTog, "RIGHT", 16, 0)
 
+    -- width is the TRACK only: the minus button, value and plus hang off its
+    -- right edge for a further ~84px that no anchor accounts for, so the
+    -- buttons on the right have to be placed clear of track width + 84.
     local sizeSlider = UI:CreateSlider(toolbar, {
         label = "",
         min   = 8, max = 128, step = 4,
-        width = 80,
+        width = 70,
         get   = function() return gridState().size end,
         set   = function(_, v) gridState().size = v; refreshGrid() end,
     })
@@ -189,7 +210,7 @@ local function build()
 
     local resetBtn = UI:CreateButton(toolbar, {
         label   = L["Reset"],
-        width   = 130,
+        width   = 120,
         tooltip = L["Reset all VuloUI window positions to the screen centre."],
         onClick = function() StaticPopup_Show("VCUI_EDIT_RESET") end,
     })
@@ -197,7 +218,7 @@ local function build()
 
     local layoutsBtn = UI:CreateButton(toolbar, {
         label   = L["Layouts"],
-        width   = 120,
+        width   = 110,
         tooltip = L["Save, load, export and import named window layouts."],
         onClick = function() if ns.ToggleLayouts then ns:ToggleLayouts() end end,
     })
@@ -225,6 +246,8 @@ function ns:SetEditMode(state, opts)
     build()
     ns._editActive = state
     if state then
+        -- a drag left over from a session that ended abnormally must not resume
+        if ns.AbortMoverDrag then ns:AbortMoverDrag() end
         if not ns._editSnapshot and ns.SnapshotEditState then ns:SnapshotEditState() end
         if ns.PrepareBlizzMovers then ns:PrepareBlizzMovers() end
         dim:Show()
@@ -232,13 +255,13 @@ function ns:SetEditMode(state, opts)
         refreshGrid()
     else
         -- Abort an in-flight drag (combat auto-exit can fire mid-drag) or the frame sticks to the cursor.
-        local d = ns._draggingMover
-        if d and d.target and d.target.StopMovingOrSizing then d.target:StopMovingOrSizing() end
+        if ns.AbortMoverDrag then ns:AbortMoverDrag() end
         if ns.CancelAnchorPick then ns:CancelAnchorPick() end
         if ns.DeselectMover then ns:DeselectMover() end
         if ns.HideLayouts then ns:HideLayouts() end
         ns._draggingMover = nil
         if ns._hideGuides then ns._hideGuides() end
+        if ns._hideLinks  then ns._hideLinks()  end
         dim:Hide()
         toolbar:Hide()
         if not (opts and opts.keepSnapshot) and ns.ClearEditSnapshot then ns:ClearEditSnapshot() end
@@ -261,7 +284,7 @@ StaticPopupDialogs["VCUI_EDIT_RESET"] = {
 }
 
 StaticPopupDialogs["VCUI_EDIT_DISCARD"] = {
-    text         = L["Discard all changes made since opening Edit Mode?"],
+    text         = L["Discard all changes made since the last save?"],
     button1      = YES,
     button2      = NO,
     OnAccept     = function()
@@ -340,7 +363,9 @@ function ns:RefreshMoverStyles()
         if m.label then m.label:SetShown(not quiet) end
         if m.hint  then m.hint:SetShown(not quiet) end
         if m.border and m.border.SetBackdropBorderColor then
-            if quiet then
+            if m._rejectUntil and m._rejectUntil > GetTime() then
+                -- the reject flash owns this border until it expires
+            elseif quiet then
                 m.border:SetBackdropBorderColor(accent.r * 0.6, accent.g * 0.6, accent.b * 0.6, 0.35)
             elseif primary then
                 m.border:SetBackdropBorderColor(accent.r, accent.g, accent.b, 1)
@@ -354,6 +379,10 @@ function ns:RefreshMoverStyles()
 end
 
 local panel
+
+-- Shared dropdown column, so every labelled dropdown starts at the same x and
+-- ends flush with the 264-wide buttons (18 + 264 = 282 = DROP_X + DROP_W).
+local DROP_X, DROP_W = 118, 164
 
 local ANCHOR_POINTS = {
     { value = "CENTER",      text = "Center" },
@@ -461,7 +490,12 @@ local function buildPanel()
         get = function() local x = moverXY(ns._selectedMover); return math.floor(x + 0.5) end,
         set = function(_, v)
             local m = ns._selectedMover
-            if m and v then ns:MoverSetCenter(m, v, m.opts.db.y or 0); refreshPanel() end
+            if not (m and v) then return end
+            -- The box displays whole units; committing an unchanged value would
+            -- round a pixel-snapped position back onto the integer grid.
+            local cur = moverXY(m)
+            if math.floor(cur + 0.5) == v then return end
+            ns:MoverSetCenter(m, v, m.opts.db.y or 0); refreshPanel()
         end,
     })
     panel.xBox:SetPoint("TOPLEFT", panel, "TOPLEFT", 18, -62)
@@ -471,7 +505,10 @@ local function buildPanel()
         get = function() local _, y = moverXY(ns._selectedMover); return math.floor(y + 0.5) end,
         set = function(_, v)
             local m = ns._selectedMover
-            if m and v then ns:MoverSetCenter(m, m.opts.db.x or 0, v); refreshPanel() end
+            if not (m and v) then return end
+            local _, cur = moverXY(m)
+            if math.floor(cur + 0.5) == v then return end
+            ns:MoverSetCenter(m, m.opts.db.x or 0, v); refreshPanel()
         end,
     })
     panel.yBox:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -18, -62)
@@ -503,7 +540,7 @@ local function buildPanel()
     panel.anchorToggle:SetSize(44, 22)
 
     panel.anchorDrop = UI:CreateDropdown(panel, {
-        label = "", width = 150, values = ANCHOR_POINTS,
+        label = "", width = DROP_W, values = ANCHOR_POINTS,
         tooltip = L["Which screen point the frame is pinned to (keeps it put across resolution changes)."],
         get = function() local m = ns._selectedMover; return (m and m.opts.db.anchor) or "CENTER" end,
         set = function(_, v) local m = ns._selectedMover; if m then ns:MoverSetAnchor(m, v) end end,
@@ -515,7 +552,7 @@ local function buildPanel()
     panel.linkCap:SetTextColor(0.55, 0.55, 0.62)
 
     panel.linkDrop = UI:CreateDropdown(panel, {
-        label = "", width = 172, values = {},
+        label = "", width = DROP_W, values = {},
         tooltip = L["Pins this window to another one - it then moves along whenever that window is moved. Dragging this window keeps the pin and just updates the distance."],
         get = function()
             local m = ns._selectedMover
@@ -526,7 +563,7 @@ local function buildPanel()
             local m = ns._selectedMover
             if not m then return end
             if not ns:SetMoverLink(m, v ~= "" and v or nil) then
-                ns:Print(L["Not possible - that would create a loop."])
+                ns:FlashMoverReject(m, L["Not possible - that would create a loop."])
             end
             if panel.linkDrop._button and panel.linkDrop._button._refresh then
                 panel.linkDrop._button._refresh()
@@ -551,7 +588,7 @@ local function buildPanel()
     panel.sideCap:SetTextColor(0.55, 0.55, 0.62)
 
     panel.sideDrop = UI:CreateDropdown(panel, {
-        label = "", width = 150, values = SIDE_POINTS,
+        label = "", width = DROP_W, values = SIDE_POINTS,
         tooltip = L["Which side of the target window this one sticks to. The gap is kept edge-to-edge, so it survives either window being resized."],
         get = function()
             local m = ns._selectedMover
@@ -561,6 +598,55 @@ local function buildPanel()
             local m = ns._selectedMover
             if m and ns:SetMoverLinkSide(m, v) then ns:OnMoverRepositioned(m) end
         end,
+    })
+
+    -- Own labelled row each: side by side they overflow the panel and give no
+    -- clue which box is width and which is height.
+    panel.widthCap = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    UI.Font(panel.widthCap, 10)
+    panel.widthCap:SetText(L["WIDTH LIKE"])
+    panel.widthCap:SetTextColor(0.55, 0.55, 0.62)
+
+    panel.heightCap = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    UI.Font(panel.heightCap, 10)
+    panel.heightCap:SetText(L["HEIGHT LIKE"])
+    panel.heightCap:SetTextColor(0.55, 0.55, 0.62)
+
+    local function sizeSetter(axis)
+        return function(_, v)
+            local m = ns._selectedMover
+            if not m then return end
+            if not ns:SetMoverSizeLink(m, v ~= "" and v or nil, axis) then
+                ns:FlashMoverReject(m, L["Not possible - that would create a loop."])
+                return
+            end
+            if v ~= "" and not ns:MoverSizeMatchSticks(m, axis) then
+                ns:Print(L["This window sets its own size - the match will not stick."])
+            end
+            ns:RelayoutEditPanel()
+        end
+    end
+
+    panel.widthDrop = UI:CreateDropdown(panel, {
+        label = "", width = DROP_W, values = {},
+        tooltip = L["Takes its width from another window and keeps it."],
+        get = function()
+            local m = ns._selectedMover
+            local e = m and m.key and ns:GetMoverSizeLink(m.key)
+            return (e and e.w) or ""
+        end,
+        set = sizeSetter("w"),
+    })
+
+    panel.heightDrop = UI:CreateDropdown(panel, {
+        label = "", width = DROP_W, values = {},
+        tooltip = L["Takes its height from another window and keeps it."],
+        get = function()
+            local m = ns._selectedMover
+            local e = m and m.key and ns:GetMoverSizeLink(m.key)
+            return (e and e.h) or ""
+        end,
+        set = sizeSetter("h"),
     })
 
     panel.freeCap = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -597,7 +683,7 @@ local function buildPanel()
     hint:SetJustifyH("LEFT")
     hint:SetSpacing(2)
     hint:SetTextColor(0.55, 0.55, 0.62)
-    hint:SetText(L["Drag a box, or hover it and use the arrow keys (Shift = 5px). Shift+click to select several and drag them together."])
+    hint:SetText(L["Drag a box, or hover it and use the arrow keys (Shift = 5px). Hold Shift while dragging to lock one axis. Shift+right-click hides a box that is in the way."])
 
     panel._acc = 0
     panel:SetScript("OnUpdate", function(self, elapsed)
@@ -643,7 +729,7 @@ local function layoutPanel(m)
         panel.anchorToggle:ClearAllPoints()
         panel.anchorToggle:SetPoint("LEFT", panel.anchorCap, "RIGHT", 10, 0)
         panel.anchorDrop:ClearAllPoints()
-        panel.anchorDrop:SetPoint("LEFT", panel.anchorToggle, "RIGHT", 12, 0)
+        panel.anchorDrop:SetPoint("LEFT", panel, "TOPLEFT", DROP_X, y - 13)
         refreshAnchorEnabled(m)
         y = y - 36
     else
@@ -651,28 +737,36 @@ local function layoutPanel(m)
     end
 
     if m and m.key then
-        panel.linkCap:Show(); panel.linkDrop:Show(); panel.pickBtn:Show()
-        panel.linkCap:ClearAllPoints()
-        panel.linkCap:SetPoint("LEFT", panel, "TOPLEFT", 18, y - 13)
-        panel.linkDrop:ClearAllPoints()
-        panel.linkDrop:SetPoint("LEFT", panel.linkCap, "RIGHT", 10, 0)
-        y = y - 32
+        -- Every dropdown starts in the same column and ends flush with the
+        -- full-width buttons; anchoring each one to its own caption instead made
+        -- them start at three different x positions.
+        local function dropRow(cap, drop)
+            cap:Show(); drop:Show()
+            cap:ClearAllPoints()
+            cap:SetPoint("LEFT", panel, "TOPLEFT", 18, y - 13)
+            drop:ClearAllPoints()
+            drop:SetPoint("LEFT", panel, "TOPLEFT", DROP_X, y - 13)
+            y = y - 32
+        end
+
+        panel.pickBtn:Show()
+        dropRow(panel.linkCap, panel.linkDrop)
         panel.pickBtn:ClearAllPoints()
-        panel.pickBtn:SetPoint("TOPLEFT", panel, "TOPLEFT", 18, y - 8)
-        y = y - 30
+        panel.pickBtn:SetPoint("TOPLEFT", panel, "TOPLEFT", 18, y - 6)
+        y = y - 36
         if ns:GetMoverLink(m.key) then
-            panel.sideCap:Show(); panel.sideDrop:Show()
-            panel.sideCap:ClearAllPoints()
-            panel.sideCap:SetPoint("LEFT", panel, "TOPLEFT", 18, y - 13)
-            panel.sideDrop:ClearAllPoints()
-            panel.sideDrop:SetPoint("LEFT", panel.sideCap, "RIGHT", 10, 0)
-            y = y - 36
+            dropRow(panel.sideCap, panel.sideDrop)
         else
             panel.sideCap:Hide(); panel.sideDrop:Hide()
         end
+        dropRow(panel.widthCap, panel.widthDrop)
+        dropRow(panel.heightCap, panel.heightDrop)
+        y = y - 6
     else
         panel.linkCap:Hide(); panel.linkDrop:Hide(); panel.pickBtn:Hide()
         panel.sideCap:Hide(); panel.sideDrop:Hide()
+        panel.widthCap:Hide(); panel.widthDrop:Hide()
+        panel.heightCap:Hide(); panel.heightDrop:Hide()
     end
 
     panel.freeCap:Show(); panel.freeToggle:Show()
@@ -709,6 +803,31 @@ local function rebuildLinkValues(m)
     panel.linkDrop._vcConfig.values = vals
 end
 
+-- Same idea for the size dropdowns, but the loop test is per axis.
+local function rebuildSizeValues(m)
+    if not (panel and panel.widthDrop and panel.widthDrop._vcConfig) then return end
+    local function build(axis)
+        local vals = { { value = "", text = L["- none -"] } }
+        if m and m.key then
+            local sorted = {}
+            for _, other in ipairs(ns._movers) do
+                if other ~= m and other.key
+                    and not ns:MoverSizeWouldCycle(m.key, other.key, axis) then
+                    sorted[#sorted + 1] = {
+                        value = other.key,
+                        text  = (other.opts and other.opts.label) or other.key,
+                    }
+                end
+            end
+            table.sort(sorted, function(a, b) return tostring(a.text) < tostring(b.text) end)
+            for _, v in ipairs(sorted) do vals[#vals + 1] = v end
+        end
+        return vals
+    end
+    panel.widthDrop._vcConfig.values  = build("w")
+    panel.heightDrop._vcConfig.values = build("h")
+end
+
 local function refreshCaps(m)
     if m and m.opts and m.opts.scalable and panel.scaleSlider._vcSetup then
         panel.scaleSlider._vcSetup(panel.scaleSlider, panel.scaleSlider._vcConfig)
@@ -724,6 +843,10 @@ local function refreshCaps(m)
     end
     if panel.sideDrop and panel.sideDrop._button and panel.sideDrop._button._refresh then
         panel.sideDrop._button._refresh()
+    end
+    rebuildSizeValues(m)
+    for _, dd in ipairs({ panel.widthDrop, panel.heightDrop }) do
+        if dd and dd._button and dd._button._refresh then dd._button._refresh() end
     end
     if panel.freeToggle._refresh then panel.freeToggle._refresh() end
 end
@@ -793,9 +916,17 @@ end
 local pickHint
 function ns:IsAnchorPicking() return ns._anchorPick ~= nil end
 
+-- The screen visibly darkens while picking, so it reads as a distinct mode.
+local function setPickDim(on)
+    if dim and dim.fill then
+        dim.fill:SetColorTexture(0, 0, 0, on and 0.6 or 0.35)
+    end
+end
+
 function ns:BeginAnchorPick(child)
     if not (child and child.key and ns:IsEditModeActive()) then return end
     ns._anchorPick = child
+    setPickDim(true)
     if not pickHint and dim then
         pickHint = dim:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
         pickHint:SetPoint("TOP", UIParent, "TOP", 0, -230)
@@ -809,6 +940,7 @@ end
 
 function ns:CancelAnchorPick()
     ns._anchorPick = nil
+    setPickDim(false)
     if pickHint then pickHint:Hide() end
 end
 
@@ -820,7 +952,7 @@ function ns:AnchorPickPick(targetMover)
     if ns:SetMoverLink(child, targetMover.key) then
         ns:OnMoverRepositioned(targetMover)   -- settle the child onto its new anchor
     else
-        ns:Print(L["Not possible - that would create a loop."])
+        ns:FlashMoverReject(targetMover, L["Not possible - that would create a loop."])
     end
     if ns._selectedMover == child then ns:RelayoutEditPanel() end
 end
@@ -997,6 +1129,147 @@ local function drawMeasures(mover, moverX, moverY)
     end
 end
 
+-- ---------------------------------------------------------------------------
+-- Rejection feedback: a refused action (loop, self-anchor) flashes the offending
+-- box red and floats the reason at the cursor. A chat line is too easy to miss
+-- while you are looking at the window you just clicked.
+
+local rejectDriver, rejectHint
+
+local function ensureReject()
+    if rejectDriver then return end
+    rejectDriver = CreateFrame("Frame", nil, UIParent)
+    rejectDriver:Hide()
+    rejectHint = rejectDriver:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    UI.Font(rejectHint, 12)
+    rejectHint:SetTextColor(1, 0.35, 0.3)
+    rejectDriver:SetFrameStrata("TOOLTIP")
+    rejectDriver:SetAllPoints(UIParent)
+end
+
+function ns:FlashMoverReject(mover, text)
+    ensureReject()
+    local until_ = GetTime() + 2.0
+    if mover and mover.border and mover.border.SetBackdropBorderColor then
+        mover._rejectUntil = until_
+    end
+    rejectHint:SetText(text or "")
+    rejectDriver:Show()
+    rejectDriver:SetScript("OnUpdate", function(self)
+        local left = until_ - GetTime()
+        if left <= 0 then
+            self:SetScript("OnUpdate", nil)
+            self:Hide()
+            if mover then mover._rejectUntil = nil end
+            if ns.RefreshMoverStyles then ns:RefreshMoverStyles() end
+            return
+        end
+        local cx, cy = GetCursorPosition()
+        local s = UIParent:GetEffectiveScale()
+        if cx and s and s > 0 then
+            rejectHint:ClearAllPoints()
+            rejectHint:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT",
+                cx / s + 18, cy / s + 18)
+        end
+        rejectHint:SetAlpha(math.min(1, left / 0.6))
+        if mover and mover.border and mover.border.SetBackdropBorderColor then
+            local p = 0.5 + 0.5 * math.abs(math.sin(GetTime() * 10))
+            mover.border:SetBackdropBorderColor(1, 0.2, 0.15, p)
+        end
+    end)
+end
+
+-- ---------------------------------------------------------------------------
+-- Anchor connector lines: every window pinned to another draws a line to it,
+-- with a pulse travelling child -> parent so the direction of the link is
+-- obvious. Only drawn for windows you are touching, or the screen turns into a
+-- spider web the moment more than a couple of links exist.
+
+local linkFrame, linePool, dotPool = nil, {}, {}
+local LINK_CYCLE = 2.0    -- seconds per pulse
+local LINK_SWEEP = 0.6    -- share of the cycle the pulse is actually moving
+
+local function ensureLinkFrame()
+    if linkFrame then return end
+    linkFrame = CreateFrame("Frame", "VCUIEditLinks", UIParent)
+    linkFrame:SetAllPoints(UIParent)
+    linkFrame:SetFrameStrata("MEDIUM")   -- above the dim, below the mover boxes
+    linkFrame:SetFrameLevel(20)
+    linkFrame:EnableMouse(false)
+end
+
+-- frame centre in UIParent units, measured from the screen's bottom-left
+local function uiCenter(f)
+    if not (f and f.GetCenter) then return nil end
+    local cx, cy = f:GetCenter()
+    if not cx then return nil end
+    local us = UIParent:GetEffectiveScale() or 1
+    if us == 0 then return nil end
+    local s = (f:GetEffectiveScale() or 1) / us
+    return cx * s, cy * s
+end
+
+local function hideLinks()
+    for _, l in ipairs(linePool) do l:Hide() end
+    for _, d in ipairs(dotPool) do d:Hide() end
+end
+
+local function drawLinks()
+    ensureLinkFrame()
+    hideLinks()
+    if not ns:IsEditModeActive() then return end
+    local now  = GetTime()
+    local used = 0
+    for _, child in ipairs(ns._movers) do
+        local link = child.key and ns:GetMoverLink(child.key)
+        if link and child:IsShown() then
+            local parent = ns:GetMoverByKey(link.to)
+            if parent and parent.target and parent:IsShown() then
+                local touched = child == ns._activeMover or parent == ns._activeMover
+                    or child == ns._draggingMover or parent == ns._draggingMover
+                    or ns:IsSelected(child) or ns:IsSelected(parent)
+                local cx, cy = uiCenter(child.target)
+                local px, py = uiCenter(parent.target)
+                if touched and cx and px then
+                    used = used + 1
+                    local line = linePool[used]
+                    if not line then
+                        line = linkFrame:CreateLine(nil, "ARTWORK")
+                        line:SetThickness(2)
+                        linePool[used] = line
+                    end
+                    line:ClearAllPoints()
+                    line:SetStartPoint("CENTER", child.target)
+                    line:SetEndPoint("CENTER", parent.target)
+                    line:SetColorTexture(accent.r, accent.g, accent.b, 0.55)
+                    line:Show()
+
+                    local dot = dotPool[used]
+                    if not dot then
+                        dot = linkFrame:CreateTexture(nil, "OVERLAY")
+                        dot:SetSize(7, 7)
+                        dot:SetBlendMode("ADD")
+                        dotPool[used] = dot
+                    end
+                    -- ease the pulse across the line, then rest for the remainder
+                    local phase = (now % LINK_CYCLE) / LINK_CYCLE
+                    if phase <= LINK_SWEEP then
+                        local t = phase / LINK_SWEEP
+                        t = t * t * (3 - 2 * t)          -- smoothstep
+                        local a = math.min(1, math.min(t, 1 - t) * 6)
+                        dot:SetColorTexture(accent.r, accent.g, accent.b, 0.9 * a)
+                        dot:ClearAllPoints()
+                        dot:SetPoint("CENTER", linkFrame, "BOTTOMLEFT",
+                            cx + (px - cx) * t, cy + (py - cy) * t)
+                        dot:Show()
+                    end
+                end
+            end
+        end
+    end
+end
+ns._hideLinks = hideLinks
+
 local MAG_THRESH = 12
 
 -- Math runs in UIParent units (where guides are drawn); returned dx/dy convert back to frame-local, lineX/lineY stay UI-space.
@@ -1050,10 +1323,18 @@ end
 
 function ns:EditResolveDrop(mover, x, y)
     local g = gridState()
-    local r = (ns.GetScaleRatio and mover.target) and ns:GetScaleRatio(mover.target) or 1
+    local t = mover.target
+    local r = (ns.GetScaleRatio and t) and ns:GetScaleRatio(t) or 1
     local dx, lineX, dy, lineY = computeSnap(mover, x, y)
     if dx then x = x + dx elseif g.snap then x = snapVal(x * r, g.size) / r end
     if dy then y = y + dy elseif g.snap then y = snapVal(y * r, g.size) / r end
+    -- Pixel grid is the last resort only: an edge snap already sits exactly on
+    -- the neighbour's edge and a grid snap on its line, so re-rounding either
+    -- would nudge it a pixel off the thing it was just aligned to.
+    if t then
+        if not dx and not g.snap then x = ns:PixelSnapCenter(x, t:GetWidth() or 0, t) end
+        if not dy and not g.snap then y = ns:PixelSnapCenter(y, t:GetHeight() or 0, t) end
+    end
     drawGuides(dx and lineX or nil, dy and lineY or nil)
     return x, y
 end
@@ -1118,6 +1399,17 @@ cycleDriver:SetScript("OnUpdate", function(_, elapsed)
     if cycleAcc < 0.15 then return end
     cycleAcc = 0
     updateCycle()
+end)
+
+-- Connector lines need their own, faster clock: the pulse has to look smooth.
+local linkDriver = CreateFrame("Frame")
+local linkAcc = 0
+linkDriver:SetScript("OnUpdate", function(_, elapsed)
+    if not ns:IsEditModeActive() then return end
+    linkAcc = linkAcc + elapsed
+    if linkAcc < 0.03 then return end
+    linkAcc = 0
+    drawLinks()
 end)
 
 -- Layouts live in ns.db.global so they are shared across profiles; capture/apply lives in Core/Mover.lua.

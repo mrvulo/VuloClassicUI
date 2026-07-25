@@ -93,6 +93,14 @@ local function linkStore()
     return p.moverLinks
 end
 
+-- Declared alongside linkStore because the edit-mode snapshot below reads both.
+local function sizeStore()
+    local p = ns.db and ns.db.profile
+    if not p then return nil end
+    p.moverSizeLinks = p.moverSizeLinks or {}
+    return p.moverSizeLinks
+end
+
 function ns:GetMoverByKey(key)
     if not key then return nil end
     for _, m in ipairs(ns._movers) do
@@ -310,6 +318,13 @@ function ns:SnapshotEditState()
             end
         end
     end
+    snap.sizeLinks = {}
+    local sstore = sizeStore()
+    if sstore then
+        for k, e in pairs(sstore) do
+            if type(e) == "table" then snap.sizeLinks[k] = { w = e.w, h = e.h } end
+        end
+    end
     ns._editSnapshot = snap
 end
 
@@ -327,6 +342,12 @@ function ns:RestoreEditState()
             store[k] = { to = l.to, side = l.side, dx = l.dx, dy = l.dy }
         end
     end
+    local sstore = sizeStore()
+    if sstore then
+        wipe(sstore)
+        for k, e in pairs(snap.sizeLinks or {}) do sstore[k] = { w = e.w, h = e.h } end
+        ns:ApplyAllMoverSizeLinks()
+    end
     for _, m in ipairs(ns._movers) do
         local e  = m.key and snap.movers[m.key]
         local db = m.opts and m.opts.db
@@ -338,6 +359,115 @@ function ns:RestoreEditState()
         end
     end
     ns:ApplyAllMoverLinks()
+end
+
+-- ---------------------------------------------------------------------------
+-- Size matching: a window can permanently take another's width and/or height.
+-- Stored per profile as sizeLinks[childKey] = { w = key, h = key }.
+--
+-- CAVEAT: this drives SetWidth/SetHeight on the frame itself. Windows whose
+-- size is recomputed by their own module (bars that rebuild from their config)
+-- will snap back on the next layout pass; ns:MoverSizeMatchSticks reports that
+-- so the UI can say so instead of silently doing nothing.
+
+function ns:GetMoverSizeLink(key)
+    local store = sizeStore()
+    return (store and key) and store[key] or nil
+end
+
+-- axis is "w" or "h"; walking the chain of that same axis catches A->B->A.
+function ns:MoverSizeWouldCycle(childKey, targetKey, axis)
+    local store = sizeStore()
+    if not store then return false end
+    local seen, cur = {}, targetKey
+    while cur do
+        if cur == childKey then return true end
+        if seen[cur] then return false end
+        seen[cur] = true
+        local e = store[cur]
+        cur = (type(e) == "table" and type(e[axis]) == "string") and e[axis] or nil
+    end
+    return false
+end
+
+function ns:SetMoverSizeLink(child, targetKey, axis)
+    local store = sizeStore()
+    if not (store and child and child.key and (axis == "w" or axis == "h")) then return false end
+    local e = store[child.key]
+    if not targetKey or targetKey == "" then
+        if e then
+            e[axis] = nil
+            if not (e.w or e.h) then store[child.key] = nil end
+        end
+        return true
+    end
+    if targetKey == child.key or ns:MoverSizeWouldCycle(child.key, targetKey, axis) then
+        return false
+    end
+    if not ns:GetMoverByKey(targetKey) then return false end
+    e = e or {}
+    e[axis] = targetKey
+    store[child.key] = e
+    ns:ApplyAllMoverSizeLinks()
+    -- Edge anchors measure against the parent's extents, so a resize leaves every
+    -- pinned child sitting in the wrong place until the positions are redone.
+    ns:ApplyAllMoverLinks()
+    return true
+end
+
+-- Sizes are compared in UIParent units so a scaled window still ends up the
+-- same physical width as the one it is matched to.
+local function applySizeLink(child, entry)
+    if type(entry) ~= "table" or not (child.target and child.target.SetWidth) then return end
+    -- Resizing a secure frame from Lua taints it exactly like repositioning does.
+    if ns.IsSecureMoverTarget and ns.IsSecureMoverTarget(child.target) then return end
+    local cr = ns:GetScaleRatio(child.target)
+    if cr == 0 then cr = 1 end
+    if type(entry.w) == "string" then
+        local p = ns:GetMoverByKey(entry.w)
+        if p and p.target then
+            local w = (p.target:GetWidth() or 0) * ns:GetScaleRatio(p.target)
+            if w > 0 then pcall(child.target.SetWidth, child.target, w / cr) end
+        end
+    end
+    if type(entry.h) == "string" then
+        local p = ns:GetMoverByKey(entry.h)
+        if p and p.target then
+            local h = (p.target:GetHeight() or 0) * ns:GetScaleRatio(p.target)
+            if h > 0 then pcall(child.target.SetHeight, child.target, h / cr) end
+        end
+    end
+end
+
+-- Roots first: for A->B->C, sizing C before B would read B's stale width.
+function ns:ApplyAllMoverSizeLinks()
+    local store = sizeStore()
+    if not store then return end
+    local done = {}
+    local function resolve(key, depth)
+        if done[key] or (depth or 0) > 20 then return end
+        done[key] = true
+        local e = store[key]
+        if type(e) ~= "table" then return end
+        if type(e.w) == "string" and store[e.w] then resolve(e.w, (depth or 0) + 1) end
+        if type(e.h) == "string" and store[e.h] then resolve(e.h, (depth or 0) + 1) end
+        local child = ns:GetMoverByKey(key)
+        if child then applySizeLink(child, e) end
+    end
+    for key in pairs(store) do resolve(key, 0) end
+end
+
+-- Did the frame actually keep the size we gave it? Used to warn about windows
+-- whose module owns their dimensions.
+function ns:MoverSizeMatchSticks(child, axis)
+    local e = child and child.key and ns:GetMoverSizeLink(child.key)
+    if not (e and type(e[axis]) == "string" and child.target) then return true end
+    local p = ns:GetMoverByKey(e[axis])
+    if not (p and p.target) then return true end
+    local get  = (axis == "w") and "GetWidth" or "GetHeight"
+    local want = (p.target[get](p.target) or 0) * ns:GetScaleRatio(p.target)
+    local have = (child.target[get](child.target) or 0) * ns:GetScaleRatio(child.target)
+    return math.abs(want - have) <= 1.5
 end
 
 function ns:ResetAllMovers()
@@ -479,8 +609,10 @@ end
 function ns:SerializeLayout(name, snap)
     local parts = {}
     for k, e in pairs(snap or {}) do
-        local s = esc(k) .. "=" .. tostring(math.floor((tonumber(e.x) or 0) + 0.5))
-                          .. "," .. tostring(math.floor((tonumber(e.y) or 0) + 0.5))
+        -- Two decimals, not whole units: positions are pixel-snapped now and
+        -- rounding to integers here would undo that on every export/import.
+        local s = esc(k) .. "=" .. string.format("%.2f", tonumber(e.x) or 0)
+                          .. "," .. string.format("%.2f", tonumber(e.y) or 0)
         if e.scale  then s = s .. ",s" .. string.format("%.4g", e.scale) end
         if e.anchor then s = s .. ",a" .. esc(e.anchor) end
         parts[#parts + 1] = s
@@ -518,6 +650,72 @@ function ns:DeserializeLayout(str)
         end
     end
     return unesc(namePart), snap
+end
+
+-- Cursor in UIParent units (GetCursorPosition reports raw screen pixels).
+local function cursorUI()
+    local cx, cy = GetCursorPosition()
+    local s = UIParent:GetEffectiveScale()
+    if not (cx and cy and s and s > 0) then return nil end
+    return cx / s, cy / s
+end
+
+-- Manual drag tick. Shift locks to the dominant axis: the direction is decided
+-- once, after 3px of travel, and releasing Shift frees it again mid-drag.
+local AXIS_LOCK_THRESHOLD = 3
+
+-- Secure frames must not have their anchors written from insecure Lua: the
+-- taint spreads from the header to the action buttons it drives, and Blizzard's
+-- own UpdateShownButtons then gets blocked. Those frames keep the engine's own
+-- drag, which costs us the axis lock but never taints anything.
+local function isSecureTarget(target)
+    if not target then return false end
+    if target.IsProtected then
+        local ok, prot = pcall(target.IsProtected, target)
+        if ok and prot then return true end
+    end
+    -- addon-made secure headers report unprotected out of combat, but they carry
+    -- secure attributes; a state driver attribute is the reliable tell
+    if target.GetAttribute then
+        local ok, v = pcall(target.GetAttribute, target, "_onstate-userDisplay")
+        if ok and v then return true end
+        ok, v = pcall(target.GetAttribute, target, "_onstate-page")
+        if ok and v then return true end
+    end
+    return false
+end
+ns.IsSecureMoverTarget = isSecureTarget
+
+local function dragUpdate(mover)
+    local d = mover._drag
+    local target = mover.target
+    if not (d and target) then return end
+    if d.engineMove then return end          -- the engine is moving it for us
+    local ux, uy = cursorUI()
+    if not ux then return end
+    local r = ns:GetScaleRatio(target)
+    if r == 0 then r = 1 end
+    local mdx, mdy = ux - d.ux, uy - d.uy      -- UIParent units
+    local nx, ny = d.sx + mdx / r, d.sy + mdy / r
+    if IsShiftKeyDown() then
+        -- Measure from where Shift went down, not from where the drag began, or
+        -- re-pressing it mid-drag locks whichever axis has the most travel so far
+        -- rather than the one currently being moved along.
+        if not d.shiftX then d.shiftX, d.shiftY = ux, uy end
+        if not d.axis then
+            local sdx, sdy = math.abs(ux - d.shiftX), math.abs(uy - d.shiftY)
+            if sdx > AXIS_LOCK_THRESHOLD or sdy > AXIS_LOCK_THRESHOLD then
+                d.axis = (sdx >= sdy) and "X" or "Y"
+                d.lockX, d.lockY = nx, ny   -- freeze the off-axis where it is now
+            end
+        end
+        if     d.axis == "X" then ny = d.lockY
+        elseif d.axis == "Y" then nx = d.lockX end
+    else
+        d.axis, d.shiftX, d.shiftY = nil, nil, nil
+    end
+    target:ClearAllPoints()
+    target:SetPoint("CENTER", UIParent, "CENTER", nx, ny)
 end
 
 function ns:CreateMover(target, opts)
@@ -575,12 +773,37 @@ function ns:CreateMover(target, opts)
     mover:SetScript("OnDragStart", function()
         -- Picking an anchor target: a click must not turn into a drag.
         if ns.IsAnchorPicking and ns:IsAnchorPicking() then return end
+        mover._shiftSelectPending = nil   -- this is a drag, not an additive click
+        -- Free-move boxes stay live outside edit mode, so a protected target
+        -- could otherwise be repositioned from Lua every frame while in combat.
+        if InCombatLockdown() and target.IsProtected and target:IsProtected() then
+            if ns.Print then
+                ns:Print((ns.L and ns.L["Not possible in combat."]) or "Not possible in combat.")
+            end
+            return
+        end
+        local ux, uy = cursorUI()
+        local sx, sy = ns:GetCenterOffsets(target)
+        if not (ux and sx) then return end
         ns._draggingMover = mover
         if ns.BeginGroupDrag then ns:BeginGroupDrag(mover) end
-        target:StartMoving()
+        -- Driven by hand rather than StartMoving, because the engine's drag
+        -- cannot be constrained to an axis. Secure frames are the exception:
+        -- writing their anchor from Lua taints them, so those keep StartMoving.
+        local engineMove = isSecureTarget(target)
+        mover._drag = { ux = ux, uy = uy, sx = sx, sy = sy, engineMove = engineMove }
+        if engineMove then
+            target:StartMoving()
+        else
+            mover:SetScript("OnUpdate", dragUpdate)
+        end
     end)
     mover:SetScript("OnDragStop", function()
-        target:StopMovingOrSizing()
+        mover:SetScript("OnUpdate", nil)
+        if mover._drag and mover._drag.engineMove then
+            pcall(target.StopMovingOrSizing, target)
+        end
+        mover._drag = nil
         ns._draggingMover = nil
         local x, y = ns:GetCenterOffsets(target)
         if x and y then
@@ -608,11 +831,26 @@ function ns:CreateMover(target, opts)
             if button == "RightButton" and ns.CancelAnchorPick then ns:CancelAnchorPick() end
             return
         end
-        if button == "RightButton" and ns.SelectMover then ns:SelectMover(self, IsShiftKeyDown()) end
+        if button == "RightButton" then
+            if IsShiftKeyDown() then
+                ns:SetMoverTempHidden(self, true)
+            elseif ns.SelectMover then
+                ns:SelectMover(self, false)
+            end
+        elseif button == "LeftButton" and self._shiftSelectPending then
+            -- a plain Shift+click, not a Shift+drag: now do the additive toggle
+            self._shiftSelectPending = nil
+            if ns.SelectMover then ns:SelectMover(self, true) end
+        end
     end)
 
     -- Hover picks the single mover the arrow keys nudge (many are visible at once).
+    -- Clearing on leave matters: a stale value keeps nudging - and keeps drawing
+    -- the anchor line of - a box the cursor left long ago.
     mover:SetScript("OnEnter", function(self) ns._activeMover = self end)
+    mover:SetScript("OnLeave", function(self)
+        if ns._activeMover == self then ns._activeMover = nil end
+    end)
 
     mover:EnableKeyboard(true)
     mover:SetPropagateKeyboardInput(true)
@@ -621,7 +859,10 @@ function ns:CreateMover(target, opts)
             self:SetPropagateKeyboardInput(true)
             return
         end
-        local step = IsShiftKeyDown() and 5 or 1
+        -- one physical screen pixel, in the units db.x is stored in; the module
+        -- hints all say "SHIFT = 5px", which this now makes literally true
+        local step = ns:Pixel(target, 1)
+        if IsShiftKeyDown() then step = step * 5 end
         local dx, dy = 0, 0
         if     key == "UP"    then dy =  step
         elseif key == "DOWN"  then dy = -step
@@ -641,11 +882,19 @@ function ns:CreateMover(target, opts)
     end)
 
     mover:HookScript("OnMouseDown", function(self, button)
-        if button == "LeftButton" and ns.IsAnchorPicking and ns:IsAnchorPicking() then
+        if button ~= "LeftButton" then return end
+        if ns.IsAnchorPicking and ns:IsAnchorPicking() then
             if ns.AnchorPickPick then ns:AnchorPickPick(self) end
             return
         end
-        if button == "LeftButton" and ns.SelectMover then ns:SelectMover(self, IsShiftKeyDown()) end
+        -- Shift also arms the drag axis lock, so the additive toggle waits for
+        -- mouse-up: toggling here would drop this box out of the selection the
+        -- instant a Shift-drag of the group began.
+        if IsShiftKeyDown() then
+            self._shiftSelectPending = true
+        elseif ns.SelectMover then
+            ns:SelectMover(self, false)
+        end
     end)
 
     ns._movers[#ns._movers + 1] = mover
@@ -655,6 +904,14 @@ function ns:CreateMover(target, opts)
         mover:Show()
         if ns.RefreshMoverStyles then ns:RefreshMoverStyles() end
     end
+
+    -- Built while edit mode is already open: show it and re-rank the stack, or
+    -- it would sit at a default level and swallow the boxes underneath it.
+    if moverShouldEdit(mover) then
+        mover:Show()
+        if ns.RefreshMoverStyles then ns:RefreshMoverStyles() end
+    end
+    ns:SortMoverLevels()
 
     -- A mover built after the login link pass must still honour its saved link,
     -- and pull in any child already waiting on it. Deferred so the frame has a
@@ -677,6 +934,58 @@ function ns:CreateMover(target, opts)
     return mover
 end
 
+-- Stack the boxes by area, largest at the bottom, so a small mover sitting
+-- inside a big one always stays clickable instead of being swallowed by it.
+function ns:SortMoverLevels()
+    local list = {}
+    for _, m in ipairs(ns._movers) do
+        if m:IsShown() then
+            local w = (m:GetWidth() or 0) * (m:GetHeight() or 0)
+            list[#list + 1] = { m = m, area = w }
+        end
+    end
+    table.sort(list, function(a, b) return a.area > b.area end)
+    -- Absolute levels only. Every mover sits in the HIGH strata, which detaches
+    -- it from its parent's ordering, so folding the parent's level back in here
+    -- would scramble the ranking with an unrelated number.
+    for i, e in ipairs(list) do
+        pcall(e.m.SetFrameLevel, e.m, 20 + i)
+    end
+end
+
+-- A hidden frame never receives OnDragStop, so any path that hides a mover has
+-- to end the drag itself or the target stays welded to the cursor.
+function ns:AbortMoverDrag(mover)
+    mover = mover or ns._draggingMover
+    if not mover then return end
+    mover:SetScript("OnUpdate", nil)
+    mover._drag = nil
+    if mover.target and mover.target.StopMovingOrSizing then
+        pcall(mover.target.StopMovingOrSizing, mover.target)
+    end
+    if ns._draggingMover == mover then ns._draggingMover = nil end
+    ns._groupDrag = nil
+    if ns._hideGuides then ns._hideGuides() end
+end
+
+-- Session-only: Shift+RightClick parks a box that is in the way. Cleared every
+-- time edit mode opens, so it can never strand a window as unreachable.
+function ns:SetMoverTempHidden(mover, on)
+    if not mover then return end
+    mover._tempHidden = on and true or false
+    if on then
+        if ns._draggingMover == mover then ns:AbortMoverDrag(mover) end
+        mover:Hide()
+    elseif moverShouldEdit(mover) or (mover.opts.db and mover.opts.db.freeMove) then
+        mover:Show()
+    end
+    ns:SortMoverLevels()
+end
+
+function ns:ClearMoverTempHidden()
+    for _, m in ipairs(ns._movers) do m._tempHidden = nil end
+end
+
 -- scope nil -> global edit (every window); scope given -> just that module's.
 function ns:SetMoversEditMode(state, scope)
     state = state and true or false
@@ -688,16 +997,19 @@ function ns:SetMoversEditMode(state, scope)
         ns._moverEditGlobal = state
         if not state then wipe(ns._moverEditScopes) end
     end
+    -- entering edit mode un-parks anything hidden in an earlier session
+    if state then ns:ClearMoverTempHidden() end
     for _, mover in ipairs(ns._movers) do
         local opts = mover.opts
         local edit = moverShouldEdit(mover)
         if opts.editPreview then pcall(opts.editPreview, edit) end
-        if edit then
+        if edit and not mover._tempHidden then
             mover:Show()
         elseif not (opts.db and (opts.db.unlocked or opts.db.freeMove)) then
             mover:Hide()
         end
     end
+    ns:SortMoverLevels()
     if ns.RefreshMoverStyles then ns:RefreshMoverStyles() end
 end
 
@@ -719,10 +1031,15 @@ boot:RegisterEvent("ADDON_LOADED")
 boot:RegisterEvent("PLAYER_ENTERING_WORLD")
 boot:SetScript("OnEvent", function(_, evt, name)
     if evt == "PLAYER_ENTERING_WORLD" then
-        -- after every module applied its own saved position; links win last
+        -- after every module applied its own saved position; links win last.
+        -- Sizes first: edge-anchored links measure against the final extents.
         if C_Timer and C_Timer.After then
-            C_Timer.After(0.8, function() ns:ApplyAllMoverLinks() end)
+            C_Timer.After(0.8, function()
+                ns:ApplyAllMoverSizeLinks()
+                ns:ApplyAllMoverLinks()
+            end)
         else
+            ns:ApplyAllMoverSizeLinks()
             ns:ApplyAllMoverLinks()
         end
         return
