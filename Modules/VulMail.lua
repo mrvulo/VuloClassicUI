@@ -20,46 +20,7 @@ local format = string.format
 local ATTACH_MAX = ATTACHMENTS_MAX_RECEIVE or 16
 local NUM_BAGS = NUM_BAG_SLOTS or 4
 
-local L = {
-    OPEN_ALL    = "Open All",
-    IN_PROGRESS = "In Progress",
-    SUMMARY     = "Mail emptied: looted %s%s.",
-    AND_ITEMS   = " and %d item(s)",
-    BAGS_FULL   = "Bags are full — some items were left in the mail.",
-    MORE_MAIL   = "Not all mail is shown — reopen the mailbox and click again for the rest.",
-    DESC        = "|cffaaaaaaAdds an 'Open All' button to the mailbox. It takes every attachment and coin, skipping CoD and GM mail. Shift-click the button to ignore the filters and take everything.|r",
-    O_ATTACH    = "Take item attachments",
-    O_GOLD      = "Take money",
-    O_KEEP      = "Keep this many bag slots free",
-    O_SPEED     = "Speed (seconds between actions)",
-    O_VERBOSE   = "Print a looted summary",
-    O_RECIP     = "Recipient dropdown on the Send tab",
-    MB_RECENT   = "Recently mailed",
-    MB_CHARS    = "Your characters",
-    MB_FRIENDS  = "Friends",
-    MB_GUILD    = "Guild",
-    MB_EMPTY    = "No contacts yet",
-}
-if GetLocale() == "deDE" then
-    L.OPEN_ALL    = "Alle öffnen"
-    L.IN_PROGRESS = "Läuft …"
-    L.SUMMARY     = "Post geleert: %s%s erbeutet."
-    L.AND_ITEMS   = " und %d Gegenstand/Gegenstände"
-    L.BAGS_FULL   = "Taschen voll — einige Gegenstände blieben in der Post."
-    L.MORE_MAIL   = "Es wird nicht die gesamte Post angezeigt — Briefkasten neu öffnen und nochmal klicken."
-    L.DESC        = "|cffaaaaaaFügt dem Briefkasten einen 'Alle öffnen'-Knopf hinzu. Nimmt alle Anhänge und Münzen, überspringt Nachnahme- und GM-Post. Shift-Klick ignoriert die Filter und nimmt alles.|r"
-    L.O_ATTACH    = "Gegenstands-Anhänge nehmen"
-    L.O_GOLD      = "Geld nehmen"
-    L.O_KEEP      = "So viele Taschenplätze frei lassen"
-    L.O_SPEED     = "Tempo (Sekunden zwischen Aktionen)"
-    L.O_VERBOSE   = "Beute-Zusammenfassung ausgeben"
-    L.O_RECIP     = "Empfänger-Dropdown im Versenden-Tab"
-    L.MB_RECENT   = "Zuletzt gemailt"
-    L.MB_CHARS    = "Deine Charaktere"
-    L.MB_FRIENDS  = "Freunde"
-    L.MB_GUILD    = "Gilde"
-    L.MB_EMPTY    = "Noch keine Kontakte"
-end
+local L = ns.L
 
 local function countItemsAndMoney()
     local items = 0
@@ -185,18 +146,18 @@ function finish()
     mod._awaitRefresh = nil
     ns:UnregisterEvent("UI_ERROR_MESSAGE", mod._onError)
     ns:UnregisterEvent("MAIL_INBOX_UPDATE", mod._onInbox)
-    if button then button:SetText(L.OPEN_ALL); button:Enable() end
+    if button then button:SetText(L["Open All"]); button:Enable() end
     if InboxFrame_Update then InboxFrame_Update() end
 
     if mod.db.verbose then
         local gold = GetMoney() - (startGold or GetMoney())
         local items = (select(1, countItemsAndMoney())) - (startItems or 0)
         if gold > 0 or items > 0 then
-            local itemStr = items > 0 and format(L.AND_ITEMS, items) or ""
-            ns:Print(format(L.SUMMARY, moneyString(gold), itemStr))
+            local itemStr = items > 0 and format(L[" and %d item(s)"], items) or ""
+            ns:Print(format(L["Mail emptied: looted %s%s."], moneyString(gold), itemStr))
         end
     end
-    if invFull then ns:Print(L.BAGS_FULL) end
+    if invFull then ns:Print(L["Bags are full — some items were left in the mail."]) end
 end
 
 function openAll(isRecursive)
@@ -211,7 +172,7 @@ function openAll(isRecursive)
         startGold = GetMoney()
         startItems = (select(1, countItemsAndMoney()))
         mod._continues = 0
-        if button then button:SetText(L.IN_PROGRESS); button:Disable() end
+        if button then button:SetText(L["In Progress"]); button:Disable() end
         -- MAIL_INBOX_UPDATE confirms each take; the pump timer is only a fallback.
         ns:RegisterEvent("UI_ERROR_MESSAGE", mod._onError)
         ns:RegisterEvent("MAIL_INBOX_UPDATE", mod._onInbox)
@@ -289,13 +250,13 @@ local function buildRecipientMenu()
     local entries = {}
     local me, myRealm, myFaction = UnitName("player"), GetRealmName(), UnitFactionGroup("player")
 
-    addNames(entries, L.MB_RECENT, s.recent)
+    addNames(entries, L["Recently mailed"], s.recent)
 
     local chars = {}
     for _, a in ipairs(s.alts) do
         if a.name ~= me and a.realm == myRealm and a.faction == myFaction then chars[#chars + 1] = a.name end
     end
-    addNames(entries, L.MB_CHARS, chars, 30)
+    addNames(entries, L["Your characters"], chars, 30)
 
     local friends = {}
     local nF = (C_FriendList and C_FriendList.GetNumFriends and C_FriendList.GetNumFriends())
@@ -305,7 +266,7 @@ local function buildRecipientMenu()
         local fname = (info and info.name) or (GetFriendInfo and GetFriendInfo(i))
         if fname then friends[#friends + 1] = fname end
     end
-    addNames(entries, L.MB_FRIENDS, friends, 30)
+    addNames(entries, L["Friends"], friends, 30)
 
     if IsInGuild and IsInGuild() then
         -- Roster fetch is async, so this open uses cached data and the next is fresh.
@@ -321,10 +282,10 @@ local function buildRecipientMenu()
             end
         end
         table.sort(guild)
-        addNames(entries, L.MB_GUILD, guild, 30)
+        addNames(entries, L["Guild"], guild, 30)
     end
 
-    if #entries == 0 then entries[#entries + 1] = { disabled = true, text = L.MB_EMPTY } end
+    if #entries == 0 then entries[#entries + 1] = { disabled = true, text = L["No contacts yet"] } end
     return entries
 end
 
@@ -354,7 +315,7 @@ local function createButton()
     else
         button:SetPoint("CENTER", InboxFrame, "TOP", -36, -399)
     end
-    button:SetText(L.OPEN_ALL)
+    button:SetText(L["Open All"])
     button:SetFrameLevel(button:GetFrameLevel() + 1)
     button:SetScript("OnClick", function() openAll() end)
 end
@@ -370,7 +331,7 @@ local function onMailClosed()
     pump:Hide()
     waiting = false
     ns:UnregisterEvent("UI_ERROR_MESSAGE", mod._onError)
-    if button then button:SetText(L.OPEN_ALL); button:Enable() end
+    if button then button:SetText(L["Open All"]); button:Enable() end
 end
 
 function mod:OnEnable()
@@ -397,23 +358,23 @@ end
 
 function mod:GetOptions()
     return {
-        { type = "desc", text = L.DESC },
-        { type = "toggle", label = L.O_ATTACH,
+        { type = "desc", text = L["|cffaaaaaaAdds an 'Open All' button to the mailbox. It takes every attachment and coin, skipping CoD and GM mail. Shift-click the button to ignore the filters and take everything.|r"] },
+        { type = "toggle", label = L["Take item attachments"],
           get = function() return mod.db.attachments end,
           set = function(_, v) mod.db.attachments = v end },
-        { type = "toggle", label = L.O_GOLD,
+        { type = "toggle", label = L["Take money"],
           get = function() return mod.db.gold end,
           set = function(_, v) mod.db.gold = v end },
-        { type = "toggle", label = L.O_VERBOSE,
+        { type = "toggle", label = L["Print a looted summary"],
           get = function() return mod.db.verbose end,
           set = function(_, v) mod.db.verbose = v end },
-        { type = "toggle", label = L.O_RECIP,
+        { type = "toggle", label = L["Recipient dropdown on the Send tab"],
           get = function() return mod.db.recipients end,
           set = function(_, v) mod.db.recipients = v; applySendButton() end },
-        { type = "slider", label = L.O_KEEP, min = 0, max = 12, step = 1,
+        { type = "slider", label = L["Keep this many bag slots free"], min = 0, max = 12, step = 1,
           get = function() return mod.db.keepFree or 0 end,
           set = function(_, v) mod.db.keepFree = v end },
-        { type = "slider", label = L.O_SPEED, min = 0.05, max = 1.0, step = 0.05,
+        { type = "slider", label = L["Speed (seconds between actions)"], min = 0.05, max = 1.0, step = 0.05,
           get = function() return mod.db.openSpeed or 0.15 end,
           set = function(_, v) mod.db.openSpeed = v end },
     }

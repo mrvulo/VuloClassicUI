@@ -22,52 +22,7 @@ local mod = ns:RegisterModule("vulfishing", {
 
 local pairs, ipairs, wipe = pairs, ipairs, wipe
 
-local L = {
-    DESC        = "|cffaaaaaaOne key does it all: cast, reel in, and apply a lure — then auto-loots. Set a key below, face some water, and press it.|r",
-    SET_KEY     = "Set fishing key",
-    KEY_IS      = "Fishing key: %s  —  click to change",
-    CLEAR_KEY   = "Clear key",
-    LURE        = "Auto-apply a lure when the pole has none",
-    AUTOLOOT    = "Auto-loot while fishing",
-    SOFT        = "One-key reel (soft-target interact)",
-    SOFT_TT     = "While the bobber is out, the same key interacts with it to reel in. Needs soft-target interaction, which is enabled only while fishing and restored afterwards.",
-    EQUIP       = "Auto-equip a fishing pole if none is worn",
-    QUIET       = "Hide the reel error spam while fishing",
-    SOUND       = "Boost fishing sound (hear the bite clearly)",
-    SOUND_TT    = "While the bobber is out, maxes effect + master volume and dims music/ambience so the splash is easy to hear. Restored when you reel in.",
-    SOUND_BG    = "Keep sound audible when the game is in the background",
-    SOUND_LEVEL = "Fishing sound volume",
-    EXTRA_HEADER = "Extra items & macros",
-    EXTRA_TT    = "|cffaaaaaaItems or macros also used by the key while fishing — only when ready (off cooldown, buff missing, conditions met), then it goes back to casting. Type an item name or ID, shift-click an item into the box, or paste a /macro.|r",
-    EXTRA_SLOT  = "Slot %d",
-    PRESS       = "Press the key for fishing  (ESC to cancel)",
-    KEY_SET     = "Fishing key set to: %s",
-    KEY_CLEARED = "Fishing key cleared.",
-    IN_COMBAT   = "Can't change the fishing key in combat.",
-}
-if GetLocale() == "deDE" then
-    L.DESC      = "|cffaaaaaaEine Taste macht alles: auswerfen, einholen und Köder anlegen — danach Auto-Plündern. Unten eine Taste festlegen, aufs Wasser schauen, drücken.|r"
-    L.SET_KEY   = "Angel-Taste festlegen"
-    L.KEY_IS    = "Angel-Taste: %s  —  zum Ändern klicken"
-    L.CLEAR_KEY = "Taste löschen"
-    L.LURE      = "Köder automatisch anlegen, wenn die Angel keinen hat"
-    L.AUTOLOOT  = "Auto-Plündern während des Angelns"
-    L.SOFT      = "Ein-Tasten-Einholen (Soft-Target)"
-    L.SOFT_TT   = "Während der Bobber draußen ist, holt dieselbe Taste ihn ein. Braucht Soft-Target-Interaktion — wird nur beim Angeln aktiviert und danach wiederhergestellt."
-    L.EQUIP     = "Angel automatisch anlegen, wenn keine ausgerüstet ist"
-    L.QUIET     = "Reel-Fehlermeldungen beim Angeln ausblenden"
-    L.SOUND     = "Angel-Sound verstärken (Biss klar hören)"
-    L.SOUND_TT  = "Während der Bobber draußen ist, werden Effekt- + Master-Lautstärke maximiert und Musik/Ambiente abgesenkt, damit das Platschen gut hörbar ist. Wird beim Einholen wiederhergestellt."
-    L.SOUND_BG  = "Sound auch hörbar, wenn das Spiel im Hintergrund läuft"
-    L.SOUND_LEVEL = "Angel-Sound-Lautstärke"
-    L.EXTRA_HEADER = "Extra-Items & Makros"
-    L.EXTRA_TT  = "|cffaaaaaaItems oder Makros, die die Taste beim Angeln mitbenutzt — nur wenn bereit (kein Cooldown, Buff fehlt, Bedingungen erfüllt), danach wird wieder ausgeworfen. Item-Name oder -ID eintippen, ein Item per Shift-Klick einfügen, oder ein /Makro einfügen.|r"
-    L.EXTRA_SLOT = "Slot %d"
-    L.PRESS     = "Drücke die Taste fürs Angeln  (ESC = abbrechen)"
-    L.KEY_SET   = "Angel-Taste gesetzt auf: %s"
-    L.KEY_CLEARED = "Angel-Taste gelöscht."
-    L.IN_COMBAT = "Angel-Taste kann im Kampf nicht geändert werden."
-end
+local L = ns.L
 
 local FISHING_POLES = {
     [6256] = true, [6365] = true, [6366] = true, [6367] = true, [12225] = true,
@@ -355,12 +310,12 @@ local function refreshKey(k)
     capture:Hide()
     if k then
         mod.db.key = k
-        ns:Print(L.KEY_SET:format(k))
+        ns:Print(L["Fishing key set to: %s"]:format(k))
         actionHandler()
     end
 end
 local function startCapture()
-    if InCombatLockdown() then ns:Print(L.IN_COMBAT); return end
+    if InCombatLockdown() then ns:Print(L["Can't change the fishing key in combat."]); return end
     if not capture then
         capture = CreateFrame("Frame", "VulFishCapture", UIParent)
         capture:SetAllPoints(UIParent)
@@ -368,7 +323,7 @@ local function startCapture()
         capture:EnableKeyboard(true); capture:EnableMouse(true); capture:EnableMouseWheel(true)
         local bg = capture:CreateTexture(nil, "BACKGROUND"); bg:SetAllPoints(); bg:SetColorTexture(0, 0, 0, 0.55)
         local fs = capture:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
-        fs:SetPoint("CENTER"); fs:SetText(L.PRESS)
+        fs:SetPoint("CENTER"); fs:SetText(L["Press the key for fishing  (ESC to cancel)"])
         local SKIP = { LSHIFT = 1, RSHIFT = 1, LCTRL = 1, RCTRL = 1, LALT = 1, RALT = 1, UNKNOWN = 1 }
         capture:SetScript("OnKeyDown", function(_, key)
             if key == "ESCAPE" then refreshKey(nil); return end
@@ -413,45 +368,45 @@ function mod:OnDisable()
 end
 
 function mod:GetOptions()
-    local keyLabel = (mod.db.key ~= "") and L.KEY_IS:format(mod.db.key) or L.SET_KEY
+    local keyLabel = (mod.db.key ~= "") and L["Fishing key: %s  —  click to change"]:format(mod.db.key) or L["Set fishing key"]
     local opts = {
-        { type = "desc", text = L.DESC },
+        { type = "desc", text = L["|cffaaaaaaOne key does it all: cast, reel in, and apply a lure — then auto-loots. Set a key below, face some water, and press it.|r"] },
         { type = "group", layout = "row", gap = 8, items = {
             { type = "button", label = keyLabel, width = 260, onClick = startCapture },
-            { type = "button", label = L.CLEAR_KEY, width = 120,
-              onClick = function() mod.db.key = ""; ns:Print(L.KEY_CLEARED); actionHandler() end },
+            { type = "button", label = L["Clear key"], width = 120,
+              onClick = function() mod.db.key = ""; ns:Print(L["Fishing key cleared."]); actionHandler() end },
         } },
-        { type = "toggle", label = L.SOFT, tooltip = L.SOFT_TT,
+        { type = "toggle", label = L["One-key reel (soft-target interact)"], tooltip = L["While the bobber is out, the same key interacts with it to reel in. Needs soft-target interaction, which is enabled only while fishing and restored afterwards."],
           get = function() return mod.db.softInteract end,
           set = function(_, v) mod.db.softInteract = v; actionHandler() end },
-        { type = "toggle", label = L.LURE,
+        { type = "toggle", label = L["Auto-apply a lure when the pole has none"],
           get = function() return mod.db.lure end,
           set = function(_, v) mod.db.lure = v; actionHandler() end },
-        { type = "toggle", label = L.AUTOLOOT,
+        { type = "toggle", label = L["Auto-loot while fishing"],
           get = function() return mod.db.autoLoot end,
           set = function(_, v) mod.db.autoLoot = v end },
-        { type = "toggle", label = L.EQUIP,
+        { type = "toggle", label = L["Auto-equip a fishing pole if none is worn"],
           get = function() return mod.db.equipPole end,
           set = function(_, v) mod.db.equipPole = v; actionHandler() end },
-        { type = "toggle", label = L.QUIET,
+        { type = "toggle", label = L["Hide the reel error spam while fishing"],
           get = function() return mod.db.quietErrors ~= false end,
           set = function(_, v) mod.db.quietErrors = v; if not v then setQuiet(false) end end },
-        { type = "toggle", label = L.SOUND, tooltip = L.SOUND_TT,
+        { type = "toggle", label = L["Boost fishing sound (hear the bite clearly)"], tooltip = L["While the bobber is out, maxes effect + master volume and dims music/ambience so the splash is easy to hear. Restored when you reel in."],
           get = function() return mod.db.soundBoost end,
           set = function(_, v) mod.db.soundBoost = v end },
-        { type = "toggle", label = L.SOUND_BG,
+        { type = "toggle", label = L["Keep sound audible when the game is in the background"],
           get = function() return mod.db.soundBG end,
           set = function(_, v) mod.db.soundBG = v end },
-        { type = "slider", label = L.SOUND_LEVEL, min = 0, max = 100, step = 5,
+        { type = "slider", label = L["Fishing sound volume"], min = 0, max = 100, step = 5,
           get = function() return mod.db.soundLevel or 100 end,
           set = function(_, v) mod.db.soundLevel = v end },
-        { type = "header", text = L.EXTRA_HEADER },
-        { type = "desc", text = L.EXTRA_TT },
+        { type = "header", text = L["Extra items & macros"] },
+        { type = "desc", text = L["|cffaaaaaaItems or macros also used by the key while fishing — only when ready (off cooldown, buff missing, conditions met), then it goes back to casting. Type an item name or ID, shift-click an item into the box, or paste a /macro.|r"] },
     }
     mod.db.extra = mod.db.extra or {}
     for i = 1, NUM_EXTRA do
         opts[#opts + 1] = {
-            type = "editbox", label = L.EXTRA_SLOT:format(i), width = 300, editWidth = 200,
+            type = "editbox", label = L["Slot %d"]:format(i), width = 300, editWidth = 200,
             get = function() return mod.db.extra[i] or "" end,
             set = function(_, v)
                 mod.db.extra[i] = strtrim(v or "")

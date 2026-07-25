@@ -22,30 +22,11 @@ local ipairs, pairs = ipairs, pairs
 local GetTime, GetActivity = GetTime, (C_LFGList and C_LFGList.GetActivityInfoTable)
 local ACCENT = ns.COLORS and ns.COLORS.accent or { r = 0.608, g = 0.424, b = 1 }
 
-local L = {
-    TITLE = "Group Board", EMPTY = "No groups forming right now.",
-    CAT_CD = "Classic Dungeons", CAT_CR = "Classic Raids",
-    CAT_BD = "Burning Crusade Dungeons", CAT_BR = "Burning Crusade Raids",
-    WHISPER = "Whisper", INVITE = "Invite", WHO = "Who", IGNORE = "Ignore",
-    OPT_WINDOW = "Keep requests for (minutes)", OPT_MINIMAP = "Show minimap button",
-    OPT_WORLD = "Scan world / trade / LFG channels", OPT_GUILD = "Scan guild chat",
-    OPT_SAY = "Scan say / yell", SLASH = "/vlfg toggles the group board.",
-    HEROIC = "H", JUST_NOW = "now",
-}
-if GetLocale() == "deDE" then
-    L.TITLE = "Gruppensuche"; L.EMPTY = "Gerade sucht niemand eine Gruppe."
-    L.CAT_CD = "Classic-Dungeons"; L.CAT_CR = "Classic-Schlachtzüge"
-    L.CAT_BD = "BC-Dungeons"; L.CAT_BR = "BC-Schlachtzüge"
-    L.WHISPER = "Flüstern"; L.INVITE = "Einladen"; L.WHO = "Wer"; L.IGNORE = "Ignorieren"
-    L.OPT_WINDOW = "Anfragen behalten für (Minuten)"; L.OPT_MINIMAP = "Minimap-Knopf zeigen"
-    L.OPT_WORLD = "Welt-/Handels-/LFG-Channels scannen"; L.OPT_GUILD = "Gildenchat scannen"
-    L.OPT_SAY = "Sagen/Schreien scannen"; L.SLASH = "/vlfg öffnet die Gruppensuche."
-    L.HEROIC = "H"; L.JUST_NOW = "jetzt"
-end
+local L = ns.L
 
 -- id = LFG activity id (source of the localized name + level range); abbr = curated chat keywords.
 local CAT_ORDER = ns.isEra and { "cd", "cr" } or { "cd", "cr", "bd", "br" }
-local CAT_NAME = { cd = L.CAT_CD, cr = L.CAT_CR, bd = L.CAT_BD, br = L.CAT_BR }
+local CAT_NAME = { cd = L["Classic Dungeons"], cr = L["Classic Raids"], bd = L["Burning Crusade Dungeons"], br = L["Burning Crusade Raids"] }
 
 local DUNGEONS = {
     { key="RFC",  id=798, cat="cd", abbr="rfc ragefire chasm" },
@@ -199,7 +180,7 @@ end
 
 local function timeAgo(t)
     local s = floor(GetTime() - t)
-    if s < 60 then return L.JUST_NOW end
+    if s < 60 then return L["now"] end
     return floor(s / 60) .. "m"
 end
 
@@ -231,9 +212,9 @@ local function getRow(parent, i)
         if button == "RightButton" then
             ns:ShowPopupMenu({
                 { title = true, text = self._sender:gsub("%-.*", "") },
-                { text = L.WHISPER, func = function() ChatFrame_SendTell(self._sender) end },
-                { text = L.INVITE,  func = function() if InviteUnit then InviteUnit(self._sender) end end },
-                { text = L.WHO,     func = function() if SendWho then SendWho('n-"' .. self._sender:gsub("%-.*", "") .. '"') end end },
+                { text = L["Whisper"], func = function() ChatFrame_SendTell(self._sender) end },
+                { text = L["Invite"],  func = function() if InviteUnit then InviteUnit(self._sender) end end },
+                { text = L["Who"],     func = function() if SendWho then SendWho('n-"' .. self._sender:gsub("%-.*", "") .. '"') end end },
             }, self)
         else
             ChatFrame_SendTell(self._sender)
@@ -289,7 +270,7 @@ local function refresh()
                         r:ClearAllPoints(); r:SetPoint("TOPLEFT", child, "TOPLEFT", 18, y); r:SetPoint("RIGHT", child, "RIGHT", -2, 0)
                         r:SetHeight(15); r:Enable(); r._sender = e.s; r._fullmsg = e.rq.msg
                         local nm = e.s:gsub("%-.*", "")
-                        r.left:SetText((e.rq.heroic and "|cffff8800[" .. L.HEROIC .. "]|r " or "") .. nm)
+                        r.left:SetText((e.rq.heroic and "|cffff8800[" .. L["H"] .. "]|r " or "") .. nm)
                         r.right:SetText(timeAgo(e.rq.time))
                         r.msg:SetText(e.rq.msg)
                         r:Show(); y = y - 15
@@ -304,11 +285,11 @@ local function refresh()
     if total == 0 then
         i = i + 1; local r = getRow(child, i)
         r:ClearAllPoints(); r:SetPoint("TOPLEFT", child, "TOPLEFT", 8, -8); r:Disable(); r._sender = nil; r._fullmsg = nil
-        r.left:SetText("|cff888888" .. L.EMPTY .. "|r"); r.right:SetText(""); r.msg:SetText(""); r:Show()
+        r.left:SetText("|cff888888" .. L["No groups forming right now."] .. "|r"); r.right:SetText(""); r.msg:SetText(""); r:Show()
         y = y - 20
     end
     child:SetHeight(math.max(1, -y + 4))
-    f.title:SetText(format("%s  |cff888888(%d)|r", L.TITLE, total))
+    f.title:SetText(format("%s  |cff888888(%d)|r", L["Group Board"], total))
 end
 
 local refreshPending
@@ -351,7 +332,7 @@ local function buildWindow()
     b[4]:SetPoint("TOPRIGHT"); b[4]:SetPoint("BOTTOMRIGHT"); b[4]:SetWidth(1)
 
     f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    f.title:SetPoint("TOP", f, "TOP", 0, -8); f.title:SetText(L.TITLE)
+    f.title:SetPoint("TOP", f, "TOP", 0, -8); f.title:SetText(L["Group Board"])
     if ns.UI and ns.UI.Font then ns.UI.Font(f.title, 14) end
 
     local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
@@ -405,8 +386,8 @@ local function buildMinimap()
     b:RegisterForClicks("LeftButtonUp")
     b:SetScript("OnClick", function() mod:Toggle() end)
     b:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_LEFT"); GameTooltip:SetText(L.TITLE)
-        GameTooltip:AddLine(L.SLASH, 0.7, 0.7, 0.7); GameTooltip:Show()
+        GameTooltip:SetOwner(self, "ANCHOR_LEFT"); GameTooltip:SetText(L["Group Board"])
+        GameTooltip:AddLine(L["/vlfg toggles the group board."], 0.7, 0.7, 0.7); GameTooltip:Show()
     end)
     b:SetScript("OnLeave", GameTooltip_Hide)
     mod._mm = b
@@ -457,14 +438,14 @@ SlashCmdList.VULLFG = function() mod:Toggle() end
 
 function mod:GetOptions()
     return {
-        { type = "desc", text = "|cffaaaaaa" .. L.SLASH .. "|r" },
-        { type = "slider", label = L.OPT_WINDOW, min = 5, max = 60, step = 5,
+        { type = "desc", text = "|cffaaaaaa" .. L["/vlfg toggles the group board."] .. "|r" },
+        { type = "slider", label = L["Keep requests for (minutes)"], min = 5, max = 60, step = 5,
           get = function() return mod.db.window or 20 end, set = function(_, v) mod.db.window = v end },
-        { type = "toggle", label = L.OPT_MINIMAP,
+        { type = "toggle", label = L["Show minimap button"],
           get = function() return mod.db.minimap end,
           set = function(_, v) mod.db.minimap = v; if v then buildMinimap() end; if mod._mm then mod._mm:SetShown(v) end end },
-        { type = "toggle", label = L.OPT_WORLD, get = function() return mod.db.scanWorld end, set = function(_, v) mod.db.scanWorld = v end },
-        { type = "toggle", label = L.OPT_GUILD, get = function() return mod.db.scanGuild end, set = function(_, v) mod.db.scanGuild = v end },
-        { type = "toggle", label = L.OPT_SAY,   get = function() return mod.db.scanSay ~= false end, set = function(_, v) mod.db.scanSay = v end },
+        { type = "toggle", label = L["Scan world / trade / LFG channels"], get = function() return mod.db.scanWorld end, set = function(_, v) mod.db.scanWorld = v end },
+        { type = "toggle", label = L["Scan guild chat"], get = function() return mod.db.scanGuild end, set = function(_, v) mod.db.scanGuild = v end },
+        { type = "toggle", label = L["Scan say / yell"],   get = function() return mod.db.scanSay ~= false end, set = function(_, v) mod.db.scanSay = v end },
     }
 end
