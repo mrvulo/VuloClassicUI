@@ -37,6 +37,27 @@ local mod = ns:RegisterModule("arenaframes", {
         castbarEnabled = false,
         castbarWidth   = 120,
         castbarHeight  = 14,
+
+        trinketSound = true,
+        trinketGlow  = true,
+
+        racialEnabled = true,
+        racialSize    = 26,
+        racialOffsetX = 6,
+        racialOffsetY = 0,
+
+        shadowsightEnabled = true,
+
+        auraIconEnabled = true,
+        auraOnlyCC      = false,
+
+        dispelEnabled = false,
+        dispelSize    = 22,
+
+        rangeEnabled = true,
+        rangeAlpha   = 0.45,
+
+        cdTextEnabled = true,
     },
 })
 
@@ -122,6 +143,11 @@ local SECTION_LABELS = {
     trinket    = L["PvP Trinket"],
     dr         = L["DR Tracker"],
     castbar    = L["Castbar"],
+    racial     = L["Racials"],
+    shadowsight = L["Shadow Sight"],
+    auraicon   = L["Auras"],
+    dispel     = L["Dispels"],
+    range      = L["Range"],
 }
 
 function mod:AddOptionsSection(name, builder)
@@ -861,6 +887,7 @@ local function createTrinketFrame(parent, slotIndex)
     f.cd:SetAllPoints(f)
     f.cd:SetDrawEdge(true)
     f.cd:SetHideCountdownNumbers(false)
+    if mod.StyleCooldown then mod.StyleCooldown(f.cd) end
 
     f:EnableMouse(false)
 
@@ -906,6 +933,29 @@ end
 
 local activeCDs = {}
 
+-- Audible + visible confirmation that a trinket just went. Deliberately short:
+-- an alert you have to look at defeats the point of having one.
+function mod.OnTrinketUsed(tf, unit)
+    if mod.db.trinketSound then
+        pcall(PlaySound, SOUNDKIT and SOUNDKIT.RAID_WARNING or 8959, "Master")
+    end
+    if not (mod.db.trinketGlow and tf) then return end
+    if not tf.glow then
+        local g = tf:CreateTexture(nil, "OVERLAY", nil, 2)
+        g:SetPoint("TOPLEFT", tf, "TOPLEFT", -4, 4)
+        g:SetPoint("BOTTOMRIGHT", tf, "BOTTOMRIGHT", 4, -4)
+        g:SetTexture("Interface\\Buttons\\WHITE8X8")
+        g:SetBlendMode("ADD")
+        g:Hide()
+        tf.glow = g
+    end
+    tf.glow:SetVertexColor(1, 0.9, 0.4, 0.75)
+    tf.glow:Show()
+    if C_Timer and C_Timer.After then
+        C_Timer.After(1, function() if tf.glow then tf.glow:Hide() end end)
+    end
+end
+
 local function startCooldown(unit, duration)
     local i = tonumber(unit:match("^arena(%d)$"))
     if not i then return end
@@ -914,11 +964,17 @@ local function startCooldown(unit, duration)
     local tf = ensureTrinketFrame(arenaFrame, i)
     anchorTrinketFrame(tf, arenaFrame)
 
+    -- Only a genuinely new use gets the alert; the API refresh re-arms the same
+    -- cooldown repeatedly and would otherwise beep every few seconds.
+    local prev = activeCDs[unit]
+    local fresh = not (prev and prev.start + prev.duration > GetTime())
+
     tf.cd:SetCooldown(GetTime(), duration)
     tf.icon:SetDesaturated(true)
     if mod.db.trinketEnabled then tf:Show() end
 
     activeCDs[unit] = { start = GetTime(), duration = duration }
+    if fresh then mod.OnTrinketUsed(tf, unit) end
 
     if C_Timer and C_Timer.After then
         C_Timer.After(duration + 0.1, function()
@@ -927,6 +983,73 @@ local function startCooldown(unit, duration)
                 activeCDs[unit] = nil
             end
         end)
+    end
+end
+
+-- The client knows the real remaining cooldown, including uses you never saw
+-- (out of range, behind a pillar, or before you loaded in). The combat log stays
+-- as a fallback for when the API has nothing yet.
+local function apiTrinketAvailable()
+    return C_PvP and C_PvP.GetArenaCrowdControlInfo and C_PvP.RequestCrowdControlSpell
+end
+
+local function requestTrinketInfo()
+    if not apiTrinketAvailable() then return end
+    for i = 1, 5 do
+        local unit = "arena" .. i
+        if UnitExists(unit) then pcall(C_PvP.RequestCrowdControlSpell, unit) end
+    end
+end
+
+-- Returns startTime/duration in seconds, or nil when the client has nothing.
+local function apiTrinketCooldown(unit)
+    if not apiTrinketAvailable() then return nil end
+    local ok, spellID, _, startMs, durMs = pcall(C_PvP.GetArenaCrowdControlInfo, unit)
+    if not ok or not spellID then return nil end
+    -- 0/0 means "the client has no cooldown payload yet", NOT "the trinket is
+    -- up". Treating it as up wipes a cooldown we already tracked from the
+    -- combat log the moment any other opponent triggers a refresh.
+    if not (startMs and durMs) or startMs == 0 or durMs == 0 then return nil end
+    return startMs / 1000, durMs / 1000
+end
+
+local function refreshTrinketFromAPI(unit)
+    if not mod.db.trinketEnabled then return end
+    local i = tonumber(unit and unit:match("^arena(%d)$") or "")
+    if not i then return end
+    local start, dur = apiTrinketCooldown(unit)
+    if not start then return end
+    local arenaFrame = _G["ArenaEnemyFrame" .. i]
+    if not arenaFrame then return end
+    local tf = ensureTrinketFrame(arenaFrame, i)
+    anchorTrinketFrame(tf, arenaFrame)
+    -- the API re-reports the same cooldown on every refresh; only a start time
+    -- we have not tracked yet counts as an actual use
+    local prev = activeCDs[unit]
+    local fresh = not (prev and math.abs((prev.start or 0) - start) < 1)
+    tf.cd:SetCooldown(start, dur)
+    tf.icon:SetDesaturated(true)
+    activeCDs[unit] = { start = start, duration = dur }
+    if fresh and (GetTime() - start) < 3 then mod.OnTrinketUsed(tf, unit) end
+    -- without this the swipe finishes but the icon stays grey until some later
+    -- event happens to fire, so a trinket that is back up still reads as down
+    local left = (start + dur) - GetTime()
+    if left > 0 and C_Timer and C_Timer.After then
+        C_Timer.After(left + 0.1, function()
+            local cur = activeCDs[unit]
+            if not cur or cur.start + cur.duration <= GetTime() then
+                tf.icon:SetDesaturated(false)
+                activeCDs[unit] = nil
+            end
+        end)
+    end
+    tf:Show()
+end
+
+local function refreshAllTrinketsFromAPI()
+    for i = 1, 5 do
+        local unit = "arena" .. i
+        if UnitExists(unit) then refreshTrinketFromAPI(unit) end
     end
 end
 
@@ -985,9 +1108,33 @@ ns:RegisterEvent("PLAYER_ENTERING_WORLD", function()
     end
     if not inArena then resetAllCDs() end
     setCombatLog(inArena)
+    if inArena and C_Timer and C_Timer.After then
+        -- opponents are not visible in the TBC prep room; ask again once the
+        -- gates are open and the units actually exist
+        C_Timer.After(2, requestTrinketInfo)
+        C_Timer.After(6, function() requestTrinketInfo(); refreshAllTrinketsFromAPI() end)
+    end
 end)
-ns:RegisterEvent("ARENA_OPPONENT_UPDATE", function(_, _, eventType)
-    if eventType == "seen" then resetAllCDs() end
+ns:RegisterEvent("ARENA_OPPONENT_UPDATE", function(_, unit, eventType)
+    if eventType == "seen" then
+        -- Ask the client what it knows; one opponent walking into view must not
+        -- wipe the cooldowns we are already tracking for the others.
+        if apiTrinketAvailable() then
+            requestTrinketInfo()
+            if unit then refreshTrinketFromAPI(unit) end
+        end
+    end
+end)
+
+-- On this client ARENA_COOLDOWNS_UPDATE fires with no unit at all, so the
+-- refresh has to cover every opponent rather than keying off the argument.
+ns:RegisterEvent("ARENA_COOLDOWNS_UPDATE", function(_, unit)
+    if not mod.db.trinketEnabled then return end
+    if unit then refreshTrinketFromAPI(unit) else refreshAllTrinketsFromAPI() end
+end)
+
+ns:RegisterEvent("ARENA_CROWD_CONTROL_SPELL_UPDATE", function(_, unit)
+    if unit then refreshTrinketFromAPI(unit) end
 end)
 
 mod:AddOptionsSection("trinket", function()
@@ -1520,5 +1667,753 @@ mod:AddOptionsSection("castbar", function()
         },
     }
 end)
+
+end)(...);
+
+-- =========================================================================
+-- Racial cooldowns.
+-- The cooldowns below are this expansion's values, which differ from later
+-- ones: Perception is the Human racial (Will to Survive came later) and
+-- Shadowmeld is a 10s crouch rather than a 2 minute cooldown. There is
+-- deliberately NO shared cooldown with the PvP trinket -- that link did not
+-- exist yet, and faking it would grey out a trinket the enemy can still use.
+-- =========================================================================
+(function(...)
+local _, ns = ...
+if ns.isEra then return end
+local L = ns.L
+local mod = ns.ArenaModule
+
+local H = mod.helpers
+
+local RACIAL_CD = {
+    [20549] = 120,  -- War Stomp
+    [7744]  = 120,  -- Will of the Forsaken
+    [20554] = 180,  -- Berserking
+    [26296] = 180,
+    [26297] = 180,
+    [20572] = 120,  -- Blood Fury (attack power)
+    [33697] = 120,  -- Blood Fury (hybrid)
+    [33702] = 120,  -- Blood Fury (spell power)
+    [20589] = 105,  -- Escape Artist
+    [20594] = 180,  -- Stoneform
+    [20600] = 180,  -- Perception
+    [20580] = 10,   -- Shadowmeld
+    [28730] = 120,  -- Arcane Torrent (mana)
+    [25046] = 120,  -- Arcane Torrent (energy)
+    [28880] = 180,  -- Gift of the Naaru
+}
+
+-- One representative spell per race for the resting icon, shown before the
+-- opponent has pressed anything.
+local RACE_SPELL = {
+    Tauren   = 20549, Scourge = 7744,  Troll = 26297, Orc      = 20572,
+    Gnome    = 20589, Dwarf   = 20594, Human = 20600, NightElf = 20580,
+    BloodElf = 28730, Draenei = 28880,
+}
+
+local racialFrames = {}
+
+local function ensureRacialFrame(arenaFrame, i)
+    local f = racialFrames[i]
+    if f then return f end
+    f = CreateFrame("Frame", "VCUIArenaRacial" .. i, arenaFrame)
+    f.icon = f:CreateTexture(nil, "ARTWORK")
+    f.icon:SetAllPoints(f)
+    f.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    f.border = f:CreateTexture(nil, "BACKGROUND")
+    f.border:SetPoint("TOPLEFT", f, "TOPLEFT", -1, 1)
+    f.border:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 1, -1)
+    f.border:SetColorTexture(0, 0, 0, 0.8)
+    f.cd = CreateFrame("Cooldown", nil, f, "CooldownFrameTemplate")
+    f.cd:SetAllPoints(f)
+    f.cd:SetDrawEdge(true)
+    if mod.StyleCooldown then mod.StyleCooldown(f.cd) end
+    f:EnableMouse(false)
+    f:Hide()
+    racialFrames[i] = f
+    return f
+end
+
+local function layoutRacial(f, arenaFrame)
+    local d = mod.db
+    f:SetSize(d.racialSize, d.racialSize)
+    f:ClearAllPoints()
+    -- opposite side from the trinket, so the two icons never stack
+    if d.trinketAnchor == "LEFT" then
+        f:SetPoint("LEFT", arenaFrame, "RIGHT", d.racialOffsetX, d.racialOffsetY)
+    else
+        f:SetPoint("RIGHT", arenaFrame, "LEFT", -d.racialOffsetX, d.racialOffsetY)
+    end
+end
+
+local function updateRacial(arenaFrame, i)
+    local d = mod.db
+    if not mod._enabled then return end
+    local f = ensureRacialFrame(arenaFrame, i)
+    layoutRacial(f, arenaFrame)
+    if not d.racialEnabled then f:Hide(); return end
+    local unit = "arena" .. i
+    local race = UnitExists(unit) and select(2, UnitRace(unit)) or nil
+    local spell = race and RACE_SPELL[race]
+    if not spell then f:Hide(); return end
+    local tex = GetSpellTexture and GetSpellTexture(spell)
+    f.icon:SetTexture(tex or "Interface\\Icons\\INV_Misc_QuestionMark")
+    f:Show()
+end
+
+mod.RefreshRacials = function() H.ForEach(updateRacial) end
+mod:OnArenaFramesReady(updateRacial)
+
+function mod.RacialUsed(unit, spellId)
+    local dur = RACIAL_CD[spellId]
+    if not dur or not mod.db.racialEnabled then return end
+    local i = tonumber(unit:match("^arena(%d)$") or "")
+    local arenaFrame = i and _G["ArenaEnemyFrame" .. i]
+    if not arenaFrame then return end
+    local f = ensureRacialFrame(arenaFrame, i)
+    layoutRacial(f, arenaFrame)
+    local tex = GetSpellTexture and GetSpellTexture(spellId)
+    if tex then f.icon:SetTexture(tex) end
+    f.cd:SetCooldown(GetTime(), dur)
+    f.icon:SetDesaturated(true)
+    f:Show()
+    local token = (f._token or 0) + 1
+    f._token = token
+    if C_Timer and C_Timer.After then
+        C_Timer.After(dur + 0.1, function()
+            if f._token == token and f.icon then f.icon:SetDesaturated(false) end
+        end)
+    end
+end
+
+function mod.ResetRacials()
+    for _, f in pairs(racialFrames) do
+        f._token = (f._token or 0) + 1     -- invalidates any pending restore
+        if f.cd then f.cd:Clear() end
+        if f.icon then f.icon:SetDesaturated(false) end
+    end
+end
+
+mod.RACIAL_CD = RACIAL_CD
+
+mod:AddOptionsSection("racial", function()
+    return {
+        { type = "header", text = L["Racial Cooldowns"] },
+        { type = "desc",   text = L["Shows the opponent's racial ability and its cooldown once they use it. These are this expansion's cooldowns, and no racial shares one with the PvP trinket yet."] },
+        { type = "checkbox", label = L["Show racial cooldown"],
+          get = function() return mod.db.racialEnabled end,
+          set = function(_, v) mod.db.racialEnabled = v; mod.RefreshRacials() end },
+        { type = "slider", label = L["Icon size"], min = 16, max = 48, step = 1,
+          get = function() return mod.db.racialSize end,
+          set = function(_, v) mod.db.racialSize = v; mod.RefreshRacials() end },
+        { type = "slider", label = L["Offset X"], min = -100, max = 100, step = 1,
+          get = function() return mod.db.racialOffsetX end,
+          set = function(_, v) mod.db.racialOffsetX = v; mod.RefreshRacials() end },
+        { type = "slider", label = L["Offset Y"], min = -60, max = 60, step = 1,
+          get = function() return mod.db.racialOffsetY end,
+          set = function(_, v) mod.db.racialOffsetY = v; mod.RefreshRacials() end },
+    }
+end)
+
+end)(...);
+
+-- =========================================================================
+-- Shadow Sight timer. A mechanic of this expansion only: the two arena orbs
+-- appear 95s after the gates open and each returns 122s after it is taken.
+-- =========================================================================
+(function(...)
+local _, ns = ...
+if ns.isEra then return end
+local L = ns.L
+local mod = ns.ArenaModule
+
+local FIRST_SPAWN    = 95
+local RESPAWN        = 122
+local SHADOWSIGHT_ID = 34709
+
+local orbs, holder, fs, ticker = { 0, 0 }, nil, nil, nil
+
+local function ensureHolder()
+    if holder then return holder end
+    holder = CreateFrame("Frame", "VCUIArenaShadowsight", UIParent)
+    holder:SetSize(260, 20)
+    holder:SetPoint("TOP", UIParent, "TOP", 0, -120)
+    fs = holder:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    if ns.UI and ns.UI.Font then ns.UI.Font(fs, 14, "OUTLINE") end
+    fs:SetPoint("CENTER", holder, "CENTER", 0, 0)
+    fs:SetTextColor(0.75, 0.55, 1)
+    holder:Hide()
+    return holder
+end
+
+local function stopTimers()
+    if ticker then ticker:Cancel(); ticker = nil end
+    if holder then holder:Hide() end
+end
+
+local function tick()
+    if not mod.db.shadowsightEnabled then stopTimers(); return end
+    local now = GetTime()
+    local ready, soonest = 0, nil
+    for _, t in ipairs(orbs) do
+        if t <= now then
+            ready = ready + 1
+        elseif not soonest or t < soonest then
+            soonest = t
+        end
+    end
+    if ready > 0 and soonest then
+        fs:SetFormattedText(L["Shadow Sight up - next in %d s"], soonest - now)
+    elseif ready > 0 then
+        fs:SetText(L["Shadow Sight up"])
+    elseif soonest then
+        fs:SetFormattedText(L["Shadow Sight in %d s"], soonest - now)
+    else
+        fs:SetText("")
+    end
+    holder:Show()
+end
+
+local function startTimers()
+    if not mod.db.shadowsightEnabled then return end
+    ensureHolder()
+    local first = GetTime() + FIRST_SPAWN
+    orbs[1], orbs[2] = first, first
+    if ticker then ticker:Cancel() end
+    if C_Timer and C_Timer.NewTicker then ticker = C_Timer.NewTicker(0.2, tick) end
+    tick()
+end
+
+-- One orb was taken: push whichever was already up, so the two run
+-- independently exactly as the orbs themselves do.
+local function orbTaken()
+    local now = GetTime()
+    for i, t in ipairs(orbs) do
+        if t <= now then
+            orbs[i] = now + RESPAWN
+            return
+        end
+    end
+end
+
+mod.ShadowsightID    = SHADOWSIGHT_ID
+mod.ShadowsightTaken = orbTaken
+mod.StartShadowsight = startTimers
+mod.StopShadowsight  = stopTimers
+
+mod:AddOptionsSection("shadowsight", function()
+    return {
+        { type = "header", text = L["Shadow Sight"] },
+        { type = "desc",   text = L["Counts down the arena orbs: the first pair appears 95 seconds after the gates open, and each one returns 122 seconds after it is taken."] },
+        { type = "checkbox", label = L["Show Shadow Sight timer"],
+          get = function() return mod.db.shadowsightEnabled end,
+          set = function(_, v)
+              mod.db.shadowsightEnabled = v
+              if not v then stopTimers() end
+          end },
+    }
+end)
+
+end)(...);
+
+-- =========================================================================
+-- The single most relevant aura on the class icon: an immunity outranks crowd
+-- control, which outranks a defensive, which outranks an offensive cooldown.
+-- Showing every aura would only be a second, worse aura bar.
+-- =========================================================================
+(function(...)
+local _, ns = ...
+if ns.isEra then return end
+local L = ns.L
+local mod = ns.ArenaModule
+
+local H = mod.helpers
+
+local AURA_PRIO = {}
+local function put(prio, cat, ...)
+    for i = 1, select("#", ...) do
+        AURA_PRIO[select(i, ...)] = { prio, cat }
+    end
+end
+
+-- immunities and effects that make a cast pointless
+put(10, "important", 23920, 45438, 642, 1022, 5599, 10278, 31224, 19263, 498, 1020)
+-- crowd control
+put(9, "cc", 118, 12824, 12825, 12826, 28271, 28272)
+put(9, "cc", 5782, 6213, 6215, 5484, 5246, 8122, 8124, 10888, 10890)
+put(9, "cc", 2094, 1833, 408, 1776, 6770, 2070, 11297, 6768)
+put(9, "cc", 853, 5588, 5589, 10308, 20066)
+put(9, "cc", 3355, 14308, 14309, 19503, 19410, 12809, 20253)
+put(9, "cc", 339, 1062, 5195, 5196, 9852, 9853, 33786, 22570, 16979)
+put(9, "cc", 6358, 6789, 17928, 30283, 31117, 24259)
+-- silences and lockouts
+put(6, "cc", 15487, 18469, 1330, 28730, 25046)
+-- defensive cooldowns
+put(5, "defensive", 871, 12975, 5277, 22812, 33206, 31821, 498, 1038)
+-- drinking: a free opener
+put(4, "important", 43183, 430, 431, 432, 1133, 1135, 1137)
+-- offensive cooldowns
+put(2, "offensive", 1719, 12472, 2825, 32182, 13750, 12292, 11129, 12042, 3045, 34471, 12328)
+
+local CAT_COLOR = {
+    cc        = { 0.85, 0.35, 1.00 },
+    important = { 1.00, 0.85, 0.25 },
+    defensive = { 0.35, 0.75, 1.00 },
+    offensive = { 1.00, 0.45, 0.25 },
+}
+
+local auraFrames = {}
+
+local function ensureAuraFrame(arenaFrame, i)
+    local f = auraFrames[i]
+    if f then return f end
+    local portrait = H.GetPortrait(arenaFrame)
+    f = CreateFrame("Frame", nil, arenaFrame)
+    if portrait then
+        f:SetAllPoints(portrait)
+    else
+        f:SetSize(28, 28)
+        f:SetPoint("LEFT", arenaFrame, "LEFT", 4, 0)
+    end
+    f:SetFrameLevel(arenaFrame:GetFrameLevel() + 6)
+    f.icon = f:CreateTexture(nil, "ARTWORK")
+    f.icon:SetAllPoints(f)
+    f.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    -- four edges, not a filled quad: a full-cover ADD texture washes the icon
+    -- out instead of outlining it
+    f.ring = {}
+    for _, side in ipairs({ "top", "bot", "lft", "rgt" }) do
+        f.ring[side] = f:CreateTexture(nil, "OVERLAY")
+    end
+    f.ring.top:SetPoint("BOTTOMLEFT",  f, "TOPLEFT",    -2,  2)
+    f.ring.top:SetPoint("BOTTOMRIGHT", f, "TOPRIGHT",    2,  2)
+    f.ring.top:SetHeight(2)
+    f.ring.bot:SetPoint("TOPLEFT",     f, "BOTTOMLEFT", -2, -2)
+    f.ring.bot:SetPoint("TOPRIGHT",    f, "BOTTOMRIGHT", 2, -2)
+    f.ring.bot:SetHeight(2)
+    f.ring.lft:SetPoint("TOPRIGHT",    f, "TOPLEFT",    -2,  2)
+    f.ring.lft:SetPoint("BOTTOMRIGHT", f, "BOTTOMLEFT", -2, -2)
+    f.ring.lft:SetWidth(2)
+    f.ring.rgt:SetPoint("TOPLEFT",     f, "TOPRIGHT",    2,  2)
+    f.ring.rgt:SetPoint("BOTTOMLEFT",  f, "BOTTOMRIGHT", 2, -2)
+    f.ring.rgt:SetWidth(2)
+    f.cd = CreateFrame("Cooldown", nil, f, "CooldownFrameTemplate")
+    f.cd:SetAllPoints(f)
+    f.cd:SetDrawEdge(false)
+    if mod.StyleCooldown then mod.StyleCooldown(f.cd) end
+    f.count = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    f.count:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 2, -1)
+    f:EnableMouse(false)
+    f:Hide()
+    auraFrames[i] = f
+    return f
+end
+
+-- Highest priority wins; a tie goes to whichever lasts longer, so the icon does
+-- not flicker between two auras of the same rank.
+local function bestAura(unit)
+    local best, bestPrio, bestLeft
+    for _, filter in ipairs({ "HELPFUL", "HARMFUL" }) do
+        for i = 1, 40 do
+            local name, icon, count, _, duration, expires, _, _, _, spellId =
+                UnitAura(unit, i, filter)
+            if not name then break end
+            local e = spellId and AURA_PRIO[spellId]
+            if e and (not mod.db.auraOnlyCC or e[2] == "cc") then
+                local left = (expires or 0) > 0 and (expires - GetTime()) or 9999
+                if (not best) or e[1] > bestPrio or (e[1] == bestPrio and left > bestLeft) then
+                    best = { icon = icon, count = count or 0,
+                             duration = duration or 0, expires = expires or 0, cat = e[2] }
+                    bestPrio, bestLeft = e[1], left
+                end
+            end
+        end
+    end
+    return best
+end
+
+local function updateAuraIcon(arenaFrame, i)
+    if not mod._enabled then return end
+    local f = ensureAuraFrame(arenaFrame, i)
+    if not mod.db.auraIconEnabled then f:Hide(); return end
+    local unit = "arena" .. i
+    if not UnitExists(unit) then f:Hide(); return end
+    local a = bestAura(unit)
+    if not a then f:Hide(); return end
+    f.icon:SetTexture(a.icon)
+    local c = CAT_COLOR[a.cat] or CAT_COLOR.important
+    for _, t in pairs(f.ring) do t:SetColorTexture(c[1], c[2], c[3], 0.9) end
+    if a.duration > 0 and a.expires > 0 then
+        f.cd:SetCooldown(a.expires - a.duration, a.duration)
+        f.cd:Show()
+    else
+        f.cd:Hide()
+    end
+    f.count:SetText(a.count > 1 and a.count or "")
+    f:Show()
+end
+
+mod.RefreshAuraIcons = function() H.ForEach(updateAuraIcon) end
+mod:OnArenaFramesReady(updateAuraIcon)
+
+function mod.AuraIconUpdate(unit)
+    local i = tonumber(unit and unit:match("^arena(%d)$") or "")
+    local arenaFrame = i and _G["ArenaEnemyFrame" .. i]
+    if arenaFrame then updateAuraIcon(arenaFrame, i) end
+end
+
+mod:AddOptionsSection("auraicon", function()
+    return {
+        { type = "header", text = L["Aura on the class icon"] },
+        { type = "desc",   text = L["Puts the single most relevant aura on the opponent's class icon: an immunity outranks crowd control, which outranks a defensive, which outranks an offensive cooldown."] },
+        { type = "checkbox", label = L["Show aura on the class icon"],
+          get = function() return mod.db.auraIconEnabled end,
+          set = function(_, v) mod.db.auraIconEnabled = v; mod.RefreshAuraIcons() end },
+        { type = "checkbox", label = L["Crowd control only"],
+          get = function() return mod.db.auraOnlyCC end,
+          set = function(_, v) mod.db.auraOnlyCC = v; mod.RefreshAuraIcons() end },
+    }
+end)
+
+end)(...);
+
+-- =========================================================================
+-- Dispel cooldowns.
+-- Almost nothing to track in this expansion: Dispel Magic, Cleanse, Purify,
+-- Remove Curse and Abolish Poison all have NO cooldown. Only Mass Dispel and
+-- the felhunter's Devour Magic do, so this row stays quiet most of the time --
+-- which is why it ships off by default rather than looking broken.
+-- =========================================================================
+(function(...)
+local _, ns = ...
+if ns.isEra then return end
+local L = ns.L
+local mod = ns.ArenaModule
+
+local H = mod.helpers
+
+local DISPEL_CD = {
+    [32375] = 15,   -- Mass Dispel
+    [19505] = 8,    -- Devour Magic (pet), ranks below
+    [19731] = 8,
+    [19734] = 8,
+    [19736] = 8,
+    [27276] = 8,
+    [27277] = 8,
+}
+
+local dispelFrames = {}
+
+local function ensureDispelFrame(arenaFrame, i)
+    local f = dispelFrames[i]
+    if f then return f end
+    f = CreateFrame("Frame", nil, arenaFrame)
+    f.icon = f:CreateTexture(nil, "ARTWORK")
+    f.icon:SetAllPoints(f)
+    f.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    f.border = f:CreateTexture(nil, "BACKGROUND")
+    f.border:SetPoint("TOPLEFT", f, "TOPLEFT", -1, 1)
+    f.border:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 1, -1)
+    f.border:SetColorTexture(0, 0, 0, 0.8)
+    f.cd = CreateFrame("Cooldown", nil, f, "CooldownFrameTemplate")
+    f.cd:SetAllPoints(f)
+    f.cd:SetDrawEdge(true)
+    if mod.StyleCooldown then mod.StyleCooldown(f.cd) end
+    f:EnableMouse(false)
+    f:Hide()
+    dispelFrames[i] = f
+    return f
+end
+
+local function layoutDispel(f, arenaFrame)
+    local d = mod.db
+    f:SetSize(d.dispelSize, d.dispelSize)
+    f:ClearAllPoints()
+    -- below the castbar slot, which also sits under the frame
+    f:SetPoint("TOP", arenaFrame, "BOTTOM", 0, -(mod.db.castbarHeight or 14) - 6)
+end
+
+local function updateDispel(arenaFrame, i)
+    if not mod._enabled then return end
+    local f = ensureDispelFrame(arenaFrame, i)
+    layoutDispel(f, arenaFrame)
+    if not mod.db.dispelEnabled then f:Hide() end
+end
+
+mod.RefreshDispels = function() H.ForEach(updateDispel) end
+mod:OnArenaFramesReady(updateDispel)
+
+function mod.DispelUsed(unit, spellId)
+    local dur = DISPEL_CD[spellId]
+    if not dur or not mod.db.dispelEnabled then return end
+    local i = tonumber(unit:match("^arena(%d)$") or "")
+    local arenaFrame = i and _G["ArenaEnemyFrame" .. i]
+    if not arenaFrame then return end
+    local f = ensureDispelFrame(arenaFrame, i)
+    layoutDispel(f, arenaFrame)
+    local tex = GetSpellTexture and GetSpellTexture(spellId)
+    f.icon:SetTexture(tex or "Interface\\Icons\\Spell_Holy_DispelMagic")
+    f.cd:SetCooldown(GetTime(), dur)
+    f:Show()
+    local token = (f._token or 0) + 1
+    f._token = token
+    if C_Timer and C_Timer.After then
+        C_Timer.After(dur + 0.1, function()
+            if f._token == token then f:Hide() end
+        end)
+    end
+end
+
+function mod.ResetDispels()
+    for _, f in pairs(dispelFrames) do
+        f._token = (f._token or 0) + 1
+        if f.cd then f.cd:Clear() end
+        f:Hide()
+    end
+end
+
+mod.DISPEL_CD = DISPEL_CD
+
+mod:AddOptionsSection("dispel", function()
+    return {
+        { type = "header", text = L["Dispel Cooldowns"] },
+        { type = "desc",   text = L["|cffaaaaaaMost dispels have no cooldown in this expansion, so only Mass Dispel and the felhunter's Devour Magic can ever show up here.|r"] },
+        { type = "checkbox", label = L["Show dispel cooldown"],
+          get = function() return mod.db.dispelEnabled end,
+          set = function(_, v) mod.db.dispelEnabled = v; mod.RefreshDispels() end },
+        { type = "slider", label = L["Icon size"], min = 14, max = 40, step = 1,
+          get = function() return mod.db.dispelSize end,
+          set = function(_, v) mod.db.dispelSize = v; mod.RefreshDispels() end },
+    }
+end)
+
+end)(...);
+
+-- =========================================================================
+-- Range indicator: the frame fades when the opponent is out of reach of a
+-- spell your class actually has. Checked against a real spell rather than a
+-- hardcoded yardage, so the answer matches what the server will allow.
+-- =========================================================================
+(function(...)
+local _, ns = ...
+if ns.isEra then return end
+local L = ns.L
+local mod = ns.ArenaModule
+
+local H = mod.helpers
+
+-- One reliable, always-known spell per class, chosen for a useful range.
+local RANGE_SPELL_ID = {
+    -- Deliberately no Charge or Auto Shot: both have a MINIMUM range, so they
+    -- report out-of-range while you are stood in melee, i.e. exactly backwards.
+    WARRIOR = 772,   -- Rend, melee
+    ROGUE   = 2094,  -- Blind, 10y
+    HUNTER  = 2973,  -- Raptor Strike, melee
+    MAGE    = 133,   -- Fireball, 35y
+    PRIEST  = 585,   -- Smite, 30y
+    WARLOCK = 686,   -- Shadow Bolt, 30y
+    DRUID   = 5176,  -- Wrath, 30y
+    SHAMAN  = 403,   -- Lightning Bolt, 30y
+    PALADIN = 20271, -- Judgement, 10y
+}
+
+local rangeSpellName
+local function resolveRangeSpell()
+    local _, class = UnitClass("player")
+    local id = class and RANGE_SPELL_ID[class]
+    rangeSpellName = id and GetSpellInfo and GetSpellInfo(id) or nil
+end
+
+local function inRange(unit)
+    if not rangeSpellName or not IsSpellInRange then return true end
+    local r = IsSpellInRange(rangeSpellName, unit)
+    if r == nil then return true end          -- spell cannot answer for this unit
+    return r == 1
+end
+
+local ticker
+
+local function applyRange()
+    if not (mod._enabled and mod.db.rangeEnabled) then return end
+    H.ForEach(function(frame, i)
+        local unit = "arena" .. i
+        if not UnitExists(unit) then return end
+        frame:SetAlpha(inRange(unit) and 1 or (mod.db.rangeAlpha or 0.45))
+    end)
+end
+
+local function startRange()
+    if ticker or not mod.db.rangeEnabled then return end
+    resolveRangeSpell()
+    if C_Timer and C_Timer.NewTicker then ticker = C_Timer.NewTicker(0.2, applyRange) end
+end
+
+local function stopRange()
+    if ticker then ticker:Cancel(); ticker = nil end
+    H.ForEach(function(frame) frame:SetAlpha(1) end)
+end
+
+mod.StartRangeCheck = startRange
+mod.StopRangeCheck  = stopRange
+
+ns:RegisterEvent("SPELLS_CHANGED", resolveRangeSpell)
+
+mod:AddOptionsSection("range", function()
+    return {
+        { type = "header", text = L["Range"] },
+        { type = "desc",   text = L["Fades the frame while the opponent is out of reach, measured with a spell your class knows rather than a fixed distance."] },
+        { type = "checkbox", label = L["Fade out-of-range opponents"],
+          get = function() return mod.db.rangeEnabled end,
+          set = function(_, v)
+              mod.db.rangeEnabled = v
+              if v then startRange() else stopRange() end
+          end },
+        { type = "slider", label = L["Faded opacity"], min = 10, max = 90, step = 5,
+          get = function() return math.floor((mod.db.rangeAlpha or 0.45) * 100) end,
+          set = function(_, v) mod.db.rangeAlpha = v / 100; applyRange() end },
+    }
+end)
+
+end)(...);
+
+-- =========================================================================
+-- Event wiring for the sections above, plus precise cooldown numbers.
+-- =========================================================================
+(function(...)
+local _, ns = ...
+if ns.isEra then return end
+local L = ns.L
+local mod = ns.ArenaModule
+
+local H = mod.helpers
+
+-- A dedicated cooldown-text addon does this better and would fight us for the
+-- same font string, so stand down when one is loaded.
+local function haveCooldownAddon()
+    local loaded = C_AddOns and C_AddOns.IsAddOnLoaded or IsAddOnLoaded
+    if not loaded then return false end
+    for _, name in ipairs({ "OmniCC", "tullaCC", "CooldownCount" }) do
+        local ok, isLoaded = pcall(loaded, name)
+        if ok and isLoaded then return true end
+    end
+    return false
+end
+
+local function styleCooldown(cd)
+    if not cd or cd._vcStyled or not mod.db.cdTextEnabled then return end
+    if haveCooldownAddon() then return end
+    cd._vcStyled = true
+    cd:SetHideCountdownNumbers(true)
+    local fs = cd:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    if ns.UI and ns.UI.Font then ns.UI.Font(fs, 13, "OUTLINE") end
+    fs:SetPoint("CENTER", cd, "CENTER", 0, 0)
+    cd._vcText = fs
+    local acc = 0
+    cd:SetScript("OnUpdate", function(self, elapsed)
+        acc = acc + elapsed
+        if acc < 0.05 then return end
+        acc = 0
+        local start, dur = self:GetCooldownTimes()
+        if not start or start == 0 or not dur or dur == 0 then fs:SetText(""); return end
+        local left = (start + dur) / 1000 - GetTime()
+        if left <= 0 then
+            fs:SetText("")
+        elseif left < 6 then
+            fs:SetFormattedText("%.1f", left)
+            fs:SetTextColor(1, 0.4, 0.3)
+        elseif left < 60 then
+            fs:SetFormattedText("%d", left)
+            fs:SetTextColor(1, 1, 1)
+        else
+            fs:SetFormattedText("%d:%02d", left / 60, left % 60)
+            fs:SetTextColor(1, 1, 1)
+        end
+    end)
+end
+mod.StyleCooldown = styleCooldown
+
+-- Racials, dispels and Shadow Sight all come from the combat log; one handler
+-- keeps the hot event registered exactly once.
+local function onPvPCombatLog()
+    if not mod._enabled then return end
+    local _, subevent, _, sourceGUID, _, _, _, destGUID, _, _, _, spellId =
+        CombatLogGetCurrentEventInfo()
+
+    if spellId == mod.ShadowsightID and mod.db.shadowsightEnabled
+        and (subevent == "SPELL_AURA_APPLIED" or subevent == "SPELL_CAST_SUCCESS") then
+        mod.ShadowsightTaken()
+        return
+    end
+
+    if subevent ~= "SPELL_CAST_SUCCESS" and subevent ~= "SPELL_AURA_APPLIED"
+        and subevent ~= "SPELL_DISPEL" then
+        return
+    end
+    if not sourceGUID then return end
+
+    local isRacial = mod.RACIAL_CD and mod.RACIAL_CD[spellId]
+    local isDispel = mod.DISPEL_CD and mod.DISPEL_CD[spellId]
+    if not (isRacial or isDispel) then return end
+
+    for i = 1, 5 do
+        local unit = "arena" .. i
+        if UnitExists(unit) and UnitGUID(unit) == sourceGUID then
+            if isRacial then mod.RacialUsed(unit, spellId) end
+            if isDispel then mod.DispelUsed(unit, spellId) end
+            return
+        end
+    end
+end
+
+local pvpCleuOn = false
+local function setPvPCombatLog(on)
+    if on == pvpCleuOn then return end
+    pvpCleuOn = on
+    if on then
+        ns:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", onPvPCombatLog)
+    else
+        ns:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED", onPvPCombatLog)
+    end
+end
+
+ns:RegisterEvent("PLAYER_ENTERING_WORLD", function()
+    local inArena = false
+    if IsInInstance then
+        local _, instanceType = IsInInstance()
+        inArena = (instanceType == "arena")
+    end
+    setPvPCombatLog(inArena)
+    if inArena then
+        if mod.ResetRacials then mod.ResetRacials() end
+        if mod.ResetDispels then mod.ResetDispels() end
+        if mod.StartRangeCheck then mod.StartRangeCheck() end
+    else
+        if mod.StopShadowsight then mod.StopShadowsight() end
+        if mod.StopRangeCheck then mod.StopRangeCheck() end
+        if mod.ResetRacials then mod.ResetRacials() end
+        if mod.ResetDispels then mod.ResetDispels() end
+    end
+end)
+
+-- Gates opening is what starts the orb clock; the first opponent becoming
+-- visible is the closest reliable signal for it on this client.
+local gatesOpen = false
+ns:RegisterEvent("ARENA_OPPONENT_UPDATE", function(_, unit, eventType)
+    if eventType ~= "seen" then return end
+    if not gatesOpen then
+        gatesOpen = true
+        if mod.StartShadowsight then mod.StartShadowsight() end
+    end
+    if mod.RefreshRacials then mod.RefreshRacials() end
+    if unit and mod.AuraIconUpdate then mod.AuraIconUpdate(unit) end
+end)
+
+ns:RegisterEvent("UNIT_AURA", function(_, unit)
+    if not mod._enabled then return end
+    if unit and mod.AuraIconUpdate then mod.AuraIconUpdate(unit) end
+end)
+
+ns:RegisterEvent("PLAYER_LEAVING_WORLD", function() gatesOpen = false end)
 
 end)(...);
