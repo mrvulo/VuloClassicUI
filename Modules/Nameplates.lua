@@ -17,6 +17,9 @@ local mod = ns:RegisterModule("nameplates", {
         borderStyle   = "lines",
         borderTexture = "Blizzard Tooltip",
         borderColor   = { r = 0.067, g = 0.067, b = 0.067 },
+        showSpark     = true,
+        sparkWidth    = 10,
+        roundedBars   = false,
 
         showAbsorb  = true,
         colAbsorb   = { r = 0.70, g = 0.85, b = 1.00 },
@@ -35,8 +38,14 @@ local mod = ns:RegisterModule("nameplates", {
         hitboxW = 0,
         hitboxH = 0,
 
+        globalScale  = 100,
+        plateOffsetY = 0,
+
         showName        = true,
         nameSize        = 10,
+        showLevel       = false,
+        showLevelMod    = true,
+        levelSize       = 0,
         showHealthText  = true,
         healthTextMode  = "percent",
         healthTextFormat = "%s (%s)",
@@ -46,6 +55,7 @@ local mod = ns:RegisterModule("nameplates", {
         bgTintByBar  = false,
         fontSize        = 9,
         fontFace        = "",
+        fontOutline     = "OUTLINE",
         healthTextSize  = 0,
         castTextSize    = 0,
         castTimerSize   = 0,
@@ -93,6 +103,9 @@ local mod = ns:RegisterModule("nameplates", {
         castTimerSide        = "right",
         castTimerColor       = { r = 1, g = 1, b = 1 },
         hideNameWhileCasting = false,
+        castEmphasis         = false,
+        castEmphScale        = 110,
+        castEmphAlpha        = 100,
 
         nameOffsetX       = 0,
         nameOffsetY       = 0,
@@ -152,6 +165,25 @@ local mod = ns:RegisterModule("nameplates", {
         ccOffsetY      = 0,
         auraSpacing    = 2,
         auraSwipe      = true,
+        auraTypeBorder = true,
+        auraExpireFlash = true,
+        auraExpirePct  = 30,
+
+        -- Your own harmful auras on their own row. Not a spell-id whitelist:
+        -- "cast by you" is what makes a refresh timer useful, and it can't miss
+        -- a spell the way a curated DoT list inevitably would.
+        showDots = false,
+        maxDots  = 5,
+        dotSize  = 22,
+
+        -- Per-row placement. side = which end of the plate the row sits on,
+        -- grow = which way the icons run from the anchor, perRow = 0 is one line.
+        auraRows = {
+            debuff = { side = "top",    x = 0, y = 0, grow = "center", spacing = 2, perRow = 0, filter = "all" },
+            dot    = { side = "top",    x = 0, y = 0, grow = "center", spacing = 2, perRow = 0 },
+            buff   = { side = "top",    x = 0, y = 0, grow = "center", spacing = 2, perRow = 0, filter = "all" },
+            cc     = { side = "top",    x = 0, y = 0, grow = "center", spacing = 2, perRow = 0 },
+        },
         showDispelGlow = true,
         colDispel      = { r = 0.60, g = 0.40, b = 1.00 },
         showAuraTimer  = true,
@@ -276,6 +308,24 @@ local function healthColor(d, ctx)
     return reactionColor(d, ctx)
 end
 
+local SPARK_TEX  = "Interface\\CastingBar\\UI-CastingBar-Spark"
+local MASK_ROUND = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\csquare_mask.tga"
+
+-- Dispel-school tints for aura borders. Blizzard's own table exists on this
+-- client but is missing entries on some builds, so keep our own fallbacks.
+local DISPEL_COLORS = {
+    Magic   = { r = 0.20, g = 0.60, b = 1.00 },
+    Curse   = { r = 0.60, g = 0.00, b = 1.00 },
+    Disease = { r = 0.60, g = 0.40, b = 0.00 },
+    Poison  = { r = 0.00, g = 0.60, b = 0.00 },
+}
+local function dispelColor(kind)
+    if not kind or kind == "" then return nil end
+    local bliz = _G.DebuffTypeColor and _G.DebuffTypeColor[kind]
+    if bliz and bliz.r then return bliz end
+    return DISPEL_COLORS[kind]
+end
+
 local function makeEdges(parent, layer)
     local e = {}
     for _, side in ipairs({ "top", "bot", "lft", "rgt" }) do
@@ -322,10 +372,18 @@ local function buildVisuals(f)
     f.hover:SetAllPoints(f.health)
     f.hover:SetColorTexture(1, 1, 1, 0.12)
     f.hover:Hide()
+    -- Glow riding the fill edge; tinted with the bar colour in paintHealth.
+    f.spark = f.health:CreateTexture(nil, "ARTWORK", nil, 5)
+    f.spark:SetTexture(SPARK_TEX)
+    f.spark:SetBlendMode("ADD")
+    f.spark:Hide()
 
     -- Name parents to the plate root, not the health bar, so name-only mode can hide the bar.
     f.name = f:CreateFontString(nil, "OVERLAY")
     f.name:SetPoint("BOTTOM", f.health, "TOP", 0, 3)
+    f.level = f:CreateFontString(nil, "OVERLAY")
+    f.level:SetPoint("RIGHT", f.name, "LEFT", -3, 0)
+    f.level:Hide()
     f.title = f:CreateFontString(nil, "OVERLAY")
     f.title:Hide()
     f.healthText = f.health:CreateFontString(nil, "OVERLAY")
@@ -354,9 +412,14 @@ local function buildVisuals(f)
     f.castShield:Hide()
     f.kickTick = f.cast:CreateTexture(nil, "ARTWORK", nil, 3)
     f.kickTick:Hide()
+    f.castSpark = f.cast:CreateTexture(nil, "ARTWORK", nil, 5)
+    f.castSpark:SetTexture(SPARK_TEX)
+    f.castSpark:SetBlendMode("ADD")
+    f.castSpark:Hide()
     f.cast:Hide()
 
     f.debuffGroup = CreateFrame("Frame", nil, f); f.debuffGroup:SetSize(1, 1)
+    f.dotGroup    = CreateFrame("Frame", nil, f); f.dotGroup:SetSize(1, 1)
     f.buffGroup   = CreateFrame("Frame", nil, f); f.buffGroup:SetSize(1, 1)
     f.ccGroup     = CreateFrame("Frame", nil, f); f.ccGroup:SetSize(1, 1)
 
@@ -366,6 +429,44 @@ local function buildVisuals(f)
     f.cpGroup = CreateFrame("Frame", nil, f); f.cpGroup:SetSize(1, 1)
     f.cpGroup.pips = {}
     f.cpGroup:Hide()
+end
+
+-- Rounded bars: one mask per bar, shared by the fill and everything riding on
+-- it, so they all clip to the same shape. Tracked per texture because
+-- SetStatusBarTexture hands back a different object when the texture changes.
+local function maskApply(t, mask)
+    if not (t and t.AddMaskTexture) then return end
+    if t._vcMasked == mask then return end
+    if t._vcMasked and t.RemoveMaskTexture then pcall(t.RemoveMaskTexture, t, t._vcMasked) end
+    pcall(t.AddMaskTexture, t, mask)
+    t._vcMasked = mask
+end
+
+local function maskClear(t)
+    if not (t and t._vcMasked) then return end
+    if t.RemoveMaskTexture then pcall(t.RemoveMaskTexture, t, t._vcMasked) end
+    t._vcMasked = nil
+end
+
+-- Varargs, not a list: GetStatusBarTexture() can return nil, and a nil hole
+-- would stop ipairs early and strand masks on the later textures.
+local function applyBarRounding(bar, on, ...)
+    if not bar then return end
+    local mask
+    if on and bar.CreateMaskTexture then
+        if not bar._vcMask then
+            bar._vcMask = bar:CreateMaskTexture()
+            bar._vcMask:SetTexture(MASK_ROUND, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+            bar._vcMask:SetAllPoints(bar)
+        end
+        mask = bar._vcMask
+    end
+    for i = 1, select("#", ...) do
+        local t = select(i, ...)
+        if t then
+            if mask then maskApply(t, mask) else maskClear(t) end
+        end
+    end
 end
 
 local function applyBarBorder(bar, edges, bdFrame, d)
@@ -378,7 +479,7 @@ local function applyBarBorder(bar, edges, bdFrame, d)
         bdFrame:Show()
     else
         if bdFrame then bdFrame:Hide() end
-        layoutEdges(edges, bar, d.borderSize, c.r, c.g, c.b, 1, 0)
+        layoutEdges(edges, bar, sz, c.r, c.g, c.b, 1, 0)
     end
 end
 
@@ -414,6 +515,16 @@ local function layoutPlate(f)
     local w  = ns:PixelSnap(d.healthWidth, f)
     local hh = ns:PixelSnap(d.healthHeight, f)
     local ch = ns:PixelSnap(d.castHeight, f)
+
+    -- Vertical offset rides the plate root against its Blizzard anchor; the
+    -- preview has no such parent, so it stays put.
+    if f.unit then
+        local host = f:GetParent()
+        if host then
+            f:ClearAllPoints()
+            f:SetPoint("CENTER", host, "CENTER", 0, d.plateOffsetY or 0)
+        end
+    end
 
     f.health:ClearAllPoints()
     f.health:SetPoint("CENTER", f, "CENTER", 0, 0)
@@ -468,17 +579,26 @@ local function layoutPlate(f)
     applyBarBorders(f, d)
 end
 
+-- "SHADOW" is our own pseudo-flag: no outline, drop shadow instead.
 local function plateFont(fs, size, flags)
     local d = db()
+    local want = flags or d.fontOutline or "OUTLINE"
+    local shadow = (want == "SHADOW")
+    local realFlags = shadow and "" or want
     local face = d.fontFace
+    local done = false
     if face and face ~= "" and ns.LSM then
         local path = ns.LSM:Fetch("font", face, true)
         if path then
-            fs:SetFont(path, size, flags or "OUTLINE")
-            return
+            fs:SetFont(path, size, realFlags)
+            done = true
         end
     end
-    if ns.UI and ns.UI.Font then ns.UI.Font(fs, size, flags or "OUTLINE") end
+    if not done and ns.UI and ns.UI.Font then ns.UI.Font(fs, size, realFlags) end
+    if fs.SetShadowOffset then
+        fs:SetShadowOffset(shadow and 1 or 0, shadow and -1 or 0)
+        if fs.SetShadowColor then fs:SetShadowColor(0, 0, 0, shadow and 1 or 0) end
+    end
 end
 
 local function skinPlate(f)
@@ -488,6 +608,11 @@ local function skinPlate(f)
     f.healthBG:SetAlpha(d.bgAlpha or 0.85)
     f.castBG:SetAlpha(d.bgAlpha or 0.85)
 
+    -- must run after SetStatusBarTexture: that call can swap the texture object
+    applyBarRounding(f.health, d.roundedBars, f.health:GetStatusBarTexture(),
+        f.healthBG, f.absorb, f.cutaway, f.hover)
+    applyBarRounding(f.cast, d.roundedBars, f.cast:GetStatusBarTexture(), f.castBG)
+
     do
         local function pick(own, fallback) return (own and own > 0) and own or fallback end
         plateFont(f.name, d.nameSize)
@@ -495,6 +620,7 @@ local function skinPlate(f)
         plateFont(f.healthText, pick(d.healthTextSize, d.fontSize))
         plateFont(f.castText, pick(d.castTextSize, d.fontSize))
         if f.castTimer then plateFont(f.castTimer, pick(d.castTimerSize, d.fontSize)) end
+        if f.level then plateFont(f.level, pick(d.levelSize, d.nameSize)) end
     end
     f.title:SetTextColor(0.72, 0.72, 0.78)
     f.name:SetShown(d.showName)
@@ -572,6 +698,28 @@ local function smoothHealthTo(f, cur)
     end)
 end
 
+-- Glow pinned to the fill edge and tinted with the bar colour. Anchoring to the
+-- status bar's own texture means it tracks the fill without any OnUpdate; it is
+-- re-anchored on every paint because changing the bar texture swaps that object.
+-- goalValue overrides the bar's live value: with smooth health the bar is still
+-- animating towards 0, and the glow must vanish on the killing blow, not later.
+local function paintSpark(bar, spark, r, g, b, show, width, hideAtZero, goalValue)
+    if not spark then return end
+    local tex = bar and bar.GetStatusBarTexture and bar:GetStatusBarTexture()
+    local h = bar and bar:GetHeight() or 0
+    if not (show and tex and h > 0) then spark:Hide(); return end
+    local mn, mx = bar:GetMinMaxValues()
+    local v = goalValue or bar:GetValue() or 0
+    if mx <= mn then spark:Hide(); return end
+    -- a dead unit shouldn't glow at the left edge; a cast legitimately starts there
+    if hideAtZero and v <= mn then spark:Hide(); return end
+    spark:ClearAllPoints()
+    spark:SetPoint("CENTER", tex, "RIGHT", 0, 0)
+    spark:SetSize(math.max(2, width or 10), h * 1.6)
+    spark:SetVertexColor(r, g, b, 0.85)
+    spark:Show()
+end
+
 local function paintHealth(f, ctx, cur, max)
     local d = db()
     if max <= 0 then max = 1 end
@@ -593,6 +741,7 @@ local function paintHealth(f, ctx, cur, max)
             f.healthBG:SetColorTexture(0.05, 0.05, 0.06, 0.85)
         end
     end
+    paintSpark(f.health, f.spark, r, g, b, d.showSpark, d.sparkWidth, true, cur)
     if d.showHealthText then f.healthText:SetText(healthTextString(d, cur, max)) end
 end
 
@@ -633,6 +782,35 @@ local function paintExec(f, isTarget)
     ln:Show()
 end
 
+-- One scale chain for every plate: global × target × casting. The preview keeps
+-- its pixel-exact 1.0 scale, so real plates only (f.unit).
+local function applyPlateScale(f, isTarget)
+    if not f.unit then return end
+    local d = db()
+    local s = (d.globalScale or 100) / 100
+    if isTarget == nil then isTarget = UnitIsUnit(f.unit, "target") end
+    if isTarget then s = s * (d.targetScale or 100) / 100 end
+    if d.castEmphasis and f._casting then s = s * (d.castEmphScale or 100) / 100 end
+    if s <= 0 then s = 1 end
+    if math.abs((f:GetScale() or 1) - s) > 0.001 then f:SetScale(s) end
+end
+
+-- Single source of truth for a plate's alpha; cast start/stop call it directly
+-- so a caster brightens the moment it starts, not at the next target change.
+local function applyPlateAlpha(f, haveTarget)
+    local d = db()
+    if haveTarget == nil then haveTarget = UnitExists("target") end
+    local a = 1
+    if haveTarget and d.nonTargetAlpha < 1
+        and not (f.unit and UnitIsUnit(f.unit, "target")) then
+        a = d.nonTargetAlpha
+    end
+    if d.castEmphasis and f._casting then
+        a = math.max(a, (d.castEmphAlpha or 100) / 100)
+    end
+    f:SetAlpha(a)
+end
+
 local function paintTarget(f, isTarget)
     local d = db()
     if d.targetHighlight and isTarget then
@@ -650,11 +828,7 @@ local function paintTarget(f, isTarget)
         f._castExtra = extra
         layoutCastRow(f, d)
     end
-    -- real plates only: the preview must keep its pixel-exact 1.0 scale
-    if f.unit then
-        local s = isTarget and (d.targetScale or 100) / 100 or 1
-        if f:GetScale() ~= s then f:SetScale(s) end
-    end
+    applyPlateScale(f, isTarget)
 end
 
 local function paintFocus(f, isFocus)
@@ -710,6 +884,7 @@ local function paintCast(f, name, icon, notInterruptible)
     local d = db()
     local c = castColor(d, notInterruptible, f)
     f.cast:SetStatusBarColor(c.r, c.g, c.b)
+    paintSpark(f.cast, f.castSpark, c.r, c.g, c.b, d.showSpark, d.sparkWidth)
     if d.showCastText then f.castText:SetText(name or "") end
     if d.showCastIcon then f.castIcon:SetTexture(icon) end
 end
@@ -717,7 +892,7 @@ end
 local UnitAura = UnitAura     -- Compat.lua guarantees this exists on this client
 local wipe = wipe
 
-local _dbuf, _bbuf, _ccbuf = {}, {}, {}   -- scratch aura lists (single-threaded reuse)
+local _dbuf, _bbuf, _ccbuf, _dotbuf = {}, {}, {}, {}   -- scratch aura lists (single-threaded reuse)
 
 -- No CROWD_CONTROL aura filter on this client, so CC is matched by spell id.
 local CC_SPELLS = {}
@@ -788,18 +963,24 @@ local function fmtAuraTime(s)
 end
 
 -- mode: nil = all, "skipcc" = exclude CC spells, "cconly" = only CC spells.
-local function collectAuras(unit, filter, max, out, mode)
+-- skipMine drops auras you cast yourself, so the debuff row can hand those over
+-- to the dedicated own-debuff row instead of showing each one twice.
+local function collectAuras(unit, filter, max, out, mode, skipMine)
     wipe(out)
     for i = 1, 40 do
-        local name, icon, count, _, duration, expiration, _, stealable, _, spellId = UnitAura(unit, i, filter)
+        local name, icon, count, dispelType, duration, expiration, caster,
+              stealable, _, spellId = UnitAura(unit, i, filter)
         if not name then break end
         local isCC = spellId and CC_SPELLS[spellId] or false
+        local mine = (caster == "player")
         local keep = true
         if mode == "skipcc" then keep = not isCC
         elseif mode == "cconly" then keep = isCC end
+        if keep and skipMine and mine then keep = false end
         if keep then
             out[#out + 1] = { icon = icon, count = count or 0,
                               duration = duration or 0, expiration = expiration or 0,
+                              dispelType = dispelType, mine = mine,
                               dispel = (stealable and playerCanSteal) and true or false }
             if #out >= max then break end
         end
@@ -835,23 +1016,43 @@ local function hideGroup(g)
     if g.icons then for _, ic in ipairs(g.icons) do ic:Hide() end end
 end
 
-local function renderAuraGroup(g, list, size, spacing, showTimer, showStacks, swipe, w, h)
+local function renderAuraGroup(g, list, o)
     local d = db()
     local n = #list
     g.icons = g.icons or {}
     for i = #g.icons + 1, n do g.icons[i] = makeAuraIcon(g) end
 
-    local iw, ih = (w and w > 0) and w or size, (h and h > 0) and h or size
+    local size    = o.size or 22
+    local spacing = o.spacing or 2
+    local showTimer, showStacks, swipe = o.showTimer, o.showStacks, o.swipe
+    local iw, ih = (o.w and o.w > 0) and o.w or size, (o.h and o.h > 0) and o.h or size
+    local perRow = (o.perRow or 0) > 0 and o.perRow or n
+    local grow   = o.grow or "center"
+    local lines  = math.max(1, math.ceil(n / perRow))
     local bc = ns.COLORS.borderDark or { r = 0, g = 0, b = 0 }
     local bsz = d.borderSize or 0
     for i, ic in ipairs(g.icons) do
         local a = list[i]
         if a then
+            local line = math.floor((i - 1) / perRow)          -- 0 = nearest the plate
+            local col  = (i - 1) % perRow
+            local inLine = math.min(perRow, n - line * perRow) -- last line can be short
+            local dx
+            if     grow == "right" then dx =  (col + 0.5) * (iw + spacing)
+            elseif grow == "left"  then dx = -(col + 0.5) * (iw + spacing)
+            else   dx = (col - (inLine - 1) / 2) * (iw + spacing) end
+            -- extra lines stack away from the plate, whichever side the row is on
+            local dy = line * (ih + spacing) * ((o.side == "bottom") and -1 or 1)
+                     - (lines - 1) * (ih + spacing) / 2 * ((o.side == "bottom") and -1 or 1)
             ic:SetSize(iw, ih)
             ic:ClearAllPoints()
-            ic:SetPoint("CENTER", g, "CENTER", (i - (n + 1) / 2) * (iw + spacing), 0)
+            ic:SetPoint("CENTER", g, "CENTER", dx, dy)
             ic.tex:SetTexture(a.icon)
-            layoutEdges(ic.border, ic, bsz, bc.r, bc.g, bc.b, 1, 0)
+            -- Border takes the dispel school's colour so you can read what is
+            -- removable at a glance; plain dark border when there is no school.
+            -- Thickness is never forced: border size 0 means the user wants none.
+            local ec = (d.auraTypeBorder and dispelColor(a.dispelType)) or bc
+            layoutEdges(ic.border, ic, bsz, ec.r, ec.g, ec.b, 1, 0)
             if d.showDispelGlow and a.dispel then
                 local gc = d.colDispel
                 layoutEdges(ic.dispelGlow, ic, 2, gc.r, gc.g, gc.b, 1, 1)
@@ -868,25 +1069,41 @@ local function renderAuraGroup(g, list, size, spacing, showTimer, showStacks, sw
             ic.count:SetText((showStacks and a.count > 1) and a.count or "")
             ic.timer:SetText("")
             ic._exp, ic._showTimer = a.expiration, showTimer
+            ic._dur = a.duration
+            ic:SetAlpha(1)
             ic:Show()
         else
             ic:Hide()
         end
     end
     g._active = n
-    if n > 0 and showTimer then
+    local flash = d.auraExpireFlash and (d.auraExpirePct or 30) > 0
+    if n > 0 and (showTimer or flash) then
+        -- Two clocks: the pulse needs to be smooth, the countdown text does not.
+        -- Rebuilding the text at pulse rate would triple the string churn.
         g:SetScript("OnUpdate", function(self, elapsed)
-            self._t = (self._t or 0) + elapsed
-            if self._t < 0.1 then return end
-            self._t = 0
+            self._t  = (self._t or 0) + elapsed
+            self._tt = (self._tt or 0) + elapsed
+            local doPulse = flash and self._t >= 0.05
+            local doText  = showTimer and self._tt >= 0.1
+            if not (doPulse or doText) then return end
+            if doPulse then self._t = 0 end
+            if doText  then self._tt = 0 end
             local now = GetTime()
+            local pct = ((db().auraExpirePct or 30)) / 100
             for i = 1, (self._active or 0) do
                 local ic = self.icons[i]
-                if ic._showTimer and ic._exp and ic._exp > 0 then
-                    local rem = ic._exp - now
-                    ic.timer:SetText(rem > 0 and fmtAuraTime(rem) or "")
-                else
-                    ic.timer:SetText("")
+                local rem = (ic._exp and ic._exp > 0) and (ic._exp - now) or nil
+                if doText then
+                    ic.timer:SetText((ic._showTimer and rem and rem > 0)
+                        and fmtAuraTime(rem) or "")
+                end
+                if doPulse then
+                    if rem and rem > 0 and (ic._dur or 0) > 0 and rem <= (ic._dur * pct) then
+                        ic:SetAlpha(0.45 + 0.55 * math.abs(math.sin(now * 4)))
+                    elseif ic:GetAlpha() ~= 1 then
+                        ic:SetAlpha(1)
+                    end
                 end
             end
         end)
@@ -895,50 +1112,183 @@ local function renderAuraGroup(g, list, size, spacing, showTimer, showStacks, sw
     end
 end
 
-local function applyAuras(f, debuffList, buffList, ccList)
+-- Draw order top to bottom within a side; each row carries its own placement.
+local AURA_ROWS = {
+    { key = "debuff", group = "debuffGroup", show = "showDebuffs", size = "debuffSize" },
+    { key = "dot",    group = "dotGroup",    show = "showDots",    size = "dotSize"    },
+    { key = "buff",   group = "buffGroup",   show = "showBuffs",   size = "buffSize"   },
+    { key = "cc",     group = "ccGroup",     show = "showCC",      size = "ccSize",
+      w = "ccWidth", h = "ccHeight" },
+}
+
+-- Heals rather than handing back a shared constant: the option setters write
+-- straight into whatever this returns, so a shared table would have the first
+-- drag of a slider overwrite the defaults for every row at once. A profile can
+-- arrive with a non-table here via import, which ApplyDefaults will not repair.
+function ns:NameplateRowCfg(key)
     local d = db()
-    local y = (d.showName and (d.nameSize + 6) or 4) + (d.auraOffsetY or 0)
-    local ox = d.auraOffsetX or 0
-    local function place(group, list, enabled, size, w, h, gx, gy)
-        if enabled and list and #list > 0 then
-            local eh = (h and h > 0) and h or size
+    if type(d.auraRows) ~= "table" then d.auraRows = {} end
+    local r = d.auraRows[key]
+    if type(r) ~= "table" then
+        r = { side = "top", x = 0, y = 0, grow = "center",
+              spacing = 2, perRow = 0, filter = "all" }
+        d.auraRows[key] = r
+    end
+    return r
+end
+local rowCfg = function(key) return ns:NameplateRowCfg(key) end
+
+-- One-time per profile: the CC row used to be the only one with its own offset.
+-- Folded into the per-row model so switching to that profile does not make the
+-- row jump. Called from applyAuras too, because switching profiles repoints
+-- mod.db without re-running OnEnable.
+local function migrateAuraRows()
+    local d = db()
+    if not d or d.auraRowsMigrated then return end
+    local cc = ns:NameplateRowCfg("cc")
+    if (d.ccOffsetX or 0) ~= 0 then cc.x = d.ccOffsetX end
+    if (d.ccOffsetY or 0) ~= 0 then cc.y = d.ccOffsetY end
+    d.auraRowsMigrated = true      -- only after the work, never before
+end
+
+local function applyAuras(f, lists)
+    local d = db()
+    migrateAuraRows()
+    -- Rows on the same side queue outward from the plate; the two sides are
+    -- independent, so moving one row to the bottom never shifts the other.
+    -- The bottom side has to clear the cast bar, which hangs below the health
+    -- bar. Reserved whenever the cast bar is enabled rather than only while it
+    -- is visible, so rows do not jump every time the target starts casting.
+    local castRoom = 4
+    if d.showCastbar then
+        castRoom = castRoom + (d.castHeight or 12) + (d.borderSize or 1) + 4
+            - math.min(0, d.castOffsetY or 0)
+    end
+    local used = {
+        top    = (d.showName and (d.nameSize + 6) or 4) + (d.auraOffsetY or 0),
+        bottom = castRoom - (d.auraOffsetY or 0),
+    }
+    for _, row in ipairs(AURA_ROWS) do
+        local group = f[row.group]
+        local list  = lists[row.key]
+        local cfg   = rowCfg(row.key)
+        if group and d[row.show] and list and #list > 0 then
+            local size = d[row.size] or 22
+            local w = row.w and d[row.w] or nil
+            local h = row.h and d[row.h] or nil
+            local iw = (w and w > 0) and w or size
+            local ih = (h and h > 0) and h or size
+            local spacing = cfg.spacing or d.auraSpacing or 2
+            local perRow  = (cfg.perRow or 0)
+            local lines   = (perRow > 0) and math.ceil(#list / perRow) or 1
+            local blockH  = lines * ih + (lines - 1) * spacing
+            local side    = (cfg.side == "bottom") and "bottom" or "top"
+
+            -- Left/right growth pins to the matching plate edge so the row lines
+            -- up with the bar; centred growth stays on the bar's midline.
+            local grow = cfg.grow or "center"
+            local hp, gp = "CENTER", "CENTER"
+            if     grow == "right" then hp, gp = "LEFT",  "LEFT"
+            elseif grow == "left"  then hp, gp = "RIGHT", "RIGHT" end
+
+            local dy = used[side] + blockH / 2 + (cfg.y or 0)
             group:ClearAllPoints()
-            group:SetPoint("BOTTOM", f.health, "TOP",
-                ox + (gx or 0), y + eh / 2 + (gy or 0))
-            renderAuraGroup(group, list, size, d.auraSpacing,
-                d.showAuraTimer, d.showAuraStacks, d.auraSwipe, w, h)
-            y = y + eh + d.auraSpacing
-        else
+            if side == "bottom" then
+                group:SetPoint(gp, f.health, hp == "CENTER" and "BOTTOM"
+                    or (hp == "LEFT" and "BOTTOMLEFT" or "BOTTOMRIGHT"),
+                    (d.auraOffsetX or 0) + (cfg.x or 0), -dy)
+            else
+                group:SetPoint(gp, f.health, hp == "CENTER" and "TOP"
+                    or (hp == "LEFT" and "TOPLEFT" or "TOPRIGHT"),
+                    (d.auraOffsetX or 0) + (cfg.x or 0), dy)
+            end
+            renderAuraGroup(group, list, {
+                size = size, w = w, h = h, spacing = spacing,
+                grow = grow, perRow = perRow, side = side,
+                showTimer = d.showAuraTimer, showStacks = d.showAuraStacks,
+                swipe = d.auraSwipe,
+            })
+            used[side] = used[side] + blockH + spacing
+        elseif group then
             hideGroup(group)
         end
     end
-    place(f.debuffGroup, debuffList, d.showDebuffs, d.debuffSize)
-    place(f.buffGroup,   buffList,   d.showBuffs,   d.buffSize)
-    place(f.ccGroup, ccList, d.showCC, d.ccSize,
-        d.ccWidth, d.ccHeight, d.ccOffsetX, d.ccOffsetY)
 end
+
+-- Drops entries a row's filter rejects, then trims to max. The client filter
+-- string cannot express "removable", so it has to happen here -- and it has to
+-- happen BEFORE the cap, or a target whose first entries are all unremovable
+-- yields an empty row while a removable aura sits just past the cut.
+local function applyRowFilter(list, filter, max)
+    if not list then return list end
+    if filter and filter ~= "all" then
+        local keep = 0
+        for i = 1, #list do
+            local a = list[i]
+            local ok = true
+            if filter == "dispel" then
+                -- harmful auras carry a school; enemy buffs carry the steal flag
+                ok = (a.dispelType ~= nil and a.dispelType ~= "") or a.dispel == true
+            elseif filter == "mine" then
+                ok = a.mine == true
+            end
+            if ok then
+                keep = keep + 1
+                list[keep] = a
+            end
+        end
+        for i = #list, keep + 1, -1 do list[i] = nil end
+    end
+    if max and max > 0 then
+        for i = #list, max + 1, -1 do list[i] = nil end
+    end
+    return list
+end
+
+local _lists = {}
 
 local function plateUpdateAuras(f)
     if not f.unit then return end
     if f._mode and f._mode ~= "full" then
-        hideGroup(f.debuffGroup); hideGroup(f.buffGroup); hideGroup(f.ccGroup); return
+        hideGroup(f.debuffGroup); hideGroup(f.dotGroup)
+        hideGroup(f.buffGroup);   hideGroup(f.ccGroup)
+        return
     end
     local d = db()
-    local dl, bl, cl
+    -- Filters and caps interact, so collect wide (40 is the scan ceiling anyway)
+    -- and let applyRowFilter do the trimming.
+    local WIDE = 40
+    wipe(_lists)
     if d.showDebuffs then
-        collectAuras(f.unit, d.debuffsAll and "HARMFUL" or "HARMFUL|PLAYER", d.maxDebuffs, _dbuf,
+        local cfg = rowCfg("debuff")
+        local wantsMine = (cfg.filter == "mine")
+        -- Your own auras belong to the dedicated row while it is on, or the two
+        -- rows show an identical list twice on stock settings. A row explicitly
+        -- set to "only mine" keeps them.
+        local handOff = d.showDots and not wantsMine
+        local scan = "HARMFUL"
+        if wantsMine or (not d.debuffsAll and not handOff) then scan = "HARMFUL|PLAYER" end
+        collectAuras(f.unit, scan, WIDE, _dbuf, d.showCC and "skipcc" or nil, handOff)
+        applyRowFilter(_dbuf, cfg.filter, d.maxDebuffs)
+        _lists.debuff = _dbuf
+    end
+    if d.showDots then
+        collectAuras(f.unit, "HARMFUL|PLAYER", WIDE, _dotbuf,
             d.showCC and "skipcc" or nil)
-        dl = _dbuf
+        applyRowFilter(_dotbuf, nil, d.maxDots)
+        _lists.dot = _dotbuf
     end
     if d.showBuffs then
-        collectAuras(f.unit, "HELPFUL", d.maxBuffs, _bbuf)
-        bl = _bbuf
+        local cfg = rowCfg("buff")
+        collectAuras(f.unit, "HELPFUL", WIDE, _bbuf)
+        applyRowFilter(_bbuf, cfg.filter, d.maxBuffs)
+        _lists.buff = _bbuf
     end
     if d.showCC then
         collectAuras(f.unit, "HARMFUL", d.maxCC, _ccbuf, "cconly")
-        cl = _ccbuf
+        _lists.cc = _ccbuf
     end
-    applyAuras(f, dl, bl, cl)
+    applyAuras(f, _lists)
 end
 
 ns.plates = ns.plates or {}          -- unit token -> our plate frame  (side table, taint-safe)
@@ -1001,6 +1351,8 @@ end
 
 local function plateCastStop(f)
     f._casting = nil
+    applyPlateScale(f)
+    applyPlateAlpha(f)
     f.cast:Hide()
     f.cast:SetAlpha(1)
     if f.castShield then f.castShield:Hide() end
@@ -1035,6 +1387,7 @@ local function plateCastFlash(f)
     if f.kickTick then f.kickTick:Hide() end
     if d.hideNameWhileCasting and f._mode == "full" then f.name:SetShown(d.showName) end
     local c = d.colInterruptFlash
+    if f.castSpark then f.castSpark:Hide() end
     f.cast:SetMinMaxValues(0, 1)
     f.cast:SetValue(1)
     f.cast:SetStatusBarColor(c.r, c.g, c.b)
@@ -1094,7 +1447,11 @@ local function plateCastStart(f)
     f._castChannel = channel
     f._castNoInt   = notInterruptible and true or false
     f._kickAcc     = 0
+    applyPlateScale(f)
+    applyPlateAlpha(f)
     f.cast:SetMinMaxValues(f._castStart, f._castEnd)
+    -- seed the fill before painting so the edge glow anchors at the right spot
+    f.cast:SetValue(channel and f._castEnd or f._castStart)
     paintCast(f, name, icon, notInterruptible)
     f.cast:SetAlpha(1)
     f.cast:Show()
@@ -1136,10 +1493,11 @@ local function applyPlateMode(f, mode)
     local d = db()
     if mode == "hidden" then
         f.health:Hide(); f.cast:Hide(); f.name:Hide(); f.title:Hide()
-        hideGroup(f.debuffGroup); hideGroup(f.buffGroup); hideGroup(f.ccGroup)
+        if f.level then f.level:Hide() end
+        hideGroup(f.debuffGroup); hideGroup(f.dotGroup); hideGroup(f.buffGroup); hideGroup(f.ccGroup)
     elseif mode == "nameonly" then
         f.health:Hide(); f.cast:Hide()
-        hideGroup(f.debuffGroup); hideGroup(f.buffGroup); hideGroup(f.ccGroup)
+        hideGroup(f.debuffGroup); hideGroup(f.dotGroup); hideGroup(f.buffGroup); hideGroup(f.ccGroup)
         f.name:ClearAllPoints()
         f.name:SetPoint("CENTER", f, "CENTER", 0, 0)
         f.name:Show()
@@ -1153,6 +1511,41 @@ local function applyPlateMode(f, mode)
         f.name:SetShown(d.showName)
         f.title:Hide()
     end
+end
+
+-- Level plus a one-glyph rank so rare/elite reads at a glance:
+-- + elite, R rare, R+ rare elite, B world boss. Coloured by relative difficulty,
+-- with gold for anything above normal rank.
+local CLASS_TAGS = {
+    elite     = "+",
+    rare      = "R",
+    rareelite = "R+",
+    worldboss = "B",
+}
+
+local function paintLevel(f, unit)
+    local fs = f.level
+    if not fs then return end
+    local d = db()
+    if not d.showLevel then fs:Hide(); return end
+    -- no unit = the options preview; show a representative elite sample
+    local lvl  = unit and (UnitLevel(unit) or 0) or 70
+    local rank = unit and (UnitClassification and UnitClassification(unit) or "normal")
+        or "elite"
+    local tag  = d.showLevelMod and CLASS_TAGS[rank] or nil
+    local txt  = (lvl and lvl > 0) and tostring(lvl) or "??"
+    if tag then txt = txt .. tag end
+    fs:SetText(txt)
+    local r, g, b = 0.85, 0.85, 0.85
+    if lvl and lvl > 0 and GetCreatureDifficultyColor then
+        local ok, col = pcall(GetCreatureDifficultyColor, lvl)
+        if ok and col and col.r then r, g, b = col.r, col.g, col.b end
+    elseif lvl == -1 then
+        r, g, b = 1, 0.2, 0.2
+    end
+    if tag then r, g, b = 1, 0.82, 0.25 end
+    fs:SetTextColor(r, g, b)
+    fs:Show()
 end
 
 local function applyNameColor(f, d, unit, enemy, isPlayer)
@@ -1174,6 +1567,9 @@ local function positionRaidIcon(f)
     ic:ClearAllPoints()
     local pos, ox, oy = d.raidMarkerPos, d.raidMarkerX or 0, d.raidMarkerY or 0
     if pos == "left" then
+        -- Both the marker and the level text sit left of the name in name-only
+        -- mode; queue the marker outside the level so they don't stack up.
+        if anchor == f.name and f.level and f.level:IsShown() then anchor = f.level end
         ic:SetPoint("RIGHT", anchor, "LEFT", -4 + ox, oy)
     elseif pos == "right" then
         ic:SetPoint("LEFT", anchor, "RIGHT", 4 + ox, oy)
@@ -1274,6 +1670,9 @@ local function refreshPlate(f)
     local enemy    = UnitCanAttack("player", unit) and true or false
     local mode     = plateModeFor(d, enemy, isPlayer)
     applyPlateMode(f, mode)
+    -- before updateRaidIcon: the marker queues outside the level text when both
+    -- sit left of the name, so its visibility has to be settled first
+    if mode ~= "hidden" then paintLevel(f, unit) end
     updateRaidIcon(f)
     if mode == "hidden" then return end
 
@@ -1313,18 +1712,16 @@ end
 local function restyleAllPlates()
     for _, f in pairs(ns.plates) do
         layoutPlate(f); skinPlate(f); refreshPlate(f); plateUpdateAuras(f)
+        -- Re-skinning swaps the cast bar's texture object; only plateCastStart
+        -- re-anchors the edge glow to it, so an in-flight cast must be re-armed.
+        if f._casting then plateCastStart(f) end
     end
 end
 
 local function updateFades()
-    local d = db()
     local haveTarget = UnitExists("target")
     for _, f in pairs(ns.plates) do
-        local a = 1
-        if haveTarget and d.nonTargetAlpha < 1 and not (f.unit and UnitIsUnit(f.unit, "target")) then
-            a = d.nonTargetAlpha
-        end
-        f:SetAlpha(a)
+        applyPlateAlpha(f, haveTarget)
         paintTarget(f, f.unit and UnitIsUnit(f.unit, "target"))
     end
 end
@@ -1400,8 +1797,10 @@ local function onPlateAdded(_, unit)
     f:RegisterUnitEvent("UNIT_SPELLCAST_FAILED", unit)
     f:RegisterUnitEvent("UNIT_AURA", unit)
 
-    plateCastStart(f)
+    -- refreshPlate first: it establishes _mode, which plateCastStart needs in
+    -- order to paint a unit that is already casting when it comes into range.
     refreshPlate(f)
+    plateCastStart(f)
     plateUpdateAuras(f)
     updateFades()
     updateAllComboPips()
@@ -1413,7 +1812,7 @@ function onPlateRemoved(_, unit)
     ns.plates[unit] = nil
     f:UnregisterAllEvents()
     plateCastStop(f)
-    hideGroup(f.debuffGroup); hideGroup(f.buffGroup); hideGroup(f.ccGroup)
+    hideGroup(f.debuffGroup); hideGroup(f.dotGroup); hideGroup(f.buffGroup); hideGroup(f.ccGroup)
     f.raidIcon:Hide()
     f.absorb:Hide()
     f.title:Hide()
@@ -1421,6 +1820,9 @@ function onPlateRemoved(_, unit)
     renderComboPips(f, 0)
     f.unit = nil
     f._npcTitle = nil
+    -- A pooled frame must not carry its old plate mode: the next unit may start
+    -- mid-cast, and plateCastStart bails on a stale non-full mode.
+    f._mode = nil
     f:Hide()
     f:SetParent(UIParent)
     f:ClearAllPoints()
@@ -1618,6 +2020,7 @@ local function buildPreview(parent)
         fitted[#fitted + 1] = { zone = z, group = g, key = key }
     end
     fittedZone(plate.debuffGroup, "icons", L["Auras"],         20)
+    fittedZone(plate.dotGroup,    "icons", L["Your Own Debuffs"], 20)
     fittedZone(plate.buffGroup,   "icons", L["Auras"],         20)
     fittedZone(plate.ccGroup,     "icons", L["Crowd Control"], 20)
     fittedZone(plate.cpGroup,     "pips",  L["Combo Points"],  20)
@@ -1665,6 +2068,8 @@ local function buildPreview(parent)
             self.title:Hide()
         end
 
+        -- mirrors refreshPlate: level first, the marker queues outside it
+        if mode ~= "hidden" then paintLevel(self) else self.level:Hide() end
         if d.showRaidMarker and mode ~= "hidden" then
             setRaidIcon(self.raidIcon, 8)
             positionRaidIcon(self)
@@ -1687,17 +2092,31 @@ local function buildPreview(parent)
         paintFocus(self, true)
 
         local now = GetTime()
+        -- schools + a nearly-expired aura so the school border and the expiry
+        -- pulse both have something to show in the preview
         local dl = {
-            { icon = "Interface\\Icons\\Spell_Fire_Immolation",       count = 0, duration = 12, expiration = now + 8 },
-            { icon = "Interface\\Icons\\Spell_Shadow_CurseOfSargeras", count = 3, duration = 18, expiration = now + 14 },
+            { icon = "Interface\\Icons\\Spell_Fire_Immolation",       count = 0, duration = 12, expiration = now + 8,
+              dispelType = "Magic" },
+            { icon = "Interface\\Icons\\Spell_Shadow_CurseOfSargeras", count = 3, duration = 18, expiration = now + 2,
+              dispelType = "Curse" },
         }
         local bl = {
             { icon = "Interface\\Icons\\Spell_Holy_PowerWordShield",  count = 0, duration = 30, expiration = now + 22, dispel = true },
         }
         local cl = {
-            { icon = "Interface\\Icons\\Spell_Nature_Polymorph",      count = 0, duration = 10, expiration = now + 7 },
+            { icon = "Interface\\Icons\\Spell_Nature_Polymorph",      count = 0, duration = 10, expiration = now + 7,
+              dispelType = "Magic" },
         }
-        applyAuras(self, d.showDebuffs and dl or nil, d.showBuffs and bl or nil, d.showCC and cl or nil)
+        local dotl = {
+            { icon = "Interface\\Icons\\Spell_Shadow_ShadowWordPain", count = 0, duration = 24, expiration = now + 19 },
+            { icon = "Interface\\Icons\\Spell_Shadow_AbominationExplosion", count = 0, duration = 18, expiration = now + 4 },
+        }
+        applyAuras(self, {
+            debuff = d.showDebuffs and dl   or nil,
+            dot    = d.showDots   and dotl or nil,
+            buff   = d.showBuffs  and bl   or nil,
+            cc     = d.showCC     and cl   or nil,
+        })
 
         renderComboPips(self, 3)
     end
@@ -1744,6 +2163,7 @@ end
 
 function mod:OnEnable()
     if mod.db.healthTexture == nil then mod.db.healthTexture = DEFAULT_TEXTURE end
+    migrateAuraRows()
     local _, cls = UnitClass("player")
     playerCanSteal = CAN_REMOVE_MAGIC[cls] or false
     findKickSpell()
@@ -1838,6 +2258,81 @@ local function borderStyleValues()
     }
 end
 
+local function rowSideValues()
+    return {
+        { value = "top",    text = L["Above the plate"] },
+        { value = "bottom", text = L["Below the plate"] },
+    }
+end
+
+local function rowGrowValues()
+    return {
+        { value = "center", text = L["Centred"] },
+        { value = "right",  text = L["To the right"] },
+        { value = "left",   text = L["To the left"] },
+    }
+end
+
+local function rowFilterValues()
+    return {
+        { value = "all",    text = L["Everything"] },
+        { value = "mine",   text = L["Only mine"] },
+        { value = "dispel", text = L["Only removable"] },
+    }
+end
+
+-- Placement controls shared by every aura row; `key` selects which row's
+-- settings the widgets read and write. withFilter is off for the rows whose
+-- contents are already defined by what they collect (crowd control, your DoTs).
+local function rowPlacementItems(key, SLW, applyAndRefresh, withFilter)
+    local function cfg() return ns:NameplateRowCfg(key) end
+    local items = {
+        { type = "group", layout = "row", gap = 8, items = {
+            { type = "dropdown", label = L["Side"], width = 200, values = rowSideValues(),
+              tooltip = L["Which end of the plate this row sits on. Rows on the same side queue up outward."],
+              get = function() return cfg().side or "top" end,
+              set = function(_, v) cfg().side = v; applyAndRefresh() end },
+            { type = "dropdown", label = L["Grow"], width = 200, values = rowGrowValues(),
+              tooltip = L["Which way the icons run. Left and right line the row up with the matching edge of the health bar."],
+              get = function() return cfg().grow or "center" end,
+              set = function(_, v) cfg().grow = v; applyAndRefresh() end },
+        } },
+        { type = "group", layout = "row", gap = 8, items = {
+            { type = "slider", label = L["Offset X"], min = -150, max = 150, step = 1, width = SLW,
+              get = function() return cfg().x or 0 end,
+              set = function(_, v) cfg().x = v; applyAndRefresh() end },
+            { type = "slider", label = L["Offset Y"], min = -100, max = 100, step = 1, width = SLW,
+              get = function() return cfg().y or 0 end,
+              set = function(_, v) cfg().y = v; applyAndRefresh() end },
+        } },
+        { type = "group", layout = "row", gap = 8, items = {
+            { type = "slider", label = L["Icon spacing"], min = 0, max = 12, step = 1, width = SLW,
+              get = function() return cfg().spacing or 2 end,
+              set = function(_, v) cfg().spacing = v; applyAndRefresh() end },
+            { type = "slider", label = L["Icons per line"], min = 0, max = 12, step = 1, width = SLW,
+              tooltip = L["0 = one line. Otherwise the row wraps after this many icons."],
+              get = function() return cfg().perRow or 0 end,
+              set = function(_, v) cfg().perRow = v; applyAndRefresh() end },
+        } },
+    }
+    if withFilter then
+        items[#items + 1] = { type = "dropdown", label = L["Limit to"], width = 300, values = rowFilterValues(),
+            tooltip = L["Narrows this row to auras you cast yourself, or to ones that can be removed."],
+            get = function() return cfg().filter or "all" end,
+            set = function(_, v) cfg().filter = v; applyAndRefresh() end }
+    end
+    return items
+end
+
+local function outlineValues()
+    return {
+        { value = "OUTLINE",      text = L["Outline"] },
+        { value = "THICKOUTLINE", text = L["Thick outline"] },
+        { value = "SHADOW",       text = L["Shadow"] },
+        { value = "",             text = L["None"] },
+    }
+end
+
 function mod:GetOptions()
     local SLW = 180
     return {
@@ -1878,6 +2373,19 @@ function mod:GetOptions()
                   get = function() return mod.db.bgTintByBar end,
                   set = function(_, v) mod.db.bgTintByBar = v; applyAndRefresh() end },
             } },
+            { type = "group", layout = "row", gap = 8, items = {
+                { type = "checkbox", label = L["Glow at the bar edge"],
+                  tooltip = L["A soft glow rides the end of the fill, tinted in the bar's own colour. Also applies to the cast bar."],
+                  get = function() return mod.db.showSpark end,
+                  set = function(_, v) mod.db.showSpark = v; applyAndRefresh() end },
+                { type = "checkbox", label = L["Rounded bar corners"],
+                  tooltip = L["Clips the fill and background to a rounded shape. The line border stays square, so a thin border may show slightly at the corners."],
+                  get = function() return mod.db.roundedBars end,
+                  set = function(_, v) mod.db.roundedBars = v; applyAndRefresh() end },
+            } },
+            { type = "slider", label = L["Edge glow width"], min = 2, max = 40, step = 1, width = SLW,
+              get = function() return mod.db.sparkWidth end,
+              set = function(_, v) mod.db.sparkWidth = v; applyAndRefresh() end },
             { type = "dropdown", label = L["Bar texture"], width = 300, values = textureValues(),
               get = function() return mod.db.healthTexture end,
               set = function(_, v) mod.db.healthTexture = v; applyAndRefresh() end },
@@ -1893,6 +2401,16 @@ function mod:GetOptions()
             { type = "slider", label = L["Border thickness (px)"], min = 0, max = 12, step = 1,
               get = function() return mod.db.borderSize end,
               set = function(_, v) mod.db.borderSize = v; applyAndRefresh() end },
+            { type = "group", layout = "row", gap = 8, items = {
+                { type = "slider", label = L["Overall plate scale (%)"], min = 50, max = 200, step = 5, width = SLW,
+                  tooltip = L["Scales every plate at once, on top of each individual size."],
+                  get = function() return mod.db.globalScale or 100 end,
+                  set = function(_, v) mod.db.globalScale = v; applyAndRefresh() end },
+                { type = "slider", label = L["Vertical offset"], min = -100, max = 100, step = 1, width = SLW,
+                  tooltip = L["Moves every plate up or down relative to its unit."],
+                  get = function() return mod.db.plateOffsetY or 0 end,
+                  set = function(_, v) mod.db.plateOffsetY = v; applyAndRefresh() end },
+            } },
             { type = "checkbox", label = L["Show absorb shield"],
               tooltip = L["Overlays damage-absorption shields (e.g. Power Word: Shield) on the health bar."],
               get = function() return mod.db.showAbsorb end,
@@ -1923,9 +2441,27 @@ function mod:GetOptions()
               tooltip = L["The typeface for every text on the plates (name, health, cast, auras)."],
               get = function() return mod.db.fontFace or "" end,
               set = function(_, v) mod.db.fontFace = v; applyAndRefresh() end },
+            { type = "dropdown", label = L["Font outline"], width = 300, values = outlineValues(),
+              tooltip = L["How plate text is lifted off the background."],
+              get = function() return mod.db.fontOutline or "OUTLINE" end,
+              set = function(_, v) mod.db.fontOutline = v; applyAndRefresh() end },
             { type = "checkbox", label = L["Show name"],
               get = function() return mod.db.showName end,
               set = function(_, v) mod.db.showName = v; refreshPage(); applyAndRefresh() end },
+            { type = "group", layout = "row", gap = 8, items = {
+                { type = "checkbox", label = L["Show level"],
+                  tooltip = L["Shows the unit level to the left of the name; ?? means the level is far above yours."],
+                  get = function() return mod.db.showLevel end,
+                  set = function(_, v) mod.db.showLevel = v; applyAndRefresh() end },
+                { type = "checkbox", label = L["Mark rare and elite"],
+                  tooltip = L["Appends a rank to the level and turns it gold: + elite, R rare, R+ rare elite, B world boss."],
+                  get = function() return mod.db.showLevelMod ~= false end,
+                  set = function(_, v) mod.db.showLevelMod = v; applyAndRefresh() end },
+            } },
+            { type = "slider", label = L["Level size"], min = 0, max = 20, step = 1, width = SLW,
+              tooltip = L["0 = uses the name size."],
+              get = function() return mod.db.levelSize or 0 end,
+              set = function(_, v) mod.db.levelSize = v; applyAndRefresh() end },
             { type = "checkbox", label = L["Show health text"],
               get = function() return mod.db.showHealthText end,
               set = function(_, v) mod.db.showHealthText = v; refreshPage(); applyAndRefresh() end },
@@ -2145,6 +2681,18 @@ function mod:GetOptions()
             { type = "checkbox", label = L["Hide name while casting"],
               get = function() return mod.db.hideNameWhileCasting end,
               set = function(_, v) mod.db.hideNameWhileCasting = v; applyAndRefresh() end },
+            { type = "checkbox", label = L["Emphasise casting units"],
+              tooltip = L["While a unit casts, its plate grows a little and stays readable even when something else is targeted."],
+              get = function() return mod.db.castEmphasis end,
+              set = function(_, v) mod.db.castEmphasis = v; applyAndRefresh() end },
+            { type = "group", layout = "row", gap = 8, items = {
+                { type = "slider", label = L["Casting scale (%)"], min = 100, max = 160, step = 5, width = SLW,
+                  get = function() return mod.db.castEmphScale or 110 end,
+                  set = function(_, v) mod.db.castEmphScale = v; applyAndRefresh() end },
+                { type = "slider", label = L["Casting opacity (%)"], min = 10, max = 100, step = 5, width = SLW,
+                  get = function() return mod.db.castEmphAlpha or 100 end,
+                  set = function(_, v) mod.db.castEmphAlpha = v; applyAndRefresh() end },
+            } },
         } },
 
         { type = "section", title = L["Target & Threat"], collapsed = false, items = {
@@ -2227,9 +2775,8 @@ function mod:GetOptions()
                   get = function() return mod.db.maxBuffs end,
                   set = function(_, v) mod.db.maxBuffs = v; applyAndRefresh() end },
             } },
-            { type = "slider", label = L["Icon spacing"], min = 0, max = 8, step = 1, width = SLW,
-              get = function() return mod.db.auraSpacing end,
-              set = function(_, v) mod.db.auraSpacing = v; applyAndRefresh() end },
+            -- Spacing moved into each row's own section; a global control here
+            -- would be dead, since every row now carries its own value.
             { type = "checkbox", label = L["Cooldown swipe"],
               get = function() return mod.db.auraSwipe end,
               set = function(_, v) mod.db.auraSwipe = v; applyAndRefresh() end },
@@ -2237,6 +2784,18 @@ function mod:GetOptions()
               tooltip = L["Glows enemy buffs you can remove (Spellsteal / Purge / Dispel Magic). Only for classes that can."],
               get = function() return mod.db.showDispelGlow end,
               set = function(_, v) mod.db.showDispelGlow = v; applyAndRefresh() end },
+            { type = "checkbox", label = L["Colour border by school"],
+              tooltip = L["Aura borders take the colour of their school: magic blue, curse purple, disease orange, poison green."],
+              get = function() return mod.db.auraTypeBorder ~= false end,
+              set = function(_, v) mod.db.auraTypeBorder = v; applyAndRefresh() end },
+            { type = "checkbox", label = L["Flash before running out"],
+              tooltip = L["The icon pulses over the last part of its duration, so you can see when to refresh."],
+              get = function() return mod.db.auraExpireFlash ~= false end,
+              set = function(_, v) mod.db.auraExpireFlash = v; applyAndRefresh() end },
+            { type = "slider", label = L["Flash below (%)"], min = 5, max = 60, step = 5, width = SLW,
+              tooltip = L["Share of the remaining duration at which the pulse starts."],
+              get = function() return mod.db.auraExpirePct or 30 end,
+              set = function(_, v) mod.db.auraExpirePct = v; applyAndRefresh() end },
             { type = "color", label = L["Dispel glow colour"], width = 220,
               get = function() return mod.db.colDispel end,
               set = function(r, g, b) mod.db.colDispel = { r = r, g = g, b = b }; applyAndRefresh() end },
@@ -2260,13 +2819,21 @@ function mod:GetOptions()
             } },
             { type = "group", layout = "row", gap = 8, items = {
                 { type = "slider", label = L["Aura offset X"], min = -100, max = 100, step = 1, width = SLW,
+                  tooltip = L["Nudges every aura row at once, on top of each row's own offset."],
                   get = function() return mod.db.auraOffsetX or 0 end,
                   set = function(_, v) mod.db.auraOffsetX = v; applyAndRefresh() end },
                 { type = "slider", label = L["Aura offset Y"], min = -40, max = 60, step = 1, width = SLW,
+                  tooltip = L["Nudges every aura row at once, on top of each row's own offset."],
                   get = function() return mod.db.auraOffsetY or 0 end,
                   set = function(_, v) mod.db.auraOffsetY = v; applyAndRefresh() end },
             } },
         } },
+
+        { type = "section", title = L["Debuff Row"], collapsed = true, items =
+            rowPlacementItems("debuff", SLW, applyAndRefresh, true) },
+
+        { type = "section", title = L["Buff Row"], collapsed = true, items =
+            rowPlacementItems("buff", SLW, applyAndRefresh, true) },
 
         { type = "section", title = L["Crowd Control"], collapsed = false, items = {
             { type = "checkbox", label = L["Show crowd control (separate row)"],
@@ -2291,14 +2858,24 @@ function mod:GetOptions()
                   get = function() return mod.db.ccHeight or 0 end,
                   set = function(_, v) mod.db.ccHeight = v; applyAndRefresh() end },
             } },
+            unpack(rowPlacementItems("cc", SLW, applyAndRefresh, false)),
+        } },
+
+        { type = "section", title = L["Your Own Debuffs"], collapsed = true, items = {
+            { type = "desc",
+              text = L["|cffaaaaaaA separate row for the harmful auras you cast yourself - your damage-over-time timers, kept away from everything else on the target.|r"] },
+            { type = "checkbox", label = L["Show your own debuffs (separate row)"],
+              get = function() return mod.db.showDots end,
+              set = function(_, v) mod.db.showDots = v; refreshPage(); applyAndRefresh() end },
             { type = "group", layout = "row", gap = 8, items = {
-                { type = "slider", label = L["Offset X"], min = -100, max = 100, step = 1, width = SLW,
-                  get = function() return mod.db.ccOffsetX or 0 end,
-                  set = function(_, v) mod.db.ccOffsetX = v; applyAndRefresh() end },
-                { type = "slider", label = L["Offset Y"], min = -40, max = 60, step = 1, width = SLW,
-                  get = function() return mod.db.ccOffsetY or 0 end,
-                  set = function(_, v) mod.db.ccOffsetY = v; applyAndRefresh() end },
+                { type = "slider", label = L["Icon size"], min = 12, max = 48, step = 1, width = SLW,
+                  get = function() return mod.db.dotSize end,
+                  set = function(_, v) mod.db.dotSize = v; applyAndRefresh() end },
+                { type = "slider", label = L["Max icons"], min = 1, max = 12, step = 1, width = SLW,
+                  get = function() return mod.db.maxDots end,
+                  set = function(_, v) mod.db.maxDots = v; applyAndRefresh() end },
             } },
+            unpack(rowPlacementItems("dot", SLW, applyAndRefresh, false)),
         } },
 
         { type = "section", title = L["Friendly Plates"], collapsed = false, items = {
