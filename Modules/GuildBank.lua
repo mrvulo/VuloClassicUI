@@ -268,33 +268,7 @@ function gb.acquireButton(n)
     if btn.SetNormalTexture then pcall(btn.SetNormalTexture, btn, nil) end
     local nt = _G[bname .. "NormalTexture"]; if nt then nt:SetTexture(nil); nt:Hide() end
     if btn.GetNormalTexture then local g = btn:GetNormalTexture(); if g then g:SetTexture(nil); g:Hide() end end
-    local sb = btn:CreateTexture(nil, "BACKGROUND")
-    sb:SetPoint("TOPLEFT", btn, "TOPLEFT", 1, -1)
-    sb:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -1, 1)
-    sb:SetColorTexture(0.10, 0.10, 0.13, 0.55)
-    local qb = btn:CreateTexture(nil, "BACKGROUND", nil, -1)
-    qb:SetAllPoints(btn)
-    if qb.SetSnapToPixelGrid then qb:SetSnapToPixelGrid(false); qb:SetTexelSnappingBias(0) end
-    qb:Hide()
-    btn._qborder = qb
-    local iconTex = _G[bname .. "IconTexture"] or btn.icon
-    if iconTex then
-        iconTex:ClearAllPoints()
-        iconTex:SetPoint("TOPLEFT", btn, "TOPLEFT", 1, -1)
-        iconTex:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -1, 1)
-        iconTex:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-        if iconTex.SetSnapToPixelGrid then iconTex:SetSnapToPixelGrid(false); iconTex:SetTexelSnappingBias(0) end
-    end
-    local il = btn:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
-    il:SetPoint("TOPLEFT", btn, "TOPLEFT", 2, -2)
-    il:SetTextColor(1, 1, 1)
-    il:Hide()
-    btn._ilvl = il
-    local bm = btn:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
-    bm:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -2, 2)
-    bm:SetTextColor(0.45, 0.75, 1)
-    bm:Hide()
-    btn._bind = bm
+    ns.BagsSkinItemButton(btn)
     btn:Hide()
     gb.buttons[n] = btn
     return btn
@@ -312,45 +286,7 @@ function gb.updateButton(btn)
     if (not quality or quality < 0) and link and GetItemInfo then
         quality = select(3, GetItemInfo(link))
     end
-    local qf = btn._qborder
-    if qf then
-        if mod.db.qualityBorders ~= false and quality and quality >= 2 and GetItemQualityColor then
-            local r, g, b = GetItemQualityColor(quality)
-            qf:SetColorTexture(r, g, b, 1)
-            qf:Show()
-        else
-            qf:Hide()
-        end
-    end
-    local fs = btn._ilvl
-    if fs then
-        local lvl
-        if mod.db.showItemLevel ~= false and link and GetItemInfoInstant then
-            local _, _, _, equipLoc, _, classID = GetItemInfoInstant(link)
-            if (classID == 2 or classID == 4) and equipLoc and equipLoc ~= "" and equipLoc ~= "INVTYPE_BAG" then
-                lvl = (GetDetailedItemLevelInfo and GetDetailedItemLevelInfo(link))
-                    or (GetItemInfo and select(4, GetItemInfo(link)))
-            end
-        end
-        if lvl and lvl > 1 then
-            if ns.UI and ns.UI.FONT_PATH then
-                pcall(fs.SetFont, fs, ns.UI.FONT_PATH, mod.db.countFontSize or 12, "OUTLINE")
-            end
-            fs:SetText(lvl)
-            -- Same rule as the bag window: without this the number kept the
-            -- white it was created with, so "Color item levels by quality" was
-            -- the one appearance option that did nothing here.
-            if mod.db.itemLevelQualityColor ~= false and quality and quality >= 2 and GetItemQualityColor then
-                local r, g, b = GetItemQualityColor(quality)
-                fs:SetTextColor(r, g, b)
-            else
-                fs:SetTextColor(1, 1, 1)
-            end
-            fs:Show()
-        else
-            fs:Hide()
-        end
-    end
+    ns.BagsPaintQuality(btn, quality, link)
     local cnt = _G[btn:GetName() .. "Count"]
     if cnt and ns.UI and ns.UI.FONT_PATH then
         pcall(cnt.SetFont, cnt, ns.UI.FONT_PATH, mod.db.countFontSize or 12, "OUTLINE")

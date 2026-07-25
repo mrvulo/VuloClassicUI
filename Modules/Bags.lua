@@ -594,6 +594,96 @@ end
 
 local bindTypeCache = {}
 
+-- One recipe for the dark item button, shared by the bag window, the bank and
+-- the guild bank. All three carried their own hand-copied version and drifted
+-- apart: the item level colour rule below had been added to the bag window only,
+-- so "Color item levels by quality" silently did nothing at a banker. Bank.lua
+-- and GuildBank.lua load after this file and take both halves from here.
+function ns.BagsSkinItemButton(btn)
+    local bname = btn:GetName()
+
+    local sb = btn:CreateTexture(nil, "BACKGROUND")
+    sb:SetPoint("TOPLEFT", btn, "TOPLEFT", 1, -1)
+    sb:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -1, 1)
+    sb:SetColorTexture(0.10, 0.10, 0.13, 0.55)
+    btn._slotbg = sb
+
+    local qb = btn:CreateTexture(nil, "BACKGROUND", nil, -1)
+    qb:SetAllPoints(btn)
+    -- pixel snapping off on ring + icon, else the border rasterizes unevenly
+    if qb.SetSnapToPixelGrid then qb:SetSnapToPixelGrid(false); qb:SetTexelSnappingBias(0) end
+    qb:Hide()
+    btn._qborder = qb
+
+    local iconTex = (bname and _G[bname .. "IconTexture"]) or btn.icon
+    if iconTex then
+        iconTex:ClearAllPoints()
+        iconTex:SetPoint("TOPLEFT", btn, "TOPLEFT", 1, -1)
+        iconTex:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -1, 1)
+        iconTex:SetTexCoord(0.07, 0.93, 0.07, 0.93)   -- crop the icon's own dark bevel
+        if iconTex.SetSnapToPixelGrid then iconTex:SetSnapToPixelGrid(false); iconTex:SetTexelSnappingBias(0) end
+    end
+
+    local il = btn:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
+    il:SetPoint("TOPLEFT", btn, "TOPLEFT", 2, -2)
+    il:SetTextColor(1, 1, 1)
+    il:Hide()
+    btn._ilvl = il
+
+    local bm = btn:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
+    bm:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -2, 2)
+    bm:SetTextColor(0.45, 0.75, 1)
+    bm:Hide()
+    btn._bind = bm
+
+    return btn
+end
+
+-- The quality ring and the item level number. Reads the bag module's settings,
+-- which is what all three windows are configured by.
+function ns.BagsPaintQuality(btn, quality, link)
+    local d = mod.db
+
+    local qf = btn._qborder
+    if qf then
+        if d.qualityBorders ~= false and quality and quality >= 2 and GetItemQualityColor then
+            local r, g, b = GetItemQualityColor(quality)
+            qf:SetColorTexture(r, g, b, 1)
+            qf:Show()
+        else
+            qf:Hide()
+        end
+    end
+
+    -- ilvl can be nil on uncached items; the next refresh fills it in
+    local fs = btn._ilvl
+    if not fs then return end
+    local lvl
+    if d.showItemLevel ~= false and link and GetItemInfoInstant then
+        local _, _, _, equipLoc, _, classID = GetItemInfoInstant(link)
+        if (classID == 2 or classID == 4) and equipLoc and equipLoc ~= "" and equipLoc ~= "INVTYPE_BAG" then
+            lvl = (GetDetailedItemLevelInfo and GetDetailedItemLevelInfo(link))
+                or (GetItemInfo and select(4, GetItemInfo(link)))
+        end
+    end
+    if lvl and lvl > 1 then
+        local fontPath = ns.UI and ns.UI.FONT_PATH
+        if fontPath then
+            pcall(fs.SetFont, fs, fontPath, d.countFontSize or 12, "OUTLINE")
+        end
+        fs:SetText(lvl)
+        if d.itemLevelQualityColor ~= false and quality and quality >= 2 and GetItemQualityColor then
+            local r, g, b = GetItemQualityColor(quality)
+            fs:SetTextColor(r, g, b)
+        else
+            fs:SetTextColor(1, 1, 1)
+        end
+        fs:Show()
+    else
+        fs:Hide()
+    end
+end
+
 local function updateButton(btn)
     local bag  = btn:GetParent():GetID()
     local slot = btn:GetID()
@@ -608,44 +698,7 @@ local function updateButton(btn)
     local bp = btn.BattlepayItemTexture or _G[btn:GetName() .. "BattlepayItemTexture"]
     if bp and bp:IsShown() then bp:Hide() end
 
-    local qf = btn._qborder
-    if qf then
-        if mod.db.qualityBorders ~= false and quality and quality >= 2 and GetItemQualityColor then
-            local r, g, b = GetItemQualityColor(quality)
-            qf:SetColorTexture(r, g, b, 1)
-            qf:Show()
-        else
-            qf:Hide()
-        end
-    end
-
-    -- ilvl can be nil on uncached items; the next refresh fills it in
-    local fs = btn._ilvl
-    if fs then
-        local lvl
-        if mod.db.showItemLevel ~= false and link and GetItemInfoInstant then
-            local _, _, _, equipLoc, _, classID = GetItemInfoInstant(link)
-            if (classID == 2 or classID == 4) and equipLoc and equipLoc ~= "" and equipLoc ~= "INVTYPE_BAG" then
-                lvl = (GetDetailedItemLevelInfo and GetDetailedItemLevelInfo(link))
-                    or (GetItemInfo and select(4, GetItemInfo(link)))
-            end
-        end
-        if lvl and lvl > 1 then
-            if UI and UI.FONT_PATH then
-                pcall(fs.SetFont, fs, UI.FONT_PATH, mod.db.countFontSize or 12, "OUTLINE")
-            end
-            fs:SetText(lvl)
-            if mod.db.itemLevelQualityColor ~= false and quality and quality >= 2 and GetItemQualityColor then
-                local r, g, b = GetItemQualityColor(quality)
-                fs:SetTextColor(r, g, b)
-            else
-                fs:SetTextColor(1, 1, 1)
-            end
-            fs:Show()
-        else
-            fs:Hide()
-        end
-    end
+    ns.BagsPaintQuality(btn, quality, link)
 
     local cnt = _G[btn:GetName() .. "Count"]
     if cnt and UI and UI.FONT_PATH then
@@ -777,42 +830,15 @@ local function acquireButton(n)
             if type(a) == "string" and a:find("glow", 1, true) then reg:Hide() end
         end
     end
-    local sb = btn:CreateTexture(nil, "BACKGROUND")
-    sb:SetPoint("TOPLEFT", btn, "TOPLEFT", 1, -1)
-    sb:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -1, 1)
-    sb:SetColorTexture(0.10, 0.10, 0.13, 0.55)
-    btn._slotbg = sb
-    local qb = btn:CreateTexture(nil, "BACKGROUND", nil, -1)
-    qb:SetAllPoints(btn)
-    -- pixel snapping off on ring + icon, else the border rasterizes unevenly
-    if qb.SetSnapToPixelGrid then qb:SetSnapToPixelGrid(false); qb:SetTexelSnappingBias(0) end
-    qb:Hide()
-    btn._qborder = qb
-    local iconTex = _G[bname .. "IconTexture"] or btn.icon
-    if iconTex then
-        iconTex:ClearAllPoints()
-        iconTex:SetPoint("TOPLEFT", btn, "TOPLEFT", 1, -1)
-        iconTex:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -1, 1)
-        iconTex:SetTexCoord(0.07, 0.93, 0.07, 0.93)   -- crop the icon's own dark bevel
-        if iconTex.SetSnapToPixelGrid then iconTex:SetSnapToPixelGrid(false); iconTex:SetTexelSnappingBias(0) end
-    end
-    local il = btn:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
-    il:SetPoint("TOPLEFT", btn, "TOPLEFT", 2, -2)
-    il:SetTextColor(1, 1, 1)
-    il:Hide()
-    btn._ilvl = il
+    ns.BagsSkinItemButton(btn)
+
     local jk = btn:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
     local jac = ns.COLORS and ns.COLORS.accent or { r = 0.608, g = 0.424, b = 1 }
     jk:SetPoint("BOTTOMLEFT", btn, "BOTTOMLEFT", 2, 2)
     jk:SetText("C")
     jk:SetTextColor(jac.r, jac.g, jac.b)
     jk:Hide()
-    btn._junk = jk
-    local bm = btn:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
-    bm:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -2, 2)
-    bm:SetTextColor(0.45, 0.75, 1)
-    bm:Hide()
-    btn._bind = bm
+    btn._junk = jk   -- bag window only: the bank has nothing to sell
     btn:Hide()
     buttons[n] = btn
     return btn
