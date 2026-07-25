@@ -16,6 +16,34 @@
   ~1900 characters or it gets truncated with a link to the full notes.
 -->
 
+## 1.37.0
+**Languages:**
+- **NEW:** Spanish, French, Italian, Portuguese, Russian and Korean. All six are complete — every one of the 2244 texts is translated, nothing falls back to English. Spanish also serves Latin American clients. Choose your language under General, or leave it on Auto.
+
+**Reminders (new module):**
+- **NEW:** Shows what you are missing before a pull: weapon oils and stones, blessings, food and flask buffs, the aura or stance you forgot to set. Click a reminder to cast or use it. Off by default, found under Quality of Life.
+
+**Nameplates:**
+- **NEW:** A spark at the bar's fill point, rounded corners, aura rows you can assign freely, and your own damage-over-time effects on a row of their own.
+- **NEW:** Aura borders take the colour of their spell school, and an aura flashes shortly before it runs out.
+- **NEW:** Level and elite text, plus overall scale and vertical offset per plate.
+
+**Edit Mode:**
+- **NEW:** A window can take its width or height from another window and keep it.
+- **NEW:** Save button. While dragging, hold Shift to lock one axis.
+
+**Arena:**
+- **NEW:** Trinket and racial cooldowns, Shadow Sight timer, a ring on the class icon for the most important aura, and range checking.
+
+**Totems:**
+- Totem icons grey out once you leave the totem's range and regain their colour when you come back.
+
+**Fixes:**
+- The character sheet and spellbook open in combat again. The action bars no longer set a protected field from our own code, which was the real cause.
+- The melee swing timer is off by default and only loads for melee classes and specialisations.
+- Sliders got a proper look: soft edges, an inner shadow and a smoother hover.
+- Own icons for the three collection pages, and class icons on the class tabs.
+
 ## 1.36.0
 **Edit Mode:**
 - **NEW:** Anchor a window to another one's edge (left/right/top/bottom) — the gap is kept edge-to-edge, so it survives either window being resized.
