@@ -1226,6 +1226,10 @@ end
 
 function mod:OnEnable()
     ensureGroups()
+    -- Each group carries its own saved unlock, which overrides every visibility
+    -- filter - including "Never" - and the bar opacity slider. setUnlocked is
+    -- the only thing that shows the mover, and it does not run on load.
+    for _, group in ipairs(db().groups) do group.unlocked = false end
     if not driver then
         driver = CreateFrame("Frame")
         driver:SetScript("OnUpdate", function(_, elapsed)

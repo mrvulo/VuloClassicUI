@@ -83,6 +83,7 @@ end
 
 function mod:GetOptions()
     local function refreshPanel()
+        if ns.InvalidateCharacterPanel then ns.InvalidateCharacterPanel() end
         if ns.RefreshCharacterPanel then ns.RefreshCharacterPanel() end
     end
 
@@ -1543,6 +1544,21 @@ local function UpdateCharacterPanel()
 end
 
 ns.RefreshCharacterPanel = UpdateCharacterPanel
+
+-- The per-slot update skips its whole body when the item link has not changed.
+-- That is right for events, but wrong for the options: flipping "Show sockets"
+-- changes what should be drawn while the gear stays exactly where it is, so the
+-- checkbox moved and nothing else did until the player swapped an item. Options
+-- call this first, then refresh.
+local function InvalidateCharacterPanel()
+	for _, name in ipairs(characterSlots) do
+		local button = _G[name]
+		if button and button.BCPDisplay then
+			button.BCPDisplay.prevItemLink = nil
+		end
+	end
+end
+ns.InvalidateCharacterPanel = InvalidateCharacterPanel
 
 -- tab switches fire none of our events; follow the paperdoll's own show/hide
 if _G.PaperDollFrame then

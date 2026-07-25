@@ -699,12 +699,23 @@ local function getCurrentForm()
     return GetShapeshiftForm() or 0
 end
 
+-- The old code read the name out of GetShapeshiftFormInfo. That tuple is
+-- texture, isActive, isCastable on these clients - there is no name in it, so
+-- the check never passed and every entry fell through to "Form 1", "Form 2",
+-- ... which is useless for picking one. Reminders.lua documents the same tuple.
+-- The tooltip is the only place the name exists.
+local formTip = CreateFrame("GameTooltip", "VCUILoadoutFormTip", nil, "GameTooltipTemplate")
+formTip:SetOwner(UIParent, "ANCHOR_NONE")
+
 local function getFormName(formIdx)
     if formIdx == 0 then return L["No Form"] end
-    if GetShapeshiftFormInfo then
-        -- returns (icon, name, ...); pcall prepends ok, so the name is the 3rd value
-        local ok, _icon, fname = pcall(GetShapeshiftFormInfo, formIdx)
-        if ok and type(fname) == "string" and fname ~= "" then return fname end
+    if formTip.SetShapeshift then
+        formTip:ClearLines()
+        if pcall(formTip.SetShapeshift, formTip, formIdx) then
+            local fs = _G["VCUILoadoutFormTipTextLeft1"]
+            local txt = fs and fs:GetText()
+            if type(txt) == "string" and txt ~= "" then return txt end
+        end
     end
     return string.format(L["Form %d"], formIdx)
 end
@@ -1662,6 +1673,12 @@ local function createSidebar()
         width    = 168,
         height   = 44,
         applyPos = anchorToCharacterFrame,
+        -- A mover with its own applyPos gets a plain CENTER drop and is then
+        -- expected to restore its anchor model from onMove. Without one, Edit
+        -- Mode's X/Y boxes and "Reset this frame" tore the sidebar off the
+        -- character window onto a single centre point, where its two-point
+        -- anchor was gone and it collapsed to height zero.
+        onMove   = anchorToCharacterFrame,
     })
     sidebar.mover:SetFrameLevel((sidebar:GetFrameLevel() or 1) + 20)
     do

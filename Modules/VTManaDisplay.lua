@@ -612,6 +612,13 @@ local function dotsSetUnlocked(state)
 end
 
 function mod:OnEnable()
+    -- Both frames have their own saved unlock, and neither setUnlocked runs on
+    -- load - so a leftover flag pins the frame on screen with no mover to grab.
+    if mod.db then
+        mod.db.unlocked = false
+        if mod.db.dots then mod.db.dots.unlocked = false end
+    end
+
     -- Migration from the old "vampirictouchmana" module
     if ns.db and ns.db.profile and ns.db.profile.modules then
         local old = ns.db.profile.modules.vampirictouchmana

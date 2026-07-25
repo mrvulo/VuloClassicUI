@@ -457,7 +457,10 @@ function UI:CreateMainFrame()
                     mod.db[k] = v
                 end
             end
-            UI:BuildOptionsPage(UI.currentModule)
+            -- Keep the tab: rebuilding without it makes GetOptions(nil) return
+            -- every section at once, so the page turned into one long list while
+            -- the tab column still showed a single tab as selected.
+            UI:BuildOptionsPage(UI.currentModule, UI.currentTab)
             UI:RefreshSidebarStates()
             ns:Print(L["Module '%s' reset."], L[mod.name])
         end,

@@ -415,7 +415,9 @@ function UI:CreateToggle(parent, config)
     end)
     attachTooltip(container)
 
-    container._vcType   = "toggle"
+    -- Separate pool key per style: the eye variant is built at construction and
+    -- cannot be turned back into a switch, so the two must never be interchanged.
+    container._vcType   = (config.style == "eye") and "toggle_eye" or "toggle"
     container._vcSetup  = toggleSetup
     container._refresh  = function() toggleRefresh(container) end
     toggleSetup(container, config)

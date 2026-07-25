@@ -842,6 +842,7 @@ local function styleCombatLog()
     local bgt = qbf:CreateTexture(nil, "BACKGROUND")
     bgt:SetAllPoints()
     bgt:SetColorTexture(BG.r, BG.g, BG.b, BG.a or 0.9)
+    qbf._vcuiBg = bgt   -- so the opacity slider can repaint this strip too
 end
 
 -- Blizzard anchors GeneralDockManagerScrollFrame below the dock manager, misaligning scroll-child tabs. Must run deferred (positions must be settled to measure); the >0.5 gate keeps it idempotent.
@@ -874,6 +875,12 @@ local function positionDock()
 end
 
 local topFadeTex
+-- Kept separately from the host frame: the gradient bakes BG.a, so changing the
+-- panel opacity has to repaint it. ensureTopFade returns early once the host
+-- exists, so without this reference the fade stayed at whatever opacity it was
+-- first built with.
+local topFadeGrad
+
 local function ensureTopFade()
     local cf1 = _G.ChatFrame1
     if topFadeTex or not cf1 then return end
@@ -885,7 +892,14 @@ local function ensureTopFade()
     local t = host:CreateTexture(nil, "ARTWORK")
     t:SetAllPoints()
     UI.SetGradient(t, "VERTICAL", BG.r, BG.g, BG.b, 0, BG.r, BG.g, BG.b, BG.a or 0.9)
-    topFadeTex = host
+    topFadeTex  = host
+    topFadeGrad = t
+end
+
+local function repaintTopFade()
+    if topFadeGrad then
+        UI.SetGradient(topFadeGrad, "VERTICAL", BG.r, BG.g, BG.b, 0, BG.r, BG.g, BG.b, BG.a or 0.9)
+    end
 end
 
 local function applyTopFade()
@@ -1012,6 +1026,7 @@ local function buildSidebar()
     local bgt = sb:CreateTexture(nil, "BACKGROUND")
     bgt:SetAllPoints()
     bgt:SetColorTexture(BG.r, BG.g, BG.b, BG.a or 0.9)
+    sb._vcuiBg = bgt   -- so the opacity slider can repaint the icon strip too
     local div = sb:CreateTexture(nil, "OVERLAY")
     div:SetWidth(1)
     div:SetColorTexture(1, 1, 1, 0.06)
@@ -1154,7 +1169,19 @@ local function applyPanelOpacity()
         if d and d.bgTex then d.bgTex:SetColorTexture(BG.r, BG.g, BG.b, BG.a) end
     end)
     applyPanel()
-    applyTopFade()   -- the gradient bakes BG.a
+    applyTopFade()
+    -- Three more pieces carry the same background and were built once, so only
+    -- the message area followed the slider: the top fade, the icon strip and the
+    -- combat log button bar stayed at their original opacity and left a hard
+    -- edge in the wrong shade.
+    repaintTopFade()
+    if sidebarFrame and sidebarFrame._vcuiBg then
+        sidebarFrame._vcuiBg:SetColorTexture(BG.r, BG.g, BG.b, BG.a)
+    end
+    local qbf = _G.CombatLogQuickButtonFrame_Custom or _G.CombatLogQuickButtonFrame
+    if qbf and qbf._vcuiBg then
+        qbf._vcuiBg:SetColorTexture(BG.r, BG.g, BG.b, BG.a)
+    end
 end
 
 -- FCF_OpenNewWindow is insecure chat code, so calling it from our button is taint-safe

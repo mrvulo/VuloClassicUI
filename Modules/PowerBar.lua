@@ -453,6 +453,9 @@ local function registerEvents()
 end
 
 function mod:OnEnable()
+    -- A saved unlock short-circuits every visibility rule and leaves the bar on
+    -- screen with no mover to grab, because setUnlocked never runs on load.
+    mod.db.unlocked = false
     if not mod.db.texture then mod.db.texture = DEFAULT_TEXTURE end
     build()
     applySize(); applyPos(); applyAppearance(); updateValue(); applyHashes()

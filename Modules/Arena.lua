@@ -12,6 +12,11 @@ local mod = ns:RegisterModule("arenaframes", {
     description = "Enhances the Arena enemy frames: move/scale, class colors, class icons, PvP trinket CD, DR tracking, castbar, drag&drop layout.",
     defaults = {
         pos        = { point = "CENTER", relPoint = "CENTER", x = 0, y = 0 },
+        -- x/y drive pos, not the other way round, so they have to be defaults
+        -- too - otherwise "Reset Module" put pos back and left the real position
+        -- untouched.
+        x          = 0,
+        y          = 0,
         scale      = 1.0,
         healthSize = 10,
         powerSize  = 10,
@@ -494,8 +499,13 @@ mod:AddOptionsSection("core", function()
                   end },
                 { type = "button", label = L["Reset position"], width = 160,
                   onClick = function()
+                      -- x/y are the authoritative pair: arenaApplyPos rewrites
+                      -- pos from them. Clearing only pos looked right until the
+                      -- next nudge or scale change, which put the old position
+                      -- straight back and saved it again.
+                      mod.db.x, mod.db.y = 0, 0
                       mod.db.pos = { point = "CENTER", relPoint = "CENTER", x = 0, y = 0 }
-                      applyToOwner()
+                      arenaApplyPos()
                       ns:Print(L["Position reset."])
                   end },
             },

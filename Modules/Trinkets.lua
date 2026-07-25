@@ -62,10 +62,20 @@ local function suppressEngineUI()
 end
 
 function mod:OnEnable()
-    -- Engine initializes on load, so delay the suppress; never call setShown here (secure frame).
+    -- Engine initializes on load, so this is deferred; setShown must never run
+    -- inline here (secure frame), which is why it sits inside the timers.
+    local function apply()
+        suppressEngineUI()
+        -- The engine persists its own visibility flag whenever the frame is
+        -- hidden, so OnDisable below told it to stay hidden for good. Nothing
+        -- ever put that back: re-enabling the module left the slots gone while
+        -- "Show frame" still read as on, and only toggling that option twice
+        -- brought them back. The player's own setting decides here.
+        setShown(mod.db.showFrame ~= false)
+    end
     if C_Timer and C_Timer.After then
-        C_Timer.After(0.3, suppressEngineUI)
-        C_Timer.After(2,   suppressEngineUI)
+        C_Timer.After(0.3, apply)
+        C_Timer.After(2,   apply)
     else
         suppressEngineUI()
     end

@@ -175,6 +175,15 @@ function bank.updateButton(btn)
                 pcall(fs.SetFont, fs, ns.UI.FONT_PATH, mod.db.countFontSize or 12, "OUTLINE")
             end
             fs:SetText(lvl)
+            -- Same rule as the bag window: without this the number kept the
+            -- white it was created with, so "Color item levels by quality" was
+            -- the one appearance option that did nothing here.
+            if mod.db.itemLevelQualityColor ~= false and quality and quality >= 2 and GetItemQualityColor then
+                local r, g, b = GetItemQualityColor(quality)
+                fs:SetTextColor(r, g, b)
+            else
+                fs:SetTextColor(1, 1, 1)
+            end
             fs:Show()
         else
             fs:Hide()

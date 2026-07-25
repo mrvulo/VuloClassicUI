@@ -32,9 +32,24 @@ function ns:MakeGroupContainer(opts)
         end
     end
 
+    -- A tab is not always a module of its own: some front several real ones and
+    -- carry their own toggleGet/toggleSet, which is the only pair that reaches
+    -- the members. Cascading through the plain enable flag flipped a shell with
+    -- no lifecycle while everything behind it kept running.
+    local function subEnabled(key)
+        local sub = ns.modules[key]
+        if sub and sub.toggleGet then return sub.toggleGet() and true or false end
+        return ns:IsModuleEnabled(key) and true or false
+    end
+
+    local function setSubEnabled(key, v)
+        local sub = ns.modules[key]
+        if sub and sub.toggleSet then sub.toggleSet(v, true) else ns:ToggleModule(key, v, true) end
+    end
+
     function mod.toggleGet()
         for _, key in ipairs(mod.subKeys) do
-            if ns:IsModuleEnabled(key) then return true end
+            if subEnabled(key) then return true end
         end
         return false
     end
@@ -51,15 +66,15 @@ function ns:MakeGroupContainer(opts)
             local saved = store and store[opts.key]
             for _, key in ipairs(mod.subKeys) do
                 local want = (saved == nil) and true or (saved[key] and true or false)
-                ns:ToggleModule(key, want, true)
+                setSubEnabled(key, want)
             end
             if store then store[opts.key] = nil end
             ns:Print(L["%s: modules restored."], L[opts.name])
         else
             local saved = {}
             for _, key in ipairs(mod.subKeys) do
-                saved[key] = ns:IsModuleEnabled(key)
-                ns:ToggleModule(key, false, true)
+                saved[key] = subEnabled(key)
+                setSubEnabled(key, false)
             end
             if store then store[opts.key] = saved end
             ns:Print(L["%s: all modules off. /reload recommended."], L[opts.name])
@@ -82,9 +97,15 @@ function ns:MakeGroupContainer(opts)
 
         items[#items + 1] = {
             type = "toggle", label = L["Module enabled"],
-            get = function() return ns:IsModuleEnabled(tabId) end,
+            -- A tab can front several real modules instead of being one itself.
+            -- Those carry their own toggleGet/toggleSet, and that pair is the
+            -- only thing that reaches the members. Going through ToggleModule
+            -- alone flipped a pseudo-module with no lifecycle of its own: the
+            -- switch read off, survived reloads, and every member kept running.
+            -- The sidebar and the dashboard already prefer these.
+            get = sub.toggleGet or function() return ns:IsModuleEnabled(tabId) end,
             set = function(_, v)
-                ns:ToggleModule(tabId, v)
+                if sub.toggleSet then sub.toggleSet(v) else ns:ToggleModule(tabId, v) end
                 if ns.UI then
                     if ns.UI.RefreshSidebarStates then ns.UI:RefreshSidebarStates() end
                     ns.UI:BuildOptionsPage(opts.key, tabId)

@@ -348,9 +348,13 @@ local function getVendorItems(vendorName)
 end
 
 local function refreshUI()
-    if ns.UI and ns.UI.IsModuleActive and ns.UI:IsModuleActive("autoitembuy") then
-        ns.UI:BuildOptionsPage("autoitembuy", "default")
-    end
+    local UI = ns.UI
+    if not (UI and UI.IsModuleActive and UI.BuildOptionsPage) then return end
+    if not UI:IsModuleActive("autoitembuy") then return end
+    -- Rebuild the page that is actually on screen. This module is rendered as a
+    -- section of the "Gold & Vendors" page, so asking for its own page by name
+    -- would replace that page with a lone module page.
+    UI:BuildOptionsPage(UI._currentBuildKey or "autoitembuy", UI.currentTab)
 end
 
 local eventFrame

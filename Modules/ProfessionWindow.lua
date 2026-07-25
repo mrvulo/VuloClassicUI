@@ -769,6 +769,20 @@ local function setupFrame(cfg)
                 st.regs = { r2, r3 }
             end
         end)
+    else
+        -- The theme recolours these two regions, so they have to be recorded
+        -- even when the window is not enlarged. Collecting them only inside the
+        -- branch above left applyTheme with nothing to work on, which made the
+        -- Theme dropdown permanently inert for anyone with "Larger profession
+        -- window" off. The quest log fills its own list in both branches for
+        -- exactly this reason.
+        pcall(function()
+            local regs = { f:GetRegions() }
+            local r2, r3 = regs[2], regs[3]
+            if r2 and r3 and r2.SetVertexColor and r3.SetVertexColor then
+                st.regs = { r2, r3 }
+            end
+        end)
     end
 
     applyTheme(cfg)

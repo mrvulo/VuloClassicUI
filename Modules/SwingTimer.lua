@@ -362,7 +362,7 @@ local function create()
         if acc < 0.02 then return end
         acc = 0
         local t = GetTime()
-        if mod.db.unlocked or previewActive then
+        if mod.db.unlocked or previewActive or ns:IsMoverEditMode() then
             if t - mh.start >= mh.dur then mh.start = t end
             if t - oh.start >= oh.dur then oh.start = t end
         end
@@ -373,8 +373,12 @@ local function create()
         end
         updateBar(mhBar, mh, t)
         if ohBar:IsShown() then updateBar(ohBar, oh, t) end
+        -- Edit Mode has to be exempt here as well, not just in applyVisibility:
+        -- that one shows the frame, and a hundredth of a second later this hid
+        -- it again. A hidden frame stops running OnUpdate, so nothing ever
+        -- brought it back and Edit Mode showed a mover box over empty space.
         if not mod.db.unlocked and not previewActive and mod.db.onlyWhileActive
-           and not mh.active and not oh.active then
+           and not mh.active and not oh.active and not ns:IsMoverEditMode() then
             self:Hide()
         end
     end)
@@ -469,6 +473,12 @@ local function setUnlocked(state)
 end
 
 function mod:OnEnable()
+    -- An unlock that survives a reload is a trap: setUnlocked is the only thing
+    -- that shows the mover and enables the mouse, and it does not run on load.
+    -- The bars would sit on screen ignoring every visibility rule, with nothing
+    -- to grab and no hint where they came from.
+    if mod.db then mod.db.unlocked = false end
+
     -- Deferred: the core sets _enabled right after OnEnable returns, so
     -- disabling inline here would just be overwritten.
     local function bailOut()

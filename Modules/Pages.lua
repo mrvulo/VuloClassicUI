@@ -77,9 +77,11 @@ local function pageToggleGet(members)
     end
 end
 
+-- silent is passed by the group container, which prints one summary line of its
+-- own instead of one per member.
 local function pageToggleSet(members)
-    return function(v)
-        for _, k in ipairs(members) do ns:ToggleModule(k, v) end
+    return function(v, silent)
+        for _, k in ipairs(members) do ns:ToggleModule(k, v, silent) end
         if ns.UI and ns.UI.RefreshSidebarStates then ns.UI:RefreshSidebarStates() end
     end
 end
@@ -101,6 +103,7 @@ for _, page in ipairs(PAGES) do
         if m then
             m.group       = "_hidden"  -- out of the sidebar (still registered/working)
             m._pageMember = true       -- option search lists it once, under the page
+            m._pageKey    = page.key   -- lets UI:IsModuleActive find it on screen
         end
     end
 end

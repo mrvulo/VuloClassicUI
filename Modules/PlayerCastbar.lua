@@ -994,6 +994,9 @@ local function switchMode(newMode)
 end
 
 function mod:OnEnable()
+    -- A saved unlock keeps the castbar visible when nothing is being cast, and
+    -- setUnlocked - the only thing that shows the mover - never runs on load.
+    if mod.db then mod.db.unlocked = false end
     ensureTracker()
     armCraftHooks()
     local function isOldDefault(c)

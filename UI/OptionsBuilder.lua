@@ -88,7 +88,11 @@ local function createWidget(parent, item)
         w:SetDescWidth(item.width or 480)
         return w, math.max(20, w:GetDescHeight() + 4), item.width or 480
     elseif t == "checkbox" or t == "toggle" then
-        local w = obtain("toggle", parent, item, function()
+        -- The eye variant is built differently at construction and cannot be
+        -- reconfigured into a switch or back, so the two need separate pools.
+        -- Sharing one made an ordinary on/off row come back as an eye glyph
+        -- after visiting a page that used the eye style.
+        local w = obtain(item.style == "eye" and "toggle_eye" or "toggle", parent, item, function()
             return UI:CreateToggle(parent, item)
         end)
         return w, 26, w:GetWidth() or 260
@@ -510,8 +514,18 @@ end
 function UI:IsModuleActive(key)
     if UI.currentModule == key then return true end
     local m = ns.modules[key]
-    return (m and m.parentTab and UI.currentModule == m.parentTab
-            and UI.currentTab == key) and true or false
+    if not m then return false end
+    if m.parentTab and UI.currentModule == m.parentTab and UI.currentTab == key then
+        return true
+    end
+    -- A page member has no page of its own: it is rendered as a section of its
+    -- page, which is itself a tab of a container. Without this the answer was
+    -- always no, so those modules never redrew their own options and lists that
+    -- an Add or Remove button had just changed stayed stale.
+    if m._pageKey and (UI.currentTab == m._pageKey or UI.currentModule == m._pageKey) then
+        return true
+    end
+    return false
 end
 
 function UI:BuildOptionsPage(key, tabId)

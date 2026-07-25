@@ -245,7 +245,6 @@ local function build()
     cancelBtn:SetPoint("BOTTOMRIGHT", okBtn, "TOPRIGHT", 0, 6)
 
     f._updateAll = function()
-        if f._suppress then return end
         local r, g, b = HSVtoRGB(f._h, f._s, f._v)
         f._r, f._g, f._b = r, g, b
         local hr, hg, hb = HSVtoRGB(f._h, 1, 1)
@@ -256,7 +255,12 @@ local function build()
         if not hexBox:HasFocus() then
             hexBox:SetText(string.format("%02X%02X%02X", floor(r * 255 + 0.5), floor(g * 255 + 0.5), floor(b * 255 + 0.5)))
         end
-        if f._onChange then f._onChange(r, g, b) end
+        -- _suppress means "draw, but do not notify". It has to gate only this
+        -- call: seeding the picker with the current colour is not the user
+        -- picking one, but the notification runs straight into the option's
+        -- setter. Gating the whole function instead would leave the picker
+        -- showing nothing.
+        if f._onChange and not f._suppress then f._onChange(r, g, b) end
     end
 
     f._setFromRGB = function(r, g, b)
@@ -266,7 +270,15 @@ local function build()
 
     f._cancel = function()
         f._catcher:Hide(); f:Hide()
-        if f._onChange and f._prev then f._onChange(f._prev[1], f._prev[2], f._prev[3]) end
+        -- Put the old colour back only if something actually moved. Firing the
+        -- setter with an unchanged value made a plain Cancel look like an edit,
+        -- reload prompt and all.
+        if f._onChange and f._prev then
+            local changed = math.abs((f._r or 0) - f._prev[1]) > 0.001
+                         or math.abs((f._g or 0) - f._prev[2]) > 0.001
+                         or math.abs((f._b or 0) - f._prev[3]) > 0.001
+            if changed then f._onChange(f._prev[1], f._prev[2], f._prev[3]) end
+        end
         if f._onCancel then f._onCancel() end
     end
     f._accept = function()
@@ -286,8 +298,9 @@ function ns:ShowColorPicker(opts)
     f._prev = { opts.r or 1, opts.g or 1, opts.b or 1 }
     f._prevTex:SetColorTexture(f._prev[1], f._prev[2], f._prev[3], 1)
 
-    f._suppress = false
+    f._suppress = true
     f._setFromRGB(f._prev[1], f._prev[2], f._prev[3])
+    f._suppress = false
 
     f._catcher:Show()
     f:Show()
