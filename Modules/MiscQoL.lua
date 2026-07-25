@@ -1239,6 +1239,10 @@ local function onPlayerLogin()
 end
 
 function mod:OnEnable()
+    -- The flight timer keeps its own unlock flag. setUnlocked is the only thing
+    -- that shows the mover and it does not run on load, so a saved unlock would
+    -- pin the frame on screen with no way to get hold of it.
+    if mod.db and mod.db.flight then mod.db.flight.unlocked = false end
     ns:RegisterEvent("MERCHANT_SHOW",         onMerchantShow)
     ns:RegisterEvent("RESURRECT_REQUEST",     onRezRequest)
     ns:RegisterEvent("CONFIRM_SUMMON",        onSummonConfirm)

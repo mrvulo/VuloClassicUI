@@ -688,6 +688,9 @@ end
 
 function mod:OnEnable()
     mod.active = true
+    -- setUnlocked is the only thing that shows the mover, and it does not run on
+    -- load, so a saved unlock leaves the frame stuck with nothing to grab.
+    db().unlocked = false
     if not db()._scaleBumped then
         if (db().scale or 1) == 1.0 then db().scale = 1.15 end
         db()._scaleBumped = true

@@ -17,7 +17,6 @@ local mod = ns:RegisterModule("cooldownpulse", {
         animScale     = 1.5,
         remainingTime = 0,      -- Cooldown must be UNDER this value to trigger
         showSpellName = false,
-        unlocked      = false,
         x             = nil,
         y             = nil,
         ignoredSpells = "",
