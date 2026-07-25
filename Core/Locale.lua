@@ -3,10 +3,18 @@ local _, ns = ...
 
 ns.localeData = ns.localeData or {}
 
+-- Listed in their own language: someone who needs the switch cannot read the
+-- language it is currently showing.
 ns.SUPPORTED_LOCALES = {
     { value = "auto", text = "Auto (client language)" },
     { value = "enUS", text = "English" },
     { value = "deDE", text = "Deutsch" },
+    { value = "esES", text = "Español" },
+    { value = "frFR", text = "Français" },
+    { value = "itIT", text = "Italiano" },
+    { value = "ptBR", text = "Português" },
+    { value = "ruRU", text = "Русский" },
+    { value = "koKR", text = "한국어" },
 }
 
 -- Resolved live per lookup: SavedVariables (holding the override) only exist from ADDON_LOADED, so a load-time snapshot would ignore it.
