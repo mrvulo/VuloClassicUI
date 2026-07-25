@@ -219,7 +219,8 @@ local function ensureBar(desc)
         if desc.kind == "own" then
             local b = _G["VuloActionButton" .. i] or CreateFrame("CheckButton", "VuloActionButton" .. i, st.frame, "ActionBarButtonTemplate")
             b:SetParent(st.frame)
-            b:SetAttributeNoHandler("action", 0)
+            -- no insecure 'action' seed: the page state driver writes it from the
+            -- restricted environment, and a Lua-set value taints every later read
             b:SetAttributeNoHandler("index", i)
             b:SetAttributeNoHandler("commandName", "ACTIONBUTTON" .. i)
             wireQuickKeybind(b, "ACTIONBUTTON" .. i)
@@ -255,11 +256,12 @@ local function ensureBar(desc)
             b:EnableMouseWheel()
             st.buttons[i] = b
         else
-            -- `action` may only be set from the secure ChildUpdate snippet; an insecure set taints casting
+            -- `action` may only be set from the secure ChildUpdate snippet; an
+            -- insecure set taints it, and Blizzard's UpdatePressAndHoldAction
+            -- reads that field and then calls SetAttribute -> blocked in combat
             local name = "VuloAB_" .. desc.key .. "B" .. i
             local b = _G[name] or CreateFrame("CheckButton", name, st.frame, "ActionBarButtonTemplate")
             b:SetParent(st.frame)
-            b:SetAttributeNoHandler("action", 0)
             b:SetAttributeNoHandler("index", i)
             b:SetAttributeNoHandler("commandName", desc.cmd:format(i))
             wireQuickKeybind(b, desc.cmd:format(i))
@@ -398,8 +400,14 @@ local function pageBar(desc)
     if desc.kind == "own" then
         RegisterStateDriver(st.frame, "page", pageDriver())
     else
-        st.frame:SetAttribute("actionOffset", desc.base)
-        st.frame:Execute([[ self:ChildUpdate('offset', self:GetAttribute('actionOffset') or 0) ]])
+        -- Seed the offset inside the restricted environment as well. Setting it
+        -- from plain Lua first taints the value, and the snippet then writes a
+        -- tainted 'action' onto every child -- which is exactly what the taint
+        -- log pins the blocked SetShown on.
+        st.frame:Execute((
+            "self:SetAttribute('actionOffset', %d) " ..
+            "self:ChildUpdate('offset', %d)"
+        ):format(desc.base, desc.base))
     end
 end
 
@@ -1143,6 +1151,26 @@ local function applyXPBar()
     updateXPBar()
 end
 
+-- Blizzard's own "extra action bars" setting. Remembered once so turning the
+-- module off hands the user back exactly what they had, rather than leaving
+-- their bars switched off with no clue why.
+local function stashBarToggles()
+    if mod.db.blizzBarToggles ~= nil or not GetActionBarToggles then return end
+    local ok, b1, b2, b3, b4 = pcall(GetActionBarToggles)
+    if not ok then return end
+    mod.db.blizzBarToggles = {
+        b1 and true or false, b2 and true or false,
+        b3 and true or false, b4 and true or false,
+    }
+end
+
+local function restoreBarToggles()
+    local t = mod.db.blizzBarToggles
+    if not t or not SetActionBarToggles or InCombatLockdown() then return end
+    pcall(SetActionBarToggles, t[1], t[2], t[3], t[4])
+    mod.db.blizzBarToggles = nil
+end
+
 -- never wipe the container's actionButtons: Blizzard's keybind handlers index it
 local function parkFrame(name, keepEvents)
     local f = _G[name]
@@ -1164,15 +1192,22 @@ local function hideBlizzard()
     for _, n in ipairs(MAIN_ART) do local t = _G[n]; if t then t:Hide() end end
     local art = _G.MainMenuBarArtFrame
     if art then art:SetAlpha(0) end
-    -- the multibar containers are protected and cannot be moved; alpha + mouse off in place is taint-free
+    -- Turn Blizzard's extra bars off the way Blizzard does it. Touching their
+    -- buttons directly (the old EnableMouse loop) taints them, and the taint
+    -- surfaces later as a blocked SetShown from the button's own OnEvent while
+    -- in combat. Switched off at the source there is nothing left to taint, no
+    -- invisible click target and no update logic running.
+    stashBarToggles()
+    if SetActionBarToggles and not InCombatLockdown() then
+        pcall(SetActionBarToggles, false, false, false, false)
+    end
     for _, n in ipairs(MULTIBAR_FRAMES) do
         local f = _G[n]
+        -- belt and braces for a bar the toggle call could not reach; the
+        -- container itself is ours to fade, its buttons are not
         if f then
             f:SetAlpha(0)
             if f.EnableMouse then f:EnableMouse(false) end
-            if type(f.actionButtons) == "table" then
-                for _, b in pairs(f.actionButtons) do if b.EnableMouse then b:EnableMouse(false) end end
-            end
         end
     end
     -- pet container: reparent only, keep events and do not Hide, or its buttons stop updating
@@ -1436,11 +1471,9 @@ local function restore()
         if f then
             f:SetAlpha(1)
             if f.EnableMouse then f:EnableMouse(true) end
-            if type(f.actionButtons) == "table" then
-                for _, b in pairs(f.actionButtons) do if b.EnableMouse then b:EnableMouse(true) end end
-            end
         end
     end
+    restoreBarToggles()
     unpark("MainActionBar")
     unpark("PetActionBar"); unpark("PetActionBarFrame")
     for _, n in ipairs(MAIN_ART) do local t = _G[n]; if t then t:Show() end end

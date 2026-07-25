@@ -665,10 +665,11 @@ local function setupFrame(cfg)
 
     if mod.db.larger then
         pcall(function()
-            if _G.UIPanelWindows and _G.UIPanelWindows[cfg.frame] then
-                _G.UIPanelWindows[cfg.frame] = { area = "override", pushable = 1,
-                    xoffset = -16, yoffset = 12, bottomClampOverride = 152, width = 685, height = 487, whileDead = 1 }
-            end
+            -- never write UIPanelWindows directly: that taints Blizzard's panel
+            -- system and locks the character sheet and spellbook in combat
+            ns:SetPanelLayout(f, { area = "override", pushable = 1,
+                xoffset = -16, yoffset = 12, bottomClampOverride = 152,
+                width = 685, height = 487, whileDead = 1 })
             f:SetWidth(714)
             f:SetHeight(487 + TALL)
 
