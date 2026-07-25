@@ -34,7 +34,9 @@ const MAP = {
   // pot next to darkskin's palette
   addonskins:         'puzzle',
   popupskin:          'picture-in-picture',
-  reminders:          'bell',
+  // the plain bell reads as a blob once the sidebar desaturates it and drops it
+  // to 40% for a disabled module; the swing arcs keep the silhouette readable
+  reminders:          'bell-ring',
   friendlist:         'users',
   miscqol:            'wrench',
   queuetimer:         'hourglass',
