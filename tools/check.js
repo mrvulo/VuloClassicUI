@@ -11,6 +11,10 @@
 //      (house rule: use „ " or ' — a stray " breaks or uglifies the string)
 //   5. third-party addon names in code/comments/strings (house rule: never
 //      name other addons; WeakAuras is the only allowed exception)
+//   6. writes to bare global names (house rule: everything lives on ns; a
+//      global we define is visible to every other addon and never goes away)
+//   7. module default keys that nothing anywhere reads (a setting that is
+//      written into every profile and can never have an effect)
 //
 // Exit code 1 only on syntax errors or locals-cap violations; everything
 // else is a warning report for human judgment.
@@ -154,6 +158,142 @@ for (const f of [...files, ...tocs]) {
 }
 if (nhits === 0) console.log('clean');
 else console.log('(known pre-existing functional references may be acceptable — judge each hit)');
+
+// ---- 6: writes to bare globals ----------------------------------------------
+// The read side of this question is not worth asking: 264 names over 1190 sites,
+// almost all of it legitimate game API, unusable without a huge allowlist. The
+// WRITE side is exact and tiny - under eighty sites across the whole addon - so
+// it needs no guesswork. It is also where the damage is: a global we define is
+// visible to every other addon and outlives our own module being switched off.
+console.log('\n== writes to bare globals ==');
+const GLOBAL_OK = [
+    /^SLASH_/,                    // slash commands have to be global by design
+    /^BINDING_/,                  // keybinding headers, likewise
+    /^Trinkets/,                  // the embedded engine's own namespace
+    /^VuloClassicUI(Char)?DB$/,   // our saved variables, declared in the TOC
+    // Button libraries read this one by name, so it has to be global. It is
+    // allowed here only because it captures the previous definition and hands
+    // back to it when our module is off - see Modules/MinimapStyle.lua.
+    /^GetMinimapShape$/,
+];
+// Core/Compat.lua IS the shim layer: its whole job is to fill in absent game
+// APIs, and every line there is guarded with "X = X or ...". Anywhere else that
+// pattern would be a module quietly redefining something for the whole client.
+const GLOBAL_OK_FILES = new Set([path.join('Core', 'Compat.lua')]);
+
+function eachNode(node, cb) {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) { for (const n of node) eachNode(n, cb); return; }
+    if (node.type) cb(node);
+    for (const k of Object.keys(node)) {
+        if (k === 'type' || k === 'loc' || k === 'range') continue;
+        eachNode(node[k], cb);
+    }
+}
+
+let ghits = 0;
+for (const f of files) {
+    const rel = path.relative(ROOT, f);
+    if (rel.split(path.sep)[0] === 'Locales') continue;
+    if (GLOBAL_OK_FILES.has(rel)) continue;
+    let ast;
+    try {
+        ast = luaparse.parse(fs.readFileSync(f, 'utf8'),
+            { luaVersion: '5.1', scope: true, locations: true });
+    } catch (e) { continue; }   // already reported by check 1
+
+    const report = (name, line, how) => {
+        if (GLOBAL_OK.some(re => re.test(name))) return;
+        ghits++;
+        console.log('  GLOBAL ' + rel + ':' + line + '  ' + name + ' (' + how + ')');
+    };
+
+    eachNode(ast, (n) => {
+        if (n.type === 'AssignmentStatement') {
+            for (const t of n.variables || []) {
+                if (t.type === 'Identifier' && t.isLocal === false) {
+                    report(t.name, t.loc.start.line, 'assignment');
+                }
+            }
+        } else if (n.type === 'FunctionDeclaration' && !n.isLocal && n.identifier
+                   && n.identifier.type === 'Identifier' && n.identifier.isLocal === false) {
+            report(n.identifier.name, n.identifier.loc.start.line, 'function');
+        }
+    });
+}
+if (ghits === 0) console.log('clean');
+else console.log('(put it on ns, or guard it with "X = X or ..." if it must be global)');
+
+// ---- 7: module defaults nothing reads ---------------------------------------
+// Nothing in the code connects an option to the database key behind it, so a
+// default and its reader can drift apart silently - that is how settings end up
+// written into every profile with no way to ever take effect. Mentions are
+// collected repo-wide (one module can span several files) and STRING LITERALS
+// count, so keys reached through a table of names are not falsely reported.
+// Limitation: top-level keys of a RegisterModule defaults table only, not
+// nested sub-tables.
+console.log('\n== module defaults nothing reads ==');
+const FRAMEWORK_KEYS = new Set(['enabled']);   // read by Core/Modules.lua itself
+
+function defaultsTable(ast) {
+    let found = null;
+    eachNode(ast, (n) => {
+        if (found || n.type !== 'TableConstructorExpression') return;
+        for (const fl of n.fields || []) {
+            if (fl.type === 'TableKeyString' && fl.key && fl.key.name === 'defaults'
+                && fl.value && fl.value.type === 'TableConstructorExpression') {
+                found = fl.value;
+            }
+        }
+    });
+    return found;
+}
+
+const asts = new Map();
+for (const f of files) {
+    if (path.relative(ROOT, f).split(path.sep)[0] === 'Locales') continue;
+    try {
+        asts.set(f, luaparse.parse(fs.readFileSync(f, 'utf8'),
+            { luaVersion: '5.1', locations: true }));
+    } catch (e) { /* reported by check 1 */ }
+}
+
+let ohits = 0;
+for (const [f, ast] of asts) {
+    const dt = defaultsTable(ast);
+    if (!dt) continue;
+    const declared = new Map();
+    for (const fl of dt.fields || []) {
+        if (fl.type === 'TableKeyString' && fl.key && fl.key.name) {
+            declared.set(fl.key.name, fl.key.loc.start.line);
+        }
+    }
+    if (!declared.size) continue;
+
+    const dtStart = dt.loc.start.line, dtEnd = dt.loc.end.line;
+    const mentioned = new Set();
+    for (const [g, gast] of asts) {
+        const sameFile = (g === f);
+        eachNode(gast, (n) => {
+            const line = n.loc && n.loc.start.line;
+            if (n.type === 'Identifier' && n.name) {
+                if (!(sameFile && line >= dtStart && line <= dtEnd)) mentioned.add(n.name);
+            } else if (n.type === 'StringLiteral') {
+                const v = (n.value !== undefined && n.value !== null)
+                    ? n.value : (n.raw || '').replace(/^["']|["']$/g, '');
+                if (typeof v === 'string') mentioned.add(v);
+            }
+        });
+    }
+
+    for (const [name, line] of declared) {
+        if (mentioned.has(name) || FRAMEWORK_KEYS.has(name)) continue;
+        ohits++;
+        console.log('  ORPHAN ' + path.relative(ROOT, f) + ':' + line + '  ' + name);
+    }
+}
+if (ohits === 0) console.log('clean');
+else console.log('(delete the default, or wire up the reader it was meant to have)');
 
 console.log('\n' + (hardFail ? 'RESULT: FAIL' : 'RESULT: OK (warnings above, if any)'));
 process.exit(hardFail ? 1 : 0);

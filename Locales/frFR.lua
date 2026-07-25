@@ -2398,6 +2398,7 @@ local T = {
     ["Cooldown text size"] = "Taille du texte de recharge",
     ["Reset ALL VuloClassicUI settings for every character on this account? This cannot be undone."] = "Réinitialiser TOUS les réglages de VuloClassicUI pour chaque personnage de ce compte ? Cette action est irréversible.",
     ["Swing Timer switched off: it only tracks melee auto-attacks, which this character's talents do not use."] = "Minuteur d’attaque désactivé : il ne suit que les attaques automatiques en mêlée, que les talents de ce personnage n’utilisent pas.",
+    ["|cffff5555Settings migration %s failed:|r %s"] = "|cffff5555Échec de la migration des réglages %s :|r %s",
 }
 
 ns:RegisterLocale("frFR", T)

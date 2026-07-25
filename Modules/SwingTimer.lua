@@ -479,8 +479,8 @@ function mod:OnEnable()
     -- to grab and no hint where they came from.
     if mod.db then mod.db.unlocked = false end
 
-    -- Deferred: the core sets _enabled right after OnEnable returns, so
-    -- disabling inline here would just be overwritten.
+    -- Deferred on purpose: disabling a module from inside its own OnEnable
+    -- would tear down state the rest of this function is still setting up.
     local function bailOut()
         if C_Timer and C_Timer.After then
             C_Timer.After(0, function() if ns.SafeDisable then ns:SafeDisable(mod) end end)

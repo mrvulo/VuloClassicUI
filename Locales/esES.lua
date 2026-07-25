@@ -2249,6 +2249,7 @@ local T = {
     ["Not possible - that would create a loop."] = "No es posible: se crearía un bucle.",
     ["Reset ALL VuloClassicUI settings for every character on this account? This cannot be undone."] = "¿Restablecer TODOS los ajustes de VuloClassicUI para todos los personajes de esta cuenta? Esta acción no se puede deshacer.",
     ["Swing Timer switched off: it only tracks melee auto-attacks, which this character's talents do not use."] = "Temporizador de golpe desactivado: solo registra los ataques automáticos cuerpo a cuerpo, que los talentos de este personaje no usan.",
+    ["|cffff5555Settings migration %s failed:|r %s"] = "|cffff5555Error en la migración de ajustes %s:|r %s",
 }
 
 ns:RegisterLocale("esES", T)

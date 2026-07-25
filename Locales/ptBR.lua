@@ -2249,6 +2249,7 @@ local T = {
     ["Button spacing"] = "Espaçamento dos botões",
     ["Reset ALL VuloClassicUI settings for every character on this account? This cannot be undone."] = "Redefinir TODAS as configurações do VuloClassicUI para todos os personagens desta conta? Esta ação não pode ser desfeita.",
     ["Swing Timer switched off: it only tracks melee auto-attacks, which this character's talents do not use."] = "Temporizador de Golpe desativado: ele só acompanha os ataques automáticos corpo a corpo, que os talentos deste personagem não usam.",
+    ["|cffff5555Settings migration %s failed:|r %s"] = "|cffff5555Falha na migração de configurações %s:|r %s",
 }
 
 ns:RegisterLocale("ptBR", T)

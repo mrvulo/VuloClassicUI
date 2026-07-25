@@ -2249,6 +2249,7 @@ local T = {
     ["Button spacing"] = "버튼 간격",
     ["Reset ALL VuloClassicUI settings for every character on this account? This cannot be undone."] = "이 계정의 모든 캐릭터에 대해 VuloClassicUI의 모든 설정을 초기화합니까? 되돌릴 수 없습니다.",
     ["Swing Timer switched off: it only tracks melee auto-attacks, which this character's talents do not use."] = "공격 타이머를 끓습니다: 근접 자동 공격만 추적하는데, 이 캐릭터의 특성은 근접 공격을 사용하지 않습니다.",
+    ["|cffff5555Settings migration %s failed:|r %s"] = "|cffff5555설정 이전 %s 실패:|r %s",
 }
 
 ns:RegisterLocale("koKR", T)

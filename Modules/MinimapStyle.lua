@@ -158,6 +158,27 @@ function mm.applyRingColor()
     mm.accent:SetVertexColor(c.r, c.g, c.b, 1)
 end
 
+-- Button libraries read this global to place icons along the minimap edge, so
+-- it genuinely has to be global. What it must not do is throw away whoever was
+-- there first: the old code redefined it unconditionally on every applyShape
+-- call, so any other addon's answer was gone for the session and ours kept
+-- claiming "round" even after this module was switched off.
+local prevGetMinimapShape = rawget(_G, "GetMinimapShape")
+local shapeReporterInstalled = false
+
+local function installShapeReporter()
+    if shapeReporterInstalled then return end
+    shapeReporterInstalled = true
+    GetMinimapShape = function()
+        if mod.active then
+            return db().shape == "square" and "SQUARE" or "ROUND"
+        end
+        -- switched off: answer the way the client would have without us
+        if prevGetMinimapShape then return prevGetMinimapShape() end
+        return "ROUND"
+    end
+end
+
 function mm.applyShape()
     local square = db().shape == "square"
     if square then
@@ -171,11 +192,7 @@ function mm.applyShape()
         mm.ring:Show()
         mm.accent:SetShown(db().accentRing ~= false)
     end
-    -- Global read by button libraries to place icons along the edge.
-    function GetMinimapShape()
-        if mod.active and db().shape == "square" then return "SQUARE" end
-        return "ROUND"
-    end
+    installShapeReporter()
 end
 
 -- Hides are repeatable across enable cycles; the Show-hooks below are one-shot since hooksecurefunc can't be removed.

@@ -46,22 +46,23 @@ function ns:EnableModules()
     end
 end
 
--- mod.active must be set BEFORE OnEnable: handlers wired inside it can fire immediately and gate on it.
+-- Both flags mean "this module is on" and must always agree. They used to be
+-- set at different moments - active before OnEnable, _enabled only after it
+-- returned - so anything checked during OnEnable read false and skipped its
+-- work. That cost five features across four modules before anyone noticed, and
+-- every one of them looked like an unrelated bug. Setting both up front also
+-- makes the guard above a real re-entrancy guard for the duration of OnEnable.
 function ns:SafeEnable(mod)
     if mod._enabled then return end
-    if not mod.OnEnable then
-        mod._enabled = true
-        mod.active = true
-        return
-    end
-    mod.active = true
+    mod.active   = true
+    mod._enabled = true
+    if not mod.OnEnable then return end
     local ok, err = pcall(mod.OnEnable, mod)
     if not ok then
-        mod.active = false
+        mod.active, mod._enabled = false, false
         ns:Print(L["|cffff5555Error enabling module '%s':|r %s"], mod.name, tostring(err))
         return
     end
-    mod._enabled = true
     ns:Debug("Module enabled: %s", mod.name)
 end
 

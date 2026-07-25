@@ -27,6 +27,52 @@ ns.defaults = {
 
 local DEFAULT_PROFILE = "Default"
 
+-- Stored schema version. Bump it and add an entry to MIGRATIONS whenever a
+-- stored shape or a default VALUE changes.
+--
+-- Why this has to exist: saving strips anything equal to the current default,
+-- so "the player deliberately chose this value" and "the player never touched
+-- it" are indistinguishable afterwards. Change a default and everyone who had
+-- picked that exact value silently moves with it. A numbered migration is the
+-- only chance to tell the two apart - at the moment of the change, while the
+-- old default is still known.
+--
+-- Before this there were five hand-written one-shot booleans, each with its own
+-- account and per-character guard. Those stay as they are; they work and are
+-- idempotent. New ones belong here instead.
+--
+-- Entries run in ascending order for every version above the stored one, and
+-- receive nothing: they operate on the saved tables directly. Existing installs
+-- are stamped at the current version WITHOUT running anything, so adding this
+-- mechanism changes no saved data.
+local SCHEMA = 1
+local MIGRATIONS = {
+    -- [2] = function() ... end,
+}
+
+local function runMigrations()
+    local g = VuloClassicUIDB.global
+    local from = tonumber(g.schema)
+    if not from then
+        g.schema = SCHEMA          -- first sight of this install: stamp, run nothing
+        VuloClassicUICharDB.schema = VuloClassicUICharDB.schema or SCHEMA
+        return
+    end
+    if from >= SCHEMA then return end
+    for v = from + 1, SCHEMA do
+        local fn = MIGRATIONS[v]
+        if fn then
+            local ok, err = pcall(fn)
+            if not ok then
+                ns:Print(L["|cffff5555Settings migration %s failed:|r %s"], tostring(v), tostring(err))
+                return                 -- stop at the first failure; schema stays put
+            end
+        end
+        g.schema = v
+    end
+    VuloClassicUICharDB.schema = SCHEMA
+end
+
 local function getClassKey()
     local _, class = UnitClass("player")
     return class or "UNKNOWN"
@@ -74,6 +120,7 @@ function ns:InitDB()
 
     ns:MigrateUnitFramesMerge()
     ns:MigrateDarkSkinMerge()
+    runMigrations()
 
     -- Precedence: char assignment > class assignment > this char's own auto-created class profile, so class settings never bleed onto another class.
     local charAssigned = VuloClassicUICharDB.profileOverride

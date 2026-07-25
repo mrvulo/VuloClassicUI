@@ -45,7 +45,6 @@ local mod = ns:RegisterModule("combattext", {
         x              = 0,
         y              = 180,
         unlocked       = false,
-        centerOnScreen = false,
         anchorTo       = "UIParent",
         anchorFrom     = "CENTER",
         anchorPoint    = "CENTER",
