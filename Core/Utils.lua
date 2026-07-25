@@ -41,6 +41,59 @@ function ns:PixelSnap(value, frame)
     return math.floor(value / px + 0.5) * px
 end
 
+-- Snap a CENTER offset so the frame's leading EDGE lands on the physical pixel
+-- grid. Going through the edge rather than the centre keeps odd-width frames on
+-- their half pixel automatically — snapping the centre itself rounds that .5
+-- away and the frame creeps a pixel on every save/reload cycle.
+function ns:PixelSnapCenter(value, dim, frame)
+    local px = ns:Pixel(frame, 1)
+    if px <= 0 then return value end
+    local half = (dim or 0) / 2
+    return math.floor((value - half) / px + 0.5) * px + half
+end
+
+-- Blizzard reads UIPanelWindows from inside its own secure panel code, so
+-- replacing an entry from Lua taints that whole system. The visible symptom is
+-- not being able to open the character sheet or the spellbook while in combat.
+-- SetUIPanelAttribute is the sanctioned route and keeps the taint off the
+-- shared table. Returns false when the client has no such API, in which case
+-- the caller must leave the panel alone rather than fall back to the raw write.
+function ns:SetPanelLayout(frame, attrs)
+    if not (frame and type(attrs) == "table") then return false end
+    if type(_G.SetUIPanelAttribute) ~= "function" then return false end
+    for k, v in pairs(attrs) do
+        pcall(_G.SetUIPanelAttribute, frame, k, v)
+    end
+    return true
+end
+
+-- Class icons come out of Blizzard's character-creation atlas, so there is no
+-- art to ship and no client restart to wait for. The coordinates are cut for
+-- exactly that texture; any other class-icon sheet uses a different grid.
+local CLASS_ICON_TEXTURE = "Interface\\Glues\\CharacterCreate\\UI-CharacterCreate-Classes"
+local CLASS_ICON_FALLBACK = {
+    WARRIOR     = { 0,    0.25, 0,    0.25 },
+    MAGE        = { 0.25, 0.49, 0,    0.25 },
+    ROGUE       = { 0.49, 0.73, 0,    0.25 },
+    DRUID       = { 0.73, 0.97, 0,    0.25 },
+    HUNTER      = { 0,    0.25, 0.25, 0.5  },
+    SHAMAN      = { 0.25, 0.49, 0.25, 0.5  },
+    PRIEST      = { 0.49, 0.73, 0.25, 0.5  },
+    WARLOCK     = { 0.73, 0.97, 0.25, 0.5  },
+    PALADIN     = { 0,    0.25, 0.5,  0.75 },
+    DEATHKNIGHT = { 0.25, 0.49, 0.5,  0.75 },
+}
+
+-- Returns texture, {left, right, top, bottom} — or nil for an unknown class.
+function ns:GetClassIcon(classToken)
+    if not classToken then return nil end
+    local token = classToken:upper()
+    local coords = (_G.CLASS_ICON_TCOORDS and _G.CLASS_ICON_TCOORDS[token])
+        or CLASS_ICON_FALLBACK[token]
+    if not coords then return nil end
+    return CLASS_ICON_TEXTURE, coords
+end
+
 function ns:DeepCopy(t)
     if type(t) ~= "table" then return t end
     local copy = {}
