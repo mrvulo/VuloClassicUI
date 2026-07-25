@@ -18,6 +18,7 @@ local TOTEM_DEFAULTS = {
     warnSeconds = 5,
     colorText   = true,
     expirySound = true,
+    dimOutOfRange = true,
     shadowBorder = true,
     barWidth    = 150,
     barHeight   = 22,
@@ -368,6 +369,41 @@ local function applyLayout()
     end
 end
 
+-- Range to a totem cannot be measured on this client: there is no position for
+-- a totem, only GetTotemInfo's timer. What IS observable is the aura the totem
+-- pulses onto you, which drops a few seconds after you walk out of its radius.
+--
+-- Self-calibrating, so it needs no per-spell table: the first time a totem's
+-- aura is seen we remember that this totem grants one. From then on, aura gone
+-- = out of range. A totem whose aura is never seen (Searing, Magma, Tremor and
+-- the other non-buffing ones) is simply never dimmed, because for those we
+-- genuinely cannot tell -- better silent than wrong.
+local playerAuraIcons = {}
+local function refreshPlayerAuraIcons()
+    wipe(playerAuraIcons)
+    for i = 1, 40 do
+        local name, icon = UnitAura("player", i, "HELPFUL")
+        if not name then break end
+        if icon then playerAuraIcons[icon] = true end
+    end
+end
+
+local totemSeen = {}   -- slot -> { start = <cast time>, saw = <aura observed> }
+
+local function totemInRange(t, have, startTime, icon)
+    if not (have and icon) then return true end
+    local st = totemSeen[t.slot]
+    if not st or st.start ~= startTime then
+        st = { start = startTime, saw = false }
+        totemSeen[t.slot] = st
+    end
+    if playerAuraIcons[icon] then
+        st.saw = true
+        return true
+    end
+    return not st.saw      -- never seen an aura for it -> unknowable -> leave lit
+end
+
 local function updateRow(row, preview)
     local d = db()
     local t = row.totem
@@ -400,16 +436,30 @@ local function updateRow(row, preview)
             row.warned = false
         end
 
-        row.icon:SetDesaturated(false)
-        row.icon:SetVertexColor(1, 1, 1)
-        if warn then
-            row.border:SetVertexColor(1, 0.4, 0.4)
-            row.ring:SetColorTexture(WARN_COLOR[1], WARN_COLOR[2], WARN_COLOR[3], 1)
-        else
-            row.border:SetVertexColor(1, 1, 1)
-            row.ring:SetColorTexture(t.color[1], t.color[2], t.color[3], 1)
+        -- Out of range: colour drains but the timer keeps running, so the totem
+        -- still reads as active - you just cannot see the difference at a glance
+        -- between "expired" and "too far away", which is the point.
+        local inRange = true
+        if d.dimOutOfRange and not preview then
+            inRange = totemInRange(t, have, startTime, icon)
         end
-        row.elem:SetColorTexture(t.color[1], t.color[2], t.color[3], 0.9)
+        row.icon:SetDesaturated(not inRange)
+        if inRange then
+            row.icon:SetVertexColor(1, 1, 1)
+            if warn then
+                row.border:SetVertexColor(1, 0.4, 0.4)
+                row.ring:SetColorTexture(WARN_COLOR[1], WARN_COLOR[2], WARN_COLOR[3], 1)
+            else
+                row.border:SetVertexColor(1, 1, 1)
+                row.ring:SetColorTexture(t.color[1], t.color[2], t.color[3], 1)
+            end
+            row.elem:SetColorTexture(t.color[1], t.color[2], t.color[3], 0.9)
+        else
+            row.icon:SetVertexColor(0.5, 0.5, 0.5)
+            row.border:SetVertexColor(0.5, 0.5, 0.5)
+            row.ring:SetColorTexture(0.28, 0.28, 0.32, 1)
+            row.elem:SetColorTexture(t.color[1], t.color[2], t.color[3], 0.35)
+        end
 
         if remaining < 10 then
             row.time:SetText(string.format("%.1f", remaining))
@@ -417,7 +467,9 @@ local function updateRow(row, preview)
             row.time:SetText(string.format("%d", remaining + 0.5))
         end
         row.time:Show()
-        if d.colorText and warn then
+        if not inRange then
+            row.time:SetTextColor(0.6, 0.6, 0.62)
+        elseif d.colorText and warn then
             row.time:SetTextColor(WARN_COLOR[1], WARN_COLOR[2], WARN_COLOR[3])
         else
             row.time:SetTextColor(1, 1, 1)
@@ -427,7 +479,9 @@ local function updateRow(row, preview)
             local fw = d.barWidth * frac
             if fw < 1 then fw = 1 end
             row.fill:SetWidth(fw)
-            if warn then
+            if not inRange then
+                row.fill:SetVertexColor(0.45, 0.45, 0.48, 0.9)
+            elseif warn then
                 row.fill:SetVertexColor(WARN_COLOR[1], WARN_COLOR[2], WARN_COLOR[3], 0.9)
             else
                 row.fill:SetVertexColor(t.color[1], t.color[2], t.color[3], 0.9)
@@ -455,6 +509,7 @@ end
 
 local function refresh()
     if not container then return end
+    if db().dimOutOfRange then refreshPlayerAuraIcons() end
     -- container parents secure buttons -> only Show() out of combat
     if not container:IsShown() and not (InCombatLockdown and InCombatLockdown()) then
         container:Show()
@@ -977,6 +1032,10 @@ local function getOptions()
     items[#items + 1] = { type = "toggle", label = L["Sound before a totem expires"],
         get = function() return d.expirySound end,
         set = function(_, v) d.expirySound = v end }
+    items[#items + 1] = { type = "toggle", label = L["Grey out when you walk out of range"],
+        tooltip = L["Drains the colour while you are outside a totem's radius, and restores it when you step back in. Recognised from the buff the totem puts on you, so totems that grant no buff (Searing, Magma, Tremor, ...) always stay lit."],
+        get = function() return d.dimOutOfRange ~= false end,
+        set = function(_, v) d.dimOutOfRange = v and true or false; refresh() end }
     items[#items + 1] = { type = "toggle", label = L["Icon border (action-bar style)"],
         get = function() return d.shadowBorder end,
         set = function(_, v) d.shadowBorder = v; applyLayout(); refresh() end }

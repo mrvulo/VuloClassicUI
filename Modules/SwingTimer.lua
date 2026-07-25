@@ -2,15 +2,43 @@
 local _, ns = ...
 local L = ns.L
 
-local MELEE_CLASSES = {
-    WARRIOR = true, ROGUE = true, PALADIN = true,
-    SHAMAN  = true, DRUID = true, HUNTER  = true,
+-- Every spec of these swings for a living.
+local ALWAYS_MELEE = { WARRIOR = true, ROGUE = true }
+
+-- Hybrids: only these talent trees melee. Tree order on this client is
+-- Paladin 1 Holy / 2 Protection / 3 Retribution, Shaman 1 Elemental /
+-- 2 Enhancement / 3 Restoration, Druid 1 Balance / 2 Feral / 3 Restoration.
+local MELEE_TREES = {
+    PALADIN = { [2] = true, [3] = true },
+    SHAMAN  = { [2] = true },
+    DRUID   = { [2] = true },
 }
-local function isMeleeClass()
-    local _, classFile = UnitClass("player")
-    if not classFile then return true end  -- class unknown at file load; OnEnable re-checks
-    return MELEE_CLASSES[classFile] == true
+
+-- Talent trees are the only spec signal this client offers; the tree holding the
+-- most points wins. Returns nil while talents are unreadable (very early login,
+-- or a character with no points yet), which callers treat as "don't judge".
+local function dominantTree()
+    if not (GetNumTalentTabs and GetTalentTabInfo) then return nil end
+    local best, bestPts = nil, 0
+    for i = 1, (GetNumTalentTabs() or 0) do
+        local ok, _, _, pts = pcall(GetTalentTabInfo, i)
+        if ok and (pts or 0) > bestPts then best, bestPts = i, pts end
+    end
+    if bestPts <= 0 then return nil end
+    return best
 end
+
+local function isMeleeSpec()
+    local _, classFile = UnitClass("player")
+    if not classFile then return true end   -- unknown at file load; OnEnable re-checks
+    if ALWAYS_MELEE[classFile] then return true end
+    local trees = MELEE_TREES[classFile]
+    if not trees then return false end      -- no melee spec exists for this class
+    local tree = dominantTree()
+    if not tree then return true end        -- undecided hybrid: don't lock them out
+    return trees[tree] == true
+end
+ns.SwingTimerIsMeleeSpec = isMeleeSpec
 
 -- group "_hidden": no sidebar entry; options are rendered by PlayerCastbar:GetOptions.
 local mod = ns:RegisterModule("swingtimer", {
@@ -18,7 +46,7 @@ local mod = ns:RegisterModule("swingtimer", {
     group       = "_hidden",
     description = "Weapon swing timer for your melee auto-attacks (any melee class). Shows a main-hand bar and, while dual-wielding, an off-hand bar.",
     defaults = {
-        enabled         = isMeleeClass(),
+        enabled         = false,
         width           = 200,
         height          = 18,
         gap             = 3,
@@ -441,18 +469,27 @@ local function setUnlocked(state)
 end
 
 function mod:OnEnable()
-    -- Per-character default only: melee ON, casters OFF, and never re-applied once the user has chosen.
+    -- Deferred: the core sets _enabled right after OnEnable returns, so
+    -- disabling inline here would just be overwritten.
+    local function bailOut()
+        if C_Timer and C_Timer.After then
+            C_Timer.After(0, function() if ns.SafeDisable then ns:SafeDisable(mod) end end)
+        end
+    end
+
+    -- Off for everyone until asked for; the first run only records that choice.
     local pref = VuloClassicUICharDB and VuloClassicUICharDB.modEnabled
     if not (pref and pref.swingtimer ~= nil) then
-        local on = isMeleeClass()
-        ns:SetModuleEnabledPref("swingtimer", on)
-        if not on then
-            -- Deferred: the core sets _enabled right after OnEnable returns, so disabling inline would be overwritten.
-            if C_Timer and C_Timer.After then
-                C_Timer.After(0, function() if ns.SafeDisable then ns:SafeDisable(mod) end end)
-            end
-            return
-        end
+        ns:SetModuleEnabledPref("swingtimer", false)
+        bailOut()
+        return
+    end
+
+    -- A swing timer means nothing without melee auto-attacks, so it stays shut
+    -- for casting specs even if an old saved preference says otherwise.
+    if not isMeleeSpec() then
+        bailOut()
+        return
     end
 
     playerGUID = UnitGUID("player")
