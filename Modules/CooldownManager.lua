@@ -1106,20 +1106,38 @@ refreshGroup = function(group, now)
     if pack then packIfChanged(group, active) end
 end
 
+local visCache = {}
+
 refreshAll = function()
     if not mod._enabled then return end
     local now = GetTime()
     local groups = db().groups
+
+    -- The two scans below are by far the most expensive thing this module does,
+    -- and it runs ten times a second for the whole session. Two conditions were
+    -- missing here: a hidden group needs no aura data at all, and neither does a
+    -- group with nothing in it. showStacks is on by default, so testing it on its
+    -- own made needPlayer true for everyone - a UnitAura sweep every tenth of a
+    -- second whether or not a single entry had ever been configured.
+    -- barVisible reads only edit mode, filters, combat, mount, instance and
+    -- target, never aura state, so deciding it up front changes no behaviour.
     local needPlayer, needTarget = false, false
-    for _, g in ipairs(groups) do
-        if g.mode == "aura" or g.mode == "missing" or g.showStacks then needPlayer = true end
-        if g.mode == "targetdebuff" then needTarget = true end
+    wipe(visCache)
+    for i, g in ipairs(groups) do
+        local vis = barVisible(g)
+        visCache[i] = vis
+        local hasWork = (g.entries and #g.entries > 0) or g.autoTrinkets == true
+        if vis and hasWork then
+            if g.mode == "aura" or g.mode == "missing" or g.showStacks then needPlayer = true end
+            if g.mode == "targetdebuff" then needTarget = true end
+        end
     end
     if needPlayer then scanPlayerAuras() end
     if needTarget then scanTargetDebuffs() end
-    for _, group in ipairs(groups) do
+
+    for i, group in ipairs(groups) do
         local bar = barOf[group]
-        local vis = barVisible(group)
+        local vis = visCache[i]
         if bar then
             bar:SetShown(vis)
             -- full opacity while editing, or the bar could be dragged invisibly

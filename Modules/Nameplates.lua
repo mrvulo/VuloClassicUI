@@ -968,8 +968,27 @@ end
 -- mode: nil = all, "skipcc" = exclude CC spells, "cconly" = only CC spells.
 -- skipMine drops auras you cast yourself, so the debuff row can hand those over
 -- to the dedicated own-debuff row instead of showing each one twice.
+-- The entry tables are recycled per buffer and per position. Wiping the buffer
+-- threw the old entries away, so every aura on every plate on every UNIT_AURA
+-- allocated a fresh table - with two scans of up to forty slots per plate, this
+-- was the largest allocator in the addon. Lua 5.1 has no generational collector,
+-- so that is what turns into a periodic hitch on a big pull. The buffers are a
+-- fixed set of module-level tables, and nothing holds an entry past the layout
+-- call that consumes it, so position-keyed reuse is safe. The pool cannot live
+-- on the buffer itself: wipe() would clear it too.
+local auraRecPools = {}
+
+local function auraRec(out, n)
+    local pool = auraRecPools[out]
+    if not pool then pool = {}; auraRecPools[out] = pool end
+    local rec = pool[n]
+    if not rec then rec = {}; pool[n] = rec end
+    return rec
+end
+
 local function collectAuras(unit, filter, max, out, mode, skipMine)
     wipe(out)
+    local n = 0
     for i = 1, 40 do
         local name, icon, count, dispelType, duration, expiration, caster,
               stealable, _, spellId = UnitAura(unit, i, filter)
@@ -981,11 +1000,17 @@ local function collectAuras(unit, filter, max, out, mode, skipMine)
         elseif mode == "cconly" then keep = isCC end
         if keep and skipMine and mine then keep = false end
         if keep then
-            out[#out + 1] = { icon = icon, count = count or 0,
-                              duration = duration or 0, expiration = expiration or 0,
-                              dispelType = dispelType, mine = mine,
-                              dispel = (stealable and playerCanSteal) and true or false }
-            if #out >= max then break end
+            n = n + 1
+            local rec = auraRec(out, n)
+            rec.icon       = icon
+            rec.count      = count or 0
+            rec.duration   = duration or 0
+            rec.expiration = expiration or 0
+            rec.dispelType = dispelType
+            rec.mine       = mine
+            rec.dispel     = (stealable and playerCanSteal) and true or false
+            out[n] = rec
+            if n >= max then break end
         end
     end
     return out
@@ -1671,6 +1696,7 @@ end
 local function refreshPlate(f)
     local unit = f.unit
     if not unit then return end
+    f._ctxMode = nil
     local d = db()
     local isPlayer = UnitIsPlayer(unit)
     local enemy    = UnitCanAttack("player", unit) and true or false
@@ -1694,21 +1720,40 @@ local function refreshPlate(f)
 
     local _, class = UnitClass(unit)
     local isTarget = UnitIsUnit(unit, "target")
-    local ctx = {
-        player   = isPlayer,
-        enemy    = enemy,
-        class    = class,
-        isTarget = isTarget,
-        reaction = UnitReaction(unit, "player"),
-        tapped   = UnitIsTapDenied(unit) and true or false,
-        threat   = UnitAffectingCombat("player") and UnitThreatSituation("player", unit) or nil,
-    }
+    -- Kept on the frame and refilled rather than built fresh: this runs for every
+    -- plate on every health change, and the health-only path below reuses it.
+    local ctx = f._ctx
+    if not ctx then ctx = {}; f._ctx = ctx end
+    ctx.player   = isPlayer
+    ctx.enemy    = enemy
+    ctx.class    = class
+    ctx.isTarget = isTarget
+    ctx.reaction = UnitReaction(unit, "player")
+    ctx.tapped   = UnitIsTapDenied(unit) and true or false
+    ctx.threat   = UnitAffectingCombat("player") and UnitThreatSituation("player", unit) or nil
+    f._ctxMode   = "full"
+
     local hp, hpmax = UnitHealth(unit) or 0, UnitHealthMax(unit) or 1
     paintHealth(f, ctx, hp, hpmax)
     paintAbsorb(f, hp, hpmax, (UnitGetTotalAbsorbs and UnitGetTotalAbsorbs(unit)) or 0)
     paintTarget(f, isTarget)
     paintExec(f, isTarget)
     paintFocus(f, UnitIsUnit(unit, "focus"))
+end
+
+-- UNIT_HEALTH is the most frequent unit event there is in a raid, and none of
+-- what it changes needs the plate mode re-decided, the name re-set, the level
+-- and raid marker re-anchored or the colour context re-derived - only the bar.
+-- Sending it through the full refresh cost about 25 API calls and a fresh table
+-- for every point of damage anyone in range took. Anything that does change the
+-- context (threat, target, faction, aura) still goes the full way.
+local function refreshPlateHealth(f)
+    if f._ctxMode ~= "full" or not f._ctx then return refreshPlate(f) end
+    local unit = f.unit
+    if not unit then return end
+    local hp, hpmax = UnitHealth(unit) or 0, UnitHealthMax(unit) or 1
+    paintHealth(f, f._ctx, hp, hpmax)
+    paintAbsorb(f, hp, hpmax, (UnitGetTotalAbsorbs and UnitGetTotalAbsorbs(unit)) or 0)
 end
 
 local function restyleAllPlates()
@@ -1740,7 +1785,7 @@ local function acquirePlate()
         if not self.unit then return end
         if event == "UNIT_HEALTH" or event == "UNIT_MAXHEALTH"
             or event == "UNIT_ABSORB_AMOUNT_CHANGED" then
-            refreshPlate(self)
+            refreshPlateHealth(self)
         elseif event == "UNIT_SPELLCAST_START" or event == "UNIT_SPELLCAST_CHANNEL_START"
             or event == "UNIT_SPELLCAST_DELAYED" or event == "UNIT_SPELLCAST_CHANNEL_UPDATE" then
             plateCastStart(self)
@@ -1782,6 +1827,7 @@ local function onPlateAdded(_, unit)
     hideBlizzard(nameplate)
 
     f._hShow = nil   -- reused frame: snap the smooth-health value to the new unit
+    f._ctxMode = nil -- and force the next refresh to rebuild the colour context
 
     f:RegisterUnitEvent("UNIT_HEALTH", unit)
     f:RegisterUnitEvent("UNIT_MAXHEALTH", unit)
