@@ -23,6 +23,13 @@ const SCAN_DIRS = ['Core', 'Modules', 'UI', 'Locales', 'Trinkets'];
 const SYNTAX_ONLY_DIRS = ['Libs'];   // vendor code: syntax/locals checks only
 const DEDE = path.join(ROOT, 'Locales', 'deDE.lua');
 const FORBIDDEN = /baganator|ellesmere|chattynator|dragonflight|dfui|elvui|leatrix|masque|sexymap|ndui|bartender|dominos|totemtimers|tacotip|gearscore/i;
+// "masque" is also the ordinary French word for "hides", so the French locale
+// alone produced 60 false hits — enough noise to hide a real one. That name can
+// only appear meaningfully in code (an integration), so it is dropped for
+// locale files while every other name is still checked there.
+const FORBIDDEN_LOCALE = new RegExp(FORBIDDEN.source.replace('|masque', ''), 'i');
+const patternFor = (file) => file.includes(path.sep + 'Locales' + path.sep)
+    ? FORBIDDEN_LOCALE : FORBIDDEN;
 // WeakAuras is the one allowed mention: STRIP it, then test the rest of the
 // line — a line-level exemption would mask other names sharing the line
 const stripAllowed = (line) => line.replace(/weakauras\w*/gi, '');
@@ -139,7 +146,7 @@ const tocs = fs.readdirSync(ROOT).filter(n => n.endsWith('.toc')).map(n => path.
 for (const f of [...files, ...tocs]) {
     const src = fs.readFileSync(f, 'utf8');
     src.split('\n').forEach((line, i) => {
-        if (FORBIDDEN.test(stripAllowed(line))) {
+        if (patternFor(f).test(stripAllowed(line))) {
             nhits++;
             console.log('  NAME ' + path.relative(ROOT, f) + ':' + (i + 1) + '  ' + line.trim().slice(0, 100));
         }
