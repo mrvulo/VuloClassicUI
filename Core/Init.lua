@@ -42,6 +42,24 @@ local function printVcuiHelp()
     ns:Print(A .. "/trinket|r — " .. L["trinket panel"])
 end
 
+-- /vcui reset wipes every setting of every character on the account. A typo
+-- while trying slash commands must not be able to do that silently, so it asks
+-- first - the same way deleting a single profile already does.
+StaticPopupDialogs["VCUI_DB_RESET"] = {
+    text = L["Reset ALL VuloClassicUI settings for every character on this account? This cannot be undone."],
+    button1 = L["Reset"],
+    button2 = CANCEL,
+    OnAccept = function()
+        if ns:InCombat() then ns:Print(L["Not possible in combat."]); return end
+        VuloClassicUIDB     = nil
+        VuloClassicUICharDB = nil
+        ns:Print(L["DB reset. UI reloading."])
+        ReloadUI()
+    end,
+    timeout = 0, whileDead = 1, hideOnEscape = 1, preferredIndex = 3,
+    showAlert = 1,
+}
+
 SLASH_VULOCLASSICUI1 = "/vcui"
 SLASH_VULOCLASSICUI2 = "/vulo"
 SlashCmdList["VULOCLASSICUI"] = function(msg)
@@ -59,10 +77,7 @@ SlashCmdList["VULOCLASSICUI"] = function(msg)
 
         elseif msg == "reset" then
             if ns:InCombat() then ns:Print(L["Not possible in combat."]); return end
-            VuloClassicUIDB     = nil
-            VuloClassicUICharDB = nil
-            ns:Print(L["DB reset. UI reloading."])
-            ReloadUI()
+            StaticPopup_Show("VCUI_DB_RESET")
 
         elseif msg == "debug" then
             ns.db.global.debug = not ns.db.global.debug

@@ -2405,4 +2405,5 @@ ns:RegisterLocale("deDE", {
     ["Arrange this bar's buttons in your own grid. Off keeps Blizzard's native layout."] = "Ordnet die Buttons dieser Leiste in einem eigenen Raster an. Aus behält Blizzards natives Layout.",
     ["Buttons per row"] = "Buttons pro Reihe",
     ["Button spacing"] = "Button-Abstand",
+    ["Reset ALL VuloClassicUI settings for every character on this account? This cannot be undone."] = "Wirklich ALLE Einstellungen von VuloClassicUI für jeden Charakter dieses Accounts zurücksetzen? Das lässt sich nicht rückgängig machen.",
 })

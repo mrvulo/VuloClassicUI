@@ -2247,6 +2247,7 @@ local T = {
     ["Arrange this bar's buttons in your own grid. Off keeps Blizzard's native layout."] = "이 단축바의 버튼을 원하는 격자로 배치합니다. 끄면 Blizzard 기본 배치를 유지합니다.",
     ["Buttons per row"] = "줄당 버튼 수",
     ["Button spacing"] = "버튼 간격",
+    ["Reset ALL VuloClassicUI settings for every character on this account? This cannot be undone."] = "이 계정의 모든 캐릭터에 대해 VuloClassicUI의 모든 설정을 초기화합니까? 되돌릴 수 없습니다.",
 }
 
 ns:RegisterLocale("koKR", T)

@@ -481,9 +481,26 @@ local CAMERA_CVAR    = "cameraDistanceMaxZoomFactor"
 local CAMERA_MAX     = 3.4
 local CAMERA_DEFAULT = 1.9
 
+-- Only ever write while the option is on, and hand the player's own value back
+-- when it goes off. The else branch used to write 1.9, so merely leaving the
+-- toggle alone reset a distance the player had deliberately raised - and it
+-- fought the Max Camera Distance slider under General, which drives this very
+-- CVar and lost the argument on every login.
 local function applyMaxCameraZoom()
     if not SetCVar then return end
-    pcall(SetCVar, CAMERA_CVAR, mod.db.maxCameraZoom and CAMERA_MAX or CAMERA_DEFAULT)
+    if mod.db.maxCameraZoom then
+        if mod.db.cameraZoomPrev == nil then
+            local cur = tonumber(GetCVar and GetCVar(CAMERA_CVAR))
+            -- Anyone upgrading had the option on already, so the CVar is sitting
+            -- at our own maximum. Storing that as "theirs" would make it theirs
+            -- forever; fall back to the client default instead.
+            if cur and cur ~= CAMERA_MAX then mod.db.cameraZoomPrev = cur end
+        end
+        pcall(SetCVar, CAMERA_CVAR, CAMERA_MAX)
+    elseif mod.db.cameraZoomPrev ~= nil then
+        pcall(SetCVar, CAMERA_CVAR, mod.db.cameraZoomPrev)
+        mod.db.cameraZoomPrev = nil
+    end
 end
 
 local function applyHideErrors()
@@ -1294,7 +1311,9 @@ function mod:OnDisable()
         ftBar:Hide()
     end
     if mod.db.maxCameraZoom and SetCVar then
-        pcall(SetCVar, CAMERA_CVAR, CAMERA_DEFAULT)
+        -- give back what we took, not what we guess the default is
+        pcall(SetCVar, CAMERA_CVAR, mod.db.cameraZoomPrev or CAMERA_DEFAULT)
+        mod.db.cameraZoomPrev = nil
     end
 end
 

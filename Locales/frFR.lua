@@ -2396,6 +2396,7 @@ local T = {
     ["Macro text size"] = "Taille du texte des macros",
     ["Count text size"] = "Taille du texte de quantité",
     ["Cooldown text size"] = "Taille du texte de recharge",
+    ["Reset ALL VuloClassicUI settings for every character on this account? This cannot be undone."] = "Réinitialiser TOUS les réglages de VuloClassicUI pour chaque personnage de ce compte ? Cette action est irréversible.",
 }
 
 ns:RegisterLocale("frFR", T)

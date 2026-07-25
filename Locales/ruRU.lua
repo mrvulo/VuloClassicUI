@@ -2247,6 +2247,7 @@ local T = {
     ["Clips the fill and background to a rounded shape. The line border stays square, so a thin border may show slightly at the corners."] = "Обрезает заливку и фон по скругленной форме. Линейная кайма остается квадратной, поэтому тонкая кайма может слегка выступать по углам.",
     ["Colour border by school"] = "Окрашивать кайму по школе магии",
     ["Aura borders take the colour of their school: magic blue, curse purple, disease orange, poison green."] = "Каймы эффектов принимают цвет своей школы магии: магия — синий, проклятие — фиолетовый, болезнь — оранжевый, яд — зеленый.",
+    ["Reset ALL VuloClassicUI settings for every character on this account? This cannot be undone."] = "Сбросить ВСЕ настройки VuloClassicUI для всех персонажей этой учетной записи? Отменить это действие нельзя.",
 }
 
 ns:RegisterLocale("ruRU", T)

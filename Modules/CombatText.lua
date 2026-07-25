@@ -580,8 +580,19 @@ local function applyDamageTextFont()
     end
 end
 
+-- The scale belongs to the client, not to us. Mirror whatever the player has
+-- set and only write when they move our slider. Applying it on every login
+-- silently reset a value they may have chosen in Blizzard's own options, with
+-- no setting here to explain it or put it back.
+local function readWorldTextScale()
+    local v = tonumber(GetCVar and GetCVar("WorldTextScale"))
+    if v and v > 0 then mod.db.worldTextScale = v end
+end
+
 local function applyWorldTextScale()
-    local v = tostring(mod.db.worldTextScale or 1.0)
+    local v = tonumber(mod.db.worldTextScale)
+    if not v or v <= 0 then return end
+    v = tostring(v)
     pcall(SetCVar, "WorldTextScale",  v)
     pcall(SetCVar, "damageTextScale", v)
 end
@@ -655,7 +666,7 @@ function mod:OnEnable()
     reAnchorContainer()
     setupMover()
     applySharpFonts()
-    applyWorldTextScale()
+    readWorldTextScale()
     applyDamageTextFont()
 
     ns:RegisterEvent("PLAYER_REGEN_DISABLED", onCombatStart)
@@ -750,6 +761,23 @@ function mod:GetOptions()
                   get = function() return mod.db.messageSpacing or 6 end,
                   set = function(_, v) mod.db.messageSpacing = v; arrangeNotify() end },
             } },
+        } },
+
+        -- These three change things outside our own frames (two client CVars and
+        -- a global font). They used to be applied with no control anywhere in the
+        -- panel, so the player could neither see nor undo them.
+        { type = "section", title = L["Engine FCT (above mob/pet)"], collapsed = true, items = {
+            { type = "toggle", label = L["Sharper hit indicator font (Friz Quadrata)"],
+              get = function() return mod.db.sharpFonts ~= false end,
+              set = function(_, v) mod.db.sharpFonts = v; applySharpFonts() end },
+            { type = "toggle", label = L["Also apply font to Blizzard mob FCT"],
+              tooltip = L["Additionally sets DAMAGE_TEXT_FONT globally - changes the font of the damage numbers above mobs/pets. Requires /reload to take effect."],
+              get = function() return mod.db.applyToMobFCT ~= false end,
+              set = function(_, v) mod.db.applyToMobFCT = v; applyDamageTextFont() end },
+            { type = "slider", label = L["Engine FCT Scale"], min = 0.5, max = 2.0, step = 0.05, width = SLW,
+              tooltip = L["Damage numbers above mob/pet — bitmap scaling."],
+              get = function() return tonumber(mod.db.worldTextScale) or 1.0 end,
+              set = function(_, v) mod.db.worldTextScale = v; applyWorldTextScale() end },
         } },
 
         { type = "section", title = L["Position Settings"], collapsed = false, items = {

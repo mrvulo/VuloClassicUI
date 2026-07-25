@@ -2247,6 +2247,7 @@ local T = {
     ["Arrange this bar's buttons in your own grid. Off keeps Blizzard's native layout."] = "Organize os botões desta barra em sua própria grade. Desativado mantém a disposição nativa da Blizzard.",
     ["Buttons per row"] = "Botões por fileira",
     ["Button spacing"] = "Espaçamento dos botões",
+    ["Reset ALL VuloClassicUI settings for every character on this account? This cannot be undone."] = "Redefinir TODAS as configurações do VuloClassicUI para todos os personagens desta conta? Esta ação não pode ser desfeita.",
 }
 
 ns:RegisterLocale("ptBR", T)

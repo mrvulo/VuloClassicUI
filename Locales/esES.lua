@@ -2247,6 +2247,7 @@ local T = {
     ["FOLLOW WINDOW"] = "SEGUIR VENTANA",
     ["Pins this window to another one - it then moves along whenever that window is moved. Dragging this window keeps the pin and just updates the distance."] = "Ancla esta ventana a otra: se moverá con ella siempre que esa ventana se mueva. Arrastrar esta ventana mantiene el anclaje y solo actualiza la distancia.",
     ["Not possible - that would create a loop."] = "No es posible: se crearía un bucle.",
+    ["Reset ALL VuloClassicUI settings for every character on this account? This cannot be undone."] = "¿Restablecer TODOS los ajustes de VuloClassicUI para todos los personajes de esta cuenta? Esta acción no se puede deshacer.",
 }
 
 ns:RegisterLocale("esES", T)
