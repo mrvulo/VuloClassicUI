@@ -18,6 +18,7 @@ ns.defaults = {
         },
         -- window-to-window pins: [childMoverKey] = { to, dx, dy } (Core/Mover.lua)
         moverLinks = {},
+        moverSizeLinks = {},
         modules = {
             -- filled from mod.defaults at load
         },
