@@ -26,7 +26,11 @@ local L = ns.L
 
 -- id = LFG activity id (source of the localized name + level range); abbr = curated chat keywords.
 local CAT_ORDER = ns.isEra and { "cd", "cr" } or { "cd", "cr", "bd", "br" }
-local CAT_NAME = { cd = L["Classic Dungeons"], cr = L["Classic Raids"], bd = L["Burning Crusade Dungeons"], br = L["Burning Crusade Raids"] }
+local CAT_NAME = {}
+ns.OnLocaleReady(function()
+    CAT_NAME.cd = L["Classic Dungeons"]; CAT_NAME.cr = L["Classic Raids"]
+    CAT_NAME.bd = L["Burning Crusade Dungeons"]; CAT_NAME.br = L["Burning Crusade Raids"]
+end)
 
 local DUNGEONS = {
     { key="RFC",  id=798, cat="cd", abbr="rfc ragefire chasm" },

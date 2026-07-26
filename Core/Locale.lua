@@ -37,6 +37,30 @@ function ns:RefreshLocale()
     _cachedLocale = nil
 end
 
+-- File-scope code must never evaluate L[...]: the saved language override only
+-- exists from ADDON_LOADED, so a load-time lookup bakes the client language.
+-- One-shot blocks that want file-scope style anyway (StaticPopup registrations,
+-- label tables) register here; Init.lua runs them right after the override is
+-- applied, before any module is enabled.
+local pendingLocaleFns = {}
+function ns.OnLocaleReady(fn)
+    if pendingLocaleFns then
+        pendingLocaleFns[#pendingLocaleFns + 1] = fn
+    else
+        fn()
+    end
+end
+
+function ns:RunLocaleReadyCallbacks()
+    local list = pendingLocaleFns
+    pendingLocaleFns = nil
+    if not list then return end
+    for i = 1, #list do
+        local ok, err = pcall(list[i])
+        if not ok then geterrorhandler()(err) end
+    end
+end
+
 ns.L = setmetatable({}, {
     __index = function(_, key)
         local data = ns.localeData[resolveLocale()]

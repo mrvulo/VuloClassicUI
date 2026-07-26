@@ -20,11 +20,14 @@ local CLASS_LIST = {
     "SHAMAN", "MAGE", "WARLOCK", "DRUID",
 }
 
-local CLASS_LABELS = {
+local CLASS_LABELS
+ns.OnLocaleReady(function()
+CLASS_LABELS = {
     WARRIOR = L["Warrior"], PALADIN = L["Paladin"], HUNTER = L["Hunter"], ROGUE = L["Rogue"],
     PRIEST = L["Priest"], SHAMAN = L["Shaman"], MAGE = L["Mage"], WARLOCK = L["Warlock"],
     DRUID = L["Druid"],
 }
+end)
 
 -- Buffers for UI input (not saved in the DB)
 local newProfileNameBuffer = ""
@@ -44,6 +47,7 @@ local function refreshUI()
     end
 end
 
+ns.OnLocaleReady(function()
 StaticPopupDialogs["VCUI_PROFILE_RELOAD"] = {
     text = L["Profile changed. Reload the UI now so every module picks it up?"],
     button1 = L["Reload now"],
@@ -51,10 +55,12 @@ StaticPopupDialogs["VCUI_PROFILE_RELOAD"] = {
     OnAccept = function() ReloadUI() end,
     timeout = 0, whileDead = 1, hideOnEscape = 1, preferredIndex = 3,
 }
+end)
 local function askReload()
     StaticPopup_Show("VCUI_PROFILE_RELOAD")
 end
 
+ns.OnLocaleReady(function()
 StaticPopupDialogs["VCUI_PROFILE_DELETE"] = {
     text = L["Delete profile '%s'? This cannot be undone."],
     button1 = L["Delete"],
@@ -84,6 +90,7 @@ StaticPopupDialogs["VCUI_PROFILE_RESET"] = {
     timeout = 0, whileDead = 1, hideOnEscape = 1, preferredIndex = 3,
     showAlert = 1,
 }
+end)
 
 -- newer clients expose the box as .EditBox, older as .editBox
 local function popupEditBox(self)
@@ -91,6 +98,7 @@ local function popupEditBox(self)
         or (self.GetName and _G[(self:GetName() or "") .. "EditBox"])
 end
 
+ns.OnLocaleReady(function()
 StaticPopupDialogs["VCUI_PROFILE_EXPORT"] = {
     text = L["Copy the profile string (Ctrl+C):"],
     button1 = CLOSE,
@@ -132,6 +140,7 @@ StaticPopupDialogs["VCUI_PROFILE_IMPORT"] = {
     EditBoxOnEscapePressed = function(eb) eb:GetParent():Hide() end,
     timeout = 0, whileDead = 1, hideOnEscape = 1, preferredIndex = 3,
 }
+end)
 
 local function getProfileValues()
     local values = {}

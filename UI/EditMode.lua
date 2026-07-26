@@ -272,6 +272,7 @@ function ns:SetEditMode(state, opts)
     for _, fn in ipairs(ns._editHooks) do pcall(fn, state) end
 end
 
+ns.OnLocaleReady(function()
 StaticPopupDialogs["VCUI_EDIT_RESET"] = {
     text         = L["Reset all VuloUI window positions to the screen centre?"],
     button1      = YES,
@@ -296,6 +297,7 @@ StaticPopupDialogs["VCUI_EDIT_DISCARD"] = {
     hideOnEscape = true,
     preferredIndex = 3,
 }
+end)
 
 local combat = CreateFrame("Frame")
 combat:RegisterEvent("PLAYER_REGEN_DISABLED")
@@ -398,13 +400,16 @@ local ANCHOR_POINTS = {
 
 -- Which side of the target window this one attaches to; the offset is kept
 -- edge-to-edge so it survives either frame being resized.
-local SIDE_POINTS = {
+local SIDE_POINTS
+ns.OnLocaleReady(function()
+SIDE_POINTS = {
     { value = "CENTER", text = L["Centered"] },
     { value = "LEFT",   text = L["Left of"] },
     { value = "RIGHT",  text = L["Right of"] },
     { value = "TOP",    text = L["Top of"] },
     { value = "BOTTOM", text = L["Bottom of"] },
 }
+end)
 
 -- Reads the live target, not the stored db (which only updates on drop), so X/Y track a drag.
 local function moverXY(m)
@@ -1489,6 +1494,7 @@ local function popupBox(self)
         or (self.GetName and _G[(self:GetName() or "") .. "EditBox"])
 end
 
+ns.OnLocaleReady(function()
 StaticPopupDialogs["VCUI_LAYOUT_SAVE"] = {
     text = L["Name for this layout:"],
     button1 = SAVE or L["Save"], button2 = CANCEL,
@@ -1532,6 +1538,7 @@ StaticPopupDialogs["VCUI_LAYOUT_DELETE"] = {
     end,
     timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
 }
+end)
 
 local function buildLayoutsPanel()
     if layoutsPanel then return end

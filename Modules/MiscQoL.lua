@@ -1342,7 +1342,9 @@ local function potionBody()
     return nil
 end
 
-local MACRO_DEFS = {
+local MACRO_DEFS
+ns.OnLocaleReady(function()
+MACRO_DEFS = {
     { name = "VCUI Trinket1", icon = "Interface\\Icons\\INV_Jewelry_Necklace_07",
       label = L["Trinket 1"], body = "#showtooltip 13\n/use 13" },
     { name = "VCUI Trinket2", icon = "Interface\\Icons\\INV_Jewelry_Necklace_11",
@@ -1354,6 +1356,7 @@ local MACRO_DEFS = {
     { name = "VCUI Potion", icon = "Interface\\Icons\\INV_Potion_54",
       label = L["Healing potion"], body = potionBody },
 }
+end)
 
 local function makeMacro(def)
     if InCombatLockdown and InCombatLockdown() then

@@ -68,13 +68,16 @@ local NOTIFY_SPACING = 6
 local showNotify, hideNotify, doCheckDurability, scheduleDurabilityCheck
 
 local EXPRESSWAY_PATH = "Interface\\AddOns\\VuloClassicUI\\Media\\Fonts\\Expressway.TTF"
-local FONT_VALUES = {
+local FONT_VALUES
+ns.OnLocaleReady(function()
+FONT_VALUES = {
     { value = EXPRESSWAY_PATH,         text = L["Expressway (Default)"] },
     { value = "Fonts\\FRIZQT__.TTF",   text = L["Friz Quadrata (Blizzard)"] },
     { value = "Fonts\\ARIALN.TTF",     text = L["Arial Narrow"] },
     { value = "Fonts\\MORPHEUS.TTF",   text = L["Morpheus"] },
     { value = "Fonts\\skurri.ttf",     text = L["Skurri"] },
 }
+end)
 
 local function getActiveFontPath()
     local saved = mod.db and mod.db.fontFace
@@ -140,12 +143,15 @@ local function animateMessages(self, elapsed)
     end
 end
 
-local ANCHOR_FRAMES = {
+local ANCHOR_FRAMES
+ns.OnLocaleReady(function()
+ANCHOR_FRAMES = {
     { value = "UIParent",    text = L["Screen (UIParent)"] },
     { value = "PlayerFrame", text = L["Player Frame"] },
     { value = "TargetFrame", text = L["Target Frame"] },
     { value = "Minimap",     text = L["Minimap"] },
 }
+end)
 local function anchorTargetFrame()
     return _G[mod.db.anchorTo or "UIParent"] or UIParent
 end
@@ -213,11 +219,14 @@ local function spawnScroll(eventKey, text)
     container:SetScript("OnUpdate", animateMessages)
 end
 
-local FALLBACK_TEXT = {
+local FALLBACK_TEXT
+ns.OnLocaleReady(function()
+FALLBACK_TEXT = {
     combatStart   = L["+Combat"],
     combatEnd     = L["-Combat"],
     lowDurability = L["LOW DURABILITY"],
 }
+end)
 
 local function notifyText(key)
     local ev = mod.db.events and mod.db.events[key]

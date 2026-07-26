@@ -189,7 +189,9 @@ end
 
 mod._optionsBuilders = {}
 
-local SECTION_LABELS = {
+local SECTION_LABELS
+ns.OnLocaleReady(function()
+SECTION_LABELS = {
     core       = L["General"],
     layout     = L["Layout"],
     classcolor = L["Class Color"],
@@ -202,6 +204,7 @@ local SECTION_LABELS = {
     dispel     = L["Dispels"],
     range      = L["Range"],
 }
+end)
 
 function mod:AddOptionsSection(name, builder)
     table.insert(self._optionsBuilders, { name = name, fn = builder })

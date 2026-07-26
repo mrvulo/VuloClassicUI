@@ -45,7 +45,9 @@ local UseContainerItem      = (C_Container and C_Container.UseContainerItem)    
 -- Skips shirt (4) and tabard (19).
 local EQUIP_SLOTS = { 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18 }
 
-local SLOT_NAMES = {
+local SLOT_NAMES
+ns.OnLocaleReady(function()
+SLOT_NAMES = {
     [1]  = L["Head"],    [2]  = L["Neck"],     [3]  = L["Shoulder"],
     [5]  = L["Chest"],   [6]  = L["Waist"],    [7]  = L["Legs"],
     [8]  = L["Feet"],    [9]  = L["Wrist"],    [10] = L["Hands"],
@@ -54,6 +56,7 @@ local SLOT_NAMES = {
     [15] = L["Back"],
     [16] = L["Main Hand"], [17] = L["Off Hand"], [18] = L["Ranged"],
 }
+end)
 
 local SLOT_GROUPS = {
     all      = EQUIP_SLOTS,
@@ -443,6 +446,7 @@ local function listLoadouts()
     end
 end
 
+ns.OnLocaleReady(function()
 StaticPopupDialogs["VCUI_LOADOUT_SAVE"] = {
     text = L["Save current equipment as a new loadout. Enter name:"],
     button1 = SAVE or L["Save"],
@@ -482,6 +486,7 @@ StaticPopupDialogs["VCUI_LOADOUT_DELETE"] = {
     hideOnEscape = true,
     preferredIndex = 3,
 }
+end)
 
 _G.SLASH_VCUILOADOUT1 = "/loadout"
 _G.SLASH_VCUILOADOUT2 = "/lo"

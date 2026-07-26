@@ -2343,6 +2343,7 @@ function mod:OnDisable()
     if ns.GuildBankOnDisable then ns.GuildBankOnDisable() end
 end
 
+ns.OnLocaleReady(function()
 StaticPopupDialogs["VCUI_BAGS_NEW_CATEGORY"] = {
     text = L["New category name:"],
     button1 = ACCEPT, button2 = CANCEL,
@@ -2430,6 +2431,7 @@ StaticPopupDialogs["VCUI_BAGS_RENAME_GROUP"] = {
     EditBoxOnEscapePressed = function(self) self:GetParent():Hide() end,
     timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
 }
+end)
 
 function promptNewCategory()
     StaticPopup_Show("VCUI_BAGS_NEW_CATEGORY")

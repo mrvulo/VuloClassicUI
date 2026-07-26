@@ -47,6 +47,8 @@ local function pixelPerfectScale()
 end
 
 -- StaticPopup for profiling toggle (requires /reload for the CVar to take effect)
+local THEME_PRESETS
+ns.OnLocaleReady(function()
 StaticPopupDialogs["VCUI_RELOAD_PROFILING"] = {
     text = L["Script profiling changed. /reload required for the CPU display to update."],
     button1 = L["Reload now"],
@@ -84,7 +86,7 @@ StaticPopupDialogs["VCUI_RELOAD_THEME"] = {
     preferredIndex = 3,
 }
 
-local THEME_PRESETS = {
+THEME_PRESETS = {
     { value = "9b6cff", text = L["Purple (default)"] },
     { value = "4f9bff", text = L["Blue"] },
     { value = "37d67a", text = L["Green"] },
@@ -94,6 +96,7 @@ local THEME_PRESETS = {
     { value = "ff6ec7", text = L["Pink"] },
     { value = "ff8c1a", text = L["Orange"] },
 }
+end)
 
 local function themeHex()
     local c = mod.db and mod.db.themeColor or {}

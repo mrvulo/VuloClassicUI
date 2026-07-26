@@ -16,6 +16,7 @@ initFrame:SetScript("OnEvent", function(_, event, addonName)
         -- language, because the saved language override only exists now.
         -- Without this reset the override silently never applied.
         if ns.RefreshLocale then ns:RefreshLocale() end
+        if ns.RunLocaleReadyCallbacks then ns:RunLocaleReadyCallbacks() end
         ns:EnableModules()
 
     elseif event == "PLAYER_LOGIN" then
@@ -49,6 +50,7 @@ end
 -- /vcui reset wipes every setting of every character on the account. A typo
 -- while trying slash commands must not be able to do that silently, so it asks
 -- first - the same way deleting a single profile already does.
+ns.OnLocaleReady(function()
 StaticPopupDialogs["VCUI_DB_RESET"] = {
     text = L["Reset ALL VuloClassicUI settings for every character on this account? This cannot be undone."],
     button1 = L["Reset"],
@@ -63,6 +65,7 @@ StaticPopupDialogs["VCUI_DB_RESET"] = {
     timeout = 0, whileDead = 1, hideOnEscape = 1, preferredIndex = 3,
     showAlert = 1,
 }
+end)
 
 SLASH_VULOCLASSICUI1 = "/vcui"
 SLASH_VULOCLASSICUI2 = "/vulo"

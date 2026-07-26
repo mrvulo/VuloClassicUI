@@ -707,7 +707,10 @@ function mod:OnDisable()
     if tool and tool.onDisable then pcall(tool.onDisable) end
 end
 
-local CLASS_NAME = { PRIEST = L["Priest"], WARLOCK = L["Warlock"], SHAMAN = L["Shaman"] }
+local CLASS_NAME = {}
+ns.OnLocaleReady(function()
+    CLASS_NAME.PRIEST = L["Priest"]; CLASS_NAME.WARLOCK = L["Warlock"]; CLASS_NAME.SHAMAN = L["Shaman"]
+end)
 
 local function appendDotTracker(items, forClass)
     table.insert(items, { type = "spacer", height = 10 })

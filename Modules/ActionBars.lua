@@ -1650,13 +1650,16 @@ local function moverApply(key)
     if st and st.mover and ns.ApplyMover then ns:ApplyMover(st.mover) end
 end
 
-local PAGE_VALUES = {
+local PAGE_VALUES
+ns.OnLocaleReady(function()
+PAGE_VALUES = {
     { value = 0, text = "—" },
     { value = 6, text = L["Action Bar 2"] },
     { value = 5, text = L["Action Bar 3"] },
     { value = 3, text = L["Action Bar 4"] },
     { value = 4, text = L["Action Bar 5"] },
 }
+end)
 
 local function pagingRows()
     local function pageDrop(label, dbKey)

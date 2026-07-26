@@ -701,13 +701,16 @@ local function ensureBar(group)
     return bar
 end
 
-local ANCHOR_FRAMES = {
+local ANCHOR_FRAMES
+ns.OnLocaleReady(function()
+ANCHOR_FRAMES = {
     { frame = "PlayerFrame", label = L["Player Frame"] },
     { frame = "TargetFrame", label = L["Target Frame"] },
     { frame = "FocusFrame",  label = L["Focus Frame"] },
     { frame = "PetFrame",    label = L["Pet Frame"] },
     { frame = "Minimap",     label = L["Minimap"] },
 }
+end)
 
 local function groupByID(id)
     if not id then return nil end
