@@ -2520,4 +2520,10 @@ ns:RegisterLocale("ruRU", function() return {
     ["Disabling a module now detaches it completely — several used to leave listeners running for the rest of the session."] = "Отключённый модуль теперь отсоединяется полностью: некоторые оставляли обработчики работать до конца сеанса.",
     ["The performance readout in the header uses your client's own always-on measurement, so it needs no setting and no reload."] = "Показатель производительности в заголовке использует постоянно работающее измерение вашего клиента, поэтому ему не нужны ни настройка, ни перезагрузка.",
     -- Patch notes 1.37.2
+    -- Built-in profiler
+    ["Nothing measured yet. Play for a bit, then read it again."] = "Пока ничего не измерено. Поиграйте немного и прочитайте снова.",
+    ["Measured over %.1f s -- %.1f ms total, %.2f%% of it ours:"] = "Измерено за %.1f с: всего %.1f мс, из них %.2f%% наши:",
+    ["Measurement off."] = "Измерение выключено.",
+    ["Measurement reset."] = "Измерение сброшено.",
+    ["Measurement on. Play, then type /vcuiprof again to read it."] = "Измерение включено. Поиграйте, затем снова введите /vcuiprof.",
 } end)

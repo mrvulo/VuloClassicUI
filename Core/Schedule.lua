@@ -44,13 +44,38 @@ local function tick(_, elapsed)
         if subs[i] == s then i = i + 1 end
     end
 end
+-- Measuring variant, swapped in wholesale by the profiler so the walk above
+-- stays exactly as reviewed when profiling is off.
+local function tickProfiled(_, elapsed)
+    local record, clock = ns.Prof.Record, debugprofilestop
+    local i = 1
+    while i <= count do
+        local s = subs[i]
+        s.acc = s.acc + elapsed
+        if s.acc >= s.interval then
+            s.acc = 0
+            local t0 = clock()
+            local ok, err = pcall(s.fn, s.arg)
+            if not ok then geterrorhandler()(err) end
+            record(s.label or "ticker", clock() - t0)
+        end
+        if subs[i] == s then i = i + 1 end
+    end
+end
+
 driver:SetScript("OnUpdate", tick)
 
+function ns:SetTickerProfiling(on)
+    driver:SetScript("OnUpdate", on and tickProfiled or tick)
+end
+
 -- interval in seconds, fn(arg). Returns a handle for ns:CancelTicker.
--- The first call is one full interval away, exactly like the hand-rolled form.
-function ns:AddTicker(interval, fn, arg)
+-- The first call is one full interval away, exactly like the hand-rolled form
+-- (a ticker added from inside the walk gets this frame's elapsed as well).
+-- `label` is only read by the profiler.
+function ns:AddTicker(interval, fn, arg, label)
     if type(fn) ~= "function" then return nil end
-    local s = { interval = interval or 0.1, fn = fn, arg = arg, acc = 0 }
+    local s = { interval = interval or 0.1, fn = fn, arg = arg, acc = 0, label = label }
     count = count + 1
     subs[count] = s
     s.slot = count

@@ -2520,4 +2520,10 @@ ns:RegisterLocale("itIT", function() return {
     ["Disabling a module now detaches it completely — several used to leave listeners running for the rest of the session."] = "Disattivare un modulo ora lo scollega del tutto: diversi lasciavano ascoltatori attivi per il resto della sessione.",
     ["The performance readout in the header uses your client's own always-on measurement, so it needs no setting and no reload."] = "L'indicatore di prestazioni nell'intestazione usa la misurazione sempre attiva del tuo client, quindi non serve né impostazione né ricaricare.",
     -- Patch notes 1.37.2
+    -- Built-in profiler
+    ["Nothing measured yet. Play for a bit, then read it again."] = "Ancora nessuna misurazione. Gioca un po' e rileggi.",
+    ["Measured over %.1f s -- %.1f ms total, %.2f%% of it ours:"] = "Misurato su %.1f s: %.1f ms in totale, di cui %.2f%% nostri:",
+    ["Measurement off."] = "Misurazione disattivata.",
+    ["Measurement reset."] = "Misurazione azzerata.",
+    ["Measurement on. Play, then type /vcuiprof again to read it."] = "Misurazione attiva. Gioca un po', poi digita di nuovo /vcuiprof per leggerla.",
 } end)

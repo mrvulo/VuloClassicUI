@@ -2660,4 +2660,10 @@ ns:RegisterLocale("deDE", function() return {
     ["Edit Mode: three background drivers no longer run permanently, dragging a window allocates far less, and finding a window is a direct lookup instead of a search."] = "Bearbeitungsmodus: drei Hintergrund-Taktgeber laufen nicht mehr dauerhaft, das Ziehen eines Fensters erzeugt deutlich weniger Ballast, und ein Fenster wird direkt nachgeschlagen statt gesucht.",
     ["Disabling a module now detaches it completely — several used to leave listeners running for the rest of the session."] = "Ein abgeschaltetes Modul löst sich jetzt vollständig: mehrere ließen bisher Zuhörer für den Rest der Sitzung weiterlaufen.",
     ["The performance readout in the header uses your client's own always-on measurement, so it needs no setting and no reload."] = "Die Leistungsanzeige in der Kopfzeile nutzt die stets laufende Messung deines Clients und braucht daher weder Einstellung noch Neuladen.",
+    -- Built-in profiler
+    ["Nothing measured yet. Play for a bit, then read it again."] = "Noch nichts gemessen. Spiel eine Weile und lies es dann erneut aus.",
+    ["Measured over %.1f s -- %.1f ms total, %.2f%% of it ours:"] = "Gemessen über %.1f s -- %.1f ms gesamt, davon %.2f%% unsere:",
+    ["Measurement off."] = "Messung aus.",
+    ["Measurement reset."] = "Messung zurückgesetzt.",
+    ["Measurement on. Play, then type /vcuiprof again to read it."] = "Messung an. Spiel eine Weile und tippe dann erneut /vcuiprof.",
 } end)

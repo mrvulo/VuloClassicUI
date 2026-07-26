@@ -80,12 +80,18 @@ end
 -- registry writes the pairs down instead, so disabling a module detaches it
 -- completely without the module having to remember anything. Stored flat
 -- (event, handler, event, handler, ...) so a registration costs no extra table.
+-- handler -> module key, so the profiler can bill dispatch time to the module
+-- that asked for the event rather than to the event name. Only populated for
+-- handlers registered through a module; ns:RegisterEvent stays anonymous.
+ns.eventOwners = {}
+
 function ns:ModRegisterEvent(mod, event, handler)
     if not ns:RegisterEvent(event, handler) then return false end
     local owned = mod._ownedEvents
     if not owned then owned = {}; mod._ownedEvents = owned end
     owned[#owned + 1] = event
     owned[#owned + 1] = handler
+    ns.eventOwners[handler] = mod.key or mod.name
     return true
 end
 
@@ -113,17 +119,20 @@ local HOT = {
     UNIT_POWER_FREQUENT = true,
 }
 
-dispatcher:SetScript("OnEvent", function(_, event, ...)
+local function takeOnceHandlers(event, list)
+    local set = onceSets[event]
+    if not set then return end
+    -- One-shot handlers come out first; `list` is the snapshot we still walk.
+    for i = 1, #list do
+        local h = list[i]
+        if set[h] then ns:UnregisterEvent(event, h) end
+    end
+end
+
+local function onEvent(_, event, ...)
     local list = handlers[event]
     if not list then return end
-    -- One-shot handlers come out first; `list` is the snapshot we still walk.
-    local set = onceSets[event]
-    if set then
-        for i = 1, #list do
-            local h = list[i]
-            if set[h] then ns:UnregisterEvent(event, h) end
-        end
-    end
+    takeOnceHandlers(event, list)
     if HOT[event] then
         for i = 1, #list do
             list[i](event, ...)
@@ -136,4 +145,35 @@ dispatcher:SetScript("OnEvent", function(_, event, ...)
             ns:Print(L["|cffff5555Event handler error (%s):|r %s"], event, tostring(err))
         end
     end
-end)
+end
+
+-- Measuring variant. It is NOT reached unless profiling is switched on: the
+-- script is swapped wholesale, so the normal path above carries no flag test,
+-- no timer call, nothing at all. That is the whole point of shipping this --
+-- an instrumented build you have to hand a user is a build nobody runs.
+local function onEventProfiled(_, event, ...)
+    local list = handlers[event]
+    if not list then return end
+    takeOnceHandlers(event, list)
+    local owners, record, clock = ns.eventOwners, ns.Prof.Record, debugprofilestop
+    local hot = HOT[event]
+    for i = 1, #list do
+        local h = list[i]
+        local t0 = clock()
+        if hot then
+            h(event, ...)
+        else
+            local ok, err = pcall(h, event, ...)
+            if not ok then
+                ns:Print(L["|cffff5555Event handler error (%s):|r %s"], event, tostring(err))
+            end
+        end
+        record(owners[h] or event, clock() - t0)
+    end
+end
+
+dispatcher:SetScript("OnEvent", onEvent)
+
+function ns:SetEventProfiling(on)
+    dispatcher:SetScript("OnEvent", on and onEventProfiled or onEvent)
+end

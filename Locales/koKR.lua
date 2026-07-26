@@ -2520,4 +2520,10 @@ ns:RegisterLocale("koKR", function() return {
     ["Disabling a module now detaches it completely — several used to leave listeners running for the rest of the session."] = "모듈을 끄면 이제 완전히 분리됩니다. 일부는 남은 세션 내내 수신기를 계속 돌리고 있었습니다.",
     ["The performance readout in the header uses your client's own always-on measurement, so it needs no setting and no reload."] = "헤더의 성능 표시는 클라이언트가 항상 수행하는 측정을 사용하므로 설정도 다시 불러오기도 필요 없습니다.",
     -- Patch notes 1.37.2
+    -- Built-in profiler
+    ["Nothing measured yet. Play for a bit, then read it again."] = "아직 측정된 것이 없습니다. 잠시 플레이한 뒤 다시 확인하세요.",
+    ["Measured over %.1f s -- %.1f ms total, %.2f%% of it ours:"] = "%.1f초 동안 측정: 전체 %.1f ms, 그중 %.2f%%가 우리 몫입니다:",
+    ["Measurement off."] = "측정을 껐습니다.",
+    ["Measurement reset."] = "측정을 초기화했습니다.",
+    ["Measurement on. Play, then type /vcuiprof again to read it."] = "측정을 켰습니다. 잠시 플레이한 뒤 /vcuiprof 를 다시 입력하세요.",
 } end)

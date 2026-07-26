@@ -2521,6 +2521,12 @@ local function T() return {
     ["Disabling a module now detaches it completely — several used to leave listeners running for the rest of the session."] = "Desactivar un módulo ahora lo desconecta por completo: varios dejaban oyentes activos durante el resto de la sesión.",
     ["The performance readout in the header uses your client's own always-on measurement, so it needs no setting and no reload."] = "El indicador de rendimiento de la cabecera usa la medición siempre activa de tu cliente, así que no necesita ajustes ni recargar.",
     -- Patch notes 1.37.2
+    -- Built-in profiler
+    ["Nothing measured yet. Play for a bit, then read it again."] = "Aún no hay mediciones. Juega un rato y vuelve a consultarlo.",
+    ["Measured over %.1f s -- %.1f ms total, %.2f%% of it ours:"] = "Medido durante %.1f s: %.1f ms en total, de los cuales %.2f%% son nuestros:",
+    ["Measurement off."] = "Medición desactivada.",
+    ["Measurement reset."] = "Medición reiniciada.",
+    ["Measurement on. Play, then type /vcuiprof again to read it."] = "Medición activada. Juega un rato y escribe /vcuiprof de nuevo para leerla.",
 } end
 
 ns:RegisterLocale("esES", T)
