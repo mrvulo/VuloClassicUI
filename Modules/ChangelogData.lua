@@ -6,6 +6,29 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+    { version = "1.37.1", sections = {
+        { category = "Languages", lines = {
+            "The language option under General now actually applies. It silently never took effect — the addon read the client language before your saved choice was loaded. After a /reload every label, dropdown and popup follows your choice.",
+            "NEW: The Patch Notes page is translated into all languages, including every past version.",
+            "The trinket panel, its queue window and the /trinket help are translated too.",
+            "German: sixteen duplicated translations cleaned up, five of which contradicted each other.",
+        } },
+        { category = "Performance", lines = {
+            "Third pass over the busiest code paths: nameplate auras scan once instead of four times, combat-log and aura events skip a safety wrapper, timer texts only redraw when the shown number changes, and several background listeners now sleep while their feature is off or hidden. Less stutter in raids and arenas.",
+        } },
+        { category = "Arena", lines = {
+            "The frames can be turned off again without leftovers.",
+            "An interrupted enemy cast now shows INTERRUPTED briefly — it used to vanish the same instant.",
+            "Diminishing-returns icons clean up correctly after toggling the tracker mid-arena.",
+        } },
+        { category = "Fixes", lines = {
+            "Seven working settings that were invisible in the options are shown again, and several switches that did nothing are wired up.",
+            "Modules tidy up after themselves when disabled: totem range dimming, the inspect window, queue timer, quest log and font bars no longer leave stale pieces behind.",
+        } },
+        { category = "Visuals", lines = {
+            "Three modules got their own sidebar icons instead of the placeholder, and Reminders got a nicer bell.",
+        } },
+    } },
     { version = "1.37.0", sections = {
         { category = "Languages", lines = {
             "NEW: Spanish, French, Italian, Portuguese, Russian and Korean. All six are complete — every one of the 2244 texts is translated, nothing falls back to English. Spanish also serves Latin American clients. Choose your language under General, or leave it on Auto.",
@@ -283,11 +306,6 @@ ns.CHANGELOG = {
         { category = "Edit Mode", lines = {
             "NEW: Per-frame free-move and an anchor toggle, with panel polish.",
             "Dark border on the action bars; fixed a compat-frame taint issue.",
-        } },
-    } },
-    { version = "1.18.0", sections = {
-        { category = "NEW — Dark Mode", lines = {
-            "A dark-mode module, plus German localization fixes.",
         } },
     } },
 }

@@ -2484,6 +2484,19 @@ local T = {
     ["Pause Queue"] = "Приостановить очередь",
     ["Parameter must be 0 for top trinket or 1 for bottom."] = "Параметр должен быть 0 для верхнего аксессуара или 1 для нижнего.",
     ["No profiles saved yet."] = "Профили пока не сохранены.",
+    -- Patch notes 1.37.1
+    ["Visuals"] = "Внешний вид",
+    ["The language option under General now actually applies. It silently never took effect — the addon read the client language before your saved choice was loaded. After a /reload every label, dropdown and popup follows your choice."] = "Выбор языка в разделе «Общее» теперь действительно применяется. Он незаметно никогда не срабатывал: аддон считывал язык клиента до загрузки сохранённого выбора. После /reload все надписи, выпадающие списки и окна следуют вашему выбору.",
+    ["The Patch Notes page is translated into all languages, including every past version."] = "Страница заметок к обновлению переведена на все языки, включая все прошлые версии.",
+    ["The trinket panel, its queue window and the /trinket help are translated too."] = "Панель аксессуаров, её окно очереди и справка /trinket тоже переведены.",
+    ["German: sixteen duplicated translations cleaned up, five of which contradicted each other."] = "Немецкий: убраны шестнадцать дублирующихся переводов, пять из них противоречили друг другу.",
+    ["Third pass over the busiest code paths: nameplate auras scan once instead of four times, combat-log and aura events skip a safety wrapper, timer texts only redraw when the shown number changes, and several background listeners now sleep while their feature is off or hidden. Less stutter in raids and arenas."] = "Третий проход по самым нагруженным участкам кода: ауры на индикаторах здоровья сканируются один раз вместо четырёх, события журнала боя и аур обходятся без защитной обёртки, тексты таймеров перерисовываются только при смене показанного числа, а несколько фоновых слушателей спят, пока их функция выключена или скрыта. Меньше подтормаживаний в рейдах и на аренах.",
+    ["The frames can be turned off again without leftovers."] = "Окна снова можно отключить без остатков.",
+    ["An interrupted enemy cast now shows INTERRUPTED briefly — it used to vanish the same instant."] = "Прерванное заклинание противника теперь ненадолго показывает ПРЕРВАНО — раньше оно исчезало в тот же миг.",
+    ["Diminishing-returns icons clean up correctly after toggling the tracker mid-arena."] = "Значки убывающей отдачи корректно очищаются после переключения отслеживания посреди арены.",
+    ["Seven working settings that were invisible in the options are shown again, and several switches that did nothing are wired up."] = "Семь рабочих настроек, невидимых в опциях, снова отображаются, а несколько бездействовавших переключателей теперь подключены.",
+    ["Modules tidy up after themselves when disabled: totem range dimming, the inspect window, queue timer, quest log and font bars no longer leave stale pieces behind."] = "Модули убирают за собой при отключении: затемнение тотемов вне досягаемости, окно осмотра, таймер очереди, журнал заданий и полосы шрифтов больше не оставляют устаревших частей.",
+    ["Three modules got their own sidebar icons instead of the placeholder, and Reminders got a nicer bell."] = "Три модуля получили собственные значки в боковой панели вместо заглушки, а «Напоминания» — колокольчик покрасивее.",
 }
 
 ns:RegisterLocale("ruRU", T)

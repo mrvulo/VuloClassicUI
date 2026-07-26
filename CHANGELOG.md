@@ -16,6 +16,28 @@
   ~1900 characters or it gets truncated with a link to the full notes.
 -->
 
+## 1.37.1
+**Languages:**
+- The language option under General now actually applies. It silently never took effect — the addon read the client language before your saved choice was loaded. After a /reload every label, dropdown and popup follows your choice.
+- **NEW:** The Patch Notes page is translated into all languages, including every past version.
+- The trinket panel, its queue window and the /trinket help are translated too.
+- German: sixteen duplicated translations cleaned up, five of which contradicted each other.
+
+**Performance:**
+- Third pass over the busiest code paths: nameplate auras scan once instead of four times, combat-log and aura events skip a safety wrapper, timer texts only redraw when the shown number changes, and several background listeners now sleep while their feature is off or hidden. Less stutter in raids and arenas.
+
+**Arena:**
+- The frames can be turned off again without leftovers.
+- An interrupted enemy cast now shows INTERRUPTED briefly — it used to vanish the same instant.
+- Diminishing-returns icons clean up correctly after toggling the tracker mid-arena.
+
+**Fixes:**
+- Seven working settings that were invisible in the options are shown again, and several switches that did nothing are wired up.
+- Modules tidy up after themselves when disabled: totem range dimming, the inspect window, queue timer, quest log and font bars no longer leave stale pieces behind.
+
+**Visuals:**
+- Three modules got their own sidebar icons instead of the placeholder, and Reminders got a nicer bell.
+
 ## 1.37.0
 **Languages:**
 - **NEW:** Spanish, French, Italian, Portuguese, Russian and Korean. All six are complete — every one of the 2244 texts is translated, nothing falls back to English. Spanish also serves Latin American clients. Choose your language under General, or leave it on Auto.

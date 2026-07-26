@@ -2484,6 +2484,19 @@ local T = {
     ["Pause Queue"] = "Pausar Fila",
     ["Parameter must be 0 for top trinket or 1 for bottom."] = "O parâmetro deve ser 0 para o berloque de cima ou 1 para o de baixo.",
     ["No profiles saved yet."] = "Nenhum perfil salvo ainda.",
+    -- Patch notes 1.37.1
+    ["Visuals"] = "Visual",
+    ["The language option under General now actually applies. It silently never took effect — the addon read the client language before your saved choice was loaded. After a /reload every label, dropdown and popup follows your choice."] = "A opção de idioma em Geral agora é aplicada de verdade. Ela silenciosamente nunca tinha efeito: o addon lia o idioma do cliente antes de a sua escolha salva ser carregada. Após um /reload, todos os rótulos, listas suspensas e janelas seguem a sua escolha.",
+    ["The Patch Notes page is translated into all languages, including every past version."] = "A página de notas de atualização está traduzida em todos os idiomas, incluindo todas as versões anteriores.",
+    ["The trinket panel, its queue window and the /trinket help are translated too."] = "O painel de berloques, sua janela de fila e a ajuda do /trinket também estão traduzidos.",
+    ["German: sixteen duplicated translations cleaned up, five of which contradicted each other."] = "Alemão: dezesseis traduções duplicadas limpas, cinco delas contraditórias.",
+    ["Third pass over the busiest code paths: nameplate auras scan once instead of four times, combat-log and aura events skip a safety wrapper, timer texts only redraw when the shown number changes, and several background listeners now sleep while their feature is off or hidden. Less stutter in raids and arenas."] = "Terceira passada pelos caminhos de código mais exigidos: as auras das placas de nome são examinadas uma vez em vez de quatro, os eventos do registro de combate e de auras dispensam um invólucro de segurança, os textos dos temporizadores só são redesenhados quando o número exibido muda e vários ouvintes em segundo plano dormem enquanto sua função está desligada ou oculta. Menos engasgos em raides e arenas.",
+    ["The frames can be turned off again without leftovers."] = "As janelas podem ser desativadas novamente sem sobras.",
+    ["An interrupted enemy cast now shows INTERRUPTED briefly — it used to vanish the same instant."] = "Um feitiço inimigo interrompido agora mostra INTERROMPIDO por um instante — antes ele sumia no mesmo momento.",
+    ["Diminishing-returns icons clean up correctly after toggling the tracker mid-arena."] = "Os ícones de retornos decrescentes se limpam corretamente ao alternar o rastreador no meio da arena.",
+    ["Seven working settings that were invisible in the options are shown again, and several switches that did nothing are wired up."] = "Sete configurações funcionais que estavam invisíveis nas opções voltam a aparecer, e vários interruptores que não faziam nada agora estão ligados.",
+    ["Modules tidy up after themselves when disabled: totem range dimming, the inspect window, queue timer, quest log and font bars no longer leave stale pieces behind."] = "Os módulos arrumam tudo ao serem desativados: o escurecimento por alcance dos totens, a janela de inspeção, o temporizador de fila, o registro de missões e as barras de fonte não deixam mais peças obsoletas.",
+    ["Three modules got their own sidebar icons instead of the placeholder, and Reminders got a nicer bell."] = "Três módulos ganharam ícones próprios na barra lateral em vez do provisório, e os Lembretes ganharam um sino mais bonito.",
 }
 
 ns:RegisterLocale("ptBR", T)

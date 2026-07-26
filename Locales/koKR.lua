@@ -2484,6 +2484,19 @@ local T = {
     ["Pause Queue"] = "대기열 일시 정지",
     ["Parameter must be 0 for top trinket or 1 for bottom."] = "매개변수는 위쪽 장신구는 0, 아래쪽 장신구는 1이어야 합니다.",
     ["No profiles saved yet."] = "아직 저장된 프로필이 없습니다.",
+    -- Patch notes 1.37.1
+    ["Visuals"] = "외형",
+    ["The language option under General now actually applies. It silently never took effect — the addon read the client language before your saved choice was loaded. After a /reload every label, dropdown and popup follows your choice."] = "일반 설정의 언어 선택이 이제 실제로 적용됩니다. 저장된 선택이 불러와지기 전에 애드온이 클라이언트 언어를 읽어 버려서 그동안 조용히 무시되고 있었습니다. /reload 후 모든 라벨, 드롭다운, 팝업이 선택한 언어를 따릅니다.",
+    ["The Patch Notes page is translated into all languages, including every past version."] = "패치 노트 페이지가 모든 언어로 번역되었으며, 지난 모든 버전도 포함됩니다.",
+    ["The trinket panel, its queue window and the /trinket help are translated too."] = "장신구 패널과 대기열 창, /trinket 도움말도 번역되었습니다.",
+    ["German: sixteen duplicated translations cleaned up, five of which contradicted each other."] = "독일어: 중복된 번역 열여섯 개를 정리했고, 그중 다섯 개는 서로 모순이었습니다.",
+    ["Third pass over the busiest code paths: nameplate auras scan once instead of four times, combat-log and aura events skip a safety wrapper, timer texts only redraw when the shown number changes, and several background listeners now sleep while their feature is off or hidden. Less stutter in raids and arenas."] = "가장 바쁜 코드 경로에 대한 세 번째 정리: 이름표 오라를 네 번 대신 한 번만 검사하고, 전투 기록과 오라 이벤트는 안전 래퍼를 생략하며, 타이머 텍스트는 표시되는 숫자가 바뀔 때만 다시 그려지고, 여러 백그라운드 리스너는 해당 기능이 꺼져 있거나 숨겨져 있는 동안 잠듭니다. 공격대와 투기장에서 끊김이 줄어듭니다.",
+    ["The frames can be turned off again without leftovers."] = "창을 다시 잔여물 없이 끌 수 있습니다.",
+    ["An interrupted enemy cast now shows INTERRUPTED briefly — it used to vanish the same instant."] = "차단된 적의 주문이 이제 잠시 차단됨으로 표시됩니다. 이전에는 그 즉시 사라졌습니다.",
+    ["Diminishing-returns icons clean up correctly after toggling the tracker mid-arena."] = "점감 아이콘이 투기장 도중 추적기를 껐다 켜도 올바르게 정리됩니다.",
+    ["Seven working settings that were invisible in the options are shown again, and several switches that did nothing are wired up."] = "옵션에서 보이지 않던 일곱 개의 작동하는 설정이 다시 표시되고, 아무 동작도 하지 않던 여러 스위치가 연결되었습니다.",
+    ["Modules tidy up after themselves when disabled: totem range dimming, the inspect window, queue timer, quest log and font bars no longer leave stale pieces behind."] = "모듈이 꺼질 때 스스로 정리합니다: 토템 사거리 어둡게 표시, 살펴보기 창, 대기열 타이머, 퀘스트 기록, 글꼴 막대가 더 이상 잔여물을 남기지 않습니다.",
+    ["Three modules got their own sidebar icons instead of the placeholder, and Reminders got a nicer bell."] = "세 모듈이 자리 표시자 대신 자체 사이드바 아이콘을 받았고, 알림은 더 예쁜 종을 받았습니다.",
 }
 
 ns:RegisterLocale("koKR", T)

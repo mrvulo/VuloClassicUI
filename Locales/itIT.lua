@@ -2484,6 +2484,19 @@ local T = {
     ["Pause Queue"] = "Metti in pausa la coda",
     ["Parameter must be 0 for top trinket or 1 for bottom."] = "Il parametro deve essere 0 per il monile superiore o 1 per quello inferiore.",
     ["No profiles saved yet."] = "Nessun profilo salvato per ora.",
+    -- Patch notes 1.37.1
+    ["Visuals"] = "Aspetto",
+    ["The language option under General now actually applies. It silently never took effect — the addon read the client language before your saved choice was loaded. After a /reload every label, dropdown and popup follows your choice."] = "L'opzione della lingua in Generale ora si applica davvero. Non aveva mai effetto, in silenzio: l'addon leggeva la lingua del client prima che la tua scelta salvata fosse caricata. Dopo un /reload ogni etichetta, menu a tendina e finestra segue la tua scelta.",
+    ["The Patch Notes page is translated into all languages, including every past version."] = "La pagina delle note della patch è tradotta in tutte le lingue, comprese tutte le versioni precedenti.",
+    ["The trinket panel, its queue window and the /trinket help are translated too."] = "Il pannello dei monili, la sua finestra di coda e l'aiuto di /trinket sono anch'essi tradotti.",
+    ["German: sixteen duplicated translations cleaned up, five of which contradicted each other."] = "Tedesco: sedici traduzioni duplicate ripulite, cinque delle quali si contraddicevano.",
+    ["Third pass over the busiest code paths: nameplate auras scan once instead of four times, combat-log and aura events skip a safety wrapper, timer texts only redraw when the shown number changes, and several background listeners now sleep while their feature is off or hidden. Less stutter in raids and arenas."] = "Terzo passaggio sui percorsi di codice più carichi: le aure delle targhette dei nomi vengono esaminate una volta invece di quattro, gli eventi del registro di combattimento e delle aure risparmiano un involucro di sicurezza, i testi dei timer si ridisegnano solo quando cambia il numero mostrato e diversi ascoltatori in sottofondo dormono finché la loro funzione è spenta o nascosta. Meno scatti in incursione e in arena.",
+    ["The frames can be turned off again without leftovers."] = "Le finestre si possono di nuovo disattivare senza residui.",
+    ["An interrupted enemy cast now shows INTERRUPTED briefly — it used to vanish the same instant."] = "Un incantesimo nemico interrotto ora mostra brevemente INTERROTTO — prima spariva nello stesso istante.",
+    ["Diminishing-returns icons clean up correctly after toggling the tracker mid-arena."] = "Le icone dei rendimenti decrescenti si ripuliscono correttamente dopo aver attivato o disattivato il tracciamento in piena arena.",
+    ["Seven working settings that were invisible in the options are shown again, and several switches that did nothing are wired up."] = "Sette impostazioni funzionanti ma invisibili nelle opzioni sono di nuovo mostrate, e diversi interruttori che non facevano nulla ora sono collegati.",
+    ["Modules tidy up after themselves when disabled: totem range dimming, the inspect window, queue timer, quest log and font bars no longer leave stale pieces behind."] = "I moduli fanno ordine quando vengono disattivati: l'oscuramento per distanza dei totem, la finestra di ispezione, il timer della coda, il registro delle missioni e le barre dei caratteri non lasciano più pezzi obsoleti.",
+    ["Three modules got their own sidebar icons instead of the placeholder, and Reminders got a nicer bell."] = "Tre moduli hanno ricevuto icone proprie nella barra laterale al posto del segnaposto, e i Promemoria una campana più bella.",
 }
 
 ns:RegisterLocale("itIT", T)

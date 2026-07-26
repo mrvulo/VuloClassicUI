@@ -2633,6 +2633,19 @@ local T = {
     ["Pause Queue"] = "Suspendre la file",
     ["Parameter must be 0 for top trinket or 1 for bottom."] = "Le paramètre doit être 0 pour le bijou du haut ou 1 pour celui du bas.",
     ["No profiles saved yet."] = "Aucun profil enregistré pour l'instant.",
+    -- Patch notes 1.37.1
+    ["Visuals"] = "Apparence",
+    ["The language option under General now actually applies. It silently never took effect — the addon read the client language before your saved choice was loaded. After a /reload every label, dropdown and popup follows your choice."] = "L'option de langue dans Général s'applique désormais vraiment. Elle n'avait silencieusement jamais d'effet : l'addon lisait la langue du client avant le chargement de votre choix enregistré. Après un /reload, chaque libellé, liste déroulante et fenêtre contextuelle suit votre choix.",
+    ["The Patch Notes page is translated into all languages, including every past version."] = "La page des notes de mise à jour est traduite dans toutes les langues, y compris toutes les versions précédentes.",
+    ["The trinket panel, its queue window and the /trinket help are translated too."] = "Le panneau des bijoux, sa fenêtre de file d'attente et l'aide /trinket sont également traduits.",
+    ["German: sixteen duplicated translations cleaned up, five of which contradicted each other."] = "Allemand : seize traductions en double nettoyées, dont cinq se contredisaient.",
+    ["Third pass over the busiest code paths: nameplate auras scan once instead of four times, combat-log and aura events skip a safety wrapper, timer texts only redraw when the shown number changes, and several background listeners now sleep while their feature is off or hidden. Less stutter in raids and arenas."] = "Troisième passage sur les chemins de code les plus sollicités : les auras des plaques de nom sont analysées une fois au lieu de quatre, les événements du journal de combat et d'auras s'épargnent une enveloppe de sécurité, les textes des minuteries ne se redessinent que lorsque le nombre affiché change, et plusieurs écouteurs d'arrière-plan dorment tant que leur fonction est désactivée ou masquée. Moins de saccades en raid et en arène.",
+    ["The frames can be turned off again without leftovers."] = "Les cadres peuvent de nouveau être désactivés sans laisser de restes.",
+    ["An interrupted enemy cast now shows INTERRUPTED briefly — it used to vanish the same instant."] = "Un sort ennemi interrompu affiche désormais brièvement INTERROMPU — il disparaissait auparavant au même instant.",
+    ["Diminishing-returns icons clean up correctly after toggling the tracker mid-arena."] = "Les icônes des rendements décroissants se nettoient correctement après avoir basculé le suivi en pleine arène.",
+    ["Seven working settings that were invisible in the options are shown again, and several switches that did nothing are wired up."] = "Sept réglages fonctionnels invisibles dans les options sont de nouveau affichés, et plusieurs interrupteurs sans effet sont maintenant branchés.",
+    ["Modules tidy up after themselves when disabled: totem range dimming, the inspect window, queue timer, quest log and font bars no longer leave stale pieces behind."] = "Les modules rangent derrière eux à la désactivation : l'assombrissement de portée des totems, la fenêtre d'inspection, le minuteur de file d'attente, le journal de quêtes et les barres de police ne laissent plus de morceaux périmés.",
+    ["Three modules got their own sidebar icons instead of the placeholder, and Reminders got a nicer bell."] = "Trois modules ont reçu leurs propres icônes de barre latérale au lieu de l'image de remplacement, et les Rappels une plus jolie cloche.",
 }
 
 ns:RegisterLocale("frFR", T)
