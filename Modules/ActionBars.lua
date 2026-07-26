@@ -1644,12 +1644,6 @@ end
 
 local function reapply() if mod.active then applyAll() end end
 
-local VIS_VALUES = {
-    { value = "always",    text = L["Always shown"] },
-    { value = "mouseover", text = L["Mouseover"] },
-    { value = "combat",    text = L["In combat"] },
-    { value = "noncombat", text = L["Out of combat"] },
-}
 
 local function moverApply(key)
     local st = state[key]
@@ -1692,19 +1686,13 @@ local function barSection(desc)
                 { type = "checkbox", label = L["Enabled"],
                   get = function() return barDB(key).on end,
                   set = function(_, v) barDB(key).on = v; reapply() end },
-                { type = "dropdown", label = L["Visibility"], width = 220, values = VIS_VALUES,
+                { type = "dropdown", label = L["Visibility"], width = 220, values = ns.VisibilityValues(),
                   get = function() return barDB(key).visibility end,
                   set = function(_, v) barDB(key).visibility = v; reapply() end },
             } },
             { type = "group", layout = "row", gap = 8, items = {
                 { type = "dropdown", label = L["Group visibility"], width = 220,
-                  values = {
-                      { value = "any",   text = L["Always"] },
-                      { value = "group", text = L["Only in a group"] },
-                      { value = "raid",  text = L["Only in a raid"] },
-                      { value = "party", text = L["Only in a party"] },
-                      { value = "solo",  text = L["Only solo"] },
-                  },
+                  values = ns.GroupVisValues(),
                   get = function() return barDB(key).groupVis or "any" end,
                   set = function(_, v) barDB(key).groupVis = v; reapply() end },
                 { type = "checkbox", label = L["Only in instances"],

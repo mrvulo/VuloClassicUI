@@ -17,6 +17,28 @@ local L = ns.L
 
 local CONTENT_PADDING = 14
 
+-- Shared dropdown value lists for the visibility pair several modules offer.
+-- Built per call, never at file load: the saved language override is only
+-- readable once SavedVariables are in.
+function ns.VisibilityValues()
+    return {
+        { value = "always",    text = L["Always shown"] },
+        { value = "mouseover", text = L["Mouseover"] },
+        { value = "combat",    text = L["In combat"] },
+        { value = "noncombat", text = L["Out of combat"] },
+    }
+end
+
+function ns.GroupVisValues()
+    return {
+        { value = "any",   text = L["Always"] },
+        { value = "group", text = L["Only in a group"] },
+        { value = "raid",  text = L["Only in a raid"] },
+        { value = "party", text = L["Only in a party"] },
+        { value = "solo",  text = L["Only solo"] },
+    }
+end
+
 -- Frames are never garbage-collected: widgets are pooled by type and reconfigured via _vcSetup.
 local poolHost = CreateFrame("Frame")
 poolHost:Hide()

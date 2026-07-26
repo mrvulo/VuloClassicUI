@@ -537,22 +537,11 @@ function mod:GetOptions()
         { type = "section", title = L["Visibility"], collapsed = false, items = {
             { type = "group", layout = "row", gap = 8, items = {
                 { type = "dropdown", label = L["Visibility"], width = 220,
-                  values = {
-                      { value = "always",    text = L["Always shown"] },
-                      { value = "mouseover", text = L["Mouseover"] },
-                      { value = "combat",    text = L["In combat"] },
-                      { value = "noncombat", text = L["Out of combat"] },
-                  },
+                  values = ns.VisibilityValues(),
                   get = function() return mod.db.visibility or "always" end,
                   set = function(_, v) mod.db.visibility = v; updateVisibility(); updateVisTicker() end },
                 { type = "dropdown", label = L["Group visibility"], width = 220,
-                  values = {
-                      { value = "any",   text = L["Always"] },
-                      { value = "group", text = L["Only in a group"] },
-                      { value = "raid",  text = L["Only in a raid"] },
-                      { value = "party", text = L["Only in a party"] },
-                      { value = "solo",  text = L["Only solo"] },
-                  },
+                  values = ns.GroupVisValues(),
                   get = function() return mod.db.groupVis or "any" end,
                   set = function(_, v) mod.db.groupVis = v; updateVisibility() end },
             } },

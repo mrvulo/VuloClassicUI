@@ -12,6 +12,10 @@ initFrame:SetScript("OnEvent", function(_, event, addonName)
     if event == "ADDON_LOADED" then
         if addonName ~= ns.NAME then return end
         ns:InitDB()
+        -- Any file-scope L[...] lookup before this point cached the CLIENT
+        -- language, because the saved language override only exists now.
+        -- Without this reset the override silently never applied.
+        if ns.RefreshLocale then ns:RefreshLocale() end
         ns:EnableModules()
 
     elseif event == "PLAYER_LOGIN" then

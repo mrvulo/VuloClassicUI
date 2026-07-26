@@ -1865,6 +1865,10 @@ local function buildSpecDropdownValues()
 end
 
 function mod:GetOptions()
+    local spItems = (ns.SlotPickerOptionItems and ns.SlotPickerOptionItems(function()
+        local sp = ns.modules and ns.modules.slotpicker
+        return sp and sp.db
+    end)) or {}
     local items = {
         { type = "header", text = L["Loadouts"] },
         { type = "desc", text = L["Save your current equipment as named gear sets and quickly switch between them. Equipping requires you to be out of combat — items in your bags are auto-equipped via Use."] },
@@ -1901,21 +1905,7 @@ function mod:GetOptions()
             { type = "toggle", label = L["Enable slot picker"],
               get = function() return ns:IsModuleEnabled("slotpicker") end,
               set = function(_, v) if ns.ToggleModule then ns:ToggleModule("slotpicker", v) end end },
-            { type = "dropdown", label = L["Activation modifier"],
-              tooltip = L["Choose which key combination opens the item picker when you click an equipment slot."],
-              values = {
-                  { value = "right",       text = L["Right-click only"] },
-                  { value = "shift-right", text = L["Shift + Right-click"] },
-                  { value = "alt-right",   text = L["Alt + Right-click"] },
-                  { value = "ctrl-right",  text = L["Ctrl + Right-click"] },
-              },
-              get = function() local sp = ns.modules and ns.modules.slotpicker; return (sp and sp.db and sp.db.modifier) or "right" end,
-              set = function(_, v) local sp = ns.modules and ns.modules.slotpicker; if sp and sp.db then sp.db.modifier = v end end },
-            { type = "slider", label = L["Grid columns"],
-              tooltip = L["How many item icons per row in the picker popup."],
-              min = 4, max = 14, step = 1,
-              get = function() local sp = ns.modules and ns.modules.slotpicker; return (sp and sp.db and sp.db.cols) or 8 end,
-              set = function(_, v) local sp = ns.modules and ns.modules.slotpicker; if sp and sp.db then sp.db.cols = v end end },
+            spItems[1], spItems[2],
         } },
 
         { type = "spacer", height = 6 },

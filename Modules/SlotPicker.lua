@@ -480,7 +480,31 @@ function mod:OnEnable()
     hookSlots()
 end
 
+-- The two options Loadouts embeds on its page as well. Built HERE so adding
+-- one later cannot silently leave the other page stale; getDB returns the
+-- slot-picker db (may be nil from the Loadouts side before first init).
+function ns.SlotPickerOptionItems(getDB)
+    return {
+        { type = "dropdown", label = L["Activation modifier"],
+          tooltip = L["Choose which key combination opens the item picker when you click an equipment slot."],
+          values = {
+              { value = "right",       text = L["Right-click only"] },
+              { value = "shift-right", text = L["Shift + Right-click"] },
+              { value = "alt-right",   text = L["Alt + Right-click"] },
+              { value = "ctrl-right",  text = L["Ctrl + Right-click"] },
+          },
+          get = function() local d = getDB(); return (d and d.modifier) or "right" end,
+          set = function(_, v) local d = getDB(); if d then d.modifier = v end end },
+        { type = "slider", label = L["Grid columns"],
+          tooltip = L["How many item icons per row in the picker popup."],
+          min = 4, max = 14, step = 1,
+          get = function() local d = getDB(); return (d and d.cols) or 8 end,
+          set = function(_, v) local d = getDB(); if d then d.cols = v end end },
+    }
+end
+
 function mod:GetOptions()
+    local spShared = ns.SlotPickerOptionItems(function() return mod.db end)
     return {
         { type = "header", text = L["Slot Picker"] },
         { type = "desc", text = L["Hover an equipment slot in the Character frame for a compact flyout of compatible bag items, or modifier-click for a larger pinnable picker. Click an item to equip it (out-of-combat)."] },
@@ -491,22 +515,7 @@ function mod:GetOptions()
           get = function() return mod.db.hoverFlyout ~= false end,
           set = function(_, v) mod.db.hoverFlyout = v and true or false end },
 
-        { type = "dropdown", label = L["Activation modifier"],
-          tooltip = L["Choose which key combination opens the item picker when you click an equipment slot."],
-          values = {
-              { value = "right",       text = L["Right-click only"] },
-              { value = "shift-right", text = L["Shift + Right-click"] },
-              { value = "alt-right",   text = L["Alt + Right-click"] },
-              { value = "ctrl-right",  text = L["Ctrl + Right-click"] },
-          },
-          get = function() return mod.db.modifier or "right" end,
-          set = function(_, v) mod.db.modifier = v end },
-
-        { type = "slider", label = L["Grid columns"],
-          tooltip = L["How many item icons per row in the picker popup."],
-          min = 4, max = 14, step = 1,
-          get = function() return mod.db.cols or 8 end,
-          set = function(_, v) mod.db.cols = v end },
+        spShared[1], spShared[2],
 
         { type = "toggle", label = L["Close automatically on mouse-out"],
           tooltip = L["The picker closes itself shortly after the mouse leaves it. Drag it once to pin it open until you close it manually."],
