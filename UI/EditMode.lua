@@ -1447,6 +1447,13 @@ ns:RegisterEditModeHook(function(state)
     end
     -- Start each session on a full interval instead of whatever was left over.
     cycleAcc, linkAcc = 0, 0
+    if not state then
+        -- updateCycle was the only thing that ever hid this, and it no longer
+        -- runs once the driver is parked -- the hint would stay on screen at
+        -- DIALOG strata until edit mode was reopened and the cursor moved.
+        if cycleHint then cycleHint:Hide() end
+        altWasDown = false
+    end
 end)
 
 -- Layouts live in ns.db.global so they are shared across profiles; capture/apply lives in Core/Mover.lua.

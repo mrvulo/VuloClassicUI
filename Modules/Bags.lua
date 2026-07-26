@@ -2235,6 +2235,12 @@ local function installHooks()
     hookOpen("OpenBag");       hookClose("CloseBag");       hookTog("ToggleBag")
 end
 
+-- Named so the one-shot in OnDisable can be taken back out by identity, and
+-- declared here so both OnEnable and OnDisable can see it.
+local function restoreBagsWhenSafe()
+    restoreBlizzardBags()
+end
+
 local BAG_EVENTS = {
     "BAG_UPDATE", "BAG_UPDATE_DELAYED", "ITEM_LOCK_CHANGED",
     "BAG_UPDATE_COOLDOWN", "PLAYER_MONEY", "PLAYER_REGEN_ENABLED",
@@ -2349,6 +2355,9 @@ function mod:OnEnable()
     for _, ev in ipairs(BAG_EVENTS) do
         self:RegisterEvent(ev, onEvent)
     end
+    -- Re-enabled before a deferred restore could run: drop it, the module owns
+    -- the bags again and the one-shot would hand them back mid-session.
+    ns:UnregisterEvent("PLAYER_REGEN_ENABLED", restoreBagsWhenSafe)
     preallocate()
     hideBlizzardBags()
     if ns.BankOnEnable then ns.BankOnEnable() end
@@ -2360,6 +2369,13 @@ function mod:OnDisable()
     if ns.SortEngine then ns.SortEngine.Cancel() end
     if bagFrame then bagFrame:Hide() end
     restoreBlizzardBags()
+    -- restoreBlizzardBags refuses to reparent in combat, and the module's own
+    -- events are about to be unregistered -- without this the player would be
+    -- left with NO bags at all until /reload. Registered outside the module's
+    -- ownership on purpose: it has to outlive the module being switched off.
+    if _bagsSuppressed then
+        ns:RegisterEventOnce("PLAYER_REGEN_ENABLED", restoreBagsWhenSafe)
+    end
     if ns.BankOnDisable then ns.BankOnDisable() end
     if ns.GuildBankOnDisable then ns.GuildBankOnDisable() end
 end

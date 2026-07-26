@@ -172,9 +172,14 @@ function UI:CreateMainFrame()
         _lastTotal, _lastOwn, _lastTime = total, own, now
     end
 
+    -- IsEnabled matters, not just the presence of the functions: Blizzard gates
+    -- its own performance UI on it, and with the profiler off every metric
+    -- reads 0 -- the header would sit at "0.00 ms/frame" forever without ever
+    -- erroring, so nothing would trip the fallback.
     local useModern = PROF and METRIC and PROF.GetAddOnMetric
         and PROF.GetApplicationMetric and PROF.GetOverallMetric
         and METRIC.RecentAverageTime ~= nil and METRIC.PeakTime ~= nil
+        and (not PROF.IsEnabled or PROF.IsEnabled())
     local function updateCPU()
         if useModern then
             local ok = pcall(updateCPUModern)

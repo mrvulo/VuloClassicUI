@@ -191,7 +191,8 @@ local function generalOptions()
     -- The client's own always-on profiler needs neither the CVar nor a reload,
     -- so on those clients there is nothing left to switch and the readout is
     -- simply always there. The old switch only appears where it still does work.
-    if _G.C_AddOnProfiler and _G.C_AddOnProfiler.GetAddOnMetric then
+    local prof = _G.C_AddOnProfiler
+    if prof and prof.GetAddOnMetric and (not prof.IsEnabled or prof.IsEnabled()) then
         items[#items + 1] = { type = "desc",
             text = L["|cffaaaaaaThe header shows how much frame time VuloClassicUI costs. Your client measures this on its own, all the time — no setting and no reload needed.|r"] }
     else

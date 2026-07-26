@@ -136,6 +136,43 @@ local function applyPlayerTextPositions()
     end
 end
 
+-- Where the replacement art has to sit, derived from what the CLIENT itself set
+-- up rather than from a hardcoded pair of numbers.
+--
+-- Both sheets are drawn 1:1 (one texel = one screen unit), so the two texture
+-- coordinate rects can be compared directly: the horizontal distance between
+-- the client's own left texel and ours, added to where the client put its own
+-- top-left corner, is where ours belongs. On 2.5.6 this reproduces the values
+-- that were hardcoded here before (-17.5 / -3.5) exactly, and it keeps working
+-- on any client whose player frame is laid out differently -- which is the
+-- assumption that just broke on Era with patch 1.15.9.
+local function styleOffset(s)
+    local c = captured and captured.tex
+    if not (c and c.points and c.points[1] and c.texCoord and #c.texCoord >= 8) then
+        return BASE_X + s.ox, BASE_Y + s.oy   -- nothing captured: the known-good pair
+    end
+    -- capturePoints stores {point, relativeTo, relativePoint, x, y}
+    local p = c.points[1]
+    if p[1] ~= "CENTER" and p[1] ~= "TOPLEFT" then
+        return BASE_X + s.ox, BASE_Y + s.oy
+    end
+    local dx, dy = p[4] or 0, p[5] or 0
+    if p[1] == "CENTER" then
+        -- CENTER of the parent, so its top-left corner is half a frame away
+        local pw = (_G.PlayerFrame and _G.PlayerFrame:GetWidth())  or 232
+        local ph = (_G.PlayerFrame and _G.PlayerFrame:GetHeight()) or 100
+        dx = pw / 2 + dx - (c.width  or 0) / 2
+        dy = -ph / 2 + dy + (c.height or 0) / 2
+    end
+    -- GetTexCoord returns the four CORNERS (ULx,ULy, LLx,LLy, URx,URy, LRx,LRy),
+    -- not a left/right/top/bottom tuple: upper-left x is 1, upper-right x is 5.
+    local l0, r0, t0 = c.texCoord[1], c.texCoord[5], c.texCoord[2]
+    -- both sheets are 256 x 128; max() picks the left edge regardless of mirroring
+    local ox = dx + (math.max(l0, r0) - math.max(s.l, s.r)) * 256
+    local oy = dy + (t0 - s.t) * 128
+    return ox, oy
+end
+
 local function applyPlayerStyle()
     if not capturePlayerDefaults() then return end
     local s = STYLES[mod.db.playerStyle]
@@ -146,8 +183,9 @@ local function applyPlayerStyle()
 
     local tex = _G.PlayerFrameTexture
     if not tex then return end
+    local ox, oy = styleOffset(s)
     tex:ClearAllPoints()
-    tex:SetPoint("TOPLEFT", _G.PlayerFrame, "TOPLEFT", BASE_X + s.ox, BASE_Y + s.oy)
+    tex:SetPoint("TOPLEFT", _G.PlayerFrame, "TOPLEFT", ox, oy)
     tex:SetTexture(s.file)
     tex:SetTexCoord(s.l, s.r, s.t, s.b)
     tex:SetSize(s.w, s.h)
