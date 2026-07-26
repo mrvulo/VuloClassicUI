@@ -29,8 +29,7 @@
 - **NEW:** Items that start a quest you have not accepted yet are marked with a yellow exclamation mark, in bags, bank and keyring.
 
 **Performance:**
-- Seven of the eight shipped translations no longer build their lookup table at all. Only the language you actually read is assembled.
-- A dozen modules shared their update clock instead of each running its own. While nothing needs updating, there is no per-frame work left at all.
+- Seven of the eight shipped translations no longer build their lookup table at all. Only the language you actually read is assembled, which frees about a megabyte on every login.
 - Edit Mode: three background drivers no longer run permanently, dragging a window allocates far less, and finding a window is a direct lookup instead of a search.
 - Disabling a module now detaches it completely — several used to leave listeners running for the rest of the session.
 

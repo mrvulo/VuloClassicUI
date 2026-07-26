@@ -2506,6 +2506,21 @@ local function T() return {
     ["|cffff5555This page could not be built. /reload, and report it if it persists.|r"] = "|cffff5555No se pudo construir esta página. Usa /reload e infórmalo si persiste.|r",
     ["|cff888888%.2f ms/frame |cff666666(%.1f%% of ours, peak %.1f ms)|r|r"] = "|cff888888%.2f ms/fotograma |cff666666(%.1f%% nuestro, pico %.1f ms)|r|r",
     ["|cffaaaaaaThe header shows how much frame time VuloClassicUI costs. Your client measures this on its own, all the time — no setting and no reload needed.|r"] = "|cffaaaaaaLa cabecera muestra cuánto tiempo de fotograma cuesta VuloClassicUI. Tu cliente lo mide por su cuenta, todo el tiempo, sin ajustes ni recargas.|r",
+    -- Patch notes 1.37.2
+    ["Classic Era, Hardcore and Season of Discovery"] = "Classic Era, Hardcore y Season of Discovery",
+    ["Under the hood"] = "Bajo el capó",
+    ["The addon loads again without ticking \"Load out of date AddOns\". Blizzard's July interface update moved these realms to a new version number."] = "El addon vuelve a cargarse sin marcar «Cargar AddOns obsoletos». La actualización de interfaz de Blizzard de julio pasó estos reinos a un número de versión nuevo.",
+    ["Fixed a crash that switched the whole Class Trainer page off on Season of Discovery: one ability the realm does not know took the entire module down with it."] = "Corregido un fallo que desactivaba toda la página del Entrenador de clase en Season of Discovery: una sola habilidad que el reino desconoce se llevaba por delante el módulo entero.",
+    ["The elite border on your player frame sits correctly again. It was placed against the old frame layout, which that same update replaced."] = "El borde de élite del marco de jugador vuelve a estar en su sitio. Estaba colocado según la disposición antigua del marco, que esa misma actualización sustituyó.",
+    ["Fixed a rare error storm at the end of a fight. Cleanup work in nineteen files could be skipped and the chat filled with error lines."] = "Corregida una rara avalancha de errores al terminar un combate. El trabajo de limpieza de diecinueve archivos podía omitirse y el chat se llenaba de líneas de error.",
+    ["Combat log features (swing timer, cooldown pulse, combat text, arena tracker, nameplates, mana display) no longer depend on a setting a player can switch off."] = "Las funciones del registro de combate (temporizador de golpe, pulso de reutilización, textos de combate, rastreador de arena, placas de nombre, indicador de maná) ya no dependen de un ajuste que se puede desactivar.",
+    ["An interrupted enemy cast now really shows INTERRUPTED for a moment."] = "Un hechizo enemigo interrumpido muestra ahora la interrupción durante un instante de verdad.",
+    ["Items that start a quest you have not accepted yet are marked with a yellow exclamation mark, in bags, bank and keyring."] = "Los objetos que inician una misión que aún no has aceptado se marcan con un signo de exclamación amarillo, en bolsas, banco y llavero.",
+    ["Seven of the eight shipped translations no longer build their lookup table at all. Only the language you actually read is assembled, which frees about a megabyte on every login."] = "Siete de las ocho traducciones incluidas ya no construyen su tabla de consulta. Solo se ensambla el idioma que realmente lees, lo que libera cerca de un megabyte en cada inicio de sesión.",
+    ["Edit Mode: three background drivers no longer run permanently, dragging a window allocates far less, and finding a window is a direct lookup instead of a search."] = "Modo de edición: tres controladores en segundo plano ya no se ejecutan de forma permanente, arrastrar una ventana genera mucho menos desperdicio y encontrar una ventana es una consulta directa en lugar de una búsqueda.",
+    ["Disabling a module now detaches it completely — several used to leave listeners running for the rest of the session."] = "Desactivar un módulo ahora lo desconecta por completo: varios dejaban oyentes activos durante el resto de la sesión.",
+    ["The performance readout in the header uses your client's own always-on measurement, so it needs no setting and no reload."] = "El indicador de rendimiento de la cabecera usa la medición siempre activa de tu cliente, así que no necesita ajustes ni recargar.",
+    -- Patch notes 1.37.2
 } end
 
 ns:RegisterLocale("esES", T)

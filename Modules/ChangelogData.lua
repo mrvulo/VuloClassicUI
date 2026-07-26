@@ -6,6 +6,27 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+    { version = "1.37.2", sections = {
+        { category = "Classic Era, Hardcore and Season of Discovery", lines = {
+            "The addon loads again without ticking \"Load out of date AddOns\". Blizzard's July interface update moved these realms to a new version number.",
+            "Fixed a crash that switched the whole Class Trainer page off on Season of Discovery: one ability the realm does not know took the entire module down with it.",
+            "The elite border on your player frame sits correctly again. It was placed against the old frame layout, which that same update replaced.",
+        } },
+        { category = "Fixes", lines = {
+            "Fixed a rare error storm at the end of a fight. Cleanup work in nineteen files could be skipped and the chat filled with error lines.",
+            "Combat log features (swing timer, cooldown pulse, combat text, arena tracker, nameplates, mana display) no longer depend on a setting a player can switch off.",
+            "An interrupted enemy cast now really shows INTERRUPTED for a moment.",
+            "NEW: Items that start a quest you have not accepted yet are marked with a yellow exclamation mark, in bags, bank and keyring.",
+        } },
+        { category = "Performance", lines = {
+            "Seven of the eight shipped translations no longer build their lookup table at all. Only the language you actually read is assembled, which frees about a megabyte on every login.",
+            "Edit Mode: three background drivers no longer run permanently, dragging a window allocates far less, and finding a window is a direct lookup instead of a search.",
+            "Disabling a module now detaches it completely — several used to leave listeners running for the rest of the session.",
+        } },
+        { category = "Under the hood", lines = {
+            "The performance readout in the header uses your client's own always-on measurement, so it needs no setting and no reload.",
+        } },
+    } },
     { version = "1.37.1", sections = {
         { category = "Languages", lines = {
             "The language option under General now actually applies. It silently never took effect — the addon read the client language before your saved choice was loaded. After a /reload every label, dropdown and popup follows your choice.",
@@ -300,12 +321,6 @@ ns.CHANGELOG = {
     { version = "1.20.0", sections = {
         { category = "NEW — Chat", lines = {
             "A reworked chat: timestamps, class-colored names, clickable links, short channel names, a dark panel with an icon sidebar, idle fade and history that survives a reload. Every part is optional.",
-        } },
-    } },
-    { version = "1.19.0", sections = {
-        { category = "Edit Mode", lines = {
-            "NEW: Per-frame free-move and an anchor toggle, with panel polish.",
-            "Dark border on the action bars; fixed a compat-frame taint issue.",
         } },
     } },
 }

@@ -2505,4 +2505,19 @@ ns:RegisterLocale("koKR", function() return {
     ["|cffff5555This page could not be built. /reload, and report it if it persists.|r"] = "|cffff5555이 페이지를 구성하지 못했습니다. /reload 후에도 계속되면 알려 주세요.|r",
     ["|cff888888%.2f ms/frame |cff666666(%.1f%% of ours, peak %.1f ms)|r|r"] = "|cff888888%.2f ms/프레임 |cff666666(우리 %.1f%%, 최고 %.1f ms)|r|r",
     ["|cffaaaaaaThe header shows how much frame time VuloClassicUI costs. Your client measures this on its own, all the time — no setting and no reload needed.|r"] = "|cffaaaaaa헤더에 VuloClassicUI가 프레임 시간을 얼마나 쓰는지 표시됩니다. 클라이언트가 스스로 항상 측정하므로 설정도 다시 불러오기도 필요 없습니다.|r",
+    -- Patch notes 1.37.2
+    ["Classic Era, Hardcore and Season of Discovery"] = "클래식 에라, 하드코어, 발견의 계절",
+    ["Under the hood"] = "내부 변경",
+    ["The addon loads again without ticking \"Load out of date AddOns\". Blizzard's July interface update moved these realms to a new version number."] = "'철 지난 애드온 불러오기'를 체크하지 않아도 애드온이 다시 불러와집니다. 7월 블리자드 인터페이스 업데이트로 해당 서버들의 버전 번호가 바뀌었습니다.",
+    ["Fixed a crash that switched the whole Class Trainer page off on Season of Discovery: one ability the realm does not know took the entire module down with it."] = "발견의 계절에서 직업 교관 페이지 전체를 꺼뜨리던 오류를 고쳤습니다. 서버가 모르는 주문 하나가 모듈 전체를 끌어내렸습니다.",
+    ["The elite border on your player frame sits correctly again. It was placed against the old frame layout, which that same update replaced."] = "플레이어 창의 정예 테두리가 다시 제자리에 놓입니다. 같은 업데이트가 교체한 예전 창 배치에 맞춰져 있었습니다.",
+    ["Fixed a rare error storm at the end of a fight. Cleanup work in nineteen files could be skipped and the chat filled with error lines."] = "전투가 끝날 때 드물게 쏟아지던 오류를 고쳤습니다. 열아홉 개 파일의 정리 작업이 건너뛰어지고 대화창이 오류 줄로 가득 찰 수 있었습니다.",
+    ["Combat log features (swing timer, cooldown pulse, combat text, arena tracker, nameplates, mana display) no longer depend on a setting a player can switch off."] = "전투 기록 기반 기능(공격 타이머, 재사용 대기 표시, 전투 문자, 투기장 추적, 이름표, 마나 표시)이 더 이상 끌 수 있는 설정에 의존하지 않습니다.",
+    ["An interrupted enemy cast now really shows INTERRUPTED for a moment."] = "차단된 적의 주문이 이제 실제로 잠시 차단 표시를 보여 줍니다.",
+    ["Items that start a quest you have not accepted yet are marked with a yellow exclamation mark, in bags, bank and keyring."] = "아직 수락하지 않은 퀘스트를 시작하는 아이템에 노란 느낌표가 표시됩니다. 가방, 은행, 열쇠 꾸러미에서 모두 적용됩니다.",
+    ["Seven of the eight shipped translations no longer build their lookup table at all. Only the language you actually read is assembled, which frees about a megabyte on every login."] = "함께 제공되는 여덟 개 번역 중 일곱 개는 이제 조회 표를 아예 만들지 않습니다. 실제로 읽는 언어만 구성되어 접속할 때마다 약 1메가바이트를 아낍니다.",
+    ["Edit Mode: three background drivers no longer run permanently, dragging a window allocates far less, and finding a window is a direct lookup instead of a search."] = "편집 모드: 세 개의 배경 구동기가 더 이상 상시 실행되지 않고, 창을 끌 때 생기는 찌꺼기가 크게 줄었으며, 창 찾기가 검색 대신 직접 조회가 되었습니다.",
+    ["Disabling a module now detaches it completely — several used to leave listeners running for the rest of the session."] = "모듈을 끄면 이제 완전히 분리됩니다. 일부는 남은 세션 내내 수신기를 계속 돌리고 있었습니다.",
+    ["The performance readout in the header uses your client's own always-on measurement, so it needs no setting and no reload."] = "헤더의 성능 표시는 클라이언트가 항상 수행하는 측정을 사용하므로 설정도 다시 불러오기도 필요 없습니다.",
+    -- Patch notes 1.37.2
 } end)
