@@ -2,7 +2,7 @@
 -- Keys are the English strings; anything missing falls back to English.
 local _, ns = ...
 
-local T = {
+ns:RegisterLocale("ruRU", function() return {
     ["Spam Filter"] = "Фильтр спама",
     ["Hide (and optionally ignore) chat spammers whose names spell 'casino' & co. with look-alike letters."] = "Скрывает (и при желании добавляет в игнор) спамеров в чате, чьи имена пишут «casino» и подобное похожими буквами.",
     ["|cffaaaaaaHides chat from gold/casino spammers whose names use look-alike letters (e.g. Gãsïnô, Casinòbâbe). The name is folded to plain letters, then matched against the keywords below. Applies to whisper, channels, say, yell and emotes — not guild/party/raid.|r"] = "|cffaaaaaaСкрывает сообщения спамеров золота и казино, чьи имена состоят из похожих букв (например, Gãsïnô, Casinòbâbe). Имя приводится к обычным буквам, а затем сверяется с ключевыми словами ниже. Действует для шепота, каналов, реплик, крика и эмоций — но не для гильдии, группы и рейда.|r",
@@ -2505,6 +2505,4 @@ local T = {
     ["|cffff5555This page could not be built. /reload, and report it if it persists.|r"] = "|cffff5555Не удалось построить эту страницу. Выполните /reload и сообщите, если это повторится.|r",
     ["|cff888888%.2f ms/frame |cff666666(%.1f%% of ours, peak %.1f ms)|r|r"] = "|cff888888%.2f мс/кадр |cff666666(%.1f%% наши, пик %.1f мс)|r|r",
     ["|cffaaaaaaThe header shows how much frame time VuloClassicUI costs. Your client measures this on its own, all the time — no setting and no reload needed.|r"] = "|cffaaaaaaВ заголовке показано, сколько кадрового времени тратит VuloClassicUI. Клиент измеряет это сам и постоянно — без настроек и перезагрузки.|r",
-}
-
-ns:RegisterLocale("ruRU", T)
+} end)

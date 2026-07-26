@@ -1,6 +1,6 @@
 local _, ns = ...
 
-ns:RegisterLocale("deDE", {
+ns:RegisterLocale("deDE", function() return {
     -- Spam Filter
     ["Spam Filter"] = "Spam-Filter",
     ["Hide (and optionally ignore) chat spammers whose names spell 'casino' & co. with look-alike letters."] = "Blendet Chat-Spammer aus (optional auch ignorieren), deren Namen 'casino' & Co. mit ähnlich aussehenden Buchstaben schreiben.",
@@ -2646,4 +2646,4 @@ ns:RegisterLocale("deDE", {
     ["|cffff5555This page could not be built. /reload, and report it if it persists.|r"] = "|cffff5555Diese Seite konnte nicht aufgebaut werden. /reload, und melde es bitte, falls es bleibt.|r",
     ["|cff888888%.2f ms/frame |cff666666(%.1f%% of ours, peak %.1f ms)|r|r"] = "|cff888888%.2f ms/Bild |cff666666(%.1f%% davon unsere, Spitze %.1f ms)|r|r",
     ["|cffaaaaaaThe header shows how much frame time VuloClassicUI costs. Your client measures this on its own, all the time — no setting and no reload needed.|r"] = "|cffaaaaaaDie Kopfzeile zeigt, wie viel Bildzeit VuloClassicUI kostet. Dein Client misst das von selbst, dauerhaft — ohne Einstellung und ohne Neuladen.|r",
-})
+} end)

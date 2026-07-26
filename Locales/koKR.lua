@@ -2,7 +2,7 @@
 -- Keys are the English strings; anything missing falls back to English.
 local _, ns = ...
 
-local T = {
+ns:RegisterLocale("koKR", function() return {
     ["Spam Filter"] = "스팸 필터",
     ["Hide (and optionally ignore) chat spammers whose names spell 'casino' & co. with look-alike letters."] = "이름을 비슷한 모양의 글자로 ‘casino’ 등으로 쓰는 대화 스패머를 숨기고, 원하면 무시 목록에도 추가합니다.",
     ["|cffaaaaaaHides chat from gold/casino spammers whose names use look-alike letters (e.g. Gãsïnô, Casinòbâbe). The name is folded to plain letters, then matched against the keywords below. Applies to whisper, channels, say, yell and emotes — not guild/party/raid.|r"] = "|cffaaaaaa비슷한 모양의 글자를 쓰는 골드/카지노 스패머(예: Gãsïnô, Casinòbâbe)의 대화를 숨깁니다. 이름을 일반 글자로 바꾼 뒤 아래 키워드와 대조합니다. 귓속말, 채널, 일반 대화, 외침, 감정 표현에 적용되며 길드/파티/공격대에는 적용되지 않습니다.|r",
@@ -2505,6 +2505,4 @@ local T = {
     ["|cffff5555This page could not be built. /reload, and report it if it persists.|r"] = "|cffff5555이 페이지를 구성하지 못했습니다. /reload 후에도 계속되면 알려 주세요.|r",
     ["|cff888888%.2f ms/frame |cff666666(%.1f%% of ours, peak %.1f ms)|r|r"] = "|cff888888%.2f ms/프레임 |cff666666(우리 %.1f%%, 최고 %.1f ms)|r|r",
     ["|cffaaaaaaThe header shows how much frame time VuloClassicUI costs. Your client measures this on its own, all the time — no setting and no reload needed.|r"] = "|cffaaaaaa헤더에 VuloClassicUI가 프레임 시간을 얼마나 쓰는지 표시됩니다. 클라이언트가 스스로 항상 측정하므로 설정도 다시 불러오기도 필요 없습니다.|r",
-}
-
-ns:RegisterLocale("koKR", T)
+} end)

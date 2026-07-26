@@ -2,7 +2,7 @@
 -- Keys are the English strings; anything missing falls back to English.
 local _, ns = ...
 
-local T = {
+ns:RegisterLocale("frFR", function() return {
     -- Filtre anti-spam
     ["Spam Filter"] = "Filtre anti-spam",
     ["Hide their chat messages"] = "Masquer leurs messages",
@@ -2654,6 +2654,4 @@ local T = {
     ["|cffff5555This page could not be built. /reload, and report it if it persists.|r"] = "|cffff5555Cette page n'a pas pu être construite. Faites /reload et signalez-le si cela persiste.|r",
     ["|cff888888%.2f ms/frame |cff666666(%.1f%% of ours, peak %.1f ms)|r|r"] = "|cff888888%.2f ms/image |cff666666(%.1f%% pour nous, pic %.1f ms)|r|r",
     ["|cffaaaaaaThe header shows how much frame time VuloClassicUI costs. Your client measures this on its own, all the time — no setting and no reload needed.|r"] = "|cffaaaaaaL'en-tête indique le temps d'image que coûte VuloClassicUI. Votre client le mesure lui-même, en permanence, sans réglage ni rechargement.|r",
-}
-
-ns:RegisterLocale("frFR", T)
+} end)

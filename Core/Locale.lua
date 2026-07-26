@@ -35,6 +35,9 @@ end
 
 function ns:RefreshLocale()
     _cachedLocale = nil
+    -- Drop memoised lookups too, or a language change would keep serving the
+    -- strings resolved under the previous one.
+    if ns.L then wipe(ns.L) end
 end
 
 -- File-scope code must never evaluate L[...]: the saved language override only
@@ -61,18 +64,65 @@ function ns:RunLocaleReadyCallbacks()
     end
 end
 
+-- Eight languages ship, exactly one is ever read. Handing RegisterLocale a
+-- BUILDER instead of a finished table means the other seven never build their
+-- ~2500-entry hash table at all -- the builder is simply never called. The
+-- table form still works and is applied immediately, so nothing outside this
+-- file has to care which shape a locale file uses.
+local builders = {}
+
+local function materialize(code)
+    local data = ns.localeData[code]
+    if data then return data end
+    data = {}
+    ns.localeData[code] = data          -- set first: a builder must not recurse
+    local list = builders[code]
+    if list then
+        for i = 1, #list do
+            local ok, tbl = pcall(list[i])
+            if ok and type(tbl) == "table" then
+                for k, v in pairs(tbl) do data[k] = v end
+            end
+        end
+    end
+    return data
+end
+
+-- Resolved lookups are written back into the table itself, so a repeated L[k]
+-- is a plain hash hit instead of a metamethod call plus two lookups. Safe
+-- because nothing in the addon iterates ns.L (pairs would only see the resolved
+-- subset), and RefreshLocale wipes it when the language changes.
 ns.L = setmetatable({}, {
-    __index = function(_, key)
-        local data = ns.localeData[resolveLocale()]
-        if data and data[key] then return data[key] end
-        return key
+    __index = function(t, key)
+        local v = materialize(resolveLocale())[key] or key
+        rawset(t, key, v)
+        return v
     end,
 })
 
-function ns:RegisterLocale(code, tbl)
-    if type(code) ~= "string" or type(tbl) ~= "table" then return end
+function ns:RegisterLocale(code, tblOrBuilder)
+    if type(code) ~= "string" then return end
+    local kind = type(tblOrBuilder)
+
+    if kind == "function" then
+        local list = builders[code]
+        if not list then list = {}; builders[code] = list end
+        list[#list + 1] = tblOrBuilder
+        -- Registered after this language was already read: apply straight away,
+        -- otherwise the late entries would never appear.
+        local data = ns.localeData[code]
+        if data then
+            local ok, tbl = pcall(tblOrBuilder)
+            if ok and type(tbl) == "table" then
+                for k, v in pairs(tbl) do data[k] = v end
+            end
+        end
+        return
+    end
+
+    if kind ~= "table" then return end
     ns.localeData[code] = ns.localeData[code] or {}
-    for k, v in pairs(tbl) do
+    for k, v in pairs(tblOrBuilder) do
         ns.localeData[code][k] = v
     end
 end
