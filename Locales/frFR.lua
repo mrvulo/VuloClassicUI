@@ -828,17 +828,18 @@ local T = {
     ["|cffffd200[QoL]|r Blocked trade from %s (not guild/friend)."] = "|cffffd200[Confort]|r Échange de %s bloqué (ni guilde ni ami).",
 
     -- Entraînement
-    ["Lists the abilities you can still learn from your class trainer, grouped by level. Open your trainer once to fill / refresh the list."] = "Liste les capacités que vous pouvez encore apprendre auprès de votre maître de classe, groupées par niveau. Ouvrez votre maître une fois pour remplir ou actualiser la liste.",
-    ["|cffaaaaaaAbilities you can still learn from your class trainer. Open your trainer once to fill or refresh this list.|r"] = "|cffaaaaaaCapacités que vous pouvez encore apprendre auprès de votre maître de classe. Ouvrez votre maître une fois pour remplir ou actualiser cette liste.|r",
-    ["|cffffd200No data yet — open your class trainer once.|r"] = "|cffffd200Aucune donnée pour l'instant — ouvrez votre maître de classe une fois.|r",
+    ["Adds a tab to your spell book that lists the abilities you can still learn from your class trainer, grouped by level. Open the book icon below the spell schools."] = "Ajoute à votre grimoire un onglet listant les capacités que vous pouvez encore apprendre auprès de votre maître de classe, groupées par niveau. Ouvrez l'icône de livre sous les écoles de magie.",
+    ["|cffaaaaaaAdds a tab to your spell book (the book icon on the side, below the spell schools) listing every ability you can still learn from your class trainer — grouped by status and coloured by level. No need to visit a trainer.|r"] = "|cffaaaaaaAjoute à votre grimoire un onglet (l'icône de livre sur le côté, sous les écoles de magie) listant toutes les capacités que vous pouvez encore apprendre auprès de votre maître de classe — groupées par état et colorées par niveau. Aucune visite chez le maître nécessaire.|r",
     ["Available now"] = "Disponible maintenant",
+    ["Available but Missing Requirements"] = "Disponibles, mais prérequis manquants",
     ["Upcoming"] = "À venir",
-    ["|cff9b6cffLevel %d|r"] = "|cff9b6cffNiveau %d|r",
+    ["Not Yet Available"] = "Pas encore disponibles",
+    ["Missing Required Talents"] = "Talents requis manquants",
+    ["Already Known"] = "Déjà apprises",
     ["Level %d"] = "Niveau %d",
-    ["Adds a tab to your spell book listing the abilities you can still learn from your class trainer (grouped by level). Open your trainer once to fill / refresh the list."] = "Ajoute à votre grimoire un onglet listant les capacités que vous pouvez encore apprendre auprès de votre maître de classe (groupées par niveau). Ouvrez votre maître une fois pour remplir ou actualiser la liste.",
-    ["|cffffd200Open your class trainer once to fill this list.|r"] = "|cffffd200Ouvrez votre maître de classe une fois pour remplir cette liste.|r",
-    ["|cffaaaaaaAdds a tab to your spell book (the book icon on the side, below the spell schools) that lists the abilities you can still learn from your class trainer, grouped by level.|r"] = "|cffaaaaaaAjoute à votre grimoire un onglet (l'icône de livre sur le côté, sous les écoles de magie) qui liste les capacités que vous pouvez encore apprendre auprès de votre maître de classe, groupées par niveau.|r",
-    ["|cffaaaaaaOpen your class trainer once to fill or refresh the list.|r"] = "|cffaaaaaaOuvrez votre maître de classe une fois pour remplir ou actualiser la liste.|r",
+    ["Cost: %s"] = "Coût : %s",
+    ["What can I train?"] = "Que puis-je apprendre ?",
+    ["No results found"] = "Aucun résultat trouvé",
 
     -- Barre de ressource : déplacement
     ["|cffffffffPOWER BAR|r\n|cffaaaaaaDrag or arrow keys|r"] = "|cffffffffBARRE DE RESSOURCE|r\n|cffaaaaaaGlisser ou touches fléchées|r",

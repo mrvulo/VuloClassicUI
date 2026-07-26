@@ -11,38 +11,7 @@ local mod = ns:RegisterModule("vultraining", {
 local format, strlower, strfind, sort = string.format, string.lower, string.find, table.sort
 local tinsert, wipe, ipairs, pairs = table.insert, wipe, ipairs, pairs
 
-local L = {
-    AVAILABLE     = "Available Now",
-    MISSINGREQS   = "Available but Missing Requirements",
-    NEXTLEVEL     = "Coming Soon",
-    NOTLEVEL      = "Not Yet Available",
-    MISSINGTALENT = "Missing Required Talents",
-    KNOWN         = "Already Known",
-    LEVEL_FORMAT  = "Level %s",
-    COST_FORMAT   = "Cost: %s",
-    TAB_TEXT      = "What can I train?",
-    NO_RESULTS    = "No results found",
-    OPTION_DESC   = "|cffaaaaaaAdds a tab to your spell book (the book icon on the side, below the spell schools) listing every ability you can still learn from your class trainer — grouped by status and coloured by level. No need to visit a trainer.|r",
-}
-local locOverrides = {
-    deDE = {
-        AVAILABLE     = "Jetzt verfügbar",
-        MISSINGREQS   = "Verfügbar, aber fehlende Anforderungen",
-        NEXTLEVEL     = "Demnächst",
-        NOTLEVEL      = "Noch nicht verfügbar",
-        MISSINGTALENT = "Fehlende Talente",
-        KNOWN         = "Bereits bekannt",
-        LEVEL_FORMAT  = "Level %s",
-        COST_FORMAT   = "Kosten: %s",
-        TAB_TEXT      = "Was kann ich lernen?",
-        NO_RESULTS    = "Keine Ergebnisse gefunden",
-        OPTION_DESC   = "|cffaaaaaaFügt deinem Zauberbuch einen Tab hinzu (das Buch-Symbol an der Seite, unter den Zauberschulen), der alle noch beim Klassenlehrer lernbaren Fähigkeiten auflistet — nach Status gruppiert und nach Stufe gefärbt. Kein Lehrerbesuch nötig.|r",
-    },
-}
-do
-    local o = locOverrides[GetLocale()]
-    if o then for k, v in pairs(o) do L[k] = v end end
-end
+local L = ns.L
 
 local MAX_ROWS, ROW_HEIGHT = 22, 14
 local SKILL_LINE_TAB = (MAX_SKILLLINE_TABS or 8) - 1
@@ -71,7 +40,7 @@ local function cacheSpell(spell, level, done)
         spellInfoCache[id] = {
             id = id, name = name, subText = subText, formattedSubText = fSub,
             icon = select(3, GetSpellInfo(id)), cost = spell.cost, level = level,
-            formattedLevel = format(L.LEVEL_FORMAT, level), formattedFullName = fullName,
+            formattedLevel = format(L["Level %d"], level), formattedFullName = fullName,
             searchText = strlower(fullName), tooltipId = id,
             link = format("|cff71d5ff|Hspell:%d:0|h[%s]|h|r", id, name),
         }
@@ -103,19 +72,25 @@ local function isAbilityKnown(spellId)
 end
 
 local categories = {
-    { key = "available",     name = L.AVAILABLE,     color = GREEN_FONT_COLOR_CODE,  hideLevel = true },
-    { key = "missingReqs",   name = L.MISSINGREQS,   color = ORANGE_FONT_COLOR_CODE, hideLevel = true },
-    { key = "nextLevel",     name = L.NEXTLEVEL,     color = COMINGSOON },
-    { key = "notLevel",      name = L.NOTLEVEL,      color = RED_FONT_COLOR_CODE },
-    { key = "missingTalent", name = L.MISSINGTALENT, color = "|cffffffff", nameSort = true },
-    { key = "known",         name = L.KNOWN,         color = GRAY_FONT_COLOR_CODE, hideLevel = true, nameSort = true },
+    { key = "available",     text = "Available now",                      color = GREEN_FONT_COLOR_CODE,  hideLevel = true },
+    { key = "missingReqs",   text = "Available but Missing Requirements", color = ORANGE_FONT_COLOR_CODE, hideLevel = true },
+    { key = "nextLevel",     text = "Upcoming",                           color = COMINGSOON },
+    { key = "notLevel",      text = "Not Yet Available",                  color = RED_FONT_COLOR_CODE },
+    { key = "missingTalent", text = "Missing Required Talents",           color = "|cffffffff", nameSort = true },
+    { key = "known",         text = "Already Known",                      color = GRAY_FONT_COLOR_CODE, hideLevel = true, nameSort = true },
 }
 local categoryByKey = {}
 for _, cat in ipairs(categories) do
     cat.spells = {}
     cat.isHeader = true
-    cat.formattedName = (cat.color or "") .. cat.name .. CLOSE
     categoryByKey[cat.key] = cat
+end
+-- Resolved in OnEnable, not at file load: the saved language override only
+-- exists once SavedVariables are in.
+local function localizeCategories()
+    for _, cat in ipairs(categories) do
+        cat.formattedName = (cat.color or "") .. L[cat.text] .. CLOSE
+    end
 end
 
 local function byLevelThenName(a, b)
@@ -197,7 +172,7 @@ local function applyFilter()
         end
     end
     if #mod._data == 0 and mod._filter ~= "" then
-        tinsert(mod._data, { isHeader = true, formattedName = L.NO_RESULTS })
+        tinsert(mod._data, { isHeader = true, formattedName = L["No results found"] })
     end
 end
 
@@ -307,7 +282,7 @@ local function createFrame()
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
             if s.tooltipId then GameTooltip:SetSpellByID(s.tooltipId) end
             if s.cost and s.cost > 0 then
-                GameTooltip:AddLine(format(L.COST_FORMAT, GetCoinTextureString(s.cost)))
+                GameTooltip:AddLine(format(L["Cost: %s"], GetCoinTextureString(s.cost)))
             end
             GameTooltip:Show()
         end)
@@ -379,7 +354,7 @@ local function createFrame()
             return
         end
         tab:SetNormalTexture(TAB_ICON)
-        tab.tooltip = L.TAB_TEXT
+        tab.tooltip = L["What can I train?"]
         tab:Show()
         if SpellBookFrame.selectedSkillLine == SKILL_LINE_TAB then
             tab:SetChecked(true)
@@ -422,6 +397,7 @@ local function onLevelOrLearn()
 end
 
 function mod:OnEnable()
+    localizeCategories()
     if not mod._built then
         createFrame()
         cacheAllSpells()
@@ -446,6 +422,6 @@ end
 
 function mod:GetOptions()
     return {
-        { type = "desc", text = L.OPTION_DESC },
+        { type = "desc", text = L["|cffaaaaaaAdds a tab to your spell book (the book icon on the side, below the spell schools) listing every ability you can still learn from your class trainer — grouped by status and coloured by level. No need to visit a trainer.|r"] },
     }
 end
