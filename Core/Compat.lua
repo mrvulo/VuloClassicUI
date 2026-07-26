@@ -30,6 +30,26 @@ end
 -- Blizzard Deprecated_* wrapper gated by the loadDeprecationFallbacks CVar; legacy tuple
 -- shapes mirror those wrappers. Test with: /console loadDeprecationFallbacks 0 + /reload.
 
+-- combat log: the classic globals are ONLY Deprecated_* aliases of C_CombatLog now,
+-- so a player who turns the CVar off loses the swing timer, cooldown pulse, combat
+-- text, arena tracker, nameplate and mana modules at once with "attempt to call a
+-- nil value" -- every one of them calls this on the combat-log event. Blizzard's own
+-- combat log already calls C_CombatLog.GetCurrentEventInfo directly.
+local ccl = _G.C_CombatLog
+if ccl then
+    CombatLogGetCurrentEventInfo = CombatLogGetCurrentEventInfo or ccl.GetCurrentEventInfo
+end
+-- The unit flags travel with the same wrapper. These fail SOFTLY (the callers mask
+-- with `or 0`, so a nil constant silently matches nothing) -- which is worse than a
+-- crash, because pet ability tracking would just quietly stop working.
+local ecl = _G.Enum and _G.Enum.CombatLogObject
+if ecl then
+    COMBATLOG_OBJECT_AFFILIATION_MINE = COMBATLOG_OBJECT_AFFILIATION_MINE or ecl.AffiliationMine
+    COMBATLOG_OBJECT_TYPE_PLAYER      = COMBATLOG_OBJECT_TYPE_PLAYER      or ecl.TypePlayer
+    COMBATLOG_OBJECT_TYPE_PET         = COMBATLOG_OBJECT_TYPE_PET         or ecl.TypePet
+    COMBATLOG_OBJECT_CONTROL_PLAYER   = COMBATLOG_OBJECT_CONTROL_PLAYER   or ecl.ControlPlayer
+end
+
 -- addon management: removed on 2.5.5, wrapper-only on 1.15.x
 local ca = _G.C_AddOns
 if ca then
