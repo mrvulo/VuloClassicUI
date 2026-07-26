@@ -5,8 +5,15 @@ local _, ns = ...
 local L = ns.L
 
 local LSM = LibStub and LibStub:GetLibrary("LibSharedMedia-3.0", true)
-if not LSM and ns.Print then
-    ns:Print(L["|cffff5555LibSharedMedia-3.0 not found, Media Registry will be skipped.|r"])
+if not LSM then
+    -- Deferred: at file-load time the saved language choice does not exist yet,
+    -- so resolving the text here would print it in the client language AND
+    -- poison the locale cache for everything after it.
+    ns.OnLocaleReady(function()
+        if ns.Print then
+            ns:Print(L["|cffff5555LibSharedMedia-3.0 not found, Media Registry will be skipped.|r"])
+        end
+    end)
 end
 
 local BASE = "Interface\\Addons\\VuloClassicUI\\Media\\"

@@ -366,5 +366,114 @@ for (const [f, ast] of asts) {
 if (ohits === 0) console.log('clean');
 else console.log('(delete the default, or wire up the reader it was meant to have)');
 
+// ---- 8: L[...] evaluated at file scope ---------------------------------------
+// The saved language choice only exists from ADDON_LOADED. Anything that looks a
+// key up while the file is still loading bakes in the CLIENT language and, worse,
+// fills the locale cache before the override is known - which is exactly how the
+// language option silently did nothing for several releases. Lookups inside any
+// function body are fine (they run later), so this walker refuses to descend into
+// them: OnEnable, GetOptions and ns.OnLocaleReady(function() ... end) are exempt
+// automatically, by construction rather than by a list.
+console.log('\n== L[...] resolved at file load ==');
+const FILESCOPE_EXEMPT = new Set([path.join('Core', 'Locale.lua')]);
+const LOCALE_TABLES = new Set(['L', 'VL']);
+
+function eachTopLevelNode(node, cb) {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) { for (const n of node) eachTopLevelNode(n, cb); return; }
+    if (node.type === 'FunctionDeclaration') return;   // runs later, by definition
+    if (node.type) cb(node);
+    for (const k of Object.keys(node)) {
+        if (k === 'type' || k === 'loc' || k === 'range') continue;
+        eachTopLevelNode(node[k], cb);
+    }
+}
+
+let lhits = 0;
+for (const [f, ast] of asts) {
+    const rel = path.relative(ROOT, f);
+    if (FILESCOPE_EXEMPT.has(rel)) continue;
+    eachTopLevelNode(ast, (n) => {
+        if (n.type !== 'IndexExpression' || !n.base) return;
+        const b = n.base;
+        const isLocaleTable =
+            (b.type === 'Identifier' && LOCALE_TABLES.has(b.name)) ||
+            (b.type === 'MemberExpression' && b.identifier
+             && LOCALE_TABLES.has(b.identifier.name));
+        if (!isLocaleTable) return;
+        const key = n.index && (n.index.value !== undefined && n.index.value !== null
+            ? n.index.value : (n.index.raw || '').replace(/^["']|["']$/g, ''));
+        if (typeof key !== 'string') return;   // L[variable] cannot be judged here
+        lhits++;
+        console.log('  FILESCOPE-L ' + rel + ':' + n.loc.start.line + '  ' + key.slice(0, 60));
+    });
+}
+if (lhits === 0) console.log('clean');
+else {
+    hardFail = true;
+    console.log('(build it lazily in OnEnable/GetOptions, or wrap the block in ns.OnLocaleReady(function() ... end))');
+}
+
+// ---- 9: format specifiers must survive translation ---------------------------
+// ns:Print formats its message, so a translation that drops or reorders a %s is
+// a hard Lua error at the call site, not a cosmetic bug - and the release process
+// now ships fresh translations every version. Only keys actually USED as a format
+// string are compared: checking every value would drown in false positives from
+// prose like "5% of shadow damage", which parses as a specifier.
+console.log('\n== format specifiers across locales ==');
+const FORMAT_CALLERS = new Set(['Print', 'Debug', 'format']);
+const specs = (s) => (String(s).replace(/%%/g, '').match(/%[-0-9.]*[a-zA-Z]/g) || []).join(',');
+
+const formatKeys = new Set();
+for (const [f, ast] of asts) {
+    eachNode(ast, (n) => {
+        if (n.type !== 'CallExpression' || !(n.arguments || []).length) return;
+        const c = n.base;
+        const name = c && (c.type === 'MemberExpression' ? c.identifier && c.identifier.name
+                                                         : c.type === 'Identifier' ? c.name : null);
+        if (!FORMAT_CALLERS.has(name)) return;
+        if (n.arguments.length < 2) return;          // nothing substituted: cannot break
+        const a = n.arguments[0];
+        if (!a || a.type !== 'IndexExpression' || !a.base) return;
+        const b = a.base;
+        const isLocaleTable =
+            (b.type === 'Identifier' && LOCALE_TABLES.has(b.name)) ||
+            (b.type === 'MemberExpression' && b.identifier && LOCALE_TABLES.has(b.identifier.name));
+        if (!isLocaleTable) return;
+        const key = a.index && (a.index.value !== undefined && a.index.value !== null
+            ? a.index.value : (a.index.raw || '').replace(/^["']|["']$/g, ''));
+        if (typeof key === 'string' && specs(key)) formatKeys.add(key);
+    });
+}
+
+const PAIR_RE = /\["((?:[^"\\]|\\.)*)"\]\s*=\s*"((?:[^"\\]|\\.)*)"/g;
+const unesc = (s) => s.replace(/\\(["\\])/g, '$1');
+let fhits = 0;
+for (const name of fs.readdirSync(path.join(ROOT, 'Locales'))) {
+    if (!name.endsWith('.lua')) continue;
+    const src = fs.readFileSync(path.join(ROOT, 'Locales', name), 'utf8');
+    const lines = src.split(/\r?\n/);
+    lines.forEach((line, i) => {
+        if (/^\s*--/.test(line)) return;
+        let m; PAIR_RE.lastIndex = 0;
+        while ((m = PAIR_RE.exec(line)) !== null) {
+            const key = unesc(m[1]);
+            if (!formatKeys.has(key)) continue;
+            const want = specs(key), got = specs(unesc(m[2]));
+            if (want !== got) {
+                fhits++;
+                console.log('  FORMAT Locales' + path.sep + name + ':' + (i + 1)
+                    + '  expected [' + want + '] got [' + got + ']  ' + key.slice(0, 50));
+            }
+        }
+    });
+}
+console.log('format-string keys checked: ' + formatKeys.size);
+if (fhits === 0) console.log('clean');
+else {
+    hardFail = true;
+    console.log('(the translation must keep the same specifiers in the same order as the English key)');
+}
+
 console.log('\n' + (hardFail ? 'RESULT: FAIL' : 'RESULT: OK (warnings above, if any)'));
 process.exit(hardFail ? 1 : 0);
