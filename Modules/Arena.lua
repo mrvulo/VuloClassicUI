@@ -1538,7 +1538,12 @@ mod:AddOptionsSection("dr", function()
             get = function() return mod.db.drEnabled end,
             set = function(_, v)
                 mod.db.drEnabled = v
-                if not v then resetAll() end
+                if not v then
+                    resetAll()
+                elseif IsInInstance and select(2, IsInInstance()) == "arena" then
+                    -- resetAll hid the expiry ticker; toggle-on mid-arena must revive it
+                    ensureUpdater()
+                end
             end,
         },
         {

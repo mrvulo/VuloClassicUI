@@ -895,6 +895,7 @@ end
 local function onEnable()
     ensureDB()
     build()
+    playerAurasDirty = true   -- auras may have changed while UNIT_AURA was unregistered
     container:SetScript("OnUpdate", onUpdate)
     ns:RegisterEvent("PLAYER_TOTEM_UPDATE",   learnActiveTotems)
     ns:RegisterEvent("PLAYER_ENTERING_WORLD", refresh)
