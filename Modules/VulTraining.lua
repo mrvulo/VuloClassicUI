@@ -388,6 +388,26 @@ local function createFrame()
     end
     if SpellBookFrame.UpdateSkillLineTabs then hooksecurefunc(SpellBookFrame, "UpdateSkillLineTabs", onTabs) end
     if SpellBookFrame.Update then hooksecurefunc(SpellBookFrame, "Update", onUpdate) end
+
+    -- Blizzard's spell book throws our page away on SPELLS_CHANGED:
+    --     if ( GetNumSpellTabs() < SpellBookFrame.selectedSkillLine ) then
+    --         SpellBookFrame.selectedSkillLine = 2;
+    -- We deliberately live on a tab slot PAST the real skill lines, so that
+    -- test is always true for us and the book jumps to the first class tab --
+    -- Fury on a warrior. It only shows up where something fires SPELLS_CHANGED
+    -- while the book is open, which the rune system does constantly.
+    --
+    -- So remember whether the player actually chose our tab, and put the
+    -- selection back once Blizzard's own handler has finished with it.
+    tab:HookScript("OnClick", function() mod._wantOurTab = true end)
+    for i = 1, (MAX_SKILLLINE_TABS or 8) do
+        local other = _G["SpellBookSkillLineTab" .. i]
+        if other and other ~= tab then
+            other:HookScript("OnClick", function() mod._wantOurTab = false end)
+        end
+    end
+    SpellBookFrame:HookScript("OnHide", function() mod._wantOurTab = false end)
+
 end
 
 local function cacheAllSpells()
@@ -406,6 +426,25 @@ local function onLevelOrLearn()
     rebuild()
 end
 
+-- Put our page back after Blizzard's SPELLS_CHANGED handler has kicked us off
+-- it (see the comment in createFrame). File scope on purpose: createFrame runs
+-- only once, so a handler declared in there could not be re-registered after
+-- the module is switched off and on again.
+local function restoreOurTab()
+    if not mod._wantOurTab or mod._enabled == false then return end
+    local sbf = _G.SpellBookFrame
+    if not (sbf and sbf:IsVisible() and sbf.bookType == SPELLBOOK_SPELL) then return end
+    if sbf.selectedSkillLine == SKILL_LINE_TAB then return end
+    sbf.selectedSkillLine = SKILL_LINE_TAB
+    if sbf.Update then sbf:Update() end
+end
+
+-- Next frame, not inline: Blizzard's handler for the very same event still has
+-- to run, and it is the one doing the damage.
+local function onSpellsChanged()
+    ns.NextFrame(restoreOurTab)
+end
+
 function mod:OnEnable()
     localizeCategories()
     if not mod._built then
@@ -417,6 +456,7 @@ function mod:OnEnable()
     ns:RegisterEvent("PLAYER_LEVEL_UP", onLevelOrLearn)
     ns:RegisterEvent("LEARNED_SPELL_IN_SKILL_LINE", onLevelOrLearn)
     ns:RegisterEvent("LEARNED_SPELL_IN_TAB", onLevelOrLearn)
+    ns:RegisterEvent("SPELLS_CHANGED", onSpellsChanged)
     if mod._tab and SpellBookFrame and SpellBookFrame.UpdateSkillLineTabs and SpellBookFrame:IsVisible() then
         SpellBookFrame:UpdateSkillLineTabs()
     end
@@ -426,6 +466,8 @@ function mod:OnDisable()
     ns:UnregisterEvent("PLAYER_LEVEL_UP", onLevelOrLearn)
     ns:UnregisterEvent("LEARNED_SPELL_IN_SKILL_LINE", onLevelOrLearn)
     ns:UnregisterEvent("LEARNED_SPELL_IN_TAB", onLevelOrLearn)
+    ns:UnregisterEvent("SPELLS_CHANGED", onSpellsChanged)
+    mod._wantOurTab = false
     if mod._frame then mod._frame:Hide() end
     if mod._tab then mod._tab:Hide() end
 end
