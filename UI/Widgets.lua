@@ -34,6 +34,55 @@ function UI.SetGradient(tex, orient, r1, g1, b1, a1, r2, g2, b2, a2)
     end
 end
 
+-- The dark "x" close button in a window's top-right corner (bags, bank, guild bank).
+function UI:CreateCloseX(f, onClick)
+    local close = CreateFrame("Button", nil, f)
+    close:SetSize(20, 20)
+    close:SetPoint("TOPRIGHT", f, "TOPRIGHT", -6, -7)
+    local cx = close:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    cx:SetPoint("CENTER"); cx:SetText("x"); cx:SetTextColor(0.7, 0.7, 0.75)
+    close:SetScript("OnEnter", function() cx:SetTextColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b) end)
+    close:SetScript("OnLeave", function() cx:SetTextColor(0.7, 0.7, 0.75) end)
+    close:SetScript("OnClick", onClick)
+    return close
+end
+
+-- Dark search box with magnifier icon and accent border while focused.
+-- opts: width (default 120), onText(self). Caller anchors the box.
+function UI:CreateSearchBox(parent, opts)
+    opts = opts or {}
+    local sb = CreateFrame("EditBox", nil, parent)
+    sb:SetAutoFocus(false)
+    sb:SetSize(opts.width or 120, 18)
+    sb:SetFont(FONT_PATH, 11, "")
+    sb:SetMaxLetters(40)
+    sb:SetTextInsets(22, 8, 0, 0)
+    sb:SetTextColor(0.9, 0.9, 0.95)
+    local bg = sb:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints(sb); bg:SetColorTexture(0.04, 0.04, 0.055, 0.95)
+    local icon = sb:CreateTexture(nil, "OVERLAY")
+    icon:SetSize(11, 11)
+    icon:SetPoint("LEFT", sb, "LEFT", 6, 0)
+    icon:SetTexture("Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\modules\\fixinspect.tga")
+    icon:SetVertexColor(0.55, 0.55, 0.62)
+    local border = CreateFrame("Frame", nil, sb, BackdropTemplateMixin and "BackdropTemplate")
+    border:SetAllPoints(sb)
+    if border.SetBackdrop then
+        border:SetBackdrop({ edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
+        border:SetBackdropBorderColor(ns.COLORS.border.r, ns.COLORS.border.g, ns.COLORS.border.b, 1)
+    end
+    sb:SetScript("OnEditFocusGained", function()
+        if border.SetBackdropBorderColor then border:SetBackdropBorderColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 1) end
+    end)
+    sb:SetScript("OnEditFocusLost", function()
+        if border.SetBackdropBorderColor then border:SetBackdropBorderColor(ns.COLORS.border.r, ns.COLORS.border.g, ns.COLORS.border.b, 1) end
+    end)
+    sb:SetScript("OnTextChanged", opts.onText)
+    sb:SetScript("OnEscapePressed", function(self) self:SetText(""); self:ClearFocus() end)
+    sb:SetScript("OnEnterPressed",  function(self) self:ClearFocus() end)
+    return sb
+end
+
 function UI:CreateShadow(frame)
     if frame._vcShadow then return end
     frame._vcShadow = {}

@@ -1793,51 +1793,19 @@ local function buildFrame()
     f.title:SetTextColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
     f.title:SetText(L["Inventory"])
 
-    local close = CreateFrame("Button", nil, f)
-    close:SetSize(20, 20)
-    close:SetPoint("TOPRIGHT", f, "TOPRIGHT", -6, -7)
-    local cx = close:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    cx:SetPoint("CENTER"); cx:SetText("x"); cx:SetTextColor(0.7, 0.7, 0.75)
-    close:SetScript("OnEnter", function() cx:SetTextColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b) end)
-    close:SetScript("OnLeave", function() cx:SetTextColor(0.7, 0.7, 0.75) end)
-    close:SetScript("OnClick", function() mod:Close() end)
+    local close = UI:CreateCloseX(f, function() mod:Close() end)
 
-    local sb = CreateFrame("EditBox", nil, f)
+    local sb = UI:CreateSearchBox(f, {
+        width = 150,
+        onText = function(self)
+            searchText = (self:GetText() or ""):lower()
+            refresh()
+            if ns.BankMirrorSearch then ns.BankMirrorSearch(self:GetText() or "") end
+            if ns.GuildBankMirrorSearch then ns.GuildBankMirrorSearch(self:GetText() or "") end
+        end,
+    })
     f.search = sb
-    sb:SetAutoFocus(false)
-    sb:SetSize(150, 18)
     sb:SetPoint("RIGHT", close, "LEFT", -8, 0)
-    sb:SetFont(UI.FONT_PATH, 11, "")
-    sb:SetMaxLetters(40)
-    sb:SetTextInsets(22, 8, 0, 0)
-    sb:SetTextColor(0.9, 0.9, 0.95)
-    local sbBg = sb:CreateTexture(nil, "BACKGROUND")
-    sbBg:SetAllPoints(sb); sbBg:SetColorTexture(0.04, 0.04, 0.055, 0.95)
-    local sbIcon = sb:CreateTexture(nil, "OVERLAY")
-    sbIcon:SetSize(11, 11)
-    sbIcon:SetPoint("LEFT", sb, "LEFT", 6, 0)
-    sbIcon:SetTexture("Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\modules\\fixinspect.tga")
-    sbIcon:SetVertexColor(0.55, 0.55, 0.62)
-    local sbBorder = CreateFrame("Frame", nil, sb, BackdropTemplateMixin and "BackdropTemplate")
-    sbBorder:SetAllPoints(sb)
-    if sbBorder.SetBackdrop then
-        sbBorder:SetBackdrop({ edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
-        sbBorder:SetBackdropBorderColor(ns.COLORS.border.r, ns.COLORS.border.g, ns.COLORS.border.b, 1)
-    end
-    sb:SetScript("OnEditFocusGained", function()
-        if sbBorder.SetBackdropBorderColor then sbBorder:SetBackdropBorderColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 1) end
-    end)
-    sb:SetScript("OnEditFocusLost", function()
-        if sbBorder.SetBackdropBorderColor then sbBorder:SetBackdropBorderColor(ns.COLORS.border.r, ns.COLORS.border.g, ns.COLORS.border.b, 1) end
-    end)
-    sb:SetScript("OnTextChanged", function(self)
-        searchText = (self:GetText() or ""):lower()
-        refresh()
-        if ns.BankMirrorSearch then ns.BankMirrorSearch(self:GetText() or "") end
-        if ns.GuildBankMirrorSearch then ns.GuildBankMirrorSearch(self:GetText() or "") end
-    end)
-    sb:SetScript("OnEscapePressed", function(self) self:SetText(""); self:ClearFocus() end)
-    sb:SetScript("OnEnterPressed",  function(self) self:ClearFocus() end)
     sb:SetScript("OnEnter", function(self)
         if not GameTooltip then return end
         GameTooltip:SetOwner(self, "ANCHOR_TOP")
