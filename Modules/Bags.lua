@@ -684,9 +684,54 @@ function ns.BagsPaintQuality(btn, quality, link)
     end
 end
 
-local function updateButton(btn)
-    local bag  = btn:GetParent():GetID()
-    local slot = btn:GetID()
+-- The next four helpers are the parts of the per-item paint that bags, bank
+-- and guild bank had each copied by hand; the copies had already drifted once
+-- (quality colouring). db decides countFontSize/bindMarker per window; the
+-- bind cache is per window too.
+function ns.BagsApplyCountFont(btn, db)
+    local cnt = _G[btn:GetName() .. "Count"]
+    if cnt and ns.UI and ns.UI.FONT_PATH then
+        pcall(cnt.SetFont, cnt, ns.UI.FONT_PATH, db.countFontSize or 12, "OUTLINE")
+    end
+end
+
+-- BoE/BoU only while not yet soulbound (bindType 2 = on equip, 3 = on use)
+function ns.BagsPaintBindTag(btn, link, itemID, isBound, db, cache)
+    local bm = btn._bind
+    if not bm then return end
+    local tag
+    if db.bindMarker ~= false and link and not isBound and itemID and GetItemInfo then
+        -- nil name = item not server-cached yet, retry next paint
+        local bindType = cache[itemID]
+        if bindType == nil then
+            local iname = GetItemInfo(link)
+            if iname then
+                bindType = select(14, GetItemInfo(link)) or 0
+                cache[itemID] = bindType
+            end
+        end
+        if bindType == 2 or bindType == 3 then
+            local _, _, _, equipLoc, _, classID = GetItemInfoInstant(link)
+            if (classID == 2 or classID == 4) and equipLoc and equipLoc ~= "" and equipLoc ~= "INVTYPE_BAG" then
+                tag = (bindType == 2) and "BoE" or "BoU"
+            end
+        end
+    end
+    if tag then
+        if ns.UI and ns.UI.FONT_PATH then
+            pcall(bm.SetFont, bm, ns.UI.FONT_PATH,
+                math.max(8, (db.countFontSize or 12) - 2), "OUTLINE")
+        end
+        bm:SetText(tag)
+        bm:Show()
+    else
+        bm:Hide()
+    end
+end
+
+-- Everything a container-backed item button (bags, bank) paints identically.
+-- Returns what only the callers' own extras need.
+function ns.BagsPaintContainerButton(btn, bag, slot, db, cache)
     local icon, count, locked, quality, _, _, link, _, noValue, itemID, isBound = GetContainerItemInfo(bag, slot)
 
     SetItemButtonTexture(btn, icon)
@@ -699,44 +744,48 @@ local function updateButton(btn)
     if bp and bp:IsShown() then bp:Hide() end
 
     ns.BagsPaintQuality(btn, quality, link)
+    ns.BagsApplyCountFont(btn, db)
+    ns.BagsPaintBindTag(btn, link, itemID, isBound, db, cache)
 
-    local cnt = _G[btn:GetName() .. "Count"]
-    if cnt and UI and UI.FONT_PATH then
-        pcall(cnt.SetFont, cnt, UI.FONT_PATH, mod.db.countFontSize or 12, "OUTLINE")
-    end
-
-    -- BoE/BoU only while not yet soulbound (bindType 2 = on equip, 3 = on use)
-    local bm = btn._bind
-    if bm then
-        local tag
-        if mod.db.bindMarker ~= false and link and not isBound and itemID and GetItemInfo then
-            -- nil name = item not server-cached yet, retry next paint
-            local bindType = bindTypeCache[itemID]
-            if bindType == nil then
-                local iname = GetItemInfo(link)
-                if iname then
-                    bindType = select(14, GetItemInfo(link)) or 0
-                    bindTypeCache[itemID] = bindType
-                end
-            end
-            if bindType == 2 or bindType == 3 then
-                local _, _, _, equipLoc, _, classID = GetItemInfoInstant(link)
-                if (classID == 2 or classID == 4) and equipLoc and equipLoc ~= "" and equipLoc ~= "INVTYPE_BAG" then
-                    tag = (bindType == 2) and "BoE" or "BoU"
-                end
-            end
-        end
-        if tag then
-            if UI and UI.FONT_PATH then
-                pcall(bm.SetFont, bm, UI.FONT_PATH,
-                    math.max(8, (mod.db.countFontSize or 12) - 2), "OUTLINE")
-            end
-            bm:SetText(tag)
-            bm:Show()
-        else
-            bm:Hide()
+    local cd = _G[btn:GetName() .. "Cooldown"]
+    if cd then
+        local start, dur, enable = GetContainerItemCooldown(bag, slot)
+        if start and dur and dur > 0 then
+            CooldownFrame_Set(cd, start, dur, enable)
+        elseif cd.Hide then
+            cd:Hide()
         end
     end
+
+    return icon, quality, noValue
+end
+
+-- Suppressing the default bags means "new item" flags never clear — strip the
+-- glow overlays once at button creation. Guards cover both button templates.
+function ns.BagsStripButtonGlow(btn)
+    local bname = btn:GetName()
+    if btn.SetNormalTexture then pcall(btn.SetNormalTexture, btn, nil) end
+    local nt = _G[bname .. "NormalTexture"]; if nt then nt:SetTexture(nil); nt:Hide() end
+    if btn.GetNormalTexture then local g = btn:GetNormalTexture(); if g then g:SetTexture(nil); g:Hide() end end
+    if btn.flashAnim and btn.flashAnim.Stop then btn.flashAnim:Stop() end
+    if btn.newitemglowAnim and btn.newitemglowAnim.Stop then btn.newitemglowAnim:Stop() end
+    local newTex = btn.NewItemTexture or _G[bname .. "NewItemTexture"]
+    if newTex then newTex:Hide() end
+    local bpTex = btn.BattlepayItemTexture or _G[bname .. "BattlepayItemTexture"]
+    if bpTex then bpTex:Hide() end
+    for r = 1, select("#", btn:GetRegions()) do
+        local reg = select(r, btn:GetRegions())
+        if reg and reg.GetObjectType and reg:GetObjectType() == "Texture" and reg.GetAtlas then
+            local a = reg:GetAtlas()
+            if type(a) == "string" and a:find("glow", 1, true) then reg:Hide() end
+        end
+    end
+end
+
+local function updateButton(btn)
+    local bag  = btn:GetParent():GetID()
+    local slot = btn:GetID()
+    local icon, quality, noValue = ns.BagsPaintContainerButton(btn, bag, slot, mod.db, bindTypeCache)
 
     if btn._slotbg then
         if bag == KEYRING then
@@ -757,16 +806,6 @@ local function updateButton(btn)
             jt:Show()
         else
             jt:Hide()
-        end
-    end
-
-    local cd = _G[btn:GetName() .. "Cooldown"]
-    if cd then
-        local start, dur, enable = GetContainerItemCooldown(bag, slot)
-        if start and dur and dur > 0 then
-            CooldownFrame_Set(cd, start, dur, enable)
-        elseif cd.Hide then
-            cd:Hide()
         end
     end
 
@@ -812,24 +851,7 @@ local function acquireButton(n)
         else pinnedItems[itemID] = true end
         if categoriesChanged then categoriesChanged() end
     end)
-    -- suppressing the default bags means "new item" flags never clear -- strip the glow overlays
-    local bname = btn:GetName()
-    if btn.SetNormalTexture then pcall(btn.SetNormalTexture, btn, nil) end
-    local nt = _G[bname .. "NormalTexture"]; if nt then nt:SetTexture(nil); nt:Hide() end
-    if btn.GetNormalTexture then local g = btn:GetNormalTexture(); if g then g:SetTexture(nil); g:Hide() end end
-    if btn.flashAnim and btn.flashAnim.Stop then btn.flashAnim:Stop() end
-    if btn.newitemglowAnim and btn.newitemglowAnim.Stop then btn.newitemglowAnim:Stop() end
-    local newTex = btn.NewItemTexture or _G[bname .. "NewItemTexture"]
-    if newTex then newTex:Hide() end
-    local bpTex = btn.BattlepayItemTexture or _G[bname .. "BattlepayItemTexture"]
-    if bpTex then bpTex:Hide() end
-    for r = 1, select("#", btn:GetRegions()) do
-        local reg = select(r, btn:GetRegions())
-        if reg and reg.GetObjectType and reg:GetObjectType() == "Texture" and reg.GetAtlas then
-            local a = reg:GetAtlas()
-            if type(a) == "string" and a:find("glow", 1, true) then reg:Hide() end
-        end
-    end
+    ns.BagsStripButtonGlow(btn)
     ns.BagsSkinItemButton(btn)
 
     local jk = btn:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")

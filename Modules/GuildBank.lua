@@ -264,10 +264,7 @@ function gb.acquireButton(n)
             SplitGuildBankItem(b.tabIndex, b:GetID(), split)
         end
     end
-    local bname = btn:GetName()
-    if btn.SetNormalTexture then pcall(btn.SetNormalTexture, btn, nil) end
-    local nt = _G[bname .. "NormalTexture"]; if nt then nt:SetTexture(nil); nt:Hide() end
-    if btn.GetNormalTexture then local g = btn:GetNormalTexture(); if g then g:SetTexture(nil); g:Hide() end end
+    ns.BagsStripButtonGlow(btn)
     ns.BagsSkinItemButton(btn)
     btn:Hide()
     gb.buttons[n] = btn
@@ -287,42 +284,10 @@ function gb.updateButton(btn)
         quality = select(3, GetItemInfo(link))
     end
     ns.BagsPaintQuality(btn, quality, link)
-    local cnt = _G[btn:GetName() .. "Count"]
-    if cnt and ns.UI and ns.UI.FONT_PATH then
-        pcall(cnt.SetFont, cnt, ns.UI.FONT_PATH, mod.db.countFontSize or 12, "OUTLINE")
-    end
-
-    local bm = btn._bind
-    if bm then
-        local tag
-        local itemID = link and tonumber(link:match("item:(%d+)"))
-        if mod.db.bindMarker ~= false and link and itemID and GetItemInfo then
-            local bindType = gb.bindTypeCache[itemID]
-            if bindType == nil then
-                local iname = GetItemInfo(link)
-                if iname then
-                    bindType = select(14, GetItemInfo(link)) or 0
-                    gb.bindTypeCache[itemID] = bindType
-                end
-            end
-            if bindType == 2 or bindType == 3 then
-                local _, _, _, equipLoc, _, classID = GetItemInfoInstant(link)
-                if (classID == 2 or classID == 4) and equipLoc and equipLoc ~= "" and equipLoc ~= "INVTYPE_BAG" then
-                    tag = (bindType == 2) and "BoE" or "BoU"
-                end
-            end
-        end
-        if tag then
-            if ns.UI and ns.UI.FONT_PATH then
-                pcall(bm.SetFont, bm, ns.UI.FONT_PATH,
-                    math.max(8, (mod.db.countFontSize or 12) - 2), "OUTLINE")
-            end
-            bm:SetText(tag)
-            bm:Show()
-        else
-            bm:Hide()
-        end
-    end
+    ns.BagsApplyCountFont(btn, mod.db)
+    -- guild bank items are never soulbound, so isBound is simply nil here
+    local itemID = link and tonumber(link:match("item:(%d+)"))
+    ns.BagsPaintBindTag(btn, link, itemID, nil, mod.db, gb.bindTypeCache)
 
     if (gb.searchText or "") == "" then
         btn:SetAlpha(1)

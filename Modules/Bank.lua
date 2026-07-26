@@ -139,64 +139,7 @@ function bank.updateButton(btn)
     local bag  = btn:GetParent():GetID()
     local slot = btn:GetID()
     -- the container API accepts -1 here, like Blizzard's own bank
-    local icon, count, locked, quality, _, _, link, _, _, itemID, isBound = GetContainerItemInfo(bag, slot)
-
-    SetItemButtonTexture(btn, icon)
-    SetItemButtonCount(btn, count)
-    SetItemButtonDesaturated(btn, locked)
-
-    local ng = btn.NewItemTexture or _G[btn:GetName() .. "NewItemTexture"]
-    if ng and ng:IsShown() then ng:Hide() end
-    local bp = btn.BattlepayItemTexture or _G[btn:GetName() .. "BattlepayItemTexture"]
-    if bp and bp:IsShown() then bp:Hide() end
-
-    ns.BagsPaintQuality(btn, quality, link)
-
-    local cnt = _G[btn:GetName() .. "Count"]
-    if cnt and ns.UI and ns.UI.FONT_PATH then
-        pcall(cnt.SetFont, cnt, ns.UI.FONT_PATH, mod.db.countFontSize or 12, "OUTLINE")
-    end
-
-    local bm = btn._bind
-    if bm then
-        local tag
-        if mod.db.bindMarker ~= false and link and not isBound and itemID and GetItemInfo then
-            local bindType = bank.bindTypeCache[itemID]
-            if bindType == nil then
-                local iname = GetItemInfo(link)
-                if iname then
-                    bindType = select(14, GetItemInfo(link)) or 0
-                    bank.bindTypeCache[itemID] = bindType
-                end
-            end
-            if bindType == 2 or bindType == 3 then
-                local _, _, _, equipLoc, _, classID = GetItemInfoInstant(link)
-                if (classID == 2 or classID == 4) and equipLoc and equipLoc ~= "" and equipLoc ~= "INVTYPE_BAG" then
-                    tag = (bindType == 2) and "BoE" or "BoU"
-                end
-            end
-        end
-        if tag then
-            if ns.UI and ns.UI.FONT_PATH then
-                pcall(bm.SetFont, bm, ns.UI.FONT_PATH,
-                    math.max(8, (mod.db.countFontSize or 12) - 2), "OUTLINE")
-            end
-            bm:SetText(tag)
-            bm:Show()
-        else
-            bm:Hide()
-        end
-    end
-
-    local cd = _G[btn:GetName() .. "Cooldown"]
-    if cd then
-        local start, dur, enable = GetContainerItemCooldown(bag, slot)
-        if start and dur and dur > 0 then
-            CooldownFrame_Set(cd, start, dur, enable)
-        elseif cd.Hide then
-            cd:Hide()
-        end
-    end
+    ns.BagsPaintContainerButton(btn, bag, slot, mod.db, bank.bindTypeCache)
 
     -- alpha only - never Enable/Hide, so the secure click paths stay intact
     if (bank.searchText or "") == "" then
@@ -269,23 +212,7 @@ function bank.acquireButton(n)
     btn:SetScript("OnEnter", bank.onEnterItem)
     btn:SetScript("OnLeave", bank.onLeaveItem)
     btn.UpdateTooltip = bank.onEnterItem
-    local bname = btn:GetName()
-    if btn.SetNormalTexture then pcall(btn.SetNormalTexture, btn, nil) end
-    local nt = _G[bname .. "NormalTexture"]; if nt then nt:SetTexture(nil); nt:Hide() end
-    if btn.GetNormalTexture then local g = btn:GetNormalTexture(); if g then g:SetTexture(nil); g:Hide() end end
-    if btn.flashAnim and btn.flashAnim.Stop then btn.flashAnim:Stop() end
-    if btn.newitemglowAnim and btn.newitemglowAnim.Stop then btn.newitemglowAnim:Stop() end
-    local newTex = btn.NewItemTexture or _G[bname .. "NewItemTexture"]
-    if newTex then newTex:Hide() end
-    local bpTex = btn.BattlepayItemTexture or _G[bname .. "BattlepayItemTexture"]
-    if bpTex then bpTex:Hide() end
-    for r = 1, select("#", btn:GetRegions()) do
-        local reg = select(r, btn:GetRegions())
-        if reg and reg.GetObjectType and reg:GetObjectType() == "Texture" and reg.GetAtlas then
-            local a = reg:GetAtlas()
-            if type(a) == "string" and a:find("glow", 1, true) then reg:Hide() end
-        end
-    end
+    ns.BagsStripButtonGlow(btn)
     ns.BagsSkinItemButton(btn)
     btn:Hide()
     bank.buttons[n] = btn
