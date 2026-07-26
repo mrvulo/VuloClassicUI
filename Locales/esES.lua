@@ -2503,6 +2503,8 @@ local T = {
     -- Options page build failure
     ["|cffff5555Options page '%s' failed to build:|r %s"] = "|cffff5555No se pudo construir la página de opciones '%s':|r %s",
     ["|cffff5555This page could not be built. /reload, and report it if it persists.|r"] = "|cffff5555No se pudo construir esta página. Usa /reload e infórmalo si persiste.|r",
+    ["|cff888888%.2f ms/frame |cff666666(%.1f%% of ours, peak %.1f ms)|r|r"] = "|cff888888%.2f ms/fotograma |cff666666(%.1f%% nuestro, pico %.1f ms)|r|r",
+    ["|cffaaaaaaThe header shows how much frame time VuloClassicUI costs. Your client measures this on its own, all the time — no setting and no reload needed.|r"] = "|cffaaaaaaLa cabecera muestra cuánto tiempo de fotograma cuesta VuloClassicUI. Tu cliente lo mide por su cuenta, todo el tiempo, sin ajustes ni recargas.|r",
 }
 
 ns:RegisterLocale("esES", T)

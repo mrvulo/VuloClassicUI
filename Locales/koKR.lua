@@ -2503,6 +2503,8 @@ local T = {
     -- Options page build failure
     ["|cffff5555Options page '%s' failed to build:|r %s"] = "|cffff5555'%s' 설정 페이지를 구성하지 못했습니다:|r %s",
     ["|cffff5555This page could not be built. /reload, and report it if it persists.|r"] = "|cffff5555이 페이지를 구성하지 못했습니다. /reload 후에도 계속되면 알려 주세요.|r",
+    ["|cff888888%.2f ms/frame |cff666666(%.1f%% of ours, peak %.1f ms)|r|r"] = "|cff888888%.2f ms/프레임 |cff666666(우리 %.1f%%, 최고 %.1f ms)|r|r",
+    ["|cffaaaaaaThe header shows how much frame time VuloClassicUI costs. Your client measures this on its own, all the time — no setting and no reload needed.|r"] = "|cffaaaaaa헤더에 VuloClassicUI가 프레임 시간을 얼마나 쓰는지 표시됩니다. 클라이언트가 스스로 항상 측정하므로 설정도 다시 불러오기도 필요 없습니다.|r",
 }
 
 ns:RegisterLocale("koKR", T)

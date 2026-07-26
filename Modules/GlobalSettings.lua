@@ -113,7 +113,7 @@ local function setTheme(r, g, b)
 end
 
 local function generalOptions()
-    return {
+    local items = {
         { type = "header", text = L["Language"] },
         { type = "dropdown", label = L["UI Language"],
           tooltip = L["Choose the language for the VuloClassicUI interface. 'Auto' uses your WoW client's language (German clients see German, all others see English).\n\n|cffaaaaaaRequires /reload to apply.|r"],
@@ -187,14 +187,23 @@ local function generalOptions()
 
         { type = "spacer", height = 6 },
         { type = "header", text = L["Performance Display"] },
-        { type = "toggle", label = L["Show CPU Usage in Header"],
-          tooltip = L["Shows total CPU usage of all active addons (plus VuloClassicUI's own share) at the top of the config header.\n\n|cffaaaaaaRequires /reload after toggling.\n\nNote: Enables WoW's scriptProfile CVar, which costs ~3-5% performance — that's the price for WoW collecting this data at all.|r"],
-          get = function() return getCVarNum("scriptProfile") == 1 end,
-          set = function(_, v)
-              setCVar("scriptProfile", v and "1" or "0")
-              StaticPopup_Show("VCUI_RELOAD_PROFILING")
-          end },
     }
+    -- The client's own always-on profiler needs neither the CVar nor a reload,
+    -- so on those clients there is nothing left to switch and the readout is
+    -- simply always there. The old switch only appears where it still does work.
+    if _G.C_AddOnProfiler and _G.C_AddOnProfiler.GetAddOnMetric then
+        items[#items + 1] = { type = "desc",
+            text = L["|cffaaaaaaThe header shows how much frame time VuloClassicUI costs. Your client measures this on its own, all the time — no setting and no reload needed.|r"] }
+    else
+        items[#items + 1] = { type = "toggle", label = L["Show CPU Usage in Header"],
+            tooltip = L["Shows total CPU usage of all active addons (plus VuloClassicUI's own share) at the top of the config header.\n\n|cffaaaaaaRequires /reload after toggling.\n\nNote: Enables WoW's scriptProfile CVar, which costs ~3-5% performance — that's the price for WoW collecting this data at all.|r"],
+            get = function() return getCVarNum("scriptProfile") == 1 end,
+            set = function(_, v)
+                setCVar("scriptProfile", v and "1" or "0")
+                StaticPopup_Show("VCUI_RELOAD_PROFILING")
+            end }
+    end
+    return items
 end
 
 local function profileOptions()

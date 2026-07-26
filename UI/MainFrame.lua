@@ -91,6 +91,14 @@ function UI:CreateMainFrame()
     cpuText:SetPoint("LEFT", version, "RIGHT", 10, 0)
     cpuText:SetText("")
 
+    -- The client carries its own always-on profiler (used by Blizzard's own addon
+    -- list). It needs no CVar and no /reload, and it reports per-frame timings
+    -- rather than a cumulative counter we have to difference ourselves. The old
+    -- family stays as the fallback for clients without it -- there it still needs
+    -- scriptProfile and a reload, which is what the option next to this says.
+    local PROF = _G.C_AddOnProfiler
+    local METRIC = _G.Enum and _G.Enum.AddOnProfilerMetric
+
     -- API compat: newer clients moved these into the C_AddOns namespace
     local _UpdateCPU  = (C_AddOns and C_AddOns.UpdateAddOnCPUUsage) or _G.UpdateAddOnCPUUsage
     local _GetCPU     = (C_AddOns and C_AddOns.GetAddOnCPUUsage)    or _G.GetAddOnCPUUsage
@@ -112,7 +120,27 @@ function UI:CreateMainFrame()
     -- GetAddOnCPUUsage is cumulative ms since profiling started; we show the per-tick delta.
     local _lastTotal, _lastOwn, _lastTime = 0, 0, 0
 
-    local function updateCPU()
+    -- Blizzard's own share formula (Blizzard_AddOnList): NOT own/all-addons, but
+    -- own divided by the frame time this addon is actually responsible for --
+    -- otherwise the number grows as other addons get cheaper.
+    local function sharePercent(metric)
+        local app     = PROF.GetApplicationMetric(metric)
+        local overall = PROF.GetOverallMetric(metric)
+        local own     = PROF.GetAddOnMetric(ns.NAME, metric)
+        local rel = app - overall + own
+        if rel <= 0 then return 0, own end
+        return own / rel * 100, own
+    end
+
+    local function updateCPUModern()
+        local pct, own = sharePercent(METRIC.RecentAverageTime)
+        local peak = PROF.GetAddOnMetric(ns.NAME, METRIC.PeakTime)
+        cpuText:SetText(string.format(
+            L["|cff888888%.2f ms/frame |cff666666(%.1f%% of ours, peak %.1f ms)|r|r"],
+            own, pct, peak))
+    end
+
+    local function updateCPULegacy()
         local cv = (C_CVar and C_CVar.GetCVar and C_CVar.GetCVar("scriptProfile"))
                 or (GetCVar and GetCVar("scriptProfile"))
         if cv ~= "1" then
@@ -142,6 +170,18 @@ function UI:CreateMainFrame()
             totalRate, ownRate))
 
         _lastTotal, _lastOwn, _lastTime = total, own, now
+    end
+
+    local useModern = PROF and METRIC and PROF.GetAddOnMetric
+        and PROF.GetApplicationMetric and PROF.GetOverallMetric
+        and METRIC.RecentAverageTime ~= nil and METRIC.PeakTime ~= nil
+    local function updateCPU()
+        if useModern then
+            local ok = pcall(updateCPUModern)
+            if ok then return end
+            useModern = false   -- fall back for the rest of the session
+        end
+        updateCPULegacy()
     end
 
     f:HookScript("OnShow", function()
