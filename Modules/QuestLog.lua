@@ -35,6 +35,7 @@ local function formatTitle(title, level, questID)
 end
 
 local function updateListLevels()
+    if not mod.active then return end
     if not (mod.db.levels or mod.db.questIDs) then return end
     local numEntries = GetNumQuestLogEntries()
     if not numEntries or numEntries == 0 then return end
@@ -76,6 +77,7 @@ local function lightenDetailText()
 end
 
 local function updateDetail()
+    if not mod.active then return end
     if mod.db.levels or mod.db.questIDs then
         local q = GetQuestLogSelection and GetQuestLogSelection()
         if q and _G.QuestLogQuestTitle then
@@ -217,7 +219,8 @@ function mod:OnEnable()
 end
 
 function mod:OnDisable()
-    -- hooksecurefunc cannot be undone; the hooks stay and self-gate on mod.db.
+    -- hooksecurefunc cannot be undone; the hooks stay and gate on mod.active.
+    -- The enlarged frame and retextured background need a /reload to revert.
 end
 
 function mod:GetOptions()

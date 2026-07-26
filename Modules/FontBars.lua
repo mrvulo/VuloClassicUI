@@ -25,7 +25,25 @@ local function isOurBar(bar)
         or bar == PetFrameManaBar
 end
 
+-- Original sizes per FontString, captured before the first change so
+-- OnDisable can put them back (the hooks themselves cannot be removed).
+local origSizes = {}
+local function remember(fs)
+    if fs and origSizes[fs] == nil and fs.GetFont then
+        local _, size = fs:GetFont()
+        origSizes[fs] = size or false
+    end
+end
+local function setBarSize(bar, size)
+    if not bar then return end
+    remember(bar.TextString or ns:SafeGetFontString(bar, "Text"))
+    remember(bar.LeftText   or ns:SafeGetFontString(bar, "TextLeft"))
+    remember(bar.RightText  or ns:SafeGetFontString(bar, "TextRight"))
+    ns:SetBarTextFontSize(bar, size)
+end
+
 local function applyPetFeedbackFont()
+    if not mod.active then return end
     local size = tonumber(mod.db.petFeedbackSize) or 11
     local fs = PetFrameFeedbackText
         or (PetFrame and (PetFrame.FeedbackText or PetFrame.feedbackText))
@@ -33,6 +51,7 @@ local function applyPetFeedbackFont()
     if not fs or not fs.GetFont or not fs.SetFont then return end
     local font, _, flags = fs:GetFont()
     if not font then return end
+    remember(fs)
     fs:SetFont(font, size, flags)
 end
 
@@ -41,12 +60,12 @@ local function applyAll()
     local hs = mod.db.healthSize
     local ps = mod.db.powerSize
 
-    if PlayerFrameHealthBar then ns:SetBarTextFontSize(PlayerFrameHealthBar, hs) end
-    if PlayerFrameManaBar   then ns:SetBarTextFontSize(PlayerFrameManaBar,   ps) end
-    if TargetFrameHealthBar then ns:SetBarTextFontSize(TargetFrameHealthBar, hs) end
-    if TargetFrameManaBar   then ns:SetBarTextFontSize(TargetFrameManaBar,   ps) end
-    if PetFrameHealthBar    then ns:SetBarTextFontSize(PetFrameHealthBar,    hs) end
-    if PetFrameManaBar      then ns:SetBarTextFontSize(PetFrameManaBar,      ps) end
+    setBarSize(PlayerFrameHealthBar, hs)
+    setBarSize(PlayerFrameManaBar,   ps)
+    setBarSize(TargetFrameHealthBar, hs)
+    setBarSize(TargetFrameManaBar,   ps)
+    setBarSize(PetFrameHealthBar,    hs)
+    setBarSize(PetFrameManaBar,      ps)
 
     if TextStatusBar_UpdateTextString then
         if PlayerFrameHealthBar then TextStatusBar_UpdateTextString(PlayerFrameHealthBar) end
@@ -78,9 +97,9 @@ local function installHooks()
             if not mod.active then return end
             if not bar or not isOurBar(bar) then return end
             if bar == PlayerFrameHealthBar or bar == TargetFrameHealthBar or bar == PetFrameHealthBar then
-                ns:SetBarTextFontSize(bar, mod.db.healthSize)
+                setBarSize(bar, mod.db.healthSize)
             elseif bar == PlayerFrameManaBar or bar == TargetFrameManaBar or bar == PetFrameManaBar then
-                ns:SetBarTextFontSize(bar, mod.db.powerSize)
+                setBarSize(bar, mod.db.powerSize)
             end
         end)
     end
@@ -125,6 +144,13 @@ function mod:OnDisable()
     ns:UnregisterEvent("PLAYER_ENTERING_WORLD", fbOnPEW)
     ns:UnregisterEvent("PLAYER_TARGET_CHANGED", fbOnTarget)
     ns:UnregisterEvent("UNIT_PET", fbOnPet)
+    for fs, size in pairs(origSizes) do
+        if size and fs.GetFont then
+            local font, _, flags = fs:GetFont()
+            if font then fs:SetFont(font, size, flags) end
+        end
+    end
+    if TargetFrameBackground then TargetFrameBackground:Show() end
 end
 
 function mod:GetOptions()

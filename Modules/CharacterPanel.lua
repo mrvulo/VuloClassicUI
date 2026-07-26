@@ -38,6 +38,7 @@ local function applyFontSize(fs, size)
 end
 
 local function reapplyItemLevelSize()
+    if not mod.active then return end
     local size = mod.db.itemLevelSize or 11
 
     for _, slot in ipairs(SLOTS) do
@@ -79,6 +80,16 @@ function mod:OnEnable()
             end
         end)
     end
+
+    -- re-enable mid-session: repaint an already-open panel right away
+    if ns.RefreshCharacterPanel then ns.RefreshCharacterPanel() end
+end
+
+function mod:OnDisable()
+    -- The paperdoll/inspect hooks stay installed; they gate on mod.active and
+    -- hide our overlays on the next update. Refresh now so an open panel
+    -- clears immediately instead of on the next equipment event.
+    if ns.RefreshCharacterPanel then ns.RefreshCharacterPanel() end
 end
 
 function mod:GetOptions()
@@ -841,6 +852,16 @@ end
 local function UpdateButton(button, unit)
 	if not button or not button.GetID then return end
 
+	-- the hooks below can never be removed; module-off hides our overlay instead
+	if not (cpMod and cpMod.active) then
+		local f = button.BCPDisplay
+		if f then
+			f:Hide()
+			f.prevItemLink, f.prevDurability = nil, nil
+		end
+		return
+	end
+
 	local slot = button:GetID()
 	if not buttonLayout[slot] then return end
 
@@ -849,6 +870,7 @@ local function UpdateButton(button, unit)
 		AnchorAdditionalDisplay(button)
 	end
 
+	button.BCPDisplay:Show()
 	UpdateAdditionalDisplay(button, unit)
 end
 
@@ -934,6 +956,13 @@ end
 local function UpdatePlayerAvgIlvlDisplay()
 	if not CharacterFrame or not CharacterFrame:IsShown() then return end
 
+	if not (cpMod and cpMod.active) then
+		if PaperDollFrame and PaperDollFrame.avgIlvlDisplay then
+			PaperDollFrame.avgIlvlDisplay:SetText("")
+		end
+		return
+	end
+
 	CreatePlayerAvgIlvlDisplay()
 
 	if not PaperDollFrame or not PaperDollFrame.avgIlvlDisplay then return end
@@ -971,6 +1000,11 @@ end
 local function UpdateInspectIlvlDisplayTBC(unit)
 	if not unit or not UnitExists(unit) then return end
 	if not InspectPaperDollItemsFrame or not InspectPaperDollItemsFrame.ilvlDisplay then return end
+
+	if not (cpMod and cpMod.active) then
+		InspectPaperDollItemsFrame.ilvlDisplay:SetText("")
+		return
+	end
 
 	local ilvl = GetUnitAverageItemLevelTBC(unit)
 	InspectPaperDollItemsFrame.ilvlDisplay:SetText(string.format("|cffffffff%d|r", ilvl))
@@ -1523,7 +1557,7 @@ local function UpdateCharacterPanel()
 	if CharacterFrame and CharacterFrame:IsShown() then
 		UpdateAllCharacterSlots()
 		UpdatePlayerAvgIlvlDisplay()
-		if cpStyle() == "modern" then
+		if (cpMod and cpMod.active) and cpStyle() == "modern" then
 			applyModernPanes(true)
 			applyModernTabs(true)
 			-- the stats panel and right extension belong to the paperdoll tab only

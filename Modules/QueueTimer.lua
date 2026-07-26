@@ -93,6 +93,10 @@ local function setExpiresText(timeRemaining, dialog, pvp)
 end
 
 local function onUpdate(elapsed)
+    if not mod._enabled then
+        stopUpdateFrame()
+        return
+    end
     if bgId then
         updateFrame.timer = updateFrame.timer - elapsed
         if mod.db.queueTimerWarning then
@@ -259,6 +263,28 @@ function mod:OnEnable()
         if not mod._enabled then return end
         updateBattlefieldStatus()
     end)
+end
+
+-- The labels live on Blizzard's dialogs and would show stale text on the next
+-- queue pop with the module off; instanceInfo was alpha-hidden by us.
+local function clearCustomLabels(dialog)
+    if dialog and dialog.queueTimerLabels then
+        dialog.customLabel:SetText("")
+        dialog.timerLabel:SetText("")
+        dialog.bgLabel:SetText("")
+        dialog.statusTextLabel:SetText("")
+        if dialog.instanceInfo then dialog.instanceInfo:SetAlpha(1) end
+    end
+end
+
+function mod:OnDisable()
+    bgId = nil
+    isPveQueueActive = false
+    pveQueuePopTime = nil
+    proposalTimeLeft = 40
+    stopUpdateFrame()
+    clearCustomLabels(PVPReadyDialog)
+    clearCustomLabels(LFGDungeonReadyDialog)
 end
 
 function mod:GetOptions()
