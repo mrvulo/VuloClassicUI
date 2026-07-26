@@ -2497,6 +2497,9 @@ local T = {
     ["Seven working settings that were invisible in the options are shown again, and several switches that did nothing are wired up."] = "Семь рабочих настроек, невидимых в опциях, снова отображаются, а несколько бездействовавших переключателей теперь подключены.",
     ["Modules tidy up after themselves when disabled: totem range dimming, the inspect window, queue timer, quest log and font bars no longer leave stale pieces behind."] = "Модули убирают за собой при отключении: затемнение тотемов вне досягаемости, окно осмотра, таймер очереди, журнал заданий и полосы шрифтов больше не оставляют устаревших частей.",
     ["Three modules got their own sidebar icons instead of the placeholder, and Reminders got a nicer bell."] = "Три модуля получили собственные значки в боковой панели вместо заглушки, а «Напоминания» — колокольчик покрасивее.",
+    -- Bags: quest starter marker
+    ["Quest starter marker (!)"] = "Метка начала задания (!)",
+    ["Overlays a yellow exclamation mark on items that start a quest you have not accepted yet."] = "Накладывает жёлтый восклицательный знак на предметы, начинающие ещё не принятое задание.",
 }
 
 ns:RegisterLocale("ruRU", T)

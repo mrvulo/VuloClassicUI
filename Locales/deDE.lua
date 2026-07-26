@@ -2638,4 +2638,7 @@ ns:RegisterLocale("deDE", {
     ["Seven working settings that were invisible in the options are shown again, and several switches that did nothing are wired up."] = "Sieben funktionierende Einstellungen, die in den Optionen unsichtbar waren, werden wieder angezeigt, und mehrere wirkungslose Schalter sind jetzt angeschlossen.",
     ["Modules tidy up after themselves when disabled: totem range dimming, the inspect window, queue timer, quest log and font bars no longer leave stale pieces behind."] = "Module räumen beim Abschalten hinter sich auf: Totem-Reichweiten-Abdunklung, das Inspizieren-Fenster, Warteschlangen-Timer, Questlog und Schriftleisten hinterlassen keine Reste mehr.",
     ["Three modules got their own sidebar icons instead of the placeholder, and Reminders got a nicer bell."] = "Drei Module haben eigene Seitenleisten-Symbole statt des Platzhalters bekommen, und die Erinnerungen eine schönere Glocke.",
+    -- Bags: quest starter marker
+    ["Quest starter marker (!)"] = "Quest-Start-Markierung (!)",
+    ["Overlays a yellow exclamation mark on items that start a quest you have not accepted yet."] = "Legt ein gelbes Ausrufezeichen über Gegenstände, die eine noch nicht angenommene Quest starten.",
 })

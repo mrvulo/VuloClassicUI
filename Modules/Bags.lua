@@ -37,6 +37,7 @@ local mod = ns:RegisterModule("bags", {
         onebagFixedSlots = true,
         junkMarker    = true,
         bindMarker    = true,
+        questMarker   = true,
         useCategories = true,
         hideEmpty     = true,
         viewMode      = "all",        -- "all" | "onebag" | "multibag"
@@ -746,6 +747,27 @@ function ns.BagsPaintContainerButton(btn, bag, slot, db, cache)
     ns.BagsPaintQuality(btn, quality, link)
     ns.BagsApplyCountFont(btn, db)
     ns.BagsPaintBindTag(btn, link, itemID, isBound, db, cache)
+
+    -- Exclamation mark on items that start a quest you have not accepted yet
+    -- (questID without isActive - active-quest objectives stay unmarked)
+    local showBang = false
+    if icon and GetQuestInfo and db.questMarker ~= false then
+        local okQ, qinfo = pcall(GetQuestInfo, bag, slot)
+        showBang = okQ and qinfo and qinfo.questID and not qinfo.isActive and true or false
+    end
+    local qb = btn._questBang
+    if showBang then
+        if not qb then
+            qb = btn:CreateTexture(nil, "OVERLAY", nil, 2)
+            qb:SetTexture(TEXTURE_ITEM_QUEST_BANG or "Interface\\ContainerFrame\\UI-Icon-QuestBang")
+            qb:SetPoint("TOPLEFT", btn, "TOPLEFT", 1, -1)
+            qb:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -1, 1)
+            btn._questBang = qb
+        end
+        qb:Show()
+    elseif qb then
+        qb:Hide()
+    end
 
     local cd = _G[btn:GetName() .. "Cooldown"]
     if cd then
@@ -2700,6 +2722,16 @@ function mod:GetOptions()
         set = function(_, v)
             mod.db.junkMarker = v and true or false
             if mod:IsOpen() then layout() end
+        end,
+    })
+    table.insert(items, {
+        type = "toggle", label = L["Quest starter marker (!)"],
+        tooltip = L["Overlays a yellow exclamation mark on items that start a quest you have not accepted yet."],
+        get = function() return mod.db.questMarker ~= false end,
+        set = function(_, v)
+            mod.db.questMarker = v and true or false
+            if mod:IsOpen() then layout() end
+            if ns.BankRefresh then ns.BankRefresh() end
         end,
     })
     table.insert(items, {

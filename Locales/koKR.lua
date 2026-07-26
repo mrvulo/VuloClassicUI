@@ -2497,6 +2497,9 @@ local T = {
     ["Seven working settings that were invisible in the options are shown again, and several switches that did nothing are wired up."] = "옵션에서 보이지 않던 일곱 개의 작동하는 설정이 다시 표시되고, 아무 동작도 하지 않던 여러 스위치가 연결되었습니다.",
     ["Modules tidy up after themselves when disabled: totem range dimming, the inspect window, queue timer, quest log and font bars no longer leave stale pieces behind."] = "모듈이 꺼질 때 스스로 정리합니다: 토템 사거리 어둡게 표시, 살펴보기 창, 대기열 타이머, 퀘스트 기록, 글꼴 막대가 더 이상 잔여물을 남기지 않습니다.",
     ["Three modules got their own sidebar icons instead of the placeholder, and Reminders got a nicer bell."] = "세 모듈이 자리 표시자 대신 자체 사이드바 아이콘을 받았고, 알림은 더 예쁜 종을 받았습니다.",
+    -- Bags: quest starter marker
+    ["Quest starter marker (!)"] = "퀘스트 시작 표시 (!)",
+    ["Overlays a yellow exclamation mark on items that start a quest you have not accepted yet."] = "아직 수락하지 않은 퀘스트를 시작하는 아이템 위에 노란 느낌표를 표시합니다.",
 }
 
 ns:RegisterLocale("koKR", T)

@@ -2646,6 +2646,9 @@ local T = {
     ["Seven working settings that were invisible in the options are shown again, and several switches that did nothing are wired up."] = "Sept réglages fonctionnels invisibles dans les options sont de nouveau affichés, et plusieurs interrupteurs sans effet sont maintenant branchés.",
     ["Modules tidy up after themselves when disabled: totem range dimming, the inspect window, queue timer, quest log and font bars no longer leave stale pieces behind."] = "Les modules rangent derrière eux à la désactivation : l'assombrissement de portée des totems, la fenêtre d'inspection, le minuteur de file d'attente, le journal de quêtes et les barres de police ne laissent plus de morceaux périmés.",
     ["Three modules got their own sidebar icons instead of the placeholder, and Reminders got a nicer bell."] = "Trois modules ont reçu leurs propres icônes de barre latérale au lieu de l'image de remplacement, et les Rappels une plus jolie cloche.",
+    -- Bags: quest starter marker
+    ["Quest starter marker (!)"] = "Marqueur de départ de quête (!)",
+    ["Overlays a yellow exclamation mark on items that start a quest you have not accepted yet."] = "Superpose un point d'exclamation jaune sur les objets qui lancent une quête que vous n'avez pas encore acceptée.",
 }
 
 ns:RegisterLocale("frFR", T)
