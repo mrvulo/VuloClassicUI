@@ -101,12 +101,15 @@ local function sizeStore()
     return p.moverSizeLinks
 end
 
+-- Kept alongside ns._movers, which stays the ordered list everything iterates.
+-- This lookup used to be a linear scan, and the Edit Mode link overlay calls it
+-- once per mover, 33 times a second -- quadratic in the number of windows while
+-- the editor is open, which is exactly when the frame budget is tightest.
+ns._moversByKey = ns._moversByKey or {}
+
 function ns:GetMoverByKey(key)
     if not key then return nil end
-    for _, m in ipairs(ns._movers) do
-        if m.key == key then return m end
-    end
-    return nil
+    return ns._moversByKey[key]
 end
 
 -- frame centre as an offset from UIParent's centre, in UIParent units —
@@ -898,6 +901,7 @@ function ns:CreateMover(target, opts)
     end)
 
     ns._movers[#ns._movers + 1] = mover
+    if mover.key then ns._moversByKey[mover.key] = mover end
 
     -- Restore free-move here too: lazily built movers miss the one-shot login pass.
     if db.freeMove then

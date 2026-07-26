@@ -1278,6 +1278,30 @@ ns._hideLinks = hideLinks
 local MAG_THRESH = 12
 
 -- Math runs in UIParent units (where guides are drawn); returned dx/dy convert back to frame-local, lineX/lineY stay UI-space.
+-- Scratch buffers, reused across calls. This runs EVERY FRAME for as long as a
+-- window is being dragged, and it used to build six fresh tables per other
+-- mover plus two feature tables and a closure -- roughly 300 short-lived tables
+-- per frame at 50 windows, in a Lua that collects incrementally, precisely
+-- while the user is judging whether the drag feels smooth. Values and lines are
+-- kept in two parallel flat arrays with an explicit count, so nothing is
+-- allocated after the first drag warms them up.
+local _xv, _xm, _yv, _ym = {}, {}, {}, {}
+local _feat = {}
+
+local function bestLine(nFeat, vals, owners, n)
+    local bd, bl, bm
+    for i = 1, nFeat do
+        local f = _feat[i]
+        for j = 1, n do
+            local d = vals[j] - f
+            if math.abs(d) <= MAG_THRESH and (not bd or math.abs(d) < math.abs(bd)) then
+                bd, bl, bm = d, vals[j], owners[j]
+            end
+        end
+    end
+    return bd, bl, bm
+end
+
 local function computeSnap(mover, x, y)
     local target = mover.target
     if not target then return end
@@ -1287,7 +1311,9 @@ local function computeSnap(mover, x, y)
     local hh = (target:GetHeight() or 0) / 2 * r
 
     -- each candidate line carries its owning mover (nil = the screen-centre line)
-    local xLines, yLines = { { v = 0 } }, { { v = 0 } }
+    _xv[1], _xm[1] = 0, nil
+    _yv[1], _ym[1] = 0, nil
+    local nx, ny = 1, 1
     for _, o in ipairs(ns._movers) do
         if o ~= mover and o.target and o:IsShown() then
             local ox, oy = ns:GetCenterOffsets(o.target)
@@ -1296,31 +1322,22 @@ local function computeSnap(mover, x, y)
                 local ocx, ocy = ox * orr, oy * orr
                 local ohw = (o.target:GetWidth()  or 0) / 2 * orr
                 local ohh = (o.target:GetHeight() or 0) / 2 * orr
-                xLines[#xLines + 1] = { v = ocx, m = o }
-                xLines[#xLines + 1] = { v = ocx - ohw, m = o }
-                xLines[#xLines + 1] = { v = ocx + ohw, m = o }
-                yLines[#yLines + 1] = { v = ocy, m = o }
-                yLines[#yLines + 1] = { v = ocy - ohh, m = o }
-                yLines[#yLines + 1] = { v = ocy + ohh, m = o }
+                _xv[nx + 1], _xm[nx + 1] = ocx,       o
+                _xv[nx + 2], _xm[nx + 2] = ocx - ohw, o
+                _xv[nx + 3], _xm[nx + 3] = ocx + ohw, o
+                nx = nx + 3
+                _yv[ny + 1], _ym[ny + 1] = ocy,       o
+                _yv[ny + 2], _ym[ny + 2] = ocy - ohh, o
+                _yv[ny + 3], _ym[ny + 3] = ocy + ohh, o
+                ny = ny + 3
             end
         end
     end
 
-    local function best(features, lines)
-        local bd, bl, bm
-        for _, f in ipairs(features) do
-            for _, cl in ipairs(lines) do
-                local d = cl.v - f
-                if math.abs(d) <= MAG_THRESH and (not bd or math.abs(d) < math.abs(bd)) then
-                    bd, bl, bm = d, cl.v, cl.m
-                end
-            end
-        end
-        return bd, bl, bm
-    end
-
-    local dx, lineX, moverX = best({ xu - hw, xu, xu + hw }, xLines)
-    local dy, lineY, moverY = best({ yu - hh, yu, yu + hh }, yLines)
+    _feat[1], _feat[2], _feat[3] = xu - hw, xu, xu + hw
+    local dx, lineX, moverX = bestLine(3, _xv, _xm, nx)
+    _feat[1], _feat[2], _feat[3] = yu - hh, yu, yu + hh
+    local dy, lineY, moverY = bestLine(3, _yv, _ym, ny)
     if dx then dx = dx / r end
     if dy then dy = dy / r end
     return dx, lineX, dy, lineY, moverX, moverY
@@ -1415,6 +1432,21 @@ linkDriver:SetScript("OnUpdate", function(_, elapsed)
     if linkAcc < 0.03 then return end
     linkAcc = 0
     drawLinks()
+end)
+
+-- All three drivers only ever have work while the editor is open -- each one's
+-- body starts by checking exactly that -- yet they were installed at file load
+-- and paid the per-frame call for the whole session regardless. A hidden frame
+-- runs no OnUpdate at all (Blizzard parks its own state-driver manager the same
+-- way), so the editor toggle now parks them and the idle cost drops to zero.
+local DRIVERS = { liveGuideDriver, cycleDriver, linkDriver }
+for _, d in ipairs(DRIVERS) do d:Hide() end
+ns:RegisterEditModeHook(function(state)
+    for _, d in ipairs(DRIVERS) do
+        if state then d:Show() else d:Hide() end
+    end
+    -- Start each session on a full interval instead of whatever was left over.
+    cycleAcc, linkAcc = 0, 0
 end)
 
 -- Layouts live in ns.db.global so they are shared across profiles; capture/apply lives in Core/Mover.lua.
