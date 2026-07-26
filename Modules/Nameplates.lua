@@ -313,29 +313,8 @@ local function dispelColor(kind)
     return DISPEL_COLORS[kind]
 end
 
-local function makeEdges(parent, layer)
-    local e = {}
-    for _, side in ipairs({ "top", "bot", "lft", "rgt" }) do
-        local t = parent:CreateTexture(nil, layer or "OVERLAY")
-        t:SetColorTexture(0, 0, 0, 1)
-        e[side] = t
-    end
-    return e
-end
-
--- Border of n physical pixels around anchor, offset pad outward; n <= 0 hides it.
-local function layoutEdges(edges, anchor, n, r, g, b, a, pad)
-    if not edges then return end
-    if n <= 0 then for _, t in pairs(edges) do t:Hide() end; return end
-    local th  = ns:Pixel(anchor, n)
-    local off = ns:Pixel(anchor, pad or 0)
-    local top, bot, lft, rgt = edges.top, edges.bot, edges.lft, edges.rgt
-    for _, t in pairs(edges) do t:SetColorTexture(r, g, b, a or 1); t:Show() end
-    top:ClearAllPoints(); top:SetPoint("BOTTOMLEFT", anchor, "TOPLEFT", -th - off, off); top:SetPoint("BOTTOMRIGHT", anchor, "TOPRIGHT", th + off, off); top:SetHeight(th)
-    bot:ClearAllPoints(); bot:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", -th - off, -off); bot:SetPoint("TOPRIGHT", anchor, "BOTTOMRIGHT", th + off, -off); bot:SetHeight(th)
-    lft:ClearAllPoints(); lft:SetPoint("TOPRIGHT", anchor, "TOPLEFT", -off, off); lft:SetPoint("BOTTOMRIGHT", anchor, "BOTTOMLEFT", -off, -off); lft:SetWidth(th)
-    rgt:ClearAllPoints(); rgt:SetPoint("TOPLEFT", anchor, "TOPRIGHT", off, off); rgt:SetPoint("BOTTOMLEFT", anchor, "BOTTOMRIGHT", off, -off); rgt:SetWidth(th)
-end
+-- promoted to Core/Utils; these aliases keep the many local call sites short
+local makeEdges, layoutEdges = ns.MakeEdges, ns.LayoutEdges
 
 local function buildVisuals(f)
     f.health = CreateFrame("StatusBar", nil, f)

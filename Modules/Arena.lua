@@ -2091,23 +2091,9 @@ local function ensureAuraFrame(arenaFrame, i)
     f.icon:SetAllPoints(f)
     f.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
     -- four edges, not a filled quad: a full-cover ADD texture washes the icon
-    -- out instead of outlining it
-    f.ring = {}
-    for _, side in ipairs({ "top", "bot", "lft", "rgt" }) do
-        f.ring[side] = f:CreateTexture(nil, "OVERLAY")
-    end
-    f.ring.top:SetPoint("BOTTOMLEFT",  f, "TOPLEFT",    -2,  2)
-    f.ring.top:SetPoint("BOTTOMRIGHT", f, "TOPRIGHT",    2,  2)
-    f.ring.top:SetHeight(2)
-    f.ring.bot:SetPoint("TOPLEFT",     f, "BOTTOMLEFT", -2, -2)
-    f.ring.bot:SetPoint("TOPRIGHT",    f, "BOTTOMRIGHT", 2, -2)
-    f.ring.bot:SetHeight(2)
-    f.ring.lft:SetPoint("TOPRIGHT",    f, "TOPLEFT",    -2,  2)
-    f.ring.lft:SetPoint("BOTTOMRIGHT", f, "BOTTOMLEFT", -2, -2)
-    f.ring.lft:SetWidth(2)
-    f.ring.rgt:SetPoint("TOPLEFT",     f, "TOPRIGHT",    2,  2)
-    f.ring.rgt:SetPoint("BOTTOMLEFT",  f, "BOTTOMRIGHT", 2, -2)
-    f.ring.rgt:SetWidth(2)
+    -- out instead of outlining it; colour is painted per aura in updateAuraIcon
+    f.ring = ns.MakeEdges(f, "OVERLAY")
+    ns.LayoutEdges(f.ring, f, 2, 0, 0, 0, 0.9, 2)
     f.cd = CreateFrame("Cooldown", nil, f, "CooldownFrameTemplate")
     f.cd:SetAllPoints(f)
     f.cd:SetDrawEdge(false)

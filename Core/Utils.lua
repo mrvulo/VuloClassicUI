@@ -35,6 +35,33 @@ function ns:PixelSnap(value, frame)
     return math.floor(value / px + 0.5) * px
 end
 
+-- Four one-pixel edge textures, not a filled quad: outlines an icon or bar
+-- without washing it out. Shared by nameplates, the power bar and the arena
+-- aura ring, which each hand-rolled the same four textures before.
+function ns.MakeEdges(parent, layer)
+    local e = {}
+    for _, side in ipairs({ "top", "bot", "lft", "rgt" }) do
+        local t = parent:CreateTexture(nil, layer or "OVERLAY")
+        t:SetColorTexture(0, 0, 0, 1)
+        e[side] = t
+    end
+    return e
+end
+
+-- Border of n physical pixels around anchor, offset pad outward; n <= 0 hides it.
+function ns.LayoutEdges(edges, anchor, n, r, g, b, a, pad)
+    if not edges then return end
+    if n <= 0 then for _, t in pairs(edges) do t:Hide() end; return end
+    local th  = ns:Pixel(anchor, n)
+    local off = ns:Pixel(anchor, pad or 0)
+    local top, bot, lft, rgt = edges.top, edges.bot, edges.lft, edges.rgt
+    for _, t in pairs(edges) do t:SetColorTexture(r, g, b, a or 1); t:Show() end
+    top:ClearAllPoints(); top:SetPoint("BOTTOMLEFT", anchor, "TOPLEFT", -th - off, off); top:SetPoint("BOTTOMRIGHT", anchor, "TOPRIGHT", th + off, off); top:SetHeight(th)
+    bot:ClearAllPoints(); bot:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", -th - off, -off); bot:SetPoint("TOPRIGHT", anchor, "BOTTOMRIGHT", th + off, -off); bot:SetHeight(th)
+    lft:ClearAllPoints(); lft:SetPoint("TOPRIGHT", anchor, "TOPLEFT", -off, off); lft:SetPoint("BOTTOMRIGHT", anchor, "BOTTOMLEFT", -off, -off); lft:SetWidth(th)
+    rgt:ClearAllPoints(); rgt:SetPoint("TOPLEFT", anchor, "TOPRIGHT", off, off); rgt:SetPoint("BOTTOMLEFT", anchor, "BOTTOMRIGHT", off, -off); rgt:SetWidth(th)
+end
+
 -- Snap a CENTER offset so the frame's leading EDGE lands on the physical pixel
 -- grid. Going through the edge rather than the centre keeps odd-width frames on
 -- their half pixel automatically — snapping the centre itself rounds that .5

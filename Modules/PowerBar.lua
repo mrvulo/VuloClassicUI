@@ -133,19 +133,8 @@ end
 
 local function applyBorder()
     if not frame or not borderEdges then return end
-    local n = mod.db.borderSize or 0
-    if n <= 0 then
-        for _, t in pairs(borderEdges) do t:Hide() end
-        return
-    end
-    local th = ns:Pixel(frame, n)
-    local c  = mod.db.borderColor or ns.COLORS.borderDark or { r = 0, g = 0, b = 0 }
-    local top, bot, lft, rgt = borderEdges.top, borderEdges.bot, borderEdges.lft, borderEdges.rgt
-    for _, t in pairs(borderEdges) do t:SetColorTexture(c.r, c.g, c.b, 1); t:Show() end
-    top:ClearAllPoints(); top:SetPoint("BOTTOMLEFT", frame, "TOPLEFT", -th, 0); top:SetPoint("BOTTOMRIGHT", frame, "TOPRIGHT", th, 0); top:SetHeight(th)
-    bot:ClearAllPoints(); bot:SetPoint("TOPLEFT", frame, "BOTTOMLEFT", -th, 0); bot:SetPoint("TOPRIGHT", frame, "BOTTOMRIGHT", th, 0); bot:SetHeight(th)
-    lft:ClearAllPoints(); lft:SetPoint("TOPRIGHT", frame, "TOPLEFT", 0, 0); lft:SetPoint("BOTTOMRIGHT", frame, "BOTTOMLEFT", 0, 0); lft:SetWidth(th)
-    rgt:ClearAllPoints(); rgt:SetPoint("TOPLEFT", frame, "TOPRIGHT", 0, 0); rgt:SetPoint("BOTTOMLEFT", frame, "BOTTOMRIGHT", 0, 0); rgt:SetWidth(th)
+    local c = mod.db.borderColor or ns.COLORS.borderDark or { r = 0, g = 0, b = 0 }
+    ns.LayoutEdges(borderEdges, frame, mod.db.borderSize or 0, c.r, c.g, c.b, 1, 0)
 end
 
 local applyHashes   -- forward declaration: assigned below, captured as an upvalue here
@@ -343,12 +332,7 @@ local function updateVisTicker()
 end
 
 local function createBorder()
-    borderEdges = {}
-    for _, side in ipairs({ "top", "bot", "lft", "rgt" }) do
-        local t = frame:CreateTexture(nil, "OVERLAY")
-        t:SetColorTexture(0, 0, 0, 1)
-        borderEdges[side] = t
-    end
+    borderEdges = ns.MakeEdges(frame, "OVERLAY")
 end
 
 local function build()
