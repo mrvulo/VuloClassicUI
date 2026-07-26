@@ -266,20 +266,18 @@ local function buildFrame()
     sep:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -6, 78)
     sep:SetHeight(1)
 
-    -- 0.1s poll for Introspection refreshes while shown
-    local throttle = 0
-    f:SetScript("OnUpdate", function(_, elapsed)
-        throttle = throttle + elapsed
-        if throttle < 0.1 then return end
-        throttle = 0
-        local exp = introspectionExpire()
-        if exp and exp ~= lastExpire then
-            lastExpire = exp
-            shiftQueue()
+    f:SetScript("OnEvent", function(_, event, unit)
+        -- Introspection refreshes announce themselves via the player's aura
+        -- event; the old 0.1s poll rescanned all debuff slots while shown.
+        if event == "UNIT_AURA" then
+            if unit ~= "player" then return end
+            local exp = introspectionExpire()
+            if exp and exp ~= lastExpire then
+                lastExpire = exp
+                shiftQueue()
+            end
+            return
         end
-    end)
-
-    f:SetScript("OnEvent", function()
         local _, sub, _, _, _, _, _, _, _, destFlags, _, sid = CombatLogGetCurrentEventInfo()
         if sub == "SPELL_DAMAGE" and sid == REPRISAL_ID
            and destFlags == SELF_FLAGS and consumed then
@@ -291,10 +289,16 @@ local function buildFrame()
         -- sync to a running Introspection so reopening mid-game doesn't eat a queue entry
         lastExpire = introspectionExpire() or 0
         self:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
+        if self.RegisterUnitEvent then
+            self:RegisterUnitEvent("UNIT_AURA", "player")
+        else
+            self:RegisterEvent("UNIT_AURA")
+        end
         bindKeys()
     end)
     f:SetScript("OnHide", function(self)
         self:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
+        self:UnregisterEvent("UNIT_AURA")
         if InCombatLockdown() and self._bound then
             self._pendingUnbind = true
         else

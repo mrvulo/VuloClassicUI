@@ -1476,7 +1476,7 @@ end
 
 local updaterFrame
 local function ensureUpdater()
-    if updaterFrame then return end
+    if updaterFrame then updaterFrame:Show(); return end
     updaterFrame = CreateFrame("Frame")
     updaterFrame.timer = 0
     updaterFrame:SetScript("OnUpdate", function(self, elapsed)
@@ -1492,6 +1492,9 @@ end
 
 local function resetAll()
     drState = {}
+    -- OnUpdate only runs while shown; outside the arena the ticker slept
+    -- through its guard but still cost a call per frame for the whole session
+    if updaterFrame then updaterFrame:Hide() end
     for _, container in pairs(drFrames) do
         for _, icon in pairs(container.icons) do icon:Hide() end
     end
@@ -1624,9 +1627,15 @@ local function castbarOnUpdate(self, elapsed)
     progress = math.max(0, math.min(1, progress))
     self:SetValue(progress)
 
-    local remaining = self.endTime - now
-    if remaining < 0 then remaining = 0 end
-    self.timer:SetText(string.format("%.1f", remaining))
+    -- text at 10 Hz is plenty; the bar fill above stays per-frame smooth.
+    -- SetFormattedText formats C-side, so no Lua string per update either.
+    self._textAcc = (self._textAcc or 0.1) + elapsed
+    if self._textAcc >= 0.1 then
+        self._textAcc = 0
+        local remaining = self.endTime - now
+        if remaining < 0 then remaining = 0 end
+        self.timer:SetFormattedText("%.1f", remaining)
+    end
 
     if now >= self.endTime then
         self.casting = false
@@ -1666,6 +1675,7 @@ local function startCast(unit, channeling)
     end
 
     cb._hideToken = (cb._hideToken or 0) + 1   -- invalidates any pending interrupt-hide timer
+    cb._textAcc = 0.1                          -- paint the timer text on the first tick
     cb:Show()
     cb:SetScript("OnUpdate", castbarOnUpdate)
 end
@@ -2112,9 +2122,14 @@ end
 
 -- Highest priority wins; a tie goes to whichever lasts longer, so the icon does
 -- not flicker between two auras of the same rank.
+-- The filter list and the result table are hoisted: this runs per UNIT_AURA
+-- and the consumer reads the result immediately, so one shared table suffices.
+local AURA_FILTERS = { "HELPFUL", "HARMFUL" }
+local _bestAura = {}
 local function bestAura(unit)
-    local best, bestPrio, bestLeft
-    for _, filter in ipairs({ "HELPFUL", "HARMFUL" }) do
+    local found, bestPrio, bestLeft = false, nil, nil
+    for fi = 1, #AURA_FILTERS do
+        local filter = AURA_FILTERS[fi]
         for i = 1, 40 do
             local name, icon, count, _, duration, expires, _, _, _, spellId =
                 UnitAura(unit, i, filter)
@@ -2122,15 +2137,17 @@ local function bestAura(unit)
             local e = spellId and AURA_PRIO[spellId]
             if e and (not mod.db.auraOnlyCC or e[2] == "cc") then
                 local left = (expires or 0) > 0 and (expires - GetTime()) or 9999
-                if (not best) or e[1] > bestPrio or (e[1] == bestPrio and left > bestLeft) then
-                    best = { icon = icon, count = count or 0,
-                             duration = duration or 0, expires = expires or 0, cat = e[2] }
+                if (not found) or e[1] > bestPrio or (e[1] == bestPrio and left > bestLeft) then
+                    found = true
+                    _bestAura.icon, _bestAura.count = icon, count or 0
+                    _bestAura.duration, _bestAura.expires = duration or 0, expires or 0
+                    _bestAura.cat = e[2]
                     bestPrio, bestLeft = e[1], left
                 end
             end
         end
     end
-    return best
+    return found and _bestAura or nil
 end
 
 local function updateAuraIcon(arenaFrame, i)
@@ -2518,7 +2535,9 @@ mod.RegEvent("ARENA_OPPONENT_UPDATE", ev_ARENA_OPPONENT_UPDATE_3)
 
 local function ev_UNIT_AURA(_, unit)
     if not mod._enabled then return end
-    if unit and mod.AuraIconUpdate then mod.AuraIconUpdate(unit) end
+    -- fires for every unit everywhere; only arena1-5 matter here
+    if not unit or string.sub(unit, 1, 5) ~= "arena" then return end
+    if mod.AuraIconUpdate then mod.AuraIconUpdate(unit) end
 end
 mod.RegEvent("UNIT_AURA", ev_UNIT_AURA)
 

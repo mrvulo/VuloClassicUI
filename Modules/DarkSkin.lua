@@ -708,7 +708,11 @@ function mod:OnEnable()
     ns:RegisterEvent("PLAYER_REGEN_ENABLED",      skinAllWAIcons)
     ns:RegisterEvent("PLAYER_TARGET_CHANGED",     onTargetChanged)
     ns:RegisterEvent("NAME_PLATE_UNIT_ADDED",     onNamePlateAdded)
-    ns:RegisterEvent("UNIT_AURA",                 skinWASoon)
+    -- registration follows the option: UNIT_AURA fires for every unit
+    -- everywhere, and with the skin off the handler would only ever bail
+    if mod.db.skinWeakAuras then
+        ns:RegisterEvent("UNIT_AURA", skinWASoon)
+    end
 
     applyAllDM()
 end
@@ -778,7 +782,17 @@ function mod:GetOptions()
         { type = "header", text = L["WeakAuras Icons"] },
         { type = "toggle", label = L["Skin WeakAuras icons"],
           get = function() return mod.db.skinWeakAuras end,
-          set = function(_, v) mod.db.skinWeakAuras = v; skinAllWAIcons() end },
+          set = function(_, v)
+              local was = mod.db.skinWeakAuras
+              mod.db.skinWeakAuras = v
+              -- ns:RegisterEvent does not dedupe, so only act on a real flip
+              if mod._enabled and v and not was then
+                  ns:RegisterEvent("UNIT_AURA", skinWASoon)
+              elseif was and not v then
+                  ns:UnregisterEvent("UNIT_AURA", skinWASoon)
+              end
+              if v then skinAllWAIcons() end
+          end },
         { type = "dropdown", label = L["WeakAuras style"],
           tooltip = L["Style for WeakAuras icons, independent of the action bars."],
           width = 260,

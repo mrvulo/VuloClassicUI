@@ -894,10 +894,17 @@ local function updateIcon(group, f, now)
         local remain = start + duration - now
         f.cd:SetCooldown(start, duration)
         if group.showText then
-            f.text:SetText(fmtRemain(remain))
+            -- the visible text only changes when the second (or minute) does;
+            -- rebuilding the string ten times a second per icon added up
+            local bucket = remain >= 60 and -math.floor(remain / 60 + 0.5) or math.ceil(remain)
+            if f._textBucket ~= bucket then
+                f._textBucket = bucket
+                f.text:SetText(fmtRemain(remain))
+            end
             applyTimerColor(group, f.text, remain)
             f.text:Show()
         else
+            f._textBucket = nil
             f.text:Hide()
         end
         if group.desaturate then f.tex:SetDesaturated(true); f.tex:SetVertexColor(0.6, 0.6, 0.6)
@@ -907,6 +914,7 @@ local function updateIcon(group, f, now)
         if group.onlyOnCooldown then f:Show() end
     else
         f.cd:Clear()
+        f._textBucket = nil
         f.text:Hide()
         f.tex:SetDesaturated(false)
         f.tex:SetVertexColor(1, 1, 1)

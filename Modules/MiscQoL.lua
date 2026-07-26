@@ -857,12 +857,20 @@ local function ftOnUpdate(_, elapsed)
         return
     end
 
+    -- the text changes once per second; the 10 Hz tick only moves the fill
+    local sec = math.floor(elapsedT)
     if ftFlight.known and ftFlight.known > 0 then
         ftSetFill(elapsedT / ftFlight.known)
-        ftBar.time:SetText(ftFmt(math.min(elapsedT, ftFlight.known)) .. " / " .. ftFmt(ftFlight.known))
+        if ftFlight._textSec ~= sec then
+            ftFlight._textSec = sec
+            ftBar.time:SetText(ftFmt(math.min(elapsedT, ftFlight.known)) .. " / " .. ftFmt(ftFlight.known))
+        end
     else
         ftSetFill(0)
-        ftBar.time:SetText(ftFmt(elapsedT) .. " / ?")
+        if ftFlight._textSec ~= sec then
+            ftFlight._textSec = sec
+            ftBar.time:SetText(ftFmt(elapsedT) .. " / ?")
+        end
     end
 end
 

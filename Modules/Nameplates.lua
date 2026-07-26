@@ -1047,8 +1047,15 @@ local function auraGroupOnUpdate(self, elapsed)
         local ic = self.icons[i]
         local rem = (ic._exp and ic._exp > 0) and (ic._exp - now) or nil
         if doText then
-            ic.timer:SetText((ic._showTimer and rem and rem > 0)
-                and fmtAuraTime(rem) or "")
+            -- repaint only when the displayed value can have changed
+            local bucket = false
+            if ic._showTimer and rem and rem > 0 then
+                bucket = (rem >= 10) and math.floor(rem) or math.floor(rem * 10)
+            end
+            if ic._timerBucket ~= bucket then
+                ic._timerBucket = bucket
+                ic.timer:SetText(bucket and fmtAuraTime(rem) or "")
+            end
         end
         if doPulse then
             if rem and rem > 0 and (ic._dur or 0) > 0 and rem <= (ic._dur * pct) then
@@ -1112,6 +1119,7 @@ local function renderAuraGroup(g, list, o)
             plateFont(ic.count, d.auraStackSize)
             ic.count:SetText((showStacks and a.count > 1) and a.count or "")
             ic.timer:SetText("")
+            ic._timerBucket = false
             ic._exp, ic._showTimer = a.expiration, showTimer
             ic._dur = a.duration
             ic:SetAlpha(1)

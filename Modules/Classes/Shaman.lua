@@ -378,14 +378,22 @@ end
 -- = out of range. A totem whose aura is never seen (Searing, Magma, Tremor and
 -- the other non-buffing ones) is simply never dimmed, because for those we
 -- genuinely cannot tell -- better silent than wrong.
+-- Rescanned only when the player's auras actually changed (UNIT_AURA sets the
+-- flag); the 0.1s ticker used to walk all 40 slots on every tick while idle.
 local playerAuraIcons = {}
+local playerAurasDirty = true
 local function refreshPlayerAuraIcons()
+    if not playerAurasDirty then return end
+    playerAurasDirty = false
     wipe(playerAuraIcons)
     for i = 1, 40 do
         local name, icon = UnitAura("player", i, "HELPFUL")
         if not name then break end
         if icon then playerAuraIcons[icon] = true end
     end
+end
+local function onPlayerAura(_, unit)
+    if unit == "player" then playerAurasDirty = true end
 end
 
 local totemSeen = {}   -- slot -> { start = <cast time>, saw = <aura observed> }
@@ -892,6 +900,7 @@ local function onEnable()
     ns:RegisterEvent("PLAYER_ENTERING_WORLD", refresh)
     ns:RegisterEvent("PLAYER_REGEN_ENABLED",  applyPending)
     ns:RegisterEvent("SPELLS_CHANGED",        onSpellsChanged)
+    ns:RegisterEvent("UNIT_AURA",             onPlayerAura)
     learnActiveTotems()
     refresh()
     rebuildFlyouts()
@@ -902,6 +911,7 @@ local function onDisable()
     ns:UnregisterEvent("PLAYER_ENTERING_WORLD", refresh)
     ns:UnregisterEvent("PLAYER_REGEN_ENABLED",  applyPending)
     ns:UnregisterEvent("SPELLS_CHANGED",        onSpellsChanged)
+    ns:UnregisterEvent("UNIT_AURA",             onPlayerAura)
     if container then
         container:SetScript("OnUpdate", nil)
         if container.mover then container.mover:Hide() end
