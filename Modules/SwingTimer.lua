@@ -85,40 +85,12 @@ local function barColor()
     return COLOR_PRESETS[mod.db.colorPreset] or COLOR_PRESETS.blue
 end
 
--- HashTable, not LSM:Fetch: Fetch honours a global texture override and would collapse every choice to one texture.
-local function lsmStatusbar(name)
-    if ns.LSM and name then
-        local hash = ns.LSM:HashTable("statusbar")
-        local path = hash and hash[name]
-        if path and path ~= "" then return path end
-    end
-    return TEX_FILL
-end
+local function lsmStatusbar(name) return ns.MediaStatusbar(name, TEX_FILL) end
 local function fillTexture() return lsmStatusbar(mod.db.texture) end
 local function bgTexture()   return lsmStatusbar(mod.db.bgTexture) end
 
-local BUNDLED_TEXTURES = {
-    "Atrocity", "Beautiful", "Divide", "Fade", "Fade Right", "Glass",
-    "Gradient", "Gradient (B-T)", "Gradient (R-L)", "Gradient (T-B)",
-    "Matte", "Melli", "Plating", "Sheer", "Soft Line",
-    "Thin Line (Top)", "Thin Line (Bottom)",
-}
 local DEFAULT_TEXTURE = "Atrocity"
-
-local function isBundledTexture(name)
-    for _, n in ipairs(BUNDLED_TEXTURES) do
-        if n == name then return true end
-    end
-    return false
-end
-
-local function textureValues()
-    local vals = {}
-    for _, name in ipairs(BUNDLED_TEXTURES) do
-        vals[#vals + 1] = { value = name, text = name }
-    end
-    return vals
-end
+local textureValues   = ns.MediaStatusbarValues
 
 -- Tiling must be disabled on the texture object or narrow LSM textures repeat instead of stretching.
 local function applyBarTexture(bar)
@@ -509,8 +481,9 @@ function mod:OnEnable()
 
     playerGUID = UnitGUID("player")
     -- Migrate texture names that no longer exist in the bundled set.
-    if not isBundledTexture(mod.db.texture)   then mod.db.texture   = DEFAULT_TEXTURE end
-    if not isBundledTexture(mod.db.bgTexture) then mod.db.bgTexture = DEFAULT_TEXTURE end
+    -- accepts foreign shared-media choices too; only truly unresolvable names reset
+    if not ns.MediaStatusbarValid(mod.db.texture)   then mod.db.texture   = DEFAULT_TEXTURE end
+    if not ns.MediaStatusbarValid(mod.db.bgTexture) then mod.db.bgTexture = DEFAULT_TEXTURE end
     create()
     recomputeDualWield()
     layout()

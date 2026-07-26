@@ -67,30 +67,9 @@ local POWER_COLORS = {
 }
 local DEFAULT_COLOR = POWER_COLORS.MANA
 
-local BUNDLED_TEXTURES = {
-    "Atrocity", "Beautiful", "Divide", "Fade", "Glass", "Gradient",
-    "Matte", "Melli", "Plating", "Sheer", "Soft Line",
-}
 local DEFAULT_TEXTURE = "Atrocity"
-
-local function lsmStatusbar(name)
-    if ns.LSM and name then
-        local hash = ns.LSM:HashTable("statusbar")
-        local path = hash and hash[name]
-        if path and path ~= "" then return path end
-    end
-    return "Interface\\TargetingFrame\\UI-StatusBar"
-end
-local function textureValues()
-    local v, seen = {}, {}
-    for _, n in ipairs(BUNDLED_TEXTURES) do v[#v + 1] = { value = n, text = n }; seen[n] = true end
-    if ns.LSM then
-        for _, n in ipairs(ns.LSM:List("statusbar") or {}) do
-            if not seen[n] then v[#v + 1] = { value = n, text = n } end
-        end
-    end
-    return v
-end
+local lsmStatusbar   = ns.MediaStatusbar
+local textureValues  = ns.MediaStatusbarValues
 
 local function textModeValues()
     return {

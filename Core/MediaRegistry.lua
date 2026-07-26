@@ -5,36 +5,80 @@ local _, ns = ...
 local L = ns.L
 
 local LSM = LibStub and LibStub:GetLibrary("LibSharedMedia-3.0", true)
-if not LSM then
-    if ns.Print then
-        ns:Print(L["|cffff5555LibSharedMedia-3.0 not found, Media Registry will be skipped.|r"])
-    end
-    return
+if not LSM and ns.Print then
+    ns:Print(L["|cffff5555LibSharedMedia-3.0 not found, Media Registry will be skipped.|r"])
 end
 
 local BASE = "Interface\\Addons\\VuloClassicUI\\Media\\"
 
--- StatusBars — only the textures bundled under Media\textures.
+-- StatusBars — only the textures bundled under Media\textures. This list is the
+-- single source of truth for every "Bar texture" dropdown; the modules used to
+-- carry their own copies and had drifted apart (two of three offered 11 of the
+-- 17 registered textures).
 local TEX = BASE .. "textures\\"
-LSM:Register("statusbar", "Atrocity",           TEX .. "atrocity.tga")
-LSM:Register("statusbar", "Beautiful",          TEX .. "beautiful.tga")
-LSM:Register("statusbar", "Divide",             TEX .. "divide.tga")
-LSM:Register("statusbar", "Fade",               TEX .. "fade.tga")
-LSM:Register("statusbar", "Fade Right",         TEX .. "fade-right.tga")
-LSM:Register("statusbar", "Glass",              TEX .. "glass.tga")
-LSM:Register("statusbar", "Gradient",           TEX .. "gradient-lr.tga")
-LSM:Register("statusbar", "Gradient (B-T)",     TEX .. "gradient-bt.tga")
-LSM:Register("statusbar", "Gradient (R-L)",     TEX .. "gradient-rl.tga")
-LSM:Register("statusbar", "Gradient (T-B)",     TEX .. "gradient-tb.tga")
-LSM:Register("statusbar", "Matte",              TEX .. "matte.tga")
-LSM:Register("statusbar", "Melli",              TEX .. "melli.tga")
-LSM:Register("statusbar", "Plating",            TEX .. "plating.tga")
-LSM:Register("statusbar", "Sheer",              TEX .. "sheer.tga")
-LSM:Register("statusbar", "Soft Line",          TEX .. "soft-line.tga")
-LSM:Register("statusbar", "Thin Line (Top)",    TEX .. "thin-line-top.tga")
-LSM:Register("statusbar", "Thin Line (Bottom)", TEX .. "thin-line-bottom.tga")
+local STATUSBARS = {
+    { "Atrocity",           "atrocity.tga" },
+    { "Beautiful",          "beautiful.tga" },
+    { "Divide",             "divide.tga" },
+    { "Fade",               "fade.tga" },
+    { "Fade Right",         "fade-right.tga" },
+    { "Glass",              "glass.tga" },
+    { "Gradient",           "gradient-lr.tga" },
+    { "Gradient (B-T)",     "gradient-bt.tga" },
+    { "Gradient (R-L)",     "gradient-rl.tga" },
+    { "Gradient (T-B)",     "gradient-tb.tga" },
+    { "Matte",              "matte.tga" },
+    { "Melli",              "melli.tga" },
+    { "Plating",            "plating.tga" },
+    { "Sheer",              "sheer.tga" },
+    { "Soft Line",          "soft-line.tga" },
+    { "Thin Line (Top)",    "thin-line-top.tga" },
+    { "Thin Line (Bottom)", "thin-line-bottom.tga" },
+}
 
-LSM:Register("font", "Expressway", BASE .. "Fonts\\Expressway.TTF")
+local BUNDLED_NAMES = {}
+for i, e in ipairs(STATUSBARS) do
+    BUNDLED_NAMES[i] = e[1]
+    if LSM then LSM:Register("statusbar", e[1], TEX .. e[2]) end
+end
+ns.BUNDLED_STATUSBARS = BUNDLED_NAMES
+
+-- HashTable, not LSM:Fetch: Fetch honours a global texture override and would
+-- collapse every choice to one texture.
+function ns.MediaStatusbar(name, fallback)
+    if LSM and name then
+        local hash = LSM:HashTable("statusbar")
+        local path = hash and hash[name]
+        if path and path ~= "" then return path end
+    end
+    return fallback or "Interface\\TargetingFrame\\UI-StatusBar"
+end
+
+-- True for any texture MediaStatusbar can resolve, bundled or foreign.
+function ns.MediaStatusbarValid(name)
+    if not (LSM and name) then return false end
+    local hash = LSM:HashTable("statusbar")
+    return (hash and hash[name] and hash[name] ~= "") and true or false
+end
+
+-- Dropdown values: the bundled set first, then statusbars other addons
+-- registered with shared media.
+function ns.MediaStatusbarValues()
+    local v, seen = {}, {}
+    for _, n in ipairs(BUNDLED_NAMES) do
+        v[#v + 1] = { value = n, text = n }; seen[n] = true
+    end
+    if LSM then
+        for _, n in ipairs(LSM:List("statusbar") or {}) do
+            if not seen[n] then v[#v + 1] = { value = n, text = n } end
+        end
+    end
+    return v
+end
+
+if LSM then
+    LSM:Register("font", "Expressway", BASE .. "Fonts\\Expressway.TTF")
+end
 
 -- (Sounds folder removed — VuloClassicUI doesn't use any of its sounds and
 --  the 118-file pack was only registered for other addons. QueueTimer uses

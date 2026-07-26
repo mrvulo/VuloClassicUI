@@ -200,25 +200,9 @@ local UnitCastingInfo, UnitChannelInfo = UnitCastingInfo, UnitChannelInfo
 local UnitThreatSituation, UnitAffectingCombat = UnitThreatSituation, UnitAffectingCombat
 local format, floor = string.format, math.floor
 
-local BUNDLED_TEXTURES = {
-    "Atrocity", "Beautiful", "Divide", "Fade", "Glass", "Gradient",
-    "Matte", "Melli", "Plating", "Sheer", "Soft Line",
-}
 local DEFAULT_TEXTURE = "Atrocity"
-
-local function lsmStatusbar(name)
-    if ns.LSM and name then
-        local hash = ns.LSM:HashTable("statusbar")
-        local path = hash and hash[name]
-        if path and path ~= "" then return path end
-    end
-    return "Interface\\TargetingFrame\\UI-StatusBar"
-end
-local function textureValues()
-    local v = {}
-    for _, n in ipairs(BUNDLED_TEXTURES) do v[#v + 1] = { value = n, text = n } end
-    return v
-end
+local lsmStatusbar   = ns.MediaStatusbar
+local textureValues  = ns.MediaStatusbarValues
 
 local function lsmBorder(name)
     if ns.LSM and name then
