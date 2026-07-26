@@ -1522,8 +1522,7 @@ end
 
 -- Newer clients expose the popup box as .EditBox, older ones as .editBox.
 local function popupBox(self)
-    return self.EditBox or self.editBox
-        or (self.GetName and _G[(self:GetName() or "") .. "EditBox"])
+    return ns.PopupEditBox(self)
 end
 
 ns.OnLocaleReady(function()

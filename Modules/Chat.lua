@@ -376,18 +376,18 @@ local function installTabHooks()
     -- all restyles deferred so they run OUTSIDE the secure temp-window chain
     if _G.FCFDock_SelectWindow then
         hooksecurefunc("FCFDock_SelectWindow", function()
-            if C_Timer and C_Timer.After then C_Timer.After(0, updateTabs) else updateTabs() end
+            ns.NextFrame(updateTabs)
         end)
     end
     if _G.FCF_Close then
         hooksecurefunc("FCF_Close", function()
-            if C_Timer and C_Timer.After then C_Timer.After(0, updateTabs) else updateTabs() end
+            ns.NextFrame(updateTabs)
         end)
     end
     -- never hook FCFTab_UpdateColors / FCFDock_UpdateTabs: they taint even when deferred
     if _G.FCF_OpenTemporaryWindow then
         hooksecurefunc("FCF_OpenTemporaryWindow", function()
-            if C_Timer and C_Timer.After then C_Timer.After(0, updateTabs) else updateTabs() end
+            ns.NextFrame(updateTabs)
         end)
     end
 end
@@ -871,7 +871,7 @@ local function positionDock()
     gdm:SetHeight(24)
     if _G.GeneralDockManagerScrollFrame then _G.GeneralDockManagerScrollFrame:SetHeight(24) end
     if _G.GeneralDockManagerScrollFrameChild then _G.GeneralDockManagerScrollFrameChild:SetHeight(24) end
-    if C_Timer and C_Timer.After then C_Timer.After(0, alignDockScroll) else alignDockScroll() end
+    ns.NextFrame(alignDockScroll)
 end
 
 local topFadeTex
@@ -1200,7 +1200,7 @@ function createChatWindow()
         end
         applyPanel(); applyFont(); updateTabs()
     end
-    if C_Timer and C_Timer.After then C_Timer.After(0, restyle) else restyle() end
+    ns.NextFrame(restyle)
 end
 
 -- The GetMaxLines guard is load-bearing: SetMaxLines wipes the window's backlog, so it must only run on an actual change.

@@ -117,7 +117,7 @@ end
 
 -- Own money dialogs (Blizzard's read the neutered frame). Amounts are typed in gold.
 function gb.popupAmount(self)
-    local box = self.EditBox or self.editBox or _G[self:GetName() .. "EditBox"]
+    local box = ns.PopupEditBox(self)
     local g = box and tonumber(box:GetText() or "")
     if not g or g <= 0 then return 0 end
     return math.floor(g * 10000)
@@ -785,7 +785,7 @@ function gb.refresh()
         if didDirty and cur and QueryGuildBankTab then QueryGuildBankTab(cur) end
         gb.layout()
     end
-    if C_Timer and C_Timer.After then C_Timer.After(0, run) else run() end
+    ns.NextFrame(run)
 end
 
 -- Remember the source tab of every pickup/split so the next refresh re-queries it.
@@ -1081,7 +1081,7 @@ function gb.onEvent(event, arg1)
         if gb.sortWaiting and gb.sortStep then
             gb.sortWaiting = false
             local s = gb.sortStep
-            if C_Timer and C_Timer.After then C_Timer.After(0, s) else s() end
+            ns.NextFrame(s)
         end
         gb.refresh()
     elseif event == "GUILDBANK_UPDATE_TABS" then

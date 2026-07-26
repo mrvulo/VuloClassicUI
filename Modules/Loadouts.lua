@@ -455,8 +455,7 @@ StaticPopupDialogs["VCUI_LOADOUT_SAVE"] = {
     maxLetters = 32,
     OnAccept = function(self)
         -- newer clients expose the box as .EditBox, older as .editBox
-        local eb = self.EditBox or self.editBox
-            or (self.GetName and _G[(self:GetName() or "") .. "EditBox"])
+        local eb = ns.PopupEditBox(self)
         saveAs(eb and eb:GetText() or "", _pendingSaveSlots)
         _pendingSaveSlots = nil
     end,
@@ -1592,19 +1591,8 @@ local function createSidebar()
         UIW.SetGradient(gstrip, "HORIZONTAL", a.r, a.g, a.b, 0.1, a.r, a.g, a.b, 0.9)
     end
 
-    local ac = ns.COLORS.accent
     local bc = ns.COLORS.border or { r = 0.22, g = 0.22, b = 0.27 }
-    local fontN = _G.VCUI_LoadoutFontNormal or CreateFont("VCUI_LoadoutFontNormal")
-    local fontH = _G.VCUI_LoadoutFontHighlight or CreateFont("VCUI_LoadoutFontHighlight")
-    local fontD = _G.VCUI_LoadoutFontDisabled or CreateFont("VCUI_LoadoutFontDisabled")
-    if UIW and UIW.FONT_PATH then
-        fontN:SetFont(UIW.FONT_PATH, 12, "")
-        fontH:SetFont(UIW.FONT_PATH, 12, "")
-        fontD:SetFont(UIW.FONT_PATH, 12, "")
-    end
-    fontN:SetTextColor(0.9, 0.9, 0.95)
-    fontH:SetTextColor(ac.r, ac.g, ac.b)
-    fontD:SetTextColor(0.45, 0.45, 0.5)
+    local fontN, fontH, fontD = ns.UI:PanelButtonFonts("VCUI_LoadoutFont")
 
     local function skinBtn(b)
         ns.UI:SkinPanelButton(b, { fonts = { fontN, fontH, fontD }, border = bc })

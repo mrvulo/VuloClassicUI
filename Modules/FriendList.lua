@@ -448,17 +448,7 @@ local function skinFriendsFrame()
         if bn.Tag and UI.Font then UI.Font(bn.Tag, 12) end
     end
 
-    local fontN = _G.VCUI_FriendsFontNormal or CreateFont("VCUI_FriendsFontNormal")
-    local fontH = _G.VCUI_FriendsFontHighlight or CreateFont("VCUI_FriendsFontHighlight")
-    local fontD = _G.VCUI_FriendsFontDisabled or CreateFont("VCUI_FriendsFontDisabled")
-    if UI.FONT_PATH then
-        fontN:SetFont(UI.FONT_PATH, 12, "")
-        fontH:SetFont(UI.FONT_PATH, 12, "")
-        fontD:SetFont(UI.FONT_PATH, 12, "")
-    end
-    fontN:SetTextColor(0.9, 0.9, 0.95)
-    fontH:SetTextColor(ac.r, ac.g, ac.b)
-    fontD:SetTextColor(0.45, 0.45, 0.5)
+    local fontN, fontH, fontD = ns.UI:PanelButtonFonts("VCUI_FriendsFont")
 
     local function skinPanelButton(b)
         ns.UI:SkinPanelButton(b, { fonts = { fontN, fontH, fontD }, border = bc })
@@ -918,9 +908,7 @@ local function skinCommunitiesFrame()
     skinSideTab(cf.GuildBenefitsTab)
     skinSideTab(cf.GuildInfoTab)
 
-    local fontN = _G.VCUI_FriendsFontNormal or CreateFont("VCUI_FriendsFontNormal")
-    local fontH = _G.VCUI_FriendsFontHighlight or CreateFont("VCUI_FriendsFontHighlight")
-    local fontD = _G.VCUI_FriendsFontDisabled or CreateFont("VCUI_FriendsFontDisabled")
+    local fontN, fontH, fontD = ns.UI:PanelButtonFonts("VCUI_FriendsFont")
     local function skinCommButton(b)
         ns.UI:SkinPanelButton(b, { fonts = { fontN, fontH, fontD }, border = bc })
     end

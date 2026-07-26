@@ -212,18 +212,7 @@ local function setupStackSplitSkin()
     local ac = (ns.COLORS and ns.COLORS.accent) or { r = 0.608, g = 0.424, b = 1 }
     local bc = (ns.COLORS and ns.COLORS.border) or { r = 0.22, g = 0.22, b = 0.27 }
 
-    -- shared font objects: buttons swap FontObject on hover/disable, so per-FontString SetFont would not stick
-    local fontN = _G.VCUI_SplitFontNormal or CreateFont("VCUI_SplitFontNormal")
-    local fontH = _G.VCUI_SplitFontHighlight or CreateFont("VCUI_SplitFontHighlight")
-    local fontD = _G.VCUI_SplitFontDisabled or CreateFont("VCUI_SplitFontDisabled")
-    if UI.FONT_PATH then
-        fontN:SetFont(UI.FONT_PATH, 12, "")
-        fontH:SetFont(UI.FONT_PATH, 12, "")
-        fontD:SetFont(UI.FONT_PATH, 12, "")
-    end
-    fontN:SetTextColor(0.9, 0.9, 0.95)
-    fontH:SetTextColor(ac.r, ac.g, ac.b)
-    fontD:SetTextColor(0.45, 0.45, 0.5)
+    local fontN, fontH, fontD = ns.UI:PanelButtonFonts("VCUI_SplitFont")
 
     local function stripTextures(region)
         for _, r in ipairs({ region:GetRegions() }) do
@@ -1082,7 +1071,7 @@ local function checkTrade()
 end
 local function onTradeShow()
     if not mod.db.blockStrangerTrades then return end
-    if C_Timer and C_Timer.After then C_Timer.After(0, checkTrade) else checkTrade() end
+    ns.NextFrame(checkTrade)
 end
 local function onTradeClosed() userInitiatedTrade = false end
 

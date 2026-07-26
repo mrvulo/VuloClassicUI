@@ -1978,7 +1978,7 @@ local function stickPreview()
 end
 
 local function stickPreviewSoon()
-    if C_Timer and C_Timer.After then C_Timer.After(0, stickPreview) else stickPreview() end
+    ns.NextFrame(stickPreview)
 end
 
 local function buildPreview(parent)

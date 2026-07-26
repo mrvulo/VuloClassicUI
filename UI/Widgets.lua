@@ -83,6 +83,27 @@ function UI:CreateSearchBox(parent, opts)
     return sb
 end
 
+-- The normal/highlight/disabled font trio every panel-button skin needs. Four
+-- modules carried a verbatim eleven-line copy of this, differing only in the
+-- global name prefix. Font objects are shared on purpose: the buttons swap
+-- FontObject on hover and disable, so setting the font per FontString would not
+-- stick. Idempotent -- the globals are reused across calls.
+function UI:PanelButtonFonts(prefix)
+    local n = _G[prefix .. "Normal"]    or CreateFont(prefix .. "Normal")
+    local h = _G[prefix .. "Highlight"] or CreateFont(prefix .. "Highlight")
+    local d = _G[prefix .. "Disabled"]  or CreateFont(prefix .. "Disabled")
+    if UI.FONT_PATH then
+        n:SetFont(UI.FONT_PATH, 12, "")
+        h:SetFont(UI.FONT_PATH, 12, "")
+        d:SetFont(UI.FONT_PATH, 12, "")
+    end
+    local ac = ns.COLORS.accent
+    n:SetTextColor(0.9, 0.9, 0.95)
+    h:SetTextColor(ac.r, ac.g, ac.b)
+    d:SetTextColor(0.45, 0.45, 0.5)
+    return n, h, d
+end
+
 -- Dark rectangular skin for a Blizzard panel button: strips the stock art,
 -- draws a flat background plus four one-pixel edges, applies the caller's
 -- font trio and recolours to accent on hover. Four modules carried copies.

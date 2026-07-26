@@ -24,6 +24,24 @@ function ns:InCombat()
     return InCombatLockdown and InCombatLockdown()
 end
 
+-- "Do this once the current frame has finished." Thirteen byte-identical copies
+-- of the same guarded call, because C_Timer is missing on the oldest clients we
+-- still load on -- there the work simply happens inline, which is what those
+-- copies did too.
+function ns.NextFrame(fn)
+    if C_Timer and C_Timer.After then C_Timer.After(0, fn) else fn() end
+end
+
+-- Newer clients expose a StaticPopup's box as .EditBox, older ones as .editBox,
+-- and the oldest only under the global <popupName>EditBox. Thirteen copies of
+-- this line had drifted apart: nine of them concatenated self:GetName() with no
+-- guard, which errors outright on a nameless popup.
+function ns.PopupEditBox(popup)
+    if not popup then return nil end
+    return popup.EditBox or popup.editBox
+        or (popup.GetName and _G[(popup:GetName() or "") .. "EditBox"])
+end
+
 -- 1 physical pixel == (768 / physicalScreenHeight) coord units at scale 1.0, divided by the frame's effective scale.
 function ns:Pixel(frame, n)
     local _, physH = GetPhysicalScreenSize()

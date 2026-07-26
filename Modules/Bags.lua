@@ -1377,7 +1377,7 @@ local function refresh()
         end
         layout()
     end
-    if C_Timer and C_Timer.After then C_Timer.After(0, run) else run() end
+    ns.NextFrame(run)
 end
 
 function categoriesChanged() refresh() end
@@ -1467,7 +1467,7 @@ local function customSortStep()
             PickupContainerItem(a.bag, a.slot)
             ClearCursor()
             sortPos = sortPos + 1
-            if C_Timer and C_Timer.After then C_Timer.After(0, customSortStep) else customSortStep() end
+            ns.NextFrame(customSortStep)
             return
         end
     end
@@ -2192,7 +2192,7 @@ local function want(state)
     wantOpen = state
     if wantScheduled then return end
     wantScheduled = true
-    if C_Timer and C_Timer.After then C_Timer.After(0, applyWant) else applyWant() end
+    ns.NextFrame(applyWant)
 end
 
 -- Suppress default bags by REPARENTING to a hidden frame (never Hide() a protected frame); only legal out of combat, else deferred to PLAYER_REGEN_ENABLED.
@@ -2370,11 +2370,11 @@ StaticPopupDialogs["VCUI_BAGS_NEW_CATEGORY"] = {
     button1 = ACCEPT, button2 = CANCEL,
     hasEditBox = true, maxLetters = 32,
     OnShow = function(self)
-        local eb = self.EditBox or self.editBox or _G[self:GetName() .. "EditBox"]
+        local eb = ns.PopupEditBox(self)
         if eb then eb:SetText(""); eb:SetFocus() end
     end,
     OnAccept = function(self)
-        local eb = self.EditBox or self.editBox or _G[self:GetName() .. "EditBox"]
+        local eb = ns.PopupEditBox(self)
         createCustomCategory(eb and eb:GetText() or "")
     end,
     EditBoxOnEnterPressed = function(self)
@@ -2391,11 +2391,11 @@ StaticPopupDialogs["VCUI_BAGS_RENAME_CATEGORY"] = {
     button1 = ACCEPT, button2 = CANCEL,
     hasEditBox = true, maxLetters = 32,
     OnShow = function(self, data)
-        local eb = self.EditBox or self.editBox or _G[self:GetName() .. "EditBox"]
+        local eb = ns.PopupEditBox(self)
         if eb then eb:SetText((data and data.current) or ""); eb:HighlightText(); eb:SetFocus() end
     end,
     OnAccept = function(self, data)
-        local eb = self.EditBox or self.editBox or _G[self:GetName() .. "EditBox"]
+        local eb = ns.PopupEditBox(self)
         if data then renameCategory(data.key, eb and eb:GetText() or "") end
     end,
     EditBoxOnEnterPressed = function(self)
@@ -2413,11 +2413,11 @@ StaticPopupDialogs["VCUI_BAGS_NEW_GROUP"] = {
     button1 = ACCEPT, button2 = CANCEL,
     hasEditBox = true, maxLetters = 32,
     OnShow = function(self)
-        local eb = self.EditBox or self.editBox or _G[self:GetName() .. "EditBox"]
+        local eb = ns.PopupEditBox(self)
         if eb then eb:SetText(""); eb:SetFocus() end
     end,
     OnAccept = function(self, data)
-        local eb = self.EditBox or self.editBox or _G[self:GetName() .. "EditBox"]
+        local eb = ns.PopupEditBox(self)
         local id = createGroup(eb and eb:GetText() or "")
         if id and data and data.catKey then assignCatToGroup(data.catKey, id) end
     end,
@@ -2436,11 +2436,11 @@ StaticPopupDialogs["VCUI_BAGS_RENAME_GROUP"] = {
     button1 = ACCEPT, button2 = CANCEL,
     hasEditBox = true, maxLetters = 32,
     OnShow = function(self, data)
-        local eb = self.EditBox or self.editBox or _G[self:GetName() .. "EditBox"]
+        local eb = ns.PopupEditBox(self)
         if eb then eb:SetText((data and data.current) or ""); eb:HighlightText(); eb:SetFocus() end
     end,
     OnAccept = function(self, data)
-        local eb = self.EditBox or self.editBox or _G[self:GetName() .. "EditBox"]
+        local eb = ns.PopupEditBox(self)
         if data then renameGroup(data.id, eb and eb:GetText() or "") end
     end,
     EditBoxOnEnterPressed = function(self)

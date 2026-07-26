@@ -60,19 +60,7 @@ end
 
 local function buttonFonts()
     if sk.fontN then return end
-    local UI = ns.UI
-    sk.fontN = _G.VCUI_SkinFontNormal or CreateFont("VCUI_SkinFontNormal")
-    sk.fontH = _G.VCUI_SkinFontHighlight or CreateFont("VCUI_SkinFontHighlight")
-    sk.fontD = _G.VCUI_SkinFontDisabled or CreateFont("VCUI_SkinFontDisabled")
-    if UI and UI.FONT_PATH then
-        sk.fontN:SetFont(UI.FONT_PATH, 12, "")
-        sk.fontH:SetFont(UI.FONT_PATH, 12, "")
-        sk.fontD:SetFont(UI.FONT_PATH, 12, "")
-    end
-    local ac = ns.COLORS.accent
-    sk.fontN:SetTextColor(0.9, 0.9, 0.95)
-    sk.fontH:SetTextColor(ac.r, ac.g, ac.b)
-    sk.fontD:SetTextColor(0.45, 0.45, 0.5)
+    sk.fontN, sk.fontH, sk.fontD = ns.UI:PanelButtonFonts("VCUI_SkinFont")
 end
 
 local function skinButton(b)

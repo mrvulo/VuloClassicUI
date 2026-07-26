@@ -92,11 +92,7 @@ StaticPopupDialogs["VCUI_PROFILE_RESET"] = {
 }
 end)
 
--- newer clients expose the box as .EditBox, older as .editBox
-local function popupEditBox(self)
-    return self.EditBox or self.editBox
-        or (self.GetName and _G[(self:GetName() or "") .. "EditBox"])
-end
+local popupEditBox = ns.PopupEditBox
 
 ns.OnLocaleReady(function()
 StaticPopupDialogs["VCUI_PROFILE_EXPORT"] = {

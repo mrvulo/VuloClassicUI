@@ -531,9 +531,7 @@ function UI:CreateMainFrame()
         hasEditBox = true,
         editBoxWidth = 260,
         OnShow = function(self)
-            -- API compat: newer clients expose the box as .EditBox, older as .editBox
-            local eb = self.EditBox or self.editBox
-                or (self.GetName and _G[(self:GetName() or "") .. "EditBox"])
+            local eb = ns.PopupEditBox(self)
             if not eb then return end
             eb:SetText(self.data or "")
             eb:HighlightText()
