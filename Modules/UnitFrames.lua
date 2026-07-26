@@ -18,12 +18,17 @@ local mod = ns:RegisterModule("unitframes", {
     },
 })
 
--- The 2.5.5 client shifted the player-frame elements; Era keeps the original layout and needs no offset.
+-- Offsets for the player-frame elements as the 2.5.5 client re-laid them out.
+--
+-- These used to be branched on ns.isEra, because Era had kept the original
+-- layout. Patch 1.15.9 ended that: Era, Hardcore and Season of Discovery now
+-- load the very same Blizzard_UnitFrame/Classic/PlayerFrame.xml as Anniversary,
+-- so the Era branch was placing the border and the level number against a frame
+-- that no longer exists. One set of numbers for both flavors is now correct --
+-- and a reminder to test what the client actually offers instead of branching on
+-- which flavor it is.
 local BASE_X, BASE_Y = -17.5, -3.5
-if ns.isEra then BASE_X, BASE_Y = 0, 0 end
 local LEVEL_X, LEVEL_Y = 52.5 + BASE_X, -67 + BASE_Y
--- Era's frame is sized differently, so the level number needs an extra nudge right.
-if ns.isEra then LEVEL_X = LEVEL_X + 8 end
 
 local STYLES = {
     elite = {
