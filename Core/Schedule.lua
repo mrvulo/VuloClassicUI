@@ -28,11 +28,19 @@ local function tick(_, elapsed)
         s.acc = s.acc + elapsed
         if s.acc >= s.interval then
             s.acc = 0
-            s.fn(s.arg)
+            -- Protected: the per-module OnUpdate frames this replaced were
+            -- isolated by the client, one script each. Sharing one walk would
+            -- otherwise let a single throwing subscriber starve every
+            -- subscriber behind it, every frame.
+            local ok, err = pcall(s.fn, s.arg)
+            if not ok then geterrorhandler()(err) end
         end
         -- A callback may cancel itself (or a neighbour). Removal swaps the last
         -- entry into this slot, so only advance when the slot is untouched --
         -- otherwise the entry that moved here would be skipped for this tick.
+        -- (Cancelling an entry BEFORE this one costs the moved entry a single
+        -- frame of accumulation. Self-correcting, and it needs a cancel on
+        -- every frame to matter.)
         if subs[i] == s then i = i + 1 end
     end
 end
@@ -70,11 +78,22 @@ function ns:TickerCount() return count end
 -- ---------------------------------------------------------------------------
 -- Combat deferral
 --
--- Nine call sites carried the same guard by hand, each with its own pending
--- flag and its own drain. The guard half is genuinely identical everywhere;
--- the drains are not, so this only takes over the "do it once it is safe" case.
+-- Nine call sites in Modules/ carry this guard by hand. NONE of them has been
+-- moved onto it, and that is deliberate: their guard halves are identical, but
+-- their drains are not -- each re-decides state in BOTH directions, or flushes a
+-- second pending flag, or is driven by a ticker rather than the regen event.
+-- Replacing those would change WHEN three of them run, so they were left alone
+-- after review. This exists for NEW code, which should not hand-roll a tenth
+-- copy, and for the sites that turn out to be genuine one-shots.
+--
+-- The framework offers three shapes; pick by what has to be true afterwards:
+--   ns:RegisterEventOnce("PLAYER_REGEN_ENABLED", fn)  -- must survive the module
+--                                                        being switched off
+--   ns:RunOutOfCombat(fn, ...)                        -- just do it when safe
+--   ns:RunOutOfCombatOnce(key, fn, ...)               -- ...and only once
 
 local pending = {}
+local keyed = {}
 local regen = CreateFrame("Frame")
 
 local function drain()
@@ -88,8 +107,13 @@ local function drain()
     pending = {}
     for i = 1, #jobs do
         local j = jobs[i]
-        local ok, err = pcall(j.fn, j[1], j[2], j[3], j[4])
-        if not ok then geterrorhandler()(err) end
+        if not j.dead then
+            if j.key then keyed[j.key] = nil end
+            -- unpack with the stored count: an explicit nil in the middle must
+            -- not truncate the argument list the way # would.
+            local ok, err = pcall(j.fn, unpack(j, 1, j.n))
+            if not ok then geterrorhandler()(err) end
+        end
     end
 end
 
@@ -97,30 +121,33 @@ regen:RegisterEvent("PLAYER_REGEN_ENABLED")
 regen:SetScript("OnEvent", drain)
 
 -- Runs fn(...) now when out of combat, otherwise once combat ends.
--- Up to four arguments are carried; more than that wants a closure anyway.
 function ns:RunOutOfCombat(fn, ...)
     if type(fn) ~= "function" then return end
     if not InCombatLockdown() then
         fn(...)
         return
     end
-    pending[#pending + 1] = { fn = fn, ... }
+    pending[#pending + 1] = { fn = fn, n = select("#", ...), ... }
 end
 
 -- Same, but at most one queued job per key: a layout that gets requested forty
 -- times during a fight must not run forty times when it ends.
-local keyed = {}
 function ns:RunOutOfCombatOnce(key, fn, ...)
-    if type(fn) ~= "function" then return end
+    if type(fn) ~= "function" or key == nil then return end
+
     if not InCombatLockdown() then
-        keyed[key] = nil
+        -- InCombatLockdown() goes false BEFORE PLAYER_REGEN_ENABLED reaches the
+        -- frame, so an already-queued job for this key may still be sitting in
+        -- the list. Kill it rather than just dropping the flag, or the work runs
+        -- twice -- which is the one thing this function exists to prevent.
+        local job = keyed[key]
+        if job then job.dead = true; keyed[key] = nil end
         fn(...)
         return
     end
+
     if keyed[key] then return end
-    keyed[key] = true
-    ns:RunOutOfCombat(function(...)
-        keyed[key] = nil
-        fn(...)
-    end, ...)
+    local job = { key = key, fn = fn, n = select("#", ...), ... }
+    keyed[key] = job
+    pending[#pending + 1] = job
 end

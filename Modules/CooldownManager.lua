@@ -1258,8 +1258,10 @@ function mod:OnEnable()
     -- filter - including "Never" - and the bar opacity slider. setUnlocked is
     -- the only thing that shows the mover, and it does not run on load.
     for _, group in ipairs(db().groups) do group.unlocked = false end
-    -- Shared ticker: while the module is off there is no per-frame call at all,
-    -- where the private driver frame used to keep ticking into its own guard.
+    -- On the shared ticker. NOT a saving in itself -- the private frame this
+    -- replaced was already hidden while the module was off, so it cost nothing
+    -- either. What it buys is one driver instead of one frame per module, and
+    -- a cancel that is symmetric with the enable.
     if not driver then driver = ns:AddTicker(0.1, refreshAll) end
     inCombat = InCombatLockdown() and true or false
     rebuildBars()

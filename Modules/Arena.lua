@@ -1477,8 +1477,10 @@ local function onCombatLog()
     end
 end
 
--- Expiry sweep for the diminishing-returns icons. On the shared ticker, so
--- outside an arena there is no frame and no per-frame call at all.
+-- Expiry sweep for the diminishing-returns icons, on the shared ticker. The
+-- private frame this replaced was already hidden outside arenas, so this is not
+-- a per-frame saving -- it is one driver instead of one frame per module, and a
+-- cancel that the module's own disable path can reach.
 local updaterTicker
 local function drTick()
     if not mod.db.drEnabled or not mod._enabled then return end
@@ -1501,6 +1503,13 @@ local function resetAll()
         for _, icon in pairs(container.icons) do icon:Hide() end
     end
 end
+
+-- Switching the module off inside an arena used to leave the ticker subscribed:
+-- the zone change that would have cleared it arrives through an event this
+-- module just unregistered. One orphan is enough to keep the SHARED driver
+-- shown for the rest of the session, so this is the one cancel that must not
+-- depend on the player walking out.
+mod:RegisterOnDisable(resetAll)
 
 -- named handler so the very hot combat log stays registered only inside arenas
 local function onCLEU()

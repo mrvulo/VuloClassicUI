@@ -71,19 +71,28 @@ end
 -- file has to care which shape a locale file uses.
 local builders = {}
 
+local function runBuilder(fn, data)
+    local ok, tbl = pcall(fn)
+    if ok and type(tbl) == "table" then
+        for k, v in pairs(tbl) do data[k] = v end
+        return true
+    end
+    -- Loud on purpose. The table used to be built at file scope, where a fault
+    -- inside it aborted the chunk and showed up in the error frame; swallowing
+    -- it here would leave a language silently half-translated for the session,
+    -- and translations are bulk-generated, so this is a realistic way to ship.
+    if not ok then geterrorhandler()(tbl) end
+    return false
+end
+
 local function materialize(code)
     local data = ns.localeData[code]
     if data then return data end
     data = {}
-    ns.localeData[code] = data          -- set first: a builder must not recurse
+    ns.localeData[code] = data          -- set first, so a builder cannot recurse
     local list = builders[code]
     if list then
-        for i = 1, #list do
-            local ok, tbl = pcall(list[i])
-            if ok and type(tbl) == "table" then
-                for k, v in pairs(tbl) do data[k] = v end
-            end
-        end
+        for i = 1, #list do runBuilder(list[i], data) end
     end
     return data
 end
@@ -111,16 +120,16 @@ function ns:RegisterLocale(code, tblOrBuilder)
         -- Registered after this language was already read: apply straight away,
         -- otherwise the late entries would never appear.
         local data = ns.localeData[code]
-        if data then
-            local ok, tbl = pcall(tblOrBuilder)
-            if ok and type(tbl) == "table" then
-                for k, v in pairs(tbl) do data[k] = v end
-            end
-        end
+        if data then runBuilder(tblOrBuilder, data) end
         return
     end
 
     if kind ~= "table" then return end
+    -- Materialize FIRST. Creating the cache entry here without running the
+    -- pending builders would make materialize() short-circuit forever, so a
+    -- two-line table override registered after a locale file would silently
+    -- throw that file's whole translation away.
+    if not ns.localeData[code] and builders[code] then materialize(code) end
     ns.localeData[code] = ns.localeData[code] or {}
     for k, v in pairs(tblOrBuilder) do
         ns.localeData[code][k] = v

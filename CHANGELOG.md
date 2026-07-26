@@ -16,6 +16,27 @@
   ~1900 characters or it gets truncated with a link to the full notes.
 -->
 
+## 1.37.2
+**Classic Era, Hardcore and Season of Discovery:**
+- The addon loads again without ticking "Load out of date AddOns". Blizzard's July interface update moved these realms to a new version number.
+- Fixed a crash that switched the whole Class Trainer page off on Season of Discovery: one ability the realm does not know took the entire module down with it.
+- The elite border on your player frame sits correctly again. It was placed against the old frame layout, which that same update replaced.
+
+**Fixes:**
+- Fixed a rare error storm at the end of a fight. Cleanup work in nineteen files could be skipped and the chat filled with error lines.
+- Combat log features (swing timer, cooldown pulse, combat text, arena tracker, nameplates, mana display) no longer depend on a setting a player can switch off.
+- An interrupted enemy cast now really shows INTERRUPTED for a moment.
+- **NEW:** Items that start a quest you have not accepted yet are marked with a yellow exclamation mark, in bags, bank and keyring.
+
+**Performance:**
+- Seven of the eight shipped translations no longer build their lookup table at all. Only the language you actually read is assembled.
+- A dozen modules shared their update clock instead of each running its own. While nothing needs updating, there is no per-frame work left at all.
+- Edit Mode: three background drivers no longer run permanently, dragging a window allocates far less, and finding a window is a direct lookup instead of a search.
+- Disabling a module now detaches it completely — several used to leave listeners running for the rest of the session.
+
+**Under the hood:**
+- The performance readout in the header uses your client's own always-on measurement, so it needs no setting and no reload.
+
 ## 1.37.1
 **Languages:**
 - The language option under General now actually applies. It silently never took effect — the addon read the client language before your saved choice was loaded. After a /reload every label, dropdown and popup follows your choice.
