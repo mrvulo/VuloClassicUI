@@ -153,43 +153,47 @@ local function OnUpdate(_, update)
 
         for id, v in pairs(watching) do
             if GetTime() >= v[1] + 0.5 then
-                local getDetails
-                if v[2] == "spell" then
-                    getDetails = memoize(function()
-                        local name, _, texture = GetSpellInfo(v[3])
-                        local start, duration, enabled = GetSpellCooldown(v[3])
-                        return {
-                            name     = name,
-                            texture  = texture,
-                            start    = start,
-                            duration = duration,
-                            enabled  = enabled,
-                        }
-                    end)
-                elseif v[2] == "item" then
-                    getDetails = memoize(function()
-                        local start, duration, enabled = getItemCooldown(id)
-                        return {
-                            name     = GetItemInfo(id),
-                            texture  = v[3],
-                            start    = start,
-                            duration = duration,
-                            enabled  = enabled,
-                        }
-                    end)
-                elseif v[2] == "pet" then
-                    getDetails = memoize(function()
-                        local name, texture = GetPetActionInfo(v[3])
-                        local start, duration, enabled = GetPetActionCooldown(v[3])
-                        return {
-                            name     = name,
-                            texture  = texture,
-                            isPet    = true,
-                            start    = start,
-                            duration = duration,
-                            enabled  = enabled,
-                        }
-                    end)
+                -- Built once per entry, reset here per tick: rebuilding the
+                -- memoize every tick allocated five objects per watched id at
+                -- 20 Hz, continuously while buttons were being pressed. The
+                -- details table is reused too - no consumer keeps it.
+                local getDetails = v.getDetails
+                if getDetails then
+                    getDetails.resetCache()
+                else
+                    local function fill()
+                        local t = v.details
+                        if not t then t = {}; v.details = t end
+                        return t
+                    end
+                    if v[2] == "spell" then
+                        getDetails = memoize(function()
+                            local t = fill()
+                            local name, _, texture = GetSpellInfo(v[3])
+                            local start, duration, enabled = GetSpellCooldown(v[3])
+                            t.name, t.texture, t.isPet = name, texture, nil
+                            t.start, t.duration, t.enabled = start, duration, enabled
+                            return t
+                        end)
+                    elseif v[2] == "item" then
+                        getDetails = memoize(function()
+                            local t = fill()
+                            local start, duration, enabled = getItemCooldown(id)
+                            t.name, t.texture, t.isPet = GetItemInfo(id), v[3], nil
+                            t.start, t.duration, t.enabled = start, duration, enabled
+                            return t
+                        end)
+                    elseif v[2] == "pet" then
+                        getDetails = memoize(function()
+                            local t = fill()
+                            local name, texture = GetPetActionInfo(v[3])
+                            local start, duration, enabled = GetPetActionCooldown(v[3])
+                            t.name, t.texture, t.isPet = name, texture, true
+                            t.start, t.duration, t.enabled = start, duration, enabled
+                            return t
+                        end)
+                    end
+                    v.getDetails = getDetails
                 end
 
                 if getDetails then

@@ -896,6 +896,7 @@ local UnitAura = UnitAura     -- Compat.lua guarantees this exists on this clien
 local wipe = wipe
 
 local _dbuf, _bbuf, _ccbuf, _dotbuf = {}, {}, {}, {}   -- scratch aura lists (single-threaded reuse)
+local _harm = {}   -- one full HARMFUL scan per update; the harmful rows derive from it
 
 -- No CROWD_CONTROL aura filter on this client, so CC is matched by spell id.
 local CC_SPELLS = {}
@@ -1008,6 +1009,7 @@ local function collectAuras(unit, filter, max, out, mode, skipMine)
             rec.expiration = expiration or 0
             rec.dispelType = dispelType
             rec.mine       = mine
+            rec.isCC       = isCC
             rec.dispel     = (stealable and playerCanSteal) and true or false
             out[n] = rec
             if n >= max then break end
@@ -1042,6 +1044,36 @@ local function hideGroup(g)
     g:SetScript("OnUpdate", nil)
     g._active = 0
     if g.icons then for _, ic in ipairs(g.icons) do ic:Hide() end end
+end
+
+-- One shared handler instead of a fresh closure per row per UNIT_AURA: on a big
+-- pull the closures were the last remaining allocator in this path (the entry
+-- tables are pooled above). Everything it needs lives on the group/icons.
+local function auraGroupOnUpdate(self, elapsed)
+    self._t  = (self._t or 0) + elapsed
+    self._tt = (self._tt or 0) + elapsed
+    local doPulse = self._flash and self._t >= 0.05
+    local doText  = self._showTimer and self._tt >= 0.1
+    if not (doPulse or doText) then return end
+    if doPulse then self._t = 0 end
+    if doText  then self._tt = 0 end
+    local now = GetTime()
+    local pct = ((db().auraExpirePct or 30)) / 100
+    for i = 1, (self._active or 0) do
+        local ic = self.icons[i]
+        local rem = (ic._exp and ic._exp > 0) and (ic._exp - now) or nil
+        if doText then
+            ic.timer:SetText((ic._showTimer and rem and rem > 0)
+                and fmtAuraTime(rem) or "")
+        end
+        if doPulse then
+            if rem and rem > 0 and (ic._dur or 0) > 0 and rem <= (ic._dur * pct) then
+                ic:SetAlpha(0.45 + 0.55 * math.abs(math.sin(now * 4)))
+            elseif ic:GetAlpha() ~= 1 then
+                ic:SetAlpha(1)
+            end
+        end
+    end
 end
 
 local function renderAuraGroup(g, list, o)
@@ -1106,35 +1138,11 @@ local function renderAuraGroup(g, list, o)
     end
     g._active = n
     local flash = d.auraExpireFlash and (d.auraExpirePct or 30) > 0
+    -- Two clocks: the pulse needs to be smooth, the countdown text does not.
+    -- Rebuilding the text at pulse rate would triple the string churn.
+    g._flash, g._showTimer = flash, showTimer
     if n > 0 and (showTimer or flash) then
-        -- Two clocks: the pulse needs to be smooth, the countdown text does not.
-        -- Rebuilding the text at pulse rate would triple the string churn.
-        g:SetScript("OnUpdate", function(self, elapsed)
-            self._t  = (self._t or 0) + elapsed
-            self._tt = (self._tt or 0) + elapsed
-            local doPulse = flash and self._t >= 0.05
-            local doText  = showTimer and self._tt >= 0.1
-            if not (doPulse or doText) then return end
-            if doPulse then self._t = 0 end
-            if doText  then self._tt = 0 end
-            local now = GetTime()
-            local pct = ((db().auraExpirePct or 30)) / 100
-            for i = 1, (self._active or 0) do
-                local ic = self.icons[i]
-                local rem = (ic._exp and ic._exp > 0) and (ic._exp - now) or nil
-                if doText then
-                    ic.timer:SetText((ic._showTimer and rem and rem > 0)
-                        and fmtAuraTime(rem) or "")
-                end
-                if doPulse then
-                    if rem and rem > 0 and (ic._dur or 0) > 0 and rem <= (ic._dur * pct) then
-                        ic:SetAlpha(0.45 + 0.55 * math.abs(math.sin(now * 4)))
-                    elseif ic:GetAlpha() ~= 1 then
-                        ic:SetAlpha(1)
-                    end
-                end
-            end
-        end)
+        g:SetScript("OnUpdate", auraGroupOnUpdate)
     else
         g:SetScript("OnUpdate", nil)
     end
@@ -1182,6 +1190,10 @@ local function migrateAuraRows()
     d.ccOffsetX, d.ccOffsetY = nil, nil
 end
 
+-- Scratch tables, refilled per call: applyAuras runs per plate per UNIT_AURA,
+-- and neither table outlives the call (renderAuraGroup copies what it needs).
+local _used, _ro = {}, {}
+
 local function applyAuras(f, lists)
     local d = db()
     migrateAuraRows()
@@ -1195,10 +1207,9 @@ local function applyAuras(f, lists)
         castRoom = castRoom + (d.castHeight or 12) + (d.borderSize or 1) + 4
             - math.min(0, d.castOffsetY or 0)
     end
-    local used = {
-        top    = (d.showName and (d.nameSize + 6) or 4) + (d.auraOffsetY or 0),
-        bottom = castRoom - (d.auraOffsetY or 0),
-    }
+    local used = _used
+    used.top    = (d.showName and (d.nameSize + 6) or 4) + (d.auraOffsetY or 0)
+    used.bottom = castRoom - (d.auraOffsetY or 0)
     for _, row in ipairs(AURA_ROWS) do
         local group = f[row.group]
         local list  = lists[row.key]
@@ -1233,12 +1244,12 @@ local function applyAuras(f, lists)
                     or (hp == "LEFT" and "TOPLEFT" or "TOPRIGHT"),
                     (d.auraOffsetX or 0) + (cfg.x or 0), dy)
             end
-            renderAuraGroup(group, list, {
-                size = size, w = w, h = h, spacing = spacing,
-                grow = grow, perRow = perRow, side = side,
-                showTimer = d.showAuraTimer, showStacks = d.showAuraStacks,
-                swipe = d.auraSwipe,
-            })
+            -- every field set anew: the table is reused across rows
+            _ro.size, _ro.w, _ro.h, _ro.spacing = size, w, h, spacing
+            _ro.grow, _ro.perRow, _ro.side = grow, perRow, side
+            _ro.showTimer, _ro.showStacks = d.showAuraTimer, d.showAuraStacks
+            _ro.swipe = d.auraSwipe
+            renderAuraGroup(group, list, _ro)
             used[side] = used[side] + blockH + spacing
         elseif group then
             hideGroup(group)
@@ -1278,6 +1289,31 @@ end
 
 local _lists = {}
 
+-- The debuff, own-debuff and CC rows are all views of the same HARMFUL list;
+-- scanning it once and deriving the three rows here replaces up to three full
+-- UnitAura sweeps of the same unit per event with one. mineOnly matches the
+-- client's PLAYER filter (those auras carry caster == "player"), and mineOnly
+-- and skipMine are never requested together. dst entries are references into
+-- _harm, which stays untouched until the next scan.
+local function deriveHarm(dst, ccOnly, skipCC, mineOnly, skipMine, max)
+    local n = 0
+    for i = 1, #_harm do
+        local a = _harm[i]
+        local keep
+        if ccOnly then keep = a.isCC
+        else keep = not (skipCC and a.isCC) end
+        if keep and mineOnly and not a.mine then keep = false end
+        if keep and skipMine and a.mine then keep = false end
+        if keep then
+            n = n + 1
+            dst[n] = a
+            if max and max > 0 and n >= max then break end
+        end
+    end
+    for i = #dst, n + 1, -1 do dst[i] = nil end
+    return dst
+end
+
 local function plateUpdateAuras(f)
     if not f.unit then return end
     if f._mode and f._mode ~= "full" then
@@ -1290,6 +1326,9 @@ local function plateUpdateAuras(f)
     -- and let applyRowFilter do the trimming.
     local WIDE = 40
     wipe(_lists)
+    if d.showDebuffs or d.showDots or d.showCC then
+        collectAuras(f.unit, "HARMFUL", WIDE, _harm)
+    end
     if d.showDebuffs then
         local cfg = rowCfg("debuff")
         local wantsMine = (cfg.filter == "mine")
@@ -1297,15 +1336,13 @@ local function plateUpdateAuras(f)
         -- rows show an identical list twice on stock settings. A row explicitly
         -- set to "only mine" keeps them.
         local handOff = d.showDots and not wantsMine
-        local scan = "HARMFUL"
-        if wantsMine or (not d.debuffsAll and not handOff) then scan = "HARMFUL|PLAYER" end
-        collectAuras(f.unit, scan, WIDE, _dbuf, d.showCC and "skipcc" or nil, handOff)
+        local mineOnly = wantsMine or (not d.debuffsAll and not handOff)
+        deriveHarm(_dbuf, false, d.showCC, mineOnly, handOff)
         applyRowFilter(_dbuf, cfg.filter, d.maxDebuffs)
         _lists.debuff = _dbuf
     end
     if d.showDots then
-        collectAuras(f.unit, "HARMFUL|PLAYER", WIDE, _dotbuf,
-            d.showCC and "skipcc" or nil)
+        deriveHarm(_dotbuf, false, d.showCC, true, false)
         applyRowFilter(_dotbuf, nil, d.maxDots)
         _lists.dot = _dotbuf
     end
@@ -1316,7 +1353,7 @@ local function plateUpdateAuras(f)
         _lists.buff = _bbuf
     end
     if d.showCC then
-        collectAuras(f.unit, "HARMFUL", d.maxCC, _ccbuf, "cconly")
+        deriveHarm(_ccbuf, true, false, false, false, d.maxCC)
         _lists.cc = _ccbuf
     end
     applyAuras(f, _lists)
@@ -1410,6 +1447,15 @@ local function onCombatLogEvent()
     end
 end
 
+-- Shared handlers instead of one fresh closure per cast/flash: every mob that
+-- starts a cast allocated one, constant churn in caster packs. State lives on
+-- the frame (_flashUntil, _castEnd, ...).
+local function castFlashOnUpdate(self)
+    local left = (self._flashUntil or 0) - GetTime()
+    if left <= 0 then self._flashUntil = nil; return plateCastStop(self) end
+    self.cast:SetAlpha(math.min(1, left / 0.6))
+end
+
 local function plateCastFlash(f)
     local d = db()
     if not d.castInterruptFlash or not f._casting then return plateCastStop(f) end
@@ -1432,11 +1478,7 @@ local function plateCastFlash(f)
         f.castText:SetFormattedText(L["Interrupted by %s"], lastInterrupt.name)
         f.castText:Show()
     end
-    f:SetScript("OnUpdate", function(self)
-        local left = untilT - GetTime()
-        if left <= 0 then self._flashUntil = nil; return plateCastStop(self) end
-        self.cast:SetAlpha(math.min(1, left / 0.6))
-    end)
+    f:SetScript("OnUpdate", castFlashOnUpdate)
 end
 
 local function updateKickTick(f)
@@ -1459,6 +1501,30 @@ local function updateKickTick(f)
     tk:SetPoint("BOTTOMLEFT", f.cast, "BOTTOMLEFT", w * frac - 1, 0)
     tk:SetWidth(2)
     tk:Show()
+end
+
+local function castOnUpdate(self, elapsed)
+    if not self._casting then return end
+    local now = GetTime()
+    if now >= self._castEnd then return plateCastStop(self) end
+    self.cast:SetValue(self._castChannel and (self._castStart + (self._castEnd - now)) or now)
+    if self.castTimer and self.castTimer:IsShown() then
+        self.castTimer:SetFormattedText("%.1f", self._castEnd - now)
+    end
+    if not self._castNoInt then
+        local d2 = db()
+        if d2.kickColorOn or d2.kickReadyColorOn or d2.castKickTick or d2.castYouColorOn then
+            self._kickAcc = (self._kickAcc or 0) + (elapsed or 0)
+            if self._kickAcc > 0.2 then
+                self._kickAcc = 0
+                if d2.kickColorOn or d2.kickReadyColorOn or d2.castYouColorOn then
+                    local c = castColor(d2, false, self)
+                    self.cast:SetStatusBarColor(c.r, c.g, c.b)
+                end
+                if d2.castKickTick then updateKickTick(self) end
+            end
+        end
+    end
 end
 
 local function plateCastStart(f)
@@ -1489,29 +1555,7 @@ local function plateCastStart(f)
     if f.castShield then f.castShield:SetShown(d.showCastShield and notInterruptible) end
     if d.hideNameWhileCasting then f.name:Hide() end
     updateKickTick(f)
-    f:SetScript("OnUpdate", function(self, elapsed)
-        if not self._casting then return end
-        local now = GetTime()
-        if now >= self._castEnd then return plateCastStop(self) end
-        self.cast:SetValue(self._castChannel and (self._castStart + (self._castEnd - now)) or now)
-        if self.castTimer and self.castTimer:IsShown() then
-            self.castTimer:SetFormattedText("%.1f", self._castEnd - now)
-        end
-        if not self._castNoInt then
-            local d2 = db()
-            if d2.kickColorOn or d2.kickReadyColorOn or d2.castKickTick or d2.castYouColorOn then
-                self._kickAcc = (self._kickAcc or 0) + (elapsed or 0)
-                if self._kickAcc > 0.2 then
-                    self._kickAcc = 0
-                    if d2.kickColorOn or d2.kickReadyColorOn or d2.castYouColorOn then
-                        local c = castColor(d2, false, self)
-                        self.cast:SetStatusBarColor(c.r, c.g, c.b)
-                    end
-                    if d2.castKickTick then updateKickTick(self) end
-                end
-            end
-        end
-    end)
+    f:SetScript("OnUpdate", castOnUpdate)
 end
 
 local function plateModeFor(d, enemy, isPlayer)
