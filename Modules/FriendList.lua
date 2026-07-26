@@ -461,30 +461,7 @@ local function skinFriendsFrame()
     fontD:SetTextColor(0.45, 0.45, 0.5)
 
     local function skinPanelButton(b)
-        if not b or b._vcuiSkin then return end
-        b._vcuiSkin = true
-        stripTextures(b)
-        local bg = b:CreateTexture(nil, "BACKGROUND")
-        bg:SetAllPoints(b)
-        bg:SetColorTexture(0.13, 0.13, 0.16, 1)
-        local edges = {}
-        for i = 1, 4 do
-            local t = b:CreateTexture(nil, "BORDER")
-            t:SetColorTexture(bc.r, bc.g, bc.b, 1)
-            edges[i] = t
-        end
-        edges[1]:SetPoint("TOPLEFT"); edges[1]:SetPoint("TOPRIGHT"); edges[1]:SetHeight(1)
-        edges[2]:SetPoint("BOTTOMLEFT"); edges[2]:SetPoint("BOTTOMRIGHT"); edges[2]:SetHeight(1)
-        edges[3]:SetPoint("TOPLEFT"); edges[3]:SetPoint("BOTTOMLEFT"); edges[3]:SetWidth(1)
-        edges[4]:SetPoint("TOPRIGHT"); edges[4]:SetPoint("BOTTOMRIGHT"); edges[4]:SetWidth(1)
-        local function setEdges(c, a)
-            for _, t in ipairs(edges) do t:SetColorTexture(c.r, c.g, c.b, a or 1) end
-        end
-        b:SetNormalFontObject(fontN)
-        b:SetHighlightFontObject(fontH)
-        b:SetDisabledFontObject(fontD)
-        b:HookScript("OnEnter", function() bg:SetColorTexture(0.19, 0.19, 0.23, 1); setEdges(ac, 0.9) end)
-        b:HookScript("OnLeave", function() bg:SetColorTexture(0.13, 0.13, 0.16, 1); setEdges(bc, 1) end)
+        ns.UI:SkinPanelButton(b, { fonts = { fontN, fontH, fontD }, border = bc })
     end
     skinPanelButton(_G.FriendsFrameAddFriendButton)
     skinPanelButton(_G.FriendsFrameSendMessageButton)
@@ -945,33 +922,7 @@ local function skinCommunitiesFrame()
     local fontH = _G.VCUI_FriendsFontHighlight or CreateFont("VCUI_FriendsFontHighlight")
     local fontD = _G.VCUI_FriendsFontDisabled or CreateFont("VCUI_FriendsFontDisabled")
     local function skinCommButton(b)
-        if not b or b._vcuiSkin then return end
-        b._vcuiSkin = true
-        commStrip(b)
-        local bg = b:CreateTexture(nil, "BACKGROUND")
-        bg:SetAllPoints(b)
-        bg:SetColorTexture(0.13, 0.13, 0.16, 1)
-        local edges = {}
-        for i = 1, 4 do
-            local t = b:CreateTexture(nil, "BORDER")
-            t:SetColorTexture(bc.r, bc.g, bc.b, 1)
-            edges[i] = t
-        end
-        edges[1]:SetPoint("TOPLEFT"); edges[1]:SetPoint("TOPRIGHT"); edges[1]:SetHeight(1)
-        edges[2]:SetPoint("BOTTOMLEFT"); edges[2]:SetPoint("BOTTOMRIGHT"); edges[2]:SetHeight(1)
-        edges[3]:SetPoint("TOPLEFT"); edges[3]:SetPoint("BOTTOMLEFT"); edges[3]:SetWidth(1)
-        edges[4]:SetPoint("TOPRIGHT"); edges[4]:SetPoint("BOTTOMRIGHT"); edges[4]:SetWidth(1)
-        if b.SetNormalFontObject then b:SetNormalFontObject(fontN) end
-        if b.SetHighlightFontObject then b:SetHighlightFontObject(fontH) end
-        if b.SetDisabledFontObject then b:SetDisabledFontObject(fontD) end
-        b:HookScript("OnEnter", function()
-            bg:SetColorTexture(0.19, 0.19, 0.23, 1)
-            for _, t in ipairs(edges) do t:SetColorTexture(ac.r, ac.g, ac.b, 0.9) end
-        end)
-        b:HookScript("OnLeave", function()
-            bg:SetColorTexture(0.13, 0.13, 0.16, 1)
-            for _, t in ipairs(edges) do t:SetColorTexture(bc.r, bc.g, bc.b, 1) end
-        end)
+        ns.UI:SkinPanelButton(b, { fonts = { fontN, fontH, fontD }, border = bc })
     end
     skinCommButton(cf.InviteButton)
     skinCommButton(cf.GuildLogButton)

@@ -83,6 +83,50 @@ function UI:CreateSearchBox(parent, opts)
     return sb
 end
 
+-- Dark rectangular skin for a Blizzard panel button: strips the stock art,
+-- draws a flat background plus four one-pixel edges, applies the caller's
+-- font trio and recolours to accent on hover. Four modules carried copies.
+-- opts: fonts = { normal, highlight, disabled }, border = colour table.
+function UI:SkinPanelButton(b, opts)
+    if not b or b._vcuiSkin then return end
+    b._vcuiSkin = true
+    local ac = ns.COLORS.accent
+    local bc = (opts and opts.border) or ns.COLORS.border or { r = 0.22, g = 0.22, b = 0.27 }
+    for _, r in ipairs({ b:GetRegions() }) do
+        if r.IsObjectType and r:IsObjectType("Texture") then
+            r:SetTexture(nil)
+            r:SetAlpha(0)
+        end
+    end
+    local bg = b:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints(b)
+    bg:SetColorTexture(0.13, 0.13, 0.16, 1)
+    local edges = {}
+    for i = 1, 4 do
+        local t = b:CreateTexture(nil, "BORDER")
+        t:SetColorTexture(bc.r, bc.g, bc.b, 1)
+        edges[i] = t
+    end
+    edges[1]:SetPoint("TOPLEFT"); edges[1]:SetPoint("TOPRIGHT"); edges[1]:SetHeight(1)
+    edges[2]:SetPoint("BOTTOMLEFT"); edges[2]:SetPoint("BOTTOMRIGHT"); edges[2]:SetHeight(1)
+    edges[3]:SetPoint("TOPLEFT"); edges[3]:SetPoint("BOTTOMLEFT"); edges[3]:SetWidth(1)
+    edges[4]:SetPoint("TOPRIGHT"); edges[4]:SetPoint("BOTTOMRIGHT"); edges[4]:SetWidth(1)
+    local fonts = opts and opts.fonts
+    if fonts then
+        if b.SetNormalFontObject then b:SetNormalFontObject(fonts[1]) end
+        if b.SetHighlightFontObject then b:SetHighlightFontObject(fonts[2]) end
+        if b.SetDisabledFontObject then b:SetDisabledFontObject(fonts[3]) end
+    end
+    b:HookScript("OnEnter", function()
+        bg:SetColorTexture(0.19, 0.19, 0.23, 1)
+        for _, t in ipairs(edges) do t:SetColorTexture(ac.r, ac.g, ac.b, 0.9) end
+    end)
+    b:HookScript("OnLeave", function()
+        bg:SetColorTexture(0.13, 0.13, 0.16, 1)
+        for _, t in ipairs(edges) do t:SetColorTexture(bc.r, bc.g, bc.b, 1) end
+    end)
+end
+
 function UI:CreateShadow(frame)
     if frame._vcShadow then return end
     frame._vcShadow = {}

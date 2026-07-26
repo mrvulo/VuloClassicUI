@@ -1602,35 +1602,7 @@ local function createSidebar()
     fontD:SetTextColor(0.45, 0.45, 0.5)
 
     local function skinBtn(b)
-        for _, r in ipairs({ b:GetRegions() }) do
-            if r.IsObjectType and r:IsObjectType("Texture") then
-                r:SetTexture(nil); r:SetAlpha(0)
-            end
-        end
-        local bg = b:CreateTexture(nil, "BACKGROUND")
-        bg:SetAllPoints(b)
-        bg:SetColorTexture(0.13, 0.13, 0.16, 1)
-        local edges = {}
-        for i = 1, 4 do
-            local t = b:CreateTexture(nil, "BORDER")
-            t:SetColorTexture(bc.r, bc.g, bc.b, 1)
-            edges[i] = t
-        end
-        edges[1]:SetPoint("TOPLEFT"); edges[1]:SetPoint("TOPRIGHT"); edges[1]:SetHeight(1)
-        edges[2]:SetPoint("BOTTOMLEFT"); edges[2]:SetPoint("BOTTOMRIGHT"); edges[2]:SetHeight(1)
-        edges[3]:SetPoint("TOPLEFT"); edges[3]:SetPoint("BOTTOMLEFT"); edges[3]:SetWidth(1)
-        edges[4]:SetPoint("TOPRIGHT"); edges[4]:SetPoint("BOTTOMRIGHT"); edges[4]:SetWidth(1)
-        b:SetNormalFontObject(fontN)
-        b:SetHighlightFontObject(fontH)
-        b:SetDisabledFontObject(fontD)
-        b:HookScript("OnEnter", function()
-            bg:SetColorTexture(0.19, 0.19, 0.23, 1)
-            for _, t in ipairs(edges) do t:SetColorTexture(ac.r, ac.g, ac.b, 0.9) end
-        end)
-        b:HookScript("OnLeave", function()
-            bg:SetColorTexture(0.13, 0.13, 0.16, 1)
-            for _, t in ipairs(edges) do t:SetColorTexture(bc.r, bc.g, bc.b, 1) end
-        end)
+        ns.UI:SkinPanelButton(b, { fonts = { fontN, fontH, fontD }, border = bc })
     end
 
     local equipBtn = CreateFrame("Button", nil, sidebar, "UIPanelButtonTemplate")
