@@ -125,6 +125,77 @@ if (missing.size === 0) {
     }
 }
 
+// ---- 3b: locale coverage of declarative fields --------------------------------
+// Options items, dropdown values and module descriptions are rendered through
+// L[<literal>] at draw time, so the bare literal IS the locale key — check 3
+// only sees explicit L["..."] and misses all of these. This is how a module
+// description shipped untranslated even in German.
+console.log('\n== locale coverage (declarative fields, deDE) ==');
+const ITEM_TYPES = new Set(['header', 'desc', 'checkbox', 'toggle', 'slider',
+    'dropdown', 'button', 'editbox', 'section', 'color', 'keybind', 'custom']);
+const FIELD_KEYS = ['label', 'text', 'tooltip', 'title'];
+const litVal = (n) => (n && n.type === 'StringLiteral')
+    ? ((n.value !== undefined && n.value !== null)
+        ? n.value : (n.raw || '').replace(/^["']|["']$/g, ''))
+    : null;
+// worth translating = contains a real word; anchors, format-only strings,
+// colour codes and paths are not locale keys
+const wordy = (s) => typeof s === 'string' && /[A-Za-z]{2}/.test(s)
+    && !/^[A-Z]+$/.test(s) && !s.includes('\\\\') && !s.includes('Interface\\');
+
+const dynMissing = new Map();
+function noteMissing(s, rel, line) {
+    if (!wordy(s) || defined.has(s)) return;
+    if (!dynMissing.has(s)) dynMissing.set(s, rel + ':' + line);
+}
+// The language switcher lists every language in ITSELF (someone who needs it
+// cannot read the current language) — those endonyms must stay untranslated.
+const DYN_EXEMPT_FILES = new Set([path.join('Core', 'Locale.lua')]);
+for (const f of files) {
+    const rel = path.relative(ROOT, f);
+    if (rel.split(path.sep)[0] === 'Locales') continue;
+    if (DYN_EXEMPT_FILES.has(rel)) continue;
+    let ast;
+    try {
+        ast = luaparse.parse(fs.readFileSync(f, 'utf8'),
+            { luaVersion: '5.1', locations: true });
+    } catch (e) { continue; }
+    eachNode(ast, (n) => {
+        if (n.type !== 'TableConstructorExpression') return;
+        const kv = {};
+        for (const fl of n.fields || []) {
+            if (fl.type === 'TableKeyString' && fl.key) kv[fl.key.name] = fl.value;
+        }
+        const line = n.loc ? n.loc.start.line : 0;
+        const typeVal = litVal(kv.type);
+        if (typeVal && ITEM_TYPES.has(typeVal)) {
+            for (const k of FIELD_KEYS) {
+                const s = litVal(kv[k]);
+                if (s !== null) noteMissing(s, rel, line);
+            }
+        }
+        // dropdown entry: { value = ..., text = "..." } — but value == text is a
+        // media/identifier list (LSM names etc.), shown raw on purpose
+        if (kv.value !== undefined && kv.text !== undefined && !typeVal) {
+            const s = litVal(kv.text);
+            if (s !== null && s !== litVal(kv.value)) noteMissing(s, rel, line);
+        }
+        // RegisterModule config: description renders as L[mod.description]
+        if (kv.defaults !== undefined && kv.description !== undefined) {
+            const s = litVal(kv.description);
+            if (s !== null && s !== '') noteMissing(s, rel, line);
+        }
+    });
+}
+if (dynMissing.size === 0) {
+    console.log('all declarative labels/texts have deDE entries');
+} else {
+    console.log(dynMissing.size + ' literal(s) missing a deDE entry (English fallback):');
+    for (const [k, at] of dynMissing) {
+        console.log('  MISSING [' + at + '] ' + (k.length > 90 ? k.slice(0, 90) + '…' : k));
+    }
+}
+
 // ---- 4: quotes in German values ----------------------------------------------
 console.log('\n== ASCII quotes inside German values ==');
 let qhits = 0;
