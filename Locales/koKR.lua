@@ -2500,6 +2500,9 @@ local T = {
     -- Bags: quest starter marker
     ["Quest starter marker (!)"] = "퀘스트 시작 표시 (!)",
     ["Overlays a yellow exclamation mark on items that start a quest you have not accepted yet."] = "아직 수락하지 않은 퀘스트를 시작하는 아이템 위에 노란 느낌표를 표시합니다.",
+    -- Options page build failure
+    ["|cffff5555Options page '%s' failed to build:|r %s"] = "|cffff5555'%s' 설정 페이지를 구성하지 못했습니다:|r %s",
+    ["|cffff5555This page could not be built. /reload, and report it if it persists.|r"] = "|cffff5555이 페이지를 구성하지 못했습니다. /reload 후에도 계속되면 알려 주세요.|r",
 }
 
 ns:RegisterLocale("koKR", T)

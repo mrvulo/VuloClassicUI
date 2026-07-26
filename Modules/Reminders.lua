@@ -520,7 +520,7 @@ local hideWhenSafe
 
 local function hideAll()
     if InCombatLockdown() then
-        ns:RegisterEvent("PLAYER_REGEN_ENABLED", hideWhenSafe)
+        ns:RegisterEventOnce("PLAYER_REGEN_ENABLED", hideWhenSafe)
         return
     end
     for _, f in ipairs(icons) do f:Hide() end

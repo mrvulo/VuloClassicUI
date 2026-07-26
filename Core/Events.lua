@@ -7,29 +7,70 @@ local L = ns.L
 local dispatcher = CreateFrame("Frame", "VuloClassicUIEventDispatcher")
 ns.eventFrame = dispatcher
 
-local handlers = {}  -- event -> { handler1, handler2, ... }
+-- event -> handler array. The arrays are treated as IMMUTABLE: register and
+-- unregister publish a fresh copy instead of editing in place. A running
+-- dispatch keeps iterating the array it started with, so a handler that
+-- unregisters itself (or a neighbour) mid-firing can no longer shrink the list
+-- under the loop. That used to skip every handler behind it and then call the
+-- nil tail -- Lua evaluates the `#list` limit of a numeric for exactly once.
+-- Copying costs one table per register/unregister; both are rare, the dispatch
+-- path allocates nothing.
+local handlers = {}
+local onceSets = {}  -- event -> { [handler] = true }, cleared before the call
 
 function ns:RegisterEvent(event, handler)
-    if not handlers[event] then
+    if type(handler) ~= "function" then return false end
+    local old = handlers[event]
+    if not old then
         -- pcall: not all events exist in every WoW version
         -- (e.g. INSPECT_TALENT_READY does not exist in Anniversary). Silently ignore.
         local ok = pcall(dispatcher.RegisterEvent, dispatcher, event)
-        if not ok then return end
-        handlers[event] = {}
+        if not ok then return false end
+        handlers[event] = { handler }
+        return true
     end
-    table.insert(handlers[event], handler)
+    -- Same handler twice would mean the same work twice per firing. Modules used
+    -- to guard against this by hand, or pile up copies of a deferred handler for
+    -- a whole fight; the registry owns the rule now.
+    for i = 1, #old do
+        if old[i] == handler then return false end
+    end
+    local new = {}
+    for i = 1, #old do new[i] = old[i] end
+    new[#new + 1] = handler
+    handlers[event] = new
+    return true
+end
+
+-- For "finish this the moment combat ends" handlers: the registry takes it back
+-- out before calling it, so the handler cannot forget to and cannot pile up.
+function ns:RegisterEventOnce(event, handler)
+    if not ns:RegisterEvent(event, handler) then return false end
+    local set = onceSets[event]
+    if not set then set = {}; onceSets[event] = set end
+    set[handler] = true
+    return true
 end
 
 function ns:UnregisterEvent(event, handler)
-    if not handlers[event] then return end
-    for i = #handlers[event], 1, -1 do
-        if handlers[event][i] == handler then
-            table.remove(handlers[event], i)
-        end
+    local old = handlers[event]
+    if not old then return end
+    local set = onceSets[event]
+    if set then
+        set[handler] = nil
+        if not next(set) then onceSets[event] = nil end
     end
-    if #handlers[event] == 0 then
+    local new, n = {}, 0
+    for i = 1, #old do
+        if old[i] ~= handler then n = n + 1; new[n] = old[i] end
+    end
+    if n == #old then return end   -- not registered: keep the existing array
+    if n == 0 then
         handlers[event] = nil
+        onceSets[event] = nil
         pcall(dispatcher.UnregisterEvent, dispatcher, event)
+    else
+        handlers[event] = new
     end
 end
 
@@ -51,6 +92,14 @@ local HOT = {
 dispatcher:SetScript("OnEvent", function(_, event, ...)
     local list = handlers[event]
     if not list then return end
+    -- One-shot handlers come out first; `list` is the snapshot we still walk.
+    local set = onceSets[event]
+    if set then
+        for i = 1, #list do
+            local h = list[i]
+            if set[h] then ns:UnregisterEvent(event, h) end
+        end
+    end
     if HOT[event] then
         for i = 1, #list do
             list[i](event, ...)

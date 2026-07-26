@@ -582,11 +582,21 @@ function UI:BuildOptionsPage(key, tabId)
         y = y - math.max(20, desc:GetDescHeight() + 8)
     end
 
+    -- clearChildren() already ran, so an error here would leave a blank page with
+    -- no height and no explanation. The other two GetOptions call sites (the tab
+    -- container and the settings search index) have always guarded; this one is
+    -- the path the user actually walks.
     local items
     if mod.GetOptions then
-        items = mod:GetOptions(tabId)
+        local ok, result = pcall(mod.GetOptions, mod, tabId)
+        if ok then
+            items = result
+        else
+            ns:Print(L["|cffff5555Options page '%s' failed to build:|r %s"], tostring(mod.key or mod.name), tostring(result))
+            items = { { type = "desc", text = L["|cffff5555This page could not be built. /reload, and report it if it persists.|r"] } }
+        end
     end
-    items = items or {}
+    if type(items) ~= "table" then items = {} end
 
     y = placeItemList(parent, items, y)
 

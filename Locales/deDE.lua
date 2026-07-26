@@ -2641,4 +2641,7 @@ ns:RegisterLocale("deDE", {
     -- Bags: quest starter marker
     ["Quest starter marker (!)"] = "Quest-Start-Markierung (!)",
     ["Overlays a yellow exclamation mark on items that start a quest you have not accepted yet."] = "Legt ein gelbes Ausrufezeichen über Gegenstände, die eine noch nicht angenommene Quest starten.",
+    -- Options page build failure
+    ["|cffff5555Options page '%s' failed to build:|r %s"] = "|cffff5555Optionsseite '%s' konnte nicht aufgebaut werden:|r %s",
+    ["|cffff5555This page could not be built. /reload, and report it if it persists.|r"] = "|cffff5555Diese Seite konnte nicht aufgebaut werden. /reload, und melde es bitte, falls es bleibt.|r",
 })

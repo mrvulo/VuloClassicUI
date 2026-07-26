@@ -2500,6 +2500,9 @@ local T = {
     -- Bags: quest starter marker
     ["Quest starter marker (!)"] = "Marcador de inicio de misión (!)",
     ["Overlays a yellow exclamation mark on items that start a quest you have not accepted yet."] = "Superpone un signo de exclamación amarillo sobre los objetos que inician una misión que aún no has aceptado.",
+    -- Options page build failure
+    ["|cffff5555Options page '%s' failed to build:|r %s"] = "|cffff5555No se pudo construir la página de opciones '%s':|r %s",
+    ["|cffff5555This page could not be built. /reload, and report it if it persists.|r"] = "|cffff5555No se pudo construir esta página. Usa /reload e infórmalo si persiste.|r",
 }
 
 ns:RegisterLocale("esES", T)

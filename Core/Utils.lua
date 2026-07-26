@@ -1,19 +1,23 @@
 -- General helpers used by multiple modules.
 local _, ns = ...
 
+-- The format string is almost always a translated L[...]. A translation that
+-- drops or reorders a %s would otherwise throw INSIDE the function the addon
+-- uses to report errors -- including the event dispatcher's own reporter.
+-- Falling back to the unformatted text keeps the message readable and visible.
+local function safeFormat(msg, ...)
+    if select("#", ...) == 0 then return msg end
+    local ok, out = pcall(string.format, msg, ...)
+    return ok and out or (tostring(msg) .. " |cffff5555[format?]|r")
+end
+
 function ns:Print(msg, ...)
-    if select("#", ...) > 0 then
-        msg = string.format(msg, ...)
-    end
-    DEFAULT_CHAT_FRAME:AddMessage(ns.PREFIX .. ": " .. tostring(msg))
+    DEFAULT_CHAT_FRAME:AddMessage(ns.PREFIX .. ": " .. tostring(safeFormat(msg, ...)))
 end
 
 function ns:Debug(msg, ...)
     if not (ns.db and ns.db.global) or not ns.db.global.debug then return end
-    if select("#", ...) > 0 then
-        msg = string.format(msg, ...)
-    end
-    DEFAULT_CHAT_FRAME:AddMessage("|cff888888[VCUI debug]|r " .. tostring(msg))
+    DEFAULT_CHAT_FRAME:AddMessage("|cff888888[VCUI debug]|r " .. tostring(safeFormat(msg, ...)))
 end
 
 function ns:InCombat()
