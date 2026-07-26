@@ -113,8 +113,7 @@ end
 -- keyed by group TABLE, not index: frames must never enter the saved DB, and table identity survives reorders
 local barOf   = {}
 local allBars = {}
-local throttle = 0
-local driver
+local driver   -- shared-ticker handle, not a frame
 local inCombat = false
 
 local function db() return mod.db end
@@ -1259,17 +1258,10 @@ function mod:OnEnable()
     -- filter - including "Never" - and the bar opacity slider. setUnlocked is
     -- the only thing that shows the mover, and it does not run on load.
     for _, group in ipairs(db().groups) do group.unlocked = false end
-    if not driver then
-        driver = CreateFrame("Frame")
-        driver:SetScript("OnUpdate", function(_, elapsed)
-            throttle = throttle + elapsed
-            if throttle < 0.1 then return end
-            throttle = 0
-            refreshAll()
-        end)
-    end
+    -- Shared ticker: while the module is off there is no per-frame call at all,
+    -- where the private driver frame used to keep ticking into its own guard.
+    if not driver then driver = ns:AddTicker(0.1, refreshAll) end
     inCombat = InCombatLockdown() and true or false
-    driver:Show()
     rebuildBars()
     ns:RegisterEvent("SPELL_UPDATE_COOLDOWN", refreshSoon)
     ns:RegisterEvent("BAG_UPDATE_COOLDOWN",   refreshSoon)
@@ -1296,7 +1288,7 @@ function mod:OnDisable()
     ns:UnregisterEvent("PLAYER_REGEN_ENABLED",  onCombat)
     ns:UnregisterEvent("PLAYER_TARGET_CHANGED", refreshSoon)
     ns:UnregisterEvent("PLAYER_EQUIPMENT_CHANGED", onEquipChanged)
-    if driver then driver:Hide() end
+    if driver then ns:CancelTicker(driver); driver = nil end
     for _, b in ipairs(allBars) do
         if b.mover then b.mover:Hide() end
         b:Hide()

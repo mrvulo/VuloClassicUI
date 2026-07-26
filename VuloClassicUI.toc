@@ -21,6 +21,7 @@ Core\Database.lua
 Core\Modules.lua
 Core\Container.lua
 Core\Events.lua
+Core\Schedule.lua
 Core\MediaRegistry.lua
 Core\Mover.lua
 Core\PopupMenu.lua

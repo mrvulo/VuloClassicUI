@@ -1477,27 +1477,26 @@ local function onCombatLog()
     end
 end
 
-local updaterFrame
+-- Expiry sweep for the diminishing-returns icons. On the shared ticker, so
+-- outside an arena there is no frame and no per-frame call at all.
+local updaterTicker
+local function drTick()
+    if not mod.db.drEnabled or not mod._enabled then return end
+    for unit in pairs(drState) do
+        updateDRDisplay(unit)
+    end
+end
 local function ensureUpdater()
-    if updaterFrame then updaterFrame:Show(); return end
-    updaterFrame = CreateFrame("Frame")
-    updaterFrame.timer = 0
-    updaterFrame:SetScript("OnUpdate", function(self, elapsed)
-        self.timer = self.timer + elapsed
-        if self.timer < 0.5 then return end
-        self.timer = 0
-        if not mod.db.drEnabled or not mod._enabled then return end
-        for unit in pairs(drState) do
-            updateDRDisplay(unit)
-        end
-    end)
+    if updaterTicker then return end
+    updaterTicker = ns:AddTicker(0.5, drTick)
 end
 
 local function resetAll()
     drState = {}
-    -- OnUpdate only runs while shown; outside the arena the ticker slept
-    -- through its guard but still cost a call per frame for the whole session
-    if updaterFrame then updaterFrame:Hide() end
+    if updaterTicker then
+        ns:CancelTicker(updaterTicker)
+        updaterTicker = nil
+    end
     for _, container in pairs(drFrames) do
         for _, icon in pairs(container.icons) do icon:Hide() end
     end
