@@ -1683,6 +1683,7 @@ local function startCast(unit, channeling)
     end
 
     cb._hideToken = (cb._hideToken or 0) + 1   -- invalidates any pending interrupt-hide timer
+    cb._interruptHold = nil
     cb._textAcc = 0.1                          -- paint the timer text on the first tick
     cb:Show()
     cb:SetScript("OnUpdate", castbarOnUpdate)
@@ -1696,16 +1697,24 @@ local function stopCast(unit, interrupted)
     cb.casting   = false
     cb.channeling = false
     if interrupted then
+        -- Freeze the bar: with casting/channeling false the OnUpdate would
+        -- hide it on the very next frame, so the 0.7s display never showed.
+        cb:SetScript("OnUpdate", nil)
         cb:SetStatusBarColor(1, 0, 0)
         cb.text:SetText(L["INTERRUPTED"])
+        cb.timer:SetText("")
         cb._hideToken = (cb._hideToken or 0) + 1
         local token = cb._hideToken
         if C_Timer and C_Timer.After then
+            -- The client fires UNIT_SPELLCAST_STOP right after INTERRUPTED;
+            -- the hold keeps that stop from wiping the display early.
+            cb._interruptHold = GetTime() + 0.7
             C_Timer.After(0.7, function() if cb._hideToken == token then cb:Hide() end end)
         else
             cb:Hide()
         end
     else
+        if cb._interruptHold and GetTime() < cb._interruptHold then return end
         cb:Hide()
     end
 end
