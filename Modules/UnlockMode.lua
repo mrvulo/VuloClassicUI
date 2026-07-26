@@ -239,6 +239,9 @@ function mod:OnEnable()
         if em and ensured then mod.db.emMigrated = true end
         if any then emApply() end
     end
+    -- restoreAll is a closure built inside this function, so it has a fresh
+    -- identity on every call -- the registry's duplicate check cannot see that.
+    -- The latch stays. (The module is noToggle, so these never need removing.)
     if not mod._evt then
         mod._evt = true
         ns:RegisterEvent("PLAYER_ENTERING_WORLD", restoreAll)

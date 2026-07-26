@@ -2235,7 +2235,10 @@ local function installHooks()
     hookOpen("OpenBag");       hookClose("CloseBag");       hookTog("ToggleBag")
 end
 
-local _eventsWired = false
+local BAG_EVENTS = {
+    "BAG_UPDATE", "BAG_UPDATE_DELAYED", "ITEM_LOCK_CHANGED",
+    "BAG_UPDATE_COOLDOWN", "PLAYER_MONEY", "PLAYER_REGEN_ENABLED",
+}
 -- Recent = per-itemID count diff vs a runtime baseline; session-scoped, capped to recentCap, BAG_UPDATE_DELAYED only.
 function updateRecentItems()
     local baseline = recentBaseline
@@ -2341,14 +2344,10 @@ function mod:OnEnable()
     rebuildCustomLookup()
     rebuildGroupLookup()   -- AFTER rebuildCustomLookup (sanitizer needs customCatByKey)
     installHooks()
-    if not _eventsWired then
-        _eventsWired = true
-        for _, ev in ipairs({
-            "BAG_UPDATE", "BAG_UPDATE_DELAYED", "ITEM_LOCK_CHANGED",
-            "BAG_UPDATE_COOLDOWN", "PLAYER_MONEY", "PLAYER_REGEN_ENABLED",
-        }) do
-            ns:RegisterEvent(ev, onEvent)
-        end
+    -- Registered through the module, so all six come back out on disable. The
+    -- latch that used to guard this is gone: the registry refuses a duplicate.
+    for _, ev in ipairs(BAG_EVENTS) do
+        self:RegisterEvent(ev, onEvent)
     end
     preallocate()
     hideBlizzardBags()

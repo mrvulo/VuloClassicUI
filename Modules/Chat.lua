@@ -1230,7 +1230,6 @@ local function applyAll()
 end
 
 local _filtersInstalled = false
-local _eventsWired = false
 
 -- Chat window mover: drives ChatFrame1 (docked tabs follow it). Blizzard keeps
 -- control of the position until the first drag; from then on our saved CENTER
@@ -1297,6 +1296,32 @@ local function ensureChatMover()
     end
 end
 
+-- Named, file-scope handlers so the registry can take them back out again.
+local FRIEND_EVENTS = {
+    "FRIENDLIST_UPDATE", "BN_FRIEND_INFO_CHANGED",
+    "BN_FRIEND_ACCOUNT_ONLINE", "BN_FRIEND_ACCOUNT_OFFLINE",
+    "BN_CONNECTED", "BN_DISCONNECTED",
+}
+
+local function onFriendsChanged()
+    updateFriendsCount()
+end
+
+local function onEnteringWorld()
+    applyTimestamps()
+    applyClassColors()
+    if C_FriendList and C_FriendList.ShowFriends then pcall(C_FriendList.ShowFriends) end
+    if C_Timer and C_Timer.After then
+        -- chat frames/dock settle after login; delay so anchors land on final positions
+        C_Timer.After(0.5, function() applyPanel(); applyFont(); applyChatPos() end)
+        C_Timer.After(1, updateTabs)
+        C_Timer.After(2, function() applyTimestamps(); applyClassColors(); applyPanel(); applyFont() end)
+        C_Timer.After(2, restoreHistory)
+    else
+        applyPanel(); applyFont(); updateTabs(); restoreHistory()
+    end
+end
+
 function mod:OnEnable()
     active = true
     ensureChatMover()
@@ -1312,31 +1337,15 @@ function mod:OnEnable()
         installTabHooks()
     end
 
-    if not _eventsWired then
-        _eventsWired = true
-        -- ns:RegisterEvent pcall-guards unknown events, so BN_* missing on a client is skipped
-        for _, ev in ipairs({
-            "FRIENDLIST_UPDATE", "BN_FRIEND_INFO_CHANGED",
-            "BN_FRIEND_ACCOUNT_ONLINE", "BN_FRIEND_ACCOUNT_OFFLINE",
-            "BN_CONNECTED", "BN_DISCONNECTED",
-        }) do
-            ns:RegisterEvent(ev, function() if active then updateFriendsCount() end end)
-        end
-        ns:RegisterEvent("PLAYER_ENTERING_WORLD", function()
-            applyTimestamps()
-            applyClassColors()
-            if C_FriendList and C_FriendList.ShowFriends then pcall(C_FriendList.ShowFriends) end
-            if C_Timer and C_Timer.After then
-                -- chat frames/dock settle after login; delay so anchors land on final positions
-                C_Timer.After(0.5, function() applyPanel(); applyFont(); applyChatPos() end)
-                C_Timer.After(1, updateTabs)
-                C_Timer.After(2, function() applyTimestamps(); applyClassColors(); applyPanel(); applyFont() end)
-                C_Timer.After(2, restoreHistory)
-            else
-                applyPanel(); applyFont(); updateTabs(); restoreHistory()
-            end
-        end)
+    -- ns:RegisterEvent pcall-guards unknown events, so BN_* missing on a client
+    -- is skipped. One shared named handler for all six friend events: the loop
+    -- used to build a fresh anonymous closure per event, which could never be
+    -- taken back out by identity -- so the module left seven live handlers
+    -- behind when it was switched off, kept quiet only by the `active` flag.
+    for _, ev in ipairs(FRIEND_EVENTS) do
+        self:RegisterEvent(ev, onFriendsChanged)
     end
+    self:RegisterEvent("PLAYER_ENTERING_WORLD", onEnteringWorld)
 
     applyAll()
 end

@@ -2,6 +2,15 @@
 local _, ns = ...
 local L = ns.L
 
+-- Shared function objects, not per-module closures: 55 modules would otherwise
+-- carry 110 identical closures for no reason.
+local function modRegisterEvent(self, event, handler)
+    return ns:ModRegisterEvent(self, event, handler)
+end
+local function modUnregisterAllEvents(self)
+    return ns:ModUnregisterAllEvents(self)
+end
+
 function ns:RegisterModule(key, def)
     if ns.modules[key] then
         ns:Print(L["WARN: Module '%s' already registered."], key)
@@ -15,6 +24,9 @@ function ns:RegisterModule(key, def)
     if def.defaults.enabled == nil then
         def.defaults.enabled = true
     end
+    -- Never overwrite: a module that brought its own is left alone.
+    def.RegisterEvent       = def.RegisterEvent       or modRegisterEvent
+    def.UnregisterAllEvents = def.UnregisterAllEvents or modUnregisterAllEvents
 
     ns.modules[key] = def
     table.insert(ns.moduleOrder, key)
@@ -60,12 +72,18 @@ function ns:SafeEnable(mod)
     local ok, err = pcall(mod.OnEnable, mod)
     if not ok then
         mod.active, mod._enabled = false, false
+        -- OnEnable died partway through: whatever it managed to register would
+        -- otherwise keep firing into a module that believes it is off.
+        ns:ModUnregisterAllEvents(mod)
         ns:Print(L["|cffff5555Error enabling module '%s':|r %s"], mod.name, tostring(err))
         return
     end
     ns:Debug("Module enabled: %s", mod.name)
 end
 
+-- NOTE the asymmetry with SafeEnable: `active` is cleared BEFORE OnDisable so a
+-- shared helper can tell it is tearing down, while `_enabled` only drops after.
+-- Inside an OnDisable, check `active`, not `_enabled`.
 function ns:SafeDisable(mod)
     if not mod._enabled then return end
     mod.active = false
@@ -75,6 +93,9 @@ function ns:SafeDisable(mod)
             ns:Print(L["|cffff5555Error disabling '%s':|r %s"], mod.name, tostring(err))
         end
     end
+    -- After OnDisable, so a module that still unregisters by hand wins the race
+    -- with itself; taking an already-removed handler out again is a no-op.
+    ns:ModUnregisterAllEvents(mod)
     mod._enabled = false
 end
 

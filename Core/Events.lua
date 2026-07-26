@@ -74,6 +74,30 @@ function ns:UnregisterEvent(event, handler)
     end
 end
 
+-- Per-module ownership. A module used to mirror every registration by hand in
+-- OnDisable, one line per event; several simply did not, and one registers
+-- anonymous functions that can never be taken back out by identity at all. The
+-- registry writes the pairs down instead, so disabling a module detaches it
+-- completely without the module having to remember anything. Stored flat
+-- (event, handler, event, handler, ...) so a registration costs no extra table.
+function ns:ModRegisterEvent(mod, event, handler)
+    if not ns:RegisterEvent(event, handler) then return false end
+    local owned = mod._ownedEvents
+    if not owned then owned = {}; mod._ownedEvents = owned end
+    owned[#owned + 1] = event
+    owned[#owned + 1] = handler
+    return true
+end
+
+function ns:ModUnregisterAllEvents(mod)
+    local owned = mod._ownedEvents
+    if not owned then return end
+    for i = #owned - 1, 1, -2 do
+        ns:UnregisterEvent(owned[i], owned[i + 1])
+        owned[i], owned[i + 1] = nil, nil
+    end
+end
+
 -- The combat-heavy events fire thousands of times per second in a raid with
 -- several listeners each; a pcall per handler per firing is the hottest shared
 -- code in the addon. These dispatch unprotected: an error surfaces through

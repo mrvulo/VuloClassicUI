@@ -643,23 +643,27 @@ local function installDMHooks()
 end
 
 local hookInstalled = false
-local dmEventsWired = false
+
+-- Named handlers registered through the module: they used to be anonymous and
+-- latched, so they stayed live for the session once the dark mode had been on
+-- even once, and only the isDMOn check kept them from painting.
+local PARTY_TEXTURES = { "PartyMemberFrame1Texture", "PartyMemberFrame2Texture",
+                         "PartyMemberFrame3Texture", "PartyMemberFrame4Texture" }
+
+local function onFocusChangedDM()
+    if isDMOn("dmUnitframes") then paint(_G.FocusFrameTextureFrameTexture, true) end
+end
+local function onUnitPetDM()
+    if isDMOn("dmUnitframes") then paint(_G.PetFrameTexture, true) end
+end
+local function onRosterUpdateDM()
+    if isDMOn("dmUnitframes") then paintGlobals(PARTY_TEXTURES, true) end
+end
 
 local function wireDMEvents()
-    if dmEventsWired then return end
-    dmEventsWired = true
-    ns:RegisterEvent("PLAYER_FOCUS_CHANGED", function()
-        if isDMOn("dmUnitframes") then paint(_G.FocusFrameTextureFrameTexture, true) end
-    end)
-    ns:RegisterEvent("UNIT_PET", function()
-        if isDMOn("dmUnitframes") then paint(_G.PetFrameTexture, true) end
-    end)
-    ns:RegisterEvent("GROUP_ROSTER_UPDATE", function()
-        if isDMOn("dmUnitframes") then
-            paintGlobals({ "PartyMemberFrame1Texture", "PartyMemberFrame2Texture",
-                           "PartyMemberFrame3Texture", "PartyMemberFrame4Texture" }, true)
-        end
-    end)
+    mod:RegisterEvent("PLAYER_FOCUS_CHANGED", onFocusChangedDM)
+    mod:RegisterEvent("UNIT_PET",             onUnitPetDM)
+    mod:RegisterEvent("GROUP_ROSTER_UPDATE",  onRosterUpdateDM)
 end
 
 local function onWorldEnter()

@@ -228,41 +228,31 @@ local function installHooks()
     end
 end
 
--- Register events only once. Re-enabling the module must not add a second set
--- of handlers (that would fire queue pops / sounds twice). The handlers below
--- all gate on mod._enabled, so disabling them is handled by the flag alone.
-local eventsRegistered = false
+-- Named handlers registered through the module, so the framework takes all six
+-- back out on disable. They used to be anonymous, registered once behind a
+-- latch, and left live for the rest of the session with only an _enabled check
+-- inside each to keep them quiet.
+local function onProposalShow()
+    handleDungeonReadyDialog(); hideOtherTimers()
+end
+local function endProposal()
+    isPveQueueActive = false
+    stopUpdateFrame()
+    hideOtherTimers()
+    pveQueuePopTime = nil
+    proposalTimeLeft = 40
+end
+local function onQueueStatusUpdate() captureDungeonQueuedTime() end
+local function onBattlefieldStatus() updateBattlefieldStatus() end
 
 function mod:OnEnable()
     installHooks()
-
-    if eventsRegistered then return end
-    eventsRegistered = true
-
-    ns:RegisterEvent("LFG_PROPOSAL_SHOW",      function()
-        if not mod._enabled then return end
-        handleDungeonReadyDialog(); hideOtherTimers()
-    end)
-    local function endProposal()
-        if not mod._enabled then return end
-        isPveQueueActive = false
-        stopUpdateFrame()
-        hideOtherTimers()
-        pveQueuePopTime = nil
-        proposalTimeLeft = 40
-    end
-    ns:RegisterEvent("LFG_PROPOSAL_SUCCEEDED", endProposal)
-    ns:RegisterEvent("LFG_PROPOSAL_FAILED",    endProposal)
-    ns:RegisterEvent("LFG_PROPOSAL_DONE",      endProposal)
-
-    ns:RegisterEvent("LFG_QUEUE_STATUS_UPDATE", function()
-        if not mod._enabled then return end
-        captureDungeonQueuedTime()
-    end)
-    ns:RegisterEvent("UPDATE_BATTLEFIELD_STATUS", function()
-        if not mod._enabled then return end
-        updateBattlefieldStatus()
-    end)
+    self:RegisterEvent("LFG_PROPOSAL_SHOW",       onProposalShow)
+    self:RegisterEvent("LFG_PROPOSAL_SUCCEEDED",  endProposal)
+    self:RegisterEvent("LFG_PROPOSAL_FAILED",     endProposal)
+    self:RegisterEvent("LFG_PROPOSAL_DONE",       endProposal)
+    self:RegisterEvent("LFG_QUEUE_STATUS_UPDATE", onQueueStatusUpdate)
+    self:RegisterEvent("UPDATE_BATTLEFIELD_STATUS", onBattlefieldStatus)
 end
 
 -- The labels live on Blizzard's dialogs and would show stale text on the next
