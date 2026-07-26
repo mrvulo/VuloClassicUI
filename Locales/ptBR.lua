@@ -991,6 +991,8 @@ local T = {
     ["Flight timer: x=%.0f, y=%.0f"] = "Cronômetro de voo: x=%.0f, y=%.0f",
     ["Flight timer mover active. |cff9b6cffDrag|r or |cff9b6cffarrow keys|r (SHIFT = 5px)."] = "Movimentação do cronômetro de voo ativa. |cff9b6cffArraste|r ou use as |cff9b6cffsetas do teclado|r (SHIFT = 5px).",
     ["Flight timer mover disabled."] = "Movimentação do cronômetro de voo desativada.",
+    ["Flight debug on — take a flight, the resolution appears in the chat."] = "Depuração de voo ativada — faça um voo e a resolução aparecerá no chat.",
+    ["Flight debug off."] = "Depuração de voo desativada.",
     ["LazyVulo"] = "LazyVulo",
     ["VulTraining"] = "VulTraining",
     ["Group Board"] = "Painel de Grupo",

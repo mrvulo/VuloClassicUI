@@ -244,12 +244,16 @@ function UI:CreateMainFrame()
                     if ok and type(items) == "table" then
                         local function scan(list)
                             for _, item in ipairs(list) do
-                                local label = (item.label or item.text or ""):lower()
-                                if label ~= "" and label:find(query, 1, true) then
+                                local raw = item.label or item.text or ""
+                                -- match the translated label AND the English key, so
+                                -- searching works in the user's language and in English
+                                local shown = raw ~= "" and L[raw] or ""
+                                if raw ~= "" and (shown:lower():find(query, 1, true)
+                                    or raw:lower():find(query, 1, true)) then
                                     if #results >= 20 then return true end
                                     table.insert(results, {
                                         modName = L[m.name], modKey = key,
-                                        tabId = tid, label = item.label or item.text,
+                                        tabId = tid, label = shown,
                                     })
                                 end
                                 if item.items then

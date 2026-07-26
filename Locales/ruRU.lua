@@ -1326,6 +1326,8 @@ local T = {
     ["Flight timer: x=%.0f, y=%.0f"] = "Таймер полета: x=%.0f, y=%.0f",
     ["Flight timer mover active. |cff9b6cffDrag|r or |cff9b6cffarrow keys|r (SHIFT = 5px)."] = "Перемещение таймера полета включено. |cff9b6cffПеретащите|r или используйте |cff9b6cffстрелки|r (SHIFT = 5 пикс.).",
     ["Flight timer mover disabled."] = "Перемещение таймера полета выключено.",
+    ["Flight debug on — take a flight, the resolution appears in the chat."] = "Отладка полетов включена — совершите перелет, разбор появится в чате.",
+    ["Flight debug off."] = "Отладка полетов выключена.",
     ["LazyVulo"] = "LazyVulo",
     ["VulTraining"] = "VulTraining",
     ["Group Board"] = "Доска групп",

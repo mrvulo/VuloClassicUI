@@ -689,6 +689,8 @@ local T = {
     ["Flight timer: x=%.0f, y=%.0f"] = "Minuteur de vol : x=%.0f, y=%.0f",
     ["Flight timer mover active. |cff9b6cffDrag|r or |cff9b6cffarrow keys|r (SHIFT = 5px)."] = "Déplacement du minuteur de vol actif. |cff9b6cffGlissez|r ou utilisez les |cff9b6cfftouches fléchées|r (MAJ = 5 px).",
     ["Flight timer mover disabled."] = "Déplacement du minuteur de vol désactivé.",
+    ["Flight debug on — take a flight, the resolution appears in the chat."] = "Débogage de vol activé — prenez un vol, la résolution s'affichera dans le chat.",
+    ["Flight debug off."] = "Débogage de vol désactivé.",
 
     -- LazyVulo
     ["LazyVulo"] = "LazyVulo",

@@ -616,6 +616,8 @@ local T = {
     ["Flight timer: x=%.0f, y=%.0f"] = "Temporizador de vuelo: x=%.0f, y=%.0f",
     ["Flight timer mover active. |cff9b6cffDrag|r or |cff9b6cffarrow keys|r (SHIFT = 5px)."] = "Movedor del temporizador de vuelo activo. |cff9b6cffArrastra|r o usa las |cff9b6cffflechas|r (MAYÚS = 5px).",
     ["Flight timer mover disabled."] = "Movedor del temporizador de vuelo desactivado.",
+    ["Flight debug on — take a flight, the resolution appears in the chat."] = "Depuración de vuelo activada — haz un vuelo y la resolución aparecerá en el chat.",
+    ["Flight debug off."] = "Depuración de vuelo desactivada.",
     ["LazyVulo"] = "LazyVulo",
     ["VulTraining"] = "VulTraining",
     ["Group Board"] = "Tablón de grupos",

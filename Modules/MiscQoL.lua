@@ -896,11 +896,11 @@ local function ftOnTakeTaxi(slot)
         local fac = (UnitFactionGroup and UnitFactionGroup("player")) or "?"
         local hit = se and de2 and ns.FLIGHT_TIMES and ns.FLIGHT_TIMES[fac]
             and ns.FLIGHT_TIMES[fac][se] and ns.FLIGHT_TIMES[fac][se][de2]
-        ns:Print("Flugdebug: src='" .. tostring(src) .. "' -> '" .. s .. "' -> '" .. tostring(se)
+        ns:Print("Flight debug: src='" .. tostring(src) .. "' -> '" .. s .. "' -> '" .. tostring(se)
             .. "' | dst='" .. tostring(dst) .. "' -> '" .. d2 .. "' -> '" .. tostring(de2)
-            .. "' | " .. fac .. " | DBgeladen=" .. tostring(ns.FLIGHT_TIMES ~= nil)
-            .. " | DB=" .. tostring(hit)
-            .. " | gelernt=" .. tostring(ftDB().times[key]))
+            .. "' | " .. fac .. " | dbLoaded=" .. tostring(ns.FLIGHT_TIMES ~= nil)
+            .. " | db=" .. tostring(hit)
+            .. " | learned=" .. tostring(ftDB().times[key]))
     end
 
     ftBuildBar()
@@ -976,7 +976,8 @@ SlashCmdList.VCUIFLUG = function()
     local d = mod.db and mod.db.flight
     if not d then return end
     d.debug = not d.debug
-    ns:Print("Flugdebug: " .. (d.debug and "AN — nimm einen Flug, dann steht die Auflösung im Chat." or "aus"))
+    ns:Print(d.debug and L["Flight debug on — take a flight, the resolution appears in the chat."]
+        or L["Flight debug off."])
 end
 
 local ftTaxiHooked = false

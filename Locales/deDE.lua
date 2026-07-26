@@ -656,6 +656,8 @@ ns:RegisterLocale("deDE", {
     ["Flight timer: x=%.0f, y=%.0f"] = "Flugzeit: x=%.0f, y=%.0f",
     ["Flight timer mover active. |cff9b6cffDrag|r or |cff9b6cffarrow keys|r (SHIFT = 5px)."] = "Flugzeit-Mover aktiv. |cff9b6cffZiehen|r oder |cff9b6cffPfeiltasten|r (SHIFT = 5px).",
     ["Flight timer mover disabled."] = "Flugzeit-Mover deaktiviert.",
+    ["Flight debug on — take a flight, the resolution appears in the chat."] = "Flugdebug an — nimm einen Flug, dann steht die Auflösung im Chat.",
+    ["Flight debug off."] = "Flugdebug aus.",
 
     -- LazyVulo
     ["LazyVulo"] = "Apexis-Minispiel",

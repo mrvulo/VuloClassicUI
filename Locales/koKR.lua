@@ -616,6 +616,8 @@ local T = {
     ["Flight timer: x=%.0f, y=%.0f"] = "비행 시간 표시기: x=%.0f, y=%.0f",
     ["Flight timer mover active. |cff9b6cffDrag|r or |cff9b6cffarrow keys|r (SHIFT = 5px)."] = "비행 시간 표시기 이동 모드가 켜졌습니다. |cff9b6cff끌기|r 또는 |cff9b6cff방향키|r로 옮기십시오 (SHIFT = 5픽셀).",
     ["Flight timer mover disabled."] = "비행 시간 표시기 이동 모드가 꺼졌습니다.",
+    ["Flight debug on — take a flight, the resolution appears in the chat."] = "비행 디버그 켬 — 비행하면 확인 결과가 채팅창에 표시됩니다.",
+    ["Flight debug off."] = "비행 디버그 끔.",
     ["LazyVulo"] = "LazyVulo",
     ["VulTraining"] = "VulTraining",
     ["Group Board"] = "파티 게시판",
