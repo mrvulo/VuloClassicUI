@@ -1577,7 +1577,16 @@ local function UpdateCharacterPanel()
 	end
 end
 
-ns.RefreshCharacterPanel = UpdateCharacterPanel
+-- Covers the inspect window too: the module toggle refreshes through here, and
+-- UpdateCharacterPanel alone would leave an open inspect frame stale until its
+-- next natural update.
+ns.RefreshCharacterPanel = function()
+	UpdateCharacterPanel()
+	if InspectFrame and InspectFrame:IsShown() and InspectFrame.unit then
+		UpdateInspectIlvlDisplayTBC(InspectFrame.unit)
+		UpdateAllInspectSlots()
+	end
+end
 
 -- The per-slot update skips its whole body when the item link has not changed.
 -- That is right for events, but wrong for the options: flipping "Show sockets"

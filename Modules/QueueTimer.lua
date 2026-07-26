@@ -267,6 +267,9 @@ end
 
 -- The labels live on Blizzard's dialogs and would show stale text on the next
 -- queue pop with the module off; instanceInfo was alpha-hidden by us.
+-- Known gap: Blizzard's own label text (blanked by setExpiresText) cannot be
+-- reconstructed here, so a dialog that is showing RIGHT NOW stays textless
+-- until this pop expires; the next pop repaints it.
 local function clearCustomLabels(dialog)
     if dialog and dialog.queueTimerLabels then
         dialog.customLabel:SetText("")

@@ -378,7 +378,6 @@ local T = {
     ["Visibility"] = "Видимость",
     ["Text Sizes"] = "Размеры текста",
     ["Character"] = "Персонаж",
-    ["|cffaaaaaaOpen your class trainer once to fill or refresh the list.|r"] = "|cffaaaaaaОткройте окно обучения у наставника класса, чтобы заполнить или обновить список.|r",
     ["|cffffffffPOWER BAR|r\n|cffaaaaaaDrag or arrow keys|r"] = "|cffffffffПОЛОСА РЕСУРСА|r\\n|cffaaaaaaПеретаскивание или стрелки|r",
     ["Power Bar mover active. |cff9b6cffDrag the purple box|r or use |cff9b6cffarrow keys|r (SHIFT = 5px). Click 'Unlock / Move' again to finish."] = "Перемещение полосы ресурса включено. |cff9b6cffПеретащите фиолетовый блок|r или используйте |cff9b6cffстрелки|r (SHIFT = 5 пикс.). Нажмите «Разблокировать / Переместить» еще раз, чтобы закончить.",
     ["Power Bar mover disabled."] = "Перемещение полосы ресурса отключено.",

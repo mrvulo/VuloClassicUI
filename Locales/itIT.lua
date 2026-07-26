@@ -1501,7 +1501,6 @@ local T = {
     ["Arrange this bar's buttons in your own grid. Off keeps Blizzard's native layout."] = "Disponi i pulsanti di questa barra nella tua griglia personale. Disattivato mantiene il layout nativo di Blizzard.",
     ["Buttons per row"] = "Pulsanti per riga",
     ["Button spacing"] = "Spaziatura dei pulsanti",
-    ["|cffaaaaaaOpen your class trainer once to fill or refresh the list.|r"] = "|cffaaaaaaApri una volta l'addestratore di classe per riempire o aggiornare la lista.|r",
     ["|cffffffffPOWER BAR|r\n|cffaaaaaaDrag or arrow keys|r"] = "|cffffffffBARRA DELLA RISORSA|r\\n|cffaaaaaaTrascina o frecce direzionali|r",
     ["Power Bar mover active. |cff9b6cffDrag the purple box|r or use |cff9b6cffarrow keys|r (SHIFT = 5px). Click 'Unlock / Move' again to finish."] = "Spostamento della barra della risorsa attivo. |cff9b6cffTrascina il riquadro viola|r o usa le |cff9b6cfffrecce direzionali|r (SHIFT = 5px). Clicca di nuovo su “Sblocca / Sposta” per terminare.",
     ["Power Bar mover disabled."] = "Spostamento della barra della risorsa disattivato.",
