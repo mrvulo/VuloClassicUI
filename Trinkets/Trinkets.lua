@@ -4,6 +4,13 @@ Trinkets = { }
 
 local _G, math, tonumber, string, type, pairs, ipairs, table, select = _G, math, tonumber, string, type, pairs, ipairs, table, select
 
+-- Host addon's locale table, resolved per lookup; keys fall back to themselves.
+local VL = setmetatable({}, { __index = function(_, k)
+	local host = _G.VuloClassicUI
+	return (host and host.L and host.L[k]) or k
+end })
+Trinkets.VL = VL
+
 -- isEra covers both Classic Era and Season of Discovery (both are WOW_PROJECT_CLASSIC).
 local _vui = _G.VuloClassicUI
 local IsClassic = (_vui and _vui.isClassic) or (WOW_PROJECT_ID and WOW_PROJECT_ID >= WOW_PROJECT_CLASSIC) or false
@@ -569,7 +576,7 @@ function Trinkets.SlashHandler(msg)
 		Trinkets.ResetSettings()
 	elseif msg == "clear" then
 		wipe(TrinketsPerOptions.Hidden)
-		DEFAULT_CHAT_FRAME:AddMessage("|cFFFFFF00Trinkets: Cleared all ignored/hidden trinkets.")
+		DEFAULT_CHAT_FRAME:AddMessage("|cFFFFFF00" .. VL["Trinkets: Cleared all ignored/hidden trinkets."])
 	elseif string.find(msg, "alpha") then
 		local _, _, alpha = string.find(msg, "alpha (.+)")
 		alpha = tonumber(alpha)
@@ -605,21 +612,21 @@ function Trinkets.SlashHandler(msg)
 		DEFAULT_CHAT_FRAME:AddMessage("|cFFFFFF00Trinkets load:")
 		DEFAULT_CHAT_FRAME:AddMessage("/trinket load (top|bottom) profilename\nie: /trinket load bottom PvP")
 	else
-		DEFAULT_CHAT_FRAME:AddMessage("|cFFFFFF00Trinkets useage:")
-		DEFAULT_CHAT_FRAME:AddMessage("/trinket or /Trinkets : toggle the window")
-		DEFAULT_CHAT_FRAME:AddMessage("/trinket reset : reset all settings")
-		DEFAULT_CHAT_FRAME:AddMessage("/trinket clear : clear all ignored/hidden trinkets")
-		DEFAULT_CHAT_FRAME:AddMessage("/trinket opt : summon options window")
-		DEFAULT_CHAT_FRAME:AddMessage("/trinket lock|unlock : toggles window lock")
-		DEFAULT_CHAT_FRAME:AddMessage("/trinket scale main|menu (number) : sets an exact scale")
-		DEFAULT_CHAT_FRAME:AddMessage("/trinket load top|bottom profilename : loads a profile to top or bottom trinket")
+		DEFAULT_CHAT_FRAME:AddMessage("|cFFFFFF00" .. VL["Trinkets usage:"])
+		DEFAULT_CHAT_FRAME:AddMessage(VL["/trinket or /Trinkets : toggle the window"])
+		DEFAULT_CHAT_FRAME:AddMessage(VL["/trinket reset : reset all settings"])
+		DEFAULT_CHAT_FRAME:AddMessage(VL["/trinket clear : clear all ignored/hidden trinkets"])
+		DEFAULT_CHAT_FRAME:AddMessage(VL["/trinket opt : summon options window"])
+		DEFAULT_CHAT_FRAME:AddMessage(VL["/trinket lock|unlock : toggles window lock"])
+		DEFAULT_CHAT_FRAME:AddMessage(VL["/trinket scale main|menu (number) : sets an exact scale"])
+		DEFAULT_CHAT_FRAME:AddMessage(VL["/trinket load top|bottom profilename : loads a profile to top or bottom trinket"])
 	end
 end
 
 function Trinkets.ResetSettings()
 	StaticPopupDialogs["TrinketsRESET"] = {
-		text = "Are you sure you want to reset Trinkets to default state and reload the UI?",
-		button1 = "Yes", button2 = "No", showAlert = 1, timeout = 0, whileDead = 1,
+		text = VL["Are you sure you want to reset Trinkets to default state and reload the UI?"],
+		button1 = _G.YES or "Yes", button2 = _G.NO or "No", showAlert = 1, timeout = 0, whileDead = 1,
 		OnAccept = function()
 			TrinketsOptions = nil
 			TrinketsPerOptions = nil
@@ -957,7 +964,7 @@ function Trinkets.TooltipUpdate()
 		end
 		Trinkets.ShrinkTooltip(Trinkets.TooltipOwner)
 		if Trinkets.TooltipType == "INVENTORY" and Trinkets.TooltipBag then
-			GameTooltip:AddLine("Queued: "..Trinkets.TooltipBag)
+			GameTooltip:AddLine(string.format(VL["Queued: %s"], Trinkets.TooltipBag))
 		end
 		GameTooltip:Show()
 		if cooldown == 0 then

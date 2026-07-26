@@ -22,9 +22,9 @@ function Trinkets.QueueInit()
 	Trinkets_SubQueueFrame:SetBackdropBorderColor(.3, .3, .3,1)
 	Trinkets_ProfilesFrame:SetBackdropBorderColor(.3, .3, .3, 1)
 	Trinkets_ProfilesListFrame:SetBackdropBorderColor(.3, .3, .3, 1)
-	Trinkets_SortPriorityText:SetText("Priority")
+	Trinkets_SortPriorityText:SetText(Trinkets.VL["Priority"])
 	Trinkets_SortPriorityText:SetTextColor(.95, .95, .95)
-	Trinkets_SortKeepEquippedText:SetText("Pause Queue")
+	Trinkets_SortKeepEquippedText:SetText(Trinkets.VL["Pause Queue"])
 	Trinkets_SortKeepEquippedText:SetTextColor(.95, .95, .95)
 	Trinkets_SortListFrame:SetBackdropBorderColor(.3, .3, .3, 1)
 	Trinkets.ReflectQueueEnabled()
@@ -462,7 +462,7 @@ end
 
 function Trinkets.GetQueue(which)
 	if not which or not tonumber(which) or which < 0 or which > 1 then
-		DEFAULT_CHAT_FRAME:AddMessage("|cFFBBBBBBTrinkets.GetQueue:|cFFFFFFFF Parameter must be 0 for top trinket or 1 for bottom.")
+		DEFAULT_CHAT_FRAME:AddMessage("|cFFBBBBBBTrinkets.GetQueue:|cFFFFFFFF " .. Trinkets.VL["Parameter must be 0 for top trinket or 1 for bottom."])
 		return
 	end
 	local trinketList, name = { }
@@ -541,7 +541,7 @@ function Trinkets.ProfileScrollFrameUpdate()
 		end
 	end
 	if #list == 0 then
-		Trinkets_Profile1Name:SetText("No profiles saved yet.")
+		Trinkets_Profile1Name:SetText(Trinkets.VL["No profiles saved yet."])
 		Trinkets_Profile1:Show()
 		Trinkets_Profile1:UnlockHighlight()
 	end
