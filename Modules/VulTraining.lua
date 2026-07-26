@@ -47,8 +47,18 @@ local function cacheSpell(spell, level, done)
         done(false)
     end
 
-    if Spell and Spell.CreateFromSpellID then
-        local si = Spell:CreateFromSpellID(id)
+    -- ContinueOnSpellLoad HARD-ERRORS on a spell the client does not know
+    -- ("Usage: NonEmptySpell:ContinueOnLoad") instead of just calling back, and
+    -- Season of Discovery does not carry every id in the trainer lists. One
+    -- unknown spell took the whole module down, so ask first and fall back to the
+    -- plain lookup, which simply reports no name and skips the entry.
+    local si = (Spell and Spell.CreateFromSpellID) and Spell:CreateFromSpellID(id) or nil
+    local loadable = false
+    if si and si.ContinueOnSpellLoad then
+        local ok, empty = pcall(si.IsSpellEmpty, si)
+        loadable = ok and not empty
+    end
+    if loadable then
         si:ContinueOnSpellLoad(function()
             if RunNextFrame then RunNextFrame(function() finalize(si) end) else finalize(si) end
         end)
