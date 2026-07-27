@@ -1,6 +1,31 @@
--- VuloClassicUI / Modules / VTManaDisplay: auto-merged; each IIFE keeps its file-level locals and early-returns self-contained.
-
--- merged from: VTManaDisplay.lua
+-- VuloClassicUI / Modules / ClassTools: the "Class Specific" page.
+--
+-- This file is the HOST, not a class file -- that is why it sits in Modules/
+-- and not in Modules/Classes/. It has to load before them: every file in
+-- Modules/Classes/ reaches for ns.modules.vtmanadisplay and registers into one
+-- of the two tables below, and a class file that loaded first would find
+-- nothing and silently return.
+--
+--   RegisterClassTool(class, {onEnable, onDisable, getOptions})
+--       a full feature owning its own frames -- Shaman totem bar, Paladin seal
+--       twist. See Modules/Classes/Shaman.lua for the shape.
+--   RegisterDotSet(class, dots, meta)
+--       data only; the generic DoT tracker below does the work. See
+--       Modules/Classes/Priest.lua and Warlock.lua.
+--
+-- The Vampiric Touch mana counter and the DoT tracker live here rather than in
+-- Modules/Classes/Priest.lua on purpose: they share ONE
+-- COMBAT_LOG_EVENT_UNFILTERED handler (see onCombatLog), which destructures the
+-- event once and feeds both. Splitting them into separate files would mean two
+-- subscribers to the hottest event in the game, or a fan-out call per event.
+-- The coupling is the optimisation; leave it here.
+--
+-- The module key stays "vtmanadisplay" although the file no longer is: the key
+-- is written into saved profiles and referenced from UI/Sidebar.lua and
+-- UI/Pages.lua, so renaming it would need a settings migration for no gain.
+--
+-- The wrapping IIFE is not decoration -- it gives the file its own 200-local
+-- budget under Lua 5.1.
 (function(...)
 local _, ns = ...
 local L = ns.L
@@ -862,7 +887,11 @@ function mod:GetOptions(tabId)
         local items = { { type = "header", text = L[label] or label } }
         local meta = DOT_SET_META[classToken]
         if meta and meta.desc then
-            table.insert(items, { type = "desc", text = meta.desc })
+            -- meta.desc is the ENGLISH text, i.e. the locale key -- translated
+            -- here rather than by the registering file. A class file that wrote
+            -- L[...] at its own file scope would resolve before the saved
+            -- language override is read and bake in the client language.
+            table.insert(items, { type = "desc", text = L[meta.desc] })
         end
         appendDotTracker(items, classToken)
         return items
@@ -873,42 +902,5 @@ function mod:GetOptions(tabId)
         { type = "desc", text = L["|cffaaaaaaNo class-specific tools for this class yet. Got an idea? Let me know!|r"] },
     }
 end
-
-end)(...);
-
--- merged from: Classes/Priest.lua
-(function(...)
-local _, ns = ...
-
-local csMod = ns.modules and ns.modules.vtmanadisplay
-if not csMod or not csMod.RegisterDotSet then return end
-
--- id is the base rank; the resolved name filters every rank.
-csMod:RegisterDotSet("PRIEST", {
-    { key = "swp", id = 589,   toggle = "showSWP", label = "Shadow Word: Pain", school = 6, color = { 0.62, 0.40, 0.94 }, base = 1236, coef = 1.10 },
-    { key = "vt",  id = 34917, toggle = "showVT",  label = "Vampiric Touch",    school = 6, color = { 0.85, 0.30, 0.85 }, base = 850,  coef = 1.00 },
-    { key = "dp",  id = 2944,  toggle = "showDP",  label = "Devouring Plague",  school = 6, color = { 0.40, 0.78, 0.36 }, base = 1216, coef = 1.00 },
-})
-
-end)(...);
-
--- merged from: Classes/Warlock.lua
-(function(...)
-local _, ns = ...
-local L = ns.L
-
-local csMod = ns.modules and ns.modules.vtmanadisplay
-if not csMod or not csMod.RegisterDotSet then return end
-
-csMod:RegisterDotSet("WARLOCK", {
-    { key = "corr",   id = 172,   toggle = "showCorruption", label = "Corruption",          school = 6, color = { 0.55, 0.35, 0.85 }, base = 900,  coef = 0.94 },
-    { key = "coa",    id = 980,   toggle = "showCoA",        label = "Curse of Agony",      school = 6, color = { 0.45, 0.30, 0.70 }, base = 1356, coef = 1.20 },
-    { key = "ua",     id = 30108, toggle = "showUA",         label = "Unstable Affliction", school = 6, color = { 0.72, 0.42, 0.96 }, base = 1050, coef = 1.20 },
-    { key = "siphon", id = 18265, toggle = "showSiphon",     label = "Siphon Life",         school = 6, color = { 0.40, 0.66, 0.42 }, base = 630,  coef = 1.00 },
-    { key = "immo",   id = 348,   toggle = "showImmolate",   label = "Immolate",            school = 3, color = { 0.92, 0.46, 0.20 }, base = 615,  coef = 0.65 },
-    { key = "codoom", id = 603,   toggle = "showCoDoom",     label = "Curse of Doom",       school = 6, color = { 0.72, 0.22, 0.22 }, base = 4200, coef = 2.00 },
-}, {
-    desc = L["|cffaaaaaaTracks your Warlock DoTs (Corruption, Curse of Agony, Unstable Affliction, Siphon Life, Immolate, Curse of Doom) on the target, with the same recast-snapshot readout as the Priest tracker.|r"],
-})
 
 end)(...);
