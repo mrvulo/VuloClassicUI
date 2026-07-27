@@ -150,6 +150,31 @@ local function onEvent(_, event, ...)
     end
 end
 
+-- Handlers registered straight through ns:RegisterEvent belong to no module,
+-- and the first real measurement showed those are the expensive ones: two
+-- anonymous 28 ms spikes, with seven modules listening for that event and no
+-- way to tell which one it was. So fall back to asking Lua where the function
+-- was defined. Runs only while profiling is on, and the answer is cached per
+-- function -- weak keys, so a handler that goes away takes its entry with it.
+local srcCache = setmetatable({}, { __mode = "k" })
+local function labelFor(h, event)
+    local owner = ns.eventOwners[h]
+    if owner then return owner end
+    local src = srcCache[h]
+    if src == nil then
+        src = false
+        if debug and debug.getinfo then
+            local ok, info = pcall(debug.getinfo, h, "S")
+            if ok and info and info.short_src then
+                src = info.short_src:match("([^\\/]+)%.lua$") or false
+            end
+        end
+        srcCache[h] = src
+    end
+    if src then return src .. " / " .. event end
+    return event
+end
+
 -- Measuring variant. It is NOT reached unless profiling is switched on: the
 -- script is swapped wholesale, so the normal path above carries no flag test,
 -- no timer call, nothing at all. That is the whole point of shipping this --
@@ -161,7 +186,7 @@ local function onEventProfiled(_, event, ...)
     -- add a Lua call per firing to the hottest path in the addon -- thousands
     -- per second in a raid -- for an event that almost never has one-shots.
     if onceSets[event] then takeOnceHandlers(event, list) end
-    local owners, record, clock = ns.eventOwners, ns.Prof.Record, debugprofilestop
+    local record, clock = ns.Prof.Record, debugprofilestop
     local hot = HOT[event]
     for i = 1, #list do
         local h = list[i]
@@ -174,7 +199,7 @@ local function onEventProfiled(_, event, ...)
                 ns:Print(L["|cffff5555Event handler error (%s):|r %s"], event, tostring(err))
             end
         end
-        record(owners[h] or event, clock() - t0)
+        record(labelFor(h, event), clock() - t0)
     end
 end
 

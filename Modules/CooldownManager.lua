@@ -1262,7 +1262,7 @@ function mod:OnEnable()
     -- replaced was already hidden while the module was off, so it cost nothing
     -- either. What it buys is one driver instead of one frame per module, and
     -- a cancel that is symmetric with the enable.
-    if not driver then driver = ns:AddTicker(0.1, refreshAll) end
+    if not driver then driver = ns:AddTicker(0.1, refreshAll, nil, "cooldownmanager") end
     inCombat = InCombatLockdown() and true or false
     rebuildBars()
     ns:RegisterEvent("SPELL_UPDATE_COOLDOWN", refreshSoon)

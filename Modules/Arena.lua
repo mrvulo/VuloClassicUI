@@ -1490,7 +1490,7 @@ local function drTick()
 end
 local function ensureUpdater()
     if updaterTicker then return end
-    updaterTicker = ns:AddTicker(0.5, drTick)
+    updaterTicker = ns:AddTicker(0.5, drTick, nil, "arena-dr")
 end
 
 local function resetAll()
