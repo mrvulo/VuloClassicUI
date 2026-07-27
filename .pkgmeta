@@ -14,11 +14,26 @@
 # go back to German. tools/check.js compares it against CHANGELOG.md and fails
 # the build before that can reach a distribution site.
 #
-# Deliberately no "ignore" list. Without one the packager keeps its default file
-# selection, so the only change to the shipped zip is CHANGELOG-release.md
-# itself riding along -- a few hundred bytes. Ignoring it was tempting, but it
-# is unclear whether the packager still finds a manual changelog it was told to
-# leave out, and a wrong guess there breaks releasing, not just tidiness.
 manual-changelog:
     filename: CHANGELOG-release.md
     markup-type: markdown
+
+# Build-time files that were shipping to players for no reason. Everything here
+# is either never read by the client or only useful to whoever builds a release.
+#
+# CHANGELOG-release.md is NOT listed even though it is build output: it is
+# unclear whether the packager still finds a manual changelog it was told to
+# leave out, and a wrong guess there breaks releasing rather than just tidiness.
+#
+# Neither are the LICENSE / LICENSE.txt files under Media -- those document the
+# terms of the bundled artwork and have to travel with it.
+ignore:
+    # Checker, generators, the distribution-site description, node manifests.
+    # Nothing in either TOC loads from here.
+    - tools
+    # Sources, not assets: the client cannot render PNG. UI/MainFrame.lua asks
+    # for TwitchV.tga and DiscordV.tga, which ship next to these.
+    - Media/Icons/TwitchV.png
+    - Media/Icons/DiscordV.png
+    # A note to ourselves about where to drop a replacement minimap icon.
+    - Media/README.txt
