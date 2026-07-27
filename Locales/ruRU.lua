@@ -3,6 +3,7 @@
 local _, ns = ...
 
 ns:RegisterLocale("ruRU", function() return {
+    ["Simplified Chinese and Traditional Chinese. Both are complete: every interface text, every option and every patch note, 2528 entries each. They are separate translations, not one converted into the other. Pick yours under General, or leave the setting on Auto and it follows your game client."] = "Упрощённый и традиционный китайский. Оба перевода полные: каждый текст интерфейса, каждая настройка и каждая заметка к обновлению — по 2528 строк. Это два самостоятельных перевода, а не один, преобразованный из другого. Выберите нужный в разделе «Общее» или оставьте настройку на «Авто» — тогда язык будет следовать за клиентом игры.",
     ["Spam Filter"] = "Фильтр спама",
     ["Hide (and optionally ignore) chat spammers whose names spell 'casino' & co. with look-alike letters."] = "Скрывает (и при желании добавляет в игнор) спамеров в чате, чьи имена пишут «casino» и подобное похожими буквами.",
     ["|cffaaaaaaHides chat from gold/casino spammers whose names use look-alike letters (e.g. Gãsïnô, Casinòbâbe). The name is folded to plain letters, then matched against the keywords below. Applies to whisper, channels, say, yell and emotes — not guild/party/raid.|r"] = "|cffaaaaaaСкрывает сообщения спамеров золота и казино, чьи имена состоят из похожих букв (например, Gãsïnô, Casinòbâbe). Имя приводится к обычным буквам, а затем сверяется с ключевыми словами ниже. Действует для шепота, каналов, реплик, крика и эмоций — но не для гильдии, группы и рейда.|r",

@@ -3,6 +3,7 @@
 local _, ns = ...
 
 ns:RegisterLocale("ptBR", function() return {
+    ["Simplified Chinese and Traditional Chinese. Both are complete: every interface text, every option and every patch note, 2528 entries each. They are separate translations, not one converted into the other. Pick yours under General, or leave the setting on Auto and it follows your game client."] = "Chinês simplificado e chinês tradicional. Os dois estão completos: cada texto da interface, cada opção e cada nota de atualização, 2528 entradas em cada. São duas traduções independentes, não uma convertida a partir da outra. Escolha a sua em Geral, ou deixe a configuração em Auto e ela acompanha o cliente do jogo.",
     ["Anchor to window..."] = "Ancorar à janela...",
     ["WIDTH LIKE"] = "MESMA LARGURA",
     ["HEIGHT LIKE"] = "MESMA ALTURA",

@@ -5,6 +5,7 @@ local _, ns = ...
 -- Builder, not a finished table: only the language actually being read is
 -- ever assembled (see Core/Locale.lua).
 ns:RegisterLocale("zhTW", function() return {
+    ["Simplified Chinese and Traditional Chinese. Both are complete: every interface text, every option and every patch note, 2528 entries each. They are separate translations, not one converted into the other. Pick yours under General, or leave the setting on Auto and it follows your game client."] = "簡體中文與繁體中文。兩者都是完整翻譯：所有介面文字、所有選項以及所有更新說明，各 2528 條。這是兩份獨立的翻譯，而非由其中一份轉換而成。可在「通用」中選擇，或將設定保持為「自動」，它會跟隨你的遊戲客戶端。",
     ["Spam Filter"] = "垃圾訊息過濾",
     ["Hide (and optionally ignore) chat spammers whose names spell 'casino' & co. with look-alike letters."] = "隱藏（並可選擇忽略）那些用形似字母把名稱拼成「casino」之類的聊天垃圾訊息發送者。",
     ["|cffaaaaaaHides chat from gold/casino spammers whose names use look-alike letters (e.g. Gãsïnô, Casinòbâbe). The name is folded to plain letters, then matched against the keywords below. Applies to whisper, channels, say, yell and emotes — not guild/party/raid.|r"] = "|cffaaaaaa隱藏名稱使用形似字母的金幣/賭場廣告發送者的聊天訊息（例如 Gãsïnô、Casinòbâbe）。名稱會先還原成普通字母，再與下方的關鍵字比對。適用於密語、頻道、說話、大喊和表情動作 — 不含公會/隊伍/團隊。|r",

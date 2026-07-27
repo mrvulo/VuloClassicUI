@@ -16,6 +16,10 @@
   ~1900 characters or it gets truncated with a link to the full notes.
 -->
 
+## 1.38.0
+**Languages:**
+- **NEW:** Simplified Chinese and Traditional Chinese. Both are complete: every interface text, every option and every patch note, 2528 entries each. They are separate translations, not one converted into the other. Pick yours under General, or leave the setting on Auto and it follows your game client.
+
 ## 1.37.4
 **Fixes:**
 - Clicking a trinket button while that trinket slot is empty no longer throws an error. The game's own shortcut for "use the item in slot N" stopped tolerating an empty slot with July's interface update, so the button now takes a different route to the same action.

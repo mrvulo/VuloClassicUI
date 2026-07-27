@@ -3,6 +3,7 @@
 local _, ns = ...
 
 ns:RegisterLocale("itIT", function() return {
+    ["Simplified Chinese and Traditional Chinese. Both are complete: every interface text, every option and every patch note, 2528 entries each. They are separate translations, not one converted into the other. Pick yours under General, or leave the setting on Auto and it follows your game client."] = "Cinese semplificato e cinese tradizionale. Entrambi sono completi: ogni testo dell’interfaccia, ogni opzione e ogni nota di aggiornamento, 2528 voci ciascuno. Sono due traduzioni distinte, non una convertita dall’altra. Scegli la tua in Generale, oppure lascia l’impostazione su Auto e seguirà il client di gioco.",
     ["Spam Filter"] = "Filtro antispam",
     ["Hide (and optionally ignore) chat spammers whose names spell 'casino' & co. with look-alike letters."] = "Nasconde (e volendo ignora) gli spammer in chat il cui nome scrive “casino” e simili con lettere sosia.",
     ["|cffaaaaaaHides chat from gold/casino spammers whose names use look-alike letters (e.g. Gãsïnô, Casinòbâbe). The name is folded to plain letters, then matched against the keywords below. Applies to whisper, channels, say, yell and emotes — not guild/party/raid.|r"] = "|cffaaaaaaNasconde la chat degli spammer di oro/casinò che usano lettere sosia nel nome (es. Gãsïnô, Casinòbâbe). Il nome viene ridotto a lettere semplici e confrontato con le parole chiave qui sotto. Vale per sussurri, canali, dire, urlare ed emote — non per gilda/party/raid.|r",

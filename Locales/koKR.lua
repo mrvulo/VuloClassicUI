@@ -3,6 +3,7 @@
 local _, ns = ...
 
 ns:RegisterLocale("koKR", function() return {
+    ["Simplified Chinese and Traditional Chinese. Both are complete: every interface text, every option and every patch note, 2528 entries each. They are separate translations, not one converted into the other. Pick yours under General, or leave the setting on Auto and it follows your game client."] = "간체 중국어와 번체 중국어. 둘 다 완역입니다. 모든 인터페이스 문구, 모든 설정, 모든 패치 노트까지 각각 2528개 항목입니다. 하나를 변환한 것이 아니라 서로 다른 두 개의 번역입니다. 일반에서 원하는 쪽을 고르거나, 설정을 자동으로 두면 게임 클라이언트를 따라갑니다.",
     ["Spam Filter"] = "스팸 필터",
     ["Hide (and optionally ignore) chat spammers whose names spell 'casino' & co. with look-alike letters."] = "이름을 비슷한 모양의 글자로 ‘casino’ 등으로 쓰는 대화 스패머를 숨기고, 원하면 무시 목록에도 추가합니다.",
     ["|cffaaaaaaHides chat from gold/casino spammers whose names use look-alike letters (e.g. Gãsïnô, Casinòbâbe). The name is folded to plain letters, then matched against the keywords below. Applies to whisper, channels, say, yell and emotes — not guild/party/raid.|r"] = "|cffaaaaaa비슷한 모양의 글자를 쓰는 골드/카지노 스패머(예: Gãsïnô, Casinòbâbe)의 대화를 숨깁니다. 이름을 일반 글자로 바꾼 뒤 아래 키워드와 대조합니다. 귓속말, 채널, 일반 대화, 외침, 감정 표현에 적용되며 길드/파티/공격대에는 적용되지 않습니다.|r",

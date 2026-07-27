@@ -6,6 +6,11 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+    { version = "1.38.0", sections = {
+        { category = "Languages", lines = {
+            "NEW: Simplified Chinese and Traditional Chinese. Both are complete: every interface text, every option and every patch note, 2528 entries each. They are separate translations, not one converted into the other. Pick yours under General, or leave the setting on Auto and it follows your game client.",
+        } },
+    } },
     { version = "1.37.4", sections = {
         { category = "Fixes", lines = {
             "Clicking a trinket button while that trinket slot is empty no longer throws an error. The game's own shortcut for \"use the item in slot N\" stopped tolerating an empty slot with July's interface update, so the button now takes a different route to the same action.",
@@ -318,15 +323,6 @@ ns.CHANGELOG = {
         { category = "Quality of Life", lines = {
             "Rebuilt sort engine (bags, bank and guild bank) that keeps materials and gear apart.",
             "Minimap and totem-bar improvements, plus framework hardening for the current clients.",
-        } },
-    } },
-    { version = "1.21.0", sections = {
-        { category = "NEW — Bags & Bank", lines = {
-            "A single unified inventory window: search, sort, categories, custom groups, pinned & recent items, keyring, quick-drop, item levels and quality borders.",
-            "A new bank window with slot purchasing.",
-        } },
-        { category = "Quality of Life", lines = {
-            "Friends counter in the chat, a gold overview tooltip, and taint-free Edit Mode movers.",
         } },
     } },
 }

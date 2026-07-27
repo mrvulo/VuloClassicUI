@@ -1,6 +1,7 @@
 local _, ns = ...
 
 ns:RegisterLocale("deDE", function() return {
+    ["Simplified Chinese and Traditional Chinese. Both are complete: every interface text, every option and every patch note, 2528 entries each. They are separate translations, not one converted into the other. Pick yours under General, or leave the setting on Auto and it follows your game client."] = "Vereinfachtes und traditionelles Chinesisch. Beide sind vollständig: jeder Oberflächentext, jede Einstellung und jede Patchnotiz, je 2528 Einträge. Es sind zwei eigenständige Übersetzungen, nicht eine aus der anderen umgewandelt. Wähle deine unter Allgemein, oder lass die Einstellung auf Auto, dann folgt sie deinem Spielclient.",
     -- Spam Filter
     ["Spam Filter"] = "Spam-Filter",
     ["Hide (and optionally ignore) chat spammers whose names spell 'casino' & co. with look-alike letters."] = "Blendet Chat-Spammer aus (optional auch ignorieren), deren Namen 'casino' & Co. mit ähnlich aussehenden Buchstaben schreiben.",

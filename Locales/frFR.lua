@@ -3,6 +3,7 @@
 local _, ns = ...
 
 ns:RegisterLocale("frFR", function() return {
+    ["Simplified Chinese and Traditional Chinese. Both are complete: every interface text, every option and every patch note, 2528 entries each. They are separate translations, not one converted into the other. Pick yours under General, or leave the setting on Auto and it follows your game client."] = "Chinois simplifié et chinois traditionnel. Les deux sont complets : chaque texte de l’interface, chaque option et chaque note de mise à jour, 2528 entrées chacun. Ce sont deux traductions distinctes, et non l’une convertie à partir de l’autre. Choisissez la vôtre dans Général, ou laissez le réglage sur Auto : il suivra alors votre client de jeu.",
     -- Filtre anti-spam
     ["Spam Filter"] = "Filtre anti-spam",
     ["Hide their chat messages"] = "Masquer leurs messages",
