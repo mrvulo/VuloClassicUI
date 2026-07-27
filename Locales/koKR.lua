@@ -3,6 +3,13 @@
 local _, ns = ...
 
 ns:RegisterLocale("koKR", function() return {
+    ["Favourite (click to toggle)"] = "즐겨찾기 (클릭하여 전환)",
+    ["Mail"] = "우편",
+    ["Fire"] = "불",
+    ["Air"] = "바람",
+    ["Overrides the message font size for every chat window. 0 keeps each window's own Blizzard size."] = "모든 대화 창의 메시지 글꼴 크기를 덮어씁니다. 0으로 두면 각 창의 블리자드 기본 크기를 유지합니다.",
+    ["Keywords: q:epic, typ:weapon, ilvl>30 (combinable). Also filters the open bank and guild bank."] = "검색어: q:epic, typ:무기, ilvl>30 (조합 가능). 열려 있는 은행과 길드 은행도 함께 걸러냅니다.",
+    ["Hide the micro menu"] = "마이크로 메뉴 숨기기",
     ["Seal Twist"] = "인장 전환",
     ["Twist"] = "전환",
     ["Hold seal"] = "유지 인장",

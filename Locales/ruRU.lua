@@ -3,6 +3,13 @@
 local _, ns = ...
 
 ns:RegisterLocale("ruRU", function() return {
+    ["Favourite (click to toggle)"] = "Избранное (щёлкните, чтобы переключить)",
+    ["Mail"] = "Почта",
+    ["Fire"] = "Огонь",
+    ["Air"] = "Воздух",
+    ["Overrides the message font size for every chat window. 0 keeps each window's own Blizzard size."] = "Переопределяет размер шрифта сообщений во всех окнах чата. 0 оставляет каждому окну его собственный размер от Blizzard.",
+    ["Keywords: q:epic, typ:weapon, ilvl>30 (combinable). Also filters the open bank and guild bank."] = "Ключевые слова: q:epic, typ:оружие, ilvl>30 (сочетаются). Фильтрует также открытый банк и банк гильдии.",
+    ["Hide the micro menu"] = "Скрыть микроменю",
     ["Seal Twist"] = "Смена печатей",
     ["Twist"] = "Смена",
     ["Hold seal"] = "Удерживаемая печать",

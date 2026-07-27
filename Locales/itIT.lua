@@ -3,6 +3,13 @@
 local _, ns = ...
 
 ns:RegisterLocale("itIT", function() return {
+    ["Favourite (click to toggle)"] = "Preferito (clic per attivare o disattivare)",
+    ["Mail"] = "Posta",
+    ["Fire"] = "Fuoco",
+    ["Air"] = "Aria",
+    ["Overrides the message font size for every chat window. 0 keeps each window's own Blizzard size."] = "Sostituisce la dimensione del carattere dei messaggi in tutte le finestre di chat. 0 mantiene la dimensione Blizzard di ciascuna finestra.",
+    ["Keywords: q:epic, typ:weapon, ilvl>30 (combinable). Also filters the open bank and guild bank."] = "Parole chiave: q:epic, typ:arma, ilvl>30 (combinabili). Filtra anche la banca e la banca di gilda aperte.",
+    ["Hide the micro menu"] = "Nascondi il micromenu",
     ["Seal Twist"] = "Alternanza dei sigilli",
     ["Twist"] = "Alterna",
     ["Hold seal"] = "Sigillo mantenuto",

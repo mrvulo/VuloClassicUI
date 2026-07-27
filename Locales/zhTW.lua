@@ -1792,7 +1792,7 @@ ns:RegisterLocale("zhTW", function() return {
     ["Buy a guild bank tab?"] = "購買公會銀行頁籤？",
     ["Your guild has no bank tabs yet."] = "你的公會尚未擁有銀行頁籤。",
     ["Search"] = "搜尋",
-    ["Keywords: q:epic, typ:weapon, ilvl>30 (combinable). Also filters the open bank and guild bank."] = "關鍵字：q:epic、typ:weapon、ilvl>30（可組合）。同時篩選開啟中的銀行與公會銀行。",
+    ["Keywords: q:epic, typ:weapon, ilvl>30 (combinable). Also filters the open bank and guild bank."] = "關鍵字：q:epic、typ:武器、ilvl>30（可組合）。同時篩選開啟中的銀行與公會銀行。",
     ["Sort tab"] = "整理頁籤",
     ["Sorts the current tab (mode from the bag options). Needs withdraw rights on the tab."] = "整理目前的頁籤（模式取自背包選項）。需要該頁籤的提取權限。",
     ["Money log"] = "金錢紀錄",

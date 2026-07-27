@@ -4,6 +4,13 @@ local _, ns = ...
 
 -- One builder, two clients: Latin American realms share this translation.
 local function T() return {
+    ["Favourite (click to toggle)"] = "Favorito (clic para alternar)",
+    ["Mail"] = "Correo",
+    ["Fire"] = "Fuego",
+    ["Air"] = "Aire",
+    ["Overrides the message font size for every chat window. 0 keeps each window's own Blizzard size."] = "Sustituye el tamaño de fuente de los mensajes en todas las ventanas de chat. 0 mantiene el tamaño propio de Blizzard de cada ventana.",
+    ["Keywords: q:epic, typ:weapon, ilvl>30 (combinable). Also filters the open bank and guild bank."] = "Palabras clave: q:epic, typ:arma, ilvl>30 (combinables). También filtra el banco y el banco de hermandad abiertos.",
+    ["Hide the micro menu"] = "Ocultar el micromenú",
     ["Seal Twist"] = "Cambio de sello",
     ["Twist"] = "Cambiar",
     ["Hold seal"] = "Sello base",

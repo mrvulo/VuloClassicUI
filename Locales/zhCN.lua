@@ -1792,7 +1792,7 @@ ns:RegisterLocale("zhCN", function() return {
     ["Buy a guild bank tab?"] = "购买公会银行标签页？",
     ["Your guild has no bank tabs yet."] = "你的公会尚无银行标签页。",
     ["Search"] = "搜索",
-    ["Keywords: q:epic, typ:weapon, ilvl>30 (combinable). Also filters the open bank and guild bank."] = "关键词：q:epic、typ:weapon、ilvl>30（可组合）。同时筛选已打开的银行和公会银行。",
+    ["Keywords: q:epic, typ:weapon, ilvl>30 (combinable). Also filters the open bank and guild bank."] = "关键词：q:epic、typ:武器、ilvl>30（可组合）。同时筛选已打开的银行和公会银行。",
     ["Sort tab"] = "整理标签页",
     ["Sorts the current tab (mode from the bag options). Needs withdraw rights on the tab."] = "整理当前标签页（模式取自背包选项）。需要该标签页的取出权限。",
     ["Money log"] = "金币日志",
