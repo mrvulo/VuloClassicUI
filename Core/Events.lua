@@ -150,29 +150,15 @@ local function onEvent(_, event, ...)
     end
 end
 
--- Handlers registered straight through ns:RegisterEvent belong to no module,
--- and the first real measurement showed those are the expensive ones: two
--- anonymous 28 ms spikes, with seven modules listening for that event and no
--- way to tell which one it was. So fall back to asking Lua where the function
--- was defined. Runs only while profiling is on, and the answer is cached per
--- function -- weak keys, so a handler that goes away takes its entry with it.
-local srcCache = setmetatable({}, { __mode = "k" })
+-- A handler registered straight through ns:RegisterEvent belongs to no module
+-- and can only be reported under its event name. There is no way to recover the
+-- owner afterwards: WoW does not expose Lua's debug library at all (verified in
+-- game -- `debug` is nil), so asking where a function was defined is not an
+-- option. The fix is at the registration end: use mod:RegisterEvent and the
+-- time lands on the module. Modules/DarkSkin.lua is the worked example -- its
+-- handlers were the anonymous ones hiding a 28 ms hitch.
 local function labelFor(h, event)
-    local owner = ns.eventOwners[h]
-    if owner then return owner end
-    local src = srcCache[h]
-    if src == nil then
-        src = false
-        if debug and debug.getinfo then
-            local ok, info = pcall(debug.getinfo, h, "S")
-            if ok and info and info.short_src then
-                src = info.short_src:match("([^\\/]+)%.lua$") or false
-            end
-        end
-        srcCache[h] = src
-    end
-    if src then return src .. " / " .. event end
-    return event
+    return ns.eventOwners[h] or event
 end
 
 -- Measuring variant. It is NOT reached unless profiling is switched on: the

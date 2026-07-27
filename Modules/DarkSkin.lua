@@ -740,17 +740,21 @@ function mod:OnEnable()
         end
     end
 
-    ns:RegisterEvent("PLAYER_ENTERING_WORLD",     onWorldEnter)
-    ns:RegisterEvent("UPDATE_SHAPESHIFT_FORMS",   skinAllSoon)
-    ns:RegisterEvent("PET_BAR_UPDATE",            skinAllSoon)
-    ns:RegisterEvent("PLAYER_REGEN_DISABLED",     skinAllWAIcons)
-    ns:RegisterEvent("PLAYER_REGEN_ENABLED",      skinAllWAIcons)
-    ns:RegisterEvent("PLAYER_TARGET_CHANGED",     onTargetChanged)
-    ns:RegisterEvent("NAME_PLATE_UNIT_ADDED",     onNamePlateAdded)
+    -- Through the module, not ns: directly -- that is what puts the time on
+    -- "darkskin" in the measurement instead of on a bare event name. These were
+    -- the entries that showed up anonymous, and the 28 ms hitch hid in them.
+    -- It also hands the teardown to the framework.
+    mod:RegisterEvent("PLAYER_ENTERING_WORLD",     onWorldEnter)
+    mod:RegisterEvent("UPDATE_SHAPESHIFT_FORMS",   skinAllSoon)
+    mod:RegisterEvent("PET_BAR_UPDATE",            skinAllSoon)
+    mod:RegisterEvent("PLAYER_REGEN_DISABLED",     skinAllWAIcons)
+    mod:RegisterEvent("PLAYER_REGEN_ENABLED",      skinAllWAIcons)
+    mod:RegisterEvent("PLAYER_TARGET_CHANGED",     onTargetChanged)
+    mod:RegisterEvent("NAME_PLATE_UNIT_ADDED",     onNamePlateAdded)
     -- registration follows the option: UNIT_AURA fires for every unit
     -- everywhere, and with the skin off the handler would only ever bail
     if mod.db.skinWeakAuras then
-        ns:RegisterEvent("UNIT_AURA", skinWASoon)
+        mod:RegisterEvent("UNIT_AURA", skinWASoon)
     end
 
     applyAllDM()
@@ -758,15 +762,9 @@ end
 
 function mod:OnDisable()
     active = false
-    ns:UnregisterEvent("PLAYER_ENTERING_WORLD",   onWorldEnter)
-    ns:UnregisterEvent("UPDATE_SHAPESHIFT_FORMS", skinAllSoon)
-    ns:UnregisterEvent("PET_BAR_UPDATE",          skinAllSoon)
-    ns:UnregisterEvent("PLAYER_REGEN_DISABLED",   skinAllWAIcons)
-    ns:UnregisterEvent("PLAYER_REGEN_ENABLED",    skinAllWAIcons)
-    ns:UnregisterEvent("PLAYER_TARGET_CHANGED",   onTargetChanged)
-    ns:UnregisterEvent("NAME_PLATE_UNIT_ADDED",   onNamePlateAdded)
-    ns:UnregisterEvent("UNIT_AURA",               skinWASoon)
-
+    -- The events registered through the module are taken back out by the
+    -- framework right after this returns; the three dark-mode ones go the same
+    -- way. Nothing left to mirror by hand here.
     restoreAllDM()
     -- Button skins and hooks stay until /reload; tearing them down could touch
     -- buttons in combat. Remaining hooks are gated by `active` / mod._enabled.
@@ -824,9 +822,11 @@ function mod:GetOptions()
           set = function(_, v)
               local was = mod.db.skinWeakAuras
               mod.db.skinWeakAuras = v
-              -- ns:RegisterEvent does not dedupe, so only act on a real flip
+              -- Through the module, like the registration in OnEnable, so the
+              -- framework's teardown owns this one too. The registry refuses a
+              -- duplicate, so the flip check is belt and braces.
               if mod._enabled and v and not was then
-                  ns:RegisterEvent("UNIT_AURA", skinWASoon)
+                  mod:RegisterEvent("UNIT_AURA", skinWASoon)
               elseif was and not v then
                   ns:UnregisterEvent("UNIT_AURA", skinWASoon)
               end
