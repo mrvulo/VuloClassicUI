@@ -1,6 +1,33 @@
 local _, ns = ...
 
 ns:RegisterLocale("deDE", function() return {
+    ["Seal Twist"] = "Siegelwechsel",
+    ["Twist"] = "Wechsel",
+    ["Hold seal"] = "Halte-Siegel",
+    ["Seals"] = "Siegel",
+    ["Seal you hold"] = "Siegel, das du hältst",
+    ["Seal you twist in"] = "Siegel, das du einwechselst",
+    ["Timing"] = "Zeitpunkt",
+    ["Twist window (seconds)"] = "Wechselfenster (Sekunden)",
+    ["How far before the swing the second seal has to land. 0.40 is the usual figure; raise it if your latency makes you miss the window."] = "Wie weit vor dem Schlag das zweite Siegel landen muss. 0,40 ist der übliche Wert; erhöhe ihn, wenn deine Latenz dich das Fenster verpassen lässt.",
+    ["Suggest Crusader Strike"] = "Kreuzfahrerstoß vorschlagen",
+    ["Prompts Crusader Strike when it is ready and there is room for it plus the Command cast before the window opens."] = "Schlägt den Kreuzfahrerstoß vor, wenn er bereit ist und davor noch Platz für ihn und den Befehls-Wirkvorgang bleibt.",
+    ["Sound when the window opens"] = "Ton, wenn das Fenster aufgeht",
+    ["Enable seal twist helper"] = "Siegelwechsel-Hilfe aktivieren",
+    ["Show swing bar"] = "Schwungleiste zeigen",
+    ["Show next action"] = "Nächste Aktion zeigen",
+    ["Show numbers"] = "Zahlen zeigen",
+    ["(no seals learned)"] = "(keine Siegel gelernt)",
+    ["%.2fs left  -  swing %.2fs  -  GCD %.2fs"] = "%.2fs übrig  -  Schlag %.2fs  -  GCD %.2fs",
+    ["|cffffffffSEAL TWIST|r\n|cffaaaaaaDrag or arrow keys|r"] = "|cffffffffSIEGELWECHSEL|r\n|cffaaaaaaZiehen oder Pfeiltasten|r",
+    ["Seal Twist position: x=%.0f, y=%.0f"] = "Siegelwechsel-Position: x=%.0f, y=%.0f",
+    ["Seal Twist mover active. |cff9b6cffDrag the purple box|r or use |cff9b6cffarrow keys|r (SHIFT = 5px). Click 'Unlock / Test' again to finish."] = "Siegelwechsel-Rahmen aktiv. |cff9b6cffZieh den lila Kasten|r oder nutze die |cff9b6cffPfeiltasten|r (UMSCHALT = 5px). Klick erneut auf „Entsperren / Test“, um fertig zu werden.",
+    ["Seal Twist mover disabled."] = "Siegelwechsel-Rahmen deaktiviert.",
+    ["|cffaaaaaaHold Seal of Command, then cast Seal of Blood or of the Martyr in the last fraction of a second before your auto-attack: that swing carries both. The bar counts down to the swing, the |cff33ff66green mark|r is where the twist lands and the |cffb388ffpurple mark|r is the last moment a Command cast still fits in front of it.|r"] = "|cffaaaaaaHalte das Siegel des Befehls und wirke das Siegel des Blutes oder des Märtyrers im letzten Sekundenbruchteil vor deinem Autoangriff: dieser Schlag trägt dann beide. Die Leiste zählt zum Schlag herunter, die |cff33ff66grüne Marke|r ist der Landepunkt des Wechsels und die |cffb388fflila Marke|r der letzte Moment, in dem ein Befehls-Wirkvorgang noch davor passt.|r",
+    ["|cffff8800Only active while playing a Paladin.|r"] = "|cffff8800Nur aktiv, wenn du einen Paladin spielst.|r",
+    ["|cffff8800Switch the Class Specific module on to use this.|r"] = "|cffff8800Schalte das Modul „Klassenspezifisch“ ein, um das zu nutzen.|r",
+    ["|cffff8800No twisting seal found on this character. Seal of Blood, Seal of the Martyr or Seal of Martyrdom is required.|r"] = "|cffff8800Auf diesem Charakter wurde kein Wechsel-Siegel gefunden. Siegel des Blutes, Siegel des Märtyrers oder Siegel des Martyriums wird benötigt.|r",
+    ["Class-specific tools, grouped by class: the Priest Vampiric Touch mana tracker, DoT trackers, the Shaman totem bar and the Paladin seal twist helper."] = "Klassenspezifische Werkzeuge, nach Klasse sortiert: der Manazähler für Vampirberührung des Priesters, DoT-Anzeigen, die Totemleiste des Schamanen und die Siegelwechsel-Hilfe des Paladins.",
     ["Simplified Chinese and Traditional Chinese. Both are complete: every interface text, every option and every patch note, 2528 entries each. They are separate translations, not one converted into the other. Pick yours under General, or leave the setting on Auto and it follows your game client."] = "Vereinfachtes und traditionelles Chinesisch. Beide sind vollständig: jeder Oberflächentext, jede Einstellung und jede Patchnotiz, je 2528 Einträge. Es sind zwei eigenständige Übersetzungen, nicht eine aus der anderen umgewandelt. Wähle deine unter Allgemein, oder lass die Einstellung auf Auto, dann folgt sie deinem Spielclient.",
     -- Spam Filter
     ["Spam Filter"] = "Spam-Filter",
@@ -1439,7 +1466,6 @@ ns:RegisterLocale("deDE", function() return {
 
     -- VTManaDisplay
     ["Class Specific"] = "Klassenspezifisch",
-    ["Class-specific tools, grouped by class. Currently includes the Priest Vampiric Touch mana tracker (Shadow)."] = "Klassenspezifische Tools, nach Klasse gruppiert. Aktuell enthalten: der Priester Vampirberührungs-Mana-Tracker (Schatten).",
     ["|cffaaaaaaVampiric Touch mana tracker — shows live how much mana you've given to the group (5% of shadow damage per tick, per mana user).|n|cffffffffReset automatically on combat start.|r|r"] = "|cffaaaaaaVampirberührungs-Mana-Tracker — zeigt live, wie viel Mana du der Gruppe gegeben hast (5% pro Tick des Schattenschadens, pro Mana-Nutzer).|n|cffffffffWird bei Kampfbeginn automatisch zurückgesetzt.|r|r",
     ["|cffff8800These tools are only active while playing a Priest.|r"] = "|cffff8800Diese Tools sind nur aktiv, wenn du einen Priester spielst.|r",
     ["No tools yet"] = "Noch keine Tools",

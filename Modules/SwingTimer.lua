@@ -67,7 +67,6 @@ local mod = ns:RegisterModule("swingtimer", {
 local GetTime         = GetTime
 local UnitAttackSpeed = UnitAttackSpeed
 local UnitGUID        = UnitGUID
-local CLGetInfo       = CombatLogGetCurrentEventInfo
 local format          = string.format
 
 local TEX_FILL  = "Interface\\TargetingFrame\\UI-StatusBar"
@@ -113,48 +112,40 @@ local function applyBarTexture(bar)
     end
 end
 
-local playerGUID
-local dualWield = false
-
-local mh = { start = 0, dur = 0, active = false }
-local oh = { start = 0, dur = 0, active = false }
-
 local frame
 local mhBar, ohBar
 local eventFrame
 local previewActive, previewExpire = false, 0
 
-local function recomputeDualWield()
-    local _, offSpeed = UnitAttackSpeed("player")
-    dualWield = (offSpeed ~= nil and offSpeed > 0)
+-- The real swing clock lives in Core/SwingTracker (shared with the paladin
+-- seal-twist helper). Preview and unlock run on their own fake swings so that
+-- dragging the bars around in town cannot be mistaken for live data by anything
+-- else reading the tracker.
+-- Pre-filled with plausible speeds: Edit Mode can turn on without ever going
+-- through startPreview, and a zero duration would divide by zero on the first
+-- frame it draws.
+local previewMH = { start = 0, dur = 2.6, active = true }
+local previewOH = { start = 0, dur = 1.8, active = true }
+local liveMH    = { start = 0, dur = 0, active = false }
+local liveOH    = { start = 0, dur = 0, active = false }
+
+local function isFake()
+    return previewActive or (mod.db and mod.db.unlocked) or ns:IsMoverEditMode()
 end
 
-local function resetMH()
-    local mainSpeed = UnitAttackSpeed("player")
-    if not mainSpeed or mainSpeed <= 0 then return end
-    previewActive = false  -- a real swing supersedes the settings preview
-    mh.start, mh.dur, mh.active = GetTime(), mainSpeed, true
-end
-
-local function resetOH()
-    local _, offSpeed = UnitAttackSpeed("player")
-    if not offSpeed or offSpeed <= 0 then return end
-    previewActive = false
-    oh.start, oh.dur, oh.active = GetTime(), offSpeed, true
-end
-
--- Haste change mid-swing keeps the elapsed fraction; it does not restart the swing.
-local function rescale()
-    local mainSpeed, offSpeed = UnitAttackSpeed("player")
-    local t = GetTime()
-    if mh.active and mainSpeed and mainSpeed > 0 and mh.dur > 0 then
-        local frac = (t - mh.start) / mh.dur
-        if frac < 1 then mh.dur = mainSpeed; mh.start = t - frac * mh.dur end
+-- Scratch tables, deliberately reused: this runs 50x a second per bar.
+local function swingState(hand)
+    if isFake() then
+        return (hand == "offhand") and previewOH or previewMH
     end
-    if oh.active and offSpeed and offSpeed > 0 and oh.dur > 0 then
-        local frac = (t - oh.start) / oh.dur
-        if frac < 1 then oh.dur = offSpeed; oh.start = t - frac * oh.dur end
-    end
+    local out = (hand == "offhand") and liveOH or liveMH
+    out.start, out.dur, out.active = ns:GetSwing(hand)
+    return out
+end
+
+local function anySwingActive()
+    if isFake() then return previewMH.active or previewOH.active end
+    return (select(3, ns:GetSwing("mainhand"))) or (select(3, ns:GetSwing("offhand")))
 end
 
 local function addBorder(bar)
@@ -244,7 +235,7 @@ end
 local function layout()
     if not frame then return end
     local w, h, gap = mod.db.width, mod.db.height, mod.db.gap
-    local showOH = (mod.db.showOffHand and dualWield) or mod.db.unlocked
+    local showOH = (mod.db.showOffHand and ns:IsDualWielding()) or mod.db.unlocked
     local totalH = showOH and (h * 2 + gap) or h
 
     frame:SetSize(w, totalH)
@@ -279,7 +270,7 @@ local function applyVisibility()
     if mod.db.unlocked or ns:IsMoverEditMode() then frame:Show(); return end
     if previewActive then frame:Show(); return end
     if not mod.db.onlyWhileActive then frame:Show(); return end
-    if mh.active or oh.active then frame:Show() else frame:Hide() end
+    if anySwingActive() then frame:Show() else frame:Hide() end
 end
 
 local function startPreview()
@@ -291,9 +282,9 @@ local function startPreview()
         previewExpire = t + 4
         return
     end
-    if mh.active or oh.active then return end
-    mh.start, mh.dur, mh.active = t, 2.6, true
-    oh.start, oh.dur, oh.active = t, 1.8, true
+    if anySwingActive() then return end
+    previewMH.start, previewMH.dur, previewMH.active = t, 2.6, true
+    previewOH.start, previewOH.dur, previewOH.active = t, 1.8, true
     previewActive = true
     previewExpire = t + 4
     frame:Show()
@@ -334,23 +325,22 @@ local function create()
         if acc < 0.02 then return end
         acc = 0
         local t = GetTime()
-        if mod.db.unlocked or previewActive or ns:IsMoverEditMode() then
-            if t - mh.start >= mh.dur then mh.start = t end
-            if t - oh.start >= oh.dur then oh.start = t end
+        if isFake() then
+            if t - previewMH.start >= previewMH.dur then previewMH.start = t end
+            if t - previewOH.start >= previewOH.dur then previewOH.start = t end
         end
         if previewActive and t > previewExpire then
             previewActive = false
-            mh.active, oh.active = false, false
             applyVisibility()
         end
-        updateBar(mhBar, mh, t)
-        if ohBar:IsShown() then updateBar(ohBar, oh, t) end
+        updateBar(mhBar, swingState("mainhand"), t)
+        if ohBar:IsShown() then updateBar(ohBar, swingState("offhand"), t) end
         -- Edit Mode has to be exempt here as well, not just in applyVisibility:
         -- that one shows the frame, and a hundredth of a second later this hid
         -- it again. A hidden frame stops running OnUpdate, so nothing ever
         -- brought it back and Edit Mode showed a mover box over empty space.
         if not mod.db.unlocked and not previewActive and mod.db.onlyWhileActive
-           and not mh.active and not oh.active and not ns:IsMoverEditMode() then
+           and not anySwingActive() and not ns:IsMoverEditMode() then
             self:Hide()
         end
     end)
@@ -358,51 +348,31 @@ local function create()
     return frame
 end
 
-local function onCombatLog()
-    local _, subevent, _, sourceGUID = CLGetInfo()
-    if sourceGUID ~= playerGUID then return end
-    if subevent == "SWING_DAMAGE" then
-        -- isOffHand is param 21 of SWING_DAMAGE.
-        local isOffHand = select(21, CLGetInfo())
-        if isOffHand then resetOH() else resetMH() end
-        applyVisibility()
-    elseif subevent == "SWING_MISSED" then
-        -- SWING_MISSED puts isOffHand at param 13, or 14 when an amount is present.
-        local p13, p14 = select(13, CLGetInfo())
-        if (p13 == true) or (p14 == true) then resetOH() else resetMH() end
-        applyVisibility()
-    end
-end
-
 local function clearBars()
-    mh.active, oh.active = false, false
     if mhBar then mhBar:SetValue(0); mhBar.time:SetText(""); mhBar.spark:Hide() end
     if ohBar then ohBar:SetValue(0); ohBar.time:SetText(""); ohBar.spark:Hide() end
 end
 
+-- The tracker calls this on every swing reset and on leaving combat; a real
+-- swing supersedes the settings preview, which is why previewActive is dropped
+-- here rather than inside the tracker (which knows nothing about our preview).
+local function onSwing()
+    if not mod._enabled then return end
+    if previewActive then previewActive = false end
+    if not (select(3, ns:GetSwing("mainhand"))) and not (select(3, ns:GetSwing("offhand"))) then
+        clearBars()
+    end
+    applyVisibility()
+end
+
 local function onEvent(_, event, arg1)
     if not mod._enabled then return end
-    if event == "COMBAT_LOG_EVENT_UNFILTERED" then
-        onCombatLog()
-    elseif event == "PLAYER_ENTER_COMBAT" then
-        recomputeDualWield()
-        resetMH()
-        if dualWield then resetOH() end
-        applyVisibility()
-    elseif event == "PLAYER_LEAVE_COMBAT" then
-        clearBars()
-        applyVisibility()
-    elseif event == "UNIT_ATTACK_SPEED" then
-        rescale()
-    elseif event == "UNIT_INVENTORY_CHANGED" then
+    if event == "UNIT_INVENTORY_CHANGED" then
         if arg1 == nil or arg1 == "player" then
-            recomputeDualWield()
             layout()
             applyVisibility()
         end
     elseif event == "PLAYER_ENTERING_WORLD" then
-        playerGUID = UnitGUID("player")
-        recomputeDualWield()
         layout()
     end
 end
@@ -412,16 +382,10 @@ local function registerEvents()
         eventFrame = CreateFrame("Frame")
         eventFrame:SetScript("OnEvent", onEvent)
     end
-    eventFrame:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
-    eventFrame:RegisterEvent("PLAYER_ENTER_COMBAT")
-    eventFrame:RegisterEvent("PLAYER_LEAVE_COMBAT")
+    -- Swing clock events (combat log, enter/leave combat, attack speed) belong to
+    -- Core/SwingTracker now; these two are purely about our own layout.
     eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
     eventFrame:RegisterEvent("UNIT_INVENTORY_CHANGED")
-    if eventFrame.RegisterUnitEvent then
-        eventFrame:RegisterUnitEvent("UNIT_ATTACK_SPEED", "player")
-    else
-        eventFrame:RegisterEvent("UNIT_ATTACK_SPEED")
-    end
 end
 
 local function setUnlocked(state)
@@ -429,8 +393,8 @@ local function setUnlocked(state)
     create()
     if state then
         local t = GetTime()
-        mh.start, mh.dur, mh.active = t, 2.6, true
-        oh.start, oh.dur, oh.active = t, 1.8, true
+        previewMH.start, previewMH.dur, previewMH.active = t, 2.6, true
+        previewOH.start, previewOH.dur, previewOH.active = t, 1.8, true
         layout()
         frame:Show()
         frame.mover:Show()
@@ -479,19 +443,19 @@ function mod:OnEnable()
         return
     end
 
-    playerGUID = UnitGUID("player")
     -- Migrate texture names that no longer exist in the bundled set.
     -- accepts foreign shared-media choices too; only truly unresolvable names reset
     if not ns.MediaStatusbarValid(mod.db.texture)   then mod.db.texture   = DEFAULT_TEXTURE end
     if not ns.MediaStatusbarValid(mod.db.bgTexture) then mod.db.bgTexture = DEFAULT_TEXTURE end
     create()
-    recomputeDualWield()
+    ns:AcquireSwingTracker("swingtimer", onSwing)
     layout()
     registerEvents()
     applyVisibility()
 end
 
 function mod:OnDisable()
+    ns:ReleaseSwingTracker("swingtimer")
     if eventFrame then eventFrame:UnregisterAllEvents() end
     clearBars()
     if frame then frame:Hide() end

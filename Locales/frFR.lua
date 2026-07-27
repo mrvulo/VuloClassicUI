@@ -3,6 +3,33 @@
 local _, ns = ...
 
 ns:RegisterLocale("frFR", function() return {
+    ["Seal Twist"] = "Enchaînement de sceaux",
+    ["Twist"] = "Enchaîner",
+    ["Hold seal"] = "Sceau maintenu",
+    ["Seals"] = "Sceaux",
+    ["Seal you hold"] = "Sceau que vous maintenez",
+    ["Seal you twist in"] = "Sceau que vous enchaînez",
+    ["Timing"] = "Minutage",
+    ["Twist window (seconds)"] = "Fenêtre d’enchaînement (secondes)",
+    ["How far before the swing the second seal has to land. 0.40 is the usual figure; raise it if your latency makes you miss the window."] = "À quel point avant le coup le second sceau doit tomber. 0,40 est la valeur habituelle ; augmentez-la si votre latence vous fait rater la fenêtre.",
+    ["Suggest Crusader Strike"] = "Suggérer Frappe du croisé",
+    ["Prompts Crusader Strike when it is ready and there is room for it plus the Command cast before the window opens."] = "Propose Frappe du croisé quand elle est prête et qu’il reste la place pour elle et pour l’incantation de Commandement avant l’ouverture de la fenêtre.",
+    ["Sound when the window opens"] = "Son à l’ouverture de la fenêtre",
+    ["Enable seal twist helper"] = "Activer l’aide à l’enchaînement de sceaux",
+    ["Show swing bar"] = "Afficher la barre de coup",
+    ["Show next action"] = "Afficher l’action suivante",
+    ["Show numbers"] = "Afficher les chiffres",
+    ["(no seals learned)"] = "(aucun sceau appris)",
+    ["%.2fs left  -  swing %.2fs  -  GCD %.2fs"] = "%.2fs restantes  -  coup %.2fs  -  GCD %.2fs",
+    ["|cffffffffSEAL TWIST|r\n|cffaaaaaaDrag or arrow keys|r"] = "|cffffffffENCHAÎNEMENT DE SCEAUX|r\n|cffaaaaaaGlissez ou flèches|r",
+    ["Seal Twist position: x=%.0f, y=%.0f"] = "Position de l’enchaînement de sceaux : x=%.0f, y=%.0f",
+    ["Seal Twist mover active. |cff9b6cffDrag the purple box|r or use |cff9b6cffarrow keys|r (SHIFT = 5px). Click 'Unlock / Test' again to finish."] = "Cadre d’enchaînement de sceaux actif. |cff9b6cffGlissez la boîte violette|r ou utilisez les |cff9b6cffflèches|r (MAJ = 5px). Recliquez sur « Déverrouiller / Tester » pour terminer.",
+    ["Seal Twist mover disabled."] = "Cadre d’enchaînement de sceaux désactivé.",
+    ["|cffaaaaaaHold Seal of Command, then cast Seal of Blood or of the Martyr in the last fraction of a second before your auto-attack: that swing carries both. The bar counts down to the swing, the |cff33ff66green mark|r is where the twist lands and the |cffb388ffpurple mark|r is the last moment a Command cast still fits in front of it.|r"] = "|cffaaaaaaMaintenez Sceau de commandement, puis lancez Sceau de sang ou du martyr dans la dernière fraction de seconde avant votre attaque automatique : ce coup portera les deux. La barre décompte jusqu’au coup, la |cff33ff66marque verte|r est l’endroit où tombe l’enchaînement et la |cffb388ffmarque violette|r le dernier moment où une incantation de Commandement tient encore devant.|r",
+    ["|cffff8800Only active while playing a Paladin.|r"] = "|cffff8800Actif uniquement en jouant un paladin.|r",
+    ["|cffff8800Switch the Class Specific module on to use this.|r"] = "|cffff8800Activez le module Spécifique à la classe pour vous en servir.|r",
+    ["|cffff8800No twisting seal found on this character. Seal of Blood, Seal of the Martyr or Seal of Martyrdom is required.|r"] = "|cffff8800Aucun sceau d’enchaînement trouvé sur ce personnage. Sceau de sang, Sceau du martyr ou Sceau du martyre est nécessaire.|r",
+    ["Class-specific tools, grouped by class: the Priest Vampiric Touch mana tracker, DoT trackers, the Shaman totem bar and the Paladin seal twist helper."] = "Outils spécifiques aux classes, regroupés par classe : le compteur de mana de Toucher vampirique du prêtre, les suivis de DoT, la barre de totems du chaman et l’aide à l’enchaînement de sceaux du paladin.",
     ["Simplified Chinese and Traditional Chinese. Both are complete: every interface text, every option and every patch note, 2528 entries each. They are separate translations, not one converted into the other. Pick yours under General, or leave the setting on Auto and it follows your game client."] = "Chinois simplifié et chinois traditionnel. Les deux sont complets : chaque texte de l’interface, chaque option et chaque note de mise à jour, 2528 entrées chacun. Ce sont deux traductions distinctes, et non l’une convertie à partir de l’autre. Choisissez la vôtre dans Général, ou laissez le réglage sur Auto : il suivra alors votre client de jeu.",
     -- Filtre anti-spam
     ["Spam Filter"] = "Filtre anti-spam",
@@ -1471,7 +1498,6 @@ ns:RegisterLocale("frFR", function() return {
 
     -- Spécifique à la classe
     ["Class Specific"] = "Spécifique à la classe",
-    ["Class-specific tools, grouped by class. Currently includes the Priest Vampiric Touch mana tracker (Shadow)."] = "Outils spécifiques à chaque classe, regroupés par classe. Comprend actuellement le suivi de mana de Toucher vampirique du prêtre (Ombre).",
     ["|cffaaaaaaVampiric Touch mana tracker — shows live how much mana you've given to the group (5% of shadow damage per tick, per mana user).|n|cffffffffReset automatically on combat start.|r|r"] = "|cffaaaaaaSuivi de mana de Toucher vampirique — affiche en direct la quantité de mana rendue au groupe (5 % par salve des dégâts d'Ombre, pour chaque utilisateur de mana).|n|cffffffffRéinitialisé automatiquement au début du combat.|r|r",
     ["|cffff8800These tools are only active while playing a Priest.|r"] = "|cffff8800Ces outils ne sont actifs que sur un prêtre.|r",
     ["No tools yet"] = "Aucun outil pour l'instant",

@@ -22,6 +22,7 @@ Core\Modules.lua
 Core\Container.lua
 Core\Events.lua
 Core\Schedule.lua
+Core\SwingTracker.lua
 Core\Profiler.lua
 Core\MediaRegistry.lua
 Core\Mover.lua
@@ -93,6 +94,7 @@ Modules\VulTraining\Classes\Warrior.lua
 Modules\VulTraining.lua
 Modules\VTManaDisplay.lua
 Modules\Classes\Shaman.lua
+Modules\Classes\Paladin.lua
 Modules\LazyVulo.lua
 Modules\Vulslot.lua
 Modules\CooldownManager.lua
