@@ -2675,4 +2675,8 @@ ns:RegisterLocale("frFR", function() return {
     ["Measurement off."] = "Mesure désactivée.",
     ["Measurement reset."] = "Mesure réinitialisée.",
     ["Measurement on. Play, then type /vcuiprof again to read it."] = "Mesure activée. Jouez un moment, puis retapez /vcuiprof pour la lire.",
+    -- Patch notes 1.37.3
+    ["Class Trainer page"] = "Page du Maître de classe",
+    ["Fixed the page being thrown away again a moment after you opened it, dropping you back on a class tab. The spell book resets its own page whenever your spells change, and our page sits past the last real tab, so it was always the one discarded. Most noticeable on Season of Discovery, where engraving changes spells constantly."] = "Correction de la page qui était abandonnée juste après son ouverture, vous renvoyant sur un onglet de classe. Le grimoire réinitialise sa propre page dès que vos sorts changent, et la nôtre se trouve au-delà du dernier onglet réel : c'était donc toujours elle qui sautait. Surtout visible en Season of Discovery, où la gravure modifie sans cesse les sorts.",
+    ["`/vcuiprof` measures how much frame time each part of the addon costs, then prints a list. It ships switched off and costs nothing while it is — the measuring code is only put in place when you turn it on. Type it once to start, once more to read."] = "`/vcuiprof` mesure le temps d'image que coûte chaque partie de l'addon et affiche une liste. Il est livré désactivé et ne coûte alors rien : le code de mesure n'est mis en place qu'à l'activation. Tapez-le une fois pour démarrer, une seconde fois pour lire.",
 } end)

@@ -6,6 +6,14 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+    { version = "1.37.3", sections = {
+        { category = "Class Trainer page", lines = {
+            "Fixed the page being thrown away again a moment after you opened it, dropping you back on a class tab. The spell book resets its own page whenever your spells change, and our page sits past the last real tab, so it was always the one discarded. Most noticeable on Season of Discovery, where engraving changes spells constantly.",
+        } },
+        { category = "Under the hood", lines = {
+            "NEW: `/vcuiprof` measures how much frame time each part of the addon costs, then prints a list. It ships switched off and costs nothing while it is — the measuring code is only put in place when you turn it on. Type it once to start, once more to read.",
+        } },
+    } },
     { version = "1.37.2", sections = {
         { category = "Classic Era, Hardcore and Season of Discovery", lines = {
             "The addon loads again without ticking \"Load out of date AddOns\". Blizzard's July interface update moved these realms to a new version number.",
@@ -316,11 +324,6 @@ ns.CHANGELOG = {
     { version = "1.20.1", sections = {
         { category = "Fixes", lines = {
             "Chat module polish and localization fixes.",
-        } },
-    } },
-    { version = "1.20.0", sections = {
-        { category = "NEW — Chat", lines = {
-            "A reworked chat: timestamps, class-colored names, clickable links, short channel names, a dark panel with an icon sidebar, idle fade and history that survives a reload. Every part is optional.",
         } },
     } },
 }

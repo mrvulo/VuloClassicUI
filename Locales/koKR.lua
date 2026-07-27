@@ -2526,4 +2526,8 @@ ns:RegisterLocale("koKR", function() return {
     ["Measurement off."] = "측정을 껐습니다.",
     ["Measurement reset."] = "측정을 초기화했습니다.",
     ["Measurement on. Play, then type /vcuiprof again to read it."] = "측정을 켰습니다. 잠시 플레이한 뒤 /vcuiprof 를 다시 입력하세요.",
+    -- Patch notes 1.37.3
+    ["Class Trainer page"] = "직업 교관 페이지",
+    ["Fixed the page being thrown away again a moment after you opened it, dropping you back on a class tab. The spell book resets its own page whenever your spells change, and our page sits past the last real tab, so it was always the one discarded. Most noticeable on Season of Discovery, where engraving changes spells constantly."] = "페이지를 연 직후 다시 버려져 직업 탭으로 되돌아가던 문제를 고쳤습니다. 주문책은 주문이 바뀔 때마다 자기 페이지를 초기화하는데, 우리 페이지는 마지막 실제 탭보다 뒤에 있어서 항상 버려지는 쪽이었습니다. 각인으로 주문이 계속 바뀌는 발견의 계절에서 가장 두드러졌습니다.",
+    ["`/vcuiprof` measures how much frame time each part of the addon costs, then prints a list. It ships switched off and costs nothing while it is — the measuring code is only put in place when you turn it on. Type it once to start, once more to read."] = "`/vcuiprof` 는 애드온의 각 부분이 프레임 시간을 얼마나 쓰는지 측정해 목록으로 보여 줍니다. 꺼진 상태로 제공되며 그동안에는 아무 비용도 들지 않습니다. 측정 코드는 켤 때 비로소 자리에 놓입니다. 한 번 입력하면 시작하고, 한 번 더 입력하면 결과를 봅니다.",
 } end)

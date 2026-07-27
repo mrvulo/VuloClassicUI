@@ -2526,4 +2526,8 @@ ns:RegisterLocale("ruRU", function() return {
     ["Measurement off."] = "Измерение выключено.",
     ["Measurement reset."] = "Измерение сброшено.",
     ["Measurement on. Play, then type /vcuiprof again to read it."] = "Измерение включено. Поиграйте, затем снова введите /vcuiprof.",
+    -- Patch notes 1.37.3
+    ["Class Trainer page"] = "Страница учителя класса",
+    ["Fixed the page being thrown away again a moment after you opened it, dropping you back on a class tab. The spell book resets its own page whenever your spells change, and our page sits past the last real tab, so it was always the one discarded. Most noticeable on Season of Discovery, where engraving changes spells constantly."] = "Исправлено: страница отбрасывалась через мгновение после открытия и возвращала вас на вкладку класса. Книга заклинаний сбрасывает собственную страницу при любом изменении заклинаний, а наша находится за последней настоящей вкладкой — поэтому отбрасывало всегда её. Заметнее всего в Season of Discovery, где нанесение рун меняет заклинания постоянно.",
+    ["`/vcuiprof` measures how much frame time each part of the addon costs, then prints a list. It ships switched off and costs nothing while it is — the measuring code is only put in place when you turn it on. Type it once to start, once more to read."] = "`/vcuiprof` измеряет, сколько кадрового времени тратит каждая часть аддона, и выводит список. Он поставляется выключенным и в таком виде не стоит ничего: измеряющий код подставляется только при включении. Введите один раз, чтобы начать, и ещё раз, чтобы прочитать.",
 } end)

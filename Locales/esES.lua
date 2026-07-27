@@ -2527,6 +2527,10 @@ local function T() return {
     ["Measurement off."] = "Medición desactivada.",
     ["Measurement reset."] = "Medición reiniciada.",
     ["Measurement on. Play, then type /vcuiprof again to read it."] = "Medición activada. Juega un rato y escribe /vcuiprof de nuevo para leerla.",
+    -- Patch notes 1.37.3
+    ["Class Trainer page"] = "Página del Entrenador de clase",
+    ["Fixed the page being thrown away again a moment after you opened it, dropping you back on a class tab. The spell book resets its own page whenever your spells change, and our page sits past the last real tab, so it was always the one discarded. Most noticeable on Season of Discovery, where engraving changes spells constantly."] = "Corregido que la página se descartara un momento después de abrirla, devolviéndote a una pestaña de clase. El libro de hechizos reinicia su propia página cada vez que cambian tus hechizos, y la nuestra queda más allá de la última pestaña real, así que siempre era la descartada. Se nota sobre todo en Season of Discovery, donde el grabado cambia hechizos constantemente.",
+    ["`/vcuiprof` measures how much frame time each part of the addon costs, then prints a list. It ships switched off and costs nothing while it is — the measuring code is only put in place when you turn it on. Type it once to start, once more to read."] = "`/vcuiprof` mide cuánto tiempo de fotograma cuesta cada parte del addon y muestra una lista. Se distribuye desactivado y en ese estado no cuesta nada: el código de medición solo se coloca al activarlo. Escríbelo una vez para empezar y otra para leerlo.",
 } end
 
 ns:RegisterLocale("esES", T)

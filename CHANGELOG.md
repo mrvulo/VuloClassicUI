@@ -16,6 +16,13 @@
   ~1900 characters or it gets truncated with a link to the full notes.
 -->
 
+## 1.37.3
+**Class Trainer page:**
+- Fixed the page being thrown away again a moment after you opened it, dropping you back on a class tab. The spell book resets its own page whenever your spells change, and our page sits past the last real tab, so it was always the one discarded. Most noticeable on Season of Discovery, where engraving changes spells constantly.
+
+**Under the hood:**
+- **NEW:** `/vcuiprof` measures how much frame time each part of the addon costs, then prints a list. It ships switched off and costs nothing while it is — the measuring code is only put in place when you turn it on. Type it once to start, once more to read.
+
 ## 1.37.2
 **Classic Era, Hardcore and Season of Discovery:**
 - The addon loads again without ticking "Load out of date AddOns". Blizzard's July interface update moved these realms to a new version number.

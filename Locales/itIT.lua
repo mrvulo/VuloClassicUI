@@ -2526,4 +2526,8 @@ ns:RegisterLocale("itIT", function() return {
     ["Measurement off."] = "Misurazione disattivata.",
     ["Measurement reset."] = "Misurazione azzerata.",
     ["Measurement on. Play, then type /vcuiprof again to read it."] = "Misurazione attiva. Gioca un po', poi digita di nuovo /vcuiprof per leggerla.",
+    -- Patch notes 1.37.3
+    ["Class Trainer page"] = "Pagina dell'Addestratore di classe",
+    ["Fixed the page being thrown away again a moment after you opened it, dropping you back on a class tab. The spell book resets its own page whenever your spells change, and our page sits past the last real tab, so it was always the one discarded. Most noticeable on Season of Discovery, where engraving changes spells constantly."] = "Corretto il fatto che la pagina venisse scartata subito dopo l'apertura, riportandoti su una scheda di classe. Il libro degli incantesimi reimposta la propria pagina ogni volta che i tuoi incantesimi cambiano, e la nostra si trova oltre l'ultima scheda reale: era quindi sempre quella scartata. Si nota soprattutto in Season of Discovery, dove l'incisione cambia incantesimi di continuo.",
+    ["`/vcuiprof` measures how much frame time each part of the addon costs, then prints a list. It ships switched off and costs nothing while it is — the measuring code is only put in place when you turn it on. Type it once to start, once more to read."] = "`/vcuiprof` misura quanto tempo di fotogramma costa ogni parte dell'addon e stampa un elenco. Viene distribuito disattivato e in quello stato non costa nulla: il codice di misurazione viene inserito solo quando lo attivi. Scrivilo una volta per avviare e una seconda per leggere.",
 } end)

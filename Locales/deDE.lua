@@ -2666,4 +2666,8 @@ ns:RegisterLocale("deDE", function() return {
     ["Measurement off."] = "Messung aus.",
     ["Measurement reset."] = "Messung zurückgesetzt.",
     ["Measurement on. Play, then type /vcuiprof again to read it."] = "Messung an. Spiel eine Weile und tippe dann erneut /vcuiprof.",
+    -- Patch notes 1.37.3
+    ["Class Trainer page"] = "Klassenlehrer-Seite",
+    ["Fixed the page being thrown away again a moment after you opened it, dropping you back on a class tab. The spell book resets its own page whenever your spells change, and our page sits past the last real tab, so it was always the one discarded. Most noticeable on Season of Discovery, where engraving changes spells constantly."] = "Behoben, dass die Seite kurz nach dem Öffnen wieder verworfen wurde und dich auf einem Klassenreiter zurückließ. Das Zauberbuch setzt seine eigene Seite zurück, sobald sich deine Zauber ändern, und unsere sitzt hinter dem letzten echten Reiter — also traf es immer sie. Am deutlichsten in Season of Discovery, wo das Gravieren ständig Zauber ändert.",
+    ["`/vcuiprof` measures how much frame time each part of the addon costs, then prints a list. It ships switched off and costs nothing while it is — the measuring code is only put in place when you turn it on. Type it once to start, once more to read."] = "`/vcuiprof` misst, wie viel Bildzeit jeder Teil des Addons kostet, und gibt eine Liste aus. Es wird ausgeschaltet ausgeliefert und kostet in diesem Zustand nichts — die messende Fassung wird erst beim Einschalten eingesetzt. Einmal tippen startet, ein zweites Mal liest aus.",
 } end)
