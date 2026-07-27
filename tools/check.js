@@ -475,5 +475,64 @@ else {
     console.log('(the translation must keep the same specifiers in the same order as the English key)');
 }
 
+// ---- 10: TOC file lists ------------------------------------------------------
+// We ship one TOC per flavor and their file lists have to be identical -- a file
+// added to one and forgotten in the other simply does not load on that client,
+// with no error anywhere. That rule used to be a comment asking a human to
+// remember it. Also catches a listed file that does not exist (the addon stops
+// loading at that line) and a source file nobody listed (dead weight, or a
+// module that silently never runs).
+console.log('\n== TOC file lists ==');
+const tocNames = fs.readdirSync(ROOT).filter(n => n.endsWith('.toc')).sort();
+const tocFiles = new Map();
+for (const name of tocNames) {
+    const listed = [];
+    for (const raw of fs.readFileSync(path.join(ROOT, name), 'utf8').split(/\r?\n/)) {
+        const line = raw.trim();
+        if (!line || line.startsWith('#')) continue;
+        listed.push(line.replace(/\\/g, path.sep).replace(/\//g, path.sep));
+    }
+    tocFiles.set(name, listed);
+}
+
+let thits = 0;
+// (a) every flavor lists exactly the same files, in the same order
+const [firstName, ...restNames] = tocNames;
+for (const other of restNames) {
+    const a = tocFiles.get(firstName), b = tocFiles.get(other);
+    const onlyA = a.filter(f => !b.includes(f));
+    const onlyB = b.filter(f => !a.includes(f));
+    for (const f of onlyA) { thits++; console.log('  TOC-ONLY ' + firstName + ': ' + f); }
+    for (const f of onlyB) { thits++; console.log('  TOC-ONLY ' + other + ': ' + f); }
+    if (!onlyA.length && !onlyB.length && a.join('|') !== b.join('|')) {
+        thits++;
+        console.log('  TOC-ORDER ' + firstName + ' and ' + other + ' list the same files in a DIFFERENT order');
+    }
+}
+
+// (b) every listed file exists, and (c) every source file is listed
+const listedAll = new Set();
+for (const list of tocFiles.values()) for (const f of list) listedAll.add(f);
+for (const [name, list] of tocFiles) {
+    for (const f of list) {
+        if (!fs.existsSync(path.join(ROOT, f))) {
+            thits++;
+            console.log('  TOC-MISSING ' + name + ': ' + f + ' (loading stops here)');
+        }
+    }
+}
+for (const f of files) {
+    const rel = path.relative(ROOT, f);
+    if (rel.split(path.sep)[0] === 'Libs') continue;   // vendor, listed via .xml
+    if (!listedAll.has(rel)) {
+        thits++;
+        console.log('  TOC-ORPHAN ' + rel + ' (never loaded)');
+    }
+}
+
+if (thits === 0) console.log('clean (' + tocNames.length + ' TOCs, '
+    + tocFiles.get(firstName).length + ' entries each)');
+else hardFail = true;
+
 console.log('\n' + (hardFail ? 'RESULT: FAIL' : 'RESULT: OK (warnings above, if any)'));
 process.exit(hardFail ? 1 : 0);
