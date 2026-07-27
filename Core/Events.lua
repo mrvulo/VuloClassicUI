@@ -199,7 +199,12 @@ local function onEventProfiled(_, event, ...)
                 ns:Print(L["|cffff5555Event handler error (%s):|r %s"], event, tostring(err))
             end
         end
-        record(labelFor(h, event), clock() - t0)
+        -- Stop the clock BEFORE working out the label: Lua evaluates call
+        -- arguments left to right, so labelFor would otherwise be counted as
+        -- part of the handler it is labelling -- a bias weighted by call count,
+        -- i.e. worst exactly where the measurement matters most.
+        local dt = clock() - t0
+        record(labelFor(h, event), dt)
     end
 end
 

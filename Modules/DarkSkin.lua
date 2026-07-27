@@ -91,14 +91,18 @@ end
 
 -- Measured: painting the WeakAuras icons cost a 28 ms hitch on EVERY combat
 -- edge, because the sweep walked every aura ever saved -- most of them not even
--- on screen -- and re-applied a look that had not changed. Each region now
--- remembers which revision of the settings it was painted with, and repainting
--- an unchanged one is a single comparison. The revision is bumped by the option
--- setters, which is the only thing that can make an existing paint job stale;
--- a region WeakAuras rebuilds is a fresh table and carries no stamp, so it gets
--- painted normally.
-local waEpoch = 1
-local function bumpWAEpoch() waEpoch = waEpoch + 1 end
+-- on screen -- and re-applied a look that had not changed.
+--
+-- A region now remembers what it was last painted with. This is a FINGERPRINT
+-- of the settings, not a counter that someone has to remember to bump: a
+-- profile switch rewrites the settings without going through any of our option
+-- setters, and a counter silently missed that -- every icon kept the old
+-- profile's look until /reload.
+local function waSignature()
+    local db = mod.db
+    if not db then return "?" end
+    return (db.waStyle or "shadow") .. (db.hideWABorder and "|B" or "|b")
+end
 
 local function getRegion(button, suffix, fallback)
     local name = button:GetName()
@@ -339,12 +343,25 @@ local function styleWAIcon(region)
     local w = icon:GetWidth() or 0
     if w < 1 then w = (region.GetWidth and region:GetWidth()) or 32 end
 
-    -- Already painted with these settings AND at this size: nothing to do.
-    -- The width is part of the test because every offset below is derived from
-    -- it -- resize an aura in WeakAuras and the rim has to follow, and that is
-    -- the one change no option setter of ours knows about.
-    if region._vcuiWAEpoch == waEpoch and region._vcuiWAWidth == w then return end
-    region._vcuiWAEpoch, region._vcuiWAWidth = waEpoch, w
+    -- Hiding WeakAuras' own border must happen on EVERY pass, never memoised:
+    -- WeakAuras releases and re-creates all of a region's sub-parts on any edit,
+    -- and hands out recycled region tables when an aura gains a stack -- both
+    -- give us a fresh, VISIBLE border on a table that still carries our stamp.
+    -- It is a handful of table entries, so it is cheap enough to always do.
+    if mod.db and mod.db.hideWABorder and region.subRegions then
+        for _, sub in ipairs(region.subRegions) do
+            if type(sub) == "table" and sub.SetBorderColor and sub.Hide then
+                sub:Hide()
+            end
+        end
+    end
+
+    -- The rest is geometry and masks: idempotent for the same settings and the
+    -- same size, so it is the part worth skipping. Width is in the test because
+    -- every offset is derived from it -- resize an aura and the rim must follow.
+    local sig = waSignature()
+    if region._vcuiWASig == sig and region._vcuiWAWidth == w then return end
+    region._vcuiWASig, region._vcuiWAWidth = sig, w
 
     attachShadow(region, region, 1)
     local st = currentStyle(true)
@@ -382,13 +399,6 @@ local function styleWAIcon(region)
         end
     end
 
-    if mod.db.hideWABorder and region.subRegions then
-        for _, sub in ipairs(region.subRegions) do
-            if type(sub) == "table" and sub.SetBorderColor and sub.Hide then
-                sub:Hide()
-            end
-        end
-    end
 end
 
 local function styleWAAuraBarIcon(region)
@@ -399,9 +409,12 @@ local function styleWAAuraBarIcon(region)
     local w = (icon.GetWidth and icon:GetWidth()) or 0
     if w < 1 then w = (frame.GetWidth and frame:GetWidth()) or 20 end
 
-    -- Same reasoning as the icon variant: settings revision plus size.
-    if region._vcuiWAEpoch == waEpoch and region._vcuiWAWidth == w then return end
-    region._vcuiWAEpoch, region._vcuiWAWidth = waEpoch, w
+    -- Same reasoning as the icon variant: settings fingerprint plus size. The
+    -- aurabar painter never touched WeakAuras' own border, so there is nothing
+    -- to pull out in front of the check here.
+    local sig = waSignature()
+    if region._vcuiWASig == sig and region._vcuiWAWidth == w then return end
+    region._vcuiWASig, region._vcuiWAWidth = sig, w
 
     attachShadow(frame, region, 1)
     local st = currentStyle(true)
@@ -817,20 +830,18 @@ function mod:GetOptions()
               elseif was and not v then
                   ns:UnregisterEvent("UNIT_AURA", skinWASoon)
               end
-              -- bump first: the icons carry the previous revision and would
-              -- otherwise consider themselves already painted
-              if v then bumpWAEpoch(); skinAllWAIcons() end
+              if v then skinAllWAIcons() end
           end },
         { type = "dropdown", label = L["WeakAuras style"],
           tooltip = L["Style for WeakAuras icons, independent of the action bars."],
           width = 260,
           values = STYLE_VALUES,
           get = function() return mod.db.waStyle or "shadow" end,
-          set = function(_, v) mod.db.waStyle = v; bumpWAEpoch(); skinAllWAIcons() end },
+          set = function(_, v) mod.db.waStyle = v; skinAllWAIcons() end },
         { type = "toggle", label = L["Hide WeakAuras' own border"],
           tooltip = L["Hides the light border WeakAuras draws on icons, so only our dark rim shows. /reload to fully restore it."],
           get = function() return mod.db.hideWABorder end,
-          set = function(_, v) mod.db.hideWABorder = v; bumpWAEpoch(); skinAllWAIcons() end },
+          set = function(_, v) mod.db.hideWABorder = v; skinAllWAIcons() end },
 
         { type = "spacer", height = 8 },
 

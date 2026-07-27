@@ -327,17 +327,24 @@ function Trinkets.Initialize()
 		Trinkets_MenuFrame:SetScale(TrinketsPerOptions.MenuScale)
 	end
 	Trinkets.ReflectAlpha()
-	Trinkets_Trinket0:SetAttribute("type", "item")
-	Trinkets_Trinket1:SetAttribute("type", "item")
-	Trinkets_Trinket0:SetAttribute("slot", 13)
-	Trinkets_Trinket1:SetAttribute("slot", 14)
+	-- "/use <slot>" instead of type="item" + slot=<n>. The item action walks
+	-- Blizzard's own deprecated branch, which resolves the slot to an item link
+	-- and then asks C_Item.IsEquippableItem about it WITHOUT a nil check --
+	-- so clicking the button while that trinket slot is EMPTY throws
+	-- "bad argument #1" out of Blizzard's secure template. The macro action
+	-- reaches the same UseInventoryItem call and simply does nothing when the
+	-- slot is empty. Behaviour for an equipped trinket is identical.
+	Trinkets_Trinket0:SetAttribute("type", "macro")
+	Trinkets_Trinket1:SetAttribute("type", "macro")
+	Trinkets_Trinket0:SetAttribute("macrotext", "/use 13")
+	Trinkets_Trinket1:SetAttribute("macrotext", "/use 14")
 	if Trinkets.QueueInit then
-		-- Queue module claims alt-click, so the secure alt-slot action must be a no-op.
-		Trinkets_Trinket0:SetAttribute("alt-slot*", ATTRIBUTE_NOOP)
-		Trinkets_Trinket1:SetAttribute("alt-slot*", ATTRIBUTE_NOOP)
+		-- Queue module claims alt-click, so the secure alt action must be a no-op.
+		Trinkets_Trinket0:SetAttribute("alt-macrotext*", ATTRIBUTE_NOOP)
+		Trinkets_Trinket1:SetAttribute("alt-macrotext*", ATTRIBUTE_NOOP)
 	end
-	Trinkets_Trinket0:SetAttribute("shift-slot*", ATTRIBUTE_NOOP)
-	Trinkets_Trinket1:SetAttribute("shift-slot*", ATTRIBUTE_NOOP)
+	Trinkets_Trinket0:SetAttribute("shift-macrotext*", ATTRIBUTE_NOOP)
+	Trinkets_Trinket1:SetAttribute("shift-macrotext*", ATTRIBUTE_NOOP)
 	Trinkets.ReflectMenuOnRight()
 	Trinkets.InitTimers()
 	Trinkets.CreateTimer("UpdateWornTrinkets", Trinkets.UpdateWornTrinkets, .75)
@@ -412,8 +419,10 @@ function Trinkets.Initialize()
 end
 
 function Trinkets.ReflectMenuOnRight()
-	Trinkets_Trinket0:SetAttribute("slot2", TrinketsOptions.MenuOnRight == "ON" and ATTRIBUTE_NOOP or nil)
-	Trinkets_Trinket1:SetAttribute("slot2", TrinketsOptions.MenuOnRight == "ON" and ATTRIBUTE_NOOP or nil)
+	-- Right-click opens the menu instead of using the trinket; must match the
+	-- action type set in the init above (macrotext, not slot).
+	Trinkets_Trinket0:SetAttribute("macrotext2", TrinketsOptions.MenuOnRight == "ON" and ATTRIBUTE_NOOP or nil)
+	Trinkets_Trinket1:SetAttribute("macrotext2", TrinketsOptions.MenuOnRight == "ON" and ATTRIBUTE_NOOP or nil)
 end
 
 function Trinkets.IsPlayerReallyDead()
