@@ -76,8 +76,11 @@ function ns.Prof.Report()
     table.sort(sorted, function(a, b) return a.d.ms > b.d.ms end)
 
     -- Wall clock since the last reset, so the numbers can be read as a share of
-    -- real time rather than as an unanchored sum.
+    -- real time rather than as an unanchored sum. The stopwatch is shared with
+    -- every other addon, so another one calling debugprofilestart mid-run can
+    -- push this negative -- show 0 rather than a nonsense duration.
     local span = clock() - startedAt
+    if span < 0 then span = 0 end
     ns:Print(L["Measured over %.1f s -- %.1f ms total, %.2f%% of it ours:"],
         span / 1000, total, span > 0 and (total / span * 100) or 0)
     for i = 1, math.min(#sorted, 15) do
@@ -92,8 +95,14 @@ SLASH_VCUIPROF1 = "/vcuiprof"
 SlashCmdList["VCUIPROF"] = function(msg)
     local cmd = (msg or ""):lower():match("^%s*(%S*)")
     if cmd == "off" then
+        -- Print BEFORE stopping. Switching off is the natural thing to do once
+        -- you have the sample you wanted, and turning it back on resets the
+        -- numbers -- so without this the reading is simply gone.
+        ns.Prof.Report()
         ns.Prof.SetActive(false)
         ns:Print(L["Measurement off."])
+    elseif cmd == "report" or cmd == "show" then
+        ns.Prof.Report()
     elseif cmd == "reset" then
         ns.Prof.Reset()
         ns:Print(L["Measurement reset."])

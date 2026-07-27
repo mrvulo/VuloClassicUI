@@ -494,8 +494,12 @@ const tocFiles = new Map();
 for (const name of tocNames) {
     const listed = [];
     for (const raw of fs.readFileSync(path.join(ROOT, name), 'utf8').split(/\r?\n/)) {
-        const line = raw.trim();
-        if (!line || line.startsWith('#')) continue;
+        // A file entry may carry a load condition or a trailing comment:
+        //   Vanilla\Foo.lua [AllowLoadGameType vanilla, tbc]
+        // Strip both before testing the path, or the whole thing reads as one
+        // long filename that cannot exist and the checker fails on valid TOCs.
+        const line = raw.replace(/\[.*$/, '').replace(/#.*$/, '').trim();
+        if (!line) continue;
         listed.push(line.replace(/\\/g, path.sep).replace(/\//g, path.sep));
     }
     tocFiles.set(name, listed);

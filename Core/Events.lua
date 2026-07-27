@@ -132,7 +132,10 @@ end
 local function onEvent(_, event, ...)
     local list = handlers[event]
     if not list then return end
-    takeOnceHandlers(event, list)
+    -- Inline test, then the shared function: an unconditional call here would
+    -- add a Lua call per firing to the hottest path in the addon -- thousands
+    -- per second in a raid -- for an event that almost never has one-shots.
+    if onceSets[event] then takeOnceHandlers(event, list) end
     if HOT[event] then
         for i = 1, #list do
             list[i](event, ...)
@@ -154,7 +157,10 @@ end
 local function onEventProfiled(_, event, ...)
     local list = handlers[event]
     if not list then return end
-    takeOnceHandlers(event, list)
+    -- Inline test, then the shared function: an unconditional call here would
+    -- add a Lua call per firing to the hottest path in the addon -- thousands
+    -- per second in a raid -- for an event that almost never has one-shots.
+    if onceSets[event] then takeOnceHandlers(event, list) end
     local owners, record, clock = ns.eventOwners, ns.Prof.Record, debugprofilestop
     local hot = HOT[event]
     for i = 1, #list do

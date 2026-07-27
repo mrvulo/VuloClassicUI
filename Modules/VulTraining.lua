@@ -367,6 +367,12 @@ local function createFrame()
         tab.tooltip = L["What can I train?"]
         tab:Show()
         if SpellBookFrame.selectedSkillLine == SKILL_LINE_TAB then
+            -- Seeing our page selected IS the intent, however it got there --
+            -- most often by reopening a book that was left on it. Only ever set
+            -- true here: the repair path below runs while Blizzard has already
+            -- moved the selection away, and reading it there would conclude the
+            -- opposite of what the player wants.
+            mod._wantOurTab = true
             tab:SetChecked(true)
             frame:Show()
             if ShowAllSpellRanksCheckbox then ShowAllSpellRanksCheckbox:Hide() end
@@ -397,17 +403,20 @@ local function createFrame()
     -- Fury on a warrior. It only shows up where something fires SPELLS_CHANGED
     -- while the book is open, which the rune system does constantly.
     --
-    -- So remember whether the player actually chose our tab, and put the
-    -- selection back once Blizzard's own handler has finished with it.
-    tab:HookScript("OnClick", function() mod._wantOurTab = true end)
+    -- So remember whether the player wants our page, and put the selection back
+    -- once Blizzard's own handler has finished with it. The flag is only ever
+    -- cleared by picking a DIFFERENT tab -- closing the book must not clear it,
+    -- because the book keeps its selection while closed, and reopening it on our
+    -- page is by far the most common way to be sitting on it.
+    if tab then
+        tab:HookScript("OnClick", function() mod._wantOurTab = true end)
+    end
     for i = 1, (MAX_SKILLLINE_TABS or 8) do
         local other = _G["SpellBookSkillLineTab" .. i]
         if other and other ~= tab then
             other:HookScript("OnClick", function() mod._wantOurTab = false end)
         end
     end
-    SpellBookFrame:HookScript("OnHide", function() mod._wantOurTab = false end)
-
 end
 
 local function cacheAllSpells()

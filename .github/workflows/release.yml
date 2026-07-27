@@ -17,6 +17,21 @@ jobs:
         with:
           fetch-depth: 0  # für korrekte Changelog-Generierung aus Git-History
 
+      # Vor dem Paketieren, nicht danach: ein Syntaxfehler oder eine kaputte
+      # TOC-Liste darf gar nicht erst auf CurseForge und Wago landen. check.js
+      # bricht nur bei echten Fehlern ab, Warnungen laufen durch.
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run pre-release checks
+        run: |
+          cd tools
+          npm ci --no-audit --no-fund
+          cd ..
+          node tools/check.js
+
       - name: Package and release
         uses: BigWigsMods/packager@v2
         env:
