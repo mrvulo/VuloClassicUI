@@ -544,31 +544,39 @@ local function itemMatchesSearch(bag, slot, query)
     return link:lower():find(searchText, 1, true) and true or false
 end
 
-local CLASS_CONSUMABLE, CLASS_CONTAINER, CLASS_WEAPON, CLASS_GEM = 0, 1, 2, 3
-local CLASS_ARMOR, CLASS_REAGENT, CLASS_PROJECTILE, CLASS_TRADEGOODS = 4, 5, 6, 7
-local CLASS_RECIPE, CLASS_QUIVER, CLASS_QUEST, CLASS_KEY, CLASS_MISC = 9, 11, 12, 13, 15
-
 local GetQuestInfo = _G.C_Container and _G.C_Container.GetContainerItemQuestInfo
 local categoryCache = {}
 
--- class/equip-slot only (quest/junk are per-slot), so the result is cacheable by itemID
-local function classifyLink(link)
-    if not (link and GetItemInfoInstant) then return "misc" end
-    local _, _, _, equipLoc, _, classID = GetItemInfoInstant(link)
-    if classID == CLASS_QUEST then return "quest" end
-    if classID == CLASS_CONSUMABLE then return "consumable" end
-    if classID == CLASS_WEAPON then return "weapon" end
-    if classID == CLASS_ARMOR then
-        if equipLoc == "INVTYPE_TRINKET" then return "trinket" end
-        return "armor"
+-- The item-class numbers are only ever read by classifyLink, so they live in a
+-- do-block: the function keeps them as upvalues, but their slots are released
+-- at the `end`. Lua 5.1 allows 200 locals per chunk and this file is the
+-- closest to that ceiling -- past it the file stops COMPILING, so headroom here
+-- is worth more than the tidiness of a flat list.
+local classifyLink
+do
+    local CLASS_CONSUMABLE, CLASS_CONTAINER, CLASS_WEAPON, CLASS_GEM = 0, 1, 2, 3
+    local CLASS_ARMOR, CLASS_REAGENT, CLASS_PROJECTILE, CLASS_TRADEGOODS = 4, 5, 6, 7
+    local CLASS_RECIPE, CLASS_QUIVER, CLASS_QUEST, CLASS_KEY = 9, 11, 12, 13
+
+    -- class/equip-slot only (quest/junk are per-slot), so the result is cacheable by itemID
+    function classifyLink(link)
+        if not (link and GetItemInfoInstant) then return "misc" end
+        local _, _, _, equipLoc, _, classID = GetItemInfoInstant(link)
+        if classID == CLASS_QUEST then return "quest" end
+        if classID == CLASS_CONSUMABLE then return "consumable" end
+        if classID == CLASS_WEAPON then return "weapon" end
+        if classID == CLASS_ARMOR then
+            if equipLoc == "INVTYPE_TRINKET" then return "trinket" end
+            return "armor"
+        end
+        if classID == CLASS_CONTAINER then return "container" end
+        if classID == CLASS_TRADEGOODS or classID == CLASS_REAGENT or classID == CLASS_GEM then return "tradegoods" end
+        if classID == CLASS_RECIPE then return "recipe" end
+        if classID == CLASS_PROJECTILE then return "projectile" end
+        if classID == CLASS_QUIVER then return "quiver" end
+        if classID == CLASS_KEY then return "key" end
+        return "misc"
     end
-    if classID == CLASS_CONTAINER then return "container" end
-    if classID == CLASS_TRADEGOODS or classID == CLASS_REAGENT or classID == CLASS_GEM then return "tradegoods" end
-    if classID == CLASS_RECIPE then return "recipe" end
-    if classID == CLASS_PROJECTILE then return "projectile" end
-    if classID == CLASS_QUIVER then return "quiver" end
-    if classID == CLASS_KEY then return "key" end
-    return "misc"
 end
 
 -- priority: pin > manual assignment > recent > quest flag > junk > cached class

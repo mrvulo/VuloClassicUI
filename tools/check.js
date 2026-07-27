@@ -4,7 +4,7 @@
 //
 // Checks, in order:
 //   1. Lua 5.1 syntax of every .lua file (luaparse)
-//   2. top-level locals per chunk (Lua 5.1 hard cap: 200; warn at 185)
+//   2. top-level locals per chunk (Lua 5.1 hard cap: 200; warn at 175)
 //   3. locale coverage: every L["..."] key used in code exists in deDE.lua
 //      (missing keys fall back to English — listed so nothing slips through)
 //   4. raw/escaped ASCII double quotes inside GERMAN locale values
@@ -79,10 +79,16 @@ for (const f of [...files, ...syntaxOnly]) {
         if (s.type === 'LocalStatement') locals += s.variables.length;
         if (s.type === 'FunctionDeclaration' && s.isLocal) locals += 1;
     }
+    // At 200 the chunk does not COMPILE -- the whole file is gone, not one
+    // feature. 185 left almost no room to react calmly, so warn at 175: still
+    // 25 slots, which is a normal amount of work rather than an emergency.
+    // The fix is a do-block around a group of narrowly-used locals (their slots
+    // are freed at the `end`, the closures keep them as upvalues), or splitting
+    // the file. See the CLASS_* block in Modules/Bags.lua for the pattern.
     if (locals >= 200) {
-        console.log('LOCALS FAIL ' + path.relative(ROOT, f) + ' -> ' + locals + '/200');
+        console.log('LOCALS FAIL ' + path.relative(ROOT, f) + ' -> ' + locals + '/200 (this file no longer compiles)');
         hardFail = true;
-    } else if (locals > 185) {
+    } else if (locals > 175) {
         console.log('LOCALS WARN ' + path.relative(ROOT, f) + ' -> ' + locals + '/200');
     }
 }
