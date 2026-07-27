@@ -89,6 +89,17 @@ local function currentStyle(forWA)
     return STYLES[key] or STYLES.shadow
 end
 
+-- Measured: painting the WeakAuras icons cost a 28 ms hitch on EVERY combat
+-- edge, because the sweep walked every aura ever saved -- most of them not even
+-- on screen -- and re-applied a look that had not changed. Each region now
+-- remembers which revision of the settings it was painted with, and repainting
+-- an unchanged one is a single comparison. The revision is bumped by the option
+-- setters, which is the only thing that can make an existing paint job stale;
+-- a region WeakAuras rebuilds is a fresh table and carries no stamp, so it gets
+-- painted normally.
+local waEpoch = 1
+local function bumpWAEpoch() waEpoch = waEpoch + 1 end
+
 local function getRegion(button, suffix, fallback)
     local name = button:GetName()
     return (name and _G[name .. suffix]) or fallback
@@ -325,6 +336,15 @@ local function styleWAIcon(region)
     if not region or region.regionType ~= "icon" then return end
     local icon = region.icon
     if not icon then return end
+    local w = icon:GetWidth() or 0
+    if w < 1 then w = (region.GetWidth and region:GetWidth()) or 32 end
+
+    -- Already painted with these settings AND at this size: nothing to do.
+    -- The width is part of the test because every offset below is derived from
+    -- it -- resize an aura in WeakAuras and the rim has to follow, and that is
+    -- the one change no option setter of ours knows about.
+    if region._vcuiWAEpoch == waEpoch and region._vcuiWAWidth == w then return end
+    region._vcuiWAEpoch, region._vcuiWAWidth = waEpoch, w
 
     attachShadow(region, region, 1)
     local st = currentStyle(true)
@@ -332,9 +352,6 @@ local function styleWAIcon(region)
 
     local WA_SHRINK = 0.08
     local WA_RIM    = 0.12
-
-    local w = (icon and icon:GetWidth()) or 0
-    if w < 1 then w = (region.GetWidth and region:GetWidth()) or 32 end
     local out = w * WA_RIM
 
     for _, t in ipairs({ region._vcuiBack, region._vcuiRing }) do
@@ -379,12 +396,17 @@ local function styleWAAuraBarIcon(region)
     local frame = region and region.iconFrame
     if not (icon and frame) then return end
 
+    local w = (icon.GetWidth and icon:GetWidth()) or 0
+    if w < 1 then w = (frame.GetWidth and frame:GetWidth()) or 20 end
+
+    -- Same reasoning as the icon variant: settings revision plus size.
+    if region._vcuiWAEpoch == waEpoch and region._vcuiWAWidth == w then return end
+    region._vcuiWAEpoch, region._vcuiWAWidth = waEpoch, w
+
     attachShadow(frame, region, 1)
     local st = currentStyle(true)
     local showShadow = st.shadow and true or false
 
-    local w = (icon.GetWidth and icon:GetWidth()) or 0
-    if w < 1 then w = (frame.GetWidth and frame:GetWidth()) or 20 end
     local out = w * 0.12
 
     for _, t in ipairs({ region._vcuiBack, region._vcuiRing }) do
@@ -795,18 +817,20 @@ function mod:GetOptions()
               elseif was and not v then
                   ns:UnregisterEvent("UNIT_AURA", skinWASoon)
               end
-              if v then skinAllWAIcons() end
+              -- bump first: the icons carry the previous revision and would
+              -- otherwise consider themselves already painted
+              if v then bumpWAEpoch(); skinAllWAIcons() end
           end },
         { type = "dropdown", label = L["WeakAuras style"],
           tooltip = L["Style for WeakAuras icons, independent of the action bars."],
           width = 260,
           values = STYLE_VALUES,
           get = function() return mod.db.waStyle or "shadow" end,
-          set = function(_, v) mod.db.waStyle = v; skinAllWAIcons() end },
+          set = function(_, v) mod.db.waStyle = v; bumpWAEpoch(); skinAllWAIcons() end },
         { type = "toggle", label = L["Hide WeakAuras' own border"],
           tooltip = L["Hides the light border WeakAuras draws on icons, so only our dark rim shows. /reload to fully restore it."],
           get = function() return mod.db.hideWABorder end,
-          set = function(_, v) mod.db.hideWABorder = v; skinAllWAIcons() end },
+          set = function(_, v) mod.db.hideWABorder = v; bumpWAEpoch(); skinAllWAIcons() end },
 
         { type = "spacer", height = 8 },
 
