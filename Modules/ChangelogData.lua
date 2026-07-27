@@ -6,6 +6,14 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+    { version = "1.37.4", sections = {
+        { category = "Fixes", lines = {
+            "Clicking a trinket button while that trinket slot is empty no longer throws an error. The game's own shortcut for \"use the item in slot N\" stopped tolerating an empty slot with July's interface update, so the button now takes a different route to the same action.",
+        } },
+        { category = "Performance", lines = {
+            "Fixed a stutter of almost two frames every time you entered or left combat, if you use WeakAuras and have the WeakAuras skin switched on. Every combat change repainted every aura you have ever saved — including the ones not on screen — with a look that had not changed. Auras are now only repainted when the settings or their size actually changed. Measured: 28 ms down to under 2 ms. The skin itself is unchanged.",
+        } },
+    } },
     { version = "1.37.3", sections = {
         { category = "Class Trainer page", lines = {
             "Fixed the page being thrown away again a moment after you opened it, dropping you back on a class tab. The spell book resets its own page whenever your spells change, and our page sits past the last real tab, so it was always the one discarded. Most noticeable on Season of Discovery, where engraving changes spells constantly.",
@@ -319,11 +327,6 @@ ns.CHANGELOG = {
         } },
         { category = "Quality of Life", lines = {
             "Friends counter in the chat, a gold overview tooltip, and taint-free Edit Mode movers.",
-        } },
-    } },
-    { version = "1.20.1", sections = {
-        { category = "Fixes", lines = {
-            "Chat module polish and localization fixes.",
         } },
     } },
 }

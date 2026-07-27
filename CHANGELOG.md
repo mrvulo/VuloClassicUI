@@ -17,6 +17,9 @@
 -->
 
 ## 1.37.4
+**Fixes:**
+- Clicking a trinket button while that trinket slot is empty no longer throws an error. The game's own shortcut for "use the item in slot N" stopped tolerating an empty slot with July's interface update, so the button now takes a different route to the same action.
+
 **Performance:**
 - Fixed a stutter of almost two frames every time you entered or left combat, if you use WeakAuras and have the WeakAuras skin switched on. Every combat change repainted every aura you have ever saved — including the ones not on screen — with a look that had not changed. Auras are now only repainted when the settings or their size actually changed. Measured: 28 ms down to under 2 ms. The skin itself is unchanged.
 
