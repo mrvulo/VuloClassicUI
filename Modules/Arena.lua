@@ -31,9 +31,13 @@ local mod = ns:RegisterModule("arenaframes", {
         classIconPortrait = true,
 
         trinketEnabled   = true,
-        trinketSize      = 28,
+        -- The two side icons sit on opposite edges (see the racial block below)
+        -- and used to crowd the frame at 6px. Pushed out to 14 and shrunk by 4
+        -- so the health and mana bars read as the middle of the frame instead of
+        -- competing with an icon at each shoulder.
+        trinketSize      = 24,
         trinketAnchor    = "LEFT",
-        trinketOffsetX   = -6,
+        trinketOffsetX   = -14,
         trinketOffsetY   = 0,
 
         drEnabled   = false,
@@ -47,8 +51,10 @@ local mod = ns:RegisterModule("arenaframes", {
         trinketGlow  = true,
 
         racialEnabled = true,
-        racialSize    = 26,
-        racialOffsetX = 6,
+        -- Mirrors the trinket offset: whichever side the trinket takes, this one
+        -- gets the other, so the same number moves both icons away from centre.
+        racialSize    = 22,
+        racialOffsetX = 14,
         racialOffsetY = 0,
 
         shadowsightEnabled = true,
