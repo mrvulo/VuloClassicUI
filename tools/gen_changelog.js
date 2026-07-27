@@ -74,3 +74,29 @@ parts.push('');
 
 fs.writeFileSync(OUT, parts.join('\n'));
 console.log('wrote ' + OUT + ' (' + versions.length + ' versions, capped at ' + MAX_VERSIONS + ')');
+
+// ---------------------------------------------------------------------------
+// Release notes for the distribution sites.
+//
+// The packager reads this via .pkgmeta's manual-changelog and uploads it to
+// CurseForge, Wago and the GitHub release. Without it, it writes its own notes
+// from the git log -- and our commit messages are German by house rule, ASCII
+// transliterated, and written for us rather than for players.
+//
+// Only the newest version goes in: a GitHub release page should say what
+// changed in THAT release, not repeat thirty of them.
+const REL = path.join(ROOT, 'CHANGELOG-release.md');
+
+const relLines = body.split(/\r?\n/);
+const relStart = relLines.findIndex((l) => /^##\s+/.test(l));
+if (relStart < 0) {
+    console.error('no "## <version>" section found in CHANGELOG.md - not writing ' + REL);
+    process.exit(1);
+}
+let relEnd = relLines.length;
+for (let i = relStart + 1; i < relLines.length; i++) {
+    if (/^##\s+/.test(relLines[i])) { relEnd = i; break; }
+}
+const relBody = relLines.slice(relStart, relEnd).join('\n').replace(/\s+$/, '') + '\n';
+fs.writeFileSync(REL, relBody);
+console.log('wrote ' + REL + ' (' + versions[0].version + ')');

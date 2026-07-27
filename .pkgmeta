@@ -1,0 +1,24 @@
+# Release notes for CurseForge, Wago and the GitHub release.
+#
+# Without this the packager writes its own notes from the git log. Our commit
+# messages are German by house rule and ASCII transliterated, so every release
+# shipped notes that read like typos to anyone outside this repo, while the
+# English changelog only ever reached Discord and the in-game patch notes.
+#
+# CHANGELOG-release.md holds the newest version's section only, and is written
+# by tools/gen_changelog.js alongside Modules/ChangelogData.lua -- so the three
+# places that show release notes all come from the same source.
+#
+# Careful: the packager falls back to the git log SILENTLY when the file is
+# missing or stale, so a release that forgot to run the generator would quietly
+# go back to German. tools/check.js compares it against CHANGELOG.md and fails
+# the build before that can reach a distribution site.
+#
+# Deliberately no "ignore" list. Without one the packager keeps its default file
+# selection, so the only change to the shipped zip is CHANGELOG-release.md
+# itself riding along -- a few hundred bytes. Ignoring it was tempting, but it
+# is unclear whether the packager still finds a manual changelog it was told to
+# leave out, and a wrong guess there breaks releasing, not just tidiness.
+manual-changelog:
+    filename: CHANGELOG-release.md
+    markup-type: markdown

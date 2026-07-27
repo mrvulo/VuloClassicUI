@@ -15,6 +15,12 @@
 //      global we define is visible to every other addon and never goes away)
 //   7. module default keys that nothing anywhere reads (a setting that is
 //      written into every profile and can never have an effect)
+//   8. L["..."] evaluated at file scope (resolves before the saved language
+//      override is read, so it bakes in the client language)
+//   9. format specifiers must survive translation in every locale
+//  10. TOC file lists: identical across flavors, nothing missing or orphaned
+//  11. CHANGELOG-release.md matches the newest CHANGELOG.md section (the
+//      packager falls back to the German git log silently when it is stale)
 //
 // Exit code 1 only on syntax errors or locals-cap violations; everything
 // else is a warning report for human judgment.
@@ -543,6 +549,43 @@ for (const f of files) {
 if (thits === 0) console.log('clean (' + tocNames.length + ' TOCs, '
     + tocFiles.get(firstName).length + ' entries each)');
 else hardFail = true;
+
+// ---- 11: release notes match the changelog -----------------------------------
+// The packager uploads CHANGELOG-release.md to CurseForge, Wago and the GitHub
+// release (see .pkgmeta). When that file is missing or stale it falls back to
+// the git log WITHOUT SAYING SO -- and our commit messages are German. That is
+// a failure nobody notices until a player reads the release notes, so it is a
+// hard fail here rather than a warning.
+console.log('\n== release notes ==');
+{
+    const relPath = path.join(ROOT, 'CHANGELOG-release.md');
+    const mdPath  = path.join(ROOT, 'CHANGELOG.md');
+    if (!fs.existsSync(mdPath)) {
+        console.log('  no CHANGELOG.md - skipped');
+    } else if (!fs.existsSync(relPath)) {
+        console.log('  MISSING CHANGELOG-release.md (run: node tools/gen_changelog.js)');
+        hardFail = true;
+    } else {
+        const body = fs.readFileSync(mdPath, 'utf8').replace(/<!--[\s\S]*?-->/g, '');
+        const lines = body.split(/\r?\n/);
+        const start = lines.findIndex((l) => /^##\s+/.test(l));
+        let end = lines.length;
+        for (let i = start + 1; i < lines.length; i++) {
+            if (/^##\s+/.test(lines[i])) { end = i; break; }
+        }
+        const want = lines.slice(start, end).join('\n').replace(/\s+$/, '');
+        const have = fs.readFileSync(relPath, 'utf8').replace(/\r\n/g, '\n').replace(/\s+$/, '');
+        if (want !== have) {
+            const wv = (lines[start] || '').replace(/^##\s+/, '');
+            const hv = (have.split('\n')[0] || '').replace(/^##\s+/, '');
+            console.log('  STALE CHANGELOG-release.md: holds ' + (hv || '?')
+                + ', changelog is at ' + (wv || '?') + ' (run: node tools/gen_changelog.js)');
+            hardFail = true;
+        } else {
+            console.log('clean (' + (lines[start] || '').replace(/^##\s+/, '') + ')');
+        }
+    }
+}
 
 console.log('\n' + (hardFail ? 'RESULT: FAIL' : 'RESULT: OK (warnings above, if any)'));
 process.exit(hardFail ? 1 : 0);
