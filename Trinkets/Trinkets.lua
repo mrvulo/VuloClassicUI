@@ -1181,10 +1181,20 @@ function Trinkets.UpdateCombatQueue()
 			_, bag, slot = Trinkets.FindItem(trinket)
 			if bag then
 				icon:SetTexture(Trinkets.GetContainerItemInfo(bag, slot).iconFileID)
+				-- The same region shows the armed marker below, tinted. Without
+				-- this the next queued item would inherit that tint.
+				icon:SetVertexColor(1, 1, 1)
 				icon:Show()
 			end
 		elseif Trinkets.QueueInit and TrinketsQueue and TrinketsQueue.Enabled[which] then
-			icon:SetTexture("Interface\\AddOns\\Trinkets\\Textures\\Trinkets-Gear")
+			-- "Queue armed, nothing lined up yet." The original art lived in the
+			-- Textures folder that was never copied when this window was
+			-- vendored, so the marker was SHOWN with no file behind it -- which
+			-- is the grey block that appeared on the icon after an alt-click.
+			-- The XML sweep in 662bfe8 missed this one: it is the only such path
+			-- outside the XML files.
+			icon:SetTexture("Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\modules\\loadouts")
+			icon:SetVertexColor(0.608, 0.424, 1)
 			icon:Show()
 		end
 	end
