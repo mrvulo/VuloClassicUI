@@ -392,9 +392,12 @@ function UI:CreateCollapsibleHeader(parent, text, expanded, onClick)
     box:SetVertexColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
     b._chevron = box
 
+    -- A heading has to outweigh what it groups. At 12 it was the same size as
+    -- the setting labels below it and lighter in weight than the card borders,
+    -- so the strongest thing on the page was the outline of a row.
     local fs = b:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    fs:SetPoint("BOTTOMLEFT", box, "BOTTOMRIGHT", 6, 1)
-    UI.Font(fs, 12)
+    fs:SetPoint("BOTTOMLEFT", box, "BOTTOMRIGHT", 7, 1)
+    UI.Font(fs, 13)
     b._label = fs
 
     local line = b:CreateTexture(nil, "ARTWORK")
@@ -632,6 +635,13 @@ function UI:CreateSlider(parent, config)
     if s.Text then
         UI.Font(s.Text, 12)
         s.Text:SetTextColor(0.95, 0.95, 0.97)
+        -- The template centres its label over the track. Every other label on
+        -- the page starts at the left edge, so a centred one broke the single
+        -- reading edge that lets you scan a column of settings by their names
+        -- instead of reading each row.
+        s.Text:ClearAllPoints()
+        s.Text:SetPoint("BOTTOMLEFT", s, "TOPLEFT", 0, 5)
+        s.Text:SetJustifyH("LEFT")
     end
 
     local accent = ns.COLORS.accent

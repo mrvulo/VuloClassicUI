@@ -207,10 +207,14 @@ local function makePanel(parent)
     p._vcSetup = function() end
     p.bg = p:CreateTexture(nil, "BACKGROUND")
     p.bg:SetAllPoints(p)
-    p.bg:SetColorTexture(0.075, 0.075, 0.095, 0.9)
+    -- LIGHTER than the page behind it (bgContent is 0.08). It used to be 0.075,
+    -- i.e. a hair DARKER than the page, so a card was nothing but its outline
+    -- and the eye had to trace borders to see where one setting ended. Raising
+    -- the fill lets the card read as an object and lets the border step back.
+    p.bg:SetColorTexture(0.115, 0.115, 0.14, 0.95)
     for _, s in ipairs({ "TOP", "BOTTOM", "LEFT", "RIGHT" }) do
         local t = p:CreateTexture(nil, "BORDER")
-        t:SetColorTexture(0.15, 0.15, 0.19, 1)
+        t:SetColorTexture(0.19, 0.19, 0.24, 1)
         if s == "TOP" or s == "BOTTOM" then
             t:SetPoint(s .. "LEFT"); t:SetPoint(s .. "RIGHT"); t:SetHeight(1)
         else
@@ -322,7 +326,10 @@ local function placeSection(parent, section, y)
     local collapsed = UI.sectionCollapsed[stateKey]
     if collapsed == nil then collapsed = section.collapsed and true or false end
 
-    y = y - 10
+    -- Space ABOVE a section heading, and clearly more than the gap between the
+    -- cards inside one. When both gaps are the same the page reads as one long
+    -- list and the headings stop grouping anything.
+    y = y - 24
 
     local onClick = function()
         UI.sectionCollapsed[stateKey] = not collapsed
