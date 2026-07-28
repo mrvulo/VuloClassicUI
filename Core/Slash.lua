@@ -118,7 +118,9 @@ function ns:PrintSlashHelp()
         if off then
             DEFAULT_CHAT_FRAME:AddMessage(string.format("  |cff707070%s — %s|r", cmds, desc))
         else
-            DEFAULT_CHAT_FRAME:AddMessage(string.format("  |cff9b6cff%s|r  %s", cmds, desc))
+            -- Same dash the /vcui subcommand list above uses: the two blocks are
+            -- one answer to one question and must not read as two formats.
+            DEFAULT_CHAT_FRAME:AddMessage(string.format("  |cff9b6cff%s|r — %s", cmds, desc))
         end
         if e.note then
             DEFAULT_CHAT_FRAME:AddMessage(string.format("      |cffaaaaaa%s|r", L[e.note]))
