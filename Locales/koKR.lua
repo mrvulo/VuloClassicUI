@@ -1063,7 +1063,7 @@ ns:RegisterLocale("koKR", function() return {
     ["Offset X"] = "X 오프셋",
     ["Offset Y"] = "Y 오프셋",
     ["Diminishing Returns Tracker"] = "효과 감소(DR) 추적기",
-    ["Shows icons to the right of each arena frame for active DR categories (Stun, Fear, Polymorph etc.) with color indicator: |cff00ff00green|r = full, |cffffff00yellow|r = 1/2, |cffff8000orange|r = 1/4, |cffff0000red|r = immune."] = "각 투기장 프레임 오른쪽에 적용 중인 효과 감소 항목(기절, 공포, 변이 등)을 아이콘으로 표시하며 색으로 단계를 알려줍니다: |cff00ff00초록|r = 전체, |cffffff00노랑|r = 1/2, |cffff8000주황|r = 1/4, |cffff0000빨강|r = 면역.",
+    ["Shows icons next to each arena frame for active DR categories (Stun, Fear, Polymorph etc.) with color indicator: |cff00ff00green|r = full, |cffffff00yellow|r = 1/2, |cffff8000orange|r = 1/4, |cffff0000red|r = immune."] = "각 투기장 프레임 옆에 적용 중인 효과 감소 항목(기절, 공포, 변이 등)을 아이콘으로 표시하며 색으로 단계를 알려줍니다: |cff00ff00초록|r = 전체, |cffffff00노랑|r = 1/2, |cffff8000주황|r = 1/4, |cffff0000빨강|r = 면역.",
     ["Enable DR tracking"] = "효과 감소 추적 사용",
     ["INTERRUPTED"] = "방해됨",
     ["Castbar for arena opponents"] = "투기장 상대 시전 바",

@@ -42,6 +42,13 @@ local mod = ns:RegisterModule("arenaframes", {
 
         drEnabled   = false,
         drSize      = 24,
+        -- The row used to hang at a hard-wired 8px off the right edge, which is
+        -- exactly where the side icon already sits, so switching DR on stacked
+        -- the two. It now carries its own edge and offsets; the default clears
+        -- the racial at 26 plus its 22px icon.
+        drAnchor    = "RIGHT",
+        drOffsetX   = 52,
+        drOffsetY   = 0,
 
         castbarEnabled = false,
         castbarWidth   = 120,
@@ -52,10 +59,6 @@ local mod = ns:RegisterModule("arenaframes", {
 
         racialEnabled = true,
         -- Sits on whichever edge the trinket did not take.
-        -- Note for later: the DR row anchors to the same edge at a fixed 8px
-        -- (see the drFrames container), so with DR switched on the two overlap.
-        -- They did at the old value of 6 as well -- this is not new, but it is
-        -- the reason moving the racial further out does not fix it.
         racialSize    = 22,
         racialOffsetX = 26,
         racialOffsetY = 0,
@@ -1349,6 +1352,19 @@ local function createDRContainer(parent, slotIndex)
     return container
 end
 
+-- Anchored on every update, not once at creation, so the sliders move the row
+-- while the options window is open instead of only after the next arena.
+local function layoutDRContainer(container, arenaFrame)
+    local d = mod.db
+    container:SetSize(120, d.drSize or 24)
+    container:ClearAllPoints()
+    if d.drAnchor == "LEFT" then
+        container:SetPoint("RIGHT", arenaFrame, "LEFT", -(d.drOffsetX or 52), d.drOffsetY or 0)
+    else
+        container:SetPoint("LEFT", arenaFrame, "RIGHT", d.drOffsetX or 52, d.drOffsetY or 0)
+    end
+end
+
 local function createDRIcon(parent, category)
     local f = CreateFrame("Frame", nil, parent)
     f:SetSize(mod.db.drSize or 24, mod.db.drSize or 24)
@@ -1398,9 +1414,8 @@ local function updateDRDisplay(unit)
     if not container then
         container = createDRContainer(arenaFrame, i)
         drFrames[i] = container
-        container:ClearAllPoints()
-        container:SetPoint("LEFT", arenaFrame, "RIGHT", 8, 0)
     end
+    layoutDRContainer(container, arenaFrame)
 
     local state = drState[unit] or {}
     local visible = {}
@@ -1413,6 +1428,10 @@ local function updateDRDisplay(unit)
 
     for _, icon in pairs(container.icons) do icon:Hide() end
 
+    -- On the left edge the row has to grow away from the frame, or a second
+    -- icon would be laid straight across the health bar.
+    local leftSide = (mod.db.drAnchor == "LEFT")
+
     local x = 0
     for _, entry in ipairs(visible) do
         local icon = container.icons[entry.cat]
@@ -1422,7 +1441,11 @@ local function updateDRDisplay(unit)
         end
         icon:SetSize(mod.db.drSize, mod.db.drSize)
         icon:ClearAllPoints()
-        icon:SetPoint("LEFT", container, "LEFT", x, 0)
+        if leftSide then
+            icon:SetPoint("RIGHT", container, "RIGHT", -x, 0)
+        else
+            icon:SetPoint("LEFT", container, "LEFT", x, 0)
+        end
 
         -- resolved once per icon; the 0.5s ticker must not rescan DR_SPELLS
         if not icon._texSet then
@@ -1446,6 +1469,16 @@ local function updateDRDisplay(unit)
 
         x = x + mod.db.drSize + 2
     end
+end
+
+-- Moving a slider outside an arena has no live state to redraw, so the frames
+-- that already exist are re-anchored directly.
+function mod.RefreshDR()
+    for i, container in pairs(drFrames) do
+        local arenaFrame = _G["ArenaEnemyFrame" .. i]
+        if arenaFrame then layoutDRContainer(container, arenaFrame) end
+    end
+    for unit in pairs(drState) do updateDRDisplay(unit) end
 end
 
 local function onAuraApplied(destUnit, spellId)
@@ -1552,7 +1585,7 @@ mod.RegEvent("PLAYER_ENTERING_WORLD", ev_PLAYER_ENTERING_WORLD_2)
 mod:AddOptionsSection("dr", function()
     return {
         { type = "header", text = L["Diminishing Returns Tracker"] },
-        { type = "desc",   text = L["Shows icons to the right of each arena frame for active DR categories (Stun, Fear, Polymorph etc.) with color indicator: |cff00ff00green|r = full, |cffffff00yellow|r = 1/2, |cffff8000orange|r = 1/4, |cffff0000red|r = immune."] },
+        { type = "desc",   text = L["Shows icons next to each arena frame for active DR categories (Stun, Fear, Polymorph etc.) with color indicator: |cff00ff00green|r = full, |cffffff00yellow|r = 1/2, |cffff8000orange|r = 1/4, |cffff0000red|r = immune."] },
         {
             type = "checkbox", label = L["Enable DR tracking"],
             get = function() return mod.db.drEnabled end,
@@ -1570,7 +1603,28 @@ mod:AddOptionsSection("dr", function()
             type = "slider", label = L["Icon size"],
             min = 16, max = 40, step = 1,
             get = function() return mod.db.drSize end,
-            set = function(_, v) mod.db.drSize = v end,
+            set = function(_, v) mod.db.drSize = v; mod.RefreshDR() end,
+        },
+        {
+            type = "dropdown", label = L["Position"],
+            values = {
+                { value = "LEFT",  text = L["Left of frame"] },
+                { value = "RIGHT", text = L["Right of frame"] },
+            },
+            get = function() return mod.db.drAnchor end,
+            set = function(_, v) mod.db.drAnchor = v; mod.RefreshDR() end,
+        },
+        {
+            type = "slider", label = L["Offset X"],
+            min = -100, max = 100, step = 1,
+            get = function() return mod.db.drOffsetX end,
+            set = function(_, v) mod.db.drOffsetX = v; mod.RefreshDR() end,
+        },
+        {
+            type = "slider", label = L["Offset Y"],
+            min = -60, max = 60, step = 1,
+            get = function() return mod.db.drOffsetY end,
+            set = function(_, v) mod.db.drOffsetY = v; mod.RefreshDR() end,
         },
     }
 end)

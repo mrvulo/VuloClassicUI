@@ -1060,7 +1060,7 @@ ns:RegisterLocale("zhCN", function() return {
     ["Offset X"] = "X 偏移",
     ["Offset Y"] = "Y 偏移",
     ["Diminishing Returns Tracker"] = "递减效果监控",
-    ["Shows icons to the right of each arena frame for active DR categories (Stun, Fear, Polymorph etc.) with color indicator: |cff00ff00green|r = full, |cffffff00yellow|r = 1/2, |cffff8000orange|r = 1/4, |cffff0000red|r = immune."] = "在每个竞技场框体右侧显示当前生效的递减类别图标（昏迷、恐惧、变形等），并用颜色标示：|cff00ff00绿色|r = 完整，|cffffff00黄色|r = 1/2，|cffff8000橙色|r = 1/4，|cffff0000红色|r = 免疫。",
+    ["Shows icons next to each arena frame for active DR categories (Stun, Fear, Polymorph etc.) with color indicator: |cff00ff00green|r = full, |cffffff00yellow|r = 1/2, |cffff8000orange|r = 1/4, |cffff0000red|r = immune."] = "在每个竞技场框体旁显示当前生效的递减类别图标（昏迷、恐惧、变形等），并用颜色标示：|cff00ff00绿色|r = 完整，|cffffff00黄色|r = 1/2，|cffff8000橙色|r = 1/4，|cffff0000红色|r = 免疫。",
     ["Enable DR tracking"] = "启用递减监控",
     ["INTERRUPTED"] = "已打断",
     ["Castbar for arena opponents"] = "竞技场对手施法条",

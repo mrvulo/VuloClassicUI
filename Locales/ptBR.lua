@@ -1438,7 +1438,7 @@ ns:RegisterLocale("ptBR", function() return {
     ["Offset X"] = "Deslocamento X",
     ["Offset Y"] = "Deslocamento Y",
     ["Diminishing Returns Tracker"] = "Rastreador de Retornos Decrescentes",
-    ["Shows icons to the right of each arena frame for active DR categories (Stun, Fear, Polymorph etc.) with color indicator: |cff00ff00green|r = full, |cffffff00yellow|r = 1/2, |cffff8000orange|r = 1/4, |cffff0000red|r = immune."] = "Mostra ícones à direita de cada quadro de arena para as categorias de DR ativas (Atordoamento, Medo, Polimorfar etc.) com indicador de cor: |cff00ff00verde|r = completo, |cffffff00amarelo|r = 1/2, |cffff8000laranja|r = 1/4, |cffff0000vermelho|r = imune.",
+    ["Shows icons next to each arena frame for active DR categories (Stun, Fear, Polymorph etc.) with color indicator: |cff00ff00green|r = full, |cffffff00yellow|r = 1/2, |cffff8000orange|r = 1/4, |cffff0000red|r = immune."] = "Mostra ícones ao lado de cada quadro de arena para as categorias de DR ativas (Atordoamento, Medo, Polimorfar etc.) com indicador de cor: |cff00ff00verde|r = completo, |cffffff00amarelo|r = 1/2, |cffff8000laranja|r = 1/4, |cffff0000vermelho|r = imune.",
     ["Enable DR tracking"] = "Ativar rastreio de DR",
     ["INTERRUPTED"] = "INTERROMPIDO",
     ["Castbar for arena opponents"] = "Barra de conjuração dos oponentes na arena",

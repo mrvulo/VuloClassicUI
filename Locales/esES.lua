@@ -1064,7 +1064,7 @@ local function T() return {
     ["Offset X"] = "Desplazamiento X",
     ["Offset Y"] = "Desplazamiento Y",
     ["Diminishing Returns Tracker"] = "Rastreador de reducción de efectos (DR)",
-    ["Shows icons to the right of each arena frame for active DR categories (Stun, Fear, Polymorph etc.) with color indicator: |cff00ff00green|r = full, |cffffff00yellow|r = 1/2, |cffff8000orange|r = 1/4, |cffff0000red|r = immune."] = "Muestra iconos a la derecha de cada marco de arena para las categorías de DR activas (aturdimiento, miedo, polimorfia, etc.) con indicador de color: |cff00ff00verde|r = completo, |cffffff00amarillo|r = 1/2, |cffff8000naranja|r = 1/4, |cffff0000rojo|r = inmune.",
+    ["Shows icons next to each arena frame for active DR categories (Stun, Fear, Polymorph etc.) with color indicator: |cff00ff00green|r = full, |cffffff00yellow|r = 1/2, |cffff8000orange|r = 1/4, |cffff0000red|r = immune."] = "Muestra iconos junto a cada marco de arena para las categorías de DR activas (aturdimiento, miedo, polimorfia, etc.) con indicador de color: |cff00ff00verde|r = completo, |cffffff00amarillo|r = 1/2, |cffff8000naranja|r = 1/4, |cffff0000rojo|r = inmune.",
     ["Enable DR tracking"] = "Activar el seguimiento de DR",
     ["INTERRUPTED"] = "INTERRUMPIDO",
     ["Castbar for arena opponents"] = "Barra de lanzamiento de los rivales de arena",

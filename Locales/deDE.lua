@@ -1131,7 +1131,7 @@ ns:RegisterLocale("deDE", function() return {
     ["Offset Y"] = "Versatz Y",
 
     ["Diminishing Returns Tracker"] = "Diminishing-Returns-Tracker",
-    ["Shows icons to the right of each arena frame for active DR categories (Stun, Fear, Polymorph etc.) with color indicator: |cff00ff00green|r = full, |cffffff00yellow|r = 1/2, |cffff8000orange|r = 1/4, |cffff0000red|r = immune."] = "Zeigt Icons rechts neben jedem Arena-Fenster für aktive DR-Kategorien (Stun, Fear, Polymorph usw.) mit Farbindikator: |cff00ff00grün|r = voll, |cffffff00gelb|r = 1/2, |cffff8000orange|r = 1/4, |cffff0000rot|r = immun.",
+    ["Shows icons next to each arena frame for active DR categories (Stun, Fear, Polymorph etc.) with color indicator: |cff00ff00green|r = full, |cffffff00yellow|r = 1/2, |cffff8000orange|r = 1/4, |cffff0000red|r = immune."] = "Zeigt Icons neben jedem Arena-Fenster für aktive DR-Kategorien (Stun, Fear, Polymorph usw.) mit Farbindikator: |cff00ff00grün|r = voll, |cffffff00gelb|r = 1/2, |cffff8000orange|r = 1/4, |cffff0000rot|r = immun.",
     ["Enable DR tracking"] = "DR-Tracking aktivieren",
 
     ["INTERRUPTED"] = "UNTERBROCHEN",

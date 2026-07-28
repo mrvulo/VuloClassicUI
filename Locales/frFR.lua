@@ -1168,7 +1168,7 @@ ns:RegisterLocale("frFR", function() return {
     ["Offset X"] = "Décalage X",
     ["Offset Y"] = "Décalage Y",
     ["Diminishing Returns Tracker"] = "Suivi des réductions d'effet",
-    ["Shows icons to the right of each arena frame for active DR categories (Stun, Fear, Polymorph etc.) with color indicator: |cff00ff00green|r = full, |cffffff00yellow|r = 1/2, |cffff8000orange|r = 1/4, |cffff0000red|r = immune."] = "Affiche à droite de chaque fenêtre d'arène des icônes pour les catégories de réduction actives (étourdissement, peur, métamorphose, etc.) avec un indicateur de couleur : |cff00ff00vert|r = plein, |cffffff00jaune|r = 1/2, |cffff8000orange|r = 1/4, |cffff0000rouge|r = immunisé.",
+    ["Shows icons next to each arena frame for active DR categories (Stun, Fear, Polymorph etc.) with color indicator: |cff00ff00green|r = full, |cffffff00yellow|r = 1/2, |cffff8000orange|r = 1/4, |cffff0000red|r = immune."] = "Affiche à côté de chaque fenêtre d'arène des icônes pour les catégories de réduction actives (étourdissement, peur, métamorphose, etc.) avec un indicateur de couleur : |cff00ff00vert|r = plein, |cffffff00jaune|r = 1/2, |cffff8000orange|r = 1/4, |cffff0000rouge|r = immunisé.",
     ["Enable DR tracking"] = "Activer le suivi des réductions",
     ["INTERRUPTED"] = "INTERROMPU",
     ["Castbar for arena opponents"] = "Barre d'incantation des adversaires d'arène",

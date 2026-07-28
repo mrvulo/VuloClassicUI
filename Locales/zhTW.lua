@@ -1060,7 +1060,7 @@ ns:RegisterLocale("zhTW", function() return {
     ["Offset X"] = "X 偏移",
     ["Offset Y"] = "Y 偏移",
     ["Diminishing Returns Tracker"] = "遞減效果追蹤器",
-    ["Shows icons to the right of each arena frame for active DR categories (Stun, Fear, Polymorph etc.) with color indicator: |cff00ff00green|r = full, |cffffff00yellow|r = 1/2, |cffff8000orange|r = 1/4, |cffff0000red|r = immune."] = "在每個競技場框架右側顯示啟用中的遞減類別圖示（昏迷、恐懼、變形術等），並以顏色標示：|cff00ff00綠|r = 完整，|cffffff00黃|r = 1/2，|cffff8000橘|r = 1/4，|cffff0000紅|r = 免疫。",
+    ["Shows icons next to each arena frame for active DR categories (Stun, Fear, Polymorph etc.) with color indicator: |cff00ff00green|r = full, |cffffff00yellow|r = 1/2, |cffff8000orange|r = 1/4, |cffff0000red|r = immune."] = "在每個競技場框架旁顯示啟用中的遞減類別圖示（昏迷、恐懼、變形術等），並以顏色標示：|cff00ff00綠|r = 完整，|cffffff00黃|r = 1/2，|cffff8000橘|r = 1/4，|cffff0000紅|r = 免疫。",
     ["Enable DR tracking"] = "啟用遞減追蹤",
     ["INTERRUPTED"] = "已中斷",
     ["Castbar for arena opponents"] = "競技場對手施法條",

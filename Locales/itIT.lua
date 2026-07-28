@@ -1807,7 +1807,7 @@ ns:RegisterLocale("itIT", function() return {
     ["Offset X"] = "Scostamento X",
     ["Offset Y"] = "Scostamento Y",
     ["Diminishing Returns Tracker"] = "Tracciamento delle riduzioni di efficacia (DR)",
-    ["Shows icons to the right of each arena frame for active DR categories (Stun, Fear, Polymorph etc.) with color indicator: |cff00ff00green|r = full, |cffffff00yellow|r = 1/2, |cffff8000orange|r = 1/4, |cffff0000red|r = immune."] = "Mostra a destra di ogni finestra arena le icone delle categorie DR attive (Stordimento, Paura, Polimorfia ecc.) con indicatore di colore: |cff00ff00verde|r = pieno, |cffffff00giallo|r = 1/2, |cffff8000arancione|r = 1/4, |cffff0000rosso|r = immune.",
+    ["Shows icons next to each arena frame for active DR categories (Stun, Fear, Polymorph etc.) with color indicator: |cff00ff00green|r = full, |cffffff00yellow|r = 1/2, |cffff8000orange|r = 1/4, |cffff0000red|r = immune."] = "Mostra accanto a ogni finestra arena le icone delle categorie DR attive (Stordimento, Paura, Polimorfia ecc.) con indicatore di colore: |cff00ff00verde|r = pieno, |cffffff00giallo|r = 1/2, |cffff8000arancione|r = 1/4, |cffff0000rosso|r = immune.",
     ["Enable DR tracking"] = "Attiva il tracciamento DR",
     ["INTERRUPTED"] = "INTERROTTO",
     ["Castbar for arena opponents"] = "Barra di lancio per gli avversari in arena",
