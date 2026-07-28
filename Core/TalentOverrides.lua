@@ -235,6 +235,81 @@ function ns:HasOverride(_, id)
 end
 
 -- =========================================================================
+-- Reading the list back
+--
+-- CountOverrides has always been able to say "12 settings overridden" and
+-- nothing could say WHICH twelve. The only way to undo one was to forget all of
+-- them, so a single mis-recorded value cost every other value with it.
+--
+-- The decomposition needed for this already existed: splitId, written for the
+-- apply path. Everything below is that same step pointed at the screen instead
+-- of at the setters.
+-- =========================================================================
+
+-- modKey/tabId/label are the STORED english keys. They are translated here and
+-- only here, so what the row shows follows the player's language while the id
+-- underneath never moves.
+function ns:DescribeOverride(modKey, tabId, label)
+    local m = ns.modules and ns.modules[modKey]
+    local parts = { L[(m and m.name) or modKey] }
+    if tabId and tabId ~= "" and m and m.tabs then
+        for _, t in ipairs(m.tabs) do
+            if t.id == tabId then
+                parts[#parts + 1] = L[t.label]
+                break
+            end
+        end
+    end
+    parts[#parts + 1] = L[label]
+    return table.concat(parts, " > ")
+end
+
+function ns:OverrideValueText(v)
+    local t = type(v)
+    if t == "boolean" then return v and L["on"] or L["off"] end
+    if t == "number" then
+        -- Sliders store fractions; a raw 0.6499999999 in a list reads as noise.
+        if v == math.floor(v) then return tostring(v) end
+        return (string.format("%.2f", v):gsub("0+$", ""):gsub("%.$", ""))
+    end
+    if t == "string" then return v end
+    return "?"
+end
+
+-- Sorted by the READABLE path, not by the stored id: an id starts with the
+-- module KEY ("nameplates") while the row shows the module NAME
+-- ("Namensplaketten"). Sorting by one and displaying the other looks like no
+-- order at all -- and in a translated client the two orders differ.
+function ns:OverrideList(id)
+    local g = ns:OverrideGroup(id)
+    local out = {}
+    if not g or not g.values then return out end
+    for oid, value in pairs(g.values) do
+        local modKey, tabId, label = splitId(oid)
+        if modKey then
+            out[#out + 1] = {
+                id    = oid,
+                value = value,
+                text  = ns:DescribeOverride(modKey, tabId, label),
+            }
+        end
+    end
+    table.sort(out, function(a, b)
+        if a.text == b.text then return a.id < b.id end   -- stable on collisions
+        return a.text < b.text
+    end)
+    return out
+end
+
+function ns:RemoveOverride(id, oid)
+    local g = ns:OverrideGroup(id)
+    if not (g and g.values and oid) then return false end
+    if g.values[oid] == nil then return false end
+    g.values[oid] = nil
+    return true
+end
+
+-- =========================================================================
 -- Editing mode
 -- =========================================================================
 

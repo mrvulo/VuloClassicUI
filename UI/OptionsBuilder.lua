@@ -417,10 +417,28 @@ end
 local function placeColumns(parent, run, y)
     local availW = (parent:GetWidth() or 540) - 2 * CONTENT_PADDING
     local grid   = UI._grid
-    local cols   = (grid and grid.cols) or fitColumns(run, availW)
+
+    -- An item may demand the whole width, and that beats the page grid.
+    --
+    -- The grid pairs SETTINGS: short labels, comparable to each other, chosen by
+    -- whoever wrote the page. A generated LIST is neither -- an override reads
+    -- "Nameplates > Health Bar > Width", and in a half-width cell both members
+    -- of every pair end in an ellipsis, which is the one thing a list must not
+    -- do. Asked for per item, so no existing page changes.
+    local wide = false
+    for _, item in ipairs(run) do
+        if item.fullWidth then wide = true; break end
+    end
+
+    local cols = (wide and 1) or (grid and grid.cols) or fitColumns(run, availW)
     local colW   = math.floor((availW - (cols - 1) * COL_GAP) / cols)
     local labelCol
-    if grid then labelCol = grid.labelCol else labelCol = runLabelColumn(run, colW) end
+    -- A full-width run also drops the page's shared label column: that column
+    -- was measured for half-width cells, and forcing it onto a full-width row
+    -- would park the control in the middle of the card.
+    if wide then labelCol = nil
+    elseif grid then labelCol = grid.labelCol
+    else labelCol = runLabelColumn(run, colW) end
     local base   = parent:GetFrameLevel()
     local n      = #run
     for idx = 1, n do
@@ -959,19 +977,28 @@ function UI:BuildOptionsPage(key, tabId)
     -- widgets read `set` from, so wrapping it here covers checkbox, slider,
     -- dropdown and editbox at once. The items are freshly built by GetOptions on
     -- every page build, so the wrapper never stacks.
+    -- The profile page is excluded outright: which profile is active, and the
+    -- switch that starts the recording itself, must never become
+    -- per-talent-group values. Without it the recording switch records itself
+    -- the moment it is turned on, and the talent switch then replays it.
+    --
+    -- CORRECTED: the guard was `key ~= "profiles"` and never fired. That page is
+    -- not reached under its own name -- the tab is "profile", the module is
+    -- "profiles", and BuildOptionsPage gets the CONTAINER. Measured in game
+    -- while the page was open: key: globalsettings, tab: profile. The same
+    -- one-letter trap cost two wrong diagnoses on optionsGrid (6576bff); it is
+    -- spelled out here rather than derived, because there is nothing to derive
+    -- it from: ns.modules["profile"] does not exist.
+    local isProfilePage = (key == "profiles") or (tabId == "profile")
+
     if ns.NoteOverrideWrite then
         local function wrap(list)
             for _, it in ipairs(list) do
                 if type(it) == "table" then
                     if it.items then wrap(it.items) end
-                    -- The profile page is excluded outright: which profile is
-                    -- active, and the switch that starts the recording itself,
-                    -- must never become per-talent-group values. Without this
-                    -- the recording switch records itself the moment it is
-                    -- turned on, and the talent switch then replays it.
                     if type(it.set) == "function" and type(it.get) == "function"
                        and it.label and it.type ~= "color"
-                       and not it.noOverride and key ~= "profiles" then
+                       and not it.noOverride and not isProfilePage then
                         local id     = ns:OverrideId(key, tabId, it.label)
                         local setter = it.set
                         local getter = it.get

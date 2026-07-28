@@ -454,6 +454,41 @@ function mod:GetOptions()
                     if ns.UI and ns.UI.RebuildCurrentPage then ns.UI:RebuildCurrentPage() end
                 end,
             })
+            -- The overrides themselves, one row each, inside a section so a
+            -- group with forty of them does not bury the rest of the page.
+            -- Sections start closed, so this costs one line until you open it.
+            local list = ns:OverrideList(id)
+            if #list > 0 then
+                local rows = {}
+                for _, e in ipairs(list) do
+                    local oid = e.id
+                    rows[#rows + 1] = {
+                        type  = "checkbox",
+                        -- One per row: the label is a path, not a setting name,
+                        -- and this page runs the two-column grid.
+                        fullWidth = true,
+                        label = e.text .. "  |cff888888" .. ns:OverrideValueText(e.value) .. "|r",
+                        tooltip = L["Switch off to drop this one override. The setting then follows the profile again."],
+                        -- Without this the machinery would record its own rows
+                        -- as overrides the moment you touched one.
+                        noOverride = true,
+                        get = function() return true end,
+                        set = function(_, v)
+                            if v then return end   -- only unticking means anything
+                            ns:RemoveOverride(id, oid)
+                            if ns.UI and ns.UI.RebuildCurrentPage then ns.UI:RebuildCurrentPage() end
+                        end,
+                    }
+                end
+                table.insert(items, {
+                    type  = "section",
+                    -- Group name in the title, so two groups get two collapse
+                    -- states instead of sharing one.
+                    title = string.format(L["Overridden settings: %s"], g.name),
+                    items = rows,
+                })
+            end
+
             table.insert(items, { type = "group", layout = "row", noCard = true, items = {
                 { type = "button", label = L["Forget all overrides for this talent group"],
                   onClick = function()
