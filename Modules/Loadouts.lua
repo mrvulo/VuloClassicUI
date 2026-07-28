@@ -186,16 +186,21 @@ local function itemAvailability(link)
     return nil
 end
 
+-- Liefert fehlende, in der Bank liegende, angelegte und gepruefte Teile.
+-- equipped/total tragen den gruenen Marker: nur wenn ALLE Teile getragen
+-- werden, gilt das Loadout als angelegt.
 local function setStatus(name)
     local lo = LO()[name]
-    if not (lo and lo.slots) then return 0, 0 end
-    local missing, inBank = 0, 0
+    if not (lo and lo.slots) then return 0, 0, 0, 0 end
+    local missing, inBank, equipped, total = 0, 0, 0, 0
     for _, link in pairs(lo.slots) do
+        total = total + 1
         local a = itemAvailability(link)
         if a == "bank" then inBank = inBank + 1
+        elseif a == "equipped" then equipped = equipped + 1
         elseif not a then missing = missing + 1 end
     end
-    return missing, inBank
+    return missing, inBank, equipped, total
 end
 
 -- Reverse index itemID -> set names; rebuilt lazily whenever _setIndexDirty is set by a mutation.
@@ -1440,10 +1445,14 @@ refreshSidebar = function()
     for i, name in ipairs(names) do
         local btn = createSetRow(sidebar, i)
         btn.setName = name
-        local miss, inBank = setStatus(name)
+        -- Marker in absteigender Dringlichkeit: fehlende Teile schlagen
+        -- Bankteile, und gruen erscheint nur, wenn wirklich alles getragen
+        -- wird - sonst wuerde ein teilweise angelegtes Set als fertig gelten.
+        local miss, inBank, equipped, total = setStatus(name)
         local marker = ""
         if miss > 0 then marker = " |cffff5555•|r"
-        elseif inBank > 0 then marker = " |cffff9933•|r" end
+        elseif inBank > 0 then marker = " |cffff9933•|r"
+        elseif total > 0 and equipped == total then marker = " |cff33ff55•|r" end
         btn.text:SetText(name .. marker)
         btn.icon:SetTexture(getSetIcon(name))
         btn.isSelected = (name == sidebarSelected)
@@ -1806,6 +1815,16 @@ function mod:OnEnable()
         applyMinimapVisibility()
         createSidebar()
     end
+
+    -- Statusmarker nachziehen. Das Anlegen laeuft ueber UseContainerItem und
+    -- braucht mehrere Frames; der Aufruf direkt nach equipLoadout sieht die
+    -- Teile also noch am alten Platz. Erst diese Ereignisse melden den
+    -- fertigen Zustand.
+    local function refreshMarkers()
+        if sidebar and sidebar:IsShown() then refreshSidebar() end
+    end
+    mod:RegisterEvent("UNIT_INVENTORY_CHANGED", refreshMarkers)
+    mod:RegisterEvent("BAG_UPDATE_DELAYED",     refreshMarkers)
 
     mod:RegisterEvent("UPDATE_SHAPESHIFT_FORM",  onShapeshiftChange)
     mod:RegisterEvent("UPDATE_SHAPESHIFT_FORMS", onShapeshiftChange)
