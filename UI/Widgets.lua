@@ -599,22 +599,70 @@ local function sliderValueWidth(min, max, step)
     return math.max(36, 8 + widest * 7)
 end
 
-local function sliderSetup(s, config)
+-- Row metrics. They are the same numbers the toggle and dropdown rows use, so
+-- the three line up without anyone tuning gaps by eye.
+local SLIDER_ROW_H  = 24
+local SLIDER_LABEL_W = 120   -- default until the page measures the real column
+local LABEL_GAP      = 12
+
+-- The track is what is left after the label column and the -/value/+ block.
+-- A local, declared before CreateSlider because both the setup and the size
+-- hook close over it.
+local function layoutSliderRow(row)
+    local s = row and row._slider
+    if not s then return end
+
+    -- No label, no column and no gap. The edit-mode toolbar builds sliders with
+    -- label = "" and its own caption beside them; reserving a column there would
+    -- shove a 70px track out of the toolbar entirely.
+    local hasLabel = (row.label:GetText() or "") ~= ""
+    local w = row:GetWidth() or 260
+    local labelW = 0
+    if hasLabel then
+        labelW = math.min(row._labelW or SLIDER_LABEL_W, math.max(40, w * 0.5))
+    end
+    row.label:SetWidth(math.max(1, labelW))
+    row.label:SetShown(hasLabel)
+
+    local left = hasLabel and (labelW + LABEL_GAP) or 0
+    s:ClearAllPoints()
+    s:SetPoint("LEFT", row, "LEFT", left, 0)
+    s:SetWidth(math.max(40, w - left - (row._endW or 90)))
+end
+
+local function sliderSetup(row, config)
+    local s = row._slider
     s._vcConfig = config
+    -- Also on the row: callers outside the options builder hold the row and read
+    -- _vcConfig off it to rebuild themselves (UI/EditMode.lua does).
+    row._vcConfig = config
     s._min  = config.min or 0
     s._max  = config.max or 100
     s._step = config.step or 1
 
     -- SetMinMaxValues/SetValue fire OnValueChanged; a reconfigure must not call config.set()
     s._configuring = true
-    s:SetWidth(config.width or 200)
     s:SetMinMaxValues(s._min, s._max)
     s:SetValueStep(s._step)
-    if s.Text then s.Text:SetText(clean(config.label) or "") end
+    row.label:SetText(clean(config.label) or "")
+
+    local valW = sliderValueWidth(s._min, s._max, s._step)
+    s._valueText:SetWidth(valW)
+    -- gap + minus + gap + value + gap + plus, matching the anchors below
+    row._endW = 8 + 16 + 4 + valW + 4 + 16 + 4
+
+    -- config.width has always meant the TRACK width, not the row width. Callers
+    -- that pass it (the edit-mode toolbar) size themselves around the track, so
+    -- the row takes the track plus whatever the label and value block need.
+    if config.width then
+        local labelPart = (clean(config.label) or "") ~= "" and (row._labelW + LABEL_GAP) or 0
+        row:SetWidth(labelPart + config.width + row._endW)
+    end
+
     local v = config.get(s) or s._min
     s:SetValue(v)
-    s._valueText:SetWidth(sliderValueWidth(s._min, s._max, s._step))
     s._valueText:SetText(formatSliderValue(s._step, v))
+    layoutSliderRow(row)
     sliderUpdateFill(s, v)
     s._configuring = false
 
@@ -857,10 +905,41 @@ function UI:CreateSlider(parent, config)
         if self._setSliderState then self._setSliderState(self:IsMouseOver(), false) end
     end)
 
-    s._vcType  = "slider"
-    s._vcSetup = sliderSetup
-    sliderSetup(s, config)
-    return s
+    -- ---- one-line row --------------------------------------------------
+    -- The slider keeps every bit of its own drawing; it simply stops being the
+    -- thing the page places. The row is [label][track][- value +] -- the same
+    -- shape a toggle and a dropdown row have, which is what lets a page of
+    -- mixed controls line up on one edge instead of on three.
+    local row = CreateFrame("Frame", nil, parent)
+    row:SetHeight(SLIDER_ROW_H)
+
+    row.label = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    UI.Font(row.label, 12)
+    row.label:SetTextColor(0.95, 0.95, 0.97)
+    row.label:SetJustifyH("LEFT")
+    row.label:SetPoint("LEFT", row, "LEFT", 0, 0)
+    row.label:SetWordWrap(false)
+
+    s:SetParent(row)
+    s:ClearAllPoints()
+    -- The template's own label is retired: the row owns the text now. Leaving
+    -- it alive would draw a second, centred copy over the track.
+    if s.Text then s.Text:SetText(""); s.Text:Hide() end
+
+    row._slider = s
+    row._labelW = SLIDER_LABEL_W
+    row._endW   = 90
+
+    row.SetLabelWidth = function(self, w)
+        self._labelW = math.max(20, w or SLIDER_LABEL_W)
+        layoutSliderRow(self)
+    end
+    row:SetScript("OnSizeChanged", function(self) layoutSliderRow(self) end)
+
+    row._vcType  = "slider"
+    row._vcSetup = sliderSetup
+    sliderSetup(row, config)
+    return row
 end
 
 -- Dropdown config: { label?, tooltip?, values = { { text, value }, ... }, get, set, width? }

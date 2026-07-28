@@ -139,7 +139,7 @@ local function createWidget(parent, item)
         local w = obtain("slider", parent, item, function()
             return UI:CreateSlider(parent, item)
         end)
-        return w, 38, 280
+        return w, 24, 280
     elseif t == "dropdown" then
         local w = obtain("dropdown", parent, item, function()
             return UI:CreateDropdown(parent, item)
@@ -180,7 +180,7 @@ local function estimateHeight(item)
     elseif t == "button" or t == "iconbutton" then return 30
     elseif t == "header" then return 26
     elseif t == "desc"   then return 22
-    elseif t == "slider" then return 38
+    elseif t == "slider" then return 24
     elseif t == "dropdown" then return item.label and 30 or 28
     elseif t == "editbox" then return 28
     elseif t == "color" then return 26
@@ -191,8 +191,11 @@ end
 
 UI.sectionCollapsed = UI.sectionCollapsed or {}
 
--- Consecutive compact controls auto-arrange into a two-column grid; everything else is full width.
-local COMPACT = { toggle = true, checkbox = true, dropdown = true, editbox = true, color = true }
+-- Consecutive compact controls auto-arrange into a two-column grid; everything
+-- else is full width. The slider joined them once it became a one-line row:
+-- while its label sat above the track it needed its own taller shape, and that
+-- was the reason a page had three different row heights in it.
+local COMPACT = { toggle = true, checkbox = true, dropdown = true, editbox = true, color = true, slider = true }
 local COL_GAP  = 14
 local ROW_H    = 38
 local CARD_GAP = 8
@@ -277,9 +280,40 @@ end
 
 local placeItem, placeItemList  -- forward decls: mutually recursive via sections
 
+-- One hidden string, reused, to measure label widths before anything is drawn.
+-- Creating one per measurement would leak a font string per page build, and
+-- frames and their regions are never collected in this client.
+local measureFS
+local function labelWidth(text)
+    if not text or text == "" then return 0 end
+    if not measureFS then
+        measureFS = poolHost:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+        UI.Font(measureFS, 12)
+    end
+    measureFS:SetText(text)
+    return measureFS:GetStringWidth() or 0
+end
+
+-- The widest label in the run decides where every control in it begins. This is
+-- the whole point: the column is MEASURED, not guessed, so a group lines up on
+-- one edge without anyone tuning gaps by eye. Capped at 45% of a cell so one
+-- long label cannot squeeze every track in the group down to a stub.
+local function runLabelColumn(run, cellW)
+    local widest = 0
+    for _, item in ipairs(run) do
+        if item.type == "slider" then
+            local w = labelWidth(item.label)
+            if w > widest then widest = w end
+        end
+    end
+    if widest == 0 then return nil end
+    return math.min(math.ceil(widest) + 2, math.floor(cellW * 0.45))
+end
+
 local function placeColumns(parent, run, y)
     local availW = (parent:GetWidth() or 540) - 2 * CONTENT_PADDING
     local colW   = math.floor((availW - COL_GAP) / 2)
+    local labelCol = runLabelColumn(run, colW)
     local base   = parent:GetFrameLevel()
     local n      = #run
     for idx = 1, n do
@@ -309,6 +343,7 @@ local function placeColumns(parent, run, y)
         local widget = createWidget(parent, item)
         if widget then
             widget:SetWidth(cellW - 20 - lead)
+            if labelCol and widget.SetLabelWidth then widget:SetLabelWidth(labelCol) end
             widget:SetFrameLevel(base + 4)
             local wh = widget:GetHeight() or 22
             widget:ClearAllPoints()
@@ -401,16 +436,10 @@ placeItem = function(parent, item, y)
             iconRight = iconRight - 21
         end
 
-        local yOff = y
-        if item.type == "slider" then
-            yOff = y - 14
-            -- reserve ~100px right of the slider frame for the +/- value stepper
-            widget:SetWidth(math.max(120, availW - 130 - nIcons * 21))
-            if widget._updateFill then widget._updateFill(widget:GetValue() or 0) end
-        else
-            widget:SetWidth(math.max(120, availW - 20 - nIcons * 21))
-        end
-        widget:SetPoint("TOPLEFT", parent, "TOPLEFT", CONTENT_PADDING + 10, yOff)
+        -- A one-line row like every other: no strip reserved to the right of
+        -- the track, and no -14 nudge to clear a label that sat above it.
+        widget:SetWidth(math.max(120, availW - 20 - nIcons * 21))
+        widget:SetPoint("TOPLEFT", parent, "TOPLEFT", CONTENT_PADDING + 10, y)
 
         y = y - h - CARD_GAP
         if expanded and item.subOptions then
@@ -543,7 +572,6 @@ function UI:PlaceGroup(parent, group, y)
         for _, p in ipairs(placed) do
             if panel then p.widget:SetFrameLevel(base + 4) end
             local yo = y - PAD - math.floor((maxWH - p.wh) / 2)
-            if p.item.type == "slider" then yo = y - 14 end
             p.widget:SetPoint("TOPLEFT", parent, "TOPLEFT", cursorX, yo)
             cursorX = cursorX + p.w + gap
         end
@@ -570,7 +598,7 @@ function UI:PlaceGroup(parent, group, y)
                 if widget then
                     if panel then widget:SetFrameLevel(base + 4) end
                     local xo = CONTENT_PADDING + (panel and 6 or 0) + (i - 1) * colWidth
-                    local yo = (ri.type == "slider") and (curY - 14) or (curY - (panel and 4 or 0))
+                    local yo = curY - (panel and 4 or 0)
                     widget:SetPoint("TOPLEFT", parent, "TOPLEFT", xo, yo)
                 end
             end
@@ -581,8 +609,7 @@ function UI:PlaceGroup(parent, group, y)
 
         for _, item in ipairs(items) do
             table.insert(rowItems, item)
-            -- 38 over-counts the hidden min/max text area; 30 keeps the card snug
-            local eh = (item.type == "slider") and 30 or estimateHeight(item)
+            local eh = estimateHeight(item)
             if eh > rowMaxH then rowMaxH = eh end
             if #rowItems >= cols then flushRow() end
         end
