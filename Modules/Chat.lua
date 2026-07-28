@@ -6,7 +6,7 @@ local UI = ns.UI
 
 local mod = ns:RegisterModule("chat", {
     name        = "Chat",
-    group       = "UI Reskin",
+    group       = "Chat & Social",
     description = "Polishes Blizzard's chat: a dark panel with an icon sidebar, timestamps, class-coloured names, clickable links, dark tabs, idle fade and history that survives a /reload. Every part is optional.",
     defaults = {
         enabled         = true,

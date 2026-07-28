@@ -4,7 +4,7 @@ local L = ns.L
 
 local mod = ns:RegisterModule("professionwindow", {
     name        = "Profession Window",
-    group       = "QoL",
+    group       = "Character",
     description = "Enlarges and themes the profession windows (Tradeskill & Craft) to match the quest log: the detail pane sits beside the recipe list, with a Parchment or Dark theme.",
     defaults = {
         enabled   = true,

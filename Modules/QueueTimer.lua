@@ -4,7 +4,7 @@ local L = ns.L
 
 local mod = ns:RegisterModule("queuetimer", {
     name        = "Queue Timer",
-    group       = "QoL",
+    group       = "Extras",
     description = "Shows a countdown on the PvP/PvE queue pop dialog. Optional sound warning at 5 seconds.",
     defaults = {
         queueTimerAudio   = true,

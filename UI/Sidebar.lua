@@ -12,7 +12,9 @@ local GROUP_GAP      = 8
 local ICON_DIR = "Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\modules\\"
 local MODULE_ICONS = {}
 for _, key in ipairs({
-    "globalsettings", "unlockmode", "qol", "bugfixes", "uireskin", "profiles",
+    -- The four "Tools" containers are not listed here: Modules/Pages.lua points
+    -- them at existing glyphs itself, the way the pg_* pages already do.
+    "globalsettings", "unlockmode", "bugfixes", "uireskin", "profiles",
     "minimap", "minimapstyle", "fontbars", "playercastbar", "unitframes", "nameplates",
     "cooldownpulse", "cooldownmanager", "powerbar", "actionbars",
     "arenaframes", "characterpanel", "darkskin", "friendlist",
@@ -36,9 +38,52 @@ function ns:GetModuleIcon(key)
 end
 
 UI.sidebarButtons     = {}
-UI.sidebarGroupOrder  = { "Global", "Unit Frames", "HUD", "PvP", "QoL", "UI Reskin", "Bugfixes" }
+-- "Tools" holds the four containers that replaced the single "Quality of Life"
+-- row (see Modules/Pages.lua) plus "Class Specific". The four category names
+-- themselves never appear as headers: their modules carry parentTab and so are
+-- collected into the container rows instead of getting rows of their own.
+UI.sidebarGroupOrder  = {
+    "Global", "Unit Frames", "HUD", "PvP", "Tools", "UI Reskin", "Bugfixes",
+}
 UI.sidebarHiddenGroups = { ["_hidden"] = true, ["Account"] = true, ["Core"] = true }
 UI.sidebarGroupBuckets = {}
+
+-- Collapsed groups are remembered per profile, and deliberately NOT declared in
+-- the defaults: the logout pass in Core/Database.lua only strips keys that
+-- appear in the defaults tree, so staying out of it is what keeps the state.
+-- Reading must not create the table either, or every profile that never
+-- collapsed anything would still save an empty one.
+local function collapsedSet(create)
+    local ui = ns.db and ns.db.profile and ns.db.profile.ui
+    if not ui then return nil end
+    if not ui.sidebarCollapsed and create then ui.sidebarCollapsed = {} end
+    return ui.sidebarCollapsed
+end
+
+local function isCollapsed(groupName)
+    local t = collapsedSet(false)
+    return (t and t[groupName]) and true or false
+end
+
+local function moduleIsOn(key)
+    local mod = ns.modules[key]
+    if not mod then return false end
+    if mod.toggleGet then return mod.toggleGet() and true or false end
+    return ns:IsModuleEnabled(key) and true or false
+end
+
+-- "3/7": how many of the group are switched on. Without it a collapsed group
+-- says nothing about whether anything inside it is running.
+local function applyHeaderCount(header, moduleKeys)
+    if not header or not header._count then return end
+    local on = 0
+    for i = 1, #moduleKeys do
+        if moduleIsOn(moduleKeys[i]) then on = on + 1 end
+    end
+    header._count:SetText(on .. "/" .. #moduleKeys)
+    local c = (on > 0) and ns.COLORS.accent or ns.COLORS.textMuted
+    header._count:SetTextColor(c.r, c.g, c.b)
+end
 
 local function highlightSelected()
     if UI._dashRow then
@@ -161,16 +206,32 @@ local function createModuleRow(parent, key, mod)
 end
 
 local function createGroupHeader(parent, groupName)
-    local h = CreateFrame("Frame", nil, parent)
+    local h = CreateFrame("Button", nil, parent)
     h:SetHeight(GROUP_HEADER_H)
+
+    local hover = h:CreateTexture(nil, "HIGHLIGHT")
+    hover:SetAllPoints(h)
+    hover:SetColorTexture(1, 1, 1, 0.03)
+
+    -- Plus/minus rather than a rotated arrow: both textures exist in every
+    -- client this addon ships for, so no rotation call and no missing glyph.
+    local twist = h:CreateTexture(nil, "ARTWORK")
+    twist:SetSize(11, 11)
+    twist:SetPoint("BOTTOMLEFT", h, "BOTTOMLEFT", 7, 3)
+    h._twist = twist
 
     local fs = h:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     ns.UI.Font(fs, 10)
-    fs:SetPoint("BOTTOMLEFT", h, "BOTTOMLEFT", 8, 4)
+    fs:SetPoint("BOTTOMLEFT", twist, "BOTTOMRIGHT", 5, -1)
     fs:SetText(string.upper(L[groupName]))
     local c = ns.COLORS.sectionHdr
     fs:SetTextColor(c.r, c.g, c.b)
     h._label = fs
+
+    local count = h:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    ns.UI.Font(count, 10)
+    count:SetPoint("BOTTOMRIGHT", h, "BOTTOMRIGHT", -8, 4)
+    h._count = count
 
     local line = h:CreateTexture(nil, "ARTWORK")
     line:SetPoint("BOTTOMLEFT", h, "BOTTOMLEFT", 8, 0)
@@ -179,6 +240,16 @@ local function createGroupHeader(parent, groupName)
     ns.UI.SetGradient(line, "HORIZONTAL",
         0.32, 0.32, 0.38, 0.45,
         0.32, 0.32, 0.38, 0.0)
+
+    h._group = groupName
+    h:SetScript("OnClick", function(self)
+        local t = collapsedSet(true)
+        if not t then return end
+        -- nil rather than false when expanding, so an untouched profile stays
+        -- empty instead of collecting a false for every group it ever opened.
+        t[self._group] = (not t[self._group]) or nil
+        UI:PopulateSidebar()
+    end)
 
     return h
 end
@@ -369,6 +440,25 @@ function UI:PopulateSidebar()
                 UI._sidebarHeaders[groupName] = header
             end
             if header._label then header._label:SetText(string.upper(L[groupName])) end
+
+            -- A collapsed group that holds the page you are on would hide the
+            -- selected row, so it opens itself instead of leaving you nowhere.
+            local collapsed = isCollapsed(groupName)
+            if collapsed then
+                for _, key in ipairs(moduleKeys) do
+                    if key == UI.currentModule then collapsed = false; break end
+                end
+            end
+
+            if header._twist then
+                header._twist:SetTexture(collapsed
+                    and "Interface\\Buttons\\UI-PlusButton-Up"
+                    or  "Interface\\Buttons\\UI-MinusButton-Up")
+                local c = ns.COLORS.sectionHdr
+                header._twist:SetVertexColor(c.r, c.g, c.b, 0.85)
+            end
+            applyHeaderCount(header, moduleKeys)
+
             header:ClearAllPoints()
             header:SetPoint("TOPLEFT",  parent, "TOPLEFT",   0, -y)
             header:SetPoint("TOPRIGHT", parent, "TOPRIGHT",  0, -y)
@@ -376,20 +466,22 @@ function UI:PopulateSidebar()
             table.insert(UI._sidebarChildren, header)
             y = y + GROUP_HEADER_H
 
-            for _, key in ipairs(moduleKeys) do
-                local mod = ns.modules[key]
-                local row = UI.sidebarButtons[key]
-                if not row then
-                    row = createModuleRow(parent, key, mod)
-                    UI.sidebarButtons[key] = row
+            if not collapsed then
+                for _, key in ipairs(moduleKeys) do
+                    local mod = ns.modules[key]
+                    local row = UI.sidebarButtons[key]
+                    if not row then
+                        row = createModuleRow(parent, key, mod)
+                        UI.sidebarButtons[key] = row
+                    end
+                    row.label:SetText(L[mod.name])
+                    row:ClearAllPoints()
+                    row:SetPoint("TOPLEFT",  parent, "TOPLEFT",   0, -y)
+                    row:SetPoint("TOPRIGHT", parent, "TOPRIGHT",  0, -y)
+                    row:Show()
+                    table.insert(UI._sidebarChildren, row)
+                    y = y + ROW_HEIGHT
                 end
-                row.label:SetText(L[mod.name])
-                row:ClearAllPoints()
-                row:SetPoint("TOPLEFT",  parent, "TOPLEFT",   0, -y)
-                row:SetPoint("TOPRIGHT", parent, "TOPRIGHT",  0, -y)
-                row:Show()
-                table.insert(UI._sidebarChildren, row)
-                y = y + ROW_HEIGHT
             end
 
             y = y + GROUP_GAP
@@ -405,6 +497,14 @@ function UI:RefreshSidebarStates()
     for key, row in pairs(UI.sidebarButtons) do
         if row.power and row.power._refresh then
             row.power._refresh()
+        end
+    end
+    -- Switching a module on or off changes its group's "3/7", including for a
+    -- collapsed group whose rows are not on screen to tell the story.
+    if UI._sidebarHeaders then
+        for groupName, header in pairs(UI._sidebarHeaders) do
+            local keys = UI.sidebarGroupBuckets and UI.sidebarGroupBuckets[groupName]
+            if keys then applyHeaderCount(header, keys) end
         end
     end
     highlightSelected()

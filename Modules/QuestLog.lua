@@ -4,7 +4,7 @@ local L = ns.L
 
 local mod = ns:RegisterModule("questlog", {
     name        = "Quest Log",
-    group       = "QoL",
+    group       = "Character",
     description = "Enhances the quest log: quest levels (and optional quest IDs) in the titles, a larger frame, and a Parchment or Dark theme.",
     defaults = {
         enabled  = true,

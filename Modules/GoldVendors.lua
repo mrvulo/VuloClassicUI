@@ -5,7 +5,7 @@ local L = ns.L
 
 local mod = ns:RegisterModule("goldtracker", {
     name        = "Gold Tracker",
-    group       = "QoL",
+    group       = "Character",
     description = "Shows in the backpack gold tooltip how much gold has been gained or spent since the last reset. Per-char persistent.",
     defaults    = {
         enabled = true,
@@ -305,7 +305,7 @@ local L = ns.L
 
 local mod = ns:RegisterModule("autoitembuy", {
     name        = "Auto Item Buy",
-    group       = "QoL",
+    group       = "Bags & Items",
     description = "Automatically buys configured items at configured vendors. Shift when opening the merchant window = emergency stop.",
     defaults = {
         enabled    = false,

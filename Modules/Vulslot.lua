@@ -4,7 +4,7 @@ local L = ns.L
 
 local mod = ns:RegisterModule("vulslot", {
     name        = "Vulslot",
-    group       = "QoL",
+    group       = "Bags & Items",
     description = "Saves named snapshots of your action bars, macros and keybindings, and restores them with one click.",
     defaults    = {
         enabled         = true,

@@ -3,7 +3,7 @@ local _, ns = ...
 
 local mod = ns:RegisterModule("vultraining", {
     name        = "VulTraining",
-    group       = "QoL",
+    group       = "Character",
     description = "Adds a tab to your spell book that lists the abilities you can still learn from your class trainer, grouped by level. Open the book icon below the spell schools.",
     defaults    = { enabled = true },
 })

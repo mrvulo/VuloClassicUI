@@ -2579,6 +2579,11 @@ local function T() return {
     ["The keyword help for the item search was misleading in Chinese: it gave an English type name as the example, which a Chinese client would never have matched. The example is written in the reader's own language now."] = "La ayuda de palabras clave de la búsqueda de objetos era engañosa en chino: daba como ejemplo un nombre de tipo en inglés que un cliente chino nunca habría encontrado. Ahora el ejemplo está escrito en el idioma del lector.",
     ["Seal Twist Helper – A swing bar with the twist window marked, plus the next sensible action"] = "Asistente de cambio de sellos – Una barra de golpe con la ventana de cambio marcada y la siguiente acción sensata",
     ["The bar counts down to your next auto attack with two marks: green is the last moment the second seal can still land, purple is how long a Judgement still fits in front of it. The next action is worked out live from your swing timer, the global cooldown and the seals actually on you — not from a fixed rotation. Crusader Strike is only suggested while there is room for it and the holding seal afterwards. Judgement deliberately gets none: it consumes the seal, and a wrong hint costs more there than no hint. Off by default."] = "La barra cuenta atrás hasta tu próximo ataque automático con dos marcas: la verde es el último momento en que el segundo sello puede llegar a tiempo, y la morada indica cuánto cabe todavía un Juicio antes de ella. La siguiente acción se calcula en vivo a partir de tu ritmo de golpe, el tiempo de reutilización global y los sellos que llevas realmente encima — no de una rotación fija. Golpe del cruzado solo se sugiere mientras quede sitio para él y para el sello que mantienes después. Juicio no recibe ninguna a propósito: consume el sello, y ahí un aviso equivocado cuesta más que ninguno. Desactivado por defecto.",
+    -- Sidebar groups (QoL split, 1.40.0)
+    ["Bags & Items"] = "Bolsas y objetos",
+    ["Chat & Social"] = "Chat y social",
+    ["Extras"] = "Extras",
+    ["Tools"] = "Herramientas",
 } end
 
 ns:RegisterLocale("esES", T)

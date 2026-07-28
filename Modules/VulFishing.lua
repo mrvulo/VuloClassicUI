@@ -3,7 +3,7 @@ local _, ns = ...
 
 local mod = ns:RegisterModule("vulfishing", {
     name        = "Fishing",
-    group       = "QoL",
+    group       = "Extras",
     description = "One-key fishing: one key casts, reels and applies a lure, and auto-loots your catch.",
     defaults = {
         enabled      = true,

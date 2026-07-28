@@ -6,7 +6,7 @@ local DISENCHANT_SPELL_ID = 13262
 
 local mod = ns:RegisterModule("disenchantqueue", {
     name        = "Disenchant Queue",
-    group       = "QoL",
+    group       = "Bags & Items",
     description = "For enchanters: a window with one button that disenchants your bag items one click each, auto-advancing through the queue (no casting + picking each item by hand).",
     defaults = {
         enabled    = true,

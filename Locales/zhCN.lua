@@ -2571,4 +2571,9 @@ ns:RegisterLocale("zhCN", function() return {
     ["The keyword help for the item search was misleading in Chinese: it gave an English type name as the example, which a Chinese client would never have matched. The example is written in the reader's own language now."] = "物品搜索的关键词帮助在中文下有误导性：它给出的示例是英文的类型名，而中文客户端永远不会匹配到。现在示例会以读者自己的语言书写。",
     ["Seal Twist Helper – A swing bar with the twist window marked, plus the next sensible action"] = "圣印切换助手 – 带有切换窗口标记的挥击进度条，以及下一步合理的操作",
     ["The bar counts down to your next auto attack with two marks: green is the last moment the second seal can still land, purple is how long a Judgement still fits in front of it. The next action is worked out live from your swing timer, the global cooldown and the seals actually on you — not from a fixed rotation. Crusader Strike is only suggested while there is room for it and the holding seal afterwards. Judgement deliberately gets none: it consumes the seal, and a wrong hint costs more there than no hint. Off by default."] = "进度条倒数到你的下一次自动攻击，上面有两个标记：绿色是第二个圣印还能生效的最后时刻，紫色表示在它之前还能塞进一次审判的时间。下一步操作根据你的挥击节奏、公共冷却时间以及你身上实际生效的圣印实时计算——而不是照搬固定循环。只有在十字军打击及其之后的保持圣印都还有空间时，才会建议使用十字军打击。审判有意不给任何建议：它会消耗圣印，在那里给错提示比不给提示代价更大。默认关闭。",
+    -- Sidebar groups (QoL split, 1.40.0)
+    ["Bags & Items"] = "背包与物品",
+    ["Chat & Social"] = "聊天与社交",
+    ["Extras"] = "杂项",
+    ["Tools"] = "工具",
 } end)

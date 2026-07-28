@@ -2578,4 +2578,9 @@ ns:RegisterLocale("koKR", function() return {
     ["The keyword help for the item search was misleading in Chinese: it gave an English type name as the example, which a Chinese client would never have matched. The example is written in the reader's own language now."] = "아이템 검색의 키워드 도움말이 중국어에서 오해를 불렀습니다. 예시로 영어 종류 이름을 보여 주었는데, 중국어 클라이언트에서는 절대 찾을 수 없는 값이었습니다. 이제 예시는 읽는 사람의 언어로 표시됩니다.",
     ["Seal Twist Helper – A swing bar with the twist window marked, plus the next sensible action"] = "인장 전환 도우미 – 전환 구간이 표시된 공격 막대와 다음에 할 만한 행동",
     ["The bar counts down to your next auto attack with two marks: green is the last moment the second seal can still land, purple is how long a Judgement still fits in front of it. The next action is worked out live from your swing timer, the global cooldown and the seals actually on you — not from a fixed rotation. Crusader Strike is only suggested while there is room for it and the holding seal afterwards. Judgement deliberately gets none: it consumes the seal, and a wrong hint costs more there than no hint. Off by default."] = "막대는 다음 자동 공격까지 시간을 세며 두 개의 표시가 있습니다. 초록색은 두 번째 인장이 아직 적용될 수 있는 마지막 순간이고, 보라색은 그 앞에 심판이 아직 들어갈 수 있는 시간입니다. 다음 행동은 당신의 공격 주기와 공용 재사용 대기시간, 실제로 걸려 있는 인장에서 실시간으로 계산됩니다 — 고정된 순환에서 가져오는 것이 아닙니다. 성전사의 일격은 그것과 유지용 인장이 뒤에 들어갈 자리가 남아 있을 때만 제안됩니다. 심판은 의도적으로 제외되었습니다. 인장을 소모하기 때문에 잘못된 안내가 아무 안내도 없는 것보다 더 비쌀니다. 기본값은 꺼짐입니다.",
+    -- Sidebar groups (QoL split, 1.40.0)
+    ["Bags & Items"] = "가방 및 아이템",
+    ["Chat & Social"] = "대화 및 사교",
+    ["Extras"] = "기타",
+    ["Tools"] = "도구",
 } end)

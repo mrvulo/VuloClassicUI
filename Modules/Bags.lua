@@ -18,7 +18,7 @@ local BAGS = { 0, 1, 2, 3, 4 }
 
 local mod = ns:RegisterModule("bags", {
     name        = "Bags",
-    group       = "QoL",
+    group       = "Bags & Items",
     description = "A single unified inventory window: all bags in one grid, with quality borders, counts, cooldowns, money and free slots. Movable and scalable.",
     defaults = {
         enabled       = true,

@@ -4,7 +4,7 @@ local L = ns.L
 
 local mod = ns:RegisterModule("loadouts", {
     name        = "Loadouts",
-    group       = "QoL",
+    group       = "Bags & Items",
     description = "Save and quickly equip gear sets for different specs, content, or roles.",
     defaults = {
         enabled       = true,

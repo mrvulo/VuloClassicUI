@@ -76,7 +76,7 @@ moduleDefaults.showPlayerTalents = true
 
 local mod = ns:RegisterModule("tooltipids", {
     name        = "Tooltip IDs",
-    group       = "QoL",
+    group       = "Extras",
     description = "Shows SpellID, ItemID, NPC ID and many other IDs in tooltips (based on idTip by silverwind).",
     defaults    = moduleDefaults,
 })

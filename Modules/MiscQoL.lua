@@ -4,7 +4,7 @@ local L = ns.L
 
 local mod = ns:RegisterModule("miscqol", {
     name        = "General",
-    group       = "QoL",
+    group       = "Extras",
     description = "Collection of simple quality-of-life toggles: auto-accept (quest, res, summon), auto-sell, repair, hide UI spam, text sizes.",
     defaults    = {
         enabled               = true,

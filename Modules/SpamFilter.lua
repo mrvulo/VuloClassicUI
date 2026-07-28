@@ -6,7 +6,7 @@ local L = ns.L
 
 local mod = ns:RegisterModule("spamfilter", {
     name        = "Spam Filter",
-    group       = "QoL",
+    group       = "Chat & Social",
     description = "Hide (and optionally ignore) chat spammers whose names spell 'casino' & co. with look-alike letters.",
     defaults = {
         enabled       = true,

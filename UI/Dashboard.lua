@@ -13,7 +13,8 @@ local COLS        = 2
 
 UI.DASHBOARD_KEY = "__dashboard__"
 
-local GROUP_ORDER = { "Global", "Unit Frames", "HUD", "PvP", "QoL", "UI Reskin", "Bugfixes" }
+-- Same order as the sidebar (UI/Sidebar.lua); groups not listed are appended.
+local GROUP_ORDER = { "Global", "Unit Frames", "HUD", "PvP", "Tools", "UI Reskin", "Bugfixes" }
 local HIDDEN_GROUPS = { ["_hidden"] = true, ["Account"] = true, ["Core"] = true }
 
 local function clearDashboard(parent)

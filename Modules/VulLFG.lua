@@ -3,7 +3,7 @@ local _, ns = ...
 
 local mod = ns:RegisterModule("vullfg", {
     name        = "Group Board",
-    group       = "QoL",
+    group       = "Chat & Social",
     description = "Scans chat for people forming groups and lists them by Classic/TBC instance in a window (/vlfg or the minimap button).",
     defaults = {
         enabled    = true,

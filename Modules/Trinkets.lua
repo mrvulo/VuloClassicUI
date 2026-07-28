@@ -4,7 +4,7 @@ local L = ns.L
 
 local mod = ns:RegisterModule("trinkets", {
     name        = "Trinkets",
-    group       = "QoL",
+    group       = "Bags & Items",
     description = "Two trinket slots on screen with cooldown display, dropdown selection and auto-queue.",
     defaults    = {
         enabled   = true,

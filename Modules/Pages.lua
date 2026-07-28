@@ -48,6 +48,7 @@ local PAGES = {
     {
         key   = "pg_windows",
         name  = "Windows & Professions",
+        group = "Character",
         icon  = "Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\modules\\pg_windows.tga",
         desc  = "Quest log, profession windows and the disenchant queue, all in one place.",
         members = { "questlog", "professionwindow", "disenchantqueue" },
@@ -55,6 +56,7 @@ local PAGES = {
     {
         key   = "pg_gold",
         name  = "Gold & Vendors",
+        group = "Character",
         icon  = "Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\modules\\pg_gold.tga",
         desc  = "Gold tracking and automatic buying at vendors.",
         members = { "goldtracker", "autoitembuy" },
@@ -62,6 +64,7 @@ local PAGES = {
     {
         key   = "pg_chat",
         name  = "Chat & Tooltips",
+        group = "Chat & Social",
         icon  = "Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\modules\\pg_chat.tga",
         desc  = "Chat spam filter and tooltip IDs.",
         members = { "spamfilter", "tooltipids" },
@@ -89,7 +92,7 @@ end
 for _, page in ipairs(PAGES) do
     local def = ns:RegisterModule(page.key, {
         name        = page.name,
-        group       = "QoL",
+        group       = page.group,
         description = page.desc,
         defaults    = { enabled = true },
         GetOptions  = makeGetOptions(page.members),
@@ -114,13 +117,38 @@ end)(...);
 -- Must be last in the .toc: the factory scans ns.moduleOrder at this point.
 local _, ns = ...
 
-ns:MakeGroupContainer({
-    key          = "qol",
-    name         = "Quality of Life",
-    group        = "QoL",
-    sidebarOrder = -10,                    -- float above "Class Specific"
-    firstKey     = "miscqol",              -- "General" tab first
-    exclude      = { vtmanadisplay = true }, -- Class Specific stays its own row
-})
+-- Four containers where there used to be one called "Quality of Life". That name
+-- described nothing and had swallowed fourteen unrelated tabs: a reader looking
+-- for bag settings had no reason to open it. The window keeps its two levels --
+-- sidebar row, then tab column -- but each row now says what is behind it.
+--
+-- The rows sit together under one "Tools" header, so four categories cost one
+-- header instead of four; memberGroup is what each container actually collects.
+-- icon: an existing module glyph rather than four new textures -- a new .tga
+-- would need a full client restart to show up, and these read correctly.
+local ICONS = "Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\modules\\"
+local CONTAINERS = {
+    { key = "c_items",  name = "Bags & Items",  memberGroup = "Bags & Items",  order = -40,
+      icon = ICONS .. "bags.tga" },
+    { key = "c_social", name = "Chat & Social", memberGroup = "Chat & Social", order = -30,
+      icon = ICONS .. "chat.tga" },
+    { key = "c_char",   name = "Character",     memberGroup = "Character",     order = -20,
+      icon = ICONS .. "characterpanel.tga" },
+    -- "General" leads the leftovers, as it did in the old single container.
+    { key = "c_extras", name = "Extras",        memberGroup = "Extras",        order = -10,
+      icon = ICONS .. "qol.tga", firstKey = "miscqol" },
+}
+
+for _, c in ipairs(CONTAINERS) do
+    ns:MakeGroupContainer({
+        key          = c.key,
+        name         = c.name,
+        group        = "Tools",
+        memberGroup  = c.memberGroup,
+        sidebarOrder = c.order,   -- ahead of "Class Specific", which keeps its own row
+        firstKey     = c.firstKey,
+    })
+    if ns.MODULE_ICONS then ns.MODULE_ICONS[c.key] = c.icon end
+end
 
 end)(...);

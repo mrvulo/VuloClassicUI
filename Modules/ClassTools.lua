@@ -30,7 +30,10 @@ local L = ns.L
 
 local mod = ns:RegisterModule("vtmanadisplay", {
     name        = "Class Specific",
-    group       = "QoL",
+    -- Its own row, not a tab of the Character container: this module already
+    -- uses the tab column for its nine class tabs, and a container tab cannot
+    -- carry tabs of its own.
+    group       = "Tools",
     description = "Class-specific tools, grouped by class: the Priest Vampiric Touch mana tracker, DoT trackers, the Shaman totem bar and the Paladin seal twist helper.",
     defaults    = {
         enabled    = true,

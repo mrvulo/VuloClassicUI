@@ -3,7 +3,7 @@ local _, ns = ...
 
 local mod = ns:RegisterModule("vulmail", {
     name        = "Mail",
-    group       = "QoL",
+    group       = "Chat & Social",
     description = "Adds an 'Open All' button to your mailbox that collects every attachment and coin in one click.",
     defaults = {
         enabled     = true,

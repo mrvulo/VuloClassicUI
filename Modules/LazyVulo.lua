@@ -6,7 +6,7 @@ local L = ns.L
 
 local mod = ns:RegisterModule("lazyvulo", {
     name        = "LazyVulo",
-    group       = "QoL",
+    group       = "Extras",
     description = "Apexis Relic memory minigame helper (Ogri'la dailies): record the flashing color sequence, always see what to click next.",
     defaults    = {
         enabled        = true,
