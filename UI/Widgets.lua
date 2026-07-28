@@ -640,7 +640,7 @@ function UI:CreateSlider(parent, config)
         -- reading edge that lets you scan a column of settings by their names
         -- instead of reading each row.
         s.Text:ClearAllPoints()
-        s.Text:SetPoint("BOTTOMLEFT", s, "TOPLEFT", 0, 5)
+        s.Text:SetPoint("BOTTOMLEFT", s, "TOPLEFT", 0, 1)
         s.Text:SetJustifyH("LEFT")
     end
 
