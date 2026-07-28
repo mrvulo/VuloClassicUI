@@ -224,16 +224,15 @@ local function getRow(parent, i)
             ChatFrame_SendTell(self._sender)
         end
     end)
-    r:SetScript("OnEnter", function(self)
-        if not self._fullmsg or self._fullmsg == "" then return end
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        if self._sender then
-            GameTooltip:AddLine(self._sender:gsub("%-.*", ""), ACCENT.r, ACCENT.g, ACCENT.b)
-        end
-        GameTooltip:AddLine(self._fullmsg, 1, 1, 1, true)
-        GameTooltip:Show()
+    ns.UI:AttachTooltip(r, function(self)
+        if not self._fullmsg or self._fullmsg == "" then return nil end
+        -- No sender means no title line: the message alone becomes the tooltip.
+        return {
+            title = self._sender and self._sender:gsub("%-.*", "") or nil,
+            accent = true,
+            lines = { { self._fullmsg, 1, 1, 1, true } },
+        }
     end)
-    r:SetScript("OnLeave", function() GameTooltip:Hide() end)
     rows[i] = r
     return r
 end
@@ -386,11 +385,10 @@ local function buildMinimap()
     b:SetScript("OnDragStop", function() b:SetScript("OnUpdate", nil) end)
     b:RegisterForClicks("LeftButtonUp")
     b:SetScript("OnClick", function() mod:Toggle() end)
-    b:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_LEFT"); GameTooltip:SetText(L["Group Board"])
-        GameTooltip:AddLine(L["/vlfg toggles the group board."], 0.7, 0.7, 0.7); GameTooltip:Show()
-    end)
-    b:SetScript("OnLeave", GameTooltip_Hide)
+    ns.UI:AttachTooltip(b, {
+        anchor = "ANCHOR_LEFT", title = L["Group Board"],
+        lines  = { L["/vlfg toggles the group board."] },
+    })
     mod._mm = b
 end
 

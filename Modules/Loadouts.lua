@@ -670,15 +670,15 @@ local function createMinimapButton()
         end
     end)
 
-    mmBtn:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-        GameTooltip:AddLine((ns.C and ns.C.accent or "|cff9b6cff") .. L["Loadouts"] .. "|r")
-        GameTooltip:AddLine(L["Left-click: switch set"],   1, 1, 1)
-        GameTooltip:AddLine(L["Right-click: settings"],    1, 1, 1)
-        GameTooltip:AddLine(L["Drag: reposition"],         0.6, 0.6, 0.6)
-        GameTooltip:Show()
-    end)
-    mmBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    ns.UI:AttachTooltip(mmBtn, {
+        anchor = "ANCHOR_LEFT",
+        title  = (ns.C and ns.C.accent or "|cff9b6cff") .. L["Loadouts"] .. "|r",
+        lines  = {
+            { L["Left-click: switch set"], 1, 1, 1 },
+            { L["Right-click: settings"],  1, 1, 1 },
+            { L["Drag: reposition"],     0.6, 0.6, 0.6 },
+        },
+    })
 
     updateMinimapPos()
 
@@ -1109,7 +1109,9 @@ local function createSetRow(parent, index)
 
     btn:SetScript("OnEnter", function(self)
         if not self.isSelected then self.hl:Show() end
-        GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+        -- Body is a loop over the set's slots, so this opens the tooltip and
+        -- fills it by hand -- see UI/Tooltip.lua on why that stays possible.
+        ns.UI:OpenTooltip(self, "ANCHOR_LEFT")
         local loadout = LO()[self.setName]
         if loadout then
             GameTooltip:AddLine(self.setName, 1, 0.82, 0)
@@ -1142,7 +1144,7 @@ local function createSetRow(parent, index)
     end)
     btn:SetScript("OnLeave", function(self)
         self.hl:Hide()
-        GameTooltip:Hide()
+        ns.UI:HideTooltip()
     end)
 
     btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
@@ -1237,7 +1239,8 @@ local function getItemButton(row, idx)
     b.iconBorder:SetBlendMode("ADD")
     b.iconBorder:Hide()
     b:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+        -- One branch pulls an item link into the tooltip, which no spec covers.
+        ns.UI:OpenTooltip(self, "ANCHOR_LEFT")
         if self.isAdd then
             GameTooltip:AddLine(L["Add a slot"], 1, 0.82, 0)
             GameTooltip:AddLine(L["Re-adds an ignored slot to this set."], 0.7, 0.7, 0.7)
@@ -1254,7 +1257,7 @@ local function getItemButton(row, idx)
         self.iconBorder:Show()
     end)
     b:SetScript("OnLeave", function(self)
-        GameTooltip:Hide()
+        ns.UI:HideTooltip()
         self.iconBorder:Hide()
     end)
     b:RegisterForClicks("LeftButtonUp", "RightButtonUp")

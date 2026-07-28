@@ -1528,13 +1528,13 @@ local function ensureModernPanel()
 			hover:SetHeight(15)
 			hover.def = r
 			hover:SetScript("OnEnter", function(self)
-				if not GameTooltip then return end
-				GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+				-- Each stat row brings its own tip(GameTooltip) writer.
+				if not ns.UI:OpenTooltip(self, "ANCHOR_RIGHT") then return end
 				GameTooltip:AddLine(self.def.name, 1, 1, 1)
 				if self.def.tip then self.def.tip(GameTooltip) end
 				GameTooltip:Show()
 			end)
-			hover:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+			hover:SetScript("OnLeave", function() ns.UI:HideTooltip() end)
 			obj.rows[#obj.rows + 1] = { name = nameFS, value = valueFS, hover = hover, get = r.get, fmt = r.fmt }
 		end
 		p.secObjs[#p.secObjs + 1] = obj

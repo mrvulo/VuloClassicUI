@@ -219,7 +219,7 @@ function gb.onClickItem(self, mouseButton)
     end
     if mouseButton == "RightButton" then
         if AutoStoreGuildBankItem then AutoStoreGuildBankItem(tab, slot) end
-        if GameTooltip then GameTooltip:Hide() end
+        ns.UI:HideTooltip()
         return
     end
     if PickupGuildBankItem then PickupGuildBankItem(tab, slot) end
@@ -235,13 +235,12 @@ function gb.onDragItem(self)
 end
 
 function gb.onEnterItem(self)
-    if not (gb.open and GameTooltip) then return end
-    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    if not (gb.open and ns.UI:OpenTooltip(self, "ANCHOR_RIGHT")) then return end
     GameTooltip:SetGuildBankItem(self.tabIndex, self:GetID())
 end
 
 function gb.onLeaveItem()
-    if GameTooltip then GameTooltip:Hide() end
+    ns.UI:HideTooltip()
     if ResetCursor then ResetCursor() end
 end
 
@@ -344,22 +343,20 @@ function gb.updateTabs()
             tb._tex = tex
             tb:SetScript("OnClick", function(self) gb.selectTab(self._tab) end)
             tb:SetScript("OnEnter", function(self)
-                if not GameTooltip then return end
                 local n2, _, v2, canDeposit, _, remaining = GetGuildBankTabInfo(self._tab)
-                GameTooltip:SetOwner(self, "ANCHOR_TOP")
-                GameTooltip:SetText(n2 or "")
+                local lines = {}
                 if not v2 then
-                    GameTooltip:AddLine(L["This tab cannot be viewed."], 0.9, 0.35, 0.35)
+                    lines[1] = { L["This tab cannot be viewed."], 0.9, 0.35, 0.35 }
                 else
-                    GameTooltip:AddLine(canDeposit and L["Deposits allowed."] or L["No deposits."], 0.7, 0.7, 0.7)
+                    lines[1] = canDeposit and L["Deposits allowed."] or L["No deposits."]
                     if remaining then
                         local txt = remaining < 0 and L["unlimited"] or tostring(remaining)
-                        GameTooltip:AddLine(string.format(L["Withdrawals left: %s"], txt), 0.7, 0.7, 0.7)
+                        lines[2] = string.format(L["Withdrawals left: %s"], txt)
                     end
                 end
-                GameTooltip:Show()
+                ns.UI:ShowTooltip(self, { anchor = "ANCHOR_TOP", title = n2 or "", lines = lines })
             end)
-            tb:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+            tb:SetScript("OnLeave", function() ns.UI:HideTooltip() end)
             gb.tabButtons[i] = tb
         end
         tb._tab = i
@@ -394,15 +391,15 @@ function gb.updateTabs()
                 StaticPopup_Show("VCUI_GBANK_BUY_TAB", L["Buy a guild bank tab?"])
             end)
             bb:SetScript("OnEnter", function(self)
-                if not GameTooltip then return end
-                GameTooltip:SetOwner(self, "ANCHOR_TOP")
+                -- Price line goes in before the Show, so this one opens by hand.
+                if not ns.UI:OpenTooltip(self, "ANCHOR_TOP") then return end
                 GameTooltip:SetText(L["Buy a guild bank tab"])
                 if SetTooltipMoney and GetGuildBankTabCost then
                     SetTooltipMoney(GameTooltip, GetGuildBankTabCost() or 0)
                 end
                 GameTooltip:Show()
             end)
-            bb:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+            bb:SetScript("OnLeave", function() ns.UI:HideTooltip() end)
             gb.buyBtn = bb
         end
         if bb then
@@ -575,14 +572,12 @@ function gb.build()
     si:SetVertexColor(0.7, 0.7, 0.75)
     sortBtn:SetScript("OnEnter", function()
         si:SetVertexColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
-        if GameTooltip then
-            GameTooltip:SetOwner(sortBtn, "ANCHOR_TOP")
-            GameTooltip:SetText(L["Sort tab"])
-            GameTooltip:AddLine(L["Sorts the current tab (mode from the bag options). Needs withdraw rights on the tab."], 0.7, 0.7, 0.7, true)
-            GameTooltip:Show()
-        end
+        ns.UI:ShowTooltip(sortBtn, {
+            anchor = "ANCHOR_TOP", title = L["Sort tab"],
+            lines  = { { L["Sorts the current tab (mode from the bag options). Needs withdraw rights on the tab."], nil, nil, nil, true } },
+        })
     end)
-    sortBtn:SetScript("OnLeave", function() si:SetVertexColor(0.7, 0.7, 0.75); if GameTooltip then GameTooltip:Hide() end end)
+    sortBtn:SetScript("OnLeave", function() si:SetVertexColor(0.7, 0.7, 0.75); ns.UI:HideTooltip() end)
     sortBtn:SetScript("OnClick", function(_, mouseButton)
         if mouseButton == "RightButton" then
             mod.db.sortReverse = not mod.db.sortReverse
@@ -601,14 +596,12 @@ function gb.build()
     li:SetVertexColor(0.7, 0.7, 0.75)
     logBtn:SetScript("OnEnter", function()
         li:SetVertexColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
-        if GameTooltip then
-            GameTooltip:SetOwner(logBtn, "ANCHOR_TOP")
-            GameTooltip:SetText(L["Money log"])
-            GameTooltip:AddLine(L["Shows who deposited or withdrew guild money."], 0.7, 0.7, 0.7)
-            GameTooltip:Show()
-        end
+        ns.UI:ShowTooltip(logBtn, {
+            anchor = "ANCHOR_TOP", title = L["Money log"],
+            lines  = { L["Shows who deposited or withdrew guild money."] },
+        })
     end)
-    logBtn:SetScript("OnLeave", function() li:SetVertexColor(0.7, 0.7, 0.75); if GameTooltip then GameTooltip:Hide() end end)
+    logBtn:SetScript("OnLeave", function() li:SetVertexColor(0.7, 0.7, 0.75); ns.UI:HideTooltip() end)
     logBtn:SetScript("OnClick", function() gb.toggleLog() end)
 
     f.content = CreateFrame("Frame", nil, f)

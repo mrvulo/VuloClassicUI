@@ -77,15 +77,15 @@ local function createButton()
         self:SetScript("OnUpdate", nil)
     end)
 
-    button:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-        GameTooltip:AddLine((ns.C and ns.C.accent or "|cff9b6cff") .. "VuloClassicUI|r")
-        GameTooltip:AddLine(L["|cffffffffLeft click:|r Open options"])
-        GameTooltip:AddLine(L["|cffffffffRight click:|r Quick module selection"])
-        GameTooltip:AddLine(L["|cffffffffShift+drag:|r Move button"])
-        GameTooltip:Show()
-    end)
-    button:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    ns.UI:AttachTooltip(button, {
+        anchor = "ANCHOR_LEFT",
+        title  = (ns.C and ns.C.accent or "|cff9b6cff") .. "VuloClassicUI|r",
+        lines  = {
+            { L["|cffffffffLeft click:|r Open options"],           1, 1, 1 },
+            { L["|cffffffffRight click:|r Quick module selection"], 1, 1, 1 },
+            { L["|cffffffffShift+drag:|r Move button"],            1, 1, 1 },
+        },
+    })
 
     return button
 end

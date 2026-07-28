@@ -555,13 +555,9 @@ local function ensureCopyButton()
     ic:SetVertexColor(ACCENT.r, ACCENT.g, ACCENT.b, 0.9)
     b:SetScript("OnEnter", function()
         ic:SetVertexColor(1, 1, 1, 1)
-        if GameTooltip then
-            GameTooltip:SetOwner(b, "ANCHOR_LEFT")
-            GameTooltip:SetText(L["Copy chat"])
-            GameTooltip:Show()
-        end
+        UI:ShowTooltip(b, { anchor = "ANCHOR_LEFT", title = L["Copy chat"] })
     end)
-    b:SetScript("OnLeave", function() ic:SetVertexColor(ACCENT.r, ACCENT.g, ACCENT.b, 0.9); if GameTooltip then GameTooltip:Hide() end end)
+    b:SetScript("OnLeave", function() ic:SetVertexColor(ACCENT.r, ACCENT.g, ACCENT.b, 0.9); UI:HideTooltip() end)
     b:SetScript("OnClick", function() showTextPopup(L["Copy chat"], readActiveChat()) end)
 end
 
@@ -922,15 +918,11 @@ local function makeSidebarIcon(parent, tex, tip, onClick)
     b._icon = ic
     b:SetScript("OnEnter", function(self)
         ic:SetVertexColor(ACCENT.r, ACCENT.g, ACCENT.b, ICON_HOVER)
-        if tip and GameTooltip then
-            GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-            GameTooltip:SetText(tip)
-            GameTooltip:Show()
-        end
+        if tip then UI:ShowTooltip(self, { anchor = "ANCHOR_LEFT", title = tip }) end
     end)
     b:SetScript("OnLeave", function()
         ic:SetVertexColor(1, 1, 1, ICON_IDLE)
-        if GameTooltip then GameTooltip:Hide() end
+        UI:HideTooltip()
     end)
     b:SetScript("OnClick", onClick)
     return b
@@ -948,15 +940,11 @@ local function makeSidebarGlyph(parent, glyph, tip, onClick)
     b._fs = fs
     b:SetScript("OnEnter", function(self)
         fs:SetTextColor(ACCENT.r, ACCENT.g, ACCENT.b, ICON_HOVER)
-        if tip and GameTooltip then
-            GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-            GameTooltip:SetText(tip)
-            GameTooltip:Show()
-        end
+        if tip then UI:ShowTooltip(self, { anchor = "ANCHOR_LEFT", title = tip }) end
     end)
     b:SetScript("OnLeave", function()
         fs:SetTextColor(1, 1, 1, ICON_IDLE)
-        if GameTooltip then GameTooltip:Hide() end
+        UI:HideTooltip()
     end)
     b:SetScript("OnClick", onClick)
     return b
@@ -1045,15 +1033,12 @@ local function buildSidebar()
     sb._friendsBtn, sb._friendsCount = friendsBtn, fc
     friendsBtn:SetScript("OnEnter", function(self)
         self._icon:SetVertexColor(ACCENT.r, ACCENT.g, ACCENT.b, ICON_HOVER)
-        if GameTooltip then
-            GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-            GameTooltip:SetText(L["Friends online"])
-            GameTooltip:AddLine(string.format("%s: %d", _G.FRIENDS or "Friends", sb._friendsWow or 0), 1, 1, 1)
-            if BNGetNumFriends then
-                GameTooltip:AddLine(string.format("Battle.net: %d", sb._friendsBN or 0), 1, 1, 1)
-            end
-            GameTooltip:Show()
+        -- OnLeave stays the factory's: it hides the tooltip and resets the icon.
+        local lines = { { string.format("%s: %d", _G.FRIENDS or "Friends", sb._friendsWow or 0), 1, 1, 1 } }
+        if BNGetNumFriends then
+            lines[2] = { string.format("Battle.net: %d", sb._friendsBN or 0), 1, 1, 1 }
         end
+        UI:ShowTooltip(self, { anchor = "ANCHOR_LEFT", title = L["Friends online"], lines = lines })
     end)
     if C_Timer and C_Timer.NewTicker then
         sb._friendsTicker = C_Timer.NewTicker(60, function()

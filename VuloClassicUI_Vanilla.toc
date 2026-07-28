@@ -40,6 +40,7 @@ Locales\ptBR.lua
 Locales\ruRU.lua
 Locales\zhCN.lua
 Locales\zhTW.lua
+UI\Tooltip.lua
 UI\Widgets.lua
 Core\ColorPicker.lua
 UI\MainFrame.lua

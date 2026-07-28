@@ -236,15 +236,14 @@ local function getItemButton(idx)
     btn.ilvl:SetTextColor(1, 1, 1)
     btn:SetScript("OnEnter", function(self)
         self.ring:SetColorTexture(1, 1, 1, 0.9)
-        if self.bag and self.slot then
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        if self.bag and self.slot and ns.UI:OpenTooltip(self, "ANCHOR_RIGHT") then
             GameTooltip:SetBagItem(self.bag, self.slot)
             GameTooltip:Show()
         end
     end)
     btn:SetScript("OnLeave", function(self)
         self.ring:SetColorTexture(self._qr or 0.25, self._qg or 0.25, self._qb or 0.3, 1)
-        GameTooltip:Hide()
+        ns.UI:HideTooltip()
     end)
     btn:SetScript("OnClick", function(self, button)
         if InCombatLockdown() then

@@ -394,7 +394,7 @@ local function inspectSlotOnEnter(self)
     end
     local fr = _G.InspectFrame
     local unit = (fr and fr.unit) or "target"
-    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    ns.UI:OpenTooltip(self, "ANCHOR_RIGHT")
     if GameTooltip:SetInventoryItem(unit, self:GetID()) then
         GameTooltip:Show()
         return
@@ -414,7 +414,7 @@ local function inspectSlotOnEnter(self)
         GameTooltip:SetText(_G.RETRIEVING_ITEM_INFO or "...", 1, 0.82, 0)
         GameTooltip:Show()
     else
-        GameTooltip:Hide()
+        ns.UI:HideTooltip()
     end
 end
 

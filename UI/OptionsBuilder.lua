@@ -253,15 +253,13 @@ local function makeRowIcon(parent)
         self.icon:SetVertexColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
         self:SetSize(18, 18)
         if self._tip then
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            GameTooltip:SetText(self._tip, 1, 1, 1, 1, true)
-            GameTooltip:Show()
+            UI:ShowTooltip(self, { title = self._tip, wrap = true })
         end
     end)
     b:SetScript("OnLeave", function(self)
         self.icon:SetVertexColor(0.62, 0.62, 0.70)
         self:SetSize(16, 16)
-        GameTooltip:Hide()
+        UI:HideTooltip()
     end)
     b:SetScript("OnClick", function(self) if self._onClick then self._onClick() end end)
     return b

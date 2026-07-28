@@ -1641,13 +1641,9 @@ function buildSidebar(f)
     arrow:SetVertexColor(0.7, 0.7, 0.75)
     tog:SetScript("OnEnter", function()
         arrow:SetVertexColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
-        if GameTooltip then
-            GameTooltip:SetOwner(tog, "ANCHOR_RIGHT")
-            GameTooltip:SetText(sidebarExpanded and L["Collapse sidebar"] or L["Expand sidebar"])
-            GameTooltip:Show()
-        end
+        UI:ShowTooltip(tog, { title = sidebarExpanded and L["Collapse sidebar"] or L["Expand sidebar"] })
     end)
-    tog:SetScript("OnLeave", function() arrow:SetVertexColor(0.7, 0.7, 0.75); if GameTooltip then GameTooltip:Hide() end end)
+    tog:SetScript("OnLeave", function() arrow:SetVertexColor(0.7, 0.7, 0.75); UI:HideTooltip() end)
     tog:SetScript("OnClick", function()
         sidebarExpanded = not sidebarExpanded
         mod.db.sidebarCollapsed = not sidebarExpanded
@@ -1858,14 +1854,10 @@ local function buildFrame()
     })
     f.search = sb
     sb:SetPoint("RIGHT", close, "LEFT", -8, 0)
-    sb:SetScript("OnEnter", function(self)
-        if not GameTooltip then return end
-        GameTooltip:SetOwner(self, "ANCHOR_TOP")
-        GameTooltip:SetText(L["Search"])
-        GameTooltip:AddLine(L["Keywords: q:epic, typ:weapon, ilvl>30 (combinable). Also filters the open bank and guild bank."], 0.7, 0.7, 0.7, true)
-        GameTooltip:Show()
-    end)
-    sb:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+    UI:AttachTooltip(sb, {
+        anchor = "ANCHOR_TOP", title = L["Search"],
+        lines  = { { L["Keywords: q:epic, typ:weapon, ilvl>30 (combinable). Also filters the open bank and guild bank."], nil, nil, nil, true } },
+    })
     if not mod.db.showSearch then sb:Hide() end
 
     local sortBtn = CreateFrame("Button", nil, f)
@@ -1877,14 +1869,12 @@ local function buildFrame()
     si:SetVertexColor(0.7, 0.7, 0.75)
     sortBtn:SetScript("OnEnter", function()
         si:SetVertexColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
-        if GameTooltip then
-            GameTooltip:SetOwner(sortBtn, "ANCHOR_TOP")
-            GameTooltip:SetText(L["Sort bags"])
-            GameTooltip:AddLine(L["Right-click to toggle sort order."], 0.7, 0.7, 0.7)
-            GameTooltip:Show()
-        end
+        UI:ShowTooltip(sortBtn, {
+            anchor = "ANCHOR_TOP", title = L["Sort bags"],
+            lines  = { L["Right-click to toggle sort order."] },
+        })
     end)
-    sortBtn:SetScript("OnLeave", function() si:SetVertexColor(0.7, 0.7, 0.75); if GameTooltip then GameTooltip:Hide() end end)
+    sortBtn:SetScript("OnLeave", function() si:SetVertexColor(0.7, 0.7, 0.75); UI:HideTooltip() end)
     sortBtn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     sortBtn:SetScript("OnClick", function(_, mouseButton)
         if mouseButton == "RightButton" then
@@ -1908,13 +1898,9 @@ local function buildFrame()
     bi:SetVertexColor(0.7, 0.7, 0.75)
     bagsBtn:SetScript("OnEnter", function()
         bi:SetVertexColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
-        if GameTooltip then
-            GameTooltip:SetOwner(bagsBtn, "ANCHOR_TOP")
-            GameTooltip:SetText(L["Show or hide bags"])
-            GameTooltip:Show()
-        end
+        UI:ShowTooltip(bagsBtn, { anchor = "ANCHOR_TOP", title = L["Show or hide bags"] })
     end)
-    bagsBtn:SetScript("OnLeave", function() bi:SetVertexColor(0.7, 0.7, 0.75); if GameTooltip then GameTooltip:Hide() end end)
+    bagsBtn:SetScript("OnLeave", function() bi:SetVertexColor(0.7, 0.7, 0.75); UI:HideTooltip() end)
 
     local bankBtn = CreateFrame("Button", nil, f)
     f.bankBtn = bankBtn
@@ -1925,14 +1911,12 @@ local function buildFrame()
     ki:SetVertexColor(0.7, 0.7, 0.75)
     bankBtn:SetScript("OnEnter", function()
         ki:SetVertexColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
-        if GameTooltip then
-            GameTooltip:SetOwner(bankBtn, "ANCHOR_TOP")
-            GameTooltip:SetText(L["Bank contents"])
-            GameTooltip:AddLine(L["Shows what your bank holds - from the last bank visit, viewable anywhere."], 0.7, 0.7, 0.7, true)
-            GameTooltip:Show()
-        end
+        UI:ShowTooltip(bankBtn, {
+            anchor = "ANCHOR_TOP", title = L["Bank contents"],
+            lines  = { { L["Shows what your bank holds - from the last bank visit, viewable anywhere."], nil, nil, nil, true } },
+        })
     end)
-    bankBtn:SetScript("OnLeave", function() ki:SetVertexColor(0.7, 0.7, 0.75); if GameTooltip then GameTooltip:Hide() end end)
+    bankBtn:SetScript("OnLeave", function() ki:SetVertexColor(0.7, 0.7, 0.75); UI:HideTooltip() end)
     bankBtn:SetScript("OnClick", function()
         if ns.ToggleBankMirror then ns.ToggleBankMirror() end
     end)
@@ -1995,15 +1979,10 @@ local function buildFrame()
             f.updateBagBar()
             refresh()
         end)
-        ic:SetScript("OnEnter", function(self)
-            if GameTooltip then
-                GameTooltip:SetOwner(self, "ANCHOR_TOP")
-                GameTooltip:SetText(bagDisplayName(b))
-                GameTooltip:AddLine(L["Click to show or hide this bag."], 0.7, 0.7, 0.7)
-                GameTooltip:Show()
-            end
+        UI:AttachTooltip(ic, function()
+            return { anchor = "ANCHOR_TOP", title = bagDisplayName(b),
+                     lines  = { L["Click to show or hide this bag."] } }
         end)
-        ic:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
         bar._icons[#bar._icons + 1] = ic
     end
     bagsBtn:SetScript("OnClick", function()
@@ -2084,16 +2063,12 @@ local function buildFrame()
     drop:SetScript("OnEnter", function(self)
         if dborder.SetBackdropBorderColor then dborder:SetBackdropBorderColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 1) end
         dplus:SetTextColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
-        if GameTooltip then
-            GameTooltip:SetOwner(self, "ANCHOR_TOP")
-            GameTooltip:SetText(L["Drop an item here to put it into the first free slot."])
-            GameTooltip:Show()
-        end
+        UI:ShowTooltip(self, { anchor = "ANCHOR_TOP", title = L["Drop an item here to put it into the first free slot."] })
     end)
     drop:SetScript("OnLeave", function()
         if dborder.SetBackdropBorderColor then dborder:SetBackdropBorderColor(ns.COLORS.border.r, ns.COLORS.border.g, ns.COLORS.border.b, 1) end
         dplus:SetTextColor(0.5, 0.5, 0.55)
-        if GameTooltip then GameTooltip:Hide() end
+        UI:HideTooltip()
     end)
 
     f.free = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
@@ -2107,7 +2082,7 @@ local function buildFrame()
     moneyBtn:SetScript("OnEnter", function(self)
         if ns.ShowGoldTooltip then ns.ShowGoldTooltip(self) end
     end)
-    moneyBtn:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+    moneyBtn:SetScript("OnLeave", function() UI:HideTooltip() end)
 
     -- movable + scalable via our mover; CENTER offset in db.x/db.y
     if ns.CreateMover then

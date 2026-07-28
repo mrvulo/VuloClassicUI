@@ -117,8 +117,10 @@ local function showTooltip(self)
     if not d then return end
     if not d.sessionStart then initSession(false) end
 
+    -- Appends to a tooltip that is already ours instead of replacing it, which
+    -- is why this cannot go through ShowTooltip.
     if GameTooltip:GetOwner() ~= self then
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        ns.UI:OpenTooltip(self, "ANCHOR_RIGHT")
     else
         GameTooltip:AddLine(" ")
     end
@@ -143,7 +145,7 @@ local function showTooltip(self)
 end
 
 local function hideTooltip()
-    GameTooltip:Hide()
+    ns.UI:HideTooltip()
 end
 
 function ns.ShowGoldTooltip(owner)
@@ -151,7 +153,7 @@ function ns.ShowGoldTooltip(owner)
     local realm0 = GetRealmName and GetRealmName()
     if not mod._enabled and not (store0 and realm0 and store0[realm0]) then return end
     if GameTooltip:GetOwner() ~= owner then
-        GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
+        ns.UI:OpenTooltip(owner, "ANCHOR_RIGHT")
     end
     local coin = function(c)
         if GetCoinTextureString then return GetCoinTextureString(c or 0) end

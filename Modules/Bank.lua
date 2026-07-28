@@ -167,18 +167,18 @@ end
 function bank.onEnterItem(self)
     local parent = self:GetParent()
     if parent and parent:GetID() == -1 and BankButtonIDToInvSlotID then
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        ns.UI:OpenTooltip(self, "ANCHOR_RIGHT")
         if GameTooltip:SetInventoryItem("player", BankButtonIDToInvSlotID(self:GetID())) then
             GameTooltip:Show()
         else
-            GameTooltip:Hide()
+            ns.UI:HideTooltip()
         end
     elseif self._origOnEnter then
         self._origOnEnter(self)
     elseif ContainerFrameItemButton_OnEnter then
         ContainerFrameItemButton_OnEnter(self)
     else
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        ns.UI:OpenTooltip(self, "ANCHOR_RIGHT")
         GameTooltip:SetBagItem(parent and parent:GetID(), self:GetID())
         GameTooltip:Show()
     end
@@ -187,14 +187,14 @@ end
 function bank.onLeaveItem(self)
     local parent = self:GetParent()
     if parent and parent:GetID() == -1 then
-        GameTooltip:Hide()
+        ns.UI:HideTooltip()
         if ResetCursor then ResetCursor() end
     elseif self._origOnLeave then
         self._origOnLeave(self)
     elseif ContainerFrameItemButton_OnLeave then
         ContainerFrameItemButton_OnLeave(self)
     else
-        GameTooltip:Hide()
+        ns.UI:HideTooltip()
         if ResetCursor then ResetCursor() end
     end
 end
@@ -287,13 +287,9 @@ function bank.build()
     si:SetVertexColor(0.7, 0.7, 0.75)
     sortBtn:SetScript("OnEnter", function()
         si:SetVertexColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
-        if GameTooltip then
-            GameTooltip:SetOwner(sortBtn, "ANCHOR_TOP")
-            GameTooltip:SetText(L["Sort bank"])
-            GameTooltip:Show()
-        end
+        ns.UI:ShowTooltip(sortBtn, { anchor = "ANCHOR_TOP", title = L["Sort bank"] })
     end)
-    sortBtn:SetScript("OnLeave", function() si:SetVertexColor(0.7, 0.7, 0.75); if GameTooltip then GameTooltip:Hide() end end)
+    sortBtn:SetScript("OnLeave", function() si:SetVertexColor(0.7, 0.7, 0.75); ns.UI:HideTooltip() end)
     sortBtn:SetScript("OnClick", function()
         if not bank.open then return end
         if ns.RunBagSort then
@@ -310,13 +306,9 @@ function bank.build()
     bfi:SetVertexColor(0.7, 0.7, 0.75)
     bagsBtn:SetScript("OnEnter", function()
         bfi:SetVertexColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
-        if GameTooltip then
-            GameTooltip:SetOwner(bagsBtn, "ANCHOR_TOP")
-            GameTooltip:SetText(L["Show or hide bags"])
-            GameTooltip:Show()
-        end
+        ns.UI:ShowTooltip(bagsBtn, { anchor = "ANCHOR_TOP", title = L["Show or hide bags"] })
     end)
-    bagsBtn:SetScript("OnLeave", function() bfi:SetVertexColor(0.7, 0.7, 0.75); if GameTooltip then GameTooltip:Hide() end end)
+    bagsBtn:SetScript("OnLeave", function() bfi:SetVertexColor(0.7, 0.7, 0.75); ns.UI:HideTooltip() end)
 
     -- Filter strip: left-click show/hide, right-click equip/buy. Equip and purchase APIs are unprotected but fail in combat.
     local fbar = CreateFrame("Frame", nil, f)
@@ -391,8 +383,9 @@ function bank.build()
         end)
         ic:SetScript("OnReceiveDrag", function() if CursorHasItem and CursorHasItem() then equipOrBuy(b) end end)
         ic:SetScript("OnEnter", function(self)
-            if not GameTooltip then return end
-            GameTooltip:SetOwner(self, "ANCHOR_TOP")
+            -- SetTooltipMoney has to land between the lines and the Show, which
+            -- no spec table can express -- so this one opens the tooltip itself.
+            if not ns.UI:OpenTooltip(self, "ANCHOR_TOP") then return end
             local i2 = slotIndexOf(b)
             local owned = GetNumBankSlots() or 0
             GameTooltip:SetText(bank.bagName(b))
@@ -409,7 +402,7 @@ function bank.build()
             end
             GameTooltip:Show()
         end)
-        ic:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+        ic:SetScript("OnLeave", function() ns.UI:HideTooltip() end)
         fbar._icons[#fbar._icons + 1] = ic
     end
     bagsBtn:SetScript("OnClick", function()
@@ -435,7 +428,7 @@ function bank.build()
     moneyBtn:SetScript("OnEnter", function(self)
         if ns.ShowGoldTooltip then ns.ShowGoldTooltip(self) end
     end)
-    moneyBtn:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+    moneyBtn:SetScript("OnLeave", function() ns.UI:HideTooltip() end)
     bank.updateMoney()
 
     -- separate db keys (mod.db.bank.*) so bank and bag positions never collide
@@ -601,13 +594,12 @@ function bank.mirrorButton(i)
     b.count = b:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
     b.count:SetPoint("BOTTOMRIGHT", -2, 2)
     b:SetScript("OnEnter", function(self)
-        if self.link and GameTooltip then
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        if self.link and ns.UI:OpenTooltip(self, "ANCHOR_RIGHT") then
             pcall(GameTooltip.SetHyperlink, GameTooltip, self.link)
             GameTooltip:Show()
         end
     end)
-    b:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+    b:SetScript("OnLeave", function() ns.UI:HideTooltip() end)
     f.btns[i] = b
     return b
 end

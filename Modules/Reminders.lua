@@ -481,14 +481,11 @@ local function makeIcon(i)
     f.label:SetPoint("TOP", f, "BOTTOM", 0, -1)
     f:EnableMouse(true)
     -- The icons are clickable but say nothing about what they want without this.
-    f:SetScript("OnEnter", function(self)
-        if not self._tipText then return end
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText(self._tipText, 1, 0.82, 0.25, 1, true)
-        if self._tipHint then GameTooltip:AddLine(self._tipHint, 0.7, 0.7, 0.75, true) end
-        GameTooltip:Show()
+    ns.UI:AttachTooltip(f, function(self)
+        if not self or not self._tipText then return nil end
+        return { title = self._tipText, color = { 1, 0.82, 0.25 }, wrap = true,
+                 lines = self._tipHint and { { self._tipHint, 0.7, 0.7, 0.75, true } } or nil }
     end)
-    f:SetScript("OnLeave", function() GameTooltip:Hide() end)
     f:Hide()
     icons[i] = f
     return f

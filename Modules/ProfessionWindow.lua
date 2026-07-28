@@ -147,12 +147,7 @@ local function enhanceRow(btn, cfg)
         end
     end
     sb:SetScript("OnClick", toggle)
-    sb:SetScript("OnEnter", function()
-        GameTooltip:SetOwner(sb, "ANCHOR_RIGHT")
-        GameTooltip:SetText(L["Favourite (click to toggle)"], 1, 1, 1)
-        GameTooltip:Show()
-    end)
-    sb:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    ns.UI:AttachTooltip(sb, { title = L["Favourite (click to toggle)"] })
 
     btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     btn:HookScript("OnClick", function(_, mouseButton)

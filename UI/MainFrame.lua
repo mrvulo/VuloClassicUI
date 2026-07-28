@@ -450,22 +450,19 @@ function UI:CreateMainFrame()
         end)
         ovBtn:SetScript("OnEnter", function(self)
             self._glyph:SetAlpha(1)   -- 90 % idle, full on hover
-            if not GameTooltip then return end
-            GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-            GameTooltip:AddLine(L["Editing as"])
             local id = ns.EditingOverrideGroup and ns:EditingOverrideGroup()
             local g  = id and ns:OverrideGroup(id)
             -- Same wording as the menu's default entry, from one helper.
-            if g then
-                GameTooltip:AddLine(g.name, 0.7, 0.7, 0.8)
-            else
-                GameTooltip:AddLine(ns:OverrideSelfLabel())
-            end
-            GameTooltip:Show()
+            UI:ShowTooltip(self, {
+                anchor = "ANCHOR_BOTTOM",
+                title  = L["Editing as"],
+                lines  = { g and { g.name, 0.7, 0.7, 0.8 }
+                             or { ns:OverrideSelfLabel(), 1, 1, 1 } },
+            })
         end)
         ovBtn:SetScript("OnLeave", function(self)
             self._glyph:SetAlpha(0.9)
-            if GameTooltip then GameTooltip:Hide() end
+            UI:HideTooltip()
         end)
 
         f.overrideBtn = ovBtn
@@ -636,14 +633,14 @@ function UI:CreateMainFrame()
         t:SetVertexColor(0.85, 0.85, 0.85, 0.9)
         b:SetScript("OnEnter", function(self)
             t:SetVertexColor(1, 1, 1, 1)
-            GameTooltip:SetOwner(self, "ANCHOR_TOP")
-            GameTooltip:SetText(label)
-            GameTooltip:AddLine(L["Click: copy link"], 0.7, 0.7, 0.7)
-            GameTooltip:Show()
+            UI:ShowTooltip(self, {
+                anchor = "ANCHOR_TOP", title = label,
+                lines  = { L["Click: copy link"] },
+            })
         end)
         b:SetScript("OnLeave", function()
             t:SetVertexColor(0.85, 0.85, 0.85, 0.9)
-            GameTooltip:Hide()
+            UI:HideTooltip()
         end)
         b:SetScript("OnClick", function()
             StaticPopup_Show("VCUI_COPY_URL", nil, nil, url)

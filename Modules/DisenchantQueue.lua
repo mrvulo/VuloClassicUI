@@ -229,13 +229,12 @@ local function buildWindow()
     hover:SetPoint("BOTTOMLEFT", f.icon, "BOTTOMLEFT", 0, 0)
     hover:SetPoint("RIGHT", f, "RIGHT", -12, 0)
     hover:SetScript("OnEnter", function(self)
-        if current and GameTooltip then
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        if current and ns.UI:OpenTooltip(self, "ANCHOR_RIGHT") then
             GameTooltip:SetBagItem(current.bag, current.slot)
             GameTooltip:Show()
         end
     end)
-    hover:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+    hover:SetScript("OnLeave", function() ns.UI:HideTooltip() end)
     hover:RegisterForDrag("LeftButton")
     hover:SetScript("OnDragStart", function() local h = f:GetScript("OnDragStart"); if h then h(f) end end)
     hover:SetScript("OnDragStop",  function() local h = f:GetScript("OnDragStop");  if h then h(f) end end)
@@ -268,12 +267,7 @@ local function buildWindow()
     f.cast = cast
 
     local function tip(button, textKey)
-        button:SetScript("OnEnter", function(self)
-            GameTooltip:SetOwner(self, "ANCHOR_TOP")
-            GameTooltip:SetText(L[textKey], 1, 1, 1, 1, true)
-            GameTooltip:Show()
-        end)
-        button:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        ns.UI:AttachTooltip(button, { anchor = "ANCHOR_TOP", title = L[textKey], wrap = true })
     end
 
     local skip = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")

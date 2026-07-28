@@ -2061,15 +2061,10 @@ local function buildPreview(parent)
         hl:SetAllPoints(z)
         hl:SetColorTexture(1, 1, 1, 0.08)
         z:SetScript("OnClick", function() jumpToSection(title) end)
-        z:SetScript("OnEnter", function(self)
-            if GameTooltip then
-                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                GameTooltip:SetText(title, 1, 1, 1)
-                GameTooltip:AddLine(L["Click: open these settings"], 0.7, 0.7, 0.75)
-                GameTooltip:Show()
-            end
-        end)
-        z:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+        ns.UI:AttachTooltip(z, {
+            title = title,
+            lines = { { L["Click: open these settings"], 0.7, 0.7, 0.75 } },
+        })
         return z
     end
     local function clickZone(region, title, level)

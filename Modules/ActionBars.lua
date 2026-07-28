@@ -832,15 +832,13 @@ local function ensureModernMicro()
                 local a = ns.COLORS.accent
                 ic:SetVertexColor(a.r, a.g, a.b, 0.95)
                 local tip = (self._tip and self._tip()) or (self._target and self._target.tooltipText)
-                if tip and GameTooltip then
-                    GameTooltip:SetOwner(self, "ANCHOR_TOP")
-                    GameTooltip:SetText(tip)
-                    GameTooltip:Show()
+                if tip then
+                    ns.UI:ShowTooltip(self, { anchor = "ANCHOR_TOP", title = tip })
                 end
             end)
             b:SetScript("OnLeave", function()
                 ic:SetVertexColor(1, 1, 1, 0.45)
-                if GameTooltip then GameTooltip:Hide() end
+                ns.UI:HideTooltip()
             end)
             b:SetScript("OnClick", function(self)
                 if self._action then
@@ -1045,15 +1043,11 @@ function applyBagStyle()
             kb:SetScript("OnEnter", function(self)
                 local a = ns.COLORS.accent
                 g:SetVertexColor(a.r, a.g, a.b, 0.95)
-                if GameTooltip then
-                    GameTooltip:SetOwner(self, "ANCHOR_TOP")
-                    GameTooltip:SetText(_G.KEYRING or L["Key ring"])
-                    GameTooltip:Show()
-                end
+                ns.UI:ShowTooltip(self, { anchor = "ANCHOR_TOP", title = _G.KEYRING or L["Key ring"] })
             end)
             kb:SetScript("OnLeave", function()
                 g:SetVertexColor(1, 1, 1, 0.45)
-                if GameTooltip then GameTooltip:Hide() end
+                ns.UI:HideTooltip()
             end)
             kb:SetScript("OnClick", function()
                 -- direct toggles only: the Blizzard button's handlers error here
@@ -1343,7 +1337,7 @@ end
 local function ttHook()
     local m = mod.db.tooltipMode
     if mod.active and (m == "never" or (m == "combat" and InCombatLockdown())) then
-        GameTooltip:Hide()
+        ns.UI:HideTooltip()
     end
 end
 

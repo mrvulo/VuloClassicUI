@@ -315,16 +315,12 @@ function mm.setupPanel()
         local ac = ns.COLORS and ns.COLORS.accent or { r = 0.608, g = 0.424, b = 1 }
         dateBtn:SetScript("OnEnter", function(self)
             self.text:SetTextColor(ac.r, ac.g, ac.b)
-            if GameTooltip then
-                GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-                local ok, s = pcall(date, "%A, %d.%m.%Y")
-                GameTooltip:SetText(ok and s or "")
-                GameTooltip:Show()
-            end
+            local ok, s = pcall(date, "%A, %d.%m.%Y")
+            ns.UI:ShowTooltip(self, { anchor = "ANCHOR_BOTTOM", title = ok and s or "" })
         end)
         dateBtn:SetScript("OnLeave", function(self)
             self.text:SetTextColor(0.95, 0.95, 1)
-            if GameTooltip then GameTooltip:Hide() end
+            ns.UI:HideTooltip()
         end)
         dateBtn:SetScript("OnClick", function()
             if not mod.active then return end

@@ -133,17 +133,11 @@ local function onRegenEnabled()
 end
 
 local function attachHelpTooltip(btn)
-    btn:SetScript("OnEnter", function(self)
-        if not mod.db.showTooltips then return end
-        if not self.toolHeader then return end
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText(self.toolHeader, 1, 1, 1)
-        if self.toolText then
-            GameTooltip:AddLine(self.toolText, nil, nil, nil, true)
-        end
-        GameTooltip:Show()
+    ns.UI:AttachTooltip(btn, function(self)
+        if not mod.db.showTooltips or not self.toolHeader then return nil end
+        return { title = self.toolHeader,
+                 lines = self.toolText and { { self.toolText, nil, nil, nil, true } } or nil }
     end)
-    btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
 end
 
 local function makeIconButton(parent, name, size)

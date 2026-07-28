@@ -629,8 +629,8 @@ local function makeIcon(bar, i)
     f:EnableMouse(false)
     f:SetScript("OnEnter", function(self)
         local e = self.entry
-        if not e or not GameTooltip then return end
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        -- The body is a spell or item tooltip, which no spec table can express.
+        if not e or not ns.UI:OpenTooltip(self, "ANCHOR_RIGHT") then return end
         if e.kind == "item" then
             if GameTooltip.SetItemByID then GameTooltip:SetItemByID(e.id)
             else pcall(GameTooltip.SetHyperlink, GameTooltip, "item:" .. e.id) end
@@ -644,7 +644,7 @@ local function makeIcon(bar, i)
         end
         GameTooltip:Show()
     end)
-    f:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+    f:SetScript("OnLeave", function() ns.UI:HideTooltip() end)
     f:SetScript("OnReceiveDrag", function()
         -- fetched off the bar because the handler is defined later; an upvalue would bind nil here
         local h = bar:GetScript("OnReceiveDrag")

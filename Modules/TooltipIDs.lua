@@ -281,8 +281,10 @@ local function attachItemTooltip(tooltip, id)
     end
 end
 
+-- ANCHOR_NONE plus an explicit point: the tooltip is placed against the
+-- achievement row itself, not offset from it, so no anchor rule applies here.
 local function achievementOnEnter(btn)
-    GameTooltip:SetOwner(btn, "ANCHOR_NONE")
+    if not ns.UI:OpenTooltip(btn, "ANCHOR_NONE") then return end
     GameTooltip:SetPoint("TOPLEFT", btn, "TOPRIGHT", 0, 0)
     add(GameTooltip, btn.id, "achievement")
     GameTooltip:Show()
@@ -299,7 +301,7 @@ local function criteriaOnEnter(enterIndex)
         local criteriaId = select(10, GetAchievementCriteriaInfo(achievementId, index))
         if criteriaId then
             if not GameTooltip:IsVisible() then
-                GameTooltip:SetOwner(btn:GetParent(), "ANCHOR_NONE")
+                ns.UI:OpenTooltip(btn:GetParent(), "ANCHOR_NONE")
             end
             GameTooltip:SetPoint("TOPLEFT", btn, "TOPRIGHT", 0, 0)
             add(GameTooltip, achievementId, "achievement")

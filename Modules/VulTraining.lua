@@ -288,15 +288,15 @@ local function createFrame()
         row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
         row:SetScript("OnEnter", function(self)
             local s = self.currentSpell
-            if not s or s.isHeader then return end
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            -- Spell tooltip plus a price line: opened by hand, see UI/Tooltip.lua.
+            if not s or s.isHeader or not ns.UI:OpenTooltip(self, "ANCHOR_RIGHT") then return end
             if s.tooltipId then GameTooltip:SetSpellByID(s.tooltipId) end
             if s.cost and s.cost > 0 then
                 GameTooltip:AddLine(format(L["Cost: %s"], GetCoinTextureString(s.cost)))
             end
             GameTooltip:Show()
         end)
-        row:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        row:SetScript("OnLeave", function() ns.UI:HideTooltip() end)
         row:SetScript("OnClick", function(self, button)
             local s = self.currentSpell
             if button == "LeftButton" and IsShiftKeyDown() and s and s.link then

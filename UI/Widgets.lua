@@ -225,17 +225,19 @@ function UI.StyleScrollbar(scrollFrame)
     sb:SetWidth(8)
 end
 
--- Installed once and reading the live _vcConfig: pooled widgets would otherwise stack hooks.
-local function tooltipShow(self)
+-- Pooled widgets are reused with a new _vcConfig, so the tooltip text has to be
+-- read at hover time. Every widget below builds its spec through this.
+local function configTip(self)
     local cfg = self._vcConfig
     local text = cfg and cfg.tooltip
-    if not text then return end
-    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:SetText(text, 1, 1, 1, 1, true)
-    GameTooltip:Show()
+    if not text then return nil end
+    return { title = text, wrap = true }
 end
-local function tooltipHide() GameTooltip:Hide() end
 
+local function tooltipShow(self) UI:ShowTooltip(self, configTip(self)) end
+local function tooltipHide() UI:HideTooltip() end
+
+-- Installed once and reading the live _vcConfig: pooled widgets would otherwise stack hooks.
 local function attachTooltip(frame)
     frame:SetScript("OnEnter", tooltipShow)
     frame:SetScript("OnLeave", tooltipHide)
@@ -1206,15 +1208,10 @@ function UI:CreateDropdown(parent, config)
 
     btn:SetScript("OnEnter", function(self)
         setHovered(true)
-        local cfg = container._vcConfig
-        if cfg and cfg.tooltip then
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            GameTooltip:SetText(cfg.tooltip, 1, 1, 1, 1, true)
-            GameTooltip:Show()
-        end
+        UI:ShowTooltip(self, configTip(container))
     end)
     btn:SetScript("OnLeave", function()
-        GameTooltip:Hide()
+        UI:HideTooltip()
         if not (activePopup and activePopup:IsShown() and activePopup._owner == btn) then
             setHovered(false)
         end
@@ -1399,15 +1396,11 @@ function UI:CreateButton(parent, config)
             bg:SetColorTexture(0.19, 0.19, 0.23, 1)
             self._setBorder(ns.COLORS.accent, 0.8)
         end
-        if cfg and cfg.tooltip then
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            GameTooltip:SetText(cfg.tooltip, 1, 1, 1, 1, true)
-            GameTooltip:Show()
-        end
+        UI:ShowTooltip(self, configTip(self))
     end)
     b:SetScript("OnLeave", function(self)
         buttonApplyIdle(self)
-        GameTooltip:Hide()
+        UI:HideTooltip()
     end)
 
     b:SetScript("OnMouseDown", function(self)
@@ -1482,17 +1475,12 @@ function UI:CreateIconButton(parent, config)
     b:SetScript("OnEnter", function(self)
         bg:SetColorTexture(0.22, 0.22, 0.26, 1)
         icon:SetVertexColor(1, 1, 1)
-        local cfg = self._vcConfig
-        if cfg and cfg.tooltip then
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            GameTooltip:SetText(cfg.tooltip, 1, 1, 1, 1, true)
-            GameTooltip:Show()
-        end
+        UI:ShowTooltip(self, configTip(self))
     end)
     b:SetScript("OnLeave", function()
         bg:SetColorTexture(0.15, 0.15, 0.18, 1)
         icon:SetVertexColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
-        GameTooltip:Hide()
+        UI:HideTooltip()
     end)
     b:SetScript("OnClick", function(self)
         local cfg = self._vcConfig
@@ -1533,14 +1521,12 @@ function UI:CreatePowerButton(parent, config)
     b:SetScript("OnEnter", function()
         icon:SetVertexColor(1, 1, 1, 1)
         if config.tooltip then
-            GameTooltip:SetOwner(b, "ANCHOR_RIGHT")
-            GameTooltip:SetText(config.tooltip, 1, 1, 1, 1, true)
-            GameTooltip:Show()
+            UI:ShowTooltip(b, { title = config.tooltip, wrap = true })
         end
     end)
     b:SetScript("OnLeave", function()
         refresh()
-        GameTooltip:Hide()
+        UI:HideTooltip()
     end)
 
     refresh()

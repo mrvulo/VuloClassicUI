@@ -555,7 +555,9 @@ paintTotemTooltip = function(btn)
     if btn.totem then
         anchor = TIP_ANCHOR[btn:GetAttribute("flypoint")] or "ANCHOR_BOTTOM"
     end
-    GameTooltip:SetOwner(btn, anchor)
+    -- The remaining-cooldown line is recomputed while the mouse rests here, so
+    -- the tooltip is opened rather than described.
+    if not ns.UI:OpenTooltip(btn, anchor) then return end
     GameTooltip:SetText(name, 1, 1, 1)
     local start, dur = GetSpellCooldown(id or name)
     if start and dur and start > 0 and dur > 1.5 then  -- > 1.5 filters the GCD
