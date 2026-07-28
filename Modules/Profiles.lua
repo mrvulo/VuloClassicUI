@@ -193,6 +193,33 @@ function mod:GetOptions()
         end,
     })
 
+    -- Directly under the active profile, not four sections down. Export and
+    -- import act on THIS profile, so they belong beside the line that names it
+    -- -- and a backup you have to scroll for is a backup nobody takes.
+    table.insert(items, { type = "spacer", height = 12 })
+
+    table.insert(items, { type = "header", text = L["Share Profile"] })
+    table.insert(items, {
+        type = "desc",
+        text = L["|cffaaaaaaExport the current profile as a text string - as a backup or to share it. Importing always creates a NEW profile and never overwrites anything.|r"],
+    })
+    table.insert(items, {
+        type = "group", layout = "row", gap = 6,
+        items = {
+            { type = "button", label = L["Export as string"], width = 180,
+              onClick = function()
+                  local s = ns:ExportProfileString()
+                  if s then
+                      StaticPopup_Show("VCUI_PROFILE_EXPORT", nil, nil, s)
+                  end
+              end },
+            { type = "button", label = L["Import from string"], width = 180,
+              onClick = function()
+                  StaticPopup_Show("VCUI_PROFILE_IMPORT")
+              end },
+        },
+    })
+
     table.insert(items, { type = "spacer", height = 12 })
 
     table.insert(items, { type = "header", text = L["Profile for this character"] })
@@ -286,30 +313,6 @@ function mod:GetOptions()
                 refreshUI()
             end
         end,
-    })
-
-    table.insert(items, { type = "spacer", height = 12 })
-
-    table.insert(items, { type = "header", text = L["Share Profile"] })
-    table.insert(items, {
-        type = "desc",
-        text = L["|cffaaaaaaExport the current profile as a text string - as a backup or to share it. Importing always creates a NEW profile and never overwrites anything.|r"],
-    })
-    table.insert(items, {
-        type = "group", layout = "row", gap = 6,
-        items = {
-            { type = "button", label = L["Export as string"], width = 180,
-              onClick = function()
-                  local s = ns:ExportProfileString()
-                  if s then
-                      StaticPopup_Show("VCUI_PROFILE_EXPORT", nil, nil, s)
-                  end
-              end },
-            { type = "button", label = L["Import from string"], width = 180,
-              onClick = function()
-                  StaticPopup_Show("VCUI_PROFILE_IMPORT")
-              end },
-        },
     })
 
     table.insert(items, { type = "spacer", height = 12 })
