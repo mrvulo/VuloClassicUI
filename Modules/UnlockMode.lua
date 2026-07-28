@@ -165,8 +165,20 @@ function ns:PrepareBlizzMovers()
     -- which is why the chat jumped left on every entry and stood correctly again
     -- the moment edit mode closed and our own code repositioned it.
     --
-    -- Deferred by a frame: ApplyChanges does its anchoring first, and anything
-    -- we place before that would simply be overwritten.
+    -- SYNCHRONOUS, and that is the whole point. The stack trace above came out
+    -- of our own call, so Blizzard has finished its anchoring by the time this
+    -- line runs -- placing back in the same frame means nothing is ever drawn in
+    -- the wrong spot. A C_Timer.After(0) here was visible as the window jumping
+    -- twice, and the reference addon notes the same trap: "Must be synchronous
+    -- (no C_Timer.After) to avoid a visible flicker frame."
+    --
+    -- Runs whether or not `any` was true: it is emEnsure's SetActiveLayout that
+    -- re-anchors everything, and that happened before the loop.
+    if ns.ReapplyAllMovers then ns:ReapplyAllMovers() end
+
+    -- Safety net for a client that defers part of its layout apply anyway. When
+    -- the line above already did the job this finds everything in place and
+    -- writes nothing.
     if C_Timer and C_Timer.After and ns.ReapplyAllMovers then
         C_Timer.After(0, function() ns:ReapplyAllMovers() end)
     end
