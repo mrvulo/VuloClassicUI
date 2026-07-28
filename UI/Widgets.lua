@@ -1109,6 +1109,9 @@ local function dropdownSetup(container, config)
     container._vcConfig = config
     local btn, label = container._button, container._label
     btn:ClearAllPoints(); label:ClearAllPoints()
+    -- Cleared on every setup: these come from a pool, and a label column left
+    -- over from the last page that used this frame would silently apply here.
+    container._labelW = nil
     if config.label then
         label:SetText(clean(config.label))
         label:Show()
@@ -1140,6 +1143,17 @@ function UI:CreateDropdown(parent, config)
     local btn = CreateFrame("Button", nil, container)
     btn:SetHeight(24)
     container._button = btn
+
+    -- Same contract the slider row has. The button is anchored to the label's
+    -- right edge, so a label at its natural width starts every dropdown on a
+    -- page at a different x -- nine class rows above one another, each box a few
+    -- pixels off the last. Given a column, they all start on one line.
+    container.SetLabelWidth = function(self, w)
+        self._labelW = w and math.max(20, w) or nil
+        if self._label and self._label:IsShown() then
+            self._label:SetWidth(self._labelW or 0)
+        end
+    end
 
     -- same geometry StyleBackdrop draws; it keeps the four edges on the frame as
     -- _vcBorders, which is what the hover recolour below uses

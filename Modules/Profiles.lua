@@ -7,6 +7,10 @@ local mod = ns:RegisterModule("profiles", {
     group       = "Account",
     description = "Manage profiles with different settings. A default profile can be assigned per class and is loaded automatically on login.",
     noToggle    = true,  -- no power button in the sidebar
+    -- The nine class rows are the reason: without a shared grid the ninth sits
+    -- alone on full width and each dropdown box starts a few pixels off the one
+    -- above it. See UI._grid in UI/OptionsBuilder.
+    optionsGrid = true,
     defaults    = {
         enabled = true,
     },

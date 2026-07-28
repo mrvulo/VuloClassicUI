@@ -301,10 +301,15 @@ end
 -- the whole point: the column is MEASURED, not guessed, so a group lines up on
 -- one edge without anyone tuning gaps by eye. Capped at 45% of a cell so one
 -- long label cannot squeeze every track in the group down to a stub.
-local function runLabelColumn(run, cellW)
+-- `wide` also measures dropdowns. Off by default: it widens the column on every
+-- page that has a long dropdown label, and only a grid page has asked for that
+-- trade. On a grid page it is the point -- a dropdown's box is anchored to its
+-- label's right edge, so without a shared column nine class rows put nine boxes
+-- at nine slightly different x positions.
+local function runLabelColumn(run, cellW, wide)
     local widest = 0
     for _, item in ipairs(run) do
-        if item.type == "slider" then
+        if item.type == "slider" or (wide and item.type == "dropdown") then
             local w = labelWidth(item.label)
             -- A tooltip puts an info glyph in front of the text, inside the same
             -- column. Measuring only the text made exactly those rows clip --
@@ -377,20 +382,57 @@ local function fitColumns(run, availW)
     return 2
 end
 
+-- ---- strict grid, opt-in per page ---------------------------------------
+-- A module sets `optionsGrid = true` and every compact row on its page becomes
+-- one half of a two-column grid -- INCLUDING a setting with no partner, which
+-- keeps its half and leaves the other empty instead of stretching across the
+-- page.
+--
+-- That second half of the rule is the one we did not have. A lone control on
+-- full width puts its switch at the far right, some four hundred pixels from
+-- the label it belongs to; pairing runs closed that gap only where a partner
+-- happened to exist. The reference addon we took this from has 44 two-column
+-- rows on its cooldown page and exactly one full-width control -- it pads with
+-- an empty half rather than break the grid, and that is what makes the page
+-- read as ordered.
+--
+-- The label column is measured ONCE for the page, not per run. Per run, two
+-- groups with different longest labels start their tracks at two different x
+-- positions, and the eye reads that as carelessness rather than as two groups.
+UI._grid = nil   -- nil, or { cols = 2, labelCol = n }
+
+local function collectCompact(list, out)
+    for _, it in ipairs(list) do
+        if type(it) == "table" then
+            if COMPACT[it.type] and not it.subOptions then out[#out + 1] = it end
+            if it.items then collectCompact(it.items, out) end
+        end
+    end
+    return out
+end
+
+local function pageLabelColumn(items, availW)
+    local slotW = math.floor((availW - COL_GAP) / 2)
+    return runLabelColumn(collectCompact(items, {}), slotW - 20, true)
+end
+
 local function placeColumns(parent, run, y)
     local availW = (parent:GetWidth() or 540) - 2 * CONTENT_PADDING
-    local cols   = fitColumns(run, availW)
+    local grid   = UI._grid
+    local cols   = (grid and grid.cols) or fitColumns(run, availW)
     local colW   = math.floor((availW - (cols - 1) * COL_GAP) / cols)
-    local labelCol = runLabelColumn(run, colW)
+    local labelCol
+    if grid then labelCol = grid.labelCol else labelCol = runLabelColumn(run, colW) end
     local base   = parent:GetFrameLevel()
     local n      = #run
     for idx = 1, n do
         local item  = run[idx]
         local col   = (idx - 1) % cols
         local row   = math.floor((idx - 1) / cols)
-        -- last item, alone on its row: it takes the whole width rather than
-        -- leaving a ragged gap beside it
-        local fullW = (idx == n) and (n % cols == 1)
+        -- Last item, alone on its row: normally it takes the whole width rather
+        -- than leaving a ragged gap beside it. On a grid page it does NOT --
+        -- keeping its half and leaving the other empty IS the grid.
+        local fullW = (not grid) and (idx == n) and (n % cols == 1)
         local cellX = CONTENT_PADDING + (fullW and 0 or col * (colW + COL_GAP))
         local cellY = y - row * ROW_H
         local cellW = fullW and availW or colW
@@ -677,11 +719,15 @@ function UI:PlaceGroup(parent, group, y)
         end
 
         local function spread(widthOf)
-            local labelCol
+            -- On a grid page the column belongs to the page, not to this row --
+            -- otherwise an explicitly paired row would align with itself and
+            -- with nothing else on the page.
+            local grid = UI._grid
+            local labelCol = grid and grid.labelCol
             for _, p in ipairs(placed) do
                 local w = widthOf(p)
                 if w then
-                    labelCol = labelCol or runLabelColumn(items, w)
+                    if not grid then labelCol = labelCol or runLabelColumn(items, w) end
                     p.w = w
                     p.widget:SetWidth(w)
                     if labelCol and p.widget.SetLabelWidth then p.widget:SetLabelWidth(labelCol) end
@@ -924,7 +970,19 @@ function UI:BuildOptionsPage(key, tabId)
         wrap(items)
     end
 
+    -- Grid pages decide their column count and their label column ONCE, here,
+    -- so every row on the page lines up with every other. Cleared afterwards:
+    -- other callers of the placement helpers (the edit-mode toolbar) must not
+    -- inherit a page's grid.
+    UI._grid = nil
+    if mod.optionsGrid then
+        local gw = parent:GetWidth()
+        if not gw or gw < 100 then gw = 540 end
+        UI._grid = { cols = 2, labelCol = pageLabelColumn(items, gw - 2 * CONTENT_PADDING) }
+    end
+
     y = placeItemList(parent, items, y)
+    UI._grid = nil
 
     local totalHeight = math.max(400, math.abs(y) + 20)
     parent:SetHeight(totalHeight)

@@ -5,6 +5,9 @@ local L = ns.L
 local mod = ns:RegisterModule("cooldownmanager", {
     name        = "Cooldown Manager",
     group       = "HUD",
+    -- Two columns throughout, and a setting without a partner keeps its half
+    -- rather than stretching across the page. See UI._grid in UI/OptionsBuilder.
+    optionsGrid = true,
     description = "Movable cooldown bars grouped however you like (procs, defensives, offensives ...) — like the retail cooldown manager.",
     defaults    = {
         enabled  = true,
