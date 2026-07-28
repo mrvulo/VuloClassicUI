@@ -34,29 +34,52 @@ local SEP = "\031"   -- unit separator: cannot occur in a module key or a label
 -- The axis
 -- =========================================================================
 
-function ns:ActiveTalentGroup()
-    if GetActiveTalentGroup then
-        local ok, g = pcall(GetActiveTalentGroup)
-        if ok and type(g) == "number" then return g end
-    end
-    return 1
+-- Verified against the unpacked client source rather than assumed:
+--   * GetNumTalentGroups does NOT EXIST -- not as a function, not as a
+--     deprecated alias. There is no way to ask how many talent groups a
+--     character has, so nothing may gate on that number.
+--   * GetActiveTalentGroup, GetTalentTabInfo and GetNumTalentTabs exist ONLY
+--     inside Blizzard_DeprecatedSpecialization, behind the
+--     `loadDeprecationFallbacks` CVar. They can be switched off today and
+--     removed tomorrow.
+--   * The real API is C_SpecializationInfo. Capability is what we test for,
+--     never the client version.
+local SI = _G.C_SpecializationInfo
+
+function ns:HasTalentGroups()
+    return (SI and SI.GetActiveSpecGroup) and true or false
 end
 
-function ns:NumTalentGroups()
-    if GetNumTalentGroups then
-        local ok, n = pcall(GetNumTalentGroups)
-        if ok and type(n) == "number" and n > 0 then return n end
+function ns:ActiveTalentGroup()
+    if SI and SI.GetActiveSpecGroup then
+        local ok, g = pcall(SI.GetActiveSpecGroup)
+        if ok and type(g) == "number" and g > 0 then return g end
     end
     return 1
 end
 
 -- Name of the tree with the most points in that group -- "Shadow", "Holy".
--- Nil while the talent data is not loaded yet; callers fall back to a number.
+-- Nil while talent data is not loaded; callers then fall back to the number.
+--
+-- Deliberately NOT falling back to GetTalentTabInfo: the deprecated shim returns
+-- (specId, name, description, icon, pointsSpent, ...) while the original classic
+-- function returned (name, icon, pointsSpent, ...). Reading position 3 as the
+-- point count is right for one and reads the DESCRIPTION for the other, and
+-- there is no way to tell which one answered. A missing label is honest; a label
+-- built from the wrong slot is not.
 function ns:TalentGroupLabel(group)
-    if not (GetNumTalentTabs and GetTalentTabInfo) then return nil end
+    if not (SI and SI.GetSpecializationInfo and UnitClass) then return nil end
+
+    local classID = select(3, UnitClass("player"))
+    if not classID or not SI.GetNumSpecializationsForClassID then return nil end
+    local okN, numTrees = pcall(SI.GetNumSpecializationsForClassID, classID)
+    if not okN or type(numTrees) ~= "number" then return nil end
+
     local best, bestPoints
-    for tab = 1, (GetNumTalentTabs() or 0) do
-        local ok, name, _, points = pcall(GetTalentTabInfo, tab, false, false, group)
+    for i = 1, numTrees do
+        -- returns: specId, name, description, icon, role, primaryStat, pointsSpent, ...
+        local ok, _, name, _, _, _, _, points =
+            pcall(SI.GetSpecializationInfo, i, false, false, nil, nil, group)
         if ok and type(points) == "number" and (not bestPoints or points > bestPoints) then
             bestPoints = points
             best = (type(name) == "string" and name ~= "") and name or nil

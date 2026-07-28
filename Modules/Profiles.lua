@@ -415,7 +415,10 @@ function mod:GetOptions()
 
     -- Per-talent-group values for individual settings, so a second build does
     -- not need a duplicate profile. Engine in Core/TalentOverrides.lua.
-    if ns.ActiveTalentGroup and ns:NumTalentGroups() > 1 then
+    -- Gated on the API existing, NOT on a group count: the client offers no way
+    -- to ask how many talent groups a character has. A character who only ever
+    -- uses one simply never sees the values differ.
+    if ns.HasTalentGroups and ns:HasTalentGroups() then
         local group = ns:ActiveTalentGroup()
         local label = ns:TalentGroupLabel(group) or string.format(L["Talent group %d"], group)
 
