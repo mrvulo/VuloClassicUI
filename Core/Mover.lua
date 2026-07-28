@@ -304,6 +304,31 @@ function ns:ApplyMoverLink(child)
     return true
 end
 
+-- Move everything docked to this window, WITHOUT re-measuring anything.
+--
+-- The difference to OnMoverRepositioned matters and cost a broken chat window
+-- to learn: that one starts by re-MEASURING the given mover's own link from
+-- wherever it currently sits. That is right after a drag -- the user just put it
+-- there -- and wrong on a size change, where the frame may be mid-layout and
+-- nowhere near its final place. Measuring then writes the transient position
+-- into the saved offsets, permanently.
+function ns:RepositionMoverChildren(mover, visited)
+    local store = linkStore()
+    if not (store and mover and mover.key) then return end
+    visited = visited or {}
+    if visited[mover.key] then return end
+    visited[mover.key] = true
+    for key, link in pairs(store) do
+        if type(link) == "table" and link.to == mover.key and not visited[key] then
+            local child = ns:GetMoverByKey(key)
+            if child then
+                applyLink(child, link)
+                ns:RepositionMoverChildren(child, visited)
+            end
+        end
+    end
+end
+
 function ns:OnMoverRepositioned(mover, visited)
     local store = linkStore()
     if not (store and mover and mover.key) then return end
@@ -977,12 +1002,31 @@ function ns:CreateMover(target, opts)
     -- exactly this reason ("when the child resizes, the near edge stays fixed
     -- relative to the target"). Same idea here.
     target:HookScript("OnSizeChanged", function()
-        if mover._sizeSync then return end
+        if mover._sizeSync or not mover.key then return end
         -- Writing a protected frame's anchor while locked down is not ours to do.
         if InCombatLockdown() and isSecureTarget(target) then return end
+        local store = linkStore()
+        if not store then return end
+
+        local own = store[mover.key]
+        if not own then
+            -- Nothing docked here. Only carry on if something is docked TO it;
+            -- otherwise there is no derived position anywhere near this frame
+            -- and the cheapest thing to do is nothing. Most frames exit here.
+            local any = false
+            for _, l in pairs(store) do
+                if type(l) == "table" and l.to == mover.key then any = true; break end
+            end
+            if not any then return end
+        end
+
         mover._sizeSync = true
-        ns:ApplyMoverLink(mover)          -- this window, if it is docked
-        ns:OnMoverRepositioned(mover)     -- and everything docked to it
+        -- Strictly re-APPLY. Nothing in this path may measure: a size change can
+        -- land mid-layout, with the frame nowhere near its final place, and
+        -- measuring then would write that transient position into the saved
+        -- offsets for good.
+        if own then applyLink(mover, own) end
+        ns:RepositionMoverChildren(mover)
         mover._sizeSync = nil
     end)
 
