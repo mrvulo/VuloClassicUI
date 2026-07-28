@@ -34,21 +34,8 @@ local SHEETS = {
     vulofantasy2 = "Interface\\AddOns\\VuloClassicUI\\Media\\ClassSheets\\vulofantasy2.tga",
     vuloepic     = "Interface\\AddOns\\VuloClassicUI\\Media\\ClassSheets\\vuloepic.tga",
 }
-local SHEET_COORDS = {
-    WARRIOR     = { 0,     0.125, 0,     0.125 },
-    MAGE        = { 0.125, 0.25,  0,     0.125 },
-    ROGUE       = { 0.25,  0.375, 0,     0.125 },
-    DRUID       = { 0.375, 0.5,   0,     0.125 },
-    EVOKER      = { 0.5,   0.625, 0,     0.125 },
-    HUNTER      = { 0,     0.125, 0.125, 0.25  },
-    SHAMAN      = { 0.125, 0.25,  0.125, 0.25  },
-    PRIEST      = { 0.25,  0.375, 0.125, 0.25  },
-    WARLOCK     = { 0.375, 0.5,   0.125, 0.25  },
-    PALADIN     = { 0,     0.125, 0.25,  0.375 },
-    DEATHKNIGHT = { 0.125, 0.25,  0.25,  0.375 },
-    MONK        = { 0.25,  0.375, 0.25,  0.375 },
-    DEMONHUNTER = { 0.375, 0.5,   0.25,  0.375 },
-}
+-- Shared with the override button in UI/MainFrame: one grid, one place.
+local SHEET_COORDS = ns.CLASS_SHEET_COORDS
 
 local fileOKCache = {}
 local function fileOK(path)

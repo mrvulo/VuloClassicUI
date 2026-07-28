@@ -432,7 +432,7 @@ function UI:CreateMainFrame()
         glyph:SetSize(15, 15)
         glyph:SetPoint("CENTER")
         local classToken = select(2, UnitClass("player"))
-        local tex, coords = ns:GetClassIcon(classToken)
+        local tex, coords = ns:GetVuloClassIcon(classToken)
         if tex and coords then
             glyph:SetTexture(tex)
             glyph:SetTexCoord(coords[1], coords[2], coords[3], coords[4])

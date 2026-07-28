@@ -137,6 +137,44 @@ function ns:GetClassIcon(classToken)
     return CLASS_ICON_TEXTURE, coords
 end
 
+-- Our own class sheets under Media/ClassSheets. A DIFFERENT grid from Blizzard's
+-- atlas above: 8x8 cells, so the coordinates are not interchangeable.
+-- These sheets ship with the addon and carry their licence next to them.
+-- Media/LocalClasses is NOT among them -- that art is gitignored on purpose and
+-- must never be referenced from anything that ships.
+ns.CLASS_SHEET_PATH   = "Interface\\AddOns\\VuloClassicUI\\Media\\ClassSheets\\"
+ns.CLASS_SHEET_COORDS = {
+    WARRIOR     = { 0,     0.125, 0,     0.125 },
+    MAGE        = { 0.125, 0.25,  0,     0.125 },
+    ROGUE       = { 0.25,  0.375, 0,     0.125 },
+    DRUID       = { 0.375, 0.5,   0,     0.125 },
+    EVOKER      = { 0.5,   0.625, 0,     0.125 },
+    HUNTER      = { 0,     0.125, 0.125, 0.25  },
+    SHAMAN      = { 0.125, 0.25,  0.125, 0.25  },
+    PRIEST      = { 0.25,  0.375, 0.125, 0.25  },
+    WARLOCK     = { 0.375, 0.5,   0.125, 0.25  },
+    PALADIN     = { 0,     0.125, 0.25,  0.375 },
+    DEATHKNIGHT = { 0.125, 0.25,  0.25,  0.375 },
+    MONK        = { 0.25,  0.375, 0.25,  0.375 },
+    DEMONHUNTER = { 0.375, 0.5,   0.25,  0.375 },
+}
+
+-- The nicer class art used by the friends list. Falls back to Blizzard's atlas
+-- when the sheet is not on disk, so a stripped install still shows an icon
+-- rather than a blank square.
+function ns:GetVuloClassIcon(classToken, sheet)
+    if not classToken then return ns:GetClassIcon(classToken) end
+    local token  = classToken:upper()
+    local coords = ns.CLASS_SHEET_COORDS[token]
+    if not coords then return ns:GetClassIcon(classToken) end
+
+    local path = ns.CLASS_SHEET_PATH .. (sheet or "vuloepic") .. ".tga"
+    if _G.GetFileIDFromPath and not _G.GetFileIDFromPath(path) then
+        return ns:GetClassIcon(classToken)
+    end
+    return path, coords
+end
+
 function ns:DeepCopy(t)
     if type(t) ~= "table" then return t end
     local copy = {}
