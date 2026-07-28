@@ -588,14 +588,27 @@ function UI:PlaceGroup(parent, group, y)
         local curY     = y
 
         local function flushRow()
+            local cellW = colWidth - 14
+            -- One measured label column for the whole row, exactly as in the
+            -- two-column path. Without it every slider here fell back to the
+            -- 120px default and the second column's label was cut to
+            -- "Nachrichte...".
+            local labelCol = runLabelColumn(rowItems, cellW)
             for i, ri in ipairs(rowItems) do
                 -- clamp to column width: a toggle's right-anchored switch would
                 -- otherwise overlap the next column's label
                 if ri.width == nil and (ri.type == "toggle" or ri.type == "checkbox") then
-                    ri.width = colWidth - 14
+                    ri.width = cellW
                 end
                 local widget = createWidget(parent, ri)
                 if widget then
+                    -- A slider row sizes itself from its own width. This path
+                    -- never set one, so the row kept the width it computed from
+                    -- config.width and ran straight into the next column.
+                    if ri.type == "slider" then
+                        widget:SetWidth(cellW)
+                        if labelCol and widget.SetLabelWidth then widget:SetLabelWidth(labelCol) end
+                    end
                     if panel then widget:SetFrameLevel(base + 4) end
                     local xo = CONTENT_PADDING + (panel and 6 or 0) + (i - 1) * colWidth
                     local yo = curY - (panel and 4 or 0)
