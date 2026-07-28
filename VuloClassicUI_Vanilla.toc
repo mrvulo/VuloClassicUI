@@ -94,6 +94,7 @@ Modules\VulTraining\Classes\Warlock.lua
 Modules\VulTraining\Classes\Warrior.lua
 Modules\VulTraining.lua
 Modules\ClassTools.lua
+Modules\ClassTrackers.lua
 Modules\Classes\Priest.lua
 Modules\Classes\Warlock.lua
 Modules\Classes\Shaman.lua
