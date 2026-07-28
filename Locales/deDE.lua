@@ -353,6 +353,7 @@ ns:RegisterLocale("deDE", function() return {
     ["Active"] = "Aktiv",
     ["Disabled"] = "Deaktiviert",
     ["Profile"] = "Profil",
+    ["|cffff5555Bar setups module not loaded.|r"] = "|cffff5555Modul für Leisten-Belegungen nicht geladen.|r",
     ["Display"] = "Anzeige",
     ["Character panel style"] = "Stil des Charakterfensters",
     ["Classic+ is the current look. Modern is a new style we are still building; for now it shows the plain panel."] = "Classic+ ist der aktuelle Look. Modern ist ein neuer Stil, den wir noch bauen; vorerst zeigt er das schlichte Fenster.",
@@ -631,8 +632,8 @@ ns:RegisterLocale("deDE", function() return {
     ["Cooldown Manager unlocked. Drag spells/items onto the bar to add. |cff9b6cffDrag|r the bar to move."] = "Cooldown-Manager entsperrt. Zieh Zauber/Gegenstände auf die Leiste zum Hinzufügen. |cff9b6cffZiehen|r zum Verschieben.",
     ["Cooldown Manager locked."] = "Cooldown-Manager gesperrt.",
 
-    -- Vulslot
-    ["Vulslot"] = "Leisten-Profile",
+    -- Bar Setups
+    ["Bar Setups"] = "Leisten-Belegungen",
     ["Saves named snapshots of your action bars, macros and keybindings, and restores them with one click."] = "Speichert benannte Schnappschüsse deiner Aktionsleisten, Makros und Tastenbelegungen und stellt sie mit einem Klick wieder her.",
     ["|cffaaaaaaSaves your complete bar setup (all action slots, macros, keybindings) as a named profile and restores it with one click — e.g. PvP and Raid layouts, or to copy a setup to a twink (account-wide storage).|r"] = "|cffaaaaaaSpeichert dein komplettes Leisten-Setup (alle Aktionsslots, Makros, Tastenbelegungen) als benanntes Profil und stellt es mit einem Klick wieder her — z. B. PvP- und Raid-Layout, oder um ein Setup auf einen Twink zu übertragen (accountweite Speicherung).|r",
     ["Load"] = "Laden",
@@ -645,12 +646,12 @@ ns:RegisterLocale("deDE", function() return {
     ["Load profile"] = "Profil laden",
     ["Overwrite with current setup"] = "Mit aktuellem Setup überschreiben",
     ["Replaces the selected profile with your current bars/macros/bindings."] = "Ersetzt das gewählte Profil durch deine aktuellen Leisten/Makros/Tasten.",
-    ["Vulslot profile '%s' saved."] = "Vulslot-Profil '%s' gespeichert.",
-    ["Vulslot profile '%s' deleted."] = "Vulslot-Profil '%s' gelöscht.",
-    ["Not in combat — Vulslot can't change bars while fighting."] = "Nicht im Kampf — Vulslot kann Leisten im Kampf nicht ändern.",
+    ["Bar setup '%s' saved."] = "Leisten-Belegung '%s' gespeichert.",
+    ["Bar setup '%s' deleted."] = "Leisten-Belegung '%s' gelöscht.",
+    ["Not in combat — bars can't be changed while fighting."] = "Nicht im Kampf — Leisten lassen sich im Kampf nicht ändern.",
     ["Note: profile '%s' was saved on another class (%s)."] = "Hinweis: Profil '%s' wurde auf einer anderen Klasse gespeichert (%s).",
-    ["Vulslot '%s' loaded: %d slots set, %d cleared, |cffff8800%d skipped|r (unknown spell / missing item or macro)."] = "Vulslot '%s' geladen: %d Slots gesetzt, %d geleert, |cffff8800%d übersprungen|r (unbekannter Zauber / fehlendes Item oder Makro).",
-    ["Vulslot '%s' loaded: %d slots set, %d cleared."] = "Vulslot '%s' geladen: %d Slots gesetzt, %d geleert.",
+    ["Bar setup '%s' loaded: %d slots set, %d cleared, |cffff8800%d skipped|r (unknown spell / missing item or macro)."] = "Leisten-Belegung '%s' geladen: %d Plätze gesetzt, %d geleert, |cffff8800%d übersprungen|r (unbekannter Zauber / fehlender Gegenstand oder Makro).",
+    ["Bar setup '%s' loaded: %d slots set, %d cleared."] = "Leisten-Belegung '%s' geladen: %d Plätze gesetzt, %d geleert.",
 
     -- FlightTimer
     ["Flight Timer"] = "Flugzeit",
@@ -899,7 +900,7 @@ ns:RegisterLocale("deDE", function() return {
     ["Profile Assignment per Class"] = "Profilzuweisung pro Klasse",
     ["Choose a default profile for each class. When logging in with a character of that class, the profile will be loaded automatically."] = "Wähle für jede Klasse ein Standardprofil. Beim Einloggen mit einem Charakter dieser Klasse wird das Profil automatisch geladen.",
     ["Settings migrated to profile system (all settings are in profile '%s')."] = "Einstellungen ins Profilsystem migriert (alle Einstellungen liegen in Profil '%s').",
-    ["Vulslot snapshots are now stored once for the whole account: %d kept, %d duplicates merged."] = "Vulslot-Aufnahmen liegen jetzt einmal für den ganzen Account: %d behalten, %d Doppelte zusammengeführt.",
+    ["Bar setups are now stored once for the whole account: %d kept, %d duplicates merged."] = "Leisten-Belegungen liegen jetzt einmal für den ganzen Account: %d behalten, %d Doppelte zusammengeführt.",
     ["%d snapshot(s) had the same name but different contents and were kept under a new name."] = "%d Aufnahme(n) hatten denselben Namen bei anderem Inhalt und wurden unter einem neuen Namen behalten.",
     ["|cffff5555Profile '%s' does not exist.|r"] = "|cffff5555Profil '%s' existiert nicht.|r",
     ["Profile '%s' created%s."] = "Profil '%s' erstellt%s.",

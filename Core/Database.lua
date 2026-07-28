@@ -134,7 +134,7 @@ local MIGRATIONS = {
         end
 
         if moved + merged + renamed > 0 then
-            note(L["Vulslot snapshots are now stored once for the whole account: %d kept, %d duplicates merged."],
+            note(L["Bar setups are now stored once for the whole account: %d kept, %d duplicates merged."],
                 moved, merged)
             if renamed > 0 then
                 note(L["%d snapshot(s) had the same name but different contents and were kept under a new name."],

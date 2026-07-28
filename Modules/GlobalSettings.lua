@@ -19,6 +19,17 @@ local mod = ns:RegisterModule("globalsettings", {
 mod.tabs = {
     { id = "general", label = "General" },
     { id = "profile", label = "Profile" },
+    -- Bar setups get their own tab rather than a ninth section on the profile
+    -- page. Two reasons: on that page it would need scrolling to reach, which
+    -- is the problem it was moved out of the sidebar to solve; and "profile"
+    -- would then mean two different things -- a settings profile and a saved
+    -- bar layout -- one above the other.
+    --
+    -- The id is the MODULE KEY on purpose. Modules/Vulslot.lua sets
+    -- parentTab = "globalsettings", and the framework's rule for that pair is
+    -- tabId == module key: it is what makes BuildOptionsPage("vulslot") from
+    -- inside the module land on this tab instead of nowhere.
+    { id = "vulslot", label = "Bar Setups" },
 }
 
 local function setCVar(cvar, val)
@@ -211,19 +222,23 @@ local function generalOptions()
     return items
 end
 
-local function profileOptions()
-    local p = ns.modules and ns.modules.profiles
-    if p and p.GetOptions then
-        local ok, items = pcall(p.GetOptions, p)
+-- Both delegating tabs hand the page to the module that owns it, so the options
+-- live next to the code they drive instead of being copied here.
+local function delegate(key, missingText)
+    local m = ns.modules and ns.modules[key]
+    if m and m.GetOptions then
+        local ok, items = pcall(m.GetOptions, m)
         if ok and items then return items end
     end
-    return {
-        { type = "desc",
-          text = L["|cffff5555Profile module not loaded.|r"] },
-    }
+    return { { type = "desc", text = missingText } }
 end
 
 function mod:GetOptions(tabId)
-    if tabId == "profile" then return profileOptions() end
+    if tabId == "profile" then
+        return delegate("profiles", L["|cffff5555Profile module not loaded.|r"])
+    end
+    if tabId == "vulslot" then
+        return delegate("vulslot", L["|cffff5555Bar setups module not loaded.|r"])
+    end
     return generalOptions()
 end

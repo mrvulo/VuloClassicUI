@@ -3,8 +3,13 @@ local _, ns = ...
 local L = ns.L
 
 local mod = ns:RegisterModule("vulslot", {
-    name        = "Vulslot",
-    group       = "Bags & Items",
+    name        = "Bar Setups",
+    -- "Account" is a sidebar-hidden group: this page is reached through the
+    -- Bars tab of Global Settings, the same way the profile manager is reached
+    -- through the Profile tab. It was under "Bags & Items" as "Vulslot", where
+    -- neither the group nor the name said what it does.
+    group       = "Account",
+    noToggle    = true,   -- nothing to switch off: OnEnable/OnDisable are empty
     description = "Saves named snapshots of your action bars, macros and keybindings, and restores them with one click.",
     defaults    = {
         enabled         = true,
@@ -13,6 +18,16 @@ local mod = ns:RegisterModule("vulslot", {
         -- The snapshots themselves are NOT here -- see library() below.
     },
 })
+
+-- Appear as a TAB of Global Settings instead of a sidebar row. The framework
+-- reads this field in four places: the sidebar skips the row, the dashboard
+-- skips the toggle, clicking through to this module opens the container and
+-- selects the tab, and -- the one that matters most here -- BuildOptionsPage
+-- redirects "vulslot" to ("globalsettings", "vulslot"). That last one is why
+-- rebuildPage() below still refreshes the right page after a save or a delete
+-- without knowing it moved. The tab id in GlobalSettings must therefore stay
+-- equal to this module's key.
+mod.parentTab = "globalsettings"
 
 -- name -> snapshot, account-wide.
 --
@@ -95,7 +110,7 @@ local function saveProfile(name)
         macros   = snapshotMacros(),
         bindings = snapshotBindings(),
     }
-    ns:Print(L["Vulslot profile '%s' saved."], name)
+    ns:Print(L["Bar setup '%s' saved."], name)
 end
 
 local function restoreMacros(list)
@@ -188,7 +203,7 @@ local function loadProfile(name)
     local p = library()[name]
     if not p then return end
     if InCombatLockdown and InCombatLockdown() then
-        ns:Print(L["Not in combat — Vulslot can't change bars while fighting."])
+        ns:Print(L["Not in combat — bars can't be changed while fighting."])
         return
     end
 
@@ -212,10 +227,10 @@ local function loadProfile(name)
     end
 
     if counts.skipped > 0 then
-        ns:Print(L["Vulslot '%s' loaded: %d slots set, %d cleared, |cffff8800%d skipped|r (unknown spell / missing item or macro)."],
+        ns:Print(L["Bar setup '%s' loaded: %d slots set, %d cleared, |cffff8800%d skipped|r (unknown spell / missing item or macro)."],
             name, counts.placed, counts.cleared, counts.skipped)
     else
-        ns:Print(L["Vulslot '%s' loaded: %d slots set, %d cleared."],
+        ns:Print(L["Bar setup '%s' loaded: %d slots set, %d cleared."],
             name, counts.placed, counts.cleared)
     end
 end
@@ -265,7 +280,7 @@ function mod:GetOptions()
     end
 
     local items = {
-        { type = "header", text = L["Vulslot"] },
+        { type = "header", text = L["Bar Setups"] },
         { type = "desc",
           text = L["|cffaaaaaaSaves your complete bar setup (all action slots, macros, keybindings) as a named profile and restores it with one click — e.g. PvP and Raid layouts, or to copy a setup to a twink (account-wide storage).|r"] },
         { type = "spacer", height = 6 },
@@ -315,7 +330,7 @@ function mod:GetOptions()
               onClick = function()
                   if selected then
                       library()[selected] = nil
-                      ns:Print(L["Vulslot profile '%s' deleted."], selected)
+                      ns:Print(L["Bar setup '%s' deleted."], selected)
                       selected = nil
                       rebuildPage()
                   end

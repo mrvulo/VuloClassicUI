@@ -673,8 +673,7 @@ ns:RegisterLocale("frFR", function() return {
     ["Cooldown Manager unlocked. Drag spells/items onto the bar to add. |cff9b6cffDrag|r the bar to move."] = "Gestionnaire de recharges déverrouillé. Glissez des sorts ou objets sur la barre pour les ajouter. |cff9b6cffGlissez|r la barre pour la déplacer.",
     ["Cooldown Manager locked."] = "Gestionnaire de recharges verrouillé.",
 
-    -- Vulslot
-    ["Vulslot"] = "Vulslot",
+    -- Bar Setups
     ["Saves named snapshots of your action bars, macros and keybindings, and restores them with one click."] = "Enregistre des instantanés nommés de vos barres d'action, macros et raccourcis, et les restaure en un clic.",
     ["|cffaaaaaaSaves your complete bar setup (all action slots, macros, keybindings) as a named profile and restores it with one click — e.g. PvP and Raid layouts, or to copy a setup to a twink (account-wide storage).|r"] = "|cffaaaaaaEnregistre toute votre configuration de barres (emplacements, macros, raccourcis) sous forme de profil nommé et la restaure en un clic — par exemple une disposition JcJ et une disposition raid, ou pour recopier une configuration sur un reroll (stockage commun au compte).|r",
     ["Load"] = "Charger",
@@ -687,12 +686,7 @@ ns:RegisterLocale("frFR", function() return {
     ["Load profile"] = "Charger le profil",
     ["Overwrite with current setup"] = "Écraser avec la configuration actuelle",
     ["Replaces the selected profile with your current bars/macros/bindings."] = "Remplace le profil sélectionné par vos barres, macros et raccourcis actuels.",
-    ["Vulslot profile '%s' saved."] = "Profil Vulslot « %s » enregistré.",
-    ["Vulslot profile '%s' deleted."] = "Profil Vulslot « %s » supprimé.",
-    ["Not in combat — Vulslot can't change bars while fighting."] = "Hors combat uniquement — Vulslot ne peut pas modifier les barres pendant un combat.",
     ["Note: profile '%s' was saved on another class (%s)."] = "Remarque : le profil « %s » a été enregistré sur une autre classe (%s).",
-    ["Vulslot '%s' loaded: %d slots set, %d cleared, |cffff8800%d skipped|r (unknown spell / missing item or macro)."] = "Vulslot « %s » chargé : %d emplacements remplis, %d vidés, |cffff8800%d ignorés|r (sort inconnu, objet ou macro manquant).",
-    ["Vulslot '%s' loaded: %d slots set, %d cleared."] = "Vulslot « %s » chargé : %d emplacements remplis, %d vidés.",
 
     -- Minuteur de vol
     ["Flight Timer"] = "Minuteur de vol",
