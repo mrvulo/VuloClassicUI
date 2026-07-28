@@ -26,4 +26,42 @@
 			<OnSizeChanged method = "OnBackdropSizeChanged"/>
 		</Scripts>
 	</Frame>
+
+	<!--
+		These two came from TrinketsOpt.xml. TrinketsQueue.xml inherits the tab
+		twice and the check button three times, so they have to outlive that
+		file just as the backdrop did. Counted before moving them; the third
+		template that file defined (Trinkets_SmallButtonTemplate) is used only
+		there and became a Lua factory.
+	-->
+	<Button name = "Trinkets_TabTemplate" inherits = "UIPanelButtonGrayTemplate" virtual = "true">
+		<Size>
+			<AbsDimension x = "96" y = "28"/>
+		</Size>
+		<Scripts>
+			<OnClick>
+				Trinkets.Tab_OnClick(self:GetID())
+			</OnClick>
+		</Scripts>
+		<NormalFont style = "GameFontHighlightSmall"/>
+		<DisabledFont style = "GameFontDisableSmall"/>
+		<HighlightFont style = "GameFontHighlightSmall"/>
+	</Button>
+
+	<CheckButton name = "Trinkets_CheckButtonTemplate" inherits = "UICheckButtonTemplate" virtual = "true">
+		<Size>
+			<AbsDimension x = "24" y = "24"/>
+		</Size>
+		<Scripts>
+			<OnClick>
+				Trinkets.CheckButton_OnClick(self)
+			</OnClick>
+			<OnEnter>
+				Trinkets.OnTooltip(self)
+			</OnEnter>
+			<OnLeave>
+				GameTooltip:Hide()
+			</OnLeave>
+		</Scripts>
+	</CheckButton>
 </Ui>
