@@ -51,10 +51,13 @@ local mod = ns:RegisterModule("arenaframes", {
         trinketGlow  = true,
 
         racialEnabled = true,
-        -- Mirrors the trinket offset: whichever side the trinket takes, this one
-        -- gets the other, so the same number moves both icons away from centre.
+        -- Sits on whichever edge the trinket did not take.
+        -- Note for later: the DR row anchors to the same edge at a fixed 8px
+        -- (see the drFrames container), so with DR switched on the two overlap.
+        -- They did at the old value of 6 as well -- this is not new, but it is
+        -- the reason moving the racial further out does not fix it.
         racialSize    = 22,
-        racialOffsetX = 14,
+        racialOffsetX = 26,
         racialOffsetY = 0,
 
         shadowsightEnabled = true,
