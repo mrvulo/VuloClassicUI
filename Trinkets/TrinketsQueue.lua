@@ -13,11 +13,11 @@ local TRINKET_KEEP_BUFF_AFTER_SWAP = {
 }
 
 function Trinkets.QueueInit()
-	TrinketsQueue = TrinketsQueue or {
+	TrinketsQueue = Trinkets.FillDefaults(TrinketsQueue, {
 		Stats = { },
 		Sort = { },
 		Enabled = { }
-	}
+	})
 	TrinketsQueue.Sort[0] = TrinketsQueue.Sort[0] or { }
 	TrinketsQueue.Sort[1] = TrinketsQueue.Sort[1] or { }
 	Trinkets_SubQueueFrame:SetBackdropBorderColor(.3, .3, .3,1)

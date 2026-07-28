@@ -110,6 +110,7 @@ Modules\Loadouts.lua
 Modules\SlotPicker.lua
 Modules\AddonSkins.lua
 Modules\PopupSkin.lua
+Trinkets\TrinketsStore.lua
 Trinkets\TrinketsGlobals.lua
 Trinkets\Trinkets.lua
 Trinkets\Trinkets.xml

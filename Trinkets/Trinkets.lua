@@ -30,8 +30,25 @@ Trinkets.TRADE_GOODS = "Trade Goods"
 Trinkets.DEVICES = "Devices"
 Trinkets.REQUIRES_ENGINEERING = "Requires Engineering"
 
+-- Fill what is missing instead of replacing the whole table.
+--
+-- This was `X = X or { ... }`, which now has two problems. The one that forced
+-- the change: these three names are BOUND to tables in our own database before
+-- any of this runs (Trinkets/TrinketsStore.lua), so they are never nil -- and an
+-- empty table is truthy, so on a fresh install the defaults would simply never
+-- be applied. The one that was already there and nobody noticed: an option
+-- added to the list below never reached anyone who had saved settings, because
+-- their table was not nil either.
+function Trinkets.FillDefaults(t, defaults)
+	t = t or {}
+	for k, v in pairs(defaults) do
+		if t[k] == nil then t[k] = v end
+	end
+	return t
+end
+
 function Trinkets.LoadDefaults()
-	TrinketsOptions = TrinketsOptions or {
+	TrinketsOptions = Trinkets.FillDefaults(TrinketsOptions, {
 		IconPos = - 100,				-- angle of initial minimap icon position
 		ShowIcon = "ON",
 		SquareMinimap = "OFF",
@@ -58,8 +75,8 @@ function Trinkets.LoadDefaults()
 		RedRange = "OFF",
 		HidePetBattle = "ON",
 		MenuOnRight = "OFF"
-	}
-	TrinketsPerOptions = TrinketsPerOptions or {
+	})
+	TrinketsPerOptions = Trinkets.FillDefaults(TrinketsPerOptions, {
 		MainDock = "BOTTOMRIGHT",
 		MenuDock = "BOTTOMLEFT",
 		MainOrient = "HORIZONTAL",
@@ -73,7 +90,7 @@ function Trinkets.LoadDefaults()
 		ItemsUsed = { },
 		Alpha = 1,
 		Hidden = { }
-	}
+	})
 end
 
 Trinkets_Version = (C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata("VuloClassicUI", "Version")) or "embedded"
@@ -644,9 +661,15 @@ function Trinkets.ResetSettings()
 		text = VL["Are you sure you want to reset Trinkets to default state and reload the UI?"],
 		button1 = _G.YES or "Yes", button2 = _G.NO or "No", showAlert = 1, timeout = 0, whileDead = 1,
 		OnAccept = function()
-			TrinketsOptions = nil
-			TrinketsPerOptions = nil
-			TrinketsQueue = nil
+			-- Nilling the globals no longer resets anything: they are BOUND to
+			-- tables in our database (Trinkets/TrinketsStore.lua), so this would
+			-- only unbind the names and every setting would be back after the
+			-- reload. Clear what they point at instead.
+			if ns.ResetTrinketStore then
+				ns:ResetTrinketStore()
+			else
+				TrinketsOptions, TrinketsPerOptions, TrinketsQueue = nil, nil, nil
+			end
 			ReloadUI()
 		end
 	}

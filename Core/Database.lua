@@ -260,6 +260,10 @@ function ns:InitDB()
     ns.db.char   = VuloClassicUICharDB
 
     ns:MigrateLegacyDBs()
+
+    -- Last, and it has to be: it needs ns.db.global and ns.db.char, and it has
+    -- to happen before any module is enabled. See Trinkets/TrinketsStore.lua.
+    if ns.BindTrinketStore then ns:BindTrinketStore() end
 end
 
 function ns:LoadProfile(profileName)

@@ -916,6 +916,7 @@ ns:RegisterLocale("deDE", function() return {
     ["Choose a default profile for each class. When logging in with a character of that class, the profile will be loaded automatically."] = "Wähle für jede Klasse ein Standardprofil. Beim Einloggen mit einem Charakter dieser Klasse wird das Profil automatisch geladen.",
     ["Settings migrated to profile system (all settings are in profile '%s')."] = "Einstellungen ins Profilsystem migriert (alle Einstellungen liegen in Profil '%s').",
     ["Bar setups are now stored once for the whole account: %d kept, %d duplicates merged."] = "Leisten-Belegungen liegen jetzt einmal für den ganzen Account: %d behalten, %d Doppelte zusammengeführt.",
+    ["Trinket window settings now live in this addon's own database."] = "Die Einstellungen des Schmuck-Fensters liegen jetzt in der eigenen Datenbank.",
     ["%d snapshot(s) had the same name but different contents and were kept under a new name."] = "%d Aufnahme(n) hatten denselben Namen bei anderem Inhalt und wurden unter einem neuen Namen behalten.",
     ["|cffff5555Profile '%s' does not exist.|r"] = "|cffff5555Profil '%s' existiert nicht.|r",
     ["Profile '%s' created%s."] = "Profil '%s' erstellt%s.",
