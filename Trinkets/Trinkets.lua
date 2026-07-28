@@ -564,10 +564,31 @@ function Trinkets.OnEvent(self, event, ...)
 end
 
 function Trinkets.UpdateWornTrinkets()
-	local texture, name = Trinkets.ItemInfo(13)
-	Trinkets_Trinket0Icon:SetTexture(texture)
-	texture, name = Trinkets.ItemInfo(14)
-	Trinkets_Trinket1Icon:SetTexture(texture)
+	local tex13 = Trinkets.ItemInfo(13)
+	local tex14 = Trinkets.ItemInfo(14)
+	Trinkets_Trinket0Icon:SetTexture(tex13)
+	Trinkets_Trinket1Icon:SetTexture(tex14)
+
+	-- GetItemInfo answers nil for an item the client has not cached yet, and at
+	-- login that is most of them. ItemInfo then returns no texture, SetTexture
+	-- paints nothing, and the two worn slots stay empty until something happens
+	-- to call this again -- which is why they filled in as soon as the window
+	-- was clicked. Ask again shortly instead of waiting for that.
+	--
+	-- Only when a trinket is actually WORN: an empty slot legitimately has no
+	-- item, and GetInventorySlotInfo hands back the placeholder art for it, so
+	-- there is nothing to wait for there.
+	if not Trinkets._wornRetry and C_Timer and C_Timer.After then
+		local pending = (GetInventoryItemLink("player", 13) and not tex13)
+		             or (GetInventoryItemLink("player", 14) and not tex14)
+		if pending then
+			Trinkets._wornRetry = true
+			C_Timer.After(1, function()
+				Trinkets._wornRetry = nil
+				Trinkets.UpdateWornTrinkets()
+			end)
+		end
+	end
 	Trinkets_Trinket0Icon:SetDesaturated(false)
 	Trinkets_Trinket0:SetChecked(false)
 	Trinkets_Trinket1Icon:SetDesaturated(false)
