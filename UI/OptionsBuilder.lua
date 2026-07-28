@@ -974,8 +974,16 @@ function UI:BuildOptionsPage(key, tabId)
     -- so every row on the page lines up with every other. Cleared afterwards:
     -- other callers of the placement helpers (the edit-mode toolbar) must not
     -- inherit a page's grid.
+    -- Read off the module whose GetOptions produced these items, which on a
+    -- container page is NOT `mod`: `mod` is the container and the items came
+    -- from the tab. The profile page is a tab of the global-settings container,
+    -- so the flag was looked up on the container, found nothing, and the grid
+    -- stayed off -- nine class rows in two columns with the ninth stretched
+    -- across the page, and every dropdown box starting a few pixels off the one
+    -- above it.
+    local gridMod = (tabId and ns.modules and ns.modules[tabId]) or mod
     UI._grid = nil
-    if mod.optionsGrid then
+    if gridMod.optionsGrid then
         local gw = parent:GetWidth()
         if not gw or gw < 100 then gw = 540 end
         UI._grid = { cols = 2, labelCol = pageLabelColumn(items, gw - 2 * CONTENT_PADDING) }
