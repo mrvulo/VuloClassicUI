@@ -536,8 +536,23 @@ function ns:ResetAllMovers()
     ns:ApplyAllMoverLinks()
 end
 
+-- A LINKED window's position is derived, not stored: db.x/y only holds the last
+-- result of that derivation. Re-applying it blind keeps the CENTRE and therefore
+-- moves the EDGES whenever the frame has changed size since -- so the window
+-- slides off whatever it was docked to, by half the size difference.
+--
+-- Modules/ActionBars.lua does exactly that: the modern bag bar and micro menu
+-- re-measure themselves, set their holder to the new size, and call ApplyMover.
+-- A holder starts life at a placeholder 220x40 and becomes its real size later,
+-- so the jump is not small.
+--
+-- Deriving again costs nothing when there is no link -- ApplyMoverLink says so
+-- and we fall through to the old path unchanged.
 function ns:ApplyMover(mover)
-    if mover then pcall(applyPos, mover) end
+    if not mover then return end
+    local ok, linked = pcall(ns.ApplyMoverLink, ns, mover)
+    if ok and linked then return end
+    pcall(applyPos, mover)
 end
 
 function ns:MoverSetCenter(mover, x, y)
@@ -946,6 +961,29 @@ function ns:CreateMover(target, opts)
         elseif ns.SelectMover then
             ns:SelectMover(self, false)
         end
+    end)
+
+    -- Re-derive a docked position on RESIZE, not only on a move.
+    --
+    -- A docked window's centre depends on its own size and on its target's: the
+    -- stored offset is edge-to-edge, so the centre has to be recomputed whenever
+    -- either box changes shape. Until now that only happened when some caller
+    -- remembered to ask, and one of them asked for the wrong thing --
+    -- Modules/ActionBars.lua resizes its chrome holders and calls ApplyMover,
+    -- which re-applied the stored CENTRE. Keeping the centre while the size
+    -- changes moves both edges, so the bar slid off the window it was docked to.
+    --
+    -- The reference addon hooks OnSizeChanged on every registered frame for
+    -- exactly this reason ("when the child resizes, the near edge stays fixed
+    -- relative to the target"). Same idea here.
+    target:HookScript("OnSizeChanged", function()
+        if mover._sizeSync then return end
+        -- Writing a protected frame's anchor while locked down is not ours to do.
+        if InCombatLockdown() and isSecureTarget(target) then return end
+        mover._sizeSync = true
+        ns:ApplyMoverLink(mover)          -- this window, if it is docked
+        ns:OnMoverRepositioned(mover)     -- and everything docked to it
+        mover._sizeSync = nil
     end)
 
     ns._movers[#ns._movers + 1] = mover
