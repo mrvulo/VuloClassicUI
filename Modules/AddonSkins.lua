@@ -299,19 +299,37 @@ function sk.skinAtlasLootPVP()
         end
     end
     skinButton(_G.AtlasLootPVPCalcToggleButton)
+    -- Flush with whatever it sits beside: same top edge, same bottom edge. The
+    -- offsets used to be -8 and +45, which left it visibly short at both ends
+    -- against a window it is meant to read as part of.
     local function dock()
         local sb = _G.VCUI_LoadoutsSidebar
+        p._vcuiDocking = true
         p:ClearAllPoints()
         if sb and sb:IsShown() then
-            p:SetPoint("TOPLEFT", sb, "TOPRIGHT", 2, 0)
-            p:SetPoint("BOTTOMLEFT", sb, "BOTTOMRIGHT", 2, 0)
+            p:SetPoint("TOPLEFT",     sb, "TOPRIGHT",    2, 0)
+            p:SetPoint("BOTTOMLEFT",  sb, "BOTTOMRIGHT", 2, 0)
         elseif _G.CharacterFrame then
-            p:SetPoint("TOPLEFT", _G.CharacterFrame, "TOPRIGHT", 6, -8)
-            p:SetPoint("BOTTOMLEFT", _G.CharacterFrame, "BOTTOMRIGHT", 6, 45)
+            p:SetPoint("TOPLEFT",     _G.CharacterFrame, "TOPRIGHT",    6, 0)
+            p:SetPoint("BOTTOMLEFT",  _G.CharacterFrame, "BOTTOMRIGHT", 6, 0)
         end
+        p._vcuiDocking = nil
     end
     dock()
     p:HookScript("OnShow", dock)
+
+    -- OnShow alone was not enough: the panel's own code re-anchors it after
+    -- that, which is why it sat proud of the character window at both ends even
+    -- though the docking above had already run. Same idiom as pinFrame in
+    -- Modules/ActionBars.lua -- re-assert from a SetPoint hook, with a flag so
+    -- our own two calls above do not re-enter it.
+    if not p._vcuiDockHook then
+        p._vcuiDockHook = true
+        hooksecurefunc(p, "SetPoint", function(self)
+            if self._vcuiDocking or not mod.active then return end
+            dock()
+        end)
+    end
 end
 
 function sk.armAtlasLoot()
