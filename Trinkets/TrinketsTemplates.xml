@@ -12,8 +12,13 @@
 		and every window built from it came up without its backdrop.
 
 		This file goes away with the last XML file. Nothing new should be added
-		to it -- it exists to carry a dependency across an unfinished conversion,
+		to it: it exists to carry a dependency across an unfinished conversion,
 		not to be a home for templates.
+
+		(And note the punctuation. A double hyphen is not allowed inside an XML
+		comment. Writing one here cost a round: the parser rejected the whole
+		file, so the template below never existed and every window that inherits
+		it came up without a backdrop again.)
 	-->
 	<Frame name = "TrinketsBackdropTemplate" mixin = "TrinketsBackdropTemplateMixin" virtual = "true">
 		<Scripts>
