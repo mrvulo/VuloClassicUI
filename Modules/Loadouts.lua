@@ -743,20 +743,15 @@ end
 
 local _lastSpecGroup = -1
 
--- These asked the deprecated talent globals directly, and two of the answers
--- were wrong in a way nothing reported. Both verified against the client source:
+-- These asked the deprecated talent globals directly. C_SpecializationInfo is
+-- the supported way to ask now, and it answers first below -- but the old
+-- globals are NOT gone on this client, so they stay as a second source rather
+-- than being written off.
 --
---   * GetNumTalentGroups DOES NOT EXIST -- not as a function, not as a
---     deprecated alias. The count below was therefore always 1, every `>= 2`
---     gate that guards spec binding was always false, and the whole feature was
---     unreachable on this client. Nothing errored, so nothing complained.
---   * GetTalentTabInfo lives only in Blizzard_DeprecatedSpecialization, and the
---     shim answers (specId, name, description, icon, pointsSpent, ...) where the
---     original answered (name, icon, pointsSpent, ...). Reading position 3 as
---     the point count reads the DESCRIPTION whenever the shim is what replied.
---
--- Core/TalentOverrides already worked this out on C_SpecializationInfo. Asking
--- it keeps one answer for a question two features now ask.
+-- Corrected 28.07.2026: an earlier note here claimed GetNumTalentGroups did not
+-- exist. `/loadout spec` on a live TBC Anniversary client printed 2, so it
+-- exists and answers. Do not delete a fallback on the strength of a source
+-- reading when the running client can simply be asked.
 local function getActiveSpecGroup()
     return ns:ActiveTalentGroup()
 end
@@ -767,12 +762,14 @@ local function getNumSpecGroups()
         local ok, n = pcall(SI.GetNumSpecGroups)
         if ok and type(n) == "number" and n > 0 then return n end
     end
-    -- No count to be had. Assume the two the dual talent system has, provided
-    -- the client has talent groups at all. Offering a binding for a group the
-    -- character never bought costs nothing -- it simply never fires -- whereas
-    -- refusing to offer one hides the feature from everybody, which is exactly
-    -- the bug this replaces.
-    return ns:HasTalentGroups() and 2 or 1
+    -- Demonstrably answers on this client. It is deprecated, not absent, so it
+    -- is a better source than a guess -- a character who never bought the
+    -- second talent group must not be offered a binding for it.
+    if GetNumTalentGroups then
+        local ok, n = pcall(GetNumTalentGroups)
+        if ok and type(n) == "number" and n > 0 then return n end
+    end
+    return 1
 end
 
 local function getSpecGroupLabel(group)

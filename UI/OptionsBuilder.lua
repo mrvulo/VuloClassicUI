@@ -139,7 +139,10 @@ local function createWidget(parent, item)
         local w = obtain("slider", parent, item, function()
             return UI:CreateSlider(parent, item)
         end)
-        return w, 24, 280
+        -- Ask the row, like every other type here does. The flat 280 was right
+        -- while a slider WAS its track; since it became a one-line row the label
+        -- column and the value block are part of its width too.
+        return w, 24, w:GetWidth() or 280
     elseif t == "dropdown" then
         local w = obtain("dropdown", parent, item, function()
             return UI:CreateDropdown(parent, item)
@@ -611,13 +614,48 @@ function UI:PlaceGroup(parent, group, y)
     end
 
     if layout == "row" then
-        local placed, totalW = {}, 0
+        local placed = {}
         local gap = group.gap or 8
-        for i, item in ipairs(items) do
+        for _, item in ipairs(items) do
             local widget, h, w = createWidget(parent, item)
             if widget then
                 placed[#placed + 1] = { widget = widget, w = w, h = h, item = item }
-                totalW = totalW + w + (i > 1 and gap or 0)
+            end
+        end
+
+        -- A row of CONTROLS is N equal slots -- not N controls at whatever width
+        -- they happen to report. The cursor below used to advance by that
+        -- reported width, and a slider reported a flat 280 while its row (label,
+        -- track and value block together) was closer to 400, so the next control
+        -- was laid down on top of the previous one. Two sliders side by side is
+        -- the commonest shape there is, which is why whole pages looked broken.
+        --
+        -- Equal slots need no reported width at all, so nothing here can fall out
+        -- of step again. A row that also holds a button or a custom frame keeps
+        -- the natural-width cursor: stretching a button to half the page is not
+        -- what that row means.
+        local asSlots = #placed > 1
+        for _, p in ipairs(placed) do
+            if not COMPACT[p.item.type] then asSlots = false; break end
+        end
+
+        local totalW = 0
+        if asSlots then
+            local n     = #placed
+            local slotW = math.floor((availW - 20 - gap * (n - 1)) / n)
+            -- and one measured label column across the whole row, exactly as the
+            -- packed runs and the column groups do. Without it these rows kept
+            -- whatever label width the pooled widget arrived with.
+            local labelCol = runLabelColumn(items, slotW)
+            for _, p in ipairs(placed) do
+                p.w = slotW
+                p.widget:SetWidth(slotW)
+                if labelCol and p.widget.SetLabelWidth then p.widget:SetLabelWidth(labelCol) end
+            end
+            totalW = slotW * n + gap * (n - 1)
+        else
+            for i, p in ipairs(placed) do
+                totalW = totalW + p.w + (i > 1 and gap or 0)
             end
         end
 

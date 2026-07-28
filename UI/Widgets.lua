@@ -612,6 +612,7 @@ end
 local SLIDER_ROW_H  = 24
 local SLIDER_LABEL_W = 120   -- default until the page measures the real column
 local LABEL_GAP      = 12
+local DEFAULT_TRACK_W = 160  -- when the caller names no track width
 -- Exported because the options page has to reproduce this row's arithmetic to
 -- decide a column count. Two copies of the number would drift the moment one
 -- of them was tuned, and the drift would show up as a clipped label.
@@ -673,10 +674,13 @@ local function sliderSetup(row, config)
     -- config.width has always meant the TRACK width, not the row width. Callers
     -- that pass it (the edit-mode toolbar) size themselves around the track, so
     -- the row takes the track plus whatever the label and value block need.
-    if config.width then
-        local labelPart = (clean(config.label) or "") ~= "" and (row._labelW + LABEL_GAP) or 0
-        row:SetWidth(labelPart + config.width + row._endW)
-    end
+    --
+    -- Sized in BOTH cases now, not only when a width was given. The options page
+    -- reads a control's width back when it lays out a row of them, and an unsized
+    -- row handed it whatever the pooled widget carried over from the last page
+    -- that used it.
+    local labelPart = (clean(config.label) or "") ~= "" and (row._labelW + LABEL_GAP) or 0
+    row:SetWidth(labelPart + (config.width or DEFAULT_TRACK_W) + row._endW)
 
     local v = config.get(s) or s._min
     s:SetValue(v)
