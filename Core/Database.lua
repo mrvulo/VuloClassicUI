@@ -317,6 +317,11 @@ function ns:SwitchProfile(name)
         ns:Print(L["|cffff5555Profile '%s' could not be loaded:|r %s"], name, tostring(err))
         return false
     end
+    -- The new profile carries its own talent overrides; the ones from the old
+    -- profile are still sitting in the live settings until these run.
+    if ns.ApplyOverrides and ns.ActiveTalentGroup then
+        pcall(ns.ApplyOverrides, ns, ns:ActiveTalentGroup())
+    end
     ns:Print(L["Profile '%s' loaded. |cffffff00/reload|r recommended so all modules use the new settings."], name)
     return true
 end

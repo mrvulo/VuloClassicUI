@@ -436,6 +436,46 @@ placeItemList = function(parent, items, y)
     return y
 end
 
+-- A row whose value is overridden for the ACTIVE talent group gets an accent bar
+-- on its left edge. Applied here because every widget type comes through the one
+-- funnel above, and cleared on every build rather than only set: widgets are
+-- pooled, so a mark left behind would travel to an unrelated row on the next
+-- page. Nothing about the row moves -- the bar sits in the padding.
+local function applyOverrideMark(w, item)
+    if not w or type(w.CreateTexture) ~= "function" then return end
+
+    local on = false
+    if item._vcOverrideId and ns.HasOverride and ns.ActiveTalentGroup then
+        on = ns:HasOverride(ns:ActiveTalentGroup(), item._vcOverrideId)
+    end
+
+    if not on then
+        if w._vcOvMark then w._vcOvMark:Hide() end
+        return
+    end
+
+    local mark = w._vcOvMark
+    if not mark then
+        mark = w:CreateTexture(nil, "OVERLAY")
+        mark:SetPoint("TOPLEFT",    w, "TOPLEFT",    -6, 1)
+        mark:SetPoint("BOTTOMLEFT", w, "BOTTOMLEFT", -6, -1)
+        mark:SetWidth(2)
+        w._vcOvMark = mark
+    end
+    local a = ns.COLORS.accent
+    mark:SetColorTexture(a.r, a.g, a.b, 0.95)
+    mark:Show()
+end
+
+-- Rebinding the local: every call site below reads this upvalue, so the mark is
+-- applied to all of them without touching the fifteen return points inside.
+local rawCreateWidget = createWidget
+createWidget = function(parent, item)
+    local w, h, wide = rawCreateWidget(parent, item)
+    applyOverrideMark(w, item)
+    return w, h, wide
+end
+
 function UI:PlaceGroup(parent, group, y)
     local layout = group.layout or "row"
     local items  = group.items or {}
