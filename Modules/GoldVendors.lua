@@ -273,9 +273,9 @@ end
 
 function mod:OnEnable()
     -- Never initSession(true) here: it would wipe the persisted balance on every login.
-    ns:RegisterEvent("PLAYER_LOGIN", syncOnLogin)
-    ns:RegisterEvent("PLAYER_LOGIN", trackCharGold)
-    ns:RegisterEvent("PLAYER_MONEY", onMoney)
+    mod:RegisterEvent("PLAYER_LOGIN", syncOnLogin)
+    mod:RegisterEvent("PLAYER_LOGIN", trackCharGold)
+    mod:RegisterEvent("PLAYER_MONEY", onMoney)
 
     -- Enabled via toggle after PLAYER_LOGIN already fired.
     if ns.isInitialised then syncOnLogin(); trackCharGold() end
@@ -284,9 +284,6 @@ function mod:OnEnable()
 end
 
 function mod:OnDisable()
-    ns:UnregisterEvent("PLAYER_LOGIN", syncOnLogin)
-    ns:UnregisterEvent("PLAYER_LOGIN", trackCharGold)
-    ns:UnregisterEvent("PLAYER_MONEY", onMoney)
     -- HookScript cannot be undone, so showTooltip() gates on mod._enabled instead.
 end
 

@@ -342,15 +342,13 @@ function mod:OnEnable()
         hooksecurefunc("SendMail", function(recipient) recordRecent(recipient) end)
         sendHooked = true
     end
-    ns:RegisterEvent("MAIL_SHOW", onMailShow)
-    ns:RegisterEvent("MAIL_CLOSED", onMailClosed)
+    mod:RegisterEvent("MAIL_SHOW", onMailShow)
+    mod:RegisterEvent("MAIL_CLOSED", onMailClosed)
     if button then button:Show() end
 end
 
 function mod:OnDisable()
     onMailClosed()
-    ns:UnregisterEvent("MAIL_SHOW", onMailShow)
-    ns:UnregisterEvent("MAIL_CLOSED", onMailClosed)
     if button then button:Hide() end
     if sendButton then sendButton:Hide() end
     if OpenAllMail then OpenAllMail:Show() end

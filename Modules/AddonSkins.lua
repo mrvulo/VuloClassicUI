@@ -835,14 +835,12 @@ local function onEvent(event, arg1)
 end
 
 function mod:OnEnable()
-    ns:RegisterEvent("ADDON_LOADED", onEvent)
-    ns:RegisterEvent("PLAYER_ENTERING_WORLD", onEvent)
+    mod:RegisterEvent("ADDON_LOADED", onEvent)
+    mod:RegisterEvent("PLAYER_ENTERING_WORLD", onEvent)
     sk.applyLoaded()
 end
 
 function mod:OnDisable()
-    ns:UnregisterEvent("ADDON_LOADED", onEvent)
-    ns:UnregisterEvent("PLAYER_ENTERING_WORLD", onEvent)
     if sk.done.questie then sk.restoreQuestie() end
     -- texture strips on the other targets are session-permanent -> /reload
 end

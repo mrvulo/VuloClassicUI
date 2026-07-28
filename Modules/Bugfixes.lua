@@ -512,7 +512,7 @@ function mod:OnEnable()
         installFrame:RegisterEvent("ADDON_LOADED")
     end
 
-    ns:RegisterEvent("INSPECT_READY", onInspectReady)
+    mod:RegisterEvent("INSPECT_READY", onInspectReady)
 
     if not _watchdog and C_Timer and C_Timer.NewTicker then
         _watchdog = C_Timer.NewTicker(2, watchdogTick)
@@ -520,7 +520,6 @@ function mod:OnEnable()
 end
 
 function mod:OnDisable()
-    ns:UnregisterEvent("INSPECT_READY", onInspectReady)
     if _watchdog then _watchdog:Cancel(); _watchdog = nil end
     -- the NotifyInspect post-hook stays (hooksecurefunc can't be removed); harmless while off
 end
@@ -676,16 +675,13 @@ end
 
 function mod:OnEnable()
     ensureGlow()
-    ns:RegisterEvent("PLAYER_REGEN_DISABLED", update)
-    ns:RegisterEvent("PLAYER_REGEN_ENABLED",  update)
-    ns:RegisterEvent("PLAYER_ENTERING_WORLD", update)
+    mod:RegisterEvent("PLAYER_REGEN_DISABLED", update)
+    mod:RegisterEvent("PLAYER_REGEN_ENABLED",  update)
+    mod:RegisterEvent("PLAYER_ENTERING_WORLD", update)
     update()
 end
 
 function mod:OnDisable()
-    ns:UnregisterEvent("PLAYER_REGEN_DISABLED", update)
-    ns:UnregisterEvent("PLAYER_REGEN_ENABLED",  update)
-    ns:UnregisterEvent("PLAYER_ENTERING_WORLD", update)
     if glow then
         if glow.anim then glow.anim:Stop() end
         glow:Hide()

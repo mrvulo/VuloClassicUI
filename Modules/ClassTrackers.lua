@@ -578,14 +578,14 @@ local function trackersEnable(class)
         vtSpellName = GetSpellInfo(VT_SPELL_ID_BASE)
         createFrame()
         if mod.db.showFrame then cFrame:Show() else cFrame:Hide() end
-        ns:RegisterEvent("PLAYER_REGEN_DISABLED", resetCombat)
-        ns:RegisterEvent("PLAYER_REGEN_ENABLED",  reportChat)
-        ns:RegisterEvent("PLAYER_ENTERING_WORLD", resetCombat)
-        ns:RegisterEvent("SPELLS_CHANGED",        refreshSpell)
+        mod:RegisterEvent("PLAYER_REGEN_DISABLED", resetCombat)
+        mod:RegisterEvent("PLAYER_REGEN_ENABLED",  reportChat)
+        mod:RegisterEvent("PLAYER_ENTERING_WORLD", resetCombat)
+        mod:RegisterEvent("SPELLS_CHANGED",        refreshSpell)
     end
 
     if hasDots then
-        ns:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", onCombatLog)
+        mod:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", onCombatLog)
 
         -- Migration from the old standalone "shadowdots" module
         if ns.db and ns.db.profile and ns.db.profile.modules then
@@ -602,27 +602,18 @@ local function trackersEnable(class)
 
         dotsBuild()
         dotsContainer:SetScript("OnUpdate", dotsOnUpdate)
-        ns:RegisterEvent("UNIT_AURA",             dotsOnUnitAura)
-        ns:RegisterEvent("SPELLS_CHANGED",        dotsRefreshSpellData)
-        ns:RegisterEvent("PLAYER_TARGET_CHANGED", dotsRefresh)
-        ns:RegisterEvent("PLAYER_ENTERING_WORLD", dotsRefresh)
+        mod:RegisterEvent("UNIT_AURA",             dotsOnUnitAura)
+        mod:RegisterEvent("SPELLS_CHANGED",        dotsRefreshSpellData)
+        mod:RegisterEvent("PLAYER_TARGET_CHANGED", dotsRefresh)
+        mod:RegisterEvent("PLAYER_ENTERING_WORLD", dotsRefresh)
         dotsRecomputeMult()
         dotsRefresh()
     end
 end
 
 local function trackersDisable()
-    ns:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED", onCombatLog)
-    ns:UnregisterEvent("PLAYER_REGEN_DISABLED",       resetCombat)
-    ns:UnregisterEvent("PLAYER_REGEN_ENABLED",        reportChat)
-    ns:UnregisterEvent("PLAYER_ENTERING_WORLD",       resetCombat)
-    ns:UnregisterEvent("SPELLS_CHANGED",              refreshSpell)
     if cFrame then cFrame:Hide() end
 
-    ns:UnregisterEvent("UNIT_AURA",             dotsOnUnitAura)
-    ns:UnregisterEvent("SPELLS_CHANGED",        dotsRefreshSpellData)
-    ns:UnregisterEvent("PLAYER_TARGET_CHANGED", dotsRefresh)
-    ns:UnregisterEvent("PLAYER_ENTERING_WORLD", dotsRefresh)
     if dotsContainer then
         dotsContainer:SetScript("OnUpdate", nil)
         if dotsContainer.mover then dotsContainer.mover:Hide() end

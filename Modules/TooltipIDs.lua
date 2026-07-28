@@ -743,16 +743,23 @@ function mod:OnEnable()
     scanAddonTooltips()
 
     -- On Anniversary only the legacy OnTooltipSetUnit fires, not TooltipDataProcessor.
-    ns:RegisterEvent("INSPECT_READY",         onInspectReady)
-    ns:RegisterEvent("INSPECT_TALENT_READY",  onInspectReady)
-    ns:RegisterEvent("GET_ITEM_INFO_RECEIVED", onItemInfoReceived)
+    -- INSPECT_TALENT_READY does not exist there at all; the registry pcalls both
+    -- the register and the unregister, so an unknown event is simply ignored.
+    mod:RegisterEvent("INSPECT_READY",         onInspectReady)
+    mod:RegisterEvent("INSPECT_TALENT_READY",  onInspectReady)
+    mod:RegisterEvent("GET_ITEM_INFO_RECEIVED", onItemInfoReceived)
     -- HookScript appends every call, so a re-enable would double the tooltip lines.
     if GameTooltip and GameTooltip.HookScript and not mod._tooltipHooked then
         mod._tooltipHooked = true
         GameTooltip:HookScript("OnTooltipSetUnit", onPlayerTooltipUnit)
     end
 
-    -- Register once: a re-enable must not append duplicate one-shot handlers.
+    -- The two below stay on ns:RegisterEvent ON PURPOSE, unlike everything above.
+    -- They are fresh closures, so the registry cannot recognise them as
+    -- duplicates on a re-enable -- hence the session guard. And a session guard
+    -- plus module ownership would be a trap: SafeDisable would take them out and
+    -- the guard would refuse to put them back. They only install permanent
+    -- Blizzard hooks anyway, and gate their own bodies on mod._enabled.
     if mod._lazyEventsHooked then return end
     mod._lazyEventsHooked = true
 
@@ -844,14 +851,6 @@ function mod:OnEnable()
         if not mod._enabled then return end
         scanAddonTooltips()
     end)
-end
-
-function mod:OnDisable()
-    -- INSPECT_TALENT_READY may not exist on Anniversary; an unguarded
-    -- UnregisterEvent would throw and abort SafeDisable.
-    pcall(ns.UnregisterEvent, ns, "INSPECT_READY",        onInspectReady)
-    pcall(ns.UnregisterEvent, ns, "INSPECT_TALENT_READY", onInspectReady)
-    pcall(ns.UnregisterEvent, ns, "GET_ITEM_INFO_RECEIVED", onItemInfoReceived)
 end
 
 local function kindCheckbox(kind)

@@ -897,22 +897,17 @@ local function onEnable()
     build()
     playerAurasDirty = true   -- auras may have changed while UNIT_AURA was unregistered
     container:SetScript("OnUpdate", onUpdate)
-    ns:RegisterEvent("PLAYER_TOTEM_UPDATE",   learnActiveTotems)
-    ns:RegisterEvent("PLAYER_ENTERING_WORLD", refresh)
-    ns:RegisterEvent("PLAYER_REGEN_ENABLED",  applyPending)
-    ns:RegisterEvent("SPELLS_CHANGED",        onSpellsChanged)
-    ns:RegisterEvent("UNIT_AURA",             onPlayerAura)
+    csMod:RegisterEvent("PLAYER_TOTEM_UPDATE",   learnActiveTotems)
+    csMod:RegisterEvent("PLAYER_ENTERING_WORLD", refresh)
+    csMod:RegisterEvent("PLAYER_REGEN_ENABLED",  applyPending)
+    csMod:RegisterEvent("SPELLS_CHANGED",        onSpellsChanged)
+    csMod:RegisterEvent("UNIT_AURA",             onPlayerAura)
     learnActiveTotems()
     refresh()
     rebuildFlyouts()
 end
 
 local function onDisable()
-    ns:UnregisterEvent("PLAYER_TOTEM_UPDATE",   learnActiveTotems)
-    ns:UnregisterEvent("PLAYER_ENTERING_WORLD", refresh)
-    ns:UnregisterEvent("PLAYER_REGEN_ENABLED",  applyPending)
-    ns:UnregisterEvent("SPELLS_CHANGED",        onSpellsChanged)
-    ns:UnregisterEvent("UNIT_AURA",             onPlayerAura)
     if container then
         container:SetScript("OnUpdate", nil)
         if container.mover then container.mover:Hide() end

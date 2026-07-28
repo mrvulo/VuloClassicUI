@@ -133,17 +133,14 @@ local function fbOnPet() applyAll() end
 
 function mod:OnEnable()
     installHooks()
-    ns:RegisterEvent("PLAYER_ENTERING_WORLD", fbOnPEW)
-    ns:RegisterEvent("PLAYER_TARGET_CHANGED", fbOnTarget)
-    ns:RegisterEvent("UNIT_PET", fbOnPet)
+    mod:RegisterEvent("PLAYER_ENTERING_WORLD", fbOnPEW)
+    mod:RegisterEvent("PLAYER_TARGET_CHANGED", fbOnTarget)
+    mod:RegisterEvent("UNIT_PET", fbOnPet)
     applyAll()
     hideTargetBackground()
 end
 
 function mod:OnDisable()
-    ns:UnregisterEvent("PLAYER_ENTERING_WORLD", fbOnPEW)
-    ns:UnregisterEvent("PLAYER_TARGET_CHANGED", fbOnTarget)
-    ns:UnregisterEvent("UNIT_PET", fbOnPet)
     for fs, size in pairs(origSizes) do
         if size and fs.GetFont then
             local font, _, flags = fs:GetFont()

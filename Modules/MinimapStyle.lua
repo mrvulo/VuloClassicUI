@@ -706,9 +706,9 @@ function mod:OnEnable()
     mm.setupHover()
     mm.hookButtonLib()
     mm.applyAll()
-    ns:RegisterEvent("PLAYER_ENTERING_WORLD", mm.onEnteringWorld)
-    ns:RegisterEvent("MINIMAP_PING", mm.onPing)
-    ns:RegisterEvent("ADDON_LOADED", mm.onAddonLoaded)
+    mod:RegisterEvent("PLAYER_ENTERING_WORLD", mm.onEnteringWorld)
+    mod:RegisterEvent("MINIMAP_PING", mm.onPing)
+    mod:RegisterEvent("ADDON_LOADED", mm.onAddonLoaded)
     -- Third-party icons often appear a moment after login.
     if C_Timer and C_Timer.After then
         C_Timer.After(3, function()
@@ -719,9 +719,6 @@ end
 
 function mod:OnDisable()
     mod.active = false
-    ns:UnregisterEvent("PLAYER_ENTERING_WORLD", mm.onEnteringWorld)
-    ns:UnregisterEvent("MINIMAP_PING", mm.onPing)
-    ns:UnregisterEvent("ADDON_LOADED", mm.onAddonLoaded)
     -- Best-effort restore; fonts and moved children only come back fully with a /reload.
     if mm.adopted then
         mm.adopted = false

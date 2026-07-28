@@ -462,20 +462,16 @@ function mod:OnEnable()
         rebuild()
         mod._built = true
     end
-    ns:RegisterEvent("PLAYER_LEVEL_UP", onLevelOrLearn)
-    ns:RegisterEvent("LEARNED_SPELL_IN_SKILL_LINE", onLevelOrLearn)
-    ns:RegisterEvent("LEARNED_SPELL_IN_TAB", onLevelOrLearn)
-    ns:RegisterEvent("SPELLS_CHANGED", onSpellsChanged)
+    mod:RegisterEvent("PLAYER_LEVEL_UP", onLevelOrLearn)
+    mod:RegisterEvent("LEARNED_SPELL_IN_SKILL_LINE", onLevelOrLearn)
+    mod:RegisterEvent("LEARNED_SPELL_IN_TAB", onLevelOrLearn)
+    mod:RegisterEvent("SPELLS_CHANGED", onSpellsChanged)
     if mod._tab and SpellBookFrame and SpellBookFrame.UpdateSkillLineTabs and SpellBookFrame:IsVisible() then
         SpellBookFrame:UpdateSkillLineTabs()
     end
 end
 
 function mod:OnDisable()
-    ns:UnregisterEvent("PLAYER_LEVEL_UP", onLevelOrLearn)
-    ns:UnregisterEvent("LEARNED_SPELL_IN_SKILL_LINE", onLevelOrLearn)
-    ns:UnregisterEvent("LEARNED_SPELL_IN_TAB", onLevelOrLearn)
-    ns:UnregisterEvent("SPELLS_CHANGED", onSpellsChanged)
     mod._wantOurTab = false
     if mod._frame then mod._frame:Hide() end
     if mod._tab then mod._tab:Hide() end

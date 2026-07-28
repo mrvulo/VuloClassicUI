@@ -411,10 +411,10 @@ local function onSay(_, text, sender) if mod.db.scanSay ~= false then handleMess
 
 function mod:OnEnable()
     buildTags()
-    ns:RegisterEvent("CHAT_MSG_CHANNEL", onChannel)
-    ns:RegisterEvent("CHAT_MSG_GUILD", onGuild)
-    ns:RegisterEvent("CHAT_MSG_SAY", onSay)
-    ns:RegisterEvent("CHAT_MSG_YELL", onSay)
+    mod:RegisterEvent("CHAT_MSG_CHANNEL", onChannel)
+    mod:RegisterEvent("CHAT_MSG_GUILD", onGuild)
+    mod:RegisterEvent("CHAT_MSG_SAY", onSay)
+    mod:RegisterEvent("CHAT_MSG_YELL", onSay)
     if mod.db.minimap ~= false then buildMinimap() end
     if mod._mm then mod._mm:SetShown(mod.db.minimap ~= false) end
     if not mod._prune and C_Timer and C_Timer.NewTicker then
@@ -425,10 +425,6 @@ function mod:OnEnable()
 end
 
 function mod:OnDisable()
-    ns:UnregisterEvent("CHAT_MSG_CHANNEL", onChannel)
-    ns:UnregisterEvent("CHAT_MSG_GUILD", onGuild)
-    ns:UnregisterEvent("CHAT_MSG_SAY", onSay)
-    ns:UnregisterEvent("CHAT_MSG_YELL", onSay)
     if mod._mm then mod._mm:Hide() end
     if mod._frame then mod._frame:Hide() end
 end

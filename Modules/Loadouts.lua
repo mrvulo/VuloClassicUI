@@ -1793,22 +1793,22 @@ function mod:OnEnable()
         createSidebar()
     end
 
-    ns:RegisterEvent("UPDATE_SHAPESHIFT_FORM",  onShapeshiftChange)
-    ns:RegisterEvent("UPDATE_SHAPESHIFT_FORMS", onShapeshiftChange)
-    ns:RegisterEvent("PLAYER_REGEN_ENABLED",    onShapeshiftChange)  -- retry leaving combat
+    mod:RegisterEvent("UPDATE_SHAPESHIFT_FORM",  onShapeshiftChange)
+    mod:RegisterEvent("UPDATE_SHAPESHIFT_FORMS", onShapeshiftChange)
+    mod:RegisterEvent("PLAYER_REGEN_ENABLED",    onShapeshiftChange)  -- retry leaving combat
 
     -- all of these are registered because Anniversary builds vary on which one fires
-    ns:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED", onTalentChange)
-    ns:RegisterEvent("PLAYER_TALENT_UPDATE",        onTalentChange)
-    ns:RegisterEvent("CHARACTER_POINTS_CHANGED",    onTalentChange)
-    ns:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", onTalentChange)
-    ns:RegisterEvent("PLAYER_ENTERING_WORLD",       onTalentChange)
-    ns:RegisterEvent("PLAYER_REGEN_ENABLED",        onTalentChange)  -- retry after combat
+    mod:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED", onTalentChange)
+    mod:RegisterEvent("PLAYER_TALENT_UPDATE",        onTalentChange)
+    mod:RegisterEvent("CHARACTER_POINTS_CHANGED",    onTalentChange)
+    mod:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", onTalentChange)
+    mod:RegisterEvent("PLAYER_ENTERING_WORLD",       onTalentChange)
+    mod:RegisterEvent("PLAYER_REGEN_ENABLED",        onTalentChange)  -- retry after combat
 
-    ns:RegisterEvent("BANKFRAME_OPENED",         onBankEvent)
-    ns:RegisterEvent("BANKFRAME_CLOSED",         onBankEvent)
-    ns:RegisterEvent("PLAYERBANKSLOTS_CHANGED",  onBankEvent)
-    ns:RegisterEvent("BAG_UPDATE",               onBankEvent)  -- bank BAGS (gated on _bankOpen)
+    mod:RegisterEvent("BANKFRAME_OPENED",         onBankEvent)
+    mod:RegisterEvent("BANKFRAME_CLOSED",         onBankEvent)
+    mod:RegisterEvent("PLAYERBANKSLOTS_CHANGED",  onBankEvent)
+    mod:RegisterEvent("BAG_UPDATE",               onBankEvent)  -- bank BAGS (gated on _bankOpen)
 
     installSetTooltip()
 
@@ -1821,19 +1821,6 @@ function mod:OnEnable()
 end
 
 function mod:OnDisable()
-    ns:UnregisterEvent("UPDATE_SHAPESHIFT_FORM",  onShapeshiftChange)
-    ns:UnregisterEvent("UPDATE_SHAPESHIFT_FORMS", onShapeshiftChange)
-    ns:UnregisterEvent("PLAYER_REGEN_ENABLED",    onShapeshiftChange)
-    ns:UnregisterEvent("ACTIVE_TALENT_GROUP_CHANGED", onTalentChange)
-    ns:UnregisterEvent("PLAYER_TALENT_UPDATE",        onTalentChange)
-    ns:UnregisterEvent("CHARACTER_POINTS_CHANGED",    onTalentChange)
-    ns:UnregisterEvent("PLAYER_SPECIALIZATION_CHANGED", onTalentChange)
-    ns:UnregisterEvent("PLAYER_ENTERING_WORLD",       onTalentChange)
-    ns:UnregisterEvent("PLAYER_REGEN_ENABLED",        onTalentChange)
-    ns:UnregisterEvent("BANKFRAME_OPENED",        onBankEvent)
-    ns:UnregisterEvent("BANKFRAME_CLOSED",        onBankEvent)
-    ns:UnregisterEvent("PLAYERBANKSLOTS_CHANGED", onBankEvent)
-    ns:UnregisterEvent("BAG_UPDATE",              onBankEvent)
     if _specPoller then _specPoller:Cancel(); _specPoller = nil end
     if mmBtn then mmBtn:Hide() end
     if sidebar then sidebar:Hide() end

@@ -677,19 +677,15 @@ function mod:OnEnable()
     readWorldTextScale()
     applyDamageTextFont()
 
-    ns:RegisterEvent("PLAYER_REGEN_DISABLED", onCombatStart)
-    ns:RegisterEvent("PLAYER_REGEN_ENABLED",  onCombatEnd)
-    ns:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", onCLEU)
-    ns:RegisterEvent("UPDATE_INVENTORY_DURABILITY", scheduleDurabilityCheck)
+    mod:RegisterEvent("PLAYER_REGEN_DISABLED", onCombatStart)
+    mod:RegisterEvent("PLAYER_REGEN_ENABLED",  onCombatEnd)
+    mod:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", onCLEU)
+    mod:RegisterEvent("UPDATE_INVENTORY_DURABILITY", scheduleDurabilityCheck)
 
     C_Timer.After(2.0, scheduleDurabilityCheck)
 end
 
 function mod:OnDisable()
-    ns:UnregisterEvent("PLAYER_REGEN_DISABLED", onCombatStart)
-    ns:UnregisterEvent("PLAYER_REGEN_ENABLED",  onCombatEnd)
-    ns:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED", onCLEU)
-    ns:UnregisterEvent("UPDATE_INVENTORY_DURABILITY", scheduleDurabilityCheck)
     hidePreview()
     for _, f in pairs(notifyFrames) do f:Hide() end
     if container then container:Hide() end

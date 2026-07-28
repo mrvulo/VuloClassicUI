@@ -377,13 +377,11 @@ end
 
 function mod:OnEnable()
     installGossipHook()
-    ns:RegisterEvent("PLAYER_REGEN_DISABLED", onRegenDisabled)
-    ns:RegisterEvent("PLAYER_REGEN_ENABLED",  onRegenEnabled)
+    mod:RegisterEvent("PLAYER_REGEN_DISABLED", onRegenDisabled)
+    mod:RegisterEvent("PLAYER_REGEN_ENABLED",  onRegenEnabled)
 end
 
 function mod:OnDisable()
-    ns:UnregisterEvent("PLAYER_REGEN_DISABLED", onRegenDisabled)
-    ns:UnregisterEvent("PLAYER_REGEN_ENABLED",  onRegenEnabled)
     if f then
         if not InCombatLockdown() then unbindKeys() end
         f:Hide()

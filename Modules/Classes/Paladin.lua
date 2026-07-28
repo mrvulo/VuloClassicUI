@@ -488,17 +488,14 @@ local function onEnable()
     onSpellsChanged()
     create()
 
-    ns:RegisterEvent("UNIT_AURA", refreshSeals)
-    ns:RegisterEvent("SPELLS_CHANGED", onSpellsChanged)
-    ns:RegisterEvent("PLAYER_ENTERING_WORLD", onSpellsChanged)
+    csMod:RegisterEvent("UNIT_AURA", refreshSeals)
+    csMod:RegisterEvent("SPELLS_CHANGED", onSpellsChanged)
+    csMod:RegisterEvent("PLAYER_ENTERING_WORLD", onSpellsChanged)
     applyVisibility()
 end
 
 local function onDisable()
     ns:ReleaseSwingTracker("sealtwist")
-    ns:UnregisterEvent("UNIT_AURA", refreshSeals)
-    ns:UnregisterEvent("SPELLS_CHANGED", onSpellsChanged)
-    ns:UnregisterEvent("PLAYER_ENTERING_WORLD", onSpellsChanged)
     if frame then
         if frame.mover then frame.mover:Hide() end
         frame:Hide()

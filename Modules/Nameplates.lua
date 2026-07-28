@@ -2235,20 +2235,20 @@ function mod:OnEnable()
     local _, cls = UnitClass("player")
     playerCanSteal = CAN_REMOVE_MAGIC[cls] or false
     findKickSpell()
-    ns:RegisterEvent("SPELLS_CHANGED", findKickSpell)
+    mod:RegisterEvent("SPELLS_CHANGED", findKickSpell)
     applyHitbox()
     updateHoverTicker()
     ensureOffParent()
     -- Mirror Blizzard's current setting; only write the CVar when the user flips the option.
     local cur = GetCVar and GetCVar("nameplateShowFriends")
     if cur ~= nil then mod.db.friendlyShow = (cur == "1" or cur == 1) end
-    ns:RegisterEvent("NAME_PLATE_UNIT_ADDED", onPlateAdded)
-    ns:RegisterEvent("NAME_PLATE_UNIT_REMOVED", onPlateRemoved)
-    ns:RegisterEvent("PLAYER_TARGET_CHANGED", onTargetChanged)
-    ns:RegisterEvent("PLAYER_FOCUS_CHANGED", updateAllFocus)
-    ns:RegisterEvent("RAID_TARGET_UPDATE", onRaidTargetUpdate)
-    ns:RegisterEvent("UNIT_POWER_UPDATE", onComboUpdate)
-    ns:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", onCombatLogEvent)
+    mod:RegisterEvent("NAME_PLATE_UNIT_ADDED", onPlateAdded)
+    mod:RegisterEvent("NAME_PLATE_UNIT_REMOVED", onPlateRemoved)
+    mod:RegisterEvent("PLAYER_TARGET_CHANGED", onTargetChanged)
+    mod:RegisterEvent("PLAYER_FOCUS_CHANGED", updateAllFocus)
+    mod:RegisterEvent("RAID_TARGET_UPDATE", onRaidTargetUpdate)
+    mod:RegisterEvent("UNIT_POWER_UPDATE", onComboUpdate)
+    mod:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", onCombatLogEvent)
     if C_NamePlate and C_NamePlate.GetNamePlates then
         for _, p in ipairs(C_NamePlate.GetNamePlates()) do
             local u = p.namePlateUnitToken or (p.UnitFrame and p.UnitFrame.unit)
@@ -2258,15 +2258,7 @@ function mod:OnEnable()
 end
 
 function mod:OnDisable()
-    ns:UnregisterEvent("SPELLS_CHANGED", findKickSpell)
     if hoverTicker then hoverTicker:Hide() end
-    ns:UnregisterEvent("NAME_PLATE_UNIT_ADDED", onPlateAdded)
-    ns:UnregisterEvent("NAME_PLATE_UNIT_REMOVED", onPlateRemoved)
-    ns:UnregisterEvent("PLAYER_TARGET_CHANGED", onTargetChanged)
-    ns:UnregisterEvent("PLAYER_FOCUS_CHANGED", updateAllFocus)
-    ns:UnregisterEvent("RAID_TARGET_UPDATE", onRaidTargetUpdate)
-    ns:UnregisterEvent("UNIT_POWER_UPDATE", onComboUpdate)
-    ns:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED", onCombatLogEvent)
     for unit in pairs(ns.plates) do onPlateRemoved(nil, unit) end
     if C_NamePlate and C_NamePlate.GetNamePlates then
         for _, p in ipairs(C_NamePlate.GetNamePlates()) do

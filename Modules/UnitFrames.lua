@@ -516,7 +516,7 @@ end
 function mod:OnEnable()
     applyPlayerStyle()
     ensureSetup()
-    ns:RegisterEvent("PLAYER_ENTERING_WORLD", onWorldEnter)
+    mod:RegisterEvent("PLAYER_ENTERING_WORLD", onWorldEnter)
     refreshTargetFrames()
 
     -- The level text gets re-anchored by the default UI; hooksecurefunc is permanent, so install it once.
@@ -527,7 +527,6 @@ function mod:OnEnable()
 end
 
 function mod:OnDisable()
-    ns:UnregisterEvent("PLAYER_ENTERING_WORLD", onWorldEnter)
     restorePlayerDefaults()
 
     pulseDriver:Hide()
