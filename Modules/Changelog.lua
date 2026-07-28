@@ -42,7 +42,17 @@ function mod:GetOptions()
                 local text = tostring(line)
                 local rest = text:match("^NEW:%s*(.+)$")
                 if rest then
-                    text = "|cff66ff66" .. L["NEW:"] .. "|r " .. L[rest]
+                    -- A NEW line reads "Feature Name <en dash> what it does".
+                    -- The name is the part a reader scans for, so it gets the
+                    -- bright colour. Translations keep the dash, so this splits
+                    -- the same way in every language; a line without one falls
+                    -- through unchanged.
+                    local shown = L[rest]
+                    local name, desc = shown:match("^(.-)%s*\226\128\147%s*(.+)$")
+                    if name and name ~= "" then
+                        shown = "|cffffffff" .. name .. "|r \226\128\147 " .. desc
+                    end
+                    text = "|cff66ff66" .. L["NEW:"] .. "|r " .. shown
                 else
                     text = L[text]
                 end
