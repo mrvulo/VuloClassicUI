@@ -114,7 +114,7 @@ Modules\PopupSkin.lua
 Trinkets\TrinketsStore.lua
 Trinkets\TrinketsGlobals.lua
 Trinkets\Trinkets.lua
-Trinkets\Trinkets.xml
+Trinkets\TrinketsFrames.lua
 Trinkets\TrinketsOpt.lua
 Trinkets\TrinketsOpt.xml
 Trinkets\TrinketsQueue.lua
