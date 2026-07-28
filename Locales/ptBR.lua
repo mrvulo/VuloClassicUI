@@ -2619,4 +2619,7 @@ ns:RegisterLocale("ptBR", function() return {
     ["Owns the current talent group"] = "Vale para o grupo de talentos atual",
     ["Delete this group"] = "Excluir este grupo",
     ["No groups yet."] = "Nenhum grupo ainda.",
+    -- Anchor points
+    ["Centre"] = "Centro",
+    ["Thin outline"] = "Contorno fino",
 } end)

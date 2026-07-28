@@ -2619,4 +2619,7 @@ ns:RegisterLocale("koKR", function() return {
     ["Owns the current talent group"] = "현재 특성 그룹에 적용",
     ["Delete this group"] = "이 그룹 삭제",
     ["No groups yet."] = "아직 그룹이 없습니다.",
+    -- Anchor points
+    ["Centre"] = "가운데",
+    ["Thin outline"] = "얇은 외곽선",
 } end)

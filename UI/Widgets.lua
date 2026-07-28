@@ -365,10 +365,18 @@ end
 local function collapsibleSetup(b, title, expanded, onClick)
     b._label:SetText(string.upper(title or ""))
     b._label:SetTextColor(0.92, 0.90, 0.96)
-    if expanded then
-        b._chevron:SetVertexColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
+    -- The two states used to differ only in the TINT of a cog. A collapsed
+    -- section was then indistinguishable from an empty one -- the header sat
+    -- there with nothing under it and no hint that anything was hiding. Now the
+    -- texture itself changes, the same plus/minus the sidebar groups use.
+    b._chevron:SetTexture(expanded
+        and "Interface\\Buttons\\UI-MinusButton-Up"
+        or  "Interface\\Buttons\\UI-PlusButton-Up")
+    local c = expanded and ns.COLORS.accent or nil
+    if c then
+        b._chevron:SetVertexColor(c.r, c.g, c.b)
     else
-        b._chevron:SetVertexColor(0.6, 0.6, 0.68)
+        b._chevron:SetVertexColor(0.65, 0.65, 0.72)
     end
     b._vcOnClick = onClick
 end
@@ -380,7 +388,7 @@ function UI:CreateCollapsibleHeader(parent, text, expanded, onClick)
     local box = b:CreateTexture(nil, "ARTWORK")
     box:SetSize(14, 14)
     box:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 0, 4)
-    box:SetTexture("Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\gear.tga")
+    -- texture is set per state in collapsibleSetup
     box:SetVertexColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
     b._chevron = box
 
@@ -562,6 +570,32 @@ local function sliderUpdateFill(s, v)
     s._trackFill:SetWidth(math.max(0.001, w))
 end
 
+-- ONE place decides what a slider value looks like. It used to be decided
+-- twice: OnValueChanged rounded to the step, the setup path did not -- so a
+-- value written by something other than the slider (a frame dragged in edit
+-- mode, say) came back as 7.6293945 on a slider whose step is 1, and then got
+-- clipped to "7.629..." by a 36px box.
+local function snapSliderValue(step, v)
+    v = tonumber(v) or 0
+    step = tonumber(step) or 1
+    if step >= 1 then return math.floor(v / step + 0.5) * step end
+    -- Sub-integer steps: round to the step's own precision, so 0.05 gives 1.35
+    -- and never 1.3500000000000001.
+    local inv = 1 / step
+    return math.floor(v * inv + 0.5) / inv
+end
+
+local function formatSliderValue(step, v)
+    return string.format("%g", snapSliderValue(step, v))
+end
+
+-- Wide enough for the widest value the range can produce, instead of a fixed
+-- 36 which "-800" never fitted into.
+local function sliderValueWidth(min, max, step)
+    local widest = math.max(#formatSliderValue(step, min or 0), #formatSliderValue(step, max or 0))
+    return math.max(36, 8 + widest * 7)
+end
+
 local function sliderSetup(s, config)
     s._vcConfig = config
     s._min  = config.min or 0
@@ -576,7 +610,8 @@ local function sliderSetup(s, config)
     if s.Text then s.Text:SetText(clean(config.label) or "") end
     local v = config.get(s) or s._min
     s:SetValue(v)
-    s._valueText:SetText(string.format("%g", v))
+    s._valueText:SetWidth(sliderValueWidth(s._min, s._max, s._step))
+    s._valueText:SetText(formatSliderValue(s._step, v))
     sliderUpdateFill(s, v)
     s._configuring = false
 
@@ -735,11 +770,46 @@ function UI:CreateSlider(parent, config)
     local minusBtn = makeStepButton("-", -1)
     minusBtn:SetPoint("LEFT", s, "RIGHT", 8, 0)
 
-    local valueText = s:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    UI.Font(valueText, 11)
+    -- An EDIT BOX, not a label: going from 8 to 190 used to mean holding "+".
+    -- Click the number, type it, press Enter. It still reads like plain text
+    -- until you touch it, so nothing shouts for attention.
+    local valueText = CreateFrame("EditBox", nil, s)
     valueText:SetPoint("LEFT", minusBtn, "RIGHT", 4, 0)
-    valueText:SetWidth(36)
+    valueText:SetSize(36, 18)
+    valueText:SetAutoFocus(false)
     valueText:SetJustifyH("CENTER")
+    valueText:SetFontObject("GameFontHighlightSmall")
+    UI.Font(valueText, 11)
+    valueText:SetTextInsets(2, 2, 0, 0)
+
+    local vbg = valueText:CreateTexture(nil, "BACKGROUND")
+    vbg:SetAllPoints(valueText)
+    vbg:SetColorTexture(1, 1, 1, 0.05)
+    vbg:Hide()
+    valueText:SetScript("OnEnter", function(self) vbg:Show() end)
+    valueText:SetScript("OnLeave", function(self) if not self:HasFocus() then vbg:Hide() end end)
+    valueText:SetScript("OnEditFocusGained", function(self) vbg:Show(); self:HighlightText() end)
+
+    local function restoreFromSlider(self)
+        self:HighlightText(0, 0)
+        self:SetText(formatSliderValue(s._step, s:GetValue() or s._min))
+        self:ClearFocus()
+        if not self:IsMouseOver() then vbg:Hide() end
+    end
+
+    valueText:SetScript("OnEnterPressed", function(self)
+        local typed = tonumber(self:GetText())
+        if typed then
+            -- Clamp before snapping: typing 9999 into a 0..100 slider should
+            -- land on 100, not be refused without a word.
+            typed = math.max(s._min, math.min(s._max, typed))
+            s:SetValue(snapSliderValue(s._step, typed))
+        end
+        restoreFromSlider(self)
+    end)
+    valueText:SetScript("OnEscapePressed", restoreFromSlider)
+    valueText:SetScript("OnEditFocusLost", restoreFromSlider)
+
     s._valueText = valueText
 
     local plusBtn = makeStepButton("+", 1)
@@ -748,10 +818,12 @@ function UI:CreateSlider(parent, config)
     s:SetScript("OnValueChanged", function(self, v)
         local cfg = self._vcConfig
         if not cfg then return end
-        if cfg.step and cfg.step >= 1 then
-            v = math.floor(v + 0.5)
+        v = snapSliderValue(cfg.step, v)
+        -- Never fight the user's cursor: if they are typing in the box, the
+        -- slider must not overwrite what is half-entered.
+        if not self._valueText:HasFocus() then
+            self._valueText:SetText(formatSliderValue(cfg.step, v))
         end
-        self._valueText:SetText(string.format("%g", v))
         sliderUpdateFill(self, v)
         if self._configuring then return end
         cfg.set(self, v)

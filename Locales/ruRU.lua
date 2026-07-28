@@ -2619,4 +2619,7 @@ ns:RegisterLocale("ruRU", function() return {
     ["Owns the current talent group"] = "Действует для текущего набора талантов",
     ["Delete this group"] = "Удалить эту группу",
     ["No groups yet."] = "Групп пока нет.",
+    -- Anchor points
+    ["Centre"] = "По центру",
+    ["Thin outline"] = "Тонкий контур",
 } end)

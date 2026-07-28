@@ -29,6 +29,23 @@ function ns.VisibilityValues()
     }
 end
 
+-- Anchor points as words. They were built as { value = "CENTER", text = "CENTER" }
+-- -- the raw frame token shown to the reader, in every language. The VALUE stays
+-- the token because the client needs it; only the text is translated.
+function ns.AnchorPointValues()
+    return {
+        { value = "CENTER",      text = L["Centre"] },
+        { value = "TOP",         text = L["Top"] },
+        { value = "BOTTOM",      text = L["Bottom"] },
+        { value = "LEFT",        text = L["Left"] },
+        { value = "RIGHT",       text = L["Right"] },
+        { value = "TOPLEFT",     text = L["Top left"] },
+        { value = "TOPRIGHT",    text = L["Top right"] },
+        { value = "BOTTOMLEFT",  text = L["Bottom left"] },
+        { value = "BOTTOMRIGHT", text = L["Bottom right"] },
+    }
+end
+
 function ns.GroupVisValues()
     return {
         { value = "any",   text = L["Always"] },

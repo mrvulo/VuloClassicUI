@@ -2612,4 +2612,7 @@ ns:RegisterLocale("zhCN", function() return {
     ["Owns the current talent group"] = "适用于当前天赋方案",
     ["Delete this group"] = "删除此分组",
     ["No groups yet."] = "尚无分组。",
+    -- Anchor points
+    ["Centre"] = "居中",
+    ["Thin outline"] = "细描边",
 } end)

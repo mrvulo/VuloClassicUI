@@ -2620,6 +2620,9 @@ local function T() return {
     ["Owns the current talent group"] = "Se aplica al grupo de talentos actual",
     ["Delete this group"] = "Eliminar este grupo",
     ["No groups yet."] = "Aún no hay grupos.",
+    -- Anchor points
+    ["Centre"] = "Centro",
+    ["Thin outline"] = "Contorno fino",
 } end
 
 ns:RegisterLocale("esES", T)

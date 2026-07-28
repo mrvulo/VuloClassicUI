@@ -2612,4 +2612,7 @@ ns:RegisterLocale("zhTW", function() return {
     ["Owns the current talent group"] = "適用於目前天賦方案",
     ["Delete this group"] = "刪除此群組",
     ["No groups yet."] = "尚無群組。",
+    -- Anchor points
+    ["Centre"] = "置中",
+    ["Thin outline"] = "細描邊",
 } end)

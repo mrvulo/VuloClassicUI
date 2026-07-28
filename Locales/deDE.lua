@@ -2752,4 +2752,7 @@ ns:RegisterLocale("deDE", function() return {
     ["Owns the current talent group"] = "Gilt für die aktuelle Talentwahl",
     ["Delete this group"] = "Diese Gruppe löschen",
     ["No groups yet."] = "Noch keine Gruppen.",
+    -- Anchor points
+    ["Centre"] = "Mitte",
+    ["Thin outline"] = "Dünne Kontur",
 } end)

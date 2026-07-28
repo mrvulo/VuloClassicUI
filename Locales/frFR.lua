@@ -2768,4 +2768,7 @@ ns:RegisterLocale("frFR", function() return {
     ["Owns the current talent group"] = "S'applique au groupe de talents actuel",
     ["Delete this group"] = "Supprimer ce groupe",
     ["No groups yet."] = "Aucun groupe pour l'instant.",
+    -- Anchor points
+    ["Centre"] = "Centre",
+    ["Thin outline"] = "Contour fin",
 } end)

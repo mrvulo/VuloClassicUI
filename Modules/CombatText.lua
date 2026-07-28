@@ -738,10 +738,8 @@ function mod:GetOptions()
     for _, s in ipairs({ "BACKGROUND", "LOW", "MEDIUM", "HIGH", "DIALOG", "FULLSCREEN", "FULLSCREEN_DIALOG", "TOOLTIP" }) do
         STRATA[#STRATA + 1] = { value = s, text = s }
     end
-    local POINTS = {}
-    for _, p in ipairs({ "CENTER", "TOP", "BOTTOM", "LEFT", "RIGHT", "TOPLEFT", "TOPRIGHT", "BOTTOMLEFT", "BOTTOMRIGHT" }) do
-        POINTS[#POINTS + 1] = { value = p, text = p }
-    end
+    -- Shared and translated; this used to show the raw frame token as its label.
+    local POINTS = ns.AnchorPointValues()
 
     local lowDura = msgSection("lowDurability", L["Low Durability Warning"], true)
     lowDura.items[#lowDura.items + 1] = { type = "slider", label = L["Threshold (%)"],
@@ -818,8 +816,11 @@ function mod:GetOptions()
               set = function(_, v) mod.db.fontFace = v; reapplyFont() end },
             { type = "dropdown", label = L["Outline"],
               values = {
+                  -- Not L["Outline"] for the middle one: that is the dropdown's
+                  -- own label, so the row read "Outline | Outline" and told the
+                  -- reader nothing about what was selected.
                   { value = "NONE",         text = L["None"] },
-                  { value = "OUTLINE",      text = L["Outline"] },
+                  { value = "OUTLINE",      text = L["Thin outline"] },
                   { value = "THICKOUTLINE", text = L["Thick Outline"] },
               },
               get = function() return mod.db.fontOutlineMode or "THICKOUTLINE" end,
