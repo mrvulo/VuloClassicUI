@@ -18,11 +18,12 @@ local MELEE_TREES = {
 -- most points wins. Returns nil while talents are unreadable (very early login,
 -- or a character with no points yet), which callers treat as "don't judge".
 local function dominantTree()
-    -- Was GetTalentTabInfo, reading return slot 3 as the point count. That is
-    -- right for the original function and wrong for the deprecation shim, which
-    -- answers (specId, name, description, ...) -- so slot 3 came back a STRING
-    -- and the comparison below it raised rather than misjudging quietly.
-    -- Core/TalentOverrides asks C_SpecializationInfo and type-checks the count.
+    -- Was GetTalentTabInfo, reading return slot 3 as the point count. Right for
+    -- the original function; the deprecation shim prepends a spec id, so slot 3
+    -- is the ICON FILE ID. Measured on a live client it answers 136048 there --
+    -- a number, so nothing complained, and "the tree with the most points"
+    -- quietly became "the tree with the largest texture id". For a hybrid this
+    -- decided melee versus ranged, which is the whole job of this function.
     return ns:DominantTalentTree()
 end
 

@@ -52,6 +52,10 @@ local L = ns.L
 local SEP = "\031"   -- unit separator: cannot occur in a module key or a label
 local SI  = _G.C_SpecializationInfo
 
+-- Far above anything a tree can hold, far below an icon file id. See the note on
+-- ns:DominantTalentTree for why a plain "is it a number" test was not enough.
+local MAX_TREE_POINTS = 100
+
 -- =========================================================================
 -- The axis
 -- =========================================================================
@@ -68,15 +72,18 @@ function ns:ActiveTalentGroup()
     return 1
 end
 
--- Name of the tree with the most points in that group -- "Shadow", "Holy".
--- Nil while talent data is not loaded; callers then fall back to the number.
+-- Deliberately NOT falling back to GetTalentTabInfo. Measured on a live client
+-- (a shaman, talent group 1), the deprecated shim answers:
+--     261, "Elementar", 136048, 0, "ShamanElementalCombat", 0, true
+-- against the original classic (name, iconTexture, pointsSpent, background, ...).
+-- A spec id is prepended, so every slot moves one to the right -- and slot 3,
+-- which the original filled with the point count, now holds the ICON FILE ID.
 --
--- Deliberately NOT falling back to GetTalentTabInfo: the deprecated shim returns
--- (specId, name, description, icon, pointsSpent, ...) while the original classic
--- function returned (name, icon, pointsSpent, ...). Reading position 3 as the
--- point count is right for one and reads the DESCRIPTION for the other, and
--- there is no way to tell which one answered. A missing label is honest; a label
--- built from the wrong slot is not.
+-- That is worse than a wrong label. 136048 is a number, so a type check waves it
+-- through, and "the tree with the most points" becomes "the tree with the
+-- largest texture id" -- a stable, plausible, entirely wrong answer. Hence the
+-- range check below: a point count is small, a file id is not.
+--
 -- Returns INDEX, NAME of the tree holding the most points in that group, or nil
 -- while talent data is not loaded. Two callers want two halves of this: a label
 -- wants the name, a module deciding "is this a melee build" wants the index, and
@@ -97,6 +104,13 @@ function ns:DominantTalentTree(group)
         -- returns: specId, name, description, icon, role, primaryStat, pointsSpent, ...
         local ok, _, name, _, _, _, _, points =
             pcall(SI.GetSpecializationInfo, i, false, false, nil, nil, group)
+        -- No talent tree in this game holds anything like a hundred points. The
+        -- guard is not about this call being wrong -- it is about the next person
+        -- reading a neighbouring slot by accident, which has now happened twice.
+        -- An icon file id fails it; a point count cannot.
+        if type(points) == "number" and (points < 0 or points > MAX_TREE_POINTS) then
+            points = nil
+        end
         if ok and type(points) == "number" and (not bestPoints or points > bestPoints) then
             bestPoints, bestIdx = points, i
             bestName = (type(name) == "string" and name ~= "") and name or nil
