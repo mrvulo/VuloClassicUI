@@ -761,9 +761,30 @@ function UI:PlaceGroup(parent, group, y)
             -- width. Buttons of three different lengths side by side read as an
             -- accident rather than a set -- the reference gives every button in
             -- such a row one width for exactly this reason.
-            local widest = 0
-            for _, p in ipairs(placed) do if p.w > widest then widest = p.w end end
-            spread(function() return widest end)
+            --
+            -- But only while they FIT, and that is not a given in every language.
+            -- A declared width is a FLOOR, not a cap: buttonSetup sizes to
+            -- max(config.width, text + 36), so a longer translation pushes the
+            -- widest button past its number -- and equalising then multiplies
+            -- that overshoot by N and carries the last button off the card. The
+            -- Vulslot row is 150/220/110 in English and fits; in German the
+            -- middle label grows and all three inherit it.
+            --
+            -- Their own widths usually still fit (562 of 725 in that case), so
+            -- the first fallback is simply to leave them alone. A set of unequal
+            -- buttons reads better than a set with one of them cut off.
+            local widest, natural = 0, 0
+            for i, p in ipairs(placed) do
+                if p.w > widest then widest = p.w end
+                natural = natural + p.w + (i > 1 and gap or 0)
+            end
+            if widest * n + gap * (n - 1) <= inner then
+                spread(function() return widest end)
+            elseif natural > inner then
+                -- Not even their natural widths fit: equal slots is all that is
+                -- left, and a slightly cramped label beats one off the edge.
+                spread(function() return math.floor((inner - gap * (n - 1)) / n) end)
+            end
         end
 
         local totalW = 0
