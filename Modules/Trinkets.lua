@@ -85,6 +85,186 @@ function mod:OnDisable()
     setShown(false)
 end
 
+-- =========================================================================
+-- Auto queue
+--
+-- The engine has a whole window for this -- order, delay, per-item flags,
+-- profiles -- and it sits behind Trinkets_OptFrame, which suppressEngineUI
+-- above hides on purpose. So the queue RAN (alt-click arms a slot, it swaps in
+-- combat) while the order it swapped by could not be looked at, let alone
+-- changed. That has been true since the window was vendored.
+--
+-- Rebuilt here out of our own controls rather than by un-hiding a 2006 window.
+-- The data and every operation on it come from the engine unchanged:
+--
+--   TrinketsQueue.Enabled[which]  0 = top slot (13), 1 = bottom slot (14)
+--   TrinketsQueue.Sort[which]     ordered item ids
+--   TrinketsQueue.Stats[id]       { delay, priority, keep }
+--
+-- Nothing here writes a queue rule by hand; it moves entries in that list and
+-- lets Trinkets.UpdateCombatQueue react, exactly as the old window did.
+-- =========================================================================
+
+local selected = { [0] = 1, [1] = 1 }   -- which row of each slot's list is picked
+
+local function queueList(which)
+    local q = _G.TrinketsQueue
+    return (q and q.Sort and q.Sort[which]) or {}
+end
+
+local function queueName(id)
+    if Trinkets and Trinkets.GetNameByID then
+        local n = Trinkets.GetNameByID(id)
+        if n and n ~= "" then return n end
+    end
+    local n = GetItemInfo(id or "")
+    return n or ("#" .. tostring(id))
+end
+
+local function selectedId(which)
+    return queueList(which)[selected[which]]
+end
+
+local function stats(which, create)
+    local q, id = _G.TrinketsQueue, selectedId(which)
+    if not (q and id) then return nil end
+    q.Stats = q.Stats or {}
+    if create then q.Stats[id] = q.Stats[id] or {} end
+    return q.Stats[id]
+end
+
+local function rebuild()
+    if ns.UI and ns.UI.RebuildCurrentPage then ns.UI:RebuildCurrentPage() end
+end
+
+-- Move the picked entry, keeping the selection ON it rather than on the
+-- position -- otherwise pressing "up" twice moves two different trinkets.
+local function move(which, delta)
+    local list = queueList(which)
+    local i = selected[which]
+    local j = i + delta
+    if not (list[i] and list[j]) then return end
+    list[i], list[j] = list[j], list[i]
+    selected[which] = j
+    if Trinkets and Trinkets.UpdateCombatQueue then Trinkets.UpdateCombatQueue() end
+    rebuild()
+end
+
+local function removeEntry(which)
+    local list = queueList(which)
+    if not list[selected[which]] then return end
+    table.remove(list, selected[which])
+    if selected[which] > #list then selected[which] = #list end
+    if selected[which] < 1 then selected[which] = 1 end
+    if Trinkets and Trinkets.UpdateCombatQueue then Trinkets.UpdateCombatQueue() end
+    rebuild()
+end
+
+-- Trinkets in the bags that are not in this slot's list yet.
+--
+-- Two traps in Trinkets.BaggedTrinkets, both read out of the scan in
+-- Trinkets.BuildMenu: it is filled by that scan and would otherwise be stale or
+-- empty when this page is opened first, and it is never SHORTENED -- entries
+-- past NumberOfTrinkets are leftovers from a fuller bag. So: rescan, then count
+-- to that number rather than walking the table with ipairs.
+local function addableValues(which)
+    if Trinkets and Trinkets.BuildMenu and not InCombatLockdown() then
+        pcall(Trinkets.BuildMenu)
+    end
+    local bagged = (Trinkets and Trinkets.BaggedTrinkets) or {}
+    local n      = (Trinkets and Trinkets.NumberOfTrinkets) or 0
+
+    local out, seen = {}, {}
+    for _, id in ipairs(queueList(which)) do seen[tostring(id)] = true end
+    for i = 1, n do
+        local id = bagged[i] and bagged[i].id
+        if id and not seen[tostring(id)] then
+            seen[tostring(id)] = true
+            out[#out + 1] = { value = tostring(id), text = bagged[i].name or queueName(id) }
+        end
+    end
+    return out
+end
+
+local function queueSection(which, title)
+    local list = queueList(which)
+
+    local rows = {}
+    for i, id in ipairs(list) do
+        rows[i] = { value = i, text = string.format("%d. %s", i, queueName(id)) }
+    end
+    if #rows == 0 then
+        rows[1] = { value = 1, text = L["- empty -"] }
+    end
+    if selected[which] > #list then selected[which] = math.max(1, #list) end
+
+    local items = {
+        { type = "toggle", label = L["Auto queue for this slot"],
+          tooltip = L["Same switch as alt-clicking the slot. While on, the queue swaps this trinket in combat, following the order below."],
+          get = function() return (_G.TrinketsQueue and _G.TrinketsQueue.Enabled[which]) and true or false end,
+          set = function(_, v)
+              local q = _G.TrinketsQueue
+              if not q then return end
+              q.Enabled[which] = v and 1 or nil
+              if not v and Trinkets and Trinkets.CombatQueue then
+                  Trinkets.CombatQueue[which] = nil
+              end
+              if Trinkets and Trinkets.UpdateCombatQueue then Trinkets.UpdateCombatQueue() end
+          end },
+
+        { type = "dropdown", label = L["Order"], width = 260,
+          tooltip = L["The queue works through this list from the top. Pick an entry to move it or to change its settings."],
+          values = rows,
+          get = function() return selected[which] end,
+          set = function(_, v) selected[which] = tonumber(v) or 1; rebuild() end },
+
+        { type = "group", layout = "row", gap = 8, items = {
+            { type = "button", label = L["Up"],     width = 90,
+              onClick = function() move(which, -1) end },
+            { type = "button", label = L["Down"],   width = 90,
+              onClick = function() move(which,  1) end },
+            { type = "button", label = L["Remove"], width = 90,
+              onClick = function() removeEntry(which) end },
+        } },
+    }
+
+    local addable = addableValues(which)
+    if #addable > 0 then
+        items[#items + 1] = { type = "dropdown", label = L["Add from bags"], width = 260,
+            tooltip = L["Adds a trinket you are carrying to the end of this list."],
+            values = addable,
+            get = function() return "" end,
+            set = function(_, v)
+                if Trinkets and Trinkets.AddToSort then Trinkets.AddToSort(which, v) end
+                rebuild()
+            end }
+    end
+
+    if list[selected[which]] then
+        items[#items + 1] = { type = "spacer", height = 4 }
+        items[#items + 1] = { type = "desc",
+            text = "|cffaaaaaa" .. string.format(L["Settings for: %s"], queueName(selectedId(which))) .. "|r" }
+        items[#items + 1] = { type = "slider", label = L["Swap delay"],
+            min = 0, max = 60, step = 1,
+            tooltip = L["Seconds this trinket stays equipped before the queue swaps it out again. 0 = no wait."],
+            get = function() local s = stats(which); return (s and s.delay) or 0 end,
+            set = function(_, v)
+                local s = stats(which, true)
+                if s then s.delay = (v ~= 0) and v or nil end
+            end }
+        items[#items + 1] = { type = "checkbox", label = L["Priority"],
+            tooltip = L["This trinket is swapped in ahead of the ones above it once it is ready."],
+            get = function() local s = stats(which); return (s and s.priority) and true or false end,
+            set = function(_, v) local s = stats(which, true); if s then s.priority = v or nil end end }
+        items[#items + 1] = { type = "checkbox", label = L["Pause while equipped"],
+            tooltip = L["While this trinket is worn the queue holds still - for a trinket whose effect you do not want cut short."],
+            get = function() local s = stats(which); return (s and s.keep) and true or false end,
+            set = function(_, v) local s = stats(which, true); if s then s.keep = v or nil end end }
+    end
+
+    return { type = "section", title = title, items = items }
+end
+
 function mod:GetOptions()
     return {
         { type = "header", text = L["Trinkets"] },
@@ -125,6 +305,10 @@ function mod:GetOptions()
 
         { type = "spacer", height = 4 },
         { type = "desc",
-          text = L["|cffaaaaaaTip: Left click on a slot uses the trinket, right click shows the selection list. Auto-queue is configured via right click -> Queue tab.|r"] },
+          text = L["|cffaaaaaaTip: left click a slot to use the trinket, right click for the list. Alt-click arms the auto queue for that slot.|r"] },
+
+        -- Sections start closed, so the two queues cost two lines until opened.
+        queueSection(0, L["Auto queue: top slot"]),
+        queueSection(1, L["Auto queue: bottom slot"]),
     }
 end
