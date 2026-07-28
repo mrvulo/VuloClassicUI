@@ -452,12 +452,16 @@ function UI:CreateMainFrame()
             self._glyph:SetAlpha(1)   -- 90 % idle, full on hover
             local id = ns.EditingOverrideGroup and ns:EditingOverrideGroup()
             local g  = id and ns:OverrideGroup(id)
+            -- The group icon rides HERE and not on the button: the button keeps
+            -- one identity on purpose (see RefreshOverrideButton below), and the
+            -- tooltip is where the group is named anyway.
+            local name = g and ((ns.OverrideIconMarkup and ns:OverrideIconMarkup(g.icon) or "") .. g.name)
             -- Same wording as the menu's default entry, from one helper.
             UI:ShowTooltip(self, {
                 anchor = "ANCHOR_BOTTOM",
                 title  = L["Editing as"],
-                lines  = { g and { g.name, 0.7, 0.7, 0.8 }
-                             or { ns:OverrideSelfLabel(), 1, 1, 1 } },
+                lines  = { name and { name, 0.7, 0.7, 0.8 }
+                                or { ns:OverrideSelfLabel(), 1, 1, 1 } },
             })
         end)
         ovBtn:SetScript("OnLeave", function(self)

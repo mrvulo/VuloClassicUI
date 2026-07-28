@@ -454,6 +454,50 @@ function mod:GetOptions()
                     if ns.UI and ns.UI.RebuildCurrentPage then ns.UI:RebuildCurrentPage() end
                 end,
             })
+
+            -- Second axis. A group may name a build, a situation, or both; both
+            -- means it only applies when both are true, and then it wins over a
+            -- group that names just one. See ns:MatchingOverrideGroups.
+            local sitValues = { { value = "", text = L["Everywhere"] } }
+            for _, k in ipairs(ns.OVERRIDE_SITUATIONS or {}) do
+                sitValues[#sitValues + 1] = { value = k, text = ns:SituationLabel(k) }
+            end
+            table.insert(items, {
+                type    = "dropdown",
+                label   = L["Situation"],
+                width   = 240,
+                tooltip = L["Applies only in this situation. Combined with a talent group, both have to be true - and that group then overrides one that names only the talent group."],
+                noOverride = true,
+                values  = sitValues,
+                get = function() return ns:OverrideGroupSituation(id) or "" end,
+                set = function(_, v)
+                    ns:SetOverrideGroupSituation(id, v)
+                    ns:ApplyOverrides()
+                    if ns.UI and ns.UI.RebuildCurrentPage then ns.UI:RebuildCurrentPage() end
+                end,
+            })
+
+            local iconValues = { { value = 0, text = L["No icon"] } }
+            for n = 1, 8 do
+                iconValues[n + 1] = {
+                    value = n,
+                    text  = ns:OverrideIconMarkup(n) .. ns:OverrideIconLabel(n),
+                }
+            end
+            table.insert(items, {
+                type    = "dropdown",
+                label   = L["Icon"],
+                width   = 240,
+                tooltip = L["Shown in front of the group name in the menu and on the header button."],
+                noOverride = true,
+                values  = iconValues,
+                get = function() return ns:OverrideGroupIcon(id) or 0 end,
+                set = function(_, v)
+                    ns:SetOverrideGroupIcon(id, v)
+                    if ns.UI and ns.UI.RefreshOverrideButton then ns.UI:RefreshOverrideButton() end
+                    if ns.UI and ns.UI.RebuildCurrentPage then ns.UI:RebuildCurrentPage() end
+                end,
+            })
             -- The overrides themselves, one row each, inside a section so a
             -- group with forty of them does not bury the rest of the page.
             -- Sections start closed, so this costs one line until you open it.

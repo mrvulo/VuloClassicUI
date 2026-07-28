@@ -193,6 +193,154 @@ function ns:AssignTalentGroup(talentGroup, id)
     end
 end
 
+-- =========================================================================
+-- Situations
+--
+-- The talent group was the only axis. It answers "which build am I", never
+-- "where am I" -- and wanting bigger nameplates in a raid has nothing to do
+-- with respeccing.
+--
+-- ONE situation is true at a time, deliberately. Overlapping conditions are
+-- where this kind of feature gets expensive: the reference addon layers them
+-- and needs ~8000 lines, with a comment in it about a conditional transition
+-- that froze the client. A single value cannot contradict itself.
+-- =========================================================================
+
+local SITUATIONS = { "raid", "party", "arena", "pvp", "group", "solo" }
+ns.OVERRIDE_SITUATIONS = SITUATIONS
+
+function ns:SituationLabel(key)
+    if key == "raid"  then return L["Raid instance"] end
+    if key == "party" then return L["5-player instance"] end
+    if key == "arena" then return L["Arena"] end
+    if key == "pvp"   then return L["Battleground"] end
+    if key == "group" then return L["In a group, outdoors"] end
+    if key == "solo"  then return L["Alone"] end
+    return L["Everywhere"]
+end
+
+-- Instance type first, because being in a raid instance is also "in a group"
+-- and the more specific answer is the useful one.
+function ns:CurrentSituation()
+    local inside, kind = false, nil
+    if IsInInstance then
+        local ok, a, b = pcall(IsInInstance)
+        if ok then inside, kind = a, b end
+    end
+    if inside then
+        if kind == "arena" then return "arena" end
+        if kind == "pvp"   then return "pvp"   end
+        if kind == "raid"  then return "raid"  end
+        if kind == "party" then return "party" end
+    end
+    if IsInGroup and IsInGroup() then return "group" end
+    if GetNumGroupMembers and (GetNumGroupMembers() or 0) > 0 then return "group" end
+    return "solo"
+end
+
+function ns:OverrideGroupSituation(id)
+    local g = ns:OverrideGroup(id)
+    return g and g.situation or nil
+end
+
+function ns:SetOverrideGroupSituation(id, key)
+    local g = ns:OverrideGroup(id)
+    if not g then return false end
+    if key == "" or key == nil then
+        g.situation = nil
+    else
+        local ok = false
+        for _, k in ipairs(SITUATIONS) do if k == key then ok = true; break end end
+        if not ok then return false end
+        g.situation = key
+    end
+    return true
+end
+
+-- =========================================================================
+-- Group icons
+--
+-- The eight raid markers: present in every client since forever, distinct at a
+-- glance, and the client already holds their names in RAID_TARGET_1..8 in the
+-- player's language, so this costs no art and no translation. Two other places
+-- in this addon draw them the same way.
+-- =========================================================================
+
+function ns:OverrideIconTexture(n)
+    n = tonumber(n)
+    if not n or n < 1 or n > 8 then return nil end
+    return "Interface\\TargetingFrame\\UI-RaidTargetingIcon_" .. n
+end
+
+function ns:OverrideIconLabel(n)
+    n = tonumber(n)
+    if not n or n < 1 or n > 8 then return L["No icon"] end
+    return _G["RAID_TARGET_" .. n] or ("#" .. n)
+end
+
+-- Inline texture escape, for a menu line or a button caption.
+function ns:OverrideIconMarkup(n, size)
+    local tex = ns:OverrideIconTexture(n)
+    if not tex then return "" end
+    return "|T" .. tex .. ":" .. (size or 14) .. "|t "
+end
+
+function ns:OverrideGroupIcon(id)
+    local g = ns:OverrideGroup(id)
+    return g and tonumber(g.icon) or nil
+end
+
+function ns:SetOverrideGroupIcon(id, n)
+    local g = ns:OverrideGroup(id)
+    if not g then return false end
+    n = tonumber(n)
+    g.icon = (n and n >= 1 and n <= 8) and n or nil
+    return true
+end
+
+-- =========================================================================
+-- Which groups apply, and in what order
+--
+-- A group applies when EVERY filter it declares matches. One that declares
+-- nothing never applies on its own -- it can still be edited, it simply has no
+-- occasion to switch itself on, and saying so is better than guessing.
+--
+-- Order is by specificity, fewest filters first, so a group that names both a
+-- build and a place lands ON TOP of one that only names the build. That is the
+-- rule people already carry around from stylesheets, and it makes the outcome
+-- readable instead of dependent on pairs().
+-- =========================================================================
+function ns:MatchingOverrideGroups(talentGroup, situation)
+    talentGroup = talentGroup or ns:ActiveTalentGroup()
+    situation   = situation   or ns:CurrentSituation()
+
+    local out = {}
+    for id, g in pairs(ns:OverrideGroups()) do
+        local filters = 0
+        local ok      = true
+        local owns    = g.members and next(g.members) ~= nil
+        if owns then
+            filters = filters + 1
+            if not g.members[talentGroup] then ok = false end
+        end
+        if g.situation then
+            filters = filters + 1
+            if g.situation ~= situation then ok = false end
+        end
+        if ok and filters > 0 then
+            out[#out + 1] = { id = id, filters = filters }
+        end
+    end
+    table.sort(out, function(a, b)
+        if a.filters ~= b.filters then return a.filters < b.filters end
+        return a.id < b.id            -- stable, so a re-apply lands the same way
+    end)
+
+    local ids = {}
+    for i, e in ipairs(out) do ids[i] = e.id end
+    return ids
+end
+
 function ns:GroupForTalentGroup(talentGroup)
     for id, g in pairs(ns:OverrideGroups()) do
         if g.members and g.members[talentGroup] then return id, g end
@@ -224,14 +372,21 @@ local function splitId(id)
     return a, (b ~= "" and b or nil), c
 end
 
--- Used by the options builder to mark a row. Asks about the group that owns the
--- ACTIVE talent group, or the one being edited -- what is on screen right now.
+-- Used by the options builder to mark a row. While editing, that one group is
+-- what is on screen. Otherwise ANY group that currently applies counts -- a row
+-- driven by the raid group is just as overridden as one driven by the build,
+-- and marking only the build's would leave the other silently unmarked.
 function ns:HasOverride(_, id)
     if not id then return false end
-    local editing = ns._ovEditing
-    local gid = editing or ns:GroupForTalentGroup(ns:ActiveTalentGroup())
-    local g = gid and ns:OverrideGroup(gid)
-    return (g and g.values and g.values[id] ~= nil) and true or false
+    if ns._ovEditing then
+        local g = ns:OverrideGroup(ns._ovEditing)
+        return (g and g.values and g.values[id] ~= nil) and true or false
+    end
+    for _, gid in ipairs(ns:MatchingOverrideGroups()) do
+        local g = ns:OverrideGroup(gid)
+        if g and g.values and g.values[id] ~= nil then return true end
+    end
+    return false
 end
 
 -- =========================================================================
@@ -426,10 +581,26 @@ function ns:ApplyOverrideGroup(id)
     return applied
 end
 
-function ns:ApplyOverrides(talentGroup)
-    local id = ns:GroupForTalentGroup(talentGroup or ns:ActiveTalentGroup())
-    if not id then return 0 end
-    return ns:ApplyOverrideGroup(id)
+-- Every matching group, least specific first, so the specific one has the last
+-- word on any setting both of them name.
+--
+-- The guard is not theoretical. Applying runs module SETTERS, and a setter is
+-- free to do anything -- including something that ends up back here. It cannot
+-- happen through the controls this file adds (they carry noOverride and are
+-- never recorded), but it is one flag against a class of freeze that is very
+-- hard to read from a bug report.
+function ns:ApplyOverrides(talentGroup, situation)
+    if ns._ovApplying then return 0 end
+    ns._ovApplying = true
+    local n = 0
+    local ok, err = pcall(function()
+        for _, id in ipairs(ns:MatchingOverrideGroups(talentGroup, situation)) do
+            n = n + ns:ApplyOverrideGroup(id)
+        end
+    end)
+    ns._ovApplying = nil
+    if not ok then ns:Debug("ApplyOverrides: %s", tostring(err)) end
+    return n
 end
 
 -- =========================================================================
@@ -510,20 +681,33 @@ function ns:ShowOverrideMenu(anchor)
         func    = function() ns:SetEditingOverrideGroup(nil) end,
     }
 
+    -- Which groups are live right now, so "active" means the same thing here as
+    -- it does when the settings are applied.
+    local live = {}
+    for _, gid in ipairs(ns:MatchingOverrideGroups()) do live[gid] = true end
+
     local any = false
     for id, g in pairs(ns:OverrideGroups()) do
         any = true
-        local owns = g.members and g.members[active]
         entries[#entries + 1] = {
-            -- Plain words, no symbol: a bullet or a dot renders as an empty box
-            -- in the game font, which is exactly what it did here.
-            text    = g.name .. (owns and ("  |cff9b6cff" .. L["active"] .. "|r") or "")
+            -- A raid marker as an inline texture. Plain BULLETS were the problem
+            -- here once -- a dot renders as an empty box in the game font -- but
+            -- a |T escape draws the real file and is safe.
+            text    = ns:OverrideIconMarkup(g.icon)
+                      .. g.name
+                      .. (live[id] and ("  |cff9b6cff" .. L["active"] .. "|r") or "")
+                      .. (g.situation and ("  |cff888888" .. ns:SituationLabel(g.situation) .. "|r") or "")
                       .. string.format("  |cff666666(%d)|r", ns:CountOverrides(id)),
             checked = function() return ns._ovEditing == id end,
             func    = function()
-                -- Picking a group also makes it own the talent group you are on,
-                -- otherwise you could record into something that never applies.
-                ns:AssignTalentGroup(ns:ActiveTalentGroup(), id)
+                -- Picking a group used to make it own the current talent group
+                -- unconditionally, so that recording could not vanish into
+                -- something that never applies. A group tied to a SITUATION
+                -- already has its occasion, and forcing a build on top of it
+                -- would quietly narrow it to that build.
+                if not g.situation and not (g.members and next(g.members)) then
+                    ns:AssignTalentGroup(ns:ActiveTalentGroup(), id)
+                end
                 ns:SetEditingOverrideGroup(id)
             end,
         }
@@ -563,7 +747,41 @@ end
 ns:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED", onTalentSwitch)
 ns:RegisterEvent("PLAYER_TALENT_UPDATE", onTalentSwitch)
 
-ns:RegisterEvent("PLAYER_ENTERING_WORLD", function()
-    lastGroup = ns:ActiveTalentGroup()
-    ns:ApplyOverrides(lastGroup)
+-- Situations change far more often than builds do, and the events that announce
+-- them fire in bursts: GROUP_ROSTER_UPDATE alone goes off several times for one
+-- person joining. So the trigger is the COMPUTED situation changing, not the
+-- event -- most of those bursts resolve to the same word and stop here.
+local lastSituation
+
+local function applyNow()
+    lastSituation = ns:CurrentSituation()
+    lastGroup     = ns:ActiveTalentGroup()
+    ns:ApplyOverrides(lastGroup, lastSituation)
+end
+
+local function onSituationMaybeChanged()
+    local now = ns:CurrentSituation()
+    if now == lastSituation then return end
+    -- Setters reach into modules that own protected frames, so this waits.
+    -- Zoning into a raid lands mid-combat often enough to matter.
+    if ns:InCombat() then
+        ns._ovPendingSituation = true
+        return
+    end
+    lastSituation = now
+    ns:ApplyOverrides(nil, now)
+end
+
+-- Deliberately only these three. PLAYER_DIFFICULTY_CHANGED would have fitted the
+-- story, but it is a later-expansion event and I have no way to verify it exists
+-- on this client from here -- and an event that never fires reads like a bug in
+-- the feature. Zoning and the roster cover every situation this knows about.
+ns:RegisterEvent("PLAYER_ENTERING_WORLD", applyNow)
+ns:RegisterEvent("ZONE_CHANGED_NEW_AREA", onSituationMaybeChanged)
+ns:RegisterEvent("GROUP_ROSTER_UPDATE",   onSituationMaybeChanged)
+
+ns:RegisterEvent("PLAYER_REGEN_ENABLED", function()
+    if not ns._ovPendingSituation then return end
+    ns._ovPendingSituation = nil
+    onSituationMaybeChanged()
 end)
