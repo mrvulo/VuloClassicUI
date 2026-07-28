@@ -1652,7 +1652,7 @@ local function pagingRows()
             get = function() return barDB("main")[dbKey] or 0 end,
             set = function(_, v) barDB("main")[dbKey] = v; reapply() end }
     end
-    return { type = "section", title = L["Modifier paging"], collapsed = true, items = {
+    return { type = "section", title = L["Modifier paging"], items = {
         { type = "desc",
           text = L["|cffaaaaaaWhile the key is held (or your target matches), the main bar shows the chosen bar's abilities instead. Fully secure — works in combat.|r"] },
         pageDrop(L["Shift held"], "pageShift"),
@@ -1668,7 +1668,6 @@ local function barSection(desc)
     return {
         type = "section",
         title = L[desc.label],
-        collapsed = (key ~= "main"),
         items = {
             { type = "group", layout = "row", gap = 8, items = {
                 { type = "checkbox", label = L["Enabled"],
@@ -1835,7 +1834,7 @@ function mod:GetOptions()
           tooltip = L["Hovering ANY mouseover bar shows every bar set to mouseover at once."],
           get = function() return mod.db.hoverShowsAll end,
           set = function(_, v) mod.db.hoverShowsAll = v end },
-        { type = "section", title = L["Button text styling"], collapsed = true, items = {
+        { type = "section", title = L["Button text styling"], items = {
             { type = "desc", text = L["|cffaaaaaaColours and fine offsets for the button texts, on every bar.|r"] },
             { type = "group", layout = "row", gap = 8, items = {
                 { type = "color", label = L["Keybind text colour"], width = 150,
@@ -1873,7 +1872,7 @@ function mod:GetOptions()
                   set = function(_, v) mod.db.textCountY = v; reapply() end },
             } },
         } },
-        { type = "section", title = L["Cooldown & look"], collapsed = true, items = {
+        { type = "section", title = L["Cooldown & look"], items = {
             { type = "desc", text = L["|cffaaaaaaApplies to every action bar.|r"] },
             { type = "group", layout = "row", gap = 8, items = {
                 { type = "slider", label = L["Cooldown swipe opacity"], min = 0, max = 100, step = 5, width = 170,
@@ -1915,7 +1914,7 @@ function mod:GetOptions()
                   set = function(_, v) mod.db.tooltipMode = v end },
             } },
         } },
-        { type = "section", title = L["XP bar"], collapsed = true, items = {
+        { type = "section", title = L["XP bar"], items = {
             { type = "checkbox", label = L["Show a custom XP bar"],
               tooltip = L["A movable, resizable experience bar with rested overlay. Hidden at max level. Replaces Blizzard's bar while on."],
               get = function() return mod.db.xpbar.on end,

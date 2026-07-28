@@ -1475,7 +1475,7 @@ function mod:GetOptions()
     end
     trackedItems[#trackedItems + 1] = { type = "button", label = L["Unlock / Position"], width = 200,
         onClick = function() setUnlocked(group, not group.unlocked) end }
-    items[#items + 1] = { type = "section", title = L["Tracked"], collapsed = false, items = trackedItems }
+    items[#items + 1] = { type = "section", title = L["Tracked"], items = trackedItems }
 
     do
         local anchorVals = { { value = 0, text = L["None (free)"] } }
@@ -1522,10 +1522,10 @@ function mod:GetOptions()
                 get = function() return group.y or 0 end,
                 set = function(_, v) group.y = v; positionBar(group) end }
         end
-        items[#items + 1] = { type = "section", title = L["Anchor"], collapsed = true, items = anchorItems }
+        items[#items + 1] = { type = "section", title = L["Anchor"], items = anchorItems }
     end
 
-    items[#items + 1] = { type = "section", title = L["Layout"], collapsed = true, items = {
+    items[#items + 1] = { type = "section", title = L["Layout"], items = {
         { type = "slider", label = L["Icon size"], min = 20, max = 64, step = 1,
           get = function() return group.iconSize end,
           set = function(_, v) group.iconSize = v; relayoutGroup(group) end },
@@ -1594,7 +1594,7 @@ function mod:GetOptions()
           } },
     } }
 
-    items[#items + 1] = { type = "section", title = L["Visibility"], collapsed = true, items = {
+    items[#items + 1] = { type = "section", title = L["Visibility"], items = {
         { type = "dropdown", label = L["Show this bar"], width = 260,
           values = {
               { value = "always", text = L["Always"] },
@@ -1754,7 +1754,7 @@ function mod:GetOptions()
             get = function() return group.tintRange == true end,
             set = function(_, v) group.tintRange = v; refreshAll() end }
     end
-    items[#items + 1] = { type = "section", title = L["Display"], collapsed = true, items = displayItems }
+    items[#items + 1] = { type = "section", title = L["Display"], items = displayItems }
 
     return items
 end

@@ -1143,7 +1143,7 @@ function mod:GetOptions()
                 end
             end,
         })
-        table.insert(items, { type = "section", title = L["Size & offsets"], collapsed = true, items = {
+        table.insert(items, { type = "section", title = L["Size & offsets"], items = {
             { type = "slider", label = L["Width"],
               min = 120, max = 400, step = 5,
               get = function() return mod.db.width end,
@@ -1173,7 +1173,7 @@ function mod:GetOptions()
               set = function(_, v) mod.db.iconGap = v; c_applyLayout() end },
         } })
 
-        table.insert(items, { type = "section", title = L["Colours"], collapsed = true, items = {
+        table.insert(items, { type = "section", title = L["Colours"], items = {
             { type = "color", label = L["Accent colour"],
               tooltip = L["Used for the bar while the fill mode is not a texture, and for channelled casts on Blizzard's own castbar."],
               get = function() return mod.db.accentColor end,
@@ -1198,7 +1198,7 @@ function mod:GetOptions()
     if sw and sw.GetOptions and sw.db then
         table.insert(items, { type = "spacer", height = 10 })
         table.insert(items, {
-            type = "section", title = L["Swing Timer"], collapsed = true,
+            type = "section", title = L["Swing Timer"],
             items = sw:GetOptions(),
         })
     end

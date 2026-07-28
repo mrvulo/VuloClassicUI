@@ -1384,7 +1384,7 @@ function mod:GetOptions()
           text = L["|cffaaaaaaSimple on/off switches for common QoL actions. Take effect immediately, no /reload needed.|r"] },
 
         { type = "spacer", height = 6 },
-        { type = "section", title = L["Macro Factory"], collapsed = false, items = macroItems },
+        { type = "section", title = L["Macro Factory"], items = macroItems },
 
         { type = "header", text = L["Character"] },
         tgl("autoAcceptQuest",   L["Auto-accept quests"],
@@ -1441,7 +1441,7 @@ function mod:GetOptions()
             setupGameMenu),
 
         { type = "spacer", height = 6 },
-        { type = "section", title = L["Flight Timer"], collapsed = true, items = {
+        { type = "section", title = L["Flight Timer"], items = {
             { type = "toggle", label = L["Show flight time bar"],
               tooltip = L["Shows destination and remaining time while on a taxi. The first flight of a route is learned, then you get a draining countdown."],
               get = function() return mod.db.flight.enabled end,
@@ -1473,7 +1473,7 @@ function mod:GetOptions()
             } },
         } },
 
-        { type = "section", title = L["Visibility"], collapsed = true, items = {
+        { type = "section", title = L["Visibility"], items = {
             tgl("hideErrors",        L["Hide UI error messages"],
                 L["Hides the red error messages in the screen center."],
                 applyHideErrors),
@@ -1505,7 +1505,7 @@ function mod:GetOptions()
                 applyHideRaidGroupLabels),
         } },
 
-        { type = "section", title = L["Text Sizes"], collapsed = true, items = {
+        { type = "section", title = L["Text Sizes"], items = {
             { type = "slider", label = L["Mail Text Size"],
               min = 8, max = 20, step = 1,
               tooltip = L["Font size in mail body (opened + sent mail)."],

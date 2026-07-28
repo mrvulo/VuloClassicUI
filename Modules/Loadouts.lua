@@ -1865,7 +1865,7 @@ function mod:GetOptions()
         { type = "desc", text = L["|cffaaaaaaTip: with the character window open, enable edit mode (Unlock) to drag the sidebar; right-click the purple box to reset its position.|r"] },
 
         { type = "spacer", height = 6 },
-        { type = "section", title = L["Slot Picker"], collapsed = false, items = {
+        { type = "section", title = L["Slot Picker"], items = {
             { type = "desc", text = L["|cffaaaaaaRight-click an equipment slot in the character window to see all compatible items from your bags and click one to equip it.|r"] },
             { type = "toggle", label = L["Enable slot picker"],
               get = function() return ns:IsModuleEnabled("slotpicker") end,
@@ -1904,7 +1904,7 @@ function mod:GetOptions()
 
     -- index 3 keeps this directly under the header + desc
     if mod.db.loadouts and next(mod.db.loadouts) then
-        table.insert(items, 3, { type = "section", title = L["Import from older version"], collapsed = false, items = {
+        table.insert(items, 3, { type = "section", title = L["Import from older version"], items = {
             { type = "desc", text = L["|cffaaaaaaYou have gear sets saved account-wide by an older version. Loadouts are now per-character — import copies them onto THIS character.|r"] },
             { type = "button", label = L["Import account-wide loadouts"], width = 240,
               onClick = function() mod.ImportLegacy() end },

@@ -2414,7 +2414,7 @@ function mod:GetOptions()
               end },
         } },
 
-        { type = "section", title = L["Health Bar"], collapsed = false, items = {
+        { type = "section", title = L["Health Bar"], items = {
             { type = "group", layout = "row", gap = 8, items = {
                 { type = "slider", label = L["Width"], min = 60, max = 240, step = 2, width = SLW,
                   get = function() return mod.db.healthWidth end,
@@ -2496,7 +2496,7 @@ function mod:GetOptions()
               set = function(_, v) mod.db.execPct = v; applyAndRefresh() end },
         } },
 
-        { type = "section", title = L["Text"], collapsed = false, items = {
+        { type = "section", title = L["Text"], items = {
             { type = "dropdown", label = L["Font"], width = 300, values = fontValues(),
               tooltip = L["The typeface for every text on the plates (name, health, cast, auras)."],
               get = function() return mod.db.fontFace or "" end,
@@ -2575,7 +2575,7 @@ function mod:GetOptions()
             } },
         } },
 
-        { type = "section", title = L["Colours"], collapsed = false, items = {
+        { type = "section", title = L["Colours"], items = {
             { type = "checkbox", label = L["Class colour for enemy players"],
               get = function() return mod.db.classColorEnemy end,
               set = function(_, v) mod.db.classColorEnemy = v; applyAndRefresh() end },
@@ -2600,7 +2600,7 @@ function mod:GetOptions()
             } },
         } },
 
-        { type = "section", title = L["Cast Bar"], collapsed = false, items = {
+        { type = "section", title = L["Cast Bar"], items = {
             { type = "checkbox", label = L["Show cast bar"],
               get = function() return mod.db.showCastbar end,
               set = function(_, v) mod.db.showCastbar = v; refreshPage(); applyAndRefresh() end },
@@ -2755,7 +2755,7 @@ function mod:GetOptions()
             } },
         } },
 
-        { type = "section", title = L["Target & Threat"], collapsed = false, items = {
+        { type = "section", title = L["Target & Threat"], items = {
             { type = "checkbox", label = L["Highlight your target"],
               get = function() return mod.db.targetHighlight end,
               set = function(_, v) mod.db.targetHighlight = v; applyAndRefresh() end },
@@ -2808,7 +2808,7 @@ function mod:GetOptions()
               set = function(r, g, b) mod.db.colThreatBad = { r = r, g = g, b = b }; applyAndRefresh() end },
         } },
 
-        { type = "section", title = L["Auras"], collapsed = false, items = {
+        { type = "section", title = L["Auras"], items = {
             { type = "checkbox", label = L["Show debuffs"],
               get = function() return mod.db.showDebuffs end,
               set = function(_, v) mod.db.showDebuffs = v; refreshPage(); applyAndRefresh() end },
@@ -2889,13 +2889,13 @@ function mod:GetOptions()
             } },
         } },
 
-        { type = "section", title = L["Debuff Row"], collapsed = true, items =
+        { type = "section", title = L["Debuff Row"], items =
             rowPlacementItems("debuff", SLW, applyAndRefresh, true) },
 
-        { type = "section", title = L["Buff Row"], collapsed = true, items =
+        { type = "section", title = L["Buff Row"], items =
             rowPlacementItems("buff", SLW, applyAndRefresh, true) },
 
-        { type = "section", title = L["Crowd Control"], collapsed = false, items = {
+        { type = "section", title = L["Crowd Control"], items = {
             { type = "checkbox", label = L["Show crowd control (separate row)"],
               tooltip = L["A separate, prominent row for crowd-control effects (Polymorph, Fear, Sap, …) on the unit, from anyone."],
               get = function() return mod.db.showCC end,
@@ -2921,7 +2921,7 @@ function mod:GetOptions()
             unpack(rowPlacementItems("cc", SLW, applyAndRefresh, false)),
         } },
 
-        { type = "section", title = L["Your Own Debuffs"], collapsed = true, items = {
+        { type = "section", title = L["Your Own Debuffs"], items = {
             { type = "desc",
               text = L["|cffaaaaaaA separate row for the harmful auras you cast yourself - your damage-over-time timers, kept away from everything else on the target.|r"] },
             { type = "checkbox", label = L["Show your own debuffs (separate row)"],
@@ -2938,7 +2938,7 @@ function mod:GetOptions()
             unpack(rowPlacementItems("dot", SLW, applyAndRefresh, false)),
         } },
 
-        { type = "section", title = L["Friendly Plates"], collapsed = false, items = {
+        { type = "section", title = L["Friendly Plates"], items = {
             { type = "checkbox", label = L["Show friendly nameplates"],
               tooltip = L["Sets Blizzard's friendly-nameplate option (cannot change in combat)."],
               get = function() return mod.db.friendlyShow end,
@@ -2969,7 +2969,7 @@ function mod:GetOptions()
             } },
         } },
 
-        { type = "section", title = L["Raid Marker"], collapsed = false, items = {
+        { type = "section", title = L["Raid Marker"], items = {
             { type = "checkbox", label = L["Show target markers"],
               tooltip = L["Shows the raid target icon (skull, cross, …) that is set on the unit."],
               get = function() return mod.db.showRaidMarker end,
@@ -2992,7 +2992,7 @@ function mod:GetOptions()
             } },
         } },
 
-        { type = "section", title = L["Combo Points"], collapsed = false, items = {
+        { type = "section", title = L["Combo Points"], items = {
             { type = "checkbox", label = L["Show combo points"],
               tooltip = L["Shows your combo points on the target's nameplate (Rogue, or Druid in cat form)."],
               get = function() return mod.db.showClassPower end,
@@ -3034,7 +3034,7 @@ function mod:GetOptions()
             } },
         } },
 
-        { type = "section", title = L["Behaviour"], collapsed = true, items = {
+        { type = "section", title = L["Behaviour"], items = {
             { type = "desc",
               text = L["|cffaaaaaaThese are the game's own nameplate settings, changed live (not part of the profile). Not changeable in combat.|r"] },
             { type = "dropdown", label = L["Plate motion"], width = 260,

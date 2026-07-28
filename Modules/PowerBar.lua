@@ -448,7 +448,7 @@ function mod:GetOptions()
               onClick = function() mod.db.x, mod.db.y = 0, -200; applyPos() end },
         } },
 
-        { type = "section", title = L["Size"], collapsed = false, items = {
+        { type = "section", title = L["Size"], items = {
             { type = "group", layout = "row", gap = 8, items = {
                 { type = "slider", label = L["Width"], min = 80, max = 600, step = 2, width = SLW,
                   get = function() return mod.db.width end,
@@ -459,7 +459,7 @@ function mod:GetOptions()
             } },
         } },
 
-        { type = "section", title = L["Text"], collapsed = false, items = {
+        { type = "section", title = L["Text"], items = {
             { type = "group", layout = "row", gap = 8, items = {
                 { type = "dropdown", label = L["Bar text"], width = 300, values = textModeValues(),
                   get = function() return mod.db.textMode end,
@@ -491,7 +491,7 @@ function mod:GetOptions()
             } },
         } },
 
-        { type = "section", title = L["Appearance"], collapsed = false, items = {
+        { type = "section", title = L["Appearance"], items = {
             { type = "group", layout = "row", gap = 8, items = {
                 { type = "slider", label = L["Border thickness (px)"], min = 0, max = 4, step = 1, width = SLW,
                   get = function() return mod.db.borderSize end,
@@ -534,7 +534,7 @@ function mod:GetOptions()
               set = function(_, v) mod.db.smooth = v end },
         } },
 
-        { type = "section", title = L["Visibility"], collapsed = false, items = {
+        { type = "section", title = L["Visibility"], items = {
             { type = "group", layout = "row", gap = 8, items = {
                 { type = "dropdown", label = L["Visibility"], width = 220,
                   values = ns.VisibilityValues(),
@@ -575,7 +575,7 @@ function mod:GetOptions()
               set = function(_, v) mod.db.fadeAlpha = v; updateVisibility() end },
         } },
 
-        { type = "section", title = L["Marks & threshold"], collapsed = true, items = {
+        { type = "section", title = L["Marks & threshold"], items = {
             { type = "editbox", label = L["Hash marks"], width = 260,
               tooltip = L["Comma-separated values, e.g. 30,60 — draws a line at each (great for tick or breakpoint marks)."],
               get = function() return mod.db.hashMarks or "" end,

@@ -723,7 +723,7 @@ local function msgSection(key, title, hasText)
             get = function() return notifyText(key) end,
             set = function(_, v) mod.db.events[key].text = v; applyFontToNotify() end }
     end
-    return { type = "section", title = title, collapsed = false, items = secItems }
+    return { type = "section", title = title, items = secItems }
 end
 
 function mod:GetOptions()
@@ -748,7 +748,7 @@ function mod:GetOptions()
         set = function(_, v) mod.db.durabilityThreshold = v; scheduleDurabilityCheck() end }
 
     return {
-        { type = "section", title = L["Display Settings"], collapsed = false, items = {
+        { type = "section", title = L["Display Settings"], items = {
             { type = "toggle", label = L["Enable Combat Messages"],
               get = function() return ns:IsModuleEnabled("combattext") end,
               set = function(_, v) if ns.ToggleModule then ns:ToggleModule("combattext", v) end end },
@@ -768,7 +768,7 @@ function mod:GetOptions()
         -- These three change things outside our own frames (two client CVars and
         -- a global font). They used to be applied with no control anywhere in the
         -- panel, so the player could neither see nor undo them.
-        { type = "section", title = L["Engine FCT (above mob/pet)"], collapsed = true, items = {
+        { type = "section", title = L["Engine FCT (above mob/pet)"], items = {
             { type = "toggle", label = L["Sharper hit indicator font (Friz Quadrata)"],
               get = function() return mod.db.sharpFonts ~= false end,
               set = function(_, v) mod.db.sharpFonts = v; applySharpFonts() end },
@@ -782,7 +782,7 @@ function mod:GetOptions()
               set = function(_, v) mod.db.worldTextScale = v; applyWorldTextScale() end },
         } },
 
-        { type = "section", title = L["Position Settings"], collapsed = false, items = {
+        { type = "section", title = L["Position Settings"], items = {
             { type = "button", label = L["Open Edit Mode"], width = 140,
               tooltip = L["Drag the combat-text box in the unified Edit Mode (/vedit)."],
               onClick = function()
@@ -810,7 +810,7 @@ function mod:GetOptions()
             } },
         } },
 
-        { type = "section", title = L["Font Settings"], collapsed = false, items = {
+        { type = "section", title = L["Font Settings"], items = {
             { type = "dropdown", label = L["Font"], values = FONT_VALUES,
               get = function() return getActiveFontPath() end,
               set = function(_, v) mod.db.fontFace = v; reapplyFont() end },

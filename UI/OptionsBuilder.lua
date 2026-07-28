@@ -428,8 +428,20 @@ local function placeSection(parent, section, y)
     local title    = section.title or "Section"
     local stateKey = (UI._currentBuildKey or "?") .. "/" .. (UI.currentTab or "") .. "/" .. title
 
+    -- Every section starts CLOSED. A page then opens as its own table of
+    -- contents: the action bars page has eleven sections and used to greet you
+    -- with the first one unrolled and the other ten as a list below it, so you
+    -- read a wall before you could see the structure.
+    --
+    -- Decided here and nowhere else. Sections used to carry a `collapsed` field
+    -- and roughly half of them asked to be open, which is the same as having no
+    -- rule -- and it is a rule that only works if it holds everywhere. The field
+    -- is gone from the modules rather than left to do nothing.
+    --
+    -- Session state, deliberately not saved: what you opened stays open while
+    -- the window is up, and a reload gives the tidy page back.
     local collapsed = UI.sectionCollapsed[stateKey]
-    if collapsed == nil then collapsed = section.collapsed and true or false end
+    if collapsed == nil then collapsed = true end
 
     -- Space ABOVE a section heading, and clearly more than the gap between the
     -- cards inside one. When both gaps are the same the page reads as one long
