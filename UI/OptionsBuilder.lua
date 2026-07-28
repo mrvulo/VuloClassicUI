@@ -528,7 +528,22 @@ placeItem = function(parent, item, y)
         p:SetFrameLevel(base + 1)
         p:Show()
         widget:SetFrameLevel(base + 4)
-        widget:SetPoint("TOPLEFT", parent, "TOPLEFT", CONTENT_PADDING + 10, y - CARD_VPAD)
+
+        -- A prominent action is CENTRED in its row; an ordinary one sits at the
+        -- left edge like every other control. That is the split the reference
+        -- draws between its ordinary button and its wide one -- "Open Edit Mode"
+        -- is 360px hugging the left of a 940px card, which reads as unanchored
+        -- rather than as the main thing on the page.
+        --
+        -- Ours keeps its card, where the reference drops it. Our pages read as a
+        -- stack of cards, and a card-less row in the middle of them would look
+        -- like a hole rather than emphasis.
+        local xo = CONTENT_PADDING + 10
+        if item.primary then
+            local bw = widget:GetWidth() or 120
+            xo = math.max(xo, CONTENT_PADDING + math.floor((availW - bw) / 2))
+        end
+        widget:SetPoint("TOPLEFT", parent, "TOPLEFT", xo, y - CARD_VPAD)
         return y - cardH - CARD_GAP
     end
 
@@ -631,32 +646,73 @@ function UI:PlaceGroup(parent, group, y)
         -- the commonest shape there is, which is why whole pages looked broken.
         --
         -- Equal slots need no reported width at all, so nothing here can fall out
-        -- of step again. A row that also holds a button or a custom frame keeps
-        -- the natural-width cursor: stretching a button to half the page is not
-        -- what that row means.
-        local asSlots = #placed > 1
+        -- of step again.
+        --
+        -- Three shapes, because a row means three different things:
+        --   all controls  -> equal slots
+        --   controls + an action -> the action keeps its label's size, the
+        --                    controls take the rest ("Add" beside a text field)
+        --   nothing but buttons -> one width for all of them
+        -- Anything else (an icon button, a module's own frame) keeps its natural
+        -- width: stretching those is not what that row means.
+        local inner    = availW - 20
+        local n        = #placed
+        local nFlex    = 0
+        local allPlain = n > 1
         for _, p in ipairs(placed) do
-            if not COMPACT[p.item.type] then asSlots = false; break end
+            if COMPACT[p.item.type] then nFlex = nFlex + 1 end
+            if p.item.type ~= "button" then allPlain = false end
+        end
+
+        local function spread(widthOf)
+            local labelCol
+            for _, p in ipairs(placed) do
+                local w = widthOf(p)
+                if w then
+                    labelCol = labelCol or runLabelColumn(items, w)
+                    p.w = w
+                    p.widget:SetWidth(w)
+                    if labelCol and p.widget.SetLabelWidth then p.widget:SetLabelWidth(labelCol) end
+                end
+            end
+        end
+
+        if n > 1 and nFlex == n then
+            -- Every item is a control: N equal slots, and one measured label
+            -- column across the whole row like the other two placement paths.
+            local slotW = math.floor((inner - gap * (n - 1)) / n)
+            spread(function() return slotW end)
+
+        elseif n > 1 and nFlex > 0 then
+            -- Mixed: a control beside an action. The button keeps the size its
+            -- label needs and the controls take everything else, so the pair
+            -- reaches the far edge instead of huddling at the left of a
+            -- full-width card. This is the shape "Add" next to a text field and
+            -- "New group" next to a dropdown have, and both used to float.
+            local fixedW = 0
+            for _, p in ipairs(placed) do
+                if not COMPACT[p.item.type] then fixedW = fixedW + p.w end
+            end
+            local flexW = math.floor((inner - fixedW - gap * (n - 1)) / nFlex)
+            -- Below this the control is too cramped to be worth stretching, and
+            -- leaving the row at its natural widths reads better than a stub.
+            if flexW >= 140 then
+                spread(function(p) return COMPACT[p.item.type] and flexW or nil end)
+            end
+
+        elseif allPlain then
+            -- A row of nothing but buttons: all of them take the widest one's
+            -- width. Buttons of three different lengths side by side read as an
+            -- accident rather than a set -- the reference gives every button in
+            -- such a row one width for exactly this reason.
+            local widest = 0
+            for _, p in ipairs(placed) do if p.w > widest then widest = p.w end end
+            spread(function() return widest end)
         end
 
         local totalW = 0
-        if asSlots then
-            local n     = #placed
-            local slotW = math.floor((availW - 20 - gap * (n - 1)) / n)
-            -- and one measured label column across the whole row, exactly as the
-            -- packed runs and the column groups do. Without it these rows kept
-            -- whatever label width the pooled widget arrived with.
-            local labelCol = runLabelColumn(items, slotW)
-            for _, p in ipairs(placed) do
-                p.w = slotW
-                p.widget:SetWidth(slotW)
-                if labelCol and p.widget.SetLabelWidth then p.widget:SetLabelWidth(labelCol) end
-            end
-            totalW = slotW * n + gap * (n - 1)
-        else
-            for i, p in ipairs(placed) do
-                totalW = totalW + p.w + (i > 1 and gap or 0)
-            end
+        for i, p in ipairs(placed) do
+            totalW = totalW + p.w + (i > 1 and gap or 0)
         end
 
         -- centre on ACTUAL widget heights: the createWidget row estimate differs
