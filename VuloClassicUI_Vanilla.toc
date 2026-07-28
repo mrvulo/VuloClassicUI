@@ -59,6 +59,7 @@ Modules\FontBars.lua
 Modules\PlayerCastbar.lua
 Modules\UnitFrames.lua
 Modules\Nameplates.lua
+Modules\NameplatesOptions.lua
 Modules\SwingTimer.lua
 Modules\PowerBar.lua
 Modules\ActionBars.lua
