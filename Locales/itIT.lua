@@ -785,7 +785,6 @@ ns:RegisterLocale("itIT", function() return {
     ["Then click any window to anchor this one to it."] = "Poi clicca una finestra qualsiasi per ancorarci questa.",
     ["Click a window to anchor it (right-click to cancel)."] = "Clicca una finestra per ancorarla (clic destro per annullare).",
     ["ANCHOR SIDE"] = "LATO DI ANCORAGGIO",
-    ["Which side of the target window this one sticks to. The gap is kept edge-to-edge, so it survives either window being resized."] = "A quale lato della finestra di destinazione si attacca questa. La distanza è mantenuta bordo a bordo, così resiste al ridimensionamento di una delle due finestre.",
     ["Centered"] = "Centrato",
     ["Top of"] = "Sopra a",
     ["Bottom of"] = "Sotto a",

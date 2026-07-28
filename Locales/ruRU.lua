@@ -1494,7 +1494,6 @@ ns:RegisterLocale("ruRU", function() return {
     ["Then click any window to anchor this one to it."] = "Затем нажмите на любое окно, чтобы привязать это окно к нему.",
     ["Click a window to anchor it (right-click to cancel)."] = "Нажмите на окно, чтобы привязаться к нему (ПКМ — отмена).",
     ["ANCHOR SIDE"] = "СТОРОНА ПРИВЯЗКИ",
-    ["Which side of the target window this one sticks to. The gap is kept edge-to-edge, so it survives either window being resized."] = "С какой стороны целевого окна закрепляется это окно. Отступ хранится от края до края, поэтому он сохраняется при изменении размера любого из окон.",
     ["Centered"] = "По центру",
     ["Top of"] = "Сверху от",
     ["Bottom of"] = "Снизу от",

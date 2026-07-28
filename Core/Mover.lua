@@ -220,19 +220,50 @@ function ns:SetMoverLink(child, parentKey, side)
     return true
 end
 
--- Change only the side, re-measuring so the child does NOT jump; the new side
--- then governs how it follows future parent moves/resizes.
-function ns:SetMoverLinkSide(child, side)
+-- Pick a side and DOCK to it: the child jumps flush against that edge of the
+-- parent and centres on the cross axis. link.gap moves it back off the edge.
+--
+-- This used to re-measure instead -- "change only the side, so the child does
+-- not jump" -- and that was the wrong instinct. The control is called ANCHOR
+-- SIDE and the button above it "Anchor to window...", so choosing a side is a
+-- request for the window to GO there. Re-measuring made the whole feature look
+-- dead: the panel said "follows: Chat, side: centre" and the window sat wherever
+-- it had been left. Reported as "ja folgt ist aber nicht ankert", which is
+-- exactly right.
+--
+-- CENTER is the exception and keeps both the old meaning and the old behaviour:
+-- it is the only value that is not an edge, so there is nothing to dock to. It
+-- means "travel along with the parent, stay where you are".
+function ns:SetMoverLinkSide(child, side, gap)
     local store = linkStore()
     if not (store and child and child.key and VALID_SIDE[side]) then return false end
     local link = store[child.key]
     if not link then return false end
     local parent = ns:GetMoverByKey(link.to)
     if not (parent and parent.target) then return false end
-    local dx, dy = computeLinkOffsets(child.target, parent.target, side)
-    if not dx then return false end
-    link.side, link.dx, link.dy = side, dx, dy
+
+    if side == "CENTER" then
+        local dx, dy = computeLinkOffsets(child.target, parent.target, side)
+        if not dx then return false end
+        link.side, link.dx, link.dy = side, dx, dy
+        return true
+    end
+
+    gap = tonumber(gap) or tonumber(link.gap) or 0
+    link.side, link.gap = side, gap
+    -- Which of the two offsets is the edge gap depends on the axis -- see
+    -- linkChildCenter. The other one is a centre delta, and zero means centred.
+    if side == "LEFT" or side == "RIGHT" then
+        link.dx, link.dy = gap, 0
+    else
+        link.dx, link.dy = 0, gap
+    end
     return true
+end
+
+function ns:GetMoverLinkGap(key)
+    local l = ns:GetMoverLink(key)
+    return (l and tonumber(l.gap)) or 0
 end
 
 function ns:GetMoverLinkSide(key)
@@ -256,6 +287,23 @@ end
 -- After ANY reposition of `mover`: a moved child keeps its link at the new
 -- distance, and every child linked to `mover` is dragged along (chains included;
 -- `visited` guards against runtime cycles).
+-- Move a child onto its own link RIGHT NOW.
+--
+-- Needed because OnMoverRepositioned does the opposite for the mover it is
+-- handed: it re-MEASURES that one's link from wherever it currently sits (see
+-- below), then carries its followers. Calling it alone after changing a side
+-- therefore overwrote the fresh offsets with the old position -- which is the
+-- second half of why picking a side did nothing at all. Apply first, then
+-- reposition: measuring a child that already sits on its edge gives the same
+-- numbers back, so the pair is safe in that order and only in that order.
+function ns:ApplyMoverLink(child)
+    local store = linkStore()
+    local link  = store and child and child.key and store[child.key]
+    if type(link) ~= "table" then return false end
+    applyLink(child, link)
+    return true
+end
+
 function ns:OnMoverRepositioned(mover, visited)
     local store = linkStore()
     if not (store and mover and mover.key) then return end

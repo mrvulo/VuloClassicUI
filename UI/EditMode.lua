@@ -596,14 +596,45 @@ local function buildPanel()
 
     panel.sideDrop = UI:CreateDropdown(panel, {
         label = "", width = DROP_W, values = SIDE_POINTS,
-        tooltip = L["Which side of the target window this one sticks to. The gap is kept edge-to-edge, so it survives either window being resized."],
+        tooltip = L["Docks this window to that side of the target and centres it there. 'Centered' does not move it - it only travels along. The gap is kept edge-to-edge, so it survives either window being resized."],
         get = function()
             local m = ns._selectedMover
             return (m and m.key and ns:GetMoverLinkSide(m.key)) or "CENTER"
         end,
         set = function(_, v)
             local m = ns._selectedMover
-            if m and ns:SetMoverLinkSide(m, v) then ns:OnMoverRepositioned(m) end
+            if not (m and ns:SetMoverLinkSide(m, v)) then return end
+            -- Order matters: move this window onto its edge FIRST, then carry
+            -- its own followers. OnMoverRepositioned re-measures the link of the
+            -- mover it is given, so doing it the other way round would put the
+            -- old offsets straight back. See ns:ApplyMoverLink.
+            ns:ApplyMoverLink(m)
+            ns:OnMoverRepositioned(m)
+            ns:RelayoutEditPanel()
+        end,
+    })
+
+    panel.gapCap = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    UI.Font(panel.gapCap, 10)
+    panel.gapCap:SetText(L["GAP"])
+    panel.gapCap:SetTextColor(0.55, 0.55, 0.62)
+
+    panel.gapSlider = UI:CreateSlider(panel, {
+        label = "", width = 150, min = 0, max = 60, step = 1,
+        tooltip = L["Distance from that edge, in pixels. 0 is flush."],
+        get = function()
+            local m = ns._selectedMover
+            return (m and m.key and ns:GetMoverLinkGap(m.key)) or 0
+        end,
+        set = function(_, v)
+            local m = ns._selectedMover
+            if not (m and m.key) then return end
+            local side = ns:GetMoverLinkSide(m.key)
+            if side == "CENTER" then return end   -- no edge, no gap
+            if ns:SetMoverLinkSide(m, side, v) then
+                ns:ApplyMoverLink(m)
+                ns:OnMoverRepositioned(m)
+            end
         end,
     })
 
@@ -763,8 +794,16 @@ local function layoutPanel(m)
         y = y - 36
         if ns:GetMoverLink(m.key) then
             dropRow(panel.sideCap, panel.sideDrop)
+            -- Only an EDGE has a gap. On CENTER the row would be a slider that
+            -- changes nothing, which reads as a broken control.
+            if ns:GetMoverLinkSide(m.key) ~= "CENTER" then
+                dropRow(panel.gapCap, panel.gapSlider)
+            else
+                panel.gapCap:Hide(); panel.gapSlider:Hide()
+            end
         else
             panel.sideCap:Hide(); panel.sideDrop:Hide()
+            panel.gapCap:Hide(); panel.gapSlider:Hide()
         end
         dropRow(panel.widthCap, panel.widthDrop)
         dropRow(panel.heightCap, panel.heightDrop)
@@ -772,6 +811,7 @@ local function layoutPanel(m)
     else
         panel.linkCap:Hide(); panel.linkDrop:Hide(); panel.pickBtn:Hide()
         panel.sideCap:Hide(); panel.sideDrop:Hide()
+        panel.gapCap:Hide(); panel.gapSlider:Hide()
         panel.widthCap:Hide(); panel.widthDrop:Hide()
         panel.heightCap:Hide(); panel.heightDrop:Hide()
     end

@@ -1160,7 +1160,6 @@ local function T() return {
     ["Then click any window to anchor this one to it."] = "Después haz clic en cualquier ventana para anclar esta a ella.",
     ["Click a window to anchor it (right-click to cancel)."] = "Haz clic en una ventana para anclarla (clic derecho para cancelar).",
     ["ANCHOR SIDE"] = "LADO DE ANCLAJE",
-    ["Which side of the target window this one sticks to. The gap is kept edge-to-edge, so it survives either window being resized."] = "A qué lado de la ventana objetivo se pega esta. La separación se mide de borde a borde, así que se mantiene aunque se redimensione cualquiera de las dos.",
     ["Centered"] = "Centrado",
     ["Top of"] = "Encima de",
     ["Bottom of"] = "Debajo de",

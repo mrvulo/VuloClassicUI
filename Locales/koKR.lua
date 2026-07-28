@@ -1533,7 +1533,6 @@ ns:RegisterLocale("koKR", function() return {
     ["Then click any window to anchor this one to it."] = "그런 다음 아무 창이나 클릭하면 이 창이 그 창에 고정됩니다.",
     ["Click a window to anchor it (right-click to cancel)."] = "고정할 창을 클릭하세요 (오른쪽 클릭하면 취소).",
     ["ANCHOR SIDE"] = "고정 방향",
-    ["Which side of the target window this one sticks to. The gap is kept edge-to-edge, so it survives either window being resized."] = "이 창이 대상 창의 어느 쪽에 붙을지 정합니다. 간격은 가장자리 기준으로 유지되므로 어느 창의 크기가 바뀌어도 그대로입니다.",
     ["Centered"] = "가운데",
     ["Top of"] = "위쪽",
     ["Bottom of"] = "아래쪽",

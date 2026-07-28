@@ -48,7 +48,6 @@ ns:RegisterLocale("ptBR", function() return {
     ["Then click any window to anchor this one to it."] = "Depois clique em qualquer janela para ancorar esta a ela.",
     ["Click a window to anchor it (right-click to cancel)."] = "Clique em uma janela para ancorá-la (clique direito para cancelar).",
     ["ANCHOR SIDE"] = "LADO DE ANCORAGEM",
-    ["Which side of the target window this one sticks to. The gap is kept edge-to-edge, so it survives either window being resized."] = "Em qual lado da janela alvo esta se fixa. O espaçamento é mantido de borda a borda, então sobrevive ao redimensionamento de qualquer uma delas.",
     ["Centered"] = "Centralizado",
     ["Top of"] = "Topo de",
     ["Bottom of"] = "Base de",

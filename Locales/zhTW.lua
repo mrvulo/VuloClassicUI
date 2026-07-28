@@ -1532,7 +1532,6 @@ ns:RegisterLocale("zhTW", function() return {
     ["Then click any window to anchor this one to it."] = "接著點擊任一視窗，即可將此視窗錨定到它。",
     ["Click a window to anchor it (right-click to cancel)."] = "點擊一個視窗以進行錨定（右鍵取消）。",
     ["ANCHOR SIDE"] = "錨定邊",
-    ["Which side of the target window this one sticks to. The gap is kept edge-to-edge, so it survives either window being resized."] = "此視窗貼附在目標視窗的哪一側。間距以邊對邊維持，因此任一視窗改變大小後仍然有效。",
     ["Centered"] = "置中",
     ["Top of"] = "上方",
     ["Bottom of"] = "下方",

@@ -1532,7 +1532,6 @@ ns:RegisterLocale("zhCN", function() return {
     ["Then click any window to anchor this one to it."] = "然后点击任意窗口，将此窗口锚定到它。",
     ["Click a window to anchor it (right-click to cancel)."] = "点击一个窗口以进行锚定（右键取消）。",
     ["ANCHOR SIDE"] = "锚定边",
-    ["Which side of the target window this one sticks to. The gap is kept edge-to-edge, so it survives either window being resized."] = "此窗口贴靠目标窗口的哪一侧。间距按边缘到边缘保持，因此任一窗口调整大小后依然有效。",
     ["Centered"] = "居中",
     ["Top of"] = "上方",
     ["Bottom of"] = "下方",

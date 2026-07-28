@@ -1647,7 +1647,6 @@ ns:RegisterLocale("frFR", function() return {
     ["Then click any window to anchor this one to it."] = "Cliquez ensuite sur une fenêtre pour y ancrer celle-ci.",
     ["Click a window to anchor it (right-click to cancel)."] = "Cliquez sur une fenêtre pour l'ancrer (clic droit pour annuler).",
     ["ANCHOR SIDE"] = "CÔTÉ D'ANCRAGE",
-    ["Which side of the target window this one sticks to. The gap is kept edge-to-edge, so it survives either window being resized."] = "Côté de la fenêtre cible auquel celle-ci se colle. L'écart est mesuré de bord à bord, il survit donc au redimensionnement de l'une ou l'autre fenêtre.",
     ["Centered"] = "Centré",
     ["Top of"] = "En haut de",
     ["Bottom of"] = "En bas de",
