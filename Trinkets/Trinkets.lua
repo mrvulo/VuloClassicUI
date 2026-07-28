@@ -472,10 +472,17 @@ function Trinkets.OnLoad(self)
 	self:OnBackdropLoaded()
 	self:SetBackdropColor(0.0, 0.0, 0.0)
 	self:SetBackdropBorderColor(0.0, 0.0, 0.0)
-	ns.Slash.TRINKETS = Trinkets.SlashHandler
-	ns:RegisterSlash({ key = "TRINKETS", commands = { "/Trinkets", "/trinket" },
-	    desc = "Trinket tracker: show, hide, reset.",
-	})
+	-- This file is a vendored sub-addon and has no `local _, ns = ...` of its
+	-- own -- it reaches the host through the global, the same way VL above does.
+	-- Guarded because the host owning the command list is not this file's
+	-- business to assume.
+	local host = _G.VuloClassicUI
+	if host and host.RegisterSlash then
+		host.Slash.TRINKETS = Trinkets.SlashHandler
+		host:RegisterSlash({ key = "TRINKETS", commands = { "/Trinkets", "/trinket" },
+			desc = "Trinket tracker: show, hide, reset.",
+		})
+	end
 	self:RegisterEvent("PLAYER_LOGIN")
 end
 
