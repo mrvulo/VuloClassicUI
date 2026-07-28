@@ -480,7 +480,7 @@ function Trinkets.OnLoad(self)
 	self:SetBackdropBorderColor(0.0, 0.0, 0.0)
 	ns.Slash.TRINKETS = Trinkets.SlashHandler
 	ns:RegisterSlash({ key = "TRINKETS", commands = { "/Trinkets", "/trinket" },
-		desc = "Trinket tracker: show, hide, reset.",
+		desc = "Show or hide the trinket panel. Add opt for its settings.",
 	})
 	self:RegisterEvent("PLAYER_LOGIN")
 end
