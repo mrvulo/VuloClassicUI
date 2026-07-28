@@ -981,9 +981,18 @@ function UI:BuildOptionsPage(key, tabId)
     -- stayed off -- nine class rows in two columns with the ninth stretched
     -- across the page, and every dropdown box starting a few pixels off the one
     -- above it.
-    local gridMod = (tabId and ns.modules and ns.modules[tabId]) or mod
+    -- optionsGrid is either `true` for the whole page, or a table keyed by tab
+    -- id. The table exists because a tab is NOT always a module: the profile
+    -- page is the "profile" tab of Modules/GlobalSettings, which owns the tab
+    -- and only delegates the options -- there is no module of that name to hang
+    -- a flag on. Looking the tab up in ns.modules therefore found nothing and
+    -- silently fell back to the container, which is why the grid never switched
+    -- on there however often the flag was moved.
+    local gridMod  = (tabId and ns.modules and ns.modules[tabId]) or mod
+    local wantGrid = gridMod.optionsGrid
+    if type(wantGrid) == "table" then wantGrid = tabId and wantGrid[tabId] end
     UI._grid = nil
-    if gridMod.optionsGrid then
+    if wantGrid then
         local gw = parent:GetWidth()
         if not gw or gw < 100 then gw = 540 end
         UI._grid = { cols = 2, labelCol = pageLabelColumn(items, gw - 2 * CONTENT_PADDING) }

@@ -6,6 +6,10 @@ local mod = ns:RegisterModule("globalsettings", {
     name        = "Global Settings",
     group       = "Global",
     description = "Global UI settings + profile management.",
+    -- Per TAB, because this module owns the profile tab and only delegates its
+    -- options -- there is no "profile" module to carry the flag. The general tab
+    -- is deliberately left out: it was not asked for.
+    optionsGrid = { profile = true },
     defaults    = {
         enabled    = true,
         themeColor = { r = 0.608, g = 0.424, b = 1.000 },   -- house purple
