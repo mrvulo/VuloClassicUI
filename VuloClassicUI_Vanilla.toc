@@ -113,13 +113,12 @@ Modules\AddonSkins.lua
 Modules\PopupSkin.lua
 Trinkets\TrinketsStore.lua
 Trinkets\TrinketsGlobals.lua
-Trinkets\TrinketsTemplates.xml
 Trinkets\Trinkets.lua
 Trinkets\TrinketsFrames.lua
 Trinkets\TrinketsOpt.lua
 Trinkets\TrinketsOptFrames.lua
 Trinkets\TrinketsQueue.lua
-Trinkets\TrinketsQueue.xml
+Trinkets\TrinketsQueueFrames.lua
 Modules\Trinkets.lua
 Modules\Bugfixes.lua
 Modules\Pages.lua

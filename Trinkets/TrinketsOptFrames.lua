@@ -43,6 +43,37 @@ local function insetBackground(parent, r1, g1, b1, a1, r2, g2, b2, a2)
     return t
 end
 
+-- <Button name="Trinkets_TabTemplate" virtual="true">
+--
+-- On Trinkets, not local: TrinketsQueueFrames.lua builds two more tabs from it,
+-- and with the last XML file gone there is no template system left to inherit
+-- through. One factory, two callers, no shim file.
+function Trinkets.NewTabButton(name, parent, id, text)
+    local b = CreateFrame("Button", name, parent, "UIPanelButtonGrayTemplate")
+    b:SetSize(96, 28)
+    b:SetID(id)
+    b:SetText(text)
+    b:SetNormalFontObject("GameFontHighlightSmall")
+    b:SetDisabledFontObject("GameFontDisableSmall")
+    b:SetHighlightFontObject("GameFontHighlightSmall")
+    b:SetScript("OnClick", function(self) Trinkets.Tab_OnClick(self:GetID()) end)
+    return b
+end
+
+-- <CheckButton name="Trinkets_CheckButtonTemplate" virtual="true">
+--
+-- UICheckButtonTemplate is Blizzard's and stays a template string -- it is what
+-- gives every one of these its $parentText, which the options code reads as a
+-- global.
+function Trinkets.NewOptCheck(name, parent)
+    local b = CreateFrame("CheckButton", name, parent, "UICheckButtonTemplate")
+    b:SetSize(24, 24)
+    b:SetScript("OnClick", function(self) Trinkets.CheckButton_OnClick(self) end)
+    b:SetScript("OnEnter", function(self) Trinkets.OnTooltip(self) end)
+    b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    return b
+end
+
 -- <Button name="Trinkets_SmallButtonTemplate" virtual="true">
 local function makeSmallButton(name, parent)
     local b = CreateFrame("Button", name, parent)
@@ -134,9 +165,7 @@ lockPushed:SetTexture("Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\modules\\
 lockPushed:SetVertexColor(0.65, 0.65, 0.65)
 lock:SetPushedTexture(lockPushed)
 
-local tab1 = CreateFrame("Button", "Trinkets_Tab1", opt, "Trinkets_TabTemplate")
-tab1:SetID(1)
-tab1:SetText("Options")
+local tab1 = Trinkets.NewTabButton("Trinkets_Tab1", opt, 1, "Options")
 tab1:SetPoint("TOPRIGHT", -6, -22)
 
 -- ---------------------------------------------------------------------------
@@ -178,7 +207,7 @@ local CHECKS = {
 local prev
 for _, c in ipairs(CHECKS) do
     local name, dx, dy, anchor = "Trinkets_Opt" .. c[1], c[2], c[3], c[4]
-    local b = CreateFrame("CheckButton", name, sub, "Trinkets_CheckButtonTemplate")
+    local b = Trinkets.NewOptCheck(name, sub)
     if anchor == "PARENT" then
         b:SetPoint("TOPLEFT", dx, dy)
     else
@@ -194,7 +223,7 @@ local COLUMN2 = {
 }
 prev = nil
 for _, key in ipairs(COLUMN2) do
-    local b = CreateFrame("CheckButton", "Trinkets_Opt" .. key, sub, "Trinkets_CheckButtonTemplate")
+    local b = Trinkets.NewOptCheck("Trinkets_Opt" .. key, sub)
     if prev then
         b:SetPoint("TOPLEFT", prev, "BOTTOMLEFT", 0, 4)
     else
