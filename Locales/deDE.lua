@@ -899,6 +899,8 @@ ns:RegisterLocale("deDE", function() return {
     ["Profile Assignment per Class"] = "Profilzuweisung pro Klasse",
     ["Choose a default profile for each class. When logging in with a character of that class, the profile will be loaded automatically."] = "Wähle für jede Klasse ein Standardprofil. Beim Einloggen mit einem Charakter dieser Klasse wird das Profil automatisch geladen.",
     ["Settings migrated to profile system (all settings are in profile '%s')."] = "Einstellungen ins Profilsystem migriert (alle Einstellungen liegen in Profil '%s').",
+    ["Vulslot snapshots are now stored once for the whole account: %d kept, %d duplicates merged."] = "Vulslot-Aufnahmen liegen jetzt einmal für den ganzen Account: %d behalten, %d Doppelte zusammengeführt.",
+    ["%d snapshot(s) had the same name but different contents and were kept under a new name."] = "%d Aufnahme(n) hatten denselben Namen bei anderem Inhalt und wurden unter einem neuen Namen behalten.",
     ["|cffff5555Profile '%s' does not exist.|r"] = "|cffff5555Profil '%s' existiert nicht.|r",
     ["Profile '%s' created%s."] = "Profil '%s' erstellt%s.",
     [" (copy of '%s')"] = " (Kopie von '%s')",

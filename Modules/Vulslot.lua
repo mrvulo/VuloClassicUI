@@ -10,9 +10,26 @@ local mod = ns:RegisterModule("vulslot", {
         enabled         = true,
         restoreMacros   = true,
         restoreBindings = true,
-        profiles        = {},   -- name -> snapshot
+        -- The snapshots themselves are NOT here -- see library() below.
     },
 })
+
+-- name -> snapshot, account-wide.
+--
+-- These used to live in mod.db, which meant once per account profile. A new
+-- class profile is copied from Default, so the whole library was duplicated the
+-- first time each class logged in: seven byte-identical copies of 17 KB, 37 % of
+-- the saved file. They were never per-class data -- a snapshot records the class
+-- it was taken on and loadProfile only warns when it does not match, which is
+-- exactly the behaviour of something meant to be shared.
+--
+-- The two restore switches above stay per profile: those really are preferences.
+local function library()
+    local g = ns.db and ns.db.global
+    if not g then return {} end          -- before InitDB: no store, no crash
+    g.vulslotProfiles = g.vulslotProfiles or {}
+    return g.vulslotProfiles
+end
 
 local MAX_SLOTS = 120
 
@@ -72,7 +89,7 @@ end
 
 local function saveProfile(name)
     local _, class = UnitClass("player")
-    mod.db.profiles[name] = {
+    library()[name] = {
         class    = class,
         actions  = snapshotActions(),
         macros   = snapshotMacros(),
@@ -168,7 +185,7 @@ local function restoreBindings(list)
 end
 
 local function loadProfile(name)
-    local p = mod.db.profiles[name]
+    local p = library()[name]
     if not p then return end
     if InCombatLockdown and InCombatLockdown() then
         ns:Print(L["Not in combat — Vulslot can't change bars while fighting."])
@@ -212,7 +229,7 @@ local selected = nil
 
 local function sortedProfileNames()
     local names = {}
-    for n in pairs(mod.db.profiles) do names[#names + 1] = n end
+    for n in pairs(library()) do names[#names + 1] = n end
     table.sort(names)
     return names
 end
@@ -225,12 +242,12 @@ end
 
 function mod:GetOptions()
     local names = sortedProfileNames()
-    if selected and not mod.db.profiles[selected] then selected = nil end
+    if selected and not library()[selected] then selected = nil end
     if not selected and names[1] then selected = names[1] end
 
     local values = {}
     for _, n in ipairs(names) do
-        local p = mod.db.profiles[n]
+        local p = library()[n]
         local suffix = (p and p.class) and (" |cff888888(" .. p.class .. ")|r") or ""
         values[#values + 1] = { value = n, text = n .. suffix }
     end
@@ -297,7 +314,7 @@ function mod:GetOptions()
             { type = "button", label = L["Delete"], width = 110,
               onClick = function()
                   if selected then
-                      mod.db.profiles[selected] = nil
+                      library()[selected] = nil
                       ns:Print(L["Vulslot profile '%s' deleted."], selected)
                       selected = nil
                       rebuildPage()

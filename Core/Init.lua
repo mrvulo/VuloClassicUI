@@ -23,6 +23,12 @@ initFrame:SetScript("OnEvent", function(_, event, addonName)
         ns.isInitialised = true
         if ns.RestoreFreeMovers then ns:RestoreFreeMovers() end
         ns:Print(L["v%s loaded. /vcui to open."], ns.VERSION)
+        -- Migrations run at ADDON_LOADED, where anything printed can scroll away
+        -- before the player is even in the world. They leave their report here.
+        for _, n in ipairs(ns.migrationNotes or {}) do
+            ns:Print(unpack(n))
+        end
+        ns.migrationNotes = nil
     end
 end)
 

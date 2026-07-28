@@ -7,6 +7,14 @@ ns.defaults = {
         debug = false,
         -- account-wide so layouts are shared across profiles and characters
         editLayouts = {},
+        -- Vulslot's named snapshots. Account-wide for the same reason, and for
+        -- a second one worth writing down: a new class profile is a DeepCopy of
+        -- Default (see InitDB), so anything stored per profile is duplicated the
+        -- first time each class logs in. Seven profiles held seven byte-identical
+        -- copies of one 17 KB snapshot library -- 37 % of the saved file. The
+        -- snapshots carry the class they were taken on and Vulslot warns on a
+        -- mismatch, so they were never per-class data to begin with.
+        vulslotProfiles = {},
     },
     profile = {
         ui = {
@@ -26,6 +34,29 @@ ns.defaults = {
 
 local DEFAULT_PROFILE = "Default"
 
+-- Migrations report through this instead of printing: they run at ADDON_LOADED,
+-- where a chat message can be scrolled away by the login sequence before anyone
+-- reads it. Core/Init.lua empties the list at PLAYER_LOGIN.
+ns.migrationNotes = ns.migrationNotes or {}
+local function note(msg, ...)
+    ns.migrationNotes[#ns.migrationNotes + 1] = { msg, ... }
+end
+
+-- Value equality, used to decide whether two same-named snapshots from two
+-- profiles are the same snapshot. Order-independent: it compares keys, not the
+-- order pairs() happened to hand them over in.
+local function sameValue(a, b)
+    if a == b then return true end
+    if type(a) ~= "table" or type(b) ~= "table" then return false end
+    for k, v in pairs(a) do
+        if not sameValue(v, b[k]) then return false end
+    end
+    for k in pairs(b) do
+        if a[k] == nil then return false end
+    end
+    return true
+end
+
 -- Stored schema version. Bump it and add an entry to MIGRATIONS whenever a
 -- stored shape or a default VALUE changes.
 --
@@ -41,12 +72,76 @@ local DEFAULT_PROFILE = "Default"
 -- idempotent. New ones belong here instead.
 --
 -- Entries run in ascending order for every version above the stored one, and
--- receive nothing: they operate on the saved tables directly. Existing installs
--- are stamped at the current version WITHOUT running anything, so adding this
--- mechanism changes no saved data.
-local SCHEMA = 1
+-- receive nothing: they operate on the saved tables directly. An install that
+-- has never been stamped is stamped at the current version WITHOUT running
+-- anything -- a fresh install has no old shape to convert.
+local SCHEMA = 2
 local MIGRATIONS = {
-    -- [2] = function() ... end,
+    -- Vulslot's snapshot library moves from every account profile into global.
+    --
+    -- NOTHING IS DROPPED. Same name and same content across profiles collapses
+    -- into one entry. Same name but DIFFERENT content keeps both: the second one
+    -- is stored under "name (profile)", because the alternative is deciding for
+    -- the player which of their two snapshots was the real one.
+    [2] = function()
+        local g = VuloClassicUIDB.global
+        g.vulslotProfiles = g.vulslotProfiles or {}
+        local lib = g.vulslotProfiles
+
+        -- Deterministic order, so a re-run or a second install lands the same
+        -- way instead of depending on pairs().
+        local profileNames = {}
+        for name in pairs(VuloClassicUIDB.profiles or {}) do
+            profileNames[#profileNames + 1] = name
+        end
+        table.sort(profileNames)
+
+        local moved, merged, renamed = 0, 0, 0
+        for _, profName in ipairs(profileNames) do
+            local prof = VuloClassicUIDB.profiles[profName]
+            local vs   = prof and prof.modules and prof.modules.vulslot
+            local old  = vs and vs.profiles
+            if type(old) == "table" then
+                local snapNames = {}
+                for n in pairs(old) do snapNames[#snapNames + 1] = n end
+                table.sort(snapNames)
+
+                for _, snapName in ipairs(snapNames) do
+                    local snap = old[snapName]
+                    if type(snap) == "table" then
+                        if lib[snapName] == nil then
+                            lib[snapName] = snap
+                            moved = moved + 1
+                        elseif sameValue(lib[snapName], snap) then
+                            merged = merged + 1
+                        else
+                            local alt, n = snapName .. " (" .. profName .. ")", 2
+                            while lib[alt] ~= nil and not sameValue(lib[alt], snap) do
+                                alt = snapName .. " (" .. profName .. " " .. n .. ")"
+                                n = n + 1
+                            end
+                            if lib[alt] == nil then
+                                lib[alt] = snap
+                                renamed = renamed + 1
+                            else
+                                merged = merged + 1
+                            end
+                        end
+                    end
+                end
+                vs.profiles = nil
+            end
+        end
+
+        if moved + merged + renamed > 0 then
+            note(L["Vulslot snapshots are now stored once for the whole account: %d kept, %d duplicates merged."],
+                moved, merged)
+            if renamed > 0 then
+                note(L["%d snapshot(s) had the same name but different contents and were kept under a new name."],
+                    renamed)
+            end
+        end
+    end,
 }
 
 local function runMigrations()
