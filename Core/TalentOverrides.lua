@@ -214,7 +214,10 @@ function ns:SituationLabel(key)
     if key == "party" then return L["5-player instance"] end
     if key == "arena" then return L["Arena"] end
     if key == "pvp"   then return L["Battleground"] end
-    if key == "group" then return L["In a group, outdoors"] end
+    -- Short on purpose: these are dropdown rows, and the instance kinds above
+    -- are already checked first, so "in a group" can only mean "and not in an
+    -- instance" by the time it is reached.
+    if key == "group" then return L["In a group"] end
     if key == "solo"  then return L["Alone"] end
     return L["Everywhere"]
 end

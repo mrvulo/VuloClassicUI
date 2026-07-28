@@ -1073,6 +1073,11 @@ local function openPopup(button, config)
             fs:SetPoint("LEFT", item, "LEFT", 18, 0)
             fs:SetPoint("RIGHT", item, "RIGHT", -8, 0)
             fs:SetJustifyH("LEFT")
+            -- Anchored on both sides, so the string has a fixed width and wraps
+            -- by default -- while the row stays 24px. A long entry then printed
+            -- three lines into its neighbours. Every other label in this file
+            -- turns wrapping off; this one had been missed.
+            fs:SetWordWrap(false)
             item._text = fs
 
             item:SetScript("OnEnter", function(self) self._hover:Show() end)

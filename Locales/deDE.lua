@@ -850,7 +850,7 @@ ns:RegisterLocale("deDE", function() return {
     ["5-player instance"] = "Instanz (5 Spieler)",
     ["Arena"] = "Arena",
     ["Battleground"] = "Schlachtfeld",
-    ["In a group, outdoors"] = "In einer Gruppe, draußen",
+    ["In a group"] = "In einer Gruppe",
     ["Alone"] = "Allein",
     ["Applies only in this situation. Combined with a talent group, both have to be true - and that group then overrides one that names only the talent group."] = "Gilt nur in dieser Situation. Zusammen mit einer Talentwahl müssen beide zutreffen — und diese Gruppe übersteuert dann eine, die nur die Talentwahl nennt.",
     ["Icon"] = "Symbol",
