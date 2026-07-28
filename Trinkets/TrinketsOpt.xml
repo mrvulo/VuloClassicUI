@@ -27,8 +27,8 @@
 				GameTooltip:Hide()
 			</OnLeave>
 		</Scripts>
-		<HighlightTexture file = "Interface\AddOns\Trinkets\Textures\Buttons" alphaMode = "ADD">
-			<TexCoords left = ".25" right = ".375" top = "0" bottom = ".125"/>
+		<HighlightTexture file = "Interface\Buttons\WHITE8X8" alphaMode = "ADD">
+			<Color r = "0.608" g = "0.424" b = "1"/>
 		</HighlightTexture>
 	</Button>
 	<CheckButton name = "Trinkets_CheckButtonTemplate" inherits = "UICheckButtonTemplate" virtual = "true">
@@ -78,8 +78,10 @@
 				Trinkets.MinimapButton_OnClick(button)
 			</OnClick>
 		</Scripts>
-		<NormalTexture file = "Interface\AddOns\Trinkets\Textures\Trinkets-Icon-Up"/>
-		<PushedTexture file = "Interface\AddOns\Trinkets\Textures\Trinkets-Icon-Down"/>
+		<NormalTexture file = "Interface\AddOns\VuloClassicUI\Media\Icons\modules\trinkets"/>
+		<PushedTexture file = "Interface\AddOns\VuloClassicUI\Media\Icons\modules\trinkets">
+			<Color r = "0.65" g = "0.65" b = "0.65"/>
+		</PushedTexture>
 		<HighlightTexture alphaMode = "ADD" file = "Interface\Minimap\UI-Minimap-ZoomButton-Highlight"/>
 	</Button>
 	<Frame name = "Trinkets_OptFrame" parent = "UIParent" movable = "true" toplevel = "true" clampedToScreen = "true" hidden = "true" inherits = "TrinketsBackdropTemplate">
@@ -133,15 +135,9 @@
 						</Offset>
 					</Anchor>
 				</Anchors>
-				<NormalTexture file = "Interface\AddOns\Trinkets\Textures\Buttons">
-					<TexCoords left = ".375" right = ".5" top = ".25" bottom = ".375"/>
-				</NormalTexture>
-				<PushedTexture file = "Interface\AddOns\Trinkets\Textures\Buttons">
-					<TexCoords left = ".5" right = ".625" top = ".25" bottom = ".375"/>
-				</PushedTexture>
-				<DisabledTexture file = "Interface\AddOns\Trinkets\Textures\Buttons">
-					<TexCoords left = ".625" right = ".75" top = ".25" bottom = ".375"/>
-				</DisabledTexture>
+				<NormalTexture file = "Interface\Buttons\UI-Panel-MinimizeButton-Up"/>
+				<PushedTexture file = "Interface\Buttons\UI-Panel-MinimizeButton-Down"/>
+				<DisabledTexture file = "Interface\Buttons\UI-Panel-MinimizeButton-Disabled"/>
 			</Button>
 			<Button name = "Trinkets_LockButton" inherits = "Trinkets_SmallButtonTemplate">
 				<Anchors>
@@ -151,11 +147,9 @@
 						</Offset>
 					</Anchor>
 				</Anchors>
-				<NormalTexture file = "Interface\AddOns\Trinkets\Textures\Buttons">
-					<TexCoords left = ".75" right = ".875" top = ".125" bottom = ".25"/>
-				</NormalTexture>
-				<PushedTexture file = "Interface\AddOns\Trinkets\Textures\Buttons">
-					<TexCoords left = ".875" right = "1" top = ".125" bottom = ".25"/>
+				<NormalTexture file = "Interface\AddOns\VuloClassicUI\Media\Icons\modules\unlockmode"/>
+				<PushedTexture file = "Interface\AddOns\VuloClassicUI\Media\Icons\modules\unlockmode">
+					<Color r = "0.65" g = "0.65" b = "0.65"/>
 				</PushedTexture>
 			</Button>
 			<Button name = "Trinkets_Tab1" inherits = "Trinkets_TabTemplate" text = "Options" id = "1">

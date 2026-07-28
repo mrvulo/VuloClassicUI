@@ -142,8 +142,8 @@
 				Trinkets.SortMove(self)
 			</OnClick>
 		</Scripts>
-		<HighlightTexture file = "Interface\AddOns\Trinkets\Textures\Buttons" alphaMode = "ADD">
-			<TexCoords left = ".25" right = ".375" top = "0" bottom = ".125"/>
+		<HighlightTexture file = "Interface\Buttons\WHITE8X8" alphaMode = "ADD">
+			<Color r = "0.608" g = "0.424" b = "1"/>
 		</HighlightTexture>
 	</Button>
 
@@ -223,14 +223,14 @@
 						</Offset>
 					</Anchor>
 				</Anchors>
-				<NormalTexture file = "Interface\AddOns\Trinkets\Textures\Buttons">
-					<TexCoords left = ".375" right = ".5" top = "0" bottom = ".125"/>
+				<NormalTexture file = "Interface\AddOns\VuloClassicUI\Media\Icons\arrow_up">
+					<Color r = "0.608" g = "0.424" b = "1"/>
 				</NormalTexture>
-				<PushedTexture file = "Interface\AddOns\Trinkets\Textures\Buttons">
-					<TexCoords left = ".5" right = ".625" top = "0" bottom = ".125"/>
+				<PushedTexture file = "Interface\AddOns\VuloClassicUI\Media\Icons\arrow_up">
+					<Color r = "0.65" g = "0.65" b = "0.65"/>
 				</PushedTexture>
-				<DisabledTexture file = "Interface\AddOns\Trinkets\Textures\Buttons">
-					<TexCoords left = ".625" right = ".75" top = "0" bottom = ".125"/>
+				<DisabledTexture file = "Interface\AddOns\VuloClassicUI\Media\Icons\arrow_up">
+					<Color r = "0.35" g = "0.35" b = "0.35"/>
 				</DisabledTexture>
 			</Button>
 			<Button name = "Trinkets_MoveUp" inherits = "Trinkets_MoveButtonTemplate">
@@ -241,14 +241,12 @@
 						</Offset>
 					</Anchor>
 				</Anchors>
-				<NormalTexture file = "Interface\AddOns\Trinkets\Textures\Buttons">
-					<TexCoords left = "0" right = ".125" top = ".125" bottom = ".25"/>
-				</NormalTexture>
-				<PushedTexture file = "Interface\AddOns\Trinkets\Textures\Buttons">
-					<TexCoords left = ".125" right = ".25" top = ".125" bottom = ".25"/>
+				<NormalTexture file = "Interface\AddOns\VuloClassicUI\Media\Icons\arrow_up"/>
+				<PushedTexture file = "Interface\AddOns\VuloClassicUI\Media\Icons\arrow_up">
+					<Color r = "0.65" g = "0.65" b = "0.65"/>
 				</PushedTexture>
-				<DisabledTexture file = "Interface\AddOns\Trinkets\Textures\Buttons">
-					<TexCoords left = ".25" right = ".375" top = ".125" bottom = ".25"/>
+				<DisabledTexture file = "Interface\AddOns\VuloClassicUI\Media\Icons\arrow_up">
+					<Color r = "0.35" g = "0.35" b = "0.35"/>
 				</DisabledTexture>
 			</Button>
 			<Button name = "Trinkets_MoveDown" inherits = "Trinkets_MoveButtonTemplate">
@@ -259,14 +257,12 @@
 						</Offset>
 					</Anchor>
 				</Anchors>
-				<NormalTexture file = "Interface\AddOns\Trinkets\Textures\Buttons">
-					<TexCoords left = ".375" right = ".5" top = ".125" bottom = ".25"/>
-				</NormalTexture>
-				<PushedTexture file = "Interface\AddOns\Trinkets\Textures\Buttons">
-					<TexCoords left = ".5" right = ".625" top = ".125" bottom = ".25"/>
+				<NormalTexture file = "Interface\AddOns\VuloClassicUI\Media\Icons\arrow_down"/>
+				<PushedTexture file = "Interface\AddOns\VuloClassicUI\Media\Icons\arrow_down">
+					<Color r = "0.65" g = "0.65" b = "0.65"/>
 				</PushedTexture>
-				<DisabledTexture file = "Interface\AddOns\Trinkets\Textures\Buttons">
-					<TexCoords left = ".625" right = ".75" top = ".125" bottom = ".25"/>
+				<DisabledTexture file = "Interface\AddOns\VuloClassicUI\Media\Icons\arrow_down">
+					<Color r = "0.35" g = "0.35" b = "0.35"/>
 				</DisabledTexture>
 			</Button>
 			<Button name = "Trinkets_MoveBottom" inherits = "Trinkets_MoveButtonTemplate">
@@ -277,14 +273,14 @@
 						</Offset>
 					</Anchor>
 				</Anchors>
-				<NormalTexture file = "Interface\AddOns\Trinkets\Textures\Buttons">
-					<TexCoords left = "0" right = ".125" top = ".25" bottom = ".375"/>
+				<NormalTexture file = "Interface\AddOns\VuloClassicUI\Media\Icons\arrow_down">
+					<Color r = "0.608" g = "0.424" b = "1"/>
 				</NormalTexture>
-				<PushedTexture file = "Interface\AddOns\Trinkets\Textures\Buttons">
-					<TexCoords left = ".125" right = ".25" top = ".25" bottom = ".375"/>
+				<PushedTexture file = "Interface\AddOns\VuloClassicUI\Media\Icons\arrow_down">
+					<Color r = "0.65" g = "0.65" b = "0.65"/>
 				</PushedTexture>
-				<DisabledTexture file = "Interface\AddOns\Trinkets\Textures\Buttons">
-					<TexCoords left = ".25" right = ".375" top = ".25" bottom = ".375"/>
+				<DisabledTexture file = "Interface\AddOns\VuloClassicUI\Media\Icons\arrow_down">
+					<Color r = "0.35" g = "0.35" b = "0.35"/>
 				</DisabledTexture>
 			</Button>
 			<Button name = "Trinkets_Profiles" inherits = "Trinkets_MoveButtonTemplate">
@@ -295,11 +291,9 @@
 						</Offset>
 					</Anchor>
 				</Anchors>
-				<NormalTexture file = "Interface\AddOns\Trinkets\Textures\Buttons">
-					<TexCoords left = ".75" right = ".875" top = ".25" bottom = ".375"/>
-				</NormalTexture>
-				<PushedTexture file = "Interface\AddOns\Trinkets\Textures\Buttons">
-					<TexCoords left = ".875" right = "1" top = ".25" bottom = ".375"/>
+				<NormalTexture file = "Interface\AddOns\VuloClassicUI\Media\Icons\modules\profiles"/>
+				<PushedTexture file = "Interface\AddOns\VuloClassicUI\Media\Icons\modules\profiles">
+					<Color r = "0.65" g = "0.65" b = "0.65"/>
 				</PushedTexture>
 			</Button>
 			<Button name = "Trinkets_Delete" inherits = "Trinkets_MoveButtonTemplate">
@@ -310,14 +304,12 @@
 						</Offset>
 					</Anchor>
 				</Anchors>
-				<NormalTexture file = "Interface\AddOns\Trinkets\Textures\Buttons">
-					<TexCoords left = "0" right = ".125" top = ".375" bottom = ".5"/>
-				</NormalTexture>
-				<PushedTexture file = "Interface\AddOns\Trinkets\Textures\Buttons">
-					<TexCoords left = ".125" right = ".25" top = ".375" bottom = ".5"/>
+				<NormalTexture file = "Interface\AddOns\VuloClassicUI\Media\Icons\broom"/>
+				<PushedTexture file = "Interface\AddOns\VuloClassicUI\Media\Icons\broom">
+					<Color r = "0.65" g = "0.65" b = "0.65"/>
 				</PushedTexture>
-				<DisabledTexture file = "Interface\AddOns\Trinkets\Textures\Buttons">
-					<TexCoords left = ".25" right = ".375" top = ".375" bottom = ".5"/>
+				<DisabledTexture file = "Interface\AddOns\VuloClassicUI\Media\Icons\broom">
+					<Color r = "0.35" g = "0.35" b = "0.35"/>
 				</DisabledTexture>
 			</Button>
 
