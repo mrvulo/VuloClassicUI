@@ -455,7 +455,12 @@ function UI:CreateMainFrame()
             GameTooltip:AddLine(L["Editing as"])
             local id = ns.EditingOverrideGroup and ns:EditingOverrideGroup()
             local g  = id and ns:OverrideGroup(id)
-            GameTooltip:AddLine(g and g.name or L["Yourself"], 0.7, 0.7, 0.8)
+            -- Same wording as the menu's default entry, from one helper.
+            if g then
+                GameTooltip:AddLine(g.name, 0.7, 0.7, 0.8)
+            else
+                GameTooltip:AddLine(ns:OverrideSelfLabel())
+            end
             GameTooltip:Show()
         end)
         ovBtn:SetScript("OnLeave", function(self)

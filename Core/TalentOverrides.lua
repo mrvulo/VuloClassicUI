@@ -325,6 +325,27 @@ ns.OnLocaleReady(function()
     }
 end)
 
+-- The default entry is the character themselves, so it says who that is rather
+-- than "Yourself": the name in the class colour, the class beside it. Shared
+-- with the toolbar button's tooltip so the two can never drift apart.
+function ns:OverrideSelfLabel()
+    local name = UnitName and UnitName("player")
+    if not name then return L["Yourself"] end
+
+    local locClass, token = UnitClass("player")
+    local colored = name
+    local c = token and _G.RAID_CLASS_COLORS and _G.RAID_CLASS_COLORS[token]
+    if c and c.colorStr then
+        colored = "|c" .. c.colorStr .. name .. "|r"
+    elseif c then
+        colored = string.format("|cff%02x%02x%02x%s|r", (c.r or 1) * 255, (c.g or 1) * 255, (c.b or 1) * 255, name)
+    end
+    if locClass and locClass ~= "" then
+        return colored .. "  |cff888888" .. locClass .. "|r"
+    end
+    return colored
+end
+
 function ns:ShowOverrideMenu(anchor)
     if not ns.ShowPopupMenu then return end
     local entries = {}
@@ -334,7 +355,7 @@ function ns:ShowOverrideMenu(anchor)
     entries[#entries + 1] = { title = true, text = L["Editing as"] }
 
     entries[#entries + 1] = {
-        text    = L["Yourself"],
+        text    = ns:OverrideSelfLabel(),
         checked = function() return ns._ovEditing == nil end,
         func    = function() ns:SetEditingOverrideGroup(nil) end,
     }
