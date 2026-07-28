@@ -414,6 +414,10 @@ function UI:CreateMainFrame()
     sidebarScroll:SetScrollChild(sidebarContent)
     UI.StyleScrollbar(sidebarScroll)
 
+    -- The dashboard's search prompt hands focus here rather than matching on its
+    -- own, so there is only ever one search implementation.
+    f.searchBox       = searchBox
+
     f.sidebar         = sidebar
     f.sidebarContent  = sidebarContent
     f.sidebarScroll   = sidebarScroll

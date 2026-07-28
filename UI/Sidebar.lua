@@ -520,6 +520,9 @@ function UI:ShowModulePage(key)
     end
     UI.currentModule = key
     UI.currentTab    = nil
+    -- Recorded here rather than at each call site: this is the one door every
+    -- page opening goes through, including the search results and the overview.
+    if UI.NoteVisitedPage then UI:NoteVisitedPage(key) end
     UI:BuildTabsForModule(key)
     if subTab then UI:ShowTab(subTab) end
     highlightSelected()

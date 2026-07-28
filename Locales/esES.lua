@@ -2584,6 +2584,23 @@ local function T() return {
     ["Chat & Social"] = "Chat y social",
     ["Extras"] = "Extras",
     ["Tools"] = "Herramientas",
+    -- Overview page
+    ["peak %.1f ms"] = "pico %.1f ms",
+    ["%.2f ms"] = "%.2f ms",
+    ["%.1f MB"] = "%.1f MB",
+    ["%d KB"] = "%d KB",
+    ["%d of %d"] = "%d de %d",
+    ["moved"] = "movidas",
+    ["Modules"] = "Módulos",
+    ["Frame time"] = "Tiempo por fotograma",
+    ["Memory"] = "Memoria",
+    ["Windows"] = "Ventanas",
+    ["%d modules are switched off."] = "%d módulos están desactivados.",
+    ["The edit mode grid is switched on."] = "La rejilla del modo de edición está activada.",
+    ["There are patch notes you have not read yet."] = "Hay notas de versión que aún no has leído.",
+    ["What would you like to change?"] = "¿Qué quieres ajustar?",
+    ["Worth knowing"] = "Conviene saber",
+    ["Recently visited"] = "Visitado recientemente",
 } end
 
 ns:RegisterLocale("esES", T)
