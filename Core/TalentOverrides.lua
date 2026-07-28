@@ -101,7 +101,13 @@ function ns:DominantTalentTree(group)
 
     local bestIdx, bestName, bestPoints
     for i = 1, numTrees do
-        -- returns: specId, name, description, icon, role, primaryStat, pointsSpent, ...
+        -- Measured, not assumed. Same shaman, talent group 2:
+        --   261, "Elementar", "", 136048, nil, nil, 41, "ShamanElementalCombat"
+        -- i.e. specId, name, description, icon, role, primaryStat, pointsSpent,
+        -- background. Slot 7 is the count, and the deprecated shim is NOT this
+        -- function passed through -- it drops description, role and primaryStat,
+        -- which is exactly why its icon lands on the slot this one spends on the
+        -- description. Two shapes, one name.
         local ok, _, name, _, _, _, _, points =
             pcall(SI.GetSpecializationInfo, i, false, false, nil, nil, group)
         -- No talent tree in this game holds anything like a hundred points. The
