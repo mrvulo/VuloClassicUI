@@ -303,11 +303,19 @@ local function runLabelColumn(run, cellW)
     for _, item in ipairs(run) do
         if item.type == "slider" then
             local w = labelWidth(item.label)
+            -- A tooltip puts an info glyph in front of the text, inside the same
+            -- column. Measuring only the text made exactly those rows clip --
+            -- "Engine-FCT-Skalieru..." was the giveaway.
+            if item.tooltip then w = w + 22 end
             if w > widest then widest = w end
         end
     end
     if widest == 0 then return nil end
-    return math.min(math.ceil(widest) + 2, math.floor(cellW * 0.45))
+    -- Slack, not a tight fit: GetStringWidth and the actual glyph run differ by
+    -- a hair, and at a tight fit the client answers with an ellipsis rather than
+    -- the last letter. Two pixels was not enough -- "Nachrichtenabsta..." lost
+    -- three characters to it.
+    return math.min(math.ceil(widest) + 10, math.floor(cellW * 0.5))
 end
 
 local function placeColumns(parent, run, y)
