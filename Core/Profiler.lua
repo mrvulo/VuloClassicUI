@@ -91,8 +91,10 @@ function ns.Prof.Report()
     end
 end
 
-SLASH_VCUIPROF1 = "/vcuiprof"
-SlashCmdList["VCUIPROF"] = function(msg)
+ns:RegisterSlash({ key = "PROFILER", commands = { "/vcuiprof" },
+    desc = "List which addons cost the most frame time.",
+})
+ns.Slash.PROFILER = function(msg)
     local cmd = (msg or ""):lower():match("^%s*(%S*)")
     if cmd == "off" then
         -- Print BEFORE stopping. Switching off is the natural thing to do once

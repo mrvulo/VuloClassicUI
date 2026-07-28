@@ -457,8 +457,10 @@ local function watchdogTick()
     softReset()
 end
 
-_G.SLASH_VCUIINSPECTRESET1 = "/inspectreset"
-_G.SlashCmdList["VCUIINSPECTRESET"] = function()
+ns:RegisterSlash({ key = "INSPECTRESET", commands = { "/inspectreset" },
+    desc = "Unstick inspect after it stops answering.",
+})
+ns.Slash.INSPECTRESET = function()
     hardReset()
     if _G.InspectFrame and _G.InspectFrame:IsShown() then
         _G.InspectFrame:Hide()
@@ -470,8 +472,11 @@ _G.SlashCmdList["VCUIINSPECTRESET"] = function()
     end
 end
 
-_G.SLASH_VCUIINSPECTSTATE1 = "/inspectstate"
-_G.SlashCmdList["VCUIINSPECTSTATE"] = function()
+ns:RegisterSlash({ key = "INSPECTSTATE", commands = { "/inspectstate" },
+    desc = "Print what the inspect fix currently thinks.",
+    hidden = true,
+})
+ns.Slash.INSPECTSTATE = function()
     local f = _G.InspectFrame
     local lines = {
         "|cffffff00[VuloClassicUI Inspect State]|r",

@@ -472,9 +472,10 @@ function Trinkets.OnLoad(self)
 	self:OnBackdropLoaded()
 	self:SetBackdropColor(0.0, 0.0, 0.0)
 	self:SetBackdropBorderColor(0.0, 0.0, 0.0)
-	SlashCmdList["TrinketsCOMMAND"] = Trinkets.SlashHandler
-	SLASH_TrinketsCOMMAND1 = "/Trinkets"
-	SLASH_TrinketsCOMMAND2 = "/trinket"
+	ns.Slash.TRINKETS = Trinkets.SlashHandler
+	ns:RegisterSlash({ key = "TRINKETS", commands = { "/Trinkets", "/trinket" },
+	    desc = "Trinket tracker: show, hide, reset.",
+	})
 	self:RegisterEvent("PLAYER_LOGIN")
 end
 

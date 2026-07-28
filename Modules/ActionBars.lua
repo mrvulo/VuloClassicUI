@@ -1552,8 +1552,11 @@ local function openQuickKeybind()
 end
 ns.OpenQuickKeybind = openQuickKeybind
 
-SLASH_VCUIKEYBIND1 = "/vkb"
-SlashCmdList["VCUIKEYBIND"] = openQuickKeybind
+ns:RegisterSlash({ key = "KEYBIND", commands = { "/vkb" },
+    desc = "Assign keys by hovering a button.",
+    module = "actionbars",
+})
+ns.Slash.KEYBIND = openQuickKeybind
 
 local function onRegen()
     if pendingRestore then pendingRestore = false; restore(); return end

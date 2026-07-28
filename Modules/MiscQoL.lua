@@ -968,8 +968,11 @@ local function ftSetUnlocked(state)
     end
 end
 
-SLASH_VCUIFLUG1 = "/vcuiflug"
-SlashCmdList.VCUIFLUG = function()
+ns:RegisterSlash({ key = "FLIGHTTIMER", commands = { "/vcuiflug" },
+    desc = "Show how long the flight paths you have taken lasted.",
+    module = "miscqol",
+})
+ns.Slash.FLIGHTTIMER = function()
     local d = mod.db and mod.db.flight
     if not d then return end
     d.debug = not d.debug

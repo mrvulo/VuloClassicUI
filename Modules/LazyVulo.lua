@@ -388,9 +388,11 @@ function mod:OnDisable()
     end
 end
 
-SLASH_VCUILAZYVULO1 = "/lazyvulo"
-SLASH_VCUILAZYVULO2 = "/lv"
-SlashCmdList.VCUILAZYVULO = function()
+ns:RegisterSlash({ key = "LAZYVULO", commands = { "/lazyvulo", "/lv" },
+    desc = "Open the one-button helper.",
+    module = "lazyvulo",
+})
+ns.Slash.LAZYVULO = function()
     if not mod._enabled then
         ns:Print(L["LazyVulo is disabled."])
         return

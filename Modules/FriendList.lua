@@ -992,8 +992,11 @@ function mod:OnDisable()
     restyleAll()
 end
 
-_G.SLASH_VCUIFRIENDSTATE1 = "/friendstate"
-_G.SlashCmdList["VCUIFRIENDSTATE"] = function()
+ns:RegisterSlash({ key = "FRIENDSTATE", commands = { "/friendstate" },
+    desc = "Print what the friends list skin is doing.",
+    hidden = true,
+})
+ns.Slash.FRIENDSTATE = function()
     print("|cffffff00[VuloClassicUI Friend State]|r")
     local numBN = (BNGetNumFriends and BNGetNumFriends()) or 0
     for i = 1, numBN do

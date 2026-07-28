@@ -27,24 +27,24 @@ initFrame:SetScript("OnEvent", function(_, event, addonName)
 end)
 
 -- Slash commands
+-- Only the WORDS that follow /vcui live here -- those are this file's business
+-- and no registry can know them. The standalone commands come from
+-- ns:PrintSlashHelp, which reads the table every command writes itself into.
+--
+-- They used to be listed here by hand as well, and the list had quietly drifted
+-- to missing fourteen of the twenty: /vcuiprof, /vedit, /vkb, /cdedit,
+-- /lazyvulo, /vlfg, /disenchant, /friendstate and the aliases -- and /vcui help
+-- itself. A list that has to be maintained beside the thing it describes ends up
+-- describing something else.
 local function printVcuiHelp()
     local A = (ns.C and ns.C.accent) or "|cff9b6cff"
     ns:Print(L["VuloClassicUI — commands:"])
-    ns:Print(A .. "/vcui|r, /vulo — " .. L["open the options window"])
     ns:Print(A .. "/vcui <module>|r — " .. L["jump to that module's page"])
     ns:Print(A .. "/vcui modules|r — " .. L["list all modules with on/off state"])
     ns:Print(A .. "/vcui spam <name>|r — " .. L["toggle a name on/off the spam-filter whitelist"])
     ns:Print(A .. "/vcui goldreset|r — " .. L["reset the gold tracker session"])
     ns:Print(A .. "/vcui debug|r, " .. A .. "/vcui reset|r")
-    ns:Print(A .. "/rl|r, /reloadui — " .. L["reload the UI"])
-    ns:Print(A .. "/lo|r, /loadout — " .. L["gear loadouts"])
-    ns:Print(A .. "/idtip|r — " .. L["tooltip IDs page"])
-    ns:Print(A .. "/dcp|r — " .. L["cooldown pulse page"])
-    ns:Print(A .. "/scttest|r — " .. L["castbar test"])
-    ns:Print(A .. "/swingtest|r — " .. L["swing timer test/mover"])
-    ns:Print(A .. "/vcuiwa|r — " .. L["WeakAuras skin diagnostics"])
-    ns:Print(A .. "/inspectreset|r — " .. L["fix a stuck inspect"])
-    ns:Print(A .. "/trinket|r — " .. L["trinket panel"])
+    if ns.PrintSlashHelp then ns:PrintSlashHelp() end
 end
 
 -- /vcui reset wipes every setting of every character on the account. A typo
@@ -67,11 +67,20 @@ StaticPopupDialogs["VCUI_DB_RESET"] = {
 }
 end)
 
-SLASH_VULOCLASSICUI1 = "/vcui"
-SLASH_VULOCLASSICUI2 = "/vulo"
-SlashCmdList["VULOCLASSICUI"] = function(msg)
+ns:RegisterSlash({ key = "OPTIONS", commands = { "/vcui", "/vulo" },
+    desc = "Open the settings window. Add a word for more: help, modules, debug, reset.",
+})
+ns.Slash.OPTIONS = function(msg)
     local raw = (msg or ""):match("^%s*(.-)%s*$")
     msg = raw:lower()
+
+    -- Answered BEFORE the UI check below. If the interface failed to load, the
+    -- list of commands is the one thing that still helps, and printing it needs
+    -- no interface.
+    if msg == "help" or msg == "?" or msg == "commands" then
+        printVcuiHelp()
+        return
+    end
 
     if not ns.UI or not ns.UI.ToggleMainFrame then
         ns:Print(L["UI not loaded. Likely a Lua error during init. Enable /console scriptErrors 1 and /reload."])
@@ -105,9 +114,6 @@ SlashCmdList["VULOCLASSICUI"] = function(msg)
                 ns:Print(L["Gold Tracker not active."])
             end
 
-        elseif msg == "help" or msg == "?" then
-            printVcuiHelp()
-
         elseif msg == "spam" or msg:match("^spam%s") then
             local arg = raw:match("^%S+%s+(.-)$")
             local sf = ns.modules and ns.modules.spamfilter
@@ -135,12 +141,19 @@ SlashCmdList["VULOCLASSICUI"] = function(msg)
     end
 end
 
-SLASH_VCUI_IDTIP1 = "/idtip"
-SlashCmdList["VCUI_IDTIP"] = function() SlashCmdList["VULOCLASSICUI"]("tooltipids") end
+ns:RegisterSlash({ key = "IDTIP", commands = { "/idtip" },
+    desc = "Open the tooltip ID settings.",
+})
+-- Straight to the handler, not through SlashCmdList: the key is namespaced now,
+-- and a shortcut that reaches its target by global name breaks silently the day
+-- the name changes -- which is exactly what happened here.
+ns.Slash.IDTIP = function() ns.Slash.OPTIONS("tooltipids") end
 
-SLASH_VCUI_RELOAD1 = "/rl"
-SLASH_VCUI_RELOAD2 = "/reloadui"
-SlashCmdList["VCUI_RELOAD"] = function()
+ns:RegisterSlash({ key = "RELOAD", commands = { "/rl", "/reloadui" },
+    desc = "Reload the interface. Refused while in combat.",
+    note = "Replaces the game's own /reloadui so it cannot be run mid-fight.",
+})
+ns.Slash.RELOAD = function()
     if InCombatLockdown and InCombatLockdown() then
         ns:Print(L["Not possible in combat."])
         return

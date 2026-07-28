@@ -600,6 +600,8 @@ function mod:GetOptions()
     }
 end
 
-SLASH_VCUI_DCP1 = "/dcp"
-SLASH_VCUI_DCP2 = "/cooldownpulse"
-SlashCmdList.VCUI_DCP = function() SlashCmdList["VULOCLASSICUI"]("cooldownpulse") end
+ns:RegisterSlash({ key = "COOLDOWNPULSE", commands = { "/dcp", "/cooldownpulse" },
+    desc = "Open the cooldown pulse settings.",
+    module = "cooldownpulse",
+})
+ns.Slash.COOLDOWNPULSE = function() ns.Slash.OPTIONS("cooldownpulse") end

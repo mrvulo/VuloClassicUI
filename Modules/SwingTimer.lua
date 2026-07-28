@@ -567,8 +567,11 @@ function mod:GetOptions()
     return items
 end
 
-SLASH_VCUISWING1 = "/swingtest"
-SlashCmdList.VCUISWING = function(msg)
+ns:RegisterSlash({ key = "SWINGTEST", commands = { "/swingtest" },
+    desc = "Run a test swing to check the swing timer.",
+    module = "swingtimer",
+})
+ns.Slash.SWINGTEST = function(msg)
     if msg == "debug" then
         local override = (ns.LSM and ns.LSM.GetGlobal) and ns.LSM:GetGlobal("statusbar")
         ns:Print(string.format("SwingTimer fg '%s' -> %s", tostring(mod.db.texture), tostring(fillTexture())))

@@ -875,8 +875,11 @@ function mod:GetOptions()
     }
 end
 
-SLASH_VCUIWA1 = "/vcuiwa"
-SlashCmdList.VCUIWA = function()
+ns:RegisterSlash({ key = "WEAKAURASKIN", commands = { "/vcuiwa" },
+    desc = "Repaint the aura addon windows now.",
+    module = "darkskin",
+})
+ns.Slash.WEAKAURASKIN = function()
     local shown, skinned = 0, 0
     local unskinned = {}
     local function chain(f)

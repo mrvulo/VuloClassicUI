@@ -1206,8 +1206,11 @@ function mod:GetOptions()
     return items
 end
 
-SLASH_SCTTEST1 = "/scttest"
-SlashCmdList.SCTTEST = function()
+ns:RegisterSlash({ key = "CASTBARTEST", commands = { "/scttest" },
+    desc = "Run a test cast to check the cast bar.",
+    module = "playercastbar",
+})
+ns.Slash.CASTBARTEST = function()
     if mod.db.mode == "custom" then
         c_setUnlocked(not mod.db.unlocked)
     else

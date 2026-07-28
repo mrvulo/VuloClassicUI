@@ -17,6 +17,7 @@ Core\Namespace.lua
 Core\Compat.lua
 Core\Locale.lua
 Core\Utils.lua
+Core\Slash.lua
 Core\Database.lua
 Core\Modules.lua
 Core\Container.lua

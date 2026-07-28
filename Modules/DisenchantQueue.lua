@@ -327,9 +327,11 @@ function mod:ToggleWindow()
 end
 
 function mod:OnEnable()
-    _G.SLASH_VCUIDISENCHANT1 = "/disenchant"
-    _G.SLASH_VCUIDISENCHANT2 = "/entzaubern"
-    _G.SlashCmdList["VCUIDISENCHANT"] = function()
+    ns:RegisterSlash({ key = "DISENCHANT", commands = { "/disenchant", "/entzaubern" },
+        desc = "Disenchant the queued items one after another.",
+        module = "disenchantqueue",
+    })
+    ns.Slash.DISENCHANT = function()
         if mod._enabled then mod:ToggleWindow() else ns:Print(L["This module is disabled."]) end
     end
 end

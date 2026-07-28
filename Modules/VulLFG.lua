@@ -429,9 +429,11 @@ function mod:OnDisable()
     if mod._frame then mod._frame:Hide() end
 end
 
-SLASH_VULLFG1 = "/vlfg"
-SLASH_VULLFG2 = "/lfgboard"
-SlashCmdList.VULLFG = function() mod:Toggle() end
+ns:RegisterSlash({ key = "LFGBOARD", commands = { "/vlfg", "/lfgboard" },
+    desc = "Open the group finder board.",
+    module = "vullfg",
+})
+ns.Slash.LFGBOARD = function() mod:Toggle() end
 
 function mod:GetOptions()
     return {

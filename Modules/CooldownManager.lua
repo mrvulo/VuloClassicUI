@@ -1250,8 +1250,11 @@ local function setUnlocked(group, state)
     end
 end
 
-SLASH_VCUICDEDIT1 = "/cdedit"
-SlashCmdList["VCUICDEDIT"] = function()
+ns:RegisterSlash({ key = "CDEDIT", commands = { "/cdedit" },
+    desc = "Unlock the cooldown bars so they can be dragged.",
+    module = "cooldownmanager",
+})
+ns.Slash.CDEDIT = function()
     ns:SetMoversEditMode(not ns:IsMoverEditMode("cooldownmanager"), "cooldownmanager")
 end
 

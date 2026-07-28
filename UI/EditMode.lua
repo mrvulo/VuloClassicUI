@@ -323,8 +323,10 @@ disp:SetScript("OnEvent", function()
     if ns:IsEditModeActive() then refreshGrid() end
 end)
 
-SLASH_VCUIEDIT1 = "/vedit"
-SlashCmdList["VCUIEDIT"] = function()
+ns:RegisterSlash({ key = "EDITMODE", commands = { "/vedit" },
+    desc = "Open Edit Mode and move frames around.",
+})
+ns.Slash.EDITMODE = function()
     ns:SetEditMode(not ns:IsEditModeActive())
 end
 

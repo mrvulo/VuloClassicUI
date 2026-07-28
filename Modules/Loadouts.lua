@@ -487,9 +487,11 @@ StaticPopupDialogs["VCUI_LOADOUT_DELETE"] = {
 }
 end)
 
-_G.SLASH_VCUILOADOUT1 = "/loadout"
-_G.SLASH_VCUILOADOUT2 = "/lo"
-_G.SlashCmdList["VCUILOADOUT"] = function(msg)
+ns:RegisterSlash({ key = "LOADOUT", commands = { "/loadout", "/lo" },
+    desc = "Gear sets: equip, save, delete, list.",
+    module = "loadouts",
+})
+ns.Slash.LOADOUT = function(msg)
     msg = msg or ""
     local cmd, arg = msg:match("^(%S+)%s*(.-)$")
     cmd = cmd and cmd:lower() or ""
