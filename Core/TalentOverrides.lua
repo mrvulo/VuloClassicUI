@@ -273,6 +273,16 @@ function ns:OverrideValueText(v)
         return (string.format("%.2f", v):gsub("0+$", ""):gsub("%.$", ""))
     end
     if t == "string" then return v end
+    if t == "table" then
+        -- The only table we store is a colour. Shown as its own hex digits in
+        -- that colour, which needs no legend and no translation.
+        local r, g, b = tonumber(v.r), tonumber(v.g), tonumber(v.b)
+        if r and g and b then
+            local hex = string.format("%02x%02x%02x",
+                math.floor(r * 255 + 0.5), math.floor(g * 255 + 0.5), math.floor(b * 255 + 0.5))
+            return "|cff" .. hex .. hex .. "|r"
+        end
+    end
     return "?"
 end
 
@@ -324,16 +334,33 @@ function ns:SetEditingOverrideGroup(id)
 end
 
 -- Called by the setter wrapper in UI/OptionsBuilder, after the real setter ran.
-function ns:NoteOverrideWrite(id, getter)
+--
+-- itemType is passed so the one table shape we accept -- a colour -- can be told
+-- apart from a module handing back something we have no business storing.
+function ns:NoteOverrideWrite(id, getter, itemType)
     local gid = ns._ovEditing
     if not gid or not id or type(getter) ~= "function" then return end
     local g = ns:OverrideGroup(gid)
     if not g then return end
     local ok, value = pcall(getter)
     if not ok then return end
-    -- Tables would be stored by reference and then mutate underneath us.
+
     local t = type(value)
-    if t ~= "number" and t ~= "string" and t ~= "boolean" then return end
+    if t == "table" then
+        -- Colours were excluded entirely until now, which meant changing one
+        -- while editing a group did NOTHING and said nothing about it. They are
+        -- taken as a COPY of the three numbers, never the getter's table: half
+        -- the modules replace that table on every write and the rest mutate it,
+        -- so a stored reference would either go stale or track the profile --
+        -- and an override that follows the profile is not an override.
+        if itemType ~= "color" then return end
+        local r, gg, b = tonumber(value.r), tonumber(value.g), tonumber(value.b)
+        if not (r and gg and b) then return end
+        value = { r = r, g = gg, b = b }
+    elseif t ~= "number" and t ~= "string" and t ~= "boolean" then
+        return
+    end
+
     g.values = g.values or {}
     g.values[id] = value
 end
@@ -379,8 +406,18 @@ function ns:ApplyOverrideGroup(id)
                 walkItems(items, function(it)
                     local want = it.label and page.items[it.label]
                     -- nil means "not overridden"; false is a real stored value.
-                    if want ~= nil and type(it.set) == "function" and it.type ~= "color" then
-                        if pcall(it.set, nil, want) then applied = applied + 1 end
+                    if want ~= nil and type(it.set) == "function" then
+                        -- Two setter shapes, one loop: a colour takes (r, g, b)
+                        -- and no self, everything else takes (self, value).
+                        local ok
+                        if it.type == "color" then
+                            if type(want) == "table" then
+                                ok = pcall(it.set, want.r, want.g, want.b)
+                            end
+                        else
+                            ok = pcall(it.set, nil, want)
+                        end
+                        if ok then applied = applied + 1 end
                     end
                 end)
             end

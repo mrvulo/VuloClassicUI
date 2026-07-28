@@ -996,18 +996,25 @@ function UI:BuildOptionsPage(key, tabId)
             for _, it in ipairs(list) do
                 if type(it) == "table" then
                     if it.items then wrap(it.items) end
+                    -- Colours used to be excluded here. They are three values
+                    -- through a setter that takes no self, which is why they
+                    -- were skipped -- but skipping meant changing one while
+                    -- editing a group did nothing and said nothing. Both shapes
+                    -- are handled now; ns:NoteOverrideWrite needs the type to
+                    -- know it may keep the table (as a copy).
                     if type(it.set) == "function" and type(it.get) == "function"
-                       and it.label and it.type ~= "color"
+                       and it.label
                        and not it.noOverride and not isProfilePage then
-                        local id     = ns:OverrideId(key, tabId, it.label)
-                        local setter = it.set
-                        local getter = it.get
+                        local id       = ns:OverrideId(key, tabId, it.label)
+                        local setter   = it.set
+                        local getter   = it.get
+                        local itemType = it.type
                         it._vcOverrideId = id
                         it.set = function(...)
                             setter(...)
                             -- read back rather than read the arguments: what the
                             -- module chose to store is the value that matters
-                            ns:NoteOverrideWrite(id, getter)
+                            ns:NoteOverrideWrite(id, getter, itemType)
                         end
                     end
                 end
