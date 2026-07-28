@@ -2593,4 +2593,14 @@ ns:RegisterLocale("zhCN", function() return {
     ["What would you like to change?"] = "你想设置什么？",
     ["Worth knowing"] = "值得一看",
     ["Recently visited"] = "最近访问",
+    -- Talent overrides
+    ["active"] = "已启用",
+    ["Talent Overrides"] = "按天赋方案覆盖",
+    ["Talent group %d"] = "天赋方案 %d",
+    ["Record changes for this talent group"] = "记录此天赋方案的更改",
+    ["While this is on, every setting you change is remembered for this talent group and applied again whenever you switch back to it. Switch it off when you are done."] = "开启期间，你更改的每项设置都会为此天赋方案记住，并在你切回时再次应用。完成后请关闭。",
+    ["Recording for %s"] = "正在为 %s 记录",
+    ["%d settings overridden"] = "已覆盖 %d 项设置",
+    ["Forget all overrides for this talent group"] = "忘记此天赋方案的所有覆盖",
+    ["Overrides apply on their own when you switch talent groups. This client has no specialisations, so the dual talent system is the axis."] = "切换天赋方案时覆盖会自动生效。本客户端没有专精，因此以双天赋系统为准。",
 } end)

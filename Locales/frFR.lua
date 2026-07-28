@@ -2749,4 +2749,14 @@ ns:RegisterLocale("frFR", function() return {
     ["What would you like to change?"] = "Que souhaitez-vous régler ?",
     ["Worth knowing"] = "Bon à savoir",
     ["Recently visited"] = "Visité récemment",
+    -- Talent overrides
+    ["active"] = "actifs",
+    ["Talent Overrides"] = "Réglages par groupe de talents",
+    ["Talent group %d"] = "Groupe de talents %d",
+    ["Record changes for this talent group"] = "Enregistrer les changements pour ce groupe de talents",
+    ["While this is on, every setting you change is remembered for this talent group and applied again whenever you switch back to it. Switch it off when you are done."] = "Tant que ceci est activé, chaque réglage que vous modifiez est retenu pour ce groupe de talents et réappliqué dès que vous y revenez. Désactivez-le quand vous avez fini.",
+    ["Recording for %s"] = "Enregistrement pour %s",
+    ["%d settings overridden"] = "%d réglages remplacés",
+    ["Forget all overrides for this talent group"] = "Oublier tous les réglages de ce groupe de talents",
+    ["Overrides apply on their own when you switch talent groups. This client has no specialisations, so the dual talent system is the axis."] = "Les réglages s’appliquent seuls au changement de groupe de talents. Ce client n’a pas de spécialisations, l’axe est donc le système de double talent.",
 } end)

@@ -2600,4 +2600,14 @@ ns:RegisterLocale("ptBR", function() return {
     ["What would you like to change?"] = "O que você quer ajustar?",
     ["Worth knowing"] = "Vale saber",
     ["Recently visited"] = "Visitados recentemente",
+    -- Talent overrides
+    ["active"] = "ativos",
+    ["Talent Overrides"] = "Ajustes por grupo de talentos",
+    ["Talent group %d"] = "Grupo de talentos %d",
+    ["Record changes for this talent group"] = "Registrar mudanças para este grupo de talentos",
+    ["While this is on, every setting you change is remembered for this talent group and applied again whenever you switch back to it. Switch it off when you are done."] = "Enquanto isto estiver ligado, cada ajuste que você mudar é lembrado para este grupo de talentos e aplicado de novo sempre que você voltar a ele. Desligue quando terminar.",
+    ["Recording for %s"] = "Registrando para %s",
+    ["%d settings overridden"] = "%d ajustes substituídos",
+    ["Forget all overrides for this talent group"] = "Esquecer todos os ajustes deste grupo de talentos",
+    ["Overrides apply on their own when you switch talent groups. This client has no specialisations, so the dual talent system is the axis."] = "Os ajustes se aplicam sozinhos ao trocar de grupo de talentos. Este cliente não tem especializações, então o eixo é o sistema de talento duplo.",
 } end)

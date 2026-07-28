@@ -2600,4 +2600,14 @@ ns:RegisterLocale("ruRU", function() return {
     ["What would you like to change?"] = "Что вы хотите настроить?",
     ["Worth knowing"] = "Полезно знать",
     ["Recently visited"] = "Недавно открытые",
+    -- Talent overrides
+    ["active"] = "активно",
+    ["Talent Overrides"] = "Настройки по набору талантов",
+    ["Talent group %d"] = "Набор талантов %d",
+    ["Record changes for this talent group"] = "Запоминать изменения для этого набора",
+    ["While this is on, every setting you change is remembered for this talent group and applied again whenever you switch back to it. Switch it off when you are done."] = "Пока это включено, каждая изменённая настройка запоминается для этого набора талантов и применяется снова при возврате к нему. Выключите, когда закончите.",
+    ["Recording for %s"] = "Запись для %s",
+    ["%d settings overridden"] = "Переопределено настроек: %d",
+    ["Forget all overrides for this talent group"] = "Забыть все настройки этого набора",
+    ["Overrides apply on their own when you switch talent groups. This client has no specialisations, so the dual talent system is the axis."] = "Настройки применяются сами при смене набора талантов. В этом клиенте нет специализаций, поэтому ось — двойная система талантов.",
 } end)

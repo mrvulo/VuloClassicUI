@@ -2601,6 +2601,16 @@ local function T() return {
     ["What would you like to change?"] = "¿Qué quieres ajustar?",
     ["Worth knowing"] = "Conviene saber",
     ["Recently visited"] = "Visitado recientemente",
+    -- Talent overrides
+    ["active"] = "activos",
+    ["Talent Overrides"] = "Ajustes por grupo de talentos",
+    ["Talent group %d"] = "Grupo de talentos %d",
+    ["Record changes for this talent group"] = "Registrar cambios para este grupo de talentos",
+    ["While this is on, every setting you change is remembered for this talent group and applied again whenever you switch back to it. Switch it off when you are done."] = "Mientras esto esté activado, cada ajuste que cambies se recordará para este grupo de talentos y se aplicará de nuevo cuando vuelvas a él. Descactívalo cuando termines.",
+    ["Recording for %s"] = "Registrando para %s",
+    ["%d settings overridden"] = "%d ajustes sustituidos",
+    ["Forget all overrides for this talent group"] = "Olvidar todos los ajustes de este grupo de talentos",
+    ["Overrides apply on their own when you switch talent groups. This client has no specialisations, so the dual talent system is the axis."] = "Los ajustes se aplican solos al cambiar de grupo de talentos. Este cliente no tiene especializaciones, por eso el eje es el sistema de talentos dual.",
 } end
 
 ns:RegisterLocale("esES", T)

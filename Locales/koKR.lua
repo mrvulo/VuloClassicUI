@@ -2600,4 +2600,14 @@ ns:RegisterLocale("koKR", function() return {
     ["What would you like to change?"] = "무엇을 설정하시겠습니까?",
     ["Worth knowing"] = "알아두기",
     ["Recently visited"] = "최근 방문",
+    -- Talent overrides
+    ["active"] = "활성",
+    ["Talent Overrides"] = "특성 그룹별 설정",
+    ["Talent group %d"] = "특성 그룹 %d",
+    ["Record changes for this talent group"] = "이 특성 그룹의 변경 사항 기록",
+    ["While this is on, every setting you change is remembered for this talent group and applied again whenever you switch back to it. Switch it off when you are done."] = "켜져 있는 동안 변경하는 모든 설정이 이 특성 그룹에 기억되며, 다시 전환할 때마다 적용됩니다. 끝나면 꺼 주세요.",
+    ["Recording for %s"] = "%s에 기록 중",
+    ["%d settings overridden"] = "%d개 설정이 재정의됨",
+    ["Forget all overrides for this talent group"] = "이 특성 그룹의 모든 재정의 지우기",
+    ["Overrides apply on their own when you switch talent groups. This client has no specialisations, so the dual talent system is the axis."] = "재정의는 특성 그룹을 바꿀 때 저절로 적용됩니다. 이 클라이언트에는 전문화가 없어 이중 특성이 기준입니다.",
 } end)

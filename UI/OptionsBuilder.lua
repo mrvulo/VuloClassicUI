@@ -550,6 +550,15 @@ function UI:IsModuleActive(key)
     return false
 end
 
+-- Rebuild whatever page is open, without knowing which one that is. Used when
+-- something outside the page changes how it must be drawn -- entering or leaving
+-- the talent-override editing mode, for one.
+function UI:RebuildCurrentPage()
+    local key = UI.currentModule
+    if not key or key == UI.DASHBOARD_KEY then return end
+    UI:BuildOptionsPage(key, UI.currentTab)
+end
+
 function UI:BuildOptionsPage(key, tabId)
     local f = UI.mainFrame
     if not f then return end
@@ -597,6 +606,40 @@ function UI:BuildOptionsPage(key, tabId)
         end
     end
     if type(items) ~= "table" then items = {} end
+
+    -- One interception point for every widget type: the item table is what the
+    -- widgets read `set` from, so wrapping it here covers checkbox, slider,
+    -- dropdown and editbox at once. The items are freshly built by GetOptions on
+    -- every page build, so the wrapper never stacks.
+    if ns.NoteOverrideWrite then
+        local function wrap(list)
+            for _, it in ipairs(list) do
+                if type(it) == "table" then
+                    if it.items then wrap(it.items) end
+                    -- The profile page is excluded outright: which profile is
+                    -- active, and the switch that starts the recording itself,
+                    -- must never become per-talent-group values. Without this
+                    -- the recording switch records itself the moment it is
+                    -- turned on, and the talent switch then replays it.
+                    if type(it.set) == "function" and type(it.get) == "function"
+                       and it.label and it.type ~= "color"
+                       and not it.noOverride and key ~= "profiles" then
+                        local id     = ns:OverrideId(key, tabId, it.label)
+                        local setter = it.set
+                        local getter = it.get
+                        it._vcOverrideId = id
+                        it.set = function(...)
+                            setter(...)
+                            -- read back rather than read the arguments: what the
+                            -- module chose to store is the value that matters
+                            ns:NoteOverrideWrite(id, getter)
+                        end
+                    end
+                end
+            end
+        end
+        wrap(items)
+    end
 
     y = placeItemList(parent, items, y)
 

@@ -2733,4 +2733,14 @@ ns:RegisterLocale("deDE", function() return {
     ["What would you like to change?"] = "Was möchtest du einstellen?",
     ["Worth knowing"] = "Wissenswert",
     ["Recently visited"] = "Zuletzt besucht",
+    -- Talent overrides
+    ["active"] = "aktiv",
+    ["Talent Overrides"] = "Übersteuerungen je Talentwahl",
+    ["Talent group %d"] = "Talentwahl %d",
+    ["Record changes for this talent group"] = "Änderungen für diese Talentwahl mitschreiben",
+    ["While this is on, every setting you change is remembered for this talent group and applied again whenever you switch back to it. Switch it off when you are done."] = "Solange das an ist, wird jede Einstellung, die du änderst, für diese Talentwahl gemerkt und wieder angewendet, sobald du zu ihr zurückwechselst. Schalte es aus, wenn du fertig bist.",
+    ["Recording for %s"] = "Schreibt mit für %s",
+    ["%d settings overridden"] = "%d Einstellungen übersteuert",
+    ["Forget all overrides for this talent group"] = "Alle Übersteuerungen dieser Talentwahl vergessen",
+    ["Overrides apply on their own when you switch talent groups. This client has no specialisations, so the dual talent system is the axis."] = "Übersteuerungen greifen von selbst, sobald du die Talentwahl wechselst. Dieser Client kennt keine Spezialisierungen, deshalb ist die duale Talentwahl die Achse.",
 } end)

@@ -413,5 +413,42 @@ function mod:GetOptions()
         })
     end
 
+    -- Per-talent-group values for individual settings, so a second build does
+    -- not need a duplicate profile. Engine in Core/TalentOverrides.lua.
+    if ns.ActiveTalentGroup and ns:NumTalentGroups() > 1 then
+        local group = ns:ActiveTalentGroup()
+        local label = ns:TalentGroupLabel(group) or string.format(L["Talent group %d"], group)
+
+        table.insert(items, { type = "spacer", height = 10 })
+        table.insert(items, { type = "header", text = L["Talent Overrides"] })
+        table.insert(items, { type = "desc", text = L["Overrides apply on their own when you switch talent groups. This client has no specialisations, so the dual talent system is the axis."] })
+
+        table.insert(items, {
+            type    = "checkbox",
+            label   = L["Record changes for this talent group"],
+            tooltip = L["While this is on, every setting you change is remembered for this talent group and applied again whenever you switch back to it. Switch it off when you are done."],
+            get = function() return ns:EditingOverrideGroup() == group end,
+            set = function(_, v) ns:SetEditingOverrideGroup(v and group or nil) end,
+        })
+
+        table.insert(items, {
+            type = "desc",
+            text = (ns:EditingOverrideGroup() == group)
+                and string.format("|cff9b6cff" .. L["Recording for %s"] .. "|r", label)
+                or  string.format(L["%d settings overridden"], ns:CountOverrides(group)),
+        })
+
+        if ns:CountOverrides(group) > 0 then
+            table.insert(items, {
+                type  = "button",
+                label = L["Forget all overrides for this talent group"],
+                onClick = function()
+                    ns:ClearOverrides(group)
+                    if ns.UI and ns.UI.RebuildCurrentPage then ns.UI:RebuildCurrentPage() end
+                end,
+            })
+        end
+    end
+
     return items
 end
