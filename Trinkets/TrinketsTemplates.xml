@@ -1,0 +1,24 @@
+<Ui xmlns = "http://www.blizzard.com/wow/ui/" xmlns:xsi = "http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation = "http://www.blizzard.com/wow/ui/ ..\FrameXML\UI.xsd">
+	<!--
+		The one virtual template that has to stay XML for now.
+
+		It used to live in Trinkets.xml, which is Lua as of the conversion. But a
+		virtual template defined in Lua cannot be inherited by NAME, and
+		TrinketsOpt.xml and TrinketsQueue.xml still inherit this one nine times
+		between them. Deleting it with the rest produced nine of these:
+
+			Couldn't find inherited node: TrinketsBackdropTemplate
+
+		and every window built from it came up without its backdrop.
+
+		This file goes away with the last XML file. Nothing new should be added
+		to it -- it exists to carry a dependency across an unfinished conversion,
+		not to be a home for templates.
+	-->
+	<Frame name = "TrinketsBackdropTemplate" mixin = "TrinketsBackdropTemplateMixin" virtual = "true">
+		<Scripts>
+			<OnLoad method = "OnBackdropLoaded"/>
+			<OnSizeChanged method = "OnBackdropSizeChanged"/>
+		</Scripts>
+	</Frame>
+</Ui>
