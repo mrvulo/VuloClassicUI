@@ -2603,4 +2603,13 @@ ns:RegisterLocale("zhCN", function() return {
     ["%d settings overridden"] = "已覆盖 %d 项设置",
     ["Forget all overrides for this talent group"] = "忘记此天赋方案的所有覆盖",
     ["Overrides apply on their own when you switch talent groups. This client has no specialisations, so the dual talent system is the axis."] = "切换天赋方案时覆盖会自动生效。本客户端没有专精，因此以双天赋系统为准。",
+    -- Override groups
+    ["Talent group %d (%s)"] = "天赋方案 %d (%s)",
+    ["Name for the new group"] = "新分组的名称",
+    ["Editing as"] = "正在编辑",
+    ["Yourself"] = "你自己",
+    ["Manage groups..."] = "管理分组...",
+    ["Owns the current talent group"] = "适用于当前天赋方案",
+    ["Delete this group"] = "删除此分组",
+    ["No groups yet."] = "尚无分组。",
 } end)

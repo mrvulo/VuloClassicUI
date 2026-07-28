@@ -2743,4 +2743,13 @@ ns:RegisterLocale("deDE", function() return {
     ["%d settings overridden"] = "%d Einstellungen übersteuert",
     ["Forget all overrides for this talent group"] = "Alle Übersteuerungen dieser Talentwahl vergessen",
     ["Overrides apply on their own when you switch talent groups. This client has no specialisations, so the dual talent system is the axis."] = "Übersteuerungen greifen von selbst, sobald du die Talentwahl wechselst. Dieser Client kennt keine Spezialisierungen, deshalb ist die duale Talentwahl die Achse.",
+    -- Override groups
+    ["Talent group %d (%s)"] = "Talentwahl %d (%s)",
+    ["Name for the new group"] = "Name der neuen Gruppe",
+    ["Editing as"] = "Bearbeiten als",
+    ["Yourself"] = "Ich selbst",
+    ["Manage groups..."] = "Gruppen verwalten...",
+    ["Owns the current talent group"] = "Gilt für die aktuelle Talentwahl",
+    ["Delete this group"] = "Diese Gruppe löschen",
+    ["No groups yet."] = "Noch keine Gruppen.",
 } end)

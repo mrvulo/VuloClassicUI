@@ -416,41 +416,60 @@ function mod:GetOptions()
     -- Per-talent-group values for individual settings, so a second build does
     -- not need a duplicate profile. Engine in Core/TalentOverrides.lua.
     -- Gated on the API existing, NOT on a group count: the client offers no way
-    -- to ask how many talent groups a character has. A character who only ever
-    -- uses one simply never sees the values differ.
+    -- to ask how many talent groups a character has.
     if ns.HasTalentGroups and ns:HasTalentGroups() then
-        local group = ns:ActiveTalentGroup()
-        local label = ns:TalentGroupLabel(group) or string.format(L["Talent group %d"], group)
+        local active = ns:ActiveTalentGroup()
 
         table.insert(items, { type = "spacer", height = 10 })
         table.insert(items, { type = "header", text = L["Talent Overrides"] })
         table.insert(items, { type = "desc", text = L["Overrides apply on their own when you switch talent groups. This client has no specialisations, so the dual talent system is the axis."] })
+        table.insert(items, { type = "desc", text = "|cff888888" .. ns:TalentGroupText(active) .. "|r" })
 
-        table.insert(items, {
-            type    = "checkbox",
-            label   = L["Record changes for this talent group"],
-            tooltip = L["While this is on, every setting you change is remembered for this talent group and applied again whenever you switch back to it. Switch it off when you are done."],
-            get = function() return ns:EditingOverrideGroup() == group end,
-            set = function(_, v) ns:SetEditingOverrideGroup(v and group or nil) end,
-        })
-
-        table.insert(items, {
-            type = "desc",
-            text = (ns:EditingOverrideGroup() == group)
-                and string.format("|cff9b6cff" .. L["Recording for %s"] .. "|r", label)
-                or  string.format(L["%d settings overridden"], ns:CountOverrides(group)),
-        })
-
-        if ns:CountOverrides(group) > 0 then
+        local groups = ns:OverrideGroups()
+        local any = false
+        for id, g in pairs(groups) do
+            any = true
+            table.insert(items, { type = "spacer", height = 6 })
             table.insert(items, {
-                type  = "button",
-                label = L["Forget all overrides for this talent group"],
-                onClick = function()
-                    ns:ClearOverrides(group)
+                type  = "desc",
+                text  = "|cffffffff" .. g.name .. "|r  |cff666666"
+                        .. string.format(L["%d settings overridden"], ns:CountOverrides(id)) .. "|r",
+            })
+            table.insert(items, {
+                type    = "checkbox",
+                label   = L["Owns the current talent group"],
+                -- noOverride: the override machinery must never record its own
+                -- controls, or turning one on would store it as a value.
+                noOverride = true,
+                get = function() return (g.members and g.members[active]) and true or false end,
+                set = function(_, v)
+                    ns:AssignTalentGroup(active, v and id or nil)
                     if ns.UI and ns.UI.RebuildCurrentPage then ns.UI:RebuildCurrentPage() end
                 end,
             })
+            table.insert(items, { type = "group", layout = "row", noCard = true, items = {
+                { type = "button", label = L["Forget all overrides for this talent group"],
+                  onClick = function()
+                      ns:ClearOverrides(id)
+                      if ns.UI and ns.UI.RebuildCurrentPage then ns.UI:RebuildCurrentPage() end
+                  end },
+                { type = "button", label = L["Delete this group"],
+                  onClick = function()
+                      ns:DeleteOverrideGroup(id)
+                      if ns.UI and ns.UI.RebuildCurrentPage then ns.UI:RebuildCurrentPage() end
+                  end },
+            } })
         end
+
+        if not any then
+            table.insert(items, { type = "desc", text = "|cff888888" .. L["No groups yet."] .. "|r" })
+        end
+
+        table.insert(items, {
+            type  = "button",
+            label = L["New group..."],
+            onClick = function() StaticPopup_Show("VCUI_OVERRIDE_GROUP_NEW") end,
+        })
     end
 
     return items

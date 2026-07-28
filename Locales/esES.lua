@@ -2611,6 +2611,15 @@ local function T() return {
     ["%d settings overridden"] = "%d ajustes sustituidos",
     ["Forget all overrides for this talent group"] = "Olvidar todos los ajustes de este grupo de talentos",
     ["Overrides apply on their own when you switch talent groups. This client has no specialisations, so the dual talent system is the axis."] = "Los ajustes se aplican solos al cambiar de grupo de talentos. Este cliente no tiene especializaciones, por eso el eje es el sistema de talentos dual.",
+    -- Override groups
+    ["Talent group %d (%s)"] = "Grupo de talentos %d (%s)",
+    ["Name for the new group"] = "Nombre del nuevo grupo",
+    ["Editing as"] = "Editando como",
+    ["Yourself"] = "Tú mismo",
+    ["Manage groups..."] = "Gestionar grupos...",
+    ["Owns the current talent group"] = "Se aplica al grupo de talentos actual",
+    ["Delete this group"] = "Eliminar este grupo",
+    ["No groups yet."] = "Aún no hay grupos.",
 } end
 
 ns:RegisterLocale("esES", T)

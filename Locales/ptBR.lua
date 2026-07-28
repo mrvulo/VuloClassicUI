@@ -2610,4 +2610,13 @@ ns:RegisterLocale("ptBR", function() return {
     ["%d settings overridden"] = "%d ajustes substituídos",
     ["Forget all overrides for this talent group"] = "Esquecer todos os ajustes deste grupo de talentos",
     ["Overrides apply on their own when you switch talent groups. This client has no specialisations, so the dual talent system is the axis."] = "Os ajustes se aplicam sozinhos ao trocar de grupo de talentos. Este cliente não tem especializações, então o eixo é o sistema de talento duplo.",
+    -- Override groups
+    ["Talent group %d (%s)"] = "Grupo de talentos %d (%s)",
+    ["Name for the new group"] = "Nome do novo grupo",
+    ["Editing as"] = "Editando como",
+    ["Yourself"] = "Você mesmo",
+    ["Manage groups..."] = "Gerenciar grupos...",
+    ["Owns the current talent group"] = "Vale para o grupo de talentos atual",
+    ["Delete this group"] = "Excluir este grupo",
+    ["No groups yet."] = "Nenhum grupo ainda.",
 } end)

@@ -2610,4 +2610,13 @@ ns:RegisterLocale("koKR", function() return {
     ["%d settings overridden"] = "%d개 설정이 재정의됨",
     ["Forget all overrides for this talent group"] = "이 특성 그룹의 모든 재정의 지우기",
     ["Overrides apply on their own when you switch talent groups. This client has no specialisations, so the dual talent system is the axis."] = "재정의는 특성 그룹을 바꿀 때 저절로 적용됩니다. 이 클라이언트에는 전문화가 없어 이중 특성이 기준입니다.",
+    -- Override groups
+    ["Talent group %d (%s)"] = "특성 그룹 %d (%s)",
+    ["Name for the new group"] = "새 그룹 이름",
+    ["Editing as"] = "편집 대상",
+    ["Yourself"] = "나 자신",
+    ["Manage groups..."] = "그룹 관리...",
+    ["Owns the current talent group"] = "현재 특성 그룹에 적용",
+    ["Delete this group"] = "이 그룹 삭제",
+    ["No groups yet."] = "아직 그룹이 없습니다.",
 } end)

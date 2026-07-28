@@ -2603,4 +2603,13 @@ ns:RegisterLocale("zhTW", function() return {
     ["%d settings overridden"] = "已覆寫 %d 項設定",
     ["Forget all overrides for this talent group"] = "忘記此天賦方案的所有覆寫",
     ["Overrides apply on their own when you switch talent groups. This client has no specialisations, so the dual talent system is the axis."] = "切換天賦方案時覆寫會自動生效。本客戶端沒有專精，因此以雙天賦系統為準。",
+    -- Override groups
+    ["Talent group %d (%s)"] = "天賦方案 %d (%s)",
+    ["Name for the new group"] = "新群組的名稱",
+    ["Editing as"] = "正在編輯",
+    ["Yourself"] = "你自己",
+    ["Manage groups..."] = "管理群組...",
+    ["Owns the current talent group"] = "適用於目前天賦方案",
+    ["Delete this group"] = "刪除此群組",
+    ["No groups yet."] = "尚無群組。",
 } end)

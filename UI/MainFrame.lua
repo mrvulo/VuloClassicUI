@@ -418,6 +418,55 @@ function UI:CreateMainFrame()
     -- own, so there is only ever one search implementation.
     f.searchBox       = searchBox
 
+    -- Override-group picker, left of the search box. It only appears where the
+    -- talent API exists, so a client without it shows no dead control.
+    if ns.HasTalentGroups and ns:HasTalentGroups() then
+        local ovBtn = CreateFrame("Button", nil, titleBar)
+        ovBtn:SetSize(22, 20)
+        ovBtn:SetPoint("RIGHT", searchBox, "LEFT", -6, 0)
+
+        local glyph = ovBtn:CreateTexture(nil, "ARTWORK")
+        glyph:SetSize(14, 14)
+        glyph:SetPoint("CENTER")
+        glyph:SetTexture("Interface\\Buttons\\UI-GuildButton-PublicNote-Up")
+        ovBtn._glyph = glyph
+
+        local hl = ovBtn:CreateTexture(nil, "HIGHLIGHT")
+        hl:SetAllPoints(ovBtn)
+        hl:SetColorTexture(1, 1, 1, 0.08)
+
+        ovBtn:SetScript("OnClick", function(self)
+            if ns.ShowOverrideMenu then ns:ShowOverrideMenu(self) end
+        end)
+        ovBtn:SetScript("OnEnter", function(self)
+            if not GameTooltip then return end
+            GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+            GameTooltip:AddLine(L["Editing as"])
+            local id = ns.EditingOverrideGroup and ns:EditingOverrideGroup()
+            local g  = id and ns:OverrideGroup(id)
+            GameTooltip:AddLine(g and g.name or L["Yourself"], 0.7, 0.7, 0.8)
+            GameTooltip:Show()
+        end)
+        ovBtn:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+
+        f.overrideBtn = ovBtn
+
+        -- Accent while a group is being recorded into: the whole suite behaves
+        -- differently then, and that has to be visible from anywhere in it.
+        function UI:RefreshOverrideButton()
+            local b = UI.mainFrame and UI.mainFrame.overrideBtn
+            if not b then return end
+            local on = ns.EditingOverrideGroup and ns:EditingOverrideGroup() ~= nil
+            local a  = ns.COLORS.accent
+            if on then
+                b._glyph:SetVertexColor(a.r, a.g, a.b)
+            else
+                b._glyph:SetVertexColor(0.62, 0.62, 0.70)
+            end
+        end
+        UI:RefreshOverrideButton()
+    end
+
     f.sidebar         = sidebar
     f.sidebarContent  = sidebarContent
     f.sidebarScroll   = sidebarScroll

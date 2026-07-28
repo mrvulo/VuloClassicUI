@@ -2610,4 +2610,13 @@ ns:RegisterLocale("ruRU", function() return {
     ["%d settings overridden"] = "Переопределено настроек: %d",
     ["Forget all overrides for this talent group"] = "Забыть все настройки этого набора",
     ["Overrides apply on their own when you switch talent groups. This client has no specialisations, so the dual talent system is the axis."] = "Настройки применяются сами при смене набора талантов. В этом клиенте нет специализаций, поэтому ось — двойная система талантов.",
+    -- Override groups
+    ["Talent group %d (%s)"] = "Набор талантов %d (%s)",
+    ["Name for the new group"] = "Название новой группы",
+    ["Editing as"] = "Редактируется как",
+    ["Yourself"] = "Вы сами",
+    ["Manage groups..."] = "Управление группами...",
+    ["Owns the current talent group"] = "Действует для текущего набора талантов",
+    ["Delete this group"] = "Удалить эту группу",
+    ["No groups yet."] = "Групп пока нет.",
 } end)
