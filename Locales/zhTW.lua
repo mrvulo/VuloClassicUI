@@ -279,7 +279,6 @@ ns:RegisterLocale("zhTW", function() return {
     ["Automatically equips a loadout when you switch between Spec 1 and Spec 2 (dual spec). Bind each loadout to a spec below. Requires dual spec to be active."] = "當你在專精 1 與專精 2 之間切換時（雙天賦）自動裝備配置。請在下方將每個配置綁定到一個專精。需要啟用雙天賦。",
     ["Auto-equip on spec"] = "依專精自動裝備",
     ["Equip this loadout automatically when you switch to this spec."] = "當你切換到此專精時，自動裝備此配置。",
-    ["Spec %d"] = "專精 %d",
     ["None"] = "無",
     ["No Form"] = "無形態",
     ["Form %d"] = "形態 %d",

@@ -282,7 +282,6 @@ ns:RegisterLocale("koKR", function() return {
     ["Automatically equips a loadout when you switch between Spec 1 and Spec 2 (dual spec). Bind each loadout to a spec below. Requires dual spec to be active."] = "특성 1과 특성 2를 전환할 때(이중 특성) 장비 세트를 자동으로 착용합니다. 아래에서 각 장비 세트를 특성에 연결하십시오. 이중 특성이 활성화되어 있어야 합니다.",
     ["Auto-equip on spec"] = "특성 전환 시 자동 착용",
     ["Equip this loadout automatically when you switch to this spec."] = "이 특성으로 전환하면 이 장비 세트를 자동으로 착용합니다.",
-    ["Spec %d"] = "특성 %d",
     ["None"] = "없음",
     ["No Form"] = "변신 없음",
     ["Form %d"] = "변신 %d",

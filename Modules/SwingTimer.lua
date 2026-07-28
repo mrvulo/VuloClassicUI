@@ -18,14 +18,12 @@ local MELEE_TREES = {
 -- most points wins. Returns nil while talents are unreadable (very early login,
 -- or a character with no points yet), which callers treat as "don't judge".
 local function dominantTree()
-    if not (GetNumTalentTabs and GetTalentTabInfo) then return nil end
-    local best, bestPts = nil, 0
-    for i = 1, (GetNumTalentTabs() or 0) do
-        local ok, _, _, pts = pcall(GetTalentTabInfo, i)
-        if ok and (pts or 0) > bestPts then best, bestPts = i, pts end
-    end
-    if bestPts <= 0 then return nil end
-    return best
+    -- Was GetTalentTabInfo, reading return slot 3 as the point count. That is
+    -- right for the original function and wrong for the deprecation shim, which
+    -- answers (specId, name, description, ...) -- so slot 3 came back a STRING
+    -- and the comparison below it raised rather than misjudging quietly.
+    -- Core/TalentOverrides asks C_SpecializationInfo and type-checks the count.
+    return ns:DominantTalentTree()
 end
 
 local function isMeleeSpec()

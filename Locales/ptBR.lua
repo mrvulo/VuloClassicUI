@@ -657,7 +657,6 @@ ns:RegisterLocale("ptBR", function() return {
     ["Automatically equips a loadout when you switch between Spec 1 and Spec 2 (dual spec). Bind each loadout to a spec below. Requires dual spec to be active."] = "Equipa automaticamente um conjunto quando você alterna entre a Especialização 1 e a Especialização 2 (especialização dupla). Vincule cada conjunto a uma especialização abaixo. Requer especialização dupla ativa.",
     ["Auto-equip on spec"] = "Equipar automaticamente na especialização",
     ["Equip this loadout automatically when you switch to this spec."] = "Equipa este conjunto automaticamente quando você troca para esta especialização.",
-    ["Spec %d"] = "Espec. %d",
     ["None"] = "Nenhum",
     ["No Form"] = "Sem Forma",
     ["Form %d"] = "Forma %d",

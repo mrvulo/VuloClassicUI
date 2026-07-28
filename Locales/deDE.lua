@@ -298,7 +298,6 @@ ns:RegisterLocale("deDE", function() return {
     ["Automatically equips a loadout when you switch between Spec 1 and Spec 2 (dual spec). Bind each loadout to a spec below. Requires dual spec to be active."] = "Legt automatisch ein Set an, wenn du zwischen Spec 1 und Spec 2 wechselst (Dual-Spec). Binde unten jedes Set an eine Spec. Erfordert aktive Dual-Spec.",
     ["Auto-equip on spec"] = "Auto-Anlegen bei Spec",
     ["Equip this loadout automatically when you switch to this spec."] = "Legt dieses Set automatisch an, wenn du zu dieser Spec wechselst.",
-    ["Spec %d"] = "Spec %d",
     ["None"] = "Keine",
     ["No Form"] = "Keine Gestalt",
     ["Form %d"] = "Gestalt %d",

@@ -71,7 +71,14 @@ end
 -- point count is right for one and reads the DESCRIPTION for the other, and
 -- there is no way to tell which one answered. A missing label is honest; a label
 -- built from the wrong slot is not.
-function ns:TalentGroupLabel(group)
+-- Returns INDEX, NAME of the tree holding the most points in that group, or nil
+-- while talent data is not loaded. Two callers want two halves of this: a label
+-- wants the name, a module deciding "is this a melee build" wants the index, and
+-- both used to walk the trees themselves with their own idea of which return
+-- slot holds the point count -- which is the very thing that went wrong.
+--
+-- The index is the class's tree order, the same 1..3 the talent frame shows.
+function ns:DominantTalentTree(group)
     if not (SI and SI.GetSpecializationInfo and UnitClass) then return nil end
 
     local classID = select(3, UnitClass("player"))
@@ -79,18 +86,23 @@ function ns:TalentGroupLabel(group)
     local okN, numTrees = pcall(SI.GetNumSpecializationsForClassID, classID)
     if not okN or type(numTrees) ~= "number" then return nil end
 
-    local best, bestPoints
+    local bestIdx, bestName, bestPoints
     for i = 1, numTrees do
         -- returns: specId, name, description, icon, role, primaryStat, pointsSpent, ...
         local ok, _, name, _, _, _, _, points =
             pcall(SI.GetSpecializationInfo, i, false, false, nil, nil, group)
         if ok and type(points) == "number" and (not bestPoints or points > bestPoints) then
-            bestPoints = points
-            best = (type(name) == "string" and name ~= "") and name or nil
+            bestPoints, bestIdx = points, i
+            bestName = (type(name) == "string" and name ~= "") and name or nil
         end
     end
-    if bestPoints and bestPoints > 0 then return best end
+    if bestPoints and bestPoints > 0 then return bestIdx, bestName end
     return nil
+end
+
+function ns:TalentGroupLabel(group)
+    local _, name = ns:DominantTalentTree(group)
+    return name
 end
 
 -- "Talent group 2 (Shadow)" where the tree is known, else just the number.

@@ -282,7 +282,6 @@ ns:RegisterLocale("itIT", function() return {
     ["Automatically equips a loadout when you switch between Spec 1 and Spec 2 (dual spec). Bind each loadout to a spec below. Requires dual spec to be active."] = "Equipaggia automaticamente un loadout quando passi tra Spec 1 e Spec 2 (doppia spec). Associa ogni loadout a una spec qui sotto. Richiede la doppia spec attiva.",
     ["Auto-equip on spec"] = "Equipaggia automaticamente con la spec",
     ["Equip this loadout automatically when you switch to this spec."] = "Equipaggia automaticamente questo loadout quando passi a questa spec.",
-    ["Spec %d"] = "Spec %d",
     ["None"] = "Nessuno",
     ["No Form"] = "Nessuna forma",
     ["Form %d"] = "Forma %d",

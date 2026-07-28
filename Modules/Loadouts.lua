@@ -503,12 +503,10 @@ _G.SlashCmdList["VCUILOADOUT"] = function(msg)
             ns:Print(L["Usage: /loadout equip <name> | save <name> | delete <name> | list"])
         end
     elseif cmd == "spec" then
-        local active = (GetActiveTalentGroup and select(1, pcall(GetActiveTalentGroup))) and GetActiveTalentGroup() or "?"
-        local numG   = (GetNumTalentGroups  and select(1, pcall(GetNumTalentGroups)))  and GetNumTalentGroups()  or "?"
         DEFAULT_CHAT_FRAME:AddMessage("|cff9b6cff[Loadouts spec debug]|r")
-        DEFAULT_CHAT_FRAME:AddMessage(string.format("  GetActiveTalentGroup() = %s", tostring(active)))
-        DEFAULT_CHAT_FRAME:AddMessage(string.format("  GetNumTalentGroups()   = %s", tostring(numG)))
-        DEFAULT_CHAT_FRAME:AddMessage(string.format("  specSwitchEnabled      = %s", tostring(mod.db.specSwitchEnabled)))
+        DEFAULT_CHAT_FRAME:AddMessage(string.format("  talent groups supported = %s", tostring(ns:HasTalentGroups())))
+        DEFAULT_CHAT_FRAME:AddMessage(string.format("  active talent group     = %s", tostring(ns:ActiveTalentGroup())))
+        DEFAULT_CHAT_FRAME:AddMessage(string.format("  specSwitchEnabled       = %s", tostring(mod.db.specSwitchEnabled)))
         local anyMap = false
         for name, g in pairs(specMap() or {}) do
             DEFAULT_CHAT_FRAME:AddMessage(string.format("  mapping: '%s' -> spec %d", name, g))
@@ -745,53 +743,43 @@ end
 
 local _lastSpecGroup = -1
 
+-- These asked the deprecated talent globals directly, and two of the answers
+-- were wrong in a way nothing reported. Both verified against the client source:
+--
+--   * GetNumTalentGroups DOES NOT EXIST -- not as a function, not as a
+--     deprecated alias. The count below was therefore always 1, every `>= 2`
+--     gate that guards spec binding was always false, and the whole feature was
+--     unreachable on this client. Nothing errored, so nothing complained.
+--   * GetTalentTabInfo lives only in Blizzard_DeprecatedSpecialization, and the
+--     shim answers (specId, name, description, icon, pointsSpent, ...) where the
+--     original answered (name, icon, pointsSpent, ...). Reading position 3 as
+--     the point count reads the DESCRIPTION whenever the shim is what replied.
+--
+-- Core/TalentOverrides already worked this out on C_SpecializationInfo. Asking
+-- it keeps one answer for a question two features now ask.
 local function getActiveSpecGroup()
-    if GetActiveTalentGroup then
-        local ok, g = pcall(GetActiveTalentGroup)
-        if ok and g then return g end
-    end
-    return 1
+    return ns:ActiveTalentGroup()
 end
 
 local function getNumSpecGroups()
-    if GetNumTalentGroups then
-        local ok, n = pcall(GetNumTalentGroups)
-        if ok and n then return n end
+    local SI = _G.C_SpecializationInfo
+    if SI and SI.GetNumSpecGroups then
+        local ok, n = pcall(SI.GetNumSpecGroups)
+        if ok and type(n) == "number" and n > 0 then return n end
     end
-    return 1
-end
-
--- 4th param of GetTalentTabInfo/GetTalentInfo is the talent group — omitting it reads the active spec.
-local function getTabPoints(tab, group)
-    if GetTalentTabInfo then
-        local _, _, pointsSpent = GetTalentTabInfo(tab, false, false, group)
-        if type(pointsSpent) == "number" then return pointsSpent end
-    end
-    local total = 0
-    local numTalents = (GetNumTalents and GetNumTalents(tab)) or 0
-    for t = 1, numTalents do
-        local rank = select(5, GetTalentInfo(tab, t, false, false, group))
-        total = total + (tonumber(rank) or 0)
-    end
-    return total
+    -- No count to be had. Assume the two the dual talent system has, provided
+    -- the client has talent groups at all. Offering a binding for a group the
+    -- character never bought costs nothing -- it simply never fires -- whereas
+    -- refusing to offer one hides the feature from everybody, which is exactly
+    -- the bug this replaces.
+    return ns:HasTalentGroups() and 2 or 1
 end
 
 local function getSpecGroupLabel(group)
-    local numTabs = (GetNumTalentTabs and GetNumTalentTabs()) or 0
-    local bestName, bestPoints = nil, -1
-    for tab = 1, numTabs do
-        local pts = getTabPoints(tab, group)
-        if pts > bestPoints then
-            bestPoints = pts
-            local name = GetTalentTabInfo and GetTalentTabInfo(tab, false, false, group)
-            if type(name) == "string" and name ~= "" then bestName = name else bestName = nil end
-        end
-    end
-    local base = string.format(L["Spec %d"], group)
-    if bestName and bestPoints > 0 then
-        return string.format("%s (%s)", base, bestName)
-    end
-    return base
+    -- "Talent group 2 (Shadow)", or just the number while talent data is not
+    -- loaded. Same wording the override groups use, so the two features do not
+    -- name the same thing two ways.
+    return ns:TalentGroupText(group)
 end
 
 local function onTalentChange()

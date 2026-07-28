@@ -282,7 +282,6 @@ ns:RegisterLocale("ruRU", function() return {
     ["Automatically equips a loadout when you switch between Spec 1 and Spec 2 (dual spec). Bind each loadout to a spec below. Requires dual spec to be active."] = "Автоматически надевает набор при переключении между специализациями 1 и 2 (двойная специализация). Привяжите наборы к специализациям ниже. Требуется активная двойная специализация.",
     ["Auto-equip on spec"] = "Автонадевание при специализации",
     ["Equip this loadout automatically when you switch to this spec."] = "Автоматически надевать этот набор при переходе на эту специализацию.",
-    ["Spec %d"] = "Специализация %d",
     ["None"] = "Нет",
     ["No Form"] = "Без облика",
     ["Form %d"] = "Облик %d",

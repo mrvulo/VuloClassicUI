@@ -283,7 +283,6 @@ local function T() return {
     ["Automatically equips a loadout when you switch between Spec 1 and Spec 2 (dual spec). Bind each loadout to a spec below. Requires dual spec to be active."] = "Equipa automáticamente un conjunto cuando cambias entre Especialización 1 y Especialización 2 (doble especialización). Asocia abajo cada conjunto a una especialización. Requiere tener la doble especialización activa.",
     ["Auto-equip on spec"] = "Equipar automáticamente con la especialización",
     ["Equip this loadout automatically when you switch to this spec."] = "Equipa este conjunto automáticamente cuando cambies a esta especialización.",
-    ["Spec %d"] = "Especialización %d",
     ["None"] = "Ninguno",
     ["No Form"] = "Sin forma",
     ["Form %d"] = "Forma %d",
