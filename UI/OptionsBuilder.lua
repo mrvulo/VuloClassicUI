@@ -556,8 +556,13 @@ placeItem = function(parent, item, y)
         p:Show()
         widget:SetFrameLevel(base + 4)
 
+        -- The label identifies the row across rebuilds, which is what keeps a
+        -- gear open while you change the value under it. Two rows on one page
+        -- CAN share a label though -- the trinket page has an "Order" row per
+        -- trinket slot -- and then one gear opens both. item.subKey is the way
+        -- out: a page that builds repeated rows says which is which.
         local key = (UI._currentBuildKey or "?") .. "/" .. (UI.currentTab or "")
-            .. "/r/" .. tostring(item.label or item.text or item)
+            .. "/r/" .. tostring(item.subKey or item.label or item.text or item)
         local expanded = UI.rowExpanded[key]
 
         local iconRight = CONTENT_PADDING + availW - 6

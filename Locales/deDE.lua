@@ -930,7 +930,6 @@ ns:RegisterLocale("deDE", function() return {
     ["Remove"] = "Entfernen",
     ["Add from bags"] = "Aus Taschen hinzufügen",
     ["Adds a trinket you are carrying to the end of this list."] = "Hängt ein Schmuckstück aus deinen Taschen ans Ende der Liste.",
-    ["Settings for: %s"] = "Einstellungen für: %s",
     ["Swap delay"] = "Wechselverzögerung",
     ["Seconds this trinket stays equipped before the queue swaps it out again. 0 = no wait."] = "Sekunden, die dieses Schmuckstück angelegt bleibt, bevor die Warteschlange wieder tauscht. 0 = kein Warten.",
     ["Priority"] = "Vorrang",

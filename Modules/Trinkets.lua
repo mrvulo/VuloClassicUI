@@ -195,6 +195,32 @@ local function addableValues(which)
     return out
 end
 
+-- What the picked entry can carry. nil when nothing is picked or when the pick
+-- is the stop marker, and then no gear appears at all -- an empty expander is
+-- worse than none.
+local function entrySettings(which)
+    local id = selectedId(which)
+    if not id or isStopMarker(id) then return nil end
+    return {
+        { type = "slider", label = L["Swap delay"],
+          min = 0, max = 60, step = 1,
+          tooltip = L["Seconds this trinket stays equipped before the queue swaps it out again. 0 = no wait."],
+          get = function() local s = stats(which); return (s and s.delay) or 0 end,
+          set = function(_, v)
+              local s = stats(which, true)
+              if s then s.delay = (v ~= 0) and v or nil end
+          end },
+        { type = "checkbox", label = L["Priority"],
+          tooltip = L["This trinket is swapped in ahead of the ones above it once it is ready."],
+          get = function() local s = stats(which); return (s and s.priority) and true or false end,
+          set = function(_, v) local s = stats(which, true); if s then s.priority = v or nil end end },
+        { type = "checkbox", label = L["Pause while equipped"],
+          tooltip = L["While this trinket is worn the queue holds still - for a trinket whose effect you do not want cut short."],
+          get = function() local s = stats(which); return (s and s.keep) and true or false end,
+          set = function(_, v) local s = stats(which, true); if s then s.keep = v or nil end end },
+    }
+end
+
 local function queueSection(which, title)
     local list = queueList(which)
 
@@ -221,9 +247,15 @@ local function queueSection(which, title)
               if Trinkets and Trinkets.UpdateCombatQueue then Trinkets.UpdateCombatQueue() end
           end },
 
+        -- The picked entry's own settings hang off this row's gear rather than
+        -- lying loose underneath it: they belong to whatever is selected here,
+        -- and the gear says so. subKey because both slots have an "Order" row
+        -- and the expansion state is keyed by label.
         { type = "dropdown", label = L["Order"], width = 260,
+          subKey = "trinketOrder" .. which,
           tooltip = L["The queue works through this list from the top. Pick an entry to move it or to change its settings."],
           values = rows,
+          subOptions = entrySettings(which),
           get = function() return selected[which] end,
           set = function(_, v) selected[which] = tonumber(v) or 1; rebuild() end },
 
@@ -247,28 +279,6 @@ local function queueSection(which, title)
                 if Trinkets and Trinkets.AddToSort then Trinkets.AddToSort(which, v) end
                 rebuild()
             end }
-    end
-
-    if list[selected[which]] and not isStopMarker(selectedId(which)) then
-        items[#items + 1] = { type = "spacer", height = 4 }
-        items[#items + 1] = { type = "desc",
-            text = "|cffaaaaaa" .. string.format(L["Settings for: %s"], queueName(selectedId(which))) .. "|r" }
-        items[#items + 1] = { type = "slider", label = L["Swap delay"],
-            min = 0, max = 60, step = 1,
-            tooltip = L["Seconds this trinket stays equipped before the queue swaps it out again. 0 = no wait."],
-            get = function() local s = stats(which); return (s and s.delay) or 0 end,
-            set = function(_, v)
-                local s = stats(which, true)
-                if s then s.delay = (v ~= 0) and v or nil end
-            end }
-        items[#items + 1] = { type = "checkbox", label = L["Priority"],
-            tooltip = L["This trinket is swapped in ahead of the ones above it once it is ready."],
-            get = function() local s = stats(which); return (s and s.priority) and true or false end,
-            set = function(_, v) local s = stats(which, true); if s then s.priority = v or nil end end }
-        items[#items + 1] = { type = "checkbox", label = L["Pause while equipped"],
-            tooltip = L["While this trinket is worn the queue holds still - for a trinket whose effect you do not want cut short."],
-            get = function() local s = stats(which); return (s and s.keep) and true or false end,
-            set = function(_, v) local s = stats(which, true); if s then s.keep = v or nil end end }
     end
 
     return { type = "section", title = title, items = items }
