@@ -10,17 +10,23 @@
 -- owning group's values. "Yourself" means no group is being edited -- the plain
 -- profile values are live.
 --
--- WHY NOT "SPECIALISATIONS": this client has none. Verified against the
--- unpacked client source:
---   * GetNumTalentGroups does NOT EXIST -- not as a function, not as a
---     deprecated alias. There is no way to ask how many talent groups a
---     character has, so nothing may gate on that number.
+-- WHY NOT "SPECIALISATIONS": this client has none. What the talent globals do
+-- and do not offer:
 --   * GetActiveTalentGroup, GetTalentTabInfo and GetNumTalentTabs exist ONLY
 --     inside Blizzard_DeprecatedSpecialization, behind the
 --     `loadDeprecationFallbacks` CVar. They can be switched off today and
---     removed tomorrow.
+--     removed tomorrow, so nothing may depend on them ALONE -- but they do
+--     answer today, so they are a fine second source behind the real one.
 --   * The real API is C_SpecializationInfo. Capability is what we test for,
 --     never the client version.
+--
+-- CORRECTED 28.07.2026: this comment used to claim GetNumTalentGroups did not
+-- exist at all, "verified against the unpacked client source". It exists and it
+-- answers -- `/loadout spec` printed 2 on a live client. Modules/Loadouts.lua
+-- had its fallback removed on the strength of that wrong reading, which would
+-- have offered a second talent group to characters who never bought one.
+-- LESSON: when a claim about the client can be settled by asking the running
+-- game, ask the game. A source reading is evidence, not proof.
 --
 -- HOW A SETTING IS IDENTIFIED
 -- Our options are not paths. A module hands out { get = fn, set = fn } closures
