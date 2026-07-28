@@ -1,18 +1,24 @@
 --[[ Trinkets 11.1.8 ]]--
+-- Not reached through the global _G.VuloClassicUI any more. Our TOC loads this
+-- file like every other, so it gets the addon vararg and can hold `ns` itself.
+-- Going through the global is what let a missing namespace slip past review:
+-- nothing in the file said which addon it belonged to, so `ns` read as a plain
+-- global and only broke at OnLoad, in the game.
+local _, ns = ...
 
 Trinkets = { }
 
 local _G, math, tonumber, string, type, pairs, ipairs, table, select = _G, math, tonumber, string, type, pairs, ipairs, table, select
 
--- Host addon's locale table, resolved per lookup; keys fall back to themselves.
+-- Our locale table, resolved per lookup so it survives ns.L being filled after
+-- this file loads; keys fall back to themselves.
 local VL = setmetatable({}, { __index = function(_, k)
-	local host = _G.VuloClassicUI
-	return (host and host.L and host.L[k]) or k
+	return (ns.L and ns.L[k]) or k
 end })
 Trinkets.VL = VL
 
 -- isEra covers both Classic Era and Season of Discovery (both are WOW_PROJECT_CLASSIC).
-local _vui = _G.VuloClassicUI
+local _vui = ns
 local IsClassic = (_vui and _vui.isClassic) or (WOW_PROJECT_ID and WOW_PROJECT_ID >= WOW_PROJECT_CLASSIC) or false
 local IsVanillaClassic = (_vui and _vui.isEra) or (WOW_PROJECT_ID == WOW_PROJECT_CLASSIC)
 local IsRetail = WOW_PROJECT_ID == WOW_PROJECT_MAINLINE
@@ -472,17 +478,10 @@ function Trinkets.OnLoad(self)
 	self:OnBackdropLoaded()
 	self:SetBackdropColor(0.0, 0.0, 0.0)
 	self:SetBackdropBorderColor(0.0, 0.0, 0.0)
-	-- This file is a vendored sub-addon and has no `local _, ns = ...` of its
-	-- own -- it reaches the host through the global, the same way VL above does.
-	-- Guarded because the host owning the command list is not this file's
-	-- business to assume.
-	local host = _G.VuloClassicUI
-	if host and host.RegisterSlash then
-		host.Slash.TRINKETS = Trinkets.SlashHandler
-		host:RegisterSlash({ key = "TRINKETS", commands = { "/Trinkets", "/trinket" },
-			desc = "Trinket tracker: show, hide, reset.",
-		})
-	end
+	ns.Slash.TRINKETS = Trinkets.SlashHandler
+	ns:RegisterSlash({ key = "TRINKETS", commands = { "/Trinkets", "/trinket" },
+		desc = "Trinket tracker: show, hide, reset.",
+	})
 	self:RegisterEvent("PLAYER_LOGIN")
 end
 

@@ -1,8 +1,9 @@
 --[[ TrinketsQueue : auto queue system ]]
+local _, ns = ...
 
 local _G, type, string, tonumber, table, pairs, select = _G, type, string, tonumber, table, pairs, select
 
-local _vui = _G.VuloClassicUI
+local _vui = ns
 local IsClassic = (_vui and _vui.isClassic) or (WOW_PROJECT_ID and WOW_PROJECT_ID >= WOW_PROJECT_CLASSIC) or false
 
 Trinkets.PausedQueue = { }
