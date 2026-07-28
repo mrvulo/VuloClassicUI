@@ -924,6 +924,7 @@ ns:RegisterLocale("deDE", function() return {
     ["Order"] = "Reihenfolge",
     ["The queue works through this list from the top. Pick an entry to move it or to change its settings."] = "Die Warteschlange arbeitet diese Liste von oben ab. Wähle einen Eintrag, um ihn zu verschieben oder seine Einstellungen zu ändern.",
     ["- empty -"] = "— leer —",
+    ["— queue stops here —"] = "— ab hier wird nicht getauscht —",
     ["Up"] = "Nach oben",
     ["Down"] = "Nach unten",
     ["Remove"] = "Entfernen",

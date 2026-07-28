@@ -112,7 +112,16 @@ local function queueList(which)
     return (q and q.Sort and q.Sort[which]) or {}
 end
 
+-- Item id 0 is not an item. Trinkets.PopulateSort inserts it as a marker and
+-- Trinkets.SortValidate treats it apart -- everything below it is off the queue.
+-- Without this the row read "#0", and the per-entry settings underneath would
+-- have been offered for something that cannot carry them.
+local function isStopMarker(id)
+    return id == 0 or id == "0"
+end
+
 local function queueName(id)
+    if isStopMarker(id) then return L["— queue stops here —"] end
     if Trinkets and Trinkets.GetNameByID then
         local n = Trinkets.GetNameByID(id)
         if n and n ~= "" then return n end
@@ -240,7 +249,7 @@ local function queueSection(which, title)
             end }
     end
 
-    if list[selected[which]] then
+    if list[selected[which]] and not isStopMarker(selectedId(which)) then
         items[#items + 1] = { type = "spacer", height = 4 }
         items[#items + 1] = { type = "desc",
             text = "|cffaaaaaa" .. string.format(L["Settings for: %s"], queueName(selectedId(which))) .. "|r" }

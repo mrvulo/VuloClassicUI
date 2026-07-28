@@ -312,14 +312,20 @@ local function saveAs(name, slotList)
         ns:Print(L["Please provide a name for the loadout."])
         return
     end
-    LO()[name] = {
-        slots     = captureCurrentEquipment(slotList),
-        slotMask  = copySlotList(slotList or EQUIP_SLOTS),
-        createdAt = time(),
-    }
+    -- Vorhandenen Eintrag AKTUALISIEREN statt ersetzen. Sonst gehen alle
+    -- Felder verloren, die nicht hier stehen - allen voran iconOverride,
+    -- also das selbst gewaehlte Symbol.
+    local set = LO()[name]
+    if not set then
+        set = { createdAt = time() }
+        LO()[name] = set
+    end
+    set.slots    = captureCurrentEquipment(slotList)
+    set.slotMask = copySlotList(slotList or EQUIP_SLOTS)
+
     _setIndexDirty = true
     ns:Print(string.format(L["Loadout '%s' saved (%d items)."],
-        name, countSlots(LO()[name])))
+        name, countSlots(set)))
 end
 
 -- StaticPopup_Show cannot pass parameters, so the slot list is handed over through this upvalue.
@@ -340,11 +346,10 @@ local function overwriteLoadout(name)
         for s in pairs(loadout.slots or {}) do table.insert(slotList, s) end
     end
     if #slotList == 0 then slotList = EQUIP_SLOTS end
-    LO()[name] = {
-        slots     = captureCurrentEquipment(slotList),
-        slotMask  = copySlotList(slotList),
-        createdAt = time(),
-    }
+    -- Nur Ausruestung und Maske erneuern. Symbol, Erstellungsdatum und
+    -- alles weitere bleiben am Eintrag haengen.
+    loadout.slots    = captureCurrentEquipment(slotList)
+    loadout.slotMask = copySlotList(slotList)
     _setIndexDirty = true
     ns:Print(string.format(L["Loadout '%s' updated with current gear."], name))
 end
@@ -1656,17 +1661,35 @@ local function createSidebar()
         mvr:SetScript("OnDragStop", function(self) self:SetScript("OnUpdate", nil) end)
     end
 
-    CharacterFrame:HookScript("OnShow", function()
-        if mod._enabled and mod.db and mod.db.sidebarEnabled ~= false then
+    -- Die Leiste gehoert zum Reiter "Charakter". Auf Ruf, Fertigkeiten oder
+    -- PvP hat sie keinen Bezug, deshalb haengt sie an PaperDollFrame - das
+    -- ist genau dieser Reiter - und nicht am Charakterfenster insgesamt.
+    local function updateVisibility()
+        if not (mod._enabled and mod.db and mod.db.sidebarEnabled ~= false) then
+            sidebar:Hide()
+            return
+        end
+        local onGearTab = PaperDollFrame and PaperDollFrame:IsShown()
+        if CharacterFrame and CharacterFrame:IsShown() and onGearTab then
             sidebar:Show()
             anchorToCharacterFrame()
             refreshSidebar()
             if sidebar.mover then
                 if ns:IsMoverEditMode() then sidebar.mover:Show() else sidebar.mover:Hide() end
             end
+        else
+            sidebar:Hide()
         end
-    end)
+    end
+    mod._updateSidebarVisibility = updateVisibility
+
+    CharacterFrame:HookScript("OnShow", updateVisibility)
     CharacterFrame:HookScript("OnHide", function() sidebar:Hide() end)
+    if PaperDollFrame then
+        PaperDollFrame:HookScript("OnShow", updateVisibility)
+        PaperDollFrame:HookScript("OnHide", function() sidebar:Hide() end)
+    end
+    updateVisibility()
 
     if ns:IsMoverEditMode() then sidebar.mover:Show() end
     return sidebar
@@ -1674,11 +1697,12 @@ end
 
 local function applySidebarVisibility()
     if not sidebar then return end
-    if mod.db.sidebarEnabled == false then
+    -- Entscheidet dieselbe Stelle wie die Frame-Hooks, damit der Reiter
+    -- nicht an zwei Orten geprueft wird.
+    if mod._updateSidebarVisibility then
+        mod._updateSidebarVisibility()
+    elseif mod.db.sidebarEnabled == false then
         sidebar:Hide()
-    elseif CharacterFrame and CharacterFrame:IsShown() then
-        sidebar:Show()
-        refreshSidebar()
     end
 end
 
