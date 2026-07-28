@@ -1008,25 +1008,25 @@ function ns:CreateMover(target, opts)
         local store = linkStore()
         if not store then return end
 
+        -- ONLY the window that resized, and only if it is itself docked.
+        --
+        -- The first version also cascaded to everything docked to it. That went
+        -- wrong: the chat resizes constantly, so every message re-drove two bars
+        -- and a pet bar through a full re-place, and the measured link dump came
+        -- back with "abchrome_bags -> abchrome_micro RIGHT -471.76" -- an edge
+        -- gap of minus half a screen, written while a holder was still at its
+        -- placeholder size. A parent that MOVES already carries its followers
+        -- through OnMoverRepositioned; a parent that merely changes size does
+        -- not need to drag them anywhere.
         local own = store[mover.key]
-        if not own then
-            -- Nothing docked here. Only carry on if something is docked TO it;
-            -- otherwise there is no derived position anywhere near this frame
-            -- and the cheapest thing to do is nothing. Most frames exit here.
-            local any = false
-            for _, l in pairs(store) do
-                if type(l) == "table" and l.to == mover.key then any = true; break end
-            end
-            if not any then return end
-        end
+        if not own then return end
 
         mover._sizeSync = true
         -- Strictly re-APPLY. Nothing in this path may measure: a size change can
         -- land mid-layout, with the frame nowhere near its final place, and
         -- measuring then would write that transient position into the saved
         -- offsets for good.
-        if own then applyLink(mover, own) end
-        ns:RepositionMoverChildren(mover)
+        applyLink(mover, own)
         mover._sizeSync = nil
     end)
 
