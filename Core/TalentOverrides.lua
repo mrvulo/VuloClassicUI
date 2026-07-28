@@ -344,7 +344,9 @@ function ns:ShowOverrideMenu(anchor)
         any = true
         local owns = g.members and g.members[active]
         entries[#entries + 1] = {
-            text    = g.name .. (owns and "  |cff9b6cff\226\151\143|r" or "")
+            -- Plain words, no symbol: a bullet or a dot renders as an empty box
+            -- in the game font, which is exactly what it did here.
+            text    = g.name .. (owns and ("  |cff9b6cff" .. L["active"] .. "|r") or "")
                       .. string.format("  |cff666666(%d)|r", ns:CountOverrides(id)),
             checked = function() return ns._ovEditing == id end,
             func    = function()

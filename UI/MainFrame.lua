@@ -425,10 +425,20 @@ function UI:CreateMainFrame()
         ovBtn:SetSize(22, 20)
         ovBtn:SetPoint("RIGHT", searchBox, "LEFT", -6, 0)
 
+        -- The player's own class icon: the overrides hang on this character's
+        -- talents, so the control that opens them should look like them. Comes
+        -- from Blizzard's class sheet, so nothing ships and no restart is needed.
         local glyph = ovBtn:CreateTexture(nil, "ARTWORK")
-        glyph:SetSize(14, 14)
+        glyph:SetSize(15, 15)
         glyph:SetPoint("CENTER")
-        glyph:SetTexture("Interface\\Buttons\\UI-GuildButton-PublicNote-Up")
+        local classToken = select(2, UnitClass("player"))
+        local tex, coords = ns:GetClassIcon(classToken)
+        if tex and coords then
+            glyph:SetTexture(tex)
+            glyph:SetTexCoord(coords[1], coords[2], coords[3], coords[4])
+        else
+            glyph:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+        end
         ovBtn._glyph = glyph
 
         local hl = ovBtn:CreateTexture(nil, "HIGHLIGHT")
@@ -439,6 +449,7 @@ function UI:CreateMainFrame()
             if ns.ShowOverrideMenu then ns:ShowOverrideMenu(self) end
         end)
         ovBtn:SetScript("OnEnter", function(self)
+            self._glyph:SetAlpha(1)   -- 90 % idle, full on hover
             if not GameTooltip then return end
             GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
             GameTooltip:AddLine(L["Editing as"])
@@ -447,7 +458,10 @@ function UI:CreateMainFrame()
             GameTooltip:AddLine(g and g.name or L["Yourself"], 0.7, 0.7, 0.8)
             GameTooltip:Show()
         end)
-        ovBtn:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+        ovBtn:SetScript("OnLeave", function(self)
+            self._glyph:SetAlpha(0.9)
+            if GameTooltip then GameTooltip:Hide() end
+        end)
 
         f.overrideBtn = ovBtn
 
@@ -456,13 +470,14 @@ function UI:CreateMainFrame()
         function UI:RefreshOverrideButton()
             local b = UI.mainFrame and UI.mainFrame.overrideBtn
             if not b then return end
-            local on = ns.EditingOverrideGroup and ns:EditingOverrideGroup() ~= nil
-            local a  = ns.COLORS.accent
-            if on then
-                b._glyph:SetVertexColor(a.r, a.g, a.b)
-            else
-                b._glyph:SetVertexColor(0.62, 0.62, 0.70)
-            end
+            -- ONE identity: the class icon in its natural colours, whatever the
+            -- state. A control that changes its look depending on a mode makes
+            -- the reader decode the icon before they can use it -- and the state
+            -- is already told twice over, by the tick in the menu and by the
+            -- accent bars on the overridden rows.
+            b._glyph:SetDesaturated(false)
+            b._glyph:SetVertexColor(1, 1, 1)
+            b._glyph:SetAlpha(0.9)
         end
         UI:RefreshOverrideButton()
     end
