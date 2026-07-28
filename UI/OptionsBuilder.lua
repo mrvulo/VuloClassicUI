@@ -318,17 +318,76 @@ local function runLabelColumn(run, cellW)
     return math.min(math.ceil(widest) + 10, math.floor(cellW * 0.5))
 end
 
+-- How many columns a run of compact rows may use. Three fit noticeably more on
+-- one screen, and at two columns of ~470px a toggle sat 350px away from its own
+-- label. But a slider row is [label][track][- value +], and only the track can
+-- give: the block on the right keeps its size whatever the cell does.
+--
+-- So the question this asks is NOT "does the longest label fit in half a cell".
+-- That is what it asked the first time, and three columns were granted to runs
+-- whose tracks then had nothing left -- the row's minimum width invented the
+-- missing pixels and drew them across the next column. It asks whether a track
+-- worth dragging still remains once the label and the block have taken theirs,
+-- computed on the same geometry layoutSliderRow will use.
+local MAX_COLS  = 3
+local MIN_TRACK = 60    -- below this it is a stub, not something you can drag
+local MIN_CELL  = 250
+
+-- What each kind of control needs to the right of the label. Only the slider
+-- was ever able to damage a neighbour, and it no longer can -- its row is a
+-- closed box now. These are legibility floors: a switch anchored to both edges
+-- shrinks quietly rather than overflowing, but a dropdown squeezed to a stub is
+-- still a dropdown nobody can read.
+local CONTROL_NEED = { toggle = 44, checkbox = 44, color = 44, dropdown = 110, editbox = 90 }
+
+local function fitColumns(run, availW)
+    local widest, need, anyTip = 0, 0, false
+    local sliderEnd = 0
+    for _, item in ipairs(run) do
+        local w = labelWidth(item.label)
+        if w > widest then widest = w end
+        if item.tooltip then anyTip = true end
+        if item.type == "slider" then
+            -- the widest value the slider can display decides its block, and a
+            -- track has to fit beside it -- this is the binding constraint
+            local e = UI.SliderEndWidth and UI.SliderEndWidth(item.min, item.max, item.step) or 90
+            if e + MIN_TRACK > sliderEnd then sliderEnd = e + MIN_TRACK end
+        else
+            local c = CONTROL_NEED[item.type] or 44
+            if c > need then need = c end
+        end
+    end
+    if sliderEnd > need then need = sliderEnd end
+    local gap = UI.SLIDER_LABEL_GAP or 12
+    for cols = MAX_COLS, 2, -1 do
+        local cellW  = math.floor((availW - (cols - 1) * COL_GAP) / cols)
+        -- what the ROW is given, which is what layoutSliderRow divides up: the
+        -- card's inner padding, and the info glyph if any row in the run has one
+        local rowW   = cellW - 20 - (anyTip and 22 or 0)
+        -- the same cap the row applies, so this answer is the geometry that
+        -- gets drawn rather than an optimistic version of it
+        local labelW = math.min(widest + 10, math.floor(rowW * 0.5))
+        if cellW >= MIN_CELL and (rowW - labelW - gap) >= need then
+            return cols
+        end
+    end
+    return 2
+end
+
 local function placeColumns(parent, run, y)
     local availW = (parent:GetWidth() or 540) - 2 * CONTENT_PADDING
-    local colW   = math.floor((availW - COL_GAP) / 2)
+    local cols   = fitColumns(run, availW)
+    local colW   = math.floor((availW - (cols - 1) * COL_GAP) / cols)
     local labelCol = runLabelColumn(run, colW)
     local base   = parent:GetFrameLevel()
     local n      = #run
     for idx = 1, n do
         local item  = run[idx]
-        local col   = (idx - 1) % 2
-        local row   = math.floor((idx - 1) / 2)
-        local fullW = (idx == n) and (n % 2 == 1)
+        local col   = (idx - 1) % cols
+        local row   = math.floor((idx - 1) / cols)
+        -- last item, alone on its row: it takes the whole width rather than
+        -- leaving a ragged gap beside it
+        local fullW = (idx == n) and (n % cols == 1)
         local cellX = CONTENT_PADDING + (fullW and 0 or col * (colW + COL_GAP))
         local cellY = y - row * ROW_H
         local cellW = fullW and availW or colW
@@ -359,7 +418,7 @@ local function placeColumns(parent, run, y)
                 cellX + 10 + lead, cellY - math.floor((CARD_H - wh) / 2))
         end
     end
-    return y - math.ceil(n / 2) * ROW_H
+    return y - math.ceil(n / cols) * ROW_H
 end
 
 local function placeSection(parent, section, y)
@@ -587,8 +646,14 @@ function UI:PlaceGroup(parent, group, y)
         return y - cardH - CARD_GAP
 
     elseif layout == "columns" then
-        local cols       = group.columns or 2
         local availWidth = (parent:GetWidth() or 540) - 2 * CONTENT_PADDING
+        -- group.columns is deliberately not consulted. Every module that
+        -- declares it says 2, because two was the only shape on offer; honouring
+        -- it would stand a two-column group beside an auto-packed three-column
+        -- run on the same page. One rule answers for both paths. Its verdict is
+        -- computed on the auto path's cells, which are the narrower of the two,
+        -- so it errs on the safe side here rather than the other way round.
+        local cols       = fitColumns(items, availWidth)
         local colWidth   = math.floor(availWidth / cols)
 
         local rowItems = {}

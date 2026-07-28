@@ -755,7 +755,7 @@ function mod:GetOptions()
             { type = "toggle", label = L["Show Preview"],
               get = function() return isPreviewOn() end,
               set = function(_, v) if v then showPreview() else hidePreview() end end },
-            { type = "group", layout = "columns", columns = 2, items = {
+            { type = "group", layout = "columns", items = {
                 { type = "slider", label = L["Fade Duration"], min = 0.5, max = 5.0, step = 0.1, width = SLW,
                   get = function() return mod.db.flashDuration or 1.5 end,
                   set = function(_, v) mod.db.flashDuration = v; mod.db.scrollDuration = v end },
@@ -800,7 +800,7 @@ function mod:GetOptions()
             { type = "dropdown", label = L["To Frame's"], values = POINTS,
               get = function() return mod.db.anchorPoint or "CENTER" end,
               set = function(_, v) mod.db.anchorPoint = v; applyMoverPosition() end },
-            { type = "group", layout = "columns", columns = 2, items = {
+            { type = "group", layout = "columns", items = {
                 { type = "slider", label = L["X Offset"], min = -800, max = 800, step = 1, width = SLW,
                   get = function() return mod.db.x or 0 end,
                   set = function(_, v) mod.db.x = v; applyMoverPosition() end },
@@ -825,7 +825,7 @@ function mod:GetOptions()
               },
               get = function() return mod.db.fontOutlineMode or "THICKOUTLINE" end,
               set = function(_, v) mod.db.fontOutlineMode = v; reapplyFont() end },
-            { type = "group", layout = "columns", columns = 2, items = {
+            { type = "group", layout = "columns", items = {
                 { type = "slider", label = L["Font Size"], min = 10, max = 32, step = 1, width = SLW,
                   get = function() return mod.db.fontSize end,
                   set = function(_, v) mod.db.fontSize = v; reapplyFont() end },
@@ -836,7 +836,7 @@ function mod:GetOptions()
             { type = "color", label = L["Shadow Color"],
               get = function() return mod.db.shadowColor end,
               set = function(r, g, b) mod.db.shadowColor = { r = r, g = g, b = b }; reapplyFont() end },
-            { type = "group", layout = "columns", columns = 2, items = {
+            { type = "group", layout = "columns", items = {
                 { type = "slider", label = L["Shadow X"], min = -10, max = 10, step = 1, width = SLW,
                   get = function() return mod.db.shadowX or 2 end,
                   set = function(_, v) mod.db.shadowX = v; reapplyFont() end },

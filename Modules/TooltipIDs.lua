@@ -912,7 +912,7 @@ function mod:GetOptions()
         end
     end
     table.insert(items, {
-        type = "group", layout = "columns", columns = 2,
+        type = "group", layout = "columns",
         items = checkboxes,
     })
 

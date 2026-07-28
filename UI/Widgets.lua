@@ -599,11 +599,23 @@ local function sliderValueWidth(min, max, step)
     return math.max(36, 8 + widest * 7)
 end
 
+-- What the -/value/+ block occupies at the right end of a slider row: the gap
+-- to the track, the two 16px buttons, the value box and the gaps between them.
+-- The options page asks this before it builds anything, because how many
+-- columns a run may use depends on whether a track still fits beside it.
+function UI.SliderEndWidth(min, max, step)
+    return 8 + 16 + 4 + sliderValueWidth(min, max, step) + 4 + 16 + 4
+end
+
 -- Row metrics. They are the same numbers the toggle and dropdown rows use, so
 -- the three line up without anyone tuning gaps by eye.
 local SLIDER_ROW_H  = 24
 local SLIDER_LABEL_W = 120   -- default until the page measures the real column
 local LABEL_GAP      = 12
+-- Exported because the options page has to reproduce this row's arithmetic to
+-- decide a column count. Two copies of the number would drift the moment one
+-- of them was tuned, and the drift would show up as a clipped label.
+UI.SLIDER_LABEL_GAP = LABEL_GAP
 
 -- The track is what is left after the label column and the -/value/+ block.
 -- A local, declared before CreateSlider because both the setup and the size
@@ -627,7 +639,11 @@ local function layoutSliderRow(row)
     local left = hasLabel and (labelW + LABEL_GAP) or 0
     s:ClearAllPoints()
     s:SetPoint("LEFT", row, "LEFT", left, 0)
-    s:SetWidth(math.max(40, w - left - (row._endW or 90)))
+    -- A floor, not a licence to overflow. The -/value/+ block is anchored to the
+    -- ROW, so a cell too narrow for the track costs track width and stops there.
+    -- While the block hung off the track it moved with it, and every pixel the
+    -- floor invented was a pixel drawn on top of the next column.
+    s:SetWidth(math.max(24, w - left - (row._endW or 90)))
 end
 
 local function sliderSetup(row, config)
@@ -648,8 +664,11 @@ local function sliderSetup(row, config)
 
     local valW = sliderValueWidth(s._min, s._max, s._step)
     s._valueText:SetWidth(valW)
-    -- gap + minus + gap + value + gap + plus, matching the anchors below
-    row._endW = 8 + 16 + 4 + valW + 4 + 16 + 4
+    -- gap + minus + gap + value + gap + plus, matching the anchors below. The
+    -- options page needs the same number BEFORE the row exists, to decide how
+    -- many columns fit -- so the formula lives in UI.SliderEndWidth and both
+    -- read it there rather than each keeping its own copy.
+    row._endW = UI.SliderEndWidth(s._min, s._max, s._step)
 
     -- config.width has always meant the TRACK width, not the row width. Callers
     -- that pass it (the edit-mode toolbar) size themselves around the track, so
@@ -929,6 +948,19 @@ function UI:CreateSlider(parent, config)
     row._slider = s
     row._labelW = SLIDER_LABEL_W
     row._endW   = 90
+
+    -- Re-anchored now that the row exists: the block hangs off the ROW's right
+    -- edge, not the track's. Chained to the track it inherited every pixel the
+    -- track's minimum width invented, and in a narrow cell that put the value
+    -- box and the + button on top of the neighbouring column. Anchored here the
+    -- row is a closed box -- nothing it contains can leave it, whatever width
+    -- the page hands it.
+    plusBtn:ClearAllPoints()
+    plusBtn:SetPoint("RIGHT", row, "RIGHT", -4, 0)
+    valueText:ClearAllPoints()
+    valueText:SetPoint("RIGHT", plusBtn, "LEFT", -4, 0)
+    minusBtn:ClearAllPoints()
+    minusBtn:SetPoint("RIGHT", valueText, "LEFT", -4, 0)
 
     row.SetLabelWidth = function(self, w)
         self._labelW = math.max(20, w or SLIDER_LABEL_W)
