@@ -318,17 +318,44 @@ local function runLabelColumn(run, cellW)
     return math.min(math.ceil(widest) + 10, math.floor(cellW * 0.5))
 end
 
+-- How many columns a run of compact rows may use: as many as its labels allow,
+-- never more than three. Three columns fit noticeably more on screen, but they
+-- leave the label column only about a third of the width -- and a page like the
+-- action bars carries labels that simply do not fit there. Rather than picking
+-- one number for every page and clipping the pages it does not suit, the run
+-- decides for itself and drops to two, or to one.
+local MAX_COLS = 3
+
+local function fitColumns(run, availW)
+    local widest = 0
+    for _, item in ipairs(run) do
+        local w = labelWidth(item.label)
+        if item.tooltip then w = w + 22 end
+        if w > widest then widest = w end
+    end
+    for cols = MAX_COLS, 2, -1 do
+        local cellW = math.floor((availW - (cols - 1) * COL_GAP) / cols)
+        -- label plus a control area worth having: below this the row is a label
+        -- with a stub of a track next to it.
+        if widest + 10 <= cellW * 0.5 and cellW >= 250 then return cols end
+    end
+    return 2
+end
+
 local function placeColumns(parent, run, y)
     local availW = (parent:GetWidth() or 540) - 2 * CONTENT_PADDING
-    local colW   = math.floor((availW - COL_GAP) / 2)
+    local cols   = fitColumns(run, availW)
+    local colW   = math.floor((availW - (cols - 1) * COL_GAP) / cols)
     local labelCol = runLabelColumn(run, colW)
     local base   = parent:GetFrameLevel()
     local n      = #run
     for idx = 1, n do
         local item  = run[idx]
-        local col   = (idx - 1) % 2
-        local row   = math.floor((idx - 1) / 2)
-        local fullW = (idx == n) and (n % 2 == 1)
+        local col   = (idx - 1) % cols
+        local row   = math.floor((idx - 1) / cols)
+        -- last item, alone on its row: it takes the whole width rather than
+        -- leaving a ragged gap beside it
+        local fullW = (idx == n) and (n % cols == 1)
         local cellX = CONTENT_PADDING + (fullW and 0 or col * (colW + COL_GAP))
         local cellY = y - row * ROW_H
         local cellW = fullW and availW or colW
@@ -359,7 +386,7 @@ local function placeColumns(parent, run, y)
                 cellX + 10 + lead, cellY - math.floor((CARD_H - wh) / 2))
         end
     end
-    return y - math.ceil(n / 2) * ROW_H
+    return y - math.ceil(n / cols) * ROW_H
 end
 
 local function placeSection(parent, section, y)
@@ -587,8 +614,13 @@ function UI:PlaceGroup(parent, group, y)
         return y - cardH - CARD_GAP
 
     elseif layout == "columns" then
-        local cols       = group.columns or 2
         local availWidth = (parent:GetWidth() or 540) - 2 * CONTENT_PADDING
+        -- Every module declared columns = 2 because two was the only shape on
+        -- offer. The measured rule supersedes it: the same fitColumns the
+        -- auto-packed runs use, so a page does not mix a two-column group with
+        -- a three-column one. A module asking for MORE than the labels allow is
+        -- still held to what fits.
+        local cols       = fitColumns(items, availWidth)
         local colWidth   = math.floor(availWidth / cols)
 
         local rowItems = {}
