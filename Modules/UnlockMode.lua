@@ -152,6 +152,24 @@ function ns:PrepareBlizzMovers()
         end
     end
     if any then emApply() end
+
+    -- Blizzard's Edit Mode owns far more frames than the five above, and
+    -- emEnsure has to SELECT a layout before the library will let us write
+    -- anything. Selecting a layout re-applies that layout's anchor to every
+    -- system in it -- including the chat window, which we place ourselves and
+    -- for which that layout holds nothing but a default.
+    --
+    -- Measured, not deduced. A hook on ChatFrame1:SetPoint while entering edit
+    -- mode answered with
+    --   Blizzard_EditMode/Shared/EditModeSystemTemplates.lua:375 ApplySystemAnchor
+    -- which is why the chat jumped left on every entry and stood correctly again
+    -- the moment edit mode closed and our own code repositioned it.
+    --
+    -- Deferred by a frame: ApplyChanges does its anchoring first, and anything
+    -- we place before that would simply be overwritten.
+    if C_Timer and C_Timer.After and ns.ReapplyAllMovers then
+        C_Timer.After(0, function() ns:ReapplyAllMovers() end)
+    end
 end
 
 function mod:OnEnable()
