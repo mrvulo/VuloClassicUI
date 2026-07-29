@@ -304,6 +304,12 @@ function UI:CreateMainFrame()
                                 if item.items then
                                     if scan(item.items) then return true end
                                 end
+                                -- and behind a gear: folded away is not gone,
+                                -- and a setting you cannot find is the one you
+                                -- search for
+                                if item.subOptions then
+                                    if scan(item.subOptions) then return true end
+                                end
                             end
                         end
                         if scan(items) then break end

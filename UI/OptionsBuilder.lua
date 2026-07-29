@@ -404,6 +404,11 @@ local function collectCompact(list, out)
         if type(it) == "table" then
             if COMPACT[it.type] and not it.subOptions then out[#out + 1] = it end
             if it.items then collectCompact(it.items, out) end
+            -- Rows behind a gear are measured too, even while collapsed. They
+            -- share this one page-wide label column when they open, so leaving
+            -- them out would truncate a long sub-label -- and would also make
+            -- the column jump the moment a gear is clicked.
+            if it.subOptions then collectCompact(it.subOptions, out) end
         end
     end
     return out
@@ -1001,6 +1006,13 @@ function UI:BuildOptionsPage(key, tabId)
             for _, it in ipairs(list) do
                 if type(it) == "table" then
                     if it.items then wrap(it.items) end
+                    -- subOptions too: a row behind a gear is an ordinary
+                    -- setting that happens to be folded away. Without this it
+                    -- silently records nothing and never shows the accent bar --
+                    -- which was already true for the six on the cooldown page
+                    -- and the ones on the trinket page, long before the
+                    -- nameplates were folded up.
+                    if it.subOptions then wrap(it.subOptions) end
                     -- Colours used to be excluded here. They are three values
                     -- through a setter that takes no self, which is why they
                     -- were skipped -- but skipping meant changing one while
