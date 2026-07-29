@@ -83,6 +83,7 @@ local DEFAULTS = {
     barHeight   = 22,
     iconSize    = 26,
     fontSize    = 18,
+    actionFontSize = 0,   -- 0 = follow fontSize; see actionSize()
     x           = 0,
     y           = -180,
     unlocked    = false,
@@ -603,6 +604,15 @@ end
 
 -- ---------------------------------------------------------------- appearance
 
+-- The action line has its own size, because it is the one line that is read
+-- mid-fight and the one that carries the longest text. 0 means "follow the
+-- general size", so a profile that never touches it behaves exactly as before
+-- and the two do not have to be kept in step by hand.
+local function actionSize(d)
+    local s = d.actionFontSize or 0
+    return (s > 0) and s or d.fontSize
+end
+
 -- What the side pieces claim, so the bar keeps its configured width whether
 -- they are shown or not.
 local function sideWidths(d)
@@ -642,7 +652,7 @@ local function layout()
     local leftW, rightW = sideWidths(d)
     local rowH = rowHeight(d)
     local h = d.barHeight + rowH
-    if d.showAction  then h = h + d.fontSize + 4 end
+    if d.showAction  then h = h + actionSize(d) + 4 end
     if d.showNumbers then h = h + max(9, d.fontSize - 6) + 2 end
     h = h + 6
     if d.showSeals and d.iconSize > h then h = d.iconSize end
@@ -665,7 +675,7 @@ local function layout()
 
     speedFS:SetFont(fontPath(), max(9, d.fontSize - 4), "OUTLINE")
     speedFS:SetShown(d.showSpeed)
-    actionFS:SetFont(fontPath(), d.fontSize, "OUTLINE")
+    actionFS:SetFont(fontPath(), actionSize(d), "OUTLINE")
     actionFS:SetShown(d.showAction)
     infoFS:SetFont(fontPath(), max(9, d.fontSize - 6), "OUTLINE")
     infoFS:SetShown(d.showNumbers)
@@ -1421,6 +1431,10 @@ local function getOptions()
     table.insert(items, { type = "slider", label = L["Font size"], min = 10, max = 30, step = 1,
         get = function() return d.fontSize end,
         set = function(_, v) d.fontSize = v; layout() end })
+    table.insert(items, { type = "slider", label = L["Action text size"], min = 0, max = 40, step = 1,
+        tooltip = L["The line that names what to press. 0 follows the general text size."],
+        get = function() return d.actionFontSize or 0 end,
+        set = function(_, v) d.actionFontSize = v; layout() end })
 
     return items
 end

@@ -2780,4 +2780,7 @@ ns:RegisterLocale("koKR", function() return {
     ["|cffff5555Twist lost|r"] = "|cffff5555전환 놓침|r",
     -- Gewehrschuss
     ["Rifle"] = "소총 발사",
+    -- Aktionszeile
+    ["Action text size"] = "행동 문구 크기",
+    ["The line that names what to press. 0 follows the general text size."] = "무엇을 누를지 알려주는 줄입니다. 0이면 일반 글자 크기를 따릅니다.",
 } end)

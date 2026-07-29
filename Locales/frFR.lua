@@ -2929,4 +2929,7 @@ ns:RegisterLocale("frFR", function() return {
     ["|cffff5555Twist lost|r"] = "|cffff5555Twist manqué|r",
     -- Gewehrschuss
     ["Rifle"] = "Coup de fusil",
+    -- Aktionszeile
+    ["Action text size"] = "Taille du texte d'action",
+    ["The line that names what to press. 0 follows the general text size."] = "La ligne qui dit quoi presser. 0 suit la taille de texte générale.",
 } end)

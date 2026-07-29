@@ -2773,4 +2773,7 @@ ns:RegisterLocale("zhTW", function() return {
     ["|cffff5555Twist lost|r"] = "|cffff5555切換錯過|r",
     -- Gewehrschuss
     ["Rifle"] = "步槍槍聲",
+    -- Aktionszeile
+    ["Action text size"] = "操作提示文字大小",
+    ["The line that names what to press. 0 follows the general text size."] = "提示該按什麼的那一行。0 表示跟隨通用文字大小。",
 } end)

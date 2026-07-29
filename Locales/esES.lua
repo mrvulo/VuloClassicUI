@@ -2781,6 +2781,9 @@ local function T() return {
     ["|cffff5555Twist lost|r"] = "|cffff5555Cambio perdido|r",
     -- Gewehrschuss
     ["Rifle"] = "Disparo de rifle",
+    -- Aktionszeile
+    ["Action text size"] = "Tamaño del texto de acción",
+    ["The line that names what to press. 0 follows the general text size."] = "La línea que dice qué pulsar. 0 sigue al tamaño de texto general.",
 } end
 
 ns:RegisterLocale("esES", T)

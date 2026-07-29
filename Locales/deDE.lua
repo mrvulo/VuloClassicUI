@@ -2917,4 +2917,7 @@ ns:RegisterLocale("deDE", function() return {
     ["|cffff5555Twist lost|r"] = "|cffff5555Wechsel verloren|r",
     -- Gewehrschuss
     ["Rifle"] = "Gewehrschuss",
+    -- Aktionszeile
+    ["Action text size"] = "Größe der Aktionszeile",
+    ["The line that names what to press. 0 follows the general text size."] = "Die Zeile, die sagt, was zu drücken ist. 0 folgt der allgemeinen Textgröße.",
 } end)

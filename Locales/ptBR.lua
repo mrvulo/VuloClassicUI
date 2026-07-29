@@ -2780,4 +2780,7 @@ ns:RegisterLocale("ptBR", function() return {
     ["|cffff5555Twist lost|r"] = "|cffff5555Troca perdida|r",
     -- Gewehrschuss
     ["Rifle"] = "Tiro de rifle",
+    -- Aktionszeile
+    ["Action text size"] = "Tamanho do texto de ação",
+    ["The line that names what to press. 0 follows the general text size."] = "A linha que diz o que apertar. 0 segue o tamanho de texto geral.",
 } end)

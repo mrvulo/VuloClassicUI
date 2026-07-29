@@ -2780,4 +2780,7 @@ ns:RegisterLocale("ruRU", function() return {
     ["|cffff5555Twist lost|r"] = "|cffff5555Переключение упущено|r",
     -- Gewehrschuss
     ["Rifle"] = "Винтовочный выстрел",
+    -- Aktionszeile
+    ["Action text size"] = "Размер строки действия",
+    ["The line that names what to press. 0 follows the general text size."] = "Строка, которая говорит, что нажать. 0 — как общий размер текста.",
 } end)

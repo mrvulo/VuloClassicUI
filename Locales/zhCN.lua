@@ -2773,4 +2773,7 @@ ns:RegisterLocale("zhCN", function() return {
     ["|cffff5555Twist lost|r"] = "|cffff5555切换错过|r",
     -- Gewehrschuss
     ["Rifle"] = "步枪枪声",
+    -- Aktionszeile
+    ["Action text size"] = "操作提示文字大小",
+    ["The line that names what to press. 0 follows the general text size."] = "提示该按什么的那一行。0 表示跟随通用文字大小。",
 } end)

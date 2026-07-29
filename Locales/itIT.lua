@@ -2780,4 +2780,7 @@ ns:RegisterLocale("itIT", function() return {
     ["|cffff5555Twist lost|r"] = "|cffff5555Twist perso|r",
     -- Gewehrschuss
     ["Rifle"] = "Colpo di fucile",
+    -- Aktionszeile
+    ["Action text size"] = "Dimensione del testo di azione",
+    ["The line that names what to press. 0 follows the general text size."] = "La riga che dice cosa premere. 0 segue la dimensione generale del testo.",
 } end)
