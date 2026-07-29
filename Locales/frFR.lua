@@ -2828,4 +2828,11 @@ ns:RegisterLocale("frFR", function() return {
     ["Overwrites this profile's nameplate settings with a wide, flat, dark look. Other profiles are untouched."] = "Remplace les réglages des barres de nom de ce profil par un rendu large, plat et sombre. Les autres profils ne sont pas touchés.",
     ["|cffaaaaaaOverwrites this profile's nameplate settings with a wide, flat, dark look. Other profiles are untouched.|r"] = "|cffaaaaaaRemplace les réglages des barres de nom de ce profil par un rendu large, plat et sombre. Les autres profils ne sont pas touchés.|r",
     ["Apply the wide, flat look"] = "Appliquer le rendu large et plat",
+    -- Plaetze der Namensplaketten
+    ["Main positions"] = "Positions principales",
+    ["|cffaaaaaaOne thing per slot. Giving a slot something takes it away from the slot that had it.|r"] = "|cffaaaaaaUne chose par emplacement. Ce que tu donnes à un emplacement est retiré à celui qui le portait.|r",
+    ["Debuffs"] = "Affaiblissements",
+    ["Buffs"] = "Améliorations",
+    ["Crowd control"] = "Contrôle de foule",
+    ["Your own debuffs"] = "Tes propres affaiblissements",
 } end)

@@ -2679,4 +2679,11 @@ ns:RegisterLocale("itIT", function() return {
     ["Overwrites this profile's nameplate settings with a wide, flat, dark look. Other profiles are untouched."] = "Sovrascrive le impostazioni delle targhette di questo profilo con un aspetto largo, piatto e scuro. Gli altri profili restano intatti.",
     ["|cffaaaaaaOverwrites this profile's nameplate settings with a wide, flat, dark look. Other profiles are untouched.|r"] = "|cffaaaaaaSovrascrive le impostazioni delle targhette di questo profilo con un aspetto largo, piatto e scuro. Gli altri profili restano intatti.|r",
     ["Apply the wide, flat look"] = "Applica l'aspetto largo e piatto",
+    -- Plaetze der Namensplaketten
+    ["Main positions"] = "Posizioni principali",
+    ["|cffaaaaaaOne thing per slot. Giving a slot something takes it away from the slot that had it.|r"] = "|cffaaaaaaUna cosa per slot. Ciò che assegni a uno slot viene tolto a quello che lo aveva.|r",
+    ["Debuffs"] = "Penalità",
+    ["Buffs"] = "Benefici",
+    ["Crowd control"] = "Controllo di massa",
+    ["Your own debuffs"] = "Le tue penalità",
 } end)

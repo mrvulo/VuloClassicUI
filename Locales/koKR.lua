@@ -2679,4 +2679,11 @@ ns:RegisterLocale("koKR", function() return {
     ["Overwrites this profile's nameplate settings with a wide, flat, dark look. Other profiles are untouched."] = "이 프로필의 이름표 설정을 넓고 평평한 어두운 모습으로 덮어씁니다. 다른 프로필은 그대로입니다.",
     ["|cffaaaaaaOverwrites this profile's nameplate settings with a wide, flat, dark look. Other profiles are untouched.|r"] = "|cffaaaaaa이 프로필의 이름표 설정을 넓고 평평한 어두운 모습으로 덮어씁니다. 다른 프로필은 그대로입니다.|r",
     ["Apply the wide, flat look"] = "넓고 평평한 모습 적용",
+    -- Plaetze der Namensplaketten
+    ["Main positions"] = "주요 위치",
+    ["|cffaaaaaaOne thing per slot. Giving a slot something takes it away from the slot that had it.|r"] = "|cffaaaaaa한 자리에 하나씩. 어떤 자리에 무언가를 넣으면 그것을 가지고 있던 자리에서 빠집니다.|r",
+    ["Debuffs"] = "해로운 효과",
+    ["Buffs"] = "이로운 효과",
+    ["Crowd control"] = "군중 제어",
+    ["Your own debuffs"] = "내가 건 해로운 효과",
 } end)

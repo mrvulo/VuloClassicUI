@@ -2679,4 +2679,11 @@ ns:RegisterLocale("ruRU", function() return {
     ["Overwrites this profile's nameplate settings with a wide, flat, dark look. Other profiles are untouched."] = "Перезаписывает настройки индикаторов имён этого профиля широким, плоским и тёмным видом. Другие профили не затрагиваются.",
     ["|cffaaaaaaOverwrites this profile's nameplate settings with a wide, flat, dark look. Other profiles are untouched.|r"] = "|cffaaaaaaПерезаписывает настройки индикаторов имён этого профиля широким, плоским и тёмным видом. Другие профили не затрагиваются.|r",
     ["Apply the wide, flat look"] = "Применить широкий плоский вид",
+    -- Plaetze der Namensplaketten
+    ["Main positions"] = "Основные позиции",
+    ["|cffaaaaaaOne thing per slot. Giving a slot something takes it away from the slot that had it.|r"] = "|cffaaaaaaПо одному на место. То, что ты кладёшь на место, забирается у того, где оно было.|r",
+    ["Debuffs"] = "Отрицательные эффекты",
+    ["Buffs"] = "Положительные эффекты",
+    ["Crowd control"] = "Контроль",
+    ["Your own debuffs"] = "Твои отрицательные эффекты",
 } end)

@@ -2680,6 +2680,13 @@ local function T() return {
     ["Overwrites this profile's nameplate settings with a wide, flat, dark look. Other profiles are untouched."] = "Sobrescribe los ajustes de placas de nombre de este perfil con un aspecto ancho, plano y oscuro. Los demás perfiles no se tocan.",
     ["|cffaaaaaaOverwrites this profile's nameplate settings with a wide, flat, dark look. Other profiles are untouched.|r"] = "|cffaaaaaaSobrescribe los ajustes de placas de nombre de este perfil con un aspecto ancho, plano y oscuro. Los demás perfiles no se tocan.|r",
     ["Apply the wide, flat look"] = "Aplicar el aspecto ancho y plano",
+    -- Plaetze der Namensplaketten
+    ["Main positions"] = "Posiciones principales",
+    ["|cffaaaaaaOne thing per slot. Giving a slot something takes it away from the slot that had it.|r"] = "|cffaaaaaaUna cosa por espacio. Lo que asignes a un espacio se lo quitas al que lo tenía.|r",
+    ["Debuffs"] = "Perjuicios",
+    ["Buffs"] = "Beneficios",
+    ["Crowd control"] = "Control de masas",
+    ["Your own debuffs"] = "Tus propios perjuicios",
 } end
 
 ns:RegisterLocale("esES", T)

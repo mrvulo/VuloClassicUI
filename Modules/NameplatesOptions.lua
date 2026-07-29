@@ -84,20 +84,91 @@ local function borderStyleValues()
     }
 end
 
-local function rowSideValues()
-    return {
-        { value = "top",    text = L["Above the plate"] },
-        { value = "bottom", text = L["Below the plate"] },
-    }
+-- ONE ROW PER SLOT.
+--
+-- The old model let every aura row pick its own side and growth, which meant
+-- two rows could claim the same spot and land on top of each other. Six named
+-- slots and one content each makes that impossible by construction -- picking a
+-- content for a slot takes it away from whatever slot held it before.
+--
+-- Storage is unchanged: a slot is just a (side, grow) pair on the row it holds,
+-- and the two new sides are the only genuinely new thing. So an existing
+-- profile keeps working and needs no migration -- its rows simply show up in
+-- whichever slot their current side and growth already describe.
+local SLOTS = {
+    { key = "top",      label = "Top",       side = "top",    grow = "center" },
+    { key = "topleft",  label = "Top left",  side = "top",    grow = "right"  },
+    { key = "topright", label = "Top right", side = "top",    grow = "left"   },
+    { key = "left",     label = "Left",      side = "left",   grow = "center" },
+    { key = "right",    label = "Right",     side = "right",  grow = "center" },
+    { key = "bottom",   label = "Bottom",    side = "bottom", grow = "center" },
+}
+
+-- row key -> the switch that turns it on, so a slot can hold the whole thing
+local SLOT_ROWS = {
+    { key = "debuff", label = "Debuffs",           show = "showDebuffs" },
+    { key = "buff",   label = "Buffs",             show = "showBuffs"   },
+    { key = "cc",     label = "Crowd control",     show = "showCC"      },
+    { key = "dot",    label = "Your own debuffs",  show = "showDots"    },
+}
+
+local function slotOf(rowKey)
+    local cfg  = ns:NameplateRowCfg(rowKey)
+    local side = cfg.side or "top"
+    local grow = cfg.grow or "center"
+    for _, s in ipairs(SLOTS) do
+        if s.side == side and (s.side == "left" or s.side == "right" or s.grow == grow) then
+            return s.key
+        end
+    end
+    return "top"
 end
 
-local function rowGrowValues()
-    return {
-        { value = "center", text = L["Centred"] },
-        { value = "right",  text = L["To the right"] },
-        { value = "left",   text = L["To the left"] },
-    }
+-- What sits in this slot right now: the first row that is switched ON and
+-- points here. Switched-off rows are ignored, so a slot reads as empty when
+-- nothing is drawn in it -- which is what the eye expects.
+local function contentOf(slotKey)
+    for _, r in ipairs(SLOT_ROWS) do
+        if mod.db[r.show] and slotOf(r.key) == slotKey then return r.key end
+    end
+    return "none"
 end
+
+local function setSlot(slotKey, rowKey)
+    local slot
+    for _, s in ipairs(SLOTS) do if s.key == slotKey then slot = s end end
+    if not slot then return end
+
+    -- whatever was here loses its place
+    local prev = contentOf(slotKey)
+    if prev ~= "none" and prev ~= rowKey then
+        for _, r in ipairs(SLOT_ROWS) do
+            if r.key == prev then mod.db[r.show] = false end
+        end
+    end
+
+    if rowKey ~= "none" then
+        for _, r in ipairs(SLOT_ROWS) do
+            if r.key == rowKey then mod.db[r.show] = true end
+        end
+        local cfg = ns:NameplateRowCfg(rowKey)
+        cfg.side, cfg.grow = slot.side, slot.grow
+    end
+    applyAndRefresh()
+    refreshPage()
+end
+
+local function slotValues()
+    local vals = { { value = "none", text = L["None"] } }
+    for _, r in ipairs(SLOT_ROWS) do
+        vals[#vals + 1] = { value = r.key, text = L[r.label] }
+    end
+    return vals
+end
+
+-- slotItems is built further down, once rowPlacementItems exists: it is a plain
+-- local, so referring to it from up here would resolve to a nil global.
+local slotItems
 
 local function rowFilterValues()
     return {
@@ -110,19 +181,14 @@ end
 -- Placement controls shared by every aura row; `key` selects which row's
 -- settings the widgets read and write. withFilter is off for the rows whose
 -- contents are already defined by what they collect (crowd control, your DoTs).
+-- Side and growth are NOT offered here any more: the slot decides both, and a
+-- second control for the same thing could put a row where its own slot says it
+-- is not. What is left is the fine tuning that genuinely belongs to the row --
+-- offsets, wrapping, filter.
 local function rowPlacementItems(key, SLW, applyAndRefresh, withFilter)
     local function cfg() return ns:NameplateRowCfg(key) end
-    local items = {
-        { type = "group", layout = "row", gap = 8, items = {
-            { type = "dropdown", label = L["Side"], width = 200, values = rowSideValues(),
-              tooltip = L["Which end of the plate this row sits on. Rows on the same side queue up outward."],
-              get = function() return cfg().side or "top" end,
-              set = function(_, v) cfg().side = v; applyAndRefresh() end },
-            { type = "dropdown", label = L["Grow"], width = 200, values = rowGrowValues(),
-              tooltip = L["Which way the icons run. Left and right line the row up with the matching edge of the health bar."],
-              get = function() return cfg().grow or "center" end,
-              set = function(_, v) cfg().grow = v; applyAndRefresh() end },
-        } },
+    local items = {}
+    local rest = {
         { type = "group", layout = "row", gap = 8, items = {
             { type = "slider", label = L["Offset X"], min = -150, max = 150, step = 1, width = SLW,
               get = function() return cfg().x or 0 end,
@@ -141,11 +207,35 @@ local function rowPlacementItems(key, SLW, applyAndRefresh, withFilter)
               set = function(_, v) cfg().perRow = v; applyAndRefresh() end },
         } },
     }
+    for _, it in ipairs(rest) do items[#items + 1] = it end
     if withFilter then
         items[#items + 1] = { type = "dropdown", label = L["Limit to"], width = 300, values = rowFilterValues(),
             tooltip = L["Narrows this row to auras you cast yourself, or to ones that can be removed."],
             get = function() return cfg().filter or "all" end,
             set = function(_, v) cfg().filter = v; applyAndRefresh() end }
+    end
+    return items
+end
+
+-- Declared above, filled here: it needs rowPlacementItems.
+slotItems = function(SLW, applyAndRefresh)
+    local items = {}
+    for _, s in ipairs(SLOTS) do
+        local rowKey = contentOf(s.key)
+        items[#items + 1] = {
+            type = "dropdown", label = L[s.label], width = 260,
+            subKey = "slot/" .. s.key,
+            values = slotValues(),
+            get = function() return contentOf(s.key) end,
+            set = function(_, v) setSlot(s.key, v) end,
+            -- The fine tuning hangs off the slot's gear and belongs to whatever
+            -- row sits here right now. An empty slot has nothing to tune, so it
+            -- gets no gear at all.
+            subOptions = (rowKey ~= "none")
+                and rowPlacementItems(rowKey, SLW, applyAndRefresh,
+                        rowKey == "debuff" or rowKey == "buff")
+                or nil,
+        }
     end
     return items
 end
@@ -809,11 +899,14 @@ function mod:GetOptions()
             } },
         } },
 
-        { type = "section", title = L["Debuff Row"], items =
-            rowPlacementItems("debuff", SLW, applyAndRefresh, true) },
-
-        { type = "section", title = L["Buff Row"], items =
-            rowPlacementItems("buff", SLW, applyAndRefresh, true) },
+        -- Replaces the four separate "row" sections. Placement is asked slot by
+        -- slot now, not row by row, so two rows can no longer claim one spot.
+        { type = "section", title = L["Main positions"], items = (function()
+            local items = { { type = "desc",
+                text = L["|cffaaaaaaOne thing per slot. Giving a slot something takes it away from the slot that had it.|r"] } }
+            for _, it in ipairs(slotItems(SLW, applyAndRefresh)) do items[#items + 1] = it end
+            return items
+        end)() },
 
         { type = "section", title = L["Crowd Control"], items = {
             -- The whole section hangs off this one switch, placement rows and
@@ -842,7 +935,7 @@ function mod:GetOptions()
                         get = function() return mod.db.ccHeight or 0 end,
                         set = function(_, v) mod.db.ccHeight = v; applyAndRefresh() end },
                   } },
-                  unpack(rowPlacementItems("cc", SLW, applyAndRefresh, false)),
+                  -- placement moved to the slot section above
               } },
         } },
 
@@ -861,7 +954,7 @@ function mod:GetOptions()
                         get = function() return mod.db.maxDots end,
                         set = function(_, v) mod.db.maxDots = v; applyAndRefresh() end },
                   } },
-                  unpack(rowPlacementItems("dot", SLW, applyAndRefresh, false)),
+                  -- placement moved to the slot section above
               } },
         } },
 

@@ -1067,13 +1067,22 @@ local function renderAuraGroup(g, list, o)
             local line = math.floor((i - 1) / perRow)          -- 0 = nearest the plate
             local col  = (i - 1) % perRow
             local inLine = math.min(perRow, n - line * perRow) -- last line can be short
-            local dx
-            if     grow == "right" then dx =  (col + 0.5) * (iw + spacing)
-            elseif grow == "left"  then dx = -(col + 0.5) * (iw + spacing)
-            else   dx = (col - (inLine - 1) / 2) * (iw + spacing) end
-            -- extra lines stack away from the plate, whichever side the row is on
-            local dy = line * (ih + spacing) * ((o.side == "bottom") and -1 or 1)
-                     - (lines - 1) * (ih + spacing) / 2 * ((o.side == "bottom") and -1 or 1)
+            local dx, dy
+            if o.vertical then
+                -- A row BESIDE the plate: one column, stacked downward and
+                -- centred on the bar. The horizontal/vertical roles simply swap
+                -- -- the icons themselves are placed the same way, relative to
+                -- the group's centre, so nothing else in here changes.
+                dx = 0
+                dy = -((i - 1) - (n - 1) / 2) * (ih + spacing)
+            else
+                if     grow == "right" then dx =  (col + 0.5) * (iw + spacing)
+                elseif grow == "left"  then dx = -(col + 0.5) * (iw + spacing)
+                else   dx = (col - (inLine - 1) / 2) * (iw + spacing) end
+                -- extra lines stack away from the plate, whichever side the row is on
+                dy = line * (ih + spacing) * ((o.side == "bottom") and -1 or 1)
+                   - (lines - 1) * (ih + spacing) / 2 * ((o.side == "bottom") and -1 or 1)
+            end
             ic:SetSize(iw, ih)
             ic:ClearAllPoints()
             ic:SetPoint("CENTER", g, "CENTER", dx, dy)
@@ -1181,6 +1190,11 @@ local function applyAuras(f, lists)
     local used = _used
     used.top    = (d.showName and (d.nameSize + 6) or 4) + (d.auraOffsetY or 0)
     used.bottom = castRoom - (d.auraOffsetY or 0)
+    -- The two side columns queue OUTWARD from the bar's edges, the same idea as
+    -- top and bottom but along the other axis. Started at a small gap rather
+    -- than 0 so the first column does not touch the border.
+    used.left   = 4 - (d.auraOffsetX or 0)
+    used.right  = 4 + (d.auraOffsetX or 0)
     for _, row in ipairs(AURA_ROWS) do
         local group = f[row.group]
         local list  = lists[row.key]
@@ -1193,35 +1207,61 @@ local function applyAuras(f, lists)
             local ih = (h and h > 0) and h or size
             local spacing = cfg.spacing or d.auraSpacing or 2
             local perRow  = (cfg.perRow or 0)
-            local lines   = (perRow > 0) and math.ceil(#list / perRow) or 1
-            local blockH  = lines * ih + (lines - 1) * spacing
-            local side    = (cfg.side == "bottom") and "bottom" or "top"
+            local rawSide = cfg.side or "top"
+            local vertical = (rawSide == "left" or rawSide == "right")
+            local side, blockH, blockW
 
-            -- Left/right growth pins to the matching plate edge so the row lines
-            -- up with the bar; centred growth stays on the bar's midline.
-            local grow = cfg.grow or "center"
-            local hp, gp = "CENTER", "CENTER"
-            if     grow == "right" then hp, gp = "LEFT",  "LEFT"
-            elseif grow == "left"  then hp, gp = "RIGHT", "RIGHT" end
-
-            local dy = used[side] + blockH / 2 + (cfg.y or 0)
-            group:ClearAllPoints()
-            if side == "bottom" then
-                group:SetPoint(gp, f.health, hp == "CENTER" and "BOTTOM"
-                    or (hp == "LEFT" and "BOTTOMLEFT" or "BOTTOMRIGHT"),
-                    (d.auraOffsetX or 0) + (cfg.x or 0), -dy)
+            if vertical then
+                -- One column, so the icon count IS the line count and the block
+                -- reaches along the other axis. perRow is ignored here on
+                -- purpose: a slot beside the plate is a column, and letting it
+                -- wrap would push it over the bar it sits next to.
+                side   = rawSide
+                blockH = #list * ih + (#list - 1) * spacing
+                blockW = iw
             else
-                group:SetPoint(gp, f.health, hp == "CENTER" and "TOP"
-                    or (hp == "LEFT" and "TOPLEFT" or "TOPRIGHT"),
-                    (d.auraOffsetX or 0) + (cfg.x or 0), dy)
+                side   = (rawSide == "bottom") and "bottom" or "top"
+                local lines = (perRow > 0) and math.ceil(#list / perRow) or 1
+                blockH = lines * ih + (lines - 1) * spacing
             end
+
+            group:ClearAllPoints()
+            if vertical then
+                local dx = used[side] + blockW / 2 + (cfg.x or 0)
+                if side == "left" then
+                    group:SetPoint("CENTER", f.health, "LEFT",  -dx, (cfg.y or 0))
+                else
+                    group:SetPoint("CENTER", f.health, "RIGHT",  dx, (cfg.y or 0))
+                end
+                used[side] = used[side] + blockW + spacing
+            else
+                -- Left/right growth pins to the matching plate edge so the row
+                -- lines up with the bar; centred growth stays on the midline.
+                local grow = cfg.grow or "center"
+                local hp, gp = "CENTER", "CENTER"
+                if     grow == "right" then hp, gp = "LEFT",  "LEFT"
+                elseif grow == "left"  then hp, gp = "RIGHT", "RIGHT" end
+
+                local dy = used[side] + blockH / 2 + (cfg.y or 0)
+                if side == "bottom" then
+                    group:SetPoint(gp, f.health, hp == "CENTER" and "BOTTOM"
+                        or (hp == "LEFT" and "BOTTOMLEFT" or "BOTTOMRIGHT"),
+                        (d.auraOffsetX or 0) + (cfg.x or 0), -dy)
+                else
+                    group:SetPoint(gp, f.health, hp == "CENTER" and "TOP"
+                        or (hp == "LEFT" and "TOPLEFT" or "TOPRIGHT"),
+                        (d.auraOffsetX or 0) + (cfg.x or 0), dy)
+                end
+                used[side] = used[side] + blockH + spacing
+            end
+
             -- every field set anew: the table is reused across rows
             _ro.size, _ro.w, _ro.h, _ro.spacing = size, w, h, spacing
-            _ro.grow, _ro.perRow, _ro.side = grow, perRow, side
+            _ro.grow, _ro.perRow, _ro.side = cfg.grow or "center", perRow, side
+            _ro.vertical = vertical
             _ro.showTimer, _ro.showStacks = d.showAuraTimer, d.showAuraStacks
             _ro.swipe = d.auraSwipe
             renderAuraGroup(group, list, _ro)
-            used[side] = used[side] + blockH + spacing
         elseif group then
             hideGroup(group)
         end

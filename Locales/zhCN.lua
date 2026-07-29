@@ -2672,4 +2672,11 @@ ns:RegisterLocale("zhCN", function() return {
     ["Overwrites this profile's nameplate settings with a wide, flat, dark look. Other profiles are untouched."] = "用宽、扁平、深色的外观覆盖此配置文件的姓名板设置。其他配置文件不受影响。",
     ["|cffaaaaaaOverwrites this profile's nameplate settings with a wide, flat, dark look. Other profiles are untouched.|r"] = "|cffaaaaaa用宽、扁平、深色的外观覆盖此配置文件的姓名板设置。其他配置文件不受影响。|r",
     ["Apply the wide, flat look"] = "应用宽扁外观",
+    -- Plaetze der Namensplaketten
+    ["Main positions"] = "主要位置",
+    ["|cffaaaaaaOne thing per slot. Giving a slot something takes it away from the slot that had it.|r"] = "|cffaaaaaa每个位置只放一样。把某项放到一个位置，就会从原来的位置移走。|r",
+    ["Debuffs"] = "减益效果",
+    ["Buffs"] = "增益效果",
+    ["Crowd control"] = "控制效果",
+    ["Your own debuffs"] = "你自己的减益效果",
 } end)
