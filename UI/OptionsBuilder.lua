@@ -232,6 +232,12 @@ end
 local ICON_DIR  = "Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\"
 local ICON_INFO = ICON_DIR .. "info.tga"
 local ICON_GEAR = ICON_DIR .. "gear.tga"
+
+-- One slot per row icon, and the strip is always reserved even when the row
+-- carries none. Two slots, because a row can show at most the gear and the info
+-- dot. This is what makes every control on a page end at the same x.
+local ROW_ICON_SLOT  = 21
+local ROW_ICON_STRIP = ROW_ICON_SLOT * 2
 local ICON_CFG = {
     [ICON_INFO] = { crop = false, desat = false },
     [ICON_GEAR] = { crop = false, desat = false },
@@ -471,9 +477,20 @@ local function placeColumns(parent, run, y)
             lead = 22
         end
 
+        -- A cell that spans the page keeps the same right-hand strip free as a
+        -- gear row does, so the two line up where they meet down a page.
+        --
+        -- Deliberately NOT done for a half-width cell. fitColumns decided these
+        -- two fit side by side by measuring label, track and value block against
+        -- cellW; taking 42 px away afterwards would invalidate exactly that
+        -- measurement -- and a value block that no longer fits is how rows ended
+        -- up in the neighbouring column once already (3b5ca3f). Half-width cells
+        -- align down their own column, which is the column the eye follows.
+        local rightStrip = (fullW or cols == 1) and ROW_ICON_STRIP or 0
+
         local widget = createWidget(parent, item)
         if widget then
-            widget:SetWidth(cellW - 20 - lead)
+            widget:SetWidth(cellW - 20 - lead - rightStrip)
             if labelCol and widget.SetLabelWidth then widget:SetLabelWidth(labelCol) end
             widget:SetFrameLevel(base + 4)
             local wh = widget:GetHeight() or 22
@@ -557,25 +574,39 @@ placeItem = function(parent, item, y)
             .. "/r/" .. tostring(item.subKey or item.label or item.text or item)
         local expanded = UI.rowExpanded[key]
 
-        local iconRight = CONTENT_PADDING + availW - 6
-        local nIcons = (item.subOptions and 1 or 0) + (item.tooltip and 1 or 0)
+        -- THE ICON STRIP IS ALWAYS RESERVED, AND EACH ICON HAS A FIXED SLOT.
+        --
+        -- It used to be neither. The strip was as wide as the row happened to
+        -- need, so a switch on a row with a gear sat 21 px left of one without,
+        -- and 42 px left if the row also had an info dot -- reading down a page,
+        -- the controls stepped in and out. And whichever icon came first took
+        -- the outermost slot, so the gear was not in one place either.
+        --
+        -- Now: slot 1 (outermost) belongs to the gear, slot 2 to the info dot,
+        -- occupied or not, and every control ends at the same x on every row.
+        -- The cost is ROW_ICON_STRIP of width on rows carrying no icon at all,
+        -- which is what buys the alignment.
+        local slot1 = CONTENT_PADDING + availW - 6
+        local slot2 = slot1 - ROW_ICON_SLOT
+        -- Anchored by RIGHT to the row's middle, not by TOPRIGHT to a fixed 7
+        -- below its top: rows differ in height, and a constant offset centred
+        -- exactly one of them. It also makes the grow-on-hover symmetric.
+        local midY = y - h / 2
         if item.subOptions then
             local g = setRowIcon(makeRowIcon(parent), ICON_GEAR, L["Extra settings"], function()
                 UI.rowExpanded[key] = not expanded
                 UI:BuildOptionsPage(UI._currentBuildKey, UI.currentTab)
             end, base + 5)
-            g:ClearAllPoints(); g:SetPoint("TOPRIGHT", parent, "TOPLEFT", iconRight, y - 7)
-            iconRight = iconRight - 21
+            g:ClearAllPoints(); g:SetPoint("RIGHT", parent, "TOPLEFT", slot1, midY)
         end
         if item.tooltip then
             local e = setRowIcon(makeRowIcon(parent), ICON_INFO, item.tooltip, nil, base + 5)
-            e:ClearAllPoints(); e:SetPoint("TOPRIGHT", parent, "TOPLEFT", iconRight, y - 7)
-            iconRight = iconRight - 21
+            e:ClearAllPoints(); e:SetPoint("RIGHT", parent, "TOPLEFT", slot2, midY)
         end
 
-        -- A one-line row like every other: no strip reserved to the right of
-        -- the track, and no -14 nudge to clear a label that sat above it.
-        widget:SetWidth(math.max(120, availW - 20 - nIcons * 21))
+        -- A one-line row like every other: no -14 nudge to clear a label that
+        -- once sat above the track.
+        widget:SetWidth(math.max(120, availW - 20 - ROW_ICON_STRIP))
         widget:SetPoint("TOPLEFT", parent, "TOPLEFT", CONTENT_PADDING + 10, y)
 
         y = y - h - CARD_GAP
