@@ -2741,4 +2741,13 @@ ns:RegisterLocale("koKR", function() return {
     ["Sequence"] = "순서",
     ["Automatic follows your attack speed and spell haste, which is what decides how many twists fit between two strikes. Pick one by hand to drill a single sequence."] = "자동은 공격 속도와 주문 가속을 따릅니다. 두 번의 타격 사이에 교체가 몇 번 들어가는지는 그 둘이 결정합니다. 하나만 연습하려면 직접 고르십시오.",
     ["Rotation icon size"] = "로테이션 아이콘 크기",
+    ["Sound when the twist lands"] = "교체가 성공하면 소리",
+    ["Fires when the seal actually went out inside the window, not when the window opened. That makes it a hit confirmation you can practise against with your eyes off the bar."] = "구간이 열릴 때가 아니라 인장이 실제로 구간 안에서 나갔을 때 울립니다. 막대를 보지 않고도 연습할 수 있는 성공 확인음입니다.",
+    ["Hit sound"] = "성공음",
+    ["The rifle shot is bundled; the rest are the client's own cues. Below them stand any sounds other addons have registered as shared media."] = "소총 발사음은 애드온에 포함되어 있고 나머지는 클라이언트 자체 소리입니다. 그 아래에는 다른 애드온이 공유 미디어로 등록한 소리가 나옵니다.",
+    ["Listen"] = "들어보기",
+    ["Chime"] = "종소리",
+    ["Raid warning"] = "공격대 경고",
+    ["Ready check"] = "준비 확인",
+    ["Click"] = "클릭",
 } end)

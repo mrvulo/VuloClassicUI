@@ -2890,4 +2890,13 @@ ns:RegisterLocale("frFR", function() return {
     ["Sequence"] = "Séquence",
     ["Automatic follows your attack speed and spell haste, which is what decides how many twists fit between two strikes. Pick one by hand to drill a single sequence."] = "Automatique suit votre vitesse d'attaque et votre hâte de sorts, qui déterminent combien de bascules tiennent entre deux frappes. Choisissez-en une à la main pour travailler une seule séquence.",
     ["Rotation icon size"] = "Taille des icônes de rotation",
+    ["Sound when the twist lands"] = "Son quand la bascule réussit",
+    ["Fires when the seal actually went out inside the window, not when the window opened. That makes it a hit confirmation you can practise against with your eyes off the bar."] = "Se déclenche quand le sceau est réellement parti dans la fenêtre, pas quand la fenêtre s'est ouverte. C'est donc une confirmation de réussite avec laquelle vous pouvez travailler sans regarder la barre.",
+    ["Hit sound"] = "Son de réussite",
+    ["The rifle shot is bundled; the rest are the client's own cues. Below them stand any sounds other addons have registered as shared media."] = "Le coup de fusil est fourni ; les autres sont les sons du client. En dessous figurent les sons que d'autres addons ont enregistrés comme médias partagés.",
+    ["Listen"] = "Écouter",
+    ["Chime"] = "Carillon",
+    ["Raid warning"] = "Avertissement de raid",
+    ["Ready check"] = "Vérification de préparation",
+    ["Click"] = "Clic",
 } end)

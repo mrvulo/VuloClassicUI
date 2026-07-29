@@ -77,6 +77,8 @@ local DEFAULTS = {
     useCS       = true,
     sound       = false,  -- cue when the window opens
     soundLate   = false,  -- cue when the late window opens
+    soundHit    = false,  -- cue when the twist actually landed
+    hitSound    = "sniper",
     barWidth    = 240,
     barHeight   = 22,
     iconSize    = 26,
@@ -123,6 +125,50 @@ local GCD_MIN, GCD_MAX = 1.0, 1.5
 local BAR_TEX  = "Interface\\Buttons\\WHITE8X8"
 local FONT     = "Fonts\\FRIZQT__.TTF"
 local WINDOW_SOUND = 567458
+
+-- Cues for the hit confirmation. Only sounds this addon already plays
+-- elsewhere are listed as built-ins -- an unverified file id fails SILENTLY,
+-- which is the worst possible outcome for a setting whose entire job is to make
+-- a noise. Anything sharper than these comes from shared media: other addons
+-- register their sound packs there, and picking one of those is how you get a
+-- crack rather than a chime without this addon shipping audio of its own.
+local HIT_SOUNDS = {
+    { key = "sniper", label = "Sniper",       media = "Sniper" },
+    { key = "chime",  label = "Chime",        file  = WINDOW_SOUND },
+    { key = "alarm",  label = "Raid warning", kit   = "RAID_WARNING", fallback = 8959 },
+    { key = "ready",  label = "Ready check",  kit   = "READY_CHECK",  fallback = 8960 },
+    { key = "menu",   label = "Click",        kit   = "IG_MAINMENU_OPEN" },
+}
+local LSM_PREFIX = "lsm:"
+
+local function playHitSound(choice)
+    if not choice or choice == "" then return end
+    local name = choice:match("^" .. LSM_PREFIX .. "(.+)$")
+    if name then
+        local LSM = ns.LSM
+        local hash = LSM and LSM:HashTable("sound")
+        local path = hash and hash[name]
+        if path and path ~= "" then pcall(PlaySoundFile, path, "Master") end
+        return
+    end
+    for _, s in ipairs(HIT_SOUNDS) do
+        if s.key == choice then
+            if s.media then
+                -- Straight to the file, not through shared media: a global
+                -- sound override in another addon would otherwise be able to
+                -- swap the cue underneath us.
+                local path = ns.MediaSound and ns.MediaSound(s.media)
+                if path then pcall(PlaySoundFile, path, "Master") end
+            elseif s.file then
+                pcall(PlaySoundFile, s.file, "Master")
+            else
+                local id = (SOUNDKIT and SOUNDKIT[s.kit]) or s.fallback
+                if id then pcall(PlaySound, id, "Master") end
+            end
+            return
+        end
+    end
+end
 
 -- Zones, in the order the swing runs through them.
 local Z_FILLER, Z_DANGER, Z_TWIST, Z_LATE, Z_MISS, Z_READY = 1, 2, 3, 4, 5, 6
@@ -1064,12 +1110,33 @@ local function syncTracker()
     end
 end
 
+-- Did that cast actually twist? The seal has to have gone out while the swing
+-- was inside the window, with the held seal still up to be replaced -- which is
+-- the same test the bar draws, asked once at the moment it can be answered.
+--
+-- The cast is the right moment to ask, not the swing that follows: the server
+-- accepted it here, and by the time the swing lands the aura sweep has already
+-- overwritten the state this depends on.
+local function twistHit(d)
+    if not hasHeld or hasTwist then return false end
+    local _, dur, active = ns:GetSwing("mainhand")
+    if not active or dur <= 0 then return false end
+    local r = ns:SwingRemaining("mainhand")
+    if not r then return false end
+    local _, windowStart, _, windowEnd = bounds(d, currentGCD())
+    return r <= windowStart and r >= windowEnd
+end
+
 local function onCastSucceeded(_, unit, _, spellID)
     if unit ~= "player" then return end
     local d = db()
-    if not d or not d.showRotation then return end
+    if not d then return end
     local name = spellID and GetSpellInfo(spellID)
-    if name then rotOnCast(name) end
+    if not name then return end
+    if d.soundHit and twistName and name == twistName and twistHit(d) then
+        playHitSound(d.hitSound)
+    end
+    if d.showRotation then rotOnCast(name) end
 end
 
 local function onSpellsChanged()
@@ -1117,6 +1184,22 @@ local function sealValues()
     local out = {}
     for _, n in ipairs(sealNames) do out[#out + 1] = { value = n, text = n } end
     if #out == 0 then out[1] = { value = "", text = L["(no seals learned)"] } end
+    return out
+end
+
+-- The four built-ins first, then whatever sound packs other addons have
+-- registered with shared media -- that list is where a sharper cue comes from.
+local function hitSoundValues()
+    local out = {}
+    for _, s in ipairs(HIT_SOUNDS) do
+        out[#out + 1] = { value = s.key, text = L[s.label] }
+    end
+    local LSM = ns.LSM
+    if LSM then
+        for _, n in ipairs(LSM:List("sound") or {}) do
+            if n ~= "None" then out[#out + 1] = { value = LSM_PREFIX .. n, text = n } end
+        end
+    end
     return out
 end
 
@@ -1238,6 +1321,19 @@ local function getOptions()
               tooltip = L["A different sound at the late twist mark, so the two ends of the window can be told apart without looking at the bar."],
               get = function() return d.soundLate end,
               set = function(_, v) d.soundLate = v and true or false end },
+        } })
+    table.insert(items, { type = "toggle", label = L["Sound when the twist lands"],
+        tooltip = L["Fires when the seal actually went out inside the window, not when the window opened. That makes it a hit confirmation you can practise against with your eyes off the bar."],
+        get = function() return d.soundHit end,
+        set = function(_, v) d.soundHit = v and true or false end,
+        subOptions = {
+            { type = "dropdown", label = L["Hit sound"], width = 300,
+              tooltip = L["The rifle shot is bundled; the rest are the client's own cues. Below them stand any sounds other addons have registered as shared media."],
+              values = hitSoundValues(),
+              get = function() return d.hitSound end,
+              set = function(_, v) d.hitSound = v; playHitSound(v) end },
+            { type = "button", label = L["Listen"], width = 130,
+              onClick = function() playHitSound(d.hitSound) end },
         } })
 
     table.insert(items, { type = "spacer", height = 6 })

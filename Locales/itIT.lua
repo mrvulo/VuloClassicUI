@@ -2741,4 +2741,13 @@ ns:RegisterLocale("itIT", function() return {
     ["Sequence"] = "Sequenza",
     ["Automatic follows your attack speed and spell haste, which is what decides how many twists fit between two strikes. Pick one by hand to drill a single sequence."] = "Automatica segue la velocità d'attacco e la celerità magica, che decidono quanti scambi stanno fra due colpi. Scegline una a mano per allenare una singola sequenza.",
     ["Rotation icon size"] = "Dimensione icone della rotazione",
+    ["Sound when the twist lands"] = "Suono quando lo scambio riesce",
+    ["Fires when the seal actually went out inside the window, not when the window opened. That makes it a hit confirmation you can practise against with your eyes off the bar."] = "Scatta quando il sigillo è davvero uscito dentro la finestra, non quando la finestra si è aperta. Così è una conferma di riuscita su cui allenarsi senza guardare la barra.",
+    ["Hit sound"] = "Suono di riuscita",
+    ["The rifle shot is bundled; the rest are the client's own cues. Below them stand any sounds other addons have registered as shared media."] = "Lo sparo di fucile è incluso; gli altri sono i suoni del client. Sotto compaiono i suoni che altri addon hanno registrato come media condivisi.",
+    ["Listen"] = "Ascolta",
+    ["Chime"] = "Campanello",
+    ["Raid warning"] = "Avviso incursione",
+    ["Ready check"] = "Controllo prontezza",
+    ["Click"] = "Clic",
 } end)

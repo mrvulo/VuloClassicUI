@@ -2742,6 +2742,15 @@ local function T() return {
     ["Sequence"] = "Secuencia",
     ["Automatic follows your attack speed and spell haste, which is what decides how many twists fit between two strikes. Pick one by hand to drill a single sequence."] = "Automática sigue tu velocidad de ataque y tu celeridad de hechizos, que son las que deciden cuántos cambios caben entre dos golpes. Elige una a mano para practicar una sola secuencia.",
     ["Rotation icon size"] = "Tamaño de los iconos de rotación",
+    ["Sound when the twist lands"] = "Sonido cuando el cambio acierta",
+    ["Fires when the seal actually went out inside the window, not when the window opened. That makes it a hit confirmation you can practise against with your eyes off the bar."] = "Suena cuando el sello salió de verdad dentro de la ventana, no cuando la ventana se abrió. Así es una confirmación de acierto con la que puedes practicar sin mirar la barra.",
+    ["Hit sound"] = "Sonido de acierto",
+    ["The rifle shot is bundled; the rest are the client's own cues. Below them stand any sounds other addons have registered as shared media."] = "El disparo de rifle viene incluido; el resto son sonidos del propio cliente. Debajo aparecen los sonidos que otros addons hayan registrado como medios compartidos.",
+    ["Listen"] = "Escuchar",
+    ["Chime"] = "Campanilla",
+    ["Raid warning"] = "Aviso de banda",
+    ["Ready check"] = "Comprobación de preparación",
+    ["Click"] = "Clic",
 } end
 
 ns:RegisterLocale("esES", T)

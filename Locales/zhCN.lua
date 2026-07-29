@@ -2734,4 +2734,13 @@ ns:RegisterLocale("zhCN", function() return {
     ["Sequence"] = "顺序",
     ["Automatic follows your attack speed and spell haste, which is what decides how many twists fit between two strikes. Pick one by hand to drill a single sequence."] = "自动会跟随你的攻击速度和法术急速——两次打击之间能塞进几次切换由它们决定。想只练一套顺序时手动选择。",
     ["Rotation icon size"] = "循环图标大小",
+    ["Sound when the twist lands"] = "切换成功时播放声音",
+    ["Fires when the seal actually went out inside the window, not when the window opened. That makes it a hit confirmation you can practise against with your eyes off the bar."] = "在圣印确实于窗口内发出时响起，而不是窗口刚打开时。这样它就是一次命中确认，可以不看进度条来练习。",
+    ["Hit sound"] = "命中音",
+    ["The rifle shot is bundled; the rest are the client's own cues. Below them stand any sounds other addons have registered as shared media."] = "步枪声由插件自带，其余是客户端自己的提示音。再往下是其他插件注册为共享媒体的声音。",
+    ["Listen"] = "试听",
+    ["Chime"] = "铃声",
+    ["Raid warning"] = "团队警报",
+    ["Ready check"] = "就位确认",
+    ["Click"] = "点击",
 } end)

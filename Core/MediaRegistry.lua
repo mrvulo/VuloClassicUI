@@ -87,8 +87,30 @@ if LSM then
     LSM:Register("font", "Expressway", BASE .. "Fonts\\Expressway.TTF")
 end
 
--- (Sounds folder removed — VuloClassicUI doesn't use any of its sounds and
---  the 118-file pack was only registered for other addons. QueueTimer uses
---  a built-in Blizzard sound ID, not a bundled file.)
+-- Sounds. The 118-file pack that used to live here was dropped because nothing
+-- in the addon played any of it; these are the ones a feature actually asks
+-- for, and they are registered as shared media as well so a boss mod or an
+-- aura can reach them.
+--
+-- Bundled rather than a client sound ID: the seal twist hit confirmation needs
+-- a sharp crack, and the client has no sound kit that is one.
+local SOUNDS = {
+    { "Sniper", "sniper.ogg" },
+}
+local BUNDLED_SOUNDS = {}
+for i, e in ipairs(SOUNDS) do
+    BUNDLED_SOUNDS[i] = e[1]
+    if LSM then LSM:Register("sound", e[1], BASE .. "Sounds\\" .. e[2]) end
+end
+ns.BUNDLED_SOUNDS = BUNDLED_SOUNDS
+
+-- Path for a bundled sound by name, for the code paths that play a file
+-- directly instead of going through shared media.
+function ns.MediaSound(name)
+    for _, e in ipairs(SOUNDS) do
+        if e[1] == name then return BASE .. "Sounds\\" .. e[2] end
+    end
+    return nil
+end
 
 ns.LSM = LSM

@@ -2741,4 +2741,13 @@ ns:RegisterLocale("ruRU", function() return {
     ["Sequence"] = "Последовательность",
     ["Automatic follows your attack speed and spell haste, which is what decides how many twists fit between two strikes. Pick one by hand to drill a single sequence."] = "Автоматически следует за скоростью атаки и скоростью заклинаний — именно они решают, сколько смен помещается между двумя ударами. Выберите вручную, чтобы отработать одну последовательность.",
     ["Rotation icon size"] = "Размер значков ротации",
+    ["Sound when the twist lands"] = "Звук, когда смена удалась",
+    ["Fires when the seal actually went out inside the window, not when the window opened. That makes it a hit confirmation you can practise against with your eyes off the bar."] = "Срабатывает, когда печать действительно ушла внутри окна, а не когда окно открылось. Это подтверждение попадания, под которое можно тренироваться, не глядя на полосу.",
+    ["Hit sound"] = "Звук попадания",
+    ["The rifle shot is bundled; the rest are the client's own cues. Below them stand any sounds other addons have registered as shared media."] = "Винтовочный выстрел входит в аддон, остальные — собственные звуки клиента. Ниже идут звуки, которые другие аддоны зарегистрировали как общие медиа.",
+    ["Listen"] = "Прослушать",
+    ["Chime"] = "Колокольчик",
+    ["Raid warning"] = "Предупреждение рейда",
+    ["Ready check"] = "Проверка готовности",
+    ["Click"] = "Щелчок",
 } end)
