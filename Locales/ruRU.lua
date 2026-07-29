@@ -2807,4 +2807,9 @@ ns:RegisterLocale("ruRU", function() return {
     -- Nur eigene Auren
     ["Only what I cast myself"] = "Только то, что наложил я сам",
     ["Off counts the aura no matter who put it there - for a raid debuff that anyone may apply."] = "Выключено — эффект считается независимо от того, кто его наложил: для рейдового ослабления, которое может наложить любой.",
+    -- Sortierung
+    ["Fixed keeps the order you added them in. The other two reorder live by what is left."] = "Фиксированный сохраняет порядок добавления. Два других перестраивают на лету по оставшемуся времени.",
+    ["As added"] = "Как добавлено",
+    ["Least time left first"] = "Сначала с наименьшим остатком",
+    ["Most time left first"] = "Сначала с наибольшим остатком",
 } end)

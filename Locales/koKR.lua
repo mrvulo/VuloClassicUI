@@ -2807,4 +2807,9 @@ ns:RegisterLocale("koKR", function() return {
     -- Nur eigene Auren
     ["Only what I cast myself"] = "내가 직접 건 것만",
     ["Off counts the aura no matter who put it there - for a raid debuff that anyone may apply."] = "끄면 누가 걸었는지 상관없이 셉니다 — 아무나 걸 수 있는 공격대 약화 효과를 위해서입니다.",
+    -- Sortierung
+    ["Fixed keeps the order you added them in. The other two reorder live by what is left."] = "고정은 추가한 순서를 그대로 둡니다. 나머지 둘은 남은 시간에 따라 실시간으로 재배치합니다.",
+    ["As added"] = "추가한 순서대로",
+    ["Least time left first"] = "남은 시간이 짧은 것부터",
+    ["Most time left first"] = "남은 시간이 긴 것부터",
 } end)

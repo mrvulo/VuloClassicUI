@@ -2808,6 +2808,11 @@ local function T() return {
     -- Nur eigene Auren
     ["Only what I cast myself"] = "Solo lo que yo mismo lanzo",
     ["Off counts the aura no matter who put it there - for a raid debuff that anyone may apply."] = "Desactivado cuenta el aura sin importar quién la puso — para un perjuicio de banda que cualquiera puede aplicar.",
+    -- Sortierung
+    ["Fixed keeps the order you added them in. The other two reorder live by what is left."] = "Fijo mantiene el orden en que los añadiste. Los otros dos reordenan en vivo según lo que queda.",
+    ["As added"] = "Como se añadieron",
+    ["Least time left first"] = "Menos tiempo restante primero",
+    ["Most time left first"] = "Más tiempo restante primero",
 } end
 
 ns:RegisterLocale("esES", T)

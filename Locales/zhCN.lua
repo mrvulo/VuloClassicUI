@@ -2800,4 +2800,9 @@ ns:RegisterLocale("zhCN", function() return {
     -- Nur eigene Auren
     ["Only what I cast myself"] = "只算我自己施放的",
     ["Off counts the aura no matter who put it there - for a raid debuff that anyone may apply."] = "关闭后不管是谁施加的都算 — 适合任何人都能上的团队减益。",
+    -- Sortierung
+    ["Fixed keeps the order you added them in. The other two reorder live by what is left."] = "固定保持你添加时的顺序。另外两种会按剩余时间实时重排。",
+    ["As added"] = "按添加顺序",
+    ["Least time left first"] = "剩余时间少的在前",
+    ["Most time left first"] = "剩余时间多的在前",
 } end)

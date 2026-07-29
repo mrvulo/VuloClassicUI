@@ -2807,4 +2807,9 @@ ns:RegisterLocale("ptBR", function() return {
     -- Nur eigene Auren
     ["Only what I cast myself"] = "Apenas o que eu mesmo lanço",
     ["Off counts the aura no matter who put it there - for a raid debuff that anyone may apply."] = "Desligado conta a aura independentemente de quem a colocou — para um efeito de raide que qualquer um pode aplicar.",
+    -- Sortierung
+    ["Fixed keeps the order you added them in. The other two reorder live by what is left."] = "Fixo mantém a ordem em que você os adicionou. Os outros dois reordenam ao vivo pelo tempo restante.",
+    ["As added"] = "Como foram adicionados",
+    ["Least time left first"] = "Menor tempo restante primeiro",
+    ["Most time left first"] = "Maior tempo restante primeiro",
 } end)

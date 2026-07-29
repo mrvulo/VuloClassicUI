@@ -492,6 +492,48 @@ local function activeBuffers(group)
     return buf
 end
 
+-- DYNAMIC ORDER, optional.
+--
+-- The list arrives in the order the entries were added. Sorting it by what is
+-- left puts the icon that needs attention at the front -- which is the whole
+-- point of a proc or DoT bar.
+--
+-- The entry position is the tiebreaker, and it is not optional: two auras with
+-- the same remaining time would otherwise swap places on every tick, and a
+-- flickering row is worse than an unsorted one. table.sort is not stable, so
+-- the tiebreak has to be in the comparator, not left to luck.
+local function sortRemainingAsc(a, b)
+    local ra = (a._sortRem or math.huge)
+    local rb = (b._sortRem or math.huge)
+    if ra ~= rb then return ra < rb end
+    return (a._sortIdx or 0) < (b._sortIdx or 0)
+end
+
+local function sortRemainingDesc(a, b)
+    local ra = (a._sortRem or -1)
+    local rb = (b._sortRem or -1)
+    if ra ~= rb then return ra > rb end
+    return (a._sortIdx or 0) < (b._sortIdx or 0)
+end
+
+local function sortActive(group, active, now)
+    local how = group.sortBy
+    if not how or how == "fixed" or #active < 2 then return end
+    for i = 1, #active do
+        local f = active[i]
+        f._sortIdx = i
+        local rec = f._rec
+        if rec and rec.exp and rec.exp > 0 then
+            f._sortRem = rec.exp - now
+        elseif f._cdEnd and f._cdEnd > now then
+            f._sortRem = f._cdEnd - now       -- cooldown groups sort by what is left of the cooldown
+        else
+            f._sortRem = nil                  -- no timer: parked at the end either way
+        end
+    end
+    table.sort(active, how == "longest" and sortRemainingDesc or sortRemainingAsc)
+end
+
 local function packIfChanged(group, active)
     local prev, same = activePrevOf[group], false
     if prev and #prev == #active then
@@ -917,6 +959,10 @@ local function updateIcon(group, f, now)
     local onCD = enabled ~= 0 and duration and duration > minDur
         and start and (start + duration - now) > 0
 
+    -- Remembered for the optional sort, which runs after every icon is updated
+    -- and has no other way back to the cooldown's end.
+    f._cdEnd = onCD and (start + duration) or nil
+
     if onCD then
         local remain = start + duration - now
         f.cd:SetCooldown(start, duration)
@@ -1146,6 +1192,7 @@ refreshGroup = function(group, now)
                 end
             end
         end
+        sortActive(group, active, now)
         packIfChanged(group, active)
         for _, f in ipairs(active) do
             if invert then updateMissingIcon(group, f)
@@ -1155,8 +1202,12 @@ refreshGroup = function(group, now)
         return
     end
 
-    -- "only on cooldown" shifts the shown set constantly, so re-pack to avoid holes in the grid
-    local pack = group.onlyOnCooldown
+    -- "only on cooldown" shifts the shown set constantly, so re-pack to avoid
+    -- holes in the grid. A dynamic order needs the same re-pack for a different
+    -- reason -- the icons have to be placed again once they change places --
+    -- so it switches packing on as well. Nothing is hidden by that: with
+    -- "only on cooldown" off, every usable icon is in the list anyway.
+    local pack = group.onlyOnCooldown or (group.sortBy and group.sortBy ~= "fixed")
     local active = pack and activeBuffers(group) or nil
     for i = 1, #group.entries do
         local f = icons[i]
@@ -1165,7 +1216,7 @@ refreshGroup = function(group, now)
             if pack and f:IsShown() then active[#active + 1] = f end
         end
     end
-    if pack then packIfChanged(group, active) end
+    if pack then sortActive(group, active, now); packIfChanged(group, active) end
 end
 
 local visCache = {}
@@ -1464,6 +1515,15 @@ function mod:GetOptions()
         modeDesc = L["|cffaaaaaaIcons show the cooldown of each spell/trinket.|r"]
     end
     items[#items + 1] = { type = "desc", text = modeDesc }
+    items[#items + 1] = { type = "dropdown", label = L["Order"], width = 280,
+        tooltip = L["Fixed keeps the order you added them in. The other two reorder live by what is left."],
+        values = {
+            { value = "fixed",    text = L["As added"] },
+            { value = "shortest", text = L["Least time left first"] },
+            { value = "longest",  text = L["Most time left first"] },
+        },
+        get = function() return group.sortBy or "fixed" end,
+        set = function(_, v) group.sortBy = (v ~= "fixed") and v or nil; rebuildBars() end }
     if group.mode ~= "cooldown" then
         -- Focus and pet exist on this client; arena and boss units do not, and
         -- a choice that can never resolve is worse than no choice.
