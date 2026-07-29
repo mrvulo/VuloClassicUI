@@ -185,6 +185,20 @@ if (fs.existsSync(check)) {
   warn('no tools/check.js -- nothing validated');
 }
 
+// Structural check of the options pages. Its own self-test runs first: these
+// checks look for things that fail SILENTLY in game (a gear that is never
+// drawn, two gears on one key), so a checker that has quietly stopped firing
+// would be worse than none -- and it has stopped firing once already.
+const optcheck = path.join(ROOT, 'tools', 'optcheck.cjs');
+if (fs.existsSync(optcheck)) {
+  for (const [args, what] of [[['--selftest'], 'optcheck self-test'], [[], 'optcheck RESULT: OK']]) {
+    const r = spawnSync(process.execPath, [optcheck, ...args], { cwd: ROOT, encoding: 'utf8' });
+    const out = (r.stdout || '') + (r.stderr || '');
+    if (/RESULT: OK/.test(out)) ok(what);
+    else { fail(what + ' failed'); console.log(out.split('\n').slice(-20).map((l) => '          ' + l).join('\n')); }
+  }
+}
+
 // ---------------------------------------------------------------- next steps
 head(failed ? 'NOT READY' : 'ready to commit');
 if (failed) {
