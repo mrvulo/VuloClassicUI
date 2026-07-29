@@ -2751,6 +2751,22 @@ local function T() return {
     ["Raid warning"] = "Aviso de banda",
     ["Ready check"] = "Comprobación de preparación",
     ["Click"] = "Clic",
+    -- Patch notes 1.41.0
+    ["Moving a frame could throw a blocked-action error if you happened to be in combat while the frames were built. The keyboard is only taken over once a mover is on screen."] = "Mover una ventana podía provocar un error de acción bloqueada si estabas en combate mientras se construían las ventanas. El teclado solo se toma cuando un movedor está en pantalla.",
+    ["The trinket window's settings were being written to the saved file a second time under their old names. They are stored once now."] = "Los ajustes de la ventana de abalorios se escribían una segunda vez en el archivo guardado con sus nombres antiguos. Ahora se guardan una sola vez.",
+    ["42 texts existed in German only, among them the whole talent override interface and the trinket queue. All nine languages are complete again."] = "42 textos existían solo en alemán, entre ellos toda la interfaz de anulaciones de talentos y la cola de abalorios. Los nueve idiomas vuelven a estar completos.",
+    ["Main positions – Six slots around the plate, each holding one thing: debuffs, buffs, crowd control or your own damage-over-time"] = "Posiciones principales – Seis espacios alrededor de la placa, cada uno con una sola cosa: perjuicios, beneficios, control de masas o tus propios daños en el tiempo",
+    ["Glow when low on health – A coloured ring once the unit drops past your mark"] = "Brillo con poca vida – Un anillo de color en cuanto el objetivo baja de tu marca",
+    ["Arrows beside your target – Two arrows pointing in at the bar"] = "Flechas junto a tu objetivo – Dos flechas que apuntan a la barra desde ambos lados",
+    ["Mark on the focus plate – A short text, so target and focus stay apart at a glance"] = "Marca en la placa de foco – Un texto corto para distinguir objetivo y foco de un vistazo",
+    ["Preset – One click for a wide, flat, dark look, and one to put the small plates back"] = "Plantilla – Un clic para un aspecto ancho, plano y oscuro, y otro para volver a las placas pequeñas",
+    ["Two of the six slots sit beside the plate as a column, which was not possible before. And two rows can no longer land on top of each other: giving a slot something takes it away from the slot that had it."] = "Dos de los seis espacios se colocan junto a la placa como columna, algo que antes no era posible. Y dos filas ya no pueden solaparse: lo que asignas a un espacio se lo quitas al que lo tenía.",
+    ["The cast bar can name who the cast is aimed at, your own name coloured."] = "La barra de lanzamiento puede indicar a quién va dirigido el hechizo, con tu propio nombre coloreado.",
+    ["Twist zones – The swing bar answers what you may press now instead of counting down"] = "Zonas de cambio – La barra de golpeo responde qué puedes pulsar ahora en vez de contar hacia atrás",
+    ["Rotation helper – A short sequence rather than a single next step, worked out from your weapon and cast speed"] = "Ayuda de rotación – Una secuencia corta en lugar de un único paso siguiente, calculada con tu velocidad de arma y de lanzamiento",
+    ["The seal you twist into may be any other seal, not only the two that arrive at level 64."] = "El sello al que cambias puede ser cualquier otro sello, no solo los dos que llegan al nivel 64.",
+    ["Sections no longer fold away. Long pages fold at the gear on a row instead, which says something a section expander never could: the rows behind it belong to the switch it sits on."] = "Las secciones ya no se pliegan. Las páginas largas se pliegan en el engranaje de una fila, que dice algo que un plegado de sección nunca pudo: las filas de detrás pertenecen al interruptor sobre el que está.",
+    ["Controls line up down a page now, and a switch sits in the middle of its row."] = "Los controles quedan alineados a lo largo de la página y un interruptor se sitúa en el centro de su fila.",
 } end
 
 ns:RegisterLocale("esES", T)
