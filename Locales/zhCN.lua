@@ -2686,4 +2686,7 @@ ns:RegisterLocale("zhCN", function() return {
     ["Low health colour"] = "低生命值颜色",
     ["Glow in the aura's own school colour"] = "按效果自身的类型颜色发光",
     ["Magic blue, curse purple, disease orange, poison green — instead of one colour for everything."] = "魔法蓝、诅咒紫、疾病橙、中毒绿——而不是所有效果一个颜色。",
+    -- Absorptionsstil
+    ["Absorb style"] = "吸收护盾样式",
+    ["Flat colour"] = "纯色",
 } end)

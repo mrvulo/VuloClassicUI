@@ -2694,6 +2694,9 @@ local function T() return {
     ["Low health colour"] = "Color de poca vida",
     ["Glow in the aura's own school colour"] = "Brillar en el color de escuela del aura",
     ["Magic blue, curse purple, disease orange, poison green — instead of one colour for everything."] = "Magia azul, maldición morado, enfermedad naranja, veneno verde — en vez de un color para todo.",
+    -- Absorptionsstil
+    ["Absorb style"] = "Estilo de absorción",
+    ["Flat colour"] = "Color plano",
 } end
 
 ns:RegisterLocale("esES", T)

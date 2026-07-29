@@ -26,6 +26,7 @@ local mod = ns:RegisterModule("nameplates", {
         colLowHp    = { r = 1.00, g = 0.20, b = 0.20 },
 
         showAbsorb  = true,
+        absorbStyle = "flat",
         colAbsorb   = { r = 0.70, g = 0.85, b = 1.00 },
         absorbAlpha = 0.55,
 
@@ -740,8 +741,21 @@ local function paintAbsorb(f, cur, max, absorb)
     local absorbFrac = absorb / max
     if startFrac + absorbFrac > 1 then absorbFrac = 1 - startFrac end
     if absorbFrac <= 0 then ab:Hide(); return end
+    -- The style IS the texture, same as where this idea comes from. "flat" keeps
+    -- the old plain fill; anything else is one of our bar textures, tinted with
+    -- the absorb colour. Resolved through the same helper the bars use, so a
+    -- texture that exists for the health bar exists here too -- no second list
+    -- of paths that could rot on its own.
     local c = d.colAbsorb
-    ab:SetColorTexture(c.r, c.g, c.b, d.absorbAlpha or 0.55)
+    local a = d.absorbAlpha or 0.55
+    local style = d.absorbStyle or "flat"
+    if style == "flat" then
+        ab:SetTexture(nil)
+        ab:SetColorTexture(c.r, c.g, c.b, a)
+    else
+        ab:SetTexture(lsmStatusbar(style))
+        ab:SetVertexColor(c.r, c.g, c.b, a)
+    end
     ab:ClearAllPoints()
     ab:SetPoint("TOPLEFT", f.health, "TOPLEFT", w * startFrac, 0)
     ab:SetPoint("BOTTOMLEFT", f.health, "BOTTOMLEFT", w * startFrac, 0)

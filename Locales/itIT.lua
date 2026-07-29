@@ -2693,4 +2693,7 @@ ns:RegisterLocale("itIT", function() return {
     ["Low health colour"] = "Colore a vita bassa",
     ["Glow in the aura's own school colour"] = "Bagliore nel colore di scuola dell'aura",
     ["Magic blue, curse purple, disease orange, poison green — instead of one colour for everything."] = "Magia blu, maledizione viola, malattia arancione, veleno verde — invece di un colore per tutto.",
+    -- Absorptionsstil
+    ["Absorb style"] = "Stile assorbimento",
+    ["Flat colour"] = "Tinta unita",
 } end)

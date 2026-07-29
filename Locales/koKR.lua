@@ -2693,4 +2693,7 @@ ns:RegisterLocale("koKR", function() return {
     ["Low health colour"] = "낮은 생명력 색",
     ["Glow in the aura's own school colour"] = "효과의 계열 색으로 빛나기",
     ["Magic blue, curse purple, disease orange, poison green — instead of one colour for everything."] = "마법은 파랑, 저주는 보라, 질병은 주황, 독은 초록 — 모두 한 색으로 칠하는 대신입니다.",
+    -- Absorptionsstil
+    ["Absorb style"] = "보호막 모양",
+    ["Flat colour"] = "단색",
 } end)

@@ -2842,4 +2842,7 @@ ns:RegisterLocale("frFR", function() return {
     ["Low health colour"] = "Couleur à faible santé",
     ["Glow in the aura's own school colour"] = "Briller dans la couleur d'école de l'aura",
     ["Magic blue, curse purple, disease orange, poison green — instead of one colour for everything."] = "Magie bleu, malédiction violet, maladie orange, poison vert — au lieu d’une seule couleur pour tout.",
+    -- Absorptionsstil
+    ["Absorb style"] = "Style d'absorption",
+    ["Flat colour"] = "Couleur unie",
 } end)

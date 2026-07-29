@@ -2693,4 +2693,7 @@ ns:RegisterLocale("ruRU", function() return {
     ["Low health colour"] = "Цвет при низком здоровье",
     ["Glow in the aura's own school colour"] = "Светиться цветом школы эффекта",
     ["Magic blue, curse purple, disease orange, poison green — instead of one colour for everything."] = "Магия синим, проклятие фиолетовым, болезнь оранжевым, яд зелёным — вместо одного цвета на всё.",
+    -- Absorptionsstil
+    ["Absorb style"] = "Вид поглощения",
+    ["Flat colour"] = "Сплошной цвет",
 } end)

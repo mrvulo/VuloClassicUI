@@ -441,6 +441,16 @@ function mod:GetOptions()
               get = function() return mod.db.showAbsorb end,
               set = function(_, v) mod.db.showAbsorb = v; applyAndRefresh() end,
               subOptions = {
+                  -- "Flat" first: it is what the shield looked like before this
+                  -- existed, so an untouched profile finds itself at the top.
+                  { type = "dropdown", label = L["Absorb style"], width = 300,
+                    values = (function()
+                        local vals = { { value = "flat", text = L["Flat colour"] } }
+                        for _, v in ipairs(textureValues()) do vals[#vals + 1] = v end
+                        return vals
+                    end)(),
+                    get = function() return mod.db.absorbStyle or "flat" end,
+                    set = function(_, v) mod.db.absorbStyle = v; applyAndRefresh() end },
                   { type = "color", label = L["Absorb colour"], width = 200,
                     get = function() return mod.db.colAbsorb end,
                     set = function(r, g, b) mod.db.colAbsorb = { r = r, g = g, b = b }; applyAndRefresh() end },

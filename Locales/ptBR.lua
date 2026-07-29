@@ -2693,4 +2693,7 @@ ns:RegisterLocale("ptBR", function() return {
     ["Low health colour"] = "Cor de pouca vida",
     ["Glow in the aura's own school colour"] = "Brilhar na cor de escola da aura",
     ["Magic blue, curse purple, disease orange, poison green — instead of one colour for everything."] = "Magia azul, maldição roxo, doença laranja, veneno verde — em vez de uma cor para tudo.",
+    -- Absorptionsstil
+    ["Absorb style"] = "Estilo de absorção",
+    ["Flat colour"] = "Cor sólida",
 } end)

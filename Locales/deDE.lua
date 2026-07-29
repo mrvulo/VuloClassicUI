@@ -2830,4 +2830,7 @@ ns:RegisterLocale("deDE", function() return {
     ["Low health colour"] = "Farbe bei wenig Leben",
     ["Glow in the aura's own school colour"] = "Im Schulfarbton des Zaubers leuchten",
     ["Magic blue, curse purple, disease orange, poison green — instead of one colour for everything."] = "Magie blau, Fluch violett, Krankheit orange, Gift grün — statt einer Farbe für alles.",
+    -- Absorptionsstil
+    ["Absorb style"] = "Absorptionsstil",
+    ["Flat colour"] = "Einfarbig",
 } end)
