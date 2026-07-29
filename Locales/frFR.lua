@@ -2849,4 +2849,10 @@ ns:RegisterLocale("frFR", function() return {
     ["Show who the cast is aimed at"] = "Afficher la cible du sort",
     ["The caster's current target, beside the cast bar. Your own name is coloured."] = "La cible actuelle du lanceur, à côté de la barre d'incantation. Ton propre nom est coloré.",
     ["Cast target size"] = "Taille de la cible du sort",
+    -- Zielpfeile
+    ["Arrows beside your target"] = "Flèches à côté de ta cible",
+    ["Two arrows pointing in at the target's bar, one on each side."] = "Deux flèches pointant vers la barre de la cible, une de chaque côté.",
+    ["Arrow size"] = "Taille des flèches",
+    ["Arrow distance"] = "Distance des flèches",
+    ["Arrow colour"] = "Couleur des flèches",
 } end)

@@ -2700,4 +2700,10 @@ ns:RegisterLocale("koKR", function() return {
     ["Show who the cast is aimed at"] = "시전 대상 표시",
     ["The caster's current target, beside the cast bar. Your own name is coloured."] = "시전자가 현재 겨냥한 대상을 시전 막대 옆에 표시합니다. 자기 이름은 색으로 강조됩니다.",
     ["Cast target size"] = "시전 대상 글자 크기",
+    -- Zielpfeile
+    ["Arrows beside your target"] = "대상 옆 화살표",
+    ["Two arrows pointing in at the target's bar, one on each side."] = "대상의 막대를 양쪽에서 가리키는 화살표 두 개.",
+    ["Arrow size"] = "화살표 크기",
+    ["Arrow distance"] = "화살표 간격",
+    ["Arrow colour"] = "화살표 색",
 } end)

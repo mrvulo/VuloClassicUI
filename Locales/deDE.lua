@@ -2837,4 +2837,10 @@ ns:RegisterLocale("deDE", function() return {
     ["Show who the cast is aimed at"] = "Zeigen, auf wen gezaubert wird",
     ["The caster's current target, beside the cast bar. Your own name is coloured."] = "Das aktuelle Ziel des Zaubernden, neben der Zauberleiste. Dein eigener Name wird eingefärbt.",
     ["Cast target size"] = "Größe des Zauberziels",
+    -- Zielpfeile
+    ["Arrows beside your target"] = "Pfeile neben deinem Ziel",
+    ["Two arrows pointing in at the target's bar, one on each side."] = "Zwei Pfeile, die von beiden Seiten auf die Leiste des Ziels zeigen.",
+    ["Arrow size"] = "Pfeilgröße",
+    ["Arrow distance"] = "Pfeilabstand",
+    ["Arrow colour"] = "Pfeilfarbe",
 } end)

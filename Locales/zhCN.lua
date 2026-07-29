@@ -2693,4 +2693,10 @@ ns:RegisterLocale("zhCN", function() return {
     ["Show who the cast is aimed at"] = "显示施法目标",
     ["The caster's current target, beside the cast bar. Your own name is coloured."] = "在施法条旁边显示施法者当前的目标。你自己的名字会以颜色突出。",
     ["Cast target size"] = "施法目标字号",
+    -- Zielpfeile
+    ["Arrows beside your target"] = "目标两侧的箭头",
+    ["Two arrows pointing in at the target's bar, one on each side."] = "两个箭头从两侧指向目标的血条。",
+    ["Arrow size"] = "箭头大小",
+    ["Arrow distance"] = "箭头间距",
+    ["Arrow colour"] = "箭头颜色",
 } end)

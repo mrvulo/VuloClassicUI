@@ -2701,6 +2701,12 @@ local function T() return {
     ["Show who the cast is aimed at"] = "Mostrar a quién va dirigido el hechizo",
     ["The caster's current target, beside the cast bar. Your own name is coloured."] = "El objetivo actual de quien lanza, junto a la barra de lanzamiento. Tu propio nombre se colorea.",
     ["Cast target size"] = "Tamaño del objetivo del hechizo",
+    -- Zielpfeile
+    ["Arrows beside your target"] = "Flechas junto a tu objetivo",
+    ["Two arrows pointing in at the target's bar, one on each side."] = "Dos flechas que apuntan a la barra del objetivo, una a cada lado.",
+    ["Arrow size"] = "Tamaño de flecha",
+    ["Arrow distance"] = "Distancia de flecha",
+    ["Arrow colour"] = "Color de flecha",
 } end
 
 ns:RegisterLocale("esES", T)

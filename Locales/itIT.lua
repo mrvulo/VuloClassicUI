@@ -2700,4 +2700,10 @@ ns:RegisterLocale("itIT", function() return {
     ["Show who the cast is aimed at"] = "Mostrare su chi è lanciata la magia",
     ["The caster's current target, beside the cast bar. Your own name is coloured."] = "Il bersaglio attuale di chi lancia, accanto alla barra di lancio. Il tuo nome viene colorato.",
     ["Cast target size"] = "Dimensione del bersaglio della magia",
+    -- Zielpfeile
+    ["Arrows beside your target"] = "Frecce accanto al bersaglio",
+    ["Two arrows pointing in at the target's bar, one on each side."] = "Due frecce che puntano alla barra del bersaglio, una per lato.",
+    ["Arrow size"] = "Dimensione frecce",
+    ["Arrow distance"] = "Distanza frecce",
+    ["Arrow colour"] = "Colore frecce",
 } end)

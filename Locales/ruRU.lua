@@ -2700,4 +2700,10 @@ ns:RegisterLocale("ruRU", function() return {
     ["Show who the cast is aimed at"] = "Показывать, на кого направлено заклинание",
     ["The caster's current target, beside the cast bar. Your own name is coloured."] = "Текущая цель того, кто читает заклинание, рядом с полосой заклинания. Твоё имя выделяется цветом.",
     ["Cast target size"] = "Размер имени цели заклинания",
+    -- Zielpfeile
+    ["Arrows beside your target"] = "Стрелки рядом с целью",
+    ["Two arrows pointing in at the target's bar, one on each side."] = "Две стрелки, указывающие на полосу цели с обеих сторон.",
+    ["Arrow size"] = "Размер стрелок",
+    ["Arrow distance"] = "Отступ стрелок",
+    ["Arrow colour"] = "Цвет стрелок",
 } end)

@@ -125,6 +125,10 @@ local mod = ns:RegisterModule("nameplates", {
 
         targetHighlight = true,
         colTarget       = { r = 1, g = 1, b = 1 },
+        targetArrows    = false,
+        targetArrowSize = 14,
+        targetArrowGap  = 4,
+        colTargetArrow  = { r = 1, g = 1, b = 1 },
         nonTargetAlpha  = 1.0,
 
         focusHighlight  = true,
@@ -827,8 +831,45 @@ local function applyPlateAlpha(f, haveTarget)
     f:SetAlpha(a)
 end
 
+-- Two arrows pointing IN at the target's bar, one per side.
+--
+-- ChatFrameExpandArrow rather than something prettier: it ships with every
+-- client this addon covers, so there is no path that can silently render
+-- nothing. The left one is the same texture mirrored -- one asset, two sides.
+local ARROW_TEX = "Interface\\ChatFrame\\ChatFrameExpandArrow"
+
+local function paintTargetArrows(f, isTarget)
+    local d = db()
+    local on = d.targetArrows and isTarget
+    if not f.arrowL then
+        if not on then return end                 -- nothing to hide, nothing to build
+        f.arrowL = f.health:CreateTexture(nil, "OVERLAY")
+        f.arrowR = f.health:CreateTexture(nil, "OVERLAY")
+        f.arrowL:SetTexture(ARROW_TEX)
+        f.arrowR:SetTexture(ARROW_TEX)
+        f.arrowR:SetTexCoord(1, 0, 0, 1)          -- mirrored, so it points inward too
+    end
+    if not on then
+        f.arrowL:Hide(); f.arrowR:Hide()
+        return
+    end
+    local size = d.targetArrowSize or 14
+    local gap  = d.targetArrowGap or 4
+    local c    = d.colTargetArrow or { r = 1, g = 1, b = 1 }
+    for _, t in ipairs({ f.arrowL, f.arrowR }) do
+        t:SetSize(size, size)
+        t:SetVertexColor(c.r, c.g, c.b)
+        t:Show()
+    end
+    f.arrowL:ClearAllPoints()
+    f.arrowL:SetPoint("RIGHT", f.health, "LEFT", -gap, 0)
+    f.arrowR:ClearAllPoints()
+    f.arrowR:SetPoint("LEFT", f.health, "RIGHT", gap, 0)
+end
+
 local function paintTarget(f, isTarget)
     local d = db()
+    paintTargetArrows(f, isTarget)
     if d.targetHighlight and isTarget then
         local c = d.colTarget
         layoutEdges(f.targetGlow, f.health, math.max(1, d.borderSize + 1),

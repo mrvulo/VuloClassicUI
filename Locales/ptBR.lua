@@ -2700,4 +2700,10 @@ ns:RegisterLocale("ptBR", function() return {
     ["Show who the cast is aimed at"] = "Mostrar em quem a magia é lançada",
     ["The caster's current target, beside the cast bar. Your own name is coloured."] = "O alvo atual de quem conjura, ao lado da barra de conjuração. Seu próprio nome fica colorido.",
     ["Cast target size"] = "Tamanho do alvo da magia",
+    -- Zielpfeile
+    ["Arrows beside your target"] = "Setas ao lado do seu alvo",
+    ["Two arrows pointing in at the target's bar, one on each side."] = "Duas setas apontando para a barra do alvo, uma de cada lado.",
+    ["Arrow size"] = "Tamanho da seta",
+    ["Arrow distance"] = "Distância da seta",
+    ["Arrow colour"] = "Cor da seta",
 } end)
