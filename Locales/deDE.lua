@@ -2811,4 +2811,9 @@ ns:RegisterLocale("deDE", function() return {
     ["Opens the window earlier by one trip to the server, and closes it once the cast can no longer arrive before the swing. Uses your measured world latency, capped at 250 ms."] = "Öffnet das Fenster um einen Weg zum Server früher und schließt es, sobald der Wirkvorgang nicht mehr vor dem Schlag ankommen kann. Nutzt deine gemessene Weltlatenz, gedeckelt bei 250 ms.",
     ["Show out of combat"] = "Außerhalb des Kampfes zeigen",
     ["Normally the bar is only up in combat. Switch this on to keep it on screen, which is the easier way to practise the timing on a dummy."] = "Normalerweise steht die Leiste nur im Kampf. Schalte das ein, um sie dauerhaft zu sehen — der bequemere Weg, das Timing an einer Puppe zu üben.",
+    -- Namensplaketten-Vorlage
+    ["Nameplate settings replaced. Switch profile to get the old ones back."] = "Die Einstellungen der Namensplaketten wurden ersetzt. Ein Profilwechsel holt die alten zurück.",
+    ["Overwrites this profile's nameplate settings with a wide, flat, dark look. Other profiles are untouched."] = "Überschreibt die Namensplaketten-Einstellungen dieses Profils mit einem breiten, flachen, dunklen Aussehen. Andere Profile bleiben unberührt.",
+    ["|cffaaaaaaOverwrites this profile's nameplate settings with a wide, flat, dark look. Other profiles are untouched.|r"] = "|cffaaaaaaÜberschreibt die Namensplaketten-Einstellungen dieses Profils mit einem breiten, flachen, dunklen Aussehen. Andere Profile bleiben unberührt.|r",
+    ["Apply the wide, flat look"] = "Breites, flaches Aussehen übernehmen",
 } end)

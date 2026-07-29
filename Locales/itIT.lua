@@ -2674,4 +2674,9 @@ ns:RegisterLocale("itIT", function() return {
     ["Opens the window earlier by one trip to the server, and closes it once the cast can no longer arrive before the swing. Uses your measured world latency, capped at 250 ms."] = "Apre la finestra un viaggio verso il server prima e la chiude appena il lancio non può più arrivare prima del colpo. Usa la latenza mondiale misurata, con un tetto di 250 ms.",
     ["Show out of combat"] = "Mostra fuori dal combattimento",
     ["Normally the bar is only up in combat. Switch this on to keep it on screen, which is the easier way to practise the timing on a dummy."] = "Di norma la barra compare solo in combattimento. Attiva questa opzione per tenerla sempre a schermo: è il modo più comodo per allenare il tempismo su un fantoccio.",
+    -- Namensplaketten-Vorlage
+    ["Nameplate settings replaced. Switch profile to get the old ones back."] = "Le impostazioni delle targhette sono state sostituite. Cambia profilo per riavere quelle precedenti.",
+    ["Overwrites this profile's nameplate settings with a wide, flat, dark look. Other profiles are untouched."] = "Sovrascrive le impostazioni delle targhette di questo profilo con un aspetto largo, piatto e scuro. Gli altri profili restano intatti.",
+    ["|cffaaaaaaOverwrites this profile's nameplate settings with a wide, flat, dark look. Other profiles are untouched.|r"] = "|cffaaaaaaSovrascrive le impostazioni delle targhette di questo profilo con un aspetto largo, piatto e scuro. Gli altri profili restano intatti.|r",
+    ["Apply the wide, flat look"] = "Applica l'aspetto largo e piatto",
 } end)

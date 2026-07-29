@@ -2674,4 +2674,9 @@ ns:RegisterLocale("ruRU", function() return {
     ["Opens the window earlier by one trip to the server, and closes it once the cast can no longer arrive before the swing. Uses your measured world latency, capped at 250 ms."] = "Открывает окно раньше на один путь до сервера и закрывает его, как только накладывание уже не успеет прийти раньше удара. Использует измеренную мировую задержку, не более 250 мс.",
     ["Show out of combat"] = "Показывать вне боя",
     ["Normally the bar is only up in combat. Switch this on to keep it on screen, which is the easier way to practise the timing on a dummy."] = "Обычно полоса видна только в бою. Включите это, чтобы она оставалась на экране — так удобнее отрабатывать тайминг на манекене.",
+    -- Namensplaketten-Vorlage
+    ["Nameplate settings replaced. Switch profile to get the old ones back."] = "Настройки индикаторов имён заменены. Смените профиль, чтобы вернуть прежние.",
+    ["Overwrites this profile's nameplate settings with a wide, flat, dark look. Other profiles are untouched."] = "Перезаписывает настройки индикаторов имён этого профиля широким, плоским и тёмным видом. Другие профили не затрагиваются.",
+    ["|cffaaaaaaOverwrites this profile's nameplate settings with a wide, flat, dark look. Other profiles are untouched.|r"] = "|cffaaaaaaПерезаписывает настройки индикаторов имён этого профиля широким, плоским и тёмным видом. Другие профили не затрагиваются.|r",
+    ["Apply the wide, flat look"] = "Применить широкий плоский вид",
 } end)

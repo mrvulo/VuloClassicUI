@@ -2675,6 +2675,11 @@ local function T() return {
     ["Opens the window earlier by one trip to the server, and closes it once the cast can no longer arrive before the swing. Uses your measured world latency, capped at 250 ms."] = "Abre la ventana un viaje al servidor antes y la cierra en cuanto el lanzamiento ya no puede llegar antes del golpe. Usa tu latencia mundial medida, con un tope de 250 ms.",
     ["Show out of combat"] = "Mostrar fuera de combate",
     ["Normally the bar is only up in combat. Switch this on to keep it on screen, which is the easier way to practise the timing on a dummy."] = "Normalmente la barra solo está en pantalla en combate. Activa esto para mantenerla siempre visible, que es la forma más cómoda de practicar el ritmo en un muñeco.",
+    -- Namensplaketten-Vorlage
+    ["Nameplate settings replaced. Switch profile to get the old ones back."] = "Los ajustes de las placas de nombre se han reemplazado. Cambia de perfil para recuperar los anteriores.",
+    ["Overwrites this profile's nameplate settings with a wide, flat, dark look. Other profiles are untouched."] = "Sobrescribe los ajustes de placas de nombre de este perfil con un aspecto ancho, plano y oscuro. Los demás perfiles no se tocan.",
+    ["|cffaaaaaaOverwrites this profile's nameplate settings with a wide, flat, dark look. Other profiles are untouched.|r"] = "|cffaaaaaaSobrescribe los ajustes de placas de nombre de este perfil con un aspecto ancho, plano y oscuro. Los demás perfiles no se tocan.|r",
+    ["Apply the wide, flat look"] = "Aplicar el aspecto ancho y plano",
 } end
 
 ns:RegisterLocale("esES", T)

@@ -2823,4 +2823,9 @@ ns:RegisterLocale("frFR", function() return {
     ["Opens the window earlier by one trip to the server, and closes it once the cast can no longer arrive before the swing. Uses your measured world latency, capped at 250 ms."] = "Ouvre la fenêtre un trajet serveur plus tôt et la referme dès que le lancement ne peut plus arriver avant le coup. Utilise votre latence monde mesurée, plafonnée à 250 ms.",
     ["Show out of combat"] = "Afficher hors combat",
     ["Normally the bar is only up in combat. Switch this on to keep it on screen, which is the easier way to practise the timing on a dummy."] = "Normalement la barre n'apparaît qu'en combat. Activez ceci pour la garder à l'écran : c'est le moyen le plus simple de travailler le timing sur un mannequin.",
+    -- Namensplaketten-Vorlage
+    ["Nameplate settings replaced. Switch profile to get the old ones back."] = "Les réglages des barres de nom ont été remplacés. Change de profil pour retrouver les précédents.",
+    ["Overwrites this profile's nameplate settings with a wide, flat, dark look. Other profiles are untouched."] = "Remplace les réglages des barres de nom de ce profil par un rendu large, plat et sombre. Les autres profils ne sont pas touchés.",
+    ["|cffaaaaaaOverwrites this profile's nameplate settings with a wide, flat, dark look. Other profiles are untouched.|r"] = "|cffaaaaaaRemplace les réglages des barres de nom de ce profil par un rendu large, plat et sombre. Les autres profils ne sont pas touchés.|r",
+    ["Apply the wide, flat look"] = "Appliquer le rendu large et plat",
 } end)

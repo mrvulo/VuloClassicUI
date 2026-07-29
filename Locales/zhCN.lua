@@ -2667,4 +2667,9 @@ ns:RegisterLocale("zhCN", function() return {
     ["Opens the window earlier by one trip to the server, and closes it once the cast can no longer arrive before the swing. Uses your measured world latency, capped at 250 ms."] = "把窗口提前一个到服务器的单程时间打开，并在施法已无法赶在挥击之前抵达时关闭。使用实测的世界延迟，上限 250 毫秒。",
     ["Show out of combat"] = "脱离战斗时也显示",
     ["Normally the bar is only up in combat. Switch this on to keep it on screen, which is the easier way to practise the timing on a dummy."] = "进度条通常只在战斗中出现。打开这项可让它一直留在屏幕上，这是在木桩上练习节奏更方便的方式。",
+    -- Namensplaketten-Vorlage
+    ["Nameplate settings replaced. Switch profile to get the old ones back."] = "姓名板设置已替换。切换配置文件即可恢复原来的设置。",
+    ["Overwrites this profile's nameplate settings with a wide, flat, dark look. Other profiles are untouched."] = "用宽、扁平、深色的外观覆盖此配置文件的姓名板设置。其他配置文件不受影响。",
+    ["|cffaaaaaaOverwrites this profile's nameplate settings with a wide, flat, dark look. Other profiles are untouched.|r"] = "|cffaaaaaa用宽、扁平、深色的外观覆盖此配置文件的姓名板设置。其他配置文件不受影响。|r",
+    ["Apply the wide, flat look"] = "应用宽扁外观",
 } end)

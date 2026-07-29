@@ -2674,4 +2674,9 @@ ns:RegisterLocale("koKR", function() return {
     ["Opens the window earlier by one trip to the server, and closes it once the cast can no longer arrive before the swing. Uses your measured world latency, capped at 250 ms."] = "서버까지 가는 시간만큼 구간을 일찍 열고, 시전이 공격보다 먼저 도착할 수 없게 되면 닫습니다. 측정된 월드 지연 시간을 사용하며 250ms로 제한합니다.",
     ["Show out of combat"] = "전투 밖에서도 표시",
     ["Normally the bar is only up in combat. Switch this on to keep it on screen, which is the easier way to practise the timing on a dummy."] = "기본적으로 막대는 전투 중에만 나타납니다. 이 옵션을 켜면 항상 화면에 남아 있어, 허수아비에서 타이밍을 연습하기에 더 편합니다.",
+    -- Namensplaketten-Vorlage
+    ["Nameplate settings replaced. Switch profile to get the old ones back."] = "이름표 설정을 교체했습니다. 프로필을 바꾸면 이전 설정으로 돌아갑니다.",
+    ["Overwrites this profile's nameplate settings with a wide, flat, dark look. Other profiles are untouched."] = "이 프로필의 이름표 설정을 넓고 평평한 어두운 모습으로 덮어씁니다. 다른 프로필은 그대로입니다.",
+    ["|cffaaaaaaOverwrites this profile's nameplate settings with a wide, flat, dark look. Other profiles are untouched.|r"] = "|cffaaaaaa이 프로필의 이름표 설정을 넓고 평평한 어두운 모습으로 덮어씁니다. 다른 프로필은 그대로입니다.|r",
+    ["Apply the wide, flat look"] = "넓고 평평한 모습 적용",
 } end)

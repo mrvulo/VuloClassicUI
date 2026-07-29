@@ -150,6 +150,99 @@ local function rowPlacementItems(key, SLW, applyAndRefresh, withFilter)
     return items
 end
 
+-- A preset: one click that writes a whole look into the CURRENT profile.
+--
+-- The values were read out of a working setup rather than invented, and two
+-- unit traps had to be undone on the way in -- both verified against the source
+-- they came from, not guessed:
+--
+--   * the bar width was stored as an OFFSET onto a base of 150. Taken at face
+--     value the plates would have come out 70 wide instead of 220.
+--   * that setup stores only what differs from its own defaults, and it does
+--     that per LEAF -- so a colour can arrive with one component missing. A
+--     missing component is not zero, it is "unchanged", and four colours
+--     (among them the threat warning) would have been read as a different
+--     colour entirely.
+--
+-- Only settings we actually have are listed. Anything that needs a placement
+-- model we do not have -- one aura row per anchor slot -- is deliberately
+-- absent rather than approximated.
+local PRESET = {
+    -- health bar
+    healthWidth          = 220,
+    healthHeight         = 27,
+    bgAlpha              = 0.8,
+    borderColor          = { r = 0, g = 0, b = 0 },
+    absorbAlpha          = 0.8,
+    -- cast bar
+    castHeight           = 20,
+    colCast              = { r = 0.624, g = 0.749, b = 1 },
+    colCastNoInterrupt   = { r = 0.486, g = 0.486, b = 0.486 },
+    colCastKickReady     = { r = 0.78, g = 0.78, b = 0.78 },
+    castBgAlpha          = 0.8,
+    castBgColor          = { r = 0.031, g = 0.031, b = 0.031 },
+    castTextSize         = 13,
+    castTimerSize        = 13,
+    showCastShield       = false,
+    castInterruptFlash   = false,
+    colInterruptFlash    = { r = 0.475, g = 0.84, b = 0.475 },
+    -- reaction and threat
+    colHostile           = { r = 0.635, g = 0.22, b = 0.22 },
+    colNeutral           = { r = 0.851, g = 0.816, b = 0.588 },
+    colThreatWarn        = { r = 1, g = 0.773, b = 0.427 },
+    colThreatBad         = { r = 1, g = 0.655, b = 0.2 },
+    -- target
+    colTarget            = { r = 0.451, g = 0.506, b = 1 },
+    nonTargetAlpha       = 0.7,
+    -- text
+    nameSize             = 13,
+    fontSize             = 13,
+    healthTextSize       = 13,
+    healthTextMode       = "both",
+    -- auras
+    debuffSize           = 27,
+    buffSize             = 28,
+    ccSize               = 27,
+    auraSpacing          = 1,
+    auraTimerSize        = 14,
+    showDispelGlow       = true,
+    -- the raid marker sits above the plate there
+    raidMarkerPos        = "top",
+    raidMarkerSize       = 22,
+}
+
+-- Row spacing is NOT in the table above. mod.db.auraSpacing is only the
+-- fallback (Modules/Nameplates.lua: `cfg.spacing or d.auraSpacing`), and every
+-- row already carries its own value -- so writing the fallback alone would
+-- change nothing visible.
+local PRESET_ROW_SPACING = 1
+
+local function applyPreset()
+    for k, v in pairs(PRESET) do
+        if type(v) == "table" then
+            mod.db[k] = { r = v.r, g = v.g, b = v.b }   -- copy: the preset is shared
+        else
+            mod.db[k] = v
+        end
+    end
+    for _, key in ipairs({ "debuff", "buff", "cc", "dot" }) do
+        local cfg = ns.NameplateRowCfg and ns:NameplateRowCfg(key)
+        if cfg then cfg.spacing = PRESET_ROW_SPACING end
+    end
+    applyAndRefresh()
+    refreshPage()
+    ns:Print(L["Nameplate settings replaced. Switch profile to get the old ones back."])
+end
+
+ns.OnLocaleReady(function()
+StaticPopupDialogs["VCUI_NAMEPLATES_PRESET"] = {
+    text = L["Overwrites this profile's nameplate settings with a wide, flat, dark look. Other profiles are untouched."],
+    button1 = _G.ACCEPT or "Accept", button2 = _G.CANCEL or "Cancel",
+    OnAccept = function() applyPreset() end,
+    timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
+}
+end)
+
 local function outlineValues()
     return {
         { value = "OUTLINE",      text = L["Outline"] },
@@ -180,6 +273,13 @@ function mod:GetOptions()
                   -- is first built, so it has to be read through the bridge.
                   rt.updatePreview()
               end },
+        } },
+
+        { type = "section", title = L["Preset"], items = {
+            { type = "desc",
+              text = L["|cffaaaaaaOverwrites this profile's nameplate settings with a wide, flat, dark look. Other profiles are untouched.|r"] },
+            { type = "button", label = L["Apply the wide, flat look"], width = 260,
+              onClick = function() StaticPopup_Show("VCUI_NAMEPLATES_PRESET") end },
         } },
 
         { type = "section", title = L["Health Bar"], items = {
