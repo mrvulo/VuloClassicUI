@@ -2605,6 +2605,19 @@ local function T() return {
     -- Anchor points
     ["Centre"] = "Centro",
     ["Thin outline"] = "Contorno fino",
+    ["Bar Setups"] = "Configuraciones de barra",
+    -- Patch notes 1.40.0
+    ["Moved out of the sidebar into Global Settings, as its own tab beside Profiles. Your saved setups were kept."] = "Se ha movido de la barra lateral a los Ajustes globales, como pestaña propia junto a Perfiles. Tus configuraciones guardadas se conservan.",
+    ["They were stored once per class profile — seven copies of one macro library. Stored once now, which cut the settings file by a third. Identical copies are merged, ones that differ are kept side by side."] = "Se guardaban una vez por perfil de clase: siete copias de la misma biblioteca de macros. Ahora se guardan una sola vez, lo que ha reducido el archivo de ajustes en un tercio. Las copias idénticas se fusionan y las que difieren se conservan por separado.",
+    ["The chat window no longer jumps back the moment you open the edit mode. Switching layouts re-anchors every window the game knows about, including ones we place ourselves."] = "La ventana de chat ya no salta de vuelta al abrir el modo de edición. Un cambio de diseño vuelve a anclar todas las ventanas que el juego conoce, incluidas las que colocamos nosotros.",
+    ["A dropdown with a long entry no longer wraps into the row below it."] = "Un menú desplegable con una entrada larga ya no se desborda a la fila de abajo.",
+    ["The first page is a picture of your interface instead of a second sidebar: modules running, frame time and memory, windows you moved, pages you last visited."] = "La primera página muestra el estado de tu interfaz en lugar de una segunda barra lateral: módulos activos, tiempo de fotograma y memoria, ventanas que has movido y las páginas visitadas por última vez.",
+    ["Talent Overrides – Named groups hold their own value for individual settings and apply when you switch talent specs"] = "Anulaciones de talentos – Los grupos con nombre guardan sus propios valores para ajustes concretos y se aplican al cambiar de configuración de talentos",
+    ["A group can also name a situation — raid, dungeon, arena, battleground, in a group, alone. Anything you change while a group is active is recorded into it, and every overridden row is marked."] = "Un grupo también puede indicar una situación: banda, mazmorra, arena, campo de batalla, en grupo o en solitario. Todo lo que cambies con un grupo activo queda registrado en él, y cada línea anulada aparece marcada.",
+    ["Sliders are one row like every other setting, their number can be typed into, and labels line up in a measured column across the page. A long translation no longer pushes a value box into the next column or a button off its card."] = "Los deslizadores ocupan una fila como cualquier otro ajuste, su número se puede escribir a mano y las etiquetas se alinean en una columna medida a lo largo de la página. Una traducción larga ya no empuja un cuadro de valor a la columna contigua ni un botón fuera de su tarjeta.",
+    ["Every section starts closed, so a long page opens as a list of headings."] = "Cada sección empieza plegada, así una página larga se abre como una lista de encabezados.",
+    ["The automatic swap queue has controls again — order, delay and the stop marker, on the trinket page. They only ever existed in a window this addon hides."] = "La cola de cambio automático vuelve a tener controles: orden, retardo y la marca de parada, en la página de abalorios. Antes solo existían en una ventana que este accesorio oculta.",
+    ["Trinket icons show up again: on the buttons, on the queue marker, and on your worn trinkets right after login instead of only once you click them."] = "Los iconos de abalorios vuelven a verse: en los botones, en la marca de la cola y en los abalorios equipados justo tras iniciar sesión, en vez de solo al hacer clic.",
 } end
 
 ns:RegisterLocale("esES", T)

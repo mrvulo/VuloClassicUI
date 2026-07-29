@@ -2604,4 +2604,17 @@ ns:RegisterLocale("koKR", function() return {
     -- Anchor points
     ["Centre"] = "가운데",
     ["Thin outline"] = "얇은 외곽선",
+    ["Bar Setups"] = "바 구성",
+    -- Patch notes 1.40.0
+    ["Moved out of the sidebar into Global Settings, as its own tab beside Profiles. Your saved setups were kept."] = "사이드바에서 전역 설정으로 옮겨져 프로필 옆의 독립 탭이 되었습니다. 저장한 구성은 그대로 유지됩니다.",
+    ["They were stored once per class profile — seven copies of one macro library. Stored once now, which cut the settings file by a third. Identical copies are merged, ones that differ are kept side by side."] = "직업 프로필마다 하나씩 저장되어 같은 매크로 라이브러리가 일곱 벌 있었습니다. 이제는 한 번만 저장되어 설정 파일이 3분의 1 줄었습니다. 내용이 같은 사본은 합쳐지고, 다른 사본은 나란히 보존됩니다.",
+    ["The chat window no longer jumps back the moment you open the edit mode. Switching layouts re-anchors every window the game knows about, including ones we place ourselves."] = "편집 모드를 열자마자 대화창이 원래 자리로 튀어 돌아가지 않습니다. 배치를 전환하면 게임이 아는 모든 창이 다시 고정되는데, 여기에는 애드온이 직접 배치한 창도 포함됩니다.",
+    ["A dropdown with a long entry no longer wraps into the row below it."] = "항목이 긴 드롭다운 메뉴가 더 이상 아래 줄로 넘어가지 않습니다.",
+    ["The first page is a picture of your interface instead of a second sidebar: modules running, frame time and memory, windows you moved, pages you last visited."] = "첫 페이지가 두 번째 사이드바 대신 인터페이스 상태를 보여줍니다: 실행 중인 모듈, 프레임 시간과 메모리, 옮긴 창, 마지막으로 열어본 페이지.",
+    ["Talent Overrides – Named groups hold their own value for individual settings and apply when you switch talent specs"] = "특성 재정의 – 이름을 붙인 그룹이 개별 설정의 값을 따로 갖고 특성 선택을 전환할 때 적용됩니다",
+    ["A group can also name a situation — raid, dungeon, arena, battleground, in a group, alone. Anything you change while a group is active is recorded into it, and every overridden row is marked."] = "그룹은 상황도 지정할 수 있습니다: 공격대, 던전, 투기장, 전장, 파티 중, 혼자. 그룹이 활성인 동안 바꾼 값은 모두 그 그룹에 기록되고, 재정의된 줄에는 표시가 붙습니다.",
+    ["Sliders are one row like every other setting, their number can be typed into, and labels line up in a measured column across the page. A long translation no longer pushes a value box into the next column or a button off its card."] = "슬라이더가 다른 설정과 같은 한 줄이 되었고 숫자를 직접 입력할 수 있으며, 이름표가 페이지 전체에서 측정된 열에 맞춰 정렬됩니다. 번역이 길어도 값 상자가 옆 칸으로 밀리거나 단추가 카드 밖으로 나가지 않습니다.",
+    ["Every section starts closed, so a long page opens as a list of headings."] = "모든 구획이 접힌 상태로 시작하므로 긴 페이지가 제목 목록처럼 열립니다.",
+    ["The automatic swap queue has controls again — order, delay and the stop marker, on the trinket page. They only ever existed in a window this addon hides."] = "자동 교체 대기열에 다시 조작 수단이 생겼습니다: 순서, 지연 시간, 정지 표식이 장신구 페이지에 있습니다. 지금까지는 이 애드온이 숨기는 창에만 있었습니다.",
+    ["Trinket icons show up again: on the buttons, on the queue marker, and on your worn trinkets right after login instead of only once you click them."] = "장신구 아이콘이 다시 보입니다: 단추 위, 대기열 표식 위, 그리고 접속 직후의 착용 장신구에도 표시되며, 클릭해야 나타나던 문제가 없어졌습니다.",
 } end)

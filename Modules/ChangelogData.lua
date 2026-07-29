@@ -6,6 +6,29 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+    { version = "1.40.0", sections = {
+        { category = "Bar Setups", lines = {
+            "Moved out of the sidebar into Global Settings, as its own tab beside Profiles. Your saved setups were kept.",
+            "They were stored once per class profile — seven copies of one macro library. Stored once now, which cut the settings file by a third. Identical copies are merged, ones that differ are kept side by side.",
+        } },
+        { category = "Fixes", lines = {
+            "The chat window no longer jumps back the moment you open the edit mode. Switching layouts re-anchors every window the game knows about, including ones we place ourselves.",
+            "A dropdown with a long entry no longer wraps into the row below it.",
+        } },
+        { category = "Overview", lines = {
+            "The first page is a picture of your interface instead of a second sidebar: modules running, frame time and memory, windows you moved, pages you last visited.",
+        } },
+        { category = "Settings", lines = {
+            "NEW: Talent Overrides – Named groups hold their own value for individual settings and apply when you switch talent specs",
+            "A group can also name a situation — raid, dungeon, arena, battleground, in a group, alone. Anything you change while a group is active is recorded into it, and every overridden row is marked.",
+            "Sliders are one row like every other setting, their number can be typed into, and labels line up in a measured column across the page. A long translation no longer pushes a value box into the next column or a button off its card.",
+            "Every section starts closed, so a long page opens as a list of headings.",
+        } },
+        { category = "Trinkets", lines = {
+            "The automatic swap queue has controls again — order, delay and the stop marker, on the trinket page. They only ever existed in a window this addon hides.",
+            "Trinket icons show up again: on the buttons, on the queue marker, and on your worn trinkets right after login instead of only once you click them.",
+        } },
+    } },
     { version = "1.39.0", sections = {
         { category = "Arena", lines = {
             "NEW: Diminishing Returns Position – Put the DR row on either side of the frame, with its own X and Y offset",
@@ -320,22 +343,6 @@ ns.CHANGELOG = {
         } },
         { category = "Bank", lines = {
             "NEW: A per-character snapshot of your bank contents, viewable anywhere from the bag window — with tooltips and smart search.",
-        } },
-    } },
-    { version = "1.23.0", sections = {
-        { category = "NEW — Guild Bank", lines = {
-            "A dark guild bank window with tabs, search, a money log, deposit/withdraw and engine-based sorting.",
-        } },
-        { category = "Friends & Reskins", lines = {
-            "Full dark reskin of the friends window with class crests, row layout, tabs and a battletag pill.",
-            "NEW: Addon Skins module — matches supported third-party windows to the dark look, including a quest tracker with accent headers.",
-        } },
-        { category = "Bags & Bank", lines = {
-            "NEW: Smart search keywords (quality, type, item level) that also search an open bank and guild bank.",
-            "Bind-on-equip and junk markers, keyring separation, and a fixed-slot OneBag layout.",
-        } },
-        { category = "Equipment Sets", lines = {
-            "Availability markers, set-preview tooltips, true partial sets, and an item-level/set warning in the disenchant queue.",
         } },
     } },
 }

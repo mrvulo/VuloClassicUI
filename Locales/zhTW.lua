@@ -2597,4 +2597,17 @@ ns:RegisterLocale("zhTW", function() return {
     -- Anchor points
     ["Centre"] = "置中",
     ["Thin outline"] = "細描邊",
+    ["Bar Setups"] = "快捷列設定",
+    -- Patch notes 1.40.0
+    ["Moved out of the sidebar into Global Settings, as its own tab beside Profiles. Your saved setups were kept."] = "已從側邊欄移到全域設定，成為緊鄰設定檔的獨立分頁。你儲存的配置都還在。",
+    ["They were stored once per class profile — seven copies of one macro library. Stored once now, which cut the settings file by a third. Identical copies are merged, ones that differ are kept side by side."] = "它們先前依職業設定檔各存一份——同一個巨集庫存了七遍。現在只存一份，設定檔因此縮小了三分之一。內容相同的副本會合併，不同的則並列保留。",
+    ["The chat window no longer jumps back the moment you open the edit mode. Switching layouts re-anchors every window the game knows about, including ones we place ourselves."] = "打開編輯模式時，聊天視窗不會再彈回原位。切換版面配置會重新錨定遊戲已知的每一個視窗，包括由本插件自己擺放的那些。",
+    ["A dropdown with a long entry no longer wraps into the row below it."] = "項目較長的下拉選單不會再折行擠到下一列。",
+    ["The first page is a picture of your interface instead of a second sidebar: modules running, frame time and memory, windows you moved, pages you last visited."] = "首頁現在顯示介面的狀態，而不是第二個側邊欄：執行中的模組、影格時間與記憶體、你移動過的視窗，以及最近造訪的頁面。",
+    ["Talent Overrides – Named groups hold their own value for individual settings and apply when you switch talent specs"] = "天賦覆寫 – 具名群組為個別設定保存各自的數值，切換天賦配置時自動生效",
+    ["A group can also name a situation — raid, dungeon, arena, battleground, in a group, alone. Anything you change while a group is active is recorded into it, and every overridden row is marked."] = "群組還可以指定情境：團隊副本、地城、競技場、戰場、在隊伍中、單人。群組生效期間你改動的一切都會記入該群組，每一列被覆寫的設定都有標記。",
+    ["Sliders are one row like every other setting, their number can be typed into, and labels line up in a measured column across the page. A long translation no longer pushes a value box into the next column or a button off its card."] = "滑桿現在和其他設定一樣只佔一列，數值可以直接輸入，標籤在整頁範圍內依實測寬度對齊。較長的譯文不會再把數值框擠進相鄰欄位，也不會把按鈕擠出卡片。",
+    ["Every section starts closed, so a long page opens as a list of headings."] = "每個區段預設摺疊，因此長頁面打開時就是一份標題清單。",
+    ["The automatic swap queue has controls again — order, delay and the stop marker, on the trinket page. They only ever existed in a window this addon hides."] = "自動更換佇列重新有了操作介面：順序、延遲和停止標記都在飾品頁面上。它們先前只存在於本插件隱藏起來的視窗裡。",
+    ["Trinket icons show up again: on the buttons, on the queue marker, and on your worn trinkets right after login instead of only once you click them."] = "飾品圖示重新顯示：按鈕上、佇列標記上，以及登入後立刻顯示已佩戴的飾品，而不必先點一下。",
 } end)
