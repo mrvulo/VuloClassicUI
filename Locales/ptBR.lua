@@ -2791,4 +2791,11 @@ ns:RegisterLocale("ptBR", function() return {
     -- Warnzeile
     ["Warning text size"] = "Tamanho do texto de aviso",
     ["The red and yellow warnings on the bar. 0 follows the action text size."] = "Os avisos vermelhos e amarelos na barra. 0 segue o tamanho do texto de ação.",
+    -- Bedingungen je Eintrag
+    ["Conditions: %s"] = "Condições: %s",
+    ["Narrows this icon to a number of stacks, or to the last seconds before it runs out."] = "Limita este ícone a um número de acúmulos, ou aos últimos segundos antes de acabar.",
+    ["Only from stacks"] = "Apenas a partir de acúmulos",
+    ["0 = any number of stacks."] = "0 = qualquer número de acúmulos.",
+    ["Only in the last seconds"] = "Apenas nos últimos segundos",
+    ["0 = at any time. Otherwise the icon appears only this close to running out."] = "0 = a qualquer momento. Caso contrário o ícone aparece só tão perto de acabar.",
 } end)

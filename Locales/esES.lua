@@ -2792,6 +2792,13 @@ local function T() return {
     -- Warnzeile
     ["Warning text size"] = "Tamaño del texto de aviso",
     ["The red and yellow warnings on the bar. 0 follows the action text size."] = "Los avisos rojos y amarillos de la barra. 0 sigue al tamaño del texto de acción.",
+    -- Bedingungen je Eintrag
+    ["Conditions: %s"] = "Condiciones: %s",
+    ["Narrows this icon to a number of stacks, or to the last seconds before it runs out."] = "Limita este icono a un número de acumulaciones, o a los últimos segundos antes de expirar.",
+    ["Only from stacks"] = "Solo a partir de acumulaciones",
+    ["0 = any number of stacks."] = "0 = cualquier número de acumulaciones.",
+    ["Only in the last seconds"] = "Solo en los últimos segundos",
+    ["0 = at any time. Otherwise the icon appears only this close to running out."] = "0 = en cualquier momento. Si no, el icono aparece solo así de cerca de expirar.",
 } end
 
 ns:RegisterLocale("esES", T)

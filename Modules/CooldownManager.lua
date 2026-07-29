@@ -1059,6 +1059,29 @@ local function updateAuraIcon(group, f, rec, now)
     applyStack(group, f, rec)
 end
 
+-- PER-ENTRY CONDITIONS on an aura.
+--
+-- Two thresholds rather than the operator dropdowns a full trigger editor
+-- offers: in practice only two directions are ever used -- "from N stacks
+-- upward" and "in the last N seconds" -- and a fixed direction is one less
+-- thing to read on a row that already carries a number.
+--
+-- 0 means the threshold is off, so an entry that predates this passes
+-- unchanged. e.cond is the master switch: with it off nothing here is even
+-- looked at, which keeps the scan free for everyone who does not use it.
+local function entryPasses(e, rec, now)
+    if not (e and e.cond and rec) then return true end
+    if (e.minStacks or 0) > 0 and (rec.count or 0) < e.minStacks then return false end
+    if (e.maxRemaining or 0) > 0 then
+        -- An aura without a duration never "runs out", so a remaining-time
+        -- condition can never be true for it. Hiding is the honest answer;
+        -- treating it as always-about-to-expire would be a lie.
+        if not rec.exp or rec.exp <= 0 then return false end
+        if (rec.exp - now) > e.maxRemaining then return false end
+    end
+    return true
+end
+
 refreshGroup = function(group, now)
     local bar = barOf[group]
     if not bar then return end
@@ -1082,6 +1105,10 @@ refreshGroup = function(group, now)
                     if rec.icon and not e.savedIcon then e.savedIcon = rec.icon end
                 end
                 local show = invert and (rec == nil) or (not invert and rec ~= nil)
+                -- Conditions only narrow a PRESENT aura. In "missing" mode there
+                -- is no record to measure, so they are skipped rather than
+                -- silently inverted.
+                if show and not invert and not entryPasses(e, rec, now) then show = false end
                 -- "show inactive" keeps expired buffs visible (greyed) so the layout never jumps
                 if not show and mode == "aura" and group.showInactive then show = true end
                 if show then
@@ -1465,6 +1492,34 @@ function mod:GetOptions()
                   end }
             end
             trackedItems[#trackedItems + 1] = { type = "group", layout = "row", gap = 6, items = rowItems }
+
+            -- Conditions get their OWN compact row, because the row above is a
+            -- layout="row" group and PlaceGroup never draws a gear inside one.
+            -- Only in the two modes where an aura is actually present to
+            -- measure -- a missing buff has no stacks and no remaining time.
+            if group.mode == "aura" or group.mode == "targetdebuff" then
+                local entry = e
+                trackedItems[#trackedItems + 1] = {
+                    type = "checkbox",
+                    label = string.format(L["Conditions: %s"], nm or ("#" .. tostring(e.id))),
+                    -- every entry shows the same control; without subKey one
+                    -- gear would open all of them
+                    subKey = "cdcond/" .. tostring(group.id) .. "/" .. i,
+                    tooltip = L["Narrows this icon to a number of stacks, or to the last seconds before it runs out."],
+                    get = function() return entry.cond == true end,
+                    set = function(_, v) entry.cond = v and true or nil; rebuildPage() end,
+                    subOptions = {
+                        { type = "slider", label = L["Only from stacks"], min = 0, max = 20, step = 1,
+                          tooltip = L["0 = any number of stacks."],
+                          get = function() return entry.minStacks or 0 end,
+                          set = function(_, v) entry.minStacks = (v > 0) and v or nil end },
+                        { type = "slider", label = L["Only in the last seconds"], min = 0, max = 30, step = 1,
+                          tooltip = L["0 = at any time. Otherwise the icon appears only this close to running out."],
+                          get = function() return entry.maxRemaining or 0 end,
+                          set = function(_, v) entry.maxRemaining = (v > 0) and v or nil end },
+                    },
+                }
+            end
         end
     end
     trackedItems[#trackedItems + 1] = { type = "spacer", height = 4 }

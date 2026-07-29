@@ -2784,4 +2784,11 @@ ns:RegisterLocale("zhTW", function() return {
     -- Warnzeile
     ["Warning text size"] = "警告文字大小",
     ["The red and yellow warnings on the bar. 0 follows the action text size."] = "條上的紅色和黃色警告。0 表示跟隨操作提示文字大小。",
+    -- Bedingungen je Eintrag
+    ["Conditions: %s"] = "條件：%s",
+    ["Narrows this icon to a number of stacks, or to the last seconds before it runs out."] = "把這個圖示限制在某個層數，或者快要結束前的最後幾秒。",
+    ["Only from stacks"] = "達到層數才顯示",
+    ["0 = any number of stacks."] = "0 = 不看層數。",
+    ["Only in the last seconds"] = "只在最後幾秒顯示",
+    ["0 = at any time. Otherwise the icon appears only this close to running out."] = "0 = 任何時候。否則圖示只在離結束這麼近時出現。",
 } end)

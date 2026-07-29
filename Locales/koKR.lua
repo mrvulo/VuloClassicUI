@@ -2791,4 +2791,11 @@ ns:RegisterLocale("koKR", function() return {
     -- Warnzeile
     ["Warning text size"] = "경고 문구 크기",
     ["The red and yellow warnings on the bar. 0 follows the action text size."] = "막대 위의 빨강, 노랑 경고입니다. 0이면 행동 문구 크기를 따릅니다.",
+    -- Bedingungen je Eintrag
+    ["Conditions: %s"] = "조건: %s",
+    ["Narrows this icon to a number of stacks, or to the last seconds before it runs out."] = "이 아이콘을 중첩 수나, 사라지기 직전의 마지막 몇 초로 제한합니다.",
+    ["Only from stacks"] = "이 중첩부터만",
+    ["0 = any number of stacks."] = "0 = 중첩 수를 따지지 않음.",
+    ["Only in the last seconds"] = "마지막 몇 초에만",
+    ["0 = at any time. Otherwise the icon appears only this close to running out."] = "0 = 항상. 그 외에는 사라지기 이만큼 전부터만 나타납니다.",
 } end)

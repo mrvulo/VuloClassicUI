@@ -2940,4 +2940,11 @@ ns:RegisterLocale("frFR", function() return {
     -- Warnzeile
     ["Warning text size"] = "Taille du texte d'avertissement",
     ["The red and yellow warnings on the bar. 0 follows the action text size."] = "Les avertissements rouges et jaunes sur la barre. 0 suit la taille du texte d’action.",
+    -- Bedingungen je Eintrag
+    ["Conditions: %s"] = "Conditions : %s",
+    ["Narrows this icon to a number of stacks, or to the last seconds before it runs out."] = "Limite cette icône à un nombre de cumuls, ou aux dernières secondes avant expiration.",
+    ["Only from stacks"] = "Seulement à partir de cumuls",
+    ["0 = any number of stacks."] = "0 = n’importe quel nombre de cumuls.",
+    ["Only in the last seconds"] = "Seulement dans les dernières secondes",
+    ["0 = at any time. Otherwise the icon appears only this close to running out."] = "0 = à tout moment. Sinon l’icône n’apparaît qu’aussi près de l’expiration.",
 } end)

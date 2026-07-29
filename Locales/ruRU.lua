@@ -2791,4 +2791,11 @@ ns:RegisterLocale("ruRU", function() return {
     -- Warnzeile
     ["Warning text size"] = "Размер текста предупреждений",
     ["The red and yellow warnings on the bar. 0 follows the action text size."] = "Красные и жёлтые предупреждения на полосе. 0 — как размер строки действия.",
+    -- Bedingungen je Eintrag
+    ["Conditions: %s"] = "Условия: %s",
+    ["Narrows this icon to a number of stacks, or to the last seconds before it runs out."] = "Ограничивает этот значок числом стаков или последними секундами перед окончанием.",
+    ["Only from stacks"] = "Только от стаков",
+    ["0 = any number of stacks."] = "0 = любое число стаков.",
+    ["Only in the last seconds"] = "Только в последние секунды",
+    ["0 = at any time. Otherwise the icon appears only this close to running out."] = "0 = в любое время. Иначе значок появляется лишь так близко к окончанию.",
 } end)

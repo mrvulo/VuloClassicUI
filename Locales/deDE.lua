@@ -2928,4 +2928,11 @@ ns:RegisterLocale("deDE", function() return {
     -- Warnzeile
     ["Warning text size"] = "Größe der Warnzeile",
     ["The red and yellow warnings on the bar. 0 follows the action text size."] = "Die roten und gelben Warnungen auf der Leiste. 0 folgt der Größe der Aktionszeile.",
+    -- Bedingungen je Eintrag
+    ["Conditions: %s"] = "Bedingungen: %s",
+    ["Narrows this icon to a number of stacks, or to the last seconds before it runs out."] = "Schränkt dieses Symbol auf eine Stapelzahl ein, oder auf die letzten Sekunden vor dem Ablaufen.",
+    ["Only from stacks"] = "Erst ab Stapeln",
+    ["0 = any number of stacks."] = "0 = jede Stapelzahl.",
+    ["Only in the last seconds"] = "Nur in den letzten Sekunden",
+    ["0 = at any time. Otherwise the icon appears only this close to running out."] = "0 = jederzeit. Sonst erscheint das Symbol erst so kurz vor dem Ablaufen.",
 } end)

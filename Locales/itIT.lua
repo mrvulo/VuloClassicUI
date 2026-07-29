@@ -2791,4 +2791,11 @@ ns:RegisterLocale("itIT", function() return {
     -- Warnzeile
     ["Warning text size"] = "Dimensione del testo di avviso",
     ["The red and yellow warnings on the bar. 0 follows the action text size."] = "Gli avvisi rossi e gialli sulla barra. 0 segue la dimensione del testo di azione.",
+    -- Bedingungen je Eintrag
+    ["Conditions: %s"] = "Condizioni: %s",
+    ["Narrows this icon to a number of stacks, or to the last seconds before it runs out."] = "Limita questa icona a un numero di cariche, o agli ultimi secondi prima che scada.",
+    ["Only from stacks"] = "Solo da cariche",
+    ["0 = any number of stacks."] = "0 = qualsiasi numero di cariche.",
+    ["Only in the last seconds"] = "Solo negli ultimi secondi",
+    ["0 = at any time. Otherwise the icon appears only this close to running out."] = "0 = in qualsiasi momento. Altrimenti l’icona appare solo così vicino alla scadenza.",
 } end)
