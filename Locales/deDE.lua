@@ -2913,4 +2913,6 @@ ns:RegisterLocale("deDE", function() return {
     ["Hitbox width (%)"] = "Trefferfläche Breite (%)",
     ["Clickable plate area. 100 leaves the game's own size untouched. Stored in the profile."] = "Anklickbare Fläche der Plakette. 100 lässt die Größe des Spiels unangetastet. Liegt im Profil.",
     ["Hitbox height (%)"] = "Trefferfläche Höhe (%)",
+    -- Wechsel verloren
+    ["|cffff5555Twist lost|r"] = "|cffff5555Wechsel verloren|r",
 } end)

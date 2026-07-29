@@ -195,6 +195,7 @@ local rotIcons  = {}
 
 local sealNames        = {}     -- ordered list of seal names this character knows
 local heldName, twistName, csName
+local armedAt   -- last moment a twist was possible; see refreshSeals
 local heldTex, twistTex, csTex
 local hasHeld, hasTwist = false, false
 local heldIcon, twistIcon
@@ -330,6 +331,13 @@ local function refreshSeals(event, unit)
             hasTwist, twistIcon, twistExpires = true, icon, expires
         end
     end
+    -- "A twist was possible just now." Latched with a timestamp because the hit
+    -- confirmation cannot read the live state: casting the second seal REPLACES
+    -- the first, and whether UNIT_AURA or UNIT_SPELLCAST_SUCCEEDED arrives first
+    -- is not guaranteed anywhere. If the aura update wins the race, hasHeld is
+    -- already false and hasTwist already true by the time the cast is confirmed
+    -- -- which is exactly why the sound never played.
+    if hasHeld and not hasTwist then armedAt = GetTime() end
 end
 
 local function currentGCD()
@@ -906,7 +914,11 @@ local function onUpdate()
         elseif action == ACTION_CS then
             label = format(ACTION_TEXT[ACTION_CS], csName or "")
         elseif lost then
-            label = L["|cffff5555No twist this swing -- cooldown lands too late|r"]
+            -- Short on purpose: this sits on a bar a few hundred pixels wide and
+            -- is read out of the corner of the eye mid-fight. The reason it is
+            -- lost (a cooldown landing late) is one of several, and naming that
+            -- one made the line too long to take in at a glance.
+            label = L["|cffff5555Twist lost|r"]
         elseif zone == Z_READY and not fake then
             -- A swing that is due and stays due means auto-attack is off. It is
             -- the classic way to lose a whole rotation without noticing, and
@@ -1117,8 +1129,15 @@ end
 -- The cast is the right moment to ask, not the swing that follows: the server
 -- accepted it here, and by the time the swing lands the aura sweep has already
 -- overwritten the state this depends on.
+-- Did the seal that just went out land INSIDE the window.
+--
+-- Deliberately does not look at the live aura state -- see the latch in
+-- refreshSeals. It asks two things instead: was a twist possible a moment ago,
+-- and is the swing inside the window right now.
+local ARMED_GRACE = 0.4
+
 local function twistHit(d)
-    if not hasHeld or hasTwist then return false end
+    if not armedAt or (GetTime() - armedAt) > ARMED_GRACE then return false end
     local _, dur, active = ns:GetSwing("mainhand")
     if not active or dur <= 0 then return false end
     local r = ns:SwingRemaining("mainhand")
@@ -1135,6 +1154,7 @@ local function onCastSucceeded(_, unit, _, spellID)
     if not name then return end
     if d.soundHit and twistName and name == twistName and twistHit(d) then
         playHitSound(d.hitSound)
+        armedAt = nil   -- one confirmation per twist, not one per aura refresh
     end
     if d.showRotation then rotOnCast(name) end
 end

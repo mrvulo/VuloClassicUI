@@ -2769,4 +2769,6 @@ ns:RegisterLocale("zhTW", function() return {
     ["Hitbox width (%)"] = "可點擊區域寬度 (%)",
     ["Clickable plate area. 100 leaves the game's own size untouched. Stored in the profile."] = "名條的可點擊區域。100 表示不改動遊戲本身的大小。存在設定檔裡。",
     ["Hitbox height (%)"] = "可點擊區域高度 (%)",
+    -- Wechsel verloren
+    ["|cffff5555Twist lost|r"] = "|cffff5555切換錯過|r",
 } end)

@@ -2776,4 +2776,6 @@ ns:RegisterLocale("ruRU", function() return {
     ["Hitbox width (%)"] = "Ширина области нажатия (%)",
     ["Clickable plate area. 100 leaves the game's own size untouched. Stored in the profile."] = "Область нажатия индикатора. 100 оставляет размер игры нетронутым. Хранится в профиле.",
     ["Hitbox height (%)"] = "Высота области нажатия (%)",
+    -- Wechsel verloren
+    ["|cffff5555Twist lost|r"] = "|cffff5555Переключение упущено|r",
 } end)

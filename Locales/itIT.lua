@@ -2776,4 +2776,6 @@ ns:RegisterLocale("itIT", function() return {
     ["Hitbox width (%)"] = "Larghezza area cliccabile (%)",
     ["Clickable plate area. 100 leaves the game's own size untouched. Stored in the profile."] = "Area cliccabile della targhetta. 100 lascia intatta la dimensione del gioco. Salvato nel profilo.",
     ["Hitbox height (%)"] = "Altezza area cliccabile (%)",
+    -- Wechsel verloren
+    ["|cffff5555Twist lost|r"] = "|cffff5555Twist perso|r",
 } end)

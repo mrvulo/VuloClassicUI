@@ -2769,4 +2769,6 @@ ns:RegisterLocale("zhCN", function() return {
     ["Hitbox width (%)"] = "可点击区域宽度 (%)",
     ["Clickable plate area. 100 leaves the game's own size untouched. Stored in the profile."] = "姓名板的可点击区域。100 表示不改动游戏本身的大小。存在配置文件里。",
     ["Hitbox height (%)"] = "可点击区域高度 (%)",
+    -- Wechsel verloren
+    ["|cffff5555Twist lost|r"] = "|cffff5555切换错过|r",
 } end)

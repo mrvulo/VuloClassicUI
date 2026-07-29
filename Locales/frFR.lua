@@ -2925,4 +2925,6 @@ ns:RegisterLocale("frFR", function() return {
     ["Hitbox width (%)"] = "Largeur de la zone cliquable (%)",
     ["Clickable plate area. 100 leaves the game's own size untouched. Stored in the profile."] = "Zone cliquable de la barre. 100 laisse la taille du jeu intacte. Enregistré dans le profil.",
     ["Hitbox height (%)"] = "Hauteur de la zone cliquable (%)",
+    -- Wechsel verloren
+    ["|cffff5555Twist lost|r"] = "|cffff5555Twist manqué|r",
 } end)

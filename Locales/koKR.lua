@@ -2776,4 +2776,6 @@ ns:RegisterLocale("koKR", function() return {
     ["Hitbox width (%)"] = "클릭 영역 너비 (%)",
     ["Clickable plate area. 100 leaves the game's own size untouched. Stored in the profile."] = "이름표의 클릭 영역입니다. 100이면 게임 기본 크기를 건드리지 않습니다. 프로필에 저장됩니다.",
     ["Hitbox height (%)"] = "클릭 영역 높이 (%)",
+    -- Wechsel verloren
+    ["|cffff5555Twist lost|r"] = "|cffff5555전환 놓침|r",
 } end)

@@ -2777,6 +2777,8 @@ local function T() return {
     ["Hitbox width (%)"] = "Ancho del área pulsable (%)",
     ["Clickable plate area. 100 leaves the game's own size untouched. Stored in the profile."] = "Área pulsable de la placa. 100 deja intacto el tamaño del juego. Se guarda en el perfil.",
     ["Hitbox height (%)"] = "Alto del área pulsable (%)",
+    -- Wechsel verloren
+    ["|cffff5555Twist lost|r"] = "|cffff5555Cambio perdido|r",
 } end
 
 ns:RegisterLocale("esES", T)
