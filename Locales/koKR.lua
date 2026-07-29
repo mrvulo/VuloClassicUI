@@ -2804,4 +2804,7 @@ ns:RegisterLocale("koKR", function() return {
     ["You"] = "나",
     ["Target"] = "대상",
     ["Focus"] = "주시 대상",
+    -- Nur eigene Auren
+    ["Only what I cast myself"] = "내가 직접 건 것만",
+    ["Off counts the aura no matter who put it there - for a raid debuff that anyone may apply."] = "끄면 누가 걸었는지 상관없이 셉니다 — 아무나 걸 수 있는 공격대 약화 효과를 위해서입니다.",
 } end)

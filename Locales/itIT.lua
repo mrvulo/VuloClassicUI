@@ -2804,4 +2804,7 @@ ns:RegisterLocale("itIT", function() return {
     ["You"] = "Tu",
     ["Target"] = "Bersaglio",
     ["Focus"] = "Focus",
+    -- Nur eigene Auren
+    ["Only what I cast myself"] = "Solo ciò che lancio io stesso",
+    ["Off counts the aura no matter who put it there - for a raid debuff that anyone may apply."] = "Disattivato conta l’aura da chiunque sia stata messa — per una penalità da incursione che chiunque può applicare.",
 } end)

@@ -2805,6 +2805,9 @@ local function T() return {
     ["You"] = "Tú",
     ["Target"] = "Objetivo",
     ["Focus"] = "Foco",
+    -- Nur eigene Auren
+    ["Only what I cast myself"] = "Solo lo que yo mismo lanzo",
+    ["Off counts the aura no matter who put it there - for a raid debuff that anyone may apply."] = "Desactivado cuenta el aura sin importar quién la puso — para un perjuicio de banda que cualquiera puede aplicar.",
 } end
 
 ns:RegisterLocale("esES", T)

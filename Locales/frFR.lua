@@ -2953,4 +2953,7 @@ ns:RegisterLocale("frFR", function() return {
     ["You"] = "Toi",
     ["Target"] = "Cible",
     ["Focus"] = "Focus",
+    -- Nur eigene Auren
+    ["Only what I cast myself"] = "Seulement ce que je lance moi-même",
+    ["Off counts the aura no matter who put it there - for a raid debuff that anyone may apply."] = "Désactivé, l’aura compte quel que soit son auteur — pour un affaiblissement de raid que n’importe qui peut poser.",
 } end)

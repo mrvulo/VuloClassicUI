@@ -2804,4 +2804,7 @@ ns:RegisterLocale("ptBR", function() return {
     ["You"] = "Você",
     ["Target"] = "Alvo",
     ["Focus"] = "Foco",
+    -- Nur eigene Auren
+    ["Only what I cast myself"] = "Apenas o que eu mesmo lanço",
+    ["Off counts the aura no matter who put it there - for a raid debuff that anyone may apply."] = "Desligado conta a aura independentemente de quem a colocou — para um efeito de raide que qualquer um pode aplicar.",
 } end)

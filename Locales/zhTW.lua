@@ -2797,4 +2797,7 @@ ns:RegisterLocale("zhTW", function() return {
     ["You"] = "你自己",
     ["Target"] = "目標",
     ["Focus"] = "焦點",
+    -- Nur eigene Auren
+    ["Only what I cast myself"] = "只算我自己施放的",
+    ["Off counts the aura no matter who put it there - for a raid debuff that anyone may apply."] = "關閉後不管是誰施加的都算 — 適合任何人都能上的團隊減益。",
 } end)

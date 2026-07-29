@@ -465,12 +465,22 @@ end
 
 -- Which unit and filter a group reads. The default keeps every existing group
 -- exactly where it was: buffs on you, your own debuffs on the target.
+-- ownOnly is stored as nil = "whatever this mode always did", because the two
+-- modes disagree: debuffs on the target have always meant YOURS, buffs on you
+-- have always meant any. Writing one shared default would silently change one
+-- of the two for every group that exists.
+local function groupOwnOnly(group)
+    if group.auraOwnOnly ~= nil then return group.auraOwnOnly end
+    return group.mode == "targetdebuff"
+end
+
 local function groupSource(group)
     local mode = group.mode
-    if mode == "targetdebuff" then
-        return group.auraUnit or "target", "HARMFUL|PLAYER"
-    end
-    return group.auraUnit or "player", "HELPFUL"
+    local harmful = (mode == "targetdebuff")
+    local unit = group.auraUnit or (harmful and "target" or "player")
+    local filter = harmful and "HARMFUL" or "HELPFUL"
+    if groupOwnOnly(group) then filter = filter .. "|PLAYER" end
+    return unit, filter
 end
 
 -- kept off the group table: that table is saved to disk and these lists hold frames
@@ -1470,6 +1480,10 @@ function mod:GetOptions()
                 return u
             end,
             set = function(_, v) group.auraUnit = v; rebuildBars(); rebuildPage() end }
+        items[#items + 1] = { type = "checkbox", label = L["Only what I cast myself"],
+            tooltip = L["Off counts the aura no matter who put it there - for a raid debuff that anyone may apply."],
+            get = function() return groupOwnOnly(group) end,
+            set = function(_, v) group.auraOwnOnly = v and true or false; rebuildBars(); rebuildPage() end }
     end
     items[#items + 1] = { type = "spacer", height = 6 }
 

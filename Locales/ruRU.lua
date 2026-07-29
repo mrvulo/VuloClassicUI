@@ -2804,4 +2804,7 @@ ns:RegisterLocale("ruRU", function() return {
     ["You"] = "Ты",
     ["Target"] = "Цель",
     ["Focus"] = "Фокус",
+    -- Nur eigene Auren
+    ["Only what I cast myself"] = "Только то, что наложил я сам",
+    ["Off counts the aura no matter who put it there - for a raid debuff that anyone may apply."] = "Выключено — эффект считается независимо от того, кто его наложил: для рейдового ослабления, которое может наложить любой.",
 } end)

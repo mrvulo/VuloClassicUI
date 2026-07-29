@@ -2941,4 +2941,7 @@ ns:RegisterLocale("deDE", function() return {
     ["You"] = "Du",
     ["Target"] = "Ziel",
     ["Focus"] = "Fokus",
+    -- Nur eigene Auren
+    ["Only what I cast myself"] = "Nur was ich selbst gewirkt habe",
+    ["Off counts the aura no matter who put it there - for a raid debuff that anyone may apply."] = "Ausgeschaltet zählt die Aura, egal wer sie gesetzt hat — für eine Schlachtzugs-Schwächung, die jeder auflegen darf.",
 } end)
