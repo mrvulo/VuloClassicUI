@@ -2845,4 +2845,8 @@ ns:RegisterLocale("frFR", function() return {
     -- Absorptionsstil
     ["Absorb style"] = "Style d'absorption",
     ["Flat colour"] = "Couleur unie",
+    -- Zauberziel
+    ["Show who the cast is aimed at"] = "Afficher la cible du sort",
+    ["The caster's current target, beside the cast bar. Your own name is coloured."] = "La cible actuelle du lanceur, à côté de la barre d'incantation. Ton propre nom est coloré.",
+    ["Cast target size"] = "Taille de la cible du sort",
 } end)

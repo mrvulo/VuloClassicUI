@@ -2696,4 +2696,8 @@ ns:RegisterLocale("ptBR", function() return {
     -- Absorptionsstil
     ["Absorb style"] = "Estilo de absorção",
     ["Flat colour"] = "Cor sólida",
+    -- Zauberziel
+    ["Show who the cast is aimed at"] = "Mostrar em quem a magia é lançada",
+    ["The caster's current target, beside the cast bar. Your own name is coloured."] = "O alvo atual de quem conjura, ao lado da barra de conjuração. Seu próprio nome fica colorido.",
+    ["Cast target size"] = "Tamanho do alvo da magia",
 } end)

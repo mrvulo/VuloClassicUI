@@ -2689,4 +2689,8 @@ ns:RegisterLocale("zhTW", function() return {
     -- Absorptionsstil
     ["Absorb style"] = "吸收護盾樣式",
     ["Flat colour"] = "純色",
+    -- Zauberziel
+    ["Show who the cast is aimed at"] = "顯示施法目標",
+    ["The caster's current target, beside the cast bar. Your own name is coloured."] = "在施法條旁邊顯示施法者目前的目標。你自己的名字會以顏色突顯。",
+    ["Cast target size"] = "施法目標字級",
 } end)

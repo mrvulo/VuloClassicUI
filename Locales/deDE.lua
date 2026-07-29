@@ -2833,4 +2833,8 @@ ns:RegisterLocale("deDE", function() return {
     -- Absorptionsstil
     ["Absorb style"] = "Absorptionsstil",
     ["Flat colour"] = "Einfarbig",
+    -- Zauberziel
+    ["Show who the cast is aimed at"] = "Zeigen, auf wen gezaubert wird",
+    ["The caster's current target, beside the cast bar. Your own name is coloured."] = "Das aktuelle Ziel des Zaubernden, neben der Zauberleiste. Dein eigener Name wird eingefärbt.",
+    ["Cast target size"] = "Größe des Zauberziels",
 } end)

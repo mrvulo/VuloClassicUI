@@ -88,6 +88,10 @@ local mod = ns:RegisterModule("nameplates", {
         castInterrupter      = false,
         colCastNoInterrupt   = { r = 0.55, g = 0.55, b = 0.55 },
         castTimer            = false,
+        castTargetText       = false,
+        castTargetSize       = 0,
+        castTargetX          = 6,
+        castTargetY          = 0,
         kickColorOn          = false,
         colCastKickCd        = { r = 0.35, g = 0.35, b = 0.60 },
         castOffsetX          = 0,
@@ -372,6 +376,10 @@ local function buildVisuals(f)
     f.castBD:Hide()
     f.castIcon = f.cast:CreateTexture(nil, "ARTWORK")
     f.castIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    f.castTarget = f.cast:CreateFontString(nil, "OVERLAY")
+    f.castTarget:SetJustifyH("LEFT")
+    f.castTarget:SetWordWrap(false)
+    f.castTarget:Hide()
     f.castText = f.cast:CreateFontString(nil, "OVERLAY")
     f.castText:SetPoint("LEFT", f.cast, "LEFT", 3, 0)
     f.castText:SetPoint("RIGHT", f.cast, "RIGHT", -3, 0)
@@ -593,6 +601,7 @@ local function skinPlate(f)
         plateFont(f.healthText, pick(d.healthTextSize, d.fontSize))
         plateFont(f.castText, pick(d.castTextSize, d.fontSize))
         if f.castTimer then plateFont(f.castTimer, pick(d.castTimerSize, d.fontSize)) end
+        if f.castTarget then plateFont(f.castTarget, pick(d.castTargetSize, d.fontSize)) end
         if f.level then plateFont(f.level, pick(d.levelSize, d.nameSize)) end
     end
     f.title:SetTextColor(0.72, 0.72, 0.78)
@@ -608,6 +617,15 @@ local function skinPlate(f)
         f.castTimer:SetShown(d.showCastbar and d.castTimer)
         local tc = d.castTimerColor or { r = 1, g = 1, b = 1 }
         f.castTimer:SetTextColor(tc.r, tc.g, tc.b)
+    end
+    if f.castTarget then
+        -- Anchored to the cast bar's right end and pushed by its own offsets, so
+        -- it can be parked under or beside the bar without fighting the spell
+        -- name, which owns the inside of the bar.
+        f.castTarget:ClearAllPoints()
+        f.castTarget:SetPoint("LEFT", f.cast, "RIGHT",
+            d.castTargetX or 6, d.castTargetY or 0)
+        f.castTarget:SetShown(d.showCastbar and d.castTargetText)
     end
 end
 
@@ -878,6 +896,30 @@ local function castColor(d, notInterruptible, f)
     return d.colCast
 end
 
+-- Who the caster is casting AT. Read through the unit's own target token, and
+-- only when that token actually resolves: whether a nameplate token accepts the
+-- "target" suffix is a client question, and the honest answer to "it might not"
+-- is an empty line, not an error. It is your OWN name that matters most here,
+-- so that case is coloured instead of just spelled out.
+local function paintCastTarget(f)
+    local fs = f.castTarget
+    if not fs then return end
+    local d = db()
+    if not d.castTargetText or not f.unit then fs:Hide(); return end
+
+    local tu = f.unit .. "target"
+    if not UnitExists(tu) then fs:SetText(""); fs:Show(); return end
+
+    fs:SetText(UnitName(tu) or "")
+    if UnitIsUnit(tu, "player") then
+        local c = d.colCastYou or { r = 1, g = 0.15, b = 0.15 }
+        fs:SetTextColor(c.r, c.g, c.b)
+    else
+        fs:SetTextColor(0.85, 0.85, 0.88)
+    end
+    fs:Show()
+end
+
 local function paintCast(f, name, icon, notInterruptible)
     local d = db()
     local c = castColor(d, notInterruptible, f)
@@ -885,6 +927,7 @@ local function paintCast(f, name, icon, notInterruptible)
     paintSpark(f.cast, f.castSpark, c.r, c.g, c.b, d.showSpark, d.sparkWidth)
     if d.showCastText then f.castText:SetText(name or "") end
     if d.showCastIcon then f.castIcon:SetTexture(icon) end
+    paintCastTarget(f)
 end
 
 local UnitAura = UnitAura     -- Compat.lua guarantees this exists on this client

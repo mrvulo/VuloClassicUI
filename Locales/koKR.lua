@@ -2696,4 +2696,8 @@ ns:RegisterLocale("koKR", function() return {
     -- Absorptionsstil
     ["Absorb style"] = "보호막 모양",
     ["Flat colour"] = "단색",
+    -- Zauberziel
+    ["Show who the cast is aimed at"] = "시전 대상 표시",
+    ["The caster's current target, beside the cast bar. Your own name is coloured."] = "시전자가 현재 겨냥한 대상을 시전 막대 옆에 표시합니다. 자기 이름은 색으로 강조됩니다.",
+    ["Cast target size"] = "시전 대상 글자 크기",
 } end)

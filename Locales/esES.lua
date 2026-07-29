@@ -2697,6 +2697,10 @@ local function T() return {
     -- Absorptionsstil
     ["Absorb style"] = "Estilo de absorción",
     ["Flat colour"] = "Color plano",
+    -- Zauberziel
+    ["Show who the cast is aimed at"] = "Mostrar a quién va dirigido el hechizo",
+    ["The caster's current target, beside the cast bar. Your own name is coloured."] = "El objetivo actual de quien lanza, junto a la barra de lanzamiento. Tu propio nombre se colorea.",
+    ["Cast target size"] = "Tamaño del objetivo del hechizo",
 } end
 
 ns:RegisterLocale("esES", T)

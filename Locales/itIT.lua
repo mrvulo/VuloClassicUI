@@ -2696,4 +2696,8 @@ ns:RegisterLocale("itIT", function() return {
     -- Absorptionsstil
     ["Absorb style"] = "Stile assorbimento",
     ["Flat colour"] = "Tinta unita",
+    -- Zauberziel
+    ["Show who the cast is aimed at"] = "Mostrare su chi è lanciata la magia",
+    ["The caster's current target, beside the cast bar. Your own name is coloured."] = "Il bersaglio attuale di chi lancia, accanto alla barra di lancio. Il tuo nome viene colorato.",
+    ["Cast target size"] = "Dimensione del bersaglio della magia",
 } end)

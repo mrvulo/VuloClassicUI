@@ -2696,4 +2696,8 @@ ns:RegisterLocale("ruRU", function() return {
     -- Absorptionsstil
     ["Absorb style"] = "Вид поглощения",
     ["Flat colour"] = "Сплошной цвет",
+    -- Zauberziel
+    ["Show who the cast is aimed at"] = "Показывать, на кого направлено заклинание",
+    ["The caster's current target, beside the cast bar. Your own name is coloured."] = "Текущая цель того, кто читает заклинание, рядом с полосой заклинания. Твоё имя выделяется цветом.",
+    ["Cast target size"] = "Размер имени цели заклинания",
 } end)
