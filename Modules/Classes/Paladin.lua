@@ -1,9 +1,22 @@
 -- Paladin seal twisting helper (class tool).
 --
--- Twisting means holding Seal of Command and casting Seal of Blood / of the
--- Martyr so it lands in the last fraction of a second before the auto-attack:
--- the swing then carries both. The whole trick is timing against the swing
--- clock, so this reads Core/SwingTracker rather than keeping a second one.
+-- Twisting means holding a seal and casting a second one so it lands in the
+-- last fraction of a second before the auto-attack: that swing then carries
+-- both. The whole trick is timing against the swing clock, so this reads
+-- Core/SwingTracker rather than keeping a second one.
+--
+-- Two facts decide what this may suggest, and both cost a version to learn:
+--
+--   * Only Seal of Command and Seal of Righteousness can be twisted OUT of --
+--     they are the two whose effect still resolves on a swing after the aura
+--     was replaced. Everything else is a twist TARGET. Blood and the Martyr
+--     are the strongest targets but arrive at 64, so a levelling paladin
+--     twists Command into Righteousness. Requiring Blood/Martyr is what kept
+--     the whole helper hidden below that level.
+--   * The window is server-side. The cast has to REACH the server inside it,
+--     so the prompt has to run ahead of the swing by the window plus roughly
+--     one trip of the player's latency, and it stops being worth pressing once
+--     less than that trip is left.
 --
 -- What it deliberately does NOT do: prompt Judgement. Judging consumes the
 -- seal, so a mistimed prompt costs more than no prompt -- that call stays with
@@ -16,6 +29,7 @@ if not csMod or not csMod.RegisterClassTool then return end
 
 local GetTime, GetSpellInfo, GetSpellCooldown = GetTime, GetSpellInfo, GetSpellCooldown
 local UnitAttackSpeed, UnitBuff = UnitAttackSpeed, UnitBuff
+local GetNetStats, UnitAffectingCombat = GetNetStats, UnitAffectingCombat
 
 local DEFAULTS = {
     -- Off until asked for. Twisting is a Retribution habit, not something every
@@ -25,11 +39,13 @@ local DEFAULTS = {
     -- did not ask for.
     enabled     = false,
     window      = 0.40,   -- seconds before the swing that the twist lands in
+    latency     = true,   -- shift the window ahead by one trip of world latency
     heldSeal    = "",     -- resolved on first run
     twistSeal   = "",
     showBar     = true,
     showAction  = true,
     showNumbers = true,
+    showOOC     = false,  -- keep the bar up between fights
     useCS       = true,
     sound       = false,
     barWidth    = 240,
@@ -45,18 +61,27 @@ local DEFAULTS = {
 -- missing from this list is found anyway as long as ONE of these resolves.
 local SEAL_IDS = {
     20375,   -- Seal of Command
-    31892,   -- Seal of Blood
-    348700,  -- Seal of the Martyr
+    31892,   -- Seal of Blood        (Horde, 64)
+    348700,  -- Seal of the Martyr   (Alliance, 64)
+    31801,   -- Seal of Vengeance    (Alliance, 64)
     20154,   -- Seal of Righteousness
     21082,   -- Seal of the Crusader
     20164,   -- Seal of Justice
     20165,   -- Seal of Light
     20166,   -- Seal of Wisdom
 }
--- Preference order for the two roles, by base ID. Command is the seal you hold;
--- Blood / the Martyr is the one you twist in.
-local HELD_PREF  = { 20375 }
-local TWIST_PREF = { 31892, 348700 }
+-- Preference order for the two roles, by base ID.
+--
+-- HELD is short on purpose: only these two survive being replaced a moment
+-- before the swing, so a seal outside this list cannot be the one you hold, no
+-- matter how much damage it does.
+--
+-- TWIST is every seal, best first. Blood and the Martyr are the pay-off at 64;
+-- below that Righteousness is the target, which is the twist paladins have run
+-- since vanilla. Whatever is picked, it must not be the held seal --
+-- pickDefaults skips it rather than trusting the order.
+local HELD_PREF  = { 20375, 20154 }
+local TWIST_PREF = { 31892, 348700, 31801, 20154, 21082, 20164, 20165, 20166 }
 
 local CRUSADER_STRIKE = 35395
 -- Flash of Light rank 1 is a plain 1.5 s cast, so its CURRENT cast time is the
@@ -73,14 +98,15 @@ local COL_IDLE   = { 0.35, 0.35, 0.42 }
 local COL_ARMED  = { 0.38, 0.26, 0.62 }   -- Command is up, waiting for the window
 local COL_WINDOW = { 0.20, 0.85, 0.35 }   -- twist now
 local COL_DONE   = { 0.14, 0.45, 0.22 }   -- twist landed, swing carries both
-local COL_LATE   = { 0.85, 0.20, 0.20 }   -- window open with no seal to twist out of
+local COL_LATE   = { 0.85, 0.20, 0.20 }   -- window open but pressing would not pay: no held
+                                          -- seal to replace, or too late to reach the server
 
-local frame, bar, cmdTick, twistTick, actionFS, infoFS
+local frame, bar, cmdTick, twistTick, twistZone, actionFS, infoFS
 local sealNames        = {}     -- ordered list of seal names this character knows
 local heldName, twistName, csName
 local hasHeld, hasTwist = false, false
 local lastSound = 0
-local wasInWindow = false
+local wasPrompting = false
 
 local function db() return csMod.db and csMod.db.sealtwist end
 
@@ -130,6 +156,17 @@ local function collectSeals()
     return sealNames
 end
 
+-- True while this name is one of the two seals that can be held. The dropdown
+-- offers every seal -- somebody may know a rank we cannot name -- but the
+-- warning below tells them when their choice cannot work.
+local function canHold(name)
+    if not name or name == "" then return false end
+    for _, id in ipairs(HELD_PREF) do
+        if spellKnown(id) == name then return true end
+    end
+    return false
+end
+
 local function pickDefaults()
     local d = db()
     if not d then return end
@@ -140,14 +177,20 @@ local function pickDefaults()
         d.heldSeal = ""
         for _, id in ipairs(HELD_PREF) do
             local n = spellKnown(id)
-            if n then d.heldSeal = n; break end
+            -- Never take the seal the other role already has: this also runs
+            -- right after the player picked that one by hand, and re-picking it
+            -- here would hand their choice straight back to the auto-pick.
+            if n and n ~= d.twistSeal then d.heldSeal = n; break end
         end
     end
-    if d.twistSeal == "" or not known[d.twistSeal] then
+    -- Also re-pick when the stored twist seal collided with the held one: a
+    -- paladin who learns Command after levelling with Righteousness would
+    -- otherwise sit on "twist Righteousness into Righteousness" forever.
+    if d.twistSeal == "" or not known[d.twistSeal] or d.twistSeal == d.heldSeal then
         d.twistSeal = ""
         for _, id in ipairs(TWIST_PREF) do
             local n = spellKnown(id)
-            if n then d.twistSeal = n; break end
+            if n and n ~= d.heldSeal then d.twistSeal = n; break end
         end
     end
     -- "" means "nothing suitable found". Keeping it as an empty string would be
@@ -185,6 +228,39 @@ local function currentGCD()
     return g
 end
 
+-- One trip to the server, in seconds. GetNetStats reports the ROUND trip, and
+-- what matters here is only the outbound half: the cast has to arrive inside a
+-- window the server keeps, and the reply coming back afterwards costs us
+-- nothing. Capped because a 600 ms spike would otherwise shove the prompt into
+-- the middle of the swing, where pressing is worse than not pressing.
+--
+-- Polled once every OFFSET_POLL seconds rather than per frame: GetNetStats only
+-- refreshes every few seconds anyway, and it is not a free call.
+local OFFSET_MAX  = 0.25
+local OFFSET_POLL = 3
+local offsetValue, offsetAt = 0, 0
+
+local function latencyOffset(d)
+    if not d.latency then return 0 end
+    local now = GetTime()
+    if now - offsetAt >= OFFSET_POLL then
+        offsetAt = now
+        local world = select(4, GetNetStats())
+        local o = (tonumber(world) or 0) / 2000
+        if o < 0 then o = 0 elseif o > OFFSET_MAX then o = OFFSET_MAX end
+        offsetValue = o
+    end
+    return offsetValue
+end
+
+-- The two edges of the window, as "seconds left before the swing":
+-- press at or below windowStart, and stop pressing below windowEnd, because
+-- from there the cast can no longer reach the server in time.
+local function twistWindow(d)
+    local off = latencyOffset(d)
+    return d.window + off, off
+end
+
 -- Seconds until the global cooldown frees up. Seals have no cooldown of their
 -- own, so whatever GetSpellCooldown reports for one IS the GCD.
 local function gcdRemaining()
@@ -208,18 +284,19 @@ end
 -- ACTION_* are what the player should press right now.
 local ACTION_NONE, ACTION_HELD, ACTION_TWIST, ACTION_CS = 0, 1, 2, 3
 
-local function decide(d, remaining, gcd, window)
+local function decide(d, remaining, gcd, windowStart, windowEnd)
     if not remaining then return ACTION_NONE end
     if gcdRemaining() > 0.05 then return ACTION_NONE end
 
-    if remaining <= window then
+    if remaining <= windowStart then
         -- Inside the window: the twist only pays off if the held seal is up to
-        -- be replaced, and only once.
+        -- be replaced, only once, and only while the cast can still get there.
+        if remaining < windowEnd then return ACTION_NONE end
         if hasHeld and not hasTwist then return ACTION_TWIST end
         return ACTION_NONE
     end
 
-    local toWindow = remaining - window
+    local toWindow = remaining - windowStart
     -- Crusader Strike first when there is room for it AND the seal it wants to
     -- hit with is up: doing it later would eat the Command cast.
     if d.useCS and csName and hasTwist and csReady() and toWindow >= 2 * gcd then
@@ -252,22 +329,38 @@ end
 -- Memoised on everything that can move them: this is called once per frame, but
 -- the marks only shift when the weapon speed, haste or the setting changes.
 local tickSig
-local function placeTicks(swingDur, gcd, window)
+local function placeTicks(swingDur, gcd, windowStart, windowEnd)
     local d = db()
     if not d.showBar or not swingDur or swingDur <= 0 then return end
-    local sig = swingDur .. "|" .. gcd .. "|" .. window .. "|" .. d.barWidth
+    local sig = swingDur .. "|" .. gcd .. "|" .. windowStart .. "|" .. windowEnd .. "|" .. d.barWidth
     if sig == tickSig then return end
     tickSig = sig
     local w = d.barWidth
 
-    local twistFrac = window / swingDur
+    local twistFrac = windowStart / swingDur
     if twistFrac > 1 then twistFrac = 1 end
     twistTick:ClearAllPoints()
     twistTick:SetPoint("TOP",    bar, "TOPRIGHT",    -w * twistFrac, 0)
     twistTick:SetPoint("BOTTOM", bar, "BOTTOMRIGHT", -w * twistFrac, 0)
 
-    -- Latest moment a Command cast still finishes before the window opens.
-    local cmdFrac = (window + gcd) / swingDur
+    -- The window has width, and with latency compensation its far edge is not
+    -- the swing itself: shade what is left of it so the size of the target is
+    -- visible, not just where it starts.
+    local endFrac = windowEnd / swingDur
+    if endFrac > twistFrac then endFrac = twistFrac end
+    local zoneW = w * (twistFrac - endFrac)
+    if zoneW < 1 then
+        twistZone:Hide()
+    else
+        twistZone:Show()
+        twistZone:ClearAllPoints()
+        twistZone:SetPoint("TOPRIGHT",    bar, "TOPRIGHT",    -w * endFrac, 0)
+        twistZone:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", -w * endFrac, 0)
+        twistZone:SetWidth(zoneW)
+    end
+
+    -- Latest moment a held-seal cast still finishes before the window opens.
+    local cmdFrac = (windowStart + gcd) / swingDur
     if cmdFrac > 1 then
         cmdTick:Hide()
     else
@@ -307,30 +400,38 @@ local function onUpdate()
     end
 
     local gcd = currentGCD()
-    local window = d.window
+    local windowStart, windowEnd = twistWindow(d)
 
     if not remaining then
+        -- Shown but not swinging: an empty bar rather than a stale one, so the
+        -- frame reads as "waiting" instead of showing a swing that ended.
+        bar:SetMinMaxValues(0, 1)
         bar:SetValue(0)
+        bar:SetStatusBarColor(COL_IDLE[1], COL_IDLE[2], COL_IDLE[3])
         actionFS:SetText("")
-        if d.showNumbers then infoFS:SetText("") end
+        if d.showNumbers then infoFS:SetText(L["waiting for a swing"]) end
+        -- Leaving this set would swallow the first beep of the next fight.
+        wasPrompting = false
         return
     end
 
-    placeTicks(swingDur, gcd, window)
+    placeTicks(swingDur, gcd, windowStart, windowEnd)
     bar:SetMinMaxValues(0, swingDur)
     bar:SetValue(swingDur - remaining)
 
-    local inWindow = remaining <= window
-    local action = fake and ACTION_TWIST or decide(d, remaining, gcd, window)
+    local inWindow = remaining <= windowStart
+    local action = fake and ACTION_TWIST or decide(d, remaining, gcd, windowStart, windowEnd)
 
     local c
     if inWindow and not fake then
         if hasTwist then
             c = COL_DONE          -- the twist is in; this swing carries both
-        elseif hasHeld then
-            c = COL_WINDOW        -- cast it now
-        else
+        elseif not hasHeld then
             c = COL_LATE          -- no held seal to twist out of: nothing to do
+        elseif remaining < windowEnd then
+            c = COL_LATE          -- too late to reach the server before the swing
+        else
+            c = COL_WINDOW        -- cast it now
         end
     elseif inWindow then
         c = COL_WINDOW
@@ -358,17 +459,25 @@ local function onUpdate()
     if d.showNumbers then
         -- No bare "|" as a separator: it opens an escape sequence for the font
         -- renderer and eats the character after it.
-        infoFS:SetText(format(L["%.2fs left  -  swing %.2fs  -  GCD %.2fs"], remaining, swingDur, gcd))
+        local line = format(L["%.2fs left  -  swing %.2fs  -  GCD %.2fs"], remaining, swingDur, gcd)
+        if windowEnd > 0 then
+            line = line .. format(L["  -  lag %.0fms"], windowEnd * 2000)
+        end
+        infoFS:SetText(line)
     end
 
-    if d.sound and inWindow and not wasInWindow and not fake then
+    -- On the prompt, not on the window: the window opens on every swing, and a
+    -- beep that fires while the twist is already up -- or while there is no held
+    -- seal to twist out of -- trains the player to ignore it.
+    local prompt = (action == ACTION_TWIST)
+    if d.sound and prompt and not wasPrompting and not fake then
         local t = GetTime()
         if t - lastSound > 0.25 then
             lastSound = t
             PlaySoundFile(WINDOW_SOUND, "Master")
         end
     end
-    wasInWindow = inWindow
+    wasPrompting = prompt
 end
 
 local function create()
@@ -389,6 +498,12 @@ local function create()
     bg:SetAllPoints(bar)
     bg:SetTexture(BAR_TEX)
     bg:SetVertexColor(0.08, 0.08, 0.10, 0.9)
+
+    -- ARTWORK, above the fill but below the two marks: it is a backdrop for the
+    -- window, not a line in it.
+    twistZone = bar:CreateTexture(nil, "ARTWORK")
+    twistZone:SetTexture(BAR_TEX)
+    twistZone:SetVertexColor(0.20, 0.85, 0.35, 0.18)
 
     cmdTick = bar:CreateTexture(nil, "OVERLAY")
     cmdTick:SetTexture(BAR_TEX)
@@ -431,14 +546,21 @@ local function create()
     return frame
 end
 
+-- Both seals have to exist for the helper to have anything to say -- but the
+-- bar is not tied to the swing alone any more. It used to appear only while the
+-- tracker held a live swing, which meant it flickered away between pulls, on
+-- every target swap, and stayed away entirely on a paladin the seal check had
+-- rejected. In combat is the honest condition; the swing decides what the bar
+-- shows, not whether it exists.
 local function applyVisibility()
     local d = db()
     if not frame or not d then return end
     if d.unlocked or ns:IsMoverEditMode() then frame:Show(); return end
     if not d.enabled then frame:Hide(); return end
-    if not twistName then frame:Hide(); return end
+    if not (heldName and twistName) then frame:Hide(); return end
+    if d.showOOC then frame:Show(); return end
     local _, _, active = ns:GetSwing("mainhand")
-    if active then frame:Show() else frame:Hide() end
+    if active or UnitAffectingCombat("player") then frame:Show() else frame:Hide() end
 end
 
 local function setUnlocked(state)
@@ -463,7 +585,7 @@ end
 -- not be paying for it.
 local function syncTracker()
     local d = db()
-    if d and d.enabled and twistName then
+    if d and d.enabled and heldName and twistName then
         ns:AcquireSwingTracker("sealtwist", applyVisibility)
     else
         ns:ReleaseSwingTracker("sealtwist")
@@ -491,6 +613,10 @@ local function onEnable()
     csMod:RegisterEvent("UNIT_AURA", refreshSeals)
     csMod:RegisterEvent("SPELLS_CHANGED", onSpellsChanged)
     csMod:RegisterEvent("PLAYER_ENTERING_WORLD", onSpellsChanged)
+    -- Combat decides visibility now, and combat starts and ends without the
+    -- swing tracker having anything to say about it.
+    csMod:RegisterEvent("PLAYER_REGEN_DISABLED", applyVisibility)
+    csMod:RegisterEvent("PLAYER_REGEN_ENABLED", applyVisibility)
     applyVisibility()
 end
 
@@ -515,7 +641,7 @@ local function getOptions()
     local items = {}
 
     table.insert(items, { type = "header", text = L["Seal Twist"] })
-    table.insert(items, { type = "desc", text = L["|cffaaaaaaHold Seal of Command, then cast Seal of Blood or of the Martyr in the last fraction of a second before your auto-attack: that swing carries both. The bar counts down to the swing, the |cff33ff66green mark|r is where the twist lands and the |cffb388ffpurple mark|r is the last moment a Command cast still fits in front of it.|r"] })
+    table.insert(items, { type = "desc", text = L["|cffaaaaaaHold Seal of Command, then cast the second seal in the last fraction of a second before your auto-attack: that swing carries both. The bar counts down to the swing, the |cff33ff66green zone|r is the twist window and the |cffb388ffpurple mark|r is the last moment a cast of the held seal still fits in front of it. Below level 64 the second seal is Righteousness; Blood and the Martyr replace it from there.|r"] })
 
     if select(2, UnitClass("player")) ~= "PALADIN" then
         table.insert(items, { type = "desc", text = L["|cffff8800Only active while playing a Paladin.|r"] })
@@ -531,8 +657,12 @@ local function getOptions()
         return items
     end
 
-    if not twistName then
-        table.insert(items, { type = "desc", text = L["|cffff8800No twisting seal found on this character. Seal of Blood, Seal of the Martyr or Seal of Martyrdom is required.|r"] })
+    if not heldName then
+        table.insert(items, { type = "desc", text = L["|cffff8800No seal to twist out of. Only Seal of Command and Seal of Righteousness carry over to a swing after being replaced, so one of the two has to be learned.|r"] })
+    elseif not twistName then
+        table.insert(items, { type = "desc", text = L["|cffff8800Only one seal learned. A second one is needed to twist into.|r"] })
+    elseif not canHold(d.heldSeal) then
+        table.insert(items, { type = "desc", text = L["|cffff8800The seal you hold cannot be twisted out of. Only Seal of Command and Seal of Righteousness carry over to the swing that replaces them.|r"] })
     end
 
     table.insert(items, { type = "toggle", label = L["Enable seal twist helper"],
@@ -553,15 +683,30 @@ local function getOptions()
     table.insert(items, { type = "spacer", height = 6 })
     table.insert(items, { type = "header", text = L["Seals"] })
     table.insert(items, { type = "dropdown", label = L["Seal you hold"],
+        desc = L["Only Seal of Command and Seal of Righteousness work here: they are the two whose effect still lands on the swing that replaces them."],
         values = sealValues(),
         get = function() return d.heldSeal end,
-        set = function(_, v) d.heldSeal = v; heldName = (v ~= "") and v or nil; refreshSeals() end })
+        set = function(_, v)
+            d.heldSeal = v
+            heldName = (v ~= "") and v or nil
+            -- One seal in both roles is a no-op the player cannot see going
+            -- wrong, so the other role gives way immediately.
+            if v ~= "" and d.twistSeal == v then
+                d.twistSeal, twistName = "", nil
+                pickDefaults()
+            end
+            refreshSeals(); syncTracker(); applyVisibility()
+        end })
     table.insert(items, { type = "dropdown", label = L["Seal you twist in"],
         values = sealValues(),
         get = function() return d.twistSeal end,
         set = function(_, v)
             d.twistSeal = v
             twistName = (v ~= "") and v or nil
+            if v ~= "" and d.heldSeal == v then
+                d.heldSeal, heldName = "", nil
+                pickDefaults()
+            end
             refreshSeals(); syncTracker(); applyVisibility()
         end })
 
@@ -572,6 +717,10 @@ local function getOptions()
         desc = L["How far before the swing the second seal has to land. 0.40 is the usual figure; raise it if your latency makes you miss the window."],
         get = function() return d.window end,
         set = function(_, v) d.window = v end })
+    table.insert(items, { type = "toggle", label = L["Compensate for latency"],
+        desc = L["Opens the window earlier by one trip to the server, and closes it once the cast can no longer arrive before the swing. Uses your measured world latency, capped at 250 ms."],
+        get = function() return d.latency end,
+        set = function(_, v) d.latency = v and true or false end })
     table.insert(items, { type = "toggle", label = L["Suggest Crusader Strike"],
         desc = L["Prompts Crusader Strike when it is ready and there is room for it plus the Command cast before the window opens."],
         get = function() return d.useCS end,
@@ -591,6 +740,10 @@ local function getOptions()
     table.insert(items, { type = "toggle", label = L["Show numbers"],
         get = function() return d.showNumbers end,
         set = function(_, v) d.showNumbers = v and true or false; layout() end })
+    table.insert(items, { type = "toggle", label = L["Show out of combat"],
+        desc = L["Normally the bar is only up in combat. Switch this on to keep it on screen, which is the easier way to practise the timing on a dummy."],
+        get = function() return d.showOOC end,
+        set = function(_, v) d.showOOC = v and true or false; applyVisibility() end })
     table.insert(items, { type = "slider", label = L["Bar width"], min = 120, max = 400, step = 10,
         get = function() return d.barWidth end,
         set = function(_, v) d.barWidth = v; layout() end })

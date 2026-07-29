@@ -12,11 +12,13 @@ local _, ns = ...
 
 local CLGetInfo = CombatLogGetCurrentEventInfo
 local GetTime, UnitAttackSpeed, UnitGUID = GetTime, UnitAttackSpeed, UnitGUID
+local GetInventoryItemID = GetInventoryItemID
 
 local mh = { start = 0, dur = 0, active = false }
 local oh = { start = 0, dur = 0, active = false }
 local dualWield = false
 local playerGUID
+local mhItem, ohItem
 
 local holders    = {}   -- tag -> listener function or true
 local holderCount = 0
@@ -34,6 +36,12 @@ end
 local function recomputeDualWield()
     local _, offSpeed = UnitAttackSpeed("player")
     dualWield = (offSpeed ~= nil and offSpeed > 0)
+end
+
+-- Seed the weapon snapshot so the first inventory event after login is not read
+-- as a weapon swap.
+local function snapshotWeapons()
+    mhItem, ohItem = GetInventoryItemID("player", 16), GetInventoryItemID("player", 17)
 end
 
 local function resetMH()
@@ -63,9 +71,37 @@ local function rescale()
     end
 end
 
+-- Parry haste. A unit that PARRIES gets its own next swing pulled forward by
+-- 40% of its weapon speed, floored at 20% of that speed still to go -- so this
+-- is about attacks coming AT us, not the ones we land. It is the one thing that
+-- moves the swing without an event of its own, and for a seal twist it moves
+-- the whole window: a bar that ignores it points at a swing that already
+-- happened.
+--
+-- Main hand only: the reduction is a property of the swing timer the client
+-- hastens, and every consumer we have reads the main hand.
+local function parryHaste()
+    if not mh.active or mh.dur <= 0 then return end
+    local now = GetTime()
+    local left = (mh.start + mh.dur) - now
+    if left <= 0 then return end
+    local newLeft = left - mh.dur * 0.4
+    local floorLeft = mh.dur * 0.2
+    if newLeft < floorLeft then newLeft = floorLeft end
+    if newLeft >= left then return end
+    mh.start = now + newLeft - mh.dur
+    notify("mainhand")
+end
+
 local function onCombatLog()
-    local _, subevent, _, sourceGUID = CLGetInfo()
-    if sourceGUID ~= playerGUID then return end
+    local _, subevent, _, sourceGUID, _, _, _, destGUID = CLGetInfo()
+    if sourceGUID ~= playerGUID then
+        if destGUID == playerGUID and subevent == "SWING_MISSED"
+            and select(12, CLGetInfo()) == "PARRY" then
+            parryHaste()
+        end
+        return
+    end
     if subevent == "SWING_DAMAGE" then
         -- isOffHand is param 21 of SWING_DAMAGE.
         local isOffHand = select(21, CLGetInfo())
@@ -93,11 +129,22 @@ local function onEvent(_, event, arg1)
     elseif event == "UNIT_INVENTORY_CHANGED" then
         if arg1 == nil or arg1 == "player" then
             recomputeDualWield()
+            -- The event also fires for trinkets, bags and every enchant tick;
+            -- only an actual weapon change restarts the swing, so compare the
+            -- items rather than resetting on all of them.
+            local newMH, newOH = GetInventoryItemID("player", 16), GetInventoryItemID("player", 17)
+            local swapped = (newMH ~= mhItem) or (newOH ~= ohItem)
+            mhItem, ohItem = newMH, newOH
+            if swapped then
+                if mh.active then resetMH() end
+                if oh.active and dualWield then resetOH() end
+            end
             notify(nil)
         end
     elseif event == "PLAYER_ENTERING_WORLD" then
         playerGUID = UnitGUID("player")
         recomputeDualWield()
+        snapshotWeapons()
     end
 end
 
@@ -108,6 +155,7 @@ local function startListening()
     end
     playerGUID = playerGUID or UnitGUID("player")
     recomputeDualWield()
+    snapshotWeapons()
     frame:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
     frame:RegisterEvent("PLAYER_ENTER_COMBAT")
     frame:RegisterEvent("PLAYER_LEAVE_COMBAT")
