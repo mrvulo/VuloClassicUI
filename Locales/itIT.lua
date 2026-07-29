@@ -2788,4 +2788,7 @@ ns:RegisterLocale("itIT", function() return {
     ["The number on the left. 0 follows the general text size."] = "Il numero a sinistra. 0 segue la dimensione generale del testo.",
     ["Seal timer text size"] = "Dimensione del timer del sigillo",
     ["The countdown on the seal icons. 0 scales it with the icon."] = "Il conto alla rovescia sulle icone dei sigilli. 0 lo scala con l’icona.",
+    -- Warnzeile
+    ["Warning text size"] = "Dimensione del testo di avviso",
+    ["The red and yellow warnings on the bar. 0 follows the action text size."] = "Gli avvisi rossi e gialli sulla barra. 0 segue la dimensione del testo di azione.",
 } end)

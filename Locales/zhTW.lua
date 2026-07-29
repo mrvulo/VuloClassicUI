@@ -2781,4 +2781,7 @@ ns:RegisterLocale("zhTW", function() return {
     ["The number on the left. 0 follows the general text size."] = "左側的數字。0 表示跟隨通用文字大小。",
     ["Seal timer text size"] = "印記計時文字大小",
     ["The countdown on the seal icons. 0 scales it with the icon."] = "印記圖示上的倒數。0 表示依圖示大小縮放。",
+    -- Warnzeile
+    ["Warning text size"] = "警告文字大小",
+    ["The red and yellow warnings on the bar. 0 follows the action text size."] = "條上的紅色和黃色警告。0 表示跟隨操作提示文字大小。",
 } end)

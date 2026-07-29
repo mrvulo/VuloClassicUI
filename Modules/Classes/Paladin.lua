@@ -84,6 +84,7 @@ local DEFAULTS = {
     iconSize    = 26,
     fontSize    = 18,
     actionFontSize = 0,   -- 0 = follow fontSize;  see actionSize()
+    warnFontSize   = 0,   -- 0 = follow actionFontSize; see warnSize()
     speedFontSize  = 0,   -- 0 = fontSize - 4;     see speedSize()
     sealTimerFontSize = 0,-- 0 = scales with the icon; see sealTimerSize()
     x           = 0,
@@ -619,6 +620,14 @@ end
 -- to be inline: the attack speed sat four below the general size, the seal
 -- timer scaled with the icon it is drawn on -- so 0 keeps exactly what an
 -- untouched profile has today.
+-- The warning line ("twist lost", "swing ready") shares its FontString with the
+-- action line but not its job: it is a sentence, not two words, and wants to be
+-- smaller. 0 keeps it at the action size, which is how it behaved before.
+local function warnSize(d)
+    local s = d.warnFontSize or 0
+    return (s > 0) and s or actionSize(d)
+end
+
 local function speedSize(d)
     local s = d.speedFontSize or 0
     return (s > 0) and s or max(9, d.fontSize - 4)
@@ -668,7 +677,7 @@ local function layout()
     local leftW, rightW = sideWidths(d)
     local rowH = rowHeight(d)
     local h = d.barHeight + rowH
-    if d.showAction  then h = h + actionSize(d) + 4 end
+    if d.showAction  then h = h + max(actionSize(d), warnSize(d)) + 4 end
     if d.showNumbers then h = h + max(9, d.fontSize - 6) + 2 end
     h = h + 6
     if d.showSeals and d.iconSize > h then h = d.iconSize end
@@ -692,6 +701,7 @@ local function layout()
     speedFS:SetFont(fontPath(), speedSize(d), "OUTLINE")
     speedFS:SetShown(d.showSpeed)
     actionFS:SetFont(fontPath(), actionSize(d), "OUTLINE")
+    actionFS._vcSize = actionSize(d)
     actionFS:SetShown(d.showAction)
     infoFS:SetFont(fontPath(), max(9, d.fontSize - 6), "OUTLINE")
     infoFS:SetShown(d.showNumbers)
@@ -933,7 +943,7 @@ local function onUpdate()
     bar:SetStatusBarColor(c[1], c[2], c[3])
 
     if d.showAction then
-        local label
+        local label, warn
         if action == ACTION_TWIST then
             label = format(ACTION_TEXT[ACTION_TWIST], twistName or L["Twist"])
         elseif action == ACTION_HELD then
@@ -941,6 +951,7 @@ local function onUpdate()
         elseif action == ACTION_CS then
             label = format(ACTION_TEXT[ACTION_CS], csName or "")
         elseif lost then
+            warn = true
             -- Short on purpose: this sits on a bar a few hundred pixels wide and
             -- is read out of the corner of the eye mid-fight. The reason it is
             -- lost (a cooldown landing late) is one of several, and naming that
@@ -950,9 +961,19 @@ local function onUpdate()
             -- A swing that is due and stays due means auto-attack is off. It is
             -- the classic way to lose a whole rotation without noticing, and
             -- the bar is the only place it shows.
+            warn = true
             label = L["|cffffcc33Swing ready -- restart your attack|r"]
         else
             label = ""
+        end
+        -- One FontString, two jobs: "press this" and "something is wrong". They
+        -- want different sizes -- the warning is a sentence, the action is two
+        -- words -- so the font is switched with the text. Only when it actually
+        -- differs: this runs on every frame of the bar.
+        local want = warn and warnSize(d) or actionSize(d)
+        if actionFS._vcSize ~= want then
+            actionFS._vcSize = want
+            actionFS:SetFont(fontPath(), want, "OUTLINE")
         end
         actionFS:SetText(label)
     end
@@ -1451,6 +1472,10 @@ local function getOptions()
         tooltip = L["The line that names what to press. 0 follows the general text size."],
         get = function() return d.actionFontSize or 0 end,
         set = function(_, v) d.actionFontSize = v; layout() end })
+    table.insert(items, { type = "slider", label = L["Warning text size"], min = 0, max = 40, step = 1,
+        tooltip = L["The red and yellow warnings on the bar. 0 follows the action text size."],
+        get = function() return d.warnFontSize or 0 end,
+        set = function(_, v) d.warnFontSize = v; layout() end })
     table.insert(items, { type = "slider", label = L["Attack speed text size"], min = 0, max = 40, step = 1,
         tooltip = L["The number on the left. 0 follows the general text size."],
         get = function() return d.speedFontSize or 0 end,

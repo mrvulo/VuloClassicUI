@@ -2937,4 +2937,7 @@ ns:RegisterLocale("frFR", function() return {
     ["The number on the left. 0 follows the general text size."] = "Le nombre à gauche. 0 suit la taille de texte générale.",
     ["Seal timer text size"] = "Taille du minuteur de sceau",
     ["The countdown on the seal icons. 0 scales it with the icon."] = "Le décompte sur les icônes de sceau. 0 le met à l’échelle de l’icône.",
+    -- Warnzeile
+    ["Warning text size"] = "Taille du texte d'avertissement",
+    ["The red and yellow warnings on the bar. 0 follows the action text size."] = "Les avertissements rouges et jaunes sur la barre. 0 suit la taille du texte d’action.",
 } end)

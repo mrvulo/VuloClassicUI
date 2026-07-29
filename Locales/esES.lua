@@ -2789,6 +2789,9 @@ local function T() return {
     ["The number on the left. 0 follows the general text size."] = "El número de la izquierda. 0 sigue al tamaño de texto general.",
     ["Seal timer text size"] = "Tamaño del temporizador de sello",
     ["The countdown on the seal icons. 0 scales it with the icon."] = "La cuenta atrás en los iconos de sello. 0 la escala con el icono.",
+    -- Warnzeile
+    ["Warning text size"] = "Tamaño del texto de aviso",
+    ["The red and yellow warnings on the bar. 0 follows the action text size."] = "Los avisos rojos y amarillos de la barra. 0 sigue al tamaño del texto de acción.",
 } end
 
 ns:RegisterLocale("esES", T)

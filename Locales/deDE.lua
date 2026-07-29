@@ -2925,4 +2925,7 @@ ns:RegisterLocale("deDE", function() return {
     ["The number on the left. 0 follows the general text size."] = "Die Zahl links. 0 folgt der allgemeinen Textgröße.",
     ["Seal timer text size"] = "Größe des Siegel-Timers",
     ["The countdown on the seal icons. 0 scales it with the icon."] = "Der Countdown auf den Siegelsymbolen. 0 richtet ihn nach der Symbolgröße.",
+    -- Warnzeile
+    ["Warning text size"] = "Größe der Warnzeile",
+    ["The red and yellow warnings on the bar. 0 follows the action text size."] = "Die roten und gelben Warnungen auf der Leiste. 0 folgt der Größe der Aktionszeile.",
 } end)

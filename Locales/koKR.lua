@@ -2788,4 +2788,7 @@ ns:RegisterLocale("koKR", function() return {
     ["The number on the left. 0 follows the general text size."] = "왼쪽 숫자입니다. 0이면 일반 글자 크기를 따릅니다.",
     ["Seal timer text size"] = "인장 타이머 글자 크기",
     ["The countdown on the seal icons. 0 scales it with the icon."] = "인장 아이콘 위의 남은 시간입니다. 0이면 아이콘 크기에 맞춥니다.",
+    -- Warnzeile
+    ["Warning text size"] = "경고 문구 크기",
+    ["The red and yellow warnings on the bar. 0 follows the action text size."] = "막대 위의 빨강, 노랑 경고입니다. 0이면 행동 문구 크기를 따릅니다.",
 } end)

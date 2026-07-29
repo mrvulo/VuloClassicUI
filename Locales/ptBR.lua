@@ -2788,4 +2788,7 @@ ns:RegisterLocale("ptBR", function() return {
     ["The number on the left. 0 follows the general text size."] = "O número à esquerda. 0 segue o tamanho de texto geral.",
     ["Seal timer text size"] = "Tamanho do temporizador do selo",
     ["The countdown on the seal icons. 0 scales it with the icon."] = "A contagem nos ícones de selo. 0 ajusta ao tamanho do ícone.",
+    -- Warnzeile
+    ["Warning text size"] = "Tamanho do texto de aviso",
+    ["The red and yellow warnings on the bar. 0 follows the action text size."] = "Os avisos vermelhos e amarelos na barra. 0 segue o tamanho do texto de ação.",
 } end)

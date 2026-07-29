@@ -2788,4 +2788,7 @@ ns:RegisterLocale("ruRU", function() return {
     ["The number on the left. 0 follows the general text size."] = "Число слева. 0 — как общий размер текста.",
     ["Seal timer text size"] = "Размер таймера печати",
     ["The countdown on the seal icons. 0 scales it with the icon."] = "Отсчёт на значках печатей. 0 — по размеру значка.",
+    -- Warnzeile
+    ["Warning text size"] = "Размер текста предупреждений",
+    ["The red and yellow warnings on the bar. 0 follows the action text size."] = "Красные и жёлтые предупреждения на полосе. 0 — как размер строки действия.",
 } end)
