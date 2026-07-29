@@ -2617,4 +2617,9 @@ ns:RegisterLocale("koKR", function() return {
     ["Every section starts closed, so a long page opens as a list of headings."] = "모든 구획이 접힌 상태로 시작하므로 긴 페이지가 제목 목록처럼 열립니다.",
     ["The automatic swap queue has controls again — order, delay and the stop marker, on the trinket page. They only ever existed in a window this addon hides."] = "자동 교체 대기열에 다시 조작 수단이 생겼습니다: 순서, 지연 시간, 정지 표식이 장신구 페이지에 있습니다. 지금까지는 이 애드온이 숨기는 창에만 있었습니다.",
     ["Trinket icons show up again: on the buttons, on the queue marker, and on your worn trinkets right after login instead of only once you click them."] = "장신구 아이콘이 다시 보입니다: 단추 위, 대기열 표식 위, 그리고 접속 직후의 착용 장신구에도 표시되며, 클릭해야 나타나던 문제가 없어졌습니다.",
+    -- Befehlsregistratur
+    ["%s has no handler yet — this is a bug, please report it."] = "%s에 아직 처리기가 없습니다 — 버그이니 신고해 주세요.",
+    ["%s belongs to %s, which is switched off."] = "%s은(는) %s에 속하며, 해당 모듈은 꺼져 있습니다.",
+    ["|cff9b6cffCommands|r — %d in total. Grey ones belong to a module that is switched off."] = "|cff9b6cff명령어|r — 모두 %d개. 회색은 꺼져 있는 모듈의 것입니다.",
+    ["%s is also claimed by another addon (%s) — one of the two wins."] = "%s을(를) 다른 애드온(%s)도 사용합니다 — 둘 중 하나만 적용됩니다.",
 } end)

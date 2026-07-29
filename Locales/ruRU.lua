@@ -2617,4 +2617,9 @@ ns:RegisterLocale("ruRU", function() return {
     ["Every section starts closed, so a long page opens as a list of headings."] = "Каждый раздел открывается свёрнутым, поэтому длинная страница выглядит как список заголовков.",
     ["The automatic swap queue has controls again — order, delay and the stop marker, on the trinket page. They only ever existed in a window this addon hides."] = "У очереди автоматической смены снова есть управление: порядок, задержка и метка остановки на странице аксессуаров. Раньше они были только в окне, которое этот аддон скрывает.",
     ["Trinket icons show up again: on the buttons, on the queue marker, and on your worn trinkets right after login instead of only once you click them."] = "Значки аксессуаров снова на месте: на кнопках, на метке очереди и на надетых аксессуарах сразу после входа в игру, а не только после щелчка.",
+    -- Befehlsregistratur
+    ["%s has no handler yet — this is a bug, please report it."] = "%s пока не имеет обработчика — это ошибка, пожалуйста, сообщите о ней.",
+    ["%s belongs to %s, which is switched off."] = "%s относится к %s, а этот модуль выключен.",
+    ["|cff9b6cffCommands|r — %d in total. Grey ones belong to a module that is switched off."] = "|cff9b6cffКоманды|r — всего %d. Серые относятся к выключенному модулю.",
+    ["%s is also claimed by another addon (%s) — one of the two wins."] = "%s также занята другим аддоном (%s) — сработает только одна из двух.",
 } end)

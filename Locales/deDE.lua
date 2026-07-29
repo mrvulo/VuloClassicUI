@@ -2797,4 +2797,9 @@ ns:RegisterLocale("deDE", function() return {
     ["Every section starts closed, so a long page opens as a list of headings."] = "Jeder Abschnitt startet zugeklappt, sodass eine lange Seite als Liste von Überschriften aufgeht.",
     ["The automatic swap queue has controls again — order, delay and the stop marker, on the trinket page. They only ever existed in a window this addon hides."] = "Die automatische Tauschwarteschlange hat wieder eine Bedienung — Reihenfolge, Verzögerung und die Endmarke, auf der Schmuckseite. Sie lag bisher nur in einem Fenster, das dieses Addon versteckt.",
     ["Trinket icons show up again: on the buttons, on the queue marker, and on your worn trinkets right after login instead of only once you click them."] = "Die Schmucksymbole sind wieder da: auf den Knöpfen, auf der Warteschlangenmarke und auf deinen getragenen Schmuckstücken direkt nach dem Anmelden statt erst nach einem Klick.",
+    -- Befehlsregistratur
+    ["%s has no handler yet — this is a bug, please report it."] = "%s hat noch keine Behandlung — das ist ein Fehler, bitte melde ihn.",
+    ["%s belongs to %s, which is switched off."] = "%s gehört zu %s, und das ist ausgeschaltet.",
+    ["|cff9b6cffCommands|r — %d in total. Grey ones belong to a module that is switched off."] = "|cff9b6cffBefehle|r — %d insgesamt. Graue gehören zu einem ausgeschalteten Modul.",
+    ["%s is also claimed by another addon (%s) — one of the two wins."] = "%s wird auch von einem anderen Addon beansprucht (%s) — eines von beiden gewinnt.",
 } end)

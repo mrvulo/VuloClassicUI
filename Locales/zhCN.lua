@@ -2610,4 +2610,9 @@ ns:RegisterLocale("zhCN", function() return {
     ["Every section starts closed, so a long page opens as a list of headings."] = "每个分区默认折叠，因此长页面打开时就是一份标题列表。",
     ["The automatic swap queue has controls again — order, delay and the stop marker, on the trinket page. They only ever existed in a window this addon hides."] = "自动换装队列重新有了操作界面：顺序、延迟和停止标记都在饰品页面上。它们此前只存在于本插件隐藏起来的窗口里。",
     ["Trinket icons show up again: on the buttons, on the queue marker, and on your worn trinkets right after login instead of only once you click them."] = "饰品图标重新显示：按钮上、队列标记上，以及登录后立刻显示已佩戴的饰品，而不必先点一下。",
+    -- Befehlsregistratur
+    ["%s has no handler yet — this is a bug, please report it."] = "%s 还没有对应的处理程序——这是一个缺陷，请反馈。",
+    ["%s belongs to %s, which is switched off."] = "%s 属于 %s，而它已关闭。",
+    ["|cff9b6cffCommands|r — %d in total. Grey ones belong to a module that is switched off."] = "|cff9b6cff命令|r——共 %d 条。灰色的属于已关闭的模块。",
+    ["%s is also claimed by another addon (%s) — one of the two wins."] = "%s 也被另一个插件（%s）占用——两者只有一个生效。",
 } end)

@@ -2617,4 +2617,9 @@ ns:RegisterLocale("itIT", function() return {
     ["Every section starts closed, so a long page opens as a list of headings."] = "Ogni sezione parte chiusa, così una pagina lunga si apre come un elenco di intestazioni.",
     ["The automatic swap queue has controls again — order, delay and the stop marker, on the trinket page. They only ever existed in a window this addon hides."] = "La coda di scambio automatico ha di nuovo i comandi: ordine, ritardo e il segnale di arresto, nella pagina dei monili. Prima esistevano solo in una finestra che questo componente nasconde.",
     ["Trinket icons show up again: on the buttons, on the queue marker, and on your worn trinkets right after login instead of only once you click them."] = "Le icone dei monili sono di nuovo visibili: sui pulsanti, sul segnale della coda e sui monili indossati subito dopo l'accesso, invece che solo dopo un clic.",
+    -- Befehlsregistratur
+    ["%s has no handler yet — this is a bug, please report it."] = "%s non ha ancora un gestore — è un errore, segnalalo per favore.",
+    ["%s belongs to %s, which is switched off."] = "%s appartiene a %s, che è disattivato.",
+    ["|cff9b6cffCommands|r — %d in total. Grey ones belong to a module that is switched off."] = "|cff9b6cffComandi|r — %d in totale. Quelli grigi appartengono a un modulo disattivato.",
+    ["%s is also claimed by another addon (%s) — one of the two wins."] = "%s è rivendicato anche da un altro componente (%s) — vince solo uno dei due.",
 } end)

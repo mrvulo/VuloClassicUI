@@ -2766,4 +2766,9 @@ ns:RegisterLocale("frFR", function() return {
     ["Every section starts closed, so a long page opens as a list of headings."] = "Chaque section démarre repliée : une page longue s'ouvre donc comme une liste de titres.",
     ["The automatic swap queue has controls again — order, delay and the stop marker, on the trinket page. They only ever existed in a window this addon hides."] = "La file de remplacement automatique a de nouveau des commandes : ordre, délai et repère de fin, sur la page des bijoux. Elles n'existaient que dans une fenêtre que cet accessoire masque.",
     ["Trinket icons show up again: on the buttons, on the queue marker, and on your worn trinkets right after login instead of only once you click them."] = "Les icônes de bijoux réapparaissent : sur les boutons, sur le repère de file et sur tes bijoux équipés dès la connexion, au lieu d'attendre un clic.",
+    -- Befehlsregistratur
+    ["%s has no handler yet — this is a bug, please report it."] = "%s n'a pas encore de gestionnaire — c'est un bogue, merci de le signaler.",
+    ["%s belongs to %s, which is switched off."] = "%s appartient à %s, qui est désactivé.",
+    ["|cff9b6cffCommands|r — %d in total. Grey ones belong to a module that is switched off."] = "|cff9b6cffCommandes|r — %d au total. Les grises appartiennent à un module désactivé.",
+    ["%s is also claimed by another addon (%s) — one of the two wins."] = "%s est également revendiqué par un autre accessoire (%s) — un seul des deux l'emporte.",
 } end)

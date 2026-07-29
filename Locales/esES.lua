@@ -2618,6 +2618,11 @@ local function T() return {
     ["Every section starts closed, so a long page opens as a list of headings."] = "Cada sección empieza plegada, así una página larga se abre como una lista de encabezados.",
     ["The automatic swap queue has controls again — order, delay and the stop marker, on the trinket page. They only ever existed in a window this addon hides."] = "La cola de cambio automático vuelve a tener controles: orden, retardo y la marca de parada, en la página de abalorios. Antes solo existían en una ventana que este accesorio oculta.",
     ["Trinket icons show up again: on the buttons, on the queue marker, and on your worn trinkets right after login instead of only once you click them."] = "Los iconos de abalorios vuelven a verse: en los botones, en la marca de la cola y en los abalorios equipados justo tras iniciar sesión, en vez de solo al hacer clic.",
+    -- Befehlsregistratur
+    ["%s has no handler yet — this is a bug, please report it."] = "%s todavía no tiene una acción asignada — esto es un error, informa de él por favor.",
+    ["%s belongs to %s, which is switched off."] = "%s pertenece a %s, que está desactivado.",
+    ["|cff9b6cffCommands|r — %d in total. Grey ones belong to a module that is switched off."] = "|cff9b6cffComandos|r — %d en total. Los grises pertenecen a un módulo desactivado.",
+    ["%s is also claimed by another addon (%s) — one of the two wins."] = "%s también lo reclama otro accesorio (%s) — solo uno de los dos gana.",
 } end
 
 ns:RegisterLocale("esES", T)

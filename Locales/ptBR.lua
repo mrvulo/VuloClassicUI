@@ -2617,4 +2617,9 @@ ns:RegisterLocale("ptBR", function() return {
     ["Every section starts closed, so a long page opens as a list of headings."] = "Cada seção começa recolhida, então uma página longa abre como uma lista de títulos.",
     ["The automatic swap queue has controls again — order, delay and the stop marker, on the trinket page. They only ever existed in a window this addon hides."] = "A fila de troca automática voltou a ter controles: ordem, atraso e a marca de parada, na página de berloques. Eles só existiam em uma janela que este complemento esconde.",
     ["Trinket icons show up again: on the buttons, on the queue marker, and on your worn trinkets right after login instead of only once you click them."] = "Os ícones de berloques aparecem de novo: nos botões, na marca da fila e nos berloques equipados logo após entrar, em vez de somente ao clicar.",
+    -- Befehlsregistratur
+    ["%s has no handler yet — this is a bug, please report it."] = "%s ainda não tem um manipulador — isso é um erro, por favor relate.",
+    ["%s belongs to %s, which is switched off."] = "%s pertence a %s, que está desativado.",
+    ["|cff9b6cffCommands|r — %d in total. Grey ones belong to a module that is switched off."] = "|cff9b6cffComandos|r — %d no total. Os cinzentos pertencem a um módulo desativado.",
+    ["%s is also claimed by another addon (%s) — one of the two wins."] = "%s também é reivindicado por outro complemento (%s) — apenas um dos dois vence.",
 } end)
