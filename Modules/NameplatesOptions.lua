@@ -842,7 +842,10 @@ function mod:GetOptions()
                   { type = "color", label = L["Point colour"], width = 200,
                     get = function() return mod.db.cpColor end,
                     set = function(r, g, b) mod.db.cpColor = { r = r, g = g, b = b }; applyAndRefresh() end },
-                  { type = "segmented", label = L["Point shape"], width = 220,
+                  -- Menu, not a button row: four shapes is already the ceiling
+                  -- for a strip, and this list is ours to extend -- a star or a
+                  -- hexagon would break it. Same call as the two bar styles.
+                  { type = "dropdown", label = L["Point shape"], width = 220,
                     values = {
                         { value = "square",   text = L["Square"] },
                         { value = "circle",   text = L["Circle"] },
