@@ -875,7 +875,7 @@ function mod:GetOptions()
         { type = "section", title = L["Behaviour"], items = {
             { type = "desc",
               text = L["|cffaaaaaaThese are the game's own nameplate settings, changed live (not part of the profile). Not changeable in combat.|r"] },
-            { type = "dropdown", label = L["Plate motion"], width = 260,
+            { type = "segmented", label = L["Plate motion"], width = 260,
               values = {
                   { value = "0", text = L["Overlapping"] },
                   { value = "1", text = L["Stacking"] },

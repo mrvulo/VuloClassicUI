@@ -1514,7 +1514,7 @@ function mod:GetOptions()
               end },
         }
         if group.anchorTo then
-            anchorItems[#anchorItems + 1] = { type = "dropdown", label = L["Side"], width = 200,
+            anchorItems[#anchorItems + 1] = { type = "segmented", label = L["Side"], width = 200,
                 values = {
                     { value = "BELOW", text = L["Below"] }, { value = "ABOVE", text = L["Above"] },
                     { value = "LEFT",  text = L["Left of"] }, { value = "RIGHT", text = L["Right of"] },
@@ -1541,7 +1541,7 @@ function mod:GetOptions()
         { type = "slider", label = L["Icons per row"], min = 1, max = 20, step = 1,
           get = function() return group.perRow end,
           set = function(_, v) group.perRow = v; relayoutGroup(group) end },
-        { type = "dropdown", label = L["Growth direction"], width = 220,
+        { type = "segmented", label = L["Growth direction"], width = 220,
           values = {
               { value = "RIGHT", text = L["Right"] }, { value = "LEFT", text = L["Left"] },
               { value = "DOWN",  text = L["Down"]  }, { value = "UP",   text = L["Up"]   },

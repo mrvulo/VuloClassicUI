@@ -761,7 +761,7 @@ function mod:GetOptions()
         { type = "desc", text = L["|cffaaaaaaA modern round minimap with a beveled ring, zone text and clock in a slim pill. Zoom with the mouse wheel. |cffffffffShift+drag the map|r to move it — or use Unlock / the addon's own Edit Mode (/vedit). Blizzard's Edit Mode does not manage this map.|r"] },
 
         { type = "spacer", height = 6 },
-        { type = "dropdown", label = L["Shape"],
+        { type = "segmented", label = L["Shape"],
           values = {
               { value = "round",  text = L["Round"] },
               { value = "square", text = L["Square"] },
@@ -794,7 +794,7 @@ function mod:GetOptions()
 
         { type = "spacer", height = 6 },
         { type = "header", text = L["Zone panel"] },
-        { type = "dropdown", label = L["Zone text and clock"],
+        { type = "segmented", label = L["Zone text and clock"],
           values = {
               { value = "top",    text = L["Above the map"] },
               { value = "bottom", text = L["Below the map"] },

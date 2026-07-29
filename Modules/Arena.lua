@@ -736,7 +736,7 @@ mod:AddOptionsSection("layout", function()
         set = function(_, v) mod.db.slotSpacing = v; applyLayout() end,
     })
     table.insert(items, {
-        type = "dropdown", label = L["Grow direction"],
+        type = "segmented", label = L["Grow direction"],
         values = {
             { value = "down", text = L["Downward"] },
             { value = "up",   text = L["Upward"] },
