@@ -432,6 +432,45 @@ local function pageLabelColumn(items, availW)
     return runLabelColumn(collectCompact(items, {}), slotW - 20, true)
 end
 
+-- The rows that end up on a line of their OWN, which is a different population
+-- from the compact grid and needs its own measured column.
+--
+-- Two things land here: a row carrying a gear (placeItemList sends those to
+-- placeItem one at a time) and a row asking for fullWidth (placeColumns gives
+-- that run a single column). Neither used to get a label column at all -- the
+-- gear rows because placeItem never set one, the fullWidth rows because
+-- placeColumns deliberately drops the page column on them. So every such row
+-- sized its label to its own text and the value boxes down a page started at a
+-- different x each time, which reads as carelessness rather than as a list.
+--
+-- Measured separately and NOT reused from pageLabelColumn: that one is measured
+-- against half a cell, and forcing it onto a full-width row would park the
+-- control a quarter of the way across and leave a gap.
+local function collectSolo(list, out)
+    for _, it in ipairs(list) do
+        if type(it) == "table" then
+            -- COMPACT, not CARD_TYPES: the two hold the same seven types, but
+            -- CARD_TYPES is declared further down the file, so a reference to it
+            -- from here would read a nil global instead.
+            if COMPACT[it.type] and (it.subOptions or it.fullWidth) then
+                out[#out + 1] = it
+            end
+            if it.items then collectSolo(it.items, out) end
+            -- Rows behind a gear are measured while still collapsed, for the same
+            -- reason collectCompact does it: the column must not jump the moment
+            -- somebody opens one.
+            if it.subOptions then collectSolo(it.subOptions, out) end
+        end
+    end
+    return out
+end
+
+local function soloLabelColumn(items, availW)
+    -- The width a solo row actually gives its widget, so the 50% cap inside
+    -- runLabelColumn is applied to the geometry that gets drawn.
+    return runLabelColumn(collectSolo(items, {}), availW - 20 - ROW_ICON_STRIP, true)
+end
+
 local function placeColumns(parent, run, y)
     local availW = (parent:GetWidth() or 540) - 2 * CONTENT_PADDING
     local grid   = UI._grid
@@ -448,6 +487,9 @@ local function placeColumns(parent, run, y)
         -- Three or four segments do not survive a half-width cell: the strip is
         -- what is left of ~250px after the label, split three ways, and a German
         -- option name is not going to fit in 60px. Two do, so two stay pairable.
+        -- fullWidth no longer reaches here: placeItemList keeps such a row out of
+        -- the run entirely. Kept as a guard in case a future caller builds a run
+        -- by hand, and because a wide segmented strip still needs this branch.
         if item.fullWidth
            or (item.type == "segmented" and #(item.values or {}) > 2) then
             wide = true; break
@@ -457,10 +499,11 @@ local function placeColumns(parent, run, y)
     local cols = (wide and 1) or (grid and grid.cols) or fitColumns(run, availW)
     local colW   = math.floor((availW - (cols - 1) * COL_GAP) / cols)
     local labelCol
-    -- A full-width run also drops the page's shared label column: that column
-    -- was measured for half-width cells, and forcing it onto a full-width row
-    -- would park the control in the middle of the card.
-    if wide then labelCol = nil
+    -- A full-width run cannot use the page's shared column -- that one is
+    -- measured against half a cell and would park the control a quarter of the
+    -- way across. It gets the column measured for solo rows instead, so a
+    -- fullWidth row lines up with the geared rows above and below it.
+    if wide then labelCol = UI._soloCol
     elseif grid then labelCol = grid.labelCol
     else labelCol = runLabelColumn(run, colW) end
     local base   = parent:GetFrameLevel()
@@ -622,6 +665,10 @@ placeItem = function(parent, item, y)
         -- A one-line row like every other: no -14 nudge to clear a label that
         -- once sat above the track.
         widget:SetWidth(math.max(120, availW - 20 - ROW_ICON_STRIP))
+        -- After SetWidth, same order placeColumns uses: the row lays itself out
+        -- from the width it was given, then the label column pins where the
+        -- control begins.
+        if UI._soloCol and widget.SetLabelWidth then widget:SetLabelWidth(UI._soloCol) end
 
         -- Centred in the card by its REAL height, not hung from the top edge.
         -- The height createWidget reports is the height of the ROW -- what the
@@ -682,9 +729,17 @@ placeItemList = function(parent, items, y)
     local i = 1
     while i <= #items do
         local it = items[i]
-        if COMPACT[it.type] and not it.subOptions then
+        -- fullWidth takes the row OUT of the run, it does not widen the run.
+        --
+        -- It used to do the latter by accident: placeColumns saw one such row and
+        -- dropped the whole run to a single column, so asking for one wide
+        -- dropdown collapsed the fourteen colour swatches underneath it into one
+        -- tall list. The flag names a property of the ROW, and now behaves like
+        -- one -- the row is placed on its own and its neighbours keep their grid.
+        if COMPACT[it.type] and not it.subOptions and not it.fullWidth then
             local run = {}
-            while items[i] and COMPACT[items[i].type] and not items[i].subOptions do
+            while items[i] and COMPACT[items[i].type]
+                and not items[i].subOptions and not items[i].fullWidth do
                 run[#run + 1] = items[i]; i = i + 1
             end
             y = placeColumns(parent, run, y)
@@ -1104,14 +1159,19 @@ function UI:BuildOptionsPage(key, tabId)
     local wantGrid = gridMod.optionsGrid
     if type(wantGrid) == "table" then wantGrid = tabId and wantGrid[tabId] end
     UI._grid = nil
+    local pw = parent:GetWidth()
+    if not pw or pw < 100 then pw = 540 end
+    local availW = pw - 2 * CONTENT_PADDING
     if wantGrid then
-        local gw = parent:GetWidth()
-        if not gw or gw < 100 then gw = 540 end
-        UI._grid = { cols = 2, labelCol = pageLabelColumn(items, gw - 2 * CONTENT_PADDING) }
+        UI._grid = { cols = 2, labelCol = pageLabelColumn(items, availW) }
     end
+    -- Measured on every page, grid or not: the ragged edge it fixes has nothing
+    -- to do with the grid opt-in.
+    UI._soloCol = soloLabelColumn(items, availW)
 
     y = placeItemList(parent, items, y)
     UI._grid = nil
+    UI._soloCol = nil
 
     local totalHeight = math.max(400, math.abs(y) + 20)
     parent:SetHeight(totalHeight)

@@ -126,11 +126,33 @@ if (fs.existsSync(gen)) {
 }
 
 // ---------------------------------------------------------------- measure
+//
+// The 2000-character cap is no longer a budget for the WHOLE section: discord.yml
+// splits it into several messages on category boundaries. What still cannot work
+// is a single indivisible line -- one bullet longer than a message -- because the
+// splitter refuses to cut mid-sentence and Discord would reject the post. So the
+// gate moved from "is the section short enough" to "does every part fit", which is
+// the question that actually matters.
 const block = ('## ' + md.split(/^## /m).find((b) => b.startsWith(target))).trim();
 const len = block.length;
-if (len > DISCORD_HARD) fail('changelog block is ' + len + ' chars, Discord cuts at ' + DISCORD_HARD);
-else if (len > DISCORD_SOFT) warn('changelog block is ' + len + ' chars, over our ' + DISCORD_SOFT + ' budget');
-else ok('changelog block ' + len + ' chars');
+const body = block.split('\n').slice(1).join('\n').trim();
+let parts = null;
+try {
+  parts = require('./split_changelog.js').splitChangelog(body, DISCORD_SOFT - 50);
+} catch (e) {
+  warn('tools/split_changelog.js not usable (' + e.message + ') -- falling back to the flat limit');
+  if (len > DISCORD_HARD) fail('changelog block is ' + len + ' chars, Discord cuts at ' + DISCORD_HARD);
+}
+if (parts) {
+  const tooLong = parts.filter((p) => p.length > DISCORD_HARD - 60);
+  if (tooLong.length) {
+    fail(tooLong.length + ' changelog part(s) cannot be split under ' + DISCORD_HARD
+      + ' chars -- shorten the offending bullet:\n        '
+      + tooLong.map((p) => p.split('\n').slice(0, 2).join(' / ').slice(0, 90) + '…').join('\n        '));
+  } else {
+    ok('changelog block ' + len + ' chars, ' + parts.length + ' Discord message(s)');
+  }
+}
 
 // ---------------------------------------------------------------- locales
 const dataFile = path.join(ROOT, 'Modules', 'ChangelogData.lua');

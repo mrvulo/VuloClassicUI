@@ -526,6 +526,14 @@ local CHROME = {
 }
 local chromeState = {}
 local chromeOrig = {}    -- reparented frame -> original parent
+-- moved frame -> the points it carried before we moved it, as
+-- { n = <count>, <GetPoint results> } so a nil relativeTo survives unpack.
+--
+-- chromeOrig gives a frame its PARENT back; without this it keeps our ANCHOR and
+-- so stays wherever the holder was. Measured on a live client: BagsBar and the
+-- performance bar are stranded that way, while MicroMenu re-anchors itself during
+-- the session and needs nothing. See restoreChrome.
+local origAnchor = {}
 
 local BAG_SLOT_BUTTONS = {
     "MainMenuBarBackpackButton", "CharacterBag0Slot", "CharacterBag1Slot",
@@ -550,6 +558,16 @@ end
 
 -- Blizzard's layout code re-anchors these frames, so hook SetPoint and re-pin
 local function pinFrame(f, point, holder, relPoint, x, y)
+    -- FIRST WRITE WINS. ensureChrome has already re-parented the frame by the time
+    -- we get here, but it has NOT touched the points yet -- verified on a live
+    -- client, where the values read at this moment are still Blizzard's own.
+    if origAnchor[f] == nil and f.GetNumPoints then
+        local pts = {}
+        for i = 1, (f:GetNumPoints() or 0) do
+            pts[i] = { n = select("#", f:GetPoint(i)), f:GetPoint(i) }
+        end
+        if #pts > 0 then origAnchor[f] = pts end
+    end
     f._vcuiPinTo = { point, holder, relPoint, x, y }
     f._vcuiPinning = true
     f:ClearAllPoints()
@@ -695,11 +713,47 @@ local function applyChrome()
     end
 end
 
+-- True while the frame is still anchored to one of OUR holders.
+--
+-- This is the whole guard. MicroMenu re-anchors itself to MicroMenuContainer
+-- during the session, so by teardown it is already home; replaying a stored
+-- snapshot over it would be us overruling Blizzard's own layout for no reason.
+-- BagsBar and the performance bar are the two that really are still pinned to a
+-- holder we are about to hide, and they are the only ones this touches.
+local function pinnedToOurHolder(f)
+    if not (f and f.GetNumPoints) then return false end
+    for i = 1, (f:GetNumPoints() or 0) do
+        local _, rel = f:GetPoint(i)
+        local n = rel and rel.GetName and rel:GetName()
+        if n and n:find("^VuloABChrome_") then return true end
+    end
+    return false
+end
+
 local function restoreChrome()
     muteKeyRingLayout(false)
     for f, parent in pairs(chromeOrig) do
+        local pts = origAnchor[f]
+        local stranded = pinnedToOurHolder(f)
         f._vcuiPinTo = nil   -- release the pin so Blizzard may anchor freely again
         f:SetParent(parent)
+        if pts and stranded then
+            -- pcall on purpose, and not to hide anything: restore() shows
+            -- Blizzard's bars and clears `taken` AFTER this call, so an error
+            -- thrown in here would strand the action bars -- a far worse outcome
+            -- than a frame that stayed where our holder was. A failure is
+            -- reported rather than swallowed.
+            local ok, err = pcall(function()
+                f:ClearAllPoints()
+                for _, p in ipairs(pts) do f:SetPoint(unpack(p, 1, p.n)) end
+            end)
+            -- Reported, not swallowed: a pcall that hides its own failure is a
+            -- silent bug, and this one would show up as a frame that stayed put.
+            if not ok then
+                ns:Debug("restoreChrome anchor: %s", tostring(err))
+            end
+        end
+        origAnchor[f] = nil
         chromeOrig[f] = nil
     end
     local shell = _G.MicroMenuContainer
@@ -1448,6 +1502,33 @@ local function takeOver()
     if ns.ReskinActionButtons then ns.ReskinActionButtons() end
 end
 
+-- Undo hideBlizzard's stop on the main bar's twelve buttons.
+--
+-- hideBlizzard does three things to each: UnregisterAllEvents, statehidden and
+-- Hide. Measured on a live client, only TWO of them have any effect -- a HEALTHY
+-- ActionButton1 has none of the ACTIONBAR_* events registered on itself, because
+-- they live on the shared ActionBarActionEventsFrame. So UnregisterAllEvents
+-- removed nothing, and re-registering would mean inventing a list nobody can
+-- read back. statehidden and Hide are what stop the button, and they are what
+-- comes back here -- statehidden to nil, which is what a fresh button reports.
+--
+-- Then Blizzard's own re-assert, so the bar lands in the state a /reload would
+-- leave it in rather than one arranged by hand.
+local function restoreMainButtons()
+    for i = 1, 12 do
+        local b = _G["ActionButton" .. i]
+        if b then
+            if b.SetAttributeNoHandler then b:SetAttributeNoHandler("statehidden", nil) end
+            b:Show()
+        end
+    end
+    -- pcall for the same reason the anchor replay has one: this runs inside
+    -- restore(), and nothing in here is worth stranding the teardown over.
+    if type(_G.ActionBarController_UpdateAll) == "function" then
+        pcall(_G.ActionBarController_UpdateAll)
+    end
+end
+
 local function restore()
     if not taken then return end
     if InCombatLockdown() then pendingRestore = true; return end
@@ -1493,6 +1574,10 @@ local function restore()
     if stbm then stbm:Show(); if stbm.RegisterAllEvents then stbm:RegisterAllEvents() end end
     for _, n in ipairs(LEGACY_BARS) do local f = _G[n]; if f then f:Show() end end
     taken = false
+    -- LAST, deliberately. Everything above -- showing Blizzard's bars, clearing
+    -- `taken` -- has already happened, so however this call behaves it cannot
+    -- strand the teardown. That is the lesson from the anchor attempt.
+    restoreMainButtons()
     ns:Print(L["|cffffcc00Action Bars disabled — type /reload to fully restore the default bars.|r"])
 end
 

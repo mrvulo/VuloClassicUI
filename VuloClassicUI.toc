@@ -2,7 +2,7 @@
 ## Title: |cff9b6cffVuloClassicUI|r
 ## Notes: Modular UI suite for TBC Classic Anniversary
 ## Author: Vulo
-## Version: 1.41.0
+## Version: 1.42.0
 ## X-Wago-ID: rN4kojGD
 ## X-Curse-Project-ID: 1553405
 ## SavedVariables: VuloClassicUIDB, TrinketsOptions
@@ -102,6 +102,11 @@ Modules\Classes\Priest.lua
 Modules\Classes\Warlock.lua
 Modules\Classes\Shaman.lua
 Modules\Classes\Paladin.lua
+Modules\Classes\PaladinTwistBar.lua
+Modules\Classes\PaladinTwistHit.lua
+Modules\Classes\PaladinTwistNext.lua
+Modules\Classes\PaladinTwistPractice.lua
+Modules\Classes\PaladinTwistOptions.lua
 Modules\LazyVulo.lua
 Modules\Vulslot.lua
 Modules\CooldownManager.lua

@@ -83,8 +83,60 @@ function ns.MediaStatusbarValues()
     return v
 end
 
+-- Fonts. Only one is bundled; the dropdowns below list it first and then
+-- everything else registered with shared media, so a player who installed a
+-- font pack finds it in every font setting this addon has.
+local BUNDLED_FONTS = { "Expressway" }
 if LSM then
     LSM:Register("font", "Expressway", BASE .. "Fonts\\Expressway.TTF")
+end
+ns.BUNDLED_FONTS = BUNDLED_FONTS
+
+-- Same shape and same reasoning as MediaStatusbar: HashTable rather than Fetch,
+-- so a global font override in another addon cannot collapse every choice.
+function ns.MediaFont(name, fallback)
+    if LSM and name and name ~= "" then
+        local hash = LSM:HashTable("font")
+        local path = hash and hash[name]
+        if path and path ~= "" then return path end
+    end
+    return fallback or (ns.UI and ns.UI.FONT_PATH) or "Fonts\\FRIZQT__.TTF"
+end
+
+function ns.MediaFontValues()
+    local v, seen = {}, {}
+    for _, n in ipairs(BUNDLED_FONTS) do
+        v[#v + 1] = { value = n, text = n }; seen[n] = true
+    end
+    if LSM then
+        for _, n in ipairs(LSM:List("font") or {}) do
+            if not seen[n] then v[#v + 1] = { value = n, text = n } end
+        end
+    end
+    return v
+end
+
+-- Borders come entirely from shared media -- this addon bundles none. The
+-- library seeds the pool with the client's own edge files, so the list is never
+-- empty even with no other addon loaded.
+function ns.MediaBorder(name)
+    if LSM and name and name ~= "" then
+        local hash = LSM:HashTable("border")
+        local path = hash and hash[name]
+        if path and path ~= "" then return path end
+    end
+    return nil
+end
+
+function ns.MediaBorderValues()
+    local v = {}
+    if LSM then
+        for _, n in ipairs(LSM:List("border") or {}) do
+            v[#v + 1] = { value = n, text = n }
+        end
+    end
+    if #v == 0 then v[1] = { value = "", text = L["(none available)"] } end
+    return v
 end
 
 -- Sounds. The 118-file pack that used to live here was dropped because nothing

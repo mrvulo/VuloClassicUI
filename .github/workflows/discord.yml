@@ -61,26 +61,59 @@ jobs:
 
           TITLE="## 🟣 VuloClassicUI ${VERSION}"
           PING=""
-          [ -n "${ROLE_ID:-}" ] && PING="<@&${ROLE_ID}>"
+          if [ -n "${ROLE_ID:-}" ]; then PING="<@&${ROLE_ID}>"; fi
 
-          CONTENT="$(printf '%s\n\n%s\n\n%s' "$TITLE" "$BODY" "$PING")"
-
-          # Discord content limit is 2000 chars: truncate the body if needed and
-          # link to the full notes. iconv -c drops any byte cut mid-UTF8.
-          if [ "$(printf '%s' "$CONTENT" | wc -m)" -gt 1990 ]; then
-            KEEP=$((1700 - ${#TITLE} - ${#PING}))
-            BODY="$(printf '%s' "$BODY" | head -c "$KEEP" | iconv -c -f utf-8 -t utf-8)"
-            CONTENT="$(printf '%s\n\n%s\n…\n**Full changelog:** %s\n\n%s' "$TITLE" "$BODY" "$RELEASE_URL" "$PING")"
+          # SEVERAL messages, not one truncated one.
+          #
+          # Discord caps a message at 2000 characters. This used to cut the body
+          # at 1990 and link to the full notes, which meant a version touching
+          # five modules silently lost whichever module came last -- the notes
+          # were the thing the release existed to communicate. The splitter breaks
+          # on category boundaries so no reader ever sees half a category.
+          PARTS="$(printf '%s' "$BODY" | LIMIT=1850 node tools/split_changelog.js)"
+          N="$(printf '%s' "$PARTS" | jq 'length')"
+          if [ "$N" -eq 0 ]; then
+            echo "Splitter produced nothing - skipping."; exit 0
           fi
+          echo "Posting ${N} message(s)."
 
-          if [ -n "${ROLE_ID:-}" ]; then
-            PAYLOAD="$(jq -n --arg c "$CONTENT" --arg r "$ROLE_ID" \
-              '{content:$c, allowed_mentions:{roles:[$r]}}')"
-          else
-            PAYLOAD="$(jq -n --arg c "$CONTENT" \
-              '{content:$c, allowed_mentions:{parse:[]}}')"
-          fi
+          i=0
+          while [ "$i" -lt "$N" ]; do
+            PART="$(printf '%s' "$PARTS" | jq -r ".[$i]")"
 
-          curl -sS -f -H "Content-Type: application/json" \
-               -X POST -d "$PAYLOAD" "$WEBHOOK"
-          echo "Posted changelog for ${GITHUB_REF_NAME} to Discord."
+            # Title on the first, role ping on the last, so the ping lands once
+            # and only after every part is up.
+            HEAD=""
+            TAIL=""
+            if [ "$i" -eq 0 ]; then HEAD="${TITLE}"; fi
+            if [ "$i" -eq "$((N - 1))" ] && [ -n "$PING" ]; then TAIL="${PING}"; fi
+
+            CONTENT="$PART"
+            if [ -n "$HEAD" ]; then CONTENT="$(printf '%s\n\n%s' "$HEAD" "$CONTENT")"; fi
+            if [ -n "$TAIL" ]; then CONTENT="$(printf '%s\n\n%s' "$CONTENT" "$TAIL")"; fi
+
+            # Last resort. tools/release.js refuses to tag a changelog with an
+            # indivisible line this long, but a manual run on an older section
+            # could still hit it, and a 400 from Discord would lose the lot.
+            if [ "$(printf '%s' "$CONTENT" | wc -m)" -gt 1990 ]; then
+              CONTENT="$(printf '%s' "$CONTENT" | head -c 1700 | iconv -c -f utf-8 -t utf-8)"
+              CONTENT="$(printf '%s\n…\n**Full changelog:** %s' "$CONTENT" "$RELEASE_URL")"
+            fi
+
+            if [ -n "${ROLE_ID:-}" ]; then
+              PAYLOAD="$(jq -n --arg c "$CONTENT" --arg r "$ROLE_ID" \
+                '{content:$c, allowed_mentions:{roles:[$r]}}')"
+            else
+              PAYLOAD="$(jq -n --arg c "$CONTENT" \
+                '{content:$c, allowed_mentions:{parse:[]}}')"
+            fi
+
+            curl -sS -f -H "Content-Type: application/json" \
+                 -X POST -d "$PAYLOAD" "$WEBHOOK"
+
+            i=$((i + 1))
+            # Webhooks allow five posts per two seconds; one per second keeps a
+            # long changelog well clear of the limit and preserves the order.
+            if [ "$i" -lt "$N" ]; then sleep 1; fi
+          done
+          echo "Posted changelog for ${GITHUB_REF_NAME} to Discord in ${N} message(s)."
