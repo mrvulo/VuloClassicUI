@@ -69,7 +69,10 @@ local DEFAULTS = {
     rotation    = "auto", -- or one of ROT_ORDER, chosen by hand
     rotIconSize = 24,
     showAction  = true,
-    showNumbers = true,
+    -- Off: the zone colours and the marks are what you read mid-swing, and the
+    -- numbers are a diagnostic line. Whoever wants to check the latency the bar
+    -- is working with switches it on and leaves it on.
+    showNumbers = false,
     showOOC     = false,  -- keep the bar up between fights
     useCS       = true,
     sound       = false,  -- cue when the window opens
