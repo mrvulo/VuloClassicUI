@@ -22,11 +22,17 @@
 -- already has one, and it needs a re-bind on every profile switch. That is a
 -- second decision and it does not belong in the same step as moving the data.
 --
--- THE TOC KEEPS DECLARING THEM, ON PURPOSE
--- A SavedVariable the TOC no longer lists is not loaded, so removing the three
--- names in the same version that migrates them would drop the very data the
--- migration reads. They stay declared for this release, which also leaves the
--- old blocks in the file as a backup. Removing them is a later, separate step.
+-- THE TOC KEEPS DECLARING THEM -- PERMANENTLY, AND THAT IS NOT AN OVERSIGHT
+-- A SavedVariable the TOC no longer lists is not loaded. Dropping the three
+-- names would therefore be safe only for players whose every character had
+-- logged in at least once while the migration was shipping -- and the
+-- per-character half is guarded by a PER-CHARACTER flag, so an alt nobody
+-- touched for a year would come back to an empty queue. The declaration is the
+-- safety net for exactly that alt, so it stays.
+--
+-- The cost of keeping it -- a full second copy of the data in the saved file,
+-- because the old names point AT our tables and the client writes whatever they
+-- point at -- is paid off by UnbindTrinketStore below instead.
 local _, ns = ...
 
 local ACCOUNT_KEY = "TrinketsOptions"
@@ -95,6 +101,22 @@ function ns:BindTrinketStore()
     for field, globalName in pairs(CHAR_KEYS) do
         _G[globalName] = c.trinkets[field]
     end
+end
+
+-- Called from PLAYER_LOGOUT, just before the client writes the saved file.
+--
+-- Binding the old names to our tables kept 263 access sites working, but it also
+-- means the client saves our data a second time under the old names -- the same
+-- duplication that cost 104 KB in the account profile. Setting them to nil here
+-- makes the client write nothing for the three: a global that is nil at save
+-- time is simply omitted. The TOC still declares them, so a character that has
+-- not migrated yet still gets its old block loaded and taken over.
+--
+-- Safe because the session is over. The trinket code reads these names from
+-- event handlers, and no handler of ours runs after PLAYER_LOGOUT.
+function ns:UnbindTrinketStore()
+    _G[ACCOUNT_KEY] = nil
+    for _, globalName in pairs(CHAR_KEYS) do _G[globalName] = nil end
 end
 
 -- Called by the window's own "reset to defaults", which used to nil the three

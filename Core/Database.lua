@@ -644,7 +644,10 @@ end
 -- at logout the session is over — stripping the live tables is safe
 local logoutFrame = CreateFrame("Frame")
 logoutFrame:RegisterEvent("PLAYER_LOGOUT")
-logoutFrame:SetScript("OnEvent", function() ns:StripProfileDefaults() end)
+logoutFrame:SetScript("OnEvent", function()
+    ns:StripProfileDefaults()
+    if ns.UnbindTrinketStore then ns:UnbindTrinketStore() end
+end)
 
 function ns:ResetProfile(name)
     name = name or ns:GetActiveProfileName()
