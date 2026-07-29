@@ -1249,7 +1249,7 @@ mod:AddOptionsSection("trinket", function()
             set = function(_, v) mod.db.trinketSize = v; mod.RefreshTrinkets() end,
         },
         {
-            type = "dropdown", label = L["Position"],
+            type = "segmented", label = L["Position"],
             values = {
                 { value = "LEFT",  text = L["Left of frame"] },
                 { value = "RIGHT", text = L["Right of frame"] },
@@ -1606,7 +1606,7 @@ mod:AddOptionsSection("dr", function()
             set = function(_, v) mod.db.drSize = v; mod.RefreshDR() end,
         },
         {
-            type = "dropdown", label = L["Position"],
+            type = "segmented", label = L["Position"],
             values = {
                 { value = "LEFT",  text = L["Left of frame"] },
                 { value = "RIGHT", text = L["Right of frame"] },

@@ -827,7 +827,7 @@ function mod:GetOptions()
             { type = "dropdown", label = L["Font"], values = FONT_VALUES,
               get = function() return getActiveFontPath() end,
               set = function(_, v) mod.db.fontFace = v; reapplyFont() end },
-            { type = "dropdown", label = L["Outline"],
+            { type = "segmented", label = L["Outline"],
               values = {
                   -- Not L["Outline"] for the middle one: that is the dropdown's
                   -- own label, so the row read "Outline | Outline" and told the

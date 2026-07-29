@@ -1724,14 +1724,14 @@ local function barSection(desc)
                   set = function(_, v) barDB(key).reverse = v; reapply() end },
             } },
             { type = "group", layout = "row", gap = 8, items = {
-                { type = "dropdown", label = L["Grow from"], width = 200,
+                { type = "segmented", label = L["Grow from"], width = 200,
                   values = {
                       { value = "right", text = L["Left edge (rightwards)"] },
                       { value = "left",  text = L["Right edge (leftwards)"] },
                   },
                   get = function() return barDB(key).growH or "right" end,
                   set = function(_, v) barDB(key).growH = v; reapply() end },
-                { type = "dropdown", label = L["Rows grow"], width = 200,
+                { type = "segmented", label = L["Rows grow"], width = 200,
                   values = {
                       { value = "down", text = L["Downwards"] },
                       { value = "up",   text = L["Upwards"] },
@@ -1804,7 +1804,7 @@ function mod:GetOptions()
           tooltip = L["Hides the row of menu buttons (character, spellbook, …)."],
           get = function() return mod.db.hideMicroMenu end,
           set = function(_, v) mod.db.hideMicroMenu = v; if mod.active then applyMicroBags(); applyMicroStyle() end end },
-        { type = "dropdown", label = L["Micro menu style"], width = 280,
+        { type = "segmented", label = L["Micro menu style"], width = 280,
           tooltip = L["Modern replaces Blizzard's buttons with a flat dark icon strip in the VuloUI look. Clicks and tooltips stay identical."],
           values = {
               { value = "classic", text = L["Classic (Blizzard buttons)"] },
@@ -1816,7 +1816,7 @@ function mod:GetOptions()
           tooltip = L["Hides the backpack and bag slots."],
           get = function() return mod.db.hideBags end,
           set = function(_, v) mod.db.hideBags = v; if mod.active then applyMicroBags(); applyBagStyle() end end },
-        { type = "dropdown", label = L["Bag bar style"], width = 280,
+        { type = "segmented", label = L["Bag bar style"], width = 280,
           tooltip = L["Modern puts the real bag buttons on a flat dark strip in the VuloUI look — opening, swapping and tooltips stay identical."],
           values = {
               { value = "classic", text = L["Classic (Blizzard buttons)"] },

@@ -1126,6 +1126,155 @@ local function openPopup(button, config)
     p:Show()
 end
 
+-- Segmented control: CreateSegmented(parent, config)
+--
+-- Same contract as a dropdown -- { label, values = {{value, text}, ...}, get,
+-- set } -- drawn as a row of buttons instead of a menu. For two to four fixed
+-- choices it is one click where the menu costs two, and the alternatives are
+-- readable without opening anything. Beyond four the buttons get too narrow for
+-- a translated label; use a dropdown there.
+local SEG_H = 22
+
+local function segRelayout(container)
+    local strip = container._strip
+    local n     = container._segCount or 0
+    if n == 0 then return end
+    local w = strip:GetWidth() or 0
+    if w <= 1 then return end   -- not laid out yet; OnSizeChanged brings us back
+
+    -- Integer widths, and the remainder handed out one pixel at a time rather
+    -- than all of it to the last button: a rounded-down width times four leaves
+    -- a visible notch at the right edge otherwise.
+    local base, extra = math.floor((w - (n - 1)) / n), (w - (n - 1)) % n
+    local x = 0
+    for i = 1, n do
+        local b  = container._segs[i]
+        local bw = base + (i <= extra and 1 or 0)
+        b:ClearAllPoints()
+        b:SetPoint("TOPLEFT", strip, "TOPLEFT", x, 0)
+        b:SetSize(bw, SEG_H)
+        x = x + bw + 1
+    end
+end
+
+local function segRefresh(container)
+    local cfg = container._vcConfig
+    if not cfg then return end
+    local cur = cfg.get and cfg.get()
+    for i = 1, (container._segCount or 0) do
+        local b  = container._segs[i]
+        local on = (b._value == cur)
+        local c  = on and ns.COLORS.accent or ns.COLORS.border
+        b._bg:SetColorTexture(c.r, c.g, c.b, on and 0.85 or 0.18)
+        if on then
+            b._text:SetTextColor(1, 1, 1)
+        else
+            b._text:SetTextColor(0.72, 0.72, 0.78)
+        end
+        b._on = on
+    end
+end
+
+local function makeSegButton(container)
+    local b = CreateFrame("Button", nil, container._strip)
+    local bg = b:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints(b)
+    b._bg = bg
+
+    local t = b:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    UI.Font(t, 11)
+    t:SetPoint("LEFT",  b, "LEFT",   4, 0)
+    t:SetPoint("RIGHT", b, "RIGHT", -4, 0)
+    t:SetJustifyH("CENTER")
+    t:SetWordWrap(false)
+    b._text = t
+
+    b:SetScript("OnEnter", function(self)
+        if not self._on then
+            local a = ns.COLORS.accent
+            self._bg:SetColorTexture(a.r, a.g, a.b, 0.35)
+        end
+    end)
+    b:SetScript("OnLeave", function() segRefresh(container) end)
+    b:SetScript("OnClick", function(self)
+        local cfg = container._vcConfig
+        if cfg and cfg.set then cfg.set(nil, self._value) end
+        segRefresh(container)
+    end)
+    return b
+end
+
+local function segmentedSetup(container, config)
+    container._vcConfig = config
+    container._labelW   = nil   -- pooled: a column from the last page must not stick
+
+    local label = container._label
+    if config.label and config.label ~= "" then
+        label:SetText(clean(config.label))
+        label:Show()
+        label:SetWidth(0)
+        container._strip:SetPoint("LEFT", label, "RIGHT", 10, 0)
+    else
+        label:Hide()
+        container._strip:SetPoint("LEFT", container, "LEFT", 0, 0)
+    end
+
+    local values = config.values or {}
+    for i = 1, #values do
+        local b = container._segs[i]
+        if not b then
+            b = makeSegButton(container)
+            container._segs[i] = b
+        end
+        b._value = values[i].value
+        b._text:SetText(tostring(values[i].text or values[i].value))
+        b:Show()
+    end
+    for i = #values + 1, #container._segs do container._segs[i]:Hide() end
+    container._segCount = #values
+
+    container:SetHeight(26)
+    segRelayout(container)
+    segRefresh(container)
+end
+
+function UI:CreateSegmented(parent, config)
+    local container = CreateFrame("Frame", nil, parent)
+    container._segs = {}
+
+    local label = container:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    UI.Font(label, 12)
+    label:SetJustifyH("LEFT")
+    label:SetWordWrap(false)
+    label:SetTextColor(0.95, 0.95, 0.97)
+    label:SetPoint("LEFT", container, "LEFT", 0, 0)
+    container._label = label
+
+    local strip = CreateFrame("Frame", nil, container)
+    strip:SetPoint("RIGHT", container, "RIGHT", 0, 0)
+    strip:SetHeight(SEG_H)
+    container._strip = strip
+
+    -- The builder sets the row's width AFTER the widget exists, so the buttons
+    -- cannot be sized at construction. Relayout when the strip actually gets its
+    -- size -- the same reason the reference build hooks OnSizeChanged rather
+    -- than measuring once.
+    strip:SetScript("OnSizeChanged", function() segRelayout(container) end)
+
+    container.SetLabelWidth = function(self, w)
+        self._labelW = w and math.max(20, w) or nil
+        if self._label and self._label:IsShown() then
+            self._label:SetWidth(self._labelW or 0)
+        end
+    end
+    container.Refresh = segRefresh
+
+    container._vcType  = "segmented"
+    container._vcSetup = segmentedSetup
+    segmentedSetup(container, config)
+    return container
+end
+
 -- The container is the row: SetWidth() on it reflows label and button.
 local function dropdownSetup(container, config)
     container._vcConfig = config

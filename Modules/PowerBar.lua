@@ -466,7 +466,7 @@ function mod:GetOptions()
               get = function() return mod.db.textMode end,
               set = function(_, v) mod.db.textMode = v; updateValue() end,
               subOptions = {
-                  { type = "dropdown", label = L["Text position"], width = 300,
+                  { type = "segmented", label = L["Text position"], width = 300,
                     values = {
                         { value = "LEFT",   text = L["Left"] },
                         { value = "CENTER", text = L["Center"] },
@@ -611,7 +611,7 @@ function mod:GetOptions()
                         set = function(_, v) mod.db.thresholdPct = v; updateValue() end },
                   } },
                   { type = "group", layout = "row", gap = 8, items = {
-                      { type = "dropdown", label = L["Direction"], width = 200,
+                      { type = "segmented", label = L["Direction"], width = 200,
                         values = {
                             { value = "below", text = L["At or below"] },
                             { value = "above", text = L["At or above"] },

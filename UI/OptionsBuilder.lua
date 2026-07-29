@@ -148,6 +148,11 @@ local function createWidget(parent, item)
             return UI:CreateDropdown(parent, item)
         end)
         return w, item.label and 30 or 28, item.width or 200
+    elseif t == "segmented" then
+        local w = obtain("segmented", parent, item, function()
+            return UI:CreateSegmented(parent, item)
+        end)
+        return w, 26, item.width or 260
     elseif t == "editbox" then
         local w = obtain("editbox", parent, item, function()
             return UI:CreateEditBox(parent, item)
@@ -185,6 +190,7 @@ local function estimateHeight(item)
     elseif t == "desc"   then return 22
     elseif t == "slider" then return 24
     elseif t == "dropdown" then return item.label and 30 or 28
+    elseif t == "segmented" then return 26
     elseif t == "editbox" then return 28
     elseif t == "color" then return 26
     elseif t == "custom" then return item.height or 100
@@ -196,7 +202,7 @@ end
 -- else is full width. The slider joined them once it became a one-line row:
 -- while its label sat above the track it needed its own taller shape, and that
 -- was the reason a page had three different row heights in it.
-local COMPACT = { toggle = true, checkbox = true, dropdown = true, editbox = true, color = true, slider = true }
+local COMPACT = { toggle = true, checkbox = true, dropdown = true, editbox = true, color = true, slider = true, segmented = true }
 local COL_GAP  = 14
 local ROW_H    = 38
 local CARD_GAP = 8
@@ -311,7 +317,10 @@ end
 local function runLabelColumn(run, cellW, wide)
     local widest = 0
     for _, item in ipairs(run) do
-        if item.type == "slider" or (wide and item.type == "dropdown") then
+        -- A segmented row is [label][strip], the strip anchored to the label's
+        -- right edge -- the same reason a dropdown needs the column: without one,
+        -- every row on the page starts its strip at a different x.
+        if item.type == "slider" or (wide and (item.type == "dropdown" or item.type == "segmented")) then
             local w = labelWidth(item.label)
             -- A tooltip puts an info glyph in front of the text, inside the same
             -- column. Measuring only the text made exactly those rows clip --
@@ -436,7 +445,13 @@ local function placeColumns(parent, run, y)
     -- do. Asked for per item, so no existing page changes.
     local wide = false
     for _, item in ipairs(run) do
-        if item.fullWidth then wide = true; break end
+        -- Three or four segments do not survive a half-width cell: the strip is
+        -- what is left of ~250px after the label, split three ways, and a German
+        -- option name is not going to fit in 60px. Two do, so two stay pairable.
+        if item.fullWidth
+           or (item.type == "segmented" and #(item.values or {}) > 2) then
+            wide = true; break
+        end
     end
 
     local cols = (wide and 1) or (grid and grid.cols) or fitColumns(run, availW)
@@ -534,7 +549,7 @@ local function placeSection(parent, section, y)
     return placeItemList(parent, section.items or {}, y)
 end
 
-local CARD_TYPES = { toggle = true, checkbox = true, dropdown = true, editbox = true, slider = true, color = true }
+local CARD_TYPES = { toggle = true, checkbox = true, dropdown = true, editbox = true, slider = true, color = true, segmented = true }
 
 placeItem = function(parent, item, y)
     if item.type == "spacer" then

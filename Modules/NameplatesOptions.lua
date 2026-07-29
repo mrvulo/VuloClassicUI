@@ -429,7 +429,7 @@ function mod:GetOptions()
               get = function() return mod.db.castTimer end,
               set = function(_, v) mod.db.castTimer = v; applyAndRefresh() end,
               subOptions = {
-                  { type = "dropdown", label = L["Timer side"], width = 220,
+                  { type = "segmented", label = L["Timer side"], width = 220,
                     values = {
                         { value = "right", text = L["Right"] },
                         { value = "left",  text = L["Left"] },
@@ -598,7 +598,7 @@ function mod:GetOptions()
               get = function() return mod.db.threatEnabled end,
               set = function(_, v) mod.db.threatEnabled = v; applyAndRefresh() end,
               subOptions = {
-                  { type = "dropdown", label = L["Your role"], width = 300, values = {
+                  { type = "segmented", label = L["Your role"], width = 300, values = {
                         { value = "dps",  text = L["DPS / Healer"] },
                         { value = "tank", text = L["Tank"] },
                     },
@@ -842,7 +842,7 @@ function mod:GetOptions()
                   { type = "color", label = L["Point colour"], width = 200,
                     get = function() return mod.db.cpColor end,
                     set = function(r, g, b) mod.db.cpColor = { r = r, g = g, b = b }; applyAndRefresh() end },
-                  { type = "dropdown", label = L["Point shape"], width = 220,
+                  { type = "segmented", label = L["Point shape"], width = 220,
                     values = {
                         { value = "square",   text = L["Square"] },
                         { value = "circle",   text = L["Circle"] },
@@ -851,7 +851,7 @@ function mod:GetOptions()
                     },
                     get = function() return mod.db.cpShape or "square" end,
                     set = function(_, v) mod.db.cpShape = v; applyAndRefresh() end },
-                  { type = "dropdown", label = L["Position"], width = 220,
+                  { type = "segmented", label = L["Position"], width = 220,
                     values = {
                         { value = "below", text = L["Below the bar"] },
                         { value = "above", text = L["Above the bar"] },
