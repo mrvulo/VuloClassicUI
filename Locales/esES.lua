@@ -2779,6 +2779,8 @@ local function T() return {
     ["Hitbox height (%)"] = "Alto del área pulsable (%)",
     -- Wechsel verloren
     ["|cffff5555Twist lost|r"] = "|cffff5555Cambio perdido|r",
+    -- Gewehrschuss
+    ["Rifle"] = "Disparo de rifle",
 } end
 
 ns:RegisterLocale("esES", T)

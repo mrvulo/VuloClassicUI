@@ -2778,4 +2778,6 @@ ns:RegisterLocale("koKR", function() return {
     ["Hitbox height (%)"] = "클릭 영역 높이 (%)",
     -- Wechsel verloren
     ["|cffff5555Twist lost|r"] = "|cffff5555전환 놓침|r",
+    -- Gewehrschuss
+    ["Rifle"] = "소총 발사",
 } end)

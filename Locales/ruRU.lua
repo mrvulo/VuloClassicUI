@@ -2778,4 +2778,6 @@ ns:RegisterLocale("ruRU", function() return {
     ["Hitbox height (%)"] = "Высота области нажатия (%)",
     -- Wechsel verloren
     ["|cffff5555Twist lost|r"] = "|cffff5555Переключение упущено|r",
+    -- Gewehrschuss
+    ["Rifle"] = "Винтовочный выстрел",
 } end)

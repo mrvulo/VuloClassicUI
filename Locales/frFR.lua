@@ -2927,4 +2927,6 @@ ns:RegisterLocale("frFR", function() return {
     ["Hitbox height (%)"] = "Hauteur de la zone cliquable (%)",
     -- Wechsel verloren
     ["|cffff5555Twist lost|r"] = "|cffff5555Twist manqué|r",
+    -- Gewehrschuss
+    ["Rifle"] = "Coup de fusil",
 } end)

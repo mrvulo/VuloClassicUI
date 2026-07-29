@@ -2771,4 +2771,6 @@ ns:RegisterLocale("zhTW", function() return {
     ["Hitbox height (%)"] = "可點擊區域高度 (%)",
     -- Wechsel verloren
     ["|cffff5555Twist lost|r"] = "|cffff5555切換錯過|r",
+    -- Gewehrschuss
+    ["Rifle"] = "步槍槍聲",
 } end)

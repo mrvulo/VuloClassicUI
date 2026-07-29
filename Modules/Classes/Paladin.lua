@@ -134,6 +134,7 @@ local WINDOW_SOUND = 567458
 -- crack rather than a chime without this addon shipping audio of its own.
 local HIT_SOUNDS = {
     { key = "sniper", label = "Sniper",       media = "Sniper" },
+    { key = "rifle",  label = "Rifle",        media = "Rifle"  },
     { key = "chime",  label = "Chime",        file  = WINDOW_SOUND },
     { key = "alarm",  label = "Raid warning", kit   = "RAID_WARNING", fallback = 8959 },
     { key = "ready",  label = "Ready check",  kit   = "READY_CHECK",  fallback = 8960 },

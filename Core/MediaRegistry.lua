@@ -96,6 +96,10 @@ end
 -- a sharp crack, and the client has no sound kit that is one.
 local SOUNDS = {
     { "Sniper", "sniper.ogg" },
+    -- Rifle is the outdoor one: crack, body, and three distinct slaps coming
+    -- back off the distance. Sniper is the dry, short version -- kept, because
+    -- a shorter cue is the better one when the setting fires often.
+    { "Rifle",  "rifle.ogg"  },
 }
 local BUNDLED_SOUNDS = {}
 for i, e in ipairs(SOUNDS) do

@@ -2915,4 +2915,6 @@ ns:RegisterLocale("deDE", function() return {
     ["Hitbox height (%)"] = "Trefferfläche Höhe (%)",
     -- Wechsel verloren
     ["|cffff5555Twist lost|r"] = "|cffff5555Wechsel verloren|r",
+    -- Gewehrschuss
+    ["Rifle"] = "Gewehrschuss",
 } end)

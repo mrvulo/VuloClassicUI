@@ -2778,4 +2778,6 @@ ns:RegisterLocale("ptBR", function() return {
     ["Hitbox height (%)"] = "Altura da área clicável (%)",
     -- Wechsel verloren
     ["|cffff5555Twist lost|r"] = "|cffff5555Troca perdida|r",
+    -- Gewehrschuss
+    ["Rifle"] = "Tiro de rifle",
 } end)

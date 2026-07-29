@@ -2778,4 +2778,6 @@ ns:RegisterLocale("itIT", function() return {
     ["Hitbox height (%)"] = "Altezza area cliccabile (%)",
     -- Wechsel verloren
     ["|cffff5555Twist lost|r"] = "|cffff5555Twist perso|r",
+    -- Gewehrschuss
+    ["Rifle"] = "Colpo di fucile",
 } end)
