@@ -2783,4 +2783,9 @@ ns:RegisterLocale("koKR", function() return {
     -- Aktionszeile
     ["Action text size"] = "행동 문구 크기",
     ["The line that names what to press. 0 follows the general text size."] = "무엇을 누를지 알려주는 줄입니다. 0이면 일반 글자 크기를 따릅니다.",
+    -- Tempo- und Siegel-Timer-Groesse
+    ["Attack speed text size"] = "공격 속도 글자 크기",
+    ["The number on the left. 0 follows the general text size."] = "왼쪽 숫자입니다. 0이면 일반 글자 크기를 따릅니다.",
+    ["Seal timer text size"] = "인장 타이머 글자 크기",
+    ["The countdown on the seal icons. 0 scales it with the icon."] = "인장 아이콘 위의 남은 시간입니다. 0이면 아이콘 크기에 맞춥니다.",
 } end)

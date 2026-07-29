@@ -2783,4 +2783,9 @@ ns:RegisterLocale("itIT", function() return {
     -- Aktionszeile
     ["Action text size"] = "Dimensione del testo di azione",
     ["The line that names what to press. 0 follows the general text size."] = "La riga che dice cosa premere. 0 segue la dimensione generale del testo.",
+    -- Tempo- und Siegel-Timer-Groesse
+    ["Attack speed text size"] = "Dimensione del testo di velocità",
+    ["The number on the left. 0 follows the general text size."] = "Il numero a sinistra. 0 segue la dimensione generale del testo.",
+    ["Seal timer text size"] = "Dimensione del timer del sigillo",
+    ["The countdown on the seal icons. 0 scales it with the icon."] = "Il conto alla rovescia sulle icone dei sigilli. 0 lo scala con l’icona.",
 } end)

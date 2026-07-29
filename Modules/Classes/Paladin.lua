@@ -83,7 +83,9 @@ local DEFAULTS = {
     barHeight   = 22,
     iconSize    = 26,
     fontSize    = 18,
-    actionFontSize = 0,   -- 0 = follow fontSize; see actionSize()
+    actionFontSize = 0,   -- 0 = follow fontSize;  see actionSize()
+    speedFontSize  = 0,   -- 0 = fontSize - 4;     see speedSize()
+    sealTimerFontSize = 0,-- 0 = scales with the icon; see sealTimerSize()
     x           = 0,
     y           = -180,
     unlocked    = false,
@@ -613,10 +615,24 @@ local function actionSize(d)
     return (s > 0) and s or d.fontSize
 end
 
+-- Same shape for the two side texts. Their fallbacks are the formulas that used
+-- to be inline: the attack speed sat four below the general size, the seal
+-- timer scaled with the icon it is drawn on -- so 0 keeps exactly what an
+-- untouched profile has today.
+local function speedSize(d)
+    local s = d.speedFontSize or 0
+    return (s > 0) and s or max(9, d.fontSize - 4)
+end
+
+local function sealTimerSize(d)
+    local s = d.sealTimerFontSize or 0
+    return (s > 0) and s or max(8, d.iconSize * 0.4)
+end
+
 -- What the side pieces claim, so the bar keeps its configured width whether
 -- they are shown or not.
 local function sideWidths(d)
-    local leftW  = d.showSpeed and (d.fontSize * 2.4 + 6) or 0
+    local leftW  = d.showSpeed and (speedSize(d) * 2.4 + 6) or 0
     local rightW = d.showSeals and (d.iconSize * 2 + 10) or 0
     return leftW, rightW
 end
@@ -673,7 +689,7 @@ local function layout()
     end
     placeRotation(d)
 
-    speedFS:SetFont(fontPath(), max(9, d.fontSize - 4), "OUTLINE")
+    speedFS:SetFont(fontPath(), speedSize(d), "OUTLINE")
     speedFS:SetShown(d.showSpeed)
     actionFS:SetFont(fontPath(), actionSize(d), "OUTLINE")
     actionFS:SetShown(d.showAction)
@@ -685,7 +701,7 @@ local function layout()
         slot:SetSize(d.iconSize, d.iconSize)
         slot:ClearAllPoints()
         slot:SetPoint("LEFT", bar, "RIGHT", 6 + (i - 1) * (d.iconSize + 4), 0)
-        slot.time:SetFont(fontPath(), max(8, d.iconSize * 0.4), "OUTLINE")
+        slot.time:SetFont(fontPath(), sealTimerSize(d), "OUTLINE")
         -- updateSeals stops touching them when the setting is off, so they have
         -- to be put away here or the last pair stays on screen for good.
         if not d.showSeals then slot:Hide() end
@@ -1435,6 +1451,14 @@ local function getOptions()
         tooltip = L["The line that names what to press. 0 follows the general text size."],
         get = function() return d.actionFontSize or 0 end,
         set = function(_, v) d.actionFontSize = v; layout() end })
+    table.insert(items, { type = "slider", label = L["Attack speed text size"], min = 0, max = 40, step = 1,
+        tooltip = L["The number on the left. 0 follows the general text size."],
+        get = function() return d.speedFontSize or 0 end,
+        set = function(_, v) d.speedFontSize = v; layout() end })
+    table.insert(items, { type = "slider", label = L["Seal timer text size"], min = 0, max = 40, step = 1,
+        tooltip = L["The countdown on the seal icons. 0 scales it with the icon."],
+        get = function() return d.sealTimerFontSize or 0 end,
+        set = function(_, v) d.sealTimerFontSize = v; layout() end })
 
     return items
 end

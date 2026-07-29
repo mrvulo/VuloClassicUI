@@ -2920,4 +2920,9 @@ ns:RegisterLocale("deDE", function() return {
     -- Aktionszeile
     ["Action text size"] = "Größe der Aktionszeile",
     ["The line that names what to press. 0 follows the general text size."] = "Die Zeile, die sagt, was zu drücken ist. 0 folgt der allgemeinen Textgröße.",
+    -- Tempo- und Siegel-Timer-Groesse
+    ["Attack speed text size"] = "Größe der Tempoanzeige",
+    ["The number on the left. 0 follows the general text size."] = "Die Zahl links. 0 folgt der allgemeinen Textgröße.",
+    ["Seal timer text size"] = "Größe des Siegel-Timers",
+    ["The countdown on the seal icons. 0 scales it with the icon."] = "Der Countdown auf den Siegelsymbolen. 0 richtet ihn nach der Symbolgröße.",
 } end)

@@ -2784,6 +2784,11 @@ local function T() return {
     -- Aktionszeile
     ["Action text size"] = "Tamaño del texto de acción",
     ["The line that names what to press. 0 follows the general text size."] = "La línea que dice qué pulsar. 0 sigue al tamaño de texto general.",
+    -- Tempo- und Siegel-Timer-Groesse
+    ["Attack speed text size"] = "Tamaño del texto de velocidad",
+    ["The number on the left. 0 follows the general text size."] = "El número de la izquierda. 0 sigue al tamaño de texto general.",
+    ["Seal timer text size"] = "Tamaño del temporizador de sello",
+    ["The countdown on the seal icons. 0 scales it with the icon."] = "La cuenta atrás en los iconos de sello. 0 la escala con el icono.",
 } end
 
 ns:RegisterLocale("esES", T)

@@ -2776,4 +2776,9 @@ ns:RegisterLocale("zhCN", function() return {
     -- Aktionszeile
     ["Action text size"] = "操作提示文字大小",
     ["The line that names what to press. 0 follows the general text size."] = "提示该按什么的那一行。0 表示跟随通用文字大小。",
+    -- Tempo- und Siegel-Timer-Groesse
+    ["Attack speed text size"] = "攻击速度文字大小",
+    ["The number on the left. 0 follows the general text size."] = "左侧的数字。0 表示跟随通用文字大小。",
+    ["Seal timer text size"] = "印记计时文字大小",
+    ["The countdown on the seal icons. 0 scales it with the icon."] = "印记图标上的倒数。0 表示按图标大小缩放。",
 } end)

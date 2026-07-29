@@ -2783,4 +2783,9 @@ ns:RegisterLocale("ruRU", function() return {
     -- Aktionszeile
     ["Action text size"] = "Размер строки действия",
     ["The line that names what to press. 0 follows the general text size."] = "Строка, которая говорит, что нажать. 0 — как общий размер текста.",
+    -- Tempo- und Siegel-Timer-Groesse
+    ["Attack speed text size"] = "Размер текста скорости атаки",
+    ["The number on the left. 0 follows the general text size."] = "Число слева. 0 — как общий размер текста.",
+    ["Seal timer text size"] = "Размер таймера печати",
+    ["The countdown on the seal icons. 0 scales it with the icon."] = "Отсчёт на значках печатей. 0 — по размеру значка.",
 } end)

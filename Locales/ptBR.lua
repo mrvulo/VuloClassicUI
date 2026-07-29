@@ -2783,4 +2783,9 @@ ns:RegisterLocale("ptBR", function() return {
     -- Aktionszeile
     ["Action text size"] = "Tamanho do texto de ação",
     ["The line that names what to press. 0 follows the general text size."] = "A linha que diz o que apertar. 0 segue o tamanho de texto geral.",
+    -- Tempo- und Siegel-Timer-Groesse
+    ["Attack speed text size"] = "Tamanho do texto de velocidade",
+    ["The number on the left. 0 follows the general text size."] = "O número à esquerda. 0 segue o tamanho de texto geral.",
+    ["Seal timer text size"] = "Tamanho do temporizador do selo",
+    ["The countdown on the seal icons. 0 scales it with the icon."] = "A contagem nos ícones de selo. 0 ajusta ao tamanho do ícone.",
 } end)

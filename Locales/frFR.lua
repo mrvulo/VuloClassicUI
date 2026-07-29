@@ -2932,4 +2932,9 @@ ns:RegisterLocale("frFR", function() return {
     -- Aktionszeile
     ["Action text size"] = "Taille du texte d'action",
     ["The line that names what to press. 0 follows the general text size."] = "La ligne qui dit quoi presser. 0 suit la taille de texte générale.",
+    -- Tempo- und Siegel-Timer-Groesse
+    ["Attack speed text size"] = "Taille du texte de vitesse",
+    ["The number on the left. 0 follows the general text size."] = "Le nombre à gauche. 0 suit la taille de texte générale.",
+    ["Seal timer text size"] = "Taille du minuteur de sceau",
+    ["The countdown on the seal icons. 0 scales it with the icon."] = "Le décompte sur les icônes de sceau. 0 le met à l’échelle de l’icône.",
 } end)
