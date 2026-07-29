@@ -2741,7 +2741,7 @@ local function T() return {
     ["A row of steps above the bar: which sequence fits your weapon and haste, and where in it you are. It steps forward on what you actually cast and on your swings."] = "Una fila de pasos encima de la barra: qué secuencia encaja con tu arma y tu celeridad, y en qué punto de ella estás. Avanza con lo que lanzas de verdad y con tus golpes.",
     ["Sequence"] = "Secuencia",
     ["Automatic follows your attack speed and spell haste, which is what decides how many twists fit between two strikes. Pick one by hand to drill a single sequence."] = "Automática sigue tu velocidad de ataque y tu celeridad de hechizos, que son las que deciden cuántos cambios caben entre dos golpes. Elige una a mano para practicar una sola secuencia.",
-    ["Rotation icon size"] = "Tamaño de los iconos de rotación",
+    ["Rotation icon size"] = "Tamaño de icono",
     ["Sound when the twist lands"] = "Sonido cuando el cambio acierta",
     ["Fires when the seal actually went out inside the window, not when the window opened. That makes it a hit confirmation you can practise against with your eyes off the bar."] = "Suena cuando el sello salió de verdad dentro de la ventana, no cuando la ventana se abrió. Así es una confirmación de acierto con la que puedes practicar sin mirar la barra.",
     ["Hit sound"] = "Sonido de acierto",

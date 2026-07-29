@@ -2740,7 +2740,7 @@ ns:RegisterLocale("ruRU", function() return {
     ["A row of steps above the bar: which sequence fits your weapon and haste, and where in it you are. It steps forward on what you actually cast and on your swings."] = "Ряд шагов над полосой: какая последовательность подходит вашему оружию и скорости, и где в ней вы сейчас. Он двигается от того, что вы действительно накладываете, и от ваших ударов.",
     ["Sequence"] = "Последовательность",
     ["Automatic follows your attack speed and spell haste, which is what decides how many twists fit between two strikes. Pick one by hand to drill a single sequence."] = "Автоматически следует за скоростью атаки и скоростью заклинаний — именно они решают, сколько смен помещается между двумя ударами. Выберите вручную, чтобы отработать одну последовательность.",
-    ["Rotation icon size"] = "Размер значков ротации",
+    ["Rotation icon size"] = "Размер значков",
     ["Sound when the twist lands"] = "Звук, когда смена удалась",
     ["Fires when the seal actually went out inside the window, not when the window opened. That makes it a hit confirmation you can practise against with your eyes off the bar."] = "Срабатывает, когда печать действительно ушла внутри окна, а не когда окно открылось. Это подтверждение попадания, под которое можно тренироваться, не глядя на полосу.",
     ["Hit sound"] = "Звук попадания",

@@ -2889,7 +2889,7 @@ ns:RegisterLocale("frFR", function() return {
     ["A row of steps above the bar: which sequence fits your weapon and haste, and where in it you are. It steps forward on what you actually cast and on your swings."] = "Une rangée d'étapes au-dessus de la barre : quelle séquence correspond à votre arme et à votre hâte, et où vous en êtes. Elle avance selon ce que vous lancez réellement et selon vos coups.",
     ["Sequence"] = "Séquence",
     ["Automatic follows your attack speed and spell haste, which is what decides how many twists fit between two strikes. Pick one by hand to drill a single sequence."] = "Automatique suit votre vitesse d'attaque et votre hâte de sorts, qui déterminent combien de bascules tiennent entre deux frappes. Choisissez-en une à la main pour travailler une seule séquence.",
-    ["Rotation icon size"] = "Taille des icônes de rotation",
+    ["Rotation icon size"] = "Taille des icônes",
     ["Sound when the twist lands"] = "Son quand la bascule réussit",
     ["Fires when the seal actually went out inside the window, not when the window opened. That makes it a hit confirmation you can practise against with your eyes off the bar."] = "Se déclenche quand le sceau est réellement parti dans la fenêtre, pas quand la fenêtre s'est ouverte. C'est donc une confirmation de réussite avec laquelle vous pouvez travailler sans regarder la barre.",
     ["Hit sound"] = "Son de réussite",

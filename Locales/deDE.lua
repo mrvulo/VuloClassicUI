@@ -2877,7 +2877,7 @@ ns:RegisterLocale("deDE", function() return {
     ["A row of steps above the bar: which sequence fits your weapon and haste, and where in it you are. It steps forward on what you actually cast and on your swings."] = "Eine Schrittreihe über der Leiste: welche Abfolge zu deiner Waffe und deinem Tempo passt und wo darin du gerade stehst. Sie rückt weiter, wenn du tatsächlich wirkst und wenn dein Schlag fällt.",
     ["Sequence"] = "Abfolge",
     ["Automatic follows your attack speed and spell haste, which is what decides how many twists fit between two strikes. Pick one by hand to drill a single sequence."] = "Automatisch richtet sich nach Angriffstempo und Zaubertempo — die entscheiden, wie viele Wechsel zwischen zwei Stößen passen. Von Hand gewählt, um eine einzelne Abfolge zu üben.",
-    ["Rotation icon size"] = "Größe der Rotations-Symbole",
+    ["Rotation icon size"] = "Symbolgröße",
     ["Sound when the twist lands"] = "Ton, wenn der Wechsel sitzt",
     ["Fires when the seal actually went out inside the window, not when the window opened. That makes it a hit confirmation you can practise against with your eyes off the bar."] = "Kommt, wenn das Siegel tatsächlich im Fenster rausging — nicht, wenn das Fenster aufging. Damit ist es eine Trefferbestätigung, gegen die du auch ohne Blick auf die Leiste üben kannst.",
     ["Hit sound"] = "Trefferton",

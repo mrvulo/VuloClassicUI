@@ -2733,7 +2733,7 @@ ns:RegisterLocale("zhCN", function() return {
     ["A row of steps above the bar: which sequence fits your weapon and haste, and where in it you are. It steps forward on what you actually cast and on your swings."] = "在进度条上方排出一行步骤：哪套顺序适合你的武器和急速，以及你此刻走到哪一步。它按你实际施放的技能和挥击往前推进。",
     ["Sequence"] = "顺序",
     ["Automatic follows your attack speed and spell haste, which is what decides how many twists fit between two strikes. Pick one by hand to drill a single sequence."] = "自动会跟随你的攻击速度和法术急速——两次打击之间能塞进几次切换由它们决定。想只练一套顺序时手动选择。",
-    ["Rotation icon size"] = "循环图标大小",
+    ["Rotation icon size"] = "图标大小",
     ["Sound when the twist lands"] = "切换成功时播放声音",
     ["Fires when the seal actually went out inside the window, not when the window opened. That makes it a hit confirmation you can practise against with your eyes off the bar."] = "在圣印确实于窗口内发出时响起，而不是窗口刚打开时。这样它就是一次命中确认，可以不看进度条来练习。",
     ["Hit sound"] = "命中音",

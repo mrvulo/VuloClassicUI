@@ -2740,7 +2740,7 @@ ns:RegisterLocale("itIT", function() return {
     ["A row of steps above the bar: which sequence fits your weapon and haste, and where in it you are. It steps forward on what you actually cast and on your swings."] = "Una fila di passi sopra la barra: quale sequenza si adatta alla tua arma e alla tua celerità, e a che punto sei. Avanza in base a ciò che lanci davvero e ai tuoi colpi.",
     ["Sequence"] = "Sequenza",
     ["Automatic follows your attack speed and spell haste, which is what decides how many twists fit between two strikes. Pick one by hand to drill a single sequence."] = "Automatica segue la velocità d'attacco e la celerità magica, che decidono quanti scambi stanno fra due colpi. Scegline una a mano per allenare una singola sequenza.",
-    ["Rotation icon size"] = "Dimensione icone della rotazione",
+    ["Rotation icon size"] = "Dimensione icone",
     ["Sound when the twist lands"] = "Suono quando lo scambio riesce",
     ["Fires when the seal actually went out inside the window, not when the window opened. That makes it a hit confirmation you can practise against with your eyes off the bar."] = "Scatta quando il sigillo è davvero uscito dentro la finestra, non quando la finestra si è aperta. Così è una conferma di riuscita su cui allenarsi senza guardare la barra.",
     ["Hit sound"] = "Suono di riuscita",

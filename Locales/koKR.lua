@@ -2740,7 +2740,7 @@ ns:RegisterLocale("koKR", function() return {
     ["A row of steps above the bar: which sequence fits your weapon and haste, and where in it you are. It steps forward on what you actually cast and on your swings."] = "막대 위에 단계를 한 줄로 보여줍니다. 무기 속도와 가속에 맞는 순서가 무엇이고, 지금 그 안 어디에 있는지 알려줍니다. 실제로 시전한 주문과 공격에 따라 다음 단계로 넘어갑니다.",
     ["Sequence"] = "순서",
     ["Automatic follows your attack speed and spell haste, which is what decides how many twists fit between two strikes. Pick one by hand to drill a single sequence."] = "자동은 공격 속도와 주문 가속을 따릅니다. 두 번의 타격 사이에 교체가 몇 번 들어가는지는 그 둘이 결정합니다. 하나만 연습하려면 직접 고르십시오.",
-    ["Rotation icon size"] = "로테이션 아이콘 크기",
+    ["Rotation icon size"] = "아이콘 크기",
     ["Sound when the twist lands"] = "교체가 성공하면 소리",
     ["Fires when the seal actually went out inside the window, not when the window opened. That makes it a hit confirmation you can practise against with your eyes off the bar."] = "구간이 열릴 때가 아니라 인장이 실제로 구간 안에서 나갔을 때 울립니다. 막대를 보지 않고도 연습할 수 있는 성공 확인음입니다.",
     ["Hit sound"] = "성공음",

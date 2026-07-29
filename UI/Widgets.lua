@@ -1032,12 +1032,28 @@ local function closeActivePopup()
     end
 end
 
+-- Forward-declared: the wheel handler below is written before the function
+-- exists, and a plain reference there would resolve to a nil GLOBAL and scroll
+-- nothing, silently.
+local placePopupRows
+
 local function ensurePopupFrame()
     if activePopup then return activePopup end
     local p = CreateFrame("Frame", "VCDropdownPopup", UIParent)
     p:SetFrameStrata("FULLSCREEN_DIALOG")
     p:SetFrameLevel(200)
     p:EnableMouse(true)
+    -- The wheel is caught on the popup, not on each row: a row is only 24 px
+    -- tall, and hitting the gap between two of them would drop the tick.
+    p:EnableMouseWheel(true)
+    p:SetScript("OnMouseWheel", function(self, delta)
+        if (self._maxOffset or 0) <= 0 then return end
+        local off = (self._offset or 0) - delta * 3
+        if off < 0 then off = 0 elseif off > self._maxOffset then off = self._maxOffset end
+        if off == self._offset then return end
+        self._offset = off
+        placePopupRows(self)
+    end)
     p:Hide()
 
     UI:CreateShadow(p)
@@ -1108,6 +1124,24 @@ local function popupWidth(button, values)
     return math.min(w, math.min(POPUP_MAX_W, room))
 end
 
+-- Shows exactly the rows inside the window and hides the rest. Called on open
+-- and on every wheel tick; the rows themselves never move between pools, only
+-- their anchors change.
+placePopupRows = function(p)
+    local n, ih, off = p._visible or 0, p._itemHeight or 24, p._offset or 0
+    for i, item in ipairs(p._items) do
+        local slot = i - off
+        if slot >= 1 and slot <= n and p._values and p._values[i] then
+            item:ClearAllPoints()
+            item:SetPoint("TOPLEFT",  p, "TOPLEFT",   2, -((slot - 1) * ih + 2))
+            item:SetPoint("TOPRIGHT", p, "TOPRIGHT", -2, -((slot - 1) * ih + 2))
+            item:Show()
+        else
+            item:Hide()
+        end
+    end
+end
+
 local function openPopup(button, config)
     local p = ensurePopupFrame()
     p._owner = button
@@ -1115,7 +1149,23 @@ local function openPopup(button, config)
     local values = config.values or {}
     local itemHeight = 24
     local width  = popupWidth(button, values)
-    local height = #values * itemHeight + 4
+
+    -- LONG LISTS SCROLL INSTEAD OF RUNNING OFF THE SCREEN.
+    --
+    -- The height used to be "one row per entry", full stop. A media list can
+    -- hold two hundred sounds, and the menu then reached several thousand
+    -- pixels down with no way to get at the bottom of it.
+    --
+    -- A window of rows plus an offset, not a ScrollFrame: the rows are already
+    -- pooled and placed by hand here, so moving the window is one number, while
+    -- a scroll frame would mean re-parenting all of them.
+    local maxRows = math.max(6, math.floor(((UIParent:GetHeight() or 768) - 160) / itemHeight))
+    local visible = math.min(#values, maxRows)
+    local height  = visible * itemHeight + 4
+    p._values, p._config, p._button = values, config, button
+    p._itemHeight, p._visible = itemHeight, visible
+    p._maxOffset = math.max(0, #values - visible)
+    p._width = width
 
     -- Grown to the right by default. When that would run off the screen, the
     -- menu hangs from the button's right edge instead and grows to the left --
@@ -1131,6 +1181,21 @@ local function openPopup(button, config)
     p:SetSize(width, height)
 
     for _, item in ipairs(p._items) do item:Hide() end
+
+    -- Open ON the current choice when the list is longer than the window:
+    -- landing at the top of two hundred entries hides the very thing the menu is
+    -- there to show.
+    local offset = 0
+    if p._maxOffset > 0 then
+        local cur = config.get(button)
+        for i, opt in ipairs(values) do
+            if opt.value == cur then
+                offset = math.min(p._maxOffset, math.max(0, i - math.floor(visible / 2)))
+                break
+            end
+        end
+    end
+    p._offset = offset
 
     for i, opt in ipairs(values) do
         local item = p._items[i]
@@ -1180,10 +1245,6 @@ local function openPopup(button, config)
             p._items[i] = item
         end
 
-        item:ClearAllPoints()
-        item:SetPoint("TOPLEFT",  p, "TOPLEFT",   2, -((i - 1) * itemHeight + 2))
-        item:SetPoint("TOPRIGHT", p, "TOPRIGHT", -2, -((i - 1) * itemHeight + 2))
-
         local full = clean(L[opt.text])
         item._text:SetText(full)
         item._full = full
@@ -1201,10 +1262,9 @@ local function openPopup(button, config)
             if button._setText then button._setText(L[opt.text]) end
             closeActivePopup()
         end)
-
-        item:Show()
     end
 
+    placePopupRows(p)
     p:SetFrameStrata("FULLSCREEN_DIALOG")
     p:Show()
 end
