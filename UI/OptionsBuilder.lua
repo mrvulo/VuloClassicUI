@@ -192,8 +192,6 @@ local function estimateHeight(item)
     return 26
 end
 
-UI.sectionCollapsed = UI.sectionCollapsed or {}
-
 -- Consecutive compact controls auto-arrange into a two-column grid; everything
 -- else is full width. The slider joined them once it became a one-line row:
 -- while its label sat above the track it needed its own taller shape, and that
@@ -487,47 +485,36 @@ local function placeColumns(parent, run, y)
     return y - math.ceil(n / cols) * ROW_H
 end
 
+-- A section is a HEADING, not a drawer.
+--
+-- It used to be both: every section started closed behind its own expander, and
+-- then rows started folding away behind gears as well. Two collapse mechanisms
+-- on one page is one too many -- you no longer know which control hides what,
+-- and reaching a setting can cost two clicks in two different idioms.
+--
+-- The gear won because it says something: the rows behind it belong to the
+-- switch it sits on. A section expander says only "there is more below", which
+-- the heading already says by existing. So sections are always open, and the
+-- page is short because its dependent rows hang off their own switches.
+--
 local function placeSection(parent, section, y)
-    local title    = section.title or "Section"
-    local stateKey = (UI._currentBuildKey or "?") .. "/" .. (UI.currentTab or "") .. "/" .. title
-
-    -- Every section starts CLOSED. A page then opens as its own table of
-    -- contents: the action bars page has eleven sections and used to greet you
-    -- with the first one unrolled and the other ten as a list below it, so you
-    -- read a wall before you could see the structure.
-    --
-    -- Decided here and nowhere else. Sections used to carry a `collapsed` field
-    -- and roughly half of them asked to be open, which is the same as having no
-    -- rule -- and it is a rule that only works if it holds everywhere. The field
-    -- is gone from the modules rather than left to do nothing.
-    --
-    -- Session state, deliberately not saved: what you opened stays open while
-    -- the window is up, and a reload gives the tidy page back.
-    local collapsed = UI.sectionCollapsed[stateKey]
-    if collapsed == nil then collapsed = true end
+    local title = section.title or "Section"
 
     -- Space ABOVE a section heading, and clearly more than the gap between the
     -- cards inside one. When both gaps are the same the page reads as one long
     -- list and the headings stop grouping anything.
     y = y - 24
 
-    local onClick = function()
-        UI.sectionCollapsed[stateKey] = not collapsed
-        UI:BuildOptionsPage(UI._currentBuildKey, UI.currentTab)
-    end
     local hdr = acquire("collapsible", parent)
     if hdr then
-        hdr:_vcSetup(title, not collapsed, onClick)
+        hdr:_vcSetup(title, true, nil)
     else
-        hdr = UI:CreateCollapsibleHeader(parent, title, not collapsed, onClick)
+        hdr = UI:CreateCollapsibleHeader(parent, title, true, nil)
     end
     hdr:SetPoint("TOPLEFT", parent, "TOPLEFT", CONTENT_PADDING, y)
     y = y - 26
 
-    if not collapsed then
-        y = placeItemList(parent, section.items or {}, y)
-    end
-    return y
+    return placeItemList(parent, section.items or {}, y)
 end
 
 local CARD_TYPES = { toggle = true, checkbox = true, dropdown = true, editbox = true, slider = true, color = true }

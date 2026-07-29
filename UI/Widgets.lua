@@ -363,14 +363,30 @@ function UI:CreateDescription(parent, text)
     return f
 end
 
--- Collapsible header: CreateCollapsibleHeader(parent, text, expanded, onClick)
+-- Section header: CreateCollapsibleHeader(parent, text, expanded, onClick)
+--
+-- The name is historical. Pass an onClick and it still folds, plus/minus box and
+-- all -- the sidebar has no use for that any more either, so nothing passes one
+-- today. Without one it is a plain heading: no box, no hover, not even a mouse
+-- target, because a heading that lights up under the cursor promises a click
+-- that does nothing.
 local function collapsibleSetup(b, title, expanded, onClick)
     b._label:SetText(string.upper(title or ""))
     b._label:SetTextColor(0.92, 0.90, 0.96)
-    -- The two states used to differ only in the TINT of a cog. A collapsed
-    -- section was then indistinguishable from an empty one -- the header sat
-    -- there with nothing under it and no hint that anything was hiding. Now the
-    -- texture itself changes, the same plus/minus the sidebar groups use.
+
+    b._vcOnClick = onClick
+    b:EnableMouse(onClick ~= nil)
+
+    if not onClick then
+        b._chevron:Hide()
+        b._label:ClearAllPoints()
+        b._label:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 0, 5)
+        return
+    end
+
+    b._chevron:Show()
+    b._label:ClearAllPoints()
+    b._label:SetPoint("BOTTOMLEFT", b._chevron, "BOTTOMRIGHT", 7, 1)
     b._chevron:SetTexture(expanded
         and "Interface\\Buttons\\UI-MinusButton-Up"
         or  "Interface\\Buttons\\UI-PlusButton-Up")
@@ -380,7 +396,6 @@ local function collapsibleSetup(b, title, expanded, onClick)
     else
         b._chevron:SetVertexColor(0.65, 0.65, 0.72)
     end
-    b._vcOnClick = onClick
 end
 
 function UI:CreateCollapsibleHeader(parent, text, expanded, onClick)

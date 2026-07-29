@@ -2029,9 +2029,9 @@ local function buildPreview(parent)
         local UIW = ns.UI
         local f = UIW and UIW.mainFrame
         if not (f and UIW._currentBuildKey and UIW.BuildOptionsPage) then return end
-        local stateKey = UIW._currentBuildKey .. "/" .. (UIW.currentTab or "") .. "/" .. title
-        UIW.sectionCollapsed[stateKey] = false
-        UIW:BuildOptionsPage(UIW._currentBuildKey, UIW.currentTab)
+        -- Used to unfold the target section and rebuild the page first. Sections
+        -- no longer fold, so the heading is already on screen and this is a pure
+        -- scroll -- one rebuild and its flicker less.
         local sc, sf = f.scrollChild, f.scroll
         if not (sc and sf) then return end
         local wanted = string.upper(title)
