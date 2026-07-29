@@ -708,22 +708,31 @@ local function eventColorSet(key)
         applyFontToNotify()
     end
 end
+-- Colour and text belong to the switch above them: with the message off they
+-- style something that is never drawn. So each of these sections is one switch
+-- and a gear.
+--
+-- subKey is not optional here. Every one of these sections labels its switch
+-- "Enabled", the expansion state is keyed by label, and one gear would open all
+-- of them at once.
 local function msgSection(key, title, hasText)
-    local secItems = {
-        { type = "toggle", label = L["Enabled"],
-          get = function() return mod.db.events[key].enabled end,
-          set = function(_, v) mod.db.events[key].enabled = v; applyFontToNotify() end },
+    local subs = {
         { type = "color", label = L["Color"],
           get = function() return mod.db.events[key].color end,
           set = eventColorSet(key) },
     }
     if hasText then
-        secItems[#secItems + 1] = { type = "editbox", label = L["Text"],
+        subs[#subs + 1] = { type = "editbox", label = L["Text"],
             editWidth = 220, commitOnFocusLost = true,
             get = function() return notifyText(key) end,
             set = function(_, v) mod.db.events[key].text = v; applyFontToNotify() end }
     end
-    return { type = "section", title = title, items = secItems }
+    return { type = "section", title = title, items = {
+        { type = "toggle", label = L["Enabled"], subKey = "msg/" .. key,
+          get = function() return mod.db.events[key].enabled end,
+          set = function(_, v) mod.db.events[key].enabled = v; applyFontToNotify() end,
+          subOptions = subs },
+    } }
 end
 
 function mod:GetOptions()
@@ -741,8 +750,12 @@ function mod:GetOptions()
     -- Shared and translated; this used to show the raw frame token as its label.
     local POINTS = ns.AnchorPointValues()
 
+    -- Appended to the SWITCH's sub-list, not to the section: the threshold is
+    -- one more setting of this warning, and the section now holds only the
+    -- switch itself.
     local lowDura = msgSection("lowDurability", L["Low Durability Warning"], true)
-    lowDura.items[#lowDura.items + 1] = { type = "slider", label = L["Threshold (%)"],
+    local lowDuraSubs = lowDura.items[1].subOptions
+    lowDuraSubs[#lowDuraSubs + 1] = { type = "slider", label = L["Threshold (%)"],
         min = 5, max = 50, step = 1,
         get = function() return mod.db.durabilityThreshold or 15 end,
         set = function(_, v) mod.db.durabilityThreshold = v; scheduleDurabilityCheck() end }
@@ -832,18 +845,20 @@ function mod:GetOptions()
             } },
             { type = "toggle", label = L["Enable Shadow"],
               get = function() return mod.db.fontShadow end,
-              set = function(_, v) mod.db.fontShadow = v; reapplyFont() end },
-            { type = "color", label = L["Shadow Color"],
-              get = function() return mod.db.shadowColor end,
-              set = function(r, g, b) mod.db.shadowColor = { r = r, g = g, b = b }; reapplyFont() end },
-            { type = "group", layout = "columns", items = {
-                { type = "slider", label = L["Shadow X"], min = -10, max = 10, step = 1, width = SLW,
-                  get = function() return mod.db.shadowX or 2 end,
-                  set = function(_, v) mod.db.shadowX = v; reapplyFont() end },
-                { type = "slider", label = L["Shadow Y"], min = -10, max = 10, step = 1, width = SLW,
-                  get = function() return mod.db.shadowY or -2 end,
-                  set = function(_, v) mod.db.shadowY = v; reapplyFont() end },
-            } },
+              set = function(_, v) mod.db.fontShadow = v; reapplyFont() end,
+              subOptions = {
+                  { type = "color", label = L["Shadow Color"],
+                    get = function() return mod.db.shadowColor end,
+                    set = function(r, g, b) mod.db.shadowColor = { r = r, g = g, b = b }; reapplyFont() end },
+                  { type = "group", layout = "columns", items = {
+                      { type = "slider", label = L["Shadow X"], min = -10, max = 10, step = 1, width = SLW,
+                        get = function() return mod.db.shadowX or 2 end,
+                        set = function(_, v) mod.db.shadowX = v; reapplyFont() end },
+                      { type = "slider", label = L["Shadow Y"], min = -10, max = 10, step = 1, width = SLW,
+                        get = function() return mod.db.shadowY or -2 end,
+                        set = function(_, v) mod.db.shadowY = v; reapplyFont() end },
+                  } },
+              } },
         } },
 
         msgSection("combatStart", L["Enter Combat Message"], true),

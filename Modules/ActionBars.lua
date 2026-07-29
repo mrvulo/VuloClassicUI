@@ -1666,14 +1666,18 @@ local function barSection(desc)
         type = "section",
         title = L[desc.label],
         items = {
-            { type = "group", layout = "row", gap = 8, items = {
-                { type = "checkbox", label = L["Enabled"],
-                  get = function() return barDB(key).on end,
-                  set = function(_, v) barDB(key).on = v; reapply() end },
-                { type = "dropdown", label = L["Visibility"], width = 220, values = ns.VisibilityValues(),
-                  get = function() return barDB(key).visibility end,
-                  set = function(_, v) barDB(key).visibility = v; reapply() end },
-            } },
+            -- Every other row in this section is dead while the bar is off, so
+            -- the whole section is one switch and a gear. Both members of each
+            -- bar's identity stay visible at the top: subKey, because eight bars
+            -- share the label "Enabled" and one gear would otherwise open all
+            -- eight at once.
+            { type = "checkbox", label = L["Enabled"], subKey = "bar/" .. key,
+              get = function() return barDB(key).on end,
+              set = function(_, v) barDB(key).on = v; reapply() end,
+              subOptions = {
+            { type = "dropdown", label = L["Visibility"], width = 220, values = ns.VisibilityValues(),
+              get = function() return barDB(key).visibility end,
+              set = function(_, v) barDB(key).visibility = v; reapply() end },
             { type = "group", layout = "row", gap = 8, items = {
                 { type = "dropdown", label = L["Group visibility"], width = 220,
                   values = ns.GroupVisValues(),
@@ -1777,6 +1781,7 @@ local function barSection(desc)
                   set = function(_, v) barDB(key).textCooldownSize = v; reapply() end },
             } },
             key == "main" and pagingRows() or nil,
+              } },
         },
     }
 end
@@ -1893,40 +1898,44 @@ function mod:GetOptions()
                   get = function() return GetCVar and GetCVar("countdownForCooldowns") == "1" end,
                   set = function(_, v) if not InCombatLockdown() then pcall(SetCVar, "countdownForCooldowns", v and "1" or "0") end end },
             } },
-            { type = "group", layout = "row", gap = 8, items = {
-                { type = "checkbox", label = L["Out-of-range colouring"],
-                  tooltip = L["Tints the whole icon while your target is out of range."],
-                  get = function() return mod.db.rangeColoring end,
-                  set = function(_, v) mod.db.rangeColoring = v; if mod.active then applyLook() end end },
-                { type = "color", label = L["Colour"], width = 120,
-                  get = function() return mod.db.rangeColor end,
-                  set = function(r, g, b) mod.db.rangeColor = { r = r, g = g, b = b } end },
-                { type = "dropdown", label = L["Tooltips"], width = 200,
-                  values = {
-                      { value = "show",   text = L["Show"] },
-                      { value = "combat", text = L["Hide in combat"] },
-                      { value = "never",  text = L["Hide always"] },
-                  },
-                  get = function() return mod.db.tooltipMode or "show" end,
-                  set = function(_, v) mod.db.tooltipMode = v end },
-            } },
+            { type = "checkbox", label = L["Out-of-range colouring"],
+              tooltip = L["Tints the whole icon while your target is out of range."],
+              get = function() return mod.db.rangeColoring end,
+              set = function(_, v) mod.db.rangeColoring = v; if mod.active then applyLook() end end,
+              subOptions = {
+                  { type = "color", label = L["Colour"], width = 120,
+                    get = function() return mod.db.rangeColor end,
+                    set = function(r, g, b) mod.db.rangeColor = { r = r, g = g, b = b } end },
+              } },
+            -- Left where it was, only unpaired: tooltips have nothing to do with
+            -- range colouring, they just happened to share a row.
+            { type = "dropdown", label = L["Tooltips"], width = 200,
+              values = {
+                  { value = "show",   text = L["Show"] },
+                  { value = "combat", text = L["Hide in combat"] },
+                  { value = "never",  text = L["Hide always"] },
+              },
+              get = function() return mod.db.tooltipMode or "show" end,
+              set = function(_, v) mod.db.tooltipMode = v end },
         } },
         { type = "section", title = L["XP bar"], items = {
             { type = "checkbox", label = L["Show a custom XP bar"],
               tooltip = L["A movable, resizable experience bar with rested overlay. Hidden at max level. Replaces Blizzard's bar while on."],
               get = function() return mod.db.xpbar.on end,
-              set = function(_, v) mod.db.xpbar.on = v; if mod.active then applyXPBar(); applyStatusBar() end end },
-            { type = "group", layout = "row", gap = 8, items = {
-                { type = "slider", label = L["Width"], min = 120, max = 900, step = 1, width = 160,
-                  get = function() return mod.db.xpbar.width end,
-                  set = function(_, v) mod.db.xpbar.width = v; if mod.active then applyXPBar() end end },
-                { type = "slider", label = L["Height"], min = 6, max = 32, step = 1, width = 160,
-                  get = function() return mod.db.xpbar.height end,
-                  set = function(_, v) mod.db.xpbar.height = v; if mod.active then applyXPBar() end end },
-                { type = "color", label = L["Colour"], width = 120,
-                  get = function() return mod.db.xpbar.color end,
-                  set = function(r, g, b) mod.db.xpbar.color = { r = r, g = g, b = b }; if mod.active then updateXPBar() end end },
-            } },
+              set = function(_, v) mod.db.xpbar.on = v; if mod.active then applyXPBar(); applyStatusBar() end end,
+              subOptions = {
+                  { type = "group", layout = "row", gap = 8, items = {
+                      { type = "slider", label = L["Width"], min = 120, max = 900, step = 1, width = 160,
+                        get = function() return mod.db.xpbar.width end,
+                        set = function(_, v) mod.db.xpbar.width = v; if mod.active then applyXPBar() end end },
+                      { type = "slider", label = L["Height"], min = 6, max = 32, step = 1, width = 160,
+                        get = function() return mod.db.xpbar.height end,
+                        set = function(_, v) mod.db.xpbar.height = v; if mod.active then applyXPBar() end end },
+                      { type = "color", label = L["Colour"], width = 120,
+                        get = function() return mod.db.xpbar.color end,
+                        set = function(r, g, b) mod.db.xpbar.color = { r = r, g = g, b = b }; if mod.active then updateXPBar() end end },
+                  } },
+              } },
         } },
     }
     for _, key in ipairs({ "main", "bottomleft", "bottomright", "right", "left", "extra", "stance", "pet" }) do
