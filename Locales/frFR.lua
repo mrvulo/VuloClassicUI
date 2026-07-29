@@ -2915,4 +2915,14 @@ ns:RegisterLocale("frFR", function() return {
     ["The seal you twist into may be any other seal, not only the two that arrive at level 64."] = "Le sceau vers lequel tu bascules peut être n’importe quel autre sceau, pas seulement les deux qui arrivent au niveau 64.",
     ["Sections no longer fold away. Long pages fold at the gear on a row instead, which says something a section expander never could: the rows behind it belong to the switch it sits on."] = "Les sections ne se replient plus. Les pages longues se replient sur la roue dentée d’une ligne, qui dit ce qu’un repli de section n’a jamais dit : les lignes derrière appartiennent à l’interrupteur sur lequel elle se trouve.",
     ["Controls line up down a page now, and a switch sits in the middle of its row."] = "Les contrôles sont alignés le long de la page, et un interrupteur se place au milieu de sa ligne.",
+    -- Vier Nachzuegler
+    ["Darken enemies out of combat"] = "Assombrir les ennemis hors combat",
+    ["Dims enemies that are not fighting anyone, so the ones that are stand out. Never your own target."] = "Atténue les ennemis qui ne combattent personne, pour faire ressortir ceux qui combattent. Jamais ta propre cible.",
+    ["Darken to (%)"] = "Assombrir à (%)",
+    ["Cast bars in front of other plates"] = "Barres d'incantation devant les autres barres",
+    ["In a pull the plates overlap and a cast bar can end up behind the plate in front of it."] = "Lors d’un pull les barres se chevauchent et une barre d’incantation peut passer derrière celle de devant.",
+    ["Highlight strength"] = "Intensité de la surbrillance",
+    ["Hitbox width (%)"] = "Largeur de la zone cliquable (%)",
+    ["Clickable plate area. 100 leaves the game's own size untouched. Stored in the profile."] = "Zone cliquable de la barre. 100 laisse la taille du jeu intacte. Enregistré dans le profil.",
+    ["Hitbox height (%)"] = "Hauteur de la zone cliquable (%)",
 } end)

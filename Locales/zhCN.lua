@@ -2759,4 +2759,14 @@ ns:RegisterLocale("zhCN", function() return {
     ["The seal you twist into may be any other seal, not only the two that arrive at level 64."] = "你切换进入的印记可以是任何其他印记，不只是 64 级才有的那两个。",
     ["Sections no longer fold away. Long pages fold at the gear on a row instead, which says something a section expander never could: the rows behind it belong to the switch it sits on."] = "分区不再折叠。长页面改为在某一行的齿轮上折叠，而齿轮说出了分区折叠从来说不出的事：它后面的行属于它所在的那个开关。",
     ["Controls line up down a page now, and a switch sits in the middle of its row."] = "各个控件沿页面对齐，开关位于所在行的正中。",
+    -- Vier Nachzuegler
+    ["Darken enemies out of combat"] = "战斗外的敌人变暗",
+    ["Dims enemies that are not fighting anyone, so the ones that are stand out. Never your own target."] = "把没有在与谁交战的敌人调暗，让正在交战的显出来。不会影响你自己的目标。",
+    ["Darken to (%)"] = "变暗到 (%)",
+    ["Cast bars in front of other plates"] = "施法条显示在其他姓名板之前",
+    ["In a pull the plates overlap and a cast bar can end up behind the plate in front of it."] = "拉怪时姓名板会互相重叠，施法条可能被前面的姓名板挡住。",
+    ["Highlight strength"] = "高亮强度",
+    ["Hitbox width (%)"] = "可点击区域宽度 (%)",
+    ["Clickable plate area. 100 leaves the game's own size untouched. Stored in the profile."] = "姓名板的可点击区域。100 表示不改动游戏本身的大小。存在配置文件里。",
+    ["Hitbox height (%)"] = "可点击区域高度 (%)",
 } end)

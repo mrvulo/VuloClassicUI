@@ -2903,4 +2903,14 @@ ns:RegisterLocale("deDE", function() return {
     ["The seal you twist into may be any other seal, not only the two that arrive at level 64."] = "Das Siegel, in das du wechselst, darf jedes andere Siegel sein, nicht nur die beiden, die auf Stufe 64 kommen.",
     ["Sections no longer fold away. Long pages fold at the gear on a row instead, which says something a section expander never could: the rows behind it belong to the switch it sits on."] = "Abschnitte klappen nicht mehr zu. Lange Seiten klappen stattdessen am Zahnrad einer Zeile auf, und das sagt etwas, was ein Abschnitts-Aufklapper nie konnte: die Zeilen dahinter gehören dem Schalter, auf dem es sitzt.",
     ["Controls line up down a page now, and a switch sits in the middle of its row."] = "Bedienelemente fluchten jetzt untereinander, und ein Schalter sitzt mittig in seiner Zeile.",
+    -- Vier Nachzuegler
+    ["Darken enemies out of combat"] = "Gegner außerhalb des Kampfes abdunkeln",
+    ["Dims enemies that are not fighting anyone, so the ones that are stand out. Never your own target."] = "Dunkelt Gegner ab, die gegen niemanden kämpfen, damit die kämpfenden hervortreten. Nie dein eigenes Ziel.",
+    ["Darken to (%)"] = "Abdunkeln auf (%)",
+    ["Cast bars in front of other plates"] = "Zauberleisten vor anderen Plaketten",
+    ["In a pull the plates overlap and a cast bar can end up behind the plate in front of it."] = "Beim Pull überlappen die Plaketten, und eine Zauberleiste kann hinter der Plakette davor verschwinden.",
+    ["Highlight strength"] = "Stärke der Hervorhebung",
+    ["Hitbox width (%)"] = "Trefferfläche Breite (%)",
+    ["Clickable plate area. 100 leaves the game's own size untouched. Stored in the profile."] = "Anklickbare Fläche der Plakette. 100 lässt die Größe des Spiels unangetastet. Liegt im Profil.",
+    ["Hitbox height (%)"] = "Trefferfläche Höhe (%)",
 } end)

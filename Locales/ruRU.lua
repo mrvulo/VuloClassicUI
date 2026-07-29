@@ -2766,4 +2766,14 @@ ns:RegisterLocale("ruRU", function() return {
     ["The seal you twist into may be any other seal, not only the two that arrive at level 64."] = "Печать, в которую ты переключаешься, может быть любой другой, а не только двумя, что появляются на 64-м уровне.",
     ["Sections no longer fold away. Long pages fold at the gear on a row instead, which says something a section expander never could: the rows behind it belong to the switch it sits on."] = "Разделы больше не сворачиваются. Длинные страницы сворачиваются на шестерёнке строки, а она говорит то, чего сворачивание раздела никогда не говорило: строки за ней принадлежат переключателю, на котором она стоит.",
     ["Controls line up down a page now, and a switch sits in the middle of its row."] = "Элементы управления выровнены по странице, а переключатель стоит посередине своей строки.",
+    -- Vier Nachzuegler
+    ["Darken enemies out of combat"] = "Затемнять врагов вне боя",
+    ["Dims enemies that are not fighting anyone, so the ones that are stand out. Never your own target."] = "Приглушает врагов, которые ни с кем не сражаются, чтобы сражающиеся выделялись. Твоя цель — никогда.",
+    ["Darken to (%)"] = "Затемнять до (%)",
+    ["Cast bars in front of other plates"] = "Полосы заклинаний перед другими индикаторами",
+    ["In a pull the plates overlap and a cast bar can end up behind the plate in front of it."] = "При сборе пака индикаторы накладываются, и полоса заклинания может уйти за индикатор перед ней.",
+    ["Highlight strength"] = "Сила подсветки",
+    ["Hitbox width (%)"] = "Ширина области нажатия (%)",
+    ["Clickable plate area. 100 leaves the game's own size untouched. Stored in the profile."] = "Область нажатия индикатора. 100 оставляет размер игры нетронутым. Хранится в профиле.",
+    ["Hitbox height (%)"] = "Высота области нажатия (%)",
 } end)

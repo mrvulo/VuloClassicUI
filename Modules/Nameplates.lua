@@ -38,10 +38,11 @@ local mod = ns:RegisterModule("nameplates", {
         targetBarColor = false,
         colTargetBar   = { r = 0.75, g = 0.55, b = 1.00 },
         hoverHighlight = false,
+        hoverAlpha     = 12,
         targetScale    = 100,
 
-        hitboxW = 0,
-        hitboxH = 0,
+        hitboxPctW = 100,
+        hitboxPctH = 100,
 
         globalScale  = 100,
         plateOffsetY = 0,
@@ -72,8 +73,11 @@ local mod = ns:RegisterModule("nameplates", {
         colTapped   = { r = 0.55, g = 0.55, b = 0.55 },
         classColorEnemy    = true,
         classColorFriendly = false,
+        darkenOOC          = false,
+        darkenOOCPct       = 45,
 
         showCastbar   = true,
+        castInFront   = false,
         castHeight    = 12,
         castTexture   = "Atrocity",
         showCastIcon  = true,
@@ -305,15 +309,25 @@ local function threatColor(d, sit)
 end
 
 local function healthColor(d, ctx)
+    local r, g, b
     if d.targetBarColor and ctx.isTarget then
         local c = d.colTargetBar
-        return c.r, c.g, c.b
-    end
-    if d.threatEnabled and ctx.threat ~= nil then
+        r, g, b = c.r, c.g, c.b
+    elseif d.threatEnabled and ctx.threat ~= nil then
         local c = threatColor(d, ctx.threat)
-        if c then return c.r, c.g, c.b end
+        if c then r, g, b = c.r, c.g, c.b end
     end
-    return reactionColor(d, ctx)
+    if not r then r, g, b = reactionColor(d, ctx) end
+
+    -- Dimming an enemy that is not fighting anyone pushes the ones that ARE
+    -- forward without adding a second colour to read. Applied LAST, to whatever
+    -- colour won above, so it works with reaction, class and threat colouring
+    -- alike. Never on your own target: that one you meant to look at.
+    if d.darkenOOC and ctx.enemy and not ctx.inCombat and not ctx.isTarget then
+        local f = (d.darkenOOCPct or 45) / 100
+        r, g, b = r * f, g * f, b * f
+    end
+    return r, g, b
 end
 
 local SPARK_TEX  = "Interface\\CastingBar\\UI-CastingBar-Spark"
@@ -358,7 +372,7 @@ local function buildVisuals(f)
     f.cutaway:Hide()
     f.hover = f.health:CreateTexture(nil, "ARTWORK", nil, 4)
     f.hover:SetAllPoints(f.health)
-    f.hover:SetColorTexture(1, 1, 1, 0.12)
+    f.hover:SetColorTexture(1, 1, 1, 0.12)   -- restated per apply, see applyLook
     f.hover:Hide()
     -- Glow riding the fill edge; tinted with the bar colour in paintHealth.
     f.spark = f.health:CreateTexture(nil, "ARTWORK", nil, 5)
@@ -614,6 +628,19 @@ local function skinPlate(f)
         if f.castTimer then plateFont(f.castTimer, pick(d.castTimerSize, d.fontSize)) end
         if f.castTarget then plateFont(f.castTarget, pick(d.castTargetSize, d.fontSize)) end
         if f.level then plateFont(f.level, pick(d.levelSize, d.nameSize)) end
+    end
+    if f.hover then
+        -- Set here and not only at creation: the plates come from a pool, so a
+        -- frame built before the slider was touched would keep the old value
+        -- for the rest of the session.
+        f.hover:SetColorTexture(1, 1, 1, (d.hoverAlpha or 12) / 100)
+    end
+    if f.cast then
+        -- In a pull, plates overlap and a cast bar can end up behind the plate
+        -- of the mob standing in front. Lifting the bar one strata takes every
+        -- cast bar above every plate at once -- what matters is not being
+        -- covered, and that is a question between plates, not inside one.
+        f.cast:SetFrameStrata(d.castInFront and "HIGH" or "MEDIUM")
     end
     f.title:SetTextColor(0.72, 0.72, 0.78)
     f.name:SetShown(d.showName)
@@ -1941,6 +1968,10 @@ local function refreshPlate(f)
     ctx.reaction = UnitReaction(unit, "player")
     ctx.tapped   = UnitIsTapDenied(unit) and true or false
     ctx.threat   = UnitAffectingCombat("player") and UnitThreatSituation("player", unit) or nil
+    -- Read once here, with everything else about the unit, rather than inside
+    -- the colour function: that one runs again on the health-only path, where
+    -- the unit is not at hand.
+    ctx.inCombat = UnitAffectingCombat(unit) and true or false
     f._ctxMode   = "full"
 
     local hp, hpmax = UnitHealth(unit) or 0, UnitHealthMax(unit) or 1
@@ -2411,17 +2442,47 @@ local function applyAndRefresh()
     if previewFrame then previewFrame:Update() end
 end
 
+-- The clickable area, as a PERCENTAGE.
+--
+-- There is no way to ask the client how big a plate's hitbox is by default, and
+-- guessing a base wrongly would move everyone's clicks. So 100 does not compute
+-- anything: it means "never call the setter", which leaves the client's own
+-- size exactly as it was. Only a value away from 100 needs a base, and there an
+-- approximate base only makes the scale approximate -- which is all a
+-- make-it-a-bit-bigger control has to be.
+local HITBOX_BASE_W, HITBOX_BASE_H = 128, 32
+
 local function applyHitbox()
     if InCombatLockdown() then return end
-    local w, h = mod.db.hitboxW or 0, mod.db.hitboxH or 0
-    if w > 0 and C_NamePlate and C_NamePlate.SetNamePlateEnemySize then
-        pcall(C_NamePlate.SetNamePlateEnemySize, w, h > 0 and h or 32)
+    if not (C_NamePlate and C_NamePlate.SetNamePlateEnemySize) then return end
+    local pw = mod.db.hitboxPctW or 100
+    local ph = mod.db.hitboxPctH or 100
+    if pw == 100 and ph == 100 then return end
+    pcall(C_NamePlate.SetNamePlateEnemySize,
+        math.floor(HITBOX_BASE_W * pw / 100 + 0.5),
+        math.floor(HITBOX_BASE_H * ph / 100 + 0.5))
+end
+
+-- One-time per profile: the two settings used to be absolute pixels, with 0
+-- meaning "leave it alone". Same shape as migrateAuraRows -- flag written only
+-- after the work, and the old keys removed rather than left looking like
+-- settings without a control.
+local function migrateHitbox()
+    local d = db()
+    if not d or d.hitboxPctMigrated then return end
+    if (d.hitboxW or 0) > 0 then
+        d.hitboxPctW = math.floor(d.hitboxW / HITBOX_BASE_W * 100 + 0.5)
+        d.hitboxPctH = ((d.hitboxH or 0) > 0)
+            and math.floor(d.hitboxH / HITBOX_BASE_H * 100 + 0.5) or 100
     end
+    d.hitboxPctMigrated = true
+    d.hitboxW, d.hitboxH = nil, nil
 end
 
 function mod:OnEnable()
     if mod.db.healthTexture == nil then mod.db.healthTexture = DEFAULT_TEXTURE end
     migrateAuraRows()
+    migrateHitbox()
     local _, cls = UnitClass("player")
     playerCanSteal = CAN_REMOVE_MAGIC[cls] or false
     findKickSpell()

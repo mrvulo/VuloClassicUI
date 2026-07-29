@@ -2766,4 +2766,14 @@ ns:RegisterLocale("itIT", function() return {
     ["The seal you twist into may be any other seal, not only the two that arrive at level 64."] = "Il sigillo verso cui passi può essere qualsiasi altro sigillo, non solo i due che arrivano al livello 64.",
     ["Sections no longer fold away. Long pages fold at the gear on a row instead, which says something a section expander never could: the rows behind it belong to the switch it sits on."] = "Le sezioni non si chiudono più. Le pagine lunghe si chiudono sull’ingranaggio di una riga, che dice qualcosa che una sezione non ha mai detto: le righe dietro appartengono all’interruttore su cui si trova.",
     ["Controls line up down a page now, and a switch sits in the middle of its row."] = "I controlli sono allineati lungo la pagina e un interruttore sta al centro della sua riga.",
+    -- Vier Nachzuegler
+    ["Darken enemies out of combat"] = "Scurire i nemici fuori dal combattimento",
+    ["Dims enemies that are not fighting anyone, so the ones that are stand out. Never your own target."] = "Attenua i nemici che non stanno combattendo, così risaltano quelli che lo fanno. Mai il tuo bersaglio.",
+    ["Darken to (%)"] = "Scurire al (%)",
+    ["Cast bars in front of other plates"] = "Barre di lancio davanti alle altre targhette",
+    ["In a pull the plates overlap and a cast bar can end up behind the plate in front of it."] = "In un pull le targhette si sovrappongono e una barra di lancio può finire dietro quella davanti.",
+    ["Highlight strength"] = "Intensità dell’evidenziazione",
+    ["Hitbox width (%)"] = "Larghezza area cliccabile (%)",
+    ["Clickable plate area. 100 leaves the game's own size untouched. Stored in the profile."] = "Area cliccabile della targhetta. 100 lascia intatta la dimensione del gioco. Salvato nel profilo.",
+    ["Hitbox height (%)"] = "Altezza area cliccabile (%)",
 } end)

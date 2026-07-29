@@ -2766,4 +2766,14 @@ ns:RegisterLocale("koKR", function() return {
     ["The seal you twist into may be any other seal, not only the two that arrive at level 64."] = "전환해 들어갈 인장은 64레벨에 배우는 둘뿐 아니라 다른 어떤 인장이든 될 수 있습니다.",
     ["Sections no longer fold away. Long pages fold at the gear on a row instead, which says something a section expander never could: the rows behind it belong to the switch it sits on."] = "구획은 더 이상 접히지 않습니다. 긴 페이지는 대신 줄에 달린 톱니로 접힙니다. 톱니는 구획 접기가 결코 말하지 못한 것을 말합니다: 그 뒤의 줄은 톱니가 붙은 스위치의 것입니다.",
     ["Controls line up down a page now, and a switch sits in the middle of its row."] = "조작 요소가 페이지 아래로 줄을 맞추고, 스위치는 자기 줄의 한가운데에 놓입니다.",
+    -- Vier Nachzuegler
+    ["Darken enemies out of combat"] = "전투 중이 아닌 적 어둡게",
+    ["Dims enemies that are not fighting anyone, so the ones that are stand out. Never your own target."] = "아무와도 싸우지 않는 적을 흐리게 하여 싸우는 적이 드러나게 합니다. 자기 대상은 제외됩니다.",
+    ["Darken to (%)"] = "어둡게 (%)",
+    ["Cast bars in front of other plates"] = "시전 막대를 다른 이름표 앞에",
+    ["In a pull the plates overlap and a cast bar can end up behind the plate in front of it."] = "몰이를 할 때 이름표가 겹치면 시전 막대가 앞쪽 이름표 뒤로 숨을 수 있습니다.",
+    ["Highlight strength"] = "강조 세기",
+    ["Hitbox width (%)"] = "클릭 영역 너비 (%)",
+    ["Clickable plate area. 100 leaves the game's own size untouched. Stored in the profile."] = "이름표의 클릭 영역입니다. 100이면 게임 기본 크기를 건드리지 않습니다. 프로필에 저장됩니다.",
+    ["Hitbox height (%)"] = "클릭 영역 높이 (%)",
 } end)

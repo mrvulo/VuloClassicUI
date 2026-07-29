@@ -2766,4 +2766,14 @@ ns:RegisterLocale("ptBR", function() return {
     ["The seal you twist into may be any other seal, not only the two that arrive at level 64."] = "O selo para o qual você troca pode ser qualquer outro selo, não apenas os dois que chegam no nível 64.",
     ["Sections no longer fold away. Long pages fold at the gear on a row instead, which says something a section expander never could: the rows behind it belong to the switch it sits on."] = "As seções não se recolhem mais. Páginas longas se recolhem na engrenagem de uma linha, que diz algo que um recolhimento de seção nunca disse: as linhas atrás dela pertencem ao interruptor em que ela está.",
     ["Controls line up down a page now, and a switch sits in the middle of its row."] = "Os controles ficam alinhados ao longo da página e um interruptor fica no meio da sua linha.",
+    -- Vier Nachzuegler
+    ["Darken enemies out of combat"] = "Escurecer inimigos fora de combate",
+    ["Dims enemies that are not fighting anyone, so the ones that are stand out. Never your own target."] = "Atenua os inimigos que não estão lutando com ninguém, para destacar os que estão. Nunca o seu alvo.",
+    ["Darken to (%)"] = "Escurecer para (%)",
+    ["Cast bars in front of other plates"] = "Barras de conjuração à frente das outras placas",
+    ["In a pull the plates overlap and a cast bar can end up behind the plate in front of it."] = "Num pull as placas se sobrepõem e uma barra de conjuração pode ficar atrás da placa da frente.",
+    ["Highlight strength"] = "Intensidade do destaque",
+    ["Hitbox width (%)"] = "Largura da área clicável (%)",
+    ["Clickable plate area. 100 leaves the game's own size untouched. Stored in the profile."] = "Área clicável da placa. 100 deixa o tamanho do jogo intacto. Fica guardado no perfil.",
+    ["Hitbox height (%)"] = "Altura da área clicável (%)",
 } end)
