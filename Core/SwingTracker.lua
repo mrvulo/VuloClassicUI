@@ -93,6 +93,26 @@ local function parryHaste()
     notify("mainhand")
 end
 
+-- Extra attacks (Reckoning, Windfury, Sword Specialisation) land as ordinary
+-- SWING_DAMAGE lines, and a swing timer that believes them restarts the clock
+-- on a hit that never cost a swing -- the bar then points a full weapon speed
+-- past the truth. SPELL_EXTRA_ATTACKS announces how many are coming; we swallow
+-- exactly that many main-hand lines afterwards.
+--
+-- The count carries a deadline because the announcement and the attacks are not
+-- guaranteed to be adjacent: extra attacks can be STORED and spent after the
+-- swing in progress. A stale credit that never got spent would otherwise eat a
+-- real swing minutes later.
+local EXTRA_WINDOW = 1.5
+local extraLeft, extraUntil = 0, 0
+
+local function takeExtraCredit()
+    if extraLeft <= 0 then return false end
+    if GetTime() > extraUntil then extraLeft = 0; return false end
+    extraLeft = extraLeft - 1
+    return true
+end
+
 local function onCombatLog()
     local _, subevent, _, sourceGUID, _, _, _, destGUID = CLGetInfo()
     if sourceGUID ~= playerGUID then
@@ -105,11 +125,27 @@ local function onCombatLog()
     if subevent == "SWING_DAMAGE" then
         -- isOffHand is param 21 of SWING_DAMAGE.
         local isOffHand = select(21, CLGetInfo())
-        if isOffHand then resetOH(); notify("offhand") else resetMH(); notify("mainhand") end
+        if isOffHand then
+            resetOH(); notify("offhand")
+        elseif not takeExtraCredit() then
+            resetMH(); notify("mainhand")
+        end
     elseif subevent == "SWING_MISSED" then
         -- SWING_MISSED puts isOffHand at param 13, or 14 when an amount is present.
         local p13, p14 = select(13, CLGetInfo())
-        if (p13 == true) or (p14 == true) then resetOH(); notify("offhand") else resetMH(); notify("mainhand") end
+        if (p13 == true) or (p14 == true) then
+            resetOH(); notify("offhand")
+        elseif not takeExtraCredit() then
+            resetMH(); notify("mainhand")
+        end
+    elseif subevent == "SPELL_EXTRA_ATTACKS" then
+        -- amount is the last payload field; 12..14 are spellId, name, school.
+        local amount = select(15, CLGetInfo())
+        amount = tonumber(amount) or 0
+        if amount > 0 then
+            extraLeft = extraLeft + amount
+            extraUntil = GetTime() + EXTRA_WINDOW
+        end
     end
 end
 
@@ -123,6 +159,7 @@ local function onEvent(_, event, arg1)
         notify("mainhand")
     elseif event == "PLAYER_LEAVE_COMBAT" then
         mh.active, oh.active = false, false
+        extraLeft = 0
         notify(nil)
     elseif event == "UNIT_ATTACK_SPEED" then
         rescale()

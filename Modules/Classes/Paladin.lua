@@ -18,6 +18,21 @@
 --     one trip of the player's latency, and it stops being worth pressing once
 --     less than that trip is left.
 --
+-- THE BAR IS FOUR ZONES, not one countdown. Read as "seconds left before the
+-- swing", from the far end towards it:
+--
+--   filler   a global-cooldown spell still finishes AND leaves the cooldown
+--            free before the window opens. The only stretch where casting
+--            something else is free.
+--   danger   casting anything here means the global cooldown is still running
+--            when the window opens, and the twist is gone. This zone is the
+--            single most useful thing on the bar, and it is the reason the
+--            boundary moves with spell haste instead of sitting at 1.5.
+--   twist    cast the second seal.
+--   late     the tail of the twist window, wide enough for a judgement in
+--            front of the twist -- the double-judge line. Marked separately
+--            because it is a deliberate play, not a mistake.
+--
 -- What it deliberately does NOT do: prompt Judgement. Judging consumes the
 -- seal, so a mistimed prompt costs more than no prompt -- that call stays with
 -- the player.
@@ -30,6 +45,7 @@ if not csMod or not csMod.RegisterClassTool then return end
 local GetTime, GetSpellInfo, GetSpellCooldown = GetTime, GetSpellInfo, GetSpellCooldown
 local UnitAttackSpeed, UnitBuff = UnitAttackSpeed, UnitBuff
 local GetNetStats, UnitAffectingCombat = GetNetStats, UnitAffectingCombat
+local min, max, floor = math.min, math.max, math.floor
 
 local DEFAULTS = {
     -- Off until asked for. Twisting is a Retribution habit, not something every
@@ -39,17 +55,25 @@ local DEFAULTS = {
     -- did not ask for.
     enabled     = false,
     window      = 0.40,   -- seconds before the swing that the twist lands in
-    latency     = true,   -- shift the window ahead by one trip of world latency
+    lateWindow  = 0.20,   -- tail of that window: still room for a judgement
+    latency     = true,   -- shift the window ahead by the measured lag
+    reaction    = 100,    -- ms of head start on the prompt, for the human
     heldSeal    = "",     -- resolved on first run
     twistSeal   = "",
     showBar     = true,
+    showZones   = true,
+    showTicks   = true,
+    showSpeed   = true,   -- attack speed, red under the twisting cap
+    showSeals   = true,   -- which seals are on you, and for how long
     showAction  = true,
     showNumbers = true,
     showOOC     = false,  -- keep the bar up between fights
     useCS       = true,
-    sound       = false,
+    sound       = false,  -- cue when the window opens
+    soundLate   = false,  -- cue when the late window opens
     barWidth    = 240,
     barHeight   = 22,
+    iconSize    = 26,
     fontSize    = 18,
     x           = 0,
     y           = -180,
@@ -94,19 +118,41 @@ local BAR_TEX  = "Interface\\Buttons\\WHITE8X8"
 local FONT     = "Fonts\\FRIZQT__.TTF"
 local WINDOW_SOUND = 567458
 
-local COL_IDLE   = { 0.35, 0.35, 0.42 }
-local COL_ARMED  = { 0.38, 0.26, 0.62 }   -- Command is up, waiting for the window
-local COL_WINDOW = { 0.20, 0.85, 0.35 }   -- twist now
-local COL_DONE   = { 0.14, 0.45, 0.22 }   -- twist landed, swing carries both
-local COL_LATE   = { 0.85, 0.20, 0.20 }   -- window open but pressing would not pay: no held
-                                          -- seal to replace, or too late to reach the server
+-- Zones, in the order the swing runs through them.
+local Z_FILLER, Z_DANGER, Z_TWIST, Z_LATE, Z_MISS, Z_READY = 1, 2, 3, 4, 5, 6
 
-local frame, bar, cmdTick, twistTick, twistZone, actionFS, infoFS
+-- The fill takes the colour of the zone the swing is in, so the bar is readable
+-- out of the corner of the eye without reading the marks at all.
+local ZONE_COLOR = {
+    [Z_FILLER] = { 0.22, 0.52, 0.92 },   -- free to cast something else
+    [Z_DANGER] = { 0.85, 0.20, 0.20 },   -- casting now costs the twist
+    [Z_TWIST]  = { 0.20, 0.85, 0.35 },   -- cast the second seal
+    [Z_LATE]   = { 0.10, 0.62, 0.28 },   -- still in, judgement fits in front
+    [Z_MISS]   = { 0.45, 0.16, 0.16 },   -- too late to reach the server
+    [Z_READY]  = { 0.25, 0.90, 0.45 },   -- swing due: auto-attack is off
+}
+local COL_IDLE = { 0.35, 0.35, 0.42 }
+local COL_DONE = { 0.14, 0.45, 0.22 }   -- twist already in, swing carries both
+
+local frame, bar, barBG
+local zoneFiller, zoneDanger, zoneTwist
+local tickDanger, tickTwist, tickLate
+local speedFS, actionFS, infoFS
+local sealSlots = {}
+
 local sealNames        = {}     -- ordered list of seal names this character knows
 local heldName, twistName, csName
 local hasHeld, hasTwist = false, false
-local lastSound = 0
-local wasPrompting = false
+local heldIcon, twistIcon
+local heldExpires, twistExpires
+local lastSound, lastLateSound = 0, 0
+local wasPrompting, wasLate = false, false
+
+-- Memo for the zone geometry, declared up here because layout() has to be able
+-- to drop it: layout shows the zone textures again, and a zone that placeZones
+-- had hidden for being zero-width would otherwise come back at its old size and
+-- stay there until the weapon speed happened to change.
+local tickSig
 
 local function db() return csMod.db and csMod.db.sealtwist end
 
@@ -146,7 +192,7 @@ local function collectSeals()
         local total = 0
         for i = 1, (GetNumSpellTabs() or 0) do
             local _, _, offset, numSpells = GetSpellTabInfo(i)
-            if offset and numSpells then total = math.max(total, offset + numSpells) end
+            if offset and numSpells then total = max(total, offset + numSpells) end
         end
         for i = 1, total do
             local name = GetSpellBookItemName(i, "spell")
@@ -204,18 +250,24 @@ end
 -- ---------------------------------------------------------------- live state
 
 -- Seal buffs change on cast, not on a timer, so this runs on UNIT_AURA instead
--- of once per frame.
+-- of once per frame. The icon and the expiry come along in the same sweep: the
+-- indicators want both, and scanning again for them every frame would be the
+-- most expensive thing in the file.
 local function refreshSeals(event, unit)
     -- UNIT_AURA fires for every unit in the group; ours is the only one that can
     -- carry our seals, and in a raid the rest is thousands of wasted scans.
     if event == "UNIT_AURA" and unit ~= "player" then return end
     hasHeld, hasTwist = false, false
+    heldIcon, twistIcon, heldExpires, twistExpires = nil, nil, nil, nil
     if not (heldName or twistName) then return end
     for i = 1, 40 do
-        local n = UnitBuff("player", i)
-        if not n then return end
-        if n == heldName  then hasHeld  = true end
-        if n == twistName then hasTwist = true end
+        local n, icon, _, _, _, expires = UnitBuff("player", i)
+        if not n then break end
+        if n == heldName then
+            hasHeld, heldIcon, heldExpires = true, icon, expires
+        elseif n == twistName then
+            hasTwist, twistIcon, twistExpires = true, icon, expires
+        end
     end
 end
 
@@ -228,14 +280,23 @@ local function currentGCD()
     return g
 end
 
--- One trip to the server, in seconds. GetNetStats reports the ROUND trip, and
--- what matters here is only the outbound half: the cast has to arrive inside a
--- window the server keeps, and the reply coming back afterwards costs us
--- nothing. Capped because a 600 ms spike would otherwise shove the prompt into
--- the middle of the swing, where pressing is worse than not pressing.
+-- How far ahead of the swing the window has to be pulled for the cast to land
+-- inside it, in seconds.
+--
+-- The naive answer is half the round trip that GetNetStats reports -- only the
+-- outbound leg matters, the reply costs us nothing. Measured against real
+-- twists that answer comes out too SMALL: the round trip is not the only delay
+-- between deciding and the server acting, and the client adds a fixed slice of
+-- its own on top. LAG_SCALE and LAG_FLOOR_MS are that correction, and they are
+-- close to one whole round trip in practice rather than half of one.
+--
+-- Capped because a 600 ms spike would otherwise shove the prompt into the
+-- middle of the swing, where pressing is worse than not pressing.
 --
 -- Polled once every OFFSET_POLL seconds rather than per frame: GetNetStats only
 -- refreshes every few seconds anyway, and it is not a free call.
+local LAG_SCALE   = 0.98
+local LAG_FLOOR_MS = 10
 local OFFSET_MAX  = 0.25
 local OFFSET_POLL = 3
 local offsetValue, offsetAt = 0, 0
@@ -245,20 +306,29 @@ local function latencyOffset(d)
     local now = GetTime()
     if now - offsetAt >= OFFSET_POLL then
         offsetAt = now
-        local world = select(4, GetNetStats())
-        local o = (tonumber(world) or 0) / 2000
+        local world = tonumber(select(4, GetNetStats())) or 0
+        local o = (world * LAG_SCALE + LAG_FLOOR_MS) / 1000
         if o < 0 then o = 0 elseif o > OFFSET_MAX then o = OFFSET_MAX end
         offsetValue = o
     end
     return offsetValue
 end
 
--- The two edges of the window, as "seconds left before the swing":
--- press at or below windowStart, and stop pressing below windowEnd, because
--- from there the cast can no longer reach the server in time.
-local function twistWindow(d)
+-- The zone boundaries, all as "seconds left before the swing", far end first.
+local function bounds(d, gcd)
     local off = latencyOffset(d)
-    return d.window + off, off
+    local windowStart = d.window + off
+    local lateStart   = min(d.lateWindow + off, windowStart)
+    return windowStart + gcd, windowStart, lateStart, off
+end
+
+local function zoneOf(r, dangerStart, windowStart, lateStart, windowEnd)
+    if r <= 0 then return Z_READY end
+    if r > dangerStart then return Z_FILLER end
+    if r > windowStart then return Z_DANGER end
+    if r > lateStart   then return Z_TWIST end
+    if r >= windowEnd  then return Z_LATE end
+    return Z_MISS
 end
 
 -- Seconds until the global cooldown frees up. Seals have no cooldown of their
@@ -284,90 +354,156 @@ end
 -- ACTION_* are what the player should press right now.
 local ACTION_NONE, ACTION_HELD, ACTION_TWIST, ACTION_CS = 0, 1, 2, 3
 
-local function decide(d, remaining, gcd, windowStart, windowEnd)
-    if not remaining then return ACTION_NONE end
+-- This swing's twist is already gone: whatever is on the global cooldown right
+-- now frees up later than the moment a cast could still reach the server in
+-- time. Worth its own state rather than letting the bar run hopefully into the
+-- green -- the answer here is a filler or stopping the attack, not a faster
+-- finger. Only interesting while there IS a twist left to lose.
+local function twistLost(r, windowEnd)
+    if not (hasHeld and not hasTwist) then return false end
+    return (r - gcdRemaining()) < windowEnd
+end
+
+local function decide(d, r, gcd, dangerStart, windowStart, windowEnd)
+    if not r then return ACTION_NONE end
     if gcdRemaining() > 0.05 then return ACTION_NONE end
 
-    if remaining <= windowStart then
+    -- A head start on the prompt: the window is 0.4 s wide and a human needs
+    -- part of that to see the cue and press. The zone colours stay exact -- only
+    -- the prompt and the cue move.
+    local lead = (d.reaction or 0) / 1000
+    if r <= windowStart + lead and r > windowStart then
+        if hasHeld and not hasTwist then return ACTION_TWIST end
+    end
+
+    if r <= windowStart then
         -- Inside the window: the twist only pays off if the held seal is up to
         -- be replaced, only once, and only while the cast can still get there.
-        if remaining < windowEnd then return ACTION_NONE end
+        if r < windowEnd then return ACTION_NONE end
         if hasHeld and not hasTwist then return ACTION_TWIST end
         return ACTION_NONE
     end
+    -- Danger zone: the whole point of drawing it is that nothing goes in here.
+    if r <= dangerStart then return ACTION_NONE end
 
-    local toWindow = remaining - windowStart
-    -- Crusader Strike first when there is room for it AND the seal it wants to
-    -- hit with is up: doing it later would eat the Command cast.
-    if d.useCS and csName and hasTwist and csReady() and toWindow >= 2 * gcd then
+    -- Crusader Strike first when there is room for it AND the held seal behind
+    -- it, and only while the seal it wants to hit with is up.
+    if d.useCS and csName and hasTwist and csReady() and (r - windowStart) >= 2 * gcd then
         return ACTION_CS
     end
-    if not hasHeld and toWindow >= gcd then return ACTION_HELD end
+    if not hasHeld then return ACTION_HELD end
     return ACTION_NONE
 end
 
 -- ---------------------------------------------------------------- appearance
 
+-- What the side pieces claim, so the bar keeps its configured width whether
+-- they are shown or not.
+local function sideWidths(d)
+    local leftW  = d.showSpeed and (d.fontSize * 2.4 + 6) or 0
+    local rightW = d.showSeals and (d.iconSize * 2 + 10) or 0
+    return leftW, rightW
+end
+
 local function layout()
     local d = db()
     if not frame or not d then return end
-    frame:SetSize(d.barWidth, d.barHeight + d.fontSize + 20)
+
+    local leftW, rightW = sideWidths(d)
+    local h = d.barHeight
+    if d.showAction  then h = h + d.fontSize + 4 end
+    if d.showNumbers then h = h + max(9, d.fontSize - 6) + 2 end
+    h = h + 6
+    if d.showSeals and d.iconSize > h then h = d.iconSize end
+
+    frame:SetSize(leftW + d.barWidth + rightW, h)
     frame:ClearAllPoints()
     frame:SetPoint("CENTER", UIParent, "CENTER", d.x, d.y)
 
+    bar:ClearAllPoints()
+    bar:SetPoint("TOPLEFT", frame, "TOPLEFT", leftW, 0)
     bar:SetSize(d.barWidth, d.barHeight)
     bar:SetShown(d.showBar)
+
+    speedFS:SetFont(fontPath(), max(9, d.fontSize - 4), "OUTLINE")
+    speedFS:SetShown(d.showSpeed)
     actionFS:SetFont(fontPath(), d.fontSize, "OUTLINE")
     actionFS:SetShown(d.showAction)
-    infoFS:SetFont(fontPath(), math.max(9, d.fontSize - 6), "OUTLINE")
+    infoFS:SetFont(fontPath(), max(9, d.fontSize - 6), "OUTLINE")
     infoFS:SetShown(d.showNumbers)
-end
 
--- Ticks sit at a fraction of the bar measured from the RIGHT, because both
--- marks are defined as "time left before the swing", not time elapsed.
---
--- Memoised on everything that can move them: this is called once per frame, but
--- the marks only shift when the weapon speed, haste or the setting changes.
-local tickSig
-local function placeTicks(swingDur, gcd, windowStart, windowEnd)
-    local d = db()
-    if not d.showBar or not swingDur or swingDur <= 0 then return end
-    local sig = swingDur .. "|" .. gcd .. "|" .. windowStart .. "|" .. windowEnd .. "|" .. d.barWidth
-    if sig == tickSig then return end
-    tickSig = sig
-    local w = d.barWidth
-
-    local twistFrac = windowStart / swingDur
-    if twistFrac > 1 then twistFrac = 1 end
-    twistTick:ClearAllPoints()
-    twistTick:SetPoint("TOP",    bar, "TOPRIGHT",    -w * twistFrac, 0)
-    twistTick:SetPoint("BOTTOM", bar, "BOTTOMRIGHT", -w * twistFrac, 0)
-
-    -- The window has width, and with latency compensation its far edge is not
-    -- the swing itself: shade what is left of it so the size of the target is
-    -- visible, not just where it starts.
-    local endFrac = windowEnd / swingDur
-    if endFrac > twistFrac then endFrac = twistFrac end
-    local zoneW = w * (twistFrac - endFrac)
-    if zoneW < 1 then
-        twistZone:Hide()
-    else
-        twistZone:Show()
-        twistZone:ClearAllPoints()
-        twistZone:SetPoint("TOPRIGHT",    bar, "TOPRIGHT",    -w * endFrac, 0)
-        twistZone:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", -w * endFrac, 0)
-        twistZone:SetWidth(zoneW)
+    for i = 1, 2 do
+        local slot = sealSlots[i]
+        slot:SetSize(d.iconSize, d.iconSize)
+        slot:ClearAllPoints()
+        slot:SetPoint("LEFT", bar, "RIGHT", 6 + (i - 1) * (d.iconSize + 4), 0)
+        slot.time:SetFont(fontPath(), max(8, d.iconSize * 0.4), "OUTLINE")
+        -- updateSeals stops touching them when the setting is off, so they have
+        -- to be put away here or the last pair stays on screen for good.
+        if not d.showSeals then slot:Hide() end
     end
 
-    -- Latest moment a held-seal cast still finishes before the window opens.
-    local cmdFrac = (windowStart + gcd) / swingDur
-    if cmdFrac > 1 then
-        cmdTick:Hide()
-    else
-        cmdTick:Show()
-        cmdTick:ClearAllPoints()
-        cmdTick:SetPoint("TOP",    bar, "TOPRIGHT",    -w * cmdFrac, 0)
-        cmdTick:SetPoint("BOTTOM", bar, "BOTTOMRIGHT", -w * cmdFrac, 0)
+    zoneFiller:SetShown(d.showBar and d.showZones)
+    zoneDanger:SetShown(d.showBar and d.showZones)
+    zoneTwist:SetShown(d.showBar and d.showZones)
+    tickDanger:SetShown(d.showBar and d.showTicks)
+    tickTwist:SetShown(d.showBar and d.showTicks)
+    tickLate:SetShown(d.showBar and d.showTicks)
+
+    -- Everything above can move a boundary; the memo has to go with it.
+    tickSig = nil
+end
+
+-- Zones and marks sit at a fraction of the bar measured from the RIGHT, because
+-- every boundary is defined as "time left before the swing", not time elapsed.
+--
+-- Memoised on everything that can move them: this runs once per frame, but the
+-- geometry only changes when the weapon speed, haste, latency or a setting does.
+local function placeZones(swingDur, dangerStart, windowStart, lateStart)
+    local d = db()
+    if not d.showBar or not swingDur or swingDur <= 0 then return end
+    local sig = swingDur .. "|" .. dangerStart .. "|" .. windowStart .. "|"
+        .. lateStart .. "|" .. d.barWidth
+    if sig == tickSig then return end
+    tickSig = sig
+
+    local w = d.barWidth
+    local fDanger = min(dangerStart / swingDur, 1)
+    local fTwist  = min(windowStart / swingDur, 1)
+    local fLate   = min(lateStart   / swingDur, 1)
+
+    -- fromFrac and toFrac are both distances from the RIGHT edge, so a span
+    -- runs from the later boundary to the earlier one.
+    local function span(tex, fromFrac, toFrac)
+        local width = w * (fromFrac - toFrac)
+        if width < 1 then tex:Hide(); return end
+        tex:Show()
+        tex:ClearAllPoints()
+        tex:SetPoint("TOPRIGHT",    bar, "TOPRIGHT",    -w * toFrac, 0)
+        tex:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", -w * toFrac, 0)
+        tex:SetWidth(width)
+    end
+
+    local function mark(tex, frac)
+        if frac >= 1 then tex:Hide(); return end
+        tex:Show()
+        tex:ClearAllPoints()
+        tex:SetPoint("TOP",    bar, "TOPRIGHT",    -w * frac, 0)
+        tex:SetPoint("BOTTOM", bar, "BOTTOMRIGHT", -w * frac, 0)
+    end
+
+    if d.showZones then
+        span(zoneTwist,  fTwist,  0)
+        span(zoneDanger, fDanger, fTwist)
+        span(zoneFiller, 1,       fDanger)
+    end
+
+    if d.showTicks then
+        mark(tickDanger, fDanger)
+        mark(tickTwist,  fTwist)
+        -- The late mark would sit under the twist mark when both windows are
+        -- set to the same length; hiding it says more than a doubled line.
+        if lateStart >= windowStart then tickLate:Hide() else mark(tickLate, fLate) end
     end
 end
 
@@ -379,18 +515,48 @@ local ACTION_TEXT = {
     [ACTION_CS]    = "|cffffcc33%s|r",
 }
 
+-- Which seals are on the player, and for how long. Both show while the twist is
+-- in -- that overlap IS the pay-off, and seeing it is how a player confirms the
+-- twist landed instead of inferring it from a colour.
+local function updateSeals(d, now)
+    if not d.showSeals then return end
+    local n = 0
+    local function put(icon, expires)
+        n = n + 1
+        local slot = sealSlots[n]
+        if not slot then return end
+        -- Only on a change: this runs fifty times a second, and re-setting the
+        -- same texture path is the kind of small waste that adds up in a raid.
+        if slot.shown ~= icon then
+            slot.icon:SetTexture(icon)
+            slot.shown = icon
+        end
+        local left = expires and (expires - now) or 0
+        if left > 0 then
+            slot.time:SetText(format("%d", floor(left + 0.5)))
+        else
+            slot.time:SetText("")
+        end
+        slot:Show()
+    end
+    if hasHeld  then put(heldIcon,  heldExpires) end
+    if hasTwist then put(twistIcon, twistExpires) end
+    for i = n + 1, 2 do sealSlots[i]:Hide() end
+end
+
 local function onUpdate()
     local d = db()
     if not d then return end
 
     local fake = d.unlocked or ns:IsMoverEditMode()
+    local now = GetTime()
     local remaining, swingDur
 
     if fake then
-        -- A fake 2.6 s swing so the bar and both marks are visible while placing
-        -- the frame out of combat.
+        -- A fake 2.6 s swing so the bar, the zones and all three marks are
+        -- visible while placing the frame out of combat.
         swingDur = 2.6
-        remaining = swingDur - (GetTime() % swingDur)
+        remaining = swingDur - (now % swingDur)
     else
         local _, dur, active = ns:GetSwing("mainhand")
         if active and dur > 0 then
@@ -400,7 +566,27 @@ local function onUpdate()
     end
 
     local gcd = currentGCD()
-    local windowStart, windowEnd = twistWindow(d)
+    local dangerStart, windowStart, lateStart, windowEnd = bounds(d, gcd)
+
+    if d.showSpeed then
+        local speed = swingDur or UnitAttackSpeed("player")
+        if speed and speed > 0 then
+            speedFS:SetText(format("%.1f", speed))
+            -- Under two global cooldowns per swing the cycle stops fitting: the
+            -- twist and the seal going back up need one each. That is the real
+            -- cap, and because it moves with spell haste it is computed rather
+            -- than written down as a fixed 3.0.
+            if speed < 2 * gcd then
+                speedFS:SetTextColor(0.95, 0.30, 0.30)
+            else
+                speedFS:SetTextColor(0.85, 0.85, 0.90)
+            end
+        else
+            speedFS:SetText("")
+        end
+    end
+
+    updateSeals(d, now)
 
     if not remaining then
         -- Shown but not swinging: an empty bar rather than a stale one, so the
@@ -410,35 +596,39 @@ local function onUpdate()
         bar:SetStatusBarColor(COL_IDLE[1], COL_IDLE[2], COL_IDLE[3])
         actionFS:SetText("")
         if d.showNumbers then infoFS:SetText(L["waiting for a swing"]) end
-        -- Leaving this set would swallow the first beep of the next fight.
-        wasPrompting = false
+        -- Leaving these set would swallow the first cue of the next fight.
+        wasPrompting, wasLate = false, false
         return
     end
 
-    placeTicks(swingDur, gcd, windowStart, windowEnd)
+    placeZones(swingDur, dangerStart, windowStart, lateStart)
     bar:SetMinMaxValues(0, swingDur)
     bar:SetValue(swingDur - remaining)
 
-    local inWindow = remaining <= windowStart
-    local action = fake and ACTION_TWIST or decide(d, remaining, gcd, windowStart, windowEnd)
+    local zone = zoneOf(remaining, dangerStart, windowStart, lateStart, windowEnd)
+    local action = fake and ACTION_TWIST
+        or decide(d, remaining, gcd, dangerStart, windowStart, windowEnd)
+
+    -- The twist being IN outranks the zone: there is nothing left to do on this
+    -- swing, and a green bar would keep asking for a cast that would overwrite
+    -- the seal already carrying it.
+    local lost = not fake and twistLost(remaining, windowEnd)
 
     local c
-    if inWindow and not fake then
-        if hasTwist then
-            c = COL_DONE          -- the twist is in; this swing carries both
-        elseif not hasHeld then
-            c = COL_LATE          -- no held seal to twist out of: nothing to do
-        elseif remaining < windowEnd then
-            c = COL_LATE          -- too late to reach the server before the swing
-        else
-            c = COL_WINDOW        -- cast it now
-        end
-    elseif inWindow then
-        c = COL_WINDOW
-    elseif hasHeld or fake then
-        c = COL_ARMED
+    if lost then
+        c = ZONE_COLOR[Z_MISS]
+    elseif action == ACTION_TWIST and zone == Z_DANGER then
+        -- The head start puts the prompt in the last sliver of the danger zone
+        -- on purpose. Leaving the bar red there would have the two halves of the
+        -- display saying opposite things.
+        c = ZONE_COLOR[Z_TWIST]
+    elseif hasTwist and not fake and zone ~= Z_FILLER and zone ~= Z_DANGER then
+        c = COL_DONE
+    elseif zone == Z_TWIST or zone == Z_LATE then
+        -- No held seal means the window is open on nothing.
+        c = (hasHeld or fake) and ZONE_COLOR[zone] or ZONE_COLOR[Z_MISS]
     else
-        c = COL_IDLE
+        c = ZONE_COLOR[zone] or COL_IDLE
     end
     bar:SetStatusBarColor(c[1], c[2], c[3])
 
@@ -450,6 +640,13 @@ local function onUpdate()
             label = format(ACTION_TEXT[ACTION_HELD], heldName or L["Hold seal"])
         elseif action == ACTION_CS then
             label = format(ACTION_TEXT[ACTION_CS], csName or "")
+        elseif lost then
+            label = L["|cffff5555No twist this swing -- cooldown lands too late|r"]
+        elseif zone == Z_READY and not fake then
+            -- A swing that is due and stays due means auto-attack is off. It is
+            -- the classic way to lose a whole rotation without noticing, and
+            -- the bar is the only place it shows.
+            label = L["|cffffcc33Swing ready -- restart your attack|r"]
         else
             label = ""
         end
@@ -461,21 +658,27 @@ local function onUpdate()
         -- renderer and eats the character after it.
         local line = format(L["%.2fs left  -  swing %.2fs  -  GCD %.2fs"], remaining, swingDur, gcd)
         if windowEnd > 0 then
-            line = line .. format(L["  -  lag %.0fms"], windowEnd * 2000)
+            line = line .. format(L["  -  lag %.0fms"], windowEnd * 1000)
         end
         infoFS:SetText(line)
     end
 
-    -- On the prompt, not on the window: the window opens on every swing, and a
-    -- beep that fires while the twist is already up -- or while there is no held
-    -- seal to twist out of -- trains the player to ignore it.
+    -- Cues fire on the prompt, not on the zone: the window opens on every swing,
+    -- and a beep that sounds while the twist is already in -- or while there is
+    -- no held seal to twist out of -- trains the player to ignore it.
     local prompt = (action == ACTION_TWIST)
-    if d.sound and prompt and not wasPrompting and not fake then
-        local t = GetTime()
-        if t - lastSound > 0.25 then
-            lastSound = t
+    if not fake then
+        if d.sound and prompt and not wasPrompting and now - lastSound > 0.25 then
+            lastSound = now
             PlaySoundFile(WINDOW_SOUND, "Master")
         end
+        local late = prompt and zone == Z_LATE
+        if d.soundLate and late and not wasLate and now - lastLateSound > 0.25 then
+            lastLateSound = now
+            local id = SOUNDKIT and SOUNDKIT.READY_CHECK
+            if id then PlaySound(id, "Master") else PlaySoundFile(WINDOW_SOUND, "Master") end
+        end
+        wasLate = late
     end
     wasPrompting = prompt
 end
@@ -489,31 +692,42 @@ local function create()
     frame:Hide()
 
     bar = CreateFrame("StatusBar", nil, frame)
-    bar:SetPoint("TOP", frame, "TOP", 0, 0)
     bar:SetStatusBarTexture(BAR_TEX)
     bar:SetMinMaxValues(0, 1)
     bar:SetValue(0)
 
-    local bg = bar:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints(bar)
-    bg:SetTexture(BAR_TEX)
-    bg:SetVertexColor(0.08, 0.08, 0.10, 0.9)
+    barBG = bar:CreateTexture(nil, "BACKGROUND", nil, -8)
+    barBG:SetAllPoints(bar)
+    barBG:SetTexture(BAR_TEX)
+    barBG:SetVertexColor(0.08, 0.08, 0.10, 0.9)
 
-    -- ARTWORK, above the fill but below the two marks: it is a backdrop for the
-    -- window, not a line in it.
-    twistZone = bar:CreateTexture(nil, "ARTWORK")
-    twistZone:SetTexture(BAR_TEX)
-    twistZone:SetVertexColor(0.20, 0.85, 0.35, 0.18)
+    -- Zone shading sits BELOW the fill: the stretch of the swing still to come
+    -- shows which zone it runs into, while the stretch already spent is covered
+    -- by the fill in the colour of the zone the swing is in right now.
+    local function zoneTex(r, g, b)
+        local t = bar:CreateTexture(nil, "BACKGROUND", nil, -4)
+        t:SetTexture(BAR_TEX)
+        t:SetVertexColor(r, g, b, 0.30)
+        return t
+    end
+    zoneFiller = zoneTex(0.22, 0.52, 0.92)
+    zoneDanger = zoneTex(0.85, 0.20, 0.20)
+    zoneTwist  = zoneTex(0.20, 0.85, 0.35)
 
-    cmdTick = bar:CreateTexture(nil, "OVERLAY")
-    cmdTick:SetTexture(BAR_TEX)
-    cmdTick:SetVertexColor(0.70, 0.50, 1.00, 0.95)
-    cmdTick:SetWidth(2)
+    local function tickTex(r, g, b, w)
+        local t = bar:CreateTexture(nil, "OVERLAY")
+        t:SetTexture(BAR_TEX)
+        t:SetVertexColor(r, g, b, 0.95)
+        t:SetWidth(w)
+        return t
+    end
+    tickDanger = tickTex(1.00, 0.35, 0.35, 2)   -- filler ends, danger begins
+    tickTwist  = tickTex(0.25, 1.00, 0.45, 2)   -- twist window opens
+    tickLate   = tickTex(0.60, 1.00, 0.75, 1)   -- late window opens
 
-    twistTick = bar:CreateTexture(nil, "OVERLAY")
-    twistTick:SetTexture(BAR_TEX)
-    twistTick:SetVertexColor(0.25, 1.00, 0.45, 0.95)
-    twistTick:SetWidth(2)
+    speedFS = frame:CreateFontString(nil, "OVERLAY")
+    speedFS:SetPoint("RIGHT", bar, "LEFT", -6, 0)
+    speedFS:SetTextColor(0.85, 0.85, 0.90)
 
     actionFS = frame:CreateFontString(nil, "OVERLAY")
     actionFS:SetPoint("TOP", bar, "BOTTOM", 0, -4)
@@ -522,11 +736,25 @@ local function create()
     infoFS:SetPoint("TOP", actionFS, "BOTTOM", 0, -2)
     infoFS:SetTextColor(0.65, 0.65, 0.70)
 
+    for i = 1, 2 do
+        local slot = CreateFrame("Frame", nil, frame)
+        slot.icon = slot:CreateTexture(nil, "ARTWORK")
+        slot.icon:SetAllPoints(slot)
+        -- Trimmed: the client's own icon border is a fat beige ring that reads
+        -- as a different UI at this size.
+        slot.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+        slot.time = slot:CreateFontString(nil, "OVERLAY")
+        slot.time:SetPoint("BOTTOM", slot, "BOTTOM", 0, 1)
+        slot.time:SetTextColor(1, 1, 1)
+        slot:Hide()
+        sealSlots[i] = slot
+    end
+
     frame.mover = ns:CreateMover(frame, {
         key    = "sealtwist",
         label  = L["|cffffffffSEAL TWIST|r\n|cffaaaaaaDrag or arrow keys|r"],
         db     = d,
-        width  = math.max(d.barWidth + 40, 200),
+        width  = max(d.barWidth + 120, 240),
         height = 90,
         onMove = function(x, y)
             ns:Print(format(L["Seal Twist position: x=%.0f, y=%.0f"], x, y))
@@ -641,7 +869,8 @@ local function getOptions()
     local items = {}
 
     table.insert(items, { type = "header", text = L["Seal Twist"] })
-    table.insert(items, { type = "desc", text = L["|cffaaaaaaHold Seal of Command, then cast the second seal in the last fraction of a second before your auto-attack: that swing carries both. The bar counts down to the swing, the |cff33ff66green zone|r is the twist window and the |cffb388ffpurple mark|r is the last moment a cast of the held seal still fits in front of it. Below level 64 the second seal is Righteousness; Blood and the Martyr replace it from there.|r"] })
+    table.insert(items, { type = "desc", text = L["|cffaaaaaaHold Seal of Command, then cast the second seal in the last fraction of a second before your auto-attack: that swing carries both. Below level 64 the second seal is Righteousness; Blood and the Martyr replace it from there.|r"] })
+    table.insert(items, { type = "desc", text = L["|cffaaaaaaThe bar counts down to the swing in zones: |cff5c8aebblue|r is free for a filler, |cffd93636red|r is the stretch where a cast would still be on the global cooldown when the window opens, and |cff33ff66green|r is the twist window. The last mark inside the green is the late twist, which leaves room for a judgement in front of the seal.|r"] })
 
     if select(2, UnitClass("player")) ~= "PALADIN" then
         table.insert(items, { type = "desc", text = L["|cffff8800Only active while playing a Paladin.|r"] })
@@ -683,7 +912,7 @@ local function getOptions()
     table.insert(items, { type = "spacer", height = 6 })
     table.insert(items, { type = "header", text = L["Seals"] })
     table.insert(items, { type = "dropdown", label = L["Seal you hold"],
-        desc = L["Only Seal of Command and Seal of Righteousness work here: they are the two whose effect still lands on the swing that replaces them."],
+        tooltip = L["Only Seal of Command and Seal of Righteousness work here: they are the two whose effect still lands on the swing that replaces them."],
         values = sealValues(),
         get = function() return d.heldSeal end,
         set = function(_, v)
@@ -714,26 +943,65 @@ local function getOptions()
     table.insert(items, { type = "header", text = L["Timing"] })
     table.insert(items, { type = "slider", label = L["Twist window (seconds)"],
         min = 0.20, max = 0.70, step = 0.01, decimals = 2,
-        desc = L["How far before the swing the second seal has to land. 0.40 is the usual figure; raise it if your latency makes you miss the window."],
+        tooltip = L["How far before the swing the second seal has to land. 0.40 is the usual figure; raise it if your latency makes you miss the window."],
         get = function() return d.window end,
-        set = function(_, v) d.window = v end })
+        set = function(_, v) d.window = v; layout() end })
+    table.insert(items, { type = "slider", label = L["Late twist window (seconds)"],
+        min = 0.05, max = 0.40, step = 0.01, decimals = 2,
+        tooltip = L["The tail of the twist window, marked separately. Twisting that late still leaves room for a judgement in front of the seal. Set it as long as the twist window to hide the mark."],
+        get = function() return d.lateWindow end,
+        set = function(_, v) d.lateWindow = v; layout() end })
     table.insert(items, { type = "toggle", label = L["Compensate for latency"],
-        desc = L["Opens the window earlier by one trip to the server, and closes it once the cast can no longer arrive before the swing. Uses your measured world latency, capped at 250 ms."],
+        tooltip = L["Pulls the window ahead of the swing far enough for the cast to reach the server inside it, and closes it once it no longer can. Measured from your world latency, capped at 250 ms."],
         get = function() return d.latency end,
-        set = function(_, v) d.latency = v and true or false end })
+        set = function(_, v) d.latency = v and true or false; layout() end })
+    table.insert(items, { type = "slider", label = L["Head start for the prompt (ms)"],
+        min = 0, max = 300, step = 10,
+        tooltip = L["Shows the twist prompt and plays its cue this far before the window actually opens, so there is time to see it and press. The colours on the bar stay exact."],
+        get = function() return d.reaction end,
+        set = function(_, v) d.reaction = v end })
     table.insert(items, { type = "toggle", label = L["Suggest Crusader Strike"],
-        desc = L["Prompts Crusader Strike when it is ready and there is room for it plus the Command cast before the window opens."],
+        tooltip = L["Prompts Crusader Strike when it is ready and there is room for it plus the Command cast before the window opens."],
         get = function() return d.useCS end,
         set = function(_, v) d.useCS = v and true or false end })
     table.insert(items, { type = "toggle", label = L["Sound when the window opens"],
         get = function() return d.sound end,
-        set = function(_, v) d.sound = v and true or false end })
+        set = function(_, v) d.sound = v and true or false end,
+        subOptions = {
+            { type = "toggle", label = L["Second cue for the late window"],
+              tooltip = L["A different sound at the late twist mark, so the two ends of the window can be told apart without looking at the bar."],
+              get = function() return d.soundLate end,
+              set = function(_, v) d.soundLate = v and true or false end },
+        } })
 
     table.insert(items, { type = "spacer", height = 6 })
     table.insert(items, { type = "header", text = L["Display"] })
     table.insert(items, { type = "toggle", label = L["Show swing bar"],
         get = function() return d.showBar end,
-        set = function(_, v) d.showBar = v and true or false; layout() end })
+        set = function(_, v) d.showBar = v and true or false; layout() end,
+        subOptions = {
+            { type = "toggle", label = L["Shade the zones"],
+              tooltip = L["Tints the part of the swing still to come in the colour of the zone it runs into."],
+              get = function() return d.showZones end,
+              set = function(_, v) d.showZones = v and true or false; layout() end },
+            { type = "toggle", label = L["Show the marks"],
+              tooltip = L["The three boundary lines: danger zone, twist window, late twist."],
+              get = function() return d.showTicks end,
+              set = function(_, v) d.showTicks = v and true or false; layout() end },
+        } })
+    table.insert(items, { type = "toggle", label = L["Show attack speed"],
+        tooltip = L["Your current weapon speed, left of the bar. It turns red below two global cooldowns per swing -- under that the twist and the seal going back up no longer both fit, so wait for the cooldown before twisting."],
+        get = function() return d.showSpeed end,
+        set = function(_, v) d.showSpeed = v and true or false; layout() end })
+    table.insert(items, { type = "toggle", label = L["Show seal indicators"],
+        tooltip = L["The seals currently on you and how long they last, right of the bar. Both show while the twist is in -- that overlap is the pay-off."],
+        get = function() return d.showSeals end,
+        set = function(_, v) d.showSeals = v and true or false; layout() end,
+        subOptions = {
+            { type = "slider", label = L["Seal icon size"], min = 14, max = 48, step = 1,
+              get = function() return d.iconSize end,
+              set = function(_, v) d.iconSize = v; layout() end },
+        } })
     table.insert(items, { type = "toggle", label = L["Show next action"],
         get = function() return d.showAction end,
         set = function(_, v) d.showAction = v and true or false; layout() end })
@@ -741,7 +1009,7 @@ local function getOptions()
         get = function() return d.showNumbers end,
         set = function(_, v) d.showNumbers = v and true or false; layout() end })
     table.insert(items, { type = "toggle", label = L["Show out of combat"],
-        desc = L["Normally the bar is only up in combat. Switch this on to keep it on screen, which is the easier way to practise the timing on a dummy."],
+        tooltip = L["Normally the bar is only up in combat. Switch this on to keep it on screen, which is the easier way to practise the timing on a dummy."],
         get = function() return d.showOOC end,
         set = function(_, v) d.showOOC = v and true or false; applyVisibility() end })
     table.insert(items, { type = "slider", label = L["Bar width"], min = 120, max = 400, step = 10,
