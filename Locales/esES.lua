@@ -2734,6 +2734,14 @@ local function T() return {
     ["Pulls the window ahead of the swing far enough for the cast to reach the server inside it, and closes it once it no longer can. Measured from your world latency, capped at 250 ms."] = "Adelanta la ventana lo suficiente para que el lanzamiento llegue al servidor dentro de ella, y la cierra en cuanto ya no puede. Se calcula con tu latencia mundial, con un tope de 250 ms.",
     ["Head start for the prompt (ms)"] = "Adelanto del aviso (ms)",
     ["Shows the twist prompt and plays its cue this far before the window actually opens, so there is time to see it and press. The colours on the bar stay exact."] = "Muestra el aviso de cambio y reproduce su sonido este tiempo antes de que la ventana se abra de verdad, para que dé tiempo a verlo y pulsar. Los colores de la barra siguen siendo exactos.",
+    ["auto"] = "Auto",
+    ["Twist only"] = "Solo cambio",
+    ["Rotation"] = "Rotación",
+    ["Show the rotation helper"] = "Mostrar la ayuda de rotación",
+    ["A row of steps above the bar: which sequence fits your weapon and haste, and where in it you are. It steps forward on what you actually cast and on your swings."] = "Una fila de pasos encima de la barra: qué secuencia encaja con tu arma y tu celeridad, y en qué punto de ella estás. Avanza con lo que lanzas de verdad y con tus golpes.",
+    ["Sequence"] = "Secuencia",
+    ["Automatic follows your attack speed and spell haste, which is what decides how many twists fit between two strikes. Pick one by hand to drill a single sequence."] = "Automática sigue tu velocidad de ataque y tu celeridad de hechizos, que son las que deciden cuántos cambios caben entre dos golpes. Elige una a mano para practicar una sola secuencia.",
+    ["Rotation icon size"] = "Tamaño de los iconos de rotación",
 } end
 
 ns:RegisterLocale("esES", T)

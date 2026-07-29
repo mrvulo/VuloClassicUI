@@ -2882,4 +2882,12 @@ ns:RegisterLocale("frFR", function() return {
     ["Pulls the window ahead of the swing far enough for the cast to reach the server inside it, and closes it once it no longer can. Measured from your world latency, capped at 250 ms."] = "Avance la fenêtre juste assez pour que le lancement atteigne le serveur a l'intérieur, et la referme des que ce n'est plus possible. Calculée sur votre latence monde, plafonnée à 250 ms.",
     ["Head start for the prompt (ms)"] = "Avance du signal (ms)",
     ["Shows the twist prompt and plays its cue this far before the window actually opens, so there is time to see it and press. The colours on the bar stay exact."] = "Affiche le signal de bascule et joue son son ce laps de temps avant l'ouverture réelle de la fenêtre, pour laisser le temps de le voir et d'appuyer. Les couleurs de la barre restent exactes.",
+    ["auto"] = "Auto",
+    ["Twist only"] = "Bascule seule",
+    ["Rotation"] = "Rotation",
+    ["Show the rotation helper"] = "Afficher l'aide de rotation",
+    ["A row of steps above the bar: which sequence fits your weapon and haste, and where in it you are. It steps forward on what you actually cast and on your swings."] = "Une rangée d'étapes au-dessus de la barre : quelle séquence correspond à votre arme et à votre hâte, et où vous en êtes. Elle avance selon ce que vous lancez réellement et selon vos coups.",
+    ["Sequence"] = "Séquence",
+    ["Automatic follows your attack speed and spell haste, which is what decides how many twists fit between two strikes. Pick one by hand to drill a single sequence."] = "Automatique suit votre vitesse d'attaque et votre hâte de sorts, qui déterminent combien de bascules tiennent entre deux frappes. Choisissez-en une à la main pour travailler une seule séquence.",
+    ["Rotation icon size"] = "Taille des icônes de rotation",
 } end)

@@ -2733,4 +2733,12 @@ ns:RegisterLocale("ptBR", function() return {
     ["Pulls the window ahead of the swing far enough for the cast to reach the server inside it, and closes it once it no longer can. Measured from your world latency, capped at 250 ms."] = "Adianta a janela o bastante para o lançamento chegar ao servidor dentro dela, e a fecha assim que isso deixa de ser possível. Calculada pela sua latência de mundo, limitada a 250 ms.",
     ["Head start for the prompt (ms)"] = "Antecipação do aviso (ms)",
     ["Shows the twist prompt and plays its cue this far before the window actually opens, so there is time to see it and press. The colours on the bar stay exact."] = "Mostra o aviso de troca e toca o som este tanto antes de a janela abrir de fato, para dar tempo de ver e apertar. As cores da barra continuam exatas.",
+    ["auto"] = "Auto",
+    ["Twist only"] = "Só a troca",
+    ["Rotation"] = "Rotação",
+    ["Show the rotation helper"] = "Mostrar o auxílio de rotação",
+    ["A row of steps above the bar: which sequence fits your weapon and haste, and where in it you are. It steps forward on what you actually cast and on your swings."] = "Uma fileira de passos acima da barra: qual sequência combina com sua arma e sua aceleração, e em que ponto dela você está. Ela avança pelo que você realmente lança e pelos seus golpes.",
+    ["Sequence"] = "Sequência",
+    ["Automatic follows your attack speed and spell haste, which is what decides how many twists fit between two strikes. Pick one by hand to drill a single sequence."] = "Automática segue sua velocidade de ataque e sua aceleração de magia, que são o que decide quantas trocas cabem entre dois golpes. Escolha uma na mão para treinar uma sequência só.",
+    ["Rotation icon size"] = "Tamanho dos ícones de rotação",
 } end)

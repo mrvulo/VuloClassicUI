@@ -2733,4 +2733,12 @@ ns:RegisterLocale("koKR", function() return {
     ["Pulls the window ahead of the swing far enough for the cast to reach the server inside it, and closes it once it no longer can. Measured from your world latency, capped at 250 ms."] = "시전이 구간 안에서 서버에 도달할 만큼 구간을 앞당기고, 더 이상 불가능해지면 닫습니다. 월드 지연 시간을 기준으로 하며 250ms로 제한합니다.",
     ["Head start for the prompt (ms)"] = "알림 미리 보기(밀리초)",
     ["Shows the twist prompt and plays its cue this far before the window actually opens, so there is time to see it and press. The colours on the bar stay exact."] = "구간이 실제로 열리기 이만큼 전에 교체 알림과 소리를 냅니다. 보고 누를 시간을 벌기 위해서입니다. 막대의 색은 정확한 시점 그대로입니다.",
+    ["auto"] = "자동 공격",
+    ["Twist only"] = "교체만",
+    ["Rotation"] = "로테이션",
+    ["Show the rotation helper"] = "로테이션 도우미 표시",
+    ["A row of steps above the bar: which sequence fits your weapon and haste, and where in it you are. It steps forward on what you actually cast and on your swings."] = "막대 위에 단계를 한 줄로 보여줍니다. 무기 속도와 가속에 맞는 순서가 무엇이고, 지금 그 안 어디에 있는지 알려줍니다. 실제로 시전한 주문과 공격에 따라 다음 단계로 넘어갑니다.",
+    ["Sequence"] = "순서",
+    ["Automatic follows your attack speed and spell haste, which is what decides how many twists fit between two strikes. Pick one by hand to drill a single sequence."] = "자동은 공격 속도와 주문 가속을 따릅니다. 두 번의 타격 사이에 교체가 몇 번 들어가는지는 그 둘이 결정합니다. 하나만 연습하려면 직접 고르십시오.",
+    ["Rotation icon size"] = "로테이션 아이콘 크기",
 } end)

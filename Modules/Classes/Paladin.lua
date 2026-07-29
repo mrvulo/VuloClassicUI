@@ -65,6 +65,9 @@ local DEFAULTS = {
     showTicks   = true,
     showSpeed   = true,   -- attack speed, red under the twisting cap
     showSeals   = true,   -- which seals are on you, and for how long
+    showRotation = true,  -- the sequence row above the bar
+    rotation    = "auto", -- or one of ROT_ORDER, chosen by hand
+    rotIconSize = 24,
     showAction  = true,
     showNumbers = true,
     showOOC     = false,  -- keep the bar up between fights
@@ -137,11 +140,13 @@ local COL_DONE = { 0.14, 0.45, 0.22 }   -- twist already in, swing carries both
 local frame, bar, barBG
 local zoneFiller, zoneDanger, zoneTwist
 local tickDanger, tickTwist, tickLate
-local speedFS, actionFS, infoFS
+local speedFS, actionFS, infoFS, rotLabel
 local sealSlots = {}
+local rotIcons  = {}
 
 local sealNames        = {}     -- ordered list of seal names this character knows
 local heldName, twistName, csName
+local heldTex, twistTex, csTex
 local hasHeld, hasTwist = false, false
 local heldIcon, twistIcon
 local heldExpires, twistExpires
@@ -245,6 +250,13 @@ local function pickDefaults()
     heldName  = (d.heldSeal  ~= "") and d.heldSeal  or nil
     twistName = (d.twistSeal ~= "") and d.twistSeal or nil
     csName = spellKnown(CRUSADER_STRIKE)
+
+    -- Icons for the rotation row. Taken from the spellbook rather than from the
+    -- buff sweep, which only has them while the seal is actually up -- the row
+    -- has to draw the step BEFORE you cast it.
+    heldTex  = heldName  and select(3, GetSpellInfo(heldName))  or nil
+    twistTex = twistName and select(3, GetSpellInfo(twistName)) or nil
+    csTex    = csName    and select(3, GetSpellInfo(csName))    or nil
 end
 
 -- ---------------------------------------------------------------- live state
@@ -395,6 +407,142 @@ local function decide(d, r, gcd, dangerStart, windowStart, windowEnd)
     return ACTION_NONE
 end
 
+-- ---------------------------------------------------------------- rotation
+--
+-- One twist per swing is only the picture for a slow weapon. As the weapon and
+-- the spell haste change, the number of twists that fit between two Crusader
+-- Strikes changes with them, and the useful shape becomes a short repeating
+-- sequence rather than a single next step. Eight of them cover the range, and
+-- which one applies follows from attack speed and the current global cooldown --
+-- so the helper picks it rather than asking.
+--
+-- The names are the ones players use: twists over swings. The last one has no
+-- fraction because at that speed there is nothing to divide -- the seal simply
+-- stays up and Crusader Strike goes in whenever it is ready.
+local R_CS, R_TWIST, R_CS_LATE, R_AUTO_T, R_AUTO_H = 1, 2, 3, 4, 5
+
+local ROT_ORDER = { "1/2", "2/3", "2/2/5", "2/4", "1/3", "2/5", "2/5h", "ride" }
+local ROT_STEPS = {
+    ["1/2"]   = { R_CS, R_TWIST },
+    ["2/3"]   = { R_CS, R_TWIST, R_TWIST },
+    ["2/2/5"] = { R_CS, R_TWIST, R_CS_LATE, R_AUTO_T, R_TWIST },
+    ["2/4"]   = { R_CS, R_TWIST, R_AUTO_T, R_TWIST },
+    ["1/3"]   = { R_CS, R_AUTO_T, R_TWIST },
+    ["2/5"]   = { R_CS, R_AUTO_T, R_TWIST, R_AUTO_T, R_TWIST },
+    ["2/5h"]  = { R_CS, R_AUTO_H, R_TWIST, R_AUTO_H, R_TWIST },
+    ["ride"]  = { R_AUTO_T, R_CS },
+}
+-- No Crusader Strike, no sequence: every swing is simply a twist, which is the
+-- whole rotation for a paladin who has not taken the talent.
+local ROT_SIMPLE = { R_TWIST }
+local ROT_MAX_STEPS = 5
+
+local rotKey, rotStep = nil, 1
+local rotSteps = ROT_SIMPLE
+local rotDirty = true
+
+-- The ladder, top to bottom: the first line that fits wins. The thresholds are
+-- weapon speeds in seconds, and the ones written against the global cooldown
+-- move with spell haste instead of standing still.
+local function pickRotation(speed, gcd)
+    if not csName then return nil end
+    local haste = GCD_MAX - gcd
+    if speed > 2.6 then return "1/2" end
+    if speed >= max(1.9, 2 * gcd - 0.35) and haste > 0.1 then return "2/3" end
+    if speed >= 2.4 or (speed >= 2.3 and haste > 0.05) then return "2/2/5" end
+    if speed >= max(1.5, 1.5 * gcd + 0.05) and haste > 0.1 then return "2/4" end
+    if speed >= 1.9 then return "1/3" end
+    if speed >= gcd + 0.07 then return "2/5" end
+    if speed > 1.0 then return "2/5h" end
+    return "ride"
+end
+
+local function rotAdvance()
+    rotStep = rotStep + 1
+    if rotStep > #rotSteps then rotStep = 1 end
+end
+
+local function updateRotation(d, speed, gcd)
+    -- No weapon, no speed, no sequence: the ladder would read a zero as the
+    -- fastest case there is and land on the last line.
+    if not speed or speed <= 0 then return end
+    local key
+    if d.rotation ~= "auto" and ROT_STEPS[d.rotation] and csName then
+        key = d.rotation
+    else
+        key = pickRotation(speed, gcd)
+    end
+    if key == rotKey then return end
+    -- A rotation that changes mid-fight (drums, a weapon swap) starts over: the
+    -- step counter of the old sequence means nothing in the new one.
+    rotKey   = key
+    rotSteps = key and ROT_STEPS[key] or ROT_SIMPLE
+    rotStep  = 1
+    rotDirty = true
+end
+
+-- What the player actually did decides where in the sequence they are. Casting
+-- is the only honest signal for the two spell steps; the swing tracker is the
+-- one for the auto steps.
+local function rotOnCast(spellName)
+    local cur = rotSteps[rotStep]
+    if csName and spellName == csName then
+        if cur == R_CS or cur == R_CS_LATE then
+            rotAdvance()
+        else
+            -- Struck out of turn: the sequence always resumes right after its
+            -- Crusader Strike, wherever that leaves us.
+            rotStep = min(2, #rotSteps)
+        end
+    elseif twistName and spellName == twistName then
+        if cur == R_TWIST then rotAdvance() end
+    end
+end
+
+local function rotOnSwing(hand)
+    if hand ~= "mainhand" then return end
+    local cur = rotSteps[rotStep]
+    if cur == R_AUTO_T or cur == R_AUTO_H then rotAdvance() end
+end
+
+-- The spell name each step points at, and the tint that says which seal carries
+-- the swing on an auto step -- that is the only thing separating the two.
+local ATTACK_ICON = "Interface\\ICONS\\INV_Sword_04"
+local ROT_TINT = {
+    [R_AUTO_T] = { 0.45, 1.00, 0.60 },
+    [R_AUTO_H] = { 0.75, 0.60, 1.00 },
+}
+
+-- An auto step deliberately does NOT show the seal icon: the twist step already
+-- has it, and two identical pictures a colour apart is the sort of row that
+-- gets misread in the middle of a fight. The swing gets the attack icon, and
+-- the tint says which seal it lands with.
+local function stepTexture(step)
+    if step == R_CS or step == R_CS_LATE then return csTex end
+    if step == R_TWIST then return twistTex end
+    return (GetSpellTexture and GetSpellTexture(6603)) or ATTACK_ICON
+end
+
+local function stepIsAuto(step)
+    return step == R_AUTO_T or step == R_AUTO_H
+end
+
+-- Reads as a line of spell names, built from what the client already calls
+-- them. Only the word for a swing needs translating.
+local function rotationText(key)
+    local steps = key and ROT_STEPS[key] or ROT_SIMPLE
+    local out
+    for i = 1, #steps do
+        local s = steps[i]
+        local word
+        if s == R_CS or s == R_CS_LATE then word = csName or "?"
+        elseif s == R_TWIST then word = twistName or "?"
+        else word = L["auto"] end
+        out = out and (out .. " > " .. word) or word
+    end
+    return out or ""
+end
+
 -- ---------------------------------------------------------------- appearance
 
 -- What the side pieces claim, so the bar keeps its configured width whether
@@ -405,12 +553,37 @@ local function sideWidths(d)
     return leftW, rightW
 end
 
+-- Height the rotation row claims above the bar.
+local function rowHeight(d)
+    return d.showRotation and (d.rotIconSize + 4) or 0
+end
+
+-- Steps are laid out from the middle of the bar, so a sequence that grows or
+-- shrinks stays centred instead of walking off one end.
+local function placeRotation(d)
+    if not rotIcons[1] then return end
+    local n = min(#rotSteps, ROT_MAX_STEPS)
+    local size, gap = d.rotIconSize, 3
+    local span = n * size + (n - 1) * gap
+    for i = 1, ROT_MAX_STEPS do
+        local ico = rotIcons[i]
+        ico:SetSize(size, size)
+        ico:ClearAllPoints()
+        ico:SetPoint("BOTTOMLEFT", bar, "TOPLEFT",
+            (d.barWidth - span) / 2 + (i - 1) * (size + gap), 4)
+    end
+    rotLabel:ClearAllPoints()
+    rotLabel:SetPoint("RIGHT", bar, "TOPLEFT", (d.barWidth - span) / 2 - 6, 4 + size / 2)
+    rotDirty = false
+end
+
 local function layout()
     local d = db()
     if not frame or not d then return end
 
     local leftW, rightW = sideWidths(d)
-    local h = d.barHeight
+    local rowH = rowHeight(d)
+    local h = d.barHeight + rowH
     if d.showAction  then h = h + d.fontSize + 4 end
     if d.showNumbers then h = h + max(9, d.fontSize - 6) + 2 end
     h = h + 6
@@ -421,9 +594,16 @@ local function layout()
     frame:SetPoint("CENTER", UIParent, "CENTER", d.x, d.y)
 
     bar:ClearAllPoints()
-    bar:SetPoint("TOPLEFT", frame, "TOPLEFT", leftW, 0)
+    bar:SetPoint("TOPLEFT", frame, "TOPLEFT", leftW, -rowH)
     bar:SetSize(d.barWidth, d.barHeight)
     bar:SetShown(d.showBar)
+
+    rotLabel:SetFont(fontPath(), max(9, d.rotIconSize * 0.5), "OUTLINE")
+    rotLabel:SetShown(d.showRotation)
+    for i = 1, ROT_MAX_STEPS do
+        if not d.showRotation then rotIcons[i]:Hide() end
+    end
+    placeRotation(d)
 
     speedFS:SetFont(fontPath(), max(9, d.fontSize - 4), "OUTLINE")
     speedFS:SetShown(d.showSpeed)
@@ -544,6 +724,37 @@ local function updateSeals(d, now)
     for i = n + 1, 2 do sealSlots[i]:Hide() end
 end
 
+-- The step you are on is the only one at full strength; the rest of the
+-- sequence stays visible but drained, so the row reads as "here, then this".
+local function updateRotationDisplay(d)
+    if not d.showRotation then return end
+    if rotDirty then placeRotation(d) end
+    rotLabel:SetText(rotKey or L["Twist only"])
+    for i = 1, ROT_MAX_STEPS do
+        local ico = rotIcons[i]
+        local step = rotSteps[i]
+        if not step then
+            ico:Hide()
+        else
+            local tex = stepTexture(step)
+            if ico.shown ~= tex then
+                ico.icon:SetTexture(tex)
+                ico.shown = tex
+            end
+            local current = (i == rotStep)
+            local tint = ROT_TINT[step]
+            if tint then
+                ico.icon:SetVertexColor(tint[1], tint[2], tint[3])
+            else
+                ico.icon:SetVertexColor(1, 1, 1)
+            end
+            ico.icon:SetAlpha(current and 1 or 0.35)
+            ico.edge:SetShown(current)
+            ico:Show()
+        end
+    end
+end
+
 local function onUpdate()
     local d = db()
     if not d then return end
@@ -587,6 +798,11 @@ local function onUpdate()
     end
 
     updateSeals(d, now)
+
+    if d.showRotation then
+        updateRotation(d, swingDur or UnitAttackSpeed("player") or 0, gcd)
+        updateRotationDisplay(d)
+    end
 
     if not remaining then
         -- Shown but not swinging: an empty bar rather than a stale one, so the
@@ -736,6 +952,24 @@ local function create()
     infoFS:SetPoint("TOP", actionFS, "BOTTOM", 0, -2)
     infoFS:SetTextColor(0.65, 0.65, 0.70)
 
+    rotLabel = frame:CreateFontString(nil, "OVERLAY")
+    rotLabel:SetTextColor(0.75, 0.70, 0.85)
+
+    for i = 1, ROT_MAX_STEPS do
+        local ico = CreateFrame("Frame", nil, frame)
+        ico.edge = ico:CreateTexture(nil, "BACKGROUND")
+        ico.edge:SetPoint("TOPLEFT", ico, "TOPLEFT", -2, 2)
+        ico.edge:SetPoint("BOTTOMRIGHT", ico, "BOTTOMRIGHT", 2, -2)
+        ico.edge:SetTexture(BAR_TEX)
+        ico.edge:SetVertexColor(0.61, 0.42, 1.00, 0.9)
+        ico.edge:Hide()
+        ico.icon = ico:CreateTexture(nil, "ARTWORK")
+        ico.icon:SetAllPoints(ico)
+        ico.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+        ico:Hide()
+        rotIcons[i] = ico
+    end
+
     for i = 1, 2 do
         local slot = CreateFrame("Frame", nil, frame)
         slot.icon = slot:CreateTexture(nil, "ARTWORK")
@@ -811,13 +1045,28 @@ end
 -- Holding the tracker keeps a COMBAT_LOG_EVENT_UNFILTERED listener alive, so a
 -- paladin who turned the helper off -- or who has no seal to twist in -- should
 -- not be paying for it.
+-- One callback for both jobs: the swing decides whether the bar is up at all,
+-- and it is also what steps the rotation past an auto.
+local function onSwing(hand)
+    applyVisibility()
+    rotOnSwing(hand)
+end
+
 local function syncTracker()
     local d = db()
     if d and d.enabled and heldName and twistName then
-        ns:AcquireSwingTracker("sealtwist", applyVisibility)
+        ns:AcquireSwingTracker("sealtwist", onSwing)
     else
         ns:ReleaseSwingTracker("sealtwist")
     end
+end
+
+local function onCastSucceeded(_, unit, _, spellID)
+    if unit ~= "player" then return end
+    local d = db()
+    if not d or not d.showRotation then return end
+    local name = spellID and GetSpellInfo(spellID)
+    if name then rotOnCast(name) end
 end
 
 local function onSpellsChanged()
@@ -845,6 +1094,9 @@ local function onEnable()
     -- swing tracker having anything to say about it.
     csMod:RegisterEvent("PLAYER_REGEN_DISABLED", applyVisibility)
     csMod:RegisterEvent("PLAYER_REGEN_ENABLED", applyVisibility)
+    -- What the player cast is the only honest way to know where in the sequence
+    -- they are; guessing from auras would count a seal that fell off as a step.
+    csMod:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED", onCastSucceeded)
     applyVisibility()
 end
 
@@ -862,6 +1114,17 @@ local function sealValues()
     local out = {}
     for _, n in ipairs(sealNames) do out[#out + 1] = { value = n, text = n } end
     if #out == 0 then out[1] = { value = "", text = L["(no seals learned)"] } end
+    return out
+end
+
+-- Each entry carries its own sequence in the text: the fraction alone means
+-- nothing to somebody meeting it for the first time.
+local function rotationValues()
+    local out = { { value = "auto", text = L["Automatic"] } }
+    if not csName then return out end
+    for _, key in ipairs(ROT_ORDER) do
+        out[#out + 1] = { value = key, text = key .. "  -  " .. rotationText(key) }
+    end
     return out
 end
 
@@ -972,6 +1235,23 @@ local function getOptions()
               tooltip = L["A different sound at the late twist mark, so the two ends of the window can be told apart without looking at the bar."],
               get = function() return d.soundLate end,
               set = function(_, v) d.soundLate = v and true or false end },
+        } })
+
+    table.insert(items, { type = "spacer", height = 6 })
+    table.insert(items, { type = "header", text = L["Rotation"] })
+    table.insert(items, { type = "toggle", label = L["Show the rotation helper"],
+        tooltip = L["A row of steps above the bar: which sequence fits your weapon and haste, and where in it you are. It steps forward on what you actually cast and on your swings."],
+        get = function() return d.showRotation end,
+        set = function(_, v) d.showRotation = v and true or false; layout() end,
+        subOptions = {
+            { type = "dropdown", label = L["Sequence"], width = 300,
+              tooltip = L["Automatic follows your attack speed and spell haste, which is what decides how many twists fit between two strikes. Pick one by hand to drill a single sequence."],
+              values = rotationValues(),
+              get = function() return d.rotation end,
+              set = function(_, v) d.rotation = v; layout() end },
+            { type = "slider", label = L["Rotation icon size"], min = 14, max = 48, step = 1,
+              get = function() return d.rotIconSize end,
+              set = function(_, v) d.rotIconSize = v; layout() end },
         } })
 
     table.insert(items, { type = "spacer", height = 6 })

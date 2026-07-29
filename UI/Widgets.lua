@@ -227,11 +227,34 @@ end
 
 -- Pooled widgets are reused with a new _vcConfig, so the tooltip text has to be
 -- read at hover time. Every widget below builds its spec through this.
+-- A row label lives in a measured column and is cut when the translation runs
+-- long -- German option names do that regularly. When it has been cut, the full
+-- name leads the tooltip and the explanation follows it; a row whose label
+-- fits is left exactly as it was.
+--
+-- GetStringWidth reports what the text NEEDS, GetWidth what the column gave it,
+-- so the comparison is the truncation test without having to reproduce the
+-- client's ellipsis logic. One pixel of slack, because the two disagree by
+-- about that much on a string that only just fits.
+local function labelClipped(fs)
+    if not fs or not fs:IsShown() then return nil end
+    local text = fs:GetText()
+    if not text or text == "" then return nil end
+    local room = fs:GetWidth() or 0
+    if room <= 0 then return nil end
+    if (fs:GetStringWidth() or 0) <= room + 1 then return nil end
+    return text
+end
+
 local function configTip(self)
     local cfg = self._vcConfig
     local text = cfg and cfg.tooltip
-    if not text then return nil end
-    return { title = text, wrap = true }
+    local full = labelClipped(self._label or self._labelFS)
+    if not text then
+        return full and { title = full, wrap = true } or nil
+    end
+    if not full then return { title = text, wrap = true } end
+    return { title = full, wrap = true, lines = { { text, nil, nil, nil, true } } }
 end
 
 local function tooltipShow(self) UI:ShowTooltip(self, configTip(self)) end
@@ -1049,17 +1072,62 @@ local function ensurePopupFrame()
     return p
 end
 
+-- Off-screen ruler for the entries. A FontString that is anchored on both sides
+-- reports the width it WOULD need, but only reliably while it is shown and
+-- laid out -- a free-standing one with no anchors is the honest measuring tape,
+-- and it costs one FontString for the whole addon.
+local popupRuler
+local function measureItem(text)
+    if not popupRuler then
+        popupRuler = UIParent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+        UI.Font(popupRuler, 12)
+        popupRuler:Hide()
+    end
+    popupRuler:SetText(text or "")
+    return (popupRuler:GetStringWidth() or 0)
+end
+
+-- The menu is as wide as its longest entry, not as wide as the button that
+-- opened it. A closed dropdown has to fit a page column; the open list does
+-- not, and clipping "Seal of Righteousness" to "Seal of R..." in the one place
+-- where the whole point is to compare the choices is the wrong trade.
+--
+-- ITEM_PAD is the 18px check column plus the 8px right inset plus a little
+-- slack: GetStringWidth and the drawn glyph run disagree by a pixel or two, and
+-- being short by one drops the last letter.
+local ITEM_PAD    = 34
+local POPUP_MAX_W = 460
+
+local function popupWidth(button, values)
+    local w = button:GetWidth() or 0
+    for _, opt in ipairs(values) do
+        local need = measureItem(clean(L[opt.text])) + ITEM_PAD
+        if need > w then w = need end
+    end
+    local room = (UIParent:GetWidth() or 1024) - 40
+    return math.min(w, math.min(POPUP_MAX_W, room))
+end
+
 local function openPopup(button, config)
     local p = ensurePopupFrame()
     p._owner = button
 
     local values = config.values or {}
     local itemHeight = 24
-    local width  = button:GetWidth()
+    local width  = popupWidth(button, values)
     local height = #values * itemHeight + 4
 
+    -- Grown to the right by default. When that would run off the screen, the
+    -- menu hangs from the button's right edge instead and grows to the left --
+    -- a dropdown near the window's right edge is the normal case on this page,
+    -- not an exception.
     p:ClearAllPoints()
-    p:SetPoint("TOPLEFT", button, "BOTTOMLEFT", 0, -2)
+    local left = button:GetLeft() or 0
+    if left + width > (UIParent:GetWidth() or 1024) - 8 then
+        p:SetPoint("TOPRIGHT", button, "BOTTOMRIGHT", 0, -2)
+    else
+        p:SetPoint("TOPLEFT", button, "BOTTOMLEFT", 0, -2)
+    end
     p:SetSize(width, height)
 
     for _, item in ipairs(p._items) do item:Hide() end
@@ -1095,8 +1163,20 @@ local function openPopup(button, config)
             fs:SetWordWrap(false)
             item._text = fs
 
-            item:SetScript("OnEnter", function(self) self._hover:Show() end)
-            item:SetScript("OnLeave", function(self) self._hover:Hide() end)
+            -- The widening handles the normal case; a name longer than the
+            -- screen allows still gets cut, and then hovering is the way to
+            -- read it. Only then -- a tooltip repeating what is already legible
+            -- in front of it is noise.
+            item:SetScript("OnEnter", function(self)
+                self._hover:Show()
+                if self._clipped then
+                    UI:ShowTooltip(self, { title = self._full, wrap = true, anchor = "ANCHOR_RIGHT" })
+                end
+            end)
+            item:SetScript("OnLeave", function(self)
+                self._hover:Hide()
+                UI:HideTooltip()
+            end)
             p._items[i] = item
         end
 
@@ -1104,7 +1184,10 @@ local function openPopup(button, config)
         item:SetPoint("TOPLEFT",  p, "TOPLEFT",   2, -((i - 1) * itemHeight + 2))
         item:SetPoint("TOPRIGHT", p, "TOPRIGHT", -2, -((i - 1) * itemHeight + 2))
 
-        item._text:SetText(clean(L[opt.text]))
+        local full = clean(L[opt.text])
+        item._text:SetText(full)
+        item._full = full
+        item._clipped = (measureItem(full) + ITEM_PAD) > width
         if opt.value == config.get(button) then
             item._check:Show()
             item._text:SetTextColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
@@ -1377,7 +1460,32 @@ function UI:CreateDropdown(parent, config)
 
     btn:SetScript("OnEnter", function(self)
         setHovered(true)
-        UI:ShowTooltip(self, configTip(container))
+        -- The closed box clips its value more often than the open menu does: it
+        -- lives in a page column, and 8px of inset plus the 22px arrow leave
+        -- little for a translated seal name. Whatever got cut -- the label, the
+        -- value, or both -- leads the tooltip, and the configured explanation
+        -- follows it rather than replacing it, so hovering never costs anything.
+        local cfg = container._vcConfig
+        local labelFull = labelClipped(container._label)
+        local shown = valueText:GetText()
+        local room  = (self:GetWidth() or 0) - 30
+        local valueFull
+        if shown and shown ~= "" and room > 0 and measureItem(shown) > room then
+            valueFull = shown
+        end
+        local title = labelFull or valueFull
+        if not title then
+            UI:ShowTooltip(self, configTip(container))
+            return
+        end
+        local lines = {}
+        if labelFull and valueFull then
+            lines[#lines + 1] = { valueFull, 0.90, 0.90, 0.95, true }
+        end
+        if cfg and cfg.tooltip then
+            lines[#lines + 1] = { cfg.tooltip, nil, nil, nil, true }
+        end
+        UI:ShowTooltip(self, { title = title, wrap = true, lines = (#lines > 0) and lines or nil })
     end)
     btn:SetScript("OnLeave", function()
         UI:HideTooltip()

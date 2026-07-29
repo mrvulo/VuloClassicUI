@@ -2733,4 +2733,12 @@ ns:RegisterLocale("itIT", function() return {
     ["Pulls the window ahead of the swing far enough for the cast to reach the server inside it, and closes it once it no longer can. Measured from your world latency, capped at 250 ms."] = "Anticipa la finestra quanto basta perché il lancio raggiunga il server al suo interno, e la chiude appena non è più possibile. Calcolata sulla tua latenza mondiale, con un tetto di 250 ms.",
     ["Head start for the prompt (ms)"] = "Anticipo del segnale (ms)",
     ["Shows the twist prompt and plays its cue this far before the window actually opens, so there is time to see it and press. The colours on the bar stay exact."] = "Mostra il segnale di scambio e riproduce il suo suono con questo anticipo rispetto all'apertura reale della finestra, per dare il tempo di vederlo e premere. I colori sulla barra restano esatti.",
+    ["auto"] = "Auto",
+    ["Twist only"] = "Solo scambio",
+    ["Rotation"] = "Rotazione",
+    ["Show the rotation helper"] = "Mostra l'aiuto alla rotazione",
+    ["A row of steps above the bar: which sequence fits your weapon and haste, and where in it you are. It steps forward on what you actually cast and on your swings."] = "Una fila di passi sopra la barra: quale sequenza si adatta alla tua arma e alla tua celerità, e a che punto sei. Avanza in base a ciò che lanci davvero e ai tuoi colpi.",
+    ["Sequence"] = "Sequenza",
+    ["Automatic follows your attack speed and spell haste, which is what decides how many twists fit between two strikes. Pick one by hand to drill a single sequence."] = "Automatica segue la velocità d'attacco e la celerità magica, che decidono quanti scambi stanno fra due colpi. Scegline una a mano per allenare una singola sequenza.",
+    ["Rotation icon size"] = "Dimensione icone della rotazione",
 } end)

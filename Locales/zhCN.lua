@@ -2726,4 +2726,12 @@ ns:RegisterLocale("zhCN", function() return {
     ["Pulls the window ahead of the swing far enough for the cast to reach the server inside it, and closes it once it no longer can. Measured from your world latency, capped at 250 ms."] = "把窗口往前拉到足以让施法在窗口内抵达服务器，并在已经来不及时关闭窗口。按你的世界延迟计算，上限 250 毫秒。",
     ["Head start for the prompt (ms)"] = "提示提前量（毫秒）",
     ["Shows the twist prompt and plays its cue this far before the window actually opens, so there is time to see it and press. The colours on the bar stay exact."] = "在窗口真正开启前这么久就显示切换提示并播放提示音，好让你有时间看到并按下。进度条上的颜色仍然是精确时点。",
+    ["auto"] = "普攻",
+    ["Twist only"] = "只切换",
+    ["Rotation"] = "循环",
+    ["Show the rotation helper"] = "显示循环助手",
+    ["A row of steps above the bar: which sequence fits your weapon and haste, and where in it you are. It steps forward on what you actually cast and on your swings."] = "在进度条上方排出一行步骤：哪套顺序适合你的武器和急速，以及你此刻走到哪一步。它按你实际施放的技能和挥击往前推进。",
+    ["Sequence"] = "顺序",
+    ["Automatic follows your attack speed and spell haste, which is what decides how many twists fit between two strikes. Pick one by hand to drill a single sequence."] = "自动会跟随你的攻击速度和法术急速——两次打击之间能塞进几次切换由它们决定。想只练一套顺序时手动选择。",
+    ["Rotation icon size"] = "循环图标大小",
 } end)

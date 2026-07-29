@@ -2733,4 +2733,12 @@ ns:RegisterLocale("ruRU", function() return {
     ["Pulls the window ahead of the swing far enough for the cast to reach the server inside it, and closes it once it no longer can. Measured from your world latency, capped at 250 ms."] = "Сдвигает окно вперёд ровно настолько, чтобы накладывание успело дойти до сервера внутри него, и закрывает окно, когда это уже невозможно. Считается по мировой задержке, не более 250 мс.",
     ["Head start for the prompt (ms)"] = "Опережение подсказки (мс)",
     ["Shows the twist prompt and plays its cue this far before the window actually opens, so there is time to see it and press. The colours on the bar stay exact."] = "Показывает подсказку смены и проигрывает её звук на столько раньше, чем окно откроется на самом деле, чтобы успеть увидеть и нажать. Цвета на полосе остаются точными.",
+    ["auto"] = "Авто",
+    ["Twist only"] = "Только смена",
+    ["Rotation"] = "Ротация",
+    ["Show the rotation helper"] = "Показывать помощник ротации",
+    ["A row of steps above the bar: which sequence fits your weapon and haste, and where in it you are. It steps forward on what you actually cast and on your swings."] = "Ряд шагов над полосой: какая последовательность подходит вашему оружию и скорости, и где в ней вы сейчас. Он двигается от того, что вы действительно накладываете, и от ваших ударов.",
+    ["Sequence"] = "Последовательность",
+    ["Automatic follows your attack speed and spell haste, which is what decides how many twists fit between two strikes. Pick one by hand to drill a single sequence."] = "Автоматически следует за скоростью атаки и скоростью заклинаний — именно они решают, сколько смен помещается между двумя ударами. Выберите вручную, чтобы отработать одну последовательность.",
+    ["Rotation icon size"] = "Размер значков ротации",
 } end)
