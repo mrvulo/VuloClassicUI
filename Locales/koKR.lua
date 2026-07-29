@@ -2798,4 +2798,10 @@ ns:RegisterLocale("koKR", function() return {
     ["0 = any number of stacks."] = "0 = 중첩 수를 따지지 않음.",
     ["Only in the last seconds"] = "마지막 몇 초에만",
     ["0 = at any time. Otherwise the icon appears only this close to running out."] = "0 = 항상. 그 외에는 사라지기 이만큼 전부터만 나타납니다.",
+    -- Einheit je Gruppe
+    ["Watch this unit"] = "이 대상 관찰",
+    ["Whose auras this group reads. The default is what the group type has always used."] = "이 그룹이 누구의 효과를 읽을지 정합니다. 기본값은 그룹 종류가 원래 쓰던 대상입니다.",
+    ["You"] = "나",
+    ["Target"] = "대상",
+    ["Focus"] = "주시 대상",
 } end)

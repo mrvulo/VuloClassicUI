@@ -2799,6 +2799,12 @@ local function T() return {
     ["0 = any number of stacks."] = "0 = cualquier número de acumulaciones.",
     ["Only in the last seconds"] = "Solo en los últimos segundos",
     ["0 = at any time. Otherwise the icon appears only this close to running out."] = "0 = en cualquier momento. Si no, el icono aparece solo así de cerca de expirar.",
+    -- Einheit je Gruppe
+    ["Watch this unit"] = "Observar esta unidad",
+    ["Whose auras this group reads. The default is what the group type has always used."] = "De quién lee las auras este grupo. Por defecto es lo que el tipo de grupo ha usado siempre.",
+    ["You"] = "Tú",
+    ["Target"] = "Objetivo",
+    ["Focus"] = "Foco",
 } end
 
 ns:RegisterLocale("esES", T)

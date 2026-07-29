@@ -2935,4 +2935,10 @@ ns:RegisterLocale("deDE", function() return {
     ["0 = any number of stacks."] = "0 = jede Stapelzahl.",
     ["Only in the last seconds"] = "Nur in den letzten Sekunden",
     ["0 = at any time. Otherwise the icon appears only this close to running out."] = "0 = jederzeit. Sonst erscheint das Symbol erst so kurz vor dem Ablaufen.",
+    -- Einheit je Gruppe
+    ["Watch this unit"] = "Diese Einheit beobachten",
+    ["Whose auras this group reads. The default is what the group type has always used."] = "Wessen Auren diese Gruppe liest. Der Standard ist das, was die Gruppenart schon immer benutzt hat.",
+    ["You"] = "Du",
+    ["Target"] = "Ziel",
+    ["Focus"] = "Fokus",
 } end)

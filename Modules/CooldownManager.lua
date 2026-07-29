@@ -429,36 +429,48 @@ local function onBindingsChanged()
     end)
 end
 
--- one snapshot per refresh instead of 40 buffs per icon; UnitAura's spellId is the 10th return in 2.5.5
-local auraByName, auraByID = {}, {}
-local recPool = {}   -- reused per slot so the ticker allocates nothing
-local function scanPlayerAuras()
-    wipe(auraByName); wipe(auraByID)
+-- ONE SNAPSHOT PER UNIT AND FILTER, not 40 buffs per icon. UnitAura's spellId
+-- is the 10th return on 2.5.5.
+--
+-- Was two hand-written scans, one for the player's buffs and one for your
+-- debuffs on the target. A group can now name its unit, so the scan is keyed by
+-- unit AND filter instead: each combination anyone asked for is swept once per
+-- refresh, and a combination nobody asked for is not swept at all.
+--
+-- Tables and record pools are created once per key and reused, so the ticker
+-- still allocates nothing after the first sighting of a key.
+local scans = {}
+
+local function scanFor(unit, filter)
+    local key = unit .. "|" .. filter
+    local s = scans[key]
+    if not s then s = { byName = {}, byID = {}, pool = {} }; scans[key] = s end
+    return s
+end
+
+local function runScan(unit, filter)
+    local s = scanFor(unit, filter)
+    wipe(s.byName); wipe(s.byID)
+    if not UnitExists(unit) then return end
     for i = 1, 40 do
-        local name, icon, count, _, duration, expiration, _, _, _, sid = UnitAura("player", i, "HELPFUL")
+        local name, icon, count, _, duration, expiration, _, _, _, sid = UnitAura(unit, i, filter)
         if not name then break end
-        local rec = recPool[i]
-        if not rec then rec = {}; recPool[i] = rec end
+        local rec = s.pool[i]
+        if not rec then rec = {}; s.pool[i] = rec end
         rec.dur, rec.exp, rec.count, rec.icon, rec.name = duration, expiration, count, icon, name
-        auraByName[name] = rec
-        if sid then auraByID[sid] = rec end
+        s.byName[name] = rec
+        if sid then s.byID[sid] = rec end
     end
 end
 
-local tdByName, tdByID = {}, {}
-local recPoolT = {}
-local function scanTargetDebuffs()
-    wipe(tdByName); wipe(tdByID)
-    if not UnitExists("target") then return end
-    for i = 1, 40 do
-        local name, icon, count, _, duration, expiration, _, _, _, sid = UnitAura("target", i, "HARMFUL|PLAYER")
-        if not name then break end
-        local rec = recPoolT[i]
-        if not rec then rec = {}; recPoolT[i] = rec end
-        rec.dur, rec.exp, rec.count, rec.icon, rec.name = duration, expiration, count, icon, name
-        tdByName[name] = rec
-        if sid then tdByID[sid] = rec end
+-- Which unit and filter a group reads. The default keeps every existing group
+-- exactly where it was: buffs on you, your own debuffs on the target.
+local function groupSource(group)
+    local mode = group.mode
+    if mode == "targetdebuff" then
+        return group.auraUnit or "target", "HARMFUL|PLAYER"
     end
+    return group.auraUnit or "player", "HELPFUL"
 end
 
 -- kept off the group table: that table is saved to disk and these lists hold frames
@@ -524,7 +536,8 @@ local function applyStack(group, f, rec)
         end
     end
     -- target-debuff groups pass their rec in, since they read a different snapshot than the fallback below
-    rec = rec or (e and auraByID[e.id]) or (f.entryName and auraByName[f.entryName])
+    local ps = scanFor("player", "HELPFUL")
+    rec = rec or (e and ps.byID[e.id]) or (f.entryName and ps.byName[f.entryName])
     if rec and rec.count and rec.count > 1 then
         f.stack:SetText(rec.count); f.stack:Show()
     else
@@ -869,8 +882,7 @@ relayoutGroup = function(group)
     for i = #entries + 1, #icons do icons[i]:Hide() end
 
     if group.mode == "aura" or group.mode == "targetdebuff" or group.mode == "missing" then
-        scanPlayerAuras()
-        scanTargetDebuffs()
+        runScan(groupSource(group))
         refreshGroup(group, GetTime())
     else
         local all = {}
@@ -1089,8 +1101,8 @@ refreshGroup = function(group, now)
     local mode = group.mode
 
     if mode == "aura" or mode == "targetdebuff" or mode == "missing" then
-        local byID, byName = auraByID, auraByName
-        if mode == "targetdebuff" then byID, byName = tdByID, tdByName end
+        local s = scanFor(groupSource(group))
+        local byID, byName = s.byID, s.byName
         local invert = (mode == "missing")
 
         local active = activeBuffers(group)
@@ -1147,6 +1159,7 @@ refreshGroup = function(group, now)
 end
 
 local visCache = {}
+local wantedScans = {}   -- set of "unit|filter" needed this tick; reused, never rebuilt
 
 refreshAll = function()
     if not mod._enabled then return end
@@ -1161,19 +1174,27 @@ refreshAll = function()
     -- second whether or not a single entry had ever been configured.
     -- barVisible reads only edit mode, filters, combat, mount, instance and
     -- target, never aura state, so deciding it up front changes no behaviour.
-    local needPlayer, needTarget = false, false
+    -- Collected as a set of (unit, filter) pairs, so two groups reading the same
+    -- unit share one sweep. wanted is reused; the ticker allocates nothing.
     wipe(visCache)
+    wipe(wantedScans)
     for i, g in ipairs(groups) do
         local vis = barVisible(g)
         visCache[i] = vis
         local hasWork = (g.entries and #g.entries > 0) or g.autoTrinkets == true
         if vis and hasWork then
-            if g.mode == "aura" or g.mode == "missing" or g.showStacks then needPlayer = true end
-            if g.mode == "targetdebuff" then needTarget = true end
+            if g.mode == "aura" or g.mode == "missing" or g.mode == "targetdebuff" then
+                local unit, filter = groupSource(g)
+                wantedScans[unit .. "|" .. filter] = true
+            end
+            -- the stack number on a cooldown icon reads the player's own auras
+            if g.showStacks then wantedScans["player|HELPFUL"] = true end
         end
     end
-    if needPlayer then scanPlayerAuras() end
-    if needTarget then scanTargetDebuffs() end
+    for key in pairs(wantedScans) do
+        local unit, filter = key:match("^([^|]+)|(.+)$")
+        if unit then runScan(unit, filter) end
+    end
 
     for i, group in ipairs(groups) do
         local bar = barOf[group]
@@ -1433,6 +1454,23 @@ function mod:GetOptions()
         modeDesc = L["|cffaaaaaaIcons show the cooldown of each spell/trinket.|r"]
     end
     items[#items + 1] = { type = "desc", text = modeDesc }
+    if group.mode ~= "cooldown" then
+        -- Focus and pet exist on this client; arena and boss units do not, and
+        -- a choice that can never resolve is worse than no choice.
+        items[#items + 1] = { type = "dropdown", label = L["Watch this unit"], width = 280,
+            tooltip = L["Whose auras this group reads. The default is what the group type has always used."],
+            values = {
+                { value = "player", text = L["You"] },
+                { value = "target", text = L["Target"] },
+                { value = "focus",  text = L["Focus"] },
+                { value = "pet",    text = L["Pet"] },
+            },
+            get = function()
+                local u = groupSource(group)
+                return u
+            end,
+            set = function(_, v) group.auraUnit = v; rebuildBars(); rebuildPage() end }
+    end
     items[#items + 1] = { type = "spacer", height = 6 }
 
     local function doAdd()

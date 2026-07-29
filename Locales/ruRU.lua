@@ -2798,4 +2798,10 @@ ns:RegisterLocale("ruRU", function() return {
     ["0 = any number of stacks."] = "0 = любое число стаков.",
     ["Only in the last seconds"] = "Только в последние секунды",
     ["0 = at any time. Otherwise the icon appears only this close to running out."] = "0 = в любое время. Иначе значок появляется лишь так близко к окончанию.",
+    -- Einheit je Gruppe
+    ["Watch this unit"] = "Наблюдать за этой целью",
+    ["Whose auras this group reads. The default is what the group type has always used."] = "Чьи эффекты читает эта группа. По умолчанию — то, что тип группы использовал всегда.",
+    ["You"] = "Ты",
+    ["Target"] = "Цель",
+    ["Focus"] = "Фокус",
 } end)

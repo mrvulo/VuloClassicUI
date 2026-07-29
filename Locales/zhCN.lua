@@ -2791,4 +2791,10 @@ ns:RegisterLocale("zhCN", function() return {
     ["0 = any number of stacks."] = "0 = 不看层数。",
     ["Only in the last seconds"] = "只在最后几秒显示",
     ["0 = at any time. Otherwise the icon appears only this close to running out."] = "0 = 任何时候。否则图标只在离结束这么近时出现。",
+    -- Einheit je Gruppe
+    ["Watch this unit"] = "观察此单位",
+    ["Whose auras this group reads. The default is what the group type has always used."] = "这个分组读取谁身上的效果。默认就是该分组类型一直使用的那个。",
+    ["You"] = "你自己",
+    ["Target"] = "目标",
+    ["Focus"] = "焦点",
 } end)

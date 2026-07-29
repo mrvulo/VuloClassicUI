@@ -2798,4 +2798,10 @@ ns:RegisterLocale("itIT", function() return {
     ["0 = any number of stacks."] = "0 = qualsiasi numero di cariche.",
     ["Only in the last seconds"] = "Solo negli ultimi secondi",
     ["0 = at any time. Otherwise the icon appears only this close to running out."] = "0 = in qualsiasi momento. Altrimenti l’icona appare solo così vicino alla scadenza.",
+    -- Einheit je Gruppe
+    ["Watch this unit"] = "Osserva questa unità",
+    ["Whose auras this group reads. The default is what the group type has always used."] = "Di chi legge le aure questo gruppo. Il valore predefinito è quello che il tipo di gruppo ha sempre usato.",
+    ["You"] = "Tu",
+    ["Target"] = "Bersaglio",
+    ["Focus"] = "Focus",
 } end)

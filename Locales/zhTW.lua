@@ -2791,4 +2791,10 @@ ns:RegisterLocale("zhTW", function() return {
     ["0 = any number of stacks."] = "0 = 不看層數。",
     ["Only in the last seconds"] = "只在最後幾秒顯示",
     ["0 = at any time. Otherwise the icon appears only this close to running out."] = "0 = 任何時候。否則圖示只在離結束這麼近時出現。",
+    -- Einheit je Gruppe
+    ["Watch this unit"] = "觀察此單位",
+    ["Whose auras this group reads. The default is what the group type has always used."] = "這個分組讀取誰身上的效果。預設就是該分組類型一直使用的那個。",
+    ["You"] = "你自己",
+    ["Target"] = "目標",
+    ["Focus"] = "焦點",
 } end)

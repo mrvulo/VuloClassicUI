@@ -2947,4 +2947,10 @@ ns:RegisterLocale("frFR", function() return {
     ["0 = any number of stacks."] = "0 = n’importe quel nombre de cumuls.",
     ["Only in the last seconds"] = "Seulement dans les dernières secondes",
     ["0 = at any time. Otherwise the icon appears only this close to running out."] = "0 = à tout moment. Sinon l’icône n’apparaît qu’aussi près de l’expiration.",
+    -- Einheit je Gruppe
+    ["Watch this unit"] = "Surveiller cette unité",
+    ["Whose auras this group reads. The default is what the group type has always used."] = "Les auras de qui ce groupe lit. Par défaut, ce que le type de groupe a toujours utilisé.",
+    ["You"] = "Toi",
+    ["Target"] = "Cible",
+    ["Focus"] = "Focus",
 } end)

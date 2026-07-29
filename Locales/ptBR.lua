@@ -2798,4 +2798,10 @@ ns:RegisterLocale("ptBR", function() return {
     ["0 = any number of stacks."] = "0 = qualquer número de acúmulos.",
     ["Only in the last seconds"] = "Apenas nos últimos segundos",
     ["0 = at any time. Otherwise the icon appears only this close to running out."] = "0 = a qualquer momento. Caso contrário o ícone aparece só tão perto de acabar.",
+    -- Einheit je Gruppe
+    ["Watch this unit"] = "Observar esta unidade",
+    ["Whose auras this group reads. The default is what the group type has always used."] = "De quem este grupo lê as auras. O padrão é o que o tipo de grupo sempre usou.",
+    ["You"] = "Você",
+    ["Target"] = "Alvo",
+    ["Focus"] = "Foco",
 } end)
