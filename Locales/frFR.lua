@@ -2835,4 +2835,11 @@ ns:RegisterLocale("frFR", function() return {
     ["Buffs"] = "Améliorations",
     ["Crowd control"] = "Contrôle de foule",
     ["Your own debuffs"] = "Tes propres affaiblissements",
+    -- Leuchten bei wenig Leben, Entzauber-Leuchten
+    ["Glow when low on health"] = "Lueur à faible santé",
+    ["A coloured ring around the bar once the unit drops below the mark."] = "Un anneau coloré autour de la barre dès que la cible passe sous le repère.",
+    ["Glow below (%)"] = "Lueur en dessous de (%)",
+    ["Low health colour"] = "Couleur à faible santé",
+    ["Glow in the aura's own school colour"] = "Briller dans la couleur d'école de l'aura",
+    ["Magic blue, curse purple, disease orange, poison green — instead of one colour for everything."] = "Magie bleu, malédiction violet, maladie orange, poison vert — au lieu d’une seule couleur pour tout.",
 } end)

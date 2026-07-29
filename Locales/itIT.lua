@@ -2686,4 +2686,11 @@ ns:RegisterLocale("itIT", function() return {
     ["Buffs"] = "Benefici",
     ["Crowd control"] = "Controllo di massa",
     ["Your own debuffs"] = "Le tue penalità",
+    -- Leuchten bei wenig Leben, Entzauber-Leuchten
+    ["Glow when low on health"] = "Bagliore a vita bassa",
+    ["A coloured ring around the bar once the unit drops below the mark."] = "Un anello colorato attorno alla barra appena il bersaglio scende sotto la soglia.",
+    ["Glow below (%)"] = "Bagliore sotto (%)",
+    ["Low health colour"] = "Colore a vita bassa",
+    ["Glow in the aura's own school colour"] = "Bagliore nel colore di scuola dell'aura",
+    ["Magic blue, curse purple, disease orange, poison green — instead of one colour for everything."] = "Magia blu, maledizione viola, malattia arancione, veleno verde — invece di un colore per tutto.",
 } end)

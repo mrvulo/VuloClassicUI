@@ -2679,4 +2679,11 @@ ns:RegisterLocale("zhTW", function() return {
     ["Buffs"] = "增益效果",
     ["Crowd control"] = "控制效果",
     ["Your own debuffs"] = "你自己的減益效果",
+    -- Leuchten bei wenig Leben, Entzauber-Leuchten
+    ["Glow when low on health"] = "生命值低時發光",
+    ["A coloured ring around the bar once the unit drops below the mark."] = "目標掉到標記以下時，血條周圍出現一圈彩色邊框。",
+    ["Glow below (%)"] = "低於此值發光 (%)",
+    ["Low health colour"] = "低生命值顏色",
+    ["Glow in the aura's own school colour"] = "依效果自身的類型顏色發光",
+    ["Magic blue, curse purple, disease orange, poison green — instead of one colour for everything."] = "魔法藍、詛咒紫、疾病橙、中毒綠——而不是所有效果一個顏色。",
 } end)

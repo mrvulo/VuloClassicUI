@@ -2823,4 +2823,11 @@ ns:RegisterLocale("deDE", function() return {
     ["Buffs"] = "Stärkungen",
     ["Crowd control"] = "Massenkontrolle",
     ["Your own debuffs"] = "Eigene Debuffs",
+    -- Leuchten bei wenig Leben, Entzauber-Leuchten
+    ["Glow when low on health"] = "Leuchten bei wenig Leben",
+    ["A coloured ring around the bar once the unit drops below the mark."] = "Ein farbiger Ring um die Leiste, sobald das Ziel unter die Marke fällt.",
+    ["Glow below (%)"] = "Leuchten unter (%)",
+    ["Low health colour"] = "Farbe bei wenig Leben",
+    ["Glow in the aura's own school colour"] = "Im Schulfarbton des Zaubers leuchten",
+    ["Magic blue, curse purple, disease orange, poison green — instead of one colour for everything."] = "Magie blau, Fluch violett, Krankheit orange, Gift grün — statt einer Farbe für alles.",
 } end)

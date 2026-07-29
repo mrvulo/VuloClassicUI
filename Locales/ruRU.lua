@@ -2686,4 +2686,11 @@ ns:RegisterLocale("ruRU", function() return {
     ["Buffs"] = "Положительные эффекты",
     ["Crowd control"] = "Контроль",
     ["Your own debuffs"] = "Твои отрицательные эффекты",
+    -- Leuchten bei wenig Leben, Entzauber-Leuchten
+    ["Glow when low on health"] = "Свечение при низком здоровье",
+    ["A coloured ring around the bar once the unit drops below the mark."] = "Цветное кольцо вокруг полосы, как только цель опускается ниже отметки.",
+    ["Glow below (%)"] = "Свечение ниже (%)",
+    ["Low health colour"] = "Цвет при низком здоровье",
+    ["Glow in the aura's own school colour"] = "Светиться цветом школы эффекта",
+    ["Magic blue, curse purple, disease orange, poison green — instead of one colour for everything."] = "Магия синим, проклятие фиолетовым, болезнь оранжевым, яд зелёным — вместо одного цвета на всё.",
 } end)

@@ -2686,4 +2686,11 @@ ns:RegisterLocale("koKR", function() return {
     ["Buffs"] = "이로운 효과",
     ["Crowd control"] = "군중 제어",
     ["Your own debuffs"] = "내가 건 해로운 효과",
+    -- Leuchten bei wenig Leben, Entzauber-Leuchten
+    ["Glow when low on health"] = "생명력이 낮으면 빛나기",
+    ["A coloured ring around the bar once the unit drops below the mark."] = "대상이 기준 아래로 떨어지면 생명력 막대 둘레에 색 테두리가 생깁니다.",
+    ["Glow below (%)"] = "빛나기 기준 (%)",
+    ["Low health colour"] = "낮은 생명력 색",
+    ["Glow in the aura's own school colour"] = "효과의 계열 색으로 빛나기",
+    ["Magic blue, curse purple, disease orange, poison green — instead of one colour for everything."] = "마법은 파랑, 저주는 보라, 질병은 주황, 독은 초록 — 모두 한 색으로 칠하는 대신입니다.",
 } end)

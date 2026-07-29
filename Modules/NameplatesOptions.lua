@@ -296,6 +296,8 @@ local PRESET = {
     auraSpacing          = 1,
     auraTimerSize        = 14,
     showDispelGlow       = true,
+    dispelGlowBySchool   = true,   -- dort: dispelGlowUseTypeColor
+    lowHpGlow            = true,
     -- the raid marker sits above the plate there
     raidMarkerPos        = "top",
     raidMarkerSize       = 22,
@@ -445,6 +447,18 @@ function mod:GetOptions()
                   { type = "slider", label = L["Absorb opacity"], min = 10, max = 100, step = 5,
                     get = function() return floor((mod.db.absorbAlpha or 0.55) * 100 + 0.5) end,
                     set = function(_, v) mod.db.absorbAlpha = v / 100; applyAndRefresh() end },
+              } },
+            { type = "checkbox", label = L["Glow when low on health"],
+              tooltip = L["A coloured ring around the bar once the unit drops below the mark."],
+              get = function() return mod.db.lowHpGlow end,
+              set = function(_, v) mod.db.lowHpGlow = v; applyAndRefresh() end,
+              subOptions = {
+                  { type = "slider", label = L["Glow below (%)"], min = 5, max = 90, step = 5, width = SLW,
+                    get = function() return mod.db.lowHpPct or 35 end,
+                    set = function(_, v) mod.db.lowHpPct = v; applyAndRefresh() end },
+                  { type = "color", label = L["Low health colour"], width = 200,
+                    get = function() return mod.db.colLowHp end,
+                    set = function(r, g, b) mod.db.colLowHp = { r = r, g = g, b = b }; applyAndRefresh() end },
               } },
             { type = "checkbox", label = L["Execute line"],
               tooltip = L["A thin marker line on the bar at the chosen health percentage (e.g. 20 for Execute)."],
@@ -849,6 +863,10 @@ function mod:GetOptions()
               get = function() return mod.db.showDispelGlow end,
               set = function(_, v) mod.db.showDispelGlow = v; applyAndRefresh() end,
               subOptions = {
+                  { type = "checkbox", label = L["Glow in the aura's own school colour"],
+                    tooltip = L["Magic blue, curse purple, disease orange, poison green — instead of one colour for everything."],
+                    get = function() return mod.db.dispelGlowBySchool end,
+                    set = function(_, v) mod.db.dispelGlowBySchool = v; applyAndRefresh() end },
                   { type = "color", label = L["Dispel glow colour"], width = 220,
                     get = function() return mod.db.colDispel end,
                     set = function(r, g, b) mod.db.colDispel = { r = r, g = g, b = b }; applyAndRefresh() end },

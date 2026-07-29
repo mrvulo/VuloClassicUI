@@ -2686,4 +2686,11 @@ ns:RegisterLocale("ptBR", function() return {
     ["Buffs"] = "Ganhos",
     ["Crowd control"] = "Controle de grupo",
     ["Your own debuffs"] = "Suas próprias perdas",
+    -- Leuchten bei wenig Leben, Entzauber-Leuchten
+    ["Glow when low on health"] = "Brilho com pouca vida",
+    ["A coloured ring around the bar once the unit drops below the mark."] = "Um anel colorido ao redor da barra assim que o alvo cai abaixo da marca.",
+    ["Glow below (%)"] = "Brilho abaixo de (%)",
+    ["Low health colour"] = "Cor de pouca vida",
+    ["Glow in the aura's own school colour"] = "Brilhar na cor de escola da aura",
+    ["Magic blue, curse purple, disease orange, poison green — instead of one colour for everything."] = "Magia azul, maldição roxo, doença laranja, veneno verde — em vez de uma cor para tudo.",
 } end)

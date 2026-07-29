@@ -2687,6 +2687,13 @@ local function T() return {
     ["Buffs"] = "Beneficios",
     ["Crowd control"] = "Control de masas",
     ["Your own debuffs"] = "Tus propios perjuicios",
+    -- Leuchten bei wenig Leben, Entzauber-Leuchten
+    ["Glow when low on health"] = "Brillo con poca vida",
+    ["A coloured ring around the bar once the unit drops below the mark."] = "Un anillo de color alrededor de la barra en cuanto el objetivo baja de la marca.",
+    ["Glow below (%)"] = "Brillo por debajo de (%)",
+    ["Low health colour"] = "Color de poca vida",
+    ["Glow in the aura's own school colour"] = "Brillar en el color de escuela del aura",
+    ["Magic blue, curse purple, disease orange, poison green — instead of one colour for everything."] = "Magia azul, maldición morado, enfermedad naranja, veneno verde — en vez de un color para todo.",
 } end
 
 ns:RegisterLocale("esES", T)

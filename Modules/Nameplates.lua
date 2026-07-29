@@ -21,6 +21,10 @@ local mod = ns:RegisterModule("nameplates", {
         sparkWidth    = 10,
         roundedBars   = false,
 
+        lowHpGlow   = false,
+        lowHpPct    = 35,
+        colLowHp    = { r = 1.00, g = 0.20, b = 0.20 },
+
         showAbsorb  = true,
         colAbsorb   = { r = 0.70, g = 0.85, b = 1.00 },
         absorbAlpha = 0.55,
@@ -183,6 +187,7 @@ local mod = ns:RegisterModule("nameplates", {
             cc     = { side = "top",    x = 0, y = 0, grow = "center", spacing = 2, perRow = 0 },
         },
         showDispelGlow = true,
+        dispelGlowBySchool = false,
         colDispel      = { r = 0.60, g = 0.40, b = 1.00 },
         showAuraTimer  = true,
         auraTimerDecimals = true,
@@ -327,6 +332,7 @@ local function buildVisuals(f)
     f.healthBD:Hide()
     f.targetGlow   = makeEdges(f.health, "OVERLAY")
     f.focusGlow    = makeEdges(f.health, "OVERLAY")
+    f.lowHpGlow    = makeEdges(f.health, "OVERLAY")
     f.absorb = f.health:CreateTexture(nil, "ARTWORK", nil, 2)
     f.absorb:Hide()
     f.execLine = f.health:CreateTexture(nil, "ARTWORK", nil, 3)
@@ -709,6 +715,18 @@ local function paintHealth(f, ctx, cur, max)
     end
     paintSpark(f.health, f.spark, r, g, b, d.showSpark, d.sparkWidth, true, cur)
     if d.showHealthText then f.healthText:SetText(healthTextString(d, cur, max)) end
+
+    -- A ring around the bar once the unit drops below the mark. Painted here
+    -- rather than on a ticker: this runs on every health change anyway, which is
+    -- exactly when the answer can change.
+    if f.lowHpGlow then
+        if d.lowHpGlow and (cur / max) <= ((d.lowHpPct or 35) / 100) then
+            local c = d.colLowHp or { r = 1, g = 0.2, b = 0.2 }
+            layoutEdges(f.lowHpGlow, f.health, 2, c.r, c.g, c.b, 1, 1)
+        else
+            for _, t in pairs(f.lowHpGlow) do t:Hide() end
+        end
+    end
 end
 
 local function paintAbsorb(f, cur, max, absorb)
@@ -1093,7 +1111,14 @@ local function renderAuraGroup(g, list, o)
             local ec = (d.auraTypeBorder and dispelColor(a.dispelType)) or bc
             layoutEdges(ic.border, ic, bsz, ec.r, ec.g, ec.b, 1, 0)
             if d.showDispelGlow and a.dispel then
+                -- Either one colour for "you can remove this", or the aura's own
+                -- school -- magic blue, curse purple, disease orange, poison
+                -- green. The school is the more useful of the two once you play
+                -- a class that can remove more than one kind.
                 local gc = d.colDispel
+                if d.dispelGlowBySchool then
+                    gc = dispelColor(a.dispelType) or gc
+                end
                 layoutEdges(ic.dispelGlow, ic, 2, gc.r, gc.g, gc.b, 1, 1)
             else
                 for _, t in pairs(ic.dispelGlow) do t:Hide() end
