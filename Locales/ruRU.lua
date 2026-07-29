@@ -2706,4 +2706,10 @@ ns:RegisterLocale("ruRU", function() return {
     ["Arrow size"] = "Размер стрелок",
     ["Arrow distance"] = "Отступ стрелок",
     ["Arrow colour"] = "Цвет стрелок",
+    -- Fokus-Merkzeichen
+    ["Mark on the focus plate"] = "Метка на индикаторе фокуса",
+    ["A short text on your focus target's plate. A ring says this one is special; the mark says which."] = "Короткий текст на индикаторе твоей цели фокуса. Кольцо говорит, что она особая; метка говорит, какая именно.",
+    ["Mark text"] = "Текст метки",
+    ["Mark position"] = "Положение метки",
+    ["Mark size"] = "Размер метки",
 } end)

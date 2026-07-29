@@ -2706,4 +2706,10 @@ ns:RegisterLocale("ptBR", function() return {
     ["Arrow size"] = "Tamanho da seta",
     ["Arrow distance"] = "Distância da seta",
     ["Arrow colour"] = "Cor da seta",
+    -- Fokus-Merkzeichen
+    ["Mark on the focus plate"] = "Marca na placa do foco",
+    ["A short text on your focus target's plate. A ring says this one is special; the mark says which."] = "Um texto curto na placa do seu alvo de foco. Um anel diz que aquela é especial; a marca diz qual.",
+    ["Mark text"] = "Texto da marca",
+    ["Mark position"] = "Posição da marca",
+    ["Mark size"] = "Tamanho da marca",
 } end)

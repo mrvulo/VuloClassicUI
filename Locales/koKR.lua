@@ -2706,4 +2706,10 @@ ns:RegisterLocale("koKR", function() return {
     ["Arrow size"] = "화살표 크기",
     ["Arrow distance"] = "화살표 간격",
     ["Arrow colour"] = "화살표 색",
+    -- Fokus-Merkzeichen
+    ["Mark on the focus plate"] = "주시 대상 이름표의 표식",
+    ["A short text on your focus target's plate. A ring says this one is special; the mark says which."] = "주시 대상의 이름표에 표시되는 짧은 글자입니다. 테두리는 특별하다는 뜻이고, 표식은 무엇인지 알려줍니다.",
+    ["Mark text"] = "표식 글자",
+    ["Mark position"] = "표식 위치",
+    ["Mark size"] = "표식 크기",
 } end)

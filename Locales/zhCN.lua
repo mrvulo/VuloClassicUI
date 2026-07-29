@@ -2699,4 +2699,10 @@ ns:RegisterLocale("zhCN", function() return {
     ["Arrow size"] = "箭头大小",
     ["Arrow distance"] = "箭头间距",
     ["Arrow colour"] = "箭头颜色",
+    -- Fokus-Merkzeichen
+    ["Mark on the focus plate"] = "焦点姓名板上的标记",
+    ["A short text on your focus target's plate. A ring says this one is special; the mark says which."] = "在焦点目标的姓名板上显示一小段文字。边框说明这个特别，标记说明它是哪一个。",
+    ["Mark text"] = "标记文字",
+    ["Mark position"] = "标记位置",
+    ["Mark size"] = "标记大小",
 } end)

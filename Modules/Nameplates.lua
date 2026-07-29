@@ -133,6 +133,13 @@ local mod = ns:RegisterModule("nameplates", {
 
         focusHighlight  = true,
         colFocus        = { r = 0.20, g = 0.60, b = 1.00 },
+        focusMark       = false,
+        focusMarkText   = "F",
+        focusMarkAnchor = "CENTER",
+        focusMarkSize   = 0,
+        focusMarkX      = 0,
+        focusMarkY      = 0,
+        colFocusMark    = { r = 0.20, g = 0.60, b = 1.00 },
 
         threatEnabled = false,
         threatRole    = "dps",
@@ -888,8 +895,33 @@ local function paintTarget(f, isTarget)
     applyPlateScale(f, isTarget)
 end
 
+-- A short mark on the focus target's plate -- one letter by default, because
+-- that reads at a glance and costs no room. A ring around the bar says "this
+-- one is special"; the letter says WHICH special, which matters as soon as the
+-- target ring is on too.
+local function paintFocusMark(f, isFocus)
+    local d = db()
+    local on = d.focusMark and isFocus
+    if not f.focusMark then
+        if not on then return end
+        f.focusMark = f.health:CreateFontString(nil, "OVERLAY")
+        f.focusMark:SetWordWrap(false)
+    end
+    if not on then f.focusMark:Hide(); return end
+
+    local c = d.colFocusMark or d.colFocus or { r = 0.2, g = 0.6, b = 1 }
+    f.focusMark:SetText(d.focusMarkText ~= "" and d.focusMarkText or "F")
+    f.focusMark:SetTextColor(c.r, c.g, c.b)
+    plateFont(f.focusMark, (d.focusMarkSize or 0) > 0 and d.focusMarkSize or d.nameSize)
+    f.focusMark:ClearAllPoints()
+    local p = d.focusMarkAnchor or "CENTER"
+    f.focusMark:SetPoint(p, f.health, p, d.focusMarkX or 0, d.focusMarkY or 0)
+    f.focusMark:Show()
+end
+
 local function paintFocus(f, isFocus)
     local d = db()
+    paintFocusMark(f, isFocus)
     if d.focusHighlight and isFocus then
         local c = d.colFocus
         local thick = math.max(1, d.borderSize + 1)

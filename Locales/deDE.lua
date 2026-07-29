@@ -2843,4 +2843,10 @@ ns:RegisterLocale("deDE", function() return {
     ["Arrow size"] = "Pfeilgröße",
     ["Arrow distance"] = "Pfeilabstand",
     ["Arrow colour"] = "Pfeilfarbe",
+    -- Fokus-Merkzeichen
+    ["Mark on the focus plate"] = "Merkzeichen auf der Fokus-Plakette",
+    ["A short text on your focus target's plate. A ring says this one is special; the mark says which."] = "Ein kurzer Text auf der Plakette deines Fokusziels. Ein Ring sagt, dass eine besonders ist; das Zeichen sagt, welche.",
+    ["Mark text"] = "Text des Merkzeichens",
+    ["Mark position"] = "Position des Merkzeichens",
+    ["Mark size"] = "Größe des Merkzeichens",
 } end)

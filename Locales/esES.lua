@@ -2707,6 +2707,12 @@ local function T() return {
     ["Arrow size"] = "Tamaño de flecha",
     ["Arrow distance"] = "Distancia de flecha",
     ["Arrow colour"] = "Color de flecha",
+    -- Fokus-Merkzeichen
+    ["Mark on the focus plate"] = "Marca en la placa de foco",
+    ["A short text on your focus target's plate. A ring says this one is special; the mark says which."] = "Un texto corto en la placa de tu objetivo de foco. Un anillo dice que esa es especial; la marca dice cuál.",
+    ["Mark text"] = "Texto de la marca",
+    ["Mark position"] = "Posición de la marca",
+    ["Mark size"] = "Tamaño de la marca",
 } end
 
 ns:RegisterLocale("esES", T)

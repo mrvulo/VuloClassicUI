@@ -2855,4 +2855,10 @@ ns:RegisterLocale("frFR", function() return {
     ["Arrow size"] = "Taille des flèches",
     ["Arrow distance"] = "Distance des flèches",
     ["Arrow colour"] = "Couleur des flèches",
+    -- Fokus-Merkzeichen
+    ["Mark on the focus plate"] = "Marque sur la barre du focus",
+    ["A short text on your focus target's plate. A ring says this one is special; the mark says which."] = "Un texte court sur la barre de ta cible de focus. Un anneau dit que celle-ci est spéciale ; la marque dit laquelle.",
+    ["Mark text"] = "Texte de la marque",
+    ["Mark position"] = "Position de la marque",
+    ["Mark size"] = "Taille de la marque",
 } end)

@@ -2706,4 +2706,10 @@ ns:RegisterLocale("itIT", function() return {
     ["Arrow size"] = "Dimensione frecce",
     ["Arrow distance"] = "Distanza frecce",
     ["Arrow colour"] = "Colore frecce",
+    -- Fokus-Merkzeichen
+    ["Mark on the focus plate"] = "Contrassegno sulla targhetta del focus",
+    ["A short text on your focus target's plate. A ring says this one is special; the mark says which."] = "Un testo breve sulla targhetta del tuo focus. Un anello dice che quella è speciale; il contrassegno dice quale.",
+    ["Mark text"] = "Testo del contrassegno",
+    ["Mark position"] = "Posizione del contrassegno",
+    ["Mark size"] = "Dimensione del contrassegno",
 } end)
