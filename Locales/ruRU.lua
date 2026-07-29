@@ -2712,4 +2712,7 @@ ns:RegisterLocale("ruRU", function() return {
     ["Mark text"] = "Текст метки",
     ["Mark position"] = "Положение метки",
     ["Mark size"] = "Размер метки",
+    -- Kleine Plaketten
+    ["Back to the small plates"] = "Вернуть маленькие индикаторы",
+    ["Puts the same settings back to the small plates this addon ships with."] = "Возвращает те же настройки к маленьким индикаторам, с которыми аддон поставляется.",
 } end)

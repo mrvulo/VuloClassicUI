@@ -2861,4 +2861,7 @@ ns:RegisterLocale("frFR", function() return {
     ["Mark text"] = "Texte de la marque",
     ["Mark position"] = "Position de la marque",
     ["Mark size"] = "Taille de la marque",
+    -- Kleine Plaketten
+    ["Back to the small plates"] = "Revenir aux petites barres",
+    ["Puts the same settings back to the small plates this addon ships with."] = "Remet les mêmes réglages sur les petites barres livrées avec cet accessoire.",
 } end)

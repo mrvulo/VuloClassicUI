@@ -2705,4 +2705,7 @@ ns:RegisterLocale("zhTW", function() return {
     ["Mark text"] = "標記文字",
     ["Mark position"] = "標記位置",
     ["Mark size"] = "標記大小",
+    -- Kleine Plaketten
+    ["Back to the small plates"] = "回到小型名條",
+    ["Puts the same settings back to the small plates this addon ships with."] = "把同一批設定恢復成本插件自帶的小型名條。",
 } end)

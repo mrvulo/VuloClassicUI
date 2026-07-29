@@ -2705,4 +2705,7 @@ ns:RegisterLocale("zhCN", function() return {
     ["Mark text"] = "标记文字",
     ["Mark position"] = "标记位置",
     ["Mark size"] = "标记大小",
+    -- Kleine Plaketten
+    ["Back to the small plates"] = "回到小号姓名板",
+    ["Puts the same settings back to the small plates this addon ships with."] = "把同一批设置恢复成本插件自带的小号姓名板。",
 } end)

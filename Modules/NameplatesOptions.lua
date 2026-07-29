@@ -309,17 +309,24 @@ local PRESET = {
 -- change nothing visible.
 local PRESET_ROW_SPACING = 1
 
-local function applyPreset()
-    for k, v in pairs(PRESET) do
-        if type(v) == "table" then
-            mod.db[k] = { r = v.r, g = v.g, b = v.b }   -- copy: the preset is shared
-        else
-            mod.db[k] = v
+-- Both buttons write the SAME set of keys, which is what makes them each
+-- other's undo. The small look reads its values from mod.defaults rather than
+-- from a second hand-written table: a copy would drift the first time a default
+-- changed, and then "back to small" would restore something we no longer ship.
+local function applyValues(source, rowSpacing)
+    for k in pairs(PRESET) do
+        local v = source[k]
+        if v ~= nil then
+            if type(v) == "table" then
+                mod.db[k] = { r = v.r, g = v.g, b = v.b }   -- copy: the table is shared
+            else
+                mod.db[k] = v
+            end
         end
     end
     for _, key in ipairs({ "debuff", "buff", "cc", "dot" }) do
         local cfg = ns.NameplateRowCfg and ns:NameplateRowCfg(key)
-        if cfg then cfg.spacing = PRESET_ROW_SPACING end
+        if cfg then cfg.spacing = rowSpacing end
     end
     applyAndRefresh()
     refreshPage()
@@ -330,7 +337,16 @@ ns.OnLocaleReady(function()
 StaticPopupDialogs["VCUI_NAMEPLATES_PRESET"] = {
     text = L["Overwrites this profile's nameplate settings with a wide, flat, dark look. Other profiles are untouched."],
     button1 = _G.ACCEPT or "Accept", button2 = _G.CANCEL or "Cancel",
-    OnAccept = function() applyPreset() end,
+    OnAccept = function() applyValues(PRESET, PRESET_ROW_SPACING) end,
+    timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
+}
+StaticPopupDialogs["VCUI_NAMEPLATES_PRESET_SMALL"] = {
+    text = L["Puts the same settings back to the small plates this addon ships with."],
+    button1 = _G.ACCEPT or "Accept", button2 = _G.CANCEL or "Cancel",
+    OnAccept = function()
+        local d = mod.defaults or {}
+        applyValues(d, d.auraSpacing or 2)
+    end,
     timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
 }
 end)
@@ -370,8 +386,15 @@ function mod:GetOptions()
         { type = "section", title = L["Preset"], items = {
             { type = "desc",
               text = L["|cffaaaaaaOverwrites this profile's nameplate settings with a wide, flat, dark look. Other profiles are untouched.|r"] },
-            { type = "button", label = L["Apply the wide, flat look"], width = 260,
-              onClick = function() StaticPopup_Show("VCUI_NAMEPLATES_PRESET") end },
+            -- Side by side, because they are one choice with two answers. A row
+            -- of nothing but buttons gives both the width of the wider label,
+            -- and falls back to natural widths if that would not fit.
+            { type = "group", layout = "row", gap = 8, items = {
+                { type = "button", label = L["Apply the wide, flat look"], width = 260,
+                  onClick = function() StaticPopup_Show("VCUI_NAMEPLATES_PRESET") end },
+                { type = "button", label = L["Back to the small plates"], width = 220,
+                  onClick = function() StaticPopup_Show("VCUI_NAMEPLATES_PRESET_SMALL") end },
+            } },
         } },
 
         { type = "section", title = L["Health Bar"], items = {

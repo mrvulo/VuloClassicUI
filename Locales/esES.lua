@@ -2713,6 +2713,9 @@ local function T() return {
     ["Mark text"] = "Texto de la marca",
     ["Mark position"] = "Posición de la marca",
     ["Mark size"] = "Tamaño de la marca",
+    -- Kleine Plaketten
+    ["Back to the small plates"] = "Volver a las placas pequeñas",
+    ["Puts the same settings back to the small plates this addon ships with."] = "Devuelve los mismos ajustes a las placas pequeñas que trae este accesorio.",
 } end
 
 ns:RegisterLocale("esES", T)

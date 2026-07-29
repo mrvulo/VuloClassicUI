@@ -2849,4 +2849,7 @@ ns:RegisterLocale("deDE", function() return {
     ["Mark text"] = "Text des Merkzeichens",
     ["Mark position"] = "Position des Merkzeichens",
     ["Mark size"] = "Größe des Merkzeichens",
+    -- Kleine Plaketten
+    ["Back to the small plates"] = "Zurück zu den kleinen Plaketten",
+    ["Puts the same settings back to the small plates this addon ships with."] = "Setzt dieselben Einstellungen auf die kleinen Plaketten zurück, die dieses Addon mitbringt.",
 } end)

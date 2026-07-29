@@ -2712,4 +2712,7 @@ ns:RegisterLocale("itIT", function() return {
     ["Mark text"] = "Testo del contrassegno",
     ["Mark position"] = "Posizione del contrassegno",
     ["Mark size"] = "Dimensione del contrassegno",
+    -- Kleine Plaketten
+    ["Back to the small plates"] = "Torna alle targhette piccole",
+    ["Puts the same settings back to the small plates this addon ships with."] = "Riporta le stesse impostazioni alle targhette piccole fornite con questo componente.",
 } end)

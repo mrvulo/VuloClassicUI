@@ -2712,4 +2712,7 @@ ns:RegisterLocale("koKR", function() return {
     ["Mark text"] = "표식 글자",
     ["Mark position"] = "표식 위치",
     ["Mark size"] = "표식 크기",
+    -- Kleine Plaketten
+    ["Back to the small plates"] = "작은 이름표로 되돌리기",
+    ["Puts the same settings back to the small plates this addon ships with."] = "같은 설정을 이 애드온이 기본으로 제공하는 작은 이름표로 되돌립니다.",
 } end)
