@@ -962,9 +962,24 @@ function ns:CreateMover(target, opts)
         if ns._activeMover == self then ns._activeMover = nil end
     end)
 
-    mover:EnableKeyboard(true)
-    mover:SetPropagateKeyboardInput(true)
+    -- SetPropagateKeyboardInput ist eine geschuetzte Funktion: ruft ein Addon
+    -- sie im Kampf auf, blockiert Blizzard den Aufruf (ADDON_ACTION_BLOCKED).
+    -- Deshalb bleibt die Tastatur aus, bis der Mover sichtbar wird - und das
+    -- ist er nur beim Verschieben. EnableKeyboard und das Durchreichen immer
+    -- gemeinsam setzen, sonst schluckt der Frame auch Bewegungstasten.
+    mover:EnableKeyboard(false)
+    mover:HookScript("OnShow", function(self)
+        if InCombatLockdown and InCombatLockdown() then return end
+        self:EnableKeyboard(true)
+        self:SetPropagateKeyboardInput(true)
+    end)
+    mover:HookScript("OnHide", function(self)
+        self:EnableKeyboard(false)
+    end)
+
     mover:SetScript("OnKeyDown", function(self, key)
+        -- Der Kampf kann waehrend des Verschiebens beginnen.
+        if InCombatLockdown and InCombatLockdown() then return end
         if not (moverShouldEdit(self) or db.unlocked or db.freeMove) or ns._activeMover ~= self then
             self:SetPropagateKeyboardInput(true)
             return
