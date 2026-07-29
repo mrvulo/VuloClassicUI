@@ -1804,7 +1804,10 @@ function mod:GetOptions()
           tooltip = L["Hides the row of menu buttons (character, spellbook, …)."],
           get = function() return mod.db.hideMicroMenu end,
           set = function(_, v) mod.db.hideMicroMenu = v; if mod.active then applyMicroBags(); applyMicroStyle() end end },
-        { type = "segmented", label = L["Micro menu style"], width = 280,
+        -- Stays a dropdown although it has only two values today: more styles
+        -- are expected, and a segmented row stops working somewhere around four.
+        -- A list that can grow belongs in a menu.
+        { type = "dropdown", label = L["Micro menu style"], width = 280,
           tooltip = L["Modern replaces Blizzard's buttons with a flat dark icon strip in the VuloUI look. Clicks and tooltips stay identical."],
           values = {
               { value = "classic", text = L["Classic (Blizzard buttons)"] },
@@ -1816,7 +1819,8 @@ function mod:GetOptions()
           tooltip = L["Hides the backpack and bag slots."],
           get = function() return mod.db.hideBags end,
           set = function(_, v) mod.db.hideBags = v; if mod.active then applyMicroBags(); applyBagStyle() end end },
-        { type = "segmented", label = L["Bag bar style"], width = 280,
+        -- Same reasoning as the micro menu style above.
+        { type = "dropdown", label = L["Bag bar style"], width = 280,
           tooltip = L["Modern puts the real bag buttons on a flat dark strip in the VuloUI look — opening, swapping and tooltips stay identical."],
           values = {
               { value = "classic", text = L["Classic (Blizzard buttons)"] },
