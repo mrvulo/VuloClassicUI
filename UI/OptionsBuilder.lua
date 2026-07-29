@@ -607,7 +607,16 @@ placeItem = function(parent, item, y)
         -- A one-line row like every other: no -14 nudge to clear a label that
         -- once sat above the track.
         widget:SetWidth(math.max(120, availW - 20 - ROW_ICON_STRIP))
-        widget:SetPoint("TOPLEFT", parent, "TOPLEFT", CONTENT_PADDING + 10, y)
+
+        -- Centred in the card by its REAL height, not hung from the top edge.
+        -- The height createWidget reports is the height of the ROW -- what the
+        -- card should be -- and it is not always what the control measures: a
+        -- toggle reports 26 and builds a 22 px container, so hanging it from the
+        -- top left it sitting 2 px high. Same arithmetic placeColumns has always
+        -- used for its cells; placeItem was the one that skipped it.
+        local wh = widget:GetHeight() or h
+        widget:SetPoint("TOPLEFT", parent, "TOPLEFT",
+            CONTENT_PADDING + 10, y - math.floor((h - wh) / 2))
 
         y = y - h - CARD_GAP
         if expanded and item.subOptions then
