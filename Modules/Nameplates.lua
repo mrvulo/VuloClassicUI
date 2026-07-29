@@ -2444,13 +2444,20 @@ end
 
 -- The clickable area, as a PERCENTAGE.
 --
--- There is no way to ask the client how big a plate's hitbox is by default, and
--- guessing a base wrongly would move everyone's clicks. So 100 does not compute
--- anything: it means "never call the setter", which leaves the client's own
--- size exactly as it was. Only a value away from 100 needs a base, and there an
--- approximate base only makes the scale approximate -- which is all a
--- make-it-a-bit-bigger control has to be.
-local HITBOX_BASE_W, HITBOX_BASE_H = 128, 32
+-- MEASURED, not assumed. There is no getter for the default hitbox --
+-- C_NamePlate.GetNamePlateEnemySize does not exist on this client -- but the
+-- base nameplate frame IS that area, so its own size answers the question:
+--
+--     /run local p=C_NamePlate.GetNamePlateForUnit("target")
+--          if p then print(p:GetSize()) end   --> 152.0001  54.99999
+--
+-- Read while both sliders sat at 100, i.e. while the setter had never been
+-- called, so that size is the client's own. The first guess here was 128x32 and
+-- the height was off by nearly three quarters.
+--
+-- 100 still computes nothing: it means "do not call the setter at all", which
+-- leaves the client's size untouched no matter what these numbers say.
+local HITBOX_BASE_W, HITBOX_BASE_H = 152, 55
 
 local function applyHitbox()
     if InCombatLockdown() then return end
