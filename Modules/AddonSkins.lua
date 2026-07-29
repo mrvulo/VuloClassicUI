@@ -299,9 +299,12 @@ function sk.skinAtlasLootPVP()
         end
     end
     skinButton(_G.AtlasLootPVPCalcToggleButton)
-    -- Flush with whatever it sits beside: same top edge, same bottom edge. The
-    -- offsets used to be -8 and +45, which left it visibly short at both ends
-    -- against a window it is meant to read as part of.
+    -- Flush with whatever it sits beside: same top edge, same bottom edge.
+    -- Anchoring straight to CharacterFrame does NOT do that -- the Modern style
+    -- paints its dark ground as a texture inset 6 from the top and 72 from the
+    -- bottom, so the frame reaches well below anything you can see (the tabs sit
+    -- in that gap). CharacterPanelModernExt reports those insets; the Loadouts
+    -- sidebar docks through the same helper for the same reason.
     local function dock()
         local sb = _G.VCUI_LoadoutsSidebar
         p._vcuiDocking = true
@@ -310,19 +313,23 @@ function sk.skinAtlasLootPVP()
             p:SetPoint("TOPLEFT",     sb, "TOPRIGHT",    2, 0)
             p:SetPoint("BOTTOMLEFT",  sb, "BOTTOMRIGHT", 2, 0)
         elseif _G.CharacterFrame then
-            p:SetPoint("TOPLEFT",     _G.CharacterFrame, "TOPRIGHT",    6, 0)
-            p:SetPoint("BOTTOMLEFT",  _G.CharacterFrame, "BOTTOMRIGHT", 6, 0)
+            -- classic art has its own frame/edge margins, hence the fallback pair
+            local x, top, bottom = 6, -8, 45
+            if ns.CharacterPanelModernExt then
+                local ext, extTop, extBot, modernOn = ns.CharacterPanelModernExt()
+                if modernOn then x, top, bottom = 6 + ext, extTop, extBot end
+            end
+            p:SetPoint("TOPLEFT",     _G.CharacterFrame, "TOPRIGHT",    x, top)
+            p:SetPoint("BOTTOMLEFT",  _G.CharacterFrame, "BOTTOMRIGHT", x, bottom)
         end
         p._vcuiDocking = nil
     end
     dock()
     p:HookScript("OnShow", dock)
 
-    -- OnShow alone was not enough: the panel's own code re-anchors it after
-    -- that, which is why it sat proud of the character window at both ends even
-    -- though the docking above had already run. Same idiom as pinFrame in
-    -- Modules/ActionBars.lua -- re-assert from a SetPoint hook, with a flag so
-    -- our own two calls above do not re-enter it.
+    -- Re-assert from a SetPoint hook so nothing else can move it back; same
+    -- idiom as pinFrame in Modules/ActionBars.lua. The flag keeps our own two
+    -- calls above from re-entering it.
     if not p._vcuiDockHook then
         p._vcuiDockHook = true
         hooksecurefunc(p, "SetPoint", function(self)
