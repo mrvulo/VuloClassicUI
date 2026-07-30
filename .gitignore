@@ -4,3 +4,7 @@ Media/LocalClasses/
 # local tooling config, contains absolute machine paths
 .claude/
 IDEA.md
+# editor and agent config: useful locally, but the packager has no ignore rule
+# for them, so tracking them would ship them to players inside the addon folder
+.vscode/
+.mcp.json
