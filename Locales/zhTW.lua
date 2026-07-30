@@ -2792,4 +2792,13 @@ ns:RegisterLocale("zhTW", function() return {
     ["Version detection falls back to the build number whenever a client reports an identifier we have no name for. Such a client used to end up with every version flag false, which left it worse off than a client with no identifier at all, because that one at least fell back to something."] = "只要客戶端回報一個我們叫不出名字的識別碼，版本辨識就退回去看版本號。以前這樣的客戶端會讓所有版本標記都為假，反而比完全沒有識別碼的客戶端更糟，因為後者至少還能退回到某個預設值。",
     ["242 texts that nothing in the interface looks up any more are gone from all nine language files, roughly eight percent of each. Renamed settings left them behind: the action bars were given clearer names a while ago and the old entries simply stayed. A check now asks the reverse question after every change, whether every translated text is still in use, so they cannot pile up again."] = "介面裡再也沒有任何地方會去查的 242 條文字，已經從九個語言檔中全部移除，各占約百分之八。它們是被改名的設定留下的：動作列前一陣換了更清楚的名字，舊項目就那麼留著。現在每次改動之後都會有一項檢查反過來問，每條翻譯好的文字是否還在被使用，這樣它們就不會再堆積起來。",
     ["Call button – A fifth totem button for the spells that summon a whole saved totem set, shown only to characters who know one"] = "召喚按鈕 – 第五個圖騰按鈕，用於那些一次召喚整套已儲存圖騰的法術，只對會這類法術的角色顯示",
+    ["Icon Strip"] = "圖示列",
+    ["Distance from frame"] = "與框架的距離",
+    ["Spacing between icons"] = "圖示間距",
+    ["Racial, PvP trinket and the DR row sit on the same edge of the frame and are placed one after the other, in that order, outwards from the frame."] = "種族技能、PvP 飾品與遞減圖示列位於框架的同一側，並依此順序逐一向外排列。",
+    ["Where it sits is set once for all three trackers under Layout, Icon Strip."] = "位置在「版面—圖示列」中一次為三個追蹤器統一設定。",
+    ["Gap below each frame. The opponent's pet bar hangs off the bottom of the frame, so a small gap lets it reach into the next one."] = "每個框架下方的間距。對手的寵物條會超出框架底部，間距過小時會壓到下一個框架。",
+    ["Arena: racial, PvP trinket and the DR row now share one icon strip; your chosen side was kept."] = "競技場：種族技能、PvP 飾品與遞減圖示列現在共用一條圖示列；你選擇的一側已保留。",
+    ["|cffff5555Arena layout failed:|r %s"] = "|cffff5555競技場版面失敗：|r %s",
+    ["|cffff5555Arena icon strip error:|r %s"] = "|cffff5555競技場圖示列錯誤：|r %s",
 } end)

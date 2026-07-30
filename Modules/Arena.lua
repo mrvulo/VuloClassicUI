@@ -22,33 +22,30 @@ local mod = ns:RegisterModule("arenaframes", {
         powerSize  = 10,
 
         slotOrder        = { 1, 2, 3, 4, 5 },
-        slotSpacing      = 6,
+        -- Gap below each frame. 6 left no room for the opponent's pet bar, which
+        -- hangs off the bottom of the arena frame and then reached into the next
+        -- one; 28 clears it and still reads as one block.
+        slotSpacing      = 28,
         growDirection    = "down",
         slotOffsets      = {},
+
+        -- Shared side strip: racial, PvP trinket and the DR row all live on the
+        -- same edge and are laid out in one pass, in that order, outwards from
+        -- the frame. See RegisterSideIcon.
+        iconSide     = "RIGHT",
+        iconOffsetX  = 8,
+        iconOffsetY  = 0,
+        iconGap      = 4,
 
         classColorHealth  = true,
         classColorName    = true,
         classIconPortrait = true,
 
         trinketEnabled   = true,
-        -- The two side icons sit on opposite edges (see the racial block below)
-        -- and used to crowd the frame at 6px. Pushed out to 14 and shrunk by 4
-        -- so the health and mana bars read as the middle of the frame instead of
-        -- competing with an icon at each shoulder.
         trinketSize      = 24,
-        trinketAnchor    = "LEFT",
-        trinketOffsetX   = -14,
-        trinketOffsetY   = 0,
 
         drEnabled   = false,
         drSize      = 24,
-        -- The row used to hang at a hard-wired 8px off the right edge, which is
-        -- exactly where the side icon already sits, so switching DR on stacked
-        -- the two. It now carries its own edge and offsets; the default clears
-        -- the racial at 26 plus its 22px icon.
-        drAnchor    = "RIGHT",
-        drOffsetX   = 52,
-        drOffsetY   = 0,
 
         castbarEnabled = false,
         castbarWidth   = 120,
@@ -58,10 +55,7 @@ local mod = ns:RegisterModule("arenaframes", {
         trinketGlow  = true,
 
         racialEnabled = true,
-        -- Sits on whichever edge the trinket did not take.
         racialSize    = 22,
-        racialOffsetX = 26,
-        racialOffsetY = 0,
 
         shadowsightEnabled = true,
 
@@ -109,6 +103,66 @@ end
 
 function H.GetNameText(frame)
     return frame.name or _G[frame:GetName() .. "Name"]
+end
+
+-- ---------------------------------------------------------------------------
+-- Side strip.
+--
+-- Racial, PvP trinket and the DR row share one edge of the arena frame. Each
+-- used to carry its own edge and its own X/Y offsets, hand-tuned around the
+-- others: the defaults read "26 clears the racial at 22", and every size slider
+-- was a fresh chance for two icons to land on the same spot. They are laid out
+-- in a single pass instead - fixed order, each one placed after the previous.
+--
+-- A slot is reserved by the SETTING, not by what is visible right now. An icon
+-- that is momentarily hidden (racial before the opponent's race is known, an
+-- expired DR) keeps its gap instead of shifting the rest along. In an arena an
+-- icon that moves is an icon you have to find twice.
+mod._sideIcons = {}
+
+-- order: lower sits closer to the frame. Getter returns (frame, width), or nil
+-- when the feature is switched off and its slot should collapse.
+function mod.RegisterSideIcon(order, getter)
+    local list = mod._sideIcons
+    list[#list + 1] = { order = order, get = getter }
+    table.sort(list, function(a, b) return a.order < b.order end)
+end
+
+function mod.IsSideStripRight()
+    return (mod.db.iconSide or "RIGHT") ~= "LEFT"
+end
+
+function mod.LayoutSideIcons(arenaFrame, i)
+    if not arenaFrame then return end
+    local d     = mod.db
+    local right = mod.IsSideStripRight()
+    local gap   = d.iconGap or 4
+    local y     = d.iconOffsetY or 0
+    local x     = d.iconOffsetX or 8
+
+    for _, entry in ipairs(mod._sideIcons) do
+        local ok, f, width = pcall(entry.get, arenaFrame, i)
+        -- A getter that throws leaves its icon unanchored for good, so it has to
+        -- say so. Once per getter: this runs from the combat log, and a repeating
+        -- fault would otherwise fill the chat frame during a fight.
+        if not ok and not entry.reported then
+            entry.reported = true
+            ns:Print(L["|cffff5555Arena icon strip error:|r %s"], tostring(f))
+        end
+        if ok and f then
+            f:ClearAllPoints()
+            if right then
+                f:SetPoint("LEFT", arenaFrame, "RIGHT", x, y)
+            else
+                f:SetPoint("RIGHT", arenaFrame, "LEFT", -x, y)
+            end
+            x = x + (width or f:GetWidth() or 0) + gap
+        end
+    end
+end
+
+function mod.RefreshSideIcons()
+    H.ForEach(mod.LayoutSideIcons)
 end
 
 mod._readyHandlers = {}
@@ -283,16 +337,26 @@ local function unmanageOwner()
     end
 end
 
+local applyingOwner = false
+
 local function applyToOwner()
     local owner = H.GetOwner()
     if not owner then return end
     if ns:InCombat() then pendingApply = true; return end
+    if applyingOwner then return end
 
-    local p = mod.db.pos
+    -- pcall with the flag cleared outside it: an error in here would otherwise
+    -- leave applyingOwner true and every later correction would take the
+    -- "already running" exit, permanently and without a word.
+    local p = mod.db.pos or {}
     unmanageOwner()
-    owner:ClearAllPoints()
-    owner:SetPoint(p.point or "CENTER", UIParent, p.relPoint or "CENTER", p.x or 0, p.y or 0)
-    owner:SetScale(mod.db.scale or 1.0)
+    applyingOwner = true
+    pcall(function()
+        owner:ClearAllPoints()
+        owner:SetPoint(p.point or "CENTER", UIParent, p.relPoint or "CENTER", p.x or 0, p.y or 0)
+        owner:SetScale(mod.db.scale or 1.0)
+    end)
+    applyingOwner = false
 
     if dragOverlay and dragOverlay:IsShown() and mod.UpdateDragOverlay then
         mod:UpdateDragOverlay()
@@ -300,6 +364,26 @@ local function applyToOwner()
 end
 
 mod.ApplyOwnerPosition = applyToOwner
+
+-- Whatever moves the container reports it here, hook on UIParent_ManageFramePositions
+-- or not: a post-hook on its own anchor methods catches the re-manage, the layout
+-- pass Blizzard runs when an opponent appears, and anything a third addon does.
+-- In combat the frame is protected and cannot be moved back, so the correction is
+-- deferred to PLAYER_REGEN_ENABLED through pendingApply, exactly as applyToOwner
+-- already does.
+local ownerWatched = false
+local function watchOwnerAnchors()
+    if ownerWatched or not hooksecurefunc then return end
+    local owner = H.GetOwner()
+    if not owner then return end
+    ownerWatched = true
+    local function onOwnerMoved()
+        if not mod._enabled or applyingOwner then return end
+        applyToOwner()
+    end
+    hooksecurefunc(owner, "SetPoint", onOwnerMoved)
+    hooksecurefunc(owner, "ClearAllPoints", onOwnerMoved)
+end
 
 local function applyArenaFonts(frame)
     local health, power = H.GetArenaBars(frame)
@@ -356,10 +440,27 @@ end
 local MOVER_WIDTH  = 220
 local MOVER_HEIGHT = 280
 
+-- The overlay is what the player grabs, so it has to cover what it claims to.
+-- The constants above only ever matched the stack at the old 6px spacing; at a
+-- wider setting the bottom frames hung outside the box and could not be grabbed
+-- at all. The layout pass measures the real stack, and the overlay follows it.
+local function sizeDragOverlay()
+    if not dragOverlay then return end
+    local w, h = MOVER_WIDTH, MOVER_HEIGHT
+    if mod.GetStackSize then
+        local sw, sh = mod.GetStackSize()
+        if sw and sw > 0 then w = sw end
+        if sh and sh > 0 then h = sh end
+    end
+    dragOverlay:SetSize(w, h)
+    if mod._mover and mod._mover.SetSize then mod._mover:SetSize(w, h) end
+end
+
 -- Proxy overlay is dragged instead of the secure container (StartMoving on it would taint); both are kept at identical scale + CENTER offset.
 local function arenaApplyPos()
     if not dragOverlay then return end
     dragOverlay:SetScale(mod.db.scale or 1.0)
+    sizeDragOverlay()
     dragOverlay:ClearAllPoints()
     dragOverlay:SetPoint("CENTER", UIParent, "CENTER", mod.db.x or 0, mod.db.y or 0)
     mod.db.pos = mod.db.pos or {}
@@ -409,6 +510,7 @@ function mod:UpdateDragOverlay()
     if not dragOverlay then return end
 
     local p = mod.db.pos or { point = "CENTER", relPoint = "CENTER", x = 0, y = 0 }
+    sizeDragOverlay()
     dragOverlay:ClearAllPoints()
     dragOverlay:SetPoint(p.point or "CENTER", UIParent, p.relPoint or "CENTER", p.x or 0, p.y or 0)
     -- must match the owner's scale, else dragging does not map 1:1
@@ -544,10 +646,15 @@ end
 
 function mod:Refresh()
     unmanageOwner()
+    watchOwnerAnchors()
     applyToOwner()
     if self:RefreshAll() then
         applyAllFonts()
     end
+    -- The arena UI is loaded on demand, so this is the first point in a session
+    -- where the frames exist at all; the layout block installs its hooks here.
+    if self.HookLayout then self.HookLayout() end
+    if self.ApplyLayout then self.ApplyLayout() end
 
     if not unlocked and not ns:InCombat() then
         H.ForEach(function(frame, i)
@@ -559,8 +666,17 @@ function mod:Refresh()
 
     -- frames can arrive a tick or two late
     if C_Timer and C_Timer.After then
-        C_Timer.After(0, function() applyToOwner() end)
-        C_Timer.After(1, function() applyToOwner(); self:RefreshAll(); applyBGUnitWatch() end)
+        C_Timer.After(0, function()
+            watchOwnerAnchors(); applyToOwner()
+            if self.HookLayout then self.HookLayout() end
+            if self.ApplyLayout then self.ApplyLayout() end
+        end)
+        C_Timer.After(1, function()
+            watchOwnerAnchors(); applyToOwner()
+            self:RefreshAll(); applyBGUnitWatch()
+            if self.HookLayout then self.HookLayout() end
+            if self.ApplyLayout then self.ApplyLayout() end
+        end)
     end
 end
 
@@ -621,64 +737,197 @@ local L = ns.L
 local mod = ns.ArenaModule
 local H = mod.helpers
 
-local function applyLayout()
-    local owner = H.GetOwner()
-    if not owner then return end
-    -- secure frames: moving them in combat is blocked and taints; re-applied on PLAYER_REGEN_ENABLED
-    if InCombatLockdown() then return end
+-- Set while we are anchoring, so the watchdog below does not answer our own
+-- SetPoint calls.
+local applying  = false
+local scheduled = false
 
-    local order   = mod.db.slotOrder   or { 1, 2, 3, 4, 5 }
-    local spacing = mod.db.slotSpacing or 6
-    local grow    = mod.db.growDirection or "down"
+-- The slot order is player data and arrives from imported profile strings too,
+-- which are not validated on the way in. A repeated slot would make us anchor a
+-- frame to itself (SetPoint raises on the cycle) and a slotOffsets entry that is
+-- not a table would raise on the first field read - both inside the anchoring
+-- loop, where an error leaves the whole module wedged. Sanitised up front
+-- instead, so the loop below cannot throw on bad stored data.
+local SLOT_SEQ = {}
+local function orderedSlots()
+    for i = #SLOT_SEQ, 1, -1 do SLOT_SEQ[i] = nil end
+    local seen = {}
+    local order = mod.db.slotOrder
+    if type(order) == "table" then
+        for _, slotIndex in ipairs(order) do
+            slotIndex = tonumber(slotIndex)
+            if slotIndex and slotIndex >= 1 and slotIndex <= 5 and not seen[slotIndex] then
+                seen[slotIndex] = true
+                SLOT_SEQ[#SLOT_SEQ + 1] = slotIndex
+            end
+        end
+    end
+    -- a slot dropped by the pass above still has to be laid out somewhere
+    for slotIndex = 1, 5 do
+        if not seen[slotIndex] then SLOT_SEQ[#SLOT_SEQ + 1] = slotIndex end
+    end
+    return SLOT_SEQ
+end
 
+local function slotOffset(slotIndex)
+    local all = mod.db.slotOffsets
+    local o = type(all) == "table" and all[slotIndex]
+    if type(o) ~= "table" then return 0, 0 end
+    return tonumber(o.x) or 0, tonumber(o.y) or 0
+end
+
+-- Size of the whole stack, for the drag overlay. nil until the frames have a
+-- measurable height, which is the first tick after the arena UI loads.
+local stackW, stackH
+function mod.GetStackSize()
+    return stackW, stackH
+end
+
+local reportedLayoutError = false
+
+local function anchorSlots(owner, slots, spacing, grow)
     local previous = nil
-    for visualIndex, slotIndex in ipairs(order) do
+    for _, slotIndex in ipairs(slots) do
         local frame = _G["ArenaEnemyFrame" .. slotIndex]
         if frame then
+            local ox, oy = slotOffset(slotIndex)
             frame:ClearAllPoints()
-            local offsets = mod.db.slotOffsets and mod.db.slotOffsets[slotIndex] or { x = 0, y = 0 }
 
             if not previous then
-                local anchorPoint = (grow == "down") and "TOP" or "BOTTOM"
-                frame:SetPoint(anchorPoint, owner, anchorPoint, offsets.x or 0, offsets.y or 0)
+                local edge = (grow == "down") and "TOP" or "BOTTOM"
+                if stackH then
+                    local half = (grow == "down") and (stackH / 2) or -(stackH / 2)
+                    frame:SetPoint(edge, owner, "CENTER", ox, oy + half)
+                else
+                    frame:SetPoint(edge, owner, edge, ox, oy)
+                end
             else
-                local thisAnchor   = (grow == "down") and "TOP"    or "BOTTOM"
-                local prevAnchor   = (grow == "down") and "BOTTOM" or "TOP"
-                local yDelta       = (grow == "down") and -spacing or  spacing
-                frame:SetPoint(thisAnchor, previous, prevAnchor, offsets.x or 0, (offsets.y or 0) + yDelta)
+                local thisAnchor = (grow == "down") and "TOP"    or "BOTTOM"
+                local prevAnchor = (grow == "down") and "BOTTOM" or "TOP"
+                local yDelta     = (grow == "down") and -spacing or  spacing
+                frame:SetPoint(thisAnchor, previous, prevAnchor, ox, oy + yDelta)
             end
             previous = frame
         end
     end
 end
 
+local function applyLayout()
+    local owner = H.GetOwner()
+    if not owner then return end
+    -- secure frames: moving them in combat is blocked and taints; re-applied on PLAYER_REGEN_ENABLED
+    if InCombatLockdown() then return end
+    if applying then return end
+
+    local slots   = orderedSlots()
+    local spacing = mod.db.slotSpacing or 28
+    local grow    = mod.db.growDirection or "down"
+
+    -- Measured first, because the stack is centred on the container: without it
+    -- the frames would hang off the container's top edge and the drag overlay,
+    -- which the mover engine keeps centred on the same point, could only ever
+    -- cover them at one particular spacing.
+    local totalH, maxW, counted = 0, 0, 0
+    for _, slotIndex in ipairs(slots) do
+        local frame = _G["ArenaEnemyFrame" .. slotIndex]
+        if frame then
+            local h, w = frame:GetHeight() or 0, frame:GetWidth() or 0
+            if h > 0 then totalH = totalH + h; counted = counted + 1 end
+            if w > maxW then maxW = w end
+        end
+    end
+    if counted > 0 then
+        stackH = totalH + spacing * (counted - 1)
+        stackW = maxW
+    else
+        stackH, stackW = nil, nil
+    end
+
+    -- pcall, and the flag cleared outside it: an error thrown between setting
+    -- and clearing would leave `applying` true for the rest of the session, and
+    -- every later re-apply - including the one that repairs the frames after a
+    -- fight - would take the "already running" exit and do nothing, silently.
+    applying = true
+    local ok, err = pcall(anchorSlots, owner, slots, spacing, grow)
+    applying = false
+    if not ok and not reportedLayoutError then
+        reportedLayoutError = true
+        ns:Print(L["|cffff5555Arena layout failed:|r %s"], tostring(err))
+    end
+
+    if mod.UpdateDragOverlay then mod:UpdateDragOverlay() end
+end
+
 mod.ApplyLayout = applyLayout
 
+-- One re-apply per frame update, however many anchor calls triggered it: a single
+-- Blizzard pass touches all five frames and would otherwise run the whole layout
+-- five times over.
+local function requestLayout()
+    if applying or scheduled or not mod._enabled then return end
+    -- nothing to defer: PLAYER_REGEN_ENABLED re-applies unconditionally
+    if InCombatLockdown() then return end
+    if not (C_Timer and C_Timer.After) then applyLayout(); return end
+    scheduled = true
+    C_Timer.After(0, function()
+        scheduled = false
+        applyLayout()
+    end)
+end
+
 local function ev_layout_PLAYER_REGEN_ENABLED()
+    -- Anything that moved a frame while it was protected is repaired here, and
+    -- unconditionally: a move made through a path we do not watch would leave no
+    -- flag behind, so there is nothing worth remembering during the fight.
     if mod._enabled then applyLayout() end
+end
+
+local function ev_layout_refresh()
+    requestLayout()
+end
+
+-- Frames are re-anchored by more than one path - a new opponent being seen, the
+-- container being re-managed - and there is no one event that covers all of
+-- them, so the frames report their own moves instead.
+--
+-- The limit is combat: these are protected frames, so a move made during a round
+-- cannot be undone until it ends. A late opponent walking into view mid-fight
+-- therefore keeps Blizzard's stacking until PLAYER_REGEN_ENABLED repairs it.
+local anchorWatched = {}
+local function watchFrameAnchors()
+    if not hooksecurefunc then return end
+    H.ForEach(function(frame)
+        if anchorWatched[frame] then return end
+        anchorWatched[frame] = true
+        hooksecurefunc(frame, "SetPoint", requestLayout)
+        hooksecurefunc(frame, "ClearAllPoints", requestLayout)
+    end)
 end
 
 local layoutHooked = false
 local function hookLayout()
-    if layoutHooked or not hooksecurefunc then return end
-    layoutHooked = true
+    if not hooksecurefunc then return end
 
-    if _G.ArenaEnemyFrames_UpdatePlayer then
-        hooksecurefunc("ArenaEnemyFrames_UpdatePlayer", function()
-            if not mod._enabled then return end
-            applyLayout()
-        end)
-    end
-    if _G.ArenaEnemyFrames_Update then
-        hooksecurefunc("ArenaEnemyFrames_Update", function()
-            if not mod._enabled then return end
-            applyLayout()
-        end)
+    -- Blizzard_ArenaUI loads on demand, so at PLAYER_LOGIN these globals do not
+    -- exist yet. The flag used to be set before they were checked, which meant
+    -- the hooks were never installed at all and the whole layout - order, spacing,
+    -- grow direction - silently did nothing for the rest of the session.
+    if not layoutHooked and _G.ArenaEnemyFrames_Update and _G.ArenaEnemyFrames_UpdatePlayer then
+        layoutHooked = true
+        hooksecurefunc("ArenaEnemyFrames_UpdatePlayer", requestLayout)
+        hooksecurefunc("ArenaEnemyFrames_Update", requestLayout)
     end
 
-    -- catches updates the in-combat guard above skipped
-    mod.RegEvent("PLAYER_REGEN_ENABLED", ev_layout_PLAYER_REGEN_ENABLED)
+    -- runs on every call: frames created after the last one still need watching
+    watchFrameAnchors()
 end
+
+mod.HookLayout = hookLayout
+
+-- Registered here rather than inside hookLayout: the post-combat repair must not
+-- depend on the arena UI having been loaded when the hooks were tried.
+mod.RegEvent("PLAYER_REGEN_ENABLED",  ev_layout_PLAYER_REGEN_ENABLED)
+mod.RegEvent("ARENA_OPPONENT_UPDATE", ev_layout_refresh)
 
 local function moveSlot(slotIndex, direction)
     local order = mod.db.slotOrder
@@ -695,12 +944,16 @@ local function moveSlot(slotIndex, direction)
 end
 
 mod:OnArenaFramesReady(function(frame, i)
-    -- layout is applied for all slots at once, nothing per frame
+    -- Layout is applied for all slots at once, nothing per frame - but this is
+    -- where frames are known to exist, so it is where they get watched.
+    hookLayout()
+    requestLayout()
 end)
 
 local layoutInitFrame = CreateFrame("Frame")
 layoutInitFrame:RegisterEvent("ADDON_LOADED")
 layoutInitFrame:RegisterEvent("PLAYER_LOGIN")
+layoutInitFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 layoutInitFrame:SetScript("OnEvent", function(_, _, addonName)
     hookLayout()
     if mod._enabled then applyLayout() end
@@ -731,7 +984,8 @@ mod:AddOptionsSection("layout", function()
     table.insert(items, { type = "spacer", height = 4 })
     table.insert(items, {
         type = "slider", label = L["Spacing between frames"],
-        min = 0, max = 40, step = 1,
+        tooltip = L["Gap below each frame. The opponent's pet bar hangs off the bottom of the frame, so a small gap lets it reach into the next one."],
+        min = 0, max = 120, step = 1,
         get = function() return mod.db.slotSpacing end,
         set = function(_, v) mod.db.slotSpacing = v; applyLayout() end,
     })
@@ -751,6 +1005,42 @@ mod:AddOptionsSection("layout", function()
             applyLayout()
             ns.UI:BuildOptionsPage("arenaframes")
         end,
+    })
+
+    table.insert(items, { type = "spacer", height = 8 })
+    table.insert(items, { type = "header", text = L["Icon Strip"] })
+    table.insert(items, { type = "desc",
+        text = L["Racial, PvP trinket and the DR row sit on the same edge of the frame and are placed one after the other, in that order, outwards from the frame."] })
+    table.insert(items, {
+        type = "dropdown", label = L["Side"],
+        values = {
+            { value = "RIGHT", text = L["Right of frame"] },
+            { value = "LEFT",  text = L["Left of frame"] },
+        },
+        get = function() return mod.db.iconSide end,
+        -- RefreshDR, not just RefreshSideIcons: the side also decides which way
+        -- the DR icons grow INSIDE their container, and that is redrawn in
+        -- updateDRDisplay. Moving the container alone would leave a live row
+        -- growing back across the arena frame until the next expiry tick.
+        set = function(_, v) mod.db.iconSide = v; mod.RefreshSideIcons(); mod.RefreshDR() end,
+    })
+    table.insert(items, {
+        type = "slider", label = L["Distance from frame"],
+        min = 0, max = 80, step = 1,
+        get = function() return mod.db.iconOffsetX end,
+        set = function(_, v) mod.db.iconOffsetX = v; mod.RefreshSideIcons() end,
+    })
+    table.insert(items, {
+        type = "slider", label = L["Spacing between icons"],
+        min = 0, max = 30, step = 1,
+        get = function() return mod.db.iconGap end,
+        set = function(_, v) mod.db.iconGap = v; mod.RefreshSideIcons() end,
+    })
+    table.insert(items, {
+        type = "slider", label = L["Offset Y"],
+        min = -60, max = 60, step = 1,
+        get = function() return mod.db.iconOffsetY end,
+        set = function(_, v) mod.db.iconOffsetY = v; mod.RefreshSideIcons() end,
     })
 
     return items
@@ -994,20 +1284,17 @@ local function ensureTrinketFrame(arenaFrame, i)
     return tf
 end
 
-local function anchorTrinketFrame(tf, arenaFrame)
-    if not tf or not arenaFrame then return end
-    tf:ClearAllPoints()
+-- Second in the side strip: right next to the racial, one step further out.
+mod.RegisterSideIcon(20, function(arenaFrame, i)
+    if not mod.db.trinketEnabled then return nil end
+    local tf = ensureTrinketFrame(arenaFrame, i)
     tf:SetSize(mod.db.trinketSize, mod.db.trinketSize)
-    if mod.db.trinketAnchor == "LEFT" then
-        tf:SetPoint("RIGHT", arenaFrame, "LEFT",  mod.db.trinketOffsetX,  mod.db.trinketOffsetY)
-    else
-        tf:SetPoint("LEFT",  arenaFrame, "RIGHT", -mod.db.trinketOffsetX, mod.db.trinketOffsetY)
-    end
-end
+    return tf, mod.db.trinketSize
+end)
 
 local function applyToFrame(arenaFrame, i)
     local tf = ensureTrinketFrame(arenaFrame, i)
-    anchorTrinketFrame(tf, arenaFrame)
+    mod.LayoutSideIcons(arenaFrame, i)
     if mod.db.trinketEnabled then
         tf:Show()
         if mod:IsUnlocked() then
@@ -1054,7 +1341,7 @@ local function startCooldown(unit, duration)
     local arenaFrame = _G["ArenaEnemyFrame" .. i]
     if not arenaFrame then return end
     local tf = ensureTrinketFrame(arenaFrame, i)
-    anchorTrinketFrame(tf, arenaFrame)
+    mod.LayoutSideIcons(arenaFrame, i)
 
     -- Only a genuinely new use gets the alert; the API refresh re-arms the same
     -- cooldown repeatedly and would otherwise beep every few seconds.
@@ -1114,7 +1401,7 @@ local function refreshTrinketFromAPI(unit)
     local arenaFrame = _G["ArenaEnemyFrame" .. i]
     if not arenaFrame then return end
     local tf = ensureTrinketFrame(arenaFrame, i)
-    anchorTrinketFrame(tf, arenaFrame)
+    mod.LayoutSideIcons(arenaFrame, i)
     -- the API re-reports the same cooldown on every refresh; only a start time
     -- we have not tracked yet counts as an actual use
     local prev = activeCDs[unit]
@@ -1248,27 +1535,7 @@ mod:AddOptionsSection("trinket", function()
             get = function() return mod.db.trinketSize end,
             set = function(_, v) mod.db.trinketSize = v; mod.RefreshTrinkets() end,
         },
-        {
-            type = "segmented", label = L["Position"],
-            values = {
-                { value = "LEFT",  text = L["Left of frame"] },
-                { value = "RIGHT", text = L["Right of frame"] },
-            },
-            get = function() return mod.db.trinketAnchor end,
-            set = function(_, v) mod.db.trinketAnchor = v; mod.RefreshTrinkets() end,
-        },
-        {
-            type = "slider", label = L["Offset X"],
-            min = -50, max = 50, step = 1,
-            get = function() return mod.db.trinketOffsetX end,
-            set = function(_, v) mod.db.trinketOffsetX = v; mod.RefreshTrinkets() end,
-        },
-        {
-            type = "slider", label = L["Offset Y"],
-            min = -50, max = 50, step = 1,
-            get = function() return mod.db.trinketOffsetY end,
-            set = function(_, v) mod.db.trinketOffsetY = v; mod.RefreshTrinkets() end,
-        },
+        { type = "desc", text = L["Where it sits is set once for all three trackers under Layout, Icon Strip."] },
         {
             type = "checkbox", label = L["Sound"],
             tooltip = L["Plays a raid warning sound the moment an opponent uses their PvP trinket."],
@@ -1345,25 +1612,40 @@ local drState = {}
 
 local drFrames = {}
 
+-- Widest the row can get: one icon per DR category we track, plus the 2px gap
+-- updateDRDisplay leaves between them. Derived rather than a fixed 120, so the
+-- strip reserves what the size slider actually asks for.
+local DR_MAX_ICONS = 6
+local function drRowWidth()
+    local size = mod.db.drSize or 24
+    return DR_MAX_ICONS * size + (DR_MAX_ICONS - 1) * 2
+end
+
 local function createDRContainer(parent, slotIndex)
     local container = CreateFrame("Frame", "VCUIArenaDR" .. slotIndex, parent)
-    container:SetSize(120, mod.db.drSize or 24)
+    container:SetSize(drRowWidth(), mod.db.drSize or 24)
     container.icons = {}
     return container
 end
 
--- Anchored on every update, not once at creation, so the sliders move the row
--- while the options window is open instead of only after the next arena.
-local function layoutDRContainer(container, arenaFrame)
-    local d = mod.db
-    container:SetSize(120, d.drSize or 24)
-    container:ClearAllPoints()
-    if d.drAnchor == "LEFT" then
-        container:SetPoint("RIGHT", arenaFrame, "LEFT", -(d.drOffsetX or 52), d.drOffsetY or 0)
-    else
-        container:SetPoint("LEFT", arenaFrame, "RIGHT", d.drOffsetX or 52, d.drOffsetY or 0)
+local function ensureDRContainer(arenaFrame, i)
+    local container = drFrames[i]
+    if not container then
+        container = createDRContainer(arenaFrame, i)
+        drFrames[i] = container
     end
+    return container
 end
+
+-- Last in the side strip: the row is the widest of the three and grows as more
+-- categories come up, so it goes furthest from the frame.
+mod.RegisterSideIcon(30, function(arenaFrame, i)
+    if not mod.db.drEnabled then return nil end
+    local container = ensureDRContainer(arenaFrame, i)
+    local w = drRowWidth()
+    container:SetSize(w, mod.db.drSize or 24)
+    return container, w
+end)
 
 local function createDRIcon(parent, category)
     local f = CreateFrame("Frame", nil, parent)
@@ -1410,12 +1692,8 @@ local function updateDRDisplay(unit)
     local arenaFrame = _G["ArenaEnemyFrame" .. i]
     if not arenaFrame then return end
 
-    local container = drFrames[i]
-    if not container then
-        container = createDRContainer(arenaFrame, i)
-        drFrames[i] = container
-    end
-    layoutDRContainer(container, arenaFrame)
+    local container = ensureDRContainer(arenaFrame, i)
+    mod.LayoutSideIcons(arenaFrame, i)
 
     local state = drState[unit] or {}
     local visible = {}
@@ -1430,7 +1708,7 @@ local function updateDRDisplay(unit)
 
     -- On the left edge the row has to grow away from the frame, or a second
     -- icon would be laid straight across the health bar.
-    local leftSide = (mod.db.drAnchor == "LEFT")
+    local leftSide = not mod.IsSideStripRight()
 
     local x = 0
     for _, entry in ipairs(visible) do
@@ -1474,10 +1752,7 @@ end
 -- Moving a slider outside an arena has no live state to redraw, so the frames
 -- that already exist are re-anchored directly.
 function mod.RefreshDR()
-    for i, container in pairs(drFrames) do
-        local arenaFrame = _G["ArenaEnemyFrame" .. i]
-        if arenaFrame then layoutDRContainer(container, arenaFrame) end
-    end
+    mod.RefreshSideIcons()
     for unit in pairs(drState) do updateDRDisplay(unit) end
 end
 
@@ -1605,27 +1880,7 @@ mod:AddOptionsSection("dr", function()
             get = function() return mod.db.drSize end,
             set = function(_, v) mod.db.drSize = v; mod.RefreshDR() end,
         },
-        {
-            type = "segmented", label = L["Position"],
-            values = {
-                { value = "LEFT",  text = L["Left of frame"] },
-                { value = "RIGHT", text = L["Right of frame"] },
-            },
-            get = function() return mod.db.drAnchor end,
-            set = function(_, v) mod.db.drAnchor = v; mod.RefreshDR() end,
-        },
-        {
-            type = "slider", label = L["Offset X"],
-            min = -100, max = 100, step = 1,
-            get = function() return mod.db.drOffsetX end,
-            set = function(_, v) mod.db.drOffsetX = v; mod.RefreshDR() end,
-        },
-        {
-            type = "slider", label = L["Offset Y"],
-            min = -60, max = 60, step = 1,
-            get = function() return mod.db.drOffsetY end,
-            set = function(_, v) mod.db.drOffsetY = v; mod.RefreshDR() end,
-        },
+        { type = "desc", text = L["Where it sits is set once for all three trackers under Layout, Icon Strip."] },
     }
 end)
 
@@ -1933,23 +2188,19 @@ local function ensureRacialFrame(arenaFrame, i)
     return f
 end
 
-local function layoutRacial(f, arenaFrame)
-    local d = mod.db
-    f:SetSize(d.racialSize, d.racialSize)
-    f:ClearAllPoints()
-    -- opposite side from the trinket, so the two icons never stack
-    if d.trinketAnchor == "LEFT" then
-        f:SetPoint("LEFT", arenaFrame, "RIGHT", d.racialOffsetX, d.racialOffsetY)
-    else
-        f:SetPoint("RIGHT", arenaFrame, "LEFT", -d.racialOffsetX, d.racialOffsetY)
-    end
-end
+-- First in the side strip: closest to the frame, with the trinket right beside it.
+mod.RegisterSideIcon(10, function(arenaFrame, i)
+    if not mod.db.racialEnabled then return nil end
+    local f = ensureRacialFrame(arenaFrame, i)
+    f:SetSize(mod.db.racialSize, mod.db.racialSize)
+    return f, mod.db.racialSize
+end)
 
 local function updateRacial(arenaFrame, i)
     local d = mod.db
     if not mod._enabled then return end
     local f = ensureRacialFrame(arenaFrame, i)
-    layoutRacial(f, arenaFrame)
+    mod.LayoutSideIcons(arenaFrame, i)
     if not d.racialEnabled then f:Hide(); return end
     local unit = "arena" .. i
     local race = UnitExists(unit) and select(2, UnitRace(unit)) or nil
@@ -1970,7 +2221,7 @@ function mod.RacialUsed(unit, spellId)
     local arenaFrame = i and _G["ArenaEnemyFrame" .. i]
     if not arenaFrame then return end
     local f = ensureRacialFrame(arenaFrame, i)
-    layoutRacial(f, arenaFrame)
+    mod.LayoutSideIcons(arenaFrame, i)
     local tex = GetSpellTexture and GetSpellTexture(spellId)
     if tex then f.icon:SetTexture(tex) end
     f.cd:SetCooldown(GetTime(), dur)
@@ -2005,12 +2256,7 @@ mod:AddOptionsSection("racial", function()
         { type = "slider", label = L["Icon size"], min = 16, max = 48, step = 1,
           get = function() return mod.db.racialSize end,
           set = function(_, v) mod.db.racialSize = v; mod.RefreshRacials() end },
-        { type = "slider", label = L["Offset X"], min = -100, max = 100, step = 1,
-          get = function() return mod.db.racialOffsetX end,
-          set = function(_, v) mod.db.racialOffsetX = v; mod.RefreshRacials() end },
-        { type = "slider", label = L["Offset Y"], min = -60, max = 60, step = 1,
-          get = function() return mod.db.racialOffsetY end,
-          set = function(_, v) mod.db.racialOffsetY = v; mod.RefreshRacials() end },
+        { type = "desc", text = L["Where it sits is set once for all three trackers under Layout, Icon Strip."] },
     }
 end)
 

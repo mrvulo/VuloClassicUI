@@ -2799,4 +2799,13 @@ ns:RegisterLocale("koKR", function() return {
     ["Version detection falls back to the build number whenever a client reports an identifier we have no name for. Such a client used to end up with every version flag false, which left it worse off than a client with no identifier at all, because that one at least fell back to something."] = "이름을 알지 못하는 식별자를 클라이언트가 알려 오면 버전 인식이 빌드 번호로 되돌아갑니다. 예전에는 그런 클라이언트에서 모든 버전 표시가 거짓이 되어, 식별자가 아예 없는 클라이언트보다 오히려 못한 상태였습니다. 후자는 적어도 무언가로 되돌아갔기 때문입니다.",
     ["242 texts that nothing in the interface looks up any more are gone from all nine language files, roughly eight percent of each. Renamed settings left them behind: the action bars were given clearer names a while ago and the old entries simply stayed. A check now asks the reverse question after every change, whether every translated text is still in use, so they cannot pile up again."] = "인터페이스에서 더 이상 아무도 찾지 않는 문구 242개가 아홉 개 언어 파일에서 모두 사라졌습니다. 각 파일의 약 8퍼센트입니다. 이름이 바뀐 설정이 남긴 것들로, 얼마 전 행동 단축바에 더 분명한 이름이 붙었는데 옛 항목이 그대로 남아 있었습니다. 이제 변경할 때마다 번역된 문구가 아직 쓰이는지 반대로 묻는 검사가 돌아가므로 다시 쌓이지 않습니다.",
     ["Call button – A fifth totem button for the spells that summon a whole saved totem set, shown only to characters who know one"] = "소환 버튼 – 저장해 둔 토템 세트를 통째로 소환하는 주문을 위한 다섯 번째 토템 버튼으로, 해당 주문을 아는 캐릭터에게만 보입니다",
+    ["Icon Strip"] = "아이콘 줄",
+    ["Distance from frame"] = "프레임과의 거리",
+    ["Spacing between icons"] = "아이콘 간 간격",
+    ["Racial, PvP trinket and the DR row sit on the same edge of the frame and are placed one after the other, in that order, outwards from the frame."] = "종족 특성, PvP 장신구, DR 줄은 프레임의 같은 쪽 가장자리에 자리하며 그 순서대로 바깥쪽으로 차례차례 배치됩니다.",
+    ["Where it sits is set once for all three trackers under Layout, Icon Strip."] = "위치는 배치의 아이콘 줄에서 세 추적기에 대해 한 번만 설정합니다.",
+    ["Gap below each frame. The opponent's pet bar hangs off the bottom of the frame, so a small gap lets it reach into the next one."] = "각 프레임 아래의 간격입니다. 상대의 소환수 바가 프레임 아래로 튀어나오므로 간격이 좁으면 다음 프레임까지 침범합니다.",
+    ["Arena: racial, PvP trinket and the DR row now share one icon strip; your chosen side was kept."] = "투기장: 종족 특성, PvP 장신구, DR 줄이 이제 하나의 아이콘 줄을 공유합니다. 선택했던 방향은 그대로 유지됩니다.",
+    ["|cffff5555Arena layout failed:|r %s"] = "|cffff5555투기장 배치 실패:|r %s",
+    ["|cffff5555Arena icon strip error:|r %s"] = "|cffff5555투기장 아이콘 줄 오류:|r %s",
 } end)

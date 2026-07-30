@@ -2792,4 +2792,13 @@ ns:RegisterLocale("zhCN", function() return {
     ["Version detection falls back to the build number whenever a client reports an identifier we have no name for. Such a client used to end up with every version flag false, which left it worse off than a client with no identifier at all, because that one at least fell back to something."] = "只要客户端报出一个我们叫不出名字的标识，版本识别就退回去看版本号。以前这样的客户端会让所有版本标记都为假，反而比完全没有标识的客户端更糟，因为后者至少还能退回到某个默认值。",
     ["242 texts that nothing in the interface looks up any more are gone from all nine language files, roughly eight percent of each. Renamed settings left them behind: the action bars were given clearer names a while ago and the old entries simply stayed. A check now asks the reverse question after every change, whether every translated text is still in use, so they cannot pile up again."] = "界面里再也没有任何地方会去查的 242 条文本，已经从九个语言文件中全部移除，各占约百分之八。它们是被改名的设置留下的：动作条前一阵换了更清楚的名字，旧条目就那么留着。现在每次改动之后都会有一项检查反过来问，每条翻译好的文本是否还在被使用，这样它们就不会再堆积起来。",
     ["Call button – A fifth totem button for the spells that summon a whole saved totem set, shown only to characters who know one"] = "召唤按钮 – 第五个图腾按钮，用于那些一次召唤整套已保存图腾的法术，只对会这类法术的角色显示",
+    ["Icon Strip"] = "图标条",
+    ["Distance from frame"] = "与框体的距离",
+    ["Spacing between icons"] = "图标间距",
+    ["Racial, PvP trinket and the DR row sit on the same edge of the frame and are placed one after the other, in that order, outwards from the frame."] = "种族技能、PvP 饰品和递减图标行位于框体的同一侧，并按此顺序依次向外排列。",
+    ["Where it sits is set once for all three trackers under Layout, Icon Strip."] = "位置在“布局—图标条”中一次性为三个监控统一设置。",
+    ["Gap below each frame. The opponent's pet bar hangs off the bottom of the frame, so a small gap lets it reach into the next one."] = "每个框体下方的间距。对手的宠物条会伸出框体底部，间距过小时会压到下一个框体。",
+    ["Arena: racial, PvP trinket and the DR row now share one icon strip; your chosen side was kept."] = "竞技场：种族技能、PvP 饰品和递减图标行现在共用一条图标条；你选择的一侧已保留。",
+    ["|cffff5555Arena layout failed:|r %s"] = "|cffff5555竞技场布局失败：|r %s",
+    ["|cffff5555Arena icon strip error:|r %s"] = "|cffff5555竞技场图标条错误：|r %s",
 } end)

@@ -75,7 +75,7 @@ end
 -- receive nothing: they operate on the saved tables directly. An install that
 -- has never been stamped is stamped at the current version WITHOUT running
 -- anything -- a fresh install has no old shape to convert.
-local SCHEMA = 2
+local SCHEMA = 3
 local MIGRATIONS = {
     -- Vulslot's snapshot library moves from every account profile into global.
     --
@@ -140,6 +140,46 @@ local MIGRATIONS = {
                 note(L["%d snapshot(s) had the same name but different contents and were kept under a new name."],
                     renamed)
             end
+        end
+    end,
+
+    -- Arena: racial, PvP trinket and the DR row shared no coordinate system. Each
+    -- carried its own edge and its own X/Y offsets, so they were positioned by
+    -- hand against each other; they are laid out as one strip now.
+    --
+    -- The side is the only choice worth carrying over, and only the trinket ever
+    -- expressed one - the racial simply took the other edge. A stored trinket edge
+    -- therefore becomes the strip's edge, and its former partner moves next to it,
+    -- which is exactly what the strip is for. Everything else was a nudge around a
+    -- collision that no longer exists, so the old keys are dropped rather than
+    -- left behind as values nothing reads.
+    --
+    -- slotSpacing moves from 6 to 28 in the same release and is DELIBERATELY not
+    -- stamped here, which is the one exception to the rule at the top of this
+    -- block. The rule protects a value the player chose and watched work. This
+    -- one never worked: the arena layout hooks were installed against globals
+    -- that do not exist yet at login, so the flag was set and the hooks never
+    -- were, and no spacing this module stored has ever moved a frame. There is
+    -- no observed behaviour to preserve, so everyone gets the new default.
+    [3] = function()
+        local DEAD = {
+            "trinketAnchor", "trinketOffsetX", "trinketOffsetY",
+            "drAnchor", "drOffsetX", "drOffsetY",
+            "racialOffsetX", "racialOffsetY",
+        }
+        local moved = 0
+        for _, prof in pairs(VuloClassicUIDB.profiles or {}) do
+            local a = prof.modules and prof.modules.arenaframes
+            if type(a) == "table" then
+                if a.iconSide == nil and (a.trinketAnchor == "LEFT" or a.trinketAnchor == "RIGHT") then
+                    a.iconSide = a.trinketAnchor
+                    moved = moved + 1
+                end
+                for i = 1, #DEAD do a[DEAD[i]] = nil end
+            end
+        end
+        if moved > 0 then
+            note(L["Arena: racial, PvP trinket and the DR row now share one icon strip; your chosen side was kept."])
         end
     end,
 }
