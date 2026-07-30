@@ -1,4 +1,9 @@
-## Interface: 20505, 20506
+# 38001/38002 is Titan Reforged, the China-only client. It is Wrath 3.x under
+# the hood and looks for VuloClassicUI_Wrath.toc first; finding none it falls
+# back to THIS file, so listing its build here is what stops the client calling
+# us out of date. The comma list is also how the packager learns to offer the
+# download for that flavour.
+## Interface: 20505, 20506, 38001, 38002
 ## Title: |cff9b6cffVuloClassicUI|r
 ## Notes: Modular UI suite for TBC Classic Anniversary
 ## Author: Vulo

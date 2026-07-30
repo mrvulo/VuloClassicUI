@@ -166,8 +166,17 @@ end)(...);
 local _, ns = ...
 local L = ns.L
 
--- BCC/Era only: the PaperDoll hooks and slot frames exist on both
-if not (ns.isBCC or ns.isEra) then
+-- Gate on the one thing this module cannot work around, not on a list of
+-- flavours. PaperDollItemSlotButton_Update is the hard dependency: the
+-- hooksecurefunc on it below is the only unguarded one in the file (its inspect
+-- sibling already tests for its global first), and hooksecurefunc throws when
+-- the name does not resolve. Everything else here is nil-guarded already.
+--
+-- The old test named BCC and Era explicitly, which read as "these two have a
+-- paper doll" but worked as "nobody else may have one". A client that has the
+-- frames was refused anyway, and a client that lacks them would have broken no
+-- matter which flavour it reported. Asking for the dependency answers both.
+if type(_G.PaperDollItemSlotButton_Update) ~= "function" then
     return
 end
 
@@ -1137,10 +1146,16 @@ local function buildModernSections()
 	local melee = sec("melee", L["Melee"])
 	row(melee, L["Attack Power"], function() local b, p, n = UnitAttackPower("player"); return (b or 0) + (p or 0) + (n or 0) end)
 	row(melee, L["Crit"], function() return GetCritChance and GetCritChance() or 0 end, "%.2f%%")
-	if ns.isBCC and GetCombatRatingBonus and _G.CR_HASTE_MELEE then
+	-- Combat ratings: a named list on purpose, unlike the module gate above.
+	-- The question here is not "does the client expose the function" but "does
+	-- this game have the stat" -- Era answers the first yes and the second no,
+	-- so a capability test would add three rows that always read zero. Wrath
+	-- has ratings, so it belongs in the list.
+	local hasRatings = ns.isBCC or ns.isWrath
+	if hasRatings and GetCombatRatingBonus and _G.CR_HASTE_MELEE then
 		row(melee, L["Haste"], function() return GetCombatRatingBonus(CR_HASTE_MELEE) end, "%.2f%%")
 	end
-	if ns.isBCC and GetCombatRating and _G.CR_HIT_MELEE then
+	if hasRatings and GetCombatRating and _G.CR_HIT_MELEE then
 		row(melee, L["Hit"], function() return GetCombatRating(CR_HIT_MELEE) end)
 	end
 
@@ -1148,7 +1163,7 @@ local function buildModernSections()
 	row(spell, L["Spell Power"], maxSpellPower, nil, spellPowerTip)
 	row(spell, L["Healing"], function() return GetSpellBonusHealing and GetSpellBonusHealing() or 0 end)
 	row(spell, L["Spell Crit"], maxSpellCrit, "%.2f%%", spellCritTip)
-	if ns.isBCC and GetCombatRating and _G.CR_HIT_SPELL then
+	if hasRatings and GetCombatRating and _G.CR_HIT_SPELL then
 		row(spell, L["Spell Hit"], function() return GetCombatRating(CR_HIT_SPELL) end)
 	end
 

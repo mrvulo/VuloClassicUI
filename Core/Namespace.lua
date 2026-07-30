@@ -8,15 +8,38 @@ local _metaGet = (C_AddOns and C_AddOns.GetAddOnMetadata) or _G.GetAddOnMetadata
 ns.VERSION   = (_metaGet and _metaGet(addonName, "Version")) or "?"
 ns.PREFIX    = "|cff9b6cffVuloClassicUI|r"
 
--- WOW_PROJECT_* may be nil on very old clients, so guard.
-local _proj = _G.WOW_PROJECT_ID
-ns.isEra       = (_proj ~= nil and _proj == _G.WOW_PROJECT_CLASSIC)                    -- Classic Era (1.15.x)
-ns.isBCC       = (_proj ~= nil and _proj == _G.WOW_PROJECT_BURNING_CRUSADE_CLASSIC)    -- Anniversary (2.5.x)
-ns.isWrath     = (_proj ~= nil and _proj == _G.WOW_PROJECT_WRATH_CLASSIC)
-ns.isCata      = (_proj ~= nil and _proj == _G.WOW_PROJECT_CATACLYSM_CLASSIC)
-ns.isClassic   = (ns.isEra or ns.isBCC or ns.isWrath or ns.isCata)
--- No WOW_PROJECT_ID at all: assume the build we ship for (BCC) so nothing self-disables wrongly.
-if _proj == nil then ns.isBCC, ns.isClassic = true, true end
+-- Flavour detection, two sources.
+--
+-- WOW_PROJECT_ID is exact where it is defined, but it is a fixed list of
+-- constants: a build that reports an id we have no constant for used to leave
+-- EVERY flag false, which is worse than a client with no id at all -- that one
+-- at least fell back to BCC. The interface number has no such hole. It is a
+-- number, it sorts, and a variant of an expansion lands in that expansion's
+-- range on its own.
+--
+-- So: ask the constants first, and where they cannot answer, derive it from
+-- the build. 11xxx Era, 2xxxx BCC, 3xxxx Wrath, 4xxxx Cataclysm.
+local _proj  = _G.WOW_PROJECT_ID
+local _iface = tonumber((select(4, GetBuildInfo()))) or 0
+local function _projIs(constant) return _proj ~= nil and constant ~= nil and _proj == constant end
+local function _ifaceIn(lo, hi) return _iface >= lo and _iface < hi end
+
+ns.isEra   = _projIs(_G.WOW_PROJECT_CLASSIC)                    -- Classic Era (1.15.x)
+ns.isBCC   = _projIs(_G.WOW_PROJECT_BURNING_CRUSADE_CLASSIC)    -- Anniversary (2.5.x)
+ns.isWrath = _projIs(_G.WOW_PROJECT_WRATH_CLASSIC)
+ns.isCata  = _projIs(_G.WOW_PROJECT_CATACLYSM_CLASSIC)
+
+-- Nothing matched: either no id at all, or one we have no constant for. Let the
+-- build number decide instead of leaving every flag false.
+if not (ns.isEra or ns.isBCC or ns.isWrath or ns.isCata) then
+    if     _ifaceIn(10000, 20000) then ns.isEra   = true
+    elseif _ifaceIn(20000, 30000) then ns.isBCC   = true
+    elseif _ifaceIn(30000, 40000) then ns.isWrath = true
+    elseif _ifaceIn(40000, 50000) then ns.isCata  = true
+    else                               ns.isBCC   = true   -- last resort: the build we ship for
+    end
+end
+ns.isClassic = (ns.isEra or ns.isBCC or ns.isWrath or ns.isCata)
 
 -- Era and SoD share TOC 11508 and WOW_PROJECT_CLASSIC; C_Seasons at runtime is the only way to tell them apart, and it is absent on 2.5.x.
 local _seasons   = _G.C_Seasons
