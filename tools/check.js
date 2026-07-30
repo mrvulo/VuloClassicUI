@@ -208,6 +208,91 @@ if (dynMissing.size === 0) {
     }
 }
 
+// ---- 3c: locale keys nothing reaches -----------------------------------------
+// Checks 3 and 3b ask "is every used key translated". This asks the reverse:
+// is every translated key still used. Nothing asked that before, so renamed
+// labels left their old key behind in all nine files -- 241 of them had piled
+// up by 1.42.0, about 8% of every locale file.
+//
+// Reading string literals from the SYNTAX TREE, not a line regex: a key holding
+// \n (the mover captions) is escaped in the source and would never match its
+// own definition textually. Both sides go through the same unescaper.
+//
+// Two whitelists, because a computed L[...] can reach a key no literal spells:
+//   1. the patch-notes page strips "NEW: " and looks the remainder up
+//      (Modules/Changelog.lua) -- 63 keys that no literal contains
+//   2. Modules/ProfessionWindow.lua looks up the difficulty word the client
+//      hands back, which exists here only as a table field name
+// A WARNING, never a failure: a key can be legitimately parked ahead of the
+// feature that will use it, and a stale translation breaks nothing at runtime.
+console.log('\n== locale keys nothing reaches ==');
+{
+    const unesc = (s) => {
+        let r = '', i = 0;
+        const simple = { n: '\n', t: '\t', r: '\r', a: '\x07', b: '\b', f: '\f', v: '\v', '\\': '\\', '"': '"', "'": "'", '\n': '\n' };
+        while (i < s.length) {
+            if (s[i] !== '\\') { r += s[i]; i++; continue; }
+            const n = s[i + 1];
+            if (n === undefined) { r += s[i]; break; }
+            if (simple[n] !== undefined) { r += simple[n]; i += 2; }
+            else if (/[0-9]/.test(n)) {
+                let d = '', j = i + 1;
+                while (j < s.length && /[0-9]/.test(s[j]) && d.length < 3) { d += s[j]; j++; }
+                r += String.fromCharCode(parseInt(d, 10)); i = j;
+            } else { r += n; i += 2; }
+        }
+        return r;
+    };
+    const litVal = (node) => {
+        const raw = node.raw;
+        if (raw.startsWith('[')) {
+            const m = /^\[(=*)\[([\s\S]*)\]\1\]$/.exec(raw);
+            return m ? m[2].replace(/^\n/, '') : raw;
+        }
+        return unesc(raw.slice(1, -1));
+    };
+    const walkAst = (node, fn) => {
+        if (!node || typeof node !== 'object') return;
+        if (Array.isArray(node)) { node.forEach(n => walkAst(n, fn)); return; }
+        fn(node);
+        for (const k of Object.keys(node)) if (k !== 'loc') walkAst(node[k], fn);
+    };
+
+    const literals = new Set();
+    for (const f of files) {
+        if (path.relative(ROOT, f).split(path.sep)[0] === 'Locales') continue;
+        let ast;
+        try { ast = luaparse.parse(fs.readFileSync(f, 'utf8'), { luaVersion: '5.1' }); } catch (e) { continue; }
+        walkAst(ast, n => { if (n.type === 'StringLiteral') literals.add(litVal(n)); });
+    }
+    const reachable = new Set(['orange', 'yellow', 'green', 'gray', 'grey',
+        'trivial', 'easy', 'medium', 'optimal', 'difficult']);
+    for (const s of literals) {
+        const m = /^NEW:\s*(.+)$/.exec(s);
+        if (m) reachable.add(m[1]);
+    }
+
+    let deAst = null;
+    try { deAst = luaparse.parse(deSrc, { luaVersion: '5.1' }); } catch (e) { /* section 1 already reported it */ }
+    const unreached = [];
+    if (deAst) {
+        walkAst(deAst, n => {
+            if (n.type !== 'TableKey' || !n.key || n.key.type !== 'StringLiteral') return;
+            const k = litVal(n.key);
+            if (!literals.has(k) && !reachable.has(k)) unreached.push(k);
+        });
+    }
+    if (unreached.length === 0) {
+        console.log('every deDE key is reachable from code');
+    } else {
+        console.log('  ' + unreached.length + ' key(s) no code literal reaches — dead weight in all nine files:');
+        for (const k of unreached.slice(0, 15)) {
+            console.log('    UNUSED ' + (k.length > 90 ? k.slice(0, 90) + '…' : k));
+        }
+        if (unreached.length > 15) console.log('    ... and ' + (unreached.length - 15) + ' more');
+    }
+}
+
 // ---- 4: quotes in German values ----------------------------------------------
 console.log('\n== ASCII quotes inside German values ==');
 let qhits = 0;
