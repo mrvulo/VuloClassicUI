@@ -2836,4 +2836,16 @@ ns:RegisterLocale("zhCN", function() return {
     ["Add watcher (buff name / ID)"] = "添加监视器（法术名称／ID）",
     ["|cffaaaaaaNo watcher yet. Most spells put a buff of the same name on you when used — one click below makes this icon glow while that buff is on you. Or type any other buff into the field.|r"] = "|cffaaaaaa尚无监视器。大多数法术施放时会给你一个同名增益——点击下方按钮，此图标将在该增益存在期间发光。也可以在输入框中填写任意其他增益。|r",
     ["Glow while '%s' is on me"] = "当“%s”在我身上时发光",
+    -- Patch notes 1.44.0
+    ["Icon Strip – Racial, trinket and the diminishing-returns row share one edge of the frame in a fixed order, with one set of controls — they can no longer land on top of each other"] = "图标条 – 种族技能、饰品和递减图标行按固定顺序共用框体的一侧，只需一组设置——它们不会再互相叠在一起",
+    ["The frame layout — order, spacing, grow direction — never actually applied: its hooks were installed before the arena interface had loaded. The frames now report their own moves and the layout follows; during a fight they are protected, so a move mid-round is corrected when it ends."] = "竞技场框体的布局——顺序、间距、延伸方向——从未真正生效：它的挂钩在竞技场界面加载之前就已安装。现在框体会自行报告移动，布局随之跟进；战斗中它们受保护，回合中途的移动会在结束时纠正。",
+    ["The default gap between frames clears the opponent's pet bar, and the drag box in edit mode covers the whole stack instead of a fixed area."] = "框体之间的默认间距为对手的宠物条留出了位置，编辑模式的拖动框覆盖整摞框体，而不是一块固定区域。",
+    ["Bar Glows – Any icon can glow while a buff of yours is active or missing: three styles, gold, class or custom color, and one click watches the spell's own buff"] = "栏位光效 – 任何图标都可以在你的某个增益生效或缺失期间发光：三种样式，金色、职业色或自定义颜色，一键即可监视法术自身的增益",
+    ["The page is built around a preview that stays put while you scroll: the bar picker with rename, delete and drag-to-reorder on top, under it every icon of the bar at its real size and shape with the real cooldown sweep. Drag reorders, right-click removes."] = "页面围绕一个滚动时保持不动的预览构建：上方是可重命名、删除、拖动排序的栏选择器，下方是该栏的每个图标，以真实大小、形状和真实的冷却扫过效果显示。拖动排序，右键移除。",
+    ["The page is split into tabs, and the resource bar moved in as one of them. Spells you add belong to the class that added them and no longer show up on your other characters."] = "页面拆分为标签页，资源条作为其中之一搬了进来。你添加的法术属于添加它的职业，不再出现在你的其他角色上。",
+    ["The third extra-item slot no longer stretches across the page with its box flung to the far edge."] = "第三个额外物品栏位不再横跨整个页面、把输入框甩到最边上。",
+    ["The interface no longer compares itself with the other game version anywhere; a check keeps such wording out for good."] = "界面不再在任何地方与另一游戏版本作比较；一项检查会永久挡住这类措辞。",
+    ["Modules with several pages show them as a tab row along the top; when the tabs outgrow the row, two arrows page through it instead of wrapping into a second line."] = "有多个页面的模块将它们显示为顶部的一行标签页；标签页超出一行时，两个箭头翻页浏览，而不是折成第二行。",
+    ["The sidebar got shorter: player and target frames, font bars, castbar and cooldown pulse are one entry now, and a new General entry under Reminders collects the former Extras, Character and Bug Fixes rows — the bug fixes as a single tab."] = "侧边栏变短了：玩家与目标框体、字体条、施法条和冷却脉冲现在是一个条目，提醒下方新的“常规”条目收纳了原来的杂项、角色和错误修复各行——错误修复只占一个标签页。",
+    ["Typing into an add field and then clicking the button beside it silently did nothing; the typed text only counted after pressing Enter. Buttons now take the field's text with them."] = "在添加输入框里打字后点击旁边的按钮曾悄无声息地毫无作用；输入的文字只有按回车才算数。现在按钮会带上输入框的文字。",
 } end)

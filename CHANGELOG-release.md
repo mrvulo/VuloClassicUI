@@ -1,15 +1,21 @@
-## 1.43.0
-**Character Panel:**
-- The character window stayed empty on clients we had never named. The panel asked whether the client called itself one of two specific versions and refused every other one, including clients that have exactly the frames it needs. It now asks for the one thing it cannot work without. Enchants, sockets and item stats were missing for the same reason and return with it.
-- Hit rating, haste rating and spell hit rating appear on Wrath-based clients too. They were tied to a single version by name, although the game there has those stats.
-- The stat rows Wrath draws in pages with two dropdowns are hidden underneath our own panel now, instead of showing through it.
+## 1.44.0
+**Arena:**
+- **NEW: Icon Strip** – Racial, trinket and the diminishing-returns row share one edge of the frame in a fixed order, with one set of controls — they can no longer land on top of each other
+- The frame layout — order, spacing, grow direction — never actually applied: its hooks were installed before the arena interface had loaded. The frames now report their own moves and the layout follows; during a fight they are protected, so a move mid-round is corrected when it ends.
+- The default gap between frames clears the opponent's pet bar, and the drag box in edit mode covers the whole stack instead of a fixed area.
 
-**Compatibility:**
-- **NEW: Titan Reforged** – The addon no longer reports itself out of date on the Chinese client, whose build is listed now
-- Version detection falls back to the build number whenever a client reports an identifier we have no name for. Such a client used to end up with every version flag false, which left it worse off than a client with no identifier at all, because that one at least fell back to something.
+**Cooldown Manager:**
+- **NEW: Bar Glows** – Any icon can glow while a buff of yours is active or missing: three styles, gold, class or custom color, and one click watches the spell's own buff
+- The page is built around a preview that stays put while you scroll: the bar picker with rename, delete and drag-to-reorder on top, under it every icon of the bar at its real size and shape with the real cooldown sweep. Drag reorders, right-click removes.
+- The page is split into tabs, and the resource bar moved in as one of them. Spells you add belong to the class that added them and no longer show up on your other characters.
+
+**Fishing:**
+- The third extra-item slot no longer stretches across the page with its box flung to the far edge.
 
 **Languages:**
-- 242 texts that nothing in the interface looks up any more are gone from all nine language files, roughly eight percent of each. Renamed settings left them behind: the action bars were given clearer names a while ago and the old entries simply stayed. A check now asks the reverse question after every change, whether every translated text is still in use, so they cannot pile up again.
+- The interface no longer compares itself with the other game version anywhere; a check keeps such wording out for good.
 
-**Shaman:**
-- **NEW: Call button** – A fifth totem button for the spells that summon a whole saved totem set, shown only to characters who know one
+**Settings Window:**
+- Modules with several pages show them as a tab row along the top; when the tabs outgrow the row, two arrows page through it instead of wrapping into a second line.
+- The sidebar got shorter: player and target frames, font bars, castbar and cooldown pulse are one entry now, and a new General entry under Reminders collects the former Extras, Character and Bug Fixes rows — the bug fixes as a single tab.
+- Typing into an add field and then clicking the button beside it silently did nothing; the typed text only counted after pressing Enter. Buttons now take the field's text with them.

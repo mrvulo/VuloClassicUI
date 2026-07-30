@@ -6,6 +6,29 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+    { version = "1.44.0", sections = {
+        { category = "Arena", lines = {
+            "NEW: Icon Strip – Racial, trinket and the diminishing-returns row share one edge of the frame in a fixed order, with one set of controls — they can no longer land on top of each other",
+            "The frame layout — order, spacing, grow direction — never actually applied: its hooks were installed before the arena interface had loaded. The frames now report their own moves and the layout follows; during a fight they are protected, so a move mid-round is corrected when it ends.",
+            "The default gap between frames clears the opponent's pet bar, and the drag box in edit mode covers the whole stack instead of a fixed area.",
+        } },
+        { category = "Cooldown Manager", lines = {
+            "NEW: Bar Glows – Any icon can glow while a buff of yours is active or missing: three styles, gold, class or custom color, and one click watches the spell's own buff",
+            "The page is built around a preview that stays put while you scroll: the bar picker with rename, delete and drag-to-reorder on top, under it every icon of the bar at its real size and shape with the real cooldown sweep. Drag reorders, right-click removes.",
+            "The page is split into tabs, and the resource bar moved in as one of them. Spells you add belong to the class that added them and no longer show up on your other characters.",
+        } },
+        { category = "Fishing", lines = {
+            "The third extra-item slot no longer stretches across the page with its box flung to the far edge.",
+        } },
+        { category = "Languages", lines = {
+            "The interface no longer compares itself with the other game version anywhere; a check keeps such wording out for good.",
+        } },
+        { category = "Settings Window", lines = {
+            "Modules with several pages show them as a tab row along the top; when the tabs outgrow the row, two arrows page through it instead of wrapping into a second line.",
+            "The sidebar got shorter: player and target frames, font bars, castbar and cooldown pulse are one entry now, and a new General entry under Reminders collects the former Extras, Character and Bug Fixes rows — the bug fixes as a single tab.",
+            "Typing into an add field and then clicking the button beside it silently did nothing; the typed text only counted after pressing Enter. Buttons now take the field's text with them.",
+        } },
+    } },
     { version = "1.43.0", sections = {
         { category = "Character Panel", lines = {
             "The character window stayed empty on clients we had never named. The panel asked whether the client called itself one of two specific versions and refused every other one, including clients that have exactly the frames it needs. It now asks for the one thing it cannot work without. Enchants, sockets and item stats were missing for the same reason and return with it.",
@@ -386,11 +409,6 @@ ns.CHANGELOG = {
         { category = "Minimap", lines = {
             "NEW: The date now shows next to the clock in the zone panel — click it to open the calendar, hover for the full date. Optional in the minimap settings.",
             "The zone panel is a touch wider so the zone name, clock and date sit more comfortably.",
-        } },
-    } },
-    { version = "1.27.0", sections = {
-        { category = "Equipment Sets", lines = {
-            "NEW: Hover an equipment slot in the character window for a compact flyout of matching items from your bags — click one to equip it. The modifier-click picker is still there for a larger, pinnable window.",
         } },
     } },
 }
