@@ -1293,6 +1293,27 @@ local function ensureModernChrome()
 	if _G.CharacterModelFrameRotateLeftButton  then h[#h + 1] = _G.CharacterModelFrameRotateLeftButton  end
 	if _G.CharacterModelFrameRotateRightButton then h[#h + 1] = _G.CharacterModelFrameRotateRightButton end
 
+	-- 3.x replaced the flat attributes block with paged stat rows and two
+	-- dropdowns to pick the category. Neither of the two names above exists
+	-- there, so on such a client Blizzard's stats would stay visible underneath
+	-- our own panel. Our panel itself needs nothing: it reads UnitStat and
+	-- friends, which do not care which flavour is running -- only the ORIGINALS
+	-- have to be found and hidden.
+	--
+	-- Every lookup is guarded, so a name that does not exist costs nothing and
+	-- this stays a no-op on the builds we ship for. Unverified against a live
+	-- 3.x client; if stray rows show up in a screenshot, this list is where the
+	-- missing name goes.
+	for i = 1, 5 do
+		local l, r = _G["PlayerStatFrameLeft" .. i], _G["PlayerStatFrameRight" .. i]
+		if l then h[#h + 1] = l end
+		if r then h[#h + 1] = r end
+	end
+	for _, name in ipairs({ "PlayerStatFrameLeftDropDown", "PlayerStatFrameRightDropDown",
+		"CharacterStatsPane", "PaperDollFrameCategoryFrame" }) do
+		if _G[name] then h[#h + 1] = _G[name] end
+	end
+
 	return bg
 end
 
