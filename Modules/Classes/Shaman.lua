@@ -59,6 +59,28 @@ local function totemicRecallSpell()
     end
 end
 
+-- The multi-cast calls summon a whole saved totem set at once. They exist from
+-- Wrath onwards; on the builds this addon ships for GetSpellInfo returns nil for
+-- all three, so nothing below ever comes into being there.
+-- Deliberately NOT part of TOTEMS: a call has no totem slot, no timer and no
+-- choice of totem, so leaving it out means every existing loop over TOTEMS skips
+-- it without needing a single guard.
+local CALL_IDS = { 66842, 66843, 66844 }   -- Elements, Ancestors, Spirits
+local function callSpell()
+    for _, id in ipairs(CALL_IDS) do
+        if GetSpellInfo(id) and (not IsSpellKnown or IsSpellKnown(id)) then return id end
+    end
+end
+-- No toggle on purpose. Knowing the spell IS the switch; an option would sit
+-- dead in the settings for every player on a build that has no such spell.
+-- No `label` field: the four entries above carry one and nothing in this file
+-- ever reads it. The tooltip takes its text from the spell itself.
+local CALL = {
+    key = "call",
+    color = { 0.85, 0.75, 0.35 }, icon = "Interface\\Icons\\Spell_Nature_TremorTotem",
+    call = true,
+}
+
 local WARN_COLOR  = { 1.0, 0.25, 0.25 }
 local BAR_TEX     = "Interface\\Buttons\\WHITE8X8"
 local SPARK_TEX   = "Interface\\CastingBar\\UI-CastingBar-Spark"
@@ -152,6 +174,16 @@ local function applyButtonSpells()
             row:SetAttribute("*spell3", totemicRecallSpell())
         end
     end
+    -- The call button casts by id and has nothing on middle-click: recall would
+    -- undo exactly what it just summoned.
+    if rows.call then
+        local id = callSpell()
+        rows.call:SetAttribute("*spell1", id)
+        rows.call:SetAttribute("*spell3", nil)
+        -- paintTotemTooltip reads totemName first; without it the tooltip would
+        -- fall through to buttonSpell(), which only knows totems.
+        rows.call.totemName = id and GetSpellInfo(id) or nil
+    end
 end
 
 local function learnActiveTotems()
@@ -214,10 +246,12 @@ local function createRow(totem)
     row:SetAttribute("*type1", "spell")
     row:SetAttribute("*type3", "spell")
     row:SetScript("PostClick", function(self, button, down)
+        -- A call has no choice of totem, so it gets no flyout and no menu.
+        if self.totem.call then return end
         if button == "RightButton" and not down then showTotemMenu(self.totem) end
     end)
     row:HookScript("OnEnter", function(self)
-        showTotemMenu(self.totem)
+        if not self.totem.call then showTotemMenu(self.totem) end
         paintTotemTooltip(self)
     end)
     row:HookScript("OnLeave", function(self)
@@ -294,6 +328,8 @@ local function applyLayout()
     for _, t in ipairs(TOTEMS) do
         if rows[t.key] then active[#active + 1] = t end
     end
+    -- Last, so the four elements keep the order players know.
+    if rows.call then active[#active + 1] = CALL end
 
     if #active == 0 then
         container:SetSize(1, 1)
@@ -416,6 +452,23 @@ local function updateRow(row, preview)
     local d = db()
     local t = row.totem
 
+    -- A call is an ability, not a totem: it has no slot to ask about and no
+    -- duration to run down. Everything below describes a totem's life and none
+    -- of it applies -- including GetTotemInfo, which would be handed a nil slot.
+    if t.call then
+        local spell = callSpell()
+        row.icon:SetTexture((spell and select(3, GetSpellInfo(spell))) or t.icon)
+        row.icon:SetDesaturated(false)
+        row.icon:SetVertexColor(1, 1, 1)
+        row.border:SetVertexColor(1, 1, 1)
+        row.ring:SetColorTexture(t.color[1], t.color[2], t.color[3], 1)
+        row.elem:SetColorTexture(t.color[1], t.color[2], t.color[3], 0.9)
+        row.time:SetText("")
+        row.time:Hide()
+        if d.layout ~= "icons" then row.fill:Hide(); row.spark:Hide() end
+        return
+    end
+
     local have, _, startTime, duration, icon = GetTotemInfo(t.slot)
     if preview then have, startTime, duration = true, GetTime(), 60 end
 
@@ -527,6 +580,7 @@ local function refresh()
         local row = rows[t.key]
         if row and row:IsShown() then updateRow(row, preview) end
     end
+    if rows.call and rows.call:IsShown() then updateRow(rows.call, preview) end
     if hoverBtn then
         if GameTooltip and GameTooltip:IsOwned(hoverBtn) and hoverBtn:IsVisible() then
             paintTotemTooltip(hoverBtn)
@@ -843,6 +897,10 @@ local function build()
             rows[t.key] = createRow(t)
         end
     end
+    -- Same rule, and it is why knowing the spell is checked HERE rather than
+    -- every frame: the button either exists for this session or it does not.
+    -- On the builds we ship for no call spell resolves, so it never exists.
+    if callSpell() then rows.call = createRow(CALL) end
 
     container.mover = ns:CreateMover(container, {
         key    = "totems",
