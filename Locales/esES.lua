@@ -446,7 +446,6 @@ local function T() return {
     ["Shows a class icon next to online WoW friends (in-game and Battle.net)."] = "Muestra un icono de clase junto a los amigos de WoW conectados (del juego y de Battle.net).",
     ["Class icon style"] = "Estilo de icono de clase",
     ["Blizzard crests"] = "Blasones de Blizzard",
-    ["Vulo Style"] = "Vulo Style",
     ["Circles"] = "Círculos",
     ["Squares"] = "Cuadrados",
     ["Show status dot"] = "Mostrar punto de estado",

@@ -12,7 +12,7 @@ local mod = ns:RegisterModule("friendlist", {
         skinCommunities = true,
         classColorNames = true,
         classIcons      = true,
-        iconStyle       = "blizzard", -- blizzard | vuloepic | vulofantasy1/2 | vulostyle | circle | square
+        iconStyle       = "blizzard", -- blizzard | vuloepic | vulofantasy1/2 | circle | square
         statusDot       = true,
         showNotes       = true,
         factionAccent   = true,
@@ -27,9 +27,8 @@ local CLASS_SQUARE = "Interface\\WorldStateFrame\\Icons-Classes"
 local CLASS_CREATE = "Interface\\Glues\\CharacterCreate\\UI-CharacterCreate-Classes"
 
 -- Sheets must be genuine 32-bit power-of-two TGA; the client picks its decoder by file extension.
-local SHEET_PATH = "Interface\\AddOns\\VuloClassicUI\\Media\\LocalClasses\\"
+-- Everything here ships and carries its licence in Media/ClassSheets/LICENSE.txt.
 local SHEETS = {
-    vulostyle = SHEET_PATH .. "vulostlye.tga",   -- local-only, may be absent
     vulofantasy1 = "Interface\\AddOns\\VuloClassicUI\\Media\\ClassSheets\\vulofantasy1.tga",
     vulofantasy2 = "Interface\\AddOns\\VuloClassicUI\\Media\\ClassSheets\\vulofantasy2.tga",
     vuloepic     = "Interface\\AddOns\\VuloClassicUI\\Media\\ClassSheets\\vuloepic.tga",
@@ -298,7 +297,11 @@ local function restyleButton(button)
 
     local style = mod.db.iconStyle
     if SHEETS[style] and not fileOK(SHEETS[style]) then style = "blizzard" end
-    if style == "vulo" or style == "vuloclasses" or style == "vulomodern" then
+    -- Styles that no longer exist. A saved profile keeps pointing at one long
+    -- after the art is gone, and without this it would fall through to the
+    -- generic branch below and quietly draw something else.
+    if style == "vulo" or style == "vuloclasses" or style == "vulomodern"
+        or style == "vulostyle" then
         style = "blizzard"
     end
     local icon = button._vcClassIcon
@@ -1059,9 +1062,6 @@ function mod:GetOptions()
               v[#v + 1] = { value = "vuloepic", text = L["Vulo Epic"] }
               v[#v + 1] = { value = "vulofantasy1", text = L["Vulo Fantasy 1"] }
               v[#v + 1] = { value = "vulofantasy2", text = L["Vulo Fantasy 2"] }
-              if fileOK(SHEETS.vulostyle) then
-                  v[#v + 1] = { value = "vulostyle", text = L["Vulo Style"] }
-              end
               v[#v + 1] = { value = "circle", text = L["Circles"] }
               v[#v + 1] = { value = "square", text = L["Squares"] }
               return v

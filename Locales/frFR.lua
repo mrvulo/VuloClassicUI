@@ -495,7 +495,6 @@ ns:RegisterLocale("frFR", function() return {
     ["Shows a class icon next to online WoW friends (in-game and Battle.net)."] = "Affiche une icône de classe à côté des amis WoW connectés (en jeu et Battle.net).",
     ["Class icon style"] = "Style des icônes de classe",
     ["Blizzard crests"] = "Emblèmes Blizzard",
-    ["Vulo Style"] = "Vulo Style",
     ["Circles"] = "Cercles",
     ["Squares"] = "Carrés",
     ["Show status dot"] = "Afficher la pastille d'état",

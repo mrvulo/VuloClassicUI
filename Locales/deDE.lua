@@ -650,7 +650,6 @@ ns:RegisterLocale("deDE", function() return {
     ["Shows a class icon next to online WoW friends (in-game and Battle.net)."] = "Zeigt ein Klassen-Icon neben Online-WoW-Freunden (im Spiel und Battle.net).",
     ["Class icon style"] = "Klassen-Icon-Stil",
     ["Blizzard crests"] = "Blizzard-Wappen",
-    ["Vulo Style"] = "Vulo Style",
     ["Circles"] = "Kreise",
     ["Squares"] = "Quadrate",
     ["Show status dot"] = "Status-Punkt anzeigen",

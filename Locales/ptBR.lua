@@ -803,7 +803,6 @@ ns:RegisterLocale("ptBR", function() return {
     ["Shows a class icon next to online WoW friends (in-game and Battle.net)."] = "Mostra um ícone de classe ao lado dos amigos online do WoW (no jogo e no Battle.net).",
     ["Class icon style"] = "Estilo do ícone de classe",
     ["Blizzard crests"] = "Brasões da Blizzard",
-    ["Vulo Style"] = "Vulo Style",
     ["Circles"] = "Círculos",
     ["Squares"] = "Quadrados",
     ["Show status dot"] = "Mostrar ponto de status",

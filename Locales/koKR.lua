@@ -445,7 +445,6 @@ ns:RegisterLocale("koKR", function() return {
     ["Shows a class icon next to online WoW friends (in-game and Battle.net)."] = "접속 중인 WoW 친구 옆에 직업 아이콘을 표시합니다 (게임 내 및 Battle.net).",
     ["Class icon style"] = "직업 아이콘 스타일",
     ["Blizzard crests"] = "Blizzard 문장",
-    ["Vulo Style"] = "Vulo Style",
     ["Circles"] = "원형",
     ["Squares"] = "사각형",
     ["Show status dot"] = "상태 점 표시",

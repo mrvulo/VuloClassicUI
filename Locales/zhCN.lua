@@ -442,7 +442,6 @@ ns:RegisterLocale("zhCN", function() return {
     ["Shows a class icon next to online WoW friends (in-game and Battle.net)."] = "在在线的魔兽世界好友（游戏内和战网）旁显示职业图标。",
     ["Class icon style"] = "职业图标样式",
     ["Blizzard crests"] = "暴雪徽记",
-    ["Vulo Style"] = "Vulo Style",
     ["Circles"] = "圆形",
     ["Squares"] = "方形",
     ["Show status dot"] = "显示状态圆点",

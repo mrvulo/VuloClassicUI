@@ -1094,7 +1094,6 @@ ns:RegisterLocale("ruRU", function() return {
     ["Shows a class icon next to online WoW friends (in-game and Battle.net)."] = "Показывает значок класса рядом с друзьями в WoW, находящимися в сети (в игре и в Battle.net).",
     ["Class icon style"] = "Стиль значков классов",
     ["Blizzard crests"] = "Гербы Blizzard",
-    ["Vulo Style"] = "Vulo Style",
     ["Circles"] = "Круги",
     ["Squares"] = "Квадраты",
     ["Show status dot"] = "Показывать точку статуса",

@@ -139,9 +139,11 @@ end
 
 -- Our own class sheets under Media/ClassSheets. A DIFFERENT grid from Blizzard's
 -- atlas above: 8x8 cells, so the coordinates are not interchangeable.
--- These sheets ship with the addon and carry their licence next to them.
--- Media/LocalClasses is NOT among them -- that art is gitignored on purpose and
--- must never be referenced from anything that ships.
+-- These sheets ship with the addon and carry their licence next to them:
+-- two are game-icons.net glyphs under CC BY 3.0, one is the author's own work.
+-- Nothing here needs a licence we do not have, which is the whole point --
+-- art that did was kept out of the repo entirely rather than gitignored, so
+-- there is no longer a folder anyone could accidentally reference.
 ns.CLASS_SHEET_PATH   = "Interface\\AddOns\\VuloClassicUI\\Media\\ClassSheets\\"
 ns.CLASS_SHEET_COORDS = {
     WARRIOR     = { 0,     0.125, 0,     0.125 },
