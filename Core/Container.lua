@@ -2,14 +2,21 @@
 local _, ns = ...
 local L = ns.L
 
--- opts.group      where the container's own ROW appears in the sidebar
--- opts.memberGroup which modules it swallows as tabs (defaults to opts.group)
+-- opts.group        where the container's own ROW appears in the sidebar
+-- opts.memberGroup  which modules it swallows as tabs (defaults to opts.group)
+-- opts.memberGroups a LIST of groups instead, for a container that collects
+--                   several categories into one row (the "General" collection)
 --
--- The two were one field while there was one container per sidebar group. Four
--- containers under a single header need them apart: the row lives under "Tools"
--- while each one collects a different category.
+-- group/memberGroup were one field while there was one container per sidebar
+-- group. Four containers under a single header need them apart: the row lives
+-- under "Tools" while each one collects a different category.
 function ns:MakeGroupContainer(opts)
-    local memberGroup = opts.memberGroup or opts.group
+    local memberOf = {}
+    if opts.memberGroups then
+        for _, g in ipairs(opts.memberGroups) do memberOf[g] = true end
+    else
+        memberOf[opts.memberGroup or opts.group] = true
+    end
 
     local mod = ns:RegisterModule(opts.key, {
         name         = opts.name,
@@ -30,11 +37,11 @@ function ns:MakeGroupContainer(opts)
 
     if opts.firstKey then
         local f = ns.modules[opts.firstKey]
-        if f and f.group == memberGroup then addTab(opts.firstKey, f) end
+        if f and memberOf[f.group] then addTab(opts.firstKey, f) end
     end
     for _, key in ipairs(ns.moduleOrder) do
         local sub = ns.modules[key]
-        if sub and sub.group == memberGroup
+        if sub and memberOf[sub.group]
            and key ~= opts.key and key ~= opts.firstKey and not exclude[key] then
             addTab(key, sub)
         end

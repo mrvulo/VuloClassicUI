@@ -8,7 +8,7 @@ local mod = ns:RegisterModule("cooldownmanager", {
     -- Two columns throughout, and a setting without a partner keeps its half
     -- rather than stretching across the page. See UI._grid in UI/OptionsBuilder.
     optionsGrid = true,
-    description = "Movable cooldown bars grouped however you like (procs, defensives, offensives ...) — like the retail cooldown manager.",
+    description = "Movable cooldown bars grouped however you like — procs, defensives, offensives, each with its own look and position.",
     defaults    = {
         enabled  = true,
         groups   = {},
@@ -356,6 +356,7 @@ local function entryUsable(e)
 end
 
 local relayoutGroup, refreshGroup, refreshAll, layoutIcons, positionBar  -- forward declarations
+local stopCustomGlow   -- glow engine, defined further down; relayoutGroup calls it
 
 -- Keybind lookup: action slot base -> binding command. Only the always-active
 -- bars; stance/page slots are deliberately excluded (their binding follows the
@@ -597,6 +598,33 @@ local function applyStack(group, f, rec)
     end
 end
 
+-- Class scoping, like the reference: a spell belongs to the class it was added
+-- on and is invisible everywhere else. Items stay class-free -- a trinket is
+-- usable by everyone, and the auto-trinket sync manages them per character
+-- anyway. Stamped at add time; legacy entries without a stamp are adopted by
+-- the first class that logs in and actually knows the spell (see adoptEntries).
+local myClassToken
+local function classToken()
+    if not myClassToken then myClassToken = select(2, UnitClass("player")) end
+    return myClassToken
+end
+
+local function entryVisibleHere(e)
+    if e.kind ~= "spell" then return true end
+    if e.cls then return e.cls == classToken() end
+    return entryUsable(e)   -- legacy entry, not yet adopted by its class
+end
+
+local function adoptEntries()
+    local cls = classToken()
+    if not cls then return end
+    for _, g in ipairs(db().groups) do
+        for _, e in ipairs(g.entries) do
+            if e.kind == "spell" and not e.cls and entryUsable(e) then e.cls = cls end
+        end
+    end
+end
+
 local function addEntry(group, input)
     if not group then return false end
     local kind, id = resolveInput(input, group.mode ~= "cooldown")
@@ -608,9 +636,11 @@ local function addEntry(group, input)
         ns:Print(L["Cooldown Manager: already tracking that."])
         return false
     end
-    group.entries[#group.entries + 1] = { kind = kind, id = id }
+    local e = { kind = kind, id = id }
+    if kind == "spell" then e.cls = classToken() end
+    group.entries[#group.entries + 1] = e
     relayoutGroup(group)
-    local name = entryInfo(group.entries[#group.entries])
+    local name = entryInfo(e)
     ns:Print(L["Cooldown Manager: added %s."], name or ("#" .. id))
     return true
 end
@@ -929,6 +959,11 @@ relayoutGroup = function(group)
         f.usable = entryUsable(e)
         f:EnableMouse(group.showTooltips == true)
         f:SetSize(size, size)
+        -- A running glow belongs to whatever this frame showed BEFORE the
+        -- relayout: the entry may have shifted, and the button style bakes the
+        -- icon size into its ring at start. Stopping here costs one restart on
+        -- the next tick and buys correct geometry and ownership.
+        if f.customGlow then stopCustomGlow(f) end
         if f.usable then f:Show() else f:Hide() end
     end
     for i = #entries + 1, #icons do icons[i]:Hide() end
@@ -949,6 +984,184 @@ relayoutGroup = function(group)
             layoutIcons(group, all)
         end
     end
+
+    -- keep the options-page preview strip in step with whatever reshaped the bar
+    if mod.RefreshStrip then mod.RefreshStrip(group) end
+end
+
+-- ---------------------------------------------------------------------------
+-- Custom bar glows (the reference's model, ported 30.07.2026). An entry may
+-- carry a LIST e.glows of watchers { name, id, style, mode, combat, colorMode,
+-- color }. A watcher looks at YOUR buffs: mode "ACTIVE" glows while the buff
+-- is on you, "MISSING" while it is not, and combat gates it to fights. The
+-- first watcher whose condition holds paints the icon -- one overlay per icon,
+-- list order is the priority. Evaluated on the shared ticker off the same
+-- player-aura snapshot the bars already use; the animation only starts or
+-- stops on a state flip, never mid-pulse.
+--
+-- Three styles, the portable subset of the reference's seven: its flipbook
+-- styles need a 10.x animation API and its sparkle texture does not exist on
+-- this client.
+
+local GLOW_GOLD = { r = 1, g = 0.788, b = 0.137 }   -- the reference's default gold
+
+local GLOW_RING = "Interface\\SpellActivationOverlay\\IconAlert"
+local GLOW_ANTS = "Interface\\SpellActivationOverlay\\IconAlertAnts"
+-- 5x5 grid of 48px cells on 256px; the last three cells are blank
+local ANTS_COLS, ANTS_CELLS, ANTS_CELL = 5, 22, 48 / 256
+
+local function glowColor(g)
+    if g.colorMode == "class" then
+        local _, cls = UnitClass("player")
+        local c = cls and RAID_CLASS_COLORS and RAID_CLASS_COLORS[cls]
+        if c then return c.r, c.g, c.b end
+    elseif g.colorMode == "custom" and g.color then
+        return g.color.r or 1, g.color.g or 1, g.color.b or 1
+    end
+    return GLOW_GOLD.r, GLOW_GOLD.g, GLOW_GOLD.b
+end
+
+local function glowConditionHolds(g)
+    if g.combat and not (InCombatLockdown() or UnitAffectingCombat("player")) then
+        return false
+    end
+    local s = scanFor("player", "HELPFUL")
+    local present = (g.id and s.byID[g.id]) or (g.name and s.byName[g.name])
+    if g.mode == "MISSING" then return not present end
+    return present ~= nil
+end
+
+local function ensureGlowOverlay(f)
+    local o = f.customGlow
+    if o then return o end
+    o = CreateFrame("Frame", nil, f)
+    o:SetAllPoints(f)
+    o:SetFrameLevel(f:GetFrameLevel() + 15)   -- the reference's overlay level
+
+    o.edges = ns.MakeEdges(o, "OVERLAY")
+
+    o.ring = o:CreateTexture(nil, "OVERLAY", nil, 1)
+    o.ring:SetTexture(GLOW_RING)
+    o.ring:SetTexCoord(0.00781250, 0.50781250, 0.53515625, 0.78515625)
+    o.ring:SetBlendMode("ADD")
+    o.ring:SetPoint("CENTER", o, "CENTER", 0, 0)
+    o.ring:Hide()
+
+    o.ants = o:CreateTexture(nil, "OVERLAY", nil, 2)
+    o.ants:SetTexture(GLOW_ANTS)
+    o.ants:SetDesaturated(true)
+    o.ants:SetBlendMode("ADD")
+    o.ants:SetPoint("CENTER", o, "CENTER", 0, 0)
+    o.ants:Hide()
+
+    o.fill = o:CreateTexture(nil, "OVERLAY", nil, 0)
+    o.fill:SetTexture("Interface\\Buttons\\WHITE8X8")
+    o.fill:SetBlendMode("ADD")
+    o.fill:SetAllPoints(f)
+    -- the same mask that shapes the icon shapes the fill (the reference's
+    -- shape glow); square icons simply have no mask to add
+    if f.mask and o.fill.AddMaskTexture then o.fill:AddMaskTexture(f.mask) end
+    o.fill:Hide()
+
+    o:Hide()
+    f.customGlow = o
+    return o
+end
+
+-- assignment, not declaration: forward-declared next to relayoutGroup, which
+-- stops a glow whenever an icon is re-purposed or re-sized
+stopCustomGlow = function(f)
+    local o = f.customGlow
+    if not (o and o._style) then return end
+    o._style = nil
+    o:SetScript("OnUpdate", nil)
+    o:Hide()
+end
+
+local function glowDriver(o, elapsed)
+    local t = GetTime()
+    if o._style == "pixel" then
+        o:SetAlpha(0.55 + 0.35 * math.sin(t * 6))
+    elseif o._style == "fill" then
+        -- 0.25 +- 0.25, the reference's pulse at its speed
+        o:SetAlpha(0.5 + 0.5 * math.sin(t * 10))
+    elseif o._style == "button" then
+        o._acc = (o._acc or 0) + elapsed
+        if o._acc >= 0.017 then                  -- the reference's cell cadence
+            o._cell = ((o._cell or 0) + 1) % ANTS_CELLS
+            o._acc = 0
+            local col = o._cell % ANTS_COLS
+            local row = math.floor(o._cell / ANTS_COLS)
+            o.ants:SetTexCoord(col * ANTS_CELL, (col + 1) * ANTS_CELL,
+                               row * ANTS_CELL, (row + 1) * ANTS_CELL)
+        end
+    end
+end
+
+local function startCustomGlow(f, style, r, g, b)
+    local o = ensureGlowOverlay(f)
+    if o._style == style and o._r == r and o._g == g and o._b == b then return end
+    o._style, o._r, o._g, o._b = style, r, g, b
+    o._acc, o._cell = 0, 0
+
+    for _, e in pairs(o.edges) do e:Hide() end
+    o.ring:Hide(); o.ants:Hide(); o.fill:Hide()
+    o:SetAlpha(1)
+
+    if style == "button" then
+        -- the reference's scale chain: ants 1.35x the button, ring 1.3x the ants
+        local w, h = f:GetWidth() or 32, f:GetHeight() or 32
+        o.ants:SetSize(w * 1.35, h * 1.35)
+        o.ants:SetVertexColor(r, g, b)
+        o.ants:Show()
+        o.ring:SetSize(w * 1.35 * 1.3, h * 1.35 * 1.3)
+        o.ring:SetVertexColor(r, g, b)
+        o.ring:Show()
+    elseif style == "fill" then
+        o.fill:SetVertexColor(r, g, b, 0.5)
+        o.fill:Show()
+    else -- pixel
+        ns.LayoutEdges(o.edges, o, 2, r, g, b, 1, 1)
+    end
+
+    o:SetScript("OnUpdate", glowDriver)
+    o:Show()
+end
+
+-- One pass per group per tick, both bar modes. Hidden icons are skipped but
+-- keep their glow state: OnUpdate does not run on hidden frames, and the state
+-- memory prevents an animation restart when they come back.
+local function applyGroupGlows(group)
+    local bar = barOf[group]
+    local icons = bar and bar._icons
+    if not icons then return end
+    for i = 1, #group.entries do
+        local f = icons[i]
+        if f then
+            local glows = group.entries[i].glows
+            if f:IsShown() and glows and #glows > 0 then
+                local win
+                for gi = 1, #glows do
+                    if glowConditionHolds(glows[gi]) then win = glows[gi]; break end
+                end
+                if win then
+                    startCustomGlow(f, win.style or "pixel", glowColor(win))
+                else
+                    stopCustomGlow(f)
+                end
+            elseif f.customGlow then
+                stopCustomGlow(f)
+            end
+        end
+    end
+end
+
+local function groupHasGlows(group)
+    for i = 1, #group.entries do
+        local gl = group.entries[i].glows
+        if gl and #gl > 0 then return true end
+    end
+    return false
 end
 
 local function updateIcon(group, f, now)
@@ -1199,6 +1412,7 @@ refreshGroup = function(group, now)
             elseif f._rec then updateAuraIcon(group, f, f._rec, now)
             else updateInactiveIcon(group, f) end
         end
+        applyGroupGlows(group)
         return
     end
 
@@ -1217,6 +1431,7 @@ refreshGroup = function(group, now)
         end
     end
     if pack then sortActive(group, active, now); packIfChanged(group, active) end
+    applyGroupGlows(group)
 end
 
 local visCache = {}
@@ -1248,8 +1463,11 @@ refreshAll = function()
                 local unit, filter = groupSource(g)
                 wantedScans[unit .. "|" .. filter] = true
             end
-            -- the stack number on a cooldown icon reads the player's own auras
-            if g.showStacks then wantedScans["player|HELPFUL"] = true end
+            -- the stack number on a cooldown icon reads the player's own
+            -- auras, and so do the custom glow watchers
+            if g.showStacks or groupHasGlows(g) then
+                wantedScans["player|HELPFUL"] = true
+            end
         end
     end
     for key in pairs(wantedScans) do
@@ -1268,6 +1486,10 @@ refreshAll = function()
         end
         if vis then refreshGroup(group, now) end
     end
+
+    -- cooldowns that start while the options page is open reach the preview
+    -- strip here; the function is a cheap no-op while the page is closed
+    if mod.UpdateStripCooldowns then mod.UpdateStripCooldowns() end
 end
 
 -- C_Timer.After(0) fires next frame, collapsing a burst of events into one refreshAll
@@ -1329,7 +1551,13 @@ local function onEquipChanged()
 end
 
 local function rebuildBars()
+    -- Managing bars from the options page works while the module is off, but
+    -- showing them must not: a disabled module's refreshAll is a no-op, so the
+    -- bars would stand on screen with frozen icons until the next reload.
+    if not mod._enabled then return end
     rebuildKnownSpells()
+    -- after the spellbook scan: adoption decides by what this class knows
+    adoptEntries()
     buildReagentMap()
     ensureGroupIDs()
     for _, b in ipairs(allBars) do b:Hide() end
@@ -1365,6 +1593,9 @@ ns:RegisterSlash({ key = "CDEDIT", commands = { "/cdedit" },
 })
 ns.Slash.CDEDIT = function()
     ns:SetMoversEditMode(not ns:IsMoverEditMode("cooldownmanager"), "cooldownmanager")
+    -- the toggle releases a lent preview bar; if the page is open, redraw it so
+    -- the preview box explains itself instead of sitting empty
+    if mod.RebuildPage then mod.RebuildPage() end
 end
 
 function mod:OnEnable()
@@ -1404,7 +1635,702 @@ end
 local addInput = ""
 
 local function rebuildPage()
-    if ns.UI and ns.UI.BuildOptionsPage then ns.UI:BuildOptionsPage("cooldownmanager") end
+    -- Guarded on the current module: the rename/delete dialogs outlive page
+    -- navigation, and an unguarded rebuild from their OnAccept would replace
+    -- whatever page the user has switched to with this one. The active tab
+    -- rides along, else every rebuild would snap back to the first tab.
+    if ns.UI and ns.UI.BuildOptionsPage and ns.UI.currentModule == "cooldownmanager" then
+        ns.UI:BuildOptionsPage("cooldownmanager", ns.UI.currentTab)
+    end
+end
+-- for callers above this definition in file order (the slash handler)
+mod.RebuildPage = rebuildPage
+
+-- ---------------------------------------------------------------------------
+-- Live preview region: bar picker on top (centred), under it the entries of
+-- the selected bar as they will look.
+--
+-- This IS the preview, the topmost region of the page, full content width. It
+-- never borrows the real bar (an aura bar is legitimately empty out of combat,
+-- which made a borrowed preview show nothing) -- it is a second set of frames
+-- that always shows every entry, drawn with the bar's own size, shape, zoom
+-- and spacing, with the real cooldown swipe on top where there is one. Drag to
+-- reorder, right-click to remove.
+
+local STRIP_PAD  = 10
+local STRIP_DD_W = 360     -- the centred picker inside the region
+local STRIP_DD_H = 26
+local STRIP_FOOT = 34      -- room for up to two hint lines under the slots
+
+-- Assigned in the bar-picker section further down; the region only calls them.
+local buildPickerValues, reorderGroups
+
+-- The real content width, readable because BuildOptionsPage sizes the scroll
+-- child before it asks the module for its items. Fallback for safety only.
+local function stripWidth()
+    local f = ns.UI and ns.UI.mainFrame
+    local w = f and f.scrollChild and f.scrollChild:GetWidth()
+    return math.max(300, (w and w > 0 and w or 740) - 28)
+end
+
+local function stripLayout(group)
+    local size = (group and group.iconSize) or 40
+    local gap  = math.max((group and group.spacing) or 4, 2)
+    local per  = math.max(1, math.floor((stripWidth() - 2 * STRIP_PAD + gap) / (size + gap)))
+    return size, gap, per
+end
+
+-- The entry indices this character gets to see, in bar order. Everything the
+-- strip draws, measures or drops onto works on this list; the real indices
+-- into group.entries ride along so foreign-class entries keep their places.
+local function stripVisibleEntries(group)
+    local vis = {}
+    if group then
+        for i, e in ipairs(group.entries) do
+            if entryVisibleHere(e) then vis[#vis + 1] = i end
+        end
+    end
+    return vis
+end
+
+local function stripHeight(group)
+    local n = #stripVisibleEntries(group)
+    local size, gap, per = stripLayout(group)
+    local rows = math.max(1, math.ceil(math.max(n, 1) / per))
+    return STRIP_PAD + STRIP_DD_H + 10 + rows * (size + gap) - gap + STRIP_FOOT
+end
+
+local stripFrame
+
+-- Where a drop right now would insert, plus the geometry for the marker line.
+-- Mirrors the populate layout instead of hit-testing the slots: an insertion
+-- point lives BETWEEN icons, and a strict hit test made a drop into the gap --
+-- the natural place to aim at -- do nothing.
+-- Returns ins in VISIBLE positions (1..n+1, "insert before visible entry
+-- ins"), lineX, lineY (TOPLEFT offsets into the strip), and the icon size for
+-- the line's height.
+local function stripInsertPoint(f)
+    local group = curGroup()
+    local n = f._vis and #f._vis or 0
+    if n == 0 then return nil end
+    local scale = f:GetEffectiveScale()
+    local fLeft, fTop = f:GetLeft(), f:GetTop()
+    if not (scale and scale > 0 and fLeft and fTop) then return nil end
+    local cx, cy = GetCursorPosition()
+    cx, cy = cx / scale, cy / scale
+
+    local size, gap, per = stripLayout(group)
+    local W       = f:GetWidth() or stripWidth()
+    local iconTop = STRIP_PAD + STRIP_DD_H + 10
+    local rows    = math.ceil(n / per)
+
+    local row = math.floor((fTop - cy - iconTop) / (size + gap))
+    if row < 0 then row = 0 elseif row > rows - 1 then row = rows - 1 end
+
+    local rowFirst = row * per + 1
+    local inRow    = math.min(n - row * per, per)
+    local rowW     = inRow * (size + gap) - gap
+    local rowX     = (W - rowW) / 2
+
+    -- nearest boundary between icons, clamped to the row's ends
+    local pos = math.floor((cx - fLeft - rowX) / (size + gap) + 0.5)
+    if pos < 0 then pos = 0 elseif pos > inRow then pos = inRow end
+
+    local ins   = math.min(rowFirst + pos, n + 1)
+    local lineX = rowX + pos * (size + gap) - gap / 2 - 1
+    local lineY = iconTop + row * (size + gap)
+    return ins, lineX, lineY, size
+end
+
+-- Live feedback while a slot is dragged: a ghost of the icon follows the
+-- cursor and the marker line stands in the gap the drop would use.
+local function stripDragTick(f)
+    local ghost = f._ghost
+    if ghost then
+        local us = UIParent:GetEffectiveScale()
+        local cx, cy = GetCursorPosition()
+        ghost:ClearAllPoints()
+        ghost:SetPoint("CENTER", UIParent, "BOTTOMLEFT", cx / us, cy / us)
+    end
+    local ins, lineX, lineY, size = stripInsertPoint(f)
+    if ins then
+        f._dragLine:ClearAllPoints()
+        f._dragLine:SetPoint("TOPLEFT", f, "TOPLEFT", lineX, -lineY)
+        f._dragLine:SetSize(2, size)
+        f._dragLine:Show()
+    else
+        f._dragLine:Hide()
+    end
+end
+
+local function cancelStripDrag(f)
+    f:SetScript("OnUpdate", nil)
+    f._dragFrom = nil
+    if f._dragSlot then f._dragSlot:SetAlpha(1); f._dragSlot = nil end
+    if f._ghost then f._ghost:Hide() end
+    if f._dragLine then f._dragLine:Hide() end
+end
+
+local function ensureStripSlot(f, i)
+    local slot = f._slots[i]
+    if slot then return slot end
+    slot = CreateFrame("Button", nil, f)
+    slot:SetSize(40, 40)
+
+    slot._bg = slot:CreateTexture(nil, "BACKGROUND")
+    slot._bg:SetAllPoints(slot)
+    slot._bg:SetColorTexture(0, 0, 0, 1)
+
+    slot._icon = slot:CreateTexture(nil, "ARTWORK")
+    slot._icon:SetPoint("TOPLEFT", slot, "TOPLEFT", 1, -1)
+    slot._icon:SetPoint("BOTTOMRIGHT", slot, "BOTTOMRIGHT", -1, 1)
+    slot._icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+
+    -- same mask mechanism the real icons use, so "Icon shape" previews truthfully
+    if slot.CreateMaskTexture and slot._icon.AddMaskTexture then
+        slot._mask = slot:CreateMaskTexture()
+        slot._mask:SetAllPoints(slot._icon)
+        slot._icon:AddMaskTexture(slot._mask)
+    end
+
+    -- the real cooldown swipe; populated from the same source as the bar
+    slot._cd = CreateFrame("Cooldown", nil, slot, "CooldownFrameTemplate")
+    slot._cd:SetAllPoints(slot._icon)
+    slot._cd:SetDrawEdge(true)
+    if slot._cd.SetHideCountdownNumbers then slot._cd:SetHideCountdownNumbers(true) end
+    slot._cd.noCooldownCount = true
+
+    -- own frame above the icon, so the hover ring never recolours the resting border
+    slot._ring = CreateFrame("Frame", nil, slot)
+    slot._ring:SetAllPoints(slot)
+    slot._ring:SetFrameLevel(slot._cd:GetFrameLevel() + 2)
+    slot._ring._edges = ns.MakeEdges(slot._ring, "OVERLAY")
+    slot._ring:Hide()
+
+    slot._count = slot:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    ns.UI.Font(slot._count, 11)
+    slot._count:SetPoint("BOTTOMRIGHT", slot, "BOTTOMRIGHT", -1, 1)
+    slot._count:SetTextColor(1, 0.95, 0.6)
+
+    slot:SetScript("OnEnter", function(self)
+        -- accent read at paint time, never baked: the theme colour is live-mutated
+        local a = ns.COLORS.accent
+        ns.LayoutEdges(self._ring._edges, self._ring, 2, a.r, a.g, a.b, 1, 0)
+        self._ring:Show()
+        if self._tip and ns.UI:OpenTooltip(self, "ANCHOR_RIGHT") then
+            GameTooltip:SetText(self._tip)
+            GameTooltip:AddLine(
+                (ns.UI and ns.UI.currentTab == "glows")
+                    and L["Click to edit this icon's glow."]
+                    or  L["Drag to reorder. Right-click removes it."],
+                0.7, 0.7, 0.7, true)
+            GameTooltip:Show()
+        end
+    end)
+    slot:SetScript("OnLeave", function(self)
+        -- the ring doubles as the selection marker on the glows tab
+        if not self._selected then self._ring:Hide() end
+        ns.UI:HideTooltip()
+    end)
+
+    slot:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    slot:SetScript("OnClick", function(self, button)
+        local group = curGroup()
+        if not (group and self._entryIndex) then return end
+        -- On the glows tab any click PICKS the icon whose glow the page edits;
+        -- removing stays a tracked-tab action, so a mis-click here cannot
+        -- silently shorten the bar. The ENTRY TABLE is stored, not the index:
+        -- removals, reorders and the trinket auto-sync shift indices under an
+        -- open editor, and an index would silently retarget a different icon
+        -- (the same rule the rename/delete dialogs follow).
+        if ns.UI and ns.UI.currentTab == "glows" then
+            mod._glowSel = group.entries[self._entryIndex]
+            rebuildPage()
+            return
+        end
+        if button == "RightButton" then
+            local e = group.entries[self._entryIndex]
+            -- auto trinkets are re-added by the equipment sync, so removing one
+            -- by hand would look like the click did nothing
+            if e and e.auto then
+                ns:Print(L["That icon is added automatically — switch off auto-tracking to remove it."])
+                return
+            end
+            table.remove(group.entries, self._entryIndex)
+            relayoutGroup(group)
+            rebuildPage()
+        end
+    end)
+
+    slot:RegisterForDrag("LeftButton")
+    slot:SetScript("OnDragStart", function(self)
+        local host = self:GetParent()
+        if not self._entryIndex then return end
+        host._dragFrom = self._entryIndex
+        host._dragSlot = self
+        self:SetAlpha(0.35)
+
+        -- ghost of the icon under the cursor, like the reference
+        local g = host._ghost
+        g:SetSize(self:GetWidth() * 0.8, self:GetHeight() * 0.8)
+        g._icon:SetTexture(self._icon:GetTexture())
+        g._icon:SetTexCoord(self._icon:GetTexCoord())
+        g:Show()
+
+        local a = ns.COLORS.accent
+        host._dragLine:SetColorTexture(a.r, a.g, a.b, 0.9)
+        host:SetScript("OnUpdate", function(h) stripDragTick(h) end)
+    end)
+    slot:SetScript("OnDragStop", function(self)
+        local host = self:GetParent()
+        local from = host._dragFrom
+        local ins  = stripInsertPoint(host)
+        cancelStripDrag(host)
+        local group = curGroup()
+        if not (from and ins and group and host._vis) then return end
+
+        -- ins is a VISIBLE position; the move happens on the real entry list,
+        -- so foreign-class entries in between keep their places
+        local realIns = host._vis[ins] or ((host._vis[#host._vis] or 0) + 1)
+        local to = realIns
+        if to > from then to = to - 1 end
+        if to < 1 then to = 1 end
+        if to > #group.entries then to = #group.entries end
+        if to == from then return end
+
+        local e = table.remove(group.entries, from)
+        table.insert(group.entries, to, e)
+        relayoutGroup(group)
+        rebuildPage()
+    end)
+
+    f._slots[i] = slot
+    return slot
+end
+
+local function ensureStripFrame(parent)
+    if not stripFrame then
+        stripFrame = CreateFrame("Frame", nil, parent)
+        stripFrame:SetSize(stripWidth(), stripHeight(nil))
+        stripFrame._slots = {}
+
+        ns.UI:StyleBackdrop(stripFrame, { bg = { r = 0.05, g = 0.05, b = 0.07, a = 1 } })
+
+        -- drop marker between two icons; coloured at drag start
+        stripFrame._dragLine = stripFrame:CreateTexture(nil, "OVERLAY")
+        stripFrame._dragLine:Hide()
+
+        -- the dragged icon's stand-in under the cursor; parented to UIParent so
+        -- it can leave the region without being clipped
+        stripFrame._ghost = CreateFrame("Frame", nil, UIParent)
+        stripFrame._ghost:SetFrameStrata("FULLSCREEN_DIALOG")
+        stripFrame._ghost:SetFrameLevel(300)
+        stripFrame._ghost._icon = stripFrame._ghost:CreateTexture(nil, "ARTWORK")
+        stripFrame._ghost._icon:SetAllPoints(stripFrame._ghost)
+        stripFrame._ghost:Hide()
+
+        -- page switch or window close mid-drag: OnDragStop never fires then
+        stripFrame:SetScript("OnHide", function(self) cancelStripDrag(self) end)
+
+        -- The bar picker, centred at the top of the region. Module-owned, not
+        -- pooled: reconfigured per build through its own _vcSetup, exactly what
+        -- the options builder would do with it.
+        stripFrame._picker = ns.UI:CreateDropdown(stripFrame, {
+            width = STRIP_DD_W,
+            values = {},
+            get = function() return db().selected end,
+            set = function(_, v) db().selected = v; mod.RebuildPage() end,
+        })
+
+        stripFrame._hint = stripFrame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+        ns.UI.Font(stripFrame._hint, 11)
+        stripFrame._hint:SetTextColor(0.62, 0.62, 0.62)
+        stripFrame._hint:SetJustifyH("CENTER")
+        stripFrame._hint:SetWordWrap(true)
+    end
+    stripFrame:SetParent(parent)
+    stripFrame:Show()
+    return stripFrame
+end
+
+-- Real cooldown state onto the preview slots, from the same source the bar
+-- reads. Called on populate and from refreshAll's ticker while the page shows,
+-- so a swipe that starts while the window is open appears without a rebuild.
+function mod.UpdateStripCooldowns()
+    local f = stripFrame
+    if not (f and f:IsVisible()) then return end
+    local group = curGroup()
+    if not group then return end
+    local minDur = group.minDuration or 1.5
+    for _, slot in ipairs(f._slots) do
+        local idx = slot._entryIndex
+        local e = idx and group.entries[idx]
+        if e and slot:IsShown() then
+            local start, dur = 0, 0
+            if group.mode == "cooldown" then
+                start, dur = entryCooldown(e)
+            end
+            -- mirror the bar's GCD filter, or every keypress flashes the strip
+            if not (start and dur and dur > minDur and start > 0) then start, dur = 0, 0 end
+            if slot._cdStart ~= start or slot._cdDur ~= dur then
+                slot._cdStart, slot._cdDur = start, dur
+                if dur > 0 then slot._cd:SetCooldown(start, dur) else slot._cd:Clear() end
+            end
+        end
+    end
+end
+
+local function buildIconStrip(parent)
+    local f = ensureStripFrame(parent)
+    cancelStripDrag(f)
+    local group = curGroup()
+    local vis = stripVisibleEntries(group)
+    local size, gap, per = stripLayout(group)
+    local zoom = (group and group.iconZoom) or 0.08
+    local mask = group and shapeMask(group.iconShape)
+    local W = stripWidth()
+    f._vis = vis
+
+    -- picker on top, centred; fresh values every build, the list is live data
+    local picker = f._picker
+    picker._vcSetup(picker, {
+        width   = STRIP_DD_W,
+        values  = (buildPickerValues and buildPickerValues()) or {},
+        reorder = reorderGroups,
+        get     = function() return db().selected end,
+        set     = function(_, v)
+            db().selected = v
+            -- an entry index into the OLD bar must not survive the switch
+            mod._glowSel = nil
+            mod.RebuildPage()
+        end,
+    })
+    picker:ClearAllPoints()
+    picker:SetPoint("TOP", f, "TOP", 0, -STRIP_PAD)
+
+    for _, slot in ipairs(f._slots) do
+        slot:Hide()
+        slot._entryIndex = nil
+        -- forget the cooldown memory: the same slot may show a different entry
+        -- after a reorder, and a stale pair would suppress the fresh swipe
+        slot._cdStart, slot._cdDur = nil, nil
+    end
+
+    local n = #vis
+    local onGlows = ns.UI and ns.UI.currentTab == "glows"
+    local iconTop = STRIP_PAD + STRIP_DD_H + 10
+    for k, entryIndex in ipairs(vis) do
+        local e = group.entries[entryIndex]
+        local slot = ensureStripSlot(f, k)
+        local nm, icon = entryInfo(e)
+        slot._entryIndex = entryIndex
+        slot._tip = nm or ("#" .. tostring(e.id))
+        -- persistent ring on the icon whose glow the glows tab is editing;
+        -- compared by entry table, which survives reorders
+        slot._selected = onGlows and e == mod._glowSel or nil
+        if slot._selected then
+            local a = ns.COLORS.accent
+            ns.LayoutEdges(slot._ring._edges, slot._ring, 2, a.r, a.g, a.b, 1, 0)
+            slot._ring:Show()
+        else
+            slot._ring:Hide()
+        end
+        slot:SetSize(size, size)
+        slot._icon:SetTexture(icon or "Interface\\Icons\\INV_Misc_QuestionMark")
+        slot._icon:SetTexCoord(zoom, 1 - zoom, zoom, 1 - zoom)
+        if slot._mask and mask then
+            slot._mask:SetTexture(mask, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+        end
+        -- own class but not (or no longer) in the spellbook: shown greyed
+        slot._icon:SetDesaturated(group.mode == "cooldown" and e.kind == "spell"
+                                  and not entryUsable(e) or false)
+        slot._count:SetText(e.auto and L["auto"] or "")
+        slot:ClearAllPoints()
+        -- wraps once a row is full; each row is centred like the picker above
+        local col = (k - 1) % per
+        local row = math.floor((k - 1) / per)
+        local inRow = math.min(n - row * per, per)
+        local rowW  = inRow * (size + gap) - gap
+        slot:SetPoint("TOPLEFT", f, "TOPLEFT",
+            (W - rowW) / 2 + col * (size + gap), -(iconTop + row * (size + gap)))
+        slot:Show()
+    end
+
+    local rows = math.max(1, math.ceil(math.max(n, 1) / per))
+    f._hint:ClearAllPoints()
+    f._hint:SetPoint("TOP", f, "TOP", 0, -(iconTop + rows * (size + gap) - gap + 8))
+    f._hint:SetWidth(W - 2 * STRIP_PAD)
+    if onGlows then
+        f._hint:SetText(n > 0
+            and L["Click an icon to edit its glow."]
+            or  L["Nothing in this bar yet. Add a spell or trinket on the CDM Bars tab first."])
+    else
+        f._hint:SetText(n > 0
+            and L["Drag to reorder. Right-click an icon to remove it."]
+            or  L["Nothing in this bar yet. Add a spell or trinket below, or drag one onto the bar."])
+    end
+    f:SetSize(W, stripHeight(group))
+    mod.UpdateStripCooldowns()
+    return f
+end
+
+-- Sliders that reshape the bar redraw the preview through this; guarded on the
+-- page actually showing so a combat-log refresh never rebuilds UI. When the
+-- region's height changes (bigger icons, extra row), only a full page rebuild
+-- can move the scroll area under it -- the header is sized once per build.
+function mod.RefreshStrip(group)
+    if not (stripFrame and stripFrame:IsVisible() and group == curGroup()) then return end
+    if math.abs(stripHeight(group) - (stripFrame:GetHeight() or 0)) > 0.5 then
+        rebuildPage()
+    else
+        buildIconStrip(stripFrame:GetParent())
+    end
+end
+
+-- The pinned header above the scroll area (see BuildOptionsPage): the preview
+-- region stays in sight at every scroll position, like the reference's. ONLY
+-- on the two tabs whose subject the strip is -- the bar itself and the glows
+-- (30.07.2026, user request); a returned 0 hides the header everywhere else.
+local STRIP_TABS = { tracked = true, glows = true, ["default"] = true }
+function mod.BuildPageHeader(host, tabId)
+    if tabId ~= nil and not STRIP_TABS[tabId] then return 0 end
+    ensureGroups()
+    local f = buildIconStrip(host)
+    f:ClearAllPoints()
+    f:SetPoint("TOPLEFT", host, "TOPLEFT", 14, 0)
+    return stripHeight(curGroup())
+end
+
+-- ---------------------------------------------------------------------------
+-- Bar picker helpers: rename, delete, add-of-mode, reorder.
+
+local PENCIL_ICON = "Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\pencil.tga"
+
+local MODE_ORDER = { "cooldown", "aura", "targetdebuff", "missing" }
+local MODE_ADD_LABEL, MODE_NEW_NAME
+ns.OnLocaleReady(function()
+    MODE_ADD_LABEL = {
+        cooldown     = L["+  New cooldown bar"],
+        aura         = L["+  New buff / proc bar"],
+        targetdebuff = L["+  New target debuff bar"],
+        missing      = L["+  New missing-buff reminder"],
+    }
+    MODE_NEW_NAME = {
+        cooldown     = L["Cooldowns"],
+        aura         = L["Buffs & Procs"],
+        targetdebuff = L["Target debuffs"],
+        missing      = L["Missing buffs"],
+    }
+end)
+
+-- The GROUP each popup acts on -- the table, not its index. StaticPopup carries
+-- no payload of its own on this client, the dialog outlives the click that
+-- opened it, and an index can be reordered out from under an open dialog while
+-- the table identity cannot. TWO variables, not one: rename and delete are
+-- different popup types, so both dialogs can be open at once, and a shared slot
+-- would let the rename opened second retarget the delete opened first.
+local pendingRenameGroup, pendingDeleteGroup
+
+local function addGroupOfMode(mode)
+    local d = db()
+    local g = defaultGroup((MODE_NEW_NAME and MODE_NEW_NAME[mode]) or L["Cooldowns"])
+    g.mode = mode
+    g.id   = newGroupID()
+    d.groups[#d.groups + 1] = g
+    d.selected = #d.groups
+    rebuildBars(); rebuildPage()
+end
+
+-- By table, not index: the caller may hold a group across a reorder or another
+-- delete (an open StaticPopup does exactly that).
+local function deleteGroup(group)
+    local d = db()
+    local index
+    for i, g in ipairs(d.groups) do
+        if g == group then index = i; break end
+    end
+    if not index then return end
+    local bar = barOf[group]
+    if bar then bar:Hide(); if bar.mover then bar.mover:Hide() end end
+    for _, g in ipairs(d.groups) do
+        if g.anchorTo == group.id then g.anchorTo = nil end
+    end
+    table.remove(d.groups, index)
+    if d.selected > #d.groups then d.selected = #d.groups end
+    if d.selected < 1 then d.selected = 1 end
+    rebuildBars(); rebuildPage()
+end
+
+-- Selection is an index into d.groups, so the moved bar has to be followed or
+-- the page would silently start editing whichever bar slid into its place.
+-- Assignment, not declaration: forward-declared next to the strip, which hands
+-- it to the picker.
+reorderGroups = function(fromRow, toRow)
+    local d = db()
+    -- rows are offset by the caption when there is one
+    local offset = (#d.groups > 1) and 1 or 0
+    local from, to = fromRow - offset, toRow - offset
+    if from < 1 or to < 1 or from > #d.groups or to > #d.groups or from == to then return end
+    local moved = d.groups[d.selected]
+    local g = table.remove(d.groups, from)
+    table.insert(d.groups, to, g)
+    for i, cand in ipairs(d.groups) do
+        if cand == moved then d.selected = i; break end
+    end
+    rebuildBars(); rebuildPage()
+end
+
+-- Does the actual rename; shared by the OK button and the Enter key. The Enter
+-- handler must not go through `parent.OnAccept` -- the client keeps OnAccept on
+-- the dialog INFO table, never on the frame, so that call is silently nil and
+-- the name typed would be thrown away.
+local function applyRename(dialog)
+    local box  = ns.PopupEditBox(dialog)
+    local name = box and box:GetText()
+    name = tostring(name or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    local group = pendingRenameGroup
+    if not group or name == "" then return end
+    group.name = name
+    rebuildBars(); rebuildPage()
+end
+
+ns.OnLocaleReady(function()
+    StaticPopupDialogs["VCUI_CDM_BAR_RENAME"] = {
+        text         = L["New name for this bar"],
+        button1      = ACCEPT or "OK",
+        button2      = CANCEL or "Cancel",
+        hasEditBox   = true,
+        maxLetters   = 32,
+        timeout      = 0,
+        whileDead    = true,
+        hideOnEscape = true,
+        preferredIndex = 3,
+        OnAccept = function(self) applyRename(self) end,
+        EditBoxOnEnterPressed = function(self)
+            local parent = self:GetParent()
+            applyRename(parent)
+            parent:Hide()
+        end,
+    }
+    StaticPopupDialogs["VCUI_CDM_BAR_DELETE"] = {
+        text         = L["Delete this bar and everything on it?"],
+        button1      = DELETE or "Delete",
+        button2      = CANCEL or "Cancel",
+        timeout      = 0,
+        whileDead    = true,
+        hideOnEscape = true,
+        preferredIndex = 3,
+        OnAccept = function() if pendingDeleteGroup then deleteGroup(pendingDeleteGroup) end end,
+    }
+end)
+
+-- Glow watcher input, same file-level pattern as the add row below. A watcher
+-- accepts a spell id (name resolved for the label) or a raw aura name -- on
+-- this client UnitAura matches by name, so an unresolvable name still works.
+local glowAddInput = ""
+
+-- _glowSel holds the entry TABLE; this resolves it against the current bar and
+-- returns nil when the entry has been removed or the bar switched.
+local function glowSelectedEntry()
+    local group = curGroup()
+    if not (group and mod._glowSel) then return nil end
+    for _, cand in ipairs(group.entries) do
+        if cand == mod._glowSel then return cand end
+    end
+    return nil
+end
+mod.GlowSelectedEntry = glowSelectedEntry
+
+local function addGlowWatcher()
+    local e = glowSelectedEntry()
+    local txt = tostring(glowAddInput or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    if not e or txt == "" then return end
+    local id = tonumber(txt)
+    local name
+    if id then
+        name = GetSpellInfo and GetSpellInfo(id) or nil
+        -- an ID this client cannot resolve would make a watcher that never
+        -- fires on "active" and always on "missing" -- refuse it out loud
+        -- instead of storing a dud
+        if not name then
+            ns:Print(L["Cooldown Manager: '%s' is not a known spell or item."], txt)
+            return
+        end
+    else
+        name = txt
+    end
+    e.glows = e.glows or {}
+    e.glows[#e.glows + 1] = { name = name, id = id, mode = "ACTIVE", style = "pixel" }
+    glowAddInput = ""
+    refreshAll()
+    rebuildPage()
+end
+
+-- Lives here rather than inside GetOptions: the strip's add row is built before
+-- the per-bar section that used to own it, and a closure rebuilt per page would
+-- capture a stale group after every reorder.
+local function doAddEntry()
+    local group = curGroup()
+    local txt = tostring(addInput or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    if group and txt ~= "" and addEntry(group, txt) then
+        addInput = ""
+        rebuildPage()
+    end
+end
+
+local function promptRename(index)
+    local group = db().groups[index]
+    if not group then return end
+    pendingRenameGroup = group
+    local dialog = StaticPopup_Show("VCUI_CDM_BAR_RENAME")
+    local box = ns.PopupEditBox(dialog)
+    if box then box:SetText(group.name or ""); box:HighlightText() end
+end
+
+local function promptDelete(index)
+    local d = db()
+    local group = d.groups[index]
+    if not group then return end
+    -- the last bar is the module: deleting it would leave a page with nothing
+    -- to edit and ensureGroups would silently make a fresh one anyway
+    if #d.groups <= 1 then
+        ns:Print(L["That is the last bar — there has to be one."])
+        return
+    end
+    pendingDeleteGroup = group
+    StaticPopup_Show("VCUI_CDM_BAR_DELETE")
+end
+
+-- The picker's row list. Selection is by ARRAY INDEX, so a reorder has to
+-- carry d.selected with it or the page would suddenly be editing a different
+-- bar. Assignment: forward-declared next to the strip, which consumes it.
+buildPickerValues = function()
+    local d = db()
+    local groupValues = {}
+    if #d.groups > 1 then
+        groupValues[#groupValues + 1] = { text = L["Drag to reorder bars"], separator = true }
+    end
+    for i, g in ipairs(d.groups) do
+        groupValues[#groupValues + 1] = {
+            value = i, text = g.name,
+            draggable = #d.groups > 1,
+            buttons = {
+                { icon = PENCIL_ICON, tooltip = L["Rename this bar"],
+                  onClick = function(idx) promptRename(idx) end },
+                { glyph = "\195\151", tooltip = L["Delete this bar"],
+                  onClick = function(idx) promptDelete(idx) end },
+            },
+        }
+    end
+    for _, m in ipairs(MODE_ORDER) do
+        groupValues[#groupValues + 1] = {
+            -- same guard addGroupOfMode uses: GetOptions cannot run before
+            -- OnLocaleReady in practice, but an error page is a bad way to prove it
+            text = (MODE_ADD_LABEL and MODE_ADD_LABEL[m]) or m, action = true,
+            onClick = function() addGroupOfMode(m) end,
+        }
+    end
+    return groupValues
 end
 
 local function openColorPicker(getCurrent, setNew)
@@ -1415,65 +2341,186 @@ local function openColorPicker(getCurrent, setNew)
     })
 end
 
-function mod:GetOptions()
+-- Tabs, like the rest of the suite: the pinned preview region stays above all
+-- of them; each tab carries one subject. Labels are raw English keys -- the
+-- tab renderer translates them.
+mod.tabs = {
+    { id = "tracked",    label = "CDM Bars" },
+    { id = "glows",      label = "Bar Glows" },
+    { id = "layout",     label = "Layout" },
+    { id = "display",    label = "Icon display" },
+    { id = "visibility", label = "Visibility" },
+}
+
+function mod:GetOptions(tabId)
     ensureGroups()
     local d = mod.db
     local group = curGroup()
+    if tabId == nil or tabId == "default" then tabId = "tracked" end
 
-    local groupValues = {}
-    for i, g in ipairs(d.groups) do
-        groupValues[#groupValues + 1] = { value = i, text = g.name }
+    -- The power bar tab fronts a real module of its own (merged below in this
+    -- file); delegate the way the group containers do -- its enable switch
+    -- first, then its page.
+    if tabId == "powerbar" then
+        local sub = ns.modules and ns.modules.powerbar
+        if not sub then return {} end
+        local items = {
+            { type = "toggle", label = L["Module enabled"],
+              get = function() return ns:IsModuleEnabled("powerbar") end,
+              set = function(_, v)
+                  ns:ToggleModule("powerbar", v)
+                  if ns.UI and ns.UI.RefreshSidebarStates then ns.UI:RefreshSidebarStates() end
+                  rebuildPage()
+              end },
+            { type = "spacer", height = 8 },
+        }
+        if sub.description and sub.description ~= "" then
+            items[#items + 1] = { type = "desc", text = L[sub.description] }
+            items[#items + 1] = { type = "spacer", height = 6 }
+        end
+        if sub.GetOptions then
+            local ok, subItems = pcall(function() return sub:GetOptions() end)
+            if ok and type(subItems) == "table" then
+                for _, it in ipairs(subItems) do items[#items + 1] = it end
+            else
+                items[#items + 1] = { type = "desc", text = L["|cffff5555This tab failed to load.|r"] }
+            end
+        end
+        return items
     end
 
-    local items = {
-        { type = "header", text = L["Cooldown Manager"] },
-        { type = "desc",
-          text = L["|cffaaaaaaMovable cooldown bars grouped however you like — e.g. one for procs/buffs, one for defensive cooldowns, one for offensives. Pick or create a group below, then add spells/trinkets to it.|r"] },
-        { type = "spacer", height = 4 },
+    -- ------------------------------------------------------------------ glows
+    -- The strip above is the interaction surface: a click there stores the
+    -- entry index in mod._glowSel and rebuilds this page.
+    if tabId == "glows" then
+        local items = {
+            { type = "desc", text = L["|cffaaaaaaEach icon can glow while a buff of yours is active — or missing. Click an icon in the preview above, then add one or more watchers; the first whose condition holds paints the icon.|r"] },
+            { type = "spacer", height = 4 },
+        }
+        if not group then return items end
+        local e = glowSelectedEntry()
+        if not (e and entryVisibleHere(e)) then
+            mod._glowSel = nil
+            items[#items + 1] = { type = "desc", text = L["|cff888888No icon picked yet.|r"] }
+            return items
+        end
 
-        { type = "button", width = 360, primary = true,
-          label = ns:IsMoverEditMode("cooldownmanager") and L["Stop editing — lock the cooldown bars"]
-                                                         or  L["Edit mode — move the cooldown bars"],
-          tooltip = L["Unlocks just the cooldown bars so you can drag them. Arrow keys fine-tune; right-click a purple box for X/Y. (To move ALL VuloUI windows, use 'Unlock Mode' in Global.)"],
-          onClick = function()
-              ns:SetMoversEditMode(not ns:IsMoverEditMode("cooldownmanager"), "cooldownmanager")
-              rebuildPage()
-          end },
-        { type = "spacer", height = 6 },
+        local ename = entryInfo(e) or ("#" .. tostring(e.id))
+        items[#items + 1] = { type = "header", text = string.format(L["Glows: %s"], ename) }
 
-        { type = "header", text = L["Groups"] },
-        { type = "group", layout = "row", gap = 8, items = {
-            { type = "dropdown", label = L["Edit group"], width = 240,
-              values = groupValues,
-              get = function() return d.selected end,
-              set = function(_, v) d.selected = v; rebuildPage() end },
-            { type = "button", label = L["New group"], width = 120, primary = true,
-              onClick = function()
-                  local g = defaultGroup(string.format(L["Group %d"], #d.groups + 1))
-                  g.id = newGroupID()
-                  d.groups[#d.groups + 1] = g
-                  d.selected = #d.groups
-                  rebuildBars(); rebuildPage()
-              end },
-            { type = "button", label = L["Duplicate"], width = 120,
-              tooltip = L["Copies the selected group with all entries and layout settings."],
-              onClick = function()
-                  local src = curGroup()
-                  if not src then return end
-                  local copy = ns:DeepCopy(src)
-                  copy.id = newGroupID()
-                  copy.name = src.name .. " " .. L["(copy)"]
-                  copy.unlocked = false
-                  copy.freeMove = nil
-                  copy.anchorEnabled = nil
-                  d.groups[#d.groups + 1] = copy
-                  d.selected = #d.groups
-                  rebuildBars(); rebuildPage()
-              end },
-        } },
-    }
+        -- The empty state is where everyone starts; it has to teach. And the
+        -- overwhelmingly common watcher is the entry's OWN buff, so that case
+        -- is one button instead of a spelling exercise.
+        if not (e.glows and e.glows[1]) then
+            items[#items + 1] = { type = "desc",
+                text = L["|cffaaaaaaNo watcher yet. Most spells put a buff of the same name on you when used — one click below makes this icon glow while that buff is on you. Or type any other buff into the field.|r"] }
+            if e.kind == "spell" then
+                items[#items + 1] = { type = "button", width = 320, primary = true,
+                    label = string.format(L["Glow while '%s' is on me"], ename),
+                    onClick = function()
+                        e.glows = e.glows or {}
+                        e.glows[#e.glows + 1] = { name = ename, id = e.id, mode = "ACTIVE", style = "pixel" }
+                        refreshAll(); rebuildPage()
+                    end }
+                items[#items + 1] = { type = "spacer", height = 4 }
+            end
+        end
+
+        for gi, g in ipairs(e.glows or {}) do
+            local watcher = g.name or (g.id and ("#" .. g.id)) or "?"
+            -- noOverride on every value row: the label repeats once per watcher,
+            -- and the talent-override capture keys rows by label -- recording
+            -- one "Glow style" would replay onto every watcher of the entry
+            local glowItems = {
+                { type = "dropdown", label = L["Glow when"], width = 260, noOverride = true,
+                  values = {
+                      { value = "ACTIVE",  text = L["Buff is active"] },
+                      { value = "MISSING", text = L["Buff is missing"] },
+                  },
+                  get = function() return g.mode or "ACTIVE" end,
+                  set = function(_, v) g.mode = v; refreshAll() end },
+                { type = "toggle", label = L["Only in combat"], noOverride = true,
+                  get = function() return g.combat == true end,
+                  set = function(_, v) g.combat = v and true or nil; refreshAll() end },
+                { type = "dropdown", label = L["Glow style"], width = 260, noOverride = true,
+                  values = {
+                      { value = "pixel",  text = L["Pixel border"] },
+                      { value = "button", text = L["Action button glow"] },
+                      { value = "fill",   text = L["Pulsing fill"] },
+                  },
+                  get = function() return g.style or "pixel" end,
+                  set = function(_, v) g.style = v; refreshAll() end },
+                { type = "dropdown", label = L["Glow color"], width = 260, noOverride = true,
+                  values = {
+                      { value = "default", text = L["Gold (default)"] },
+                      { value = "class",   text = L["Class color"] },
+                      { value = "custom",  text = L["Custom color"] },
+                  },
+                  get = function() return g.colorMode or "default" end,
+                  set = function(_, v) g.colorMode = v; refreshAll(); rebuildPage() end },
+            }
+            if g.colorMode == "custom" then
+                glowItems[#glowItems + 1] = { type = "button", label = L["Pick color..."], width = 160,
+                    onClick = function()
+                        openColorPicker(function() return g.color end,
+                            function(c) g.color = c; refreshAll() end)
+                    end }
+            end
+            glowItems[#glowItems + 1] = { type = "button", label = L["Remove this glow"], width = 180,
+                onClick = function()
+                    table.remove(e.glows, gi)
+                    if #e.glows == 0 then e.glows = nil end
+                    refreshAll(); rebuildPage()
+                end }
+            items[#items + 1] = { type = "section",
+                title = string.format(L["Watches: %s"], watcher), items = glowItems }
+        end
+
+        items[#items + 1] = { type = "spacer", height = 6 }
+        items[#items + 1] = { type = "group", layout = "row", gap = 8, items = {
+            { type = "editbox", label = L["Add watcher (buff name / ID)"], width = 320, editWidth = 180,
+              commitOnFocusLost = true,
+              get = function() return glowAddInput end,
+              set = function(_, v) glowAddInput = tostring(v or "") end,
+              onEnter = function() addGlowWatcher() end },
+            { type = "button", label = L["Add"], width = 80, primary = true,
+              onClick = function() addGlowWatcher() end },
+        } }
+        return items
+    end
+
+    local items = {}
 
     if not group then return items end
+
+    -- ---------------------------------------------------------------- tracked
+    if tabId == "tracked" then
+
+    items[#items + 1] = { type = "group", layout = "row", gap = 8, items = {
+        { type = "editbox", label = L["Add (name / ID)"], width = 300, editWidth = 190,
+          commitOnFocusLost = true,
+          get = function() return addInput end,
+          set = function(_, v) addInput = tostring(v or "") end,
+          onEnter = function() doAddEntry() end },
+        { type = "button", label = L["Add"], width = 80, primary = true,
+          onClick = function() doAddEntry() end },
+        { type = "button", label = L["Duplicate bar"], width = 130,
+          tooltip = L["Copies the selected bar with all entries and layout settings."],
+          onClick = function()
+              local src = curGroup()
+              if not src then return end
+              local copy = ns:DeepCopy(src)
+              copy.id = newGroupID()
+              copy.name = src.name .. " " .. L["(copy)"]
+              copy.unlocked = false
+              copy.freeMove = nil
+              copy.anchorEnabled = nil
+              d.groups[#d.groups + 1] = copy
+              d.selected = #d.groups
+              rebuildBars(); rebuildPage()
+          end },
+    } }
+    items[#items + 1] = { type = "spacer", height = 6 }
 
     items[#items + 1] = { type = "group", layout = "row", gap = 8, items = {
         { type = "editbox", label = L["Name"], width = 260, editWidth = 170,
@@ -1483,17 +2530,11 @@ function mod:GetOptions()
               if group.name == "" then group.name = L["Cooldowns"] end
               rebuildBars(); rebuildPage()
           end },
+        -- Same path as the × in the bar picker: confirm dialog, last-bar guard,
+        -- preview release. Two delete paths with different rules is how the
+        -- guarded one becomes decorative.
         { type = "button", label = L["Delete group"], width = 130,
-          onClick = function()
-              local bar = barOf[group]
-              if bar then bar:Hide(); if bar.mover then bar.mover:Hide() end end
-              for _, g in ipairs(d.groups) do
-                  if g.anchorTo == group.id then g.anchorTo = nil end
-              end
-              table.remove(d.groups, d.selected)
-              if d.selected > #d.groups then d.selected = #d.groups end
-              rebuildBars(); rebuildPage()
-          end },
+          onClick = function() promptDelete(d.selected) end },
     } }
     items[#items + 1] = { type = "dropdown", label = L["Group type"], width = 280,
         values = {
@@ -1547,27 +2588,16 @@ function mod:GetOptions()
     end
     items[#items + 1] = { type = "spacer", height = 6 }
 
-    local function doAdd()
-        local txt = addInput:gsub("^%s+", ""):gsub("%s+$", "")
-        if txt ~= "" and addEntry(group, txt) then addInput = ""; rebuildPage() end
-    end
-    items[#items + 1] = { type = "group", layout = "row", gap = 8, items = {
-        { type = "editbox", label = L["Add (name / ID)"], width = 280, editWidth = 190,
-          commitOnFocusLost = true,
-          get = function() return addInput end,
-          set = function(_, v) addInput = tostring(v or "") end,
-          onEnter = function() doAdd() end },
-        { type = "button", label = L["Add"], width = 80, primary = true,
-          onClick = doAdd },
-    } }
-    items[#items + 1] = { type = "spacer", height = 4 }
-
+    -- Same visibility rule as the preview strip: entries another class created
+    -- do not exist here. They stay in the stored list untouched -- their class
+    -- sees and manages them.
+    local visibleTracked = stripVisibleEntries(group)
     local trackedItems = {}
-    if #group.entries == 0 then
+    if #visibleTracked == 0 then
         trackedItems[1] = { type = "desc", text = L["|cff888888Nothing in this group yet.|r"] }
     else
-        local n = #group.entries
-        for i, e in ipairs(group.entries) do
+        for pos, i in ipairs(visibleTracked) do
+            local e = group.entries[i]
             local nm, icon = entryInfo(e)
             local label = (icon and ("|T" .. icon .. ":18:18:0:0:64:64:5:59:5:59|t  ") or "")
                 .. (nm or ("#" .. tostring(e.id)))
@@ -1577,21 +2607,26 @@ function mod:GetOptions()
                 label = label .. L["  |cffaa5555(other class)|r"]
             end
 
+            -- swap with the neighbouring VISIBLE entry: with a hidden foreign
+            -- entry in between, swapping real neighbours would look like the
+            -- button did nothing
+            local prevIdx = visibleTracked[pos - 1]
+            local nextIdx = visibleTracked[pos + 1]
             local rowItems = {
                 { type = "desc", text = label, width = 300 },
                 { type = "iconbutton", icon = ARROW_LEFT, width = 28, height = 28, iconInset = 7,
                   tooltip = L["Move earlier"],
                   onClick = function()
-                      if i > 1 then
-                          group.entries[i], group.entries[i-1] = group.entries[i-1], group.entries[i]
+                      if prevIdx then
+                          group.entries[i], group.entries[prevIdx] = group.entries[prevIdx], group.entries[i]
                           relayoutGroup(group); rebuildPage()
                       end
                   end },
                 { type = "iconbutton", icon = ARROW_RIGHT, width = 28, height = 28, iconInset = 7,
                   tooltip = L["Move later"],
                   onClick = function()
-                      if i < n then
-                          group.entries[i], group.entries[i+1] = group.entries[i+1], group.entries[i]
+                      if nextIdx then
+                          group.entries[i], group.entries[nextIdx] = group.entries[nextIdx], group.entries[i]
                           relayoutGroup(group); rebuildPage()
                       end
                   end },
@@ -1648,7 +2683,16 @@ function mod:GetOptions()
     end
     trackedItems[#trackedItems + 1] = { type = "button", label = L["Unlock / Position"], width = 200,
         onClick = function() setUnlocked(group, not group.unlocked) end }
-    items[#items + 1] = { type = "section", title = L["Tracked"], items = trackedItems }
+    -- Closed by default (the sanctioned exception in placeSection): the strip
+    -- up top already shows, reorders and removes these entries -- this list
+    -- only repeats them in longhand, plus the per-entry conditions.
+    items[#items + 1] = { type = "section", title = L["Tracked"], items = trackedItems,
+        collapsible = true, collapsed = true, key = "tracked" }
+
+    end -- tracked
+
+    -- ------------------------------------------------------------- visibility
+    if tabId == "visibility" then
 
     do
         local anchorVals = { { value = 0, text = L["None (free)"] } }
@@ -1698,75 +2742,6 @@ function mod:GetOptions()
         items[#items + 1] = { type = "section", title = L["Anchor"], items = anchorItems }
     end
 
-    items[#items + 1] = { type = "section", title = L["Layout"], items = {
-        { type = "slider", label = L["Icon size"], min = 20, max = 64, step = 1,
-          get = function() return group.iconSize end,
-          set = function(_, v) group.iconSize = v; relayoutGroup(group) end },
-        { type = "slider", label = L["Spacing"], min = 0, max = 16, step = 1,
-          get = function() return group.spacing end,
-          set = function(_, v) group.spacing = v; relayoutGroup(group) end },
-        { type = "slider", label = L["Icons per row"], min = 1, max = 20, step = 1,
-          get = function() return group.perRow end,
-          set = function(_, v) group.perRow = v; relayoutGroup(group) end },
-        { type = "segmented", label = L["Growth direction"], width = 220,
-          values = {
-              { value = "RIGHT", text = L["Right"] }, { value = "LEFT", text = L["Left"] },
-              { value = "DOWN",  text = L["Down"]  }, { value = "UP",   text = L["Up"]   },
-          },
-          get = function() return group.growth end,
-          set = function(_, v) group.growth = v; relayoutGroup(group) end },
-        { type = "dropdown", label = L["Icon shape"], width = 220,
-          values = {
-              { value = "square",  text = L["Square"]  },
-              { value = "rounded", text = L["Rounded"] },
-              { value = "circle",  text = L["Circle"]  },
-          },
-          get = function() return group.iconShape or "square" end,
-          set = function(_, v) group.iconShape = v; relayoutGroup(group) end },
-        { type = "slider", label = L["Icon zoom"], min = 0, max = 0.30, step = 0.01,
-          get = function() return group.iconZoom or 0.08 end,
-          set = function(_, v) group.iconZoom = v; relayoutGroup(group) end },
-        { type = "slider", label = L["Cooldown swipe darkness"], min = 0, max = 1, step = 0.05,
-          get = function() return group.swipeAlpha or 0.6 end,
-          set = function(_, v) group.swipeAlpha = v; relayoutGroup(group) end },
-        { type = "slider", label = L["Bar scale"], min = 0.5, max = 2, step = 0.05,
-          get = function() return group.scale or 1 end,
-          set = function(_, v) group.scale = v; relayoutGroup(group); positionBar(group) end },
-        { type = "slider", label = L["Bar opacity"], min = 0.1, max = 1, step = 0.05,
-          get = function() return group.alpha or 1 end,
-          set = function(_, v) group.alpha = v; refreshAll() end },
-        { type = "slider", label = L["Icon border thickness"], min = 0, max = 3, step = 1,
-          get = function()
-              local v = group.borderSize
-              if v == nil then v = 1 end
-              return v
-          end,
-          set = function(_, v) group.borderSize = v; relayoutGroup(group) end },
-        { type = "toggle", label = L["Class-colored border"],
-          get = function() return group.borderClassColor == true end,
-          set = function(_, v) group.borderClassColor = v; relayoutGroup(group) end,
-          subOptions = {
-              { type = "button", label = L["Border color..."], width = 180,
-                onClick = function()
-                    openColorPicker(function() return group.borderColor end,
-                        function(c) group.borderColor = c; relayoutGroup(group) end)
-                end },
-          } },
-        { type = "toggle", label = L["Bar background"],
-          get = function() return group.barBg == true end,
-          set = function(_, v) group.barBg = v; relayoutGroup(group) end,
-          subOptions = {
-              { type = "button", label = L["Background color..."], width = 180,
-                onClick = function()
-                    openColorPicker(function() return group.barBgColor end,
-                        function(c) group.barBgColor = c; relayoutGroup(group) end)
-                end },
-              { type = "slider", label = L["Background opacity"], min = 0.1, max = 1, step = 0.05,
-                get = function() return group.barBgAlpha or 0.5 end,
-                set = function(_, v) group.barBgAlpha = v; relayoutGroup(group) end },
-          } },
-    } }
-
     items[#items + 1] = { type = "section", title = L["Visibility"], items = {
         { type = "dropdown", label = L["Show this bar"], width = 260,
           values = {
@@ -1794,6 +2769,102 @@ function mod:GetOptions()
           get = function() return group.onlyInInstance end,
           set = function(_, v) group.onlyInInstance = v; refreshAll() end },
     } }
+
+    end -- visibility
+
+    -- ----------------------------------------------------------------- layout
+    if tabId == "layout" then
+
+    items[#items + 1] = { type = "button", width = 360, primary = true,
+        label = ns:IsMoverEditMode("cooldownmanager") and L["Stop editing — lock the cooldown bars"]
+                                                       or  L["Edit mode — move the cooldown bars"],
+        tooltip = L["Unlocks just the cooldown bars so you can drag them. Arrow keys fine-tune; right-click a purple box for X/Y. (To move ALL VuloUI windows, use 'Unlock Mode' in Global.)"],
+        onClick = function()
+            ns:SetMoversEditMode(not ns:IsMoverEditMode("cooldownmanager"), "cooldownmanager")
+            rebuildPage()
+        end }
+    items[#items + 1] = { type = "spacer", height = 6 }
+
+    -- Split along one line: what shapes the BAR sits here, what shapes a single
+    -- ICON sits in the display section below. Icon size and shape used to live
+    -- up here next to "icons per row", which put three different subjects in one
+    -- list and made the section the longest on the page by a wide margin.
+    items[#items + 1] = { type = "section", title = L["Bar layout"], items = {
+        { type = "slider", label = L["Icons per row"], min = 1, max = 20, step = 1,
+          get = function() return group.perRow end,
+          set = function(_, v) group.perRow = v; relayoutGroup(group) end },
+        { type = "segmented", label = L["Growth direction"], width = 220,
+          values = {
+              { value = "RIGHT", text = L["Right"] }, { value = "LEFT", text = L["Left"] },
+              { value = "DOWN",  text = L["Down"]  }, { value = "UP",   text = L["Up"]   },
+          },
+          get = function() return group.growth end,
+          set = function(_, v) group.growth = v; relayoutGroup(group) end },
+        { type = "slider", label = L["Spacing"], min = 0, max = 16, step = 1,
+          get = function() return group.spacing end,
+          set = function(_, v) group.spacing = v; relayoutGroup(group) end },
+        { type = "slider", label = L["Bar scale"], min = 0.5, max = 2, step = 0.05,
+          get = function() return group.scale or 1 end,
+          set = function(_, v) group.scale = v; relayoutGroup(group); positionBar(group) end },
+        { type = "slider", label = L["Bar opacity"], min = 0.1, max = 1, step = 0.05,
+          get = function() return group.alpha or 1 end,
+          set = function(_, v) group.alpha = v; refreshAll() end },
+        { type = "toggle", label = L["Bar background"],
+          get = function() return group.barBg == true end,
+          set = function(_, v) group.barBg = v; relayoutGroup(group) end,
+          subOptions = {
+              { type = "button", label = L["Background color..."], width = 180,
+                onClick = function()
+                    openColorPicker(function() return group.barBgColor end,
+                        function(c) group.barBgColor = c; relayoutGroup(group) end)
+                end },
+              { type = "slider", label = L["Background opacity"], min = 0.1, max = 1, step = 0.05,
+                get = function() return group.barBgAlpha or 0.5 end,
+                set = function(_, v) group.barBgAlpha = v; relayoutGroup(group) end },
+          } },
+    } }
+
+    items[#items + 1] = { type = "section", title = L["Icon appearance"], items = {
+        { type = "slider", label = L["Icon size"], min = 20, max = 64, step = 1,
+          get = function() return group.iconSize end,
+          set = function(_, v) group.iconSize = v; relayoutGroup(group) end },
+        { type = "dropdown", label = L["Icon shape"], width = 220,
+          values = {
+              { value = "square",  text = L["Square"]  },
+              { value = "rounded", text = L["Rounded"] },
+              { value = "circle",  text = L["Circle"]  },
+          },
+          get = function() return group.iconShape or "square" end,
+          set = function(_, v) group.iconShape = v; relayoutGroup(group) end },
+        { type = "slider", label = L["Icon zoom"], min = 0, max = 0.30, step = 0.01,
+          get = function() return group.iconZoom or 0.08 end,
+          set = function(_, v) group.iconZoom = v; relayoutGroup(group) end },
+        { type = "slider", label = L["Cooldown swipe darkness"], min = 0, max = 1, step = 0.05,
+          get = function() return group.swipeAlpha or 0.6 end,
+          set = function(_, v) group.swipeAlpha = v; relayoutGroup(group) end },
+        { type = "slider", label = L["Icon border thickness"], min = 0, max = 3, step = 1,
+          get = function()
+              local v = group.borderSize
+              if v == nil then v = 1 end
+              return v
+          end,
+          set = function(_, v) group.borderSize = v; relayoutGroup(group) end },
+        { type = "toggle", label = L["Class-colored border"],
+          get = function() return group.borderClassColor == true end,
+          set = function(_, v) group.borderClassColor = v; relayoutGroup(group) end,
+          subOptions = {
+              { type = "button", label = L["Border color..."], width = 180,
+                onClick = function()
+                    openColorPicker(function() return group.borderColor end,
+                        function(c) group.borderColor = c; relayoutGroup(group) end)
+                end },
+          } },
+    } }
+
+    end -- layout
+
+    -- ---------------------------------------------------------------- display
+    if tabId == "display" then
 
     local displayItems = {
         { type = "toggle", label = L["Show countdown text"],
@@ -1927,7 +2998,657 @@ function mod:GetOptions()
             get = function() return group.tintRange == true end,
             set = function(_, v) group.tintRange = v; refreshAll() end }
     end
-    items[#items + 1] = { type = "section", title = L["Display"], items = displayItems }
+    items[#items + 1] = { type = "section", title = L["Icon display"], items = displayItems }
+
+    end -- display
 
     return items
 end
+
+-- ---------------------------------------------------------------------------
+-- Power bar (30.07.2026, user request): merged from Modules/PowerBar.lua as a
+-- capsule; the integration capsule below makes it this module's fifth tab.
+(function(...)
+-- Movable HUD resource bar (mana / rage / energy / focus).
+local _, ns = ...
+local L = ns.L
+
+local mod = ns:RegisterModule("powerbar", {
+    name        = "Power Bar",
+    group       = "HUD",
+    description = "A movable resource bar for your character. The power type follows your class automatically (Mana / Rage / Energy) — and for Druids it switches with your form: Bear = Rage, Cat = Energy, otherwise Mana.",
+    defaults = {
+        enabled    = true,
+        width      = 220,
+        height     = 20,
+        x          = 0,
+        y          = -200,
+        unlocked   = false,
+        texture    = "Atrocity",
+        textMode   = "currentmax",
+        fontSize   = 12,
+        borderSize = 1,
+        textAnchor = "CENTER",
+        textX      = 0,
+        textY      = 0,
+        textColor  = { r = 1, g = 1, b = 1 },
+
+        visibility    = "always",
+        fadeAlpha     = 20,
+        groupVis      = "any",
+        onlyInstances = false,
+        hideMounted   = false,
+        hideNoTarget  = false,
+        hideFull      = false,
+        fadeOOC       = false,
+        oocAlpha      = 40,
+
+        colorMode     = "power",
+        customColor   = { r = 0.25, g = 0.45, b = 0.95 },
+        gradient      = false,
+        gradientColor = { r = 0, g = 0, b = 0 },
+        borderColor   = { r = 0, g = 0, b = 0 },
+        bgColor       = { r = 0.05, g = 0.05, b = 0.06 },
+        bgAlpha       = 0.85,
+        smooth        = false,
+
+        hashMarks      = "",
+        hashPct        = true,
+        hashWidth      = 1,
+        hashColor      = { r = 0, g = 0, b = 0 },
+        thresholdOn    = false,
+        threshold      = 20,
+        thresholdPct   = true,
+        thresholdDir   = "below",
+        thresholdColor = { r = 0.9, g = 0.2, b = 0.2 },
+        thresholdText  = false,
+    },
+})
+
+local UnitPower, UnitPowerMax, UnitPowerType = UnitPower, UnitPowerMax, UnitPowerType
+local format, floor = string.format, math.floor
+
+-- Keyed by the UnitPowerType token.
+local POWER_COLORS = {
+    MANA        = { r = 0.25, g = 0.45, b = 0.95 },
+    RAGE        = { r = 0.85, g = 0.22, b = 0.22 },
+    ENERGY      = { r = 0.95, g = 0.85, b = 0.25 },
+    FOCUS       = { r = 0.95, g = 0.55, b = 0.25 },
+    RUNIC_POWER = { r = 0.30, g = 0.70, b = 0.90 },
+}
+local DEFAULT_COLOR = POWER_COLORS.MANA
+
+local DEFAULT_TEXTURE = "Atrocity"
+local lsmStatusbar   = ns.MediaStatusbar
+local textureValues  = ns.MediaStatusbarValues
+
+local function textModeValues()
+    return {
+        { value = "none",       text = L["No text"] },
+        { value = "current",    text = L["Current value"] },
+        { value = "currentmax", text = L["Current / Max"] },
+        { value = "percent",    text = L["Percent"] },
+        { value = "full",       text = L["Current / Max (%)"] },
+    }
+end
+
+local frame, bar, barText, borderEdges
+
+local function applyFont()
+    if not barText then return end
+    if ns.UI and ns.UI.Font then
+        ns.UI.Font(barText, mod.db.fontSize, "OUTLINE")
+    else
+        barText:SetFont(STANDARD_TEXT_FONT, mod.db.fontSize, "OUTLINE")
+    end
+    local c = mod.db.textColor or { r = 1, g = 1, b = 1 }
+    barText:SetTextColor(c.r or 1, c.g or 1, c.b or 1)
+end
+
+local function currentColor()
+    local d = mod.db
+    if d.colorMode == "custom" and d.customColor then return d.customColor end
+    if d.colorMode == "class" then
+        local _, cls = UnitClass("player")
+        local c = RAID_CLASS_COLORS and RAID_CLASS_COLORS[cls]
+        if c then return c end
+    end
+    local _, token = UnitPowerType("player")
+    return POWER_COLORS[token] or DEFAULT_COLOR
+end
+
+local bgTex
+
+local function applyAppearance()
+    if not bar then return end
+    local d = mod.db
+    bar:SetStatusBarTexture(lsmStatusbar(d.texture))
+    local t = bar:GetStatusBarTexture()
+    if t and t.SetHorizTile then t:SetHorizTile(false); t:SetVertTile(false) end
+    local c = currentColor()
+    bar:SetStatusBarColor(c.r, c.g, c.b)
+    if t and t.SetGradient and CreateColor then
+        if d.gradient then
+            local g2 = d.gradientColor or { r = 0, g = 0, b = 0 }
+            t:SetGradient("HORIZONTAL", CreateColor(1, 1, 1, 1), CreateColor(g2.r, g2.g, g2.b, 1))
+        else
+            t:SetGradient("HORIZONTAL", CreateColor(1, 1, 1, 1), CreateColor(1, 1, 1, 1))
+        end
+    end
+    if bgTex then
+        local bc = d.bgColor or { r = 0.05, g = 0.05, b = 0.06 }
+        bgTex:SetColorTexture(bc.r, bc.g, bc.b, d.bgAlpha or 0.85)
+    end
+    applyFont()
+end
+
+local function applyBorder()
+    if not frame or not borderEdges then return end
+    local c = mod.db.borderColor or ns.COLORS.borderDark or { r = 0, g = 0, b = 0 }
+    ns.LayoutEdges(borderEdges, frame, mod.db.borderSize or 0, c.r, c.g, c.b, 1, 0)
+end
+
+local applyHashes   -- forward declaration: assigned below, captured as an upvalue here
+
+local function applySize()
+    if not frame then return end
+    frame:SetSize(ns:PixelSnap(mod.db.width, frame), ns:PixelSnap(mod.db.height, frame))
+    applyBorder()
+    if applyHashes then applyHashes() end
+end
+
+local function applyPos()
+    if not frame then return end
+    frame:ClearAllPoints()
+    frame:SetPoint("CENTER", UIParent, "CENTER",
+        ns:PixelSnap(mod.db.x or 0, frame), ns:PixelSnap(mod.db.y or 0, frame))
+end
+
+local function applyText()
+    if not barText or not bar then return end
+    barText:ClearAllPoints()
+    local anchor = mod.db.textAnchor or "CENTER"
+    local ox, oy = mod.db.textX or 0, mod.db.textY or 0
+    if anchor == "LEFT" then
+        barText:SetPoint("LEFT", bar, "LEFT", 4 + ox, oy)
+        barText:SetJustifyH("LEFT")
+    elseif anchor == "RIGHT" then
+        barText:SetPoint("RIGHT", bar, "RIGHT", -4 + ox, oy)
+        barText:SetJustifyH("RIGHT")
+    else
+        barText:SetPoint("CENTER", bar, "CENTER", ox, oy)
+        barText:SetJustifyH("CENTER")
+    end
+end
+
+local hashPool = {}
+function applyHashes()
+    for _, t in ipairs(hashPool) do t:Hide() end
+    if not bar then return end
+    local d = mod.db
+    local list = d.hashMarks
+    if not list or list == "" then return end
+    local w = bar:GetWidth() or 0
+    if w <= 0 then return end
+    local i = 0
+    for numStr in tostring(list):gmatch("[%d%.]+") do
+        local v = tonumber(numStr)
+        local frac
+        if v then
+            if d.hashPct then
+                frac = v / 100
+            else
+                local mx = UnitPowerMax("player") or 0
+                frac = mx > 0 and v / mx or nil
+            end
+        end
+        if frac and frac > 0 and frac < 1 then
+            i = i + 1
+            local t = hashPool[i]
+            if not t then t = bar:CreateTexture(nil, "ARTWORK", nil, 2); hashPool[i] = t end
+            local c = d.hashColor or { r = 0, g = 0, b = 0 }
+            local hw = d.hashWidth or 1
+            t:SetColorTexture(c.r, c.g, c.b, 0.9)
+            t:ClearAllPoints()
+            t:SetPoint("TOPLEFT", bar, "TOPLEFT", w * frac - hw / 2, 0)
+            t:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", w * frac - hw / 2, 0)
+            t:SetWidth(hw)
+            t:Show()
+        end
+    end
+end
+
+local smoothTicker, smoothTarget
+local function ensureSmooth()
+    if smoothTicker then return end
+    smoothTicker = CreateFrame("Frame"); smoothTicker:Hide()
+    smoothTicker:SetScript("OnUpdate", function(self, e)
+        if not bar or smoothTarget == nil then self:Hide(); return end
+        local cur = bar:GetValue()
+        local diff = smoothTarget - cur
+        if math.abs(diff) < 0.5 then
+            bar:SetValue(smoothTarget); self:Hide(); return
+        end
+        bar:SetValue(cur + diff * math.min(1, e * 12))
+    end)
+end
+
+local updateVisibility   -- forward declaration: assigned below, captured as an upvalue here
+
+local function updateValue()
+    if not bar then return end
+    local d = mod.db
+    local cur = UnitPower("player") or 0
+    local max = UnitPowerMax("player") or 0
+    if max <= 0 then max = 1 end
+    bar:SetMinMaxValues(0, max)
+    if d.smooth then
+        ensureSmooth()
+        smoothTarget = cur
+        smoothTicker:Show()
+    else
+        bar:SetValue(cur)
+    end
+
+    local c = currentColor()
+    local tc = d.textColor or { r = 1, g = 1, b = 1 }
+    if d.thresholdOn then
+        local ref = d.thresholdPct and (cur / max * 100) or cur
+        local hit = (d.thresholdDir == "above") and (ref >= (d.threshold or 20))
+            or (d.thresholdDir ~= "above") and (ref <= (d.threshold or 20))
+        if hit then
+            if d.thresholdText then tc = d.thresholdColor or tc
+            else c = d.thresholdColor or c end
+        end
+    end
+    bar:SetStatusBarColor(c.r, c.g, c.b)
+
+    if not barText then return end
+    barText:SetTextColor(tc.r or 1, tc.g or 1, tc.b or 1)
+    local mode = d.textMode
+    if mode == "none" then
+        barText:SetText("")
+    elseif mode == "current" then
+        barText:SetText(tostring(cur))
+    elseif mode == "percent" then
+        barText:SetText(floor(cur / max * 100 + 0.5) .. "%")
+    elseif mode == "full" then
+        barText:SetText(format("%d / %d  (%d%%)", cur, max, floor(cur / max * 100 + 0.5)))
+    else
+        barText:SetText(format("%d / %d", cur, max))
+    end
+    if updateVisibility then updateVisibility() end
+end
+
+local function updatePowerType()
+    applyAppearance()
+    updateValue()
+end
+
+function updateVisibility()
+    if not frame or not mod.active then return end
+    local d = mod.db
+    if d.unlocked then frame:Show(); frame:SetAlpha(1); return end
+    local show = true
+    if d.onlyInstances and not IsInInstance() then show = false end
+    if show and d.hideMounted and IsMounted and IsMounted() then show = false end
+    if show and d.hideNoTarget and not UnitExists("target") then show = false end
+    local grp = d.groupVis
+    if show and grp and grp ~= "any" then
+        if grp == "group" then show = IsInGroup()
+        elseif grp == "raid" then show = IsInRaid()
+        elseif grp == "party" then show = IsInGroup() and not IsInRaid()
+        elseif grp == "solo" then show = not IsInGroup() end
+    end
+    if show and d.hideFull and not UnitAffectingCombat("player") then
+        local cur, mx = UnitPower("player") or 0, UnitPowerMax("player") or 0
+        if mx > 0 and cur >= mx then show = false end
+    end
+    local m = d.visibility
+    if show then
+        if m == "combat" then show = UnitAffectingCombat("player")
+        elseif m == "noncombat" then show = not UnitAffectingCombat("player") end
+    end
+    if not show then frame:Hide(); return end
+    frame:Show()
+    if m == "mouseover" then
+        frame:SetAlpha(frame:IsMouseOver(8, -8, -8, 8) and 1 or (d.fadeAlpha or 20) / 100)
+    elseif d.fadeOOC and not UnitAffectingCombat("player") then
+        frame:SetAlpha((d.oocAlpha or 40) / 100)
+    else
+        frame:SetAlpha(1)
+    end
+end
+
+-- Mouseover and mounted state fire no events; a slow ticker polls them instead.
+local visTicker
+local function updateVisTicker()
+    local d = mod.db
+    local need = mod.active and (d.visibility == "mouseover" or d.hideMounted)
+    if need then
+        if not visTicker then
+            visTicker = CreateFrame("Frame")
+            visTicker._acc = 0
+            visTicker:SetScript("OnUpdate", function(self, e)
+                self._acc = self._acc + e
+                if self._acc < 0.2 then return end
+                self._acc = 0
+                updateVisibility()
+            end)
+        end
+        visTicker:Show()
+    elseif visTicker then
+        visTicker:Hide()
+    end
+end
+
+local function createBorder()
+    borderEdges = ns.MakeEdges(frame, "OVERLAY")
+end
+
+local function build()
+    if frame then return frame end
+    frame = CreateFrame("Frame", "VCUIPowerBar", UIParent)
+    frame:SetSize(mod.db.width, mod.db.height)
+    frame:SetPoint("CENTER", UIParent, "CENTER", mod.db.x or 0, mod.db.y or 0)
+    frame:SetFrameStrata("MEDIUM")
+
+    bgTex = frame:CreateTexture(nil, "BACKGROUND")
+    bgTex:SetAllPoints(frame)
+    bgTex:SetColorTexture(0.05, 0.05, 0.06, 0.85)
+
+    bar = CreateFrame("StatusBar", nil, frame)
+    bar:SetAllPoints(frame)
+    bar:SetMinMaxValues(0, 1)
+    bar:SetValue(1)
+
+    createBorder()
+
+    barText = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    applyFont()
+
+    frame.mover = ns:CreateMover(frame, {
+        key    = "powerbar",
+        label  = L["|cffffffffPOWER BAR|r\n|cffaaaaaaDrag or arrow keys|r"],
+        db     = mod.db,
+        width  = math.max(mod.db.width + 20, 140),
+        height = math.max(mod.db.height + 24, 44),
+        onMove = function() applyPos() end,
+    })
+
+    applyBorder()
+    applyText()
+    return frame
+end
+
+local function setUnlocked(state)
+    mod.db.unlocked = state and true or false
+    build()
+    if mod.db.unlocked then
+        frame:Show()
+        frame.mover:Show()
+        ns:Print(L["Power Bar mover active. |cff9b6cffDrag the purple box|r or use |cff9b6cffarrow keys|r (SHIFT = 5px). Click 'Unlock / Move' again to finish."])
+    else
+        frame.mover:Hide()
+        ns:Print(L["Power Bar mover disabled."])
+    end
+end
+
+local ev
+-- OnDisable calls UnregisterAllEvents, so always re-register, never early-return here.
+local function registerEvents()
+    if not ev then
+        ev = CreateFrame("Frame")
+        ev:SetScript("OnEvent", function(_, event)
+            if event == "UNIT_DISPLAYPOWER" then
+                updatePowerType()
+            elseif event == "PLAYER_ENTERING_WORLD" then
+                applyAppearance(); updateValue(); applyHashes(); updateVisibility()
+            elseif event == "UNIT_MAXPOWER" then
+                updateValue(); applyHashes()
+            elseif event == "PLAYER_REGEN_ENABLED" or event == "PLAYER_REGEN_DISABLED"
+                or event == "PLAYER_TARGET_CHANGED" or event == "GROUP_ROSTER_UPDATE"
+                or event == "ZONE_CHANGED_NEW_AREA" then
+                updateVisibility()
+            else
+                updateValue()
+            end
+        end)
+    end
+    ev:RegisterUnitEvent("UNIT_POWER_FREQUENT", "player")
+    ev:RegisterUnitEvent("UNIT_MAXPOWER", "player")
+    ev:RegisterUnitEvent("UNIT_DISPLAYPOWER", "player")
+    ev:RegisterEvent("PLAYER_ENTERING_WORLD")
+    ev:RegisterEvent("PLAYER_REGEN_ENABLED")
+    ev:RegisterEvent("PLAYER_REGEN_DISABLED")
+    ev:RegisterEvent("PLAYER_TARGET_CHANGED")
+    ev:RegisterEvent("GROUP_ROSTER_UPDATE")
+    ev:RegisterEvent("ZONE_CHANGED_NEW_AREA")
+end
+
+function mod:OnEnable()
+    -- A saved unlock short-circuits every visibility rule and leaves the bar on
+    -- screen with no mover to grab, because setUnlocked never runs on load.
+    mod.db.unlocked = false
+    if not mod.db.texture then mod.db.texture = DEFAULT_TEXTURE end
+    build()
+    applySize(); applyPos(); applyAppearance(); updateValue(); applyHashes()
+    registerEvents()
+    frame:Show()
+    updateVisibility()
+    updateVisTicker()
+end
+
+function mod:OnDisable()
+    if ev then ev:UnregisterAllEvents() end
+    if visTicker then visTicker:Hide() end
+    if smoothTicker then smoothTicker:Hide() end
+    if frame then frame:Hide() end
+end
+
+function mod:GetOptions()
+    local SLW = 180
+    return {
+        { type = "desc",
+          text = L["|cffaaaaaaResource bar that follows your class automatically (Mana / Rage / Energy). Druids switch with their form: Bear = Rage, Cat = Energy, otherwise Mana.|r"] },
+
+        { type = "group", layout = "row", gap = 8, items = {
+            { type = "button", label = L["Unlock / Move"], width = 130,
+              onClick = function() setUnlocked(not mod.db.unlocked) end },
+            { type = "button", label = L["Center Position"], width = 150,
+              onClick = function() mod.db.x, mod.db.y = 0, -200; applyPos() end },
+        } },
+
+        { type = "section", title = L["Size"], items = {
+            { type = "group", layout = "row", gap = 8, items = {
+                { type = "slider", label = L["Width"], min = 80, max = 600, step = 2, width = SLW,
+                  get = function() return mod.db.width end,
+                  set = function(_, v) mod.db.width = v; applySize() end },
+                { type = "slider", label = L["Height"], min = 6, max = 60, step = 1, width = SLW,
+                  get = function() return mod.db.height end,
+                  set = function(_, v) mod.db.height = v; applySize() end },
+            } },
+        } },
+
+        { type = "section", title = L["Text"], items = {
+            -- "No text" is one of the choices, and then nothing below it means
+            -- anything -- so the whole section hangs off this one dropdown.
+            { type = "dropdown", label = L["Bar text"], width = 300, values = textModeValues(),
+              get = function() return mod.db.textMode end,
+              set = function(_, v) mod.db.textMode = v; updateValue() end,
+              subOptions = {
+                  { type = "segmented", label = L["Text position"], width = 300,
+                    values = {
+                        { value = "LEFT",   text = L["Left"] },
+                        { value = "CENTER", text = L["Center"] },
+                        { value = "RIGHT",  text = L["Right"] },
+                    },
+                    get = function() return mod.db.textAnchor end,
+                    set = function(_, v) mod.db.textAnchor = v; applyText() end },
+                  { type = "group", layout = "row", gap = 8, items = {
+                      { type = "slider", label = L["Font size"], min = 8, max = 24, step = 1, width = SLW,
+                        get = function() return mod.db.fontSize end,
+                        set = function(_, v) mod.db.fontSize = v; applyFont() end },
+                      { type = "color", label = L["Text color"], width = 160,
+                        get = function() return mod.db.textColor end,
+                        set = function(r, g, b) mod.db.textColor = { r = r, g = g, b = b }; applyFont() end },
+                  } },
+                  { type = "group", layout = "row", gap = 8, items = {
+                      { type = "slider", label = L["Text offset X"], min = -100, max = 100, step = 1, width = SLW,
+                        get = function() return mod.db.textX end,
+                        set = function(_, v) mod.db.textX = v; applyText() end },
+                      { type = "slider", label = L["Text offset Y"], min = -50, max = 50, step = 1, width = SLW,
+                        get = function() return mod.db.textY end,
+                        set = function(_, v) mod.db.textY = v; applyText() end },
+                  } },
+              } },
+        } },
+
+        { type = "section", title = L["Appearance"], items = {
+            { type = "group", layout = "row", gap = 8, items = {
+                { type = "slider", label = L["Border thickness (px)"], min = 0, max = 4, step = 1, width = SLW,
+                  get = function() return mod.db.borderSize end,
+                  set = function(_, v) mod.db.borderSize = v; applyBorder() end },
+                { type = "dropdown", label = L["Bar texture"], width = 300, values = textureValues(),
+                  get = function() return mod.db.texture end,
+                  set = function(_, v) mod.db.texture = v; applyAppearance() end },
+            } },
+            { type = "dropdown", label = L["Bar colour"], width = 260,
+              values = {
+                  { value = "power",  text = L["Power colour (automatic)"] },
+                  { value = "class",  text = L["Class colour"] },
+                  { value = "custom", text = L["Custom colour"] },
+              },
+              get = function() return mod.db.colorMode or "power" end,
+              set = function(_, v) mod.db.colorMode = v; applyAppearance(); updateValue() end,
+              subOptions = {
+                  { type = "color", label = L["Custom colour"], width = 200,
+                    get = function() return mod.db.customColor end,
+                    set = function(r, g, b) mod.db.customColor = { r = r, g = g, b = b }; applyAppearance(); updateValue() end },
+              } },
+            { type = "checkbox", label = L["Gradient"],
+              tooltip = L["The fill fades into a second colour towards the right."],
+              get = function() return mod.db.gradient end,
+              set = function(_, v) mod.db.gradient = v; applyAppearance() end,
+              subOptions = {
+                  { type = "color", label = L["Gradient end colour"], width = 200,
+                    get = function() return mod.db.gradientColor end,
+                    set = function(r, g, b) mod.db.gradientColor = { r = r, g = g, b = b }; applyAppearance() end },
+              } },
+            { type = "group", layout = "row", gap = 8, items = {
+                { type = "color", label = L["Border colour"], width = 160,
+                  get = function() return mod.db.borderColor end,
+                  set = function(r, g, b) mod.db.borderColor = { r = r, g = g, b = b }; applyBorder() end },
+                { type = "color", label = L["Background colour"], width = 160,
+                  get = function() return mod.db.bgColor end,
+                  set = function(r, g, b) mod.db.bgColor = { r = r, g = g, b = b }; applyAppearance() end },
+            } },
+            { type = "slider", label = L["Background opacity"], min = 0, max = 100, step = 5, width = SLW,
+              get = function() return floor((mod.db.bgAlpha or 0.85) * 100 + 0.5) end,
+              set = function(_, v) mod.db.bgAlpha = v / 100; applyAppearance() end },
+            { type = "checkbox", label = L["Smooth value changes"],
+              get = function() return mod.db.smooth end,
+              set = function(_, v) mod.db.smooth = v end },
+        } },
+
+        { type = "section", title = L["Visibility"], items = {
+            { type = "group", layout = "row", gap = 8, items = {
+                { type = "dropdown", label = L["Visibility"], width = 220,
+                  values = ns.VisibilityValues(),
+                  get = function() return mod.db.visibility or "always" end,
+                  set = function(_, v) mod.db.visibility = v; updateVisibility(); updateVisTicker() end },
+                { type = "dropdown", label = L["Group visibility"], width = 220,
+                  values = ns.GroupVisValues(),
+                  get = function() return mod.db.groupVis or "any" end,
+                  set = function(_, v) mod.db.groupVis = v; updateVisibility() end },
+            } },
+            { type = "group", layout = "row", gap = 8, items = {
+                { type = "checkbox", label = L["Only in instances"],
+                  get = function() return mod.db.onlyInstances end,
+                  set = function(_, v) mod.db.onlyInstances = v; updateVisibility() end },
+                { type = "checkbox", label = L["Hide when mounted"],
+                  get = function() return mod.db.hideMounted end,
+                  set = function(_, v) mod.db.hideMounted = v; updateVisibility(); updateVisTicker() end },
+            } },
+            { type = "group", layout = "row", gap = 8, items = {
+                { type = "checkbox", label = L["Hide without target"],
+                  get = function() return mod.db.hideNoTarget end,
+                  set = function(_, v) mod.db.hideNoTarget = v; updateVisibility() end },
+                { type = "checkbox", label = L["Hide while full (out of combat)"],
+                  get = function() return mod.db.hideFull end,
+                  set = function(_, v) mod.db.hideFull = v; updateVisibility() end },
+            } },
+            { type = "checkbox", label = L["Fade out of combat"],
+              get = function() return mod.db.fadeOOC end,
+              set = function(_, v) mod.db.fadeOOC = v; updateVisibility() end,
+              subOptions = {
+                  { type = "slider", label = L["Out-of-combat opacity"], min = 10, max = 90, step = 5, width = SLW,
+                    get = function() return mod.db.oocAlpha or 40 end,
+                    set = function(_, v) mod.db.oocAlpha = v; updateVisibility() end },
+              } },
+            { type = "slider", label = L["Faded opacity"], min = 0, max = 90, step = 5, width = SLW,
+              tooltip = L["Mouseover mode: the bar's opacity while the mouse is elsewhere."],
+              get = function() return mod.db.fadeAlpha or 20 end,
+              set = function(_, v) mod.db.fadeAlpha = v; updateVisibility() end },
+        } },
+
+        { type = "section", title = L["Marks & threshold"], items = {
+            { type = "editbox", label = L["Hash marks"], width = 260,
+              tooltip = L["Comma-separated values, e.g. 30,60 — draws a line at each (great for tick or breakpoint marks)."],
+              get = function() return mod.db.hashMarks or "" end,
+              set = function(_, v) mod.db.hashMarks = tostring(v or ""); applyHashes() end },
+            { type = "group", layout = "row", gap = 8, items = {
+                { type = "checkbox", label = L["Values are percent"],
+                  get = function() return mod.db.hashPct end,
+                  set = function(_, v) mod.db.hashPct = v; applyHashes() end },
+                { type = "slider", label = L["Mark width"], min = 1, max = 4, step = 1, width = SLW,
+                  get = function() return mod.db.hashWidth or 1 end,
+                  set = function(_, v) mod.db.hashWidth = v; applyHashes() end },
+            } },
+            { type = "color", label = L["Mark colour"], width = 200,
+              get = function() return mod.db.hashColor end,
+              set = function(r, g, b) mod.db.hashColor = { r = r, g = g, b = b }; applyHashes() end },
+            { type = "checkbox", label = L["Threshold colouring"],
+              tooltip = L["Recolours the bar (or its text) once the resource crosses the threshold."],
+              get = function() return mod.db.thresholdOn end,
+              set = function(_, v) mod.db.thresholdOn = v; updateValue() end,
+              subOptions = {
+                  { type = "group", layout = "row", gap = 8, items = {
+                      { type = "editbox", label = L["Threshold"], width = 120, numeric = true,
+                        get = function() return mod.db.threshold or 20 end,
+                        set = function(_, v) mod.db.threshold = tonumber(v) or 20; updateValue() end },
+                      { type = "checkbox", label = L["Values are percent"],
+                        get = function() return mod.db.thresholdPct end,
+                        set = function(_, v) mod.db.thresholdPct = v; updateValue() end },
+                  } },
+                  { type = "group", layout = "row", gap = 8, items = {
+                      { type = "segmented", label = L["Direction"], width = 200,
+                        values = {
+                            { value = "below", text = L["At or below"] },
+                            { value = "above", text = L["At or above"] },
+                        },
+                        get = function() return mod.db.thresholdDir or "below" end,
+                        set = function(_, v) mod.db.thresholdDir = v; updateValue() end },
+                      { type = "color", label = L["Threshold colour"], width = 160,
+                        get = function() return mod.db.thresholdColor end,
+                        set = function(r, g, b) mod.db.thresholdColor = { r = r, g = g, b = b }; updateValue() end },
+                  } },
+                  { type = "checkbox", label = L["Recolour the text instead of the bar"],
+                    get = function() return mod.db.thresholdText end,
+                    set = function(_, v) mod.db.thresholdText = v; updateValue() end },
+              } },
+        } },
+    }
+end
+end)(...);
+
+(function(...)
+-- Integration: the power bar page becomes a tab of the cooldown manager and
+-- leaves the sidebar (parentTab). Runs after both registrations above.
+local _, ns = ...
+local cdm = ns.modules and ns.modules.cooldownmanager
+local pb  = ns.modules and ns.modules.powerbar
+if not (cdm and pb and cdm.tabs) then return end
+pb.parentTab = "cooldownmanager"
+cdm.tabs[#cdm.tabs + 1] = { id = "powerbar", label = pb.name }
+end)(...);

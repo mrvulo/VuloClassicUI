@@ -37,7 +37,11 @@ const FORBIDDEN = /baganator|ellesmere|chattynator|dragonflight|dfui|elvui|leatr
 // alone produced 60 false hits — enough noise to hide a real one. That name can
 // only appear meaningfully in code (an integration), so it is dropped for
 // locale files while every other name is still checked there.
-const FORBIDDEN_LOCALE = new RegExp(FORBIDDEN.source.replace('|masque', ''), 'i');
+// "retail" is banned from USER-FACING text only (locale keys and values):
+// comparisons against the other game version do not belong in the product's
+// own voice. Code and comments keep the word — API-availability notes
+// legitimately need it, and identifiers like IsRetail would false-positive.
+const FORBIDDEN_LOCALE = new RegExp(FORBIDDEN.source.replace('|masque', '') + '|retail', 'i');
 const patternFor = (file) => file.includes(path.sep + 'Locales' + path.sep)
     ? FORBIDDEN_LOCALE : FORBIDDEN;
 // WeakAuras is the one allowed mention: STRIP it, then test the rest of the

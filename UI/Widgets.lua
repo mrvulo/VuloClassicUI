@@ -1080,6 +1080,9 @@ local function ensurePopupFrame()
             self._owner._setHovered(false)
         end
         self._owner = nil
+        -- a drag interrupted by ESC/click-through never reaches OnDragStop; the
+        -- stale index would arm the next popup's first rejected drag
+        self._dragFrom = nil
     end)
 
     tinsert(UISpecialFrames, "VCDropdownPopup")  -- ESC closes
@@ -1114,10 +1117,20 @@ end
 local ITEM_PAD    = 34
 local POPUP_MAX_W = 460
 
+-- Room on the right for the per-row buttons, so a name never runs under them.
+local ROW_BTN_SIZE = 16
+local ROW_BTN_GAP  = 2
+
+local function rowButtonRoom(opt)
+    local n = opt.buttons and #opt.buttons or 0
+    if n == 0 then return 0 end
+    return n * (ROW_BTN_SIZE + ROW_BTN_GAP) + ROW_BTN_GAP
+end
+
 local function popupWidth(button, values)
     local w = button:GetWidth() or 0
     for _, opt in ipairs(values) do
-        local need = measureItem(clean(L[opt.text])) + ITEM_PAD
+        local need = measureItem(clean(L[opt.text])) + ITEM_PAD + rowButtonRoom(opt)
         if need > w then w = need end
     end
     local room = (UIParent:GetWidth() or 1024) - 40
@@ -1140,6 +1153,62 @@ placePopupRows = function(p)
             item:Hide()
         end
     end
+end
+
+-- Which entry the cursor is over right now. Used by the drag: OnDragStop fires
+-- on the row the drag STARTED on, so the drop target has to be worked out from
+-- the pointer rather than from the event.
+local function popupRowUnderCursor(p)
+    local scale = p:GetEffectiveScale()
+    if not scale or scale == 0 then return nil end
+    local _, cy = GetCursorPosition()
+    cy = cy / scale
+    for i, item in ipairs(p._items) do
+        if item:IsShown() then
+            local top, bottom = item:GetTop(), item:GetBottom()
+            if top and bottom and cy <= top and cy >= bottom then return i end
+        end
+    end
+    return nil
+end
+
+-- A row button: the small pencil/delete controls on the right of an entry.
+-- Its own frame, so the click lands here and not on the row underneath it.
+local function ensureRowButton(item, n)
+    item._btns = item._btns or {}
+    local b = item._btns[n]
+    if b then return b end
+    b = CreateFrame("Button", nil, item)
+    b:SetSize(ROW_BTN_SIZE, ROW_BTN_SIZE)
+    b:SetFrameLevel(item:GetFrameLevel() + 2)
+
+    b._icon = b:CreateTexture(nil, "ARTWORK")
+    b._icon:SetAllPoints(b)
+    b._icon:SetVertexColor(0.72, 0.72, 0.78)
+
+    b._glyph = b:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    UI.Font(b._glyph, 13)
+    b._glyph:SetPoint("CENTER", b, "CENTER", 0, 0)
+    b._glyph:SetTextColor(0.72, 0.72, 0.78)
+
+    b:SetScript("OnEnter", function(self)
+        self._icon:SetVertexColor(1, 1, 1)
+        self._glyph:SetTextColor(1, 1, 1)
+        if self._tooltip then
+            UI:ShowTooltip(self, { title = self._tooltip, wrap = true, anchor = "ANCHOR_RIGHT" })
+        end
+    end)
+    b:SetScript("OnLeave", function(self)
+        self._icon:SetVertexColor(0.72, 0.72, 0.78)
+        self._glyph:SetTextColor(0.72, 0.72, 0.78)
+        UI:HideTooltip()
+    end)
+    b:SetScript("OnClick", function(self)
+        if self._onClick then self._onClick() end
+    end)
+
+    item._btns[n] = b
+    return b
 end
 
 local function openPopup(button, config)
@@ -1189,7 +1258,8 @@ local function openPopup(button, config)
     if p._maxOffset > 0 then
         local cur = config.get(button)
         for i, opt in ipairs(values) do
-            if opt.value == cur then
+            -- a caption row carries no value; with cur nil it would match one
+            if opt.value ~= nil and opt.value == cur then
                 offset = math.min(p._maxOffset, math.max(0, i - math.floor(visible / 2)))
                 break
             end
@@ -1208,6 +1278,36 @@ local function openPopup(button, config)
             hover:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 0.25)
             hover:Hide()
             item._hover = hover
+
+            -- Reorder by dragging. OnDragStop fires on the row the drag STARTED
+            -- on, so the target is read off the cursor instead. Handlers are
+            -- wired once and take their state from the popup, because the row
+            -- pool is shared by every dropdown in the addon; RegisterForDrag is
+            -- per-row per-open, further down, because a registered drag eats the
+            -- click when the mouse drifts a pixel -- ordinary dropdowns must
+            -- never pay that.
+            item:SetScript("OnDragStart", function(self)
+                local pp = self:GetParent()
+                if not (pp._config and pp._config.reorder and self._draggable) then return end
+                pp._dragFrom = self._idx
+                self._hover:Show()
+            end)
+            item:SetScript("OnDragStop", function(self)
+                local pp = self:GetParent()
+                local from = pp._dragFrom
+                pp._dragFrom = nil
+                self._hover:Hide()
+                if not (from and pp._config and pp._config.reorder) then return end
+                local to = popupRowUnderCursor(pp)
+                local target = to and pp._values and pp._values[to]
+                if not to or to == from or not (target and target.draggable) then return end
+                -- Closed, not reopened: reorder() usually rebuilds the page that
+                -- owns this dropdown, which swaps the config and values under
+                -- us. Reopening from the captured table would show the OLD
+                -- order, and its row buttons would act on the wrong entries.
+                closeActivePopup()
+                pp._config.reorder(from, to)
+            end)
 
             local check = item:CreateTexture(nil, "OVERLAY")
             check:SetSize(6, 6)
@@ -1248,20 +1348,82 @@ local function openPopup(button, config)
         local full = clean(L[opt.text])
         item._text:SetText(full)
         item._full = full
-        item._clipped = (measureItem(full) + ITEM_PAD) > width
-        if opt.value == config.get(button) then
-            item._check:Show()
-            item._text:SetTextColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
+        item._idx  = i
+        item._draggable = opt.draggable and true or false
+        -- Drag only where ordered: a registered drag swallows the click whenever
+        -- the mouse drifts during the press, so every ordinary dropdown row must
+        -- stay unregistered. No-argument call clears the registration.
+        if config.reorder and opt.draggable then
+            item:RegisterForDrag("LeftButton")
         else
-            item._check:Hide()
-            item._text:SetTextColor(0.88, 0.88, 0.90)
+            item:RegisterForDrag()
         end
 
-        item:SetScript("OnClick", function()
-            config.set(button, opt.value)
-            if button._setText then button._setText(L[opt.text]) end
-            closeActivePopup()
-        end)
+        -- Buttons first: they decide how much room the label has left.
+        local btnRoom = 0
+        if item._btns then
+            for _, b in ipairs(item._btns) do b:Hide(); b._onClick = nil end
+        end
+        if opt.buttons then
+            local total = #opt.buttons
+            for n, spec in ipairs(opt.buttons) do
+                local b = ensureRowButton(item, n)
+                b:ClearAllPoints()
+                -- declaration order runs left to right, so the LAST button sits
+                -- on the right edge -- { pencil, delete } reads pencil, delete
+                b:SetPoint("RIGHT", item, "RIGHT", -(ROW_BTN_GAP + (total - n) * (ROW_BTN_SIZE + ROW_BTN_GAP)), 0)
+                if spec.icon then
+                    b._icon:SetTexture(spec.icon)
+                    b._icon:Show()
+                    b._glyph:SetText("")
+                else
+                    b._icon:SetTexture(nil)
+                    b._icon:Hide()
+                    b._glyph:SetText(spec.glyph or "")
+                end
+                b._tooltip = spec.tooltip
+                b._onClick = function()
+                    closeActivePopup()
+                    if spec.onClick then spec.onClick(opt.value, opt) end
+                end
+                b:Show()
+            end
+            btnRoom = rowButtonRoom(opt)
+        end
+        item._text:SetPoint("RIGHT", item, "RIGHT", -(8 + btnRoom), 0)
+        item._clipped = (measureItem(full) + ITEM_PAD + btnRoom) > width
+
+        if opt.separator then
+            -- A caption, not a choice: no mark, no hover, nothing to click.
+            item._check:Hide()
+            item._text:SetTextColor(0.45, 0.45, 0.50)
+            item:EnableMouse(false)
+            item._hover:Hide()
+            item:SetScript("OnClick", nil)
+        elseif opt.action then
+            -- "add a new one" rows sit at the bottom and carry their own handler
+            item._check:Hide()
+            item._text:SetTextColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
+            item:EnableMouse(true)
+            item:SetScript("OnClick", function()
+                closeActivePopup()
+                if opt.onClick then opt.onClick(opt.value, opt) end
+            end)
+        else
+            item:EnableMouse(true)
+            if opt.value == config.get(button) then
+                item._check:Show()
+                item._text:SetTextColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
+            else
+                item._check:Hide()
+                item._text:SetTextColor(0.88, 0.88, 0.90)
+            end
+            item:SetScript("OnClick", function()
+                config.set(button, opt.value)
+                if button._setText then button._setText(L[opt.text]) end
+                closeActivePopup()
+            end)
+        end
     end
 
     placePopupRows(p)
@@ -1748,6 +1910,15 @@ function UI:CreateButton(parent, config)
     end)
 
     b:SetScript("OnClick", function(self)
+        -- Commit the neighbouring edit box FIRST. A WoW edit box keeps its
+        -- keyboard focus through a button click (nothing steals it), so an
+        -- "Add" clicked right after typing ran against the EMPTY committed
+        -- value and silently did nothing -- the field only ever committed via
+        -- Enter. Clearing focus here fires OnEditFocusLost synchronously,
+        -- which is where commitOnFocusLost hands the text over, and only then
+        -- does the click handler run.
+        local focus = GetCurrentKeyBoardFocus and GetCurrentKeyBoardFocus()
+        if focus and focus.ClearFocus then focus:ClearFocus() end
         local cfg = self._vcConfig
         if cfg and cfg.onClick then cfg.onClick(self) end
     end)

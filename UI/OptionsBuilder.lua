@@ -4,7 +4,12 @@
 --   { type = "desc",      text, width? }
 --   { type = "checkbox" / "toggle", label, tooltip, get, set, width? }
 --   { type = "slider",    label, tooltip, min, max, step, get, set }
---   { type = "dropdown",  label, tooltip, values, get, set, width? }
+--   { type = "dropdown",  label, tooltip, values, get, set, width?, reorder? }
+--       values entries take optional per-row fields:
+--         separator = true            a greyed caption, not selectable
+--         action = true, onClick      an "add a new one" row at the bottom
+--         draggable = true            may be dragged; needs config.reorder(from, to)
+--         buttons = { { icon | glyph, tooltip, onClick(value, opt) }, ... }
 --   { type = "editbox",   label, tooltip, get, set, numeric, width? }
 --   { type = "button",    label, tooltip, onClick, width?, primary? }
 --   { type = "spacer",    height? }
@@ -572,6 +577,14 @@ end
 -- the heading already says by existing. So sections are always open, and the
 -- page is short because its dependent rows hang off their own switches.
 --
+-- ONE sanctioned exception (30.07.2026, at the user's request): a section may
+-- declare `collapsible = true` and start closed with `collapsed = true` --
+-- for a list that is fully mirrored elsewhere on the page and only repeats it
+-- in longhand. State is per session, keyed like the row gears; the spec table
+-- keeps its items either way, so the settings search and the override capture
+-- still see every row of a closed section.
+UI.sectionOpen = UI.sectionOpen or {}
+
 local function placeSection(parent, section, y)
     local title = section.title or "Section"
 
@@ -580,15 +593,28 @@ local function placeSection(parent, section, y)
     -- list and the headings stop grouping anything.
     y = y - 24
 
+    local open, onClick = true, nil
+    if section.collapsible then
+        local key = (UI._currentBuildKey or "?") .. "/" .. (UI.currentTab or "")
+            .. "/s/" .. tostring(section.key or title)
+        local saved = UI.sectionOpen[key]
+        if saved == nil then open = not section.collapsed else open = saved end
+        onClick = function()
+            UI.sectionOpen[key] = not open
+            UI:BuildOptionsPage(UI._currentBuildKey, UI.currentTab)
+        end
+    end
+
     local hdr = acquire("collapsible", parent)
     if hdr then
-        hdr:_vcSetup(title, true, nil)
+        hdr:_vcSetup(title, open, onClick)
     else
-        hdr = UI:CreateCollapsibleHeader(parent, title, true, nil)
+        hdr = UI:CreateCollapsibleHeader(parent, title, open, onClick)
     end
     hdr:SetPoint("TOPLEFT", parent, "TOPLEFT", CONTENT_PADDING, y)
     y = y - 26
 
+    if not open then return y end
     return placeItemList(parent, section.items or {}, y)
 end
 
@@ -1048,6 +1074,29 @@ function UI:BuildOptionsPage(key, tabId)
     clearChildren(parent)
     parent:SetWidth((f.scroll:GetWidth() or 540) - 8)
     UI._currentBuildKey = key
+
+    -- Pinned page header: a module that defines BuildPageHeader(host) gets the
+    -- strip above the scroll area, visible at every scroll position. For every
+    -- other module the header hides and the scroll takes its old top anchor.
+    local header = f.pageHeader
+    if header then
+        local hh = 0
+        if mod.BuildPageHeader then
+            -- tabId rides along: a header may only belong to SOME tabs (the
+            -- cooldown manager's preview has no business over the power bar)
+            local ok, res = pcall(mod.BuildPageHeader, header, tabId)
+            if ok then hh = tonumber(res) or 0
+            else ns:Print(L["|cffff5555Options page '%s' failed to build:|r %s"], tostring(mod.key or mod.name), tostring(res)) end
+        end
+        if hh > 0 then
+            header:SetHeight(hh)
+            header:Show()
+            f.scroll:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, -6)
+        else
+            header:Hide()
+            f.scroll:SetPoint("TOPLEFT", f.content, "TOPLEFT", 8, -8)
+        end
+    end
 
     local y = -8
 

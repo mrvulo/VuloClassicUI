@@ -514,6 +514,39 @@ function UI:CreateMainFrame()
     f.tabSep = tabSep
     f.tabs   = {}
 
+    -- Single-row tab strip. Tabs sit on a rail inside a clipping window; when
+    -- they outgrow the bar, two arrow buttons page the rail left and right --
+    -- the bar never wraps to a second row.
+    local tabStrip = CreateFrame("Frame", nil, tabBar)
+    tabStrip:SetClipsChildren(true)
+    tabStrip:SetPoint("TOPLEFT",     tabBar, "TOPLEFT",     4, 0)
+    tabStrip:SetPoint("BOTTOMRIGHT", tabBar, "BOTTOMRIGHT", -4, 0)
+    local tabRail = CreateFrame("Frame", nil, tabStrip)
+    tabRail:SetPoint("TOPLEFT", tabStrip, "TOPLEFT", 0, -2)
+    tabRail:SetSize(10, TABBAR_H - 4)
+    f.tabStrip, f.tabRail = tabStrip, tabRail
+
+    local function makeTabArrow(dir)
+        local b = CreateFrame("Button", nil, tabBar)
+        b:SetSize(18, TABBAR_H - 4)
+        local icon = b:CreateTexture(nil, "ARTWORK")
+        icon:SetSize(12, 12)
+        icon:SetPoint("CENTER", b, "CENTER", 0, 0)
+        icon:SetTexture("Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\arrow_"
+            .. (dir < 0 and "left" or "right") .. ".tga")
+        icon:SetVertexColor(0.7, 0.7, 0.75)
+        b._icon = icon
+        b:SetScript("OnEnter", function(self) self._icon:SetVertexColor(1, 1, 1) end)
+        b:SetScript("OnLeave", function(self) self._icon:SetVertexColor(0.7, 0.7, 0.75) end)
+        b:SetScript("OnClick", function() UI:ScrollTabs(dir) end)
+        b:Hide()
+        return b
+    end
+    f.tabPrev = makeTabArrow(-1)
+    f.tabPrev:SetPoint("TOPLEFT", tabBar, "TOPLEFT", 2, -2)
+    f.tabNext = makeTabArrow(1)
+    f.tabNext:SetPoint("TOPRIGHT", tabBar, "TOPRIGHT", -2, -2)
+
     local TABCOL_W = 170
     local tabColumn = CreateFrame("Frame", nil, f)
     tabColumn:SetPoint("TOPLEFT",     sidebar, "TOPRIGHT",    1, 0)
@@ -546,6 +579,17 @@ function UI:CreateMainFrame()
     UI.SetColorBG(content, ns.COLORS.bgContent.r, ns.COLORS.bgContent.g, ns.COLORS.bgContent.b, 1)
 
     f.content = content
+
+    -- A module may pin a header here (mod.BuildPageHeader): it sits ABOVE the
+    -- scroll area and stays put while the page under it scrolls. Hidden and
+    -- zero-cost for every module that does not claim it; the scroll frame's
+    -- top anchor switches between the two in BuildOptionsPage.
+    local pageHeader = CreateFrame("Frame", nil, content)
+    pageHeader:SetPoint("TOPLEFT",  content, "TOPLEFT",  8, -8)
+    pageHeader:SetPoint("TOPRIGHT", content, "TOPRIGHT", -20, -8)
+    pageHeader:SetHeight(10)
+    pageHeader:Hide()
+    f.pageHeader = pageHeader
 
     local scroll = CreateFrame("ScrollFrame", nil, content, "UIPanelScrollFrameTemplate")
     scroll:SetPoint("TOPLEFT",     content, "TOPLEFT",     8,  -8)
@@ -674,9 +718,11 @@ function UI:ReleaseTabs()
     for _, tab in ipairs(f.tabs) do
         tab:Hide()
         tab:ClearAllPoints()
-        if tab._icon    then tab._icon:Hide()    end
-        if tab._leftbar then tab._leftbar:Hide() end
-        if tab._activeBG then tab._activeBG:Hide() end
+        if tab._icon      then tab._icon:Hide()      end
+        if tab._leftbar   then tab._leftbar:Hide()   end
+        if tab._underline then tab._underline:Hide() end
+        -- the permanent handle, not _activeBG: the top-bar rendering nils that
+        if tab._activeBGTex then tab._activeBGTex:Hide() end
         table.insert(UI._tabPool, tab)
     end
     f.tabs = {}
@@ -716,6 +762,9 @@ local function acquireTab(parentBar)
     activeBG:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 0.08)
     activeBG:Hide()
     tab._activeBG = activeBG
+    -- permanent handle: the top-bar rendering nils _activeBG (no fill behind a
+    -- text tab), and a pooled frame must not lose the texture over it
+    tab._activeBGTex = activeBG
 
     local underline = tab:CreateTexture(nil, "OVERLAY")
     underline:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 1)
@@ -766,61 +815,89 @@ function UI:BuildTabsForModule(key)
         return
     end
 
-    f.tabBar:Hide()
-    if f.tabSep then f.tabSep:Hide() end
-    f.tabColumn:Show()
-    if f.tabColScroll then f.tabColScroll:SetVerticalScroll(0) end
+    -- Horizontal tab row along the top of the content area: text tabs with an
+    -- accent underline under the active one. This replaced the left tab column
+    -- on 30.07.2026 at the user's request. ONE row, always: tabs sit on the
+    -- rail at their text width, and when they outgrow the bar (the arena
+    -- module), the arrow buttons page the rail -- no second row.
+    if f.tabColumn then f.tabColumn:Hide() end
+    f.tabBar:Show()
+    if f.tabSep then f.tabSep:Show() end
 
-    local parent = f.tabColContent
-    parent:SetWidth((f.tabColWidth or 150) - 22)
-
-    local ROW_H = 26
-    local y = -2
+    local rail = f.tabRail
+    local ROW_H, PADX, GAPX = TABBAR_H - 4, 14, 2
+    local x = 0
     for _, tabDef in ipairs(tabs) do
-        local tab = acquireTab(parent)
-        tab:SetParent(parent)
+        local tab = acquireTab(rail)
+        tab:SetParent(rail)
         tab._tabId = tabDef.id
         tab:SetHeight(ROW_H)
-        tab:ClearAllPoints()
-        tab:SetPoint("TOPLEFT",  parent, "TOPLEFT",  0, y)
-        tab:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, y)
 
-        if tab._icon then
-            tab._icon:Show()
-            -- A tab may carry its own texture plus a crop (class icons live in
-            -- one atlas). Tabs are pooled, so the plain case has to put the
-            -- coordinates back or a reused tab keeps the previous tab's crop.
-            if tabDef.icon and tabDef.iconCoords then
-                tab._icon:SetTexture(tabDef.icon)
-                tab._icon:SetTexCoord(tabDef.iconCoords[1], tabDef.iconCoords[2],
-                                      tabDef.iconCoords[3], tabDef.iconCoords[4])
-            else
-                tab._icon:SetTexture(ns:GetModuleIcon(tabDef.id))
-                tab._icon:SetTexCoord(0, 1, 0, 1)
-            end
-        end
+        if tab._icon then tab._icon:Hide() end
         tab._text:ClearAllPoints()
-        tab._text:SetPoint("LEFT", tab, "LEFT", 30, 0)
-        tab._text:SetPoint("RIGHT", tab, "RIGHT", -4, 0)
-        tab._text:SetJustifyH("LEFT")
+        tab._text:SetPoint("CENTER", tab, "CENTER", 0, 0)
+        tab._text:SetJustifyH("CENTER")
         tab._text:SetText(L[tabDef.label])  -- tabDef.label is a raw English key
 
-        tab._activeMark = tab._leftbar
-        if tab._underline then tab._underline:Hide() end
+        local w = math.max(44, math.ceil(tab._text:GetStringWidth() or 40) + PADX * 2)
+        tab:SetWidth(w)
+        tab:ClearAllPoints()
+        tab:SetPoint("TOPLEFT", rail, "TOPLEFT", x, 0)
+        x = x + w + GAPX
+
+        -- underline is the active mark up here; the left bar belongs to the
+        -- retired column rendering and must not linger on a pooled frame
+        tab._activeMark = tab._underline
         tab._leftbar:Hide()
-        tab._activeBG:Hide()
+        if tab._activeBGTex then tab._activeBGTex:Hide() end
+        tab._activeBG = nil
 
         tab:Show()
         table.insert(f.tabs, tab)
-        y = y - ROW_H
     end
-    parent:SetHeight(math.max(10, -y + 2))
+    f.tabBar:SetHeight(TABBAR_H)
+    rail:SetSize(math.max(x, 10), ROW_H)
+    f._tabTotalW = x
+    UI._tabOffset = 0
+    UI:UpdateTabScroll()
 
     f.content:ClearAllPoints()
-    f.content:SetPoint("TOPLEFT",     f.tabColumn, "TOPRIGHT",  1, 0)
-    f.content:SetPoint("BOTTOMRIGHT", f,           "BOTTOMRIGHT", 0, BOTTOMBAR_H)
+    f.content:SetPoint("TOPLEFT",     f.tabBar, "BOTTOMLEFT",  0, -1)
+    f.content:SetPoint("BOTTOMRIGHT", f,        "BOTTOMRIGHT", 0, BOTTOMBAR_H)
 
     if tabs[1] then UI:ShowTab(tabs[1].id) end
+end
+
+-- Applies the clamped rail offset and decides whether the arrows are needed.
+function UI:UpdateTabScroll()
+    local f = UI.mainFrame
+    if not (f and f.tabStrip) then return end
+    local barW  = f.tabBar:GetWidth() or 800
+    local total = f._tabTotalW or 0
+    -- two-pass width: the arrows themselves take room away from the strip
+    local overflow = total > barW - 8
+    local inset    = overflow and 22 or 4
+    f.tabStrip:SetPoint("TOPLEFT",     f.tabBar, "TOPLEFT",     inset, 0)
+    f.tabStrip:SetPoint("BOTTOMRIGHT", f.tabBar, "BOTTOMRIGHT", -inset, 0)
+    local visible = barW - 2 * inset
+    local maxOff  = math.max(0, total - visible)
+    local off     = math.min(math.max(UI._tabOffset or 0, 0), maxOff)
+    UI._tabOffset = off
+    f.tabRail:ClearAllPoints()
+    f.tabRail:SetPoint("TOPLEFT", f.tabStrip, "TOPLEFT", -off, -2)
+    f.tabPrev:SetShown(overflow)
+    f.tabNext:SetShown(overflow)
+    -- an arrow with nothing left in its direction dims instead of vanishing,
+    -- so the pair keeps its place
+    if overflow then
+        f.tabPrev:SetAlpha(off > 0      and 1 or 0.35)
+        f.tabNext:SetAlpha(off < maxOff and 1 or 0.35)
+    end
+end
+
+function UI:ScrollTabs(dir)
+    UI._tabOffset = (UI._tabOffset or 0) + dir * 160
+    UI:UpdateTabScroll()
 end
 
 function UI:ShowTab(tabId)
