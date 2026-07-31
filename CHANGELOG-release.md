@@ -1,24 +1,51 @@
-## 1.45.0
-**Chat:**
-- The item level on equipment links sits after the link now, not inside its brackets. Some clients re-check link text against their own data, and the changed text turned the link into the name of whatever quest carried that number.
+## 1.46.0
+**Action Bars:**
+- The page opens with two modes: Standard keeps Blizzard's bars with the skin rows, Modern runs the addon's own bars with a live preview, a per-bar background, button press and hover tints and an XP bar texture
+
+**Cast Bar:**
+- **NEW: Modern** – Third player cast bar style: flat look with name and timer on the bar, plus bar texture, border, a coloured last tick and a latency readout
+- The options page carries a live preview; clicking its icon or bar jumps to the matching section
+
+**Character Panel:**
+- Enchant and gem displays no longer displace each other on non-English clients, and Chinese enchant text is no longer cut mid-character
 
 **Cooldown Manager:**
-- A spell no longer shows up on another class just because that class owns a different spell with the same name. Entries respect their class stamp on the bars, and old entries are adopted by spell ID instead of by name.
+- Tracked entries sit two per row, each with a gear: park an entry without deleting it, move or remove it, set conditions, and override Only what I cast myself for that entry alone
 
-**Download:**
-- The bundled media library silently dropped font registrations when no other addon shipped a newer copy of it; the addon font now registers on every install.
+**Edit Mode:**
+- **NEW: See-through** – Hides the box fill and labels while editing, so you can see the interface you are aligning
+- Coordinates appear on the box while dragging or nudging, and the window being snapped to pulses white
+- The loot window can be moved on Wrath clients
 
-**Equipment Sets:**
-- **NEW: Rename...** – In the set's right-click menu and on the sets page; icon, contents and talent binding move along with the name
+**Friends List:**
+- **NEW: Widen window** – Extra width so long names, notes and zones fit on one line
 
-**Global Settings:**
-- **NEW: Optimize My FPS and Graphics** – A proven set of graphics settings with a one-time backup; the restore button next to it brings your old values back
-- **NEW: Fonts & Colors** – A new tab: global font with outline mode, optionally for all game texts, plus class and resource colors with a reset on every row
-- **NEW: Developer** – Suppress Lua errors, switch tooltip IDs and reset all settings from a new section on the General tab
-- The General tab is organised in sections on a two-column grid like the rest of the window. The new tab ships a texture file: restart the client once after updating, a /reload alone will not show the reset arrows.
+**General:**
+- The close glyph of every window is larger now
 
-**Quest Log:**
-- The enlargement stays off on Wrath-based clients (Titan Reforged): their quest log is already the wide two-pane frame, and enlarging it pushed the detail pane into the button row.
+**Nameplates:**
+- Three tabs with a pinned live preview, a name-in-bar option and thousands separators on health numbers
 
-**Settings Window:**
-- Long dropdown lists open upwards when there is no room below. They used to run off the bottom edge of the screen, where the last entries could never be scrolled into view.
+**Options:**
+- Gear rows open inside their own column, aura rows align per row, helper tools share one tab, and the pinned page header of the last visited tab is cleared on switching
+
+**Patch Notes:**
+- Only the last five versions build at once; a button loads the older ones
+
+**Power Bar:**
+- Orientation, fill opacity, frame strata and a live preview on the options page
+
+**Profiles:**
+- A profile string can carry a selection: chosen modules, the window layout, talent overrides, and the account-wide fonts and colours
+
+**Reminders:**
+- Per-rule switches with class-coloured names, a group scan for missing buffs, preferred food, flask and weapon oil, raid and dungeon thresholds, glow styles, scale and a live preview; middle-click hides a reminder until the next loading screen
+
+**Settings:**
+- Broken numeric values are removed before saving and reported at the next login. A single such value used to reset every setting of the account to defaults
+
+**Shaman:**
+- Totemic Recall stands as its own button after the elements on Wrath clients
+
+**Talents:**
+- **NEW: Talent Window** – All three talent trees side by side with live ranks and click-to-learn on Wrath clients; glyphs stay one button away

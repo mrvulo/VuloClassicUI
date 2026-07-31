@@ -6,6 +6,59 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+    { version = "1.46.0", sections = {
+        { category = "Action Bars", lines = {
+            "The page opens with two modes: Standard keeps Blizzard's bars with the skin rows, Modern runs the addon's own bars with a live preview, a per-bar background, button press and hover tints and an XP bar texture",
+        } },
+        { category = "Cast Bar", lines = {
+            "NEW: Modern – Third player cast bar style: flat look with name and timer on the bar, plus bar texture, border, a coloured last tick and a latency readout",
+            "The options page carries a live preview; clicking its icon or bar jumps to the matching section",
+        } },
+        { category = "Character Panel", lines = {
+            "Enchant and gem displays no longer displace each other on non-English clients, and Chinese enchant text is no longer cut mid-character",
+        } },
+        { category = "Cooldown Manager", lines = {
+            "Tracked entries sit two per row, each with a gear: park an entry without deleting it, move or remove it, set conditions, and override Only what I cast myself for that entry alone",
+        } },
+        { category = "Edit Mode", lines = {
+            "NEW: See-through – Hides the box fill and labels while editing, so you can see the interface you are aligning",
+            "Coordinates appear on the box while dragging or nudging, and the window being snapped to pulses white",
+            "The loot window can be moved on Wrath clients",
+        } },
+        { category = "Friends List", lines = {
+            "NEW: Widen window – Extra width so long names, notes and zones fit on one line",
+        } },
+        { category = "General", lines = {
+            "The close glyph of every window is larger now",
+        } },
+        { category = "Nameplates", lines = {
+            "Three tabs with a pinned live preview, a name-in-bar option and thousands separators on health numbers",
+        } },
+        { category = "Options", lines = {
+            "Gear rows open inside their own column, aura rows align per row, helper tools share one tab, and the pinned page header of the last visited tab is cleared on switching",
+        } },
+        { category = "Patch Notes", lines = {
+            "Only the last five versions build at once; a button loads the older ones",
+        } },
+        { category = "Power Bar", lines = {
+            "Orientation, fill opacity, frame strata and a live preview on the options page",
+        } },
+        { category = "Profiles", lines = {
+            "A profile string can carry a selection: chosen modules, the window layout, talent overrides, and the account-wide fonts and colours",
+        } },
+        { category = "Reminders", lines = {
+            "Per-rule switches with class-coloured names, a group scan for missing buffs, preferred food, flask and weapon oil, raid and dungeon thresholds, glow styles, scale and a live preview; middle-click hides a reminder until the next loading screen",
+        } },
+        { category = "Settings", lines = {
+            "Broken numeric values are removed before saving and reported at the next login. A single such value used to reset every setting of the account to defaults",
+        } },
+        { category = "Shaman", lines = {
+            "Totemic Recall stands as its own button after the elements on Wrath clients",
+        } },
+        { category = "Talents", lines = {
+            "NEW: Talent Window – All three talent trees side by side with live ranks and click-to-learn on Wrath clients; glyphs stay one button away",
+        } },
+    } },
     { version = "1.45.0", sections = {
         { category = "Chat", lines = {
             "The item level on equipment links sits after the link now, not inside its brackets. Some clients re-check link text against their own data, and the changed text turned the link into the name of whatever quest carried that number.",
@@ -419,16 +472,6 @@ ns.CHANGELOG = {
             "NEW: Dark skin for a loot-distribution addon — its award and roll windows, its settings and overview windows, and the two always-visible roll and bid bars get the house panel, accent border and flat close button.",
             "NEW: Dark skin for an attunement tracker — the main window and its buttons match the dark look; the colored status rows stay as they are so the state colors remain readable.",
             "Both are separate on and off switches in the Addon Skins options, next to the others.",
-        } },
-    } },
-    { version = "1.29.0", sections = {
-        { category = "Equipment Sets", lines = {
-            "Fixed: an expanded set sometimes would not collapse on the second click of its arrow. The arrow is also easier to hit now.",
-            "The slot flyout can now equip not-yet-bound items too — with the game's own \"this will bind to you\" confirmation before it soulbinds.",
-        } },
-        { category = "Chat", lines = {
-            "Item levels in links now only show on uncommon (green) and better gear — grey and white trash no longer gets a number.",
-            "No double number when another loot addon already tagged the item with its item level.",
         } },
     } },
 }
