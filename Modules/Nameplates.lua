@@ -1262,13 +1262,23 @@ local function renderAuraGroup(g, list, o)
             local col  = (i - 1) % perRow
             local inLine = math.min(perRow, n - line * perRow) -- last line can be short
             local dx, dy
+            local onSide = (o.side == "left" or o.side == "right")
             if o.vertical then
-                -- A row BESIDE the plate: one column, stacked downward and
-                -- centred on the bar. The horizontal/vertical roles simply swap
-                -- -- the icons themselves are placed the same way, relative to
-                -- the group's centre, so nothing else in here changes.
-                dx = 0
-                dy = -((i - 1) - (n - 1) / 2) * (ih + spacing)
+                -- A column, centred on its anchor. Above the plate it stacks
+                -- upward (first aura nearest the bar), everywhere else
+                -- downward -- which for the side slots is the shape this
+                -- always drew.
+                if     grow == "right" and not onSide then dx =  0.5 * (iw + spacing)
+                elseif grow == "left"  and not onSide then dx = -0.5 * (iw + spacing)
+                else   dx = 0 end
+                dy = ((o.side == "top") and 1 or -1) * ((i - 1) - (n - 1) / 2) * (ih + spacing)
+            elseif onSide then
+                -- A row BESIDE the plate (cfg.orient = "h"): the block hangs
+                -- centred on the bar's edge, so lines centre too -- mirrored,
+                -- first aura nearest the plate.
+                local m = (o.side == "left") and -1 or 1
+                dx = m * (col - (inLine - 1) / 2) * (iw + spacing)
+                dy = -(line - (lines - 1) / 2) * (ih + spacing)
             else
                 if     grow == "right" then dx =  (col + 0.5) * (iw + spacing)
                 elseif grow == "left"  then dx = -(col + 0.5) * (iw + spacing)
@@ -1409,25 +1419,35 @@ local function applyAuras(f, lists)
             local spacing = cfg.spacing or d.auraSpacing or 2
             local perRow  = (cfg.perRow or 0)
             local rawSide = cfg.side or "top"
-            local vertical = (rawSide == "left" or rawSide == "right")
+            local sideways = (rawSide == "left" or rawSide == "right")
+            -- The stacking axis used to be welded to the slot (beside the
+            -- plate = column, above/below = row). cfg.orient overrides it:
+            -- "h"/"v", absent = the automatic verdict (user request,
+            -- 31.07.2026). The slot still decides WHERE the block hangs.
+            local vertical
+            if cfg.orient == "h" then vertical = false
+            elseif cfg.orient == "v" then vertical = true
+            else vertical = sideways end
+            local n = #list
             local side, blockH, blockW
 
             if vertical then
                 -- One column, so the icon count IS the line count and the block
                 -- reaches along the other axis. perRow is ignored here on
-                -- purpose: a slot beside the plate is a column, and letting it
-                -- wrap would push it over the bar it sits next to.
-                side   = rawSide
-                blockH = #list * ih + (#list - 1) * spacing
+                -- purpose: a column that wrapped would grow into a second one
+                -- and push over whatever it sits beside.
+                blockH = n * ih + (n - 1) * spacing
                 blockW = iw
             else
-                side   = (rawSide == "bottom") and "bottom" or "top"
-                local lines = (perRow > 0) and math.ceil(#list / perRow) or 1
+                local lines = (perRow > 0) and math.ceil(n / perRow) or 1
+                local cols  = (perRow > 0) and math.min(perRow, n) or n
                 blockH = lines * ih + (lines - 1) * spacing
+                blockW = cols * iw + (cols - 1) * spacing
             end
+            side = sideways and rawSide or ((rawSide == "bottom") and "bottom" or "top")
 
             group:ClearAllPoints()
-            if vertical then
+            if sideways then
                 local dx = used[side] + blockW / 2 + (cfg.x or 0)
                 if side == "left" then
                     group:SetPoint("CENTER", f.health, "LEFT",  -dx, (cfg.y or 0))

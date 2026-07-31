@@ -3121,4 +3121,6 @@ ns:RegisterLocale("frFR", function() return {
     ["Spell name"] = "Nom du sort",
     ["Colour the last tick"] = "Colorer le dernier tic",
     ["Show latency text"] = "Afficher le texte de latence",
+    ["Vertical"] = "Vertical",
+    ["Automatic stacks a side slot as a column and a top or bottom slot as a row."] = "Automatique empile un emplacement latéral en colonne et un emplacement supérieur ou inférieur en ligne.",
 } end)

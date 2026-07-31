@@ -2972,4 +2972,6 @@ ns:RegisterLocale("itIT", function() return {
     ["Spell name"] = "Nome dell'incantesimo",
     ["Colour the last tick"] = "Colora l'ultimo tick",
     ["Show latency text"] = "Mostra il testo della latenza",
+    ["Vertical"] = "Verticale",
+    ["Automatic stacks a side slot as a column and a top or bottom slot as a row."] = "Automatico impila uno slot laterale in colonna e uno slot superiore o inferiore in riga.",
 } end)

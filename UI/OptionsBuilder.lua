@@ -620,6 +620,14 @@ local function placeColumns(parent, run, y)
         -- is the exact thing the icon-strip rule exists to prevent.
         local gearLead = 0
         if runHasGear then gearLead = 21 end
+        -- On a strict-grid page EVERY half cell reserves the slot, occupied or
+        -- not -- the per-run verdict above still left mixed pages ragged: two
+        -- runs on one page can disagree, and a box ending 21px right of its
+        -- neighbour's gear reads as misalignment (nameplate slot rows, user
+        -- report 31.07.2026). cols == 1 is the sub-column, whose iconStrip
+        -- already reserves this same slot -- adding it twice would indent the
+        -- sub-rows against their own gear row.
+        if grid and cols > 1 then gearLead = 21 end
         if item.subOptions then
             local key = rowKey(item)
             local g = setRowIcon(makeRowIcon(parent), ICON_GEAR, L["Extra settings"], function()

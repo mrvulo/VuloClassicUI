@@ -2972,4 +2972,6 @@ ns:RegisterLocale("ptBR", function() return {
     ["Spell name"] = "Nome do feitiço",
     ["Colour the last tick"] = "Colorir o último tique",
     ["Show latency text"] = "Mostrar texto de latência",
+    ["Vertical"] = "Vertical",
+    ["Automatic stacks a side slot as a column and a top or bottom slot as a row."] = "Automático empilha um espaço lateral em coluna e um espaço superior ou inferior em linha.",
 } end)

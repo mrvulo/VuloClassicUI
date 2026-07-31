@@ -2965,4 +2965,6 @@ ns:RegisterLocale("zhCN", function() return {
     ["Spell name"] = "法术名称",
     ["Colour the last tick"] = "为最后一跳着色",
     ["Show latency text"] = "显示延迟文本",
+    ["Vertical"] = "垂直",
+    ["Automatic stacks a side slot as a column and a top or bottom slot as a row."] = "自动：侧边位置竖排为一列，上方或下方位置横排为一行。",
 } end)

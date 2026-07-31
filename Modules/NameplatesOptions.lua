@@ -216,6 +216,22 @@ end
 local function rowPlacementItems(key, SLW, applyAndRefresh, withFilter)
     local function cfg() return ns:NameplateRowCfg(key) end
     local items = {}
+    -- Stacking axis (user request, 31.07.2026). Automatic is stored as an
+    -- ABSENT field, not a value: old profiles stay byte-identical and the
+    -- engine's fallback (side slots = column, top/bottom = row) stays the
+    -- single source of the default.
+    items[#items + 1] = { type = "dropdown", label = L["Orientation"], width = 300,
+        tooltip = L["Automatic stacks a side slot as a column and a top or bottom slot as a row."],
+        values = {
+            { value = "auto", text = L["Automatic"] },
+            { value = "h",    text = L["Horizontal"] },
+            { value = "v",    text = L["Vertical"] },
+        },
+        get = function() return cfg().orient or "auto" end,
+        set = function(_, v)
+            if v == "auto" then cfg().orient = nil else cfg().orient = v end
+            applyAndRefresh()
+        end }
     local rest = {
         { type = "group", layout = "row", gap = 8, items = {
             { type = "slider", label = L["Offset X"], min = -150, max = 150, step = 1, width = SLW,

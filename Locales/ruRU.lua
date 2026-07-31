@@ -2972,4 +2972,6 @@ ns:RegisterLocale("ruRU", function() return {
     ["Spell name"] = "Название заклинания",
     ["Colour the last tick"] = "Окрашивать последний тик",
     ["Show latency text"] = "Показывать текст задержки",
+    ["Vertical"] = "Вертикально",
+    ["Automatic stacks a side slot as a column and a top or bottom slot as a row."] = "«Автоматически» складывает боковую позицию в столбец, а верхнюю или нижнюю — в строку.",
 } end)

@@ -2965,4 +2965,6 @@ ns:RegisterLocale("zhTW", function() return {
     ["Spell name"] = "法術名稱",
     ["Colour the last tick"] = "為最後一跳著色",
     ["Show latency text"] = "顯示延遲文字",
+    ["Vertical"] = "垂直",
+    ["Automatic stacks a side slot as a column and a top or bottom slot as a row."] = "自動：側邊位置直排為一列，上方或下方位置橫排為一行。",
 } end)

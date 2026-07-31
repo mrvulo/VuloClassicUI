@@ -2973,6 +2973,8 @@ local function T() return {
     ["Spell name"] = "Nombre del hechizo",
     ["Colour the last tick"] = "Colorear el último tic",
     ["Show latency text"] = "Mostrar texto de latencia",
+    ["Vertical"] = "Vertical",
+    ["Automatic stacks a side slot as a column and a top or bottom slot as a row."] = "Automático apila un espacio lateral en columna y un espacio superior o inferior en fila.",
 } end
 
 ns:RegisterLocale("esES", T)
