@@ -3096,4 +3096,5 @@ ns:RegisterLocale("deDE", function() return {
     ["Show latency text"] = "Latenztext anzeigen",
     ["Vertical"] = "Vertikal",
     ["Automatic stacks a side slot as a column and a top or bottom slot as a row."] = "Automatisch stapelt einen seitlichen Platz als Spalte und einen oberen oder unteren Platz als Reihe.",
+    ["Show older versions"] = "Ältere Versionen anzeigen",
 } end)

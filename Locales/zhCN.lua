@@ -2967,4 +2967,5 @@ ns:RegisterLocale("zhCN", function() return {
     ["Show latency text"] = "显示延迟文本",
     ["Vertical"] = "垂直",
     ["Automatic stacks a side slot as a column and a top or bottom slot as a row."] = "自动：侧边位置竖排为一列，上方或下方位置横排为一行。",
+    ["Show older versions"] = "显示更早的版本",
 } end)

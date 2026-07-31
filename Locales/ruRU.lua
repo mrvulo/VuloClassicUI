@@ -2974,4 +2974,5 @@ ns:RegisterLocale("ruRU", function() return {
     ["Show latency text"] = "Показывать текст задержки",
     ["Vertical"] = "Вертикально",
     ["Automatic stacks a side slot as a column and a top or bottom slot as a row."] = "«Автоматически» складывает боковую позицию в столбец, а верхнюю или нижнюю — в строку.",
+    ["Show older versions"] = "Показать предыдущие версии",
 } end)

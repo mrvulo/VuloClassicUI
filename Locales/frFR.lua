@@ -3123,4 +3123,5 @@ ns:RegisterLocale("frFR", function() return {
     ["Show latency text"] = "Afficher le texte de latence",
     ["Vertical"] = "Vertical",
     ["Automatic stacks a side slot as a column and a top or bottom slot as a row."] = "Automatique empile un emplacement latéral en colonne et un emplacement supérieur ou inférieur en ligne.",
+    ["Show older versions"] = "Afficher les anciennes versions",
 } end)

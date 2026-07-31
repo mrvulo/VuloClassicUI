@@ -2974,4 +2974,5 @@ ns:RegisterLocale("koKR", function() return {
     ["Show latency text"] = "지연 시간 텍스트 표시",
     ["Vertical"] = "세로",
     ["Automatic stacks a side slot as a column and a top or bottom slot as a row."] = "자동은 측면 슬롯을 세로 열로, 위/아래 슬롯을 가로 줄로 쌓습니다.",
+    ["Show older versions"] = "이전 버전 보기",
 } end)

@@ -2975,6 +2975,7 @@ local function T() return {
     ["Show latency text"] = "Mostrar texto de latencia",
     ["Vertical"] = "Vertical",
     ["Automatic stacks a side slot as a column and a top or bottom slot as a row."] = "Automático apila un espacio lateral en columna y un espacio superior o inferior en fila.",
+    ["Show older versions"] = "Mostrar versiones anteriores",
 } end
 
 ns:RegisterLocale("esES", T)

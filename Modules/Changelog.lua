@@ -29,10 +29,19 @@ function mod:GetOptions()
         return items
     end
 
+    -- Only the newest five versions build widgets (user request, 31.07.2026):
+    -- the full list is ~25 versions with ~300 lines, and every line is a
+    -- fontstring the page has to lay out and measure on each build. The rest
+    -- stays one click away instead of being paid on every visit.
+    local SHOWN = 5
+    local last = #data
+    if not mod._showAllNotes and last > SHOWN then last = SHOWN end
+
     -- Every category and line renders through L: the English text from
     -- CHANGELOG.md is the key, translations live in the normal locale files
     -- (added per release together with the changelog itself).
-    for _, v in ipairs(data) do
+    for vi = 1, last do
+        local v = data[vi]
         items[#items + 1] = { type = "header", text = "|cffffffff" .. tostring(v.version or "?") .. "|r" }
         for _, sec in ipairs(v.sections or {}) do
             if sec.category and sec.category ~= "" then
@@ -60,6 +69,16 @@ function mod:GetOptions()
             end
         end
         items[#items + 1] = { type = "spacer", height = 12 }
+    end
+
+    -- Session state, deliberately not saved: the archive stays open while
+    -- you read it, and the next session starts cheap again.
+    if last < #data then
+        items[#items + 1] = { type = "button", label = L["Show older versions"], width = 260,
+            onClick = function()
+                mod._showAllNotes = true
+                if ns.UI then ns.UI:RebuildCurrentPage() end
+            end }
     end
     return items
 end
