@@ -2488,6 +2488,7 @@ local function buildFrame()
     close:SetSize(20, 20)
     close:SetPoint("TOPRIGHT", f, "TOPRIGHT", -3, -3)
     local closeText = close:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    if ns.UI and ns.UI.Font then ns.UI.Font(closeText, 20) end
     closeText:SetPoint("CENTER", close, "CENTER", 0, 0)
     closeText:SetText("×")
     closeText:SetTextColor(0.7, 0.7, 0.7)

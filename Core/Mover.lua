@@ -770,6 +770,25 @@ local function cursorUI()
     return cx / s, cy / s
 end
 
+-- Live coordinate readout on the box itself. The side panel shows X/Y too,
+-- but only for the SELECTED window and only while the panel is open; during a
+-- drag or an arrow-key nudge the eyes are on the box, so the numbers belong
+-- there. Created lazily, shown while dragging/nudging, hidden on drop/leave.
+local function updateCoordText(mover)
+    local fs = mover.coord
+    if not fs then
+        fs = mover:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        fs:SetPoint("TOPLEFT", mover, "TOPLEFT", 4, -3)
+        fs:SetTextColor(1, 1, 1, 0.9)
+        mover.coord = fs
+    end
+    local x, y = ns:GetCenterOffsets(mover.target)
+    if x then
+        fs:SetFormattedText("%d, %d", math.floor(x + 0.5), math.floor(y + 0.5))
+        fs:Show()
+    end
+end
+
 -- Manual drag tick. Shift locks to the dominant axis: the direction is decided
 -- once, after 3px of travel, and releasing Shift frees it again mid-drag.
 local AXIS_LOCK_THRESHOLD = 3
@@ -800,7 +819,8 @@ local function dragUpdate(mover)
     local d = mover._drag
     local target = mover.target
     if not (d and target) then return end
-    if d.engineMove then return end          -- the engine is moving it for us
+    -- the engine is moving it for us; this tick only keeps the readout fresh
+    if d.engineMove then updateCoordText(mover); return end
     local ux, uy = cursorUI()
     if not ux then return end
     local r = ns:GetScaleRatio(target)
@@ -826,6 +846,7 @@ local function dragUpdate(mover)
     end
     target:ClearAllPoints()
     target:SetPoint("CENTER", UIParent, "CENTER", nx, ny)
+    updateCoordText(mover)
 end
 
 function ns:CreateMover(target, opts)
@@ -904,12 +925,14 @@ function ns:CreateMover(target, opts)
         mover._drag = { ux = ux, uy = uy, sx = sx, sy = sy, engineMove = engineMove }
         if engineMove then
             target:StartMoving()
-        else
-            mover:SetScript("OnUpdate", dragUpdate)
         end
+        -- Always ticking: for engine-driven frames the tick only feeds the
+        -- coordinate readout, the position is the engine's business.
+        mover:SetScript("OnUpdate", dragUpdate)
     end)
     mover:SetScript("OnDragStop", function()
         mover:SetScript("OnUpdate", nil)
+        if mover.coord then mover.coord:Hide() end
         if mover._drag and mover._drag.engineMove then
             pcall(target.StopMovingOrSizing, target)
         end
@@ -960,6 +983,8 @@ function ns:CreateMover(target, opts)
     mover:SetScript("OnEnter", function(self) ns._activeMover = self end)
     mover:SetScript("OnLeave", function(self)
         if ns._activeMover == self then ns._activeMover = nil end
+        -- a nudge readout has no drop event; leaving the box retires it
+        if self.coord and not self._drag then self.coord:Hide() end
     end)
 
     -- SetPropagateKeyboardInput ist eine geschuetzte Funktion: ruft ein Addon
@@ -1004,6 +1029,7 @@ function ns:CreateMover(target, opts)
         if ns.NudgeGroupFollowers then ns:NudgeGroupFollowers(self, dx, dy) end
         ns:OnMoverRepositioned(self)
         if ns.OnMoverMoved then ns:OnMoverMoved(self) end
+        updateCoordText(self)
     end)
 
     mover:HookScript("OnMouseDown", function(self, button)
@@ -1128,6 +1154,9 @@ function ns:AbortMoverDrag(mover)
     if not mover then return end
     mover:SetScript("OnUpdate", nil)
     mover._drag = nil
+    -- an aborted drag has no drop event; a free-move box stays shown and
+    -- would otherwise keep the stale readout
+    if mover.coord then mover.coord:Hide() end
     if mover.target and mover.target.StopMovingOrSizing then
         pcall(mover.target.StopMovingOrSizing, mover.target)
     end

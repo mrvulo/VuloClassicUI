@@ -120,7 +120,7 @@ local function skinClose(cb)
     stripTextures(cb)
     local ac = ns.COLORS.accent
     local x = cb:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    if ns.UI and ns.UI.Font then ns.UI.Font(x, 16) end
+    if ns.UI and ns.UI.Font then ns.UI.Font(x, 20) end
     x:SetPoint("CENTER", cb, "CENTER", 0, 0)
     x:SetText("×")
     x:SetTextColor(0.8, 0.8, 0.85)

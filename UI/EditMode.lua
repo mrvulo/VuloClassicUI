@@ -14,9 +14,10 @@ local function gridState()
         if g.show == nil then g.show = false end
         if g.snap == nil then g.snap = true  end
         if g.size == nil then g.size = 32    end
+        if g.ghost == nil then g.ghost = false end
         return g
     end
-    ns._editGridFallback = ns._editGridFallback or { show = false, snap = true, size = 32 }
+    ns._editGridFallback = ns._editGridFallback or { show = false, snap = true, size = 32, ghost = false }
     return ns._editGridFallback
 end
 
@@ -112,7 +113,7 @@ local function build()
 
     -- DIALOG keeps the toolbar above the movers (HIGH) so its controls stay clickable.
     toolbar = CreateFrame("Frame", "VCUIEditToolbar", UIParent)
-    toolbar:SetSize(1120, 64)
+    toolbar:SetSize(1240, 64)
     toolbar:SetPoint("TOP", UIParent, "TOP", 0, -140)
     toolbar:SetFrameStrata("DIALOG")
     toolbar:SetClampedToScreen(true)
@@ -208,6 +209,7 @@ local function build()
     })
     sizeSlider:SetPoint("LEFT", cap, "RIGHT", 8, 0)
 
+
     local resetBtn = UI:CreateButton(toolbar, {
         label   = L["Reset"],
         width   = 120,
@@ -223,6 +225,18 @@ local function build()
         onClick = function() if ns.ToggleLayouts then ns:ToggleLayouts() end end,
     })
     layoutsBtn:SetPoint("RIGHT", resetBtn, "LEFT", -10, 0)
+
+    -- Anchored RIGHT, off the button group: the left-hand chain ends at the
+    -- size slider whose caption width varies by language — a left anchor put
+    -- this switch on top of the Layouts button in German (user screenshot).
+    local ghostTog = UI:CreateToggle(toolbar, {
+        label   = L["See-through"],
+        tooltip = L["Hide the box fill and labels while editing, so you can see the interface you are aligning. The thin borders stay."],
+        get     = function() return gridState().ghost end,
+        set     = function(_, v) gridState().ghost = v; ns:RefreshMoverStyles() end,
+    })
+    ghostTog:SetSize(140, 24)
+    ghostTog:SetPoint("RIGHT", layoutsBtn, "LEFT", -18, 0)
 end
 
 function ns:IsEditModeActive()
@@ -349,6 +363,10 @@ end
 function ns:IsSelected(m) return selIndex(m) ~= nil end
 
 function ns:RefreshMoverStyles()
+    -- See-through editing: the filled box plus its caption covers exactly the
+    -- interface piece being aligned. Ghost drops the fill and the captions and
+    -- keeps only the thin borders, so the boxes stay findable and grabbable.
+    local ghost = gridState().ghost
     for _, m in ipairs(ns._movers) do
         local sel     = ns:IsSelected(m)
         local primary = (m == ns._selectedMover)
@@ -357,15 +375,21 @@ function ns:RefreshMoverStyles()
         -- Free-move boxes outside edit mode stay grabbable but go quiet, else they read as a stuck overlay.
         local quiet = m:IsShown() and not editing
             and not (m.opts and m.opts.db and m.opts.db.unlocked)
+        -- Ghost applies only WHILE EDITING: a box kept visible by a module's
+        -- own unlock button outside edit mode keeps its normal look (the flag
+        -- lives in the profile and would otherwise leak past the session).
+        local ghosted = ghost and editing
         if m.bg then
             if quiet then
                 m.bg:SetColorTexture(accent.r, accent.g, accent.b, 0.04)
+            elseif ghosted then
+                m.bg:SetColorTexture(accent.r, accent.g, accent.b, sel and 0.10 or 0.02)
             else
                 m.bg:SetColorTexture(accent.r, accent.g, accent.b, sel and 0.5 or 0.18)
             end
         end
-        if m.label then m.label:SetShown(not quiet) end
-        if m.hint  then m.hint:SetShown(not quiet) end
+        if m.label then m.label:SetShown(not quiet and not ghosted) end
+        if m.hint  then m.hint:SetShown(not quiet and not ghosted) end
         if m.border and m.border.SetBackdropBorderColor then
             if m._rejectUntil and m._rejectUntil > GetTime() then
                 -- the reject flash owns this border until it expires
@@ -473,6 +497,7 @@ local function buildPanel()
     close:SetSize(20, 20)
     close:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -6, -8)
     local cfs = close:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    UI.Font(cfs, 20)
     cfs:SetPoint("CENTER", close, "CENTER", 0, 0)
     cfs:SetText("x")
     cfs:SetTextColor(0.7, 0.7, 0.75)
@@ -1403,17 +1428,48 @@ function ns:EditResolveDrop(mover, x, y)
     return x, y
 end
 
+-- The box being snapped AGAINST lights up with a white pulse, so the guide
+-- line reads as "aligned to THAT window" instead of a free-floating stripe.
+-- RefreshMoverStyles restores whatever border this painted over, both when the
+-- partner changes mid-drag and when the drag ends.
+local lastPartnerX, lastPartnerY
+
+local function tintPartner(p, a)
+    if p and p.border and p.border.SetBackdropBorderColor
+       and not (p._rejectUntil and p._rejectUntil > GetTime()) then
+        p.border:SetBackdropBorderColor(1, 1, 1, a)
+    end
+end
+
 -- Purely visual preview; the actual snap still happens on drop.
 local liveGuideDriver = CreateFrame("Frame")
 liveGuideDriver:SetScript("OnUpdate", function()
     local m = ns._draggingMover
-    if not (m and m.target and ns:IsEditModeActive()) then return end
+    if not (m and m.target and ns:IsEditModeActive()) then
+        if lastPartnerX or lastPartnerY then
+            lastPartnerX, lastPartnerY = nil, nil
+            ns:RefreshMoverStyles()
+        end
+        return
+    end
     if ns._groupDrag then ns:UpdateGroupDrag() end
     local lx, ly = ns:GetCenterOffsets(m.target)
     if not lx then return end
     local dx, lineX, dy, lineY, moverX, moverY = computeSnap(m, lx, ly)
     drawGuides(dx and lineX or nil, dy and lineY or nil, true)
     drawMeasures(m, dx and moverX or nil, dy and moverY or nil)
+
+    local px = dx and moverX or nil
+    local py = dy and moverY or nil
+    if px ~= lastPartnerX or py ~= lastPartnerY then
+        lastPartnerX, lastPartnerY = px, py
+        ns:RefreshMoverStyles()
+    end
+    if px or py then
+        local a = 0.55 + 0.45 * math.abs(math.sin(GetTime() * 5))
+        tintPartner(px, a)
+        if py ~= px then tintPartner(py, a) end
+    end
 end)
 
 local cycleHint, altWasDown
@@ -1652,6 +1708,7 @@ local function buildLayoutsPanel()
     close:SetSize(20, 20)
     close:SetPoint("TOPRIGHT", p, "TOPRIGHT", -6, -8)
     local cfs = close:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    UI.Font(cfs, 20)
     cfs:SetPoint("CENTER", close, "CENTER", 0, 0)
     cfs:SetText("x"); cfs:SetTextColor(0.7, 0.7, 0.75)
     close:SetScript("OnEnter", function() cfs:SetTextColor(accent.r, accent.g, accent.b) end)

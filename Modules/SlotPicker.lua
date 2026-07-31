@@ -144,7 +144,7 @@ local function createPopup()
     closeBtn:SetPoint("TOPRIGHT", popup, "TOPRIGHT", -4, -4)
     local cx = closeBtn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     cx:SetPoint("CENTER", closeBtn, "CENTER", 0, 0)
-    if UI and UI.Font then UI.Font(cx, 13) end
+    if UI and UI.Font then UI.Font(cx, 16) end
     cx:SetText("×")
     cx:SetTextColor(0.7, 0.7, 0.75)
     closeBtn:SetScript("OnEnter", function() cx:SetTextColor(ac.r, ac.g, ac.b) end)
