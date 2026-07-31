@@ -869,6 +869,12 @@ end
 -- moves sideways when a gear is clicked.
 local function joinsRun(it)
     if not COMPACT[it.type] or it.fullWidth then return false end
+    -- A 3+-way segmented strip cannot live in a half cell -- and worse:
+    -- placeColumns' wide flag is per RUN, so one such strip inside a run
+    -- dragged every neighbouring row to full width with it (the minimap
+    -- zone bar pulled the clock and date rows along, 31.07.2026). It leaves
+    -- the run; the neighbours keep pairing.
+    if it.type == "segmented" and #(it.values or {}) > 2 then return false end
     if it.subOptions then return it.pairable == true end
     return true
 end

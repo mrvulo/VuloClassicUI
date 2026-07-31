@@ -3,6 +3,9 @@ local _, ns = ...
 local L = ns.L
 
 local mod = ns:RegisterModule("loadouts", {
+    -- Strict grid: lone rows of the one-row sections stretched across the
+    -- page (user report, 31.07.2026). On the grid a lone row keeps its half.
+    optionsGrid = true,
     name        = "Loadouts",
     group       = "Bags & Items",
     description = "Save and quickly equip gear sets for different specs, content, or roles.",

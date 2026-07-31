@@ -26,6 +26,34 @@ local textureValues       = rt.textureValues
 local borderTextureValues = rt.borderTextureValues
 local buildPreview        = rt.buildPreview
 local PREVIEW_CTX         = rt.previewCtx
+
+-- Three tabs; labels are locale KEYS, translated when the tab row renders.
+mod.tabs = {
+    { id = "display", label = "Display" },
+    { id = "colors",  label = "Colours" },
+    { id = "general", label = "General" },
+}
+
+-- The live preview is a PINNED page header now (user request, 31.07.2026):
+-- it used to be the first scrolling item, held in place by a scroll-follow
+-- re-anchor. Shown on every tab -- the colour tabs change its look just as
+-- much as the display tab does.
+function mod.BuildPageHeader(host, tabId)
+    -- Display tab only (user request, 31.07.2026) -- the colour and general
+    -- tabs get the full scroll height back. A returned 0 hides the header.
+    if tabId ~= nil and tabId ~= "default" and tabId ~= "display" then return 0 end
+    local f = buildPreview(host)
+    f:ClearAllPoints()
+    -- Both corners, not a centred fixed width: the box spans the whole
+    -- content area (user request, 31.07.2026); the mock plate inside stays
+    -- centred by its own anchor.
+    f:SetPoint("TOPLEFT", host, "TOPLEFT", 14, -4)
+    f:SetPoint("TOPRIGHT", host, "TOPRIGHT", -14, -4)
+    -- pinned for real: the scroll-follow re-anchor stands down (see
+    -- stickPreview in Modules/Nameplates.lua)
+    f._pinned = true
+    return 178
+end
 local refreshPage         = rt.refreshPage
 local applyAndRefresh     = rt.applyAndRefresh
 local applyFriendlyCVar   = rt.applyFriendlyCVar
@@ -284,11 +312,15 @@ local PRESET = {
     -- target
     colTarget            = { r = 0.451, g = 0.506, b = 1 },
     nonTargetAlpha       = 0.7,
-    -- text
+    -- text -- the reference-row look (31.07.2026): name inside the bar left,
+    -- "7,400 | 74%" right, cast target under the cast bar
     nameSize             = 13,
     fontSize             = 13,
     healthTextSize       = 13,
     healthTextMode       = "both",
+    healthTextFormat     = "%s | %s",
+    nameInBar            = true,
+    castTargetText       = true,
     -- auras
     debuffSize           = 27,
     buffSize             = 28,
@@ -360,13 +392,14 @@ local function outlineValues()
     }
 end
 
-function mod:GetOptions()
+function mod:GetOptions(tabId)
     local SLW = 180
-    return {
+    -- The preview is no longer an item here: it is the PINNED page header
+    -- (mod.BuildPageHeader below), visible on every tab at every scroll.
+    local all = {
         { type = "desc",
           text = L["|cffaaaaaaCustom nameplates for enemies and NPCs. Configure below — the live preview updates as you change each option.|r"] },
 
-        { type = "custom", height = 214, build = function(parent) return buildPreview(parent) end },
         { type = "group", layout = "row", gap = 8, items = {
             { type = "dropdown", label = L["Preview reaction"], width = 300, values = reactionPreviewValues(),
               get = function()
@@ -523,6 +556,10 @@ function mod:GetOptions()
               get = function() return mod.db.showName end,
               set = function(_, v) mod.db.showName = v; refreshPage(); applyAndRefresh() end,
               subOptions = {
+                  { type = "checkbox", label = L["Name inside the bar"],
+                    tooltip = L["Anchors the name at the left edge inside the health bar instead of above it — the right edge stays free for the health text."],
+                    get = function() return mod.db.nameInBar end,
+                    set = function(_, v) mod.db.nameInBar = v; applyAndRefresh() end },
                   { type = "group", layout = "row", gap = 8, items = {
                       { type = "slider", label = L["Name offset X"], min = -100, max = 100, step = 1, width = SLW,
                         get = function() return mod.db.nameOffsetX or 0 end,
@@ -871,6 +908,24 @@ function mod:GetOptions()
               tooltip = L["Your target's plate is drawn this much larger (100 = off)."],
               get = function() return mod.db.targetScale or 100 end,
               set = function(_, v) mod.db.targetScale = v; applyAndRefresh() end },
+            -- The runtime for this existed all along (execLine/execPct/
+            -- colExec/execTargetOnly, painted per plate) -- it just never had
+            -- rows on the page. These are the first.
+            { type = "checkbox", label = L["Divider line on the target's bar"],
+              tooltip = L["Draws a thin vertical line at the given percent of the health bar — an execute marker."],
+              get = function() return mod.db.execLine end,
+              set = function(_, v) mod.db.execLine = v; applyAndRefresh() end,
+              subOptions = {
+                  { type = "slider", label = L["Line position (%)"], min = 5, max = 50, step = 1, width = SLW,
+                    get = function() return mod.db.execPct or 20 end,
+                    set = function(_, v) mod.db.execPct = v; applyAndRefresh() end },
+                  { type = "color", label = L["Mark colour"], width = 200,
+                    get = function() return mod.db.colExec end,
+                    set = function(r, g, b) mod.db.colExec = { r = r, g = g, b = b }; applyAndRefresh() end },
+                  { type = "checkbox", label = L["Only on your target"],
+                    get = function() return mod.db.execTargetOnly ~= false end,
+                    set = function(_, v) mod.db.execTargetOnly = v; applyAndRefresh() end },
+              } },
             { type = "checkbox", label = L["Highlight your focus"],
               tooltip = L["A second, distinct glow ring on your focus target's nameplate."],
               get = function() return mod.db.focusHighlight end,
@@ -1210,6 +1265,9 @@ function mod:GetOptions()
               },
               get = function() return GetCVar and tostring(GetCVar("nameplateMotion")) or "0" end,
               set = function(_, v) if not InCombatLockdown() then pcall(SetCVar, "nameplateMotion", v) end end },
+            { type = "checkbox", label = L["Show plates for enemy pets"],
+              get = function() return (GetCVar and GetCVar("nameplateShowEnemyPets")) == "1" end,
+              set = function(_, v) if not InCombatLockdown() then pcall(SetCVar, "nameplateShowEnemyPets", v and "1" or "0") end end },
             { type = "group", layout = "row", gap = 8, items = {
                 { type = "slider", label = L["Stacked spacing"], min = 4, max = 20, step = 1, width = SLW,
                   tooltip = L["Vertical distance between stacked plates (a tenth of the game value)."],
@@ -1234,4 +1292,60 @@ function mod:GetOptions()
             } },
         } },
     }
+
+    -- Three tabs (user request, 31.07.2026): every section keeps its code and
+    -- its order -- this plan only decides which tab renders which. The loose
+    -- head rows (description, preview-reaction picker) live on the first tab.
+    local TAB_OF = {
+        [L["Preset"]]           = "general",
+        [L["Health Bar"]]       = "display",
+        [L["Text"]]             = "display",
+        [L["Colours"]]          = "colors",
+        [L["Cast Bar"]]         = "display",
+        [L["Target & Threat"]]  = "colors",
+        [L["Auras"]]            = "display",
+        [L["Main positions"]]   = "display",
+        [L["Crowd Control"]]    = "display",
+        -- On the general tab like the reference groups it: the extra aura
+        -- switches sit with friendly plates, spacing and behaviour rather
+        -- than between the visual sections.
+        [L["Your Own Debuffs"]] = "general",
+        [L["Friendly Plates"]]  = "general",
+        [L["Raid Marker"]]      = "display",
+        [L["Combo Points"]]     = "display",
+        [L["Behaviour"]]        = "general",
+    }
+    -- nil = "everything", the way the Arena module answers it too: the
+    -- talent-override replay walks GetOptions(mod, nil) and must see every
+    -- row -- with a tab filter here, overrides recorded on colour or
+    -- behaviour rows (stored with an empty tab before the tabs existed)
+    -- would silently stop applying. The UI itself always asks with a tab.
+    if tabId == nil then return all end
+    if tabId == "default" then tabId = "display" end
+
+    -- Two-column page (user request, 31.07.2026): gear rows only join the
+    -- grid when marked pairable, and annotating ~a hundred literals by hand
+    -- would drift the first time a row moves -- so the sweep marks every
+    -- compact row that carries a gear. Long labels ellipsize in a half cell;
+    -- the hover tooltip carries the full text.
+    local PAIRABLE_TYPES = {
+        toggle = true, checkbox = true, dropdown = true,
+        color = true, slider = true, editbox = true,
+    }
+    local out = {}
+    for _, it in ipairs(all) do
+        if it.type == "section" then
+            if TAB_OF[it.title] == tabId then
+                for _, row in ipairs(it.items or {}) do
+                    if row.subOptions and PAIRABLE_TYPES[row.type] and row.pairable == nil then
+                        row.pairable = true
+                    end
+                end
+                out[#out + 1] = it
+            end
+        elseif tabId == "display" then
+            out[#out + 1] = it
+        end
+    end
+    return out
 end

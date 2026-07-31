@@ -165,6 +165,21 @@ local function reAnchorContainer()
     container:SetFrameStrata(mod.db.strata or "HIGH")
 end
 
+-- The options window sits on HIGH and so does the container by default, so a
+-- test fired FROM that window landed behind it (user report, 31.07.2026).
+-- Lifted above for the test; closing the window drops it back to the
+-- configured stratum (reAnchorContainer). Every notify frame is a child of
+-- the container and rides along.
+local function liftAboveOptions()
+    createContainer()
+    container:SetFrameStrata("DIALOG")
+    local f = _G.VuloClassicUIMainFrame
+    if f and not f._vcCTStrataHooked then
+        f._vcCTStrataHooked = true
+        f:HookScript("OnHide", reAnchorContainer)
+    end
+end
+
 local EVENT_CATEGORY = {
     combatStart    = "showCombatState",
     combatEnd      = "showCombatState",
@@ -755,9 +770,17 @@ function mod:GetOptions()
         applyFontToPool(); applyFontToNotify(); applySharpFonts(); applyDamageTextFont()
     end
 
+    -- Translated like the anchor points below; the VALUE stays the raw frame
+    -- token because the client needs it -- only the label speaks the user's
+    -- language (it showed "HIGH" in a German panel, user report 31.07.2026).
+    local STRATA_LABEL = {
+        BACKGROUND = L["Background"], LOW = L["Low"], MEDIUM = L["Medium"],
+        HIGH = L["High"], DIALOG = L["Dialog"], FULLSCREEN = L["Fullscreen"],
+        FULLSCREEN_DIALOG = L["Fullscreen dialog"], TOOLTIP = L["Tooltip"],
+    }
     local STRATA = {}
     for _, s in ipairs({ "BACKGROUND", "LOW", "MEDIUM", "HIGH", "DIALOG", "FULLSCREEN", "FULLSCREEN_DIALOG", "TOOLTIP" }) do
-        STRATA[#STRATA + 1] = { value = s, text = s }
+        STRATA[#STRATA + 1] = { value = s, text = STRATA_LABEL[s] }
     end
     -- Shared and translated; this used to show the raw frame token as its label.
     local POINTS = ns.AnchorPointValues()
@@ -850,11 +873,14 @@ function mod:GetOptions()
               },
               get = function() return mod.db.fontOutlineMode or "THICKOUTLINE" end,
               set = function(_, v) mod.db.fontOutlineMode = v; reapplyFont() end },
-            { type = "group", layout = "columns", items = {
-                { type = "slider", label = L["Font Size"], min = 10, max = 32, step = 1, width = SLW,
-                  get = function() return mod.db.fontSize end,
-                  set = function(_, v) mod.db.fontSize = v; reapplyFont() end },
-            } },
+            -- A plain row, not a one-item "columns" group: the group machinery
+            -- always reserves a second cell (fitColumns never answers below
+            -- two), which painted an empty ghost card beside the slider (user
+            -- report, 31.07.2026). On the grid page a bare slider keeps its
+            -- half by itself.
+            { type = "slider", label = L["Font Size"], min = 10, max = 32, step = 1,
+              get = function() return mod.db.fontSize end,
+              set = function(_, v) mod.db.fontSize = v; reapplyFont() end },
             { type = "toggle", label = L["Enable Shadow"],
               get = function() return mod.db.fontShadow end,
               set = function(_, v) mod.db.fontShadow = v; reapplyFont() end,
@@ -902,6 +928,7 @@ function mod:GetOptions()
         { type = "group", layout = "row", gap = 8, items = {
             { type = "button", label = L["Test (all events)"], width = 170,
               onClick = function()
+                  liftAboveOptions()
                   showNotify("combatStart")
                   C_Timer.After(0.3, function() spawnScroll("spellInterrupt", richMsg(L["Interrupted"], 116, GetSpellInfo and GetSpellInfo(116) or "Frostbolt")) end)
                   C_Timer.After(0.6, function() spawnScroll("purged",         richMsg(L["Purged"], 1459, GetSpellInfo and GetSpellInfo(1459) or "Arcane Intellect")) end)

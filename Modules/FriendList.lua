@@ -4,7 +4,11 @@ local L = ns.L
 
 local mod = ns:RegisterModule("friendlist", {
     name        = "Friends List",
-    group       = "UI Reskin",
+    -- "Extras", not "UI Reskin" (user request, 31.07.2026): the module is more
+    -- social features than skin, so its tab lives in the General collection.
+    -- The group alone decides which container swallows it -- this file loads
+    -- before Modules/General.lua, so the tab lands right after "General".
+    group       = "Extras",
     description = "Class-coloured names, class icons, status dots, inline notes, faction tint and optional auto-accept.",
     defaults    = {
         enabled         = true,

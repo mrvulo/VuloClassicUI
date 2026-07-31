@@ -6496,14 +6496,15 @@ end)(...);
 local _, ns = ...
 
 local mod = ns:RegisterModule("vullfg", {
+    -- Strict grid: the odd scan toggle stretched across the page with its
+    -- switch far from the label (user report, 31.07.2026).
+    optionsGrid = true,
     name        = "Group Board",
     group       = "Chat & Social",
-    description = "Scans chat for people forming groups and lists them by Classic/TBC instance in a window (/vlfg or the minimap button).",
+    description = "Scans chat for people forming groups and lists them by Classic/TBC instance in a window (/vlfg or the button below).",
     defaults = {
         enabled    = true,
         window     = 20,     -- minutes a request stays listed
-        minimap    = true,
-        mmAngle    = 200,    -- degrees
         scanWorld  = true,
         scanGuild  = true,
         scanSay    = true,
@@ -6802,7 +6803,12 @@ local function buildWindow()
     if mod._frame then return end
     local f = CreateFrame("Frame", "VulLFGFrame", UIParent)
     f:SetSize(440, 420)
-    f:SetFrameStrata("HIGH")
+    -- DIALOG, not HIGH: the options window sits on HIGH, and the board is
+    -- opened FROM its button -- on the same stratum it landed behind the
+    -- window that opened it (user report, 31.07.2026). Toplevel keeps it in
+    -- front when clicked.
+    f:SetFrameStrata("DIALOG")
+    f:SetToplevel(true)
     f:SetClampedToScreen(true)
     f:EnableMouse(true)
     -- one-time migration of the legacy point-anchor save to a CENTER offset
@@ -6854,37 +6860,9 @@ function mod:Toggle()
     if mod._frame:IsShown() then mod._frame:Hide() else buildTags(); mod._frame:Show() end
 end
 
-local function buildMinimap()
-    if mod._mm or not Minimap then return end
-    local b = CreateFrame("Button", "VulLFGMinimapButton", Minimap)
-    b:SetSize(31, 31); b:SetFrameStrata("MEDIUM"); b:SetFrameLevel(8)
-    local overlay = b:CreateTexture(nil, "OVERLAY"); overlay:SetSize(53, 53)
-    overlay:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder"); overlay:SetPoint("TOPLEFT")
-    local icon = b:CreateTexture(nil, "ARTWORK"); icon:SetSize(19, 19); icon:SetPoint("CENTER", -1, 1)
-    icon:SetTexture("Interface\\LFGFrame\\BattlenetWorking0")
-    icon:SetTexture("Interface\\GossipFrame\\BattleMasterGossipIcon")
-    b.icon = icon
-    local function place()
-        local a = (mod.db.mmAngle or 200)
-        local rad = a * math.pi / 180
-        b:SetPoint("CENTER", Minimap, "CENTER", 80 * math.cos(rad), 80 * math.sin(rad))
-    end
-    place()
-    b:RegisterForDrag("LeftButton")
-    b:SetScript("OnDragStart", function() b:SetScript("OnUpdate", function()
-        local mx, my = Minimap:GetCenter(); local px, py = GetCursorPosition(); local s = Minimap:GetEffectiveScale()
-        px, py = px / s, py / s
-        mod.db.mmAngle = math.deg(math.atan2(py - my, px - mx)); place()
-    end) end)
-    b:SetScript("OnDragStop", function() b:SetScript("OnUpdate", nil) end)
-    b:RegisterForClicks("LeftButtonUp")
-    b:SetScript("OnClick", function() mod:Toggle() end)
-    ns.UI:AttachTooltip(b, {
-        anchor = "ANCHOR_LEFT", title = L["Group Board"],
-        lines  = { L["/vlfg toggles the group board."] },
-    })
-    mod._mm = b
-end
+-- The minimap button is GONE (user request, 31.07.2026 -- "kein Minimap-Icon"):
+-- the board opens via /vlfg or the button on this options page. Saved minimap
+-- and mmAngle values in old profiles are simply never read again.
 
 local function isWorldChannel(cn)
     return strfind(cn, "lookingforgroup") or strfind(cn, "suchenachgruppe")
@@ -6907,8 +6885,6 @@ function mod:OnEnable()
     mod:RegisterEvent("CHAT_MSG_GUILD", onGuild)
     mod:RegisterEvent("CHAT_MSG_SAY", onSay)
     mod:RegisterEvent("CHAT_MSG_YELL", onSay)
-    if mod.db.minimap ~= false then buildMinimap() end
-    if mod._mm then mod._mm:SetShown(mod.db.minimap ~= false) end
     if not mod._prune and C_Timer and C_Timer.NewTicker then
         mod._prune = C_Timer.NewTicker(30, function()
             if mod._frame and mod._frame:IsShown() then refresh() end
@@ -6917,7 +6893,6 @@ function mod:OnEnable()
 end
 
 function mod:OnDisable()
-    if mod._mm then mod._mm:Hide() end
     if mod._frame then mod._frame:Hide() end
 end
 
@@ -6930,11 +6905,10 @@ ns.Slash.LFGBOARD = function() mod:Toggle() end
 function mod:GetOptions()
     return {
         { type = "desc", text = "|cffaaaaaa" .. L["/vlfg toggles the group board."] .. "|r" },
+        { type = "button", label = L["Open group board"], width = 180, primary = true,
+          onClick = function() mod:Toggle() end },
         { type = "slider", label = L["Keep requests for (minutes)"], min = 5, max = 60, step = 5,
           get = function() return mod.db.window or 20 end, set = function(_, v) mod.db.window = v end },
-        { type = "toggle", label = L["Show minimap button"],
-          get = function() return mod.db.minimap end,
-          set = function(_, v) mod.db.minimap = v; if v then buildMinimap() end; if mod._mm then mod._mm:SetShown(v) end end },
         { type = "toggle", label = L["Scan world / trade / LFG channels"], get = function() return mod.db.scanWorld end, set = function(_, v) mod.db.scanWorld = v end },
         { type = "toggle", label = L["Scan guild chat"], get = function() return mod.db.scanGuild end, set = function(_, v) mod.db.scanGuild = v end },
         { type = "toggle", label = L["Scan say / yell"],   get = function() return mod.db.scanSay ~= false end, set = function(_, v) mod.db.scanSay = v end },
@@ -8125,6 +8099,18 @@ end)(...);
 local _, ns = ...
 local ICONS = "Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\modules\\"
 
+-- The three little game helpers share ONE tab (user request, 31.07.2026):
+-- queue countdown, minigame companion and the trainer book. Registered FIRST
+-- in this capsule so the tab sits where Queue-Timer used to, right after the
+-- fishing tab -- the container reads ns.moduleOrder.
+ns:MakeCollectionPage({
+    key   = "pg_helpers",
+    name  = "Helpers",
+    group = "Extras",
+    icon  = ICONS .. "queuetimer.tga",
+    desc  = "Queue countdown, buff minigame helper and class trainer book in one place.",
+    members = { "queuetimer", "lazyvulo", "vultraining" },
+})
 ns:MakeCollectionPage({
     key   = "pg_windows",
     name  = "Windows & Professions",

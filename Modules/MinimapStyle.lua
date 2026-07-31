@@ -3,6 +3,10 @@ local _, ns = ...
 local L = ns.L
 
 local mod = ns:RegisterModule("minimapstyle", {
+    -- Strict grid: lone last rows of a run stretched across the page (user
+    -- report, 31.07.2026). The three-way zone-bar strip keeps its own full
+    -- row -- wide segmented rows leave the grid by design.
+    optionsGrid = true,
     name        = "Minimap",
     group       = "UI Reskin",
     description = "A modern minimap: round with a clean dark ring and accent line, zone text and clock in a slim panel, mouse-wheel zoom, movable and scalable. Optionally hides other addons' buttons until mouseover.",

@@ -420,7 +420,11 @@ function bank.build()
     f.free = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     f.free:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", PAD, 8)
 
-    f.money = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    -- House font at 13 instead of the small template (~10px): the money line
+    -- was hard to read at a glance (user request, 31.07.2026). The coin icons
+    -- get the matching height where the text is built.
+    f.money = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    if ns.UI and ns.UI.Font then ns.UI.Font(f.money, 13) end
     f.money:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -PAD, 8)
     local moneyBtn = CreateFrame("Button", nil, f)
     moneyBtn:SetPoint("TOPLEFT", f.money, "TOPLEFT", -4, 2)
@@ -520,7 +524,7 @@ end
 
 function bank.updateMoney()
     if bank.frame and bank.frame.money and GetCoinTextureString then
-        bank.frame.money:SetText(GetCoinTextureString(GetMoney() or 0))
+        bank.frame.money:SetText(GetCoinTextureString(GetMoney() or 0, 13))
     end
 end
 

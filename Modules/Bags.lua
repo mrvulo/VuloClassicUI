@@ -17,6 +17,9 @@ local nativeSetDir = (_G.C_Container and _G.C_Container.SetSortBagsRightToLeft) 
 local BAGS = { 0, 1, 2, 3, 4 }
 
 local mod = ns:RegisterModule("bags", {
+    -- Strict grid: lone last rows of a run stretched across the page (user
+    -- report, 31.07.2026). On the grid a lone row keeps its half.
+    optionsGrid = true,
     name        = "Bags",
     group       = "Bags & Items",
     description = "A single unified inventory window: all bags in one grid, with quality borders, counts, cooldowns, money and free slots. Movable and scalable.",

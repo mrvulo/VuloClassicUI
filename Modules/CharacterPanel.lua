@@ -5,6 +5,9 @@ local _, ns = ...
 local L = ns.L
 
 local mod = ns:RegisterModule("characterpanel", {
+    -- Strict grid: lone last rows of a run stretched across the page (user
+    -- report, 31.07.2026). On the grid a lone row keeps its half.
+    optionsGrid = true,
     name        = "Character Panel",
     group       = "UI Reskin",
     description = "Enhances the character panel: iLvL per slot, socket display, shortened enchant text.",
@@ -214,7 +217,9 @@ local ILVL_FONT_SIZE = 11
 local ILVL_Y_OFFSET  = 4
 
 local WRIST_ENCH_Y   = -8
-local WEAPON_ENCH_Y  = 6
+-- 14, not 6: the weapon-row enchant text sat visibly lower than the slot's
+-- middle (user report, 31.07.2026 -- "30 Heal 10 Spell" hugging the bottom).
+local WEAPON_ENCH_Y  = 14
 
 local SOCKET_SIZE = 11
 local SOCKET_GAP  = 2

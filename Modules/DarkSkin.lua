@@ -3,6 +3,9 @@ local _, ns = ...
 local L = ns.L
 
 local mod = ns:RegisterModule("darkskin", {
+    -- Strict grid: lone last rows of a run stretched across the page (user
+    -- report, 31.07.2026). On the grid a lone row keeps its half.
+    optionsGrid = true,
     name        = "Dark Skin",
     group       = "UI Reskin",
     description = "The dark look of the UI in one place: a built-in dark skin for action buttons and WeakAuras icons, plus an optional Dark Mode that darkens Blizzard's default frames, minimap and bars.",
@@ -802,9 +805,9 @@ function mod:GetOptions()
     end
 
     return {
-        { type = "header", text = L["Dark Skin"] },
-        { type = "desc", text = L["|cffaaaaaaThe dark look of the UI in one place: a built-in skin for action buttons and WeakAuras icons, plus an optional Dark Mode that re-tints Blizzard's default frames.|r"] },
-
+        -- No page header/description here: this page is a container tab, and
+        -- the container already prints the tab title and the module
+        -- description above -- both showed twice (user report, 31.07.2026).
         { type = "header", text = L["Action Bars"] },
         { type = "toggle", label = L["Skin the action bars"],
           tooltip = L["The dark action-bar button skin."],
@@ -858,26 +861,14 @@ function mod:GetOptions()
 
         { type = "header", text = L["Dark Mode"] },
         { type = "desc", text = L["|cffaaaaaaOptional: darkens and desaturates Blizzard's default artwork — unit frames, minimap and action bars — to a neutral dark tone. Reversible: turn it off and the gold look returns.|r"] },
-        { type = "toggle", label = L["Enable Dark Mode"],
-          tooltip = L["Re-tints Blizzard's default frames, minimap and action-bar artwork to a dark tone. Off by default."],
-          get = function() return mod.db.darkMode end,
-          set = function(_, v) mod.db.darkMode = v; applyAllDM() end },
-        { type = "toggle", label = L["Desaturate (greyscale)"],
-          tooltip = L["Strips the colour out of the artwork before tinting, for a true greyscale look. Off keeps a hint of the original hue."],
-          get = function() return mod.db.dmDesaturate end,
-          set = function(_, v) mod.db.dmDesaturate = v; dmApply() end },
-        { type = "color", label = L["Tint colour"], width = 160,
-          get = function() return mod.db.dmColor end,
-          set = function(r, g, b) mod.db.dmColor = { r = r, g = g, b = b }; dmApply() end },
-
+        -- The master switch, tint, desaturation and the two BAR areas live on
+        -- the Action Bars page (Standard branch), which mirrors them into this
+        -- module's db -- they stood here TWICE and the user chose that page as
+        -- the one home (31.07.2026). Only the areas no other page carries stay:
         dmAreaToggle("dmUnitframes", L["Unit frames"],
             L["Player, target, focus, pet and party frame borders."]),
         dmAreaToggle("dmMinimap", L["Minimap"],
             L["Minimap border, compass, zoom and tracking buttons."]),
-        dmAreaToggle("dmActionbars", L["Action bar artwork"],
-            L["The gryphons and the metal action-bar background."]),
-        dmAreaToggle("dmActionButtons", L["Action button borders"],
-            L["Also tints the border ring around every action button. Optional — leave off if it looks too flat."]),
         dmAreaToggle("dmBags", L["Bag slots"],
             L["Tints the backpack, bag and keyring button borders."]),
 

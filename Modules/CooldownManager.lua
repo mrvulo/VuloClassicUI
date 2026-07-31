@@ -2123,6 +2123,13 @@ end
 -- (30.07.2026, user request); a returned 0 hides the header everywhere else.
 local STRIP_TABS = { tracked = true, glows = true, ["default"] = true }
 function mod.BuildPageHeader(host, tabId)
+    -- The power-bar tab pins its own preview instead of the icon strip; the
+    -- capsule below owns the widget, this is just the hand-over.
+    if tabId == "powerbar" then
+        local pb = ns.modules and ns.modules.powerbar
+        if pb and pb.BuildPreview then return pb.BuildPreview(host) end
+        return 0
+    end
     if tabId ~= nil and not STRIP_TABS[tabId] then return 0 end
     ensureGroups()
     local f = buildIconStrip(host)
@@ -3081,6 +3088,9 @@ local mod = ns:RegisterModule("powerbar", {
         bgColor       = { r = 0.05, g = 0.05, b = 0.06 },
         bgAlpha       = 0.85,
         smooth        = false,
+        strata        = "MEDIUM",
+        orient        = "h",     -- "h" | "v" (fills up) | "vd" (fills down)
+        fillAlpha     = 1,       -- below 1 the world shows through the FILL
 
         hashMarks      = "",
         hashPct        = true,
@@ -3148,17 +3158,28 @@ local bgTex
 local function applyAppearance()
     if not bar then return end
     local d = mod.db
+    local vert = d.orient == "v" or d.orient == "vd"
+    bar:SetOrientation(vert and "VERTICAL" or "HORIZONTAL")
+    if bar.SetRotatesTexture then bar:SetRotatesTexture(vert) end
+    if bar.SetReverseFill then bar:SetReverseFill(d.orient == "vd") end
     bar:SetStatusBarTexture(lsmStatusbar(d.texture))
     local t = bar:GetStatusBarTexture()
     if t and t.SetHorizTile then t:SetHorizTile(false); t:SetVertTile(false) end
+    if t then t:SetAlpha(d.fillAlpha or 1) end
     local c = currentColor()
     bar:SetStatusBarColor(c.r, c.g, c.b)
     if t and t.SetGradient and CreateColor then
+        -- The gradient runs along the fill direction. Min side is always the
+        -- BOTTOM for vertical bars; with reverse fill the fill's END is the
+        -- bottom, so the end colour swaps sides to stay at the fill's end.
+        local dir = vert and "VERTICAL" or "HORIZONTAL"
         if d.gradient then
             local g2 = d.gradientColor or { r = 0, g = 0, b = 0 }
-            t:SetGradient("HORIZONTAL", CreateColor(1, 1, 1, 1), CreateColor(g2.r, g2.g, g2.b, 1))
+            local c1, c2 = CreateColor(1, 1, 1, 1), CreateColor(g2.r, g2.g, g2.b, 1)
+            if d.orient == "vd" then c1, c2 = c2, c1 end
+            t:SetGradient(dir, c1, c2)
         else
-            t:SetGradient("HORIZONTAL", CreateColor(1, 1, 1, 1), CreateColor(1, 1, 1, 1))
+            t:SetGradient(dir, CreateColor(1, 1, 1, 1), CreateColor(1, 1, 1, 1))
         end
     end
     if bgTex then
@@ -3214,7 +3235,10 @@ function applyHashes()
     local d = mod.db
     local list = d.hashMarks
     if not list or list == "" then return end
-    local w = bar:GetWidth() or 0
+    -- Marks sit ACROSS the fill direction: vertical lines along a horizontal
+    -- bar, horizontal lines up a vertical one.
+    local vert = d.orient == "v" or d.orient == "vd"
+    local w = (vert and bar:GetHeight() or bar:GetWidth()) or 0
     if w <= 0 then return end
     local i = 0
     for numStr in tostring(list):gmatch("[%d%.]+") do
@@ -3236,9 +3260,20 @@ function applyHashes()
             local hw = d.hashWidth or 1
             t:SetColorTexture(c.r, c.g, c.b, 0.9)
             t:ClearAllPoints()
-            t:SetPoint("TOPLEFT", bar, "TOPLEFT", w * frac - hw / 2, 0)
-            t:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", w * frac - hw / 2, 0)
-            t:SetWidth(hw)
+            if vert then
+                -- both dimensions set anew: a pooled mark may have carried the
+                -- other orientation a moment ago. Reverse fill runs top-down,
+                -- so the mark for value X mirrors to (1 - frac) -- otherwise
+                -- mark and fill boundary would only ever meet at 100-X.
+                local yy = (d.orient == "vd") and (w * (1 - frac)) or (w * frac)
+                t:SetPoint("BOTTOMLEFT",  bar, "BOTTOMLEFT",  0, yy - hw / 2)
+                t:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", 0, yy - hw / 2)
+                t:SetHeight(hw)
+            else
+                t:SetPoint("TOPLEFT",    bar, "TOPLEFT",    w * frac - hw / 2, 0)
+                t:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", w * frac - hw / 2, 0)
+                t:SetWidth(hw)
+            end
             t:Show()
         end
     end
@@ -3377,7 +3412,7 @@ local function build()
     frame = CreateFrame("Frame", "VCUIPowerBar", UIParent)
     frame:SetSize(mod.db.width, mod.db.height)
     frame:SetPoint("CENTER", UIParent, "CENTER", mod.db.x or 0, mod.db.y or 0)
-    frame:SetFrameStrata("MEDIUM")
+    frame:SetFrameStrata(mod.db.strata or "MEDIUM")
 
     bgTex = frame:CreateTexture(nil, "BACKGROUND")
     bgTex:SetAllPoints(frame)
@@ -3472,6 +3507,114 @@ function mod:OnDisable()
     if frame then frame:Hide() end
 end
 
+-- ---------------------------------------------------------------------------
+-- Options-page live preview: a separate mock pinned above the scroll area,
+-- never the real bar -- the real one obeys its visibility rules and sits
+-- wherever the mover put it, usually behind the options window. Styled from
+-- the same db keys the real bar reads. The fill is a rolled 30-80% of the
+-- REAL power maximum rather than the live value: a full mana bar would hide
+-- exactly the background half of what the sliders change.
+
+local pv, pvPct
+
+local function pvStyle()
+    if not (pv and pv:IsVisible()) then return end
+    local d = mod.db
+    local vert = d.orient == "v" or d.orient == "vd"
+    local hostW = pv:GetWidth() or 500
+    local w, h
+    if vert then
+        w, h = math.min(d.width or 220, 40), math.min(d.height or 20, 44)
+    else
+        w, h = math.min(d.width or 220, math.max(120, hostW - 24)), math.min(d.height or 20, 40)
+    end
+    pv.holder:SetSize(w, h)
+    pv.bar:SetOrientation(vert and "VERTICAL" or "HORIZONTAL")
+    if pv.bar.SetRotatesTexture then pv.bar:SetRotatesTexture(vert) end
+    if pv.bar.SetReverseFill then pv.bar:SetReverseFill(d.orient == "vd") end
+    pv.bar:SetStatusBarTexture(lsmStatusbar(d.texture))
+    local t = pv.bar:GetStatusBarTexture()
+    if t and t.SetHorizTile then t:SetHorizTile(false); t:SetVertTile(false) end
+    if t then t:SetAlpha(d.fillAlpha or 1) end
+    local c = currentColor()
+    pv.bar:SetStatusBarColor(c.r, c.g, c.b)
+    if t and t.SetGradient and CreateColor then
+        -- same end-colour mirror as the real bar (see applyAppearance)
+        local dir = vert and "VERTICAL" or "HORIZONTAL"
+        if d.gradient then
+            local g2 = d.gradientColor or { r = 0, g = 0, b = 0 }
+            local c1, c2 = CreateColor(1, 1, 1, 1), CreateColor(g2.r, g2.g, g2.b, 1)
+            if d.orient == "vd" then c1, c2 = c2, c1 end
+            t:SetGradient(dir, c1, c2)
+        else
+            t:SetGradient(dir, CreateColor(1, 1, 1, 1), CreateColor(1, 1, 1, 1))
+        end
+    end
+    local bc = d.bgColor or { r = 0.05, g = 0.05, b = 0.06 }
+    pv.bg:SetColorTexture(bc.r, bc.g, bc.b, d.bgAlpha or 0.85)
+    local ec = d.borderColor or { r = 0, g = 0, b = 0 }
+    ns.LayoutEdges(pv.edges, pv.holder, d.borderSize or 0, ec.r, ec.g, ec.b, 1, 0)
+
+    local max = UnitPowerMax("player") or 100
+    if max <= 0 then max = 100 end
+    local cur = floor(max * (pvPct or 60) / 100 + 0.5)
+    pv.bar:SetMinMaxValues(0, max)
+    pv.bar:SetValue(cur)
+    if ns.UI and ns.UI.Font then ns.UI.Font(pv.text, d.fontSize, "OUTLINE") end
+    local tc = d.textColor or { r = 1, g = 1, b = 1 }
+    pv.text:SetTextColor(tc.r or 1, tc.g or 1, tc.b or 1)
+    local mode = d.textMode
+    if mode == "none" then pv.text:SetText("")
+    elseif mode == "current" then pv.text:SetText(tostring(cur))
+    elseif mode == "percent" then pv.text:SetText(floor(cur / max * 100 + 0.5) .. "%")
+    elseif mode == "full" then pv.text:SetText(format("%d / %d  (%d%%)", cur, max, floor(cur / max * 100 + 0.5)))
+    else pv.text:SetText(format("%d / %d", cur, max)) end
+    pv.text:ClearAllPoints()
+    local anchor = d.textAnchor or "CENTER"
+    local ox, oy = d.textX or 0, d.textY or 0
+    if anchor == "LEFT" then
+        pv.text:SetPoint("LEFT", pv.bar, "LEFT", 4 + ox, oy)
+    elseif anchor == "RIGHT" then
+        pv.text:SetPoint("RIGHT", pv.bar, "RIGHT", -4 + ox, oy)
+    else
+        pv.text:SetPoint("CENTER", pv.bar, "CENTER", ox, oy)
+    end
+end
+
+-- Exported: the cooldown manager's BuildPageHeader hands its host over while
+-- the power-bar tab is open. Returns the pinned height.
+function mod.BuildPreview(host)
+    if not pv then
+        pv = CreateFrame("Frame", nil, host)
+        pv.holder = CreateFrame("Frame", nil, pv)
+        pv.holder:SetPoint("CENTER", pv, "CENTER", 0, 0)
+        pv.bg = pv.holder:CreateTexture(nil, "BACKGROUND")
+        pv.bg:SetAllPoints(pv.holder)
+        pv.bar = CreateFrame("StatusBar", nil, pv.holder)
+        pv.bar:SetAllPoints(pv.holder)
+        pv.edges = ns.MakeEdges(pv.holder, "OVERLAY")
+        pv.text = pv.bar:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+        -- Restyles on a slow tick while visible: every slider write shows
+        -- within a quarter second without wiring thirty setters to it.
+        pv._acc = 0
+        pv:SetScript("OnUpdate", function(self, e)
+            self._acc = self._acc + e
+            if self._acc < 0.25 then return end
+            self._acc = 0
+            pvStyle()
+        end)
+    end
+    if not pvPct then pvPct = math.random(30, 80) end
+    pv:SetParent(host)
+    pv:ClearAllPoints()
+    pv:SetPoint("TOPLEFT", host, "TOPLEFT", 14, 0)
+    pv:SetPoint("TOPRIGHT", host, "TOPRIGHT", -14, 0)
+    pv:SetHeight(56)
+    pv:Show()
+    pvStyle()
+    return 56
+end
+
 function mod:GetOptions()
     local SLW = 180
     return {
@@ -3494,6 +3637,17 @@ function mod:GetOptions()
                   get = function() return mod.db.height end,
                   set = function(_, v) mod.db.height = v; applySize() end },
             } },
+            -- For a standing bar swap Width/Height yourself -- the two sliders
+            -- keep their meaning (width = horizontal extent), so a saved
+            -- horizontal layout survives switching back.
+            { type = "segmented", label = L["Orientation"], width = 360,
+              values = {
+                  { value = "h",  text = L["Horizontal"] },
+                  { value = "v",  text = L["Vertical (up)"] },
+                  { value = "vd", text = L["Vertical (down)"] },
+              },
+              get = function() return mod.db.orient or "h" end,
+              set = function(_, v) mod.db.orient = v; applyAppearance(); updateValue(); applyHashes() end },
         } },
 
         { type = "section", title = L["Text"], items = {
@@ -3553,7 +3707,7 @@ function mod:GetOptions()
                     set = function(r, g, b) mod.db.customColor = { r = r, g = g, b = b }; applyAppearance(); updateValue() end },
               } },
             { type = "checkbox", label = L["Gradient"],
-              tooltip = L["The fill fades into a second colour towards the right."],
+              tooltip = L["The fill fades into a second colour towards its end."],
               get = function() return mod.db.gradient end,
               set = function(_, v) mod.db.gradient = v; applyAppearance() end,
               subOptions = {
@@ -3572,6 +3726,20 @@ function mod:GetOptions()
             { type = "slider", label = L["Background opacity"], min = 0, max = 100, step = 5, width = SLW,
               get = function() return floor((mod.db.bgAlpha or 0.85) * 100 + 0.5) end,
               set = function(_, v) mod.db.bgAlpha = v / 100; applyAppearance() end },
+            { type = "slider", label = L["Fill opacity"], min = 10, max = 100, step = 5, width = SLW,
+              tooltip = L["Below 100 the world shows through the filled part of the bar."],
+              get = function() return floor((mod.db.fillAlpha or 1) * 100 + 0.5) end,
+              set = function(_, v) mod.db.fillAlpha = v / 100; applyAppearance() end },
+            { type = "dropdown", label = L["Frame strata"], width = 220,
+              values = {
+                  { value = "BACKGROUND", text = L["Background"] },
+                  { value = "LOW",        text = L["Low"] },
+                  { value = "MEDIUM",     text = L["Medium"] },
+                  { value = "HIGH",       text = L["High"] },
+                  { value = "DIALOG",     text = L["Dialog"] },
+              },
+              get = function() return mod.db.strata or "MEDIUM" end,
+              set = function(_, v) mod.db.strata = v; if frame then frame:SetFrameStrata(v) end end },
             { type = "checkbox", label = L["Smooth value changes"],
               get = function() return mod.db.smooth end,
               set = function(_, v) mod.db.smooth = v end },

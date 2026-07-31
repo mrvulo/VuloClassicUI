@@ -69,8 +69,15 @@ local mod = ns:RegisterModule("vtmanadisplay", {
     },
 })
 
--- Real class icons rather than nine identical fallback cogs. They come from
--- Blizzard's own atlas, so nothing ships and no client restart is needed.
+-- ONLY the played class gets a tab (user request, 31.07.2026): the other
+-- classes' settings were editable but wrote into THIS character's profile,
+-- where the foreign class never reads them -- misleading rather than useful.
+-- Filtering the tab list also keeps the foreign rows out of the settings
+-- search, which indexes exactly these tabs.
+local _, PLAYER_CLASS = UnitClass("player")
+
+-- Real class icon rather than a fallback cog. It comes from Blizzard's own
+-- atlas, so nothing ships and no client restart is needed.
 mod.tabs = {}
 for _, t in ipairs({
     { id = "priest",  label = "Priest"  },
@@ -83,9 +90,11 @@ for _, t in ipairs({
     { id = "warlock", label = "Warlock" },
     { id = "warrior", label = "Warrior" },
 }) do
-    local tex, coords = ns:GetClassIcon(t.id)
-    if tex then t.icon, t.iconCoords = tex, coords end
-    mod.tabs[#mod.tabs + 1] = t
+    if t.id:upper() == PLAYER_CLASS then
+        local tex, coords = ns:GetClassIcon(t.id)
+        if tex then t.icon, t.iconCoords = tex, coords end
+        mod.tabs[#mod.tabs + 1] = t
+    end
 end
 
 -- classToken -> { onEnable, onDisable, getOptions }, registered by class files.
@@ -147,11 +156,17 @@ local TAB_LABEL = {}
 for _, t in ipairs(mod.tabs) do TAB_LABEL[t.id] = t.label end
 
 function mod:GetOptions(tabId)
-    if tabId == "priest" or tabId == "default" or tabId == nil then
+    -- EVERY request resolves to the played class -- nil/default from a fresh
+    -- page open, and stale tab ids saved while playing another character.
+    -- With the tab list above this is what makes foreign class settings
+    -- unreachable rather than merely hidden.
+    tabId = PLAYER_CLASS:lower()
+
+    if tabId == "priest" then
         return mod.trackers.PriestOptions()
     end
 
-    local classToken = tabId and tabId:upper() or ""
+    local classToken = tabId:upper()
 
     local tool = self.classTools and self.classTools[classToken]
     if tool and tool.getOptions then

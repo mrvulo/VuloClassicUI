@@ -7,6 +7,9 @@ if ns.isEra then return end
 local L = ns.L
 
 local mod = ns:RegisterModule("arenaframes", {
+    -- Strict grid: lone last rows of a run stretched across the page (user
+    -- report, 31.07.2026). On the grid a lone row keeps its half.
+    optionsGrid = true,
     name        = "Arena Frames",
     group       = "PvP",
     description = "Enhances the Arena enemy frames: move/scale, class colors, class icons, PvP trinket CD, DR tracking, castbar, drag&drop layout.",
@@ -276,15 +279,23 @@ function mod:AddOptionsSection(name, builder)
     table.insert(self._optionsBuilders, { name = name, fn = builder })
 end
 
+-- TWO tabs instead of eleven (user request, 31.07.2026): "General" carries
+-- position/scale/fonts plus the layout section, "PvP Settings" everything
+-- else -- class colours, trinket, DR, castbar, racials, shadow sight, auras,
+-- dispels and range. The section capsules stay untouched; only the tab plan
+-- decides what renders where.
+local TAB_SECTIONS = {
+    core = { core = true, layout = true },
+    pvp  = { classcolor = true, trinket = true, dr = true, castbar = true,
+             racial = true, shadowsight = true, auraicon = true, dispel = true,
+             range = true },
+}
+
 local function buildTabsArray()
-    local tabs = {}
-    for _, sec in ipairs(mod._optionsBuilders) do
-        table.insert(tabs, {
-            id    = sec.name,
-            label = SECTION_LABELS[sec.name] or sec.name,
-        })
-    end
-    return tabs
+    return {
+        { id = "core", label = SECTION_LABELS.core or "General" },
+        { id = "pvp",  label = L["PvP Settings"] },
+    }
 end
 
 -- mod.tabs can only be built after every AddOptionsSection call, i.e. at PLAYER_LOGIN.
@@ -296,12 +307,21 @@ end)
 
 function mod:GetOptions(tabId)
     if tabId and tabId ~= "default" then
+        -- Collect every section the tab plan assigns to this tab, in
+        -- registration order; each section brings its own headers, a spacer
+        -- keeps them readable as groups.
+        local want = TAB_SECTIONS[tabId]
+        if not want then return {} end
+        local items = {}
         for _, sec in ipairs(self._optionsBuilders) do
-            if sec.name == tabId then
-                return sec.fn(self) or {}
+            if want[sec.name] then
+                for _, it in ipairs(sec.fn(self) or {}) do
+                    table.insert(items, it)
+                end
+                table.insert(items, { type = "spacer", height = 8 })
             end
         end
-        return {}
+        return items
     end
 
     local items = {}

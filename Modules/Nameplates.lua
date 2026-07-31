@@ -3,6 +3,9 @@ local _, ns = ...
 local L = ns.L
 
 local mod = ns:RegisterModule("nameplates", {
+    -- Strict grid (user request, 31.07.2026): the tabs render two-up; the
+    -- options file marks its gear rows pairable in one sweep.
+    optionsGrid = true,
     name        = "Nameplates",
     group       = "Unit Frames",
     description = "Custom enemy & NPC nameplates with a live preview: health bar, cast bar, name and health text, reaction / class colours, target highlight and threat colouring.",
@@ -122,6 +125,7 @@ local mod = ns:RegisterModule("nameplates", {
 
         nameOffsetX       = 0,
         nameOffsetY       = 0,
+        nameInBar         = false,
         healthTextOffsetX = 0,
         healthTextOffsetY = 0,
         auraOffsetX       = 0,
@@ -539,8 +543,15 @@ local function layoutPlate(f)
     local iconSz = layoutCastRow(f, d)
 
     f.healthText:ClearAllPoints()
-    f.healthText:SetPoint("CENTER", f.health, "CENTER",
-        d.healthTextOffsetX or 0, d.healthTextOffsetY or 0)
+    if d.nameInBar then
+        -- name left inside the bar -> the health text takes the right edge,
+        -- which is the exact pairing the nameInBar tooltip promises
+        f.healthText:SetPoint("RIGHT", f.health, "RIGHT",
+            -4 + (d.healthTextOffsetX or 0), d.healthTextOffsetY or 0)
+    else
+        f.healthText:SetPoint("CENTER", f.health, "CENTER",
+            d.healthTextOffsetX or 0, d.healthTextOffsetY or 0)
+    end
 
     f.castIcon:ClearAllPoints()
     if d.castIconRight then
@@ -673,16 +684,24 @@ local function fmtShortNum(v)
     return tostring(v)
 end
 
+-- Unshortened values read in groups of three (7,400), like the reference row
+-- the user pointed at. The double reverse puts the commas from the right; the
+-- final gsub strips the leading comma a 3/6/9-digit value would keep.
+local function fmtGroupNum(v)
+    local g = tostring(v):reverse():gsub("(%d%d%d)", "%1,"):reverse()
+    return (g:gsub("^,", ""))
+end
+
 local function healthTextString(d, cur, max)
     if d.healthTextMode == "none" or max <= 0 then return "" end
     local short = d.healthTextShort
     local pct = floor(cur / max * 100 + 0.5)
         .. (d.healthTextPercentSign ~= false and "%" or "")
-    local curS = short and fmtShortNum(cur) or tostring(cur)
+    local curS = short and fmtShortNum(cur) or fmtGroupNum(cur)
     if d.healthTextMode == "current" then
         return curS
     elseif d.healthTextMode == "currentmax" then
-        return curS .. "/" .. (short and fmtShortNum(max) or tostring(max))
+        return curS .. "/" .. (short and fmtShortNum(max) or fmtGroupNum(max))
     elseif d.healthTextMode == "both" then
         return format(d.healthTextFormat or "%s (%s)", curS, pct)
     end
@@ -1774,8 +1793,15 @@ local function applyPlateMode(f, mode)
     else
         f.health:Show()
         f.name:ClearAllPoints()
-        f.name:SetPoint("BOTTOM", f.health, "TOP",
-            d.nameOffsetX or 0, 3 + (d.nameOffsetY or 0))
+        if d.nameInBar then
+            -- the reference look: name INSIDE the bar at the left edge, so
+            -- the right edge stays free for the health text
+            f.name:SetPoint("LEFT", f.health, "LEFT",
+                4 + (d.nameOffsetX or 0), d.nameOffsetY or 0)
+        else
+            f.name:SetPoint("BOTTOM", f.health, "TOP",
+                d.nameOffsetX or 0, 3 + (d.nameOffsetY or 0))
+        end
         f.name:SetShown(d.showName)
         f.title:Hide()
     end
@@ -2192,6 +2218,9 @@ local PREVIEW_CTX = {
 local function stickPreview()
     local f = ns.UI and ns.UI.mainFrame
     if not (previewFrame and previewFrame:IsShown() and f and f.scroll) then return end
+    -- As a pinned page header the preview no longer scrolls with the page;
+    -- the follow re-anchor would drag it out of its host.
+    if previewFrame._pinned then return end
     local host = previewFrame
     if not host._natY then
         local _, _, _, _, py = host:GetPoint(1)
@@ -2221,7 +2250,9 @@ local function buildPreview(parent)
     end
 
     local host = CreateFrame("Frame", "VCUINameplatePreview", parent)
-    host:SetSize(420, 210)
+    -- 170, not the old 210: the mock needs ~150px (aura stack, plate, cast
+    -- bar, pips) and the rest was dead air (user feedback, 31.07.2026)
+    host:SetSize(420, 170)
     -- Must sit above every page widget while pinned over the scrolled content.
     host:SetFrameLevel((parent:GetFrameLevel() or 1) + 100)
     local mf = ns.UI and ns.UI.mainFrame
@@ -2246,20 +2277,16 @@ local function buildPreview(parent)
 
     local plate = CreateFrame("Frame", nil, host)
     plate:SetSize(160, 46)
-    plate:SetPoint("CENTER", host, "CENTER", 0, -38)
+    plate:SetPoint("CENTER", host, "CENTER", 0, -28)
     buildVisuals(plate)
     plate.unit = nil
     plate.cast:Show()
 
-    local function jumpToSection(title)
+    local function scanAndScroll(title)
         local UIW = ns.UI
         local f = UIW and UIW.mainFrame
-        if not (f and UIW._currentBuildKey and UIW.BuildOptionsPage) then return end
-        -- Used to unfold the target section and rebuild the page first. Sections
-        -- no longer fold, so the heading is already on screen and this is a pure
-        -- scroll -- one rebuild and its flicker less.
-        local sc, sf = f.scrollChild, f.scroll
-        if not (sc and sf) then return end
+        local sc, sf = f and f.scrollChild, f and f.scroll
+        if not (sc and sf) then return false end
         local wanted = string.upper(title)
         for _, child in ipairs({ sc:GetChildren() }) do
             if child._vcType == "collapsible" then
@@ -2273,10 +2300,25 @@ local function buildPreview(parent)
                             if off < 0 then off = 0 elseif off > max then off = max end
                             sf:SetVerticalScroll(off)
                         end
-                        return
+                        return true
                     end
                 end
             end
+        end
+        return false
+    end
+
+    local function jumpToSection(title)
+        local UIW = ns.UI
+        if not (UIW and UIW.mainFrame and UIW._currentBuildKey and UIW.BuildOptionsPage) then return end
+        -- Sections no longer fold, so on the right tab this is a pure scroll.
+        if scanAndScroll(title) then return end
+        -- Every preview zone targets a display-tab section; clicked from the
+        -- colour or general tab the heading is not on this page. Switch over,
+        -- then scroll once the rebuild has laid the sections out.
+        if UIW.currentTab ~= "display" then
+            UIW:BuildOptionsPage(UIW._currentBuildKey, "display")
+            ns.NextFrame(function() scanAndScroll(title) end)
         end
     end
 

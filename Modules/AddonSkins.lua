@@ -3,6 +3,10 @@ local _, ns = ...
 local L = ns.L
 
 local mod = ns:RegisterModule("addonskins", {
+    -- Strict grid: with an odd target count the last toggle stretched across
+    -- the page with its switch far from the label (user report, 31.07.2026).
+    -- On the grid a lone row keeps its half.
+    optionsGrid = true,
     name        = "Addon Skins",
     group       = "UI Reskin",
     description = "Restyles supported third-party addon windows to match the dark look: error list, quest tracker, loot browser, profiler and more.",
@@ -897,7 +901,10 @@ function mod:GetOptions()
         local isLoaded = _G.LeaMapsGlobalPanel ~= nil
         table.insert(items, {
             type = "toggle",
-            label = L["Map addon"] .. (isLoaded and "" or (" |cff888888(" .. L["not loaded"] .. ")|r")),
+            -- The target's REAL name, like every other row here -- explicitly
+            -- granted by the user (31.07.2026). Skin targets may be named in
+            -- code; never in commit messages or the changelog.
+            label = "Leatrix Maps" .. (isLoaded and "" or (" |cff888888(" .. L["not loaded"] .. ")|r")),
             get = function() return mod.db.leamaps ~= false end,
             set = function(_, v)
                 mod.db.leamaps = v and true or false

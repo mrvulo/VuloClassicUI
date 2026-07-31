@@ -672,14 +672,13 @@ local function applyAll()
     setBarSize(PetFrameHealthBar,    hs)
     setBarSize(PetFrameManaBar,      ps)
 
-    if TextStatusBar_UpdateTextString then
-        if PlayerFrameHealthBar then TextStatusBar_UpdateTextString(PlayerFrameHealthBar) end
-        if PlayerFrameManaBar   then TextStatusBar_UpdateTextString(PlayerFrameManaBar)   end
-        if TargetFrameHealthBar then TextStatusBar_UpdateTextString(TargetFrameHealthBar) end
-        if TargetFrameManaBar   then TextStatusBar_UpdateTextString(TargetFrameManaBar)   end
-        if PetFrameHealthBar    then TextStatusBar_UpdateTextString(PetFrameHealthBar)    end
-        if PetFrameManaBar      then TextStatusBar_UpdateTextString(PetFrameManaBar)      end
-    end
+    -- NO direct TextStatusBar_UpdateTextString calls here any more: running
+    -- Blizzard's updater from OUR context stamps the bars' text-state members
+    -- with addon taint, and when Blizzard's own pet update later reads them
+    -- the whole execution turns insecure -- PetFrame:Show() then gets BLOCKED
+    -- in combat (ADDON_ACTION_BLOCKED, user report 31.07.2026). The text
+    -- repaints itself on the next UNIT_HEALTH/UNIT_POWER tick anyway, which
+    -- follows within a beat of any slider change.
 
     applyPetFeedbackFont()
 end

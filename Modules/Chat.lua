@@ -5,6 +5,10 @@ local L  = ns.L
 local UI = ns.UI
 
 local mod = ns:RegisterModule("chat", {
+    -- Strict grid: the odd last row of a run (copy button, faded opacity)
+    -- stretched across the page with its control far from the label (user
+    -- report, 31.07.2026). On the grid a lone row keeps its half.
+    optionsGrid = true,
     name        = "Chat",
     group       = "Chat & Social",
     description = "Polishes Blizzard's chat: a dark panel with an icon sidebar, timestamps, class-coloured names, clickable links, dark tabs, idle fade and history that survives a /reload. Every part is optional.",
