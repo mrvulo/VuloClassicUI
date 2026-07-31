@@ -15,18 +15,25 @@ local function barDefaults(over)
         onlyInstances = false, hideMounted = false,
         hideNoTarget = false, hideNoEnemyTarget = false,
         groupVis = "any",
+        bgOn = false, bgColor = { r = 0, g = 0, b = 0 }, bgAlpha = 60, bgPad = 4,
     }
     for k, v in pairs(over) do d[k] = v end
     return d
 end
 
 local mod = ns:RegisterModule("actionbars", {
+    -- The strict grid: a lone last row keeps its half instead of stretching,
+    -- and every run shares the page's label column (user report, 31.07.2026 --
+    -- the fifth Dark Mode row spanned the page with its switch far right).
+    optionsGrid = true,
     name        = "Action Bars",
     group       = "HUD",
     description = "Takes over every action bar with its own movable frames: real combat/mouseover show-hide, scale and grid layout per bar, correct main-bar paging (druid/rogue/warrior/priest forms) and your keybinds. EXPERIMENTAL — test ability clicks and paging in combat; /reload after disabling.",
     defaults = {
         enabled        = false,
         fadeSpeed      = 0.18,
+        pushedTint = false, pushedColor = { r = 1, g = 0.82, b = 0 }, pushedClassColor = false,
+        highlightTint = false, highlightColor = { r = 1, g = 1, b = 1 }, highlightClassColor = false,
         hideStatusBars = true,
         hidePerfBar    = true,
         hideMicroMenu  = false,
@@ -70,6 +77,14 @@ local mod = ns:RegisterModule("actionbars", {
 local InCombatLockdown = InCombatLockdown
 local GetBindingKey = GetBindingKey
 local abs = math.abs
+
+-- Three tabs like the reference: the bars themselves, the chrome around them
+-- (micro menu, bag bar, XP bar), and the interaction tinting.
+mod.tabs = {
+    { id = "display", label = "Bar Display" },
+    { id = "chrome",  label = "Menu, Bags & XP Bar" },
+    { id = "anim",    label = "Bar Animations" },
+}
 
 local BARS = {
     { key = "main",        kind = "own",    count = 12, cmd = "ACTIONBUTTON%d",         label = "Action Bar 1 (Main)" },
@@ -184,6 +199,26 @@ local function wireQuickKeybind(b, command)
     b:HookScript("OnLeave", b.QuickKeybindButtonOnLeave)
 end
 
+-- The bar background: an insecure texture on the secure container -- textures
+-- are unprotected, and anchoring to the frame corners means it follows every
+-- resize on its own. Re-applied only from its setters and ensureBar.
+local function applyBarBg(key)
+    local st = state[key]
+    if not (st and st.bg) then return end
+    local db = barDB(key)
+    if db.bgOn then
+        local c = db.bgColor or { r = 0, g = 0, b = 0 }
+        local pad = db.bgPad or 4
+        st.bg:ClearAllPoints()
+        st.bg:SetPoint("TOPLEFT",     st.frame, "TOPLEFT",     -pad,  pad)
+        st.bg:SetPoint("BOTTOMRIGHT", st.frame, "BOTTOMRIGHT",  pad, -pad)
+        st.bg:SetVertexColor(c.r or 0, c.g or 0, c.b or 0, (db.bgAlpha or 60) / 100)
+        st.bg:Show()
+    else
+        st.bg:Hide()
+    end
+end
+
 local function ensureBar(desc)
     local st = state[desc.key]
     if not st then st = { buttons = {}, curAlpha = 1, tgtAlpha = 1, hovered = false }; state[desc.key] = st end
@@ -193,6 +228,11 @@ local function ensureBar(desc)
         f:SetSize(desc.count * 40, 40)
         f:SetFrameStrata("MEDIUM")
         st.frame = f
+        local bg = f:CreateTexture(nil, "BACKGROUND", nil, -8)
+        bg:SetTexture("Interface\\Buttons\\WHITE8X8")
+        bg:Hide()
+        st.bg = bg
+        applyBarBg(desc.key)
         if desc.kind == "own" then
             f:SetAttribute("checkselfcast", true)
             f:SetAttribute("checkfocuscast", true)
@@ -1191,6 +1231,15 @@ local function applyXPBar()
     end
     ensureXPBar()
     xpBar:SetSize(math.max(80, db.width or 420), math.max(6, db.height or 14))
+    -- Shared-media texture; absent, empty or UNKNOWN (an uninstalled pack
+    -- from another machine) = the flat fill it always had -- MediaStatusbar
+    -- would otherwise silently answer with its own different fallback.
+    local tex = (db.texture and db.texture ~= "" and ns.MediaStatusbar
+        and ns.MediaStatusbar(db.texture, "Interface\\Buttons\\WHITE8X8"))
+        or "Interface\\Buttons\\WHITE8X8"
+    xpBar.bar:SetStatusBarTexture(tex)
+    xpBar.rested:SetStatusBarTexture(tex)
+    xpBar.rested:SetStatusBarColor(0, 0.39, 0.88, 0.45)
     xpBar:Show()
     if xpBar.mover then
         xpBar.mover:SetSize(xpBar:GetWidth(), xpBar:GetHeight())
@@ -1431,6 +1480,36 @@ local function lookTick()
     end
 end
 
+-- Pressed / hover tinting (the animations tab). Vertex color on the buttons'
+-- own pushed and highlight textures -- textures are unprotected on secure
+-- buttons, and clearing back to white undoes it without a reload.
+local function applyInteractions()
+    local myClass = select(2, UnitClass("player"))
+    local cc = myClass and RAID_CLASS_COLORS and RAID_CLASS_COLORS[myClass]
+    forAllButtons(function(b)
+        local pt = b.GetPushedTexture and b:GetPushedTexture()
+        if pt then
+            if mod.active and mod.db.pushedTint then
+                local c = (mod.db.pushedClassColor and cc) or mod.db.pushedColor
+                    or { r = 1, g = 0.82, b = 0 }
+                pt:SetVertexColor(c.r, c.g, c.b, 1)
+            else
+                pt:SetVertexColor(1, 1, 1, 1)
+            end
+        end
+        local ht = b.GetHighlightTexture and b:GetHighlightTexture()
+        if ht then
+            if mod.active and mod.db.highlightTint then
+                local c = (mod.db.highlightClassColor and cc) or mod.db.highlightColor
+                    or { r = 1, g = 1, b = 1 }
+                ht:SetVertexColor(c.r, c.g, c.b, 1)
+            else
+                ht:SetVertexColor(1, 1, 1, 1)
+            end
+        end
+    end)
+end
+
 local function applyLook()
     local swipe = (mod.db.cdSwipe or 80) / 100
     local sc = mod.db.cdSwipeColor or { r = 0, g = 0, b = 0 }
@@ -1465,6 +1544,7 @@ local function applyLook()
     elseif lookTicker then
         lookTicker:Hide()
     end
+    applyInteractions()
 end
 
 local function applyBar(desc)
@@ -1578,6 +1658,10 @@ local function restore()
     -- `taken` -- has already happened, so however this call behaves it cannot
     -- strand the teardown. That is the lesson from the anchor attempt.
     restoreMainButtons()
+    -- Clears the pushed/highlight tints (mod.active is already false here) --
+    -- insurance for the reparented pet buttons, which would carry the tint
+    -- back to Blizzard's bar if a later change hands them back on disable.
+    applyInteractions()
     ns:Print(L["|cffffcc00Action Bars disabled — type /reload to fully restore the default bars.|r"])
 end
 
@@ -1745,21 +1829,25 @@ local function pagingRows()
     } }
 end
 
-local function barSection(desc)
+-- The layout fields the "apply to all bars" button carries over; perRow is
+-- clamped to each destination's button count on the way, and table values
+-- (the background colour) are copied by value -- a shared reference would
+-- alias every bar's colour to one table.
+local LAYOUT_COPY_KEYS = { "scale", "iconSize", "perRow", "spacing",
+                           "vertical", "reverse", "growH", "growV",
+                           "bgOn", "bgColor", "bgAlpha", "bgPad" }
+
+-- The rows of ONE bar, as OPEN sections. The page shows a single bar at a
+-- time, chosen in the pinned header above the scroll area (reference layout,
+-- user request 31.07.2026) -- the old shape was eight collapsed sections,
+-- each with everything behind a gear.
+local function barModeSections(desc)
     local key = desc.key
     return {
-        type = "section",
-        title = L[desc.label],
-        items = {
-            -- Every other row in this section is dead while the bar is off, so
-            -- the whole section is one switch and a gear. Both members of each
-            -- bar's identity stay visible at the top: subKey, because eight bars
-            -- share the label "Enabled" and one gear would otherwise open all
-            -- eight at once.
-            { type = "checkbox", label = L["Enabled"], subKey = "bar/" .. key,
+        { type = "section", title = L["Visibility"], items = {
+            { type = "checkbox", label = L["Enabled"],
               get = function() return barDB(key).on end,
-              set = function(_, v) barDB(key).on = v; reapply() end,
-              subOptions = {
+              set = function(_, v) barDB(key).on = v; reapply() end },
             { type = "dropdown", label = L["Visibility"], width = 220, values = ns.VisibilityValues(),
               get = function() return barDB(key).visibility end,
               set = function(_, v) barDB(key).visibility = v; reapply() end },
@@ -1783,6 +1871,22 @@ local function barSection(desc)
                   get = function() return barDB(key).hideNoEnemyTarget end,
                   set = function(_, v) barDB(key).hideNoEnemyTarget = v; reapply() end },
             } },
+            { type = "group", layout = "row", gap = 8, items = {
+                { type = "slider", label = L["Bar opacity"], min = 10, max = 100, step = 5, width = 150,
+                  get = function() return barDB(key).alpha or 100 end,
+                  set = function(_, v) barDB(key).alpha = v; reapply() end },
+                { type = "checkbox", label = L["Show empty buttons"],
+                  tooltip = L["Off hides empty slots; they reappear automatically while you drag an ability."],
+                  get = function() return barDB(key).showEmpty ~= false end,
+                  set = function(_, v) barDB(key).showEmpty = v; reapply() end },
+                { type = "checkbox", label = L["Click through"],
+                  tooltip = L["The bar ignores the mouse entirely — clicks go through it. Keybinds still work."],
+                  get = function() return barDB(key).clickThrough end,
+                  set = function(_, v) barDB(key).clickThrough = v; reapply() end },
+            } },
+        } },
+
+        { type = "section", title = L["Layout"], items = {
             { type = "group", layout = "row", gap = 8, items = {
                 { type = "slider", label = L["Scale"], min = 50, max = 150, step = 1, width = 150,
                   get = function() return math.floor((barDB(key).scale or 1) * 100 + 0.5) end,
@@ -1824,6 +1928,52 @@ local function barSection(desc)
                   get = function() return barDB(key).growV or "down" end,
                   set = function(_, v) barDB(key).growV = v; reapply() end },
             } },
+            { type = "checkbox", label = L["Enable bar background"],
+              tooltip = L["A flat colour panel behind the bar, sized with it."],
+              get = function() return barDB(key).bgOn end,
+              set = function(_, v) barDB(key).bgOn = v; applyBarBg(key) end,
+              subOptions = {
+                  { type = "group", layout = "row", gap = 8, items = {
+                      { type = "color", label = L["Colour"], width = 120,
+                        get = function() return barDB(key).bgColor end,
+                        set = function(r, g, b)
+                            barDB(key).bgColor = { r = r, g = g, b = b }
+                            applyBarBg(key)
+                        end },
+                      { type = "slider", label = L["Background opacity"], min = 5, max = 100, step = 5, width = 150,
+                        get = function() return barDB(key).bgAlpha or 60 end,
+                        set = function(_, v) barDB(key).bgAlpha = v; applyBarBg(key) end },
+                      { type = "slider", label = L["Padding"], min = 0, max = 16, step = 1, width = 150,
+                        get = function() return barDB(key).bgPad or 4 end,
+                        set = function(_, v) barDB(key).bgPad = v; applyBarBg(key) end },
+                  } },
+              } },
+            { type = "button", label = L["Apply layout to all bars"], width = 260,
+              tooltip = L["Copies this bar's layout - scale, icon size, buttons per row, spacing, direction - to every other bar."],
+              onClick = function()
+                  local src = barDB(key)
+                  for _, d in ipairs(BARS) do
+                      if d.key ~= key then
+                          local dst = barDB(d.key)
+                          for _, k in ipairs(LAYOUT_COPY_KEYS) do
+                              local v = src[k]
+                              if type(v) == "table" then
+                                  dst[k] = { r = v.r, g = v.g, b = v.b }
+                              else
+                                  dst[k] = v
+                              end
+                          end
+                          if dst.perRow then dst.perRow = math.min(dst.perRow, d.count or 12) end
+                          moverApply(d.key)
+                          applyBarBg(d.key)
+                      end
+                  end
+                  reapply()
+                  ns:Print(L["Layout applied to all bars."])
+              end },
+        } },
+
+        { type = "section", title = L["Text sizes"], items = {
             { type = "group", layout = "row", gap = 8, items = {
                 { type = "checkbox", label = L["Hide keybind text"],
                   get = function() return barDB(key).hideKeybind end,
@@ -1831,19 +1981,6 @@ local function barSection(desc)
                 { type = "checkbox", label = L["Hide macro text"],
                   get = function() return barDB(key).hideMacro end,
                   set = function(_, v) barDB(key).hideMacro = v; reapply() end },
-            } },
-            { type = "group", layout = "row", gap = 8, items = {
-                { type = "slider", label = L["Bar opacity"], min = 10, max = 100, step = 5, width = 150,
-                  get = function() return barDB(key).alpha or 100 end,
-                  set = function(_, v) barDB(key).alpha = v; reapply() end },
-                { type = "checkbox", label = L["Show empty buttons"],
-                  tooltip = L["Off hides empty slots; they reappear automatically while you drag an ability."],
-                  get = function() return barDB(key).showEmpty ~= false end,
-                  set = function(_, v) barDB(key).showEmpty = v; reapply() end },
-                { type = "checkbox", label = L["Click through"],
-                  tooltip = L["The bar ignores the mouse entirely — clicks go through it. Keybinds still work."],
-                  get = function() return barDB(key).clickThrough end,
-                  set = function(_, v) barDB(key).clickThrough = v; reapply() end },
             } },
             { type = "group", layout = "row", gap = 8, items = {
                 { type = "slider", label = L["Keybind text size"], min = 0, max = 24, step = 1, width = 150,
@@ -1865,56 +2002,385 @@ local function barSection(desc)
                   get = function() return barDB(key).textCooldownSize or 0 end,
                   set = function(_, v) barDB(key).textCooldownSize = v; reapply() end },
             } },
-            key == "main" and pagingRows() or nil,
-              } },
-        },
+        } },
     }
 end
 
-function mod:GetOptions()
+-- ---------------------------------------------------------------------------
+-- Pinned page header (Modern mode only): the bar picker plus a live preview
+-- of the chosen bar, in sight at every scroll position -- the reference
+-- layout the user pointed at. The preview frames are MOCKS fed by the real
+-- buttons' icon textures; reparenting secure buttons into a header would be
+-- a taint trap for nothing.
+local selectedBar = "main"   -- UI state, not a setting
+local headerFrame
+local PV_ICON, PV_GAP, PV_MAXROWS = 26, 3, 3
+local HEADER_TOP = 38        -- the picker row above the preview
+
+local function previewSource(key, i)
+    if key == "main"   then return _G["VuloActionButton" .. i] end
+    if key == "pet"    then return _G["PetActionButton" .. i] end
+    if key == "stance" then return _G["VuloAB_stanceB" .. i] end
+    return _G["VuloAB_" .. key .. "B" .. i]
+end
+
+-- The keybind shown on a preview tile: the real button's hotkey text where it
+-- exists (already abbreviated by the game), else the raw binding.
+local function previewBinding(d, i, real)
+    local hk = real and (real.HotKey or _G[(real:GetName() or "") .. "HotKey"])
+    local t = hk and hk.GetText and hk:GetText()
+    if t and t ~= "" and t ~= (_G.RANGE_INDICATOR or "\226\128\162") then
+        return t
+    end
+    if d.cmd then
+        local b = GetBindingKey(d.cmd:format(i))
+        if b then
+            local ok, txt = pcall(GetBindingText, b, "KEY_", 1)
+            return (ok and txt) or b
+        end
+    end
+end
+
+local function updatePreview()
+    local f = headerFrame
+    if not f then return 0 end
+    local d = BAR_BY_KEY[selectedBar] or BAR_BY_KEY.main
+    local db = barDB(d.key)
+    local n = math.min(d.count or 12, 12)
+    local perRow = math.max(1, math.min(db.perRow or n, n))
+    local cols, rows = math.min(n, perRow), math.ceil(n / perRow)
+    -- visual grid after the vertical swap
+    local vCols = db.vertical and rows or cols
+    local vRows = db.vertical and cols or rows
+    local shown = math.min(vRows, PV_MAXROWS)
+    local cell  = PV_ICON + PV_GAP
+    local w, h  = vCols * cell - PV_GAP, shown * cell - PV_GAP
+    f.anchor:SetSize(math.max(w, 1), math.max(h, 1))
+    for i = 1, 12 do
+        local pb = f.icons[i]
+        if i <= n then
+            local col = (i - 1) % perRow
+            local row = math.floor((i - 1) / perRow)
+            if db.vertical then col, row = row, col end
+            if row >= shown then
+                pb:Hide()
+            else
+                pb:Show()
+                pb:ClearAllPoints()
+                pb:SetPoint("TOPLEFT", f.anchor, "TOPLEFT", col * cell, -row * cell)
+                local real = previewSource(d.key, i)
+                local tex = real and real.icon and real.icon.GetTexture
+                    and real.icon:GetTexture()
+                if not tex and real then
+                    local byName = _G[(real:GetName() or "") .. "Icon"]
+                    tex = byName and byName.GetTexture and byName:GetTexture()
+                end
+                if tex then
+                    pb.icon:SetTexture(tex)
+                    pb.icon:SetTexCoord(0.06, 0.94, 0.06, 0.94)
+                    pb.icon:SetVertexColor(1, 1, 1, 1)
+                else
+                    pb.icon:SetTexture("Interface\\Buttons\\WHITE8X8")
+                    pb.icon:SetTexCoord(0, 1, 0, 1)
+                    pb.icon:SetVertexColor(0.10, 0.10, 0.13, 1)
+                end
+                pb.keyFS:SetText(previewBinding(d, i, real) or "")
+            end
+        else
+            pb:Hide()
+        end
+    end
+    return HEADER_TOP + h + 12
+end
+
+local function buildHeader(host)
+    if headerFrame then return headerFrame end
+    local f = CreateFrame("Frame", nil, host)
+
+    local vals = {}
+    for _, d in ipairs(BARS) do
+        vals[#vals + 1] = { value = d.key, text = L[d.label] }
+    end
+    local dd = ns.UI:CreateDropdown(f, {
+        width = 280,
+        values = vals,
+        get = function() return selectedBar end,
+        set = function(_, v)
+            selectedBar = v
+            ns.UI:BuildOptionsPage("actionbars", ns.UI.currentTab)
+        end,
+    })
+    dd:SetPoint("TOP", f, "TOP", 0, -4)
+
+    f.anchor = CreateFrame("Frame", nil, f)
+    f.anchor:SetPoint("TOP", f, "TOP", 0, -HEADER_TOP)
+    f.icons = {}
+    for i = 1, 12 do
+        -- A Button, not a Frame: the tiles navigate (reference behavior) --
+        -- click scrolls to the layout section, right-click to the text sizes.
+        local pb = CreateFrame("Button", nil, f.anchor)
+        pb:SetSize(PV_ICON, PV_ICON)
+        pb:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+        pb:SetScript("OnClick", function(_, btn)
+            if btn == "RightButton" then
+                ns.UI:ScrollToSection(L["Text sizes"])
+            else
+                ns.UI:ScrollToSection(L["Layout"])
+            end
+        end)
+        pb:SetScript("OnEnter", function(self)
+            ns.UI:ShowTooltip(self, L["Click: layout settings. Right-click: text sizes."])
+        end)
+        pb:SetScript("OnLeave", function() ns.UI:HideTooltip() end)
+        local bg = pb:CreateTexture(nil, "BACKGROUND")
+        bg:SetAllPoints()
+        bg:SetColorTexture(0, 0, 0, 0.55)
+        local ic = pb:CreateTexture(nil, "ARTWORK")
+        ic:SetPoint("TOPLEFT", 1, -1)
+        ic:SetPoint("BOTTOMRIGHT", -1, 1)
+        pb.icon = ic
+        local ks = pb:CreateFontString(nil, "OVERLAY")
+        ns.UI.Font(ks, 9, "OUTLINE")
+        ks:SetPoint("TOPRIGHT", pb, "TOPRIGHT", -1, -1)
+        pb.keyFS = ks
+        f.icons[i] = pb
+    end
+
+    -- Abilities and pages change under the preview; a slow tick is cheaper
+    -- and safer than hooking every applier.
+    local acc = 0
+    f:SetScript("OnUpdate", function(_, e)
+        acc = acc + e
+        if acc > 0.3 then acc = 0; updatePreview() end
+    end)
+
+    headerFrame = f
+    return f
+end
+
+function mod.BuildPageHeader(host, tabId)
+    -- The picker and preview belong to the bars themselves, not the chrome tab.
+    if (tabId ~= nil and tabId ~= "display" and tabId ~= "default")
+       or not ns:IsModuleEnabled("actionbars") then
+        if headerFrame then headerFrame:Hide() end
+        return 0
+    end
+    local f = buildHeader(host)
+    f:SetParent(host)
+    f:ClearAllPoints()
+    f:SetPoint("TOPLEFT",  host, "TOPLEFT",  14, 0)
+    f:SetPoint("TOPRIGHT", host, "TOPRIGHT", -14, 0)
+    f:Show()
+    -- Two top anchors define the width but NO height, and a frame without a
+    -- resolvable rect draws none of its children -- the header reserved its
+    -- space and stayed invisible until this line.
+    local h = updatePreview()
+    f:SetHeight(h)
+    return h
+end
+
+function mod:GetOptions(tabId)
+    local modernOn = ns:IsModuleEnabled("actionbars")
+
+    -- The chrome around the bars: micro menu, bag bar, XP bar. Its appliers
+    -- run only while the module is on, and the page says so instead of
+    -- offering rows that silently do nothing.
+    if tabId == "chrome" then
+        local items = {}
+        if not modernOn then
+            items[#items + 1] = { type = "desc",
+                text = L["|cffaaaaaaOnly active in Modern mode (Bar Display tab).|r"] }
+        end
+        items[#items + 1] = { type = "checkbox", label = L["Hide Blizzard's XP / reputation bar"],
+            tooltip = L["Removes the leftover blue experience / reputation bar under the action bar."],
+            get = function() return mod.db.hideStatusBars end,
+            set = function(_, v) mod.db.hideStatusBars = v; if mod.active then applyStatusBar() end end }
+        items[#items + 1] = { type = "checkbox", label = L["Hide the FPS / latency bar"],
+            tooltip = L["Hides Blizzard's small green performance (FPS / latency) bar."],
+            get = function() return mod.db.hidePerfBar end,
+            set = function(_, v) mod.db.hidePerfBar = v; if mod.active then applyPerfBar() end end }
+        items[#items + 1] = { type = "checkbox", label = L["Hide the micro menu"],
+            tooltip = L["Hides the row of menu buttons (character, spellbook, …)."],
+            get = function() return mod.db.hideMicroMenu end,
+            set = function(_, v) mod.db.hideMicroMenu = v; if mod.active then applyMicroBags(); applyMicroStyle() end end }
+        items[#items + 1] = { type = "dropdown", label = L["Micro menu style"], width = 280,
+            tooltip = L["Modern replaces Blizzard's buttons with a flat dark icon strip in the VuloUI look. Clicks and tooltips stay identical."],
+            values = {
+                { value = "classic", text = L["Classic (Blizzard buttons)"] },
+                { value = "modern",  text = L["Modern (flat icon strip)"] },
+            },
+            get = function() return mod.db.microStyle or "classic" end,
+            set = function(_, v) mod.db.microStyle = v; if mod.active then applyMicroBags(); applyMicroStyle() end end }
+        items[#items + 1] = { type = "checkbox", label = L["Hide the bag bar"],
+            tooltip = L["Hides the backpack and bag slots."],
+            get = function() return mod.db.hideBags end,
+            set = function(_, v) mod.db.hideBags = v; if mod.active then applyMicroBags(); applyBagStyle() end end }
+        items[#items + 1] = { type = "dropdown", label = L["Bag bar style"], width = 280,
+            tooltip = L["Modern puts the real bag buttons on a flat dark strip in the VuloUI look — opening, swapping and tooltips stay identical."],
+            values = {
+                { value = "classic", text = L["Classic (Blizzard buttons)"] },
+                { value = "modern",  text = L["Modern (flat icon strip)"] },
+            },
+            get = function() return mod.db.bagStyle or "classic" end,
+            set = function(_, v) mod.db.bagStyle = v; if mod.active then applyBagStyle() end end }
+        items[#items + 1] = { type = "desc",
+            text = L["|cff9b6cffThe micro menu, bag bar, FPS/latency bar and the XP bar below are movable in Edit Mode (/vedit) like the action bars.|r"] }
+        items[#items + 1] = { type = "section", title = L["XP bar"], items = {
+            { type = "checkbox", label = L["Show a custom XP bar"],
+              tooltip = L["A movable, resizable experience bar with rested overlay. Hidden at max level. Replaces Blizzard's bar while on."],
+              get = function() return mod.db.xpbar.on end,
+              set = function(_, v) mod.db.xpbar.on = v; if mod.active then applyXPBar(); applyStatusBar() end end,
+              subOptions = {
+                  { type = "group", layout = "row", gap = 8, items = {
+                      { type = "slider", label = L["Width"], min = 120, max = 900, step = 1, width = 160,
+                        get = function() return mod.db.xpbar.width end,
+                        set = function(_, v) mod.db.xpbar.width = v; if mod.active then applyXPBar() end end },
+                      { type = "slider", label = L["Height"], min = 6, max = 32, step = 1, width = 160,
+                        get = function() return mod.db.xpbar.height end,
+                        set = function(_, v) mod.db.xpbar.height = v; if mod.active then applyXPBar() end end },
+                      { type = "color", label = L["Colour"], width = 120,
+                        get = function() return mod.db.xpbar.color end,
+                        set = function(r, g, b) mod.db.xpbar.color = { r = r, g = g, b = b }; if mod.active then updateXPBar() end end },
+                  } },
+                  { type = "dropdown", label = L["Bar texture"], width = 240,
+                    values = (function()
+                        local v = { { value = "", text = L["Flat (default)"] } }
+                        for _, e in ipairs((ns.MediaStatusbarValues and ns.MediaStatusbarValues()) or {}) do
+                            v[#v + 1] = e
+                        end
+                        return v
+                    end)(),
+                    get = function() return mod.db.xpbar.texture or "" end,
+                    set = function(_, v) mod.db.xpbar.texture = v; if mod.active then applyXPBar() end end },
+              } },
+        } }
+        return items
+    end
+
+    -- Interaction tinting: pressed and hover colors for every bar button.
+    if tabId == "anim" then
+        local items = {}
+        if not modernOn then
+            items[#items + 1] = { type = "desc",
+                text = L["|cffaaaaaaOnly active in Modern mode (Bar Display tab).|r"] }
+        end
+        items[#items + 1] = { type = "toggle", label = L["Tint the pressed state"],
+            tooltip = L["Colours the flash a button shows while it is pressed down."],
+            get = function() return mod.db.pushedTint end,
+            set = function(_, v) mod.db.pushedTint = v; applyInteractions() end,
+            subOptions = {
+                { type = "group", layout = "row", gap = 8, items = {
+                    { type = "checkbox", label = L["Use class colour"],
+                      get = function() return mod.db.pushedClassColor end,
+                      set = function(_, v) mod.db.pushedClassColor = v; applyInteractions() end },
+                    { type = "color", label = L["Colour"], width = 120,
+                      get = function() return mod.db.pushedColor end,
+                      set = function(r, g, b) mod.db.pushedColor = { r = r, g = g, b = b }; applyInteractions() end },
+                } },
+            } }
+        items[#items + 1] = { type = "toggle", label = L["Tint the hover highlight"], subKey = "hl",
+            tooltip = L["Colours the glow a button shows under the mouse."],
+            get = function() return mod.db.highlightTint end,
+            set = function(_, v) mod.db.highlightTint = v; applyInteractions() end,
+            subOptions = {
+                { type = "group", layout = "row", gap = 8, items = {
+                    { type = "checkbox", label = L["Use class colour"],
+                      get = function() return mod.db.highlightClassColor end,
+                      set = function(_, v) mod.db.highlightClassColor = v; applyInteractions() end },
+                    { type = "color", label = L["Colour"], width = 120,
+                      get = function() return mod.db.highlightColor end,
+                      set = function(r, g, b) mod.db.highlightColor = { r = r, g = g, b = b }; applyInteractions() end },
+                } },
+            } }
+        return items
+    end
+
+    -- Two modes, one page (user request 31.07.2026): Standard keeps
+    -- Blizzard's bars, styled by the Dark Skin rows mirrored below; Modern is
+    -- this module's own bar system. The active mode wears the accent.
     local items = {
-        { type = "desc",
-          text = L["|cffaaaaaaOwn buttons for every action bar (1-5): real combat / mouseover show-hide, scale and grid layout, correct main-bar paging (druid/rogue/warrior/priest forms) and your keybinds. Move each in Edit Mode (/vedit). After disabling, /reload to fully restore Blizzard's bars.|r"] },
-        { type = "desc",
-          text = L["|cff9b6cffButton border / icon style lives in the Dark Skin module (Action Bars > Bar style): square, accent edge, shadow and more.|r"] },
-        { type = "checkbox", label = L["Hide Blizzard's XP / reputation bar"],
-          tooltip = L["Removes the leftover blue experience / reputation bar under the action bar."],
-          get = function() return mod.db.hideStatusBars end,
-          set = function(_, v) mod.db.hideStatusBars = v; if mod.active then applyStatusBar() end end },
-        { type = "checkbox", label = L["Hide the FPS / latency bar"],
-          tooltip = L["Hides Blizzard's small green performance (FPS / latency) bar."],
-          get = function() return mod.db.hidePerfBar end,
-          set = function(_, v) mod.db.hidePerfBar = v; if mod.active then applyPerfBar() end end },
-        { type = "checkbox", label = L["Hide the micro menu"],
-          tooltip = L["Hides the row of menu buttons (character, spellbook, …)."],
-          get = function() return mod.db.hideMicroMenu end,
-          set = function(_, v) mod.db.hideMicroMenu = v; if mod.active then applyMicroBags(); applyMicroStyle() end end },
-        -- Stays a dropdown although it has only two values today: more styles
-        -- are expected, and a segmented row stops working somewhere around four.
-        -- A list that can grow belongs in a menu.
-        { type = "dropdown", label = L["Micro menu style"], width = 280,
-          tooltip = L["Modern replaces Blizzard's buttons with a flat dark icon strip in the VuloUI look. Clicks and tooltips stay identical."],
-          values = {
-              { value = "classic", text = L["Classic (Blizzard buttons)"] },
-              { value = "modern",  text = L["Modern (flat icon strip)"] },
-          },
-          get = function() return mod.db.microStyle or "classic" end,
-          set = function(_, v) mod.db.microStyle = v; if mod.active then applyMicroBags(); applyMicroStyle() end end },
-        { type = "checkbox", label = L["Hide the bag bar"],
-          tooltip = L["Hides the backpack and bag slots."],
-          get = function() return mod.db.hideBags end,
-          set = function(_, v) mod.db.hideBags = v; if mod.active then applyMicroBags(); applyBagStyle() end end },
-        -- Same reasoning as the micro menu style above.
-        { type = "dropdown", label = L["Bag bar style"], width = 280,
-          tooltip = L["Modern puts the real bag buttons on a flat dark strip in the VuloUI look — opening, swapping and tooltips stay identical."],
-          values = {
-              { value = "classic", text = L["Classic (Blizzard buttons)"] },
-              { value = "modern",  text = L["Modern (flat icon strip)"] },
-          },
-          get = function() return mod.db.bagStyle or "classic" end,
-          set = function(_, v) mod.db.bagStyle = v; if mod.active then applyBagStyle() end end },
-        { type = "desc",
-          text = L["|cff9b6cffThe micro menu, bag bar, FPS/latency bar and the XP bar below are movable in Edit Mode (/vedit) like the action bars.|r"] },
+        { type = "group", layout = "row", gap = 10, align = "center", items = {
+            { type = "button", label = L["Standard Action Bars"], width = 220,
+              primary = not modernOn,
+              onClick = function()
+                  if ns:IsModuleEnabled("actionbars") and ns.ToggleModule then
+                      ns:ToggleModule("actionbars", false)
+                      ns.UI:BuildOptionsPage("actionbars", ns.UI.currentTab)
+                  end
+              end },
+            { type = "button", label = L["Modern"], width = 160,
+              primary = modernOn,
+              onClick = function()
+                  if not ns:IsModuleEnabled("actionbars") and ns.ToggleModule then
+                      ns:ToggleModule("actionbars", true)
+                      ns.UI:BuildOptionsPage("actionbars", ns.UI.currentTab)
+                  end
+              end },
+        } },
+    }
+
+    if not modernOn then
+        items[#items + 1] = { type = "desc",
+            text = L["|cffaaaaaaThe game's own action bars stay in place. Frame style and Dark Mode below come from the Dark Skin module and style Blizzard's buttons directly.|r"] }
+        local ds = ns.modules and ns.modules.darkskin
+        if ds and ds.db then
+            items[#items + 1] = { type = "section", title = L["Bar style"], items = {
+                { type = "toggle", label = L["Skin the action bars"],
+                  tooltip = L["The dark action-bar button skin."],
+                  get = function() return ds.db.skinBars end,
+                  set = function(_, v) ds.db.skinBars = v; if ds.SetBarsSkinned then ds.SetBarsSkinned(v) end end },
+                { type = "dropdown", label = L["Bar style"], width = 260,
+                  tooltip = L["Pick how the action buttons look. Rounded/Circle use an icon mask; Minimal is just the cropped icon."],
+                  values = ds.BarStyleValues and ds.BarStyleValues() or {},
+                  get = function() return ds.db.style or "shadow" end,
+                  set = function(_, v) ds.db.style = v; if ds.RefreshAll then ds.RefreshAll() end end },
+                { type = "slider", label = L["Bar icon size"], min = 76, max = 100, step = 2,
+                  tooltip = L["How much of the button the icon fills in Shadow style. Higher = bigger icons with a thinner rim."],
+                  get = function() return ds.db.barIconSize or 90 end,
+                  set = function(_, v) ds.db.barIconSize = v; if ds.RefreshAll then ds.RefreshAll() end end },
+                { type = "toggle", label = L["Also skin pet & stance buttons"],
+                  get = function() return ds.db.skinPetStance end,
+                  set = function(_, v) ds.db.skinPetStance = v; if ds.SkinAll then ds.SkinAll() end end },
+            } }
+            items[#items + 1] = { type = "section", title = L["Dark Mode"], items = {
+                { type = "toggle", label = L["Enable Dark Mode"],
+                  tooltip = L["Re-tints Blizzard's default frames, minimap and action-bar artwork to a dark tone. Off by default."],
+                  get = function() return ds.db.darkMode end,
+                  set = function(_, v) ds.db.darkMode = v; if ds.ApplyAllDM then ds.ApplyAllDM() end end },
+                { type = "toggle", label = L["Desaturate (greyscale)"],
+                  tooltip = L["Strips the colour out of the artwork before tinting, for a true greyscale look. Off keeps a hint of the original hue."],
+                  get = function() return ds.db.dmDesaturate end,
+                  set = function(_, v) ds.db.dmDesaturate = v; if ds.ApplyAllDM then ds.ApplyAllDM() end end },
+                { type = "color", label = L["Tint colour"], width = 160,
+                  get = function() return ds.db.dmColor end,
+                  set = function(r, g, b) ds.db.dmColor = { r = r, g = g, b = b }; if ds.ApplyAllDM then ds.ApplyAllDM() end end },
+                { type = "toggle", label = L["Action bar artwork"],
+                  tooltip = L["The gryphons and the metal action-bar background."],
+                  get = function() return ds.db.dmActionbars end,
+                  set = function(_, v) ds.db.dmActionbars = v; if ds.ApplyAllDM then ds.ApplyAllDM() end end },
+                { type = "toggle", label = L["Action button borders"],
+                  tooltip = L["Also tints the border ring around every action button. Optional — leave off if it looks too flat."],
+                  get = function() return ds.db.dmActionButtons end,
+                  set = function(_, v) ds.db.dmActionButtons = v; if ds.ApplyAllDM then ds.ApplyAllDM() end end },
+            } }
+        end
+        return items
+    end
+
+    items[#items + 1] = { type = "desc",
+        text = L["|cffaaaaaaOwn buttons for every action bar (1-5): real combat / mouseover show-hide, scale and grid layout, correct main-bar paging (druid/rogue/warrior/priest forms) and your keybinds. Move each in Edit Mode (/vedit). After disabling, /reload to fully restore Blizzard's bars.|r"] }
+    items[#items + 1] = { type = "desc",
+        text = L["|cff9b6cffButton border / icon style lives in the Dark Skin module (Action Bars > Bar style): square, accent edge, shadow and more.|r"] }
+
+    -- The selected bar's sections, straight under the pinned picker; the
+    -- picker in the header decides which bar `selectedBar` names.
+    local d = BAR_BY_KEY[selectedBar] or BAR_BY_KEY.main
+    for _, sec in ipairs(barModeSections(d)) do items[#items + 1] = sec end
+    if d.key == "main" then items[#items + 1] = pagingRows() end
+
+    -- Everything below applies to the modern bars as a whole; the chrome rows
+    -- (micro menu, bags, XP bar) live on their own tab now.
+    local rest = {
         { type = "button", label = L["Quick keybind mode (/vkb)"], width = 240,
           tooltip = L["Hover an action button and press a key to bind it. Hidden bars are shown while binding."],
           onClick = function() if ns.OpenQuickKeybind then ns.OpenQuickKeybind() end end },
@@ -2007,28 +2473,7 @@ function mod:GetOptions()
               get = function() return mod.db.tooltipMode or "show" end,
               set = function(_, v) mod.db.tooltipMode = v end },
         } },
-        { type = "section", title = L["XP bar"], items = {
-            { type = "checkbox", label = L["Show a custom XP bar"],
-              tooltip = L["A movable, resizable experience bar with rested overlay. Hidden at max level. Replaces Blizzard's bar while on."],
-              get = function() return mod.db.xpbar.on end,
-              set = function(_, v) mod.db.xpbar.on = v; if mod.active then applyXPBar(); applyStatusBar() end end,
-              subOptions = {
-                  { type = "group", layout = "row", gap = 8, items = {
-                      { type = "slider", label = L["Width"], min = 120, max = 900, step = 1, width = 160,
-                        get = function() return mod.db.xpbar.width end,
-                        set = function(_, v) mod.db.xpbar.width = v; if mod.active then applyXPBar() end end },
-                      { type = "slider", label = L["Height"], min = 6, max = 32, step = 1, width = 160,
-                        get = function() return mod.db.xpbar.height end,
-                        set = function(_, v) mod.db.xpbar.height = v; if mod.active then applyXPBar() end end },
-                      { type = "color", label = L["Colour"], width = 120,
-                        get = function() return mod.db.xpbar.color end,
-                        set = function(r, g, b) mod.db.xpbar.color = { r = r, g = g, b = b }; if mod.active then updateXPBar() end end },
-                  } },
-              } },
-        } },
     }
-    for _, key in ipairs({ "main", "bottomleft", "bottomright", "right", "left", "extra", "stance", "pet" }) do
-        items[#items + 1] = barSection(BAR_BY_KEY[key])
-    end
+    for _, it in ipairs(rest) do items[#items + 1] = it end
     return items
 end

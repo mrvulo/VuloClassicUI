@@ -531,6 +531,11 @@ local function walkItems(items, fn)
     for _, it in ipairs(items or {}) do
         if type(it) == "table" then
             if it.items then walkItems(it.items, fn) end
+            -- Behind the gear too: the CAPTURE side has descended subOptions
+            -- since the Wanderer fix, so overrides on those rows were recorded
+            -- and listed -- and then never replayed, because only this walk
+            -- resolves them at apply time.
+            if it.subOptions then walkItems(it.subOptions, fn) end
             fn(it)
         end
     end

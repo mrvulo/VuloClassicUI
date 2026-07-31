@@ -3,6 +3,7 @@ local _, ns = ...
 local L = ns.L
 
 local mod = ns:RegisterModule("combattext", {
+    optionsGrid = true,
     name        = "Combat Text",
     group       = "HUD",
     description = "Flashing combat notifications (with live preview) plus a scrolling combat-log text engine.",
@@ -715,13 +716,12 @@ local function eventColorSet(key)
         applyFontToNotify()
     end
 end
--- Colour and text belong to the switch above them: with the message off they
--- style something that is never drawn. So each of these sections is one switch
--- and a gear.
+-- Colour and text belong to the switch: with the message off they style
+-- something that is never drawn -- so they live behind its gear.
 --
--- subKey is not optional here. Every one of these sections labels its switch
--- "Enabled", the expansion state is keyed by label, and one gear would open all
--- of them at once.
+-- subKey stays although the labels are unique now (each row carries its
+-- message title): the expansion state is keyed by it, and keeping it means
+-- gears that were open before the section-to-row change stay open.
 local function msgSection(key, title, hasText)
     local subs = {
         { type = "color", label = L["Color"],
@@ -734,12 +734,17 @@ local function msgSection(key, title, hasText)
             get = function() return notifyText(key) end,
             set = function(_, v) mod.db.events[key].text = v; applyFontToNotify() end }
     end
-    return { type = "section", title = title, items = {
-        { type = "toggle", label = L["Enabled"], subKey = "msg/" .. key,
-          get = function() return mod.db.events[key].enabled end,
-          set = function(_, v) mod.db.events[key].enabled = v; applyFontToNotify() end,
-          subOptions = subs },
-    } }
+    -- One PAIRABLE row instead of a one-row section: the message switches sat
+    -- in eight full-width sections, half a page of air (user request,
+    -- 31.07.2026 -- "2 Spalten"). On the grid they pair two-up; opening the
+    -- gear unfolds the sub-rows inside the row's own column (also a user
+    -- request, same day -- pulling the row out to full width re-paired every
+    -- row below it).
+    return { type = "toggle", label = title, subKey = "msg/" .. key,
+        pairable = true,
+        get = function() return mod.db.events[key].enabled end,
+        set = function(_, v) mod.db.events[key].enabled = v; applyFontToNotify() end,
+        subOptions = subs }
 end
 
 function mod:GetOptions()
@@ -761,7 +766,7 @@ function mod:GetOptions()
     -- one more setting of this warning, and the section now holds only the
     -- switch itself.
     local lowDura = msgSection("lowDurability", L["Low Durability Warning"], true)
-    local lowDuraSubs = lowDura.items[1].subOptions
+    local lowDuraSubs = lowDura.subOptions
     lowDuraSubs[#lowDuraSubs + 1] = { type = "slider", label = L["Threshold (%)"],
         min = 5, max = 50, step = 1,
         get = function() return mod.db.durabilityThreshold or 15 end,
@@ -880,7 +885,9 @@ function mod:GetOptions()
         msgSection("reflected",      L["Reflected"], false),
         (function()
             local sec = msgSection("partyDeath", L["Party member died"], false)
-            table.insert(sec.items, { type = "toggle", label = L["Class color names"],
+            -- Behind the gear now: with the message off, the colouring of its
+            -- names does literally nothing -- the suboptions criterion.
+            table.insert(sec.subOptions, { type = "toggle", label = L["Class color names"],
                 get = function() return mod.db.deathClassColor ~= false end,
                 set = function(_, v) mod.db.deathClassColor = v end })
             return sec

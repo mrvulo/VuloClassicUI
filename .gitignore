@@ -8,3 +8,7 @@ IDEA.md
 # for them, so tracking them would ship them to players inside the addon folder
 .vscode/
 .mcp.json
+# knowledge-graph build artifacts (several MB, regenerable) and the agent
+# instruction file that drives them — local tooling, never for players
+graphify-out/
+CLAUDE.md

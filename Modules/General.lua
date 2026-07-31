@@ -10,6 +10,12 @@ local _, ns = ...
 local L = ns.L
 
 local mod = ns:RegisterModule("miscqol", {
+    -- Strict grid: the last toggle of several runs (release spirit, camera
+    -- zoom, raid group labels) sat alone on the page's full width with its
+    -- switch far from its label (user report, 31.07.2026). On the grid a lone
+    -- row keeps its half. Applies only to THIS tab -- the neighbouring tabs
+    -- are their own modules with their own flag.
+    optionsGrid = true,
     name        = "General",
     group       = "Extras",
     description = "Collection of simple quality-of-life toggles: auto-accept (quest, res, summon), auto-sell, repair, hide UI spam, text sizes.",

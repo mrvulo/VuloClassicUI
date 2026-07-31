@@ -811,14 +811,52 @@ end
 
 local PROFILE_STRING_PREFIX = "!VCUI1"
 
-function ns:ExportProfileString(name)
+-- What a profile carries besides .modules; "interface layout" in the export UI.
+local PROFILE_LAYOUT_KEYS = { "ui", "editmode", "moverLinks", "moverSizeLinks" }
+
+-- opts: nil = the whole profile, the classic string (version 1).
+--   { modules = set-of-keys|nil, layout = bool, overrides = bool, look = bool }
+-- Any subsetting turns the string into VERSION 2: an old client would have
+-- built a holes-filled-with-defaults profile out of a subset, silently wrong,
+-- so it must refuse instead. The look block (account-wide fonts and colors)
+-- rides along version-neutrally -- an old importer ignores fields it does not
+-- know, and getting the profile without the look is the right degradation.
+function ns:ExportProfileString(name, opts)
     name = name or ns:GetActiveProfileName()
     local profile = VuloClassicUIDB.profiles and VuloClassicUIDB.profiles[name]
     if not profile then return nil end
     local copy = ns:DeepCopy(profile)
     stripDefaults(copy, fullProfileDefaults())
+
+    local partial = false
+    if opts then
+        if opts.modules then
+            partial = true
+            for k in pairs(copy.modules or {}) do
+                if not opts.modules[k] then copy.modules[k] = nil end
+            end
+        end
+        if opts.layout == false then
+            partial = true
+            for _, k in ipairs(PROFILE_LAYOUT_KEYS) do copy[k] = nil end
+        end
+        if opts.overrides == false then
+            partial = true
+            copy.overrideGroups = nil
+        end
+    end
+
+    local payload = { v = partial and 2 or 1, n = name, d = copy }
+    if partial then payload.p = true end
+    if opts and opts.look and ns.db and ns.db.global then
+        payload.g = ns:DeepCopy({
+            fonts       = ns.db.global.fonts,
+            classColors = ns.db.global.classColors,
+            powerColors = ns.db.global.powerColors,
+        })
+    end
     local out = {}
-    serialize({ v = 1, n = name, d = copy }, out)
+    serialize(payload, out)
     return PROFILE_STRING_PREFIX .. b64encode(table.concat(out))
 end
 
@@ -832,7 +870,8 @@ function ns:ImportProfileString(text)
     local raw = b64decode(text:sub(#PROFILE_STRING_PREFIX + 1))
     if not raw then return nil, L["The profile string is damaged."] end
     local payload, pos = deserialize(raw, 1)
-    if pos == nil or type(payload) ~= "table" or payload.v ~= 1
+    if pos == nil or type(payload) ~= "table"
+        or (payload.v ~= 1 and payload.v ~= 2)
         or type(payload.d) ~= "table" then
         return nil, L["The profile string is damaged."]
     end
@@ -849,7 +888,63 @@ function ns:ImportProfileString(text)
         i = i + 1
     end
 
+    -- Partial strings (version 2) merge onto a COPY of the active profile:
+    -- filling the gaps with defaults instead would hand the importer a profile
+    -- that silently dropped every setting the string did not carry.
+    local data = payload.d
+    if payload.p then
+        local active = VuloClassicUIDB.profiles[ns:GetActiveProfileName()]
+        local merged = active and ns:DeepCopy(active) or {}
+        merged.modules = merged.modules or {}
+        for k, v in pairs(data.modules or {}) do merged.modules[k] = v end
+        for _, k in ipairs(PROFILE_LAYOUT_KEYS) do
+            if data[k] ~= nil then merged[k] = data[k] end
+        end
+        if data.overrideGroups ~= nil then merged.overrideGroups = data.overrideGroups end
+        data = merged
+    end
+
     -- defaults are refilled by LoadProfile when the profile gets activated
-    VuloClassicUIDB.profiles[name] = payload.d
+    VuloClassicUIDB.profiles[name] = data
+
+    -- Account-wide look data travels outside the profile; its presence in the
+    -- string is the consent to apply it right away. Same rule as
+    -- ApplyThemeColor: an imported string may carry ARBITRARY values, and a
+    -- malformed color entry written into RAID_CLASS_COLORS would break every
+    -- consumer and re-poison itself from the SV at each login -- so only
+    -- well-formed entries get in, everything else is dropped.
+    if type(payload.g) == "table" and ns.db and ns.db.global then
+        local g = ns.db.global
+        local function cleanColors(t)
+            if type(t) ~= "table" then return nil end
+            local out = {}
+            for k, c in pairs(t) do
+                if type(k) == "string" and type(c) == "table"
+                   and type(c.r) == "number" and type(c.g) == "number"
+                   and type(c.b) == "number" then
+                    out[k] = {
+                        r = math.min(1, math.max(0, c.r)),
+                        g = math.min(1, math.max(0, c.g)),
+                        b = math.min(1, math.max(0, c.b)),
+                    }
+                end
+            end
+            return out
+        end
+        local fonts = payload.g.fonts
+        if type(fonts) == "table" and type(g.fonts) == "table" then
+            if type(fonts.font) == "string" then g.fonts.font = fonts.font end
+            if fonts.outline == "NONE" or fonts.outline == "OUTLINE"
+               or fonts.outline == "THICKOUTLINE" then
+                g.fonts.outline = fonts.outline
+            end
+            g.fonts.gameText = fonts.gameText and true or false
+        end
+        local cc = cleanColors(payload.g.classColors)
+        if cc then g.classColors = cc end
+        local pc = cleanColors(payload.g.powerColors)
+        if pc then g.powerColors = pc end
+        if ns.ApplyLookSettings then ns.ApplyLookSettings() end
+    end
     return name
 end

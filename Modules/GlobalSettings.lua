@@ -243,6 +243,13 @@ ns.OnLocaleReady(function()
     applyGlobalFont()
     applyCustomColors()
 end)
+-- One hook for the profile import: a string carrying look data applies it
+-- through this instead of waiting for the next login.
+ns.ApplyLookSettings = function()
+    applyGlobalFont()
+    applyCustomColors()
+    applyGameTextFont()
+end
 ns:RegisterEvent("PLAYER_LOGIN", applyGameTextFont)
 
 local CLASS_ORDER = { "WARRIOR", "PALADIN", "HUNTER", "ROGUE", "PRIEST",

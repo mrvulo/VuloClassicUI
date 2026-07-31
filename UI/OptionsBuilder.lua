@@ -90,6 +90,10 @@ end
 local function clearChildren(parent)
     local kids = { parent:GetChildren() }
     for _, k in ipairs(kids) do
+        -- A sub-column container holds pooled widgets of its OWN; they must go
+        -- back to their pools first, or the container would carry them into the
+        -- pool and show them again on whatever page acquires it next.
+        if k._vcType == "subcol" then clearChildren(k) end
         if not release(k) then
             if k == UI._dashContainer then
                 k:Hide()
@@ -316,9 +320,9 @@ end
 -- long label cannot squeeze every track in the group down to a stub.
 -- `wide` also measures dropdowns. Off by default: it widens the column on every
 -- page that has a long dropdown label, and only a grid page has asked for that
--- trade. On a grid page it is the point -- a dropdown's box is anchored to its
--- label's right edge, so without a shared column nine class rows put nine boxes
--- at nine slightly different x positions.
+-- trade. (Dropdown boxes are RIGHT-anchored at a bounded width since 31.07 --
+-- for them the column is now only a measurement input, not the box anchor; it
+-- still governs the sliders and segmented strips of the same run.)
 local function runLabelColumn(run, cellW, wide)
     local widest = 0
     for _, item in ipairs(run) do
@@ -476,6 +480,56 @@ local function soloLabelColumn(items, availW)
     return runLabelColumn(collectSolo(items, {}), availW - 20 - ROW_ICON_STRIP, true)
 end
 
+-- The identity of a row across rebuilds; the same recipe placeItem uses for
+-- its gear state, shared here because paired gear rows need it too.
+local function rowKey(item)
+    return (UI._currentBuildKey or "?") .. "/" .. (UI.currentTab or "")
+        .. "/r/" .. tostring(item.subKey or item.label or item.text or item)
+end
+
+-- An OPEN pairable gear row unfolds inside its own half of the grid, not
+-- across the page. Its sub-rows go into this invisible container, shaped like
+-- a page one column wide: every anchor in placeItem/placeColumns measures its
+-- parent and starts at CONTENT_PADDING, so a container at
+-- (cellX - CONTENT_PADDING, cellW + 2*CONTENT_PADDING) lands all of them
+-- exactly inside the cell's column without any of that code knowing.
+local function makeSubColumn(parent)
+    local f = acquire("subcol", parent)
+    if f then return f end
+    f = CreateFrame("Frame", nil, parent)
+    f._vcType  = "subcol"
+    f._vcSetup = function() end
+    return f
+end
+
+local function placeSubColumn(parent, item, cellX, subY, cellW)
+    local sub = makeSubColumn(parent)
+    sub:ClearAllPoints()
+    sub:SetPoint("TOPLEFT", parent, "TOPLEFT", cellX - CONTENT_PADDING, subY)
+    sub:SetWidth(cellW + 2 * CONTENT_PADDING)
+    sub:SetFrameLevel(parent:GetFrameLevel())
+    sub:Show()
+
+    -- One column, with a label column measured for THESE rows at THIS width.
+    -- The page grid must not leak in here: its cells are half the page, its
+    -- label column is measured against that, and fitColumns never answers
+    -- below two -- each of the three would cram two ~220px cells into the
+    -- half. iconStrip reserves ONE slot, not the full-width strip of two:
+    -- the cell above reserved exactly the gear slot (gearLead), and the
+    -- sub-rows' controls should end on that same edge.
+    local savedGrid, savedSolo = UI._grid, UI._soloCol
+    local col = runLabelColumn(collectCompact(item.subOptions, {}),
+        cellW - 20 - ROW_ICON_SLOT, true)
+    UI._grid    = { cols = 1, labelCol = col, iconStrip = ROW_ICON_SLOT }
+    UI._soloCol = col
+    local yEnd = placeItemList(sub, item.subOptions, 0)
+    UI._grid, UI._soloCol = savedGrid, savedSolo
+
+    local h = -yEnd
+    sub:SetHeight(math.max(1, h))
+    return h
+end
+
 local function placeColumns(parent, run, y)
     local availW = (parent:GetWidth() or 540) - 2 * CONTENT_PADDING
     local grid   = UI._grid
@@ -513,17 +567,34 @@ local function placeColumns(parent, run, y)
     else labelCol = runLabelColumn(run, colW) end
     local base   = parent:GetFrameLevel()
     local n      = #run
+    -- One verdict per run; the cell loop reserves the gear slot from it.
+    local runHasGear = false
+    for _, it in ipairs(run) do
+        if it.subOptions then runHasGear = true; break end
+    end
+    -- Per-column cursors, not a row counter. They agree exactly while every
+    -- gear is closed -- and when one opens, its sub-rows push ONLY the cells
+    -- of its own column down (user request, 31.07.2026). The expanded row used
+    -- to leave the run and take the page's full width instead, which re-paired
+    -- every row below it and made the whole grid jump on one click.
+    local colY = {}
+    for c = 0, cols - 1 do colY[c] = y end
+
     for idx = 1, n do
         local item  = run[idx]
         local col   = (idx - 1) % cols
-        local row   = math.floor((idx - 1) / cols)
         -- Last item, alone on its row: normally it takes the whole width rather
         -- than leaving a ragged gap beside it. On a grid page it does NOT --
         -- keeping its half and leaving the other empty IS the grid.
         local fullW = (not grid) and (idx == n) and (n % cols == 1)
         local cellX = CONTENT_PADDING + (fullW and 0 or col * (colW + COL_GAP))
-        local cellY = y - row * ROW_H
         local cellW = fullW and availW or colW
+        -- A spanning cell starts below BOTH columns; a half cell carries on
+        -- from its own.
+        local cellY = colY[col]
+        if fullW then
+            for c = 0, cols - 1 do if colY[c] < cellY then cellY = colY[c] end end
+        end
 
         local p = makePanel(parent)
         p:ClearAllPoints()
@@ -540,6 +611,26 @@ local function placeColumns(parent, run, y)
             lead = 22
         end
 
+        -- A PAIRABLE gear row in a half cell: the gear sits at the cell's own
+        -- right edge (the shared icon strip belongs to full-width rows only);
+        -- opening it rebuilds the page with the sub-rows unfolded UNDER this
+        -- cell, inside this column (placeSubColumn). The slot is reserved for
+        -- EVERY cell of a run that contains gear rows -- a gearless neighbour
+        -- whose switch ends 21px further right reads as a misalignment, which
+        -- is the exact thing the icon-strip rule exists to prevent.
+        local gearLead = 0
+        if runHasGear then gearLead = 21 end
+        if item.subOptions then
+            local key = rowKey(item)
+            local g = setRowIcon(makeRowIcon(parent), ICON_GEAR, L["Extra settings"], function()
+                UI.rowExpanded[key] = not UI.rowExpanded[key]
+                UI:BuildOptionsPage(UI._currentBuildKey, UI.currentTab)
+            end, base + 5)
+            g:ClearAllPoints()
+            g:SetPoint("RIGHT", parent, "TOPLEFT", cellX + cellW - 8, cellY - CARD_H / 2)
+            gearLead = 21
+        end
+
         -- A cell that spans the page keeps the same right-hand strip free as a
         -- gear row does, so the two line up where they meet down a page.
         --
@@ -549,11 +640,16 @@ local function placeColumns(parent, run, y)
         -- measurement -- and a value block that no longer fits is how rows ended
         -- up in the neighbouring column once already (3b5ca3f). Half-width cells
         -- align down their own column, which is the column the eye follows.
-        local rightStrip = (fullW or cols == 1) and ROW_ICON_STRIP or 0
+        --
+        -- Inside a sub-column container the grid overrides the strip with the
+        -- single gear slot, so the sub-rows end on the edge their own gear
+        -- row reserved above them.
+        local rightStrip = (fullW or cols == 1)
+            and ((grid and grid.iconStrip) or ROW_ICON_STRIP) or 0
 
         local widget = createWidget(parent, item)
         if widget then
-            widget:SetWidth(cellW - 20 - lead - rightStrip)
+            widget:SetWidth(cellW - 20 - lead - rightStrip - gearLead)
             if labelCol and widget.SetLabelWidth then widget:SetLabelWidth(labelCol) end
             widget:SetFrameLevel(base + 4)
             local wh = widget:GetHeight() or 22
@@ -561,8 +657,21 @@ local function placeColumns(parent, run, y)
             widget:SetPoint("TOPLEFT", parent, "TOPLEFT",
                 cellX + 10 + lead, cellY - math.floor((CARD_H - wh) / 2))
         end
+
+        local used = ROW_H
+        if item.subOptions and UI.rowExpanded[rowKey(item)] then
+            used = used + placeSubColumn(parent, item, cellX, cellY - ROW_H, cellW)
+        end
+        if fullW then
+            for c = 0, cols - 1 do colY[c] = cellY - used end
+        else
+            colY[col] = cellY - used
+        end
     end
-    return y - math.ceil(n / cols) * ROW_H
+
+    local bottom = y
+    for c = 0, cols - 1 do if colY[c] < bottom then bottom = colY[c] end end
+    return bottom
 end
 
 -- A section is a HEADING, not a drawer.
@@ -592,6 +701,9 @@ local function placeSection(parent, section, y)
     -- cards inside one. When both gaps are the same the page reads as one long
     -- list and the headings stop grouping anything.
     y = y - 24
+
+    -- Remembered per build: ScrollToSection turns a title into this offset.
+    if UI._sectionY then UI._sectionY[title] = math.max(0, -y - 8) end
 
     local open, onClick = true, nil
     if section.collapsible then
@@ -751,6 +863,16 @@ placeItem = function(parent, item, y)
     return y - h
 end
 
+-- A gear row may join the grid when its page says so (item.pairable) -- open
+-- or closed. An opened one stays in its cell and unfolds inside its own
+-- column (placeSubColumn via placeColumns), so no other cell of the grid
+-- moves sideways when a gear is clicked.
+local function joinsRun(it)
+    if not COMPACT[it.type] or it.fullWidth then return false end
+    if it.subOptions then return it.pairable == true end
+    return true
+end
+
 placeItemList = function(parent, items, y)
     local i = 1
     while i <= #items do
@@ -762,10 +884,9 @@ placeItemList = function(parent, items, y)
         -- dropdown collapsed the fourteen colour swatches underneath it into one
         -- tall list. The flag names a property of the ROW, and now behaves like
         -- one -- the row is placed on its own and its neighbours keep their grid.
-        if COMPACT[it.type] and not it.subOptions and not it.fullWidth then
+        if joinsRun(it) then
             local run = {}
-            while items[i] and COMPACT[items[i].type]
-                and not items[i].subOptions and not items[i].fullWidth do
+            while items[i] and joinsRun(items[i]) do
                 run[#run + 1] = items[i]; i = i + 1
             end
             y = placeColumns(parent, run, y)
@@ -1049,6 +1170,28 @@ function UI:IsModuleActive(key)
     return false
 end
 
+-- Scrolls the open page so the named section's heading sits at the top edge.
+-- Open a gear row from OUTSIDE the page (a preview's click-to-navigate). The
+-- suffix is the row's subKey (or its label, for rows without one) -- the same
+-- tail rowKey builds, so a module needs no knowledge of the full recipe.
+-- Only opens; a second click on a preview icon should not close settings the
+-- user is looking at.
+function UI:ExpandRow(subKey)
+    UI.rowExpanded[(UI._currentBuildKey or "?") .. "/" .. (UI.currentTab or "")
+        .. "/r/" .. tostring(subKey)] = true
+end
+
+-- Consumer: the action-bar preview's click-to-navigate; the title must be the
+-- TRANSLATED section title, exactly as the page declared it.
+function UI:ScrollToSection(title)
+    local f = UI.mainFrame
+    local off = f and UI._sectionY and UI._sectionY[title]
+    if not off then return end
+    local maxOff = math.max(0,
+        (f.scrollChild:GetHeight() or 0) - (f.scroll:GetHeight() or 0))
+    f.scroll:SetVerticalScroll(math.min(off, maxOff))
+end
+
 -- Rebuild whatever page is open, without knowing which one that is. Used when
 -- something outside the page changes how it must be drawn -- entering or leaving
 -- the talent-override editing mode, for one.
@@ -1074,12 +1217,20 @@ function UI:BuildOptionsPage(key, tabId)
     clearChildren(parent)
     parent:SetWidth((f.scroll:GetWidth() or 540) - 8)
     UI._currentBuildKey = key
+    -- Section positions of THIS build, for ScrollToSection below.
+    UI._sectionY = {}
 
     -- Pinned page header: a module that defines BuildPageHeader(host) gets the
     -- strip above the scroll area, visible at every scroll position. For every
     -- other module the header hides and the scroll takes its old top anchor.
     local header = f.pageHeader
     if header then
+        -- More than one module pins a frame into this ONE shared host now
+        -- (cooldown manager strip, action-bar picker + preview). Each child
+        -- belongs to its module; hiding them all here means only the current
+        -- module's builder shows its own again -- without this, switching
+        -- pages stacked one module's header over the other's.
+        for _, child in ipairs({ header:GetChildren() }) do child:Hide() end
         local hh = 0
         if mod.BuildPageHeader then
             -- tabId rides along: a header may only belong to SOME tabs (the

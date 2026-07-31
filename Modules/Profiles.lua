@@ -43,6 +43,35 @@ local manageBuffer         = nil   -- profile selected in the manage section
 -- way anyone actually finds it - as the "Profile" tab of Global Settings, where
 -- currentModule is "globalsettings". Checking for "profiles" alone meant every
 -- refresh here did nothing on the path people use, leaving all dropdowns stale.
+-- Selection for the partial export; file-local so it survives the page
+-- rebuild every checkbox click triggers. false = deselected, absent =
+-- selected. Look data (account-wide fonts and colors) starts DESELECTED:
+-- recoloring someone's whole account on import is opt-in, not a side effect.
+local exportSel = { __look = false }
+local function selGet(k) return exportSel[k] ~= false end
+local function selSet(k, v)
+    if v then exportSel[k] = nil else exportSel[k] = false end
+end
+
+-- Modules worth an export row: they own settings beyond the enabled flag.
+-- Containers and collection pages carry none, and the profile page cannot
+-- export itself. Sorted by the translated name -- the list is for scanning.
+local function exportableModules()
+    local list = {}
+    for _, key in ipairs(ns.moduleOrder or {}) do
+        local m = ns.modules[key]
+        if m and key ~= "profiles" then
+            for dk in pairs(m.defaults or {}) do
+                if dk ~= "enabled" then list[#list + 1] = key; break end
+            end
+        end
+    end
+    table.sort(list, function(a, b)
+        return tostring(L[ns.modules[a].name]) < tostring(L[ns.modules[b].name])
+    end)
+    return list
+end
+
 local function refreshUI()
     local UI = ns.UI
     if not (UI and UI.BuildOptionsPage and UI._currentBuildKey) then return end
@@ -204,11 +233,101 @@ function mod:GetOptions()
         text = L["|cffaaaaaaExport the current profile as a text string - as a backup or to share it. Importing always creates a NEW profile and never overwrites anything.|r"],
     })
     table.insert(items, {
+        type = "desc",
+        text = L["|cffaaaaaaUntick modules to share only a part - a partial string merges onto the importer's active profile.|r"],
+    })
+
+    table.insert(items, {
+        type = "group", layout = "row", gap = 6, noCard = true,
+        items = {
+            { type = "button", label = L["Select all"], width = 130,
+              onClick = function()
+                  wipe(exportSel)
+                  refreshUI()
+              end },
+            { type = "button", label = L["Deselect all"], width = 130,
+              onClick = function()
+                  for _, k in ipairs(exportableModules()) do exportSel[k] = false end
+                  exportSel.__layout, exportSel.__look = false, false
+                  -- Only where its checkbox exists: latching it false on a
+                  -- client without dual talents would silently turn every
+                  -- later full export into a partial one.
+                  if ns.HasTalentGroups and ns:HasTalentGroups() then
+                      exportSel.__overrides = false
+                  end
+                  refreshUI()
+              end },
+        },
+    })
+
+    -- One checkbox per module, its stored on/off state in the exported
+    -- profile as a dimmed suffix -- the grid pairs the rows two-up.
+    local expKeys  = exportableModules()
+    local expProf  = VuloClassicUIDB.profiles and VuloClassicUIDB.profiles[activeName]
+    local expMods  = expProf and expProf.modules or {}
+    local selCount = 0
+    for _, key in ipairs(expKeys) do
+        local k = key
+        local m = ns.modules[k]
+        if selGet(k) then selCount = selCount + 1 end
+        local stored = expMods[k] and expMods[k].enabled
+        if stored == nil then stored = m.defaults and m.defaults.enabled end
+        local status = (stored ~= false)
+            and ("|cff44ff44" .. L["On"] .. "|r")
+            or  ("|cff888888" .. L["Off"] .. "|r")
+        table.insert(items, { type = "checkbox",
+            label = tostring(L[m.name]) .. "  |cff666677-|r " .. status,
+            get = function() return selGet(k) end,
+            set = function(_, v) selSet(k, v); refreshUI() end })
+    end
+
+    -- The label's parenthetical is stripped for display (StripParens); the
+    -- tooltip carries the full sentence, which is that helper's contract.
+    table.insert(items, { type = "checkbox",
+        label = L["Interface layout (window positions and links)"],
+        tooltip = L["Interface layout (window positions and links)"],
+        get = function() return selGet("__layout") end,
+        set = function(_, v) selSet("__layout", v); refreshUI() end })
+    if ns.HasTalentGroups and ns:HasTalentGroups() then
+        table.insert(items, { type = "checkbox",
+            label = L["Talent Overrides"],
+            get = function() return selGet("__overrides") end,
+            set = function(_, v) selSet("__overrides", v); refreshUI() end })
+    end
+    table.insert(items, { type = "checkbox",
+        label = L["Fonts & colors (account-wide)"],
+        tooltip = L["Also carries your account-wide font and color settings; they apply immediately when the string is imported."],
+        get = function() return selGet("__look") end,
+        set = function(_, v) selSet("__look", v); refreshUI() end })
+
+    table.insert(items, { type = "desc",
+        text = string.format(L["|cffaaaaaaThe export will include %d of %d modules.|r"], selCount, #expKeys) })
+
+    table.insert(items, {
         type = "group", layout = "row", gap = 6,
         items = {
-            { type = "button", label = L["Export as string"], width = 180,
+            { type = "button", label = L["Export as string"], width = 180, primary = true,
               onClick = function()
-                  local s = ns:ExportProfileString()
+                  local keys = exportableModules()
+                  local selected, n, all = {}, 0, true
+                  for _, k in ipairs(keys) do
+                      if selGet(k) then selected[k] = true; n = n + 1 else all = false end
+                  end
+                  -- Where the overrides checkbox does not exist, its value
+                  -- must count as "not subset", or the export turns partial.
+                  local hasOv = ns.HasTalentGroups and ns:HasTalentGroups() and true or false
+                  local ovSel = hasOv and selGet("__overrides")
+                  local opts = {
+                      modules   = (not all) and selected or nil,
+                      layout    = selGet("__layout"),
+                      overrides = (not hasOv) and true or ovSel,
+                      look      = selGet("__look"),
+                  }
+                  if n == 0 and not (opts.layout or ovSel or opts.look) then
+                      ns:Print(L["Nothing selected to export."])
+                      return
+                  end
+                  local s = ns:ExportProfileString(nil, opts)
                   if s then
                       StaticPopup_Show("VCUI_PROFILE_EXPORT", nil, nil, s)
                   end

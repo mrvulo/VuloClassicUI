@@ -770,8 +770,11 @@ function mod:OnDisable()
     -- buttons in combat. Remaining hooks are gated by `active` / mod._enabled.
 end
 
-function mod:GetOptions()
-    local STYLE_VALUES = {
+-- Exported for the Action Bars page: its Standard mode mirrors the bar-style
+-- and Dark Mode rows there, writing into THIS module's db, and needs the
+-- appliers -- they are file-locals here on purpose.
+function mod.BarStyleValues()
+    return {
         { value = "shadow",  text = L["Shadow (dark rounded rim)"] },
         { value = "rounded", text = L["Rounded icon (masked corners)"] },
         { value = "square",  text = L["Square (black edge)"] },
@@ -780,6 +783,14 @@ function mod:GetOptions()
         { value = "minimal", text = L["Minimal (icon only)"] },
         { value = "minimaldark", text = L["Minimal Dark (darkened Blizzard border)"] },
     }
+end
+mod.SetBarsSkinned = setBarsSkinned
+mod.RefreshAll     = refreshAll
+mod.SkinAll        = skinAll
+mod.ApplyAllDM     = applyAllDM
+
+function mod:GetOptions()
+    local STYLE_VALUES = mod.BarStyleValues()
 
     local function dmApply() applyAllDM() end
     local function dmAreaToggle(key, label, tooltip)

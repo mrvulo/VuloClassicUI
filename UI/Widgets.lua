@@ -324,15 +324,14 @@ function UI:CreateHeader(parent, text)
     local f = CreateFrame("Frame", nil, parent)
     f:SetSize(480, 22)
 
-    local tick = f:CreateTexture(nil, "ARTWORK")
-    tick:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 0, 3)
-    tick:SetSize(3, 12)
-    tick:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 1)
-
+    -- Same look as the section heading (CreateCollapsibleHeader without a
+    -- click): uppercase, bright, the fading rule underneath -- and no accent
+    -- tick. Two heading styles on the same pages read as two different
+    -- mechanisms where there is only one (user request, 31.07.2026).
     local fs = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    fs:SetPoint("BOTTOMLEFT", tick, "BOTTOMRIGHT", 7, -1)
-    UI.Font(fs, 11)
-    fs:SetTextColor(0.62, 0.60, 0.70)
+    fs:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 0, 5)
+    UI.Font(fs, 13)
+    fs:SetTextColor(0.92, 0.90, 0.96)
     fs:SetJustifyH("LEFT")
     f._label = fs
 
@@ -393,9 +392,9 @@ end
 
 -- Section header: CreateCollapsibleHeader(parent, text, expanded, onClick)
 --
--- The name is historical. Pass an onClick and it still folds, plus/minus box and
--- all -- the sidebar has no use for that any more either, so nothing passes one
--- today. Without one it is a plain heading: no box, no hover, not even a mouse
+-- The name is historical. Pass an onClick and it still folds -- the sidebar
+-- has no use for that any more either, so almost nothing passes one today.
+-- Without one it is a plain heading: no glyph, no hover, not even a mouse
 -- target, because a heading that lights up under the cursor promises a click
 -- that does nothing.
 local function collapsibleSetup(b, title, expanded, onClick)
@@ -415,9 +414,11 @@ local function collapsibleSetup(b, title, expanded, onClick)
     b._chevron:Show()
     b._label:ClearAllPoints()
     b._label:SetPoint("BOTTOMLEFT", b._chevron, "BOTTOMRIGHT", 7, 1)
-    b._chevron:SetTexture(expanded
-        and "Interface\\Buttons\\UI-MinusButton-Up"
-        or  "Interface\\Buttons\\UI-PlusButton-Up")
+    -- The window's ONE expander glyph is the gear -- the same one the rows
+    -- carry (user rule, 31.07.2026; Blizzard's plus/minus box was a second
+    -- vocabulary for the same thing). Open tints it accent, closed stays dim,
+    -- which is the signal the plus/minus pair used to carry.
+    b._chevron:SetTexture("Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\gear.tga")
     local c = expanded and ns.COLORS.accent or nil
     if c then
         b._chevron:SetVertexColor(c.r, c.g, c.b)
@@ -1681,6 +1682,17 @@ function UI:CreateSegmented(parent, config)
     return container
 end
 
+-- The box width a labeled dropdown row aims for; bounded by the row so a
+-- narrow group cell still leaves the label 70px. Recomputed on every resize
+-- because the builder widens rows AFTER setup.
+local function dropdownRelayout(container)
+    local cfg = container._vcConfig
+    if not (cfg and cfg.label) then return end
+    local want = cfg.boxWidth or 220
+    local w = container:GetWidth() or 240
+    container._button:SetWidth(math.max(100, math.min(want, w - 70)))
+end
+
 -- The container is the row: SetWidth() on it reflows label and button.
 local function dropdownSetup(container, config)
     container._vcConfig = config
@@ -1695,9 +1707,15 @@ local function dropdownSetup(container, config)
         label:SetWidth(0)
         label:SetPoint("LEFT", container, "LEFT", 0, 0)
         btn:SetHeight(24)
-        btn:SetPoint("LEFT", label, "RIGHT", 10, 0)
+        -- The box hangs on the ROW'S right edge at a bounded width instead of
+        -- growing out of its label's end: boxes used to begin wherever the
+        -- label happened to stop -- one x per row (user report, 31.07.2026).
+        -- Right edge plus equal width puts every box on the same two lines;
+        -- clipped labels and values already restore in the hover tooltip.
         btn:SetPoint("RIGHT", container, "RIGHT", 0, 0)
+        label:SetPoint("RIGHT", btn, "LEFT", -10, 0)
         container:SetSize(config.width or 240, 28)
+        dropdownRelayout(container)
     else
         label:Hide()
         btn:SetPoint("TOPLEFT", container, "TOPLEFT", 0, 0)
@@ -1709,6 +1727,7 @@ end
 
 function UI:CreateDropdown(parent, config)
     local container = CreateFrame("Frame", nil, parent)
+    container:SetScript("OnSizeChanged", dropdownRelayout)
 
     local label = container:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     UI.Font(label, 12)
