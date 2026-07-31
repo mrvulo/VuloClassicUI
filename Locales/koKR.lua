@@ -2878,4 +2878,8 @@ ns:RegisterLocale("koKR", function() return {
     ["Resource Colors"] = "자원 색상",
     ["Font changed. /reload required to apply it everywhere."] = "글꼴이 변경되었습니다. 어디에나 적용하려면 /reload 가 필요합니다.",
     ["Reset to default"] = "기본값으로 초기화",
+    ["Rename..."] = "이름 바꾸기...",
+    ["Rename loadout '%s'. Enter new name:"] = "장비 세트 ‘%s’의 이름을 바꿉니다. 새 이름:",
+    ["A loadout named '%s' already exists."] = "‘%s’(이)라는 장비 세트가 이미 있습니다.",
+    ["Loadout '%s' renamed to '%s'."] = "장비 세트 ‘%s’의 이름을 ‘%s’(으)로 바꿨습니다.",
 } end)

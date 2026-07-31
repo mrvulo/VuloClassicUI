@@ -2871,4 +2871,8 @@ ns:RegisterLocale("zhCN", function() return {
     ["Resource Colors"] = "资源颜色",
     ["Font changed. /reload required to apply it everywhere."] = "字体已更改。需要 /reload 才能在所有位置生效。",
     ["Reset to default"] = "重置为默认值",
+    ["Rename..."] = "重命名...",
+    ["Rename loadout '%s'. Enter new name:"] = "重命名装备配置“%s”。输入新名称：",
+    ["A loadout named '%s' already exists."] = "已存在名为“%s”的装备配置。",
+    ["Loadout '%s' renamed to '%s'."] = "装备配置“%s”已重命名为“%s”。",
 } end)

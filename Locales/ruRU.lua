@@ -2878,4 +2878,8 @@ ns:RegisterLocale("ruRU", function() return {
     ["Resource Colors"] = "Цвета ресурсов",
     ["Font changed. /reload required to apply it everywhere."] = "Шрифт изменён. Нужен /reload, чтобы применить его везде.",
     ["Reset to default"] = "Сбросить к значению по умолчанию",
+    ["Rename..."] = "Переименовать...",
+    ["Rename loadout '%s'. Enter new name:"] = "Переименовать набор «%s». Новое имя:",
+    ["A loadout named '%s' already exists."] = "Набор с именем «%s» уже существует.",
+    ["Loadout '%s' renamed to '%s'."] = "Набор «%s» переименован в «%s».",
 } end)

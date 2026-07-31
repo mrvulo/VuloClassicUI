@@ -456,6 +456,10 @@ local function listLoadouts()
     end
 end
 
+-- Forward declaration: the rename popup below captures it, but the function
+-- itself needs sidebarSelected/refreshSidebar, which are declared further down.
+local renameLoadout
+
 ns.OnLocaleReady(function()
 StaticPopupDialogs["VCUI_LOADOUT_SAVE"] = {
     text = L["Save current equipment as a new loadout. Enter name:"],
@@ -490,6 +494,35 @@ StaticPopupDialogs["VCUI_LOADOUT_DELETE"] = {
     button1 = YES or L["Yes"],
     button2 = NO  or L["No"],
     OnAccept = function(_, data) deleteLoadout(data) end,
+    timeout = 0,
+    whileDead = true,
+    hideOnEscape = true,
+    preferredIndex = 3,
+}
+
+-- data arrives as the FOURTH StaticPopup_Show argument, not assigned after the
+-- fact like the delete popup does it -- OnShow prefills the box and runs
+-- inside StaticPopup_Show, before any late assignment would land.
+StaticPopupDialogs["VCUI_LOADOUT_RENAME"] = {
+    text = L["Rename loadout '%s'. Enter new name:"],
+    button1 = SAVE or L["Save"],
+    button2 = CANCEL or L["Cancel"],
+    hasEditBox = true,
+    maxLetters = 32,
+    OnShow = function(self)
+        local eb = ns.PopupEditBox(self)
+        if eb then eb:SetText(self.data or ""); eb:HighlightText() end
+    end,
+    OnAccept = function(self)
+        local eb = ns.PopupEditBox(self)
+        renameLoadout(self.data, eb and eb:GetText() or "")
+    end,
+    EditBoxOnEnterPressed = function(self)
+        local parent = self:GetParent()
+        renameLoadout(parent.data, self:GetText())
+        parent:Hide()
+    end,
+    EditBoxOnEscapePressed = function(self) self:GetParent():Hide() end,
     timeout = 0,
     whileDead = true,
     hideOnEscape = true,
@@ -835,6 +868,43 @@ local sidebarSelected
 local sidebarExpanded
 local refreshSidebar  -- forward declaration; assigned far below, captured by closures above it
 
+-- Rename moves every name-keyed reference along: the entry itself, the talent
+-- binding and the form binding (both keyed by the set NAME) and the sidebar
+-- selection. The entry table moves untouched, so icon, creation date and
+-- slots survive. Declared as a local up at the popup block; defined here
+-- because it needs the two sidebar locals above.
+renameLoadout = function(oldName, newName)
+    newName = (newName or ""):match("^%s*(.-)%s*$")
+    if newName == "" then
+        ns:Print(L["Please provide a name for the loadout."])
+        return
+    end
+    if newName == oldName then return end
+    local set = LO()[oldName]
+    if not set then
+        ns:Print(string.format(L["Loadout '%s' does not exist."], oldName))
+        return
+    end
+    if LO()[newName] then
+        ns:Print(string.format(L["A loadout named '%s' already exists."], newName))
+        return
+    end
+    LO()[newName], LO()[oldName] = set, nil
+    local sm = specMap()
+    if sm[oldName] ~= nil then sm[newName], sm[oldName] = sm[oldName], nil end
+    local fm = formMap()
+    if fm[oldName] ~= nil then fm[newName], fm[oldName] = fm[oldName], nil end
+    if sidebarSelected == oldName then sidebarSelected = newName end
+    _setIndexDirty = true
+    if refreshSidebar then refreshSidebar() end
+    -- The options page lists the sets by name too; rebuilt only when it is
+    -- the page currently on show, else the next open rebuilds anyway.
+    if ns.UI and ns.UI.BuildOptionsPage and ns.UI.currentModule == "loadouts" then
+        ns.UI:BuildOptionsPage("loadouts", ns.UI.currentTab)
+    end
+    ns:Print(string.format(L["Loadout '%s' renamed to '%s'."], oldName, newName))
+end
+
 local function showSlotReplacePicker(loadoutName, targetSlot, anchor)
     if not ns.ScanBagsForSlot then
         ns:Print(L["SlotPicker module is required for editing item slots."])
@@ -1170,6 +1240,10 @@ local function createSetRow(parent, index)
                 end },
                 { text = L["Change icon..."], func = function()
                     showIconPicker(setName, self)
+                end },
+                { text = L["Rename..."], func = function()
+                    -- data as the 4th argument: OnShow prefills from it
+                    StaticPopup_Show("VCUI_LOADOUT_RENAME", setName, nil, setName)
                 end },
             }
 
@@ -1982,6 +2056,10 @@ function mod:GetOptions()
                       onClick = function() equipLoadout(capturedName) end },
                     { type = "button", label = L["Overwrite"], width = 130,
                       onClick = function() overwriteLoadout(capturedName) end },
+                    { type = "button", label = L["Rename..."], width = 120,
+                      onClick = function()
+                          StaticPopup_Show("VCUI_LOADOUT_RENAME", capturedName, nil, capturedName)
+                      end },
                     { type = "button", label = L["Delete"], width = 100,
                       onClick = function()
                           if mod.db.confirmDelete then

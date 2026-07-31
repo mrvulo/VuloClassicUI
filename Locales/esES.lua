@@ -2879,6 +2879,10 @@ local function T() return {
     ["Resource Colors"] = "Colores de recursos",
     ["Font changed. /reload required to apply it everywhere."] = "Fuente cambiada. Se necesita /reload para aplicarla en todas partes.",
     ["Reset to default"] = "Restablecer al valor predeterminado",
+    ["Rename..."] = "Renombrar...",
+    ["Rename loadout '%s'. Enter new name:"] = "Renombrar el conjunto “%s”. Nuevo nombre:",
+    ["A loadout named '%s' already exists."] = "Ya existe un conjunto llamado “%s”.",
+    ["Loadout '%s' renamed to '%s'."] = "Conjunto “%s” renombrado a “%s”.",
 } end
 
 ns:RegisterLocale("esES", T)

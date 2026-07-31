@@ -2878,4 +2878,8 @@ ns:RegisterLocale("itIT", function() return {
     ["Resource Colors"] = "Colori delle risorse",
     ["Font changed. /reload required to apply it everywhere."] = "Carattere cambiato. Serve /reload per applicarlo ovunque.",
     ["Reset to default"] = "Ripristina predefinito",
+    ["Rename..."] = "Rinomina...",
+    ["Rename loadout '%s'. Enter new name:"] = "Rinomina il loadout “%s”. Nuovo nome:",
+    ["A loadout named '%s' already exists."] = "Esiste già un loadout chiamato “%s”.",
+    ["Loadout '%s' renamed to '%s'."] = "Loadout “%s” rinominato in “%s”.",
 } end)

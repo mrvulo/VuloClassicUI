@@ -2878,4 +2878,8 @@ ns:RegisterLocale("ptBR", function() return {
     ["Resource Colors"] = "Cores de recursos",
     ["Font changed. /reload required to apply it everywhere."] = "Fonte alterada. É preciso /reload para aplicá-la em toda parte.",
     ["Reset to default"] = "Redefinir para o padrão",
+    ["Rename..."] = "Renomear...",
+    ["Rename loadout '%s'. Enter new name:"] = "Renomear o conjunto “%s”. Novo nome:",
+    ["A loadout named '%s' already exists."] = "Já existe um conjunto chamado “%s”.",
+    ["Loadout '%s' renamed to '%s'."] = "Conjunto “%s” renomeado para “%s”.",
 } end)

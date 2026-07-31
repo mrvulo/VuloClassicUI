@@ -3027,4 +3027,8 @@ ns:RegisterLocale("frFR", function() return {
     ["Resource Colors"] = "Couleurs de ressources",
     ["Font changed. /reload required to apply it everywhere."] = "Police modifiée. /reload nécessaire pour l'appliquer partout.",
     ["Reset to default"] = "Réinitialiser par défaut",
+    ["Rename..."] = "Renommer...",
+    ["Rename loadout '%s'. Enter new name:"] = "Renommer l'ensemble « %s ». Nouveau nom :",
+    ["A loadout named '%s' already exists."] = "Un ensemble nommé « %s » existe déjà.",
+    ["Loadout '%s' renamed to '%s'."] = "Ensemble « %s » renommé en « %s ».",
 } end)
