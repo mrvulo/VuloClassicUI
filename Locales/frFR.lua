@@ -3117,4 +3117,8 @@ ns:RegisterLocale("frFR", function() return {
     ["Draws a thin vertical line at the given percent of the health bar — an execute marker."] = "Trace une fine ligne verticale au pourcentage indiqué de la barre de vie — un repère d'exécution.",
     ["Line position (%)"] = "Position de la ligne (%)",
     ["Only on your target"] = "Seulement sur votre cible",
+    ["Original"] = "Original",
+    ["Spell name"] = "Nom du sort",
+    ["Colour the last tick"] = "Colorer le dernier tic",
+    ["Show latency text"] = "Afficher le texte de latence",
 } end)

@@ -2968,4 +2968,8 @@ ns:RegisterLocale("itIT", function() return {
     ["Draws a thin vertical line at the given percent of the health bar — an execute marker."] = "Disegna una sottile linea verticale alla percentuale indicata della barra della salute — un segno di esecuzione.",
     ["Line position (%)"] = "Posizione della linea (%)",
     ["Only on your target"] = "Solo sul tuo bersaglio",
+    ["Original"] = "Original",
+    ["Spell name"] = "Nome dell'incantesimo",
+    ["Colour the last tick"] = "Colora l'ultimo tick",
+    ["Show latency text"] = "Mostra il testo della latenza",
 } end)

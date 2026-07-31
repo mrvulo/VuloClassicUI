@@ -2968,4 +2968,8 @@ ns:RegisterLocale("ruRU", function() return {
     ["Draws a thin vertical line at the given percent of the health bar — an execute marker."] = "Рисует тонкую вертикальную линию на заданном проценте полосы здоровья — отметка казни.",
     ["Line position (%)"] = "Положение линии (%)",
     ["Only on your target"] = "Только на вашей цели",
+    ["Original"] = "Оригинал",
+    ["Spell name"] = "Название заклинания",
+    ["Colour the last tick"] = "Окрашивать последний тик",
+    ["Show latency text"] = "Показывать текст задержки",
 } end)

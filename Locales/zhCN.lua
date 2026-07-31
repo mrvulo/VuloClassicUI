@@ -2961,4 +2961,8 @@ ns:RegisterLocale("zhCN", function() return {
     ["Draws a thin vertical line at the given percent of the health bar — an execute marker."] = "在血条的指定百分比处绘制一条细竖线——斩杀标记。",
     ["Line position (%)"] = "线的位置(%)",
     ["Only on your target"] = "仅限你的目标",
+    ["Original"] = "原版",
+    ["Spell name"] = "法术名称",
+    ["Colour the last tick"] = "为最后一跳着色",
+    ["Show latency text"] = "显示延迟文本",
 } end)

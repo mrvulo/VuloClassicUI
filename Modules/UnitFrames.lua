@@ -834,6 +834,15 @@ local mod = ns:RegisterModule("playercastbar", {
         channelColor  = { r = 0.608, g = 0.424, b = 1.000, a = 1.00 },
         successColor  = { r = 0.40, g = 0.85, b = 0.40, a = 1.00 },
         failColor     = { r = 0.90, g = 0.25, b = 0.25, a = 1.00 },
+
+        -- The modern-mode engine features (31.07.2026); all inert by default,
+        -- so the two established modes render exactly as before.
+        barTexture    = "",      -- shared-media statusbar name; "" = built-in art
+        borderSize    = 0,
+        borderColor   = { r = 0, g = 0, b = 0 },
+        lastTickOn    = false,
+        lastTickColor = { r = 0.85, g = 0.70, b = 0.10 },
+        latencyText   = false,
     },
 })
 
@@ -1224,12 +1233,14 @@ local function c_hideAllTicks()
         cFrame.ticks[i]:ClearAllPoints()
     end
     if cFrame.clip then cFrame.clip:Hide() end
+    if cFrame.clipText then cFrame.clipText:Hide() end
 end
 
 local function c_showClip(duration, atRight)
     if not (cFrame and cFrame.bar) then return end
     if not (mod.db.showClipMarker and duration and duration > 0) then
         if cFrame.clip then cFrame.clip:Hide() end
+        if cFrame.clipText then cFrame.clipText:Hide() end
         return
     end
     if not cFrame.clip then
@@ -1252,6 +1263,25 @@ local function c_showClip(duration, atRight)
     end
     cFrame.clip:SetSize(barW * frac, barH)
     cFrame.clip:Show()
+    -- The measured window in milliseconds beside the shaded zone (modern
+    -- mode); hidden whenever the zone is.
+    if mod.db.latencyText then
+        if not cFrame.clipText then
+            cFrame.clipText = cFrame.bar:CreateFontString(nil, "OVERLAY")
+            if ns.UI and ns.UI.Font then ns.UI.Font(cFrame.clipText, 9, "OUTLINE") end
+            cFrame.clipText:SetTextColor(1, 0.82, 0.20)
+        end
+        cFrame.clipText:ClearAllPoints()
+        if atRight then
+            cFrame.clipText:SetPoint("RIGHT", cFrame.clip, "LEFT", -2, 0)
+        else
+            cFrame.clipText:SetPoint("LEFT", cFrame.clip, "RIGHT", 2, 0)
+        end
+        cFrame.clipText:SetFormattedText("%d ms", clipSeconds(atRight) * 1000 + 0.5)
+        cFrame.clipText:Show()
+    elseif cFrame.clipText then
+        cFrame.clipText:Hide()
+    end
 end
 
 local function c_showTicks(count)
@@ -1274,7 +1304,14 @@ local function c_showTicks(count)
             t:SetWidth(2)
             cFrame.ticks[i] = t
         end
-        t:SetColorTexture(1, 1, 1, 0.7)
+        -- The LAST tick may carry its own colour (modern mode): it is the one
+        -- worth watching -- clipping past it costs the final tick.
+        local lc = (mod.db.lastTickOn and i == linesToDraw) and mod.db.lastTickColor or nil
+        if lc then
+            t:SetColorTexture(lc.r, lc.g, lc.b, 0.9)
+        else
+            t:SetColorTexture(1, 1, 1, 0.7)
+        end
         t:SetHeight(tickH)
         t:ClearAllPoints()
         t:SetPoint("CENTER", cFrame.bar, "LEFT", barW * (i / count), 0)
@@ -1290,16 +1327,38 @@ end
 -- Near-white base for the tintable fill modes; the yellow/green art muddies any color multiplied onto it.
 local TEX_NEUTRAL = "Interface\\AddOns\\VuloClassicUI\\Media\\textures\\matte"
 
+-- Solid edges around the whole bar, the power-bar recipe; size 0 keeps them
+-- hidden, which is what the two established modes ship with.
+local function c_applyBorder()
+    if not cFrame then return end
+    if not cFrame.edges then
+        if (mod.db.borderSize or 0) <= 0 then return end
+        cFrame.edges = ns.MakeEdges(cFrame, "OVERLAY")
+    end
+    local c = mod.db.borderColor or { r = 0, g = 0, b = 0 }
+    ns.LayoutEdges(cFrame.edges, cFrame, mod.db.borderSize or 0, c.r, c.g, c.b, 1, 0)
+end
+
+-- A chosen shared-media texture beats the built-in art in EVERY fill mode;
+-- "" keeps the classic look.
+local function c_lsmTexture()
+    local name = mod.db.barTexture
+    if name and name ~= "" and ns.MediaStatusbar then
+        return ns.MediaStatusbar(name)
+    end
+end
+
 local function c_applyFill(isChannel)
     if not (cFrame and cFrame.bar) then return end
+    c_applyBorder()
     local fm = mod.db.fillMode or "texture"
     if fm == "texture" then
-        cFrame.bar:SetStatusBarTexture(isChannel and TEX_CHANNEL or TEX_FILL)
+        cFrame.bar:SetStatusBarTexture(c_lsmTexture() or (isChannel and TEX_CHANNEL or TEX_FILL))
         if cFrame._applyMask then cFrame._applyMask() end
         c_applyColor({ r = 1, g = 1, b = 1, a = 1 })
         return
     end
-    cFrame.bar:SetStatusBarTexture(TEX_NEUTRAL)
+    cFrame.bar:SetStatusBarTexture(c_lsmTexture() or TEX_NEUTRAL)
     local t = cFrame.bar:GetStatusBarTexture()
     if t then
         if t.SetHorizTile then t:SetHorizTile(false) end
@@ -1602,7 +1661,7 @@ function Custom:Enable()
         c_eventFrame:RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_STOP",   "player")
 
         c_eventFrame:SetScript("OnEvent", function(_, event, unit, castGUIDorSpellID, spellID)
-            if unit ~= "player" or not mod._enabled or mod.db.mode ~= "custom" then return end
+            if unit ~= "player" or not mod._enabled or (mod.db.mode ~= "custom" and mod.db.mode ~= "modern") then return end
 
             if event == "UNIT_SPELLCAST_START" then
                 c_startCast(false)
@@ -1652,7 +1711,7 @@ function Custom:Enable()
         if not b._vcui_hideHooked then
             b._vcui_hideHooked = true
             b:HookScript("OnShow", function(self)
-                if mod._enabled and mod.db.mode == "custom" then self:Hide() end
+                if mod._enabled and (mod.db.mode == "custom" or mod.db.mode == "modern") then self:Hide() end
             end)
         end
     end
@@ -1706,7 +1765,7 @@ end
 -- Keeps its own end-time snapshots: event order between this and the mode handlers is undefined.
 local function showPushback(txt)
     if mod.db.showPushback == false then return end
-    if mod.db.mode == "custom" then
+    if (mod.db.mode == "custom" or mod.db.mode == "modern") then
         if cFrame and cFrame.pushText and cFrame:IsShown() then
             cFrame.pushText:SetText(txt)
             cFrame.pushText:SetAlpha(1)
@@ -1759,7 +1818,7 @@ local function ensureTracker()
                     craftSeries = nil
                 end
                 -- The custom bar may have painted its label before this handler ran, so repaint it.
-                if mod.db.mode == "custom" and cFrame and castInfo
+                if (mod.db.mode == "custom" or mod.db.mode == "modern") and cFrame and castInfo
                    and not castInfo.isChannel and mod.db.showSpellName then
                     cFrame.nameText:SetText(seriesLabel(name) or name)
                 end
@@ -1786,7 +1845,10 @@ local function ensureTracker()
 end
 
 local function switchMode(newMode)
-    if newMode ~= "blizzard" and newMode ~= "custom" then return end
+    -- "modern" runs on the SAME engine as "custom" (the VUI bar) -- the mode
+    -- exists so its options page can grow the reference-style surface without
+    -- touching the custom mode's familiar one.
+    if newMode ~= "blizzard" and newMode ~= "custom" and newMode ~= "modern" then return end
     mod.db.mode = newMode
 
     if newMode == "blizzard" then
@@ -1817,7 +1879,7 @@ function mod:OnEnable()
         mod.db.accentColor = { r = 0.608, g = 0.424, b = 1.000, a = 0.90 }
     end
 
-    if mod.db.mode == "custom" then
+    if (mod.db.mode == "custom" or mod.db.mode == "modern") then
         Custom:Enable()
     else
         Blizzard:Enable()
@@ -1829,10 +1891,164 @@ function mod:OnDisable()
     Blizzard:Disable()
 end
 
+-- ---------------------------------------------------------------------------
+-- Options-page live preview: a mock castbar pinned above the scroll area,
+-- styled from the same db keys the real bar reads -- fill and timer are fake
+-- (2.5 of 3.0 seconds), so there is something to see without casting.
+
+local pv
+
+local function pvStyle()
+    if not (pv and pv:IsVisible()) then return end
+    local d = mod.db
+    local hostW = pv:GetWidth() or 500
+    local w = math.min(d.width or 240, math.max(160, hostW - 60))
+    local h = math.min(d.height or 18, 30)
+    pv.holder:SetSize(w, h)
+    -- Mirrors c_applyFill: a chosen shared-media texture beats the built-in
+    -- art in every fill mode; the fill colour follows the mode.
+    local lsm
+    if d.barTexture and d.barTexture ~= "" and ns.MediaStatusbar then
+        lsm = ns.MediaStatusbar(d.barTexture)
+    end
+    local fm = d.fillMode or "texture"
+    if fm == "texture" then
+        pv.bar:SetStatusBarTexture(lsm or TEX_FILL)
+        pv.bar:SetStatusBarColor(1, 1, 1)
+    else
+        pv.bar:SetStatusBarTexture(lsm or TEX_NEUTRAL)
+        local c
+        if fm == "class" then
+            local _, token = UnitClass("player")
+            c = token and _G.RAID_CLASS_COLORS and _G.RAID_CLASS_COLORS[token]
+        end
+        c = c or d.accentColor or { r = 0.608, g = 0.424, b = 1 }
+        pv.bar:SetStatusBarColor(c.r, c.g, c.b)
+    end
+    pv.bar:SetMinMaxValues(0, 3)
+    pv.bar:SetValue(2.5)
+    pv.bg:SetColorTexture(0.05, 0.05, 0.06, 0.85)
+    -- the modern border, same recipe as the real bar
+    if not pv.edges then pv.edges = ns.MakeEdges(pv.holder, "OVERLAY") end
+    local bc = d.borderColor or { r = 0, g = 0, b = 0 }
+    ns.LayoutEdges(pv.edges, pv.holder, d.borderSize or 0, bc.r, bc.g, bc.b, 1, 0)
+    pv.icon:SetShown(d.showIcon ~= false)
+    pv.icon:SetSize(h, h)
+    if ns.UI and ns.UI.Font then
+        ns.UI.Font(pv.name, 11, "OUTLINE")
+        ns.UI.Font(pv.timer, 11, "OUTLINE")
+    end
+    pv.name:SetShown(d.showSpellName ~= false)
+    pv.timer:SetShown(d.showTimeText ~= false)
+    pv.timer:SetText(d.timeTextMode == "seconds" and "3"
+        or d.timeTextMode == "remaining" and "2.5" or "2.5 / 3.0")
+end
+
+function mod.BuildPreview(host)
+    -- Only for the modern (VUI-style) bar (user request, 31.07.2026): in
+    -- Original mode the Blizzard bar is the look, and previewing it here
+    -- would promise styling the mode does not offer. 0 hides the header.
+    if (mod.db.mode ~= "custom" and mod.db.mode ~= "modern") then
+        if pv then pv:Hide() end
+        return 0
+    end
+    if not pv then
+        pv = CreateFrame("Frame", nil, host)
+        pv.holder = CreateFrame("Frame", nil, pv)
+        pv.holder:SetPoint("CENTER", pv, "CENTER", 8, 0)
+        pv.bg = pv.holder:CreateTexture(nil, "BACKGROUND")
+        pv.bg:SetAllPoints(pv.holder)
+        pv.bar = CreateFrame("StatusBar", nil, pv.holder)
+        pv.bar:SetAllPoints(pv.holder)
+        pv.icon = pv.holder:CreateTexture(nil, "ARTWORK")
+        pv.icon:SetPoint("RIGHT", pv.holder, "LEFT", -3, 0)
+        pv.icon:SetTexture("Interface\\Icons\\Spell_Fire_FlameBolt")
+        pv.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+        pv.name = pv.bar:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+        pv.name:SetPoint("LEFT", pv.bar, "LEFT", 4, 0)
+        pv.name:SetText(L["Spell name"])
+        pv.timer = pv.bar:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+        pv.timer:SetPoint("RIGHT", pv.bar, "RIGHT", -4, 0)
+
+        -- Click-to-navigate (user request, 31.07.2026): this page announces
+        -- its groups with plain HEADER rows, not sections, so the jump scans
+        -- header widgets -- the sibling of the nameplate preview's section
+        -- scan. Matches raw and upper-cased text, whichever the widget shows.
+        local function scrollToHeader(title)
+            local UIW = ns.UI
+            local mf = UIW and UIW.mainFrame
+            local sc, sf = mf and mf.scrollChild, mf and mf.scroll
+            if not (sc and sf) then return end
+            local up = string.upper(title)
+            for _, child in ipairs({ sc:GetChildren() }) do
+                -- headers on the classic pages, section widgets on the modern
+                if child._vcType == "header" or child._vcType == "collapsible" then
+                    for _, r in ipairs({ child:GetRegions() }) do
+                        if r.GetText then
+                            local t = r:GetText()
+                            if t == title or t == up then
+                                local top, scTop = child:GetTop(), sc:GetTop()
+                                if top and scTop then
+                                    local off = scTop - top - 4
+                                    local max = (sc:GetHeight() or 0) - (sf:GetHeight() or 0)
+                                    if max < 0 then max = 0 end
+                                    if off < 0 then off = 0 elseif off > max then off = max end
+                                    sf:SetVerticalScroll(off)
+                                end
+                                return
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        -- Title resolved at CLICK time: the target differs per mode (modern
+        -- has its own sections, the VUI mode its headers).
+        local function makeZone(region, titleFn)
+            local z = CreateFrame("Button", nil, pv)
+            z:SetAllPoints(region)
+            z:SetFrameLevel((pv.holder:GetFrameLevel() or 1) + 10)
+            local hl = z:CreateTexture(nil, "HIGHLIGHT")
+            hl:SetAllPoints(z)
+            hl:SetColorTexture(1, 1, 1, 0.08)
+            z:SetScript("OnClick", function() scrollToHeader(titleFn()) end)
+            ns.UI:AttachTooltip(z, function()
+                return { title = titleFn(),
+                    lines = { { L["Click: open these settings"], 0.7, 0.7, 0.75 } } }
+            end)
+        end
+        makeZone(pv.icon, function()
+            return mod.db.mode == "modern" and L["Layout"] or L["VUI Style: Position & Size"]
+        end)
+        makeZone(pv.holder, function()
+            return mod.db.mode == "modern" and L["Display"] or L["General"]
+        end)
+
+        pv._acc = 0
+        pv:SetScript("OnUpdate", function(self, e)
+            self._acc = self._acc + e
+            if self._acc < 0.25 then return end
+            self._acc = 0
+            pvStyle()
+        end)
+    end
+    pv:SetParent(host)
+    pv:ClearAllPoints()
+    pv:SetPoint("TOPLEFT", host, "TOPLEFT", 14, -4)
+    pv:SetPoint("TOPRIGHT", host, "TOPRIGHT", -14, -4)
+    pv:SetHeight(44)
+    pv:Show()
+    pvStyle()
+    return 44
+end
+
 function mod:GetOptions()
     local items = {}
 
     table.insert(items, { type = "header", text = L["Mode"] })
+    -- The two-choice dropdown, back by request (31.07.2026) after a short
+    -- detour as a button pair. One addition over the original: the page
+    -- rebuilds on switch, so the mode's own sections appear immediately.
     table.insert(items, {
         type = "dropdown", label = L["Castbar Variant"],
         width = 320,
@@ -1840,6 +2056,7 @@ function mod:GetOptions()
         values = {
             { value = "blizzard", text = L["Original (Blizzard bar extended)"] },
             { value = "custom",   text = L["Custom Castbar (VUI style)"] },
+            { value = "modern",   text = L["Modern"] },
         },
         get = function() return mod.db.mode end,
         set = function(_, v)
@@ -1849,11 +2066,15 @@ function mod:GetOptions()
             else
                 ns:Print(L["Castbar mode switched to |cff9b6cffVUI Style|r."])
             end
+            if ns.UI then ns.UI:RebuildCurrentPage() end
         end,
     })
     table.insert(items, { type = "desc",
         text = L["|cffaaaaaaMode switch: A /reload may be required after switching so the default bar works normally again.|r"] })
 
+    -- Modern gets its own reference-grouped page below; the flat General
+    -- block belongs to the two established modes.
+    if mod.db.mode ~= "modern" then
     table.insert(items, { type = "spacer", height = 8 })
     table.insert(items, { type = "header", text = L["General"] })
 
@@ -1902,6 +2123,8 @@ function mod:GetOptions()
         get = function() return mod.db.mergeCrafts ~= false end,
         set = function(_, v) mod.db.mergeCrafts = v end,
     })
+
+    end
 
     if mod.db.mode == "custom" then
         table.insert(items, { type = "spacer", height = 8 })
@@ -1996,6 +2219,152 @@ function mod:GetOptions()
         } })
     end
 
+    -- The MODERN page: the same engine keys as the VUI mode, arranged the way
+    -- the reference groups them -- Layout, Display (fill colours as a swatch
+    -- run), Behaviour (ticks, the latency clip window, pushback). New visual
+    -- features (border style, bar texture, latency text) join here once the
+    -- engine grows them.
+    if mod.db.mode == "modern" then
+        table.insert(items, { type = "spacer", height = 8 })
+        table.insert(items, { type = "section", title = L["Layout"], items = {
+            { type = "group", layout = "row", gap = 8, items = {
+                { type = "button", label = L["Unlock / Test"], width = 130,
+                  onClick = function() c_setUnlocked(not mod.db.unlocked) end },
+                { type = "button", label = L["Center Position"], width = 170,
+                  onClick = function() mod.db.x = 0; mod.db.y = -180; c_applyLayout() end },
+            } },
+            { type = "slider", label = L["Width"], min = 120, max = 400, step = 5,
+              get = function() return mod.db.width end,
+              set = function(_, v) mod.db.width = v; c_applyLayout() end },
+            { type = "slider", label = L["Height"], min = 12, max = 36, step = 1,
+              get = function() return mod.db.height end,
+              set = function(_, v) mod.db.height = v; c_applyLayout() end },
+            { type = "toggle", label = L["Show icon"],
+              get = function() return mod.db.showIcon end,
+              set = function(_, v)
+                  mod.db.showIcon = v
+                  if cFrame then cFrame.setIconShown(v) end
+              end,
+              subOptions = {
+                  { type = "slider", label = L["Icon Size"], min = 16, max = 48, step = 1,
+                    get = function() return mod.db.iconSize end,
+                    set = function(_, v) mod.db.iconSize = v; c_applyLayout() end },
+                  { type = "slider", label = L["Icon gap"], min = 0, max = 20, step = 1,
+                    tooltip = L["Distance between the icon and the bar."],
+                    get = function() return mod.db.iconGap or 3 end,
+                    set = function(_, v) mod.db.iconGap = v; c_applyLayout() end },
+                  { type = "slider", label = L["Icon X Offset"], min = -100, max = 100, step = 1,
+                    get = function() return mod.db.iconX or 0 end,
+                    set = function(_, v) mod.db.iconX = v; c_applyLayout() end },
+                  { type = "slider", label = L["Icon Y Offset"], min = -50, max = 50, step = 1,
+                    get = function() return mod.db.iconY or 0 end,
+                    set = function(_, v) mod.db.iconY = v; c_applyLayout() end },
+              } },
+        } })
+        table.insert(items, { type = "section", title = L["Display"], items = {
+            { type = "dropdown", label = L["Fill color"], width = 280,
+              tooltip = L["Bar textures = the classic yellow/green art. Accent or class color tint a neutral bar instead."],
+              values = {
+                  { value = "texture", text = L["Bar textures (yellow/green)"] },
+                  { value = "accent",  text = L["Accent color"] },
+                  { value = "class",   text = L["Class color"] },
+              },
+              get = function() return mod.db.fillMode or "texture" end,
+              set = function(_, v)
+                  mod.db.fillMode = v
+                  if cFrame and cFrame:IsShown() then
+                      if castInfo then c_applyFill(castInfo.isChannel)
+                      elseif mod.db.unlocked then c_showTestContent() end
+                  end
+              end },
+            { type = "color", label = L["Accent colour"],
+              tooltip = L["Used for the bar while the fill mode is not a texture, and for channelled casts on Blizzard's own castbar."],
+              get = function() return mod.db.accentColor end,
+              set = function(r, g, b)
+                  local a = (mod.db.accentColor and mod.db.accentColor.a) or 0.90
+                  mod.db.accentColor = { r = r, g = g, b = b, a = a }
+                  c_applyFill(false)
+              end },
+            { type = "color", label = L["Cast finished"],
+              tooltip = L["The bar flashes in this colour when a cast completes."],
+              get = function() return mod.db.successColor end,
+              set = function(r, g, b) mod.db.successColor = { r = r, g = g, b = b, a = 1 } end },
+            { type = "color", label = L["Cast interrupted"],
+              tooltip = L["The bar flashes in this colour when a cast is interrupted or fails."],
+              get = function() return mod.db.failColor end,
+              set = function(r, g, b) mod.db.failColor = { r = r, g = g, b = b, a = 1 } end },
+            { type = "dropdown", label = L["Bar texture"], width = 280,
+              values = (function()
+                  local vals = { { value = "", text = L["Bar textures (yellow/green)"] } }
+                  for _, v in ipairs(ns.MediaStatusbarValues and ns.MediaStatusbarValues() or {}) do
+                      vals[#vals + 1] = v
+                  end
+                  return vals
+              end)(),
+              get = function() return mod.db.barTexture or "" end,
+              set = function(_, v)
+                  mod.db.barTexture = v
+                  if cFrame and cFrame:IsShown() then
+                      if castInfo then c_applyFill(castInfo.isChannel)
+                      elseif mod.db.unlocked then c_showTestContent() end
+                  end
+              end },
+            { type = "slider", label = L["Border thickness (px)"], min = 0, max = 4, step = 1,
+              get = function() return mod.db.borderSize or 0 end,
+              set = function(_, v) mod.db.borderSize = v; c_applyBorder() end },
+            { type = "color", label = L["Border colour"],
+              get = function() return mod.db.borderColor end,
+              set = function(r, g, b) mod.db.borderColor = { r = r, g = g, b = b }; c_applyBorder() end },
+            { type = "toggle", label = L["Show spell name"],
+              get = function() return mod.db.showSpellName end,
+              set = function(_, v) mod.db.showSpellName = v end },
+            { type = "toggle", label = L["Show cast timer"],
+              get = function() return mod.db.showTimeText end,
+              set = function(_, v) mod.db.showTimeText = v end,
+              subOptions = {
+                  { type = "dropdown", label = L["Timer format"], width = 280,
+                    values = {
+                        { value = "both",      text = L["Remaining / total (1.5 / 2.0)"] },
+                        { value = "remaining", text = L["Remaining only (1.5)"] },
+                        { value = "seconds",   text = L["Whole seconds (2)"] },
+                    },
+                    get = function() return mod.db.timeTextMode or "both" end,
+                    set = function(_, v) mod.db.timeTextMode = v end },
+              } },
+        } })
+        table.insert(items, { type = "section", title = L["Behaviour"], items = {
+            { type = "toggle", label = L["Show channel ticks"],
+              tooltip = L["Shows vertical lines at tick points (Mind Flay, Drain Soul, Hellfire, etc.)"],
+              get = function() return mod.db.showTicks end,
+              set = function(_, v) mod.db.showTicks = v end,
+              subOptions = {
+                  { type = "checkbox", label = L["Colour the last tick"],
+                    get = function() return mod.db.lastTickOn end,
+                    set = function(_, v) mod.db.lastTickOn = v end },
+                  { type = "color", label = L["Mark colour"],
+                    get = function() return mod.db.lastTickColor end,
+                    set = function(r, g, b) mod.db.lastTickColor = { r = r, g = g, b = b } end },
+              } },
+            { type = "toggle", label = L["Show clip window"],
+              tooltip = L["Shades your latency at the end of the bar: on channels the moment to recast without losing the last tick, on casts the spell-queue window where the next cast can already be pressed."],
+              get = function() return mod.db.showClipMarker end,
+              set = function(_, v) mod.db.showClipMarker = v end,
+              subOptions = {
+                  { type = "checkbox", label = L["Show latency text"],
+                    get = function() return mod.db.latencyText end,
+                    set = function(_, v) mod.db.latencyText = v end },
+              } },
+            { type = "toggle", label = L["Show pushback"],
+              tooltip = L["Briefly shows the time lost to spell pushback in red above the bar."],
+              get = function() return mod.db.showPushback ~= false end,
+              set = function(_, v) mod.db.showPushback = v end },
+            { type = "toggle", label = L["Merge crafting casts"],
+              tooltip = L["When crafting several items in a row the bar shows a counter like 3/20 instead of single casts."],
+              get = function() return mod.db.mergeCrafts ~= false end,
+              set = function(_, v) mod.db.mergeCrafts = v end },
+        } })
+    end
+
     -- Swing timer is a hidden module; embedding its options here avoids a second sidebar entry.
     local sw = ns.modules and ns.modules.swingtimer
     if sw and sw.GetOptions and sw.db then
@@ -2014,7 +2383,7 @@ ns:RegisterSlash({ key = "CASTBARTEST", commands = { "/scttest" },
     module = "playercastbar",
 })
 ns.Slash.CASTBARTEST = function()
-    if mod.db.mode == "custom" then
+    if (mod.db.mode == "custom" or mod.db.mode == "modern") then
         c_setUnlocked(not mod.db.unlocked)
     else
         ns:Print(L["Test only available in 'Custom Castbar' mode."])
@@ -2640,11 +3009,21 @@ ns.Slash.COOLDOWNPULSE = function() ns.Slash.OPTIONS("cooldownpulse") end
 -- ns.moduleOrder at call time -- every member registers in the capsules above,
 -- so the merge made the ordering self-contained. A member moved OUT of this
 -- file must load before it in the TOC, or its tab silently vanishes.
-ns:MakeGroupContainer({
+local ufc = ns:MakeGroupContainer({
     key      = "unitframesgroup",
     name     = "Unit Frames",
     group    = "Unit Frames",
     firstKey = "unitframes",
     exclude  = { nameplates = true },
 })
+
+-- The player-castbar tab pins its live preview above the scroll area; the
+-- castbar capsule owns the widget, this is just the hand-over.
+function ufc.BuildPageHeader(host, tabId)
+    if tabId == "playercastbar" then
+        local m = ns.modules and ns.modules.playercastbar
+        if m and m.BuildPreview then return m.BuildPreview(host) end
+    end
+    return 0
+end
 end)(...);

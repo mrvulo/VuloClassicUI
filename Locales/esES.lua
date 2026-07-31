@@ -2969,6 +2969,10 @@ local function T() return {
     ["Draws a thin vertical line at the given percent of the health bar — an execute marker."] = "Dibuja una fina línea vertical en el porcentaje indicado de la barra de salud — un marcador de ejecución.",
     ["Line position (%)"] = "Posición de la línea (%)",
     ["Only on your target"] = "Solo en tu objetivo",
+    ["Original"] = "Original",
+    ["Spell name"] = "Nombre del hechizo",
+    ["Colour the last tick"] = "Colorear el último tic",
+    ["Show latency text"] = "Mostrar texto de latencia",
 } end
 
 ns:RegisterLocale("esES", T)

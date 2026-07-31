@@ -3090,4 +3090,8 @@ ns:RegisterLocale("deDE", function() return {
     ["Draws a thin vertical line at the given percent of the health bar — an execute marker."] = "Zeichnet eine dünne senkrechte Linie beim angegebenen Prozentwert der Gesundheitsleiste — eine Hinrichtungs-Markierung.",
     ["Line position (%)"] = "Position der Linie (%)",
     ["Only on your target"] = "Nur bei deinem Ziel",
+    ["Original"] = "Original",
+    ["Spell name"] = "Zaubername",
+    ["Colour the last tick"] = "Letzten Tick einfärben",
+    ["Show latency text"] = "Latenztext anzeigen",
 } end)

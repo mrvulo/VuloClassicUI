@@ -2968,4 +2968,8 @@ ns:RegisterLocale("koKR", function() return {
     ["Draws a thin vertical line at the given percent of the health bar — an execute marker."] = "생명력 막대의 지정 퍼센트 위치에 가는 세로선을 그립니다 — 처형 기준선입니다.",
     ["Line position (%)"] = "선 위치(%)",
     ["Only on your target"] = "내 대상에만",
+    ["Original"] = "기본형",
+    ["Spell name"] = "주문 이름",
+    ["Colour the last tick"] = "마지막 틱 색상 적용",
+    ["Show latency text"] = "지연 시간 텍스트 표시",
 } end)
