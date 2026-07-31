@@ -1226,6 +1226,20 @@ local cFrame
 local castInfo
 local c_showTestContent   -- forward declaration: the mover's editPreview closes over this
 
+-- Puts the rounded end-cap mask on or takes it off a region, tracked per
+-- object: modern is a plain rectangle, the established modes wear the mask,
+-- and the user can switch between them without a /reload.
+local function c_setRegionMask(region, want)
+    if not (cFrame and cFrame._mask and region and region.AddMaskTexture) then return end
+    if want and not region._vcui_masked then
+        region:AddMaskTexture(cFrame._mask)
+        region._vcui_masked = true
+    elseif not want and region._vcui_masked then
+        region:RemoveMaskTexture(cFrame._mask)
+        region._vcui_masked = nil
+    end
+end
+
 local function c_hideAllTicks()
     if not cFrame or not cFrame.ticks then return end
     for i = 1, #cFrame.ticks do
@@ -1246,11 +1260,10 @@ local function c_showClip(duration, atRight)
     if not cFrame.clip then
         cFrame.clip = cFrame.bar:CreateTexture(nil, "OVERLAY", nil, 6)
         cFrame.clip:SetColorTexture(1, 0.82, 0.20, 0.25)
-        -- Needs the fill's rounded-corner mask or the square block overhangs the end cap.
-        if cFrame._mask and cFrame.clip.AddMaskTexture then
-            cFrame.clip:AddMaskTexture(cFrame._mask)
-        end
     end
+    -- Needs the fill's rounded-corner mask or the square block overhangs the
+    -- end cap; modern has no cap, so there it stays bare.
+    c_setRegionMask(cFrame.clip, mod.db.mode ~= "modern")
     local barW = cFrame.bar:GetWidth(); if not barW or barW <= 1 then barW = mod.db.width or 240 end
     local barH = cFrame.bar:GetHeight(); if not barH or barH <= 1 then barH = mod.db.height or 18 end
     local frac = clipSeconds(atRight) / duration
@@ -1374,6 +1387,49 @@ local function c_applyFill(isChannel)
     c_applyColor({ r = c.r, g = c.g, b = c.b, a = 1 })
 end
 
+-- Modern wears the flat preview look (user request, 31.07.2026): spell name
+-- and timer ON the bar, plain dark background, borderless icon, no spark.
+-- The two established modes keep their classic dress -- texts below the bar,
+-- Blizzard background art, 1px icon frame. Runs on create, layout changes
+-- and every mode switch.
+local function c_applySkin()
+    if not cFrame then return end
+    local modern = (mod.db.mode == "modern")
+    cFrame.nameText:ClearAllPoints()
+    cFrame.timeText:ClearAllPoints()
+    cFrame.nameText:SetWordWrap(false)
+    if modern then
+        cFrame.timeText:SetPoint("RIGHT", cFrame.bar, "RIGHT", -4, 0)
+        cFrame.nameText:SetPoint("LEFT", cFrame.bar, "LEFT", 4, 0)
+        -- capped at the timer so a long spell name truncates instead of
+        -- running underneath it (the timer keeps its anchor while hidden)
+        cFrame.nameText:SetPoint("RIGHT", cFrame.timeText, "LEFT", -4, 0)
+        if ns.UI and ns.UI.Font then
+            ns.UI.Font(cFrame.nameText, 11, "OUTLINE")
+            ns.UI.Font(cFrame.timeText, 11, "OUTLINE")
+        end
+        -- reset the classic dress's gray vertex tint first: it would multiply
+        -- into the flat color and turn the background pure black
+        cFrame.bg:SetVertexColor(1, 1, 1, 1)
+        cFrame.bg:SetColorTexture(0.05, 0.05, 0.06, 0.85)
+        cFrame.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+        cFrame.spark:Hide()
+    else
+        cFrame.nameText:SetPoint("TOPLEFT", cFrame, "BOTTOMLEFT", 2, -2)
+        cFrame.timeText:SetPoint("TOPRIGHT", cFrame, "BOTTOMRIGHT", -2, -2)
+        cFrame.nameText:SetFont("Fonts\\FRIZQT__.TTF", 11, "OUTLINE")
+        cFrame.timeText:SetFont("Fonts\\FRIZQT__.TTF", 11, "OUTLINE")
+        cFrame.bg:SetTexture(TEX_BG)
+        cFrame.bg:SetVertexColor(0.1, 0.1, 0.1, 0.85)
+        cFrame.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        -- a cast that is running through a modern->custom switch gets its
+        -- leading spark back (channels never show one)
+        cFrame.spark:SetShown(castInfo ~= nil and not castInfo.isChannel and not castInfo.fadeOut)
+    end
+    -- re-evaluates the icon frame: modern shows the icon without the 1px edges
+    cFrame.setIconShown(mod.db.showIcon)
+end
+
 local function c_create()
     if cFrame then return cFrame end
 
@@ -1436,10 +1492,12 @@ local function c_create()
 
     cFrame.setIconShown = function(state)
         cFrame.icon:SetShown(state)
-        cFrame.iconBorderT:SetShown(state)
-        cFrame.iconBorderB:SetShown(state)
-        cFrame.iconBorderL:SetShown(state)
-        cFrame.iconBorderR:SetShown(state)
+        -- the 1px frame belongs to the classic dress; modern is borderless
+        local edge = state and mod.db.mode ~= "modern"
+        cFrame.iconBorderT:SetShown(edge)
+        cFrame.iconBorderB:SetShown(edge)
+        cFrame.iconBorderL:SetShown(edge)
+        cFrame.iconBorderR:SetShown(edge)
     end
 
     cFrame.bar = CreateFrame("StatusBar", nil, cFrame)
@@ -1460,19 +1518,19 @@ local function c_create()
 
     local function applyMask()
         local fillTex = cFrame.bar:GetStatusBarTexture()
-        if fillTex and fillTex.AddMaskTexture then
-            if not cFrame._mask then
-                cFrame._mask = cFrame.bar:CreateMaskTexture()
-                cFrame._mask:SetTexture(TEX_MASK, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
-                cFrame._mask:SetAllPoints(cFrame.bar)
-                if cFrame.bg.AddMaskTexture then cFrame.bg:AddMaskTexture(cFrame._mask) end
-            end
-            -- The StatusBar reuses its texture object across SetStatusBarTexture, so mask once per object.
-            if not fillTex._vcui_masked then
-                fillTex:AddMaskTexture(cFrame._mask)
-                fillTex._vcui_masked = true
-            end
+        if fillTex and fillTex.AddMaskTexture and not cFrame._mask then
+            cFrame._mask = cFrame.bar:CreateMaskTexture()
+            cFrame._mask:SetTexture(TEX_MASK, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+            cFrame._mask:SetAllPoints(cFrame.bar)
         end
+        -- The StatusBar reuses its texture object across SetStatusBarTexture,
+        -- so the helper tracks each object; modern strips the mask everywhere
+        -- for its plain-rectangle look, the established modes wear it.
+        local want = mod.db.mode ~= "modern"
+        c_setRegionMask(fillTex, want)
+        c_setRegionMask(cFrame.bg, want)
+        c_setRegionMask(cFrame.pushFlash, want)
+        c_setRegionMask(cFrame.clip, want)
     end
     cFrame._applyMask = applyMask
     applyMask()
@@ -1483,13 +1541,21 @@ local function c_create()
     cFrame.spark:SetSize(16, mod.db.height + 8)
 
     local font = "Fonts\\FRIZQT__.TTF"
-    cFrame.nameText = cFrame:CreateFontString(nil, "OVERLAY")
+    -- The texts live on their own layer ABOVE the bar: cFrame's regions draw
+    -- under the child StatusBar, so on-bar texts (modern) would be buried
+    -- beneath the fill. Above the bar's ticks/clip too, so the name reads
+    -- over a crossing tick line instead of being cut by it.
+    cFrame.textFrame = CreateFrame("Frame", nil, cFrame.bar)
+    cFrame.textFrame:SetAllPoints(cFrame.bar)
+    cFrame.textFrame:SetFrameLevel(cFrame.bar:GetFrameLevel() + 2)
+
+    cFrame.nameText = cFrame.textFrame:CreateFontString(nil, "OVERLAY")
     cFrame.nameText:SetFont(font, 11, "OUTLINE")
     cFrame.nameText:SetPoint("TOPLEFT", cFrame, "BOTTOMLEFT", 2, -2)
     cFrame.nameText:SetJustifyH("LEFT")
     cFrame.nameText:SetTextColor(1, 1, 1)
 
-    cFrame.timeText = cFrame:CreateFontString(nil, "OVERLAY")
+    cFrame.timeText = cFrame.textFrame:CreateFontString(nil, "OVERLAY")
     cFrame.timeText:SetFont(font, 11, "OUTLINE")
     cFrame.timeText:SetPoint("TOPRIGHT", cFrame, "BOTTOMRIGHT", -2, -2)
     cFrame.timeText:SetJustifyH("RIGHT")
@@ -1504,9 +1570,7 @@ local function c_create()
     cFrame.pushFlash = cFrame.bar:CreateTexture(nil, "OVERLAY", nil, 5)
     cFrame.pushFlash:SetAllPoints(cFrame.bar)
     cFrame.pushFlash:SetColorTexture(1, 0.2, 0.2, 0.35)
-    if cFrame._mask and cFrame.pushFlash.AddMaskTexture then
-        cFrame.pushFlash:AddMaskTexture(cFrame._mask)
-    end
+    c_setRegionMask(cFrame.pushFlash, mod.db.mode ~= "modern")
     cFrame.pushFlash:Hide()
 
     cFrame.ticks = {}
@@ -1591,6 +1655,7 @@ local function c_create()
         end
     end)
 
+    c_applySkin()
     return cFrame
 end
 
@@ -1627,7 +1692,8 @@ local function c_startCast(isChannel)
         local dur = sMS and eMS and (eMS - sMS) / 1000
         c_hideAllTicks()
         c_showClip(dur, true)
-        cFrame.spark:Show()
+        -- the flat modern look has no spark
+        cFrame.spark:SetShown(mod.db.mode ~= "modern")
     end
 end
 
@@ -1732,6 +1798,7 @@ local function c_applyLayout()
     cFrame.icon:SetPoint("RIGHT", cFrame, "LEFT",
         -(mod.db.iconGap or 3) + (mod.db.iconX or 0), (mod.db.iconY or 0))
     cFrame.spark:SetHeight(mod.db.height + 8)
+    c_applySkin()
 end
 
 c_showTestContent = function()
@@ -1858,6 +1925,11 @@ local function switchMode(newMode)
     else
         Blizzard:Disable()
         Custom:Enable()
+        -- Redress a bar that already exists: custom<->modern switches swap the
+        -- whole skin (text anchors, mask, background) without a /reload.
+        c_applySkin()
+        if castInfo then c_applyFill(castInfo.isChannel)
+        elseif mod.db.unlocked then c_showTestContent() end
     end
 end
 
@@ -1945,10 +2017,10 @@ local function pvStyle()
 end
 
 function mod.BuildPreview(host)
-    -- Only for the modern (VUI-style) bar (user request, 31.07.2026): in
-    -- Original mode the Blizzard bar is the look, and previewing it here
-    -- would promise styling the mode does not offer. 0 hides the header.
-    if (mod.db.mode ~= "custom" and mod.db.mode ~= "modern") then
+    -- Modern only (user request, 31.07.2026): the mock IS the modern dress --
+    -- in the other two modes it would promise a look they do not render.
+    -- 0 hides the header.
+    if mod.db.mode ~= "modern" then
         if pv then pv:Hide() end
         return 0
     end
