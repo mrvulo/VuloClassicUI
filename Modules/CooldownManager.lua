@@ -348,6 +348,10 @@ local function rebuildKnownSpells()
     end
 end
 
+-- NOTE: e.off (parked in the tracked list) is deliberately NOT tested here.
+-- entryUsable feeds adoption and options-list visibility -- an off entry that
+-- stopped being "usable" fell out of the tracked list entirely and could
+-- never be re-enabled (review find). Parking is enforced where things RENDER.
 local function entryUsable(e)
     if e.kind ~= "spell" then return true end
     -- An entry stamped for another class is never usable here, whatever its
@@ -464,13 +468,21 @@ local function runScan(unit, filter)
     wipe(s.byName); wipe(s.byID)
     if not UnitExists(unit) then return end
     for i = 1, 40 do
-        local name, icon, count, _, duration, expiration, _, _, _, sid = UnitAura(unit, i, filter)
+        local name, icon, count, _, duration, expiration, caster, _, _, sid = UnitAura(unit, i, filter)
         if not name then break end
         local rec = s.pool[i]
         if not rec then rec = {}; s.pool[i] = rec end
         rec.dur, rec.exp, rec.count, rec.icon, rec.name = duration, expiration, count, icon, name
-        s.byName[name] = rec
-        if sid then s.byID[sid] = rec end
+        rec.mine = (caster == "player" or caster == "pet" or caster == "vehicle")
+        -- Same aura from two casters in one loose sweep: the player's own copy
+        -- wins the lookup slot, so an own-only entry never misses its aura
+        -- because a foreign copy happened to be scanned after it.
+        local old = s.byName[name]
+        if not old or (rec.mine and not old.mine) then s.byName[name] = rec end
+        if sid then
+            old = s.byID[sid]
+            if not old or (rec.mine and not old.mine) then s.byID[sid] = rec end
+        end
     end
 end
 
@@ -485,12 +497,34 @@ local function groupOwnOnly(group)
     return group.mode == "targetdebuff"
 end
 
+-- Per-entry override of the group switch (user request from the Titan report:
+-- track a Focus Magic someone casts ON you while the rest of the group stays
+-- own-only). nil inherits the group.
+local function entryOwnOnly(group, e)
+    if e and e.ownOnly ~= nil then return e.ownOnly end
+    return groupOwnOnly(group)
+end
+
+-- A group scans LOOSE (no |PLAYER) as soon as one entry may count foreign
+-- casts; entries that still want their own get that enforced per record at
+-- match time (rec.mine). All-own groups keep the cheap filtered sweep.
+local function groupNeedsLoose(group)
+    if not groupOwnOnly(group) then return true end
+    local es = group.entries
+    if es then
+        for i = 1, #es do
+            if es[i].ownOnly == false then return true end
+        end
+    end
+    return false
+end
+
 local function groupSource(group)
     local mode = group.mode
     local harmful = (mode == "targetdebuff")
     local unit = group.auraUnit or (harmful and "target" or "player")
     local filter = harmful and "HARMFUL" or "HELPFUL"
-    if groupOwnOnly(group) then filter = filter .. "|PLAYER" end
+    if not groupNeedsLoose(group) then filter = filter .. "|PLAYER" end
     return unit, filter
 end
 
@@ -986,7 +1020,7 @@ relayoutGroup = function(group)
             if f.procAnim and f.procAnim:IsPlaying() then f.procAnim:Stop() end
         end
         f.stack:Hide()
-        f.usable = entryUsable(e)
+        f.usable = entryUsable(e) and not e.off
         f:EnableMouse(group.showTooltips == true)
         f:SetSize(size, size)
         -- A running glow belongs to whatever this frame showed BEFORE the
@@ -1410,6 +1444,11 @@ refreshGroup = function(group, now)
             if f then
                 local e = f.entry
                 local rec = (e and byID[e.id]) or (f.entryName and byName[f.entryName])
+                -- Per-entry own-only: on a loose sweep a foreign cast is a
+                -- record like any other; for an entry that wants only its own
+                -- it counts as absent. On a |PLAYER sweep rec.mine is always
+                -- true, so this line costs nothing there.
+                if rec and not rec.mine and entryOwnOnly(group, e) then rec = nil end
                 -- cache name/icon on first sighting; missing mode has rec == nil and would stay "?" otherwise
                 if rec and e then
                     if rec.name and not e.savedName then e.savedName = rec.name end
@@ -1422,6 +1461,9 @@ refreshGroup = function(group, now)
                 if show and not invert and not entryPasses(e, rec, now) then show = false end
                 -- "show inactive" keeps expired buffs visible (greyed) so the layout never jumps
                 if not show and mode == "aura" and group.showInactive then show = true end
+                -- switched off in the tracked list: never shown, in any mode
+                -- (after showInactive, which would resurrect it)
+                if e and e.off then show = false end
                 if show then
                     active[#active + 1] = f
                     f._rec = rec
@@ -2071,9 +2113,11 @@ local function buildIconStrip(parent)
         if slot._mask and mask then
             slot._mask:SetTexture(mask, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
         end
-        -- own class but not (or no longer) in the spellbook: shown greyed
-        slot._icon:SetDesaturated(group.mode == "cooldown" and e.kind == "spell"
-                                  and not entryUsable(e) or false)
+        -- own class but not (or no longer) in the spellbook: shown greyed.
+        -- Parked entries (e.off) grey the same way, in every mode.
+        slot._icon:SetDesaturated(e.off == true
+                                  or (group.mode == "cooldown" and e.kind == "spell"
+                                      and not entryUsable(e)) or false)
         slot._count:SetText(e.auto and L["auto"] or "")
         slot:ClearAllPoints()
         -- wraps once a row is full; each row is centred like the picker above
@@ -2633,77 +2677,114 @@ function mod:GetOptions(tabId)
     if #visibleTracked == 0 then
         trackedItems[1] = { type = "desc", text = L["|cff888888Nothing in this group yet.|r"] }
     else
+        -- One PAIRABLE gear row per entry (user request from the Titan report:
+        -- two entries per line instead of one). The toggle parks an entry
+        -- without deleting it; everything an entry owns -- moving, removing,
+        -- conditions, the per-entry own-only override -- lives behind its
+        -- gear, so two rows fit where one desc+buttons strip used to sit.
         for pos, i in ipairs(visibleTracked) do
             local e = group.entries[i]
+            local entry = e
             local nm, icon = entryInfo(e)
             local label = (icon and ("|T" .. icon .. ":18:18:0:0:64:64:5:59:5:59|t  ") or "")
                 .. (nm or ("#" .. tostring(e.id)))
             if e.kind == "item" then label = label .. L["  |cff888888(item)|r"] end
             if e.auto then label = label .. " |cff888888(auto)|r" end
-            if group.mode == "cooldown" and e.kind == "spell" and not entryUsable(e) then
+            if group.mode == "cooldown" and e.kind == "spell" and not e.off and not entryUsable(e) then
                 label = label .. L["  |cffaa5555(other class)|r"]
             end
 
+            local subs = {}
+            if group.mode ~= "cooldown" then
+                -- reuses the group switch's label on purpose: same words, same
+                -- meaning, one level deeper
+                -- noOverride on every per-entry sub-row: they share their
+                -- labels with the group-level rows, and the talent-override
+                -- replay matches by LABEL -- a recorded group value would
+                -- otherwise replay onto every same-named per-entry row and
+                -- silently wipe the per-entry choices (review find).
+                subs[#subs + 1] = { type = "dropdown", label = L["Only what I cast myself"], width = 220,
+                    noOverride = true,
+                    tooltip = L["Overrides the group switch for this entry alone - e.g. to track a buff someone else casts on you."],
+                    values = {
+                        { value = "",     text = L["Group default"] },
+                        { value = "mine", text = L["Only mine"] },
+                        { value = "any",  text = L["Anyone's"] },
+                    },
+                    get = function()
+                        if entry.ownOnly == true then return "mine" end
+                        if entry.ownOnly == false then return "any" end
+                        return ""
+                    end,
+                    set = function(_, v)
+                        entry.ownOnly = (v == "mine") and true or ((v == "any") and false or nil)
+                        rebuildBars()
+                    end }
+            end
+            if group.mode == "aura" or group.mode == "targetdebuff" then
+                subs[#subs + 1] = { type = "toggle", label = L["Use conditions"],
+                    noOverride = true,
+                    tooltip = L["Narrows this icon to a number of stacks, or to the last seconds before it runs out."],
+                    get = function() return entry.cond == true end,
+                    set = function(_, v) entry.cond = v and true or nil end }
+                subs[#subs + 1] = { type = "slider", label = L["Only from stacks"], min = 0, max = 20, step = 1,
+                    noOverride = true,
+                    tooltip = L["0 = any number of stacks."],
+                    get = function() return entry.minStacks or 0 end,
+                    set = function(_, v) entry.minStacks = (v > 0) and v or nil end }
+                subs[#subs + 1] = { type = "slider", label = L["Only in the last seconds"], min = 0, max = 30, step = 1,
+                    noOverride = true,
+                    tooltip = L["0 = at any time. Otherwise the icon appears only this close to running out."],
+                    get = function() return entry.maxRemaining or 0 end,
+                    set = function(_, v) entry.maxRemaining = (v > 0) and v or nil end }
+            end
             -- swap with the neighbouring VISIBLE entry: with a hidden foreign
             -- entry in between, swapping real neighbours would look like the
             -- button did nothing
             local prevIdx = visibleTracked[pos - 1]
             local nextIdx = visibleTracked[pos + 1]
-            local rowItems = {
-                { type = "desc", text = label, width = 300 },
-                { type = "iconbutton", icon = ARROW_LEFT, width = 28, height = 28, iconInset = 7,
-                  tooltip = L["Move earlier"],
-                  onClick = function()
-                      if prevIdx then
-                          group.entries[i], group.entries[prevIdx] = group.entries[prevIdx], group.entries[i]
-                          relayoutGroup(group); rebuildPage()
-                      end
-                  end },
-                { type = "iconbutton", icon = ARROW_RIGHT, width = 28, height = 28, iconInset = 7,
-                  tooltip = L["Move later"],
-                  onClick = function()
-                      if nextIdx then
-                          group.entries[i], group.entries[nextIdx] = group.entries[nextIdx], group.entries[i]
-                          relayoutGroup(group); rebuildPage()
-                      end
-                  end },
-            }
+            if prevIdx then
+                subs[#subs + 1] = { type = "button", label = L["Move earlier"], width = 180, height = 26,
+                    onClick = function()
+                        group.entries[i], group.entries[prevIdx] = group.entries[prevIdx], group.entries[i]
+                        relayoutGroup(group); rebuildPage()
+                    end }
+            end
+            if nextIdx then
+                subs[#subs + 1] = { type = "button", label = L["Move later"], width = 180, height = 26,
+                    onClick = function()
+                        group.entries[i], group.entries[nextIdx] = group.entries[nextIdx], group.entries[i]
+                        relayoutGroup(group); rebuildPage()
+                    end }
+            end
             -- auto trinkets get no Remove: the sync would re-add them
             if not e.auto then
-                rowItems[#rowItems + 1] = { type = "button", label = L["Remove"], width = 110, height = 28,
-                  onClick = function()
-                      table.remove(group.entries, i); relayoutGroup(group); rebuildPage()
-                  end }
+                subs[#subs + 1] = { type = "button", label = L["Remove"], width = 180, height = 26,
+                    onClick = function()
+                        table.remove(group.entries, i); relayoutGroup(group); rebuildPage()
+                    end }
             end
-            trackedItems[#trackedItems + 1] = { type = "group", layout = "row", gap = 6, items = rowItems }
 
-            -- Conditions get their OWN compact row, because the row above is a
-            -- layout="row" group and PlaceGroup never draws a gear inside one.
-            -- Only in the two modes where an aura is actually present to
-            -- measure -- a missing buff has no stacks and no remaining time.
-            if group.mode == "aura" or group.mode == "targetdebuff" then
-                local entry = e
-                trackedItems[#trackedItems + 1] = {
-                    type = "checkbox",
-                    label = string.format(L["Conditions: %s"], nm or ("#" .. tostring(e.id))),
-                    -- every entry shows the same control; without subKey one
-                    -- gear would open all of them
-                    subKey = "cdcond/" .. tostring(group.id) .. "/" .. i,
-                    tooltip = L["Narrows this icon to a number of stacks, or to the last seconds before it runs out."],
-                    get = function() return entry.cond == true end,
-                    set = function(_, v) entry.cond = v and true or nil; rebuildPage() end,
-                    subOptions = {
-                        { type = "slider", label = L["Only from stacks"], min = 0, max = 20, step = 1,
-                          tooltip = L["0 = any number of stacks."],
-                          get = function() return entry.minStacks or 0 end,
-                          set = function(_, v) entry.minStacks = (v > 0) and v or nil end },
-                        { type = "slider", label = L["Only in the last seconds"], min = 0, max = 30, step = 1,
-                          tooltip = L["0 = at any time. Otherwise the icon appears only this close to running out."],
-                          get = function() return entry.maxRemaining or 0 end,
-                          set = function(_, v) entry.maxRemaining = (v > 0) and v or nil end },
-                    },
-                }
-            end
+            trackedItems[#trackedItems + 1] = {
+                type = "toggle",
+                label = label,
+                -- entry parking is user DATA, not a talent-dependent setting;
+                -- and the label (a spell name) repeats across groups
+                noOverride = true,
+                pairable = true,
+                -- every entry shows the same controls; without subKey one gear
+                -- would open all of them
+                subKey = "cdent/" .. tostring(group.id) .. "/" .. i,
+                tooltip = L["Unticked parks this entry: it keeps its settings but never shows. The gear holds moving, removing and per-entry settings."],
+                get = function() return not entry.off end,
+                set = function(_, v)
+                    entry.off = (not v) and true or nil
+                    rebuildBars()
+                end,
+                -- a lone auto entry in a cooldown group can end up with no
+                -- sub-rows at all; a gear that opens nothing must not exist
+                subOptions = (#subs > 0) and subs or nil,
+            }
         end
     end
     trackedItems[#trackedItems + 1] = { type = "spacer", height = 4 }

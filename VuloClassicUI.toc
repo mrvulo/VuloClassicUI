@@ -62,6 +62,7 @@ Modules\ActionBars.lua
 Modules\Reminders.lua
 Modules\Arena.lua
 Modules\CharacterPanel.lua
+Modules\TalentView.lua
 Modules\DarkSkin.lua
 Modules\FriendList.lua
 Modules\FlightTimesDB.lua

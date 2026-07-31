@@ -29,7 +29,44 @@ local BLIZZ = {
     { key = "minimap", name = "MinimapCluster", label = "MINIMAP" },
     { key = "buffs",   name = "BuffFrame",      label = "BUFFS"   },
 }
+-- The loot window is a `direct` frame: Blizzard's Edit Mode does not own it
+-- (HasEditModeSettings says no), so on an Edit-Mode client BOTH placement
+-- paths above fall through and the box would move nothing -- the reported
+-- state on Titan 3.80.2. Direct frames are unprotected, so they are placed
+-- straight onto UIParent from Lua. Wrath-family only: that is where the
+-- report came from, and the shipped TBC/Era variants keep their native loot
+-- behaviour (loot under mouse) untouched unless this ships for them one day.
+if ns.isWrath then
+    BLIZZ[#BLIZZ + 1] = { key = "loot", name = "LootFrame", label = "LOOT", direct = true }
+end
 local anchors = {}
+
+-- Direct placement for frames outside the Edit Mode system. Anchored to
+-- UIParent, never to an addon frame (the rule at the top of this file), and
+-- re-placed on every Show because FrameXML re-docks the loot window on each
+-- open (lootUnderMouse / the UIPanel manager). Once the player has chosen a
+-- spot the frame also leaves the UIPanel manager -- otherwise the next panel
+-- that opens would shove it back into the dock.
+local function applyDirect(def)
+    local frame = _G[def.name]
+    local fdb   = mod.db.frames[def.key]
+    if not (frame and fdb and fdb.placed) then return end
+    if _G.UIPanelWindows then _G.UIPanelWindows[def.name] = nil end
+    if frame.SetAttribute then pcall(frame.SetAttribute, frame, "UIPanelLayout-defined", false) end
+    pcall(frame.SetMovable, frame, true)
+    frame:ClearAllPoints()
+    frame:SetPoint("CENTER", UIParent, "CENTER", fdb.x or 0, fdb.y or 0)
+    if frame.HookScript and not frame._vcuiDirectHook then
+        frame._vcuiDirectHook = true
+        frame:HookScript("OnShow", function(f)
+            local d = mod.db.frames[def.key]
+            if d and d.placed then
+                f:ClearAllPoints()
+                f:SetPoint("CENTER", UIParent, "CENTER", d.x or 0, d.y or 0)
+            end
+        end)
+    end
+end
 
 local function rebuild()
     if ns.UI and ns.UI.BuildOptionsPage then
@@ -142,7 +179,9 @@ function ns:PrepareBlizzMovers()
         if frame and anchor then
             if fdb and fdb.placed then
                 placeAnchor(anchor, fdb.x, fdb.y)
-                if emReanchor(def) then any = true end
+                if def.direct then
+                    applyDirect(def)
+                elseif emReanchor(def) then any = true end
             else
                 -- unplaced: park the box over the frame, don't link (would yank it on login)
                 local x, y = centerOffset(frame)
@@ -217,7 +256,9 @@ function mod:OnEnable()
                 height = anchor:GetHeight(),
                 onMove = function()
                     fdb.placed = true
-                    if emClient() then
+                    if def.direct then
+                        applyDirect(def)
+                    elseif emClient() then
                         if emEnsure() and emReanchor(def) then emApplyDebounced() end
                         if mod._needsTargetFocusSetting and not mod._warnedTF then
                             mod._warnedTF = true
@@ -254,7 +295,10 @@ function mod:OnEnable()
             local fdb = mod.db.frames[def.key]
             if frame and anchor and fdb and fdb.placed then
                 placeAnchor(anchor, fdb.x, fdb.y)
-                if em then
+                if def.direct then
+                    -- login restore + wires the OnShow re-place hook
+                    applyDirect(def)
+                elseif em then
                     if (force or drifted(frame, fdb)) and ensured and emReanchor(def) then
                         any = true
                     end

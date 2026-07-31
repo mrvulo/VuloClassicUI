@@ -251,6 +251,14 @@ function ns:InitDB()
 
     VuloClassicUIDB.global = ns:ApplyDefaults(VuloClassicUIDB.global, ns.defaults.global)
 
+    -- The logout scrub parks its count here; saying it out loud is the whole
+    -- point — a player whose settings kept resetting needs to see the cause.
+    local scrubbed = tonumber(VuloClassicUIDB.global.scrubbedNonFinite)
+    if scrubbed and scrubbed > 0 then
+        note(L["%d broken numeric values were removed from the settings so they can be saved again."], scrubbed)
+        VuloClassicUIDB.global.scrubbedNonFinite = nil
+    end
+
     if not VuloClassicUIDB.profiles[DEFAULT_PROFILE] then
         VuloClassicUIDB.profiles[DEFAULT_PROFILE] = {}
     end
@@ -687,10 +695,64 @@ function ns:StripProfileDefaults()
     end
 end
 
+-- One non-finite number poisons the WHOLE account: the client serializes NaN
+-- and ±inf as tokens that are not valid Lua literals, the next load of the
+-- SavedVariables file fails as a unit, the client shelves it as .bak and every
+-- setting reverts to defaults. That is exactly the picture reported from the
+-- Titan client (3.80.2) after edit-mode sessions: save confirmed in-session,
+-- factory state after every /reload. The scrub runs at logout, BEFORE the file
+-- is written, so a bad value from any source (a division by a zero scale is
+-- the classic one) can never cost the account its settings. Values are removed
+-- rather than zeroed: ApplyDefaults refills the gap with the default on the
+-- next load, which is the honest outcome for a number that never meant
+-- anything. Keys are removed with their value — a NaN KEY breaks the file
+-- just the same.
+local function scrubNonFinite(t, seen)
+    if type(t) ~= "table" or seen[t] then return 0 end
+    seen[t] = true
+    local removed = 0
+    local badKeys
+    for k, v in pairs(t) do
+        -- Keys: only ±inf is possible here. A NaN KEY cannot exist in a Lua
+        -- table (inserting one throws), and deleting one would throw too
+        -- ("table index is NaN") -- so it is deliberately not tested for.
+        if type(k) == "number" and (k == math.huge or k == -math.huge) then
+            badKeys = badKeys or {}
+            badKeys[#badKeys + 1] = k
+        elseif type(v) == "number" and (v ~= v or v == math.huge or v == -math.huge) then
+            badKeys = badKeys or {}
+            badKeys[#badKeys + 1] = k
+        elseif type(v) == "table" then
+            removed = removed + scrubNonFinite(v, seen)
+        end
+    end
+    if badKeys then
+        for i = 1, #badKeys do t[badKeys[i]] = nil end
+        removed = removed + #badKeys
+    end
+    return removed
+end
+
+function ns:ScrubSavedVariables()
+    local n = 0
+    local seen = {}
+    n = n + scrubNonFinite(VuloClassicUIDB, seen)
+    n = n + scrubNonFinite(VuloClassicUICharDB, seen)
+    if n > 0 and VuloClassicUIDB and VuloClassicUIDB.global then
+        -- Printing here would vanish with the session; the count is parked and
+        -- reported at the NEXT login through the migration-notes channel, so
+        -- the player (and a bug report) can see that broken values existed.
+        VuloClassicUIDB.global.scrubbedNonFinite =
+            (VuloClassicUIDB.global.scrubbedNonFinite or 0) + n
+    end
+    return n
+end
+
 -- at logout the session is over — stripping the live tables is safe
 local logoutFrame = CreateFrame("Frame")
 logoutFrame:RegisterEvent("PLAYER_LOGOUT")
 logoutFrame:SetScript("OnEvent", function()
+    ns:ScrubSavedVariables()
     ns:StripProfileDefaults()
     if ns.UnbindTrinketStore then ns:UnbindTrinketStore() end
 end)

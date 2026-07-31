@@ -104,10 +104,10 @@ function mod:GetOptions()
     return {
         { type = "header", text = L["Style"] },
         { type = "dropdown", label = L["Character panel style"], width = 240,
-          tooltip = L["Classic+ is the current look. Modern is a new style we are still building; for now it shows the plain panel."],
+          tooltip = L["Classic+ keeps Blizzard's layout with extras. Modern adds the dark chrome and moves all stats into a panel on the right of the character window."],
           values = {
               { value = "classic", text = L["Classic+ (current)"] },
-              { value = "modern",  text = L["Modern (in progress)"] },
+              { value = "modern",  text = L["Modern"] },
           },
           get = function() return mod.db.style or "classic" end,
           set = function(_, v)
@@ -366,6 +366,31 @@ local function ProcessEnchantText(enchantText)
 	return enchantText
 end
 
+-- A byte-based string.sub cut CJK enchant text mid-character (18 bytes = six
+-- Chinese glyphs, and the cut could land inside a UTF-8 sequence and render
+-- garbage). This walks characters instead: ASCII costs 1, a multibyte glyph 2
+-- (CJK glyphs are about twice as wide), colour escapes are free -- which also
+-- retires the old "+12 bytes if coloured" fudge.
+local function TruncateDisplayText(text, budget)
+	local out, i, len, used = {}, 1, #text, 0
+	while i <= len do
+		local c = text:byte(i)
+		if c == 124 then                       -- '|' escape
+			local esc = text:sub(i + 1, i + 1)
+			if esc == "c" then out[#out + 1] = text:sub(i, i + 9); i = i + 10
+			else out[#out + 1] = text:sub(i, i + 1); i = i + 2 end
+		else
+			local n = (c >= 240 and 4) or (c >= 224 and 3) or (c >= 192 and 2) or 1
+			local cost = (n > 1) and 2 or 1
+			if used + cost > budget then break end
+			used = used + cost
+			out[#out + 1] = text:sub(i, i + n - 1)
+			i = i + n
+		end
+	end
+	return table.concat(out)
+end
+
 local scanningTooltip = CreateFrame("GameTooltip", "BCPScanningTooltip", nil, "GameTooltipTemplate")
 scanningTooltip:SetOwner(UIParent, "ANCHOR_NONE")
 
@@ -439,6 +464,31 @@ local function CanEnchantSlot(unit, slot)
 	return true
 end
 
+-- The green-line filter used to know its prefixes only in English and German,
+-- so on every other client the first green line of a GEMMED item -- the
+-- socket bonus or an Equip effect -- was mistaken for the enchant and
+-- displaced it (zhCN report: gems and enchants never showed together). The
+-- client carries every one of these prefixes localized; asking it covers all
+-- languages at once, and the two literal lists stay as a belt for clients
+-- where a global is missing.
+local tooltipNoise
+local function tooltipNoisePatterns()
+	if tooltipNoise then return tooltipNoise end
+	tooltipNoise = {}
+	local function add(s, stripFmt)
+		if type(s) ~= "string" or s == "" then return end
+		-- ITEM_SOCKET_BONUS is a format string ("Socket Bonus: %s"); the
+		-- prefix before the placeholder is what a tooltip line starts with.
+		if stripFmt then s = s:gsub("%%%d?%$?s", ""):gsub("%s+$", "") end
+		if s ~= "" then tooltipNoise[#tooltipNoise + 1] = "^" .. s:gsub("(%W)", "%%%1") end
+	end
+	add(_G.ITEM_SPELL_TRIGGER_ONEQUIP)
+	add(_G.ITEM_SPELL_TRIGGER_ONUSE)
+	add(_G.ITEM_SPELL_TRIGGER_ONPROC)
+	add(_G.ITEM_SOCKET_BONUS, true)
+	return tooltipNoise
+end
+
 local function GetItemEnchantAsText(unit, slot)
 	local itemLink = GetInventoryItemLink(unit, slot)
 	if not itemLink then return nil, nil end
@@ -469,7 +519,13 @@ local function GetItemEnchantAsText(unit, slot)
 					and not text:find("^Requires")
 					and not text:find("^Benötigt")
 				then
-					return nil, ProcessEnchantText(text)
+					local noise = false
+					for _, pat in ipairs(tooltipNoisePatterns()) do
+						if text:find(pat) then noise = true; break end
+					end
+					if not noise then
+						return nil, ProcessEnchantText(text)
+					end
 				end
 			end
 		end
@@ -479,6 +535,12 @@ local function GetItemEnchantAsText(unit, slot)
 end
 
 local function GetSocketTextures(unit, slot)
+	-- ClearLines does not reliably hide tooltip TEXTURES, so a socketless item
+	-- scanned after a gemmed one could inherit its socket icons.
+	for i = 1, 10 do
+		local tex = _G["BCPScanningTooltipTexture" .. i]
+		if tex then tex:Hide() end
+	end
 	scanningTooltip:ClearLines()
 	scanningTooltip:SetInventoryItem(unit, slot)
 
@@ -811,14 +873,7 @@ local function UpdateAdditionalDisplay(button, unit)
 		if not enchantText then
 			f.enchantDisplay:SetText((canEnchant and itemLink) and L["|cffff0000No Ench|r"] or "")
 		else
-			local maxSize = 18
-
-			if enchantText:find("|c") then
-				maxSize = maxSize + 12
-			end
-
-			enchantText = string.sub(enchantText, 1, maxSize)
-			f.enchantDisplay:SetText(enchantText)
+			f.enchantDisplay:SetText(TruncateDisplayText(enchantText, 18))
 		end
 
 		local textures = (cpOpt("showSockets", true) and itemLink and GetSocketTextures(unit, slot)) or {}

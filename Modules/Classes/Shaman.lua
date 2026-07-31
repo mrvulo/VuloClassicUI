@@ -78,7 +78,17 @@ end
 local CALL = {
     key = "call",
     color = { 0.85, 0.75, 0.35 }, icon = "Interface\\Icons\\Spell_Nature_TremorTotem",
-    call = true,
+    call = true, spellFn = callSpell,
+}
+
+-- Totemic Recall as its own VISIBLE button, only where the client's native
+-- totem bar shows one (Wrath). On TBC and Era it stays on middle-click of the
+-- element buttons -- the shipped variants keep their look. Same `call` shape
+-- as above, so every totem-only code path skips it for the same reason.
+local RECALL = {
+    key = "recall",
+    color = { 0.55, 0.85, 0.55 }, icon = "Interface\\Icons\\Spell_Unused",
+    call = true, spellFn = totemicRecallSpell,
 }
 
 local WARN_COLOR  = { 1.0, 0.25, 0.25 }
@@ -183,6 +193,12 @@ local function applyButtonSpells()
         -- paintTotemTooltip reads totemName first; without it the tooltip would
         -- fall through to buttonSpell(), which only knows totems.
         rows.call.totemName = id and GetSpellInfo(id) or nil
+    end
+    if rows.recall then
+        local id = totemicRecallSpell()
+        rows.recall:SetAttribute("*spell1", id)
+        rows.recall:SetAttribute("*spell3", nil)
+        rows.recall.totemName = id and GetSpellInfo(id) or nil
     end
 end
 
@@ -329,7 +345,8 @@ local function applyLayout()
         if rows[t.key] then active[#active + 1] = t end
     end
     -- Last, so the four elements keep the order players know.
-    if rows.call then active[#active + 1] = CALL end
+    if rows.call   then active[#active + 1] = CALL   end
+    if rows.recall then active[#active + 1] = RECALL end
 
     if #active == 0 then
         container:SetSize(1, 1)
@@ -456,7 +473,7 @@ local function updateRow(row, preview)
     -- duration to run down. Everything below describes a totem's life and none
     -- of it applies -- including GetTotemInfo, which would be handed a nil slot.
     if t.call then
-        local spell = callSpell()
+        local spell = t.spellFn and t.spellFn() or callSpell()
         row.icon:SetTexture((spell and select(3, GetSpellInfo(spell))) or t.icon)
         row.icon:SetDesaturated(false)
         row.icon:SetVertexColor(1, 1, 1)
@@ -580,7 +597,8 @@ local function refresh()
         local row = rows[t.key]
         if row and row:IsShown() then updateRow(row, preview) end
     end
-    if rows.call and rows.call:IsShown() then updateRow(rows.call, preview) end
+    if rows.call   and rows.call:IsShown()   then updateRow(rows.call, preview)   end
+    if rows.recall and rows.recall:IsShown() then updateRow(rows.recall, preview) end
     if hoverBtn then
         if GameTooltip and GameTooltip:IsOwned(hoverBtn) and hoverBtn:IsVisible() then
             paintTotemTooltip(hoverBtn)
@@ -901,6 +919,10 @@ local function build()
     -- every frame: the button either exists for this session or it does not.
     -- On the builds we ship for no call spell resolves, so it never exists.
     if callSpell() then rows.call = createRow(CALL) end
+    -- Only on Wrath-family clients (Titan included): that is where the native
+    -- bar shows a recall button and where the report came from. The spell also
+    -- exists on TBC/Era, but there it stays middle-click only.
+    if ns.isWrath and totemicRecallSpell() then rows.recall = createRow(RECALL) end
 
     container.mover = ns:CreateMover(container, {
         key    = "totems",

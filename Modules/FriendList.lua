@@ -23,6 +23,7 @@ local mod = ns:RegisterModule("friendlist", {
         factionTint     = true,
         autoAccept      = false,
         autoAcceptGroup = false,
+        extraWidth      = 0,
     },
 })
 
@@ -427,7 +428,7 @@ local function skinFriendsFrame()
     if cb then
         stripTextures(cb)
         local x = cb:CreateFontString(nil, "OVERLAY")
-        if UI.Font then UI.Font(x, 16) else x:SetFontObject("GameFontNormalLarge") end
+        if UI.Font then UI.Font(x, 20) else x:SetFontObject("GameFontNormalLarge") end
         x:SetPoint("CENTER", cb, "CENTER", 0, 0)
         x:SetText("×")
         x:SetTextColor(0.8, 0.8, 0.85)
@@ -588,13 +589,53 @@ local function skinFriendsFrame()
     end
 end
 
+-- ---------------------------------------------------------------------------
+-- Window width. The row strings are two-point anchored (applyRowLayout), so
+-- widening the containers is all it takes for long names, notes and zones to
+-- gain their room. Original widths are captured on first use, so the slider
+-- can return to 0 without a /reload. Only the classic scroll frame needs its
+-- rows widened by hand; a ScrollBox client sizes its rows from the container.
+
+local widthBase
+
+local function applyFrameWidth()
+    local ff = _G.FriendsFrame
+    if not ff then return end
+    local delta = mod.active and (tonumber(mod.db.extraWidth) or 0) or 0
+    if delta == 0 and not widthBase then return end   -- never touched: leave Blizzard alone
+    local scroll = _G.FriendsListFrameScrollFrame or _G.FriendsFrameFriendsScrollFrame
+    if not widthBase then
+        local lf = _G.FriendsListFrame
+        widthBase = {
+            frame  = ff:GetWidth() or 338,
+            scroll = scroll and scroll:GetWidth() or nil,
+            list   = (lf and lf ~= scroll) and lf:GetWidth() or nil,
+        }
+    end
+    ff:SetWidth(widthBase.frame + delta)
+    if scroll and widthBase.scroll then scroll:SetWidth(widthBase.scroll + delta) end
+    local lf = _G.FriendsListFrame
+    if lf and widthBase.list then lf:SetWidth(widthBase.list + delta) end
+    mod._widthDelta = delta
+end
+
+local function widenClassicRow(b)
+    local delta = mod._widthDelta or 0
+    if delta == 0 and not b._vcBaseW then return end
+    b._vcBaseW = b._vcBaseW or b:GetWidth()
+    if b._vcBaseW and b._vcBaseW > 0 then b:SetWidth(b._vcBaseW + delta) end
+end
+
 local function restyleAll()
     installHooks()
     skinFriendsFrame()
     if not _G.FriendsFrame or not _G.FriendsFrame:IsShown() then return end
     local scroll = _G.FriendsListFrameScrollFrame or _G.FriendsFrameFriendsScrollFrame
     if scroll and scroll.buttons then
-        for _, b in ipairs(scroll.buttons) do restyleButton(b) end
+        for _, b in ipairs(scroll.buttons) do
+            widenClassicRow(b)
+            restyleButton(b)
+        end
         return
     end
     local box = _G.FriendsListFrame and _G.FriendsListFrame.ScrollBox
@@ -715,7 +756,7 @@ local function skinCommunitiesFrame()
         cb._vcuiSkin = true
         commStrip(cb)
         local x = cb:CreateFontString(nil, "OVERLAY")
-        if UI.Font then UI.Font(x, 16) else x:SetFontObject("GameFontNormalLarge") end
+        if UI.Font then UI.Font(x, 20) else x:SetFontObject("GameFontNormalLarge") end
         x:SetPoint("CENTER", cb, "CENTER", 0, 0)
         x:SetText("×")
         x:SetTextColor(0.8, 0.8, 0.85)
@@ -989,12 +1030,14 @@ function mod:OnEnable()
     mod:RegisterEvent("BN_FRIEND_INVITE_ADDED",            acceptInvites)
     mod:RegisterEvent("BN_FRIEND_INVITE_LIST_INITIALIZED", acceptInvites)
     mod:RegisterEvent("PARTY_INVITE_REQUEST",              onPartyInvite)
+    applyFrameWidth()
     restyleAll()
     acceptInvites()
 end
 
 function mod:OnDisable()
     -- hooksecurefunc can't be removed; ask Blizzard to redraw defaults instead
+    applyFrameWidth()   -- mod.active is false here, so this restores the widths
     if _G.FriendsList_Update then pcall(_G.FriendsList_Update) end
     restyleAll()
 end
@@ -1049,6 +1092,14 @@ function mod:GetOptions()
         { type = "header", text = L["Display"] },
         tgl("skinFrame", L["Dark window skin"],
             L["Restyles the whole friends window dark with purple accents. Turning it off needs a /reload to restore Blizzard's frame."]),
+        { type = "slider", label = L["Widen window"], min = 0, max = 400, step = 20,
+          tooltip = L["Extra width for the friends window so long names, notes and zones fit on one line. 0 keeps Blizzard's width."],
+          get = function() return mod.db.extraWidth or 0 end,
+          set = function(_, v)
+              mod.db.extraWidth = v
+              applyFrameWidth()
+              restyleAll()
+          end },
         { type = "toggle", label = L["Dark guild & communities window"],
           tooltip = L["Restyles the guild and communities window to the same dark look. Turning it off needs a /reload."],
           get = function() return mod.db.skinCommunities ~= false end,
