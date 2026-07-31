@@ -275,6 +275,18 @@ function UI:ShowDashboard()
     if f.tabSep then f.tabSep:Hide() end
     if f.tabColumn then f.tabColumn:Hide() end
     if UI.ReleaseTabs then UI:ReleaseTabs() end
+    -- The pinned page header belongs to module pages. Reopening the window
+    -- lands here with the LAST page's strip (say the cooldown-manager
+    -- preview) still mounted in the shared host, floating over the
+    -- dashboard -- only BuildOptionsPage ever evicted it. Same rollback as
+    -- the builder's no-header branch: hide the host and every tenant, and
+    -- take the scroll's plain top anchor back (the hidden host keeps its
+    -- rect, so an anchor onto it would still indent the page).
+    if f.pageHeader then
+        for _, child in ipairs({ f.pageHeader:GetChildren() }) do child:Hide() end
+        f.pageHeader:Hide()
+        f.scroll:SetPoint("TOPLEFT", f.content, "TOPLEFT", 8, -8)
+    end
     f.content:ClearAllPoints()
     f.content:SetPoint("TOPLEFT",     f.sidebar, "TOPRIGHT",  1, 0)
     f.content:SetPoint("BOTTOMRIGHT", f,         "BOTTOMRIGHT", 0, 44)
