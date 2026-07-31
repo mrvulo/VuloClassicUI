@@ -78,6 +78,17 @@ ns.COLORS = {
     sectionHdr = { r = 0.55,  g = 0.50,  b = 0.60 },
 }
 
+-- Canonical resource colors, keyed by the UnitPowerType token. Lives here so
+-- both the power bar and the color settings mutate ONE table: consumers keep
+-- reading at paint time, the settings page rewrites the fields in place.
+ns.POWER_COLORS = {
+    MANA        = { r = 0.25, g = 0.45, b = 0.95 },
+    RAGE        = { r = 0.85, g = 0.22, b = 0.22 },
+    ENERGY      = { r = 0.95, g = 0.85, b = 0.25 },
+    FOCUS       = { r = 0.95, g = 0.55, b = 0.25 },
+    RUNIC_POWER = { r = 0.30, g = 0.70, b = 0.90 },
+}
+
 ns.modules     = {}
 ns.moduleOrder = {}
 

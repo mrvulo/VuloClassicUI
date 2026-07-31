@@ -588,6 +588,13 @@ local function applyDamageTextFont()
     end
 end
 
+-- Exported for the global game-text font: its sweep rewrites every named font
+-- object, including the combat numbers this module owns. Running these two
+-- afterwards takes them back -- and they no-op when their switches are off,
+-- which is exactly the precedence a specific setting should have.
+mod.ReapplySharpFonts     = applySharpFonts
+mod.ReapplyDamageTextFont = applyDamageTextFont
+
 -- The scale belongs to the client, not to us. Mirror whatever the player has
 -- set and only write when they move our slider. Applying it on every login
 -- silently reset a value they may have chosen in Blizzard's own options, with

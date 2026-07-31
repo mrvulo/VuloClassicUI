@@ -63,6 +63,14 @@ StaticPopupDialogs["VCUI_DB_RESET"] = {
     button2 = CANCEL,
     OnAccept = function()
         if ns:InCombat() then ns:Print(L["Not possible in combat."]); return end
+        -- The graphics-optimize backup dies with the DB, but the CVars it
+        -- covers live in the client's config and would stay optimized with no
+        -- way back. "Reset ALL settings" returns those too.
+        local gfx = VuloClassicUIDB and VuloClassicUIDB.global
+                and VuloClassicUIDB.global.gfxBackup
+        if gfx then
+            for cvar, v in pairs(gfx) do pcall(SetCVar, cvar, v) end
+        end
         VuloClassicUIDB     = nil
         VuloClassicUICharDB = nil
         ns:Print(L["DB reset. UI reloading."])

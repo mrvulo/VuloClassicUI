@@ -4325,6 +4325,11 @@ end
 
 local function enlarge()
     if enlarged or not mod.db.larger then return end
+    -- Wrath-based clients (incl. Titan Reforged 3.80.x) already ship the wide
+    -- two-pane quest log; every number below is tuned to the single-pane BCC
+    -- anatomy and shoved their detail pane into the button row (reported with
+    -- screenshots). Nothing to gain there, so the enlargement never runs.
+    if ns.isWrath or ns.isCata then return end
     local QLF = _G.QuestLogFrame
     if not QLF then return end
     enlarged = true
@@ -4399,7 +4404,7 @@ function mod:OnDisable()
 end
 
 function mod:GetOptions()
-    return {
+    local items = {
         { type = "header", text = L["Quest Log"] },
         { type = "desc", text = L["|cffaaaaaaShows quest levels (and optionally IDs) in the quest log, can enlarge it, and lets you pick a Parchment or Dark look.|r"] },
 
@@ -4414,14 +4419,6 @@ function mod:GetOptions()
 
         { type = "spacer", height = 6 },
         { type = "header", text = L["Frame"] },
-        { type = "toggle", label = L["Larger quest log"],
-          tooltip = L["Enlarges the quest log so more quests are visible with the detail pane beside the list. /reload to fully apply or revert."],
-          get = function() return mod.db.larger end,
-          set = function(_, v)
-              mod.db.larger = v
-              if v then enlarge(); setupBg(); applyTheme() end
-              ns:Print(L["Quest log size changed. /reload recommended."])
-          end },
         { type = "dropdown", label = L["Theme"], width = 240,
           values = {
               { value = "parchment", text = L["Parchment (default)"] },
@@ -4430,6 +4427,20 @@ function mod:GetOptions()
           get = function() return mod.db.theme end,
           set = function(_, v) mod.db.theme = v; applyTheme() end },
     }
+    -- The enlargement never runs on Wrath-based clients (see enlarge) -- their
+    -- quest log is the wide two-pane frame already. A switch that does nothing
+    -- is not offered; inserted before the theme row to keep the old order.
+    if not (ns.isWrath or ns.isCata) then
+        table.insert(items, #items, { type = "toggle", label = L["Larger quest log"],
+            tooltip = L["Enlarges the quest log so more quests are visible with the detail pane beside the list. /reload to fully apply or revert."],
+            get = function() return mod.db.larger end,
+            set = function(_, v)
+                mod.db.larger = v
+                if v then enlarge(); setupBg(); applyTheme() end
+                ns:Print(L["Quest log size changed. /reload recommended."])
+            end })
+    end
+    return items
 end
 end)(...);
 

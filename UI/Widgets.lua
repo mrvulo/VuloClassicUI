@@ -5,7 +5,12 @@ local UI = ns.UI
 local L = ns.L
 
 local FONT_PATH = "Interface\\AddOns\\VuloClassicUI\\Media\\Fonts\\Expressway.TTF"
-UI.FONT_PATH = FONT_PATH
+UI.FONT_PATH  = FONT_PATH
+-- Default outline flags for text that names none. The global-font settings
+-- overwrite BOTH fields early at ADDON_LOADED; UI.Font must therefore read the
+-- exported fields, not the local above -- the local exists only as the shipped
+-- default and for code that wants Expressway regardless of the setting.
+UI.FONT_FLAGS = ""
 
 local MASK_ROUNDED = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\csquare_mask.tga"
 local MASK_CIRCLE  = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\circle_mask.tga"
@@ -18,7 +23,7 @@ end
 local clean = UI.StripParens
 
 function UI.Font(fs, size, flags)
-    fs:SetFont(FONT_PATH, size or 12, flags or "")
+    fs:SetFont(UI.FONT_PATH, size or 12, flags or UI.FONT_FLAGS)
     return fs
 end
 
@@ -1075,6 +1080,61 @@ local function ensurePopupFrame()
 
     p._items = {}
 
+    -- Scrollbar for long lists. The wheel has always scrolled this window, but
+    -- nothing SHOWED that there was more below the edge -- reported from the
+    -- Chinese client, where a texture list simply ended mid-way. The bar is the
+    -- affordance and a second way to scroll; the wheel keeps working.
+    local track = CreateFrame("Frame", nil, p)
+    track:SetWidth(6)
+    track:SetPoint("TOPRIGHT",    p, "TOPRIGHT", -1, -2)
+    track:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", -1, 2)
+    local trackBG = track:CreateTexture(nil, "BACKGROUND")
+    trackBG:SetAllPoints(track)
+    trackBG:SetColorTexture(0.10, 0.10, 0.13, 1)
+    track:EnableMouse(true)
+    track:Hide()
+    p._sbTrack = track
+
+    local thumb = CreateFrame("Frame", nil, track)
+    thumb:SetSize(4, 36)
+    thumb._tex = thumb:CreateTexture(nil, "ARTWORK")
+    thumb._tex:SetAllPoints(thumb)
+    thumb._tex:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 1)
+    p._sbThumb = thumb
+
+    -- cursor -> row offset, thumb centre following the pointer
+    local function offsetFromCursor()
+        local scale = track:GetEffectiveScale()
+        if not scale or scale == 0 then return p._offset or 0 end
+        local _, cy = GetCursorPosition()
+        cy = cy / scale
+        local top, h = track:GetTop() or 0, track:GetHeight() or 1
+        local th = thumb:GetHeight() or 20
+        local frac = (top - cy - th / 2) / math.max(1, h - th)
+        if frac < 0 then frac = 0 elseif frac > 1 then frac = 1 end
+        return math.floor(frac * (p._maxOffset or 0) + 0.5)
+    end
+
+    local function sbDragTick(self)
+        if not IsMouseButtonDown("LeftButton") then
+            self:SetScript("OnUpdate", nil)
+            return
+        end
+        local off = offsetFromCursor()
+        if off ~= self._offset then
+            self._offset = off
+            placePopupRows(self)
+        end
+    end
+
+    -- grab the thumb or press anywhere on the track: both jump there and keep
+    -- following the held mouse
+    track:SetScript("OnMouseDown", function()
+        local off = offsetFromCursor()
+        if off ~= p._offset then p._offset = off; placePopupRows(p) end
+        p:SetScript("OnUpdate", sbDragTick)
+    end)
+
     p:SetScript("OnHide", function(self)
         if self._owner and self._owner._setHovered then
             self._owner._setHovered(false)
@@ -1083,6 +1143,7 @@ local function ensurePopupFrame()
         -- a drag interrupted by ESC/click-through never reaches OnDragStop; the
         -- stale index would arm the next popup's first rejected drag
         self._dragFrom = nil
+        self:SetScript("OnUpdate", nil)
     end)
 
     tinsert(UISpecialFrames, "VCDropdownPopup")  -- ESC closes
@@ -1151,6 +1212,27 @@ placePopupRows = function(p)
             item:Show()
         else
             item:Hide()
+        end
+    end
+
+    -- the scrollbar mirrors the window: thumb length = visible share, position
+    -- = scrolled share; without overflow the whole bar stays hidden
+    local track, thumb = p._sbTrack, p._sbThumb
+    if track and thumb then
+        local maxOff = p._maxOffset or 0
+        local total  = p._values and #p._values or 0
+        if maxOff > 0 and total > 0 then
+            track:Show()
+            -- from the popup's explicit size, not track:GetHeight(): the track
+            -- is anchor-sized and this runs before the first Show()
+            local h  = math.max(1, (p:GetHeight() or 24) - 4)
+            local th = math.max(20, math.floor(h * n / total))
+            thumb:SetHeight(th)
+            local frac = off / maxOff
+            thumb:ClearAllPoints()
+            thumb:SetPoint("TOP", track, "TOP", 0, -math.floor(frac * (h - th) + 0.5))
+        else
+            track:Hide()
         end
     end
 end
@@ -1229,7 +1311,23 @@ local function openPopup(button, config)
     -- pooled and placed by hand here, so moving the window is one number, while
     -- a scroll frame would mean re-parenting all of them.
     local maxRows = math.max(6, math.floor(((UIParent:GetHeight() or 768) - 160) / itemHeight))
-    local visible = math.min(#values, maxRows)
+
+    -- The window used to be sized from the SCREEN height while always opening
+    -- downwards from the button: a dropdown on the lower half of the page
+    -- parked its tail below the screen edge, where no amount of scrolling
+    -- could reach it -- the wheel clamp was correct, the rows were off-screen
+    -- (reported with a 100+ entry shared-media texture list). So: size the
+    -- window from the room the chosen direction really has, and open upwards
+    -- when there is more room above than the list needs below.
+    local uiH = UIParent:GetHeight() or 768
+    local us  = UIParent:GetEffectiveScale()
+    local k   = (us and us > 0) and (button:GetEffectiveScale() / us) or 1
+    local roomBelow = math.floor((((button:GetBottom() or 0) * k) - 10) / itemHeight)
+    local roomAbove = math.floor(((uiH - ((button:GetTop() or uiH) * k)) - 10) / itemHeight)
+    local want    = math.min(#values, maxRows)
+    local openUp  = roomBelow < want and roomAbove > roomBelow
+    local room    = math.max(4, openUp and roomAbove or roomBelow)
+    local visible = math.min(want, room)
     local height  = visible * itemHeight + 4
     p._values, p._config, p._button = values, config, button
     p._itemHeight, p._visible = itemHeight, visible
@@ -1239,13 +1337,16 @@ local function openPopup(button, config)
     -- Grown to the right by default. When that would run off the screen, the
     -- menu hangs from the button's right edge instead and grows to the left --
     -- a dropdown near the window's right edge is the normal case on this page,
-    -- not an exception.
+    -- not an exception. Vertically the same idea, decided above.
     p:ClearAllPoints()
     local left = button:GetLeft() or 0
-    if left + width > (UIParent:GetWidth() or 1024) - 8 then
-        p:SetPoint("TOPRIGHT", button, "BOTTOMRIGHT", 0, -2)
+    local rightEdge = left + width > (UIParent:GetWidth() or 1024) - 8
+    if openUp then
+        p:SetPoint(rightEdge and "BOTTOMRIGHT" or "BOTTOMLEFT", button,
+                   rightEdge and "TOPRIGHT"    or "TOPLEFT", 0, 2)
     else
-        p:SetPoint("TOPLEFT", button, "BOTTOMLEFT", 0, -2)
+        p:SetPoint(rightEdge and "TOPRIGHT" or "TOPLEFT", button,
+                   rightEdge and "BOTTOMRIGHT" or "BOTTOMLEFT", 0, -2)
     end
     p:SetSize(width, height)
 
@@ -1832,10 +1933,18 @@ function UI:CreateEditBox(parent, config)
     return container
 end
 
--- Button config: { label, tooltip?, onClick, width?, height?, primary? }
+-- Button config: { label, tooltip?, onClick, width?, height?, primary?, danger? }
+-- danger wins over primary: a destructive action keeps its warning color even
+-- when it is also the centred main action of its row.
+local BTN_DANGER = { r = 0.85, g = 0.28, b = 0.28 }
+
 local function buttonApplyIdle(b)
     local cfg = b._vcConfig
-    if cfg and cfg.primary then
+    if cfg and cfg.danger then
+        b._bg:SetColorTexture(0.13, 0.13, 0.16, 1)
+        b._setBorder(BTN_DANGER, 0.70)
+        b._textFS:SetTextColor(0.92, 0.40, 0.40, 0.95)
+    elseif cfg and cfg.primary then
         local a = ns.COLORS.accent
         b._bg:SetColorTexture(0.13, 0.13, 0.16, 1)
         b._setBorder(a, 0.70)
@@ -1886,7 +1995,12 @@ function UI:CreateButton(parent, config)
 
     b:SetScript("OnEnter", function(self)
         local cfg = self._vcConfig
-        if cfg and cfg.primary then
+        if cfg and cfg.danger then
+            local d = BTN_DANGER
+            bg:SetColorTexture(d.r * 0.20, d.g * 0.20, d.b * 0.20, 1)
+            self._setBorder(d, 1)
+            self._textFS:SetTextColor(1, 0.45, 0.45, 1)
+        elseif cfg and cfg.primary then
             local a = ns.COLORS.accent
             bg:SetColorTexture(a.r * 0.16, a.g * 0.16, a.b * 0.16, 1)
             self._setBorder(a, 1)
@@ -2060,6 +2174,17 @@ function UI:CreateColorSwatch(parent, config)
     b._fill = fill
     label:SetPoint("RIGHT", sw, "LEFT", -8, 0)
 
+    -- Optional per-row reset between label and swatch; exists only while the
+    -- config carries onReset. Pooled reuse hides it again via _vcSetup.
+    local rb = CreateFrame("Button", nil, b)
+    rb:SetSize(16, 16)
+    rb:SetPoint("RIGHT", sw, "LEFT", -6, 0)
+    local rt = rb:CreateTexture(nil, "ARTWORK")
+    rt:SetAllPoints()
+    rt:SetTexture("Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\reset.tga")
+    rt:SetVertexColor(0.75, 0.75, 0.80, 0.55)
+    rb:Hide()
+
     local function curRGB()
         local cfg = b._vcConfig
         local c = cfg and cfg.get and cfg.get()
@@ -2068,29 +2193,50 @@ function UI:CreateColorSwatch(parent, config)
     end
     local function refresh()
         local r, g, bl = curRGB(); fill:SetColorTexture(r, g, bl, 1)
+        -- labelTint paints the label in the row's own color (class-color rows);
+        -- pooled reuse without the flag gets the standard color back.
+        local cfg = b._vcConfig
+        if cfg and cfg.labelTint then
+            label:SetTextColor(r, g, bl)
+        else
+            label:SetTextColor(0.95, 0.95, 0.97)
+        end
     end
     local function open()
         local r, g, bl = curRGB()
         ns:ShowColorPicker({ r = r, g = g, b = bl, onChange = function(nr, ng, nb)
             local cfg = b._vcConfig
             if cfg and cfg.set then cfg.set(nr, ng, nb) end
-            fill:SetColorTexture(nr, ng, nb, 1)
+            refresh()
         end })
     end
     b:SetScript("OnClick", open)
     sw:SetScript("OnClick", open)
     sw:SetScript("OnEnter", function() border:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 1) end)
     sw:SetScript("OnLeave", function() border:SetColorTexture(0, 0, 0, 0.8) end)
+    rb:SetScript("OnEnter", function() rt:SetVertexColor(1, 1, 1, 0.9); UI:ShowTooltip(rb, L["Reset to default"]) end)
+    rb:SetScript("OnLeave", function() rt:SetVertexColor(0.75, 0.75, 0.80, 0.55); UI:HideTooltip() end)
+    rb:SetScript("OnClick", function()
+        local cfg = b._vcConfig
+        if cfg and cfg.onReset then cfg.onReset() end
+        refresh()
+    end)
 
     b._refresh = refresh
     b._vcType  = "color"
     b._vcSetup = function(self, cfg)
         self._vcConfig = cfg
         self._label:SetText(clean(cfg.label) or "")
+        local hasReset = cfg.onReset ~= nil
+        rb:SetShown(hasReset)
+        -- Re-anchoring the same point replaces it; the label clamps against
+        -- whatever sits leftmost on the control side.
+        label:SetPoint("RIGHT", hasReset and rb or sw, "LEFT", -8, 0)
+        local extra = hasReset and 22 or 0
         if cfg.width then
             self:SetSize(cfg.width, 22)
         else
-            self:SetSize(math.max((self._label:GetStringWidth() or 0) + 12 + 18, 120), 22)
+            self:SetSize(math.max((self._label:GetStringWidth() or 0) + 12 + 18 + extra, 120), 22)
         end
         refresh()
     end

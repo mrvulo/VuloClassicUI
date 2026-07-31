@@ -122,8 +122,21 @@ local function wrapURLs(text)
 end
 
 -- Only rewrite the message body (arg 3); the channel name (arg 5) is load-bearing for Blizzard's channel-window routing.
+--
+-- The level lands AFTER the closing |h, outside the hyperlink, not inside the
+-- bracketed link text. It used to sit inside ("[Name (232)]"), and the Chinese
+-- client re-processes chat links against their own data: a link text that no
+-- longer matches the item turned into the NAME OF THE QUEST with that number
+-- as its id. Outside the link the client's text is byte-identical to what it
+-- produced, so any re-resolution keeps working -- and the display is the same
+-- one glyph further right.
 local function addItemLevels(msg)
     if not msg:find("|Hitem:", 1, true) then return msg end
+    -- Our own suffix from an earlier pass: "]|h (123)" only ever comes out of
+    -- this function. Since the level moved OUTSIDE the brackets, the guard on
+    -- the link text below cannot see it anymore -- without this line a message
+    -- run through the filter twice would stack " (232) (232)".
+    if msg:find("%]|h %(%d+%)") then return msg end
     return (msg:gsub("(|Hitem:[^|]+|h%[)(.-)(%]|h)", function(pre, name, post)
         local itemString = pre:match("|H(item:[^|]+)|h")
         if itemString and GetItemInfoInstant then
@@ -140,7 +153,7 @@ local function addItemLevels(msg)
                 end
                 local lvl = ilvl or (GetDetailedItemLevelInfo and GetDetailedItemLevelInfo(itemString))
                 if quality and quality >= 2 and lvl and lvl > 1 then
-                    return pre .. name .. " (" .. lvl .. ")" .. post
+                    return pre .. name .. post .. " (" .. lvl .. ")"
                 end
             end
         end

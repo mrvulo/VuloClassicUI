@@ -15,6 +15,12 @@ ns.defaults = {
         -- snapshots carry the class they were taken on and Vulslot warns on a
         -- mismatch, so they were never per-class data to begin with.
         vulslotProfiles = {},
+        -- Fonts and custom colors are a LOOK, not a playstyle: account-wide on
+        -- purpose, like the edit layouts above. Colors hold only overrides --
+        -- an absent token means "client default".
+        fonts = { font = "Expressway", outline = "NONE", gameText = false },
+        classColors = {},
+        powerColors = {},
     },
     profile = {
         ui = {

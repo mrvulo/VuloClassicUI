@@ -289,7 +289,10 @@ function UI:CreateMainFrame()
                     if ok and type(items) == "table" then
                         local function scan(list)
                             for _, item in ipairs(list) do
-                                local raw = item.label or item.text or ""
+                                -- title: sections. Their headings were plain
+                                -- header rows once and searchable via text;
+                                -- becoming sections must not unlist them.
+                                local raw = item.label or item.text or item.title or ""
                                 -- match the translated label AND the English key, so
                                 -- searching works in the user's language and in English
                                 local shown = raw ~= "" and L[raw] or ""

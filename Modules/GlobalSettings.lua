@@ -7,9 +7,8 @@ local mod = ns:RegisterModule("globalsettings", {
     group       = "Global",
     description = "Global UI settings + profile management.",
     -- Per TAB, because this module owns the profile tab and only delegates its
-    -- options -- there is no "profile" module to carry the flag. The general tab
-    -- is deliberately left out: it was not asked for.
-    optionsGrid = { profile = true },
+    -- options -- there is no "profile" module to carry the flag.
+    optionsGrid = { profile = true, general = true, fonts = true },
     defaults    = {
         enabled    = true,
         themeColor = { r = 0.608, g = 0.424, b = 1.000 },   -- house purple
@@ -18,6 +17,7 @@ local mod = ns:RegisterModule("globalsettings", {
 
 mod.tabs = {
     { id = "general", label = "General" },
+    { id = "fonts",   label = "Fonts & Colors" },
     { id = "profile", label = "Profile" },
     -- Bar setups get their own tab rather than a ninth section on the profile
     -- page. Two reasons: on that page it would need scrolling to reach, which
@@ -101,6 +101,18 @@ StaticPopupDialogs["VCUI_RELOAD_THEME"] = {
     preferredIndex = 3,
 }
 
+-- StaticPopup for the global font (existing text keeps its font until reload)
+StaticPopupDialogs["VCUI_RELOAD_FONT"] = {
+    text = L["Font changed. /reload required to apply it everywhere."],
+    button1 = L["Reload now"],
+    button2 = L["Later"],
+    OnAccept = function() ReloadUI() end,
+    timeout = 0,
+    whileDead = true,
+    hideOnEscape = true,
+    preferredIndex = 3,
+}
+
 THEME_PRESETS = {
     { value = "9b6cff", text = L["Purple (default)"] },
     { value = "4f9bff", text = L["Blue"] },
@@ -127,48 +139,323 @@ local function setTheme(r, g, b)
     StaticPopup_Show("VCUI_RELOAD_THEME")
 end
 
-local function generalOptions()
-    local items = {
-        { type = "header", text = L["Language"] },
-        { type = "dropdown", label = L["UI Language"],
-          tooltip = L["Choose the language for the VuloClassicUI interface. 'Auto' uses your WoW client's language (German clients see German, all others see English).\n\n|cffaaaaaaRequires /reload to apply.|r"],
-          values = ns.SUPPORTED_LOCALES,
-          get = function() return ns:GetLocaleOverride() end,
+-- ===== Fonts & Colors tab =================================================
+
+-- Shipped resource colors, snapshotted at file load BEFORE anything mutates
+-- ns.POWER_COLORS in place.
+local POWER_DEFAULTS = {}
+for tok, c in pairs(ns.POWER_COLORS) do
+    POWER_DEFAULTS[tok] = { r = c.r, g = c.g, b = c.b }
+end
+
+-- Client defaults, captured on first apply BEFORE the first mutation. Two
+-- separate books on purpose: RAID_CLASS_COLORS and PowerBarColor are Blizzard
+-- tables whose defaults we must be able to put back exactly.
+local defaultClassColors = {}
+local defaultBlizzPower  = {}
+
+local function applyGlobalFont()
+    local db = ns.db and ns.db.global and ns.db.global.fonts
+    if not db then return end
+    ns.UI.FONT_PATH  = (ns.MediaFont and ns.MediaFont(db.font)) or ns.UI.FONT_PATH
+    ns.UI.FONT_FLAGS = (db.outline and db.outline ~= "NONE") and db.outline or ""
+end
+
+-- The client keeps a registry of every named font object; replacing the face
+-- there reaches chat, tooltips, quest text and the rest without a hook. Size
+-- and flags stay native. Pull-style consumers pick the path up on their own.
+local function applyGameTextFont()
+    local db = ns.db and ns.db.global and ns.db.global.fonts
+    if not db or not db.gameText then return end
+    -- No combat guard on purpose: SetFont on font objects is not protected,
+    -- and a guard here turned a reload issued during combat into a whole
+    -- session without the font (PLAYER_LOGIN fires while still in lockdown).
+    local path = ns.UI.FONT_PATH
+    _G.STANDARD_TEXT_FONT = path
+    if type(GetFonts) == "function" then
+        for _, name in ipairs(GetFonts() or {}) do
+            local obj = type(name) == "string" and _G[name] or name
+            if type(obj) == "table" and obj.GetFont and obj.SetFont then
+                local _, size, flags = obj:GetFont()
+                if size then pcall(obj.SetFont, obj, path, size, flags) end
+            end
+        end
+    end
+    -- The sweep just rewrote the combat-number font objects CombatText owns;
+    -- its appliers take them back and no-op when their switches are off.
+    local ct = ns.modules and ns.modules.combattext
+    if ct and ct._enabled then
+        if ct.ReapplySharpFonts     then ct.ReapplySharpFonts()     end
+        if ct.ReapplyDamageTextFont then ct.ReapplyDamageTextFont() end
+    end
+end
+
+-- In-place field mutation, never table replacement: every consumer in this
+-- addon reads RAID_CLASS_COLORS / ns.POWER_COLORS at paint time, and Blizzard
+-- keeps aliases into the same tables (PowerBarColor[0] IS PowerBarColor.MANA),
+-- so rewriting the fields recolors everything on its next repaint. An absent
+-- override restores the captured client default.
+local function applyCustomColors()
+    local g = ns.db and ns.db.global
+    if not g then return end
+
+    local rcc = _G.RAID_CLASS_COLORS
+    if rcc then
+        for tok, c in pairs(rcc) do
+            if not defaultClassColors[tok] then
+                defaultClassColors[tok] = { r = c.r, g = c.g, b = c.b }
+            end
+            local src = g.classColors[tok] or defaultClassColors[tok]
+            c.r, c.g, c.b = src.r, src.g, src.b
+            -- colorStr is what chat and name coloring read; it must follow.
+            if c.colorStr then
+                c.colorStr = string.format("ff%02x%02x%02x",
+                    math.floor(c.r * 255 + 0.5),
+                    math.floor(c.g * 255 + 0.5),
+                    math.floor(c.b * 255 + 0.5))
+            end
+        end
+    end
+
+    for tok, own in pairs(ns.POWER_COLORS) do
+        local src = g.powerColors[tok] or POWER_DEFAULTS[tok]
+        if src then own.r, own.g, own.b = src.r, src.g, src.b end
+    end
+    local pbc = _G.PowerBarColor
+    if pbc then
+        for tok in pairs(ns.POWER_COLORS) do
+            local e = pbc[tok]
+            if e then
+                if not defaultBlizzPower[tok] then
+                    defaultBlizzPower[tok] = { r = e.r, g = e.g, b = e.b }
+                end
+                local src = g.powerColors[tok] or defaultBlizzPower[tok]
+                e.r, e.g, e.b = src.r, src.g, src.b
+            end
+        end
+    end
+end
+
+-- Applied at ADDON_LOADED (before any module builds a frame) and again on
+-- every setter. PLAYER_LOGIN re-runs the game-text pass each session because
+-- font objects reset with the client.
+ns.OnLocaleReady(function()
+    applyGlobalFont()
+    applyCustomColors()
+end)
+ns:RegisterEvent("PLAYER_LOGIN", applyGameTextFont)
+
+local CLASS_ORDER = { "WARRIOR", "PALADIN", "HUNTER", "ROGUE", "PRIEST",
+                      "SHAMAN", "MAGE", "WARLOCK", "DRUID", "DEATHKNIGHT" }
+
+local OUTLINE_VALUES  -- built lazily: labels are locale lookups
+
+local function fontsOptions()
+    local g = ns.db.global
+    local fdb = g.fonts
+
+    OUTLINE_VALUES = OUTLINE_VALUES or {
+        { value = "NONE",         text = L["None"] },
+        { value = "OUTLINE",      text = L["Outline"] },
+        { value = "THICKOUTLINE", text = L["Thick Outline"] },
+    }
+
+    local fontRows = {
+        { type = "dropdown", label = L["Global Font"], noOverride = true,
+          tooltip = L["The font for the whole VuloClassicUI interface. Fonts shared by other addons appear here too.\n\n|cffaaaaaaRequires /reload to apply everywhere.|r"],
+          values = ns.MediaFontValues and ns.MediaFontValues() or {},
+          get = function() return fdb.font end,
           set = function(_, v)
-              ns:SetLocaleOverride(v)
-              StaticPopup_Show("VCUI_RELOAD_LOCALE")
+              fdb.font = v
+              applyGlobalFont()
+              StaticPopup_Show("VCUI_RELOAD_FONT")
           end },
 
-        { type = "spacer", height = 6 },
-        { type = "header", text = L["Display"] },
+        { type = "dropdown", label = L["Outline Mode"], noOverride = true,
+          tooltip = L["Default outline for VuloClassicUI text. Elements with their own outline setting keep it.\n\n|cffaaaaaaRequires /reload to apply everywhere.|r"],
+          values = OUTLINE_VALUES,
+          get = function() return fdb.outline or "NONE" end,
+          set = function(_, v)
+              fdb.outline = v
+              applyGlobalFont()
+              StaticPopup_Show("VCUI_RELOAD_FONT")
+          end },
 
-        { type = "slider", label = L["UI Scale"],
-          min = 0.40, max = 1.15, step = 0.01,
-          tooltip = L["Manual UI scaling. 0.65 is smaller, 1.0 is default."],
-          get = function() return getCVarNum("uiScale") end,
-          set = function(_, v) applyUIScale(v) end },
+        { type = "toggle", label = L["Apply to All Game Texts"], noOverride = true,
+          tooltip = L["Replaces the font of the game's own texts (chat, tooltips, quest log and more) with the global font.\n\n|cffaaaaaaTurning it off requires /reload to restore the original fonts.|r"],
+          get = function() return fdb.gameText end,
+          set = function(_, v)
+              fdb.gameText = v and true or false
+              if v then
+                  applyGameTextFont()
+              else
+                  StaticPopup_Show("VCUI_RELOAD_FONT")
+              end
+          end },
+    }
 
-        { type = "group", layout = "row", gap = 8,
-          items = {
-              { type = "button", label = L["Pixel Perfect"], width = 130,
-                onClick = function()
-                    local s = pixelPerfectScale()
-                    applyUIScale(s)
-                    ns:Print(L["UI Scale = %.4f (pixel perfect)"], s)
-                end },
-              { type = "button", label = L["1080p Scale"], width = 130,
-                onClick = function() applyUIScale(768/1080); ns:Print(L["UI Scale = 0.7111 (1080p)"]) end },
-              { type = "button", label = L["1440p Scale"], width = 130,
-                onClick = function() applyUIScale(768/1440); ns:Print(L["UI Scale = 0.5333 (1440p)"]) end },
-          },
-        },
+    -- Only classes this era can PLAY (the fixed order above) and this client
+    -- can NAME. The client's color table is retail-complete and also carries
+    -- classes that do not exist here -- iterating it raised DEMONHUNTER and
+    -- MONK rows with raw token labels on a client that has neither. The name
+    -- check alone is not enough either: the death knight is namable on 2.5.x
+    -- but playable only on the Wrath-based client (Titan Reforged 3.80.x), so
+    -- he carries an explicit era gate.
+    local classRows = {}
+    do
+        local rcc   = _G.RAID_CLASS_COLORS or {}
+        local names = _G.LOCALIZED_CLASS_NAMES_MALE or {}
+        local tokens = {}
+        for _, tok in ipairs(CLASS_ORDER) do
+            if rcc[tok] and names[tok]
+               and (tok ~= "DEATHKNIGHT" or ns.isWrath) then
+                tokens[#tokens + 1] = tok
+            end
+        end
 
-        { type = "spacer", height = 6 },
-        { type = "header", text = L["Theme color"] },
-        { type = "desc",
-          text = L["|cffaaaaaaColors everything that is purple today in the color of your choice - sidebar, borders, highlights, bars. A /reload applies it everywhere.|r"] },
-        { type = "dropdown", label = L["Preset"],
-          width = 220,
+        for _, tok in ipairs(tokens) do
+            local token = tok
+            classRows[#classRows + 1] = {
+                type = "color", label = names[token],
+                labelTint = true, noOverride = true,
+                get = function() return _G.RAID_CLASS_COLORS[token] end,
+                set = function(r, gg, b)
+                    g.classColors[token] = { r = r, g = gg, b = b }
+                    applyCustomColors()
+                end,
+                onReset = function()
+                    g.classColors[token] = nil
+                    applyCustomColors()
+                end,
+            }
+        end
+    end
+
+    -- Resource rows only for powers this client can name; the label is the
+    -- client's own localized string. Runic power rides the same era gate as
+    -- the death knight -- its string exists on 2.5.x, the resource does not.
+    local powerRows = {}
+    for _, tok in ipairs({ "MANA", "RAGE", "ENERGY", "FOCUS", "RUNIC_POWER" }) do
+        local token = tok
+        local name = _G[token]
+        if type(name) == "string" and name ~= ""
+           and (token ~= "RUNIC_POWER" or ns.isWrath) then
+            powerRows[#powerRows + 1] = {
+                type = "color", label = name,
+                labelTint = true, noOverride = true,
+                get = function() return ns.POWER_COLORS[token] end,
+                set = function(r, gg, b)
+                    g.powerColors[token] = { r = r, g = gg, b = b }
+                    applyCustomColors()
+                end,
+                onReset = function()
+                    g.powerColors[token] = nil
+                    applyCustomColors()
+                end,
+            }
+        end
+    end
+
+    return {
+        { type = "section", title = L["Global Font"],     items = fontRows },
+        { type = "section", title = L["Class Colors"],    items = classRows },
+        { type = "section", title = L["Resource Colors"], items = powerRows },
+    }
+end
+
+-- ===== Optimized graphics =================================================
+
+-- The reference's optimized-graphics preset, values ported 1:1. Neither client
+-- family could be proven offline -- the extracted source tree carries no
+-- graphics settings definitions at all -- so every CVar is runtime-guarded
+-- instead: GetCVar answering nil (or throwing, which legacy GetCVar does on an
+-- unknown name) means this client does not know the setting, and it is skipped
+-- in both directions, apply and backup. The button reports what it touched.
+local OPTIMIZED_CVARS = {
+    { "graphicsShadowQuality",     "1" },
+    { "graphicsLiquidDetail",      "0" },
+    { "graphicsParticleDensity",   "5" },
+    { "graphicsSSAO",              "0" },
+    { "graphicsDepthEffects",      "0" },
+    { "graphicsComputeEffects",    "0" },
+    { "graphicsOutlineMode",       "0" },
+    { "graphicsTextureResolution", "2" },
+    { "graphicsSpellDensity",      "1" },
+    { "graphicsProjectedTextures", "1" },
+    { "graphicsViewDistance",      "1" },
+    { "graphicsEnvironmentDetail", "1" },
+    { "graphicsGroundClutter",     "1" },
+    { "RAIDsettingsEnabled",       "0" },
+    { "ResampleAlwaysSharpen",     "1" },
+}
+
+local function getCVarRaw(cvar)
+    local ok, v = pcall(function()
+        if C_CVar and C_CVar.GetCVar then return C_CVar.GetCVar(cvar) end
+        if GetCVar then return GetCVar(cvar) end
+    end)
+    if ok then return v end
+end
+
+local function applyOptimizedGfx()
+    if ns:InCombat() then ns:Print(L["Not possible in combat."]); return end
+    local g = ns.db and ns.db.global
+    if not g then return end
+    -- One-time snapshot: a second click re-applies but must not overwrite the
+    -- backup with already-optimized values, or restore would restore those.
+    local fresh  = not g.gfxBackup
+    local backup = g.gfxBackup or {}
+    local applied = 0
+    for _, entry in ipairs(OPTIMIZED_CVARS) do
+        local cvar, value = entry[1], entry[2]
+        local cur = getCVarRaw(cvar)
+        if cur ~= nil then
+            if fresh then backup[cvar] = tostring(cur) end
+            setCVar(cvar, value)
+            applied = applied + 1
+        end
+    end
+    -- Contrast rides along like in the reference: +10 while at/below 55, so
+    -- the lowered settings do not read as washed out. Backed up on FIRST
+    -- TOUCH, not on the first click: a first click at 60 skips it, and when a
+    -- later click finds it lowered and boosts it, that boost must be in the
+    -- backup too or restore breaks its promise for this one setting.
+    local contrast = tonumber(getCVarRaw("Contrast"))
+    if contrast and contrast <= 55 then
+        if backup.Contrast == nil then backup.Contrast = tostring(contrast) end
+        setCVar("Contrast", contrast + 10)
+        applied = applied + 1
+    end
+    if fresh and applied > 0 then g.gfxBackup = backup end
+    ns:Print(L["Graphics optimized: %d settings applied."], applied)
+    ns.UI:BuildOptionsPage("globalsettings", "general")
+end
+
+local function restoreGfxSettings()
+    if ns:InCombat() then ns:Print(L["Not possible in combat."]); return end
+    local g = ns.db and ns.db.global
+    local backup = g and g.gfxBackup
+    if not backup then return end
+    -- Walked over the BACKUP, not the preset table: only what was actually
+    -- touched on this client goes back, including Contrast when it rode along.
+    for cvar, saved in pairs(backup) do
+        setCVar(cvar, saved)
+    end
+    g.gfxBackup = nil
+    ns:Print(L["Graphics settings restored."])
+    ns.UI:BuildOptionsPage("globalsettings", "general")
+end
+
+-- Three sections in a two-column grid, modeled on the reference layout the
+-- user pointed at (31.07.2026): the optimize button centred above everything,
+-- a dense Display block, camera on its own, and a Developer block at the
+-- bottom. The old page was six one-row headers in a single column; the headers
+-- Language/Theme color/Minimap/Performance Display folded into rows or
+-- tooltips of the Display section.
+local function generalOptions()
+    local display = {
+        { type = "dropdown", label = L["Theme color"],
+          tooltip = L["|cffaaaaaaColors everything that is purple today in the color of your choice - sidebar, borders, highlights, bars. A /reload applies it everywhere.|r"],
           values = THEME_PRESETS,
           get = function() return themeHex() end,
           set = function(_, v)
@@ -181,16 +468,21 @@ local function generalOptions()
           get = function() return mod.db.themeColor end,
           set = function(r, g, b) setTheme(r, g, b) end },
 
-        { type = "spacer", height = 6 },
-        { type = "header", text = L["Camera"] },
-        { type = "slider", label = L["Max Camera Distance"],
-          min = 1.0, max = 3.4, step = 0.1,
-          tooltip = L["Maximum camera distance (CVar cameraDistanceMaxZoomFactor)."],
-          get = function() return getCVarNum("cameraDistanceMaxZoomFactor") end,
-          set = function(_, v) setCVar("cameraDistanceMaxZoomFactor", v) end },
+        { type = "slider", label = L["UI Scale"],
+          min = 0.40, max = 1.15, step = 0.01,
+          tooltip = L["Manual UI scaling. 0.65 is smaller, 1.0 is default."],
+          get = function() return getCVarNum("uiScale") end,
+          set = function(_, v) applyUIScale(v) end },
 
-        { type = "spacer", height = 6 },
-        { type = "header", text = L["Minimap"] },
+        { type = "dropdown", label = L["UI Language"],
+          tooltip = L["Choose the language for the VuloClassicUI interface. 'Auto' uses your WoW client's language (German clients see German, all others see English).\n\n|cffaaaaaaRequires /reload to apply.|r"],
+          values = ns.SUPPORTED_LOCALES,
+          get = function() return ns:GetLocaleOverride() end,
+          set = function(_, v)
+              ns:SetLocaleOverride(v)
+              StaticPopup_Show("VCUI_RELOAD_LOCALE")
+          end },
+
         { type = "toggle", label = L["Show Minimap Button"],
           tooltip = L["Toggle the VuloClassicUI button on the minimap."],
           get = function()
@@ -199,19 +491,16 @@ local function generalOptions()
           set = function(_, v)
               if ns.ToggleModule then ns:ToggleModule("minimap", v) end
           end },
-
-        { type = "spacer", height = 6 },
-        { type = "header", text = L["Performance Display"] },
     }
+
     -- The client's own always-on profiler needs neither the CVar nor a reload,
     -- so on those clients there is nothing left to switch and the readout is
     -- simply always there. The old switch only appears where it still does work.
     local prof = _G.C_AddOnProfiler
-    if prof and prof.GetAddOnMetric and (not prof.IsEnabled or prof.IsEnabled()) then
-        items[#items + 1] = { type = "desc",
-            text = L["|cffaaaaaaThe header shows how much frame time VuloClassicUI costs. Your client measures this on its own, all the time — no setting and no reload needed.|r"] }
-    else
-        items[#items + 1] = { type = "toggle", label = L["Show CPU Usage in Header"],
+    local alwaysOnProfiler =
+        prof and prof.GetAddOnMetric and (not prof.IsEnabled or prof.IsEnabled())
+    if not alwaysOnProfiler then
+        display[#display + 1] = { type = "toggle", label = L["Show CPU Usage in Header"],
             tooltip = L["Shows total CPU usage of all active addons (plus VuloClassicUI's own share) at the top of the config header.\n\n|cffaaaaaaRequires /reload after toggling.\n\nNote: Enables WoW's scriptProfile CVar, which costs ~3-5% performance — that's the price for WoW collecting this data at all.|r"],
             get = function() return getCVarNum("scriptProfile") == 1 end,
             set = function(_, v)
@@ -219,7 +508,90 @@ local function generalOptions()
                 StaticPopup_Show("VCUI_RELOAD_PROFILING")
             end }
     end
-    return items
+
+    display[#display + 1] = { type = "group", layout = "row", gap = 8,
+        items = {
+            { type = "button", label = L["Pixel Perfect"], width = 130,
+              onClick = function()
+                  local s = pixelPerfectScale()
+                  applyUIScale(s)
+                  ns:Print(L["UI Scale = %.4f (pixel perfect)"], s)
+              end },
+            { type = "button", label = L["1080p Scale"], width = 130,
+              onClick = function() applyUIScale(768/1080); ns:Print(L["UI Scale = 0.7111 (1080p)"]) end },
+            { type = "button", label = L["1440p Scale"], width = 130,
+              onClick = function() applyUIScale(768/1440); ns:Print(L["UI Scale = 0.5333 (1440p)"]) end },
+        },
+    }
+
+    if alwaysOnProfiler then
+        display[#display + 1] = { type = "desc",
+            text = L["|cffaaaaaaThe header shows how much frame time VuloClassicUI costs. Your client measures this on its own, all the time — no setting and no reload needed.|r"] }
+    end
+
+    -- Centred pair above all sections, like the reference places it. The
+    -- restore button exists only while a backup does; both click handlers
+    -- rebuild the page, which is what makes it appear and disappear.
+    local gfxRow = {
+        type = "group", layout = "row", gap = 10, align = "center",
+        items = {
+            { type = "button", label = L["Optimize My FPS and Graphics"],
+              width = 240, primary = true,
+              tooltip = L["Applies a proven set of graphics settings that noticeably raises FPS while keeping the game looking good - shadows, liquids, ambient occlusion and view distance go down, textures and spell effects stay sharp. Your current values are saved first and the restore button brings them back. Only settings this client knows are touched."],
+              onClick = applyOptimizedGfx },
+        },
+    }
+    if ns.db and ns.db.global and ns.db.global.gfxBackup then
+        gfxRow.items[#gfxRow.items + 1] = {
+            type = "button", label = L["Restore My Graphics Settings"],
+            tooltip = L["Returns every graphics setting the optimize button changed to its previous value and removes the backup."],
+            onClick = restoreGfxSettings }
+    end
+
+    return {
+        gfxRow,
+
+        { type = "section", title = L["Display"], items = display },
+
+        { type = "section", title = L["Camera"], items = {
+            { type = "slider", label = L["Max Camera Distance"],
+              min = 1.0, max = 3.4, step = 0.1,
+              tooltip = L["Maximum camera distance (CVar cameraDistanceMaxZoomFactor)."],
+              get = function() return getCVarNum("cameraDistanceMaxZoomFactor") end,
+              set = function(_, v) setCVar("cameraDistanceMaxZoomFactor", v) end },
+        } },
+
+        { type = "section", title = L["Developer"], items = {
+            -- The CVar is the state: the client saves it account-wide on its
+            -- own, so there is nothing to store or to re-apply at login.
+            -- noOverride on both toggles: account-level switches make no sense
+            -- replayed per talent group, and the replay would even print the
+            -- module-disabled line on every switch.
+            { type = "toggle", label = L["Suppress Lua Errors"], noOverride = true,
+              tooltip = L["Hides the game's own Lua error popup (CVar scriptErrors). Errors still happen and error-collecting addons still see them - they just stop interrupting you."],
+              get = function() return getCVarNum("scriptErrors") == 0 end,
+              set = function(_, v) setCVar("scriptErrors", v and "0" or "1") end },
+
+            -- Drives the existing Tooltip IDs module instead of duplicating its
+            -- hooks; per-ID fine-tuning stays on that module's own page.
+            { type = "toggle", label = L["Show IDs in Tooltips"], noOverride = true,
+              tooltip = L["Shows spell, item, NPC and other IDs in tooltips. Which ID types appear can be fine-tuned on the Tooltip IDs page in the Extras group."],
+              get = function() return ns:IsModuleEnabled("tooltipids") end,
+              set = function(_, v)
+                  if ns.ToggleModule then ns:ToggleModule("tooltipids", v) end
+              end },
+
+            -- Shows the popup /vcui reset shows (alert, reload, own combat
+            -- re-check in OnAccept) instead of wiping anything on its own —
+            -- and refuses in combat the same way the slash path does.
+            { type = "button", label = L["Reset All Settings"], width = 300,
+              primary = true, danger = true,
+              onClick = function()
+                  if ns:InCombat() then ns:Print(L["Not possible in combat."]); return end
+                  StaticPopup_Show("VCUI_DB_RESET")
+              end },
+        } },
+    }
 end
 
 -- Both delegating tabs hand the page to the module that owns it, so the options
@@ -234,6 +606,9 @@ local function delegate(key, missingText)
 end
 
 function mod:GetOptions(tabId)
+    if tabId == "fonts" then
+        return fontsOptions()
+    end
     if tabId == "profile" then
         return delegate("profiles", L["|cffff5555Profile module not loaded.|r"])
     end

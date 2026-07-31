@@ -350,6 +350,16 @@ end
 
 local function entryUsable(e)
     if e.kind ~= "spell" then return true end
+    -- An entry stamped for another class is never usable here, whatever its
+    -- name resolves to. Two classes can own DIFFERENT spells with the SAME
+    -- localized name (zhCN: druid and shaman Rebirth / Nature's Swiftness),
+    -- and the spellbook lookup below matches by name -- without this gate the
+    -- druid's entries drew on the shaman's bars, unstamped.
+    -- (classToken() is declared further down; UnitClass answers the same.)
+    if e.cls then
+        local myCls = select(2, UnitClass("player"))
+        if myCls and e.cls ~= myCls then return false end
+    end
     if not next(knownSpells) then rebuildKnownSpells() end
     local name = entryInfo(e)
     return name ~= nil and knownSpells[name:lower()] == true
@@ -615,12 +625,32 @@ local function entryVisibleHere(e)
     return entryUsable(e)   -- legacy entry, not yet adopted by its class
 end
 
+-- True/false when the client can answer by ID, nil when it cannot (no API,
+-- or the id is a raw name string). IsSpellKnown answers for every LEARNED
+-- rank, so the name shortcut below stays only for clients without the APIs.
+local function spellKnownByID(id)
+    if type(id) ~= "number" then return nil end
+    if not (IsPlayerSpell or IsSpellKnown) then return nil end
+    local has = IsPlayerSpell and IsPlayerSpell(id)
+    if not has and IsSpellKnown then
+        has = IsSpellKnown(id) or IsSpellKnown(id, true)
+    end
+    return has and true or false
+end
+
 local function adoptEntries()
     local cls = classToken()
     if not cls then return end
     for _, g in ipairs(db().groups) do
         for _, e in ipairs(g.entries) do
-            if e.kind == "spell" and not e.cls and entryUsable(e) then e.cls = cls end
+            if e.kind == "spell" and not e.cls then
+                -- By ID first: adoption by NAME is exactly how a druid's
+                -- entries got stamped SHAMAN on a zhCN client where both
+                -- classes own same-named spells.
+                local known = spellKnownByID(e.id)
+                if known == nil then known = entryUsable(e) end
+                if known then e.cls = cls end
+            end
         end
     end
 end
@@ -3068,14 +3098,10 @@ local mod = ns:RegisterModule("powerbar", {
 local UnitPower, UnitPowerMax, UnitPowerType = UnitPower, UnitPowerMax, UnitPowerType
 local format, floor = string.format, math.floor
 
--- Keyed by the UnitPowerType token.
-local POWER_COLORS = {
-    MANA        = { r = 0.25, g = 0.45, b = 0.95 },
-    RAGE        = { r = 0.85, g = 0.22, b = 0.22 },
-    ENERGY      = { r = 0.95, g = 0.85, b = 0.25 },
-    FOCUS       = { r = 0.95, g = 0.55, b = 0.25 },
-    RUNIC_POWER = { r = 0.30, g = 0.70, b = 0.90 },
-}
+-- Keyed by the UnitPowerType token. The table moved to ns.POWER_COLORS so the
+-- resource-color settings can rewrite its fields in place; this alias keeps
+-- every read below unchanged.
+local POWER_COLORS = ns.POWER_COLORS
 local DEFAULT_COLOR = POWER_COLORS.MANA
 
 local DEFAULT_TEXTURE = "Atrocity"
