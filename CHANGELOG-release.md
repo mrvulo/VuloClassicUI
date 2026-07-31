@@ -1,21 +1,24 @@
-## 1.44.0
-**Arena:**
-- **NEW: Icon Strip** – Racial, trinket and the diminishing-returns row share one edge of the frame in a fixed order, with one set of controls — they can no longer land on top of each other
-- The frame layout — order, spacing, grow direction — never actually applied: its hooks were installed before the arena interface had loaded. The frames now report their own moves and the layout follows; during a fight they are protected, so a move mid-round is corrected when it ends.
-- The default gap between frames clears the opponent's pet bar, and the drag box in edit mode covers the whole stack instead of a fixed area.
+## 1.45.0
+**Chat:**
+- The item level on equipment links sits after the link now, not inside its brackets. Some clients re-check link text against their own data, and the changed text turned the link into the name of whatever quest carried that number.
 
 **Cooldown Manager:**
-- **NEW: Bar Glows** – Any icon can glow while a buff of yours is active or missing: three styles, gold, class or custom color, and one click watches the spell's own buff
-- The page is built around a preview that stays put while you scroll: the bar picker with rename, delete and drag-to-reorder on top, under it every icon of the bar at its real size and shape with the real cooldown sweep. Drag reorders, right-click removes.
-- The page is split into tabs, and the resource bar moved in as one of them. Spells you add belong to the class that added them and no longer show up on your other characters.
+- A spell no longer shows up on another class just because that class owns a different spell with the same name. Entries respect their class stamp on the bars, and old entries are adopted by spell ID instead of by name.
 
-**Fishing:**
-- The third extra-item slot no longer stretches across the page with its box flung to the far edge.
+**Download:**
+- The bundled media library silently dropped font registrations when no other addon shipped a newer copy of it; the addon font now registers on every install.
 
-**Languages:**
-- The interface no longer compares itself with the other game version anywhere; a check keeps such wording out for good.
+**Equipment Sets:**
+- **NEW: Rename...** – In the set's right-click menu and on the sets page; icon, contents and talent binding move along with the name
+
+**Global Settings:**
+- **NEW: Optimize My FPS and Graphics** – A proven set of graphics settings with a one-time backup; the restore button next to it brings your old values back
+- **NEW: Fonts & Colors** – A new tab: global font with outline mode, optionally for all game texts, plus class and resource colors with a reset on every row
+- **NEW: Developer** – Suppress Lua errors, switch tooltip IDs and reset all settings from a new section on the General tab
+- The General tab is organised in sections on a two-column grid like the rest of the window. The new tab ships a texture file: restart the client once after updating, a /reload alone will not show the reset arrows.
+
+**Quest Log:**
+- The enlargement stays off on Wrath-based clients (Titan Reforged): their quest log is already the wide two-pane frame, and enlarging it pushed the detail pane into the button row.
 
 **Settings Window:**
-- Modules with several pages show them as a tab row along the top; when the tabs outgrow the row, two arrows page through it instead of wrapping into a second line.
-- The sidebar got shorter: player and target frames, font bars, castbar and cooldown pulse are one entry now, and a new General entry under Reminders collects the former Extras, Character and Bug Fixes rows — the bug fixes as a single tab.
-- Typing into an add field and then clicking the button beside it silently did nothing; the typed text only counted after pressing Enter. Buttons now take the field's text with them.
+- Long dropdown lists open upwards when there is no room below. They used to run off the bottom edge of the screen, where the last entries could never be scrolled into view.

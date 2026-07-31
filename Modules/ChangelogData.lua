@@ -6,6 +6,32 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+    { version = "1.45.0", sections = {
+        { category = "Chat", lines = {
+            "The item level on equipment links sits after the link now, not inside its brackets. Some clients re-check link text against their own data, and the changed text turned the link into the name of whatever quest carried that number.",
+        } },
+        { category = "Cooldown Manager", lines = {
+            "A spell no longer shows up on another class just because that class owns a different spell with the same name. Entries respect their class stamp on the bars, and old entries are adopted by spell ID instead of by name.",
+        } },
+        { category = "Download", lines = {
+            "The bundled media library silently dropped font registrations when no other addon shipped a newer copy of it; the addon font now registers on every install.",
+        } },
+        { category = "Equipment Sets", lines = {
+            "NEW: Rename... – In the set's right-click menu and on the sets page; icon, contents and talent binding move along with the name",
+        } },
+        { category = "Global Settings", lines = {
+            "NEW: Optimize My FPS and Graphics – A proven set of graphics settings with a one-time backup; the restore button next to it brings your old values back",
+            "NEW: Fonts & Colors – A new tab: global font with outline mode, optionally for all game texts, plus class and resource colors with a reset on every row",
+            "NEW: Developer – Suppress Lua errors, switch tooltip IDs and reset all settings from a new section on the General tab",
+            "The General tab is organised in sections on a two-column grid like the rest of the window. The new tab ships a texture file: restart the client once after updating, a /reload alone will not show the reset arrows.",
+        } },
+        { category = "Quest Log", lines = {
+            "The enlargement stays off on Wrath-based clients (Titan Reforged): their quest log is already the wide two-pane frame, and enlarging it pushed the detail pane into the button row.",
+        } },
+        { category = "Settings Window", lines = {
+            "Long dropdown lists open upwards when there is no room below. They used to run off the bottom edge of the screen, where the last entries could never be scrolled into view.",
+        } },
+    } },
     { version = "1.44.0", sections = {
         { category = "Arena", lines = {
             "NEW: Icon Strip – Racial, trinket and the diminishing-returns row share one edge of the frame in a fixed order, with one set of controls — they can no longer land on top of each other",
@@ -403,12 +429,6 @@ ns.CHANGELOG = {
         { category = "Chat", lines = {
             "Item levels in links now only show on uncommon (green) and better gear — grey and white trash no longer gets a number.",
             "No double number when another loot addon already tagged the item with its item level.",
-        } },
-    } },
-    { version = "1.28.0", sections = {
-        { category = "Minimap", lines = {
-            "NEW: The date now shows next to the clock in the zone panel — click it to open the calendar, hover for the full date. Optional in the minimap settings.",
-            "The zone panel is a touch wider so the zone name, clock and date sit more comfortably.",
         } },
     } },
 }

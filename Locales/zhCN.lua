@@ -2875,4 +2875,15 @@ ns:RegisterLocale("zhCN", function() return {
     ["Rename loadout '%s'. Enter new name:"] = "重命名装备配置“%s”。输入新名称：",
     ["A loadout named '%s' already exists."] = "已存在名为“%s”的装备配置。",
     ["Loadout '%s' renamed to '%s'."] = "装备配置“%s”已重命名为“%s”。",
+    -- Patch notes 1.45.0
+    ["The item level on equipment links sits after the link now, not inside its brackets. Some clients re-check link text against their own data, and the changed text turned the link into the name of whatever quest carried that number."] = "装备链接上的物品等级现在跟在链接后面，而不在方括号内。部分客户端会用自己的数据重新核对链接文本，改动过的文本曾把链接变成对应编号任务的名字。",
+    ["A spell no longer shows up on another class just because that class owns a different spell with the same name. Entries respect their class stamp on the bars, and old entries are adopted by spell ID instead of by name."] = "法术不再仅仅因为另一个职业拥有同名的不同法术就出现在那个职业上。条目在栏上遵循自己的职业标记，旧条目改按法术 ID 归属，而不是按名字。",
+    ["The bundled media library silently dropped font registrations when no other addon shipped a newer copy of it; the addon font now registers on every install."] = "自带的媒体库在没有其他插件提供更新副本时会悄悄丢弃字体注册；现在插件字体在任何安装下都会注册。",
+    ["Rename... – In the set's right-click menu and on the sets page; icon, contents and talent binding move along with the name"] = "重命名... – 在配置的右键菜单和配置页面中；图标、内容和天赋绑定随名字一起迁移",
+    ["Optimize My FPS and Graphics – A proven set of graphics settings with a one-time backup; the restore button next to it brings your old values back"] = "优化我的 FPS 与画质 – 一套经过验证的画质设置，附一次性备份；旁边的恢复按钮可找回旧值",
+    ["Fonts & Colors – A new tab: global font with outline mode, optionally for all game texts, plus class and resource colors with a reset on every row"] = "字体与颜色 – 新标签页：带描边模式的全局字体（可选应用到所有游戏文本），以及每行带重置的职业与资源颜色",
+    ["Developer – Suppress Lua errors, switch tooltip IDs and reset all settings from a new section on the General tab"] = "开发者 – 在常规标签页的新区域里屏蔽 Lua 错误、开关鼠标提示 ID、重置所有设置",
+    ["The General tab is organised in sections on a two-column grid like the rest of the window. The new tab ships a texture file: restart the client once after updating, a /reload alone will not show the reset arrows."] = "常规标签页像窗口其余部分一样按两列网格分区。新标签页带来一个材质文件：更新后请完整重启一次客户端，仅 /reload 不会显示重置箭头。",
+    ["The enlargement stays off on Wrath-based clients (Titan Reforged): their quest log is already the wide two-pane frame, and enlarging it pushed the detail pane into the button row."] = "在基于巫妖王之怒的客户端（Titan Reforged）上放大保持关闭：那里的任务日志本就是宽双栏窗口，放大会把详情栏挤进按钮行。",
+    ["Long dropdown lists open upwards when there is no room below. They used to run off the bottom edge of the screen, where the last entries could never be scrolled into view."] = "长下拉列表在下方没有空间时向上打开。以前它们会伸出屏幕下缘，最后几项永远滚不进视野。",
 } end)
