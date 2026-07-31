@@ -1,0 +1,19 @@
+{
+	"$schema": "https://raw.githubusercontent.com/LuaLS/vscode-lua/master/setting/schema.json",
+	"runtime.version": "Lua 5.1",
+	"diagnostics.globals": [
+		"VuloClassicUIDB",
+		"VuloClassicUICharDB",
+		"TrinketsOptions",
+		"TrinketsPerOptions",
+		"TrinketsQueue",
+		"VuloFontBarsDB",
+		"ArenaEnemyEditDB",
+		"BetterBlizzQueueDB",
+		"idTipConfig"
+	],
+	"diagnostics.disable": [
+		"undefined-field",
+		"inject-field"
+	]
+}

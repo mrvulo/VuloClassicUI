@@ -24,6 +24,28 @@ local RAID_CLASS_COLORS = _G.RAID_CLASS_COLORS
 
 local LOCALE = GetLocale()
 
+-- font language bits: Register() drops fonts whose langmask does not include the client locale
+lib.LOCALE_BIT_koKR		= 1
+lib.LOCALE_BIT_ruRU		= 2
+lib.LOCALE_BIT_zhCN		= 4
+lib.LOCALE_BIT_zhTW		= 8
+lib.LOCALE_BIT_western	= 128
+
+local locale_is_western
+local LOCALE_MASK
+if LOCALE == "koKR" then
+	LOCALE_MASK = lib.LOCALE_BIT_koKR
+elseif LOCALE == "ruRU" then
+	LOCALE_MASK = lib.LOCALE_BIT_ruRU
+elseif LOCALE == "zhCN" then
+	LOCALE_MASK = lib.LOCALE_BIT_zhCN
+elseif LOCALE == "zhTW" then
+	LOCALE_MASK = lib.LOCALE_BIT_zhTW
+else
+	LOCALE_MASK = lib.LOCALE_BIT_western
+	locale_is_western = true
+end
+
 lib.callbacks		= lib.callbacks			or LibStub:GetLibrary("CallbackHandler-1.0"):New(lib)
 
 lib.DefaultMedia	= lib.DefaultMedia		or {}
@@ -132,7 +154,7 @@ function lib:Register(mediatype, key, data, langmask)
 		error(MAJOR..":Register(mediatype, key, data, langmask) - key must be string, got "..type(key))
 	end
 	mediatype = mediatype:lower()
-	if mediatype == lib.MediaType.FONT and ((langmask and band(langmask, locale_is_western) == 0) or (not langmask and not locale_is_western)) then return false end
+	if mediatype == lib.MediaType.FONT and ((langmask and band(langmask, LOCALE_MASK) == 0) or (not langmask and not locale_is_western)) then return false end
 	if mediatype == lib.MediaType.SOUND and type(data) == "string" then
 		local path = data:lower()
 		-- Only ogg and mp3 are valid sounds.
