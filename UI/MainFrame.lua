@@ -11,11 +11,41 @@ local TITLEBAR_H    = 32
 local BOTTOMBAR_H   = 44
 local TABBAR_H      = 32
 
+-- 1050x680 is the design size, not a promise. On an interface scale that leaves
+-- UIParent smaller than that, the window fills the screen edge to edge -- and
+-- because it is clamped to the screen it then cannot be dragged at all: there
+-- is nowhere for it to go. Reported as "the menu will not move down"
+-- (01.08.2026), where the window stood at 99% of the screen height and had
+-- about twenty units of travel left.
+--
+-- A margin is subtracted rather than fitting exactly, so there is always slack
+-- in both directions and the window can still be moved off centre.
+local MIN_WIDTH, MIN_HEIGHT, SCREEN_MARGIN = 820, 400, 60
+
+local function fittedSize()
+    local w, h = FRAME_WIDTH, FRAME_HEIGHT
+    if UIParent and UIParent.GetWidth then
+        local aw, ah = UIParent:GetWidth(), UIParent:GetHeight()
+        if aw and aw > 0 then w = math.min(w, math.max(MIN_WIDTH,  aw - SCREEN_MARGIN)) end
+        if ah and ah > 0 then h = math.min(h, math.max(MIN_HEIGHT, ah - SCREEN_MARGIN)) end
+    end
+    return w, h
+end
+
+-- Re-measured on every open: the interface scale can change while the addon is
+-- loaded, and the setting that changes it lives in this very window.
+function UI:FitMainFrame()
+    local f = UI.mainFrame
+    if not f then return end
+    local w, h = fittedSize()
+    if f:GetWidth() ~= w or f:GetHeight() ~= h then f:SetSize(w, h) end
+end
+
 function UI:CreateMainFrame()
     if UI.mainFrame then return UI.mainFrame end
 
     local f = CreateFrame("Frame", "VuloClassicUIMainFrame", UIParent)
-    f:SetSize(FRAME_WIDTH, FRAME_HEIGHT)
+    f:SetSize(fittedSize())
     f:SetFrameStrata("HIGH")
     f:SetClampedToScreen(true)
     f:EnableMouse(true)
@@ -190,6 +220,7 @@ function UI:CreateMainFrame()
     end
 
     f:HookScript("OnShow", function()
+        UI:FitMainFrame()
         updateCPU()
         if not cpuTicker and C_Timer and C_Timer.NewTicker then
             cpuTicker = C_Timer.NewTicker(2, updateCPU)
