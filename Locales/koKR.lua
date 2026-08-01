@@ -3050,4 +3050,8 @@ ns:RegisterLocale("koKR", function() return {
     ["Watches the combat log for enemy interrupts and starts a cooldown for each one, tracked per caster -- two enemies of the same class get an icon each. The border carries the caster's class colour."] = "전투 기록에서 적의 차단 기술을 감시하여 각각의 재사용 대기시간을 시전자별로 표시합니다. 같은 직업의 적이 둘이면 아이콘도 둘입니다. 테두리는 시전자의 직업 색상을 띱니다.",
     ["Show interrupt bar"] = "차단 바 표시",
     ["Show interrupts that are still ready"] = "사용 가능한 차단 기술도 표시",
+    ["Timer text on the icons"] = "아이콘에 남은 시간 표시",
+    ["Cooldown swipe on the icons"] = "아이콘에 재사용 대기 효과 표시",
+    ["Only take over the key while a fishing pole is worn"] = "낚싯대를 장착했을 때만 키를 사용",
+    ["Without a pole in hand the key keeps whatever you bound it to, so it stays usable outside fishing. A cast already in the water keeps the key. This switches off auto-equipping a pole, which needs the key exactly while none is worn."] = "낚싯대가 없으면 키는 원래 지정한 기능을 그대로 유지하므로 낚시 외에도 계속 쓸 수 있습니다. 이미 던진 찌는 키를 계속 사용합니다. 이 설정은 낚싯대 자동 장착을 끕니다. 그 기능은 낚싯대가 없을 때 바로 그 키를 필요로 하기 때문입니다.",
 } end)

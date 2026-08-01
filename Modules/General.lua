@@ -1561,6 +1561,9 @@ local mod = ns:RegisterModule("vulfishing", {
         autoLoot     = true,
         softInteract = true,
         equipPole    = false,
+        -- Off by default: switching it on changes what an already-assigned key
+        -- does outside fishing, and that is not a surprise to hand anyone.
+        onlyWithPole = false,
         quietErrors  = true,
         soundBoost   = false,
         soundBG      = false,
@@ -1783,6 +1786,16 @@ local function actionHandler()
         return
     end
 
+    -- Hand the key back when no pole is out. The bindings were already cleared
+    -- above, so returning here leaves the key on whatever the player bound it
+    -- to. Deliberately AFTER the midFishing branch: a line already in the water
+    -- keeps the key even if the pole leaves the hand for a moment.
+    --
+    -- This does turn off the auto-equip below, and it has to: that branch works
+    -- by owning the key while no pole is worn, which is exactly the state this
+    -- setting hands back.
+    if mod.db.onlyWithPole and not poleEquipped() then return end
+
     if mod.db.equipPole and not poleEquipped() then
         local pole = poleInBags()
         if pole then
@@ -1927,6 +1940,10 @@ function mod:GetOptions()
         { type = "toggle", label = L["Auto-loot while fishing"],
           get = function() return mod.db.autoLoot end,
           set = function(_, v) mod.db.autoLoot = v end },
+        { type = "toggle", label = L["Only take over the key while a fishing pole is worn"],
+          tooltip = L["Without a pole in hand the key keeps whatever you bound it to, so it stays usable outside fishing. A cast already in the water keeps the key. This switches off auto-equipping a pole, which needs the key exactly while none is worn."],
+          get = function() return mod.db.onlyWithPole end,
+          set = function(_, v) mod.db.onlyWithPole = v; actionHandler() end },
         { type = "toggle", label = L["Auto-equip a fishing pole if none is worn"],
           get = function() return mod.db.equipPole end,
           set = function(_, v) mod.db.equipPole = v; actionHandler() end },

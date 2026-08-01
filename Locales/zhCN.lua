@@ -3043,4 +3043,8 @@ ns:RegisterLocale("zhCN", function() return {
     ["Watches the combat log for enemy interrupts and starts a cooldown for each one, tracked per caster -- two enemies of the same class get an icon each. The border carries the caster's class colour."] = "监视战斗记录中敌方的打断技能，并按施法者分别开始冷却计时——同职业的两名敌人各占一个图标。边框显示施法者的职业颜色。",
     ["Show interrupt bar"] = "显示打断条",
     ["Show interrupts that are still ready"] = "同时显示已就绪的打断技能",
+    ["Timer text on the icons"] = "在图标上显示剩余时间",
+    ["Cooldown swipe on the icons"] = "在图标上显示冷却扫描",
+    ["Only take over the key while a fishing pole is worn"] = "仅在装备鱼竿时占用该按键",
+    ["Without a pole in hand the key keeps whatever you bound it to, so it stays usable outside fishing. A cast already in the water keeps the key. This switches off auto-equipping a pole, which needs the key exactly while none is worn."] = "手中没有鱼竿时，该按键保留你自己设置的功能，在钓鱼之外仍可正常使用。已经抛出的鱼线会继续占用按键。此设置会关闭自动装备鱼竿，因为该功能正需要在没有鱼竿时占用按键。",
 } end)

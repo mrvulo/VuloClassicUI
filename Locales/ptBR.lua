@@ -3050,4 +3050,8 @@ ns:RegisterLocale("ptBR", function() return {
     ["Watches the combat log for enemy interrupts and starts a cooldown for each one, tracked per caster -- two enemies of the same class get an icon each. The border carries the caster's class colour."] = "Observa o registro de combate em busca de interrupções inimigas e inicia um tempo de recarga para cada uma, separado por conjurador: dois inimigos da mesma classe recebem um ícone cada. A borda carrega a cor de classe do conjurador.",
     ["Show interrupt bar"] = "Mostrar a barra de interrupções",
     ["Show interrupts that are still ready"] = "Mostrar também as interrupções disponíveis",
+    ["Timer text on the icons"] = "Texto de tempo nos ícones",
+    ["Cooldown swipe on the icons"] = "Varredura de recarga nos ícones",
+    ["Only take over the key while a fishing pole is worn"] = "Ocupar a tecla apenas com um caniço equipado",
+    ["Without a pole in hand the key keeps whatever you bound it to, so it stays usable outside fishing. A cast already in the water keeps the key. This switches off auto-equipping a pole, which needs the key exactly while none is worn."] = "Sem caniço na mão a tecla mantém o que você atribuiu a ela, continuando útil fora da pesca. Um lançamento já na água mantém a tecla. Isso desliga equipar o caniço automaticamente, porque essa função precisa da tecla justamente quando nenhum está equipado.",
 } end)

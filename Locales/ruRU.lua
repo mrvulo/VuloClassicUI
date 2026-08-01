@@ -3050,4 +3050,8 @@ ns:RegisterLocale("ruRU", function() return {
     ["Watches the combat log for enemy interrupts and starts a cooldown for each one, tracked per caster -- two enemies of the same class get an icon each. The border carries the caster's class colour."] = "Следит в боевом журнале за прерываниями противников и запускает восстановление для каждого, отдельно по заклинателю: два врага одного класса получат по значку. Рамка окрашена в цвет класса заклинателя.",
     ["Show interrupt bar"] = "Показывать панель прерываний",
     ["Show interrupts that are still ready"] = "Показывать и готовые прерывания",
+    ["Timer text on the icons"] = "Время на значках",
+    ["Cooldown swipe on the icons"] = "Заливка восстановления на значках",
+    ["Only take over the key while a fishing pole is worn"] = "Занимать клавишу только с удочкой в руках",
+    ["Without a pole in hand the key keeps whatever you bound it to, so it stays usable outside fishing. A cast already in the water keeps the key. This switches off auto-equipping a pole, which needs the key exactly while none is worn."] = "Без удочки клавиша сохраняет то, что вы на неё назначили, и остаётся полезной вне рыбалки. Уже заброшенная леска клавишу удерживает. Это отключает автоматическое надевание удочки, ведь оно требует клавишу именно тогда, когда удочки нет.",
 } end)

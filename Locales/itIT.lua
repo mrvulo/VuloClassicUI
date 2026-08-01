@@ -3050,4 +3050,8 @@ ns:RegisterLocale("itIT", function() return {
     ["Watches the combat log for enemy interrupts and starts a cooldown for each one, tracked per caster -- two enemies of the same class get an icon each. The border carries the caster's class colour."] = "Controlla il registro di combattimento per le interruzioni nemiche e avvia un tempo di recupero per ciascuna, distinto per incantatore: due nemici della stessa classe ricevono un’icona ciascuno. Il bordo porta il colore di classe dell’incantatore.",
     ["Show interrupt bar"] = "Mostra la barra delle interruzioni",
     ["Show interrupts that are still ready"] = "Mostra anche le interruzioni disponibili",
+    ["Timer text on the icons"] = "Testo del tempo sulle icone",
+    ["Cooldown swipe on the icons"] = "Sweep del recupero sulle icone",
+    ["Only take over the key while a fishing pole is worn"] = "Occupa il tasto solo con una canna equipaggiata",
+    ["Without a pole in hand the key keeps whatever you bound it to, so it stays usable outside fishing. A cast already in the water keeps the key. This switches off auto-equipping a pole, which needs the key exactly while none is worn."] = "Senza canna in mano il tasto mantiene ciò che gli hai assegnato, quindi resta utilizzabile fuori dalla pesca. Un lancio già in acqua mantiene il tasto. Questo disattiva l’equipaggiamento automatico della canna, che ha bisogno del tasto proprio quando non ne indossi nessuna.",
 } end)

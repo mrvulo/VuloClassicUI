@@ -3199,4 +3199,8 @@ ns:RegisterLocale("frFR", function() return {
     ["Watches the combat log for enemy interrupts and starts a cooldown for each one, tracked per caster -- two enemies of the same class get an icon each. The border carries the caster's class colour."] = "Surveille le journal de combat pour repérer les interruptions ennemies et lance un temps de recharge pour chacune, par lanceur : deux ennemis de la même classe obtiennent chacun une icône. La bordure porte la couleur de classe du lanceur.",
     ["Show interrupt bar"] = "Afficher la barre d’interruptions",
     ["Show interrupts that are still ready"] = "Afficher aussi les interruptions disponibles",
+    ["Timer text on the icons"] = "Texte du temps sur les icônes",
+    ["Cooldown swipe on the icons"] = "Balayage de recharge sur les icônes",
+    ["Only take over the key while a fishing pole is worn"] = "Occuper la touche uniquement avec une canne équipée",
+    ["Without a pole in hand the key keeps whatever you bound it to, so it stays usable outside fishing. A cast already in the water keeps the key. This switches off auto-equipping a pole, which needs the key exactly while none is worn."] = "Sans canne en main la touche garde ce que vous lui avez assigné, elle reste donc utilisable en dehors de la pêche. Un lancer déjà à l’eau conserve la touche. Cela désactive l’équipement automatique de la canne, qui a besoin de la touche précisément quand aucune n’est portée.",
 } end)

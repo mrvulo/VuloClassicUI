@@ -3051,6 +3051,10 @@ local function T() return {
     ["Watches the combat log for enemy interrupts and starts a cooldown for each one, tracked per caster -- two enemies of the same class get an icon each. The border carries the caster's class colour."] = "Vigila el registro de combate en busca de interrupciones enemigas e inicia un tiempo de reutilización para cada una, por lanzador: dos enemigos de la misma clase reciben un icono cada uno. El borde lleva el color de clase del lanzador.",
     ["Show interrupt bar"] = "Mostrar la barra de interrupciones",
     ["Show interrupts that are still ready"] = "Mostrar también las interrupciones disponibles",
+    ["Timer text on the icons"] = "Texto de tiempo en los iconos",
+    ["Cooldown swipe on the icons"] = "Barrido de reutilización en los iconos",
+    ["Only take over the key while a fishing pole is worn"] = "Ocupar la tecla solo con una caña equipada",
+    ["Without a pole in hand the key keeps whatever you bound it to, so it stays usable outside fishing. A cast already in the water keeps the key. This switches off auto-equipping a pole, which needs the key exactly while none is worn."] = "Sin caña en la mano la tecla conserva lo que le hayas asignado, así que sigue siendo útil fuera de la pesca. Un lanzamiento ya en el agua mantiene la tecla. Esto desactiva equipar la caña automáticamente, porque eso necesita la tecla justo cuando no llevas ninguna.",
 } end
 
 ns:RegisterLocale("esES", T)

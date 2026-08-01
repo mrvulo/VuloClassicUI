@@ -3172,4 +3172,8 @@ ns:RegisterLocale("deDE", function() return {
     ["Watches the combat log for enemy interrupts and starts a cooldown for each one, tracked per caster -- two enemies of the same class get an icon each. The border carries the caster's class colour."] = "Verfolgt im Kampfprotokoll die Unterbrechungen der Gegner und startet für jede eine Abklingzeit, getrennt nach Wirker – zwei Gegner derselben Klasse bekommen je ein Symbol. Der Rahmen trägt die Klassenfarbe des Wirkers.",
     ["Show interrupt bar"] = "Unterbrechen-Leiste anzeigen",
     ["Show interrupts that are still ready"] = "Auch einsatzbereite Unterbrechungen anzeigen",
+    ["Timer text on the icons"] = "Restzeit auf den Symbolen",
+    ["Cooldown swipe on the icons"] = "Abklingzeit-Wisch auf den Symbolen",
+    ["Only take over the key while a fishing pole is worn"] = "Taste nur belegen, solange eine Angel angelegt ist",
+    ["Without a pole in hand the key keeps whatever you bound it to, so it stays usable outside fishing. A cast already in the water keeps the key. This switches off auto-equipping a pole, which needs the key exactly while none is worn."] = "Ohne Angel in der Hand behält die Taste das, was du ihr zugewiesen hast – sie bleibt außerhalb des Angelns also normal nutzbar. Eine bereits ausgeworfene Schnur behält die Taste. Das schaltet das automatische Anlegen der Angel ab, denn das braucht die Taste genau dann, wenn keine angelegt ist.",
 } end)

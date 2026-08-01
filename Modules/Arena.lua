@@ -114,6 +114,15 @@ local mod = ns:RegisterModule("arenaframes", {
             perRow      = 8,
             growth      = "RIGHT",
             showUnused  = false,
+            showTimer   = true,
+            showSwipe   = true,
+            timerSize   = 13,
+            -- Empty font name means the global setting, same as the loss
+            -- display: the bar follows the rest of the interface until told
+            -- otherwise.
+            font        = "",
+            outline     = "OUTLINE",
+            timerColor  = { r = 1, g = 0.9, b = 0.4 },
         },
     },
 })
@@ -3396,7 +3405,7 @@ if ns.isEra then return end
 local L = ns.L
 local mod = ns.ArenaModule
 
-local GetTime, floor, unpack = GetTime, math.floor, unpack
+local GetTime, floor, format, unpack = GetTime, math.floor, string.format, unpack
 
 -- id = { cooldown in seconds, class token, ability key }
 -- The ability key groups ranks: all four ranks of one kick share it, so the
@@ -3480,14 +3489,59 @@ local function newIcon()
     local cd = CreateFrame("Cooldown", nil, f, "CooldownFrameTemplate")
     cd:SetAllPoints(f)
     cd:SetDrawEdge(true)
+    -- The client's own numbers stay off: they cannot be styled, and this bar
+    -- carries its own text so the settings below actually reach it.
     if cd.SetHideCountdownNumbers then cd:SetHideCountdownNumbers(true) end
     f.cd = cd
+
+    -- Above the swipe, so the shade never eats the number.
+    local text = f:CreateFontString(nil, "OVERLAY")
+    text:SetPoint("CENTER", f, "CENTER", 0, 0)
+    f.text = text
 
     return f
 end
 
+-- Coarse at the top, exact at the bottom: a two-minute lockout does not need a
+-- tenth of a second, and the last few seconds are the ones actually worth
+-- reading.
+local function timerText(left)
+    if left >= 60 then return format("%dm", floor(left / 60 + 0.5)) end
+    if left >= 10 then return format("%d", floor(left + 0.5)) end
+    return format("%.1f", left)
+end
+
+-- Font and colour are set here rather than in the refresh pass: that pass runs
+-- five times a second, and the text look only changes when a setting does.
+function mod.InterruptApplyLook()
+    local d = db()
+    local path  = ns.MediaFont(d.font)
+    local flags = d.outline or ""
+    local c = d.timerColor or {}
+    local swipe = d.showSwipe ~= false
+    for _, f in ipairs(icons) do
+        f.text:SetFont(path, d.timerSize or 12, flags)
+        f.text:SetTextColor(c.r or 1, c.g or 0.9, c.b or 0.4)
+        -- Where the client offers it the swipe is switched off on the cooldown
+        -- itself, so the frame keeps running and only stops painting; older
+        -- clients get the whole cooldown hidden, which looks the same. Either
+        -- way the timer text is untouched -- it sits on the icon, not on the
+        -- cooldown.
+        if f.cd.SetDrawSwipe then
+            f.cd:SetDrawSwipe(swipe)
+            if f.cd.SetDrawEdge then f.cd:SetDrawEdge(swipe) end
+            f.cd:Show()
+        else
+            f.cd:SetShown(swipe)
+        end
+    end
+end
+
 local function ensureIcon(i)
-    icons[i] = icons[i] or newIcon()
+    if not icons[i] then
+        icons[i] = newIcon()
+        mod.InterruptApplyLook()   -- the fresh one still has no font
+    end
     return icons[i]
 end
 
@@ -3607,6 +3661,7 @@ local function refresh()
         return
     end
     build()
+    local d = db()
 
     local now, list = GetTime(), {}
     for key, e in pairs(active) do
@@ -3630,12 +3685,21 @@ local function refresh()
         end
         if e.ready then
             f.cd:Clear()
+            f._cdStart, f._cdDur = nil, nil
             f.tex:SetDesaturated(true)
             f.tex:SetAlpha(0.45)
+            f.text:SetText("")
         else
-            f.cd:SetCooldown(e.expiry - e.cd, e.cd)
+            -- Only when it actually changed: this pass runs five times a second
+            -- and re-arming an unchanged swipe makes it stutter.
+            local start = e.expiry - e.cd
+            if f._cdStart ~= start or f._cdDur ~= e.cd then
+                f.cd:SetCooldown(start, e.cd)
+                f._cdStart, f._cdDur = start, e.cd
+            end
             f.tex:SetDesaturated(false)
             f.tex:SetAlpha(1)
+            f.text:SetText(d.showTimer and timerText(e.expiry - now) or "")
         end
         f:Show()
         shown[#shown + 1] = f
@@ -3755,6 +3819,17 @@ local function preview()
     refresh()
 end
 
+-- Rebuilt per page build, so a font another addon registered since the last
+-- visit shows up. Same first entry as the loss display: an empty name means
+-- MediaFont falls through to the global setting.
+local function interruptFontValues()
+    local v = { { value = "", text = L["Use the global font"] } }
+    for _, entry in ipairs(ns.MediaFontValues() or {}) do
+        v[#v + 1] = entry
+    end
+    return v
+end
+
 mod:AddOptionsSection("interrupt", function()
     local d = db()
     return {
@@ -3802,6 +3877,38 @@ mod:AddOptionsSection("interrupt", function()
         { type = "checkbox", label = L["Show interrupts that are still ready"],
           get = function() return d.showUnused end,
           set = function(_, v) d.showUnused = v; refresh() end },
+
+        -- Its own row rather than a sub-option: the swipe and the text are
+        -- independent, either one is a complete readout on its own.
+        { type = "checkbox", label = L["Cooldown swipe on the icons"],
+          get = function() return d.showSwipe end,
+          set = function(_, v) d.showSwipe = v; mod.InterruptApplyLook() end },
+
+        { type = "checkbox", label = L["Timer text on the icons"],
+          get = function() return d.showTimer end,
+          set = function(_, v) d.showTimer = v; refresh() end,
+          subOptions = {
+              { type = "slider", label = L["Timer font size"], min = 8, max = 32, step = 1,
+                get = function() return d.timerSize end,
+                set = function(_, v) d.timerSize = v; mod.InterruptApplyLook() end },
+              { type = "dropdown", label = L["Font"], width = 240,
+                values = interruptFontValues(),
+                get = function() return d.font or "" end,
+                set = function(_, v) d.font = v; mod.InterruptApplyLook() end },
+              { type = "dropdown", label = L["Outline"], width = 240,
+                values = {
+                    { value = "OUTLINE",      text = L["Outline"] },
+                    { value = "THICKOUTLINE", text = L["Thick outline"] },
+                    { value = "",             text = L["None"] },
+                },
+                get = function() return d.outline or "" end,
+                set = function(_, v) d.outline = v; mod.InterruptApplyLook() end },
+              { type = "color", label = L["Timer color"], width = 160,
+                get = function() return d.timerColor end,
+                set = function(r, g, b)
+                    d.timerColor = { r = r, g = g, b = b }; mod.InterruptApplyLook()
+                end },
+          } },
     }
 end)
 
