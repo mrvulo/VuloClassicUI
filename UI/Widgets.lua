@@ -193,6 +193,15 @@ function UI.StyleScrollbar(scrollFrame)
     end
     if not sb then return end
 
+    -- The client's own scroll handlers fall back to _G[self:GetName().."ScrollBar"]
+    -- when the .ScrollBar key is missing, and every scroll frame here is created
+    -- unnamed -- so that lookup concatenates a nil name and throws. It throws
+    -- inside OnVerticalScroll and OnScrollRangeChanged, which is why a thumb
+    -- refuses to move and a scrollbar keeps showing on a page with nothing to
+    -- scroll. Publishing the bar we just resolved makes those handlers take the
+    -- key path and never reach for the name.
+    if not scrollFrame.ScrollBar then scrollFrame.ScrollBar = sb end
+
     local function findChild(parent, suffix)
         local pName = parent.GetName and parent:GetName()
         if pName then
@@ -229,6 +238,24 @@ function UI.StyleScrollbar(scrollFrame)
     end
 
     sb:SetWidth(8)
+end
+
+-- The scroll template declares an OnMouseWheel handler but leaves the wheel
+-- itself switched off, so the handler has never fired -- the same shape the
+-- sliders in the trinket options had. The scroll is driven from the child's
+-- height rather than the scrollbar's range, because the range is only correct
+-- once the client has processed the child's new size.
+function UI.EnableScrollWheel(scrollFrame, child, step)
+    if not scrollFrame or not scrollFrame.SetVerticalScroll then return end
+    step = step or 28
+    scrollFrame:EnableMouseWheel(true)
+    scrollFrame:SetScript("OnMouseWheel", function(self, delta)
+        local range = math.max(0, (child:GetHeight() or 0) - (self:GetHeight() or 0))
+        if range <= 0 then return end
+        local v = self:GetVerticalScroll() - delta * step
+        if v < 0 then v = 0 elseif v > range then v = range end
+        self:SetVerticalScroll(v)
+    end)
 end
 
 -- Pooled widgets are reused with a new _vcConfig, so the tooltip text has to be

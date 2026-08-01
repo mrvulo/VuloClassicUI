@@ -423,6 +423,7 @@ function UI:CreateMainFrame()
     sidebarContent:SetSize(SIDEBAR_WIDTH - 22, 10)
     sidebarScroll:SetScrollChild(sidebarContent)
     UI.StyleScrollbar(sidebarScroll)
+    UI.EnableScrollWheel(sidebarScroll, sidebarContent)
 
     -- The dashboard's search prompt hands focus here rather than matching on its
     -- own, so there is only ever one search implementation.
@@ -571,6 +572,7 @@ function UI:CreateMainFrame()
     tabColContent:SetSize(TABCOL_W - 22, 10)
     tabColScroll:SetScrollChild(tabColContent)
     if UI.StyleScrollbar then UI.StyleScrollbar(tabColScroll) end
+    UI.EnableScrollWheel(tabColScroll, tabColContent)
 
     f.tabColumn     = tabColumn
     f.tabColWidth   = TABCOL_W
@@ -602,6 +604,7 @@ function UI:CreateMainFrame()
     scrollChild:SetSize(1, 1)
     scroll:SetScrollChild(scrollChild)
     UI.StyleScrollbar(scroll)
+    UI.EnableScrollWheel(scroll, scrollChild)
     f.scroll      = scroll
     f.scrollChild = scrollChild
 
