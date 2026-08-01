@@ -54,10 +54,18 @@ local STYLES = {
     },
 }
 
+-- Only frames that are NOT protected may be listed here.
+--
+-- PetFrame and TotemFrame used to sit in this list. Writing a frame level onto
+-- a protected unit frame from here marks it as ours for the rest of the
+-- session, and the next time Blizzard's own PetFrame_Update runs in combat its
+-- PetFrame:Show() is refused -- ADDON_ACTION_BLOCKED naming this addon, from a
+-- stack that is pure Blizzard code (user report 01.08.2026). Neither one needs
+-- the lift: both are CHILD frames of PlayerFrame, so they already draw above
+-- every texture the player style swaps out, which are all layers of PlayerFrame
+-- itself.
 local RAISE_FRAMES = {
     { name = "PlayerFrameGroupIndicator", lift = 1 },
-    { name = "PetFrame",                  lift = 2 },
-    { name = "TotemFrame",                lift = 3 },
 }
 
 local captured
