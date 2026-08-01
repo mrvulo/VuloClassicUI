@@ -2162,10 +2162,16 @@ function mod.RefreshStrip(group)
 end
 
 -- The pinned header above the scroll area (see BuildOptionsPage): the preview
--- region stays in sight at every scroll position, like the reference's. ONLY
--- on the two tabs whose subject the strip is -- the bar itself and the glows
--- (30.07.2026, user request); a returned 0 hides the header everywhere else.
-local STRIP_TABS = { tracked = true, glows = true, ["default"] = true }
+-- region stays in sight at every scroll position. Only on the tabs whose
+-- subject the strip actually is; a returned 0 hides the header everywhere else.
+--
+-- Started as the bar itself plus the glows (30.07.2026, user request), and the
+-- layout tab joined them on 01.08.2026 -- icon size, spacing, shape and zoom
+-- all read back off the strip while the slider moves, because relayoutGroup
+-- ends in RefreshStrip. Growth direction, rows and the bar's scale, opacity
+-- and background do NOT show there: the strip is a fixed-width management row
+-- for reordering and removing, not a scale model of the bar.
+local STRIP_TABS = { tracked = true, glows = true, layout = true, ["default"] = true }
 function mod.BuildPageHeader(host, tabId)
     -- The power-bar tab pins its own preview instead of the icon strip; the
     -- capsule below owns the widget, this is just the hand-over.
