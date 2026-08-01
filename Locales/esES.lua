@@ -3024,6 +3024,21 @@ local function T() return {
     ["Exporting opens a proper window with the string already selected, and importing shows a preview first: rename the profile and untick the parts you do not want before anything is written"] = "Exportar abre una ventana propia con la cadena ya seleccionada, e importar muestra primero una vista previa: renombra el perfil y desmarca lo que no quieras antes de que se escriba nada",
     ["Export strings are compressed to a fraction of their old length and fit in a chat message; strings from older versions still import"] = "Las cadenas de exportación están comprimidas a una fracción de su longitud anterior y caben en un mensaje de chat; las cadenas de versiones antiguas se siguen importando",
     ["On the Wrath client the talent tooltip showed a placeholder instead of the description, and the talent key would open the window but not close it — both fixed"] = "En el cliente de Wrath el tooltip de talentos mostraba un marcador en lugar de la descripción, y la tecla de talentos abría la ventana pero no la cerraba; ambas cosas corregidas",
+    ["%s Locked"] = "%s bloqueada",
+    ["|cffffffffLOSS OF CONTROL|r\n|cffaaaaaaDrag or arrow keys|r"] = "|cffffffffPÉRDIDA DE CONTROL|r\n|cffaaaaaaArrastra o usa las flechas|r",
+    ["%.1f seconds"] = "%.1f segundos",
+    ["Loss of control mover active. |cff9b6cffDrag the purple box|r or use |cff9b6cffarrow keys|r (SHIFT = 5px). Press the button again to finish."] = "Movedor de pérdida de control activo. |cff9b6cffArrastra la caja morada|r o usa las |cff9b6cffflechas|r (MAYÚS = 5 px). Pulsa el botón otra vez para terminar.",
+    ["Preview"] = "Vista previa",
+    ["Loss of Control"] = "Pérdida de control",
+    ["Shows what is controlling you right now -- stun, fear, root, silence, disarm or a school lockout -- with the effect icon, its name and the time left. Where two effects run at once the one that matters is shown large, and the next one as a small icon beside it."] = "Muestra lo que te está controlando ahora mismo: aturdimiento, miedo, raíces, silencio, desarme o una escuela bloqueada, con el icono del efecto, su nombre y el tiempo restante. Si hay dos efectos a la vez, el más importante se muestra grande y el siguiente como un icono pequeño al lado.",
+    ["Show loss of control alert"] = "Mostrar aviso de pérdida de control",
+    ["Show in"] = "Mostrar en",
+    ["Arena and battlegrounds"] = "Arenas y campos de batalla",
+    ["Arena only"] = "Solo en arenas",
+    ["Name font size"] = "Tamaño de fuente del nombre",
+    ["Timer font size"] = "Tamaño de fuente del tiempo",
+    ["Background and red lines"] = "Fondo y líneas rojas",
+    ["Show the next effect"] = "Mostrar el siguiente efecto",
 } end
 
 ns:RegisterLocale("esES", T)

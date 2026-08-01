@@ -72,6 +72,24 @@ local mod = ns:RegisterModule("arenaframes", {
         rangeAlpha   = 0.45,
 
         cdTextEnabled = true,
+
+        -- Loss of control lives in its own table because the mover writes x/y
+        -- into whatever db it is handed, and the two above already belong to
+        -- the arena frames.
+        loss = {
+            enabled        = true,
+            visibility     = "always",
+            unlocked       = false,
+            x              = 0,
+            y              = 0,
+            scale          = 1,
+            alpha          = 1,
+            iconSize       = 40,
+            nameSize       = 18,
+            timeSize       = 16,
+            showBackground = true,
+            showNext       = true,
+        },
     },
 })
 
@@ -272,6 +290,7 @@ SECTION_LABELS = {
     auraicon   = L["Auras"],
     dispel     = L["Dispels"],
     range      = L["Range"],
+    loss       = L["Loss of Control"],
 }
 end)
 
@@ -289,13 +308,21 @@ local TAB_SECTIONS = {
     pvp  = { classcolor = true, trinket = true, dr = true, castbar = true,
              racial = true, shadowsight = true, auraicon = true, dispel = true,
              range = true },
+    loss = { loss = true },
 }
 
 local function buildTabsArray()
-    return {
+    local tabs = {
         { id = "core", label = SECTION_LABELS.core or "General" },
         { id = "pvp",  label = L["PvP Settings"] },
     }
+    -- Only where the client has the namespace behind it. The submodule sets the
+    -- flag at load; a tab whose page could offer nothing is better absent than
+    -- empty.
+    if mod.HasLossOfControl then
+        tabs[#tabs + 1] = { id = "loss", label = SECTION_LABELS.loss or "Loss of Control" }
+    end
+    return tabs
 end
 
 -- mod.tabs can only be built after every AddOptionsSection call, i.e. at PLAYER_LOGIN.
@@ -2885,5 +2912,380 @@ local function ev_PLAYER_LEAVING_WORLD()
     gatesOpen = false
 end
 mod.RegEvent("PLAYER_LEAVING_WORLD", ev_PLAYER_LEAVING_WORLD)
+
+end)(...);
+
+-- =========================================================================
+-- Loss of control: what is holding you right now and how much longer.
+--
+-- Stun, fear, root, silence, disarm and school lockouts all arrive through one
+-- client namespace, already ranked by the same priority the default interface
+-- uses. Two effects can run at once, so the display shows the one that matters
+-- (highest priority, and among those the one that lasts longest) and optionally
+-- the next one below it -- but only when that one outlasts the first, because
+-- an effect ending earlier tells you nothing you are not already reading.
+-- =========================================================================
+(function(...)
+local _, ns = ...
+if ns.isEra then return end
+local L = ns.L
+local mod = ns.ArenaModule
+
+-- The whole submodule hangs on one client namespace. Where it is missing the
+-- tab never appears, so no page can offer settings that drive nothing.
+local LOC = _G.C_LossOfControl
+local HAS_LOC = LOC and LOC.GetActiveLossOfControlDataCount and LOC.GetActiveLossOfControlData
+mod.HasLossOfControl = HAS_LOC and true or false
+if not HAS_LOC then return end
+
+local GetTime, format, floor = GetTime, string.format, math.floor
+
+local frame, primary, secondary, mover
+local previewUntil = 0
+local current, runnerUp
+
+local function db() return mod.db.loss end
+
+-- ---------------------------------------------------------------------------
+-- Reading the client
+-- ---------------------------------------------------------------------------
+
+-- A school lockout has no useful display text of its own -- every school
+-- reports the same sentence -- so it is named after the school it locked.
+local function effectName(d)
+    if d.locType == "SCHOOL_INTERRUPT" and d.lockoutSchool and d.lockoutSchool ~= 0
+       and _G.GetSchoolString then
+        return format(L["%s Locked"], _G.GetSchoolString(d.lockoutSchool))
+    end
+    return d.displayText
+end
+
+-- Both passes want "higher priority wins, and among equals the one that runs
+-- longest". The second pass starts from the winner's expiry and caps the
+-- priority, so it can only return something lower-ranked that outlasts it.
+local function pick(count, minExpiry, maxPriority)
+    local bestPrio, bestExpiry, best = -1, minExpiry, nil
+    for i = 1, count do
+        local d = LOC.GetActiveLossOfControlData(i)
+        if d then
+            local expiry = GetTime() + (d.timeRemaining or 0)
+            local prio   = d.priority or 0
+            if prio >= bestPrio and expiry > bestExpiry
+               and (not maxPriority or prio < maxPriority) then
+                bestPrio, bestExpiry = prio, expiry
+                best = { name = effectName(d), icon = d.iconTexture,
+                         duration = d.duration, expiry = expiry, priority = prio }
+            end
+        end
+    end
+    return best
+end
+
+local function zoneAllows()
+    local v = db().visibility
+    if v == "always" then return true end
+    if not IsInInstance then return false end
+    local _, kind = IsInInstance()
+    if v == "arena" then return kind == "arena" end
+    return kind == "arena" or kind == "pvp"
+end
+
+-- ---------------------------------------------------------------------------
+-- Building the display
+-- ---------------------------------------------------------------------------
+
+local function sizeSlot(slot, size)
+    slot:SetSize(size, size)
+    slot.tex:SetSize(size, size)
+    slot.cd:SetSize(size, size)
+end
+
+local function newSlot(parent)
+    local slot = CreateFrame("Frame", nil, parent)
+
+    local tex = slot:CreateTexture(nil, "ARTWORK")
+    tex:SetPoint("CENTER")
+    -- 30 percent crop: the icon's own baked-in border reads as mush at this
+    -- size and carries nothing the drawn border below does not carry better.
+    tex:SetTexCoord(0.15, 0.85, 0.15, 0.85)
+    slot.tex = tex
+
+    local border = CreateFrame("Frame", nil, slot,
+        BackdropTemplateMixin and "BackdropTemplate")
+    border:SetPoint("TOPLEFT", tex, "TOPLEFT", -1, 1)
+    border:SetPoint("BOTTOMRIGHT", tex, "BOTTOMRIGHT", 1, -1)
+    if border.SetBackdrop then
+        border:SetBackdrop({ edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
+        border:SetBackdropBorderColor(0, 0, 0, 1)
+    end
+
+    -- Reverse swipe: the shade grows back as the effect runs out, so a nearly
+    -- clear icon means nearly free again.
+    local cd = CreateFrame("Cooldown", nil, slot, "CooldownFrameTemplate")
+    cd:SetPoint("CENTER")
+    cd:SetReverse(true)
+    cd:SetDrawEdge(true)
+    if cd.SetHideCountdownNumbers then cd:SetHideCountdownNumbers(true) end
+    slot.cd = cd
+
+    return slot
+end
+
+local function build()
+    if frame then return frame end
+
+    frame = CreateFrame("Frame", nil, UIParent)
+    frame:SetSize(200, 54)
+    frame:SetFrameStrata("HIGH")
+    frame:Hide()
+
+    local bg = frame:CreateTexture(nil, "BACKGROUND")
+    bg:SetTexture("Interface\\Cooldown\\LoC-ShadowBG")
+    bg:SetPoint("CENTER")
+    bg:SetSize(200, 54)
+    bg:SetVertexColor(0, 0, 0, 0.5)
+    bg:SetDesaturated(true)
+    -- 180 degrees is both axes flipped, so the shadow's heavy edge sits below.
+    bg:SetTexCoord(1, 0, 1, 0)
+    frame.bg = bg
+
+    local function redLine(flip, y)
+        local t = frame:CreateTexture(nil, "ARTWORK")
+        t:SetTexture("Interface\\Cooldown\\Loc-RedLine")
+        t:SetBlendMode("ADD")
+        t:SetPoint("CENTER", frame, "CENTER", 0, y)
+        t:SetSize(200, 30)
+        t:SetVertexColor(1, 0, 0.008, 1)
+        if flip then t:SetTexCoord(1, 0, 1, 0) end
+        return t
+    end
+    frame.lineTop    = redLine(false, 42)
+    frame.lineBottom = redLine(true, -42)
+
+    primary = newSlot(frame)
+    primary:SetPoint("CENTER", frame, "CENTER", -60, 0)
+
+    primary.name = frame:CreateFontString(nil, "OVERLAY")
+    primary.name:SetPoint("LEFT", primary, "RIGHT", 3, 7)
+    primary.name:SetTextColor(1, 0.925, 0, 1)
+    primary.name:SetJustifyH("LEFT")
+
+    primary.time = frame:CreateFontString(nil, "OVERLAY")
+    primary.time:SetPoint("LEFT", primary, "RIGHT", 3, -11)
+    primary.time:SetTextColor(1, 1, 1, 1)
+    primary.time:SetJustifyH("LEFT")
+
+    -- The runner-up hangs off the main icon's bottom right and carries no text:
+    -- it is an "and then this" hint, not a second readout.
+    secondary = newSlot(frame)
+    secondary:SetPoint("CENTER", primary, "BOTTOMRIGHT", 4, -2)
+
+    mover = ns:CreateMover(frame, {
+        key    = "arenaloss",
+        label  = L["|cffffffffLOSS OF CONTROL|r\n|cffaaaaaaDrag or arrow keys|r"],
+        db     = db(),
+        width  = 220,
+        height = 70,
+        onMove = function() mod.LossApplyPos() end,
+    })
+
+    mod.LossApplyPos()
+    mod.LossApplyLook()
+    return frame
+end
+
+function mod.LossApplyPos()
+    if not frame then return end
+    local d = db()
+    frame:ClearAllPoints()
+    frame:SetPoint("CENTER", UIParent, "CENTER", d.x or 0, d.y or 0)
+end
+
+function mod.LossApplyLook()
+    if not frame then return end
+    local d = db()
+    frame:SetScale(d.scale or 1)
+    frame:SetAlpha(d.alpha or 1)
+
+    sizeSlot(primary, d.iconSize or 40)
+    sizeSlot(secondary, floor((d.iconSize or 40) * 0.5 + 0.5))
+
+    ns.UI.Font(primary.name, d.nameSize or 18, "THICKOUTLINE")
+    ns.UI.Font(primary.time, d.timeSize or 16, "THICKOUTLINE")
+
+    local decor = d.showBackground and true or false
+    frame.bg:SetShown(decor)
+    frame.lineTop:SetShown(decor)
+    frame.lineBottom:SetShown(decor)
+end
+
+-- ---------------------------------------------------------------------------
+-- Driving it
+-- ---------------------------------------------------------------------------
+
+local ticker = CreateFrame("Frame")
+ticker:Hide()
+
+local function showEntry(slot, entry)
+    slot.tex:SetTexture(entry.icon)
+    if entry.duration and entry.duration > 0 then
+        slot.cd:SetCooldown(entry.expiry - entry.duration, entry.duration)
+    else
+        slot.cd:Clear()
+    end
+    slot:Show()
+end
+
+local function refresh()
+    local d = db()
+    if not d.enabled or not zoneAllows() then
+        if frame then frame:Hide() end
+        ticker:Hide()
+        return
+    end
+
+    build()
+    if GetTime() < previewUntil then return end
+
+    local count = LOC.GetActiveLossOfControlDataCount() or 0
+    current  = count > 0 and pick(count, 0, nil) or nil
+    runnerUp = nil
+    if current and d.showNext then
+        runnerUp = pick(count, current.expiry, current.priority)
+    end
+
+    if not current then
+        frame:Hide()
+        ticker:Hide()
+        return
+    end
+
+    showEntry(primary, current)
+    primary.name:SetText(current.name or "")
+    if runnerUp then showEntry(secondary, runnerUp) else secondary:Hide() end
+    frame:Show()
+    ticker:Show()
+end
+
+-- The countdown is the only thing that has to run per frame; everything else
+-- moves on an event. Once the number would go negative the scan decides
+-- whether a second effect is still holding, so the display never blanks out
+-- while something is in fact still on the player.
+ticker:SetScript("OnUpdate", function()
+    if not current then ticker:Hide(); return end
+    local left = current.expiry - GetTime()
+    if left <= 0 then
+        if GetTime() >= previewUntil then refresh() end
+        return
+    end
+    primary.time:SetText(format(L["%.1f seconds"], left))
+end)
+
+local function ev_loss()
+    refresh()
+end
+mod.RegEvent("LOSS_OF_CONTROL_UPDATE", ev_loss)
+mod.RegEvent("LOSS_OF_CONTROL_ADDED", ev_loss)
+mod.RegEvent("PLAYER_ENTERING_WORLD", ev_loss)
+
+mod:RegisterOnEnable(function()
+    build()
+    mod.LossApplyLook()
+    refresh()
+end)
+
+mod:RegisterOnDisable(function()
+    if frame then frame:Hide() end
+    ticker:Hide()
+end)
+
+-- ---------------------------------------------------------------------------
+-- Options
+-- ---------------------------------------------------------------------------
+
+local function setUnlocked(state)
+    build()
+    db().unlocked = state and true or false
+    if db().unlocked then
+        frame:Show()
+        mover:Show()
+        ns:Print(L["Loss of control mover active. |cff9b6cffDrag the purple box|r or use |cff9b6cffarrow keys|r (SHIFT = 5px). Press the button again to finish."])
+    else
+        mover:Hide()
+        refresh()
+    end
+end
+
+-- Positioning something you cannot see is guesswork, and a real stun is a poor
+-- moment to judge a layout, so the page can put a stand-in on screen.
+local function preview()
+    build()
+    local d = db()
+    previewUntil = GetTime() + 8
+    current = { name = L["Preview"], icon = 136071, duration = 8,
+                expiry = previewUntil, priority = 0 }
+    showEntry(primary, current)
+    primary.name:SetText(current.name)
+    if d.showNext then
+        showEntry(secondary, { icon = 136071, duration = 12,
+                               expiry = GetTime() + 12, priority = -1 })
+    else
+        secondary:Hide()
+    end
+    frame:Show()
+    ticker:Show()
+end
+
+mod:AddOptionsSection("loss", function()
+    local d = db()
+    return {
+        { type = "header", text = L["Loss of Control"] },
+        { type = "desc",   text = L["Shows what is controlling you right now -- stun, fear, root, silence, disarm or a school lockout -- with the effect icon, its name and the time left. Where two effects run at once the one that matters is shown large, and the next one as a small icon beside it."] },
+
+        { type = "checkbox", label = L["Show loss of control alert"],
+          get = function() return d.enabled end,
+          set = function(_, v) d.enabled = v; refresh() end },
+
+        { type = "group", layout = "row", gap = 8, items = {
+            { type = "button", label = L["Unlock / Move"], width = 130,
+              onClick = function() setUnlocked(not db().unlocked) end },
+            { type = "button", label = L["Preview"], width = 130,
+              onClick = function() preview() end },
+        } },
+
+        { type = "dropdown", label = L["Show in"], width = 220,
+          values = {
+              { value = "always", text = L["Everywhere"] },
+              { value = "pvp",    text = L["Arena and battlegrounds"] },
+              { value = "arena",  text = L["Arena only"] },
+          },
+          get = function() return d.visibility end,
+          set = function(_, v) d.visibility = v; refresh() end },
+
+        { type = "slider", label = L["Icon size"], min = 20, max = 80, step = 1,
+          get = function() return d.iconSize end,
+          set = function(_, v) d.iconSize = v; mod.LossApplyLook() end },
+        { type = "slider", label = L["Scale"], min = 0.5, max = 2, step = 0.05,
+          get = function() return d.scale end,
+          set = function(_, v) d.scale = v; mod.LossApplyLook() end },
+        { type = "slider", label = L["Opacity"], min = 0.1, max = 1, step = 0.05,
+          get = function() return d.alpha end,
+          set = function(_, v) d.alpha = v; mod.LossApplyLook() end },
+
+        { type = "slider", label = L["Name font size"], min = 8, max = 32, step = 1,
+          get = function() return d.nameSize end,
+          set = function(_, v) d.nameSize = v; mod.LossApplyLook() end },
+        { type = "slider", label = L["Timer font size"], min = 8, max = 32, step = 1,
+          get = function() return d.timeSize end,
+          set = function(_, v) d.timeSize = v; mod.LossApplyLook() end },
+
+        { type = "checkbox", label = L["Background and red lines"],
+          get = function() return d.showBackground end,
+          set = function(_, v) d.showBackground = v; mod.LossApplyLook() end },
+        { type = "checkbox", label = L["Show the next effect"],
+          get = function() return d.showNext end,
+          set = function(_, v) d.showNext = v; refresh() end },
+    }
+end)
 
 end)(...);
