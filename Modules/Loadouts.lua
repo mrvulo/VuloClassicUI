@@ -1062,8 +1062,52 @@ local function showIconPicker(loadoutName, anchor)
         tinsert(UISpecialFrames, "VCUI_LoadoutIconPicker")
         _iconPicker.title = _iconPicker:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
         _iconPicker.title:SetPoint("TOPLEFT", _iconPicker, "TOPLEFT", 8, -6)
+        -- Pinned on both sides so a long set name is cut instead of running
+        -- under the close control.
+        _iconPicker.title:SetPoint("TOPRIGHT", _iconPicker, "TOPRIGHT", -24, -6)
+        _iconPicker.title:SetJustifyH("LEFT")
+        _iconPicker.title:SetWordWrap(false)
         _iconPicker.title:SetTextColor(1, 0.82, 0)
+
+        -- Same close control every other window in this addon carries: grey
+        -- cross, red field under the pointer. Escape already closed this frame
+        -- through UISpecialFrames, but nothing on it said so.
+        local closeBtn = CreateFrame("Button", nil, _iconPicker)
+        closeBtn:SetSize(20, 18)
+        closeBtn:SetPoint("TOPRIGHT", _iconPicker, "TOPRIGHT", -2, -2)
+
+        local closeBG = closeBtn:CreateTexture(nil, "BACKGROUND")
+        closeBG:SetAllPoints(closeBtn)
+        closeBG:SetColorTexture(0.78, 0.16, 0.16, 1)
+        closeBG:Hide()
+
+        local closeText = closeBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+        ns.UI.Font(closeText, 18)
+        closeText:SetPoint("CENTER", closeBtn, "CENTER", 0, 0)
+        closeText:SetText("×")
+        closeText:SetTextColor(0.7, 0.7, 0.7)
+        closeBtn:SetScript("OnEnter", function()
+            closeBG:Show(); closeText:SetTextColor(1, 1, 1)
+        end)
+        closeBtn:SetScript("OnLeave", function()
+            closeBG:Hide(); closeText:SetTextColor(0.7, 0.7, 0.7)
+        end)
+        closeBtn:SetScript("OnClick", function() _iconPicker:Hide() end)
+        _iconPicker.closeBtn = closeBtn
+
+        -- One handler for every swatch, installed once. It used to be a fresh
+        -- closure per button on every open, which meant a new function for each
+        -- of the twenty-odd icons each time the picker was raised.
+        _iconPicker.onSwatchClick = function(self)
+            local lo = _iconPicker._loadout
+            if lo then lo.iconOverride = self._iconValue end
+            _iconPicker:Hide()
+            refreshSidebar()
+        end
     end
+
+    -- Which set the swatches write to. One picker, one set at a time.
+    _iconPicker._loadout = loadout
 
     _iconPicker.title:SetText(string.format(L["Icon for: %s"], loadoutName))
 
@@ -1104,11 +1148,7 @@ local function showIconPicker(loadoutName, anchor)
             b.tex:SetVertexColor(1, 1, 1)
             b._iconValue = entry.tex
         end
-        b:SetScript("OnClick", function(self)
-            loadout.iconOverride = self._iconValue
-            _iconPicker:Hide()
-            refreshSidebar()
-        end)
+        b:SetScript("OnClick", _iconPicker.onSwatchClick)
         local col = (i - 1) % ICON_COLS
         local row = math.floor((i - 1) / ICON_COLS)
         b:ClearAllPoints()
@@ -1596,6 +1636,14 @@ local function createSidebar()
     sidebar:SetWidth(190)
     sidebar:SetFrameStrata("HIGH")
     sidebar:Hide()
+
+    -- The icon picker hangs off UIParent, not off this frame, so nothing took
+    -- it down with the list -- closing the character sheet left the swatches
+    -- floating over the game. Hooked here rather than at the six places that
+    -- hide the list, so no future one can forget.
+    sidebar:HookScript("OnHide", function()
+        if _iconPicker then _iconPicker:Hide() end
+    end)
 
     -- Both corners anchor to CharacterFrame so the height tracks it live; never snapshot GetHeight().
     local function anchorToCharacterFrame()
