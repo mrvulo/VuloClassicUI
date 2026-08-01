@@ -3041,4 +3041,13 @@ ns:RegisterLocale("koKR", function() return {
     ["Profile changed. Use /reload when you are out of combat."] = "프로필이 변경되었습니다. 전투가 끝나면 /reload 를 사용하세요.",
     ["Profile keybind"] = "프로필 단축키",
     ["Switches to this profile outside combat and then asks to reload the UI. Override bindings are restored at login."] = "전투 중이 아닐 때 이 프로필로 전환한 다음 인터페이스를 다시 불러올지 묻습니다. 단축키는 접속할 때 복원됩니다.",
+    ["Use the global font"] = "전역 글꼴 사용",
+    ["Name color"] = "이름 색상",
+    ["Timer color"] = "남은 시간 색상",
+    ["|cffffffffINTERRUPTS|r\n|cffaaaaaaDrag or arrow keys|r"] = "|cffffffff차단|r\n|cffaaaaaa드래그 또는 방향키|r",
+    ["Interrupt bar mover active. |cff9b6cffDrag the purple box|r or use |cff9b6cffarrow keys|r (SHIFT = 5px). Press the button again to finish."] = "차단 바 이동 모드가 켜졌습니다. |cff9b6cff보라색 상자를 끌거나|r |cff9b6cff방향키|r를 사용하세요 (SHIFT = 5픽셀). 끝내려면 버튼을 다시 누르세요.",
+    ["Interrupts"] = "차단",
+    ["Watches the combat log for enemy interrupts and starts a cooldown for each one, tracked per caster -- two enemies of the same class get an icon each. The border carries the caster's class colour."] = "전투 기록에서 적의 차단 기술을 감시하여 각각의 재사용 대기시간을 시전자별로 표시합니다. 같은 직업의 적이 둘이면 아이콘도 둘입니다. 테두리는 시전자의 직업 색상을 띱니다.",
+    ["Show interrupt bar"] = "차단 바 표시",
+    ["Show interrupts that are still ready"] = "사용 가능한 차단 기술도 표시",
 } end)

@@ -3041,4 +3041,13 @@ ns:RegisterLocale("itIT", function() return {
     ["Profile changed. Use /reload when you are out of combat."] = "Profilo cambiato. Usa /reload quando sei fuori dal combattimento.",
     ["Profile keybind"] = "Scorciatoia del profilo",
     ["Switches to this profile outside combat and then asks to reload the UI. Override bindings are restored at login."] = "Passa a questo profilo fuori dal combattimento e poi chiede di ricaricare l’interfaccia. Le scorciatoie vengono ripristinate all’accesso.",
+    ["Use the global font"] = "Usa il carattere globale",
+    ["Name color"] = "Colore del nome",
+    ["Timer color"] = "Colore del tempo",
+    ["|cffffffffINTERRUPTS|r\n|cffaaaaaaDrag or arrow keys|r"] = "|cffffffffINTERRUZIONI|r\n|cffaaaaaaTrascina o frecce|r",
+    ["Interrupt bar mover active. |cff9b6cffDrag the purple box|r or use |cff9b6cffarrow keys|r (SHIFT = 5px). Press the button again to finish."] = "Spostamento della barra delle interruzioni attivo. |cff9b6cffTrascina il riquadro viola|r oppure usa le |cff9b6cfffrecce|r (MAIUSC = 5 px). Premi di nuovo il pulsante per terminare.",
+    ["Interrupts"] = "Interruzioni",
+    ["Watches the combat log for enemy interrupts and starts a cooldown for each one, tracked per caster -- two enemies of the same class get an icon each. The border carries the caster's class colour."] = "Controlla il registro di combattimento per le interruzioni nemiche e avvia un tempo di recupero per ciascuna, distinto per incantatore: due nemici della stessa classe ricevono un’icona ciascuno. Il bordo porta il colore di classe dell’incantatore.",
+    ["Show interrupt bar"] = "Mostra la barra delle interruzioni",
+    ["Show interrupts that are still ready"] = "Mostra anche le interruzioni disponibili",
 } end)

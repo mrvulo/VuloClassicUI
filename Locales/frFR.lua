@@ -3190,4 +3190,13 @@ ns:RegisterLocale("frFR", function() return {
     ["Profile changed. Use /reload when you are out of combat."] = "Profil changé. Utilisez /reload une fois hors combat.",
     ["Profile keybind"] = "Raccourci du profil",
     ["Switches to this profile outside combat and then asks to reload the UI. Override bindings are restored at login."] = "Bascule vers ce profil hors combat, puis propose de recharger l’interface. Les raccourcis sont restaurés à la connexion.",
+    ["Use the global font"] = "Utiliser la police globale",
+    ["Name color"] = "Couleur du nom",
+    ["Timer color"] = "Couleur du temps",
+    ["|cffffffffINTERRUPTS|r\n|cffaaaaaaDrag or arrow keys|r"] = "|cffffffffINTERRUPTIONS|r\n|cffaaaaaaGlisser ou touches fléchées|r",
+    ["Interrupt bar mover active. |cff9b6cffDrag the purple box|r or use |cff9b6cffarrow keys|r (SHIFT = 5px). Press the button again to finish."] = "Déplacement de la barre d’interruptions actif. |cff9b6cffFaites glisser la boîte violette|r ou utilisez les |cff9b6cfftouches fléchées|r (MAJ = 5 px). Appuyez de nouveau sur le bouton pour terminer.",
+    ["Interrupts"] = "Interruptions",
+    ["Watches the combat log for enemy interrupts and starts a cooldown for each one, tracked per caster -- two enemies of the same class get an icon each. The border carries the caster's class colour."] = "Surveille le journal de combat pour repérer les interruptions ennemies et lance un temps de recharge pour chacune, par lanceur : deux ennemis de la même classe obtiennent chacun une icône. La bordure porte la couleur de classe du lanceur.",
+    ["Show interrupt bar"] = "Afficher la barre d’interruptions",
+    ["Show interrupts that are still ready"] = "Afficher aussi les interruptions disponibles",
 } end)

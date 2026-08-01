@@ -3163,4 +3163,13 @@ ns:RegisterLocale("deDE", function() return {
     ["Profile changed. Use /reload when you are out of combat."] = "Profil gewechselt. Benutze /reload, sobald du aus dem Kampf bist.",
     ["Profile keybind"] = "Profil-Tastenbelegung",
     ["Switches to this profile outside combat and then asks to reload the UI. Override bindings are restored at login."] = "Wechselt außerhalb des Kampfes zu diesem Profil und fragt danach, ob die Oberfläche neu geladen werden soll. Die Belegungen werden beim Anmelden wiederhergestellt.",
+    ["Use the global font"] = "Die global eingestellte Schrift",
+    ["Name color"] = "Farbe des Namens",
+    ["Timer color"] = "Farbe der Restzeit",
+    ["|cffffffffINTERRUPTS|r\n|cffaaaaaaDrag or arrow keys|r"] = "|cffffffffUNTERBRECHEN|r\n|cffaaaaaaZiehen oder Pfeiltasten|r",
+    ["Interrupt bar mover active. |cff9b6cffDrag the purple box|r or use |cff9b6cffarrow keys|r (SHIFT = 5px). Press the button again to finish."] = "Regler für die Unterbrechen-Leiste aktiv. |cff9b6cffZiehe den lila Kasten|r oder benutze die |cff9b6cffPfeiltasten|r (UMSCHALT = 5 Pixel). Drücke den Knopf erneut, um fertig zu werden.",
+    ["Interrupts"] = "Unterbrechen",
+    ["Watches the combat log for enemy interrupts and starts a cooldown for each one, tracked per caster -- two enemies of the same class get an icon each. The border carries the caster's class colour."] = "Verfolgt im Kampfprotokoll die Unterbrechungen der Gegner und startet für jede eine Abklingzeit, getrennt nach Wirker – zwei Gegner derselben Klasse bekommen je ein Symbol. Der Rahmen trägt die Klassenfarbe des Wirkers.",
+    ["Show interrupt bar"] = "Unterbrechen-Leiste anzeigen",
+    ["Show interrupts that are still ready"] = "Auch einsatzbereite Unterbrechungen anzeigen",
 } end)

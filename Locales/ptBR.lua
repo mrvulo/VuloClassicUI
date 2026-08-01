@@ -3041,4 +3041,13 @@ ns:RegisterLocale("ptBR", function() return {
     ["Profile changed. Use /reload when you are out of combat."] = "Perfil alterado. Use /reload quando sair do combate.",
     ["Profile keybind"] = "Atalho do perfil",
     ["Switches to this profile outside combat and then asks to reload the UI. Override bindings are restored at login."] = "Muda para este perfil fora de combate e depois pergunta se deseja recarregar a interface. Os atalhos são restaurados ao entrar.",
+    ["Use the global font"] = "Usar a fonte global",
+    ["Name color"] = "Cor do nome",
+    ["Timer color"] = "Cor do tempo",
+    ["|cffffffffINTERRUPTS|r\n|cffaaaaaaDrag or arrow keys|r"] = "|cffffffffINTERRUPÇÕES|r\n|cffaaaaaaArraste ou use as setas|r",
+    ["Interrupt bar mover active. |cff9b6cffDrag the purple box|r or use |cff9b6cffarrow keys|r (SHIFT = 5px). Press the button again to finish."] = "Movimentação da barra de interrupções ativa. |cff9b6cffArraste a caixa roxa|r ou use as |cff9b6cffsetas|r (SHIFT = 5 px). Pressione o botão novamente para terminar.",
+    ["Interrupts"] = "Interrupções",
+    ["Watches the combat log for enemy interrupts and starts a cooldown for each one, tracked per caster -- two enemies of the same class get an icon each. The border carries the caster's class colour."] = "Observa o registro de combate em busca de interrupções inimigas e inicia um tempo de recarga para cada uma, separado por conjurador: dois inimigos da mesma classe recebem um ícone cada. A borda carrega a cor de classe do conjurador.",
+    ["Show interrupt bar"] = "Mostrar a barra de interrupções",
+    ["Show interrupts that are still ready"] = "Mostrar também as interrupções disponíveis",
 } end)

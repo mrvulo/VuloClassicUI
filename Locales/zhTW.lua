@@ -3034,4 +3034,13 @@ ns:RegisterLocale("zhTW", function() return {
     ["Profile changed. Use /reload when you are out of combat."] = "設定檔已切換。脫離戰鬥後請使用 /reload。",
     ["Profile keybind"] = "設定檔快捷鍵",
     ["Switches to this profile outside combat and then asks to reload the UI. Override bindings are restored at login."] = "在非戰鬥狀態下切換到該設定檔，然後詢問是否重新載入介面。快捷鍵會在登入時還原。",
+    ["Use the global font"] = "使用全域字型",
+    ["Name color"] = "名稱顏色",
+    ["Timer color"] = "剩餘時間顏色",
+    ["|cffffffffINTERRUPTS|r\n|cffaaaaaaDrag or arrow keys|r"] = "|cffffffff打斷|r\n|cffaaaaaa拖曳或方向鍵|r",
+    ["Interrupt bar mover active. |cff9b6cffDrag the purple box|r or use |cff9b6cffarrow keys|r (SHIFT = 5px). Press the button again to finish."] = "打斷條的移動模式已開啟。|cff9b6cff拖曳紫色方塊|r或使用|cff9b6cff方向鍵|r（SHIFT = 5 像素）。再次點擊按鈕即可完成。",
+    ["Interrupts"] = "打斷",
+    ["Watches the combat log for enemy interrupts and starts a cooldown for each one, tracked per caster -- two enemies of the same class get an icon each. The border carries the caster's class colour."] = "監視戰鬥記錄中敵方的打斷技能，並依施法者分別開始冷卻計時——同職業的兩名敵人各占一個圖示。邊框顯示施法者的職業顏色。",
+    ["Show interrupt bar"] = "顯示打斷條",
+    ["Show interrupts that are still ready"] = "同時顯示已就緒的打斷技能",
 } end)

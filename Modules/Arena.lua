@@ -87,8 +87,33 @@ local mod = ns:RegisterModule("arenaframes", {
             iconSize       = 40,
             nameSize       = 18,
             timeSize       = 16,
+            -- Empty name means "whatever the global font setting says": that is
+            -- what MediaFont falls back to, so the row follows the rest of the
+            -- interface until the player picks something for this display alone.
+            font           = "",
+            outline        = "THICKOUTLINE",
+            nameColor      = { r = 1, g = 0.925, b = 0 },
+            timeColor      = { r = 1, g = 1, b = 1 },
             showBackground = true,
-            showNext       = true,
+            -- Off by default: the second icon is for players who want to see
+            -- what follows the effect that is holding them, and it is easy to
+            -- read as a duplicate of the first when it appears unannounced.
+            showNext       = false,
+        },
+
+        -- Own table for the same reason as above: the mover writes x/y into
+        -- whatever it is handed.
+        interrupts = {
+            enabled     = true,
+            visibility  = "pvp",
+            unlocked    = false,
+            x           = 0,
+            y           = 140,
+            iconSize    = 32,
+            spacing     = 4,
+            perRow      = 8,
+            growth      = "RIGHT",
+            showUnused  = false,
         },
     },
 })
@@ -291,6 +316,7 @@ SECTION_LABELS = {
     dispel     = L["Dispels"],
     range      = L["Range"],
     loss       = L["Loss of Control"],
+    interrupt  = L["Interrupts"],
 }
 end)
 
@@ -308,7 +334,8 @@ local TAB_SECTIONS = {
     pvp  = { classcolor = true, trinket = true, dr = true, castbar = true,
              racial = true, shadowsight = true, auraicon = true, dispel = true,
              range = true },
-    loss = { loss = true },
+    loss      = { loss = true },
+    interrupt = { interrupt = true },
 }
 
 local function buildTabsArray()
@@ -322,6 +349,7 @@ local function buildTabsArray()
     if mod.HasLossOfControl then
         tabs[#tabs + 1] = { id = "loss", label = SECTION_LABELS.loss or "Loss of Control" }
     end
+    tabs[#tabs + 1] = { id = "interrupt", label = SECTION_LABELS.interrupt or "Interrupts" }
     return tabs
 end
 
@@ -3110,8 +3138,17 @@ function mod.LossApplyLook()
     sizeSlot(primary, d.iconSize or 40)
     sizeSlot(secondary, floor((d.iconSize or 40) * 0.5 + 0.5))
 
-    ns.UI.Font(primary.name, d.nameSize or 18, "THICKOUTLINE")
-    ns.UI.Font(primary.time, d.timeSize or 16, "THICKOUTLINE")
+    -- Set straight rather than through UI.Font: that helper always uses the
+    -- global face, and this display carries its own choice.
+    local path  = ns.MediaFont(d.font)
+    local flags = d.outline or ""
+    primary.name:SetFont(path, d.nameSize or 18, flags)
+    primary.time:SetFont(path, d.timeSize or 16, flags)
+
+    local nc = d.nameColor or {}
+    primary.name:SetTextColor(nc.r or 1, nc.g or 0.925, nc.b or 0)
+    local tc = d.timeColor or {}
+    primary.time:SetTextColor(tc.r or 1, tc.g or 1, tc.b or 1)
 
     local decor = d.showBackground and true or false
     frame.bg:SetShown(decor)
@@ -3122,6 +3159,18 @@ end
 -- ---------------------------------------------------------------------------
 -- Driving it
 -- ---------------------------------------------------------------------------
+
+-- The options window sits on HIGH as well, and being built later it wins the
+-- draw order -- a preview started from the page would hide behind the page
+-- that switched it on. So the display is lifted for exactly as long as the
+-- player is looking at it on purpose (preview running, or the box unlocked for
+-- dragging) and drops back to HIGH afterwards, which is where it belongs while
+-- something is actually controlling the player.
+local function applyStrata()
+    if not frame then return end
+    local lifted = db().unlocked or GetTime() < previewUntil
+    frame:SetFrameStrata(lifted and "FULLSCREEN_DIALOG" or "HIGH")
+end
 
 local ticker = CreateFrame("Frame")
 ticker:Hide()
@@ -3136,9 +3185,18 @@ local function showEntry(slot, entry)
     slot:Show()
 end
 
+-- Same rule as the interrupt bar: an unlocked box and a running preview are
+-- the player looking at the thing on purpose, so neither the zone filter nor
+-- the enable switch may take it away from under them.
+local function shouldShow()
+    local d = db()
+    if d.unlocked or GetTime() < previewUntil then return true end
+    return d.enabled and zoneAllows()
+end
+
 local function refresh()
     local d = db()
-    if not d.enabled or not zoneAllows() then
+    if not shouldShow() then
         if frame then frame:Hide() end
         ticker:Hide()
         return
@@ -3146,6 +3204,7 @@ local function refresh()
 
     build()
     if GetTime() < previewUntil then return end
+    applyStrata()
 
     local count = LOC.GetActiveLossOfControlDataCount() or 0
     current  = count > 0 and pick(count, 0, nil) or nil
@@ -3206,6 +3265,7 @@ end)
 local function setUnlocked(state)
     build()
     db().unlocked = state and true or false
+    applyStrata()
     if db().unlocked then
         frame:Show()
         mover:Show()
@@ -3220,20 +3280,28 @@ end
 -- moment to judge a layout, so the page can put a stand-in on screen.
 local function preview()
     build()
-    local d = db()
     previewUntil = GetTime() + 8
     current = { name = L["Preview"], icon = 136071, duration = 8,
                 expiry = previewUntil, priority = 0 }
     showEntry(primary, current)
     primary.name:SetText(current.name)
-    if d.showNext then
-        showEntry(secondary, { icon = 136071, duration = 12,
-                               expiry = GetTime() + 12, priority = -1 })
-    else
-        secondary:Hide()
-    end
+    -- No stand-in for the runner-up: with only one placeholder icon to hand it
+    -- would be the same picture twice, which reads as a fault rather than as a
+    -- second effect. In a real fight the small icon carries a different spell.
+    secondary:Hide()
+    applyStrata()
     frame:Show()
     ticker:Show()
+end
+
+-- Built fresh on every page build: another addon may have registered further
+-- faces with shared media since the last time this page was open.
+local function lossFontValues()
+    local v = { { value = "", text = L["Use the global font"] } }
+    for _, entry in ipairs(ns.MediaFontValues() or {}) do
+        v[#v + 1] = entry
+    end
+    return v
 end
 
 mod:AddOptionsSection("loss", function()
@@ -3279,12 +3347,461 @@ mod:AddOptionsSection("loss", function()
           get = function() return d.timeSize end,
           set = function(_, v) d.timeSize = v; mod.LossApplyLook() end },
 
+        { type = "dropdown", label = L["Font"], width = 240, values = lossFontValues(),
+          get = function() return d.font or "" end,
+          set = function(_, v) d.font = v; mod.LossApplyLook() end },
+        { type = "dropdown", label = L["Outline"], width = 240,
+          values = {
+              { value = "THICKOUTLINE", text = L["Thick outline"] },
+              { value = "OUTLINE",      text = L["Outline"] },
+              { value = "SHADOW",       text = L["Shadow"] },
+              { value = "",             text = L["None"] },
+          },
+          get = function() return d.outline or "" end,
+          set = function(_, v) d.outline = v; mod.LossApplyLook() end },
+
+        { type = "color", label = L["Name color"], width = 160,
+          get = function() return d.nameColor end,
+          set = function(r, g, b) d.nameColor = { r = r, g = g, b = b }; mod.LossApplyLook() end },
+        { type = "color", label = L["Timer color"], width = 160,
+          get = function() return d.timeColor end,
+          set = function(r, g, b) d.timeColor = { r = r, g = g, b = b }; mod.LossApplyLook() end },
+
         { type = "checkbox", label = L["Background and red lines"],
           get = function() return d.showBackground end,
           set = function(_, v) d.showBackground = v; mod.LossApplyLook() end },
         { type = "checkbox", label = L["Show the next effect"],
           get = function() return d.showNext end,
           set = function(_, v) d.showNext = v; refresh() end },
+    }
+end)
+
+end)(...);
+
+-- =========================================================================
+-- Interrupt tracker: whose kick is down, and for how long.
+--
+-- The combat log is the only source here. A cast lands, the spell is one this
+-- table knows, the caster is a hostile player -- then an icon starts running
+-- its cooldown. Tracking is per CASTER, not per spell, so two enemy rogues get
+-- an icon each; in arena that difference is the whole point.
+--
+-- Spell ids carry their ranks. The combat log reports the rank that was
+-- actually cast, so every rank of the same ability has to resolve back to one
+-- entry, and the highest cooldown of the ability is the one worth showing.
+-- =========================================================================
+(function(...)
+local _, ns = ...
+if ns.isEra then return end
+local L = ns.L
+local mod = ns.ArenaModule
+
+local GetTime, floor, unpack = GetTime, math.floor, unpack
+
+-- id = { cooldown in seconds, class token, ability key }
+-- The ability key groups ranks: all four ranks of one kick share it, so the
+-- display never shows the same enemy ability twice.
+local SPELLS  = {}   -- every id that triggers the ability
+local ABILITY = {}   -- one entry per ability, carrying the id to draw
+local function put(cd, class, key, pet, ...)
+    -- The first id is the canonical one: it decides which icon the bar shows,
+    -- so a frost shock spent on a snare still draws the shaman's shock rather
+    -- than whichever rank happened to arrive.
+    ABILITY[key] = { id = (select(1, ...)), cd = cd, class = class, key = key }
+    for i = 1, select("#", ...) do
+        SPELLS[select(i, ...)] = { cd = cd, class = class, key = key, pet = pet }
+    end
+end
+
+put(10, "WARRIOR", "pummel",       false, 6552, 6554)
+put(12, "WARRIOR", "shieldbash",   false, 72, 1671, 1672)
+put(10, "ROGUE",   "kick",         false, 1766, 1767, 1768, 1769)
+put(24, "MAGE",    "counterspell", false, 2139)
+put(45, "PRIEST",  "silence",      false, 15487)
+put(20, "HUNTER",  "silencingshot", false, 34490)
+put(15, "DRUID",   "feralcharge",  false, 16979)
+-- The felhunter casts this one, not the warlock, so it arrives from a source
+-- that carries no player flag. See the source filter below.
+put(24, "WARLOCK", "spelllock",    true,  19244, 19647)
+
+-- Every shock shares one cooldown, so a frost shock spent on a snare is a kick
+-- the shaman no longer has. Tracking only Earth Shock would leave the bar
+-- claiming an interrupt is ready while it is not. Five seconds on Burning
+-- Crusade, six on Wrath.
+local SHOCKS = { 8042, 8044, 8045, 8046, 10412, 10413, 10414, 25454,
+                 8050, 8052, 8053, 10447, 10448, 29228, 25457,
+                 8056, 8058, 10472, 10473, 25464 }
+put(ns.isWrath and 6 or 5, "SHAMAN", "shock", false, unpack(SHOCKS))
+
+-- Wrath additions. Gated so a Burning Crusade client never lists an ability it
+-- has no spell for.
+if ns.isWrath then
+    put(6,   "SHAMAN",      "windshear",   false, 57994)
+    put(10,  "DEATHKNIGHT", "mindfreeze",  false, 47528)
+    put(120, "DEATHKNIGHT", "strangulate", false, 47476)
+end
+
+-- Which abilities a class can bring, for the greyed-out preview of enemies who
+-- have not used theirs yet.
+local BY_CLASS = {}
+for _, ab in pairs(ABILITY) do
+    BY_CLASS[ab.class] = BY_CLASS[ab.class] or {}
+    table.insert(BY_CLASS[ab.class], ab)
+end
+
+local frame, mover
+local icons  = {}      -- pooled buttons
+local active = {}      -- [guid .. "/" .. key] = { expiry, cd, id, class, name }
+local previewUntil = 0
+
+local function db() return mod.db.interrupts end
+
+-- ---------------------------------------------------------------------------
+-- The bar
+-- ---------------------------------------------------------------------------
+
+local function newIcon()
+    local f = CreateFrame("Frame", nil, frame)
+
+    local tex = f:CreateTexture(nil, "ARTWORK")
+    tex:SetAllPoints(f)
+    tex:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    f.tex = tex
+
+    local border = CreateFrame("Frame", nil, f,
+        BackdropTemplateMixin and "BackdropTemplate")
+    border:SetPoint("TOPLEFT", f, "TOPLEFT", -1, 1)
+    border:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 1, -1)
+    if border.SetBackdrop then
+        border:SetBackdrop({ edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
+    end
+    f.border = border
+
+    local cd = CreateFrame("Cooldown", nil, f, "CooldownFrameTemplate")
+    cd:SetAllPoints(f)
+    cd:SetDrawEdge(true)
+    if cd.SetHideCountdownNumbers then cd:SetHideCountdownNumbers(true) end
+    f.cd = cd
+
+    return f
+end
+
+local function ensureIcon(i)
+    icons[i] = icons[i] or newIcon()
+    return icons[i]
+end
+
+local function build()
+    if frame then return frame end
+
+    frame = CreateFrame("Frame", nil, UIParent)
+    frame:SetSize(200, 32)
+    frame:SetFrameStrata("MEDIUM")
+    frame:Hide()
+
+    mover = ns:CreateMover(frame, {
+        key    = "arenainterrupts",
+        label  = L["|cffffffffINTERRUPTS|r\n|cffaaaaaaDrag or arrow keys|r"],
+        db     = db(),
+        width  = 220,
+        height = 60,
+        onMove = function() mod.InterruptApplyPos() end,
+    })
+
+    mod.InterruptApplyPos()
+    return frame
+end
+
+function mod.InterruptApplyPos()
+    if not frame then return end
+    local d = db()
+    frame:ClearAllPoints()
+    frame:SetPoint("CENTER", UIParent, "CENTER", d.x or 0, d.y or 0)
+end
+
+-- Same growth vocabulary the cooldown bars already use, so a player who has set
+-- one of those up does not have to learn a second one.
+local function layout(shown)
+    local d = db()
+    local size, pad = d.iconSize or 32, d.spacing or 4
+    local perRow = math.max(1, d.perRow or 8)
+    local horiz  = (d.growth == "RIGHT" or d.growth == "LEFT")
+    local count  = #shown
+    local posN   = math.min(math.max(count, 1), perRow)
+    local lineN  = math.max(1, math.ceil(math.max(count, 1) / perRow))
+    local cols   = horiz and posN or lineN
+    local rows   = horiz and lineN or posN
+    local step   = size + pad
+
+    for i = 1, count do
+        local idx  = i - 1
+        local line = floor(idx / perRow)
+        local pos  = idx % perRow
+        local col  = horiz and pos or line
+        local row  = horiz and line or pos
+        if d.growth == "LEFT" then col = (cols - 1) - col end
+        if d.growth == "UP"   then row = (rows - 1) - row end
+        local f = shown[i]
+        f:SetSize(size, size)
+        f:ClearAllPoints()
+        f:SetPoint("TOPLEFT", frame, "TOPLEFT", col * step, -row * step)
+    end
+    frame:SetSize(math.max(cols * size + (cols - 1) * pad, 1),
+                  math.max(rows * size + (rows - 1) * pad, 1))
+end
+
+-- ---------------------------------------------------------------------------
+-- What to show
+-- ---------------------------------------------------------------------------
+
+local function zoneAllows()
+    local v = db().visibility
+    if v == "always" then return true end
+    if not IsInInstance then return false end
+    local _, kind = IsInInstance()
+    if v == "arena" then return kind == "arena" end
+    return kind == "arena" or kind == "pvp"
+end
+
+local function classColor(class)
+    local c = class and ns.COLORS and ns.COLORS.class and ns.COLORS.class[class]
+    if c then return c.r, c.g, c.b end
+    local raw = class and _G.RAID_CLASS_COLORS and _G.RAID_CLASS_COLORS[class]
+    if raw then return raw.r, raw.g, raw.b end
+    return 0.6, 0.6, 0.6
+end
+
+-- Enemies whose interrupt has not been seen yet, so the bar reads as "these are
+-- the kicks in this match" from the opening gate rather than filling up as they
+-- are spent. Arena only: outside it there is no reliable enemy roster.
+local function unusedEntries(out)
+    if not db().showUnused then return end
+    if not (IsInInstance and select(2, IsInInstance()) == "arena") then return end
+    for i = 1, 5 do
+        local unit = "arena" .. i
+        if UnitExists and UnitExists(unit) then
+            local _, class = UnitClass(unit)
+            local guid = UnitGUID and UnitGUID(unit)
+            for _, ab in ipairs(BY_CLASS[class] or {}) do
+                if not (guid and active[guid .. "/" .. ab.key]) then
+                    out[#out + 1] = { id = ab.id, class = class, ready = true }
+                end
+            end
+        end
+    end
+end
+
+-- Positioning happens wherever the player is standing, which is almost never
+-- an arena -- so an unlocked box and a running preview both override the zone
+-- filter and the enable switch. Without this the ticker wiped the bar off the
+-- screen a fifth of a second after the unlock button put it there.
+local function shouldShow()
+    local d = db()
+    if d.unlocked or GetTime() < previewUntil then return true end
+    return d.enabled and zoneAllows()
+end
+
+local function refresh()
+    if not shouldShow() then
+        if frame then frame:Hide() end
+        return
+    end
+    build()
+
+    local now, list = GetTime(), {}
+    for key, e in pairs(active) do
+        if e.expiry <= now then
+            active[key] = nil
+        else
+            list[#list + 1] = e
+        end
+    end
+    -- Soonest ready first: the one you are waiting on sits at the front.
+    table.sort(list, function(a, b) return a.expiry < b.expiry end)
+    unusedEntries(list)
+
+    local shown = {}
+    for i, e in ipairs(list) do
+        local f = ensureIcon(i)
+        f.tex:SetTexture((GetSpellTexture and GetSpellTexture(e.id)) or 134400)
+        local r, g, b = classColor(e.class)
+        if f.border.SetBackdropBorderColor then
+            f.border:SetBackdropBorderColor(r, g, b, 1)
+        end
+        if e.ready then
+            f.cd:Clear()
+            f.tex:SetDesaturated(true)
+            f.tex:SetAlpha(0.45)
+        else
+            f.cd:SetCooldown(e.expiry - e.cd, e.cd)
+            f.tex:SetDesaturated(false)
+            f.tex:SetAlpha(1)
+        end
+        f:Show()
+        shown[#shown + 1] = f
+    end
+    for i = #shown + 1, #icons do icons[i]:Hide() end
+
+    if #shown == 0 and not db().unlocked then
+        frame:Hide()
+        return
+    end
+    layout(shown)
+    frame:Show()
+end
+
+-- ---------------------------------------------------------------------------
+-- Reading the combat log
+-- ---------------------------------------------------------------------------
+
+local HOSTILE = _G.COMBATLOG_OBJECT_REACTION_HOSTILE or 0x00000040
+local PLAYER  = _G.COMBATLOG_OBJECT_TYPE_PLAYER      or 0x00000400
+
+local function onCombatLog()
+    if not db().enabled then return end
+    local info = CombatLogGetCurrentEventInfo
+    if not info then return end
+    local _, sub, _, sourceGUID, sourceName, sourceFlags, _, _, _, _, _, spellID = info()
+    if sub ~= "SPELL_CAST_SUCCESS" then return end
+
+    local def = spellID and SPELLS[spellID]
+    if not def or not sourceGUID then return end
+
+    -- Hostile only: a friendly kick is not what this bar is for.
+    local flags = sourceFlags or 0
+    if bit.band(flags, HOSTILE) == 0 then return end
+    -- Players, plus the pets that carry an interrupt of their own. Demanding
+    -- the player flag for everything would drop every felhunter lock, which is
+    -- the one interrupt in the list nobody casts personally.
+    if not def.pet and bit.band(flags, PLAYER) == 0 then return end
+
+    active[sourceGUID .. "/" .. def.key] = {
+        id     = ABILITY[def.key].id,
+        cd     = def.cd,
+        class  = def.class,
+        name   = sourceName,
+        expiry = GetTime() + def.cd,
+    }
+    refresh()
+end
+
+-- One ticker for the whole bar: an icon whose cooldown has run out has to
+-- leave, and nothing else tells us when that moment is.
+local ticker = CreateFrame("Frame")
+ticker:Hide()
+local nextSweep = 0
+ticker:SetScript("OnUpdate", function()
+    local now = GetTime()
+    if now < nextSweep then return end
+    nextSweep = now + 0.2
+    refresh()
+end)
+
+local function ev_zone()
+    refresh()
+end
+
+mod.RegEvent("COMBAT_LOG_EVENT_UNFILTERED", onCombatLog)
+mod.RegEvent("PLAYER_ENTERING_WORLD", ev_zone)
+mod.RegEvent("ARENA_OPPONENT_UPDATE", ev_zone)
+
+mod:RegisterOnEnable(function()
+    build()
+    ticker:Show()
+    refresh()
+end)
+
+mod:RegisterOnDisable(function()
+    if frame then frame:Hide() end
+    ticker:Hide()
+end)
+
+-- ---------------------------------------------------------------------------
+-- Options
+-- ---------------------------------------------------------------------------
+
+local function setUnlocked(state)
+    build()
+    db().unlocked = state and true or false
+    if db().unlocked then
+        frame:SetFrameStrata("FULLSCREEN_DIALOG")
+        frame:Show()
+        mover:Show()
+        ns:Print(L["Interrupt bar mover active. |cff9b6cffDrag the purple box|r or use |cff9b6cffarrow keys|r (SHIFT = 5px). Press the button again to finish."])
+    else
+        frame:SetFrameStrata("MEDIUM")
+        mover:Hide()
+        refresh()
+    end
+end
+
+-- A stand-in run so the bar can be placed and sized without waiting for an
+-- enemy to actually spend a kick.
+local function preview()
+    build()
+    local demo = { "kick", "counterspell", "pummel", "spelllock" }
+    local pick = { 1766, 2139, 6552, 19244 }
+    local cls  = { "ROGUE", "MAGE", "WARRIOR", "WARLOCK" }
+    local longest = 0
+    for i = 1, #demo do
+        local left = 6 + i * 2
+        if left > longest then longest = left end
+        active["preview" .. i .. "/" .. demo[i]] = {
+            id = pick[i], cd = 10 + i * 4, class = cls[i],
+            name = "?", expiry = GetTime() + left,
+        }
+    end
+    previewUntil = GetTime() + longest
+    refresh()
+end
+
+mod:AddOptionsSection("interrupt", function()
+    local d = db()
+    return {
+        { type = "header", text = L["Interrupts"] },
+        { type = "desc",   text = L["Watches the combat log for enemy interrupts and starts a cooldown for each one, tracked per caster -- two enemies of the same class get an icon each. The border carries the caster's class colour."] },
+
+        { type = "checkbox", label = L["Show interrupt bar"],
+          get = function() return d.enabled end,
+          set = function(_, v) d.enabled = v; refresh() end },
+
+        { type = "group", layout = "row", gap = 8, items = {
+            { type = "button", label = L["Unlock / Move"], width = 130,
+              onClick = function() setUnlocked(not db().unlocked) end },
+            { type = "button", label = L["Preview"], width = 130,
+              onClick = function() preview() end },
+        } },
+
+        { type = "dropdown", label = L["Show in"], width = 220,
+          values = {
+              { value = "always", text = L["Everywhere"] },
+              { value = "pvp",    text = L["Arena and battlegrounds"] },
+              { value = "arena",  text = L["Arena only"] },
+          },
+          get = function() return d.visibility end,
+          set = function(_, v) d.visibility = v; refresh() end },
+
+        { type = "dropdown", label = L["Growth direction"], width = 220,
+          values = {
+              { value = "RIGHT", text = L["Right"] }, { value = "LEFT", text = L["Left"] },
+              { value = "DOWN",  text = L["Down"]  }, { value = "UP",   text = L["Up"]   },
+          },
+          get = function() return d.growth end,
+          set = function(_, v) d.growth = v; refresh() end },
+
+        { type = "slider", label = L["Icon size"], min = 16, max = 64, step = 1,
+          get = function() return d.iconSize end,
+          set = function(_, v) d.iconSize = v; refresh() end },
+        { type = "slider", label = L["Spacing"], min = 0, max = 16, step = 1,
+          get = function() return d.spacing end,
+          set = function(_, v) d.spacing = v; refresh() end },
+        { type = "slider", label = L["Icons per row"], min = 1, max = 12, step = 1,
+          get = function() return d.perRow end,
+          set = function(_, v) d.perRow = v; refresh() end },
+
+        { type = "checkbox", label = L["Show interrupts that are still ready"],
+          get = function() return d.showUnused end,
+          set = function(_, v) d.showUnused = v; refresh() end },
     }
 end)
 

@@ -3041,4 +3041,13 @@ ns:RegisterLocale("ruRU", function() return {
     ["Profile changed. Use /reload when you are out of combat."] = "Профиль изменён. Используйте /reload, когда выйдете из боя.",
     ["Profile keybind"] = "Горячая клавиша профиля",
     ["Switches to this profile outside combat and then asks to reload the UI. Override bindings are restored at login."] = "Переключает на этот профиль вне боя, затем предлагает перезагрузить интерфейс. Привязки восстанавливаются при входе в игру.",
+    ["Use the global font"] = "Использовать общий шрифт",
+    ["Name color"] = "Цвет названия",
+    ["Timer color"] = "Цвет времени",
+    ["|cffffffffINTERRUPTS|r\n|cffaaaaaaDrag or arrow keys|r"] = "|cffffffffПРЕРЫВАНИЯ|r\n|cffaaaaaaПеретащите или стрелки|r",
+    ["Interrupt bar mover active. |cff9b6cffDrag the purple box|r or use |cff9b6cffarrow keys|r (SHIFT = 5px). Press the button again to finish."] = "Перемещение панели прерываний включено. |cff9b6cffПеретащите фиолетовую рамку|r или используйте |cff9b6cffстрелки|r (SHIFT = 5 пикселей). Нажмите кнопку ещё раз, чтобы закончить.",
+    ["Interrupts"] = "Прерывания",
+    ["Watches the combat log for enemy interrupts and starts a cooldown for each one, tracked per caster -- two enemies of the same class get an icon each. The border carries the caster's class colour."] = "Следит в боевом журнале за прерываниями противников и запускает восстановление для каждого, отдельно по заклинателю: два врага одного класса получат по значку. Рамка окрашена в цвет класса заклинателя.",
+    ["Show interrupt bar"] = "Показывать панель прерываний",
+    ["Show interrupts that are still ready"] = "Показывать и готовые прерывания",
 } end)
