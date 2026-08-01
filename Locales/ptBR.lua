@@ -3054,4 +3054,5 @@ ns:RegisterLocale("ptBR", function() return {
     ["Cooldown swipe on the icons"] = "Varredura de recarga nos ícones",
     ["Only take over the key while a fishing pole is worn"] = "Ocupar a tecla apenas com um caniço equipado",
     ["Without a pole in hand the key keeps whatever you bound it to, so it stays usable outside fishing. A cast already in the water keeps the key. This switches off auto-equipping a pole, which needs the key exactly while none is worn."] = "Sem caniço na mão a tecla mantém o que você atribuiu a ela, continuando útil fora da pesca. Um lançamento já na água mantém a tecla. Isso desliga equipar o caniço automaticamente, porque essa função precisa da tecla justamente quando nenhum está equipado.",
+    ["Stand-in for an enemy frame: the side strip is placed by the settings below."] = "Espaço reservado de um quadro inimigo: a faixa lateral é posicionada pelas opções abaixo.",
 } end)

@@ -3054,4 +3054,5 @@ ns:RegisterLocale("ruRU", function() return {
     ["Cooldown swipe on the icons"] = "Заливка восстановления на значках",
     ["Only take over the key while a fishing pole is worn"] = "Занимать клавишу только с удочкой в руках",
     ["Without a pole in hand the key keeps whatever you bound it to, so it stays usable outside fishing. A cast already in the water keeps the key. This switches off auto-equipping a pole, which needs the key exactly while none is worn."] = "Без удочки клавиша сохраняет то, что вы на неё назначили, и остаётся полезной вне рыбалки. Уже заброшенная леска клавишу удерживает. Это отключает автоматическое надевание удочки, ведь оно требует клавишу именно тогда, когда удочки нет.",
+    ["Stand-in for an enemy frame: the side strip is placed by the settings below."] = "Заглушка рамки противника: боковая полоса размещается настройками ниже.",
 } end)

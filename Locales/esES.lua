@@ -3055,6 +3055,7 @@ local function T() return {
     ["Cooldown swipe on the icons"] = "Barrido de reutilización en los iconos",
     ["Only take over the key while a fishing pole is worn"] = "Ocupar la tecla solo con una caña equipada",
     ["Without a pole in hand the key keeps whatever you bound it to, so it stays usable outside fishing. A cast already in the water keeps the key. This switches off auto-equipping a pole, which needs the key exactly while none is worn."] = "Sin caña en la mano la tecla conserva lo que le hayas asignado, así que sigue siendo útil fuera de la pesca. Un lanzamiento ya en el agua mantiene la tecla. Esto desactiva equipar la caña automáticamente, porque eso necesita la tecla justo cuando no llevas ninguna.",
+    ["Stand-in for an enemy frame: the side strip is placed by the settings below."] = "Marcador de posición de un marco enemigo: la tira lateral se coloca con los ajustes de abajo.",
 } end
 
 ns:RegisterLocale("esES", T)

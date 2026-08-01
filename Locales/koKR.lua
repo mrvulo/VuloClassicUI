@@ -3054,4 +3054,5 @@ ns:RegisterLocale("koKR", function() return {
     ["Cooldown swipe on the icons"] = "아이콘에 재사용 대기 효과 표시",
     ["Only take over the key while a fishing pole is worn"] = "낚싯대를 장착했을 때만 키를 사용",
     ["Without a pole in hand the key keeps whatever you bound it to, so it stays usable outside fishing. A cast already in the water keeps the key. This switches off auto-equipping a pole, which needs the key exactly while none is worn."] = "낚싯대가 없으면 키는 원래 지정한 기능을 그대로 유지하므로 낚시 외에도 계속 쓸 수 있습니다. 이미 던진 찌는 키를 계속 사용합니다. 이 설정은 낚싯대 자동 장착을 끕니다. 그 기능은 낚싯대가 없을 때 바로 그 키를 필요로 하기 때문입니다.",
+    ["Stand-in for an enemy frame: the side strip is placed by the settings below."] = "적 프레임 자리표시: 옆의 아이콘 줄은 아래 설정에 따라 배치됩니다.",
 } end)

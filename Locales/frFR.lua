@@ -3203,4 +3203,5 @@ ns:RegisterLocale("frFR", function() return {
     ["Cooldown swipe on the icons"] = "Balayage de recharge sur les icônes",
     ["Only take over the key while a fishing pole is worn"] = "Occuper la touche uniquement avec une canne équipée",
     ["Without a pole in hand the key keeps whatever you bound it to, so it stays usable outside fishing. A cast already in the water keeps the key. This switches off auto-equipping a pole, which needs the key exactly while none is worn."] = "Sans canne en main la touche garde ce que vous lui avez assigné, elle reste donc utilisable en dehors de la pêche. Un lancer déjà à l’eau conserve la touche. Cela désactive l’équipement automatique de la canne, qui a besoin de la touche précisément quand aucune n’est portée.",
+    ["Stand-in for an enemy frame: the side strip is placed by the settings below."] = "Substitut de cadre ennemi : la bande latérale est placée par les réglages ci-dessous.",
 } end)

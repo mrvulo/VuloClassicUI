@@ -3054,4 +3054,5 @@ ns:RegisterLocale("itIT", function() return {
     ["Cooldown swipe on the icons"] = "Sweep del recupero sulle icone",
     ["Only take over the key while a fishing pole is worn"] = "Occupa il tasto solo con una canna equipaggiata",
     ["Without a pole in hand the key keeps whatever you bound it to, so it stays usable outside fishing. A cast already in the water keeps the key. This switches off auto-equipping a pole, which needs the key exactly while none is worn."] = "Senza canna in mano il tasto mantiene ciò che gli hai assegnato, quindi resta utilizzabile fuori dalla pesca. Un lancio già in acqua mantiene il tasto. Questo disattiva l’equipaggiamento automatico della canna, che ha bisogno del tasto proprio quando non ne indossi nessuna.",
+    ["Stand-in for an enemy frame: the side strip is placed by the settings below."] = "Segnaposto di un riquadro nemico: la striscia laterale è posizionata dalle impostazioni qui sotto.",
 } end)

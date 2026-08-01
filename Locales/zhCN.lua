@@ -3047,4 +3047,5 @@ ns:RegisterLocale("zhCN", function() return {
     ["Cooldown swipe on the icons"] = "在图标上显示冷却扫描",
     ["Only take over the key while a fishing pole is worn"] = "仅在装备鱼竿时占用该按键",
     ["Without a pole in hand the key keeps whatever you bound it to, so it stays usable outside fishing. A cast already in the water keeps the key. This switches off auto-equipping a pole, which needs the key exactly while none is worn."] = "手中没有鱼竿时，该按键保留你自己设置的功能，在钓鱼之外仍可正常使用。已经抛出的鱼线会继续占用按键。此设置会关闭自动装备鱼竿，因为该功能正需要在没有鱼竿时占用按键。",
+    ["Stand-in for an enemy frame: the side strip is placed by the settings below."] = "敌方框体的占位示意：侧边图标条由下方的设置决定位置。",
 } end)

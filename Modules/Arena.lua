@@ -218,6 +218,10 @@ end
 
 function mod.RefreshSideIcons()
     H.ForEach(mod.LayoutSideIcons)
+    -- Every slider that moves the strip already comes through here, so the
+    -- options-page stand-in follows without a second wiring. No-op until the
+    -- preview exists and is on screen.
+    if mod.RefreshSidePreview then mod.RefreshSidePreview() end
 end
 
 mod._readyHandlers = {}
@@ -3911,5 +3915,168 @@ mod:AddOptionsSection("interrupt", function()
           } },
     }
 end)
+
+end)(...);
+
+-- =========================================================================
+-- Live preview of the side strip.
+--
+-- The strip sits next to the arena enemy frames, and those exist only inside
+-- an arena -- so every slider below it adjusts something the player cannot
+-- see while adjusting it. This draws a stand-in instead: a mock enemy frame
+-- with the same three icons, placed by exactly the arithmetic LayoutSideIcons
+-- uses, so what moves here is what will move in there.
+--
+-- Insecure throughout, and deliberately so. Forcing the real arena frames on
+-- screen out of an arena would mean touching protected frames from Lua, and
+-- this addon has paid for that once already.
+-- =========================================================================
+(function(...)
+local _, ns = ...
+if ns.isEra then return end
+local L = ns.L
+local mod = ns.ArenaModule
+
+local preview
+
+local BOX_W, BOX_H = 128, 38
+
+-- Same order the real strip is registered in: racial (10), PvP trinket (20),
+-- then the diminishing-returns row (30).
+local DEMO = {
+    { tex = "Interface\\Icons\\Spell_Shadow_UnholyFrenzy",
+      size = function() return mod.db.racialSize or 22 end,
+      on   = function() return mod.db.racialEnabled end },
+    { tex = "Interface\\Icons\\INV_Jewelry_TrinketPVP_01",
+      size = function() return mod.db.trinketSize or 24 end,
+      on   = function() return mod.db.trinketEnabled end },
+    -- The real row holds one icon per tracked category and grows with them;
+    -- three slots stand in for it, which is what a normal match shows.
+    { tex = "Interface\\Icons\\Spell_Nature_Polymorph",
+      size = function() return mod.db.drSize or 24 end,
+      on   = function() return mod.db.drEnabled end,
+      slots = 3 },
+}
+
+local function build(host)
+    if preview then
+        preview:SetParent(host)
+        preview:ClearAllPoints()
+        preview:SetPoint("TOPLEFT", host, "TOPLEFT", 0, 0)
+        return preview
+    end
+
+    preview = CreateFrame("Frame", nil, host)
+    preview:SetPoint("TOPLEFT", host, "TOPLEFT", 0, 0)
+    preview:SetPoint("TOPRIGHT", host, "TOPRIGHT", 0, 0)
+    preview:SetHeight(96)
+
+    -- The mock enemy frame. Not a copy of Blizzard's art, just a body of the
+    -- right size: the strip anchors to the frame's edge, and only that edge
+    -- matters for what the sliders do.
+    local box = CreateFrame("Frame", nil, preview)
+    box:SetSize(BOX_W, BOX_H)
+    box:SetPoint("CENTER", preview, "CENTER", 0, 4)
+    ns.UI.SetColorBG(box, 0.10, 0.10, 0.13, 1)
+    preview.box = box
+
+    local border = CreateFrame("Frame", nil, box,
+        BackdropTemplateMixin and "BackdropTemplate")
+    border:SetAllPoints(box)
+    if border.SetBackdrop then
+        border:SetBackdrop({ edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
+        border:SetBackdropBorderColor(ns.COLORS.border.r, ns.COLORS.border.g, ns.COLORS.border.b, 1)
+    end
+
+    local name = box:CreateFontString(nil, "OVERLAY")
+    ns.UI.Font(name, 10)
+    name:SetPoint("TOPLEFT", box, "TOPLEFT", 5, -4)
+    name:SetText("|cffff7c0aGegner|r")
+
+    local hp = box:CreateTexture(nil, "ARTWORK")
+    hp:SetPoint("TOPLEFT", box, "TOPLEFT", 5, -18)
+    hp:SetSize(BOX_W - 10, 8)
+    hp:SetColorTexture(0.15, 0.62, 0.25, 1)
+
+    local mp = box:CreateTexture(nil, "ARTWORK")
+    mp:SetPoint("TOPLEFT", box, "TOPLEFT", 5, -28)
+    mp:SetSize(BOX_W - 10, 5)
+    mp:SetColorTexture(0.20, 0.40, 0.85, 1)
+
+    preview.icons = {}
+
+    local hint = preview:CreateFontString(nil, "OVERLAY")
+    ns.UI.Font(hint, 10)
+    hint:SetPoint("BOTTOM", preview, "BOTTOM", 0, 2)
+    hint:SetTextColor(0.6, 0.6, 0.66)
+    hint:SetText(L["Stand-in for an enemy frame: the side strip is placed by the settings below."])
+
+    return preview
+end
+
+local function slot(i)
+    local f = preview.icons[i]
+    if f then return f end
+    f = CreateFrame("Frame", nil, preview)
+    f.tex = f:CreateTexture(nil, "ARTWORK")
+    f.tex:SetAllPoints(f)
+    f.tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    local b = CreateFrame("Frame", nil, f, BackdropTemplateMixin and "BackdropTemplate")
+    b:SetPoint("TOPLEFT", f, "TOPLEFT", -1, 1)
+    b:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 1, -1)
+    if b.SetBackdrop then
+        b:SetBackdrop({ edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
+        b:SetBackdropBorderColor(0, 0, 0, 1)
+    end
+    preview.icons[i] = f
+    return f
+end
+
+-- The arithmetic below is LayoutSideIcons, copied on purpose rather than
+-- shared: that one walks the registered getters and anchors real frames to a
+-- real arena frame. Keeping them apart means the preview cannot reach into
+-- anything protected. If the placement rule there changes, it changes here.
+function mod.RefreshSidePreview()
+    if not preview or not preview:IsShown() then return end
+    local d     = mod.db
+    local right = mod.IsSideStripRight()
+    local gap   = d.iconGap or 4
+    local y     = d.iconOffsetY or 0
+    local x     = d.iconOffsetX or 8
+
+    local n = 0
+    for _, def in ipairs(DEMO) do
+        if def.on() then
+            local size = def.size()
+            for s = 1, (def.slots or 1) do
+                n = n + 1
+                local f = slot(n)
+                f.tex:SetTexture(def.tex)
+                f:SetSize(size, size)
+                f:ClearAllPoints()
+                if right then
+                    f:SetPoint("LEFT", preview.box, "RIGHT", x, y)
+                else
+                    f:SetPoint("RIGHT", preview.box, "LEFT", -x, y)
+                end
+                f:Show()
+                -- Inside the row the slots sit shoulder to shoulder; only the
+                -- row as a whole takes the gap, exactly as the real one does.
+                x = x + size + ((s == (def.slots or 1)) and gap or 1)
+            end
+        end
+    end
+    for i = n + 1, #preview.icons do preview.icons[i]:Hide() end
+end
+
+-- Only the tab that carries the layout section; a returned 0 hides the header
+-- everywhere else.
+function mod.BuildPageHeader(host, tabId)
+    if tabId ~= nil and tabId ~= "core" and tabId ~= "default" then return 0 end
+    build(host)
+    preview:Show()
+    mod.RefreshSidePreview()
+    return 96
+end
 
 end)(...);

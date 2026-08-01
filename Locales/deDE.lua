@@ -3176,4 +3176,5 @@ ns:RegisterLocale("deDE", function() return {
     ["Cooldown swipe on the icons"] = "Abklingzeit-Wisch auf den Symbolen",
     ["Only take over the key while a fishing pole is worn"] = "Taste nur belegen, solange eine Angel angelegt ist",
     ["Without a pole in hand the key keeps whatever you bound it to, so it stays usable outside fishing. A cast already in the water keeps the key. This switches off auto-equipping a pole, which needs the key exactly while none is worn."] = "Ohne Angel in der Hand behält die Taste das, was du ihr zugewiesen hast – sie bleibt außerhalb des Angelns also normal nutzbar. Eine bereits ausgeworfene Schnur behält die Taste. Das schaltet das automatische Anlegen der Angel ab, denn das braucht die Taste genau dann, wenn keine angelegt ist.",
+    ["Stand-in for an enemy frame: the side strip is placed by the settings below."] = "Platzhalter für ein Gegnerfenster: Der Symbolstreifen wird von den Einstellungen darunter gesetzt.",
 } end)
