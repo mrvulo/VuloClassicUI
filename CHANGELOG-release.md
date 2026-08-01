@@ -1,19 +1,32 @@
-## 1.47.0
+## 1.48.0
+**Arena:**
+- **NEW: Loss of Control** – Shows the stun, fear, root, silence or lockout holding you, with its icon, its name and the time left
+- **NEW: Interrupts** – Tracks enemy interrupts from the combat log, one icon per caster, bordered in the caster's class colour
+- **NEW: Timer Text On The Icons** – Seconds left on the interrupt icons, with their own font, outline and colour
+- **NEW: Cooldown Swipe On The Icons** – Drop the sweeping shade and keep only the number
+- The icon strip beside the enemy frames has a live preview on the General tab. Those frames exist only inside an arena, so its sliders used to move something you could not see.
+- An unlocked mover box no longer vanished a moment after the button put it there. The box and a running preview now ignore the zone filter: you place a bar where you are standing, and that is rarely an arena.
+
+**Cooldown Manager:**
+- The pinned icon strip also appears on the Layout tab, where icon size, spacing, shape and zoom read back off it while the slider moves.
+
 **Edit Mode:**
-- The boxes now cover their window exactly, in the same dark look as the rest of the interface, with the name centred and shown in orange when the window is docked to another one
-- Outside the editor the small drag handle stays, so an unlocked cooldown bar still accepts dropped spells and test previews stay visible
+- Moving Blizzard frames no longer marks every Edit Mode window as touched by this addon, which had the pet frame refused in combat. Selecting a layout caused it, and that ran on every editor entry even when nothing had been placed.
 
-**Languages:**
-- The cloak equipment slot was translated with the navigation word for back in six languages and now reads correctly everywhere
+**Equipment Sets:**
+- The icon picker has a close button, and no longer floats over the game after the character sheet is shut.
 
-**Nameplates:**
-- **NEW: Pixel-true plate size** – Sizes the plates in screen pixels, so height 27 is 27 pixels on any monitor and interface scale
-- Plate sizes now mean exactly what the sliders say: the game no longer secretly enlarges the target's plate or shrinks distant ones, and the live preview matches the game — making the target larger is now solely the job of the target plate scale option
+**Fishing:**
+- **NEW: Only Take Over The Key While A Fishing Pole Is Worn** – Without a pole the key keeps whatever you bound it to
+
+**Options Window:**
+- The mouse wheel scrolls the sidebar and the page. The window also shrinks to fit a screen smaller than itself, which is what left it undraggable on a high interface scale.
 
 **Profiles:**
-- **NEW: Save a backup copy** – One click keeps a dated copy of the active profile as a restore point
-- Exporting opens a proper window with the string already selected, and importing shows a preview first: rename the profile and untick the parts you do not want before anything is written
-- Export strings are compressed to a fraction of their old length and fit in a chat message; strings from older versions still import
+- **NEW: Profile Keybind** – Put a profile on a key and switch to it out of combat
 
-**Talent Window:**
-- On the Wrath client the talent tooltip showed a placeholder instead of the description, and the talent key would open the window but not close it — both fixed
+**Reminders:**
+- The bag sweep behind the food, flask and weapon oil reminders is kept until the bags change, instead of walking every bag three times over twice a second.
+
+**Unit Frames:**
+- The modern player frame style no longer reaches into the pet and totem frames.
