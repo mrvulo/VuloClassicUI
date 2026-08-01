@@ -1,51 +1,19 @@
-## 1.46.0
-**Action Bars:**
-- The page opens with two modes: Standard keeps Blizzard's bars with the skin rows, Modern runs the addon's own bars with a live preview, a per-bar background, button press and hover tints and an XP bar texture
-
-**Cast Bar:**
-- **NEW: Modern** – Third player cast bar style: flat look with name and timer on the bar, plus bar texture, border, a coloured last tick and a latency readout
-- The options page carries a live preview; clicking its icon or bar jumps to the matching section
-
-**Character Panel:**
-- Enchant and gem displays no longer displace each other on non-English clients, and Chinese enchant text is no longer cut mid-character
-
-**Cooldown Manager:**
-- Tracked entries sit two per row, each with a gear: park an entry without deleting it, move or remove it, set conditions, and override Only what I cast myself for that entry alone
-
+## 1.47.0
 **Edit Mode:**
-- **NEW: See-through** – Hides the box fill and labels while editing, so you can see the interface you are aligning
-- Coordinates appear on the box while dragging or nudging, and the window being snapped to pulses white
-- The loot window can be moved on Wrath clients
+- The boxes now cover their window exactly, in the same dark look as the rest of the interface, with the name centred and shown in orange when the window is docked to another one
+- Outside the editor the small drag handle stays, so an unlocked cooldown bar still accepts dropped spells and test previews stay visible
 
-**Friends List:**
-- **NEW: Widen window** – Extra width so long names, notes and zones fit on one line
-
-**General:**
-- The close glyph of every window is larger now
+**Languages:**
+- The cloak equipment slot was translated with the navigation word for back in six languages and now reads correctly everywhere
 
 **Nameplates:**
-- Three tabs with a pinned live preview, a name-in-bar option and thousands separators on health numbers
-
-**Options:**
-- Gear rows open inside their own column, aura rows align per row, helper tools share one tab, and the pinned page header of the last visited tab is cleared on switching
-
-**Patch Notes:**
-- Only the last five versions build at once; a button loads the older ones
-
-**Power Bar:**
-- Orientation, fill opacity, frame strata and a live preview on the options page
+- **NEW: Pixel-true plate size** – Sizes the plates in screen pixels, so height 27 is 27 pixels on any monitor and interface scale
+- Plate sizes now mean exactly what the sliders say: the game no longer secretly enlarges the target's plate or shrinks distant ones, and the live preview matches the game — making the target larger is now solely the job of the target plate scale option
 
 **Profiles:**
-- A profile string can carry a selection: chosen modules, the window layout, talent overrides, and the account-wide fonts and colours
+- **NEW: Save a backup copy** – One click keeps a dated copy of the active profile as a restore point
+- Exporting opens a proper window with the string already selected, and importing shows a preview first: rename the profile and untick the parts you do not want before anything is written
+- Export strings are compressed to a fraction of their old length and fit in a chat message; strings from older versions still import
 
-**Reminders:**
-- Per-rule switches with class-coloured names, a group scan for missing buffs, preferred food, flask and weapon oil, raid and dungeon thresholds, glow styles, scale and a live preview; middle-click hides a reminder until the next loading screen
-
-**Settings:**
-- Broken numeric values are removed before saving and reported at the next login. A single such value used to reset every setting of the account to defaults
-
-**Shaman:**
-- Totemic Recall stands as its own button after the elements on Wrath clients
-
-**Talents:**
-- **NEW: Talent Window** – All three talent trees side by side with live ranks and click-to-learn on Wrath clients; glyphs stay one button away
+**Talent Window:**
+- On the Wrath client the talent tooltip showed a placeholder instead of the description, and the talent key would open the window but not close it — both fixed

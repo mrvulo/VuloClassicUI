@@ -3006,4 +3006,14 @@ ns:RegisterLocale("zhTW", function() return {
     ["Go back"] = "返回",
     ["Pixel-true plate size"] = "像素級名條大小",
     ["Sizes the plates in screen pixels instead of interface units: height 27 is then 27 pixels on any monitor and UI scale."] = "以螢幕像素而非介面單位設定名條大小：高度 27 在任何螢幕與介面縮放下都是 27 像素。",
+    -- Patch notes 1.47.0
+    ["The boxes now cover their window exactly, in the same dark look as the rest of the interface, with the name centred and shown in orange when the window is docked to another one"] = "方框現在精確覆蓋對應的視窗，與介面其餘部分同為深色風格；名稱置中顯示，當視窗停靠到另一個視窗時變為橙色",
+    ["Outside the editor the small drag handle stays, so an unlocked cooldown bar still accepts dropped spells and test previews stay visible"] = "在編輯器之外仍保留小拖曳框，因此解鎖的冷卻列仍能接收拖放的法術，測試預覽也保持可見",
+    ["The cloak equipment slot was translated with the navigation word for back in six languages and now reads correctly everywhere"] = "披風裝備欄位在六種語言裡被譯成了導航用的返回一詞，現在所有語言都顯示正確",
+    ["Pixel-true plate size – Sizes the plates in screen pixels, so height 27 is 27 pixels on any monitor and interface scale"] = "像素級名條大小 – 以螢幕像素設定名條大小，高度 27 在任何螢幕與介面縮放下都是 27 像素",
+    ["Plate sizes now mean exactly what the sliders say: the game no longer secretly enlarges the target's plate or shrinks distant ones, and the live preview matches the game — making the target larger is now solely the job of the target plate scale option"] = "名條大小現在與滑桿所示完全一致：遊戲不再偷偷放大目標的名條或縮小遠處的名條，即時預覽與遊戲一致——放大目標現在完全交給目標名條縮放選項",
+    ["Save a backup copy – One click keeps a dated copy of the active profile as a restore point"] = "儲存備份副本 – 一次點擊即可保存目前設定檔的帶日期副本作為還原點",
+    ["Exporting opens a proper window with the string already selected, and importing shows a preview first: rename the profile and untick the parts you do not want before anything is written"] = "匯出會開啟一個正式視窗且字串已選取，匯入會先顯示預覽：在寫入任何內容之前可以重新命名設定檔並取消勾選不需要的部分",
+    ["Export strings are compressed to a fraction of their old length and fit in a chat message; strings from older versions still import"] = "匯出字串經過壓縮，長度只剩原來的幾分之一，可放進一條聊天訊息；舊版本的字串仍可匯入",
+    ["On the Wrath client the talent tooltip showed a placeholder instead of the description, and the talent key would open the window but not close it — both fixed"] = "在巫妖王之怒客戶端上，天賦提示只顯示占位符而非描述，天賦快捷鍵能打開視窗卻無法關閉——兩者均已修復",
 } end)

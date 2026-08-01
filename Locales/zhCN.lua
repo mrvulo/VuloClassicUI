@@ -3006,4 +3006,14 @@ ns:RegisterLocale("zhCN", function() return {
     ["Go back"] = "返回",
     ["Pixel-true plate size"] = "像素级姓名板大小",
     ["Sizes the plates in screen pixels instead of interface units: height 27 is then 27 pixels on any monitor and UI scale."] = "以屏幕像素而非界面单位设定姓名板大小：高度 27 在任何显示器和界面缩放下都是 27 像素。",
+    -- Patch notes 1.47.0
+    ["The boxes now cover their window exactly, in the same dark look as the rest of the interface, with the name centred and shown in orange when the window is docked to another one"] = "方框现在精确覆盖对应的窗口，与界面其余部分同为深色风格；名称居中显示，当窗口停靠到另一个窗口时变为橙色",
+    ["Outside the editor the small drag handle stays, so an unlocked cooldown bar still accepts dropped spells and test previews stay visible"] = "在编辑器之外仍保留小拖拽框，因此解锁的冷却栏仍能接收拖放的法术，测试预览也保持可见",
+    ["The cloak equipment slot was translated with the navigation word for back in six languages and now reads correctly everywhere"] = "披风装备栏位在六种语言里被译成了导航用的返回一词，现在所有语言都显示正确",
+    ["Pixel-true plate size – Sizes the plates in screen pixels, so height 27 is 27 pixels on any monitor and interface scale"] = "像素级姓名板大小 – 以屏幕像素设定姓名板大小，高度 27 在任何显示器和界面缩放下都是 27 像素",
+    ["Plate sizes now mean exactly what the sliders say: the game no longer secretly enlarges the target's plate or shrinks distant ones, and the live preview matches the game — making the target larger is now solely the job of the target plate scale option"] = "姓名板大小现在与滑块所示完全一致：游戏不再偷偷放大目标的姓名板或缩小远处的姓名板，实时预览与游戏一致——放大目标现在完全交给目标姓名板缩放选项",
+    ["Save a backup copy – One click keeps a dated copy of the active profile as a restore point"] = "保存备份副本 – 一次点击即可保存当前配置文件的带日期副本作为还原点",
+    ["Exporting opens a proper window with the string already selected, and importing shows a preview first: rename the profile and untick the parts you do not want before anything is written"] = "导出会打开一个正式窗口且字符串已选中，导入会先显示预览：在写入任何内容之前可以重命名配置文件并取消勾选不需要的部分",
+    ["Export strings are compressed to a fraction of their old length and fit in a chat message; strings from older versions still import"] = "导出字符串经过压缩，长度只剩原来的几分之一，可放进一条聊天消息；旧版本的字符串仍可导入",
+    ["On the Wrath client the talent tooltip showed a placeholder instead of the description, and the talent key would open the window but not close it — both fixed"] = "在巫妖王之怒客户端上，天赋提示只显示占位符而非描述，天赋快捷键能打开窗口却无法关闭——两者均已修复",
 } end)

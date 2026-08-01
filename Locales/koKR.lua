@@ -3013,4 +3013,14 @@ ns:RegisterLocale("koKR", function() return {
     ["Go back"] = "뒤로",
     ["Pixel-true plate size"] = "픽셀 단위 이름표 크기",
     ["Sizes the plates in screen pixels instead of interface units: height 27 is then 27 pixels on any monitor and UI scale."] = "이름표 크기를 인터페이스 단위 대신 화면 픽셀로 지정합니다. 높이 27은 어떤 모니터와 UI 배율에서도 27픽셀이 됩니다.",
+    -- Patch notes 1.47.0
+    ["The boxes now cover their window exactly, in the same dark look as the rest of the interface, with the name centred and shown in orange when the window is docked to another one"] = "상자가 이제 해당 창을 정확히 덮습니다. 인터페이스의 나머지와 같은 어두운 스타일이며, 이름은 가운데에 표시되고 창이 다른 창에 고정되어 있으면 주황색으로 나타납니다",
+    ["Outside the editor the small drag handle stays, so an unlocked cooldown bar still accepts dropped spells and test previews stay visible"] = "편집기 밖에서는 작은 손잡이 상자가 유지되어, 잠금 해제된 재사용 대기시간 막대가 계속 주문을 받아들이고 테스트 미리보기도 계속 보입니다",
+    ["The cloak equipment slot was translated with the navigation word for back in six languages and now reads correctly everywhere"] = "망토 장비 칸이 여섯 개 언어에서 탐색용 단어인 뒤로로 번역되어 있었으며 이제 모든 언어에서 올바르게 표시됩니다",
+    ["Pixel-true plate size – Sizes the plates in screen pixels, so height 27 is 27 pixels on any monitor and interface scale"] = "픽셀 단위 이름표 크기 – 이름표 크기를 화면 픽셀로 지정하여, 높이 27이 어떤 모니터와 인터페이스 배율에서도 27픽셀이 됩니다",
+    ["Plate sizes now mean exactly what the sliders say: the game no longer secretly enlarges the target's plate or shrinks distant ones, and the live preview matches the game — making the target larger is now solely the job of the target plate scale option"] = "이름표 크기가 이제 슬라이더에 적힌 그대로입니다. 게임이 대상의 이름표를 몰래 키우거나 먼 이름표를 줄이지 않으며, 실시간 미리보기가 게임과 일치합니다. 대상을 크게 표시하는 일은 이제 대상 이름표 배율 옵션만의 몫입니다",
+    ["Save a backup copy – One click keeps a dated copy of the active profile as a restore point"] = "백업 사본 저장 – 클릭 한 번으로 활성 프로필의 날짜가 표시된 사본을 복원 지점으로 보관합니다",
+    ["Exporting opens a proper window with the string already selected, and importing shows a preview first: rename the profile and untick the parts you do not want before anything is written"] = "내보내기는 문자열이 미리 선택된 제대로 된 창을 열고, 가져오기는 먼저 미리보기를 보여 줍니다. 무엇이든 기록되기 전에 프로필 이름을 바꾸고 원하지 않는 부분을 선택 해제할 수 있습니다",
+    ["Export strings are compressed to a fraction of their old length and fit in a chat message; strings from older versions still import"] = "내보내기 문자열이 압축되어 이전 길이의 몇 분의 일이 되었고 채팅 메시지에 들어갑니다. 이전 버전의 문자열도 계속 가져올 수 있습니다",
+    ["On the Wrath client the talent tooltip showed a placeholder instead of the description, and the talent key would open the window but not close it — both fixed"] = "리치 왕 클라이언트에서 특성 툴팁이 설명 대신 자리 표시자를 보여 주었고, 특성 단축키가 창을 열기만 하고 닫지는 못했습니다. 둘 다 고쳤습니다",
 } end)

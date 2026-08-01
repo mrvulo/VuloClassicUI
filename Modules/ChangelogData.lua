@@ -6,6 +6,27 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+    { version = "1.47.0", sections = {
+        { category = "Edit Mode", lines = {
+            "The boxes now cover their window exactly, in the same dark look as the rest of the interface, with the name centred and shown in orange when the window is docked to another one",
+            "Outside the editor the small drag handle stays, so an unlocked cooldown bar still accepts dropped spells and test previews stay visible",
+        } },
+        { category = "Languages", lines = {
+            "The cloak equipment slot was translated with the navigation word for back in six languages and now reads correctly everywhere",
+        } },
+        { category = "Nameplates", lines = {
+            "NEW: Pixel-true plate size – Sizes the plates in screen pixels, so height 27 is 27 pixels on any monitor and interface scale",
+            "Plate sizes now mean exactly what the sliders say: the game no longer secretly enlarges the target's plate or shrinks distant ones, and the live preview matches the game — making the target larger is now solely the job of the target plate scale option",
+        } },
+        { category = "Profiles", lines = {
+            "NEW: Save a backup copy – One click keeps a dated copy of the active profile as a restore point",
+            "Exporting opens a proper window with the string already selected, and importing shows a preview first: rename the profile and untick the parts you do not want before anything is written",
+            "Export strings are compressed to a fraction of their old length and fit in a chat message; strings from older versions still import",
+        } },
+        { category = "Talent Window", lines = {
+            "On the Wrath client the talent tooltip showed a placeholder instead of the description, and the talent key would open the window but not close it — both fixed",
+        } },
+    } },
     { version = "1.46.0", sections = {
         { category = "Action Bars", lines = {
             "The page opens with two modes: Standard keeps Blizzard's bars with the skin rows, Modern runs the addon's own bars with a live preview, a per-bar background, button press and hover tints and an XP bar texture",
@@ -465,13 +486,6 @@ ns.CHANGELOG = {
         } },
         { category = "Minimap", lines = {
             "The clock now sits on the same line as the date and zone instead of floating higher.",
-        } },
-    } },
-    { version = "1.30.0", sections = {
-        { category = "UI Reskin", lines = {
-            "NEW: Dark skin for a loot-distribution addon — its award and roll windows, its settings and overview windows, and the two always-visible roll and bid bars get the house panel, accent border and flat close button.",
-            "NEW: Dark skin for an attunement tracker — the main window and its buttons match the dark look; the colored status rows stay as they are so the state colors remain readable.",
-            "Both are separate on and off switches in the Addon Skins options, next to the others.",
         } },
     } },
 }
