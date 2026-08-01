@@ -379,17 +379,38 @@ function ns:RefreshMoverStyles()
         -- own unlock button outside edit mode keeps its normal look (the flag
         -- lives in the profile and would otherwise leak past the session).
         local ghosted = ghost and editing
+        -- the cover-vs-handle decision depends on the editing state, so it is
+        -- re-taken on the same edges that restyle the boxes
+        if ns.RefreshMoverGeometry then ns:RefreshMoverGeometry(m) end
         if m.bg then
             if quiet then
-                m.bg:SetColorTexture(accent.r, accent.g, accent.b, 0.04)
+                m.bg:SetColorTexture(0.05, 0.07, 0.10, 0.30)
             elseif ghosted then
-                m.bg:SetColorTexture(accent.r, accent.g, accent.b, sel and 0.10 or 0.02)
+                m.bg:SetColorTexture(accent.r, accent.g, accent.b, sel and 0.10 or 0)
+            elseif sel then
+                -- dark base with an accent wash: selection reads at a glance
+                -- without giving up the solid cover look
+                local lift = primary and 0.22 or 0.14
+                m.bg:SetColorTexture(
+                    0.05 + accent.r * lift,
+                    0.07 + accent.g * lift,
+                    0.10 + accent.b * lift, 0.95)
             else
-                m.bg:SetColorTexture(accent.r, accent.g, accent.b, sel and 0.5 or 0.18)
+                -- solid only in edit mode; an unlocked box outside it is a
+                -- handle over live content (test previews, drop targets) and
+                -- must stay see-through
+                m.bg:SetColorTexture(0.05, 0.07, 0.10, editing and 0.92 or 0.45)
             end
         end
-        if m.label then m.label:SetShown(not quiet and not ghosted) end
-        if m.hint  then m.hint:SetShown(not quiet and not ghosted) end
+        if m.label then
+            m.label:SetShown(not quiet and not ghosted)
+            -- orange marks a docked window, the same signal the link overlay uses
+            if m.key and ns.GetMoverLink and ns:GetMoverLink(m.key) then
+                m.label:SetTextColor(1, 0.72, 0.35, 0.9)
+            else
+                m.label:SetTextColor(1, 1, 1, 0.85)
+            end
+        end
         if m.border and m.border.SetBackdropBorderColor then
             if m._rejectUntil and m._rejectUntil > GetTime() then
                 -- the reject flash owns this border until it expires

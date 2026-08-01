@@ -277,6 +277,32 @@ function mod:OnEnable()
         end
     end
 
+    -- The boxes must cover the REAL frames. The anchors were sized once at
+    -- wiring time, when half the frames had no rect yet -- re-measure on every
+    -- edit mode entry AND at the login restore (window links measure against
+    -- anchor extents, so a size that differs between login and first edit
+    -- entry would shift every window docked to a Blizzard box once per
+    -- session). Safe to do live: every placement here is CENTER-based, so
+    -- growing an anchor around its centre never moves the frame off it.
+    local function syncAnchorSizes()
+        for _, def in ipairs(BLIZZ) do
+            local frame, anchor = _G[def.name], anchors[def.key]
+            if frame and anchor then
+                local r = ns:GetScaleRatio(frame)
+                local w = (frame:GetWidth() or 0) * r
+                local h = (frame:GetHeight() or 0) * r
+                if w >= 16 and h >= 10 then anchor:SetSize(w, h) end
+            end
+        end
+    end
+    mod._syncAnchorSizes = syncAnchorSizes
+    if not mod._anchorSizeHook then
+        mod._anchorSizeHook = true
+        ns:RegisterEditModeHook(function(state)
+            if state and mod._syncAnchorSizes then mod._syncAnchorSizes() end
+        end)
+    end
+
     local function drifted(frame, fdb)
         local cx, cy = centerOffset(frame)
         return math.abs(cx - (fdb.x or 0)) > 1.5 or math.abs(cy - (fdb.y or 0)) > 1.5
@@ -285,6 +311,7 @@ function mod:OnEnable()
         if InCombatLockdown() then mod._restorePending = true; return end
         mod._restorePending = false
         ensureEMLoaded()
+        syncAnchorSizes()
         local em      = emClient()
         local ensured = em and emEnsure()
         -- one-time migration: older versions wrote anchor frames as relativeTo into the EM layout

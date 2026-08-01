@@ -6593,7 +6593,7 @@ end
 
 local SEARCH = "lfg lfm lf lf1m lf2m lf3m lf4m lf5m group grp need lf dps heal heals healer healers tank tanks dd boost run runs wts wtb"
     .. " suche sucht suchen gesucht such gruppe grp brauche heiler dd go"
-local HEROIC = { h=true, hc=true, heroic=true, hero=true, ["hero"]=true, hcc=true }
+local HEROIC = { h=true, hc=true, heroic=true, hero=true, hcc=true }
 
 -- word -> list of instance keys, since a word like "dm" can hit more than one
 local tagList = {}

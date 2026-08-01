@@ -12,6 +12,7 @@
 Libs\LibStub\LibStub.lua
 Libs\CallbackHandler-1.0\CallbackHandler-1.0.lua
 Libs\LibSharedMedia-3.0\LibSharedMedia-3.0.lua
+Libs\LibDeflate\LibDeflate.lua
 Libs\LibEditModeOverride\LibEditModeOverride.xml
 Core\Namespace.lua
 Core\Compat.lua
@@ -41,6 +42,7 @@ Locales\zhCN.lua
 Locales\zhTW.lua
 UI\Tooltip.lua
 UI\Widgets.lua
+UI\StringDialog.lua
 Core\ColorPicker.lua
 UI\MainFrame.lua
 UI\Sidebar.lua

@@ -93,6 +93,17 @@ end
 
 local refreshAll   -- forward
 
+-- The 3.80.x shim can answer SetTalent with a "TalentID: n" placeholder
+-- instead of an error, so a clean pcall proves nothing -- the tooltip only
+-- counts when its first line actually carries this talent's name.
+local function tooltipNamed(name)
+    if name == "" then return false end   -- find("") matches anything
+    local fs = _G.GameTooltipTextLeft1
+    local txt = fs and fs:GetText()
+    -- anchored: a WRONG talent whose name merely contains this one must fail
+    return type(txt) == "string" and txt:find(name, 1, true) == 1
+end
+
 local function makeTalentButton(parent, tab, index)
     local b = CreateFrame("Button", nil, parent)
     b:SetSize(BTN, BTN)
@@ -115,8 +126,21 @@ local function makeTalentButton(parent, tab, index)
 
     b:SetScript("OnEnter", function(self)
         if not ns.UI:OpenTooltip(self, "ANCHOR_RIGHT") then return end
-        local shown = pcall(GameTooltip.SetTalent, GameTooltip, self.tab, self.index)
-        if not shown then GameTooltip:SetText(self.talentName or "") end
+        local name = self.talentName or ""
+        local ok = pcall(GameTooltip.SetTalent, GameTooltip, self.tab, self.index)
+        local shown = ok and tooltipNamed(name)
+        if not shown and type(_G.GetTalentLink) == "function" then
+            local okL, link = pcall(_G.GetTalentLink, self.tab, self.index)
+            if okL and type(link) == "string" and link:find("|H", 1, true) then
+                local okH = pcall(GameTooltip.SetHyperlink, GameTooltip, link)
+                shown = okH and tooltipNamed(name)
+            end
+        end
+        if not shown then
+            GameTooltip:ClearLines()
+            GameTooltip:SetText(name, 1, 1, 1)
+            GameTooltip:AddLine(string.format("%d/%d", self.rank or 0, self.maxRank or 1), 0.7, 0.7, 0.75)
+        end
         GameTooltip:Show()
     end)
     b:SetScript("OnLeave", function()
@@ -347,7 +371,14 @@ local function wireBlizzard()
     tf._vcuiTalentHook = true
     tf:HookScript("OnShow", function(f)
         if not mod.active or mod.db.replace == false or mod._suppress or buildBroken then return end
-        if not openView() then return end   -- broken build: leave Blizzard's UI alone
+        if win and win:IsShown() then
+            -- The toggle keybind only sees Blizzard's frame, which we keep
+            -- hidden -- every press lands here as an "open". With our window
+            -- already up, this press MEANT "close": honor the toggle.
+            win:Hide()
+        elseif not openView() then
+            return   -- broken build: leave Blizzard's UI alone
+        end
         if _G.HideUIPanel then pcall(_G.HideUIPanel, f) else f:Hide() end
     end)
     tf:HookScript("OnHide", function()

@@ -14,6 +14,7 @@ local mod = ns:RegisterModule("nameplates", {
 
         healthWidth   = 120,
         healthHeight  = 10,
+        pixelPerfect  = false,
         healthTexture = "Atrocity",
         bgAlpha       = 0.85,
         borderSize    = 1,
@@ -855,12 +856,61 @@ local function paintExec(f, isTarget)
     ln:Show()
 end
 
--- One scale chain for every plate: global × target × casting. The preview keeps
--- its pixel-exact 1.0 scale, so real plates only (f.unit).
+-- One scale chain for every plate: host normalization × global × target ×
+-- casting.
+--
+-- The normalization lands every plate in UIPARENT units (cal = UIParent ES /
+-- actual host ES). Measured on the live client (/dump rounds, 01.08.2026):
+-- the client scales the SELECTED target's host up by ~1.16, which stacked on
+-- top of our own target-scale option and made the target plate fatter than
+-- the configured numbers. Dividing by the real host scale removes every such
+-- quirk and puts plates in the same units as the rest of the interface --
+-- which is also exactly the reference's PROPORTION at its pinned UI scale,
+-- at every window size. (A first attempt calibrated plates to physical
+-- pixels instead; on a small game window that made them dwarf the rest of
+-- the UI -- user screenshot, 01.08.2026. Physical-pixel purists get that
+-- look by setting the UI scale itself to 768/screen height.)
+-- The base scale plates render at. Default: UI units, same as the rest of
+-- the interface. Pixel-perfect option: 768/screen height -- 1 setting unit
+-- == 1 physical pixel on any monitor and UI scale, which is the space the
+-- "Modern" numbers were tuned in.
+local function plateBaseScale(d)
+    if d and d.pixelPerfect then
+        local _, physH = GetPhysicalScreenSize()
+        if physH and physH > 0 then return 768 / physH end
+    end
+    local ui = UIParent:GetEffectiveScale() or 1
+    if ui <= 0 then ui = 1 end
+    return ui
+end
+
 local function applyPlateScale(f, isTarget)
     if not f.unit then return end
     local d = db()
-    local s = (d.globalScale or 100) / 100
+    local base = plateBaseScale(d)
+    local cal
+    if f.SetIgnoreParentScale then
+        -- Decouple from the host entirely: with ignore-parent-scale our own
+        -- scale IS the effective scale, so plates sit at UI units no matter
+        -- what the host runs at or WHEN it changes. The division fallback
+        -- below is a snapshot and measured 2x off when the host rescaled
+        -- after we read it (dump: 33 px for a height of 27).
+        -- Asserted UNCONDITIONALLY: onPlateAdded re-parents pooled frames on
+        -- every add, and whether SetParent preserves the ignore flag is
+        -- engine behavior we cannot read from source. A stale "already set"
+        -- guard would turn that quirk into intermittently smaller plates;
+        -- one C call per add is cheaper than that bug (review find).
+        f:SetIgnoreParentScale(true)
+        cal = base
+    else
+        local host = f:GetParent()
+        local hostES = (host and host.GetEffectiveScale and host:GetEffectiveScale()) or 1
+        if hostES <= 0 then hostES = 1 end
+        cal = base / hostES
+        if cal ~= cal or cal <= 0 then cal = 1 end
+        if cal < 0.4 then cal = 0.4 elseif cal > 2 then cal = 2 end
+    end
+    local s = cal * (d.globalScale or 100) / 100
     if isTarget == nil then isTarget = UnitIsUnit(f.unit, "target") end
     if isTarget then s = s * (d.targetScale or 100) / 100 end
     if d.castEmphasis and f._casting then s = s * (d.castEmphScale or 100) / 100 end
@@ -2045,6 +2095,7 @@ end
 
 local function restyleAllPlates()
     for _, f in pairs(ns.plates) do
+        applyPlateScale(f)
         layoutPlate(f); skinPlate(f); refreshPlate(f); plateUpdateAuras(f)
         -- Re-skinning swaps the cast bar's texture object; only plateCastStart
         -- re-anchors the edge glow to it, so an in-flight cast must be re-armed.
@@ -2108,6 +2159,9 @@ local function onPlateAdded(_, unit)
     f:ClearAllPoints()
     f:SetPoint("CENTER", nameplate, "CENTER", 0, 0)
     f:SetFrameLevel(nameplate:GetFrameLevel() + 2)
+    -- scale FIRST: layoutPlate pixel-snaps against the frame's effective
+    -- scale, so sizing before the calibration lands off the physical grid
+    applyPlateScale(f)
     layoutPlate(f); skinPlate(f)
     f:Show()
 
@@ -2397,8 +2451,11 @@ local function buildPreview(parent)
     end
 
     function plate:Update()
-        -- Divide by the PARENT's effective scale, not our own (ours already includes SetScale).
-        local pes = UIParent:GetEffectiveScale()
+        -- Divide by the PARENT's effective scale, not our own (ours already
+        -- includes SetScale). Real plates render at plateBaseScale
+        -- (applyPlateScale), so landing the preview at the same base shows
+        -- exactly what a real plate renders -- including pixel-perfect mode.
+        local pes = plateBaseScale(db())
         local parentES = self:GetParent():GetEffectiveScale()
         if parentES > 0 then self:SetScale(pes / parentES) end
         layoutPlate(self); skinPlate(self)
@@ -2475,8 +2532,15 @@ local function buildPreview(parent)
     local baseUpdate = plate.Update
     function plate:Update()
         baseUpdate(self)
+        -- The card is sized for the factor-1 mock. Pixel-perfect mode on a
+        -- small window renders the mock LARGER than the options space -- grow
+        -- the card with it, and clip as the last line of defence, so the
+        -- preview can never paint over the option rows around it.
+        local pf = plateBaseScale(db()) / (UIParent:GetEffectiveScale() or 1)
+        host:SetHeight(math.floor(170 * math.max(1, pf) + 0.5))
         if self._FitZones then self:_FitZones() end
     end
+    if host.SetClipsChildren then host:SetClipsChildren(true) end
 
     host.Update = function() plate:Update() end
     previewFrame = host
@@ -2497,6 +2561,26 @@ end
 local function applyFriendlyCVar()
     if InCombatLockdown and InCombatLockdown() then return end
     pcall(SetCVar, "nameplateShowFriends", db().friendlyShow and "1" or "0")
+end
+
+-- Measured on the live client (/dump, 01.08.2026): the plate HOST ran at
+-- 1.16x UIParent for the target -- Blizzard's distance ramp and
+-- selected-target scaling ride ON TOP of our scale chain, which distorts the
+-- pixel calibration and double-scales the target on top of our own
+-- "target scale" option. Pin the three responsible CVars to 1 (exactly what
+-- the reference calibration assumes); our globalScale/targetScale/castEmphasis
+-- options are then the ONE scale chain. Writes only when a value differs --
+-- this also runs at every combat end for the retry, and must not dirty the
+-- config on each one.
+local function applyScaleCVars()
+    if InCombatLockdown and InCombatLockdown() then return end
+    if not (GetCVar and SetCVar) then return end
+    for _, name in ipairs({ "nameplateMinScale", "nameplateMaxScale", "nameplateSelectedScale" }) do
+        local ok, cur = pcall(GetCVar, name)
+        if ok and cur ~= nil and tonumber(cur) ~= 1 then
+            pcall(SetCVar, name, 1)
+        end
+    end
 end
 
 local function applyAndRefresh()
@@ -2526,6 +2610,9 @@ local function applyHitbox()
     if not (C_NamePlate and C_NamePlate.SetNamePlateEnemySize) then return end
     local pw = mod.db.hitboxPctW or 100
     local ph = mod.db.hitboxPctH or 100
+    -- No calibration factor here: the click box is sized in HOST units, and
+    -- with the scale CVars pinned to 1 the host runs at UIParent's scale --
+    -- the same units the normalized visuals land in.
     if pw == 100 and ph == 100 then return end
     pcall(C_NamePlate.SetNamePlateEnemySize,
         math.floor(HITBOX_BASE_W * pw / 100 + 0.5),
@@ -2564,6 +2651,19 @@ function mod:OnEnable()
     if cur ~= nil then mod.db.friendlyShow = (cur == "1" or cur == 1) end
     mod:RegisterEvent("NAME_PLATE_UNIT_ADDED", onPlateAdded)
     mod:RegisterEvent("NAME_PLATE_UNIT_REMOVED", onPlateRemoved)
+    -- The pixel calibration depends on resolution (and the preview also on
+    -- UI scale); both can change mid-session and every shown plate keeps its
+    -- scale until re-asked. applyAndRefresh (not restyleAllPlates) so the
+    -- options preview follows.
+    local function recalibrate()
+        applyAndRefresh()
+    end
+    mod:RegisterEvent("UI_SCALE_CHANGED", recalibrate)
+    mod:RegisterEvent("DISPLAY_SIZE_CHANGED", recalibrate)
+    applyScaleCVars()
+    -- combat-locked at enable time (combat /reload): retry when combat ends;
+    -- no-ops once the values sit at 1
+    mod:RegisterEvent("PLAYER_REGEN_ENABLED", applyScaleCVars)
     mod:RegisterEvent("PLAYER_TARGET_CHANGED", onTargetChanged)
     mod:RegisterEvent("PLAYER_FOCUS_CHANGED", updateAllFocus)
     mod:RegisterEvent("RAID_TARGET_UPDATE", onRaidTargetUpdate)

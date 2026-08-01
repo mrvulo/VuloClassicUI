@@ -849,6 +849,42 @@ local function dragUpdate(mover)
     updateCoordText(mover)
 end
 
+-- The box IS the window: while it is being edited the mover covers the target
+-- exactly (it is a child of the target, same coordinate space, so SetAllPoints
+-- tracks size and scale for free) -- what you see is what you grab. Only two
+-- cases keep the legacy centred handle: a target without a usable rect yet
+-- (bare anchors, frames still waiting for their layout pass), and a box shown
+-- OUTSIDE edit mode -- by free-move or a module's own unlock button. Covering
+-- there would bury the very thing being adjusted: unlocked cooldown bars are
+-- drop targets for spells, unlocked unit frames render a test preview, and a
+-- covering box would swallow the drop and hide the preview alike. opts.fill
+-- forces cover in every state (those movers relied on it before and their
+-- targets are pure overlays anyway).
+local function applyMoverGeometry(mover)
+    local t = mover.target
+    if not t then return end
+    local editing = moverShouldEdit(mover) or mover.opts.fill
+    local w = (t.GetWidth and t:GetWidth()) or 0
+    local h = (t.GetHeight and t:GetHeight()) or 0
+    local cover = editing and w >= 16 and h >= 10
+    if cover then
+        if mover._covering ~= true then
+            mover._covering = true
+            mover:ClearAllPoints()
+            mover:SetAllPoints(t)
+        end
+    elseif mover._covering ~= false then
+        mover._covering = false
+        mover:ClearAllPoints()
+        mover:SetPoint("CENTER", t, "CENTER", 0, 0)
+        mover:SetSize(mover.opts.width or 200, mover.opts.height or 40)
+    end
+end
+
+function ns:RefreshMoverGeometry(mover)
+    if mover then applyMoverGeometry(mover) end
+end
+
 function ns:CreateMover(target, opts)
     opts = opts or {}
     local db = opts.db
@@ -863,21 +899,14 @@ function ns:CreateMover(target, opts)
     mover.opts   = opts
     -- Stable identity for layouts; unkeyed movers are simply not captured.
     mover.key    = opts.key or (target.GetName and target:GetName()) or nil
-    -- opts.fill: cover the whole target (and track its size live); otherwise a
-    -- fixed handle box centred on it.
-    if opts.fill then
-        mover:SetAllPoints(target)
-    else
-        mover:SetPoint("CENTER", target, "CENTER", 0, 0)
-        mover:SetSize(opts.width or 200, opts.height or 40)
-    end
+    applyMoverGeometry(mover)
     mover:SetFrameStrata("HIGH")
     mover:EnableMouse(true)
     mover:Hide()
 
     mover.bg = mover:CreateTexture(nil, "BACKGROUND")
     mover.bg:SetAllPoints(mover)
-    mover.bg:SetColorTexture(0.6, 0.4, 1.0, 0.4)
+    mover.bg:SetColorTexture(0.05, 0.07, 0.10, 0.92)
 
     mover.border = CreateFrame("Frame", nil, mover,
         BackdropTemplateMixin and "BackdropTemplate")
@@ -885,19 +914,32 @@ function ns:CreateMover(target, opts)
     if mover.border.SetBackdrop then
         mover.border:SetBackdrop({
             edgeFile = "Interface\\Buttons\\WHITE8X8",
-            edgeSize = 2,
+            edgeSize = 1,
         })
-        mover.border:SetBackdropBorderColor(0.75, 0.35, 1, 1)
+        mover.border:SetBackdropBorderColor(0.75, 0.35, 1, 0.8)
     end
 
     if opts.label then
-        mover.label = mover:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-        mover.label:SetPoint("CENTER", mover, "CENTER", 0, 6)
+        -- Centred, one line, truncating: pinned to both edges so a long name
+        -- ellipsizes inside a narrow bar instead of spilling past the box.
+        mover.label = mover:CreateFontString(nil, "OVERLAY")
+        if ns.UI and ns.UI.Font then
+            ns.UI.Font(mover.label, 11)
+        else
+            mover.label:SetFontObject("GameFontNormal")
+        end
+        if opts.label:find("\n", 1, true) then
+            -- deliberate two-line labels (name + drag hint) keep their wrap;
+            -- truncation is for the single-line case only
+            mover.label:SetPoint("CENTER", mover, "CENTER", 0, 0)
+        else
+            mover.label:SetPoint("LEFT", mover, "LEFT", 6, 0)
+            mover.label:SetPoint("RIGHT", mover, "RIGHT", -6, 0)
+            mover.label:SetWordWrap(false)
+        end
         mover.label:SetJustifyH("CENTER")
+        mover.label:SetTextColor(1, 1, 1, 0.85)
         mover.label:SetText(opts.label)
-        mover.hint = mover:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-        mover.hint:SetPoint("CENTER", mover, "CENTER", 0, -9)
-        mover.hint:SetText((ns.L and ns.L["click to edit"]) or "click to edit")
     end
 
     mover:RegisterForDrag("LeftButton")
@@ -994,6 +1036,8 @@ function ns:CreateMover(target, opts)
     -- gemeinsam setzen, sonst schluckt der Frame auch Bewegungstasten.
     mover:EnableKeyboard(false)
     mover:HookScript("OnShow", function(self)
+        -- the target may have gotten its real rect since the box last showed
+        applyMoverGeometry(self)
         if InCombatLockdown and InCombatLockdown() then return end
         self:EnableKeyboard(true)
         self:SetPropagateKeyboardInput(true)
@@ -1062,6 +1106,8 @@ function ns:CreateMover(target, opts)
     -- exactly this reason ("when the child resizes, the near edge stays fixed
     -- relative to the target"). Same idea here.
     target:HookScript("OnSizeChanged", function()
+        -- a handle box waiting for the target's rect flips to full cover here
+        if mover:IsShown() and not mover._covering then applyMoverGeometry(mover) end
         if mover._sizeSync or not mover.key then return end
         -- Writing a protected frame's anchor while locked down is not ours to do.
         if InCombatLockdown() and isSecureTarget(target) then return end

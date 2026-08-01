@@ -871,7 +871,18 @@ local function b64decode(s)
     return table.concat(out)
 end
 
-local PROFILE_STRING_PREFIX = "!VCUI1"
+local PROFILE_STRING_PREFIX  = "!VCUI1"   -- legacy: serializer + plain base64
+local PROFILE_STRING_PREFIX2 = "!VCUI2"   -- serializer + deflate + printable encoding
+local LibDeflate = _G.LibStub and _G.LibStub:GetLibrary("LibDeflate", true)
+
+-- the name travels inside the string: strip UI escapes/control chars and
+-- cap the length before it becomes a table key and dropdown label
+local function sanitizeProfileName(raw)
+    local base = type(raw) == "string" and raw or ""
+    base = base:gsub("|", ""):gsub("%c", ""):sub(1, 48):match("^%s*(.-)%s*$")
+    if base == "" then base = L["Imported"] end
+    return base
+end
 
 -- What a profile carries besides .modules; "interface layout" in the export UI.
 local PROFILE_LAYOUT_KEYS = { "ui", "editmode", "moverLinks", "moverSizeLinks" }
@@ -919,17 +930,34 @@ function ns:ExportProfileString(name, opts)
     end
     local out = {}
     serialize(payload, out)
-    return PROFILE_STRING_PREFIX .. b64encode(table.concat(out))
+    local raw = table.concat(out)
+    -- Compressed strings are a fraction of the size (they fit in a Discord
+    -- message); the legacy base64 path stays as the fallback so a missing
+    -- library can never take the export button with it.
+    if LibDeflate then
+        local packed  = LibDeflate:CompressDeflate(raw)
+        local encoded = packed and LibDeflate:EncodeForPrint(packed)
+        if encoded then return PROFILE_STRING_PREFIX2 .. encoded end
+    end
+    return PROFILE_STRING_PREFIX .. b64encode(raw)
 end
 
--- creates a NEW profile from the string (never merges into an existing one);
--- returns the profile name, or nil + error text
-function ns:ImportProfileString(text)
+-- Decodes a profile string WITHOUT importing anything -- the import preview
+-- is built from this. Returns payload + summary, or nil + error text.
+function ns:DecodeProfileString(text)
     text = tostring(text or ""):gsub("%s+", "")
-    if text:sub(1, #PROFILE_STRING_PREFIX) ~= PROFILE_STRING_PREFIX then
+    local raw
+    if text:sub(1, #PROFILE_STRING_PREFIX2) == PROFILE_STRING_PREFIX2 then
+        -- Missing library counts as damage, not as a foreign string: the
+        -- prefix already proved whose string this is.
+        if not LibDeflate then return nil, L["The profile string is damaged."] end
+        local packed = LibDeflate:DecodeForPrint(text:sub(#PROFILE_STRING_PREFIX2 + 1))
+        raw = packed and LibDeflate:DecompressDeflate(packed)
+    elseif text:sub(1, #PROFILE_STRING_PREFIX) == PROFILE_STRING_PREFIX then
+        raw = b64decode(text:sub(#PROFILE_STRING_PREFIX + 1))
+    else
         return nil, L["This is not a VuloClassicUI profile string."]
     end
-    local raw = b64decode(text:sub(#PROFILE_STRING_PREFIX + 1))
     if not raw then return nil, L["The profile string is damaged."] end
     local payload, pos = deserialize(raw, 1)
     if pos == nil or type(payload) ~= "table"
@@ -938,11 +966,80 @@ function ns:ImportProfileString(text)
         return nil, L["The profile string is damaged."]
     end
 
-    -- the name travels inside the string: strip UI escapes/control chars and
-    -- cap the length before it becomes a table key and dropdown label
-    local base = type(payload.n) == "string" and payload.n or ""
-    base = base:gsub("|", ""):gsub("%c", ""):sub(1, 48):match("^%s*(.-)%s*$")
-    if base == "" then base = L["Imported"] end
+    local d = payload.d
+    local moduleKeys = {}
+    if type(d.modules) == "table" then
+        for k, v in pairs(d.modules) do
+            if type(k) == "string" and type(v) == "table" then
+                moduleKeys[#moduleKeys + 1] = k
+            end
+        end
+    end
+    table.sort(moduleKeys)
+    local hasLayout = false
+    for _, k in ipairs(PROFILE_LAYOUT_KEYS) do
+        if d[k] ~= nil then hasLayout = true; break end
+    end
+    return payload, {
+        name         = sanitizeProfileName(payload.n),
+        partial      = payload.p and true or false,
+        moduleKeys   = moduleKeys,
+        hasLayout    = hasLayout,
+        hasOverrides = d.overrideGroups ~= nil,
+        hasLook      = type(payload.g) == "table",
+    }
+end
+
+-- Creates a NEW profile from a decoded payload (never merges into an existing
+-- one); returns the profile name, or nil + error text. opts narrows what the
+-- string may bring in:
+--   { name = string?, modules = set-of-keys?, layout = bool?, overrides = bool?, look = bool? }
+-- nil opts = take everything, the classic behavior. Dropping content at import
+-- time flips the build to the partial rule below, for the same reason the
+-- exporter does: holes filled with defaults would hand the importer a profile
+-- that silently reset every setting the unticked part carried.
+function ns:ImportProfilePayload(payload, opts)
+    if type(payload) ~= "table" or type(payload.d) ~= "table" then
+        return nil, L["The profile string is damaged."]
+    end
+    local data = ns:DeepCopy(payload.d)
+    local partial = payload.p and true or false
+
+    -- The pipeline exists to accept strings from strangers, so every slot a
+    -- crafted payload can reach is type-checked before it is iterated or
+    -- stored -- junk here would either error the import click or detonate
+    -- later at profile switch.
+    if data.modules ~= nil and type(data.modules) ~= "table" then data.modules = nil end
+    if type(data.modules) == "table" then
+        for k, v in pairs(data.modules) do
+            if type(k) ~= "string" or type(v) ~= "table" then data.modules[k] = nil end
+        end
+    end
+    for _, k in ipairs(PROFILE_LAYOUT_KEYS) do
+        if data[k] ~= nil and type(data[k]) ~= "table" then data[k] = nil end
+    end
+    if data.overrideGroups ~= nil and type(data.overrideGroups) ~= "table" then
+        data.overrideGroups = nil
+    end
+
+    if opts then
+        if opts.modules and type(data.modules) == "table" then
+            for k in pairs(data.modules) do
+                if not opts.modules[k] then data.modules[k] = nil; partial = true end
+            end
+        end
+        if opts.layout == false then
+            for _, k in ipairs(PROFILE_LAYOUT_KEYS) do
+                if data[k] ~= nil then data[k] = nil; partial = true end
+            end
+        end
+        if opts.overrides == false and data.overrideGroups ~= nil then
+            data.overrideGroups = nil
+            partial = true
+        end
+    end
+
+    local base = sanitizeProfileName(opts and opts.name or payload.n)
     local name = base
     local i = 2
     while ns:ProfileExists(name) do
@@ -950,11 +1047,10 @@ function ns:ImportProfileString(text)
         i = i + 1
     end
 
-    -- Partial strings (version 2) merge onto a COPY of the active profile:
+    -- Partial strings merge onto a COPY of the active profile:
     -- filling the gaps with defaults instead would hand the importer a profile
     -- that silently dropped every setting the string did not carry.
-    local data = payload.d
-    if payload.p then
+    if partial then
         local active = VuloClassicUIDB.profiles[ns:GetActiveProfileName()]
         local merged = active and ns:DeepCopy(active) or {}
         merged.modules = merged.modules or {}
@@ -970,12 +1066,14 @@ function ns:ImportProfileString(text)
     VuloClassicUIDB.profiles[name] = data
 
     -- Account-wide look data travels outside the profile; its presence in the
-    -- string is the consent to apply it right away. Same rule as
+    -- string (plus the preview checkbox, when the UI offered one) is the
+    -- consent to apply it right away. Same rule as
     -- ApplyThemeColor: an imported string may carry ARBITRARY values, and a
     -- malformed color entry written into RAID_CLASS_COLORS would break every
     -- consumer and re-poison itself from the SV at each login -- so only
     -- well-formed entries get in, everything else is dropped.
-    if type(payload.g) == "table" and ns.db and ns.db.global then
+    if (not opts or opts.look ~= false)
+        and type(payload.g) == "table" and ns.db and ns.db.global then
         local g = ns.db.global
         local function cleanColors(t)
             if type(t) ~= "table" then return nil end
@@ -1009,4 +1107,11 @@ function ns:ImportProfileString(text)
         if ns.ApplyLookSettings then ns.ApplyLookSettings() end
     end
     return name
+end
+
+-- The classic one-call entry: decode + import everything the string carries.
+function ns:ImportProfileString(text)
+    local payload, err = ns:DecodeProfileString(text)
+    if not payload then return nil, err end
+    return ns:ImportProfilePayload(payload)
 end

@@ -344,13 +344,6 @@ function ns:MatchingOverrideGroups(talentGroup, situation)
     return ids
 end
 
-function ns:GroupForTalentGroup(talentGroup)
-    for id, g in pairs(ns:OverrideGroups()) do
-        if g.members and g.members[talentGroup] then return id, g end
-    end
-    return nil
-end
-
 function ns:CountOverrides(id)
     local g = ns:OverrideGroup(id)
     if not g or not g.values then return 0 end

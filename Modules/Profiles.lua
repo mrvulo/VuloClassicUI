@@ -125,48 +125,22 @@ StaticPopupDialogs["VCUI_PROFILE_RESET"] = {
 }
 end)
 
-local popupEditBox = ns.PopupEditBox
-
+-- After an import the one question that matters: use it now? Switching
+-- persists at the same scope the Switch dropdown uses, so it survives relog.
 ns.OnLocaleReady(function()
-StaticPopupDialogs["VCUI_PROFILE_EXPORT"] = {
-    text = L["Copy the profile string (Ctrl+C):"],
-    button1 = CLOSE,
-    hasEditBox = 1, editBoxWidth = 280,
-    OnShow = function(self, data)
-        local eb = popupEditBox(self)
-        if eb then
-            eb:SetMaxLetters(0)
-            eb:SetText(data or "")
-            eb:HighlightText()
-            eb:SetFocus()
+StaticPopupDialogs["VCUI_PROFILE_IMPORT_SWITCH"] = {
+    text = L["Profile '%s' imported. Switch to it now and reload the UI?"],
+    button1 = L["Switch and reload"],
+    button2 = L["Later"],
+    OnAccept = function(self, data)
+        ns:SwitchProfile(data)
+        if ns:GetCharAssignment() then
+            ns:AssignCharToProfile(data)
+        else
+            ns:AssignClassToProfile(ns:GetMyClassKey(), data)
         end
+        ReloadUI()
     end,
-    EditBoxOnEscapePressed = function(eb) eb:GetParent():Hide() end,
-    EditBoxOnEnterPressed  = function(eb) eb:GetParent():Hide() end,
-    timeout = 0, whileDead = 1, hideOnEscape = 1, preferredIndex = 3,
-}
-
-StaticPopupDialogs["VCUI_PROFILE_IMPORT"] = {
-    text = L["Paste the profile string:"],
-    button1 = L["Import"],
-    button2 = CANCEL,
-    hasEditBox = 1, editBoxWidth = 280,
-    OnShow = function(self)
-        local eb = popupEditBox(self)
-        if eb then eb:SetMaxLetters(0); eb:SetText(""); eb:SetFocus() end
-    end,
-    OnAccept = function(self)
-        local eb = popupEditBox(self)
-        local name, err = ns:ImportProfileString(eb and eb:GetText() or "")
-        if not name then
-            ns:Print("|cffff5555%s|r", err or L["Error."])
-            -- truthy return keeps the dialog (and the pasted text) open
-            return true
-        end
-        ns:Print(L["Profile '%s' imported. Activate it via 'Switch Profile'."], name)
-        refreshUI()
-    end,
-    EditBoxOnEscapePressed = function(eb) eb:GetParent():Hide() end,
     timeout = 0, whileDead = 1, hideOnEscape = 1, preferredIndex = 3,
 }
 end)
@@ -219,6 +193,25 @@ function mod:GetOptions()
             end
             refreshUI()
             if v ~= prev then askReload() end
+        end,
+    })
+
+    -- The one-click backup: a dated copy of the active profile, no dialog, no
+    -- typing. Sub-minute duplicates collide on purpose -- the second click
+    -- gets the honest "already exists" instead of a second identical copy.
+    table.insert(items, {
+        type = "button", label = L["Save a backup copy"], width = 220,
+        tooltip = L["Creates a dated copy of the active profile as a restore point. Nothing switches - the copy just sits in the profile list."],
+        onClick = function()
+            local active = ns:GetActiveProfileName()
+            local name = string.format("%s %s", active, date("%d.%m. %H:%M"))
+            local ok, err = ns:CreateProfile(name, active)
+            if not ok then
+                ns:Print("|cffff5555%s|r", err or L["Error."])
+            else
+                ns:Print(L["Backup '%s' created."], name)
+                refreshUI()
+            end
         end,
     })
 
@@ -329,12 +322,16 @@ function mod:GetOptions()
                   end
                   local s = ns:ExportProfileString(nil, opts)
                   if s then
-                      StaticPopup_Show("VCUI_PROFILE_EXPORT", nil, nil, s)
+                      ns.UI:ShowProfileExportDialog(s)
                   end
               end },
             { type = "button", label = L["Import from string"], width = 180,
               onClick = function()
-                  StaticPopup_Show("VCUI_PROFILE_IMPORT")
+                  ns.UI:ShowProfileImportDialog(function(name)
+                      ns:Print(L["Profile '%s' imported. Activate it via 'Switch Profile'."], name)
+                      refreshUI()
+                      StaticPopup_Show("VCUI_PROFILE_IMPORT_SWITCH", name, nil, name)
+                  end)
               end },
         },
     })
