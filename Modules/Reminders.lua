@@ -224,9 +224,21 @@ local GetCItemID = C_Container and C_Container.GetContainerItemID  or GetContain
 
 local PREF_SUBS = { food = { 5 }, flask = { 2, 3 }, weapon = { 6 } }
 
+-- The sweep answers a question that only changes when the bags change, and
+-- BAG_UPDATE_DELAYED is already on the event list -- so the answer is kept
+-- until it does. Without this every consumable rule that was FIRING swept all
+-- five bags again on every pass, and the pass runs on a two-second ticker: a
+-- character missing food, flask and weapon oil at the same time paid three
+-- full bag walks every two seconds for an answer that had not moved.
+local consumableCache = {}
+
 local function scanConsumables(kind)
+    local cached = consumableCache[kind]
+    if cached then return cached end
+
     local subs, out = PREF_SUBS[kind], {}
     if not (subs and GetItemInfoInstant and GetCSlots and GetCItemID) then return out end
+    consumableCache[kind] = out
     for bag = 0, 4 do
         for slot = 1, GetCSlots(bag) or 0 do
             local id = GetCItemID(bag, slot)
@@ -936,7 +948,7 @@ end
 -- ---------------------------------------------------------------------------
 -- Evaluation
 
-local pending, dirty = {}, false
+local pending = {}
 local EAT_DRINK_IDS = { 433, 430 }   -- the Food and Drink channel auras
 
 local function suppressed()
@@ -963,8 +975,7 @@ local function evaluate()
     if not mod._enabled then hideAll(); return end
     -- Secure buttons cannot be moved, shown or hidden while locked down, so the
     -- row simply holds still and catches up on leaving combat.
-    if InCombatLockdown() then dirty = true; return end
-    dirty = false
+    if InCombatLockdown() then return end
     ensurePool()
 
     scanPlayerAuras()
@@ -1047,7 +1058,15 @@ local function onSpellsChanged()
     for _, b in ipairs(CLASS_BUFFS) do b._set = nil end
     requestRefresh()
 end
-local function onRegenEnabled() if dirty then requestRefresh() end; ensurePool(); requestRefresh() end
+-- Leaving combat always refreshes, so the "a pass was skipped in combat" flag
+-- that used to guard this had no reader that changed anything -- the refresh
+-- below ran either way, and requestRefresh coalesces. Removed rather than left
+-- as write-only state.
+local function onRegenEnabled() ensurePool(); requestRefresh() end
+
+-- Bags changed, so the cached consumable sweep is stale. Dropping the outer
+-- keys releases the per-kind lists with them.
+local function onBagUpdate() wipe(consumableCache); requestRefresh() end
 
 -- A loading screen ends every middle-click dismissal -- the lifetime the
 -- tooltip promises.
@@ -1066,7 +1085,7 @@ local EVENTS = {
     PET_BAR_UPDATE           = requestRefresh,
     SPELLS_CHANGED           = onSpellsChanged,
     CHARACTER_POINTS_CHANGED = requestRefresh,
-    BAG_UPDATE_DELAYED       = requestRefresh,
+    BAG_UPDATE_DELAYED       = onBagUpdate,
     UPDATE_INVENTORY_DURABILITY = requestRefresh,
 }
 
