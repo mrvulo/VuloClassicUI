@@ -3187,4 +3187,7 @@ ns:RegisterLocale("frFR", function() return {
     ["Timer font size"] = "Taille de police du temps",
     ["Background and red lines"] = "Fond et lignes rouges",
     ["Show the next effect"] = "Afficher l’effet suivant",
+    ["Profile changed. Use /reload when you are out of combat."] = "Profil changé. Utilisez /reload une fois hors combat.",
+    ["Profile keybind"] = "Raccourci du profil",
+    ["Switches to this profile outside combat and then asks to reload the UI. Override bindings are restored at login."] = "Bascule vers ce profil hors combat, puis propose de recharger l’interface. Les raccourcis sont restaurés à la connexion.",
 } end)

@@ -22,6 +22,7 @@ initFrame:SetScript("OnEvent", function(_, event, addonName)
     elseif event == "PLAYER_LOGIN" then
         ns.isInitialised = true
         if ns.RestoreFreeMovers then ns:RestoreFreeMovers() end
+        if ns.RestoreProfileKeybinds then ns:RestoreProfileKeybinds() end
         ns:Print(L["v%s loaded. /vcui to open."], ns.VERSION)
         -- Migrations run at ADDON_LOADED, where anything printed can scroll away
         -- before the player is even in the world. They leave their report here.

@@ -3160,4 +3160,7 @@ ns:RegisterLocale("deDE", function() return {
     ["Timer font size"] = "Schriftgröße Restzeit",
     ["Background and red lines"] = "Hintergrund und rote Linien",
     ["Show the next effect"] = "Nächsten Effekt anzeigen",
+    ["Profile changed. Use /reload when you are out of combat."] = "Profil gewechselt. Benutze /reload, sobald du aus dem Kampf bist.",
+    ["Profile keybind"] = "Profil-Tastenbelegung",
+    ["Switches to this profile outside combat and then asks to reload the UI. Override bindings are restored at login."] = "Wechselt außerhalb des Kampfes zu diesem Profil und fragt danach, ob die Oberfläche neu geladen werden soll. Die Belegungen werden beim Anmelden wiederhergestellt.",
 } end)

@@ -453,6 +453,18 @@ function mod:GetOptions()
     })
 
     table.insert(items, {
+        type = "dropdown", label = L["Profile keybind"], width = 220,
+        tooltip = L["Switches to this profile outside combat and then asks to reload the UI. Override bindings are restored at login."],
+        values = ns:GetProfileKeybindValues(),
+        get = function() return ns:GetProfileKeybind(managedName()) or "" end,
+        set = function(_, v)
+            local ok, err = ns:SetProfileKeybind(managedName(), v)
+            if not ok then ns:Print("|cffff5555%s|r", err or L["Error."]) end
+            refreshUI()
+        end,
+    })
+
+    table.insert(items, {
         type = "group", layout = "row", gap = 6,
         items = {
             {

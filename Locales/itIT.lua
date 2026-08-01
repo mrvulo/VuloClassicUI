@@ -3038,4 +3038,7 @@ ns:RegisterLocale("itIT", function() return {
     ["Timer font size"] = "Dimensione del carattere del tempo",
     ["Background and red lines"] = "Sfondo e linee rosse",
     ["Show the next effect"] = "Mostra l’effetto successivo",
+    ["Profile changed. Use /reload when you are out of combat."] = "Profilo cambiato. Usa /reload quando sei fuori dal combattimento.",
+    ["Profile keybind"] = "Scorciatoia del profilo",
+    ["Switches to this profile outside combat and then asks to reload the UI. Override bindings are restored at login."] = "Passa a questo profilo fuori dal combattimento e poi chiede di ricaricare l’interfaccia. Le scorciatoie vengono ripristinate all’accesso.",
 } end)

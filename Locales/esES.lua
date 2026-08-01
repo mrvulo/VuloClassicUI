@@ -3039,6 +3039,9 @@ local function T() return {
     ["Timer font size"] = "Tamaño de fuente del tiempo",
     ["Background and red lines"] = "Fondo y líneas rojas",
     ["Show the next effect"] = "Mostrar el siguiente efecto",
+    ["Profile changed. Use /reload when you are out of combat."] = "Perfil cambiado. Usa /reload cuando salgas de combate.",
+    ["Profile keybind"] = "Atajo de teclado del perfil",
+    ["Switches to this profile outside combat and then asks to reload the UI. Override bindings are restored at login."] = "Cambia a este perfil fuera de combate y luego pregunta si recargar la interfaz. Los atajos se restauran al iniciar sesión.",
 } end
 
 ns:RegisterLocale("esES", T)

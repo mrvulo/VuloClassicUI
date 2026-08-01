@@ -21,6 +21,13 @@ ns.defaults = {
         fonts = { font = "Expressway", outline = "NONE", gameText = false },
         classColors = {},
         powerColors = {},
+        -- Per-profile hotkeys are account-wide bindings, not profile data.
+        -- The key is the profile name; the value is WoW's binding token.
+        profileKeybinds = {},
+        -- Stable short button ids keep frame names valid even for old profiles
+        -- with long or non-ASCII names.
+        profileKeybindButtonIds = {},
+        nextProfileKeybindButtonId = 0,
     },
     profile = {
         ui = {
@@ -407,8 +414,13 @@ end
 function ns:DeleteProfile(name)
     if name == DEFAULT_PROFILE then return false, L["Default profile cannot be deleted."] end
     if not ns:ProfileExists(name) then return false, L["Profile does not exist."] end
+    if ns.GetProfileKeybind and ns:GetProfileKeybind(name)
+       and InCombatLockdown and InCombatLockdown() then
+        return false, L["Not possible in combat."]
+    end
 
     VuloClassicUIDB.profiles[name] = nil
+    if ns.RemoveProfileKeybind then ns:RemoveProfileKeybind(name) end
 
     for classKey, assigned in pairs(VuloClassicUIDB.classAssignments) do
         if assigned == name then
@@ -431,11 +443,16 @@ end
 function ns:RenameProfile(oldName, newName)
     if oldName == DEFAULT_PROFILE then return false, L["Default profile cannot be renamed."] end
     if not ns:ProfileExists(oldName) then return false, L["Profile does not exist."] end
+    if ns.GetProfileKeybind and ns:GetProfileKeybind(oldName)
+       and InCombatLockdown and InCombatLockdown() then
+        return false, L["Not possible in combat."]
+    end
     if not newName or newName == "" then return false, L["Name cannot be empty."] end
     if ns:ProfileExists(newName) then return false, L["New name already exists."] end
 
     VuloClassicUIDB.profiles[newName] = VuloClassicUIDB.profiles[oldName]
     VuloClassicUIDB.profiles[oldName] = nil
+    if ns.RenameProfileKeybind then ns:RenameProfileKeybind(oldName, newName) end
 
     for classKey, assigned in pairs(VuloClassicUIDB.classAssignments) do
         if assigned == oldName then
@@ -510,6 +527,169 @@ function ns:GetClassAssignment(classKey)
 end
 
 function ns:GetMyClassKey() return getClassKey() end
+
+-- ---------------------------------------------------------------------------
+-- Profile keybinds
+--
+-- Bindings are intentionally account-wide. A binding activates a named profile,
+-- then offers the normal reload prompt; no protected actionbar or frame work is
+-- attempted while in combat. Frame names use stable short ids so old, long or
+-- non-ASCII profile names cannot create invalid or colliding global frame names.
+local PROFILE_BIND_PREFIX = "VCUIProfileBind_"
+local profileBindButtons = {}
+
+function ns:GetProfileKeybindValues()
+    local values = { { value = "", text = L["- none -"] } }
+    for i = 1, 12 do
+        values[#values + 1] = { value = "F" .. i, text = "F" .. i }
+    end
+    for _, mod in ipairs({ "SHIFT", "CTRL", "ALT" }) do
+        for i = 1, 12 do
+            local key = mod .. "-F" .. i
+            values[#values + 1] = { value = key, text = key }
+        end
+    end
+    return values
+end
+
+local function profileBindButtonName(profileName)
+    local g = VuloClassicUIDB.global
+    g.profileKeybindButtonIds = g.profileKeybindButtonIds or {}
+    local id = g.profileKeybindButtonIds[profileName]
+    if not id then
+        g.nextProfileKeybindButtonId = (tonumber(g.nextProfileKeybindButtonId) or 0) + 1
+        id = g.nextProfileKeybindButtonId
+        g.profileKeybindButtonIds[profileName] = id
+    end
+    return PROFILE_BIND_PREFIX .. tostring(id)
+end
+
+local function canChangeProfileBinding()
+    return not (InCombatLockdown and InCombatLockdown())
+end
+
+local function showProfileReloadPrompt()
+    if StaticPopupDialogs and StaticPopupDialogs["VCUI_PROFILE_RELOAD"] then
+        StaticPopup_Show("VCUI_PROFILE_RELOAD")
+    else
+        ns:Print(L["Profile changed. Use /reload when you are out of combat."])
+    end
+end
+
+local function ensureProfileBindButton(profileName)
+    local btn = profileBindButtons[profileName]
+    if btn then return btn end
+
+    btn = CreateFrame("Button", profileBindButtonName(profileName), UIParent)
+    btn:RegisterForClicks("AnyUp")
+    btn:Hide()
+    btn._profileName = profileName
+    btn:SetScript("OnClick", function(self)
+        local name = self._profileName
+        if not canChangeProfileBinding() then
+            ns:Print(L["Not possible in combat."])
+            return
+        end
+        if ns:GetActiveProfileName() == name then return end
+        if ns:SwitchProfile(name) then showProfileReloadPrompt() end
+    end)
+    profileBindButtons[profileName] = btn
+    return btn
+end
+
+function ns:GetProfileKeybind(profileName)
+    local g = VuloClassicUIDB and VuloClassicUIDB.global
+    local bindings = g and g.profileKeybinds
+    return bindings and bindings[profileName] or nil
+end
+
+function ns:SetProfileKeybind(profileName, key)
+    if not ns:ProfileExists(profileName) then return false, L["Profile does not exist."] end
+    if not canChangeProfileBinding() then return false, L["Not possible in combat."] end
+
+    local g = VuloClassicUIDB.global
+    g.profileKeybinds = g.profileKeybinds or {}
+
+    -- One physical key must have one owner. Leaving the old owner in the table
+    -- would make the winner depend on pairs() order after the next login.
+    if key and key ~= "" then
+        for otherName, otherKey in pairs(g.profileKeybinds) do
+            if otherName ~= profileName and otherKey == key then
+                local otherBtn = ensureProfileBindButton(otherName)
+                ClearOverrideBindings(otherBtn)
+                g.profileKeybinds[otherName] = nil
+            end
+        end
+    end
+
+    local btn = ensureProfileBindButton(profileName)
+    ClearOverrideBindings(btn)
+
+    if key and key ~= "" then
+        SetOverrideBindingClick(btn, true, key, btn:GetName())
+        g.profileKeybinds[profileName] = key
+    else
+        g.profileKeybinds[profileName] = nil
+    end
+    return true
+end
+
+function ns:RestoreProfileKeybinds()
+    if not canChangeProfileBinding() then return end
+    local g = VuloClassicUIDB and VuloClassicUIDB.global
+    local bindings = g and g.profileKeybinds
+    if type(bindings) ~= "table" then return end
+    local names, claimed = {}, {}
+    for profileName in pairs(bindings) do names[#names + 1] = profileName end
+    table.sort(names)
+    for _, profileName in ipairs(names) do
+        local key = bindings[profileName]
+        if ns:ProfileExists(profileName) and type(key) == "string" and key ~= "" and not claimed[key] then
+            local btn = ensureProfileBindButton(profileName)
+            ClearOverrideBindings(btn)
+            SetOverrideBindingClick(btn, true, key, btn:GetName())
+            claimed[key] = true
+        else
+            bindings[profileName] = nil
+        end
+    end
+end
+
+function ns:RemoveProfileKeybind(profileName)
+    local g = VuloClassicUIDB and VuloClassicUIDB.global
+    if g and g.profileKeybinds then g.profileKeybinds[profileName] = nil end
+    if g and g.profileKeybindButtonIds then g.profileKeybindButtonIds[profileName] = nil end
+    local btn = profileBindButtons[profileName]
+    if btn and canChangeProfileBinding() then ClearOverrideBindings(btn) end
+    profileBindButtons[profileName] = nil
+end
+
+function ns:RenameProfileKeybind(oldName, newName)
+    local g = VuloClassicUIDB and VuloClassicUIDB.global
+    local bindings = g and g.profileKeybinds
+    if not bindings then return end
+    local key = bindings[oldName]
+    if not key then return end
+
+    local bindId = g.profileKeybindButtonIds and g.profileKeybindButtonIds[oldName]
+    local btn = profileBindButtons[oldName]
+    if btn and canChangeProfileBinding() then ClearOverrideBindings(btn) end
+    profileBindButtons[oldName] = nil
+    bindings[oldName] = nil
+    if g.profileKeybindButtonIds then g.profileKeybindButtonIds[oldName] = nil end
+
+    bindings[newName] = key
+    if bindId then g.profileKeybindButtonIds[newName] = bindId end
+    if btn then
+        btn._profileName = newName
+        profileBindButtons[newName] = btn
+        if canChangeProfileBinding() then
+            SetOverrideBindingClick(btn, true, key, btn:GetName())
+        end
+    else
+        self:SetProfileKeybind(newName, key)
+    end
+end
 
 function ns:MigrateLegacyDBs()
     if ns.db.global.migratedLegacy then return end

@@ -3038,4 +3038,7 @@ ns:RegisterLocale("ruRU", function() return {
     ["Timer font size"] = "Размер шрифта времени",
     ["Background and red lines"] = "Фон и красные линии",
     ["Show the next effect"] = "Показывать следующий эффект",
+    ["Profile changed. Use /reload when you are out of combat."] = "Профиль изменён. Используйте /reload, когда выйдете из боя.",
+    ["Profile keybind"] = "Горячая клавиша профиля",
+    ["Switches to this profile outside combat and then asks to reload the UI. Override bindings are restored at login."] = "Переключает на этот профиль вне боя, затем предлагает перезагрузить интерфейс. Привязки восстанавливаются при входе в игру.",
 } end)

@@ -3038,4 +3038,7 @@ ns:RegisterLocale("ptBR", function() return {
     ["Timer font size"] = "Tamanho da fonte do tempo",
     ["Background and red lines"] = "Fundo e linhas vermelhas",
     ["Show the next effect"] = "Mostrar o próximo efeito",
+    ["Profile changed. Use /reload when you are out of combat."] = "Perfil alterado. Use /reload quando sair do combate.",
+    ["Profile keybind"] = "Atalho do perfil",
+    ["Switches to this profile outside combat and then asks to reload the UI. Override bindings are restored at login."] = "Muda para este perfil fora de combate e depois pergunta se deseja recarregar a interface. Os atalhos são restaurados ao entrar.",
 } end)

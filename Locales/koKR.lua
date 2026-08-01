@@ -3038,4 +3038,7 @@ ns:RegisterLocale("koKR", function() return {
     ["Timer font size"] = "남은 시간 글꼴 크기",
     ["Background and red lines"] = "배경과 빨간 선",
     ["Show the next effect"] = "다음 효과 표시",
+    ["Profile changed. Use /reload when you are out of combat."] = "프로필이 변경되었습니다. 전투가 끝나면 /reload 를 사용하세요.",
+    ["Profile keybind"] = "프로필 단축키",
+    ["Switches to this profile outside combat and then asks to reload the UI. Override bindings are restored at login."] = "전투 중이 아닐 때 이 프로필로 전환한 다음 인터페이스를 다시 불러올지 묻습니다. 단축키는 접속할 때 복원됩니다.",
 } end)

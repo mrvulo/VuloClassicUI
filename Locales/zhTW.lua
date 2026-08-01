@@ -3031,4 +3031,7 @@ ns:RegisterLocale("zhTW", function() return {
     ["Timer font size"] = "剩餘時間字型大小",
     ["Background and red lines"] = "背景與紅線",
     ["Show the next effect"] = "顯示下一個效果",
+    ["Profile changed. Use /reload when you are out of combat."] = "設定檔已切換。脫離戰鬥後請使用 /reload。",
+    ["Profile keybind"] = "設定檔快捷鍵",
+    ["Switches to this profile outside combat and then asks to reload the UI. Override bindings are restored at login."] = "在非戰鬥狀態下切換到該設定檔，然後詢問是否重新載入介面。快捷鍵會在登入時還原。",
 } end)
