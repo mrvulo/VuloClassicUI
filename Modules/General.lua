@@ -6062,9 +6062,21 @@ end)(...);
 -- rejects ("API unsupported") — the error aborts CompactUnitFrame_UpdateAll on
 -- every nameplate spawn. Shim the global with a nil-returning Lua function so
 -- IsPlayerEffectivelyTank cleanly answers "not a tank".
--- Taint: the shim's return value feeds display-only branches (health border
--- tint); no protected call consumes it. Installed only while the real API
--- throws, so a future Blizzard fix wins automatically.
+-- TAINT, and this is the whole cost of the fix: the shim is OUR Lua function
+-- sitting on a global that Blizzard's own secure code calls. It is not the
+-- return value that spreads -- it is the call itself. CompactUnitFrame.lua
+-- asks IsPlayerEffectivelyTank while it sets a party frame up, that question
+-- reaches this closure, and from there the rest of that execution counts as
+-- ours: the frame:SetSize() a few lines further on is refused
+-- (CompactPartyFrameMember1:SetSize blocked, user report 01.08.2026).
+-- The earlier note here claimed no protected call consumes it. That was wrong.
+--
+-- There is no taint-free way to shim a global that secure code calls, so this
+-- stays a trade: a contained Lua error on nameplate spawn, or blocked
+-- protected calls in the party and raid frames. Whoever leaves the module on
+-- is choosing the second. Disabling it now genuinely removes the shim again --
+-- it used to leave the closure in place and merely delegate, so turning the
+-- module off changed nothing at all.
 local _, ns = ...
 local L = ns.L
 
@@ -6076,6 +6088,7 @@ local mod = ns:RegisterModule("fixnameplaterole", {
 })
 
 local installed = false
+local origRole
 
 local function installFix()
     if installed then return end
@@ -6083,14 +6096,27 @@ local function installFix()
     if type(orig) ~= "function" then return end   -- Era: global absent, error path can't occur
     if pcall(orig, 1) then return end             -- API works — nothing to fix
     installed = true
-    _G.GetSpecializationRole = function(...)
-        if not mod._enabled then return orig(...) end
+    origRole  = orig
+    _G.GetSpecializationRole = function()
         return nil   -- no specializations on this client: never a spec role
     end
 end
 
+-- Putting the client's own function back is the only way to stop tainting the
+-- secure paths that call it; delegating from inside the closure does not, the
+-- closure is still ours and still on the stack.
+local function removeFix()
+    if not installed then return end
+    _G.GetSpecializationRole = origRole
+    installed, origRole = false, nil
+end
+
 function mod:OnEnable()
     installFix()
+end
+
+function mod:OnDisable()
+    removeFix()
 end
 
 function mod:GetOptions()

@@ -171,7 +171,26 @@ end
 function ns:PrepareBlizzMovers()
     ensureEMLoaded()
     if not emClient() or InCombatLockdown() then return end
-    if not emEnsure() then return end
+
+    -- Selecting a layout is the expensive part, and not in milliseconds.
+    -- The library cannot write anything without an active layout, and
+    -- selecting one makes the client re-apply that layout to EVERY system it
+    -- owns -- out of OUR call stack, so all of those frames count as touched
+    -- by this addon from then on. PetFrame is one of them, which is why its
+    -- own Show() came back refused in combat with this addon named
+    -- (ADDON_ACTION_BLOCKED, user reports 01.08.2026).
+    --
+    -- So the layout is only ever touched when the player has actually placed a
+    -- Blizzard frame with the editor. Anyone who never moved one now pays
+    -- nothing at all. For anyone who did, the taint is the price of the
+    -- feature: there is no way to write a layout from an addon without it.
+    local wantsLayout = false
+    for _, def in ipairs(BLIZZ) do
+        local fdb = mod.db.frames[def.key]
+        if fdb and fdb.placed and not def.direct then wantsLayout = true break end
+    end
+    if wantsLayout and not emEnsure() then return end
+
     local any = false
     for _, def in ipairs(BLIZZ) do
         local frame, anchor = _G[def.name], anchors[def.key]
