@@ -804,20 +804,11 @@ local function getActiveSpecGroup()
     return ns:ActiveTalentGroup()
 end
 
+-- Both sources (the supported call, then the deprecated global that demonstrably
+-- still answers) now live in Core/TalentOverrides.lua, because the talent-group
+-- buttons need the same count and two copies drift.
 local function getNumSpecGroups()
-    local SI = _G.C_SpecializationInfo
-    if SI and SI.GetNumSpecGroups then
-        local ok, n = pcall(SI.GetNumSpecGroups)
-        if ok and type(n) == "number" and n > 0 then return n end
-    end
-    -- Demonstrably answers on this client. It is deprecated, not absent, so it
-    -- is a better source than a guess -- a character who never bought the
-    -- second talent group must not be offered a binding for it.
-    if GetNumTalentGroups then
-        local ok, n = pcall(GetNumTalentGroups)
-        if ok and type(n) == "number" and n > 0 then return n end
-    end
-    return 1
+    return ns:NumTalentGroups()
 end
 
 local function getSpecGroupLabel(group)

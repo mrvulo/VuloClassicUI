@@ -598,10 +598,28 @@ end
 
 local widthBase
 
+-- The extra width belongs to the friends tab alone where the other three tabs
+-- are fixed-offset rosters (see Core/Wrath.lua). Their columns cannot follow the
+-- border, so every point of it would land in an empty right half -- exactly the
+-- unbalanced layout that was reported. Taking it back off on those tabs restores
+-- Blizzard's own proportions, which are the ones its columns were measured for.
+--
+-- Note what this does NOT claim: it does not spread the roster columns across a
+-- wider frame. Doing that means addressing Blizzard's column headers by name,
+-- and no source we hold carries their names for this client. A guess there is
+-- the next screenshot, not a fix -- /friendstate prints what is actually on
+-- screen so the answer can come from the client instead.
+local function widthAllowedOnTab()
+    if not ns.Wrath.hasFixedColumnSocialTabs then return true end
+    local ff = _G.FriendsFrame
+    return (ff and ff.selectedTab or 1) == 1
+end
+
 local function applyFrameWidth()
     local ff = _G.FriendsFrame
     if not ff then return end
     local delta = mod.active and (tonumber(mod.db.extraWidth) or 0) or 0
+    if delta ~= 0 and not widthAllowedOnTab() then delta = 0 end
     if delta == 0 and not widthBase then return end   -- never touched: leave Blizzard alone
     local scroll = _G.FriendsListFrameScrollFrame or _G.FriendsFrameFriendsScrollFrame
     if not widthBase then
@@ -1009,8 +1027,33 @@ local function onPartyInvite(_, name)
     end
 end
 
+-- Separate from the row hooks below and from the frame skin: the width follows
+-- the tab even for someone who turned the skin off and only moved the slider.
+local widthHooked = false
+local function installWidthHooks()
+    if widthHooked or not ns.Wrath.hasFixedColumnSocialTabs then return end
+    local ff = _G.FriendsFrame
+    if not ff then return end
+    widthHooked = true
+
+    local function onTab()
+        applyFrameWidth()
+        -- The row hook only fires on a friend-list update, so a tab switch back
+        -- would otherwise leave the rows at the width of the tab we just left.
+        restyleAll()
+    end
+
+    ff:HookScript("OnShow", onTab)
+    if type(_G.PanelTemplates_SetTab) == "function" then
+        hooksecurefunc("PanelTemplates_SetTab", function(owner)
+            if owner == ff then onTab() end
+        end)
+    end
+end
+
 local hooked = false
 installHooks = function()
+    installWidthHooks()
     if hooked then return end
     if type(_G.FriendsFrame_UpdateFriendButton) == "function" then
         hooksecurefunc("FriendsFrame_UpdateFriendButton", restyleButton)
@@ -1075,6 +1118,38 @@ ns.Slash.FRIENDSTATE = function()
                 tostring(info.name), tostring(info.className), tostring(tokenFor(info.className))))
         end
     end
+
+    -- The roster probe. Spreading the Who/Guild/Raid columns across a wider
+    -- frame needs their widget names, and no source we hold carries them for the
+    -- 3.80.x client. Asking the running game beats a third reading: open the tab
+    -- in question, type /friendstate, send the block.
+    local ff = _G.FriendsFrame
+    if not ff then return end
+    print(string.format("|cffffff00  frame:|r width=%.0f tab=%s delta=%s",
+        ff:GetWidth() or 0, tostring(ff.selectedTab), tostring(mod._widthDelta)))
+
+    local shown, lines = {}, 0
+    local function walk(f, depth)
+        if lines >= 40 or depth > 2 then return end
+        for _, c in ipairs({ f:GetChildren() }) do
+            if lines >= 40 then return end
+            if c.IsShown and c:IsShown() then
+                local n = c.GetName and c:GetName()
+                if n and not shown[n] then
+                    shown[n] = true
+                    lines = lines + 1
+                    local l, w = c.GetLeft and c:GetLeft(), c.GetWidth and c:GetWidth()
+                    print(string.format("    %s%s  x=%s w=%s",
+                        string.rep("  ", depth), n,
+                        l and string.format("%.0f", l - (ff:GetLeft() or 0)) or "?",
+                        w and string.format("%.0f", w) or "?"))
+                end
+                walk(c, depth + 1)
+            end
+        end
+    end
+    walk(ff, 0)
+    if lines >= 40 then print("    ... (cut at 40)") end
 end
 
 function mod:GetOptions()

@@ -72,6 +72,8 @@ fragen alle über `ns.Wrath.*`, damit die Antwort an einer Stelle steht:
 | `hasMovableLoot` | Wrath | `Modules/UnlockMode.lua` |
 | `hasTotemicRecall` | Wrath | `Modules/Classes/Shaman.lua` |
 | `hasTalentTrees` | Wrath | `Modules/TalentView.lua` |
+| `hasReshapedProfessionFrames` | Wrath | `Modules/General.lua` (Berufsfenster-Kapsel) |
+| `hasFixedColumnSocialTabs` | Wrath | `Modules/FriendList.lua` |
 
 Ein Feature, das es **nur** dort gibt, bekommt weiterhin eine eigene Datei mit
 einem Modultor am Kopf — `Modules/TalentView.lua` ist das Muster.
@@ -157,6 +159,223 @@ Die acht Variantenverzweigungen fragen jetzt über `ns.Wrath.*` statt die
 Flaggen direkt. Verhalten unverändert; die Datei ist der eine Ort, an dem
 Neues zu dieser Client-Generation dazukommt.
 
+### 02.08.2026, zweite Runde — Bitte ① des Melders: Talentgruppen-Knöpfe
+
+Der Melder wünscht sich am Talentfenster die Knöpfe, die Blizzards Fenster rechts
+außen trägt: einen je **gekaufter** Talentwahl, mit Rechtsklick zum Umschalten.
+Kein Fehler, sondern eine Angleichung an die gewohnte Bedienung — gebaut.
+
+Was dafür an einer Stelle zusammengezogen wurde (`Core/TalentOverrides.lua`):
+
+| Neu | Zweck |
+|---|---|
+| `ns:NumTalentGroups()` | wie viele Talentwahlen der Charakter besitzt; `Modules/Loadouts.lua` hatte dieselben zwei Quellen als eigene Kopie und fragt jetzt hier |
+| `ns:ActivateTalentGroup(g)` | der Wechsel; gibt `false` plus Grund zurück (`combat`, `already`, `unsupported`, `failed`), damit ein Klick nie stumm verpufft |
+| `ns:TalentGroupIcon(g)` | das Symbol des Baums mit den meisten Punkten — dasselbe, was Blizzards Knopf zeigt. `ns:DominantTalentTree` liefert es jetzt als dritten Rückgabewert |
+
+Aus der Quelle belegt, nicht angenommen:
+
+- `C_SpecializationInfo.SetActiveSpecGroup(groupIndex)` ist der echte Aufruf und
+  steht in `SpecializationInfoDocumentation.lua`. Die Altglobale
+  `SetActiveTalentGroup` steht **nur** in `Deprecated_Specialization_Cata.lua`
+  und `_Mists.lua` — in der Wrath-Datei fehlt sie. Sie ist also Zugabe, nie der
+  Plan.
+- `GetTalentInfo` nimmt die Talentwahl als fünftes Argument, im Original wie im
+  Shim (dort als `talentInfoQuery.groupIndex`). Deshalb ist die Vorschau auf die
+  andere Wahl überhaupt möglich.
+
+Drei Fallen, die dabei bewusst zugemacht wurden:
+
+1. **`LearnTalent` kennt keine Talentwahl** — es gibt immer in die AKTIVE aus.
+   Ein Klick in der Vorschau würde also im falschen Aufbau lernen. Er tut daher
+   gar nichts, und der Hinweis steht vorher im Tooltip.
+2. **Der zweiargumentige Aufruf bleibt unangetastet.** Genau den hat der Melder
+   am 01.08. als funktionierend bestätigt; das fünfte Argument geht nur raus,
+   wenn wirklich die andere Wahl auf dem Schirm ist. Wird es je abgelehnt,
+   leidet nur die Vorschau.
+3. **`UnitCharacterPoints` antwortet nur für die aktive Wahl.** In der Vorschau
+   stünde dort also eine fremde Zahl — die Kopfzeile nennt stattdessen die
+   gezeigte Talentwahl.
+
+Der Streifen hängt außerhalb des Fensters und misst wie die Klappmenüs den Platz:
+reicht er rechts nicht, klappt er nach links.
+
+### 02.08.2026, dritte Runde — Bitte ② des Melders: Berufsfenster tritt zurück
+
+Bild vom Melder: das Berufsfenster vergrößert, schwarze Löcher dort, wo unsere
+versteckten Regionen saßen, die Titelleiste gedehnt, die Klappmenüs über der
+Rezeptliste. **Kein Lua-Fehler** — es wirft nichts, es landet nur auf den
+falschen Widgets.
+
+Ursache ist die Bauart des Anstrichs: er spricht Blizzards Widgets über NAMEN
+und über **Regionsnummern** an (4, 5, 8, 9, 10), hängt das Suchfeld an
+`TradeSkillFrameAvailableFilterCheckButtonText` und setzt die beiden Klappmenüs
+auf feste Abstände am vergrößerten Rahmen. Auf dieser Generation steht hinter
+diesen Namen und Nummern eine andere Anatomie.
+
+**Entscheidung des Besitzers: kein Nachbauen, sondern zurücktreten.** Die Kapsel
+in `Modules/General.lua` steigt jetzt VOR `RegisterModule` aus, wenn
+`ns.Wrath.hasReshapedProfessionFrames` wahr ist. Damit gibt es dort keine
+Seitenleisten-Zeile, keine Optionsseite, keine gespeicherten Standardwerte und
+vor allem keine Hooks — der Client behält sein eigenes Fenster, unvergrößert und
+ungefärbt, ohne Favoritensterne, Materialzähler und Bankspalte.
+
+Geprüft, dass ein nicht registriertes Modul nichts mitreißt: `memberBlock` und
+`MakeCollectionPage` überspringen ein Mitglied, das sie nicht finden,
+`ns:IsModuleEnabled` und `ns:ToggleModule` geben bei unbekanntem Schlüssel
+zurück. Die Sammelseite „Windows & Professions" bleibt also mit Questlog und
+Entzauber-Warteschlange stehen.
+
+Nicht angefasst: der Reagenzien-Griff der Gegenstands-ID-Anzeige
+(`Modules/General.lua`, ~7211). Der färbt nichts, er liest nur einen Link — und
+er nimmt bereits den modernen Weg über `TradeSkillFrame.RecipeList`.
+
+Wenn das Fenster dort je doch wieder unseren Anstrich bekommen soll, braucht es
+zuerst Tatsachen vom Melder statt Vermutungen: die Kindfenster- und Regionsliste
+des echten `TradeSkillFrame` per `/dump`. Ohne die wäre jeder Versuch das
+nächste Bild.
+
+### 02.08.2026, vierte Runde — Bitte ③: die Breite folgt der Registerkarte
+
+Bild vom Melder: Freundes-, Wer-, Gilden- und Schlachtzugsliste, jeweils mit
+leerer rechter Hälfte. Sein Satz: verbreitert, aber nicht neu ausgerichtet.
+
+Die Ursache ist unsere eigene: `extraWidth` (Bitte ⑧ vom 01.08., von demselben
+Melder gewünscht) verbreitert `FriendsFrame`. Die Zeilentexte der FREUNDESliste
+sind zweipunkt-verankert und wachsen mit — die Spaltenköpfe und Zeilenfelder der
+drei anderen Registerkarten stehen auf festen x-Abständen und bleiben links
+stehen. Jeder gewonnene Punkt landet dort in einer leeren Hälfte.
+
+**Gebaut: die Zusatzbreite gehört der Freundesliste allein.** Auf Wer, Gilde und
+Schlachtzug wird sie wieder abgezogen, also gelten dort Blizzards eigene
+Proportionen — die, für die seine Spalten ausgemessen wurden. Ein Haken an
+`PanelTemplates_SetTab` und am `OnShow` lässt die Breite der Registerkarte
+folgen; er hängt bewusst NICHT am Fensteranstrich, damit er auch für jemanden
+greift, der nur den Regler benutzt.
+
+Belegt, nicht angenommen: dass die Breite den Registerwechsel überhaupt
+übersteht. Auf dem Bild des Melders stehen Wer und Gilde in UNSERER Breite —
+Blizzard setzt das Fenster hier also nicht je Registerkarte neu, und niemand
+kämpft mit uns darum.
+
+**Nicht gebaut: die Spalten über eine breitere Fläche verteilen.** Das hieße,
+Blizzards Spaltenköpfe beim Namen zu nennen, und diese Namen stehen in keiner
+Quelle, die wir haben: die entpackte Clientquelle enthält nur `Interface/AddOns`
+ohne das FrameXML mit Freundes- und Gildenfenster, der eigene Client des
+Besitzers ist TBC-Anniversary (20505/20506) und kennt das Wrath-Gildenfenster
+nicht, und kein installiertes Fremdaddon nennt sie. Geraten wäre es das nächste
+Bild — dieselbe Regel wie beim Berufsfenster eine Runde davor.
+
+**Stattdessen eine Sonde.** `/friendstate` (versteckt) druckt jetzt zusätzlich
+Fensterbreite, gewählte Registerkarte und die sichtbaren benannten Kindfenster
+mit x-Abstand und Breite, zwei Ebenen tief, bei 40 Zeilen gedeckelt. Der Melder
+öffnet die betroffene Registerkarte, tippt `/friendstate`, schickt den Block —
+dann sind die Spalten eine Messung statt einer Vermutung.
+
+### 02.08.2026, fünfte Runde — Bitte ⑤: die Lücken an den runden Balken
+
+Bild vom Melder: „Runde Balken" eingeschaltet, links und rechts am Lebensbalken
+je ein toter Streifen — in der Vorschau und auf der Plakette im Spiel.
+
+**Gemessen, nicht vermutet.** `Media/Masks/csquare_mask.tga` ist 128×128, die
+runde Form darin liegt aber nur bei x=10..117 und y=10..117: ringsum **10 px
+durchsichtiger Rand, 7,8 % je Seite**, Eckenradius 7 px. `applyBarRounding`
+spannt diese Maske mit `SetAllPoints` über den Balken, also wird der Rand
+mitgedehnt: auf 120×15 sind das rund **11 px toter Balken an jedem Ende** und
+knapp 1 px oben und unten. Deshalb fällt es waagerecht auf und senkrecht nicht.
+
+Behoben, indem die Maske um genau die Breite ihres eigenen Randes ÜBER den
+Balken hinaushängt — dann landet die Form auf den Kanten statt innerhalb. Nur
+Ankerpunkte; ein Haken an `OnSizeChanged` lässt sie den Breiten- und
+Höhenreglern folgen. Die geteilte Maskendatei bleibt unangetastet, also behalten
+Schieberegler, Abklingsymbole und der dunkle Anstrich ihr Aussehen. Die
+Live-Vorschau läuft durch dasselbe `skinPlate` und ist damit mit erledigt.
+
+**Das ist ausdrücklich KEINE Client-Eigenschaft** und steht deshalb nicht in
+`Core/Wrath.lua`, sondern mit der Messung an der Fundstelle: der Rand steckt in
+der Datei, die Lücke entsteht auf jedem Client, sobald jemand runde Balken
+einschaltet. Der Besitzer hat sie am 02.08.2026 trotzdem — mit der Messung auf
+dem Tisch — auf diese Client-Generation begrenzt. Die Bedingung steht an genau
+einer Stelle (`anchorRoundMask`), das Ausweiten ist eine Zeile.
+
+Nebenwirkung dieser Begrenzung, damit sie beim Prüfen niemanden überrascht: auf
+dem TBC-Anniversary-Client des Besitzers zeigt die Optionsvorschau die Lücke
+weiterhin. Das ist gewollt, nicht kaputt.
+
+### 02.08.2026, sechste Runde — Bitte ⑥: die Eingabezeile
+
+Zwei Wünsche zum Chat-Eingabefeld: es über das Chatfenster setzen können, und
+ihm einen eigenen Hintergrund geben — denn mit ausgeschaltetem dunklen Panel kam
+Blizzards Standardrahmen zum Vorschein, und der sieht neben unserem Chat nicht
+gut aus. Beides gebaut, beides als Optionszeile.
+
+**Was dafür auseinandergenommen wurde.** `styleEditBox` war ein Einmalgriff:
+Chrom verstecken, verankern, Höhe setzen — alles in einem, alles nur beim ersten
+Mal. Die Seite ist jetzt eine Option, also musste das Verankern wiederholbar
+werden (`anchorEditBox`), während Höhe und Textränder ein Einmalgriff bleiben.
+
+**Drei Dinge hängen um die Eingabezeile herum und mussten gemeinsam kippen:**
+die Zeile selbst, das dunkle Panel, das Chat und Eingabe zu einem Block
+zusammenfasst, und die Bewegen-Fläche des Edit-Mode, die genau diesen Block
+abdecken muss. Sie gehen jetzt alle drei durch `anchorBlock`, damit sie nicht
+auseinanderlaufen können. Das äußere Rechteck ist in beide Richtungen dasselbe,
+nur gespiegelt.
+
+**Die Reiterleiste brauchte keinen Handgriff — fast.** `positionDock` hängt sie
+an die OBERKANTE des Panels, also landet sie von selbst über der Eingabezeile.
+Ohne Panel aber lassen wir Blizzards Anordnung in Ruhe, und dort wäre die Zeile
+oben genau auf den Reitern gelandet. Deshalb hängt die Leiste in genau diesem
+Fall an der Eingabezeile statt am Panel. Der obere Verlauf klebt am
+Nachrichtenbereich und bleibt richtig, wo er ist.
+
+**Doppelte Schicht vermieden:** solange das dunkle Panel an ist, deckt es die
+Eingabezeile schon ab. Ein zweiter Hintergrund derselben Farbe darüber würde sie
+nur doppelt abdunkeln, also zeigt sich der eigene Hintergrund erst, wenn das
+Panel aus ist. Der Deckkraft-Regler erfasst ihn mit, sonst hätte er als einziges
+Stück in einer anderen Tönung gestanden.
+
+**Wieder KEINE Client-Eigenschaft.** Beide Optionen funktionierten überall. Der
+Besitzer hat sie am 02.08.2026 auf diese Client-Generation begrenzt; die beiden
+Zeilen werden anderswo gar nicht erst angeboten, und die Standardwerte lesen
+sich dort genau wie das Verhalten vor ihnen. Die Bedingung steht an drei
+Stellen, alle in `Modules/Chat.lua` und alle mit `ns.Wrath.is` benannt.
+
+### 02.08.2026, siebte Runde — Bitte ⑦: das Charakterfenster
+
+Drei Punkte, und **zwei davon gibt es schon**. Das ist selbst der Befund:
+
+1. **„Gegenstandsstufen-Schrift zu klein."** Der Regler existiert seit
+   Langem — „Textgröße → Gegenstandsstufen-Textgröße", 8 bis 24, Standard 11.
+   Er greift aber nur, wenn er die Schriftzüge FINDET, und dabei sucht er an
+   zwei erhofften Stellen: am Slot-Knopf selbst und unter den Kindfenstern von
+   `PaperDollItemsFrame`. Wo der Client seine Paperdoll-Knöpfe woanders
+   einhängt, findet er nichts und der Regler tut still gar nichts — von außen
+   nicht zu unterscheiden von „die Schrift ist zu klein".
+   **Behoben mit einem Register:** jede Anzeige, die wir bauen, trägt sich in
+   `mod._displays` ein; Regler und Textumstiler laufen zuerst darüber. Das kann
+   nicht danebengreifen, weil es nur enthält, was wir selbst erzeugt haben. Die
+   beiden Suchen bleiben stehen — wo sie funktionieren, finden sie dieselben
+   Schriftzüge, und dieselbe Größe zweimal zu setzen ändert nichts.
+2. **„Wertepanel lässt sich nicht nach rechts."** Gibt es: „Stil →
+   Charakterfenster-Stil → Modern". Der Hilfetext sagt es wörtlich — Modern
+   „verschiebt alle Werte in ein Panel rechts vom Charakterfenster"
+   (`MODERN_RIGHT_EXT = 172`). Nichts zu bauen; der Melder hat die Option nicht
+   gefunden.
+3. **„Sockel und Verzauberungen nicht gleichzeitig."** Im Code steht kein
+   Entweder-oder: `showSockets` und `shortenEnchants` sind zwei unabhängige
+   Schalter, und die beiden zeichnen an verschiedene Orte — die Sockel mittig
+   unter die Gegenstandsstufe AUF das Symbol
+   (`AnchorSocketsBelowCentered`), der Verzauberungstext daneben in den Streifen
+   neben dem Slot (`positionLeft`/`positionRight`/`positionCenter`). Warum sich
+   die beiden bei ihm ausschließen, ist von hier aus nicht zu sehen. **Offen,
+   Rückfrage gestellt** — raten hieße hier, an einer 1800-Zeilen-Datei nach
+   Gefühl zu schrauben.
+
+**Zum Client-Tor:** Punkt 1 ist bewusst OHNE Tor gebaut. Wo die alte Suche
+funktioniert, findet das Register dieselben Schriftzüge und setzt dieselbe Größe
+— auf TBC und Era ändert sich also nachweislich nichts. Ein Tor hätte dort
+denselben Anblick erzeugt und nur die kaputte Suche konserviert.
+
 ## Offene Punkte
 
 - **Cata und der Todesritter.** `hasDeathKnight` und `hasRunicPower` sind
@@ -171,6 +390,18 @@ Neues zu dieser Client-Generation dazukommt.
 - **Feature-Wunsch offen:** „Nur eigene Zauber" im Cooldown-Manager je
   Einzelzauber statt global — inzwischen gebaut (④), aber der ursprüngliche
   Anwendungsfall (fremdes Focus Magic auf mir verfolgen) ist im Spiel ungeprüft.
+- **`/friendstate`-Block vom Melder** (Wer-, Gilden- und Schlachtzugsregister
+  einzeln). Erst damit lassen sich die Spalten über eine breitere Fläche
+  verteilen, statt die Zusatzbreite dort nur abzuziehen.
+- **Die Zeilenform der Freundesliste** aus seinem „NEED"-Bild — Stufe in der
+  Namenszeile, Ort und Reich rechtsbündig auf derselben Zeile — ist ein
+  Gestaltungswunsch, kein Fehler, und bewusst nicht mitgebaut worden. Er gilt
+  überall, nicht nur hier, und gehört erst entschieden.
+- **Zeigt die Vorschau wirklich die andere Talentwahl?** `GetTalentInfo` nimmt
+  die Wahl als fünftes Argument, im Original wie im Shim — aber ob der 3.80.x-
+  Client sie auch beachtet, kann nur der Melder sehen: Knopf 2 anklicken und
+  prüfen, ob die Ränge sich ändern. Tut er es nicht, zeigt die Vorschau still
+  die aktive Wahl.
 - **Alles aus den Runden 31.07. und 01.08. ist im Spiel ungeprüft.** Wir können
   diesen Client nicht selbst testen: Regionssperre, chinesisches Konto. Jede
   Bestätigung kommt vom Melder.

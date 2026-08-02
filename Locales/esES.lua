@@ -3150,6 +3150,17 @@ local function T() return {
     ["Opacity while casting"] = "Opacidad al lanzar",
     ["A casting unit's plate is at least this opaque, even when something else is targeted."] = "La placa de una unidad que lanza mantiene al menos esta opacidad, aunque tengas otro objetivo.",
     ["The unit's name gives way to the spell name for as long as the cast runs."] = "El nombre de la unidad deja sitio al nombre del hechizo mientras dura el lanzamiento.",
+    ["Active talent group"] = "Grupo de talentos activo",
+    ["Left-click: show this talent group"] = "Clic izquierdo: mostrar este grupo de talentos",
+    ["Right-click: activate this talent group"] = "Clic derecho: activar este grupo de talentos",
+    ["Talent group %d (not active)"] = "Grupo de talentos %d (inactivo)",
+    ["Talents can only be learned in the active talent group."] = "Los talentos solo pueden aprenderse en el grupo de talentos activo.",
+    ["Talent groups cannot be switched in combat."] = "No se puede cambiar de grupo de talentos en combate.",
+    ["This client refused to switch the talent group."] = "Este cliente rechazó el cambio de grupo de talentos.",
+    ["Input line above the chat"] = "Línea de entrada encima del chat",
+    ["Puts the chat input line above the message area instead of below it. The panel and the tab bar follow it."] = "Coloca la línea de entrada encima del área de mensajes en lugar de debajo. El panel y la barra de pestañas la siguen.",
+    ["Own background for the input line"] = "Fondo propio para la línea de entrada",
+    ["Draws the input line on our own dark background instead of Blizzard's. The dark background panel already covers the input line, so this shows once that panel is off."] = "Dibuja la línea de entrada sobre un fondo oscuro propio en lugar del de Blizzard. El panel de fondo oscuro ya cubre la línea de entrada, así que esto se ve cuando ese panel está desactivado.",
 } end
 
 ns:RegisterLocale("esES", T)

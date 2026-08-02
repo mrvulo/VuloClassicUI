@@ -73,3 +73,35 @@ W.hasTotemicRecall = ns.isWrath
 -- Three talent trees side by side, dual specialisation and glyphs. The whole
 -- replacement window is a Wrath-only feature and lives in its own module.
 W.hasTalentTrees = ns.isWrath
+
+-- The trade-skill and craft windows are not the frames our reskin is keyed to.
+-- That reskin addresses Blizzard's own widgets by name and by REGION INDEX
+-- (4, 5, 8, 9, 10), anchors the search box to
+-- TradeSkillFrameAvailableFilterCheckButtonText and moves the two dropdowns to
+-- fixed offsets on an enlarged frame. On this generation the anatomy behind
+-- those names and numbers is a different one: reported 02.08.2026 with a
+-- screenshot of black holes where the hidden regions used to be, a stretched
+-- title bar and dropdowns sitting over the recipe list. No Lua error -- nothing
+-- throws, it simply lands on the wrong widgets.
+--
+-- So the module stands down COMPLETELY here, by the owner's decision: the client
+-- keeps its own profession window, unenlarged and unthemed, with no favourite
+-- stars, no material counts and no bank column. Guessing at a foreign anatomy we
+-- cannot test would be a second screenshot, not a fix.
+W.hasReshapedProfessionFrames = ns.isWrath
+
+-- The friends window shares its frame with three rosters -- Who, Guild and Raid
+-- -- whose column headers and row fields sit at HARD x offsets. Widening the
+-- frame therefore moves only its right border: the columns stay left and the
+-- gained room becomes an empty half (reported 02.08.2026 with a screenshot of
+-- all three).
+--
+-- Proof that the width even survives the tab switch: the reporter's Who and
+-- Guild tabs are shown at OUR width. Blizzard does not resize the frame per tab
+-- here, so nothing fights us for it -- which is what makes it safe to take the
+-- extra width back off on those tabs.
+--
+-- Scoped to this generation by the owner's decision (02.08.2026). The same is
+-- probably true one client older; nobody has reported it there, and widening the
+-- scope of a layout change nobody can test is how a fix becomes a second report.
+W.hasFixedColumnSocialTabs = ns.isWrath

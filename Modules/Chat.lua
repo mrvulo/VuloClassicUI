@@ -38,6 +38,11 @@ local mod = ns:RegisterModule("chat", {
         chatFontSize    = 0,       -- 0 = keep each window's Blizzard size
         panelOpacity    = 78,
         indent          = true,
+        -- Input line (reporter request 02.08.2026). Only offered on the Wrath
+        -- generation, by the owner's decision; elsewhere both read as their
+        -- defaults, which is exactly the behaviour that shipped before them.
+        editBoxTop      = false,
+        editBoxPanel    = true,
     },
 })
 
@@ -679,13 +684,47 @@ local function chatFontSize(i)
     return 13
 end
 
+-- The input line may sit ABOVE the chat instead of below it (reporter request
+-- 02.08.2026). Three things are anchored around it and have to flip together:
+-- the line itself, the dark panel that wraps chat and input into one block, and
+-- the Edit-Mode mover, which has to cover exactly that block. One helper, so
+-- they cannot drift apart.
+--
+-- The tab bar needs no work: positionDock anchors it to the panel's TOP, so it
+-- ends up above the input line by itself. The top fade hangs off the message
+-- area and stays where it is, which is still its own top edge.
+--
+-- Scoped to this client generation by the owner's decision (02.08.2026). It is
+-- not a client property -- both options would work anywhere; see the option rows
+-- at the bottom of this file, which are not offered elsewhere.
+local function ebOnTop()
+    return (ns.Wrath.is and mod.db.editBoxTop) and true or false
+end
+
+-- The same outer rectangle in both directions, mirrored: left = frame left - 10,
+-- right = frame right + 12, and the far edge follows whichever of the two sits
+-- outermost. The offsets differ because the input line is anchored 8 left and 6
+-- right of the frame.
+local function anchorBlock(frame, cf, eb, top)
+    frame:ClearAllPoints()
+    if not eb then
+        frame:SetPoint("TOPLEFT", cf, "TOPLEFT", -10, 4)
+        frame:SetPoint("BOTTOMRIGHT", cf, "BOTTOMRIGHT", 6, -6)
+    elseif top then
+        frame:SetPoint("TOPLEFT", eb, "TOPLEFT", -2, 4)
+        frame:SetPoint("BOTTOMRIGHT", cf, "BOTTOMRIGHT", 12, -6)
+    else
+        frame:SetPoint("TOPLEFT", cf, "TOPLEFT", -10, 4)
+        frame:SetPoint("BOTTOMRIGHT", eb, "BOTTOMRIGHT", 6, -4)
+    end
+end
+
 local function ensureFrameBG(cf, i)
     local d = FD(cf)
     if d.bg then return d.bg end
     local eb = _G["ChatFrame" .. i .. "EditBox"]
     local bg = CreateFrame("Frame", nil, cf)
-    bg:SetPoint("TOPLEFT", cf, "TOPLEFT", -10, 4)
-    bg:SetPoint("BOTTOMRIGHT", eb or cf, "BOTTOMRIGHT", 6, eb and -4 or -6)
+    anchorBlock(bg, cf, eb, ebOnTop())
     bg:SetFrameStrata(cf:GetFrameStrata())
     bg:SetFrameLevel(math.max(0, cf:GetFrameLevel() - 1))
     local tex = bg:CreateTexture(nil, "BACKGROUND")
@@ -700,21 +739,73 @@ local function ensureFrameBG(cf, i)
 end
 
 local EB_CHROME = { "Left", "Mid", "Right", "FocusLeft", "FocusMid", "FocusRight" }
+
+local function hideEditBoxChrome(i)
+    for _, suf in ipairs(EB_CHROME) do
+        local t = _G["ChatFrame" .. i .. "EditBox" .. suf]
+        if t and t.SetAlpha then t:SetAlpha(0) end
+    end
+end
+
+-- Split out of the old one-shot styleEditBox: the side is an option now, so the
+-- anchoring has to be repeatable while the size and the insets stay a one-time
+-- takeover.
+local function anchorEditBox(cf, i)
+    local eb = _G["ChatFrame" .. i .. "EditBox"]
+    if not eb then return end
+    eb:ClearAllPoints()
+    if ebOnTop() then
+        eb:SetPoint("BOTTOMLEFT",  cf, "TOPLEFT",  -8, 6)
+        eb:SetPoint("BOTTOMRIGHT", cf, "TOPRIGHT",  6, 6)
+    else
+        eb:SetPoint("TOPLEFT",  cf, "BOTTOMLEFT", -8, -6)
+        eb:SetPoint("TOPRIGHT", cf, "BOTTOMRIGHT", 6, -6)
+    end
+end
+
 local function styleEditBox(cf, i)
     local eb = _G["ChatFrame" .. i .. "EditBox"]
     if not eb then return end
     local d = FD(eb)
     if d.styled then return end
     d.styled = true
-    for _, suf in ipairs(EB_CHROME) do
-        local t = _G["ChatFrame" .. i .. "EditBox" .. suf]
-        if t and t.SetAlpha then t:SetAlpha(0) end
-    end
-    eb:ClearAllPoints()
-    eb:SetPoint("TOPLEFT", cf, "BOTTOMLEFT", -8, -6)
-    eb:SetPoint("TOPRIGHT", cf, "BOTTOMRIGHT", 6, -6)
+    hideEditBoxChrome(i)
+    anchorEditBox(cf, i)
     eb:SetHeight(22)
     if eb.SetTextInsets then eb:SetTextInsets(10, 10, 0, 0) end
+end
+
+-- Our own background for the input line. Needed once the dark panel is off:
+-- until now that uncovered Blizzard's default input chrome, which is what was
+-- reported. Same colour and same opacity as the panel, so the two read as one
+-- material wherever both are visible.
+local function ensureEditBoxBG(cf, i)
+    local eb = _G["ChatFrame" .. i .. "EditBox"]
+    if not eb then return nil end
+    local d = FD(eb)
+    if d.box then return d.box end
+    local box = CreateFrame("Frame", nil, cf)
+    box:SetPoint("TOPLEFT", eb, "TOPLEFT", 2, -2)
+    box:SetPoint("BOTTOMRIGHT", eb, "BOTTOMRIGHT", -2, 2)
+    box:SetFrameStrata(cf:GetFrameStrata())
+    box:SetFrameLevel(math.max(0, cf:GetFrameLevel() - 1))
+    local tex = box:CreateTexture(nil, "BACKGROUND")
+    tex:SetAllPoints()
+    tex:SetColorTexture(BG.r, BG.g, BG.b, BG.a or 0.9)
+    local bc = ns.COLORS and (ns.COLORS.borderDark or ns.COLORS.border)
+        or { r = 0.15, g = 0.15, b = 0.19 }
+    for _, s in ipairs({ "TOP", "BOTTOM", "LEFT", "RIGHT" }) do
+        local t = box:CreateTexture(nil, "BORDER")
+        t:SetColorTexture(bc.r, bc.g, bc.b, 1)
+        if s == "TOP" or s == "BOTTOM" then
+            t:SetPoint(s .. "LEFT"); t:SetPoint(s .. "RIGHT"); t:SetHeight(1)
+        else
+            t:SetPoint("TOP" .. s); t:SetPoint("BOTTOM" .. s); t:SetWidth(1)
+        end
+    end
+    d.box, d.boxTex = box, tex
+    box:Hide()
+    return box
 end
 
 local function restoreEditBoxChrome(i)
@@ -877,10 +968,20 @@ end
 local function positionDock()
     local gdm = _G.GeneralDockManager
     local cf1 = _G.ChatFrame1
-    if not (gdm and cf1 and FD(cf1).bg) then return end
+    if not (gdm and cf1) then return end
+    -- Normally the tab bar rides on top of the dark panel. Without that panel we
+    -- leave Blizzard's layout alone -- EXCEPT when the input line has moved to
+    -- the top, because then the two would land on each other and the tabs would
+    -- be the ones you cannot read.
+    local anchor = FD(cf1).bg
+    if not anchor then
+        if not ebOnTop() then return end
+        anchor = _G.ChatFrame1EditBox
+        if not anchor then return end
+    end
     gdm:ClearAllPoints()
-    gdm:SetPoint("BOTTOMLEFT", FD(cf1).bg, "TOPLEFT", 4, 0)
-    gdm:SetPoint("BOTTOMRIGHT", FD(cf1).bg, "TOPRIGHT", 0, 0)
+    gdm:SetPoint("BOTTOMLEFT", anchor, "TOPLEFT", 4, 0)
+    gdm:SetPoint("BOTTOMRIGHT", anchor, "TOPRIGHT", 0, 0)
     gdm:SetHeight(24)
     if _G.GeneralDockManagerScrollFrame then _G.GeneralDockManagerScrollFrame:SetHeight(24) end
     if _G.GeneralDockManagerScrollFrameChild then _G.GeneralDockManagerScrollFrameChild:SetHeight(24) end
@@ -1115,6 +1216,53 @@ local function buildPanel()
     positionDock()
 end
 
+-- Assigned further down, next to the mover it re-anchors: the Edit-Mode overlay
+-- covers the whole block, so it has to flip with the input line like the panel.
+local reanchorChatMover
+
+-- Whether the input line is ours at all. Without the panel and without either of
+-- the two input options, Blizzard keeps it -- the same as before these existed.
+local function editBoxIsOurs()
+    if not active then return false end
+    if mod.db.bgPanel then return true end
+    if not ns.Wrath.is then return false end
+    return ebOnTop() or mod.db.editBoxPanel ~= false
+end
+
+local function applyEditBox()
+    local ours = editBoxIsOurs()
+    local top  = ebOnTop()
+    eachChatFrame(function(cf, i)
+        local eb = _G["ChatFrame" .. i .. "EditBox"]
+        if not eb then return end
+        local d = FD(eb)
+        if ours then
+            styleEditBox(cf, i)      -- one-shot takeover
+            hideEditBoxChrome(i)     -- again: an OFF->ON toggle restored it
+            anchorEditBox(cf, i)
+            local box = ensureEditBoxBG(cf, i)
+            if box then
+                -- The dark panel already reaches over the input line, so a
+                -- second layer of the same colour would only darken it twice.
+                local wanted = ns.Wrath.is and mod.db.editBoxPanel ~= false
+                    and not (active and mod.db.bgPanel)
+                if wanted then box:Show() else box:Hide() end
+            end
+        else
+            restoreEditBoxChrome(i)
+            if d.box then d.box:Hide() end
+        end
+        -- The panel wraps chat and input into one block; when the input moved to
+        -- the other side, the block has to follow it.
+        local fd = fdata[cf]
+        if fd and fd.bg then anchorBlock(fd.bg, cf, eb, top) end
+    end)
+    if reanchorChatMover then reanchorChatMover() end
+    -- After the anchoring, not before: without the panel the tab bar hangs off
+    -- the input line itself, so it has to be where it is going to stay first.
+    positionDock()
+end
+
 local function applyPanel()
     if active and mod.db.bgPanel then
         buildPanel()
@@ -1124,24 +1272,21 @@ local function applyPanel()
                 d.bgTex:SetColorTexture(BG.r, BG.g, BG.b, BG.a or 0.9)
                 if cf:IsShown() then d.bg:Show() end
             end
-            -- styleEditBox is one-shot, so re-hide the input chrome on an OFF->ON toggle
-            for _, suf in ipairs(EB_CHROME) do
-                local t = _G["ChatFrame" .. i .. "EditBox" .. suf]
-                if t and t.SetAlpha then t:SetAlpha(0) end
-            end
             deBlizzardChrome(cf, i)
         end)
         hideSocialButtons()
         styleCombatLog()
         positionDock()
     else
-        eachChatFrame(function(cf, i)
+        eachChatFrame(function(cf)
             local d = fdata[cf]
             if d and d.bg then d.bg:Hide() end
-            restoreEditBoxChrome(i)
         end)
         reBlizzardChrome()
     end
+    -- After the panel, never before: it decides whether a second background
+    -- behind the input line would be one layer too many.
+    applyEditBox()
     applyTopFade()
     applySidebar()
 end
@@ -1166,9 +1311,13 @@ end
 
 local function applyPanelOpacity()
     BG.a = (mod.db.panelOpacity or 78) / 100
-    eachChatFrame(function(cf)
+    eachChatFrame(function(cf, i)
         local d = fdata[cf]
         if d and d.bgTex then d.bgTex:SetColorTexture(BG.r, BG.g, BG.b, BG.a) end
+        -- The input line carries the same material, so it follows the slider too
+        local eb = _G["ChatFrame" .. i .. "EditBox"]
+        local ed = eb and fdata[eb]
+        if ed and ed.boxTex then ed.boxTex:SetColorTexture(BG.r, BG.g, BG.b, BG.a) end
     end)
     applyPanel()
     applyTopFade()
@@ -1277,9 +1426,7 @@ local function ensureChatMover()
     -- the whole thing is grabbable, not just the narrower text strip.
     if chatMover then
         local eb = _G["ChatFrame1EditBox"]
-        chatMover:ClearAllPoints()
-        chatMover:SetPoint("TOPLEFT", f, "TOPLEFT", -10, 4)
-        chatMover:SetPoint("BOTTOMRIGHT", eb or f, "BOTTOMRIGHT", 6, eb and -4 or -6)
+        anchorBlock(chatMover, f, eb, ebOnTop())
         -- ChatFrame1 captures clicks over its text (hyperlinks/menu) at its own high
         -- stack position, so a HIGH child mover never sees the right-click. Lift the
         -- mover clear above it so right-click reaches our handler (-> settings panel).
@@ -1296,6 +1443,14 @@ local function ensureChatMover()
             end)
         end
     end
+end
+
+-- ensureChatMover builds the overlay once and then returns early, so the side
+-- flip needs its own way back to those two anchors.
+reanchorChatMover = function()
+    local f = _G.ChatFrame1
+    if not (chatMover and f) then return end
+    anchorBlock(chatMover, f, _G.ChatFrame1EditBox, ebOnTop())
 end
 
 -- Named, file-scope handlers so the registry can take them back out again.
@@ -1418,6 +1573,23 @@ function mod:GetOptions()
         get = function() return mod.db.bgPanel end,
         set = function(_, v) mod.db.bgPanel = v; applyPanel() end,
     })
+    -- Not offered on the other clients. Both would work there -- the owner
+    -- scoped them to this generation on 02.08.2026 -- and a row that is not
+    -- offered beats one that is offered and does nothing.
+    if ns.Wrath.is then
+        table.insert(items, {
+            type = "toggle", label = L["Input line above the chat"],
+            tooltip = L["Puts the chat input line above the message area instead of below it. The panel and the tab bar follow it."],
+            get = function() return mod.db.editBoxTop end,
+            set = function(_, v) mod.db.editBoxTop = v; applyPanel() end,
+        })
+        table.insert(items, {
+            type = "toggle", label = L["Own background for the input line"],
+            tooltip = L["Draws the input line on our own dark background instead of Blizzard's. The dark background panel already covers the input line, so this shows once that panel is off."],
+            get = function() return mod.db.editBoxPanel ~= false end,
+            set = function(_, v) mod.db.editBoxPanel = v; applyPanel() end,
+        })
+    end
     table.insert(items, {
         type = "toggle", label = L["Top fade"],
         tooltip = L["Fades old lines into the panel at the top edge of the chat."],

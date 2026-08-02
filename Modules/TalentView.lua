@@ -33,10 +33,15 @@ local COLS     = 4
 local HEAD_H   = 44      -- window header
 local TREE_HEAD = 40     -- per-tree header (name + points)
 local FOOT_H   = 40
+local SPEC_BTN = 32      -- talent-group button edge, outside the right border
+local SPEC_GAP = 6
 
 local win            -- the window frame
 local trees = {}     -- [tab] = { frame, buttons = { [i] = btn }, nameFS, ptsFS }
 local buildBroken    -- set when the API shapes failed sanity; never retry this session
+local specTabs = {}  -- [group] = button, down the outer right edge
+local viewGroup      -- the talent group the trees are SHOWING (not necessarily the active one)
+local lastActive     -- to notice a switch even on a build that never fires the event
 
 -- ---------------------------------------------------------------------------
 -- Guarded API reads
@@ -47,8 +52,37 @@ local function apiReady()
        and type(_G.GetTalentInfo) == "function"
 end
 
-local function readTalent(tab, i)
-    local ok, name, icon, tier, col, rank, maxRank = pcall(_G.GetTalentInfo, tab, i)
+-- The active group unless the player is looking at the other one. Everything
+-- that reads a rank goes through this, so a preview can never be half-applied.
+local function activeGroup()
+    return ns:ActiveTalentGroup()
+end
+
+local function shownGroup()
+    return viewGroup or activeGroup()
+end
+
+local function previewing()
+    return shownGroup() ~= activeGroup()
+end
+
+-- The fifth argument is the talent group. It is part of the original 3.3.5
+-- signature AND of the deprecation shim (which forwards it as
+-- talentInfoQuery.groupIndex), so asking for the other group is supported on
+-- both shapes -- unlike the point count, which the two disagree about.
+--
+-- It is nevertheless passed ONLY when another group is actually being previewed.
+-- The two-argument call is the one the reporter confirmed working on 3.80.x, and
+-- a feature that nobody asked for must not put a new argument shape underneath
+-- it. If the extra arguments were ever refused, only the preview would suffer.
+local function readTalent(tab, i, group)
+    local ok, name, icon, tier, col, rank, maxRank
+    if group and group ~= activeGroup() then
+        ok, name, icon, tier, col, rank, maxRank =
+            pcall(_G.GetTalentInfo, tab, i, false, false, group)
+    else
+        ok, name, icon, tier, col, rank, maxRank = pcall(_G.GetTalentInfo, tab, i)
+    end
     if not ok or type(name) ~= "string" or name == "" then return nil end
     if type(tier) ~= "number" or type(col) ~= "number"
         or tier < 1 or tier > 15 or col < 1 or col > 6 then
@@ -127,7 +161,15 @@ local function makeTalentButton(parent, tab, index)
     b:SetScript("OnEnter", function(self)
         if not ns.UI:OpenTooltip(self, "ANCHOR_RIGHT") then return end
         local name = self.talentName or ""
-        local ok = pcall(GameTooltip.SetTalent, GameTooltip, self.tab, self.index)
+        -- Same rule as readTalent: the confirmed two-argument call stays exactly
+        -- as it is, and only a preview asks for another group.
+        local ok
+        if previewing() then
+            ok = pcall(GameTooltip.SetTalent, GameTooltip, self.tab, self.index,
+                       false, false, shownGroup())
+        else
+            ok = pcall(GameTooltip.SetTalent, GameTooltip, self.tab, self.index)
+        end
         local shown = ok and tooltipNamed(name)
         if not shown and type(_G.GetTalentLink) == "function" then
             local okL, link = pcall(_G.GetTalentLink, self.tab, self.index)
@@ -141,15 +183,23 @@ local function makeTalentButton(parent, tab, index)
             GameTooltip:SetText(name, 1, 1, 1)
             GameTooltip:AddLine(string.format("%d/%d", self.rank or 0, self.maxRank or 1), 0.7, 0.7, 0.75)
         end
+        -- Say why the click will do nothing before it is spent, not after.
+        if previewing() then
+            GameTooltip:AddLine(L["Talents can only be learned in the active talent group."], 1, 0.5, 0.5, true)
+        end
         GameTooltip:Show()
     end)
     b:SetScript("OnLeave", function()
         if GameTooltip then GameTooltip:Hide() end
     end)
     b:SetScript("OnClick", function(self)
-        -- LearnTalent is the classic spend call; unusable clicks (tier locked,
-        -- maxed, no points) are filtered before we get here, and the call
-        -- itself is guarded because the shim owns it.
+        -- LearnTalent has no talent-group argument: it always spends into the
+        -- ACTIVE group. Clicking while the other group is on screen would
+        -- therefore learn the wrong talent in the wrong build -- so it does
+        -- nothing at all, and the tooltip said so beforehand.
+        if previewing() then return end
+        -- Unusable clicks (tier locked, maxed, no points) are filtered before we
+        -- get here, and the call itself is guarded because the shim owns it.
         if self.locked or (self.rank or 0) >= (self.maxRank or 1) then return end
         if pointsLeft() < 1 then return end
         pcall(_G.LearnTalent, self.tab, self.index)
@@ -172,7 +222,7 @@ local function buildTrees()
         if not okN or type(num) ~= "number" or num < 1 or num > 60 then return false end
         local list = {}
         for i = 1, num do
-            local name, icon, tier, col, rank, maxRank = readTalent(tab, i)
+            local name, icon, tier, col, rank, maxRank = readTalent(tab, i, shownGroup())
             if not name then return false end
             list[#list + 1] = { i = i, name = name, icon = icon, tier = tier,
                                 col = col, rank = rank, maxRank = maxRank }
@@ -231,13 +281,143 @@ local function buildTrees()
     return true
 end
 
+-- ---------------------------------------------------------------------------
+-- Talent-group buttons, down the outer right edge
+--
+-- The client's own talent frame puts one button per OWNED talent group there:
+-- a character who never bought the second one sees a single button, and that is
+-- deliberately kept -- it is the badge of the build you are playing, not a
+-- switch that happens to be lonely.
+--
+-- Left-click looks at a group, right-click activates it. That split is the one
+-- the client trained people on, so it is not ours to redesign.
+
+local function groupIcon(group)
+    local icon = ns:TalentGroupIcon(group)
+    -- No points spent yet, or talent data not loaded: a question mark is honest,
+    -- a borrowed icon from the other group would be a lie.
+    return icon or "Interface\\Icons\\INV_Misc_QuestionMark"
+end
+
+local function specTabClick(self, button)
+    local g = self.group
+    if button == "RightButton" then
+        local ok, why = ns:ActivateTalentGroup(g)
+        if ok then
+            viewGroup = g          -- the event confirms it; this keeps the click honest meanwhile
+        elseif why == "combat" then
+            ns:Print(L["Talent groups cannot be switched in combat."])
+        elseif why ~= "already" then
+            ns:Print(L["This client refused to switch the talent group."])
+        end
+    else
+        viewGroup = g
+    end
+    refreshAll()
+end
+
+local function specTabTooltip(self)
+    if not ns.UI:OpenTooltip(self, "ANCHOR_RIGHT") then return end
+    local ac = ns.COLORS.accent
+    GameTooltip:ClearLines()
+    GameTooltip:SetText(ns:TalentGroupText(self.group), ac.r, ac.g, ac.b)
+    if self.group == activeGroup() then
+        GameTooltip:AddLine(L["Active talent group"], 0.6, 1, 0.6)
+    else
+        GameTooltip:AddLine(L["Left-click: show this talent group"], 0.8, 0.8, 0.85)
+        GameTooltip:AddLine(L["Right-click: activate this talent group"], 0.8, 0.8, 0.85)
+    end
+    GameTooltip:Show()
+end
+
+local function makeSpecTab(group)
+    local b = CreateFrame("Button", nil, win)
+    b:SetSize(SPEC_BTN, SPEC_BTN)
+    b.group = group
+    b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+
+    b.ring = b:CreateTexture(nil, "BACKGROUND")
+    b.ring:SetAllPoints(b)
+
+    b.icon = b:CreateTexture(nil, "ARTWORK")
+    b.icon:SetPoint("TOPLEFT", 2, -2)
+    b.icon:SetPoint("BOTTOMRIGHT", -2, 2)
+    b.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+
+    b:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
+    b:SetScript("OnEnter", specTabTooltip)
+    b:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+    b:SetScript("OnClick", specTabClick)
+    return b
+end
+
+local function updateSpecTabs()
+    if not win then return end
+    local n = ns:NumTalentGroups()
+    -- A count outside the dual-talent range means the shim answered with
+    -- something we do not understand: fall back to the one group we can prove.
+    if type(n) ~= "number" or n < 1 or n > 4 then n = 1 end
+
+    local active = activeGroup()
+    if viewGroup and viewGroup > n then viewGroup = nil end
+    -- Some builds never fire ACTIVE_TALENT_GROUP_CHANGED (Modules/Loadouts.lua
+    -- carries a poller for exactly that). Any refresh notices the switch here
+    -- and follows it, so the window can never sit on a stale preview of the
+    -- group the player is now actually playing.
+    if lastActive and lastActive ~= active then viewGroup = active end
+    lastActive = active
+
+    -- The strip hangs OUTSIDE the window, so the clamp that keeps the window on
+    -- screen knows nothing about it. Same answer as the dropdown that would not
+    -- scroll: measure the room and take the other side when there is none.
+    local room = SPEC_GAP + SPEC_BTN
+    local right, edge = win:GetRight(), UIParent and UIParent:GetRight()
+    local onLeft = (right and edge) and (right + room > edge) or false
+
+    local ac = ns.COLORS.accent
+    for g = 1, n do
+        local b = specTabs[g]
+        if not b then
+            b = makeSpecTab(g)
+            specTabs[g] = b
+        end
+        local y = -(HEAD_H + TREE_PAD + (g - 1) * (SPEC_BTN + SPEC_GAP))
+        b:ClearAllPoints()
+        if onLeft then
+            b:SetPoint("TOPRIGHT", win, "TOPLEFT", -SPEC_GAP, y)
+        else
+            b:SetPoint("TOPLEFT", win, "TOPRIGHT", SPEC_GAP, y)
+        end
+        b.icon:SetTexture(groupIcon(g))
+        if g == active then
+            b.ring:SetColorTexture(ac.r, ac.g, ac.b, 1)
+            b.icon:SetDesaturated(false)
+            b.icon:SetVertexColor(1, 1, 1)
+        elseif g == shownGroup() then
+            b.ring:SetColorTexture(0.6, 0.6, 0.68, 1)
+            b.icon:SetDesaturated(false)
+            b.icon:SetVertexColor(0.85, 0.85, 0.9)
+        else
+            b.ring:SetColorTexture(0.22, 0.22, 0.26, 1)
+            b.icon:SetDesaturated(true)
+            b.icon:SetVertexColor(0.7, 0.7, 0.75)
+        end
+        b:Show()
+    end
+    for g = n + 1, #specTabs do
+        if specTabs[g] then specTabs[g]:Hide() end
+    end
+end
+
 refreshAll = function()
     if not win or not win:IsShown() then return end
     local ac = ns.COLORS.accent
+    updateSpecTabs()
+    local group = shownGroup()
     for tab, t in pairs(trees) do
         local spent = 0
         for i, b in pairs(t.buttons) do
-            local _, icon, _, _, rank, maxRank = readTalent(tab, i)
+            local _, icon, _, _, rank, maxRank = readTalent(tab, i, group)
             b.rank, b.maxRank = rank or 0, maxRank or 1
             spent = spent + (rank or 0)
             if icon then b.icon:SetTexture(icon) end
@@ -266,7 +446,16 @@ refreshAll = function()
         t.ptsFS:SetText(tostring(spent))
     end
     if win.ptsFS then
-        win.ptsFS:SetText(string.format(L["Points left: %d"], pointsLeft()))
+        -- UnitCharacterPoints answers for the ACTIVE group only, so while the
+        -- other one is on screen a point count would be someone else's number.
+        -- The header says which build is showing instead.
+        if previewing() then
+            win.ptsFS:SetText(string.format(L["Talent group %d (not active)"], group))
+            win.ptsFS:SetTextColor(0.8, 0.8, 0.85)
+        else
+            win.ptsFS:SetText(string.format(L["Points left: %d"], pointsLeft()))
+            win.ptsFS:SetTextColor(0.95, 0.95, 1)
+        end
     end
 end
 
@@ -281,7 +470,9 @@ local function ensureWindow()
     win:SetClampedToScreen(true)
     win:RegisterForDrag("LeftButton")
     win:SetScript("OnDragStart", win.StartMoving)
-    win:SetScript("OnDragStop", function(f) f:StopMovingOrSizing(); savePos() end)
+    -- The talent-group strip hangs off one side and picks that side by the room
+    -- left on screen, so a move has to let it pick again.
+    win:SetScript("OnDragStop", function(f) f:StopMovingOrSizing(); savePos(); updateSpecTabs() end)
     UI:StyleBackdrop(win, { bg = ns.COLORS.bg, border = ns.COLORS.accentDim })
     if UI.CreateShadow then UI:CreateShadow(win) end
 
@@ -352,6 +543,9 @@ end
 
 local function openView()
     if not apiReady() then return false end
+    -- Every open starts on the build you are playing. A preview is a look, not
+    -- a place the window remembers.
+    viewGroup = nil
     if not ensureWindow() then return false end
     applyPos()
     win:Show()
@@ -396,6 +590,13 @@ function mod:OnEnable()
     mod:RegisterEvent("PLAYER_TALENT_UPDATE",     refreshAll)
     mod:RegisterEvent("CHARACTER_POINTS_CHANGED", refreshAll)
     mod:RegisterEvent("SPELLS_CHANGED",           refreshAll)
+    -- Snap back to the newly active group rather than leaving a preview open on
+    -- the build the player just left. updateSpecTabs does the same on any other
+    -- refresh, for the builds where this event never arrives.
+    mod:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED", function()
+        viewGroup = nil
+        refreshAll()
+    end)
 end
 
 function mod:OnDisable()

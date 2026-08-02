@@ -40,9 +40,33 @@ local function applyFontSize(fs, size)
     return false
 end
 
+-- Every display frame we build, in the order we built them. The two lookups
+-- below both go looking for the font strings in a place they HOPE they are: on
+-- the slot button, or among the children of PaperDollItemsFrame. Whether that
+-- holds depends on which frame the client parents its paper-doll buttons to --
+-- and where it does not hold, the size slider silently does nothing, which is
+-- exactly what "the item level font is too small" looks like from outside
+-- (reported 02.08.2026 from 3.80.x).
+--
+-- The register cannot miss: it holds what we created ourselves. The two searches
+-- stay as they are -- on the clients where they work they find the same strings
+-- and setting the same size twice changes nothing.
+local function eachDisplay(fn)
+    local list = mod._displays
+    if type(list) ~= "table" then return end
+    for _, f in ipairs(list) do
+        if f then fn(f) end
+    end
+end
+mod.eachDisplay = eachDisplay
+
 local function reapplyItemLevelSize()
     if not mod.active then return end
     local size = mod.db.itemLevelSize or 11
+
+    eachDisplay(function(f)
+        if f.ilvlDisplay then applyFontSize(f.ilvlDisplay, size) end
+    end)
 
     for _, slot in ipairs(SLOTS) do
         local f = _G["Character" .. slot .. "Slot"]
@@ -689,6 +713,14 @@ local function RestyleText(fs)
 end
 
 function cpMod.restyleAllText()
+	-- Same reason as the size slider: the register holds what we built, the
+	-- search below only what the client happens to have parented our way.
+	if cpMod.eachDisplay then
+		cpMod.eachDisplay(function(f)
+			if f.ilvlDisplay    then RestyleText(f.ilvlDisplay)    end
+			if f.enchantDisplay then RestyleText(f.enchantDisplay) end
+		end)
+	end
 	local pdi = _G.PaperDollItemsFrame
 	if pdi and pdi.GetChildren then
 		for _, child in ipairs({ pdi:GetChildren() }) do
@@ -746,6 +778,12 @@ local function CreateAdditionalDisplayForButton(button)
 		f.socketRing[i]:SetPoint("BOTTOMRIGHT", f.socketDisplay[i], "BOTTOMRIGHT", 4, -4)
 		f.socketRing[i]:Hide()
 	end
+
+	-- Into the register the size slider and the text restyler walk. Neither can
+	-- then depend on guessing which frame the client parented the slot buttons
+	-- to; see the note at the top of this file.
+	cpMod._displays = cpMod._displays or {}
+	cpMod._displays[#cpMod._displays + 1] = f
 
 	return f
 end

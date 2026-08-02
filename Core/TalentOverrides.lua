@@ -72,6 +72,44 @@ function ns:ActiveTalentGroup()
     return 1
 end
 
+-- How many talent groups this character actually OWNS -- 1 until the second one
+-- is bought. Modules/Loadouts.lua asked this with its own copy of the same two
+-- sources; it now asks here, so a correction lands in one place.
+--
+-- The deprecated global is the second source ON PURPOSE. See the corrected note
+-- at the top of this file: it was once written off as non-existent on a source
+-- reading, and a live client printed 2.
+function ns:NumTalentGroups()
+    if SI and SI.GetNumSpecGroups then
+        local ok, n = pcall(SI.GetNumSpecGroups)
+        if ok and type(n) == "number" and n > 0 then return n end
+    end
+    if _G.GetNumTalentGroups then
+        local ok, n = pcall(_G.GetNumTalentGroups)
+        if ok and type(n) == "number" and n > 0 then return n end
+    end
+    return 1
+end
+
+-- Switching the active talent group. Returns true, or false plus a reason the
+-- caller can turn into a sentence -- never a silent no-op, because the click
+-- that lands here came from a button the player expects to do something.
+--
+-- C_SpecializationInfo.SetActiveSpecGroup is the supported call and the one the
+-- client's own UI uses. The deprecated global exists only in the Cata and Mists
+-- fallback files, not the Wrath one, so it is a bonus and never the plan.
+function ns:ActivateTalentGroup(group)
+    group = tonumber(group)
+    if not group or group < 1 or group > ns:NumTalentGroups() then return false, "range" end
+    if group == ns:ActiveTalentGroup() then return false, "already" end
+    if InCombatLockdown and InCombatLockdown() then return false, "combat" end
+
+    local fn = (SI and SI.SetActiveSpecGroup) or _G.SetActiveTalentGroup
+    if type(fn) ~= "function" then return false, "unsupported" end
+    if not pcall(fn, group) then return false, "failed" end
+    return true
+end
+
 -- Deliberately NOT falling back to GetTalentTabInfo. Measured on a live client
 -- (a shaman, talent group 1), the deprecated shim answers:
 --     261, "Elementar", 136048, 0, "ShamanElementalCombat", 0, true
@@ -84,11 +122,12 @@ end
 -- largest texture id" -- a stable, plausible, entirely wrong answer. Hence the
 -- range check below: a point count is small, a file id is not.
 --
--- Returns INDEX, NAME of the tree holding the most points in that group, or nil
--- while talent data is not loaded. Two callers want two halves of this: a label
--- wants the name, a module deciding "is this a melee build" wants the index, and
--- both used to walk the trees themselves with their own idea of which return
--- slot holds the point count -- which is the very thing that went wrong.
+-- Returns INDEX, NAME, ICON of the tree holding the most points in that group,
+-- or nil while talent data is not loaded. Callers want different thirds of this:
+-- a label wants the name, a module deciding "is this a melee build" wants the
+-- index, a talent-group button wants the icon -- and they used to walk the trees
+-- themselves with their own idea of which return slot holds the point count,
+-- which is the very thing that went wrong.
 --
 -- The index is the class's tree order, the same 1..3 the talent frame shows.
 function ns:DominantTalentTree(group)
@@ -99,7 +138,7 @@ function ns:DominantTalentTree(group)
     local okN, numTrees = pcall(SI.GetNumSpecializationsForClassID, classID)
     if not okN or type(numTrees) ~= "number" then return nil end
 
-    local bestIdx, bestName, bestPoints
+    local bestIdx, bestName, bestIcon, bestPoints
     for i = 1, numTrees do
         -- Measured, not assumed. Same shaman, talent group 2:
         --   261, "Elementar", "", 136048, nil, nil, 41, "ShamanElementalCombat"
@@ -108,7 +147,7 @@ function ns:DominantTalentTree(group)
         -- function passed through -- it drops description, role and primaryStat,
         -- which is exactly why its icon lands on the slot this one spends on the
         -- description. Two shapes, one name.
-        local ok, _, name, _, _, _, _, points =
+        local ok, _, name, _, icon, _, _, points =
             pcall(SI.GetSpecializationInfo, i, false, false, nil, nil, group)
         -- No talent tree in this game holds anything like a hundred points. The
         -- guard is not about this call being wrong -- it is about the next person
@@ -120,10 +159,22 @@ function ns:DominantTalentTree(group)
         if ok and type(points) == "number" and (not bestPoints or points > bestPoints) then
             bestPoints, bestIdx = points, i
             bestName = (type(name) == "string" and name ~= "") and name or nil
+            -- A file id (number) or a path (string) both draw; anything else is
+            -- the shim handing back a slot we did not ask for.
+            bestIcon = (type(icon) == "number" or (type(icon) == "string" and icon ~= "")) and icon or nil
         end
     end
-    if bestPoints and bestPoints > 0 then return bestIdx, bestName end
+    if bestPoints and bestPoints > 0 then return bestIdx, bestName, bestIcon end
     return nil
+end
+
+-- The face of a talent group: the icon of the tree it spent most in, which is
+-- exactly what the client's own talent-group buttons show. nil before talent
+-- data is loaded, and for a group with no points spent -- the caller draws its
+-- own placeholder rather than getting a wrong picture.
+function ns:TalentGroupIcon(group)
+    local _, _, icon = ns:DominantTalentTree(group)
+    return icon
 end
 
 function ns:TalentGroupLabel(group)

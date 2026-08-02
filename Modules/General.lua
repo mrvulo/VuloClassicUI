@@ -3326,6 +3326,14 @@ end)(...);
 local _, ns = ...
 local L = ns.L
 
+-- Not registered at all on the client generation whose profession frames have a
+-- different anatomy (see Core/Wrath.lua). Returning HERE, before RegisterModule,
+-- is the point: no sidebar row, no options page, no saved defaults and above all
+-- no hooks -- the client's own window is left exactly as it ships. The collection
+-- page that lists this module skips a member it cannot find, and both module
+-- toggles already ignore an unknown key.
+if ns.Wrath.hasReshapedProfessionFrames then return end
+
 local mod = ns:RegisterModule("professionwindow", {
     name        = "Profession Window",
     group       = "Character",

@@ -583,6 +583,42 @@ local function maskClear(t)
     t._vcMasked = nil
 end
 
+-- The round shape does not fill its own image. Measured 02.08.2026 on
+-- csquare_mask.tga: 128x128 with the shape at x=10..117, so a transparent border
+-- of 10 px -- 7.8% -- runs all the way round it. SetAllPoints stretches that
+-- border with the rest, which on a 120x15 health bar means about 11 px of dead
+-- bar at each END and barely 1 px above and below. That is why it reads as a gap
+-- on the left and the right only, and it is exactly what was reported.
+--
+-- The cure is to hang the mask OUT past the bar by the width of its own border,
+-- so the shape lands on the bar's edges instead of inside them. Anchors only --
+-- the shared mask file is not touched, so sliders, cooldown icons and the dark
+-- skin keep the look they have.
+--
+-- NOT a fact about the client, and therefore deliberately NOT in Core/Wrath.lua:
+-- the border is in the file and the gap appears wherever rounded bars are
+-- switched on. It is scoped to this client generation by the owner's decision
+-- (02.08.2026), taken with the measurement above on the table. Widening it later
+-- is this one condition.
+local MASK_SHAPE = 108 / 128     -- the shape's share of the mask image, per axis
+local MASK_GROW  = (1 / MASK_SHAPE - 1) / 2
+
+local function anchorRoundMask(bar)
+    local m = bar._vcMask
+    if not m then return end
+    m:ClearAllPoints()
+    local w, h = bar:GetWidth(), bar:GetHeight()
+    -- Sizes are not always known the first time round; OnSizeChanged brings us
+    -- back with real ones, and until then this is exactly today's behaviour.
+    if not ns.Wrath.is or not w or not h or w <= 0 or h <= 0 then
+        m:SetAllPoints(bar)
+        return
+    end
+    local gx, gy = w * MASK_GROW, h * MASK_GROW
+    m:SetPoint("TOPLEFT",     bar, "TOPLEFT",     -gx,  gy)
+    m:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT",  gx, -gy)
+end
+
 -- Varargs, not a list: GetStatusBarTexture() can return nil, and a nil hole
 -- would stop ipairs early and strand masks on the later textures.
 local function applyBarRounding(bar, on, ...)
@@ -592,8 +628,14 @@ local function applyBarRounding(bar, on, ...)
         if not bar._vcMask then
             bar._vcMask = bar:CreateMaskTexture()
             bar._vcMask:SetTexture(MASK_ROUND, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
-            bar._vcMask:SetAllPoints(bar)
+            -- The width and height sliders resize the bar without coming back
+            -- through here, so the mask has to follow the bar itself.
+            if not bar._vcMaskFollows then
+                bar._vcMaskFollows = true
+                bar:HookScript("OnSizeChanged", anchorRoundMask)
+            end
         end
+        anchorRoundMask(bar)
         mask = bar._vcMask
     end
     for i = 1, select("#", ...) do
