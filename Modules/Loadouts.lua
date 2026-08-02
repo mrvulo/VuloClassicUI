@@ -999,6 +999,68 @@ local function getSetIcon(name)
     return "Interface\\Icons\\INV_Misc_QuestionMark"
 end
 
+-- =========================================================
+-- Window style
+--
+-- Every window of this module -- the sidebar and the icon picker -- follows the
+-- character panel's own style setting (user request, 02.08.2026).
+-- =========================================================
+
+-- Which look they wear. File scope on purpose: the layout code below runs long
+-- before any of these frames exist and has to read the same answer.
+local function sidebarClassic()
+    local cp = ns.modules and ns.modules.characterpanel
+    return not cp or not cp.db or (cp.db.style or "classic") == "classic"
+end
+
+-- Extra padding the style's frame needs on the inside. Blizzard's dialog border
+-- is 32 pixels of artwork against a single-pixel edge, so without the surcharge
+-- the first column of icons and both header buttons sit ON the frame.
+local function sidebarInset()
+    return sidebarClassic() and 8 or 0
+end
+
+-- Usable width; the frame of the style is added on top of it, never taken out.
+local SIDEBAR_WIDTH = 190
+
+-- Only the BORDER of the classic look comes from Blizzard. Its matching
+-- background texture is not drawn on this client -- the window stayed
+-- see-through -- so the ground is a white texture tinted dark by hand. The
+-- insets pull that ground under the border and must stay SMALLER than the
+-- visible frame, otherwise a gap opens between the two and one looks through it.
+local WINDOW_BACKDROPS = {
+    modern = {
+        bgFile   = "Interface\\Buttons\\WHITE8X8",
+        edgeFile = "Interface\\Buttons\\WHITE8X8",
+        edgeSize = 1,
+        insets   = { left = 1, right = 1, top = 1, bottom = 1 },
+    },
+    classic = {
+        bgFile   = "Interface\\Buttons\\WHITE8X8",
+        edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+        tile = false, edgeSize = 32,
+        insets = { left = 5, right = 5, top = 5, bottom = 5 },
+    },
+}
+
+-- Both looks run through SetBackdrop, so a style switch is a second call on the
+-- same frame -- nothing is rebuilt and no /reload is needed.
+local function styleWindow(frame)
+    if not frame or not frame.SetBackdrop then return end
+    if sidebarClassic() then
+        frame:SetBackdrop(WINDOW_BACKDROPS.classic)
+        frame:SetBackdropColor(0.05, 0.05, 0.06, 0.95)
+        -- the border texture brings its own colour; tinting it greys it out
+        frame:SetBackdropBorderColor(1, 1, 1, 1)
+    else
+        local bg = ns.COLORS.bg
+        local bd = ns.COLORS.accentDim or ns.COLORS.border
+        frame:SetBackdrop(WINDOW_BACKDROPS.modern)
+        frame:SetBackdropColor(bg.r, bg.g, bg.b, bg.a or 1)
+        frame:SetBackdropBorderColor(bd.r, bd.g, bd.b, bd.a or 1)
+    end
+end
+
 local _iconPicker
 local _iconBtns = {}
 local ICON_SIZE = 30
@@ -1049,22 +1111,8 @@ local function showIconPicker(loadoutName, anchor)
         _iconPicker:Hide()
         _iconPicker:EnableMouse(true)
         _iconPicker:SetClampedToScreen(true)
-        if _iconPicker.SetBackdrop then
-            _iconPicker:SetBackdrop({
-                bgFile   = "Interface\\Buttons\\WHITE8X8",
-                edgeFile = "Interface\\Buttons\\WHITE8X8",
-                edgeSize = 1,
-                insets   = { left = 1, right = 1, top = 1, bottom = 1 },
-            })
-            _iconPicker:SetBackdropColor(0.05, 0.05, 0.08, 0.97)
-            _iconPicker:SetBackdropBorderColor(0.4, 0.3, 0.6, 1)
-        end
         tinsert(UISpecialFrames, "VCUI_LoadoutIconPicker")
         _iconPicker.title = _iconPicker:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        _iconPicker.title:SetPoint("TOPLEFT", _iconPicker, "TOPLEFT", 8, -6)
-        -- Pinned on both sides so a long set name is cut instead of running
-        -- under the close control.
-        _iconPicker.title:SetPoint("TOPRIGHT", _iconPicker, "TOPRIGHT", -24, -6)
         _iconPicker.title:SetJustifyH("LEFT")
         _iconPicker.title:SetWordWrap(false)
         _iconPicker.title:SetTextColor(1, 0.82, 0)
@@ -1074,7 +1122,6 @@ local function showIconPicker(loadoutName, anchor)
         -- through UISpecialFrames, but nothing on it said so.
         local closeBtn = CreateFrame("Button", nil, _iconPicker)
         closeBtn:SetSize(20, 18)
-        closeBtn:SetPoint("TOPRIGHT", _iconPicker, "TOPRIGHT", -2, -2)
 
         local closeBG = closeBtn:CreateTexture(nil, "BACKGROUND")
         closeBG:SetAllPoints(closeBtn)
@@ -1109,6 +1156,23 @@ local function showIconPicker(loadoutName, anchor)
     -- Which set the swatches write to. One picker, one set at a time.
     _iconPicker._loadout = loadout
 
+    -- Skin and padding hang off the style, so they are set on every open rather
+    -- than once at build time -- and through the hook below even while the
+    -- window stands open.
+    styleWindow(_iconPicker)
+    local inset = sidebarInset()
+    _iconPicker._restyle = function()
+        if _iconPicker:IsShown() then showIconPicker(loadoutName, anchor) end
+    end
+
+    _iconPicker.title:ClearAllPoints()
+    _iconPicker.title:SetPoint("TOPLEFT", _iconPicker, "TOPLEFT", 8 + inset, -(6 + inset))
+    -- Pinned on both sides so a long set name is cut instead of running
+    -- under the close control.
+    _iconPicker.title:SetPoint("TOPRIGHT", _iconPicker, "TOPRIGHT", -(24 + inset), -(6 + inset))
+    _iconPicker.closeBtn:ClearAllPoints()
+    _iconPicker.closeBtn:SetPoint("TOPRIGHT", _iconPicker, "TOPRIGHT", -(2 + inset), -(2 + inset))
+
     _iconPicker.title:SetText(string.format(L["Icon for: %s"], loadoutName))
 
     local icons = {}
@@ -1135,9 +1199,15 @@ local function showIconPicker(loadoutName, anchor)
 
     for _, b in ipairs(_iconBtns) do b:Hide() end
 
+    -- Hover backing follows the style for the same reason the selected row does:
+    -- on Blizzard's gold frame our purple reads as a second accent.
+    local hoverR, hoverG, hoverB, hoverA = 0.4, 0.3, 0.6, 0.4
+    if sidebarClassic() then hoverR, hoverG, hoverB, hoverA = 0.42, 0.34, 0.12, 0.40 end
+
     local startY = 24
     for i, entry in ipairs(icons) do
         local b = getIconPickerButton(i)
+        b.hl:SetColorTexture(hoverR, hoverG, hoverB, hoverA)
         b:Show()
         if entry.isAuto then
             b.tex:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
@@ -1153,14 +1223,16 @@ local function showIconPicker(loadoutName, anchor)
         local row = math.floor((i - 1) / ICON_COLS)
         b:ClearAllPoints()
         b:SetPoint("TOPLEFT", _iconPicker, "TOPLEFT",
-            6 + col * (ICON_SIZE + ICON_PAD),
-            -(startY + row * (ICON_SIZE + ICON_PAD)))
+            6 + inset + col * (ICON_SIZE + ICON_PAD),
+            -(startY + inset + row * (ICON_SIZE + ICON_PAD)))
     end
 
+    -- The window GROWS by the frame it wears instead of losing the room to it:
+    -- the six columns have to fit either way.
     local numRows = math.ceil(#icons / ICON_COLS)
     _iconPicker:SetSize(
-        ICON_COLS * (ICON_SIZE + ICON_PAD) + 12,
-        startY + numRows * (ICON_SIZE + ICON_PAD) + 8)
+        ICON_COLS * (ICON_SIZE + ICON_PAD) + 12 + inset * 2,
+        startY + numRows * (ICON_SIZE + ICON_PAD) + 8 + inset * 2)
 
     _iconPicker:ClearAllPoints()
     if anchor and anchor.GetLeft then
@@ -1586,7 +1658,10 @@ refreshSidebar = function()
     local names = sortedLoadoutNames()
     if not sidebarSelected and #names > 0 then sidebarSelected = names[1] end
 
-    local y = -32
+    -- Read once per rebuild, not per row: every anchor below has to move in by
+    -- the same amount, and the style cannot change halfway through the loop.
+    local inset = sidebarInset()
+    local y = -(32 + inset)
     for i, name in ipairs(names) do
         local btn = createSetRow(sidebar, i)
         btn.setName = name
@@ -1616,8 +1691,8 @@ refreshSidebar = function()
             btn.expand.icon:SetTexture("Interface\\Buttons\\UI-Panel-ExpandButton-Up")
         end
         btn:ClearAllPoints()
-        btn:SetPoint("TOPLEFT",  sidebar, "TOPLEFT",  4, y)
-        btn:SetPoint("TOPRIGHT", sidebar, "TOPRIGHT", -4, y)
+        btn:SetPoint("TOPLEFT",  sidebar, "TOPLEFT",  4 + inset, y)
+        btn:SetPoint("TOPRIGHT", sidebar, "TOPRIGHT", -(4 + inset), y)
         btn:Show()
         y = y - 33
 
@@ -1625,8 +1700,8 @@ refreshSidebar = function()
             local row = getItemRow(sidebar, i)
             renderItemRow(row, name)
             row:ClearAllPoints()
-            row:SetPoint("TOPLEFT",  sidebar, "TOPLEFT",  6, y)
-            row:SetPoint("TOPRIGHT", sidebar, "TOPRIGHT", -6, y)
+            row:SetPoint("TOPLEFT",  sidebar, "TOPLEFT",  6 + inset, y)
+            row:SetPoint("TOPRIGHT", sidebar, "TOPRIGHT", -(6 + inset), y)
             row:Show()
             y = y - row:GetHeight() - 4
         end
@@ -1635,10 +1710,13 @@ refreshSidebar = function()
     if #names == 0 then
         if not sidebar.emptyText then
             sidebar.emptyText = sidebar:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-            sidebar.emptyText:SetPoint("TOP", sidebar, "TOP", 0, -48)
             sidebar.emptyText:SetTextColor(0.6, 0.6, 0.6)
             sidebar.emptyText:SetText(L["No loadouts saved yet."])
         end
+        -- Re-anchored on every rebuild, not once at creation: the line has to
+        -- drop below the buttons again when the style switches.
+        sidebar.emptyText:ClearAllPoints()
+        sidebar.emptyText:SetPoint("TOP", sidebar, "TOP", 0, -(48 + inset))
         sidebar.emptyText:Show()
     elseif sidebar.emptyText then
         sidebar.emptyText:Hide()
@@ -1661,7 +1739,7 @@ local function createSidebar()
 
     sidebar = CreateFrame("Frame", "VCUI_LoadoutsSidebar", CharacterFrame,
         BackdropTemplateMixin and "BackdropTemplate")
-    sidebar:SetWidth(190)
+    sidebar:SetWidth(SIDEBAR_WIDTH + sidebarInset() * 2)
     sidebar:SetFrameStrata("HIGH")
     sidebar:Hide()
 
@@ -1728,16 +1806,6 @@ local function createSidebar()
     end
 
     local UIW = ns.UI
-    if UIW and UIW.StyleBackdrop then
-        UIW:StyleBackdrop(sidebar, { bg = ns.COLORS.bg, border = ns.COLORS.accentDim or ns.COLORS.border })
-    elseif sidebar.SetBackdrop then
-        sidebar:SetBackdrop({
-            bgFile = "Interface\\Buttons\\WHITE8X8",
-            edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1,
-        })
-        sidebar:SetBackdropColor(0.05, 0.05, 0.08, 0.95)
-        sidebar:SetBackdropBorderColor(0.4, 0.3, 0.6, 1)
-    end
     if UIW and UIW.CreateShadow then UIW:CreateShadow(sidebar) end
     local gstrip = sidebar:CreateTexture(nil, "ARTWORK")
     gstrip:SetPoint("TOPLEFT", sidebar, "TOPLEFT", 0, 0)
@@ -1748,16 +1816,22 @@ local function createSidebar()
         UIW.SetGradient(gstrip, "HORIZONTAL", a.r, a.g, a.b, 0.1, a.r, a.g, a.b, 0.9)
     end
 
+    -- Classic+ wears Blizzard's own dialog frame, so the list stands next to the
+    -- character window in the same material instead of a flat panel with our
+    -- purple edge beside it (user request, 02.08.2026).
+    --
+    -- The panel goes through the same styleWindow as the icon picker, so both
+    -- windows of this module can never drift apart.
+    local function styleSidebarChrome()
+        styleWindow(sidebar)
+        -- the accent strip is the top edge of the flat panel; on Blizzard's
+        -- frame it would lie across the artwork
+        gstrip:SetShown(not sidebarClassic())
+    end
+    styleSidebarChrome()
+
     local bc = ns.COLORS.border or { r = 0.22, g = 0.22, b = 0.27 }
     local fontN, fontH, fontD = ns.UI:PanelButtonFonts("VCUI_LoadoutFont")
-
-    -- Which look the sidebar wears, taken from the character panel's own style
-    -- (user request, 02.08.2026). Until now that dropdown was written and read
-    -- by nobody -- this is its first consumer.
-    local function classicStyle()
-        local cp = ns.modules and ns.modules.characterpanel
-        return not cp or not cp.db or (cp.db.style or "classic") == "classic"
-    end
 
     -- The recipe is the one the gear-set addon uses: Classic+ does not paint a
     -- button, it simply lets Blizzard's own artwork stand and turns the label
@@ -1766,7 +1840,7 @@ local function createSidebar()
     local skinned = {}
     local function skinBtn(b)
         skinned[b] = true
-        if classicStyle() then
+        if sidebarClassic() then
             ns.UI:UnskinPanelButton(b)
             local fs = b.GetFontString and b:GetFontString()
             if fs then fs:SetTextColor(GOLD.r, GOLD.g, GOLD.b) end
@@ -1781,7 +1855,7 @@ local function createSidebar()
     -- addon uses there: its purple reads as a second accent next to Blizzard's
     -- gold, and the two fight on the same row.
     local function selectionRGBA()
-        if classicStyle() then return 0.50, 0.39, 0.10, 0.38 end
+        if sidebarClassic() then return 0.50, 0.39, 0.10, 0.38 end
         local a = ns.COLORS.accent
         return a.r, a.g, a.b, 0.30
     end
@@ -1789,9 +1863,18 @@ local function createSidebar()
 
     -- Re-paints what already exists. Registered for the character panel's style
     -- switch below; without it a switch would only reach rows built afterwards.
+    --
+    -- The padding hangs off the style too, so the list has to be laid out again
+    -- as well -- otherwise rows and buttons run onto the Blizzard frame.
     ns.RestyleLoadoutsSidebar = function()
+        styleSidebarChrome()
         for b in pairs(skinned) do skinBtn(b) end
         if mod._repaintSidebarRows then mod._repaintSidebarRows() end
+        if mod._layoutSidebarButtons then mod._layoutSidebarButtons() end
+        if sidebar and sidebar:IsShown() and refreshSidebar then refreshSidebar() end
+        -- The picker builds its layout while opening, so a switch while it
+        -- stands open only reaches it by opening it again on the same set.
+        if _iconPicker and _iconPicker._restyle then _iconPicker._restyle() end
     end
 
     local equipBtn = CreateFrame("Button", nil, sidebar, "UIPanelButtonTemplate")
@@ -1824,29 +1907,40 @@ local function createSidebar()
 
     -- The three buttons SPAN between the panel's edges instead of carrying a
     -- fixed width (user request, 02.08.2026 -- the gear-set panel this matches
-    -- does it the same way). Fixed 86 / 178 held only while the panel was
-    -- exactly 190 wide: the Modern character style makes it wider, and the two
-    -- top buttons then sat in the left half with a gap beside them.
+    -- does it the same way). Fixed 86 / 178 held only at exactly one panel
+    -- width; any other left the two top buttons in the left half with a gap
+    -- beside them.
     --
-    -- Recomputed rather than anchored once, because it is called again on every
-    -- style switch, where the width can change under it.
+    -- Recomputed rather than anchored once: it runs again on every style switch,
+    -- and both the padding and the width change under it there.
     local function layoutSidebarButtons()
         if not sidebar then return end
-        local pad, gap = 4, 4
-        local w = sidebar:GetWidth() or 190
+        local inset = sidebarInset()
+        local pad, gap = 4 + inset, 4
+
+        -- The panel GROWS by the frame it wears instead of losing the room to
+        -- it. The icon grid of an expanded set needs its six columns; at a fixed
+        -- 190 the wide Blizzard frame left space for five and the last icon of
+        -- every line dropped into the next.
+        local want = SIDEBAR_WIDTH + inset * 2
+        if math.abs((sidebar:GetWidth() or 0) - want) > 0.5 then
+            sidebar:SetWidth(want)
+        end
+
+        local w = sidebar:GetWidth() or want
         local half = math.max(20, (w - pad * 2 - gap) / 2)
 
         equipBtn:ClearAllPoints()
         equipBtn:SetWidth(half)
-        equipBtn:SetPoint("TOPLEFT", sidebar, "TOPLEFT", pad, -6)
+        equipBtn:SetPoint("TOPLEFT", sidebar, "TOPLEFT", pad, -(6 + inset))
 
         saveBtn:ClearAllPoints()
         saveBtn:SetWidth(half)
-        saveBtn:SetPoint("TOPRIGHT", sidebar, "TOPRIGHT", -pad, -6)
+        saveBtn:SetPoint("TOPRIGHT", sidebar, "TOPRIGHT", -pad, -(6 + inset))
 
         newBtn:ClearAllPoints()
-        newBtn:SetPoint("BOTTOMLEFT",  sidebar, "BOTTOMLEFT",  pad, 5)
-        newBtn:SetPoint("BOTTOMRIGHT", sidebar, "BOTTOMRIGHT", -pad, 5)
+        newBtn:SetPoint("BOTTOMLEFT",  sidebar, "BOTTOMLEFT",  pad, 5 + inset)
+        newBtn:SetPoint("BOTTOMRIGHT", sidebar, "BOTTOMRIGHT", -pad, 5 + inset)
     end
     layoutSidebarButtons()
     mod._layoutSidebarButtons = layoutSidebarButtons
