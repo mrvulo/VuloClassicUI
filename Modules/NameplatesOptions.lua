@@ -206,6 +206,25 @@ local function rowFilterValues()
     }
 end
 
+-- How much of each edge an aura row's icons trim, per row. It sits beside the
+-- row's icon size rather than in the slot gear: size and crop are the same
+-- question asked twice, and a control that only appears once a slot is filled
+-- would be missing exactly while you are looking at the icons.
+--
+-- Stored as a fraction on the row config, and stored as ABSENT while it matches
+-- the 0.08 every plate icon used to hardcode -- the same rule the orientation
+-- setting follows, so an untouched profile stays byte-identical.
+local function cropSlider(key, SLW)
+    local function cfg() return ns:NameplateRowCfg(key) end
+    return { type = "slider", label = L["Icon crop (%)"], min = 0, max = 25, step = 1, width = SLW,
+        tooltip = L["How much is cut off each edge of the icon. 0 shows the whole icon including the border baked into its artwork."],
+        get = function() return math.floor(((cfg().crop or 0.08) * 100) + 0.5) end,
+        set = function(_, v)
+            if v == 8 then cfg().crop = nil else cfg().crop = v / 100 end
+            applyAndRefresh()
+        end }
+end
+
 -- Placement controls shared by every aura row; `key` selects which row's
 -- settings the widgets read and write. withFilter is off for the rows whose
 -- contents are already defined by what they collect (crowd control, your DoTs).
@@ -702,6 +721,13 @@ function mod:GetOptions(tabId)
                         get = function() return mod.db.castIconRight end,
                         set = function(_, v) mod.db.castIconRight = v; applyAndRefresh() end },
                   } },
+                  -- Look before placement: this belongs beside the scale above,
+                  -- not among the offsets below. Percent here, percent in the db
+                  -- (see castIconCrop in Modules/Nameplates.lua).
+                  { type = "slider", label = L["Icon crop (%)"], min = 0, max = 25, step = 1, width = SLW,
+                    tooltip = L["How much is cut off each edge of the icon. 0 shows the whole icon including the border baked into its artwork."],
+                    get = function() return mod.db.castIconCrop or 8 end,
+                    set = function(_, v) mod.db.castIconCrop = v; applyAndRefresh() end },
                   { type = "group", layout = "row", gap = 8, items = {
                       { type = "slider", label = L["Icon offset X"], min = -40, max = 40, step = 1, width = SLW,
                         get = function() return mod.db.castIconX or 0 end,
@@ -1029,6 +1055,7 @@ function mod:GetOptions(tabId)
                         get = function() return mod.db.maxDebuffs end,
                         set = function(_, v) mod.db.maxDebuffs = v; applyAndRefresh() end },
                   } },
+                  cropSlider("debuff", SLW),
               } },
             { type = "checkbox", label = L["Show buffs"],
               get = function() return mod.db.showBuffs end,
@@ -1042,6 +1069,7 @@ function mod:GetOptions(tabId)
                         get = function() return mod.db.maxBuffs end,
                         set = function(_, v) mod.db.maxBuffs = v; applyAndRefresh() end },
                   } },
+                  cropSlider("buff", SLW),
               } },
             -- Spacing moved into each row's own section; a global control here
             -- would be dead, since every row now carries its own value.
@@ -1145,6 +1173,7 @@ function mod:GetOptions(tabId)
                         get = function() return mod.db.ccHeight or 0 end,
                         set = function(_, v) mod.db.ccHeight = v; applyAndRefresh() end },
                   } },
+                  cropSlider("cc", SLW),
                   -- placement moved to the slot section above
               } },
         } },
@@ -1164,6 +1193,7 @@ function mod:GetOptions(tabId)
                         get = function() return mod.db.maxDots end,
                         set = function(_, v) mod.db.maxDots = v; applyAndRefresh() end },
                   } },
+                  cropSlider("dot", SLW),
                   -- placement moved to the slot section above
               } },
         } },

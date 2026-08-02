@@ -2960,9 +2960,14 @@ function mod:GetOptions(tabId)
           },
           get = function() return group.iconShape or "square" end,
           set = function(_, v) group.iconShape = v; relayoutGroup(group) end },
-        { type = "slider", label = L["Icon zoom"], min = 0, max = 0.30, step = 0.01,
-          get = function() return group.iconZoom or 0.08 end,
-          set = function(_, v) group.iconZoom = v; relayoutGroup(group) end },
+        -- Was "Icon zoom", read in hundredths (0.08). Same setting, same stored
+        -- fraction -- only the label and the unit changed, so that the control
+        -- reads the same here and on the nameplate aura rows, which ask the very
+        -- same question. No migration: group.iconZoom still holds the fraction.
+        { type = "slider", label = L["Icon crop (%)"], min = 0, max = 30, step = 1,
+          tooltip = L["How much is cut off each edge of the icon. 0 shows the whole icon including the border baked into its artwork."],
+          get = function() return math.floor(((group.iconZoom or 0.08) * 100) + 0.5) end,
+          set = function(_, v) group.iconZoom = v / 100; relayoutGroup(group) end },
         { type = "slider", label = L["Cooldown swipe darkness"], min = 0, max = 1, step = 0.05,
           get = function() return group.swipeAlpha or 0.6 end,
           set = function(_, v) group.swipeAlpha = v; relayoutGroup(group) end },

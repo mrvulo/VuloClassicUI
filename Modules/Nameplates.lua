@@ -108,6 +108,12 @@ local mod = ns:RegisterModule("nameplates", {
         castBgAlpha          = 0,
         castBgColor          = { r = 0.05, g = 0.05, b = 0.06 },
         castIconScale        = 100,
+        -- Percent, like the scale beside it -- NOT the fraction the aura rows
+        -- store. Both show percent in the options; this block just keeps its own
+        -- unit rather than being the one value here that is read in hundredths.
+        -- 8 is what the cast icon hardcoded before, so a profile without the key
+        -- draws exactly as it did.
+        castIconCrop         = 8,
         castIconX            = 0,
         castIconY            = 0,
         castIconRight        = false,
@@ -561,6 +567,10 @@ local function layoutPlate(f)
         f.castIcon:SetPoint("RIGHT", f.cast, "LEFT", -2 + (d.castIconX or 0), d.castIconY or 0)
     end
     f.castIcon:SetSize(iconSz, iconSz)
+    -- Set here, not at creation: this runs on every settings change, and the
+    -- crop is the one thing about the icon a profile can now move.
+    local iconCrop = (d.castIconCrop or 8) / 100
+    f.castIcon:SetTexCoord(iconCrop, 1 - iconCrop, iconCrop, 1 - iconCrop)
 
     if f.castBG then
         local cbc = d.castBgColor or { r = 0.05, g = 0.05, b = 0.06 }
@@ -1298,6 +1308,11 @@ local function renderAuraGroup(g, list, o)
 
     local size    = o.size or 22
     local spacing = o.spacing or 2
+    -- How much of each edge the icon trims. The client bakes a border into the
+    -- icon art, and how much of it to cut is taste, not a constant -- so every
+    -- aura row carries its own. Absent means the 0.08 every plate icon used to
+    -- hardcode, which is why an untouched profile draws exactly as before.
+    local crop    = o.crop or 0.08
     local showTimer, showStacks, swipe = o.showTimer, o.showStacks, o.swipe
     local iw, ih = (o.w and o.w > 0) and o.w or size, (o.h and o.h > 0) and o.h or size
     local perRow = (o.perRow or 0) > 0 and o.perRow or n
@@ -1341,6 +1356,12 @@ local function renderAuraGroup(g, list, o)
             ic:ClearAllPoints()
             ic:SetPoint("CENTER", g, "CENTER", dx, dy)
             ic.tex:SetTexture(a.icon)
+            -- Compared before it is written: this loop runs per icon per row per
+            -- UNIT_AURA, and the value only ever changes when a slider moves.
+            if ic._crop ~= crop then
+                ic._crop = crop
+                ic.tex:SetTexCoord(crop, 1 - crop, crop, 1 - crop)
+            end
             -- Border takes the dispel school's colour so you can read what is
             -- removable at a glance; plain dark border when there is no school.
             -- Thickness is never forced: border size 0 means the user wants none.
@@ -1530,6 +1551,7 @@ local function applyAuras(f, lists)
             _ro.size, _ro.w, _ro.h, _ro.spacing = size, w, h, spacing
             _ro.grow, _ro.perRow, _ro.side = cfg.grow or "center", perRow, side
             _ro.vertical = vertical
+            _ro.crop = cfg.crop
             _ro.showTimer, _ro.showStacks = d.showAuraTimer, d.showAuraStacks
             _ro.swipe = d.auraSwipe
             renderAuraGroup(group, list, _ro)
