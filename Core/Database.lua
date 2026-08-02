@@ -1074,6 +1074,54 @@ local PROFILE_LAYOUT_KEYS = { "ui", "editmode", "moverLinks", "moverSizeLinks" }
 -- so it must refuse instead. The look block (account-wide fonts and colors)
 -- rides along version-neutrally -- an old importer ignores fields it does not
 -- know, and getting the profile without the look is the right degradation.
+-- Packing a table into a string people can paste is no longer the profile's
+-- private business -- the bar setups share the same way -- so the packing lives
+-- here once instead of being copied.
+--
+-- Compressed strings are a fraction of the size (they fit in a chat message);
+-- the plain base64 path stays as the fallback so a missing library can never
+-- take an export button with it.
+--
+-- BOTH prefixes belong to the CALLER, and that is the point: a bar-setup string
+-- and a profile string must never be mistakable for one another, so each
+-- feature brings its own pair rather than sharing one namespace.
+function ns:EncodeShareString(plainPrefix, packedPrefix, payload)
+    local out = {}
+    serialize(payload, out)
+    local raw = table.concat(out)
+    if LibDeflate then
+        local packed  = LibDeflate:CompressDeflate(raw)
+        local encoded = packed and LibDeflate:EncodeForPrint(packed)
+        if encoded then return packedPrefix .. encoded end
+    end
+    return plainPrefix .. b64encode(raw)
+end
+
+-- The other half. Deliberately hands back a REASON CODE rather than a sentence:
+-- the framework does not know what the caller was expecting, and "this is not a
+-- bar setup string" has to be said by whoever asked for one.
+--   nil, "foreign"  -- neither prefix matched; somebody else's string
+--   nil, "damaged"  -- our prefix, but it does not survive unpacking
+function ns:DecodeShareString(plainPrefix, packedPrefix, text)
+    text = tostring(text or ""):gsub("%s+", "")
+    local raw
+    if text:sub(1, #packedPrefix) == packedPrefix then
+        -- A missing library counts as damage, not as a foreign string: the
+        -- prefix already proved whose string this is.
+        if not LibDeflate then return nil, "damaged" end
+        local packed = LibDeflate:DecodeForPrint(text:sub(#packedPrefix + 1))
+        raw = packed and LibDeflate:DecompressDeflate(packed)
+    elseif text:sub(1, #plainPrefix) == plainPrefix then
+        raw = b64decode(text:sub(#plainPrefix + 1))
+    else
+        return nil, "foreign"
+    end
+    if not raw then return nil, "damaged" end
+    local payload, pos = deserialize(raw, 1)
+    if pos == nil or type(payload) ~= "table" then return nil, "damaged" end
+    return payload
+end
+
 function ns:ExportProfileString(name, opts)
     name = name or ns:GetActiveProfileName()
     local profile = VuloClassicUIDB.profiles and VuloClassicUIDB.profiles[name]
@@ -1108,18 +1156,7 @@ function ns:ExportProfileString(name, opts)
             powerColors = ns.db.global.powerColors,
         })
     end
-    local out = {}
-    serialize(payload, out)
-    local raw = table.concat(out)
-    -- Compressed strings are a fraction of the size (they fit in a Discord
-    -- message); the legacy base64 path stays as the fallback so a missing
-    -- library can never take the export button with it.
-    if LibDeflate then
-        local packed  = LibDeflate:CompressDeflate(raw)
-        local encoded = packed and LibDeflate:EncodeForPrint(packed)
-        if encoded then return PROFILE_STRING_PREFIX2 .. encoded end
-    end
-    return PROFILE_STRING_PREFIX .. b64encode(raw)
+    return ns:EncodeShareString(PROFILE_STRING_PREFIX, PROFILE_STRING_PREFIX2, payload)
 end
 
 -- Decodes a profile string WITHOUT importing anything -- the import preview

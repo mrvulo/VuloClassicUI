@@ -138,6 +138,12 @@ end
 
 local function applyPlayerTextPositions()
     if not playerStyleActive() or not captured then return end
+    -- Both anchors below are measured against ONE frame sheet. Where the client
+    -- ships a different one and keeps the level number anchored itself, ours is
+    -- the wrong answer twice over -- see Core/Wrath.lua. Standing down leaves the
+    -- client's own placement, which is the one that follows the rest and PvP
+    -- icons around.
+    if ns.Wrath.hasReshapedPlayerFrame then return end
     local level = _G.PlayerLevelText
     if level then
         level:ClearAllPoints()

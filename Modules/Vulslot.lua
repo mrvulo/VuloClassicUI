@@ -102,15 +102,95 @@ local function snapshotBindings()
     return out
 end
 
+-- The counterpart to the three snapshots above, for data that did NOT come from
+-- this client. An imported setup was written by a stranger, and every step of
+-- the restore INDEXES its entries -- saved.type, m.name, b.command. A number
+-- where a table belongs throws in the middle of the run, with part of the bars
+-- already changed and no way back.
+--
+-- Bad entries are DROPPED, not the whole setup: one broken row is no reason to
+-- refuse the other hundred, and the load report shows the gap as skipped slots.
+local VALID_ACTION = { spell = true, item = true, macro = true }
+
+local function sanitizeSetup(d)
+    if type(d) ~= "table" then return nil end
+    local out = { actions = {}, macros = {}, bindings = {} }
+
+    if type(d.class) == "string" then out.class = d.class end
+
+    if type(d.actions) == "table" then
+        for slot, e in pairs(d.actions) do
+            if type(slot) == "number" and slot == math.floor(slot)
+                and slot >= 1 and slot <= MAX_SLOTS
+                and type(e) == "table" and VALID_ACTION[e.type] then
+                out.actions[slot] = {
+                    type = e.type,
+                    id   = type(e.id) == "number" and e.id or nil,
+                    name = type(e.name) == "string" and e.name or nil,
+                }
+            end
+        end
+    end
+
+    if type(d.macros) == "table" then
+        for _, m in ipairs(d.macros) do
+            if type(m) == "table" and type(m.name) == "string" and m.name ~= "" then
+                -- The icon is a file id on some clients and a path on others,
+                -- so both shapes are legal here; anything else is dropped and
+                -- restoreMacros falls back to its question mark.
+                local icon = (type(m.icon) == "string" or type(m.icon) == "number") and m.icon or nil
+                out.macros[#out.macros + 1] = {
+                    name    = m.name,
+                    icon    = icon,
+                    body    = type(m.body) == "string" and m.body or "",
+                    perchar = m.perchar and true or false,
+                }
+            end
+        end
+    end
+
+    if type(d.bindings) == "table" then
+        for _, b in ipairs(d.bindings) do
+            if type(b) == "table" and type(b.command) == "string" and b.command ~= "" then
+                out.bindings[#out.bindings + 1] = {
+                    command = b.command,
+                    k1 = type(b.k1) == "string" and b.k1 or nil,
+                    k2 = type(b.k2) == "string" and b.k2 or nil,
+                }
+            end
+        end
+    end
+
+    return out
+end
+
 local function saveProfile(name)
     local _, class = UnitClass("player")
+    local actions  = snapshotActions()
+    local macros   = snapshotMacros()
+    local bindings = snapshotBindings()
     library()[name] = {
         class    = class,
-        actions  = snapshotActions(),
-        macros   = snapshotMacros(),
-        bindings = snapshotBindings(),
+        actions  = actions,
+        macros   = macros,
+        bindings = bindings,
     }
-    ns:Print(L["Bar setup '%s' saved."], name)
+
+    -- Say what went IN, not just that something did. snapshotBindings walks
+    -- `1, (GetNumBindings and GetNumBindings() or 0)`: where that global is
+    -- missing the loop runs zero times, the setup is stored with an empty key
+    -- list, and nobody finds out until a restore quietly brings no keys back --
+    -- which is exactly how it was reported (02.08.2026).
+    --
+    -- Counting the slots here rather than trusting a length: actions is keyed by
+    -- slot number and full of holes, so # would answer nonsense.
+    local slots = 0
+    for _ in pairs(actions) do slots = slots + 1 end
+    ns:Print(L["Bar setup '%s' saved: %d slots, %d macros, %d key bindings."],
+        name, slots, #macros, #bindings)
+    if #bindings == 0 then
+        ns:Print(L["|cffff8800No key bindings were captured.|r This client may not report them."])
+    end
 end
 
 local function restoreMacros(list)
@@ -213,8 +293,27 @@ local function loadProfile(name)
     end
 
     -- Order matters: macros first so slots can resolve them by name
-    if mod.db.restoreMacros and p.macros then
-        restoreMacros(p.macros)
+    --
+    -- Both restore steps used to run in silence: restoreMacros COUNTS what it
+    -- edited, created and failed, and every one of those numbers was thrown
+    -- away. A setup whose macros all failed looked exactly like one that had
+    -- none -- which is precisely how it was reported (02.08.2026, macros and
+    -- keys missing after an import, with nothing on screen to say why).
+    --
+    -- A switch that is off is said out loud too. "Nothing happened" is not an
+    -- answer anyone can act on; "you asked me not to" is.
+    if p.macros and #p.macros > 0 then
+        if not mod.db.restoreMacros then
+            ns:Print(L["Macros left alone: the switch above is off."])
+        else
+            local done, failed = restoreMacros(p.macros)
+            if (failed or 0) > 0 then
+                ns:Print(L["Macros: %d restored, |cffff8800%d failed|r -- the macro list may be full."],
+                    done or 0, failed)
+            else
+                ns:Print(L["Macros: %d restored."], done or 0)
+            end
+        end
     end
 
     local counts = { placed = 0, cleared = 0, skipped = 0 }
@@ -222,8 +321,12 @@ local function loadProfile(name)
         restoreSlot(slot, p.actions and p.actions[slot], counts)
     end
 
-    if mod.db.restoreBindings and p.bindings then
-        restoreBindings(p.bindings)
+    if p.bindings and #p.bindings > 0 then
+        if not mod.db.restoreBindings then
+            ns:Print(L["Key bindings left alone: the switch above is off."])
+        else
+            ns:Print(L["Key bindings: %d applied."], restoreBindings(p.bindings) or 0)
+        end
     end
 
     if counts.skipped > 0 then
@@ -336,7 +439,63 @@ function mod:GetOptions()
                   end
               end },
         } }
+        items[#items + 1] = { type = "spacer", height = 4 }
+        items[#items + 1] = {
+            type = "button", label = L["Export as string"], width = 180,
+            tooltip = L["Packs the selected bar setup into a string you can pass on. Slots, macros and key bindings travel with it."],
+            onClick = function()
+                if not selected then return end
+                local setup = library()[selected]
+                if not setup then return end
+                -- Its own prefix pair, not the profile's: the two strings must
+                -- never be mistakable for one another. The reader is owed a
+                -- clear "that is not a bar setup" rather than a half-import.
+                local str = ns:EncodeShareString("!VBAR1", "!VBAR2",
+                    { v = 1, n = selected, d = setup })
+                if str and ns.UI and ns.UI.ShowProfileExportDialog then
+                    ns.UI:ShowProfileExportDialog(str)
+                end
+            end }
     end
+
+    -- Import stands OUTSIDE the "is there anything saved" branch: an empty
+    -- library is exactly when someone wants to read a setup in.
+    items[#items + 1] = {
+        type = "button", label = L["Import from string"], width = 180,
+        tooltip = L["Reads a bar setup string into your library. Putting it onto your bars stays a separate step."],
+        onClick = function()
+            if not (ns.UI and ns.UI.ShowStringImportDialog) then return end
+            ns.UI:ShowStringImportDialog(L["Import from string"], function(text)
+                local payload, why = ns:DecodeShareString("!VBAR1", "!VBAR2", text)
+                if not payload then
+                    -- The framework says WHY in one word; the sentence is ours,
+                    -- because only we know a bar setup was expected.
+                    return (why == "damaged") and L["The bar setup string is damaged."]
+                        or L["This is not a bar setup string."]
+                end
+                -- Nothing from the string is stored as it arrived: sanitizeSetup
+                -- rebuilds it entry by entry, so the restore can only ever walk
+                -- shapes it knows.
+                local d = sanitizeSetup(payload.d)
+                if not d or (not next(d.actions)
+                    and #d.macros == 0 and #d.bindings == 0) then
+                    return L["The bar setup string is damaged."]
+                end
+                local name = (type(payload.n) == "string" and payload.n ~= "")
+                    and payload.n or L["Imported"]
+                -- Never overwrite silently. Someone else's setup arriving under
+                -- a name you already use must not eat yours.
+                local base, n = name, 2
+                while library()[name] do
+                    name = base .. " " .. n
+                    n = n + 1
+                end
+                library()[name] = d
+                selected = name
+                ns:Print(L["Bar setup '%s' imported."], name)
+                rebuildPage()
+            end)
+        end }
 
     return items
 end

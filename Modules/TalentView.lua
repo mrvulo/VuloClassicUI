@@ -292,11 +292,60 @@ end
 -- Left-click looks at a group, right-click activates it. That split is the one
 -- the client trained people on, so it is not ours to redesign.
 
+-- Computed lazily and thrown away on any talent change: the walk below is a
+-- couple of hundred guarded calls, which is nothing once, and wasteful on every
+-- refresh.
+local iconCache = {}
+
+-- C_SpecializationInfo answers on the Anniversary client. On a real Wrath client
+-- it does not, and the button wore the placeholder question mark even though the
+-- character had 11/5/55 spent (user screenshot, 02.08.2026). So there is a
+-- classic fallback, and it leans on the one number that cannot be misread: the
+-- ranks, summed by us.
+local function classicGroupIcon(group)
+    local okTabs, numTabs = pcall(_G.GetNumTalentTabs)
+    if not okTabs or type(numTabs) ~= "number" or numTabs < 1 or numTabs > 5 then return nil end
+
+    local bestTab, bestPts
+    for tab = 1, numTabs do
+        local okN, num = pcall(_G.GetNumTalents, tab)
+        if okN and type(num) == "number" and num >= 1 and num <= 60 then
+            local pts = 0
+            for i = 1, num do
+                local _, _, _, _, rank = readTalent(tab, i, group)
+                pts = pts + (rank or 0)
+            end
+            if pts > 0 and (not bestPts or pts > bestPts) then bestPts, bestTab = pts, tab end
+        end
+    end
+    if not bestTab then return nil end
+
+    -- Two shapes live behind this call (see Core/TalentOverrides.lua): the
+    -- original leads with the name and carries the icon second, the deprecation
+    -- shim prepends a spec id and pushes it to slot four. Rather than counting
+    -- slots -- which is exactly what went wrong twice before -- take the first
+    -- value that can only BE a texture. The name is a string too, but no tree is
+    -- called Interface\something.
+    local ok, a, b, c, d = pcall(_G.GetTalentTabInfo, bestTab)
+    if not ok then return nil end
+    local vals = { a, b, c, d }
+    for i = 1, 4 do
+        local v = vals[i]
+        if type(v) == "number" and v > 1000 then return v end
+        if type(v) == "string" and v:find("^Interface") then return v end
+    end
+    return nil
+end
+
 local function groupIcon(group)
-    local icon = ns:TalentGroupIcon(group)
-    -- No points spent yet, or talent data not loaded: a question mark is honest,
-    -- a borrowed icon from the other group would be a lie.
-    return icon or "Interface\\Icons\\INV_Misc_QuestionMark"
+    local cached = iconCache[group]
+    if cached == nil then
+        cached = ns:TalentGroupIcon(group) or classicGroupIcon(group) or false
+        iconCache[group] = cached
+    end
+    -- Nothing spent yet, or no shape answered: a question mark is honest, a
+    -- borrowed icon from the other group would be a lie.
+    return cached or "Interface\\Icons\\INV_Misc_QuestionMark"
 end
 
 local function specTabClick(self, button)
@@ -348,6 +397,78 @@ local function makeSpecTab(group)
     b:SetScript("OnEnter", specTabTooltip)
     b:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
     b:SetScript("OnClick", specTabClick)
+    return b
+end
+
+-- ---------------------------------------------------------------------------
+-- The glyph button, under the talent-group buttons
+--
+-- Blizzard keeps the glyphs on a tab of the very frame we replace, so the way in
+-- is the one the Blizzard button below already uses: let that frame show, then
+-- pick the tab. BY ITS LABEL, not by an index -- GLYPHS is a client global, so
+-- this holds in every language, and a client that has no such tab simply lands
+-- on the talent frame with nothing broken.
+local glyphTab
+local applyGlyphSkin   -- forward: defined with the paint further down
+
+local function openGlyphs()
+    local tf = _G.PlayerTalentFrame or _G.TalentFrame
+    if not tf then return false end
+    if win then win:Hide() end
+    mod._suppress = true
+    pcall(_G.ShowUIPanel or function(f) f:Show() end, tf)
+    if not tf:IsShown() then
+        -- Same trap as the Blizzard button: if the panel refused, its OnHide
+        -- never fires and the flag would let the NEXT talent open slip through.
+        mod._suppress = nil
+        return false
+    end
+    local want = _G.GLYPHS
+    if type(want) == "string" and want ~= "" then
+        for i = 1, 6 do
+            local tab = _G["PlayerTalentFrameTab" .. i]
+            local txt = tab and tab.GetText and tab:GetText()
+            if txt == want then pcall(tab.Click, tab); break end
+        end
+    end
+    -- The glyph addon loads the moment that tab is first clicked, so this is the
+    -- earliest point at which there is anything to paint.
+    if applyGlyphSkin then applyGlyphSkin() end
+    return true
+end
+
+local function ensureGlyphTab()
+    if glyphTab or not win then return glyphTab end
+    local b = CreateFrame("Button", nil, win)
+    b:SetSize(SPEC_BTN, SPEC_BTN)
+
+    b.ring = b:CreateTexture(nil, "BACKGROUND")
+    b.ring:SetAllPoints(b)
+    b.ring:SetColorTexture(0.22, 0.22, 0.26, 1)
+
+    b.icon = b:CreateTexture(nil, "ARTWORK")
+    b.icon:SetPoint("TOPLEFT", 2, -2)
+    b.icon:SetPoint("BOTTOMRIGHT", -2, 2)
+    b.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    b.icon:SetTexture("Interface\\Icons\\INV_Inscription_Tradeskill01")
+
+    b:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
+    b:SetScript("OnEnter", function(self)
+        local ac = ns.COLORS.accent
+        self.ring:SetColorTexture(ac.r, ac.g, ac.b, 1)
+        if ns.UI:OpenTooltip(self, "ANCHOR_RIGHT") then
+            GameTooltip:ClearLines()
+            GameTooltip:SetText(_G.GLYPHS or L["Glyphs"], ac.r, ac.g, ac.b)
+            GameTooltip:AddLine(L["Opens the glyph page of the client's own talent window."], 0.8, 0.8, 0.85, true)
+            GameTooltip:Show()
+        end
+    end)
+    b:SetScript("OnLeave", function(self)
+        self.ring:SetColorTexture(0.22, 0.22, 0.26, 1)
+        if GameTooltip then GameTooltip:Hide() end
+    end)
+    b:SetScript("OnClick", openGlyphs)
+    glyphTab = b
     return b
 end
 
@@ -406,6 +527,21 @@ local function updateSpecTabs()
     end
     for g = n + 1, #specTabs do
         if specTabs[g] then specTabs[g]:Hide() end
+    end
+
+    -- The glyphs sit one slot below the last talent group, on whichever side the
+    -- strip ended up on, with a slightly wider gap: it opens a different window,
+    -- and reading as a third talent group would be a lie about what it does.
+    local gb = ensureGlyphTab()
+    if gb then
+        local y = -(HEAD_H + TREE_PAD + n * (SPEC_BTN + SPEC_GAP) + SPEC_GAP)
+        gb:ClearAllPoints()
+        if onLeft then
+            gb:SetPoint("TOPRIGHT", win, "TOPLEFT", -SPEC_GAP, y)
+        else
+            gb:SetPoint("TOPLEFT", win, "TOPRIGHT", SPEC_GAP, y)
+        end
+        gb:Show()
     end
 end
 
@@ -559,6 +695,185 @@ end
 -- ---------------------------------------------------------------------------
 -- Taking over from Blizzard's window
 
+-- ---------------------------------------------------------------------------
+-- Painting the client's glyph page
+--
+-- The names below are MEASURED, not guessed: they come off a frame stack the
+-- owner took on a running Wrath client (02.08.2026). GlyphFrame,
+-- GlyphFrameBackground, GlyphFrameSparkleFrame, GlyphFrameGlyph<n> with its
+-- Background, Highlight, Ring and Setting, and on the parent side
+-- PlayerTalentFrame, PlayerTalentFrameScrollFrame,
+-- PlayerTalentFrameBackgroundTopLeft and PlayerTalentFrameTopRight.
+--
+-- The siblings of those last two are named by the same rule and are touched
+-- ONLY if they answer -- a name that resolves to nothing is skipped, never
+-- assumed. The whole file is already behind ns.Wrath.hasTalentTrees, so no
+-- second client gate is owed here.
+local PANEL_CHROME = {
+    "PlayerTalentFrameBackgroundTopLeft",    "PlayerTalentFrameBackgroundTopRight",
+    "PlayerTalentFrameBackgroundBottomLeft", "PlayerTalentFrameBackgroundBottomRight",
+    "PlayerTalentFrameTopLeft",              "PlayerTalentFrameTopRight",
+    "PlayerTalentFrameBottomLeft",           "PlayerTalentFrameBottomRight",
+}
+
+-- Two things this got wrong the first time, both proven by a frame stack the
+-- owner took (02.08.2026):
+--
+--   * THE GLYPH PAGE IS ITS OWN ADDON. The stack names its source as
+--     Blizzard_GlyphUI.xml, not Blizzard_TalentUI. Skinning on the talent
+--     addon's load ran while GlyphFrame did not exist yet and quietly gave up
+--     halfway.
+--   * THE FRAME REPAINTS ITSELF. PlayerTalentFrame._vcBG was in the stack --
+--     our backdrop WAS there -- with Blizzard's parchment still on top of it.
+--     The corner art is re-set when the page changes, so a one-shot pass loses.
+--
+-- Hence: the paint is idempotent and runs again on every show and every update.
+-- Only what must exist once is guarded.
+local chromeBuilt
+
+applyGlyphSkin = function()
+    local UI = ns.UI
+    local tf = _G.PlayerTalentFrame
+    if not (tf and UI and UI.StyleBackdrop) then return end
+    local ac = ns.COLORS.accent
+    local bc = ns.COLORS.borderDark or ns.COLORS.border
+
+    if not chromeBuilt then
+        chromeBuilt = true
+        UI:StyleBackdrop(tf, { bg = ns.COLORS.bg, border = bc })
+        if UI.CreateShadow then UI:CreateShadow(tf) end
+        local strip = tf:CreateTexture(nil, "OVERLAY")
+        strip:SetPoint("TOPLEFT", tf, "TOPLEFT", 0, 0)
+        strip:SetPoint("TOPRIGHT", tf, "TOPRIGHT", 0, 0)
+        strip:SetHeight(2)
+        if UI.SetGradient then
+            UI.SetGradient(strip, "HORIZONTAL", ac.r, ac.g, ac.b, 0.1, ac.r, ac.g, ac.b, 0.9)
+        end
+        -- The repaint happens on show and on the page update; catch both rather
+        -- than hoping one of them is enough.
+        tf:HookScript("OnShow", applyGlyphSkin)
+        if type(_G.PlayerTalentFrame_Update) == "function" then
+            hooksecurefunc("PlayerTalentFrame_Update", applyGlyphSkin)
+        end
+    end
+
+    -- ---- everything below runs again on every pass, because Blizzard redraws it
+
+    for _, n in ipairs(PANEL_CHROME) do
+        local t = _G[n]
+        if t and t.SetAlpha then t:SetAlpha(0) end
+    end
+    -- The portrait medallion belongs to the parchment look and has nothing to
+    -- hold once the parchment is gone.
+    local portrait = _G.PlayerTalentFramePortrait
+    if portrait and portrait.SetAlpha then portrait:SetAlpha(0) end
+
+    local title = _G.PlayerTalentFrameTitleText
+    if title then
+        if UI.Font then UI.Font(title, 13) end
+        title:SetTextColor(ac.r, ac.g, ac.b)
+    end
+
+    -- The tabs along the bottom, in the same shape the friends window uses: art
+    -- off, a dark plate behind the label, an accent underline on the open one.
+    for i = 1, 6 do
+        local tab = _G["PlayerTalentFrameTab" .. i]
+        if tab then
+            if not tab._vcTabSkin then
+                tab._vcTabSkin = true
+                -- Blizzard's own textures, collected ONCE. This pass runs on
+                -- every talent-frame update, and rebuilding the region list each
+                -- time meant a fresh table per tab per update for a set that
+                -- never changes. Snapshotting also removes the need to exclude
+                -- our own plate and underline further down: they are created
+                -- below this line, so they were never in the list.
+                local art = {}
+                for _, r in ipairs({ tab:GetRegions() }) do
+                    if r.IsObjectType and r:IsObjectType("Texture") then
+                        art[#art + 1] = r
+                        r:SetAlpha(0)
+                    end
+                end
+                tab._vcArt = art
+                local fs = tab.GetFontString and tab:GetFontString()
+                if fs then
+                    local plate = tab:CreateTexture(nil, "BACKGROUND")
+                    plate:SetPoint("TOPLEFT", fs, "TOPLEFT", -8, 5)
+                    plate:SetPoint("BOTTOMRIGHT", fs, "BOTTOMRIGHT", 8, -5)
+                    plate:SetColorTexture(0.10, 0.10, 0.13, 0.95)
+                    local ul = tab:CreateTexture(nil, "ARTWORK")
+                    ul:SetHeight(2)
+                    ul:SetPoint("BOTTOMLEFT", plate, "BOTTOMLEFT", 0, 0)
+                    ul:SetPoint("BOTTOMRIGHT", plate, "BOTTOMRIGHT", 0, 0)
+                    ul:SetColorTexture(ac.r, ac.g, ac.b, 0.9)
+                    tab._vcPlate, tab._vcUnderline, tab._vcText = plate, ul, fs
+                end
+            end
+            -- Selection can change without a reload, and the tab art comes back
+            -- with it, so it is re-asserted here rather than at build time --
+            -- over the snapshot, without building a list each pass.
+            -- Not `i`: that is the tab index of the loop this sits inside.
+            local art = tab._vcArt
+            if art then
+                for a = 1, #art do art[a]:SetAlpha(0) end
+            end
+            local selected = (tf.selectedTab or 1) == i
+            if tab._vcText then
+                if UI.Font then UI.Font(tab._vcText, 11) end
+                if selected then
+                    tab._vcText:SetTextColor(ac.r, ac.g, ac.b)
+                else
+                    tab._vcText:SetTextColor(0.72, 0.72, 0.78)
+                end
+            end
+            if tab._vcUnderline then tab._vcUnderline:SetShown(selected) end
+            if tab._vcPlate then
+                tab._vcPlate:SetColorTexture(selected and 0.14 or 0.10,
+                                             selected and 0.14 or 0.10,
+                                             selected and 0.18 or 0.13, 0.95)
+            end
+        end
+    end
+
+    local gf = _G.GlyphFrame
+    if not gf then return end
+    if not gf._vcGlyphHook then
+        gf._vcGlyphHook = true
+        gf:HookScript("OnShow", applyGlyphSkin)
+    end
+
+    -- The big rune circle is DIMMED, not deleted. It is what makes the page
+    -- recognisable as the glyph page, and an empty dark box would be a worse
+    -- answer than a loud one; desaturated and dark it reads as material.
+    local bg = _G.GlyphFrameBackground
+    if bg then
+        if bg.SetDesaturated then bg:SetDesaturated(true) end
+        bg:SetVertexColor(0.30, 0.30, 0.38, 1)
+        bg:SetAlpha(0.45)
+    end
+
+    for i = 1, 6 do
+        local sbg = _G["GlyphFrameGlyph" .. i .. "Background"]
+        if sbg then
+            if sbg.SetDesaturated then sbg:SetDesaturated(true) end
+            sbg:SetVertexColor(0.45, 0.45, 0.53, 1)
+        end
+        local ring = _G["GlyphFrameGlyph" .. i .. "Ring"]
+        if ring then
+            if ring.SetDesaturated then ring:SetDesaturated(true) end
+            ring:SetVertexColor(ac.r, ac.g, ac.b, 1)
+        end
+        -- Setting and Highlight stay untouched on purpose: the first is the
+        -- glyph's own artwork, the second is the feedback while one hangs on the
+        -- cursor, and both have to stay readable.
+    end
+end
+
+-- Kept under the old name: three call sites already ask for it.
+local function skinGlyphFrame()
+    applyGlyphSkin()
+end
+
 local function wireBlizzard()
     local tf = _G.PlayerTalentFrame or _G.TalentFrame
     if not tf or tf._vcuiTalentHook then return end
@@ -582,20 +897,36 @@ end
 
 local function onAddonLoaded(_, name)
     if name == "Blizzard_TalentUI" then wireBlizzard() end
+    -- Blizzard_GlyphUI is a SEPARATE load-on-demand addon (proven by the frame
+    -- stack: its source is Blizzard_GlyphUI.xml). Listening only for the talent
+    -- addon meant painting a window that did not exist yet.
+    if name == "Blizzard_TalentUI" or name == "Blizzard_GlyphUI" then
+        skinGlyphFrame()
+    end
+end
+
+-- The group icon follows the tree with the most points, so anything that can
+-- move a point invalidates it.
+local function onTalentChanged()
+    wipe(iconCache)
+    refreshAll()
 end
 
 function mod:OnEnable()
     wireBlizzard()
+    -- Blizzard_TalentUI is load-on-demand, but it may already be up when the
+    -- module is switched on mid-session.
+    skinGlyphFrame()
     mod:RegisterEvent("ADDON_LOADED",             onAddonLoaded)
-    mod:RegisterEvent("PLAYER_TALENT_UPDATE",     refreshAll)
-    mod:RegisterEvent("CHARACTER_POINTS_CHANGED", refreshAll)
+    mod:RegisterEvent("PLAYER_TALENT_UPDATE",     onTalentChanged)
+    mod:RegisterEvent("CHARACTER_POINTS_CHANGED", onTalentChanged)
     mod:RegisterEvent("SPELLS_CHANGED",           refreshAll)
     -- Snap back to the newly active group rather than leaving a preview open on
     -- the build the player just left. updateSpecTabs does the same on any other
     -- refresh, for the builds where this event never arrives.
     mod:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED", function()
         viewGroup = nil
-        refreshAll()
+        onTalentChanged()
     end)
 end
 

@@ -206,6 +206,22 @@ local function ensurePastePanel()
         if n > 0 and n == lastCount then
             local text = table.concat(buf)
             resetPaste()
+            -- A session may bring its OWN reader; the bar setups do. It answers
+            -- with an error line or with nothing, and owns whatever happens
+            -- afterwards -- there is no profile preview to show it.
+            if session and session.onText then
+                local err = session.onText(text)
+                if err then
+                    w.pasteEB:SetText("")
+                    w.pasteError:SetText("|cffff5555" .. tostring(err) .. "|r")
+                    return
+                end
+                w.pasteEB:SetText(string.format(L["String captured - %d characters."], #text))
+                w.pasteEB:ClearFocus()
+                w.pasteError:SetText("")
+                host:Hide()
+                return
+            end
             local payload, summaryOrErr = ns:DecodeProfileString(text)
             if not payload then
                 w.pasteEB:SetText("")
@@ -384,6 +400,22 @@ function ns.UI:ShowImportPreview(payload, summary)
 end
 
 -- onSuccess(name) runs after the profile has been created.
+-- The paste step WITHOUT the profile preview behind it, for features that read
+-- their own strings. onText gets the pasted text and returns an error line to
+-- show, or nothing to close the dialog.
+function ns.UI:ShowStringImportDialog(title, onText)
+    openShell(title or L["Import from string"])
+    ensurePastePanel()
+    session = { onText = onText }
+    -- The preview belongs to the profile path; a leftover from a previous
+    -- session must not sit under this one.
+    if previewPanel then previewPanel:Hide() end
+    pastePanel:Show()
+    if w.resetPaste then w.resetPaste() end
+    w.pasteEB:SetWidth(DIALOG_W - 2 * PAD - 26)
+    w.pasteEB:SetFocus()
+end
+
 function ns.UI:ShowProfileImportDialog(onSuccess)
     openShell(L["Import from string"])
     ensurePastePanel()

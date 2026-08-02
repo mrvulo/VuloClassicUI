@@ -74,6 +74,8 @@ fragen alle über `ns.Wrath.*`, damit die Antwort an einer Stelle steht:
 | `hasTalentTrees` | Wrath | `Modules/TalentView.lua` |
 | `hasReshapedProfessionFrames` | Wrath | `Modules/General.lua` (Berufsfenster-Kapsel) |
 | `hasFixedColumnSocialTabs` | Wrath | `Modules/FriendList.lua` |
+| `hasMovableCharacterFrame` | Wrath | `Modules/UnlockMode.lua` |
+| `hasReshapedPlayerFrame` | Wrath | `Modules/UnitFrames.lua` |
 
 Ein Feature, das es **nur** dort gibt, bekommt weiterhin eine eigene Datei mit
 einem Modultor am Kopf — `Modules/TalentView.lua` ist das Muster.
@@ -416,6 +418,203 @@ sie immer war. Beide Formen schreiben dieselben zwei gespeicherten Schlüssel,
 ein bestehendes Profil mit „nur bei Mauskontakt" liest sich also als dieser
 Modus und schuldet keine Wanderung.
 
+### 02.08.2026, neunte Runde — ein eigener Wrath-Client, und das Glyphenfenster
+
+**Die wichtigste Änderung dieser Runde ist keine Codezeile.** Der Besitzer
+betreibt seit heute einen Wrath-Client gegen einen lokalen 3.4.3-Server
+(TrinityCore). Der Chat sagt es, und der Frame Stack nennt als Quelle
+`Interface_Wrath/FrameXML/SparkleFrame.lua`. Damit ist die Wrath-Anatomie zum
+ersten Mal MESSBAR, statt aus einer Quelle erschlossen zu werden, die genau
+diese Dateien nicht enthält. Die fünf Rückfragen an den Melder kann er sich
+weitgehend selbst beantworten.
+
+**Erstes gemessenes Bodenmaterial** (aus seinem Frame Stack, nicht geraten):
+
+```
+GlyphFrame            GlyphFrameBackground        GlyphFrameSparkleFrame
+GlyphFrameGlyph5      GlyphFrameGlyph5Background  GlyphFrameGlyph5Highlight
+                      GlyphFrameGlyph5Ring        GlyphFrameGlyph5Setting
+PlayerTalentFrame     PlayerTalentFrameScrollFrame
+PlayerTalentFrameBackgroundTopLeft                PlayerTalentFrameTopRight
+```
+
+**Ein echter Fund aus seinem zweiten Bild:** der Talentgruppen-Knopf trug das
+Fragezeichen — den Platzhalter aus der ersten Runde — obwohl der Charakter
+11/5/55 verteilt hatte. `ns:TalentGroupIcon` liefert also auf einem echten
+Wrath-Client nichts: `C_SpecializationInfo` antwortet dort nicht wie auf dem
+Anniversary-Client. Der Platzhalter hat funktioniert wie gedacht (ehrlich statt
+falsch), war aber ein Symptom.
+
+Behoben mit einem klassischen Rückfall in `Modules/TalentView.lua`, der sich auf
+die eine Zahl stützt, die nicht misslesbar ist: **die Ränge, von uns selbst
+summiert.** Der Baum mit den meisten Punkten gewinnt, und sein Symbol wird aus
+`GetTalentTabInfo` geholt — nicht über eine Slot-Nummer, sondern über den ersten
+Wert, der nur eine Textur SEIN kann (Datei-Kennung über 1000 oder ein Pfad, der
+mit Interface beginnt). Beide bekannten Formen sind damit abgedeckt, ohne dass
+jemand wieder Slots zählen muss. Das Ergebnis liegt in einem Zwischenspeicher,
+den jede Talentänderung wegwirft.
+
+**Gebaut, Bitte des Besitzers:**
+
+1. **Ein Glyphen-Knopf** unter den Talentgruppen-Knöpfen, einen Abstand tiefer
+   und auf derselben Seite, auf die der Streifen gerade zeigt. Er ist bewusst
+   etwas abgesetzt: er öffnet ein anderes Fenster, und als dritte Talentwahl
+   gelesen zu werden wäre eine Lüge über seine Wirkung.
+2. **Der Weg zur Glyphenseite geht über die BESCHRIFTUNG des Reiters**, nicht
+   über einen Index: `GLYPHS` ist eine Client-Globale, das hält also in jeder
+   Sprache, und ein Client ohne diesen Reiter landet einfach auf dem
+   Talentfenster, ohne dass etwas bricht. Denselben Unterdrückungs-Merker
+   benutzt der vorhandene Blizzard-Knopf schon, samt seiner Falle: zeigt sich
+   das Fenster nicht, wird der Merker sofort zurückgenommen.
+3. **Anstrich für die Glyphenseite.** Blizzards Ecktexturen weg, unser
+   Hintergrund, Akzentstreifen und Schatten darauf. Der große grüne Runenkreis
+   wird ENTSÄTTIGT UND ABGEDUNKELT, nicht gelöscht: er ist es, woran man die
+   Seite erkennt, und ein leerer dunkler Kasten wäre die schlechtere Antwort als
+   ein lauter. Die Ringe der sechs Fassungen nehmen die Akzentfarbe. `Setting`
+   und `Highlight` bleiben unangetastet — das eine ist die Grafik der Glyphe
+   selbst, das andere die Rückmeldung, während eine am Mauszeiger hängt.
+
+Kein zusätzliches Client-Tor: die Datei steht ohnehin ganz hinter
+`ns.Wrath.hasTalentTrees`.
+
+**Im Spiel bestätigt:** der Glyphen-Knopf trägt sein Symbol
+(`Interface\Icons\INV_Inscription_Tradeskill01` existiert auf 3.4.3), und das
+Charakterfenster lässt sich verschieben.
+
+### 02.08.2026, elfte Runde — warum der Glyphen-Anstrich nicht griff
+
+Zwei Fehler, beide durch einen zweiten Frame Stack des Besitzers bewiesen, und
+beide lehrreich genug, um sie festzuhalten:
+
+1. **Das Glyphenfenster ist ein EIGENES Addon.** Der Stack nennt als Quelle
+   `Interface/AddOns/Blizzard_GlyphUI/Blizzard_GlyphUI.xml:171`, nicht
+   `Blizzard_TalentUI`. Wir horchten nur auf das Talent-Addon, strichen also ein
+   Fenster an, das es zu dem Zeitpunkt gar nicht gab, und stiegen still an
+   `if not gf then return end` aus. Jetzt wird auf BEIDE Addons gehorcht.
+2. **Der Rahmen malt sich neu.** `PlayerTalentFrame._vcBG` stand im Stack —
+   unser Hintergrund WAR da, Blizzards Pergament lag obendrauf. Die Eckgrafik
+   wird beim Seitenwechsel neu gesetzt, ein Einmalgriff verliert also gegen sie.
+   Der Anstrich ist jetzt wiederholbar und läuft bei jedem Anzeigen, bei
+   `PlayerTalentFrame_Update` und beim Öffnen über unseren Knopf erneut; nur
+   was einmal existieren muss (Hintergrund, Schatten, Akzentstreifen) ist
+   gegen Doppelbau gesichert.
+
+**Die Lehre, die über diesen Fall hinausgeht:** ein einmaliger Anstrich auf
+einem Blizzard-Fenster hält nur, solange dieses Fenster sich nicht selbst neu
+zeichnet. Wo es Reiter oder Seiten gibt, ist der Einmalgriff die falsche Form.
+
+Dazu wurde der Anstrich verbreitert: Porträt-Medaillon weg (es hält nichts
+mehr, wenn das Pergament fort ist), und die vier Reiter unten tragen jetzt die
+Form aus dem Freundesfenster — Grafik aus, dunkle Platte hinter der
+Beschriftung, Akzentlinie unter dem offenen. Auswahl UND Grafik werden bei
+jedem Durchlauf neu gesetzt, weil beide mit dem Reiterwechsel zurückkommen.
+
+### 02.08.2026 — die Freundesliste startet breit
+
+Der Wunsch ③ des Melders war die halbe Wahrheit: den Regler „Fenster
+verbreitern" gab es längst, und er ging schon immer bis 400. Er stand nur auf
+**0** — das Fenster kam also in Blizzards Breite, und der Wunsch ging nur für
+den in Erfüllung, der den Regler fand.
+
+Auf dieser Client-Generation ist der Startwert jetzt 160. Das ist eine
+Standardänderung, und ausnahmsweise schuldet sie **keine Migration** — was
+festgehalten gehört, weil die Regel sonst andersherum lautet: Profile werfen
+Werte weg, die dem Standard entsprechen. Wer vorher 160 eingestellt hatte,
+behält 160; wer bewusst 0 gewählt hat, weicht jetzt vom Standard ab und wird
+darum ausdrücklich gespeichert. Beide überleben.
+
+**Ein Stück aus dem Frame Stack, das sonst durchgerutscht wäre:**
+`FriendsFrameInset` steht dort direkt neben `FriendsFrame` — die versenkte
+Fläche, in der die Liste liegt. Trüge sie eine feste Breite, bliebe sie auf
+Blizzards Maß, während alles um sie herum wächst: ein dunkler Streifen die
+ganze rechte Seite hinunter. Ob sie fest ist, wird jetzt GEFRAGT statt
+angenommen — ab zwei Ankerpunkten spannt der Client sie zwischen die Kanten und
+sie folgt von allein, nur eine einpunktige wird mitgezogen.
+
+Damit ist ③ so weit erfüllt, wie es ohne die Spaltennamen der drei
+Roster-Register geht. Die bleiben offen; ein `/friendstate` mit offenem
+Gilden-Register liefert sie inzwischen selbst.
+
+### 02.08.2026 — Cooldown-Manager: OFFEN, erste Diagnose widerlegt
+
+Gemeldet mit Bild: Rachsucht (31884) eingetragen, Symbol erscheint, geht aber
+nie auf Abklingzeit und zeigt keinen Zeittext.
+
+**Erste Vermutung war falsch, und das gehört hierher.** Ich hatte angenommen,
+`GetSpellCooldown` nehme auf dieser Generation nur den Namen und antworte auf
+eine ID mit `nil`, was unser `a or 0` in ein plausibles „bereit" verwandelt
+hätte. Die Messung widerlegt es:
+
+```
+/run local a,b=GetSpellCooldown(31884) local c,d=GetSpellCooldown("Avenging Wrath") print("ID:",a,b,"NAME:",c,d)
+ID: 0 0   NAME: 0 0
+```
+
+Beide Formen antworten mit Zahlen, die ID wird also verstanden. Der Rückfall,
+den ich darauf gebaut hatte, ist zurückgenommen — Verteidigungscode für eine
+widerlegte Ursache verdeckt nur die echte.
+
+**Was die Messung NICHT klärt:** sie lief, während der Zauber bereit war, und
+`0, 0` ist dann für beide Formen die richtige Antwort. Die aussagekräftige
+Messung ist dieselbe Zeile UNMITTELBAR NACH dem Zünden.
+
+Offene Verdächtige, in dieser Reihenfolge zu prüfen:
+
+1. Antwortet `GetSpellCooldown(31884)` auf laufender Abklingzeit mit Startzeit
+   und Dauer? Wenn nein, liegt es an der Client-API und nicht an uns.
+2. Wenn ja: unter welcher Kennung liegt der Eintrag? Eine Zahl, ein Name, oder
+   in einer Gruppe, die nach AUREN sucht statt nach Abklingzeiten — dann würde
+   das Symbol beim laufenden Segen erscheinen und nie eine Abklingzeit zeigen.
+3. Erreicht der Auffrischlauf den Eintrag überhaupt?
+
+### 02.08.2026 — der Stufentext am Spielerfenster
+
+`applyPlayerTextPositions` verankert `PlayerLevelText` fest auf
+`CENTER, PlayerFrame, TOPLEFT, 52.5+BASE_X, -67+BASE_Y`. Diese Zahlen sind gegen
+EINE Rahmengrafik ausgemessen. Auf dieser Generation ist es eine andere, und der
+Client pflegt den Anker ohnehin selbst über `PlayerFrame_UpdateLevelTextAnchor`,
+das die Zahl je nach Ruhe- und PvP-Symbol verschiebt. Wir überschrieben also
+etwas, das bereits richtig war, und legten die Zahl neben das Porträt.
+
+`ns.Wrath.hasReshapedPlayerFrame` lässt genau diese beiden Anker stehen — den
+Stufentext und das daran hängende Ruhesymbol. Der übrige Anstrich des
+Spielerfensters bleibt unberührt: nur diese zwei waren gegen das alte Blatt
+geeicht, und nur diese zwei waren falsch.
+
+### 02.08.2026, zehnte Runde — das Charakterfenster wird verschiebbar
+
+Wunsch des Besitzers. **Fast nichts zu bauen**, weil das Rezept seit der
+Beutefenster-Runde (⑨ vom 01.08.) fertig danebenliegt: der `direct`-Pfad in
+`Modules/UnlockMode.lua`.
+
+`CharacterFrame` steht in derselben Lage wie `LootFrame`. Blizzards Edit Mode
+besitzt es nicht, also fallen beide Platzierungswege durch und nur der dritte
+greift: aus `UIPanelWindows` nehmen, `UIPanelLayout-defined` auf falsch,
+beweglich schalten, an UIParent hängen — und bei JEDEM Öffnen neu setzen, weil
+der Panel-Verwalter das Fenster sonst zurück in den Dock schiebt.
+
+Zwei Dinge, die von selbst stimmen und deshalb festgehalten gehören:
+
+- **Ein Kasten bewegt drei Reiter.** `CharacterFrame` ist der Behälter, der
+  Puppe, Ruf und Fertigkeiten trägt.
+- **Unsere eigenen Anbauten reisen mit.** Die Rechtserweiterung des modernen
+  Stils und die Loadouts-Seitenleiste hängen AN diesem Rahmen, nicht am
+  Bildschirm.
+
+Was das Tor hier wirklich kostet, steht in `Core/Wrath.lua`: ein Fenster aus dem
+UIPanel-Verwalter zu nehmen ändert, wie sich die ÜBRIGEN Panels darum anordnen.
+Das ist der Grund, es nicht ungefragt jedem Client zu geben — nicht eine
+Eigenschaft des Rahmens.
+
+**Beobachtung am Rande, nicht behoben:** die Beschriftungen der Verschiebe-Kästen
+laufen über `L[def.label]` mit Schlüsseln wie `LOOT`, `PLAYER`, `BUFFS` — und
+keiner davon steht in den Sprachdateien, sie erscheinen also überall englisch.
+`tools/check.js` kann das nicht sehen, weil es ein berechneter Zugriff ist.
+Alle diese Namen sind zugleich lokalisierte Client-Globale; ein
+`_G[def.label] or L[def.label] or def.label` würde sechs Kästen auf einen
+Schlag übersetzen. Für `CHARACTER` ist der Schlüssel in dieser Runde angelegt,
+der Rest wartet auf eine Entscheidung.
+
 ## Offene Punkte
 
 - **Cata und der Todesritter.** `hasDeathKnight` und `hasRunicPower` sind
@@ -442,6 +641,9 @@ Modus und schuldet keine Wanderung.
   Client sie auch beachtet, kann nur der Melder sehen: Knopf 2 anklicken und
   prüfen, ob die Ränge sich ändern. Tut er es nicht, zeigt die Vorschau still
   die aktive Wahl.
-- **Alles aus den Runden 31.07. und 01.08. ist im Spiel ungeprüft.** Wir können
-  diesen Client nicht selbst testen: Regionssperre, chinesisches Konto. Jede
-  Bestätigung kommt vom Melder.
+- **Alles aus den Runden 31.07. und 01.08. ist im Spiel ungeprüft.** Titan
+  Reforged selbst bleibt unerreichbar (Regionssperre, chinesisches Konto), aber
+  seit dem 02.08.2026 ist das nicht mehr dasselbe wie „unprüfbar": der Besitzer
+  betreibt einen eigenen Wrath-Client gegen einen lokalen 3.4.3-Server, siehe
+  die neunte Runde. Wrath-ANATOMIE ist dort messbar; was Titan davon abweichend
+  macht, weiterhin nur beim Melder.

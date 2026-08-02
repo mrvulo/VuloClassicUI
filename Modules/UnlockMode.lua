@@ -39,6 +39,14 @@ local BLIZZ = {
 if ns.Wrath.hasMovableLoot then
     BLIZZ[#BLIZZ + 1] = { key = "loot", name = "LootFrame", label = "LOOT", direct = true }
 end
+-- The character window, on the same terms and for the same reason (user wish,
+-- 02.08.2026). CharacterFrame is the container that carries the paper doll, the
+-- reputation and the skills tabs, so one box moves all three -- and our own
+-- additions ride along by themselves: the modern style's right-hand extension
+-- and the loadouts sidebar are anchored TO that frame, not to the screen.
+if ns.Wrath.hasMovableCharacterFrame then
+    BLIZZ[#BLIZZ + 1] = { key = "character", name = "CharacterFrame", label = "CHARACTER", direct = true }
+end
 local anchors = {}
 
 -- Direct placement for frames outside the Edit Mode system. Anchored to

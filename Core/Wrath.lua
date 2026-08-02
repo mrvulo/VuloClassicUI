@@ -70,6 +70,30 @@ W.hasMovableLoot = ns.isWrath
 -- middle-click shortcut the earlier clients get.
 W.hasTotemicRecall = ns.isWrath
 
+-- The character window can be placed by hand. Same standing as the loot window
+-- above: Blizzard's Edit Mode does not own it, so both placement paths fall
+-- through and only the `direct` one in Modules/UnlockMode.lua reaches it -- it
+-- is an unprotected UIPanel, which the panel manager re-docks on every open,
+-- and that is exactly what the direct path already handles.
+--
+-- Wrath-family only, by the owner's decision (02.08.2026). Nothing about the
+-- frame demands the limit; it is where the wish came from, and taking a window
+-- out of the UIPanel manager changes how the OTHER panels arrange themselves
+-- around it, which is not a change to hand to every client unasked.
+W.hasMovableCharacterFrame = ns.isWrath
+
+-- The player frame is not the art our offsets were measured against, and the
+-- client keeps that frame's level number anchored itself through
+-- PlayerFrame_UpdateLevelTextAnchor -- which moves it depending on whether the
+-- rest and PvP icons are up. Our fixed pair of numbers (52.5 / -67 against the
+-- frame's top-left) put the number beside the portrait instead of into its slot,
+-- reported with a screenshot 02.08.2026.
+--
+-- So the text positioning stands down here and the client is left to do it. The
+-- REST of the player reskin is untouched: only these two anchors were calibrated
+-- against the older sheet, and only they were wrong.
+W.hasReshapedPlayerFrame = ns.isWrath
+
 -- Three talent trees side by side, dual specialisation and glyphs. The whole
 -- replacement window is a Wrath-only feature and lives in its own module.
 W.hasTalentTrees = ns.isWrath

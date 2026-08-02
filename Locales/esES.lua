@@ -3190,6 +3190,21 @@ local function T() return {
     ["On the Wrath client the module stands down completely and the client keeps its own window. Our restyle addresses Blizzard's widgets by name and by region number, and behind those names that client has a different anatomy: black holes where the hidden regions used to be, a stretched title bar, dropdowns over the recipe list — and no error, because nothing throws, it simply lands on the wrong widgets."] = "En el cliente Wrath el módulo se retira por completo y el cliente conserva su propia ventana. Nuestro rediseño se dirige a los elementos de Blizzard por nombre y por número de región, y detrás de esos nombres ese cliente tiene otra anatomía: agujeros negros donde estaban las regiones ocultas, una barra de título estirada, desplegables sobre la lista de recetas — y ningún error, porque nada falla, simplemente aterriza en los elementos equivocados.",
     ["Talent group buttons run down the right edge, one for each group you have bought. Left-click shows a group, right-click activates it, the same split Blizzard's own window uses. Talents can only be learned in the active group, so a click in the preview does nothing and the tooltip says so beforehand."] = "Por el borde derecho corren botones de grupos de talentos, uno por cada grupo que hayas comprado. Clic izquierdo muestra un grupo, clic derecho lo activa, el mismo reparto que usa la propia ventana de Blizzard. Los talentos solo pueden aprenderse en el grupo activo, así que un clic en la vista previa no hace nada y la ayuda emergente lo dice antes.",
     ["The tab carries a book instead of a question mark. That mark is Blizzard's placeholder for a missing icon and read like a defect."] = "La pestaña lleva un libro en vez de un signo de interrogación. Esa marca es el marcador de posición de Blizzard para un icono ausente y parecía un defecto.",
+    ["Glyphs"] = "Glifos",
+    ["Opens the glyph page of the client's own talent window."] = "Abre la página de glifos de la propia ventana de talentos del cliente.",
+    ["CHARACTER"] = "Personaje",
+    ["Packs the selected bar setup into a string you can pass on. Slots, macros and key bindings travel with it."] = "Empaqueta el conjunto de barras seleccionado en una cadena que puedes compartir. Las asignaciones, las macros y los atajos viajan con ella.",
+    ["Reads a bar setup string into your library. Putting it onto your bars stays a separate step."] = "Lee una cadena de conjunto de barras y la añade a tu biblioteca. Aplicarla a tus barras sigue siendo un paso aparte.",
+    ["The bar setup string is damaged."] = "La cadena del conjunto de barras está dañada.",
+    ["This is not a bar setup string."] = "Esto no es una cadena de conjunto de barras.",
+    ["Bar setup '%s' imported."] = "Conjunto de barras '%s' importado.",
+    ["Macros left alone: the switch above is off."] = "Macros sin tocar: el interruptor de arriba está desactivado.",
+    ["Macros: %d restored, |cffff8800%d failed|r -- the macro list may be full."] = "Macros: %d restauradas, |cffff8800%d fallidas|r: puede que la lista de macros esté llena.",
+    ["Macros: %d restored."] = "Macros: %d restauradas.",
+    ["Key bindings left alone: the switch above is off."] = "Atajos sin tocar: el interruptor de arriba está desactivado.",
+    ["Key bindings: %d applied."] = "Atajos de teclado: %d aplicados.",
+    ["Bar setup '%s' saved: %d slots, %d macros, %d key bindings."] = "Conjunto de barras '%s' guardado: %d espacios, %d macros, %d atajos de teclado.",
+    ["|cffff8800No key bindings were captured.|r This client may not report them."] = "|cffff8800No se capturó ningún atajo de teclado.|r Puede que este cliente no los informe.",
 } end
 
 ns:RegisterLocale("esES", T)

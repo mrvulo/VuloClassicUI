@@ -23,7 +23,16 @@ local mod = ns:RegisterModule("friendlist", {
         factionTint     = true,
         autoAccept      = false,
         autoAcceptGroup = false,
-        extraWidth      = 0,
+        -- The slider has always gone to 400; it just started at nothing, so the
+        -- window shipped at Blizzard's width and the reporter's wish only came
+        -- true for whoever found the slider. On this client generation it starts
+        -- wide (owner's decision, 02.08.2026); everywhere else nothing changes.
+        --
+        -- No migration is owed, and that is worth spelling out: profiles strip
+        -- values equal to the default, so someone who had already set 160 keeps
+        -- 160, and someone who deliberately set 0 now differs from the default
+        -- and is stored explicitly. Both survive.
+        extraWidth      = ns.Wrath.is and 160 or 0,
     },
 })
 
@@ -622,18 +631,42 @@ local function applyFrameWidth()
     if delta ~= 0 and not widthAllowedOnTab() then delta = 0 end
     if delta == 0 and not widthBase then return end   -- never touched: leave Blizzard alone
     local scroll = _G.FriendsListFrameScrollFrame or _G.FriendsFrameFriendsScrollFrame
+    -- The sunken panel the list sits in. A frame stack from a running Wrath
+    -- client (02.08.2026) put FriendsFrameInset right next to FriendsFrame, and
+    -- a fixed-width inset would have kept Blizzard's width while everything
+    -- around it grew -- a dark gutter down the right side.
+    --
+    -- Whether it IS fixed is asked, not assumed: two or more anchor points mean
+    -- the client stretches it between edges and it follows by itself, so only a
+    -- one-point inset is resized here.
+    local inset = _G.FriendsFrameInset
+    if inset and inset.GetNumPoints and inset:GetNumPoints() >= 2 then inset = nil end
     if not widthBase then
+        -- `ff:GetWidth() or 338` never reached its fallback: GetWidth answers
+        -- with a NUMBER, and zero is true in Lua. That was harmless while the
+        -- slider started at nothing, because this whole function returned early
+        -- -- but with a non-zero starting width it runs at OnEnable, possibly
+        -- before the frame has ever been laid out, and would have carved the
+        -- base down to zero and left a 160-point sliver of a window.
+        --
+        -- So the base is only taken once the frame reports a width that can
+        -- actually be one. Until then nothing is captured and nothing is set;
+        -- the next call (show, tab switch, slider) tries again.
+        local w = ff:GetWidth() or 0
+        if w < 50 then return end
         local lf = _G.FriendsListFrame
         widthBase = {
-            frame  = ff:GetWidth() or 338,
+            frame  = w,
             scroll = scroll and scroll:GetWidth() or nil,
             list   = (lf and lf ~= scroll) and lf:GetWidth() or nil,
+            inset  = inset and inset:GetWidth() or nil,
         }
     end
     ff:SetWidth(widthBase.frame + delta)
     if scroll and widthBase.scroll then scroll:SetWidth(widthBase.scroll + delta) end
     local lf = _G.FriendsListFrame
     if lf and widthBase.list then lf:SetWidth(widthBase.list + delta) end
+    if inset and widthBase.inset then inset:SetWidth(widthBase.inset + delta) end
     mod._widthDelta = delta
 end
 
