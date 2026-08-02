@@ -1219,6 +1219,10 @@ local function createSetRow(parent, index)
 
     btn.selection = btn:CreateTexture(nil, "BACKGROUND")
     btn.selection:SetAllPoints(btn)
+    btn.selBar = btn:CreateTexture(nil, "ARTWORK")
+    btn.selBar:SetPoint("TOPLEFT", btn, "TOPLEFT", 0, 0)
+    btn.selBar:SetPoint("BOTTOMLEFT", btn, "BOTTOMLEFT", 0, 0)
+    btn.selBar:SetWidth(3)
     -- Painted through a function rather than baked, so a style switch can
     -- repaint rows that already exist (see RestyleLoadoutsSidebar).
     btn._paintSelection = function()
@@ -1241,14 +1245,12 @@ local function createSetRow(parent, index)
         else
             btn.selection:SetColorTexture(r, g, b2, a)
         end
+        -- Same hue as the backing, at full strength -- the bar must follow the
+        -- style switch too, otherwise the olive Classic+ row keeps a purple edge.
+        btn.selBar:SetColorTexture(r, g, b2, 1)
     end
     btn._paintSelection()
     btn.selection:Hide()
-    btn.selBar = btn:CreateTexture(nil, "ARTWORK")
-    btn.selBar:SetPoint("TOPLEFT", btn, "TOPLEFT", 0, 0)
-    btn.selBar:SetPoint("BOTTOMLEFT", btn, "BOTTOMLEFT", 0, 0)
-    btn.selBar:SetWidth(3)
-    btn.selBar:SetColorTexture(ac2.r, ac2.g, ac2.b, 1)
     btn.selBar:Hide()
 
     btn.hl = btn:CreateTexture(nil, "BACKGROUND")
