@@ -134,15 +134,32 @@ local H = mod.helpers
 
 function H.GetOwner() return _G["ArenaEnemyFrames"] end
 
+-- The five unit tokens and the five frame names, spelled once. Both were built
+-- with a concatenation at every use, and the combat log handlers do it five
+-- times per event -- in a raid that is thousands of throwaway strings a second
+-- for two lists that can never change.
+ns.ARENA_UNITS = { "arena1", "arena2", "arena3", "arena4", "arena5" }
+local FRAME_NAMES = {
+    "ArenaEnemyFrame1", "ArenaEnemyFrame2", "ArenaEnemyFrame3",
+    "ArenaEnemyFrame4", "ArenaEnemyFrame5",
+}
+
+-- Looked up rather than cached: Blizzard_ArenaUI loads on demand, so a nil
+-- answer here must not become the permanent one.
+function H.Frame(i)
+    local name = FRAME_NAMES[i]
+    return name and _G[name] or nil
+end
+
 function H.ForEach(fn)
     for i = 1, 5 do
-        local f = _G["ArenaEnemyFrame" .. i]
+        local f = _G[FRAME_NAMES[i]]
         if f then fn(f, i) end
     end
 end
 
 function H.GetUnit(i)
-    return "arena" .. i
+    return ns.ARENA_UNITS[i]
 end
 
 function H.GetArenaBars(frame)
@@ -284,10 +301,51 @@ local function removeEvents()
     mod._eventsLive = false
 end
 
+-- ---------------------------------------------------------------------------
+-- Zone-gated subscriptions.
+--
+-- The combat log is the hottest event in the game, so three submodules take it
+-- only for as long as the player is inside an arena. They used to do that with
+-- a direct ns:RegisterEvent and a private flag, which put those handlers in NO
+-- registry at all: not in mod._events, and not in the per-module list that
+-- ns:ModUnregisterAllEvents walks. Switching the module off inside an arena
+-- therefore left all three subscribed for the rest of the session -- and the
+-- one handler that would have taken them out on the way through the gate had
+-- just been unregistered along with everything else.
+--
+-- Two rules, and both matter: OnDisable takes the live ones out while keeping
+-- what each submodule WANTS, and OnEnable restores exactly those again rather
+-- than every subscription that was ever asked for.
+local dynList, dynWant, dynLive = {}, {}, {}
+
+local function syncDynEvents()
+    for i = 1, #dynList do
+        local d = dynList[i]
+        local want = mod._eventsLive and dynWant[d.fn] or false
+        if want ~= (dynLive[d.fn] or false) then
+            dynLive[d.fn] = want
+            if want then
+                ns:RegisterEvent(d.event, d.fn)
+            else
+                ns:UnregisterEvent(d.event, d.fn)
+            end
+        end
+    end
+end
+
+function mod.SetDynEvent(event, fn, on)
+    if dynWant[fn] == nil then
+        dynList[#dynList + 1] = { event = event, fn = fn }
+    end
+    dynWant[fn] = on and true or false
+    syncDynEvents()
+end
+
 function mod:OnEnable()
     -- before OnEnableCore, so the handlers it wires on a first enable are not
     -- also caught by the re-install loop and registered twice
     reinstallEvents()
+    syncDynEvents()
     if self.OnEnableCore then self:OnEnableCore() end
     for _, h in ipairs(self._onEnableHandlers) do
         local ok, err = pcall(h, self)
@@ -304,6 +362,7 @@ end
 
 function mod:OnDisable()
     removeEvents()
+    syncDynEvents()
     for _, h in ipairs(self._onDisableHandlers) do
         local ok, err = pcall(h, self)
         if not ok then
@@ -499,7 +558,7 @@ local function installFontHooks()
     hooksecurefunc("TextStatusBar_UpdateTextString", function(bar)
         if not mod._enabled or not bar then return end
         for i = 1, 5 do
-            local f = _G["ArenaEnemyFrame" .. i]
+            local f = H.Frame(i)
             if f then
                 local hb, pb = H.GetArenaBars(f)
                 if bar == hb then
@@ -650,7 +709,7 @@ local function showTestArenaFrames(show)
             if nameText then nameText:SetText(L["ArenaPlayer"] .. i) end
         else
             -- only kill phantom frames without a unit; real ones stay Blizzard-managed
-            if not (UnitExists and UnitExists("arena" .. i)) and not ns:InCombat() then
+            if not (UnitExists and UnitExists(ns.ARENA_UNITS[i])) and not ns:InCombat() then
                 frame:Hide()
             end
         end
@@ -746,7 +805,7 @@ function mod:Refresh()
 
     if not unlocked and not ns:InCombat() then
         H.ForEach(function(frame, i)
-            if not (UnitExists and UnitExists("arena" .. i)) then frame:Hide() end
+            if not (UnitExists and UnitExists(ns.ARENA_UNITS[i])) then frame:Hide() end
         end)
     end
 
@@ -876,7 +935,7 @@ local reportedLayoutError = false
 local function anchorSlots(owner, slots, spacing, grow)
     local previous = nil
     for _, slotIndex in ipairs(slots) do
-        local frame = _G["ArenaEnemyFrame" .. slotIndex]
+        local frame = H.Frame(slotIndex)
         if frame then
             local ox, oy = slotOffset(slotIndex)
             frame:ClearAllPoints()
@@ -917,7 +976,7 @@ local function applyLayout()
     -- cover them at one particular spacing.
     local totalH, maxW, counted = 0, 0, 0
     for _, slotIndex in ipairs(slots) do
-        local frame = _G["ArenaEnemyFrame" .. slotIndex]
+        local frame = H.Frame(slotIndex)
         if frame then
             local h, w = frame:GetHeight() or 0, frame:GetWidth() or 0
             if h > 0 then totalH = totalH + h; counted = counted + 1 end
@@ -1267,7 +1326,7 @@ local function ev_UNIT_PORTRAIT_UPDATE(_, unit)
     if not mod._enabled then return end
     if unit and unit:match("^arena[1-5]$") then
         local i = tonumber(unit:match("arena(%d)"))
-        local frame = _G["ArenaEnemyFrame" .. i]
+        local frame = H.Frame(i)
         if frame then applyToFrame(frame, i) end
     end
 end
@@ -1426,7 +1485,7 @@ end
 local function startCooldown(unit, duration)
     local i = tonumber(unit:match("^arena(%d)$"))
     if not i then return end
-    local arenaFrame = _G["ArenaEnemyFrame" .. i]
+    local arenaFrame = H.Frame(i)
     if not arenaFrame then return end
     local tf = ensureTrinketFrame(arenaFrame, i)
     mod.LayoutSideIcons(arenaFrame, i)
@@ -1463,7 +1522,7 @@ end
 local function requestTrinketInfo()
     if not apiTrinketAvailable() then return end
     for i = 1, 5 do
-        local unit = "arena" .. i
+        local unit = ns.ARENA_UNITS[i]
         if UnitExists(unit) then pcall(C_PvP.RequestCrowdControlSpell, unit) end
     end
 end
@@ -1486,7 +1545,7 @@ local function refreshTrinketFromAPI(unit)
     if not i then return end
     local start, dur = apiTrinketCooldown(unit)
     if not start then return end
-    local arenaFrame = _G["ArenaEnemyFrame" .. i]
+    local arenaFrame = H.Frame(i)
     if not arenaFrame then return end
     local tf = ensureTrinketFrame(arenaFrame, i)
     mod.LayoutSideIcons(arenaFrame, i)
@@ -1515,7 +1574,7 @@ end
 
 local function refreshAllTrinketsFromAPI()
     for i = 1, 5 do
-        local unit = "arena" .. i
+        local unit = ns.ARENA_UNITS[i]
         if UnitExists(unit) then refreshTrinketFromAPI(unit) end
     end
 end
@@ -1528,7 +1587,7 @@ local function onCombatLog()
     if not TRINKET_SPELLS[spellId] then return end
 
     for i = 1, 5 do
-        local unit = "arena" .. i
+        local unit = ns.ARENA_UNITS[i]
         if UnitExists(unit) and UnitGUID(unit) == sourceGUID then
             startCooldown(unit, TRINKET_SPELLS[spellId])
             return
@@ -1556,18 +1615,15 @@ local function onCLEU()
     onCombatLog()
 end
 
-local cleuActive = false
 local function setCombatLog(active)
-    if active == cleuActive then return end
-    cleuActive = active
-    if active then
-        ns:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", onCLEU)
-    else
-        ns:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED", onCLEU)
-    end
+    mod.SetDynEvent("COMBAT_LOG_EVENT_UNFILTERED", onCLEU, active)
 end
 
 local function ev_PLAYER_ENTERING_WORLD()
+    -- The handlers of this file are registered at LOAD, so a module that was
+    -- never enabled still gets them. Without this guard a switched-off module
+    -- subscribes to the combat log on entering an arena.
+    if not mod._enabled then return end
     local inArena = false
     if IsInInstance then
         local _, instanceType = IsInInstance()
@@ -1583,6 +1639,11 @@ local function ev_PLAYER_ENTERING_WORLD()
     end
 end
 mod.RegEvent("PLAYER_ENTERING_WORLD", ev_PLAYER_ENTERING_WORLD)
+-- Enabling counts as arriving: the zone decision lived in the loading screen
+-- alone, so a module switched on INSIDE an arena took no combat log until the
+-- next one. It also re-decides after a disable, which is what keeps a stale
+-- "wanted" subscription from being restored in the wrong zone.
+mod:RegisterOnEnable(ev_PLAYER_ENTERING_WORLD)
 local function ev_ARENA_OPPONENT_UPDATE_2(_, unit, eventType)
     if eventType == "seen" then
         -- Ask the client what it knows; one opponent walking into view must not
@@ -1773,24 +1834,47 @@ local function getDRLevel(applied)
     return 4
 end
 
+-- Hoisted, and the list is refilled rather than rebuilt: this runs twice a
+-- second for every tracked opponent, so a comparator closure and a fresh table
+-- per pass are rubbish the player pays for in an arena.
+local function byCategory(a, b) return a.cat < b.cat end
+local visible = {}
+
 local function updateDRDisplay(unit)
     if not mod.db.drEnabled then return end
     local i = tonumber(unit:match("^arena(%d)$"))
     if not i then return end
-    local arenaFrame = _G["ArenaEnemyFrame" .. i]
+    local arenaFrame = mod.helpers.Frame(i)
     if not arenaFrame then return end
 
     local container = ensureDRContainer(arenaFrame, i)
-    mod.LayoutSideIcons(arenaFrame, i)
 
     local state = drState[unit] or {}
-    local visible = {}
+    local now = GetTime()
+    local n = 0
     for cat, data in pairs(state) do
-        if data.expires > GetTime() then
-            table.insert(visible, { cat = cat, data = data })
+        if data.expires > now then
+            n = n + 1
+            local slot = visible[n]
+            if slot then
+                slot.cat, slot.data = cat, data
+            else
+                visible[n] = { cat = cat, data = data }
+            end
         end
     end
-    table.sort(visible, function(a, b) return a.cat < b.cat end)
+    for k = n + 1, #visible do visible[k] = nil end
+    table.sort(visible, byCategory)
+
+    -- Placed once, not on every tick. The row reserves the width of a FULL set
+    -- of categories (drRowWidth), so its position cannot move as icons come and
+    -- go -- and every setting that could move it goes through RefreshSideIcons
+    -- already. This used to run three getters, three pcalls and an anchor pass
+    -- per opponent, twice a second, to arrive at the same spot every time.
+    if not container._placed then
+        container._placed = true
+        mod.LayoutSideIcons(arenaFrame, i)
+    end
 
     for _, icon in pairs(container.icons) do icon:Hide() end
 
@@ -1798,19 +1882,26 @@ local function updateDRDisplay(unit)
     -- icon would be laid straight across the health bar.
     local leftSide = not mod.IsSideStripRight()
 
+    local size = mod.db.drSize or 24
     local x = 0
-    for _, entry in ipairs(visible) do
+    for vi = 1, #visible do
+        local entry = visible[vi]
         local icon = container.icons[entry.cat]
         if not icon then
             icon = createDRIcon(container, entry.cat)
             container.icons[entry.cat] = icon
         end
-        icon:SetSize(mod.db.drSize, mod.db.drSize)
-        icon:ClearAllPoints()
-        if leftSide then
-            icon:SetPoint("RIGHT", container, "RIGHT", -x, 0)
-        else
-            icon:SetPoint("LEFT", container, "LEFT", x, 0)
+        -- Anchors only when they actually differ: two of these three values are
+        -- the same on every tick of a running row.
+        if icon._size ~= size or icon._x ~= x or icon._left ~= leftSide then
+            icon._size, icon._x, icon._left = size, x, leftSide
+            icon:SetSize(size, size)
+            icon:ClearAllPoints()
+            if leftSide then
+                icon:SetPoint("RIGHT", container, "RIGHT", -x, 0)
+            else
+                icon:SetPoint("LEFT", container, "LEFT", x, 0)
+            end
         end
 
         -- resolved once per icon; the 0.5s ticker must not rescan DR_SPELLS
@@ -1828,12 +1919,22 @@ local function updateDRDisplay(unit)
         end
 
         local level = getDRLevel(entry.data.applied)
-        icon.border:SetColorTexture(getDRColor(level))
+        if icon._level ~= level then
+            icon._level = level
+            icon.border:SetColorTexture(getDRColor(level))
+        end
 
-        icon.cd:SetCooldown(entry.data.appliedTime, DR_RESET_TIME)
+        -- The swipe is re-armed only when the effect was actually re-applied.
+        -- Setting the same cooldown twice a second makes it stutter -- the same
+        -- fault the interrupt bar carries a guard against, one capsule down.
+        local appliedAt = entry.data.appliedTime
+        if icon._cdStart ~= appliedAt then
+            icon._cdStart = appliedAt
+            icon.cd:SetCooldown(appliedAt, DR_RESET_TIME)
+        end
         icon:Show()
 
-        x = x + mod.db.drSize + 2
+        x = x + size + 2
     end
 end
 
@@ -1874,7 +1975,7 @@ local function onCombatLog()
     if not DR_SPELLS[spellId] then return end
 
     for i = 1, 5 do
-        local unit = "arena" .. i
+        local unit = ns.ARENA_UNITS[i]
         if UnitExists(unit) and UnitGUID(unit) == destGUID then
             onAuraApplied(unit, spellId)
             return
@@ -1922,18 +2023,15 @@ local function onCLEU()
     onCombatLog()
 end
 
-local cleuActive = false
 local function setCombatLog(active)
-    if active == cleuActive then return end
-    cleuActive = active
-    if active then
-        ns:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", onCLEU)
-    else
-        ns:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED", onCLEU)
-    end
+    mod.SetDynEvent("COMBAT_LOG_EVENT_UNFILTERED", onCLEU, active)
 end
 
 local function ev_PLAYER_ENTERING_WORLD_2()
+    -- see the trinket capsule: file-scope registration means a module that is
+    -- off still receives this, and it would start a ticker and take the combat
+    -- log for a feature nobody switched on
+    if not mod._enabled then return end
     resetAll()
     local inArena = false
     if IsInInstance then
@@ -1944,6 +2042,9 @@ local function ev_PLAYER_ENTERING_WORLD_2()
     setCombatLog(inArena)
 end
 mod.RegEvent("PLAYER_ENTERING_WORLD", ev_PLAYER_ENTERING_WORLD_2)
+-- Same as the trinket capsule: enabling inside an arena has to arm the expiry
+-- ticker and the combat log, not wait for the next loading screen.
+mod:RegisterOnEnable(ev_PLAYER_ENTERING_WORLD_2)
 
 mod:AddOptionsSection("dr", function()
     return {
@@ -2069,7 +2170,7 @@ end
 local function startCast(unit, channeling)
     local i = tonumber(unit:match("^arena(%d)$"))
     if not i then return end
-    local arenaFrame = _G["ArenaEnemyFrame" .. i]
+    local arenaFrame = H.Frame(i)
     if not arenaFrame then return end
     local cb = ensureCastbar(arenaFrame, i)
     cb:SetSize(mod.db.castbarWidth, mod.db.castbarHeight)
@@ -2204,7 +2305,14 @@ mod:AddOptionsSection("castbar", function()
             type = "slider", label = L["Height"],
             min = 8, max = 30, step = 1,
             get = function() return mod.db.castbarHeight end,
-            set = function(_, v) mod.db.castbarHeight = v; refreshCastbars() end,
+            -- The dispel icon is anchored below the castbar and reads this same
+            -- height, so it has to follow -- otherwise it sits on the bar until
+            -- something else happens to re-place it.
+            set = function(_, v)
+                mod.db.castbarHeight = v
+                refreshCastbars()
+                if mod.RefreshDispels then mod.RefreshDispels() end
+            end,
         },
     }
 end)
@@ -2290,7 +2398,7 @@ local function updateRacial(arenaFrame, i)
     local f = ensureRacialFrame(arenaFrame, i)
     mod.LayoutSideIcons(arenaFrame, i)
     if not d.racialEnabled then f:Hide(); return end
-    local unit = "arena" .. i
+    local unit = ns.ARENA_UNITS[i]
     local race = UnitExists(unit) and select(2, UnitRace(unit)) or nil
     local spell = race and RACE_SPELL[race]
     if not spell then f:Hide(); return end
@@ -2306,7 +2414,7 @@ function mod.RacialUsed(unit, spellId)
     local dur = RACIAL_CD[spellId]
     if not dur or not mod.db.racialEnabled then return end
     local i = tonumber(unit:match("^arena(%d)$") or "")
-    local arenaFrame = i and _G["ArenaEnemyFrame" .. i]
+    local arenaFrame = i and H.Frame(i)
     if not arenaFrame then return end
     local f = ensureRacialFrame(arenaFrame, i)
     mod.LayoutSideIcons(arenaFrame, i)
@@ -2562,7 +2670,7 @@ local function updateAuraIcon(arenaFrame, i)
     if not mod._enabled then return end
     local f = ensureAuraFrame(arenaFrame, i)
     if not mod.db.auraIconEnabled then f:Hide(); return end
-    local unit = "arena" .. i
+    local unit = ns.ARENA_UNITS[i]
     if not UnitExists(unit) then f:Hide(); return end
     local a = bestAura(unit)
     if not a then f:Hide(); return end
@@ -2584,7 +2692,7 @@ mod:OnArenaFramesReady(updateAuraIcon)
 
 function mod.AuraIconUpdate(unit)
     local i = tonumber(unit and unit:match("^arena(%d)$") or "")
-    local arenaFrame = i and _G["ArenaEnemyFrame" .. i]
+    local arenaFrame = i and H.Frame(i)
     if arenaFrame then updateAuraIcon(arenaFrame, i) end
 end
 
@@ -2673,7 +2781,7 @@ function mod.DispelUsed(unit, spellId)
     local dur = DISPEL_CD[spellId]
     if not dur or not mod.db.dispelEnabled then return end
     local i = tonumber(unit:match("^arena(%d)$") or "")
-    local arenaFrame = i and _G["ArenaEnemyFrame" .. i]
+    local arenaFrame = i and H.Frame(i)
     if not arenaFrame then return end
     local f = ensureDispelFrame(arenaFrame, i)
     layoutDispel(f, arenaFrame)
@@ -2762,7 +2870,7 @@ local ticker
 local function applyRange()
     if not (mod._enabled and mod.db.rangeEnabled) then return end
     H.ForEach(function(frame, i)
-        local unit = "arena" .. i
+        local unit = ns.ARENA_UNITS[i]
         if not UnitExists(unit) then return end
         frame:SetAlpha(inRange(unit) and 1 or (mod.db.rangeAlpha or 0.45))
     end)
@@ -2830,6 +2938,44 @@ end
 -- change and read as a switch that does nothing. It exists to avoid doubled
 -- numbers when a cooldown-count addon is present, and haveCooldownAddon below
 -- already handles that case on its own.
+-- ONE driver for every cooldown text in this module, not an OnUpdate per frame.
+-- Twenty icons -- trinket, racial, dispel and aura across five opponents --
+-- meant twenty handlers at 20 Hz, each asking the client for its cooldown
+-- times. The shared ticker runs at 10 Hz, which is all a tenth-of-a-second
+-- readout can show, and skips whatever is not on screen.
+local styledCDs = {}
+local cdTicker
+
+local function paintCooldownText(cd)
+    local fs = cd._vcText
+    if not fs then return end
+    local start, dur = cd:GetCooldownTimes()
+    if not start or start == 0 or not dur or dur == 0 then
+        if cd._vcLast ~= "" then cd._vcLast = ""; fs:SetText("") end
+        return
+    end
+    local left = (start + dur) / 1000 - GetTime()
+    if left <= 0 then
+        if cd._vcLast ~= "" then cd._vcLast = ""; fs:SetText("") end
+    elseif left < 6 then
+        fs:SetFormattedText("%.1f", left)
+        if cd._vcLast ~= "hot" then cd._vcLast = "hot"; fs:SetTextColor(1, 0.4, 0.3) end
+    elseif left < 60 then
+        fs:SetFormattedText("%d", left)
+        if cd._vcLast ~= "warm" then cd._vcLast = "warm"; fs:SetTextColor(1, 1, 1) end
+    else
+        fs:SetFormattedText("%d:%02d", left / 60, left % 60)
+        if cd._vcLast ~= "warm" then cd._vcLast = "warm"; fs:SetTextColor(1, 1, 1) end
+    end
+end
+
+local function cdTick()
+    for i = 1, #styledCDs do
+        local cd = styledCDs[i]
+        if cd:IsVisible() then paintCooldownText(cd) end
+    end
+end
+
 local function styleCooldown(cd)
     if not cd or cd._vcStyled or not mod.db.cdTextEnabled then return end
     if haveCooldownAddon() then return end
@@ -2839,29 +2985,21 @@ local function styleCooldown(cd)
     if ns.UI and ns.UI.Font then ns.UI.Font(fs, 13, "OUTLINE") end
     fs:SetPoint("CENTER", cd, "CENTER", 0, 0)
     cd._vcText = fs
-    local acc = 0
-    cd:SetScript("OnUpdate", function(self, elapsed)
-        acc = acc + elapsed
-        if acc < 0.05 then return end
-        acc = 0
-        local start, dur = self:GetCooldownTimes()
-        if not start or start == 0 or not dur or dur == 0 then fs:SetText(""); return end
-        local left = (start + dur) / 1000 - GetTime()
-        if left <= 0 then
-            fs:SetText("")
-        elseif left < 6 then
-            fs:SetFormattedText("%.1f", left)
-            fs:SetTextColor(1, 0.4, 0.3)
-        elseif left < 60 then
-            fs:SetFormattedText("%d", left)
-            fs:SetTextColor(1, 1, 1)
-        else
-            fs:SetFormattedText("%d:%02d", left / 60, left % 60)
-            fs:SetTextColor(1, 1, 1)
-        end
-    end)
+    styledCDs[#styledCDs + 1] = cd
+    if not cdTicker then cdTicker = ns:AddTicker(0.1, cdTick, nil, "arena-cdtext") end
 end
 mod.StyleCooldown = styleCooldown
+
+-- The driver is shared, so an orphan would keep ticking for the rest of the
+-- session; the module's own disable path is the one place that can stop it.
+mod:RegisterOnDisable(function()
+    if cdTicker then ns:CancelTicker(cdTicker); cdTicker = nil end
+end)
+mod:RegisterOnEnable(function()
+    if not cdTicker and #styledCDs > 0 then
+        cdTicker = ns:AddTicker(0.1, cdTick, nil, "arena-cdtext")
+    end
+end)
 
 -- Racials, dispels and Shadow Sight all come from the combat log; one handler
 -- keeps the hot event registered exactly once.
@@ -2887,7 +3025,7 @@ local function onPvPCombatLog()
     if not (isRacial or isDispel) then return end
 
     for i = 1, 5 do
-        local unit = "arena" .. i
+        local unit = ns.ARENA_UNITS[i]
         if UnitExists(unit) and UnitGUID(unit) == sourceGUID then
             if isRacial then mod.RacialUsed(unit, spellId) end
             if isDispel then mod.DispelUsed(unit, spellId) end
@@ -2896,18 +3034,14 @@ local function onPvPCombatLog()
     end
 end
 
-local pvpCleuOn = false
 local function setPvPCombatLog(on)
-    if on == pvpCleuOn then return end
-    pvpCleuOn = on
-    if on then
-        ns:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", onPvPCombatLog)
-    else
-        ns:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED", onPvPCombatLog)
-    end
+    mod.SetDynEvent("COMBAT_LOG_EVENT_UNFILTERED", onPvPCombatLog, on)
 end
 
 local function ev_PLAYER_ENTERING_WORLD_3()
+    -- see the trinket capsule: a switched-off module must not take the combat
+    -- log, and must not start the range ticker either
+    if not mod._enabled then return end
     local inArena = false
     if IsInInstance then
         local _, instanceType = IsInInstance()
@@ -2926,6 +3060,7 @@ local function ev_PLAYER_ENTERING_WORLD_3()
     end
 end
 mod.RegEvent("PLAYER_ENTERING_WORLD", ev_PLAYER_ENTERING_WORLD_3)
+mod:RegisterOnEnable(ev_PLAYER_ENTERING_WORLD_3)
 
 -- Gates opening is what starts the orb clock; the first opponent becoming
 -- visible is the closest reliable signal for it on this client.
@@ -3636,13 +3771,18 @@ local function unusedEntries(out)
     if not db().showUnused then return end
     if not (IsInInstance and select(2, IsInInstance()) == "arena") then return end
     for i = 1, 5 do
-        local unit = "arena" .. i
+        local unit = ns.ARENA_UNITS[i]
         if UnitExists and UnitExists(unit) then
             local _, class = UnitClass(unit)
             local guid = UnitGUID and UnitGUID(unit)
-            for _, ab in ipairs(BY_CLASS[class] or {}) do
-                if not (guid and active[guid .. "/" .. ab.key]) then
-                    out[#out + 1] = { id = ab.id, class = class, ready = true }
+            -- `or {}` here was a fresh empty table per opponent per pass
+            local abilities = BY_CLASS[class]
+            if abilities then
+                for ai = 1, #abilities do
+                    local ab = abilities[ai]
+                    if not (guid and active[guid .. "/" .. ab.key]) then
+                        out[#out + 1] = { id = ab.id, class = class, ready = true }
+                    end
                 end
             end
         end
@@ -3656,61 +3796,111 @@ end
 local function shouldShow()
     local d = db()
     if d.unlocked or GetTime() < previewUntil then return true end
+    -- The whole module being off has to take the bar with it. Its handlers are
+    -- registered at file scope, so a module that was never enabled still hears
+    -- the combat log -- and without this the bar appeared, filled up, and never
+    -- cleared, because the ticker that expires its icons only runs from OnEnable.
+    if not mod._enabled then return false end
     return d.enabled and zoneAllows()
 end
+
+-- One ticker for the whole bar: an icon whose cooldown has run out has to
+-- leave, and nothing else tells us when that moment is. It is shown only while
+-- something can actually expire -- see the end of refresh.
+local ticker = CreateFrame("Frame")
+ticker:Hide()
+
+-- Hoisted out of refresh: that pass runs five times a second, and a comparator
+-- written inside it is a fresh closure on every one of them.
+local function byExpiry(a, b) return a.expiry < b.expiry end
+
+-- Two scratch lists, refilled and trimmed instead of rebuilt, for the same
+-- reason -- Lua 5.1 has no generational collector, so a table per pass is
+-- rubbish the player pays for as a stutter.
+local list, shown = {}, {}
 
 local function refresh()
     if not shouldShow() then
         if frame then frame:Hide() end
+        ticker:Hide()
         return
     end
     build()
     local d = db()
 
-    local now, list = GetTime(), {}
+    local now = GetTime()
+    local n = 0
     for key, e in pairs(active) do
         if e.expiry <= now then
             active[key] = nil
         else
-            list[#list + 1] = e
+            n = n + 1
+            list[n] = e
         end
     end
+    for i = n + 1, #list do list[i] = nil end
+    -- Only a running cooldown can expire; the ready icons below never do, so
+    -- they must not keep the ticker alive.
+    local live = n
+
     -- Soonest ready first: the one you are waiting on sits at the front.
-    table.sort(list, function(a, b) return a.expiry < b.expiry end)
+    table.sort(list, byExpiry)
     unusedEntries(list)
 
-    local shown = {}
-    for i, e in ipairs(list) do
+    local count = 0
+    for i = 1, #list do
+        local e = list[i]
         local f = ensureIcon(i)
-        f.tex:SetTexture((GetSpellTexture and GetSpellTexture(e.id)) or 134400)
-        local r, g, b = classColor(e.class)
-        if f.border.SetBackdropBorderColor then
-            f.border:SetBackdropBorderColor(r, g, b, 1)
+
+        -- Everything below is compared before it is written. This pass runs
+        -- five times a second and used to re-set texture, border, saturation,
+        -- alpha and text unconditionally on every icon each time.
+        local tex = (GetSpellTexture and GetSpellTexture(e.id)) or 134400
+        if f._tex ~= tex then f.tex:SetTexture(tex); f._tex = tex end
+        if f._class ~= e.class then
+            f._class = e.class
+            if f.border.SetBackdropBorderColor then
+                f.border:SetBackdropBorderColor(classColor(e.class))
+            end
         end
+
         if e.ready then
-            f.cd:Clear()
-            f._cdStart, f._cdDur = nil, nil
-            f.tex:SetDesaturated(true)
-            f.tex:SetAlpha(0.45)
-            f.text:SetText("")
+            if f._ready ~= true then
+                f._ready = true
+                f.cd:Clear()
+                f._cdStart, f._cdDur = nil, nil
+                f.tex:SetDesaturated(true)
+                f.tex:SetAlpha(0.45)
+                f.text:SetText("")
+                f._timer = ""
+            end
         else
-            -- Only when it actually changed: this pass runs five times a second
-            -- and re-arming an unchanged swipe makes it stutter.
+            if f._ready ~= false then
+                f._ready = false
+                f.tex:SetDesaturated(false)
+                f.tex:SetAlpha(1)
+            end
+            -- Only when it actually changed: re-arming an unchanged swipe makes
+            -- it stutter.
             local start = e.expiry - e.cd
             if f._cdStart ~= start or f._cdDur ~= e.cd then
                 f.cd:SetCooldown(start, e.cd)
                 f._cdStart, f._cdDur = start, e.cd
             end
-            f.tex:SetDesaturated(false)
-            f.tex:SetAlpha(1)
-            f.text:SetText(d.showTimer and timerText(e.expiry - now) or "")
+            local txt = d.showTimer and timerText(e.expiry - now) or ""
+            if f._timer ~= txt then f.text:SetText(txt); f._timer = txt end
         end
-        f:Show()
-        shown[#shown + 1] = f
-    end
-    for i = #shown + 1, #icons do icons[i]:Hide() end
 
-    if #shown == 0 and not db().unlocked then
+        f:Show()
+        count = count + 1
+        shown[count] = f
+    end
+    for i = count + 1, #shown do shown[i] = nil end
+    for i = count + 1, #icons do icons[i]:Hide() end
+
+    ticker:SetShown(live > 0)
+
+    if count == 0 and not db().unlocked then
         frame:Hide()
         return
     end
@@ -3726,7 +3916,7 @@ local HOSTILE = _G.COMBATLOG_OBJECT_REACTION_HOSTILE or 0x00000040
 local PLAYER  = _G.COMBATLOG_OBJECT_TYPE_PLAYER      or 0x00000400
 
 local function onCombatLog()
-    if not db().enabled then return end
+    if not mod._enabled or not db().enabled then return end
     local info = CombatLogGetCurrentEventInfo
     if not info then return end
     local _, sub, _, sourceGUID, sourceName, sourceFlags, _, _, _, _, _, spellID = info()
@@ -3753,10 +3943,6 @@ local function onCombatLog()
     refresh()
 end
 
--- One ticker for the whole bar: an icon whose cooldown has run out has to
--- leave, and nothing else tells us when that moment is.
-local ticker = CreateFrame("Frame")
-ticker:Hide()
 local nextSweep = 0
 ticker:SetScript("OnUpdate", function()
     local now = GetTime()
@@ -3765,17 +3951,28 @@ ticker:SetScript("OnUpdate", function()
     refresh()
 end)
 
+-- The combat log is taken only where the bar could ever show something. The
+-- three older capsules gate it to arenas; this one was registered at file scope
+-- and never let go, so every combat log line in the world -- thousands a second
+-- in a raid -- was decoded for a bar whose own default is "arena and
+-- battlegrounds". The zone filter it already carries decides.
+local function syncCombatLog()
+    mod.SetDynEvent("COMBAT_LOG_EVENT_UNFILTERED", onCombatLog,
+        mod._enabled and db().enabled and zoneAllows())
+end
+mod.SyncInterruptCombatLog = syncCombatLog
+
 local function ev_zone()
+    syncCombatLog()
     refresh()
 end
 
-mod.RegEvent("COMBAT_LOG_EVENT_UNFILTERED", onCombatLog)
 mod.RegEvent("PLAYER_ENTERING_WORLD", ev_zone)
 mod.RegEvent("ARENA_OPPONENT_UPDATE", ev_zone)
 
 mod:RegisterOnEnable(function()
     build()
-    ticker:Show()
+    syncCombatLog()
     refresh()
 end)
 
@@ -3840,9 +4037,11 @@ mod:AddOptionsSection("interrupt", function()
         { type = "header", text = L["Interrupts"] },
         { type = "desc",   text = L["Watches the combat log for enemy interrupts and starts a cooldown for each one, tracked per caster -- two enemies of the same class get an icon each. The border carries the caster's class colour."] },
 
+        -- Both setters re-decide the combat log subscription, not just the
+        -- display: switching the bar off in an arena has to hand the event back.
         { type = "checkbox", label = L["Show interrupt bar"],
           get = function() return d.enabled end,
-          set = function(_, v) d.enabled = v; refresh() end },
+          set = function(_, v) d.enabled = v; syncCombatLog(); refresh() end },
 
         { type = "group", layout = "row", gap = 8, items = {
             { type = "button", label = L["Unlock / Move"], width = 130,
@@ -3858,7 +4057,7 @@ mod:AddOptionsSection("interrupt", function()
               { value = "arena",  text = L["Arena only"] },
           },
           get = function() return d.visibility end,
-          set = function(_, v) d.visibility = v; refresh() end },
+          set = function(_, v) d.visibility = v; syncCombatLog(); refresh() end },
 
         { type = "dropdown", label = L["Growth direction"], width = 220,
           values = {
