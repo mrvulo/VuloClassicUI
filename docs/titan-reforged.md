@@ -376,6 +376,46 @@ funktioniert, findet das Register dieselben Schriftzüge und setzt dieselbe Grö
 — auf TBC und Era ändert sich also nachweislich nichts. Ein Tor hätte dort
 denselben Anblick erzeugt und nur die kaputte Suche konserviert.
 
+### 02.08.2026, achte Runde — Bitte ⑧: die Knöpfe fremder Addons sammeln
+
+Wunsch: die Minikarten-Knöpfe anderer Addons zusammenfassen, damit die
+Oberfläche aufgeräumt bleibt.
+
+**Die halbe Antwort lag schon da** — wie bei ⑦. `Modules/MinimapStyle.lua`
+sammelt die Knöpfe längst ein (`collectAddonButtons`, Knopf-Kinder der
+Minikarte zwischen 20 und 44 Punkten Breite, Blizzards eigene ausgenommen),
+malt sie im Hausstil an (`skinAddonButton`) und fängt Spätregistrierungen über
+den Rückruf der Symbolbibliothek, `ADDON_LOADED` und einen Nachlauf drei
+Sekunden nach dem Anmelden. Es gab sogar schon „nur bei Mauskontakt". Was
+fehlte, war ein ORT: bisher blieben die Knöpfe rund um die Karte liegen und
+wurden nur aus- und eingeblendet.
+
+**Gebaut: ein Kasten unter der Karte.** Ein Punkt-Punkt-Punkt-Knopf unten links
+am Kartenrand klappt ihn auf und zu; die gesammelten Knöpfe werden umgehängt
+und in ein Raster zu vier Spalten gelegt, der Kasten wächst mit ihrer Zahl.
+Keine neue Textur: ein neues TGA braucht einen kompletten Client-Neustart, ehe
+es zeichnet, und der Ring des Moduls plus drei Punkte tun es genauso.
+
+Vier Dinge, die sonst zurückgekommen wären:
+
+1. **Die Symbolbibliotheken hängen ihre Knöpfe nach eigenem Fahrplan wieder an
+   die Karte.** Ein eingesammelter Knopf würde also wieder ausbrechen. Der
+   vorhandene Zeitgeber der Datei legt das Raster deshalb alle halbe Sekunde
+   neu — ein paar `SetPoint`-Aufrufe, billig genug, und es heilt sich selbst.
+2. **Der eigene Knopf darf nicht in seinen eigenen Kasten.** Er trägt
+   `_vcuiOwn`, und der Sammler überspringt das.
+3. **Ein leerer Kasten liest sich als Fehler.** Ohne gesammelte Knöpfe
+   verschwinden Kasten UND Öffner.
+4. **Modul aus.** Die Knöpfe werden ZUERST zurückgegeben und dann erst der
+   Kasten versteckt — andernfalls nähme ein versteckter Kasten die Symbole
+   aller Addons mit vom Bildschirm.
+
+**Optionszeile:** drei Orte sind eine Auswahl, also ein Klappmenü — aber nur
+dort, wo es den dritten Ort gibt. Anderswo bleibt die Zeile der Schalter, der
+sie immer war. Beide Formen schreiben dieselben zwei gespeicherten Schlüssel,
+ein bestehendes Profil mit „nur bei Mauskontakt" liest sich also als dieser
+Modus und schuldet keine Wanderung.
+
 ## Offene Punkte
 
 - **Cata und der Todesritter.** `hasDeathKnight` und `hasRunicPower` sind

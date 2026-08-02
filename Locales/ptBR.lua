@@ -3160,4 +3160,10 @@ ns:RegisterLocale("ptBR", function() return {
     ["Puts the chat input line above the message area instead of below it. The panel and the tab bar follow it."] = "Coloca a linha de digitação acima da área de mensagens em vez de abaixo. O painel e a barra de abas a acompanham.",
     ["Own background for the input line"] = "Fundo próprio para a linha de digitação",
     ["Draws the input line on our own dark background instead of Blizzard's. The dark background panel already covers the input line, so this shows once that panel is off."] = "Desenha a linha de digitação sobre um fundo escuro próprio em vez do da Blizzard. O painel de fundo escuro já cobre a linha de digitação, então isto aparece quando esse painel está desligado.",
+    ["Addon buttons"] = "Botões de addons",
+    ["Click to show or hide the collected buttons."] = "Clique para mostrar ou ocultar os botões reunidos.",
+    ["Where other addons' minimap buttons sit: around the map, hidden until the mouse is over it, or gathered in one box under it."] = "Onde ficam os botões de minimapa de outros addons: ao redor do mapa, ocultos até o mouse passar por cima, ou reunidos numa caixa abaixo.",
+    ["Around the minimap"] = "Ao redor do minimapa",
+    ["Only on mouseover"] = "Somente ao passar o mouse",
+    ["Collected in a box"] = "Reunidos numa caixa",
 } end)

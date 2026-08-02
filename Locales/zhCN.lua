@@ -3153,4 +3153,10 @@ ns:RegisterLocale("zhCN", function() return {
     ["Puts the chat input line above the message area instead of below it. The panel and the tab bar follow it."] = "把输入栏放在消息区上方而不是下方。面板和标签栏会随之移动。",
     ["Own background for the input line"] = "输入栏使用自有背景",
     ["Draws the input line on our own dark background instead of Blizzard's. The dark background panel already covers the input line, so this shows once that panel is off."] = "让输入栏使用我们自己的深色背景，而不是暴雪的默认背景。深色背景面板本就覆盖了输入栏，因此关闭该面板后才会显现。",
+    ["Addon buttons"] = "插件按钮",
+    ["Click to show or hide the collected buttons."] = "点击可显示或隐藏已收纳的按钮。",
+    ["Where other addons' minimap buttons sit: around the map, hidden until the mouse is over it, or gathered in one box under it."] = "其他插件的小地图按钮放在哪里：环绕地图、鼠标移上去才显示，或收纳到地图下方的一个盒子里。",
+    ["Around the minimap"] = "环绕小地图",
+    ["Only on mouseover"] = "仅鼠标悬停时",
+    ["Collected in a box"] = "收纳到一个盒子里",
 } end)

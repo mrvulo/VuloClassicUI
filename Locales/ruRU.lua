@@ -3160,4 +3160,10 @@ ns:RegisterLocale("ruRU", function() return {
     ["Puts the chat input line above the message area instead of below it. The panel and the tab bar follow it."] = "Помещает строку ввода над областью сообщений, а не под ней. Панель и полоса вкладок следуют за ней.",
     ["Own background for the input line"] = "Собственный фон для строки ввода",
     ["Draws the input line on our own dark background instead of Blizzard's. The dark background panel already covers the input line, so this shows once that panel is off."] = "Рисует строку ввода на собственном тёмном фоне вместо фона Blizzard. Тёмная фоновая панель уже закрывает строку ввода, поэтому это видно, когда панель выключена.",
+    ["Addon buttons"] = "Кнопки аддонов",
+    ["Click to show or hide the collected buttons."] = "Щелчок показывает или скрывает собранные кнопки.",
+    ["Where other addons' minimap buttons sit: around the map, hidden until the mouse is over it, or gathered in one box under it."] = "Где находятся кнопки миникарты других аддонов: вокруг карты, скрыты до наведения мыши или собраны в одну коробку под картой.",
+    ["Around the minimap"] = "Вокруг миникарты",
+    ["Only on mouseover"] = "Только при наведении",
+    ["Collected in a box"] = "Собраны в одну коробку",
 } end)

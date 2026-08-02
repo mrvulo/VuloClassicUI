@@ -3161,6 +3161,12 @@ local function T() return {
     ["Puts the chat input line above the message area instead of below it. The panel and the tab bar follow it."] = "Coloca la línea de entrada encima del área de mensajes en lugar de debajo. El panel y la barra de pestañas la siguen.",
     ["Own background for the input line"] = "Fondo propio para la línea de entrada",
     ["Draws the input line on our own dark background instead of Blizzard's. The dark background panel already covers the input line, so this shows once that panel is off."] = "Dibuja la línea de entrada sobre un fondo oscuro propio en lugar del de Blizzard. El panel de fondo oscuro ya cubre la línea de entrada, así que esto se ve cuando ese panel está desactivado.",
+    ["Addon buttons"] = "Botones de addons",
+    ["Click to show or hide the collected buttons."] = "Haz clic para mostrar u ocultar los botones recogidos.",
+    ["Where other addons' minimap buttons sit: around the map, hidden until the mouse is over it, or gathered in one box under it."] = "Dónde se sitúan los botones de minimapa de otros addons: alrededor del mapa, ocultos hasta pasar el ratón por encima, o reunidos en una caja debajo.",
+    ["Around the minimap"] = "Alrededor del minimapa",
+    ["Only on mouseover"] = "Solo al pasar el ratón",
+    ["Collected in a box"] = "Reunidos en una caja",
 } end
 
 ns:RegisterLocale("esES", T)

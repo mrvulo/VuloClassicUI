@@ -3160,4 +3160,10 @@ ns:RegisterLocale("koKR", function() return {
     ["Puts the chat input line above the message area instead of below it. The panel and the tab bar follow it."] = "입력창을 대화 영역 아래가 아니라 위에 놓습니다. 패널과 탭 막대가 함께 따라갑니다.",
     ["Own background for the input line"] = "입력창 자체 배경",
     ["Draws the input line on our own dark background instead of Blizzard's. The dark background panel already covers the input line, so this shows once that panel is off."] = "입력창을 블리자드 기본 배경 대신 자체 어두운 배경 위에 그립니다. 어두운 배경 패널이 이미 입력창을 덮으므로, 그 패널을 끄면 나타납니다.",
+    ["Addon buttons"] = "애드온 버튼",
+    ["Click to show or hide the collected buttons."] = "클릭하면 모아둔 버튼을 보이거나 숨깁니다.",
+    ["Where other addons' minimap buttons sit: around the map, hidden until the mouse is over it, or gathered in one box under it."] = "다른 애드온의 미니맵 버튼이 놓이는 곳: 지도 둘레, 마우스를 올릴 때까지 숨김, 또는 지도 아래 상자에 모아두기.",
+    ["Around the minimap"] = "미니맵 둘레",
+    ["Only on mouseover"] = "마우스를 올렸을 때만",
+    ["Collected in a box"] = "상자에 모아두기",
 } end)

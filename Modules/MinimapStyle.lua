@@ -27,6 +27,11 @@ local mod = ns:RegisterModule("minimapstyle", {
         showDayNight  = false,
         skinButtons   = true,
         buttonsOnHover = false,
+        -- Gather other addons' buttons into one box instead of ringing them
+        -- around the map. Only reachable on the Wrath generation, by the
+        -- owner's decision -- elsewhere the mode is not offered, so this stays
+        -- false and nothing changes.
+        buttonTray     = false,
         showPingChat  = false,
         unlocked      = false,
     },
@@ -606,7 +611,9 @@ function mm.collectAddonButtons()
     if wipe then wipe(mm.addonButtons) else mm.addonButtons = {} end
     for _, child in ipairs({ Minimap:GetChildren() }) do
         local name = child.GetName and child:GetName()
-        if child:IsObjectType("Button") and not BLIZZ_CHILDREN[name or ""] then
+        -- _vcuiOwn keeps our own tray opener out of its own tray
+        if child:IsObjectType("Button") and not BLIZZ_CHILDREN[name or ""]
+            and not child._vcuiOwn then
             local w = child:GetWidth() or 0
             if w > 20 and w < 44 then
                 mm.addonButtons[#mm.addonButtons + 1] = child
@@ -616,7 +623,158 @@ function mm.collectAddonButtons()
     end
 end
 
+-- ---------------------------------------------------------------------------
+-- The tray: other addons' buttons gathered in one place instead of ringed
+-- around the map (reporter request 02.08.2026).
+--
+-- Everything it needs was already here -- collectAddonButtons finds them,
+-- skinAddonButton gives them the house look, and the library callback plus the
+-- three-second sweep catch the ones that register late. What was missing was
+-- somewhere to put them.
+--
+-- Scoped to this client generation by the owner's decision; the mode is only
+-- offered there, and the stored value cannot become "tray" anywhere else.
+local TRAY_BTN  = 28
+local TRAY_COLS = 4
+local TRAY_GAP  = 4
+local TRAY_PAD  = 6
+
+local function trayOn()
+    return (ns.Wrath.is and db().buttonTray) and true or false
+end
+
+-- Their own anchors, kept so the buttons can go back where the addon that owns
+-- them put them. A button that never entered the tray keeps no snapshot.
+local function snapButtonPlace(b)
+    if b._vcTrayPts then return end
+    local pts = {}
+    for i = 1, b:GetNumPoints() do pts[#pts + 1] = { b:GetPoint(i) } end
+    b._vcTrayPts    = pts
+    b._vcTrayParent = b:GetParent()
+end
+
+local function restoreButtonPlace(b)
+    if not b._vcTrayPts then return end
+    if b._vcTrayParent then pcall(b.SetParent, b, b._vcTrayParent) end
+    b:ClearAllPoints()
+    for _, p in ipairs(b._vcTrayPts) do
+        pcall(b.SetPoint, b, p[1], p[2], p[3], p[4], p[5])
+    end
+    b._vcTrayPts, b._vcTrayParent = nil, nil
+end
+
+function mm.ensureTray()
+    if mm.tray or not mm.base then return mm.tray end
+    local UI = ns.UI
+    local ac = ns.COLORS.accent
+
+    local tray = CreateFrame("Frame", nil, mm.base)
+    tray:SetFrameStrata(mm.base:GetFrameStrata())
+    tray:SetFrameLevel((mm.base:GetFrameLevel() or 1) + 20)
+    tray:SetPoint("TOP", mm.base, "BOTTOM", 0, -6)
+    tray:SetSize(TRAY_BTN + 2 * TRAY_PAD, TRAY_BTN + 2 * TRAY_PAD)
+    if UI and UI.StyleBackdrop then
+        UI:StyleBackdrop(tray, { bg = ns.COLORS.bg,
+                                 border = ns.COLORS.borderDark or ns.COLORS.border })
+    end
+    tray:Hide()
+    mm.tray = tray
+
+    -- The opener. Marked as ours so the collector can never mistake it for a
+    -- third-party icon and put it inside its own tray.
+    local btn = CreateFrame("Button", nil, mm.base)
+    btn._vcuiOwn = true
+    btn:SetSize(22, 22)
+    btn:SetPoint("BOTTOMLEFT", mm.base, "BOTTOMLEFT", 0, 0)
+    btn:SetFrameLevel((mm.base:GetFrameLevel() or 1) + 20)
+
+    local ring = btn:CreateTexture(nil, "OVERLAY")
+    ring:SetTexture(MEDIA .. "ring_main.tga")
+    ring:SetVertexColor(0.07, 0.07, 0.09, 1)
+    ring:SetSize(19 * RING_SCALE * 1.12, 19 * RING_SCALE * 1.12)
+    ring:SetPoint("CENTER", btn, "CENTER", 0, 0)
+    if ring.SetSnapToPixelGrid then ring:SetSnapToPixelGrid(false); ring:SetTexelSnappingBias(0) end
+
+    -- Three dots rather than a new texture file: a fresh TGA needs a full client
+    -- restart before it draws, and this look belongs to the module anyway.
+    local dots = btn:CreateFontString(nil, "OVERLAY")
+    if UI and UI.Font then UI.Font(dots, 13, "OUTLINE") end
+    dots:SetPoint("CENTER", btn, "CENTER", 0, 1)
+    dots:SetText("•••")
+    dots:SetTextColor(0.75, 0.75, 0.82)
+    btn._dots = dots
+
+    btn:SetScript("OnEnter", function(self)
+        self._dots:SetTextColor(ac.r, ac.g, ac.b)
+        if ns.UI and ns.UI.OpenTooltip and ns.UI:OpenTooltip(self, "ANCHOR_RIGHT") then
+            GameTooltip:ClearLines()
+            GameTooltip:SetText(L["Addon buttons"], ac.r, ac.g, ac.b)
+            GameTooltip:AddLine(L["Click to show or hide the collected buttons."], 0.8, 0.8, 0.85)
+            GameTooltip:Show()
+        end
+    end)
+    btn:SetScript("OnLeave", function(self)
+        self._dots:SetTextColor(mm.tray:IsShown() and ac.r or 0.75,
+                                mm.tray:IsShown() and ac.g or 0.75,
+                                mm.tray:IsShown() and ac.b or 0.82)
+        if GameTooltip then GameTooltip:Hide() end
+    end)
+    btn:SetScript("OnClick", function()
+        if mm.tray:IsShown() then mm.tray:Hide() else mm.layoutTray(); mm.tray:Show() end
+    end)
+    mm.trayToggle = btn
+    return tray
+end
+
+-- Re-run cheaply and often: the icon libraries re-anchor their buttons to the
+-- map on their own schedule, and a button that escaped would otherwise sit back
+-- on the ring with nothing to explain it.
+function mm.layoutTray()
+    local on = trayOn()
+    if not on then
+        for _, b in ipairs(mm.addonButtons or {}) do restoreButtonPlace(b) end
+        if mm.tray then mm.tray:Hide() end
+        if mm.trayToggle then mm.trayToggle:Hide() end
+        return
+    end
+    if not mm.ensureTray() then return end
+    mm.trayToggle:Show()
+
+    local n = 0
+    for _, b in ipairs(mm.addonButtons or {}) do
+        snapButtonPlace(b)
+        if b:GetParent() ~= mm.tray then pcall(b.SetParent, b, mm.tray) end
+        local col, row = n % TRAY_COLS, math.floor(n / TRAY_COLS)
+        b:ClearAllPoints()
+        b:SetPoint("TOPLEFT", mm.tray, "TOPLEFT",
+            TRAY_PAD + col * (TRAY_BTN + TRAY_GAP),
+            -(TRAY_PAD + row * (TRAY_BTN + TRAY_GAP)))
+        b:SetAlpha(1)
+        n = n + 1
+    end
+
+    if n == 0 then
+        -- Nothing to gather: an empty box on the map reads as a fault.
+        mm.tray:Hide()
+        mm.trayToggle:Hide()
+        return
+    end
+    local cols = math.min(n, TRAY_COLS)
+    local rows = math.ceil(n / TRAY_COLS)
+    mm.tray:SetSize(cols * TRAY_BTN + (cols - 1) * TRAY_GAP + 2 * TRAY_PAD,
+                    rows * TRAY_BTN + (rows - 1) * TRAY_GAP + 2 * TRAY_PAD)
+end
+
 function mm.applyButtonVisibility()
+    if trayOn() then
+        -- In the tray the box itself is what shows and hides; the buttons in it
+        -- stay solid, or the opener would reveal a row of ghosts.
+        mm.layoutTray()
+        return
+    end
+    if mm.tray then mm.tray:Hide() end
+    if mm.trayToggle then mm.trayToggle:Hide() end
+    for _, b in ipairs(mm.addonButtons or {}) do restoreButtonPlace(b) end
     local hover = db().buttonsOnHover
     for _, b in ipairs(mm.addonButtons or {}) do
         b:SetAlpha((hover and not mm.hovered) and 0 or 1)
@@ -640,12 +798,22 @@ end
 function mm.setupHover()
     if mm.hoverWired then return end
     mm.hoverWired = true
-    local acc = 0
+    local acc, trayAcc = 0, 0
     mm.base:SetScript("OnUpdate", function(self, elapsed)
         acc = acc + elapsed
         if acc < 0.1 then return end
         acc = 0
-        if not (mod.active and db().buttonsOnHover) then return end
+        if not mod.active then return end
+        -- The icon libraries re-anchor their buttons to the map on their own
+        -- schedule, so a gathered button can wander back out. Half a second is
+        -- often enough to pull it in before anyone sees it, and cheap: a handful
+        -- of SetPoint calls.
+        if trayOn() then
+            trayAcc = trayAcc + 0.1
+            if trayAcc >= 0.5 then trayAcc = 0; mm.layoutTray() end
+            return
+        end
+        if not db().buttonsOnHover then return end
         local over = self:IsMouseOver(10, -10, -10, 10)
         if over ~= mm.hovered then
             mm.hovered = over
@@ -719,6 +887,12 @@ end
 
 function mod:OnDisable()
     mod.active = false
+    -- Give the gathered buttons back BEFORE the map goes home: they hang in our
+    -- tray, and a tray that gets hidden with them still inside would take every
+    -- addon's icon off the screen with it.
+    for _, b in ipairs(mm.addonButtons or {}) do restoreButtonPlace(b) end
+    if mm.tray then mm.tray:Hide() end
+    if mm.trayToggle then mm.trayToggle:Hide() end
     -- Best-effort restore; fonts and moved children only come back fully with a /reload.
     if mm.adopted then
         mm.adopted = false
@@ -760,6 +934,41 @@ end
 
 function mod:GetOptions()
     local d = db()
+
+    -- Where the other addons' buttons live. Three places is a choice, so it is a
+    -- dropdown -- but only where the third place exists. Elsewhere the row stays
+    -- the toggle it has always been, unchanged.
+    --
+    -- Both shapes write the SAME two stored keys, so an existing profile that
+    -- had "only on mouseover" reads back as that mode and no migration is owed.
+    -- Built as an if/else rather than an and/or chain on purpose: this codebase
+    -- has been bitten once by an and/or that collapsed on a false middle.
+    local buttonRow
+    if ns.Wrath.is then
+        buttonRow = { type = "dropdown", label = L["Addon buttons"], width = 240,
+          tooltip = L["Where other addons' minimap buttons sit: around the map, hidden until the mouse is over it, or gathered in one box under it."],
+          values = {
+              { value = "ring",  text = L["Around the minimap"] },
+              { value = "hover", text = L["Only on mouseover"] },
+              { value = "tray",  text = L["Collected in a box"] },
+          },
+          get = function()
+              if d.buttonTray then return "tray" end
+              return d.buttonsOnHover and "hover" or "ring"
+          end,
+          set = function(_, v)
+              d.buttonTray     = (v == "tray")
+              d.buttonsOnHover = (v == "hover")
+              mm.hovered = false
+              mm.applyButtonVisibility()
+          end }
+    else
+        buttonRow = { type = "toggle", label = L["Addon buttons only on mouseover"],
+          tooltip = L["Hides other addons' minimap buttons until the mouse is over the minimap."],
+          get = function() return d.buttonsOnHover and true or false end,
+          set = function(_, v) d.buttonsOnHover = v and true or false; mm.hovered = false; mm.applyButtonVisibility() end }
+    end
+
     return {
         { type = "header", text = L["Minimap"] },
         { type = "desc", text = L["|cffaaaaaaA modern round minimap with a beveled ring, zone text and clock in a slim pill. Zoom with the mouse wheel. |cffffffffShift+drag the map|r to move it — or use Unlock / the addon's own Edit Mode (/vedit). Blizzard's Edit Mode does not manage this map.|r"] },
@@ -827,10 +1036,7 @@ function mod:GetOptions()
           tooltip = L["Removes the gold borders from other addons' minimap buttons and gives them a clean round look. Turning this off needs a /reload."],
           get = function() return d.skinButtons ~= false end,
           set = function(_, v) d.skinButtons = v; mm.applyAll() end },
-        { type = "toggle", label = L["Addon buttons only on mouseover"],
-          tooltip = L["Hides other addons' minimap buttons until the mouse is over the minimap."],
-          get = function() return d.buttonsOnHover and true or false end,
-          set = function(_, v) d.buttonsOnHover = v and true or false; mm.hovered = false; mm.applyButtonVisibility() end },
+        buttonRow,
         { type = "toggle", label = L["Ping in chat"],
           tooltip = L["Prints who pinged the minimap."],
           get = function() return d.showPingChat and true or false end,
