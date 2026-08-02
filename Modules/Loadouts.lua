@@ -1171,6 +1171,15 @@ local function showIconPicker(loadoutName, anchor)
     _iconPicker:Show()
 end
 
+-- Repaints the backing of every row that already exists. The rows are pooled in
+-- sidebarSetButtons, so a style switch reaches the ones built before it too --
+-- without this, only rows created afterwards would change colour.
+function mod._repaintSidebarRows()
+    for _, b in pairs(sidebarSetButtons) do
+        if b._paintSelection then b._paintSelection() end
+    end
+end
+
 local function createSetRow(parent, index)
     local btn = sidebarSetButtons[index]
     if btn then return btn end
@@ -1208,15 +1217,32 @@ local function createSetRow(parent, index)
     btn.text:SetJustifyH("LEFT")
     btn.text:SetWordWrap(false)
 
-    local ac2 = ns.COLORS.accent
     btn.selection = btn:CreateTexture(nil, "BACKGROUND")
     btn.selection:SetAllPoints(btn)
-    if ns.UI and ns.UI.SetGradient then
-        ns.UI.SetGradient(btn.selection, "HORIZONTAL",
-            ac2.r, ac2.g, ac2.b, 0.30, ac2.r, ac2.g, ac2.b, 0.04)
-    else
-        btn.selection:SetColorTexture(ac2.r, ac2.g, ac2.b, 0.30)
+    -- Painted through a function rather than baked, so a style switch can
+    -- repaint rows that already exist (see RestyleLoadoutsSidebar).
+    btn._paintSelection = function()
+        -- if/else, NOT `cond and f() or g()`: an and/or expression is truncated
+        -- to a SINGLE value, so that form delivered r and left g, b and alpha
+        -- nil -- which threw on the first arithmetic further down (error report,
+        -- 02.08.2026). A function returning four values may never be called
+        -- from inside one.
+        local r, g, b2, a
+        if mod._sidebarSelectionRGBA then
+            r, g, b2, a = mod._sidebarSelectionRGBA()
+        else
+            -- rows can be built before the sidebar hands its palette over
+            local c = ns.COLORS.accent
+            r, g, b2, a = c.r, c.g, c.b, 0.30
+        end
+        if ns.UI and ns.UI.SetGradient then
+            ns.UI.SetGradient(btn.selection, "HORIZONTAL",
+                r, g, b2, a, r, g, b2, a * 0.13)
+        else
+            btn.selection:SetColorTexture(r, g, b2, a)
+        end
     end
+    btn._paintSelection()
     btn.selection:Hide()
     btn.selBar = btn:CreateTexture(nil, "ARTWORK")
     btn.selBar:SetPoint("TOPLEFT", btn, "TOPLEFT", 0, 0)
@@ -1723,13 +1749,51 @@ local function createSidebar()
     local bc = ns.COLORS.border or { r = 0.22, g = 0.22, b = 0.27 }
     local fontN, fontH, fontD = ns.UI:PanelButtonFonts("VCUI_LoadoutFont")
 
+    -- Which look the sidebar wears, taken from the character panel's own style
+    -- (user request, 02.08.2026). Until now that dropdown was written and read
+    -- by nobody -- this is its first consumer.
+    local function classicStyle()
+        local cp = ns.modules and ns.modules.characterpanel
+        return not cp or not cp.db or (cp.db.style or "classic") == "classic"
+    end
+
+    -- The recipe is the one the gear-set addon uses: Classic+ does not paint a
+    -- button, it simply lets Blizzard's own artwork stand and turns the label
+    -- Blizzard gold. Only the modern style wears our flat skin.
+    local GOLD = { r = 1, g = 0.82, b = 0 }
+    local skinned = {}
     local function skinBtn(b)
-        ns.UI:SkinPanelButton(b, { fonts = { fontN, fontH, fontD }, border = bc })
+        skinned[b] = true
+        if classicStyle() then
+            ns.UI:UnskinPanelButton(b)
+            local fs = b.GetFontString and b:GetFontString()
+            if fs then fs:SetTextColor(GOLD.r, GOLD.g, GOLD.b) end
+        else
+            ns.UI:SkinPanelButton(b, { fonts = { fontN, fontH, fontD }, border = bc })
+            local fs = b.GetFontString and b:GetFontString()
+            if fs then fs:SetTextColor(1, 1, 1) end
+        end
+    end
+
+    -- Selected-row backing. Classic+ takes the restrained olive the gear-set
+    -- addon uses there: its purple reads as a second accent next to Blizzard's
+    -- gold, and the two fight on the same row.
+    local function selectionRGBA()
+        if classicStyle() then return 0.50, 0.39, 0.10, 0.38 end
+        local a = ns.COLORS.accent
+        return a.r, a.g, a.b, 0.30
+    end
+    mod._sidebarSelectionRGBA = selectionRGBA
+
+    -- Re-paints what already exists. Registered for the character panel's style
+    -- switch below; without it a switch would only reach rows built afterwards.
+    ns.RestyleLoadoutsSidebar = function()
+        for b in pairs(skinned) do skinBtn(b) end
+        if mod._repaintSidebarRows then mod._repaintSidebarRows() end
     end
 
     local equipBtn = CreateFrame("Button", nil, sidebar, "UIPanelButtonTemplate")
-    equipBtn:SetSize(86, 22)
-    equipBtn:SetPoint("TOPLEFT", sidebar, "TOPLEFT", 4, -6)
+    equipBtn:SetHeight(22)
     equipBtn:SetText(L["Equip"])
     equipBtn:SetScript("OnClick", function()
         if sidebarSelected then equipLoadout(sidebarSelected) end
@@ -1738,8 +1802,7 @@ local function createSidebar()
     sidebar.equipBtn = equipBtn
 
     local saveBtn = CreateFrame("Button", nil, sidebar, "UIPanelButtonTemplate")
-    saveBtn:SetSize(86, 22)
-    saveBtn:SetPoint("TOPRIGHT", sidebar, "TOPRIGHT", -4, -6)
+    saveBtn:SetHeight(22)
     saveBtn:SetText(L["Save"])
     saveBtn:SetScript("OnClick", function()
         if sidebarSelected then
@@ -1751,12 +1814,43 @@ local function createSidebar()
     sidebar.saveBtn = saveBtn
 
     local newBtn = CreateFrame("Button", nil, sidebar, "UIPanelButtonTemplate")
-    newBtn:SetSize(178, 24)
-    newBtn:SetPoint("BOTTOM", sidebar, "BOTTOM", 0, 5)
+    newBtn:SetHeight(24)
     newBtn:SetText("+ " .. L["New Set"])
     newBtn:SetScript("OnClick", function() promptSaveWithSlots(nil) end)
     skinBtn(newBtn)
     sidebar.newBtn = newBtn
+
+    -- The three buttons SPAN between the panel's edges instead of carrying a
+    -- fixed width (user request, 02.08.2026 -- the gear-set panel this matches
+    -- does it the same way). Fixed 86 / 178 held only while the panel was
+    -- exactly 190 wide: the Modern character style makes it wider, and the two
+    -- top buttons then sat in the left half with a gap beside them.
+    --
+    -- Recomputed rather than anchored once, because it is called again on every
+    -- style switch, where the width can change under it.
+    local function layoutSidebarButtons()
+        if not sidebar then return end
+        local pad, gap = 4, 4
+        local w = sidebar:GetWidth() or 190
+        local half = math.max(20, (w - pad * 2 - gap) / 2)
+
+        equipBtn:ClearAllPoints()
+        equipBtn:SetWidth(half)
+        equipBtn:SetPoint("TOPLEFT", sidebar, "TOPLEFT", pad, -6)
+
+        saveBtn:ClearAllPoints()
+        saveBtn:SetWidth(half)
+        saveBtn:SetPoint("TOPRIGHT", sidebar, "TOPRIGHT", -pad, -6)
+
+        newBtn:ClearAllPoints()
+        newBtn:SetPoint("BOTTOMLEFT",  sidebar, "BOTTOMLEFT",  pad, 5)
+        newBtn:SetPoint("BOTTOMRIGHT", sidebar, "BOTTOMRIGHT", -pad, 5)
+    end
+    layoutSidebarButtons()
+    mod._layoutSidebarButtons = layoutSidebarButtons
+    -- The character panel's style switch already calls the re-anchor; the
+    -- buttons have to follow it, or a wider panel keeps half-width buttons.
+    sidebar:HookScript("OnSizeChanged", layoutSidebarButtons)
 
     -- The mover stores an x/y offset only; the frame must stay anchored to CharacterFrame.
     mod.db.sidebarPos = mod.db.sidebarPos or { x = 0, y = 0 }

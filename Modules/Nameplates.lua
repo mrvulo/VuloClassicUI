@@ -17,6 +17,7 @@ local mod = ns:RegisterModule("nameplates", {
         pixelPerfect  = false,
         healthTexture = "Atrocity",
         bgAlpha       = 0.85,
+        bgColor       = { r = 0.05, g = 0.05, b = 0.06 },
         borderSize    = 1,
         borderStyle   = "lines",
         borderTexture = "Blizzard Tooltip",
@@ -258,6 +259,123 @@ local function borderTextureValues()
 end
 
 local function db() return mod.db end
+
+-- ---------------------------------------------------------------------------
+-- Text slots: the same "one thing per slot" model the aura rows use, for the
+-- texts ON the plate (user request, 02.08.2026).
+--
+-- Four slots -- above the bar, and left/centre/right INSIDE it -- and two things
+-- that can fill them: the unit name and the health text. The level is not a slot
+-- content: it rides at the name's left edge and reads as part of it, which is a
+-- relationship a slot cannot express.
+--
+-- Stored per ELEMENT, not per slot, exactly like auraRows: the option page asks
+-- "what is in this slot" by scanning, so an element can never be in two slots
+-- and a slot can never hold two elements.
+local TEXT_SLOT_ANCHOR = {
+    -- slot -> point on the text, point on the health bar, x, y
+    top    = { "BOTTOM", "TOP",    0,  3 },
+    left   = { "LEFT",   "LEFT",   4,  0 },
+    right  = { "RIGHT",  "RIGHT", -4,  0 },
+    center = { "CENTER", "CENTER", 0,  0 },
+}
+
+function ns:NameplateTextCfg(key)
+    local d = db()
+    if type(d.textRows) ~= "table" then d.textRows = {} end
+    local r = d.textRows[key]
+    if type(r) ~= "table" then
+        r = { slot = (key == "name") and "top" or "center", x = 0, y = 0 }
+        d.textRows[key] = r
+    end
+    return r
+end
+local textCfg = function(key) return ns:NameplateTextCfg(key) end
+
+-- One-time per profile, from the three switches that used to say the same thing
+-- in longhand. nameInBar is the whole of it: on meant name left inside the bar
+-- and the health text on the right, off meant name above and health centred --
+-- which is exactly two slot assignments. A hidden element gets slot "none"
+-- rather than being left pointing at a slot it does not occupy.
+local function migrateTextSlots()
+    local d = db()
+    if not d or d.textRowsMigrated then return end
+    local nameCfg, hpCfg = ns:NameplateTextCfg("name"), ns:NameplateTextCfg("health")
+    if d.nameInBar then
+        nameCfg.slot, hpCfg.slot = "left", "right"
+    else
+        nameCfg.slot, hpCfg.slot = "top", "center"
+    end
+    if d.showName == false then nameCfg.slot = "none" end
+    if d.showHealthText == false or d.healthTextMode == "none" then hpCfg.slot = "none" end
+    -- the old per-element offsets keep their meaning, just on the slot now
+    nameCfg.x, nameCfg.y = d.nameOffsetX or 0, d.nameOffsetY or 0
+    hpCfg.x,   hpCfg.y   = d.healthTextOffsetX or 0, d.healthTextOffsetY or 0
+    d.textRowsMigrated = true      -- only after the work, never before
+end
+ns.MigrateNameplateTextSlots = migrateTextSlots
+
+-- ---------------------------------------------------------------------------
+-- General text: every text ON an aura icon or ON the cast bar carries a
+-- POSITION now, and "none" is what switches it off (user request, 02.08.2026).
+-- Four booleans became four pickers; migrateTextPositions below turns each old
+-- answer into the place that text already occupied, so nothing moves by itself.
+local AURA_TEXT_ANCHOR = {
+    topleft     = { "TOPLEFT",     "TOPLEFT",      1, -1 },
+    topright    = { "TOPRIGHT",    "TOPRIGHT",    -1, -1 },
+    bottomleft  = { "BOTTOMLEFT",  "BOTTOMLEFT",   1,  1 },
+    bottomright = { "BOTTOMRIGHT", "BOTTOMRIGHT",  2, -1 },
+    center      = { "CENTER",      "CENTER",       0,  0 },
+}
+ns.NameplateAuraTextAnchor = AURA_TEXT_ANCHOR
+
+-- The cast bar is one line, so its texts get sides rather than corners.
+local CAST_TEXT_SIDE = { left = true, right = true, center = true }
+
+local AURA_TEXT_ROWS = { "debuff", "dot", "buff", "cc" }
+
+local function migrateTextPositions()
+    local d = db()
+    if not d or d.textPosMigrated then return end
+    -- The duration was ONE setting for every row; it becomes one per row, all
+    -- starting from the answer that setting already gave.
+    local durPos = (d.showAuraTimer == false) and "none" or "center"
+    for _, key in ipairs(AURA_TEXT_ROWS) do
+        local c = ns:NameplateRowCfg(key)
+        if c.timerPos == nil then c.timerPos = durPos end
+    end
+    if d.auraStackPos == nil then
+        d.auraStackPos = (d.showAuraStacks == false) and "none" or "bottomright"
+    end
+    -- The cast name filled the bar; the target sat off its right edge.
+    if d.castNameSide   == nil then d.castNameSide   = (d.showCastText == false) and "none" or "center" end
+    if d.castTargetSide == nil then d.castTargetSide = d.castTargetText and "right" or "none" end
+    d.textPosMigrated = true      -- only after the work, never before
+end
+ns.MigrateNameplateTextPositions = migrateTextPositions
+
+local function auraTextPos(key)
+    migrateTextPositions()
+    return ns:NameplateRowCfg(key).timerPos or "center"
+end
+
+local function auraStackPos()
+    migrateTextPositions()
+    return db().auraStackPos or "bottomright"
+end
+
+-- Anchors one text into its slot. Returns whether it is shown, so the caller can
+-- keep the aura queue's top reservation honest.
+local function placeSlotText(fs, bar, key)
+    migrateTextSlots()
+    local cfg = textCfg(key)
+    local a = TEXT_SLOT_ANCHOR[cfg.slot or "none"]
+    if not a then fs:Hide(); return false end
+    fs:ClearAllPoints()
+    fs:SetPoint(a[1], bar, a[2], a[3] + (cfg.x or 0), a[4] + (cfg.y or 0))
+    fs:Show()
+    return true
+end
 
 -- No API for a unit's subname: scan line 2 of a hidden tooltip.
 local scanTip = CreateFrame("GameTooltip", "VCUINameplateScanTip", nil, "GameTooltipTemplate")
@@ -502,7 +620,26 @@ end
 
 local function applyBarBorders(f, d)
     applyBarBorder(f.health, f.healthBorder, f.healthBD, d)
-    applyBarBorder(f.cast,   f.castBorder,   f.castBD,   d)
+    -- The cast bar has its OWN border now (user request, 02.08.2026): its own
+    -- thickness and its own colour, both falling back to the health bar's while
+    -- they are absent -- so an untouched profile draws exactly what it did.
+    -- Size 0 is what switches it off; there is no separate on/off, because a
+    -- border of no thickness IS no border.
+    --
+    -- Overlaid on d rather than copied: applyBarBorder reads borderStyle and
+    -- borderTexture too, and those stay shared -- two bars on one plate wearing
+    -- different border STYLES is not a look anyone asked for.
+    local castD = d
+    local cs, cc = d.castBorderSize, d.castBorderColor
+    -- One-time: the on/off switch this replaces, straight into a thickness.
+    if cs == nil and d.borderOnCast == false then cs = 0 end
+    if cs ~= nil or cc ~= nil then
+        castD = setmetatable({
+            borderSize  = cs or d.borderSize,
+            borderColor = cc or d.borderColor,
+        }, { __index = d })
+    end
+    applyBarBorder(f.cast, f.castBorder, f.castBD, castD)
 end
 
 -- f._castExtra widens the cast row while this plate is the target (set by paintTarget).
@@ -549,16 +686,11 @@ local function layoutPlate(f)
 
     local iconSz = layoutCastRow(f, d)
 
-    f.healthText:ClearAllPoints()
-    if d.nameInBar then
-        -- name left inside the bar -> the health text takes the right edge,
-        -- which is the exact pairing the nameInBar tooltip promises
-        f.healthText:SetPoint("RIGHT", f.health, "RIGHT",
-            -4 + (d.healthTextOffsetX or 0), d.healthTextOffsetY or 0)
-    else
-        f.healthText:SetPoint("CENTER", f.health, "CENTER",
-            d.healthTextOffsetX or 0, d.healthTextOffsetY or 0)
-    end
+    -- The slot decides where this sits now, not nameInBar (02.08.2026). The old
+    -- pairing (name left -> health right, name above -> health centred) is what
+    -- migrateTextSlots writes into the slots on first load, so nothing moves for
+    -- a profile that never touches the new rows.
+    placeSlotText(f.healthText, f.health, "health")
 
     f.castIcon:ClearAllPoints()
     if d.castIconRight then
@@ -589,8 +721,12 @@ local function layoutPlate(f)
     end
 
     if f.castTimer then
+        migrateTextPositions()
         f.castTimer:ClearAllPoints()
         f.castText:ClearAllPoints()
+        -- The name still spans whatever the timer leaves of the bar -- that part
+        -- is unchanged. What the side picker adds is which END of that space the
+        -- text sits at (user request, 02.08.2026); "none" hides it further down.
         if d.castTimerSide == "left" then
             f.castTimer:SetPoint("LEFT", f.cast, "LEFT", 3, 0)
             f.castTimer:SetJustifyH("LEFT")
@@ -602,6 +738,8 @@ local function layoutPlate(f)
             f.castText:SetPoint("LEFT", f.cast, "LEFT", 3, 0)
             f.castText:SetPoint("RIGHT", f.cast, "RIGHT", d.castTimer and -30 or -3, 0)
         end
+        local side = d.castNameSide or "center"
+        f.castText:SetJustifyH(CAST_TEXT_SIDE[side] and side:upper() or "CENTER")
     end
 
     applyBarBorders(f, d)
@@ -665,10 +803,16 @@ local function skinPlate(f)
         f.cast:SetFrameStrata(d.castInFront and "HIGH" or "MEDIUM")
     end
     f.title:SetTextColor(0.72, 0.72, 0.78)
-    f.name:SetShown(d.showName)
-    f.healthText:SetShown(d.showHealthText)
+    migrateTextPositions()
+    -- The SLOT decides whether these two are drawn -- "none" is the off. They
+    -- used to be gated on showName/showHealthText as well, which meant two
+    -- owners for one answer: placeSlotText showed the text and this line hid it
+    -- again. With the switches gone from the page (02.08.2026) that would also
+    -- have stranded anyone whose profile had one of them off.
+    f.name:SetShown(textCfg("name").slot ~= "none")
+    f.healthText:SetShown(textCfg("health").slot ~= "none")
     f.castIcon:SetShown(d.showCastbar and d.showCastIcon)
-    f.castText:SetShown(d.showCastbar and d.showCastText)
+    f.castText:SetShown(d.showCastbar and (d.castNameSide or "center") ~= "none")
     do
         local tc = d.castTextColor or { r = 1, g = 1, b = 1 }
         f.castText:SetTextColor(tc.r, tc.g, tc.b)
@@ -682,10 +826,21 @@ local function skinPlate(f)
         -- Anchored to the cast bar's right end and pushed by its own offsets, so
         -- it can be parked under or beside the bar without fighting the spell
         -- name, which owns the inside of the bar.
+        local ts = d.castTargetSide or "none"
+        local ox, oy = d.castTargetX or 0, d.castTargetY or 0
         f.castTarget:ClearAllPoints()
-        f.castTarget:SetPoint("LEFT", f.cast, "RIGHT",
-            d.castTargetX or 6, d.castTargetY or 0)
-        f.castTarget:SetShown(d.showCastbar and d.castTargetText)
+        if ts == "left" then
+            f.castTarget:SetPoint("RIGHT", f.cast, "LEFT", -6 + ox, oy)
+            f.castTarget:SetJustifyH("RIGHT")
+        elseif ts == "center" then
+            -- Under the bar rather than on it: the inside belongs to the name.
+            f.castTarget:SetPoint("TOP", f.cast, "BOTTOM", ox, -2 + oy)
+            f.castTarget:SetJustifyH("CENTER")
+        else
+            f.castTarget:SetPoint("LEFT", f.cast, "RIGHT", 6 + ox, oy)
+            f.castTarget:SetJustifyH("LEFT")
+        end
+        f.castTarget:SetShown(d.showCastbar and ts ~= "none")
     end
 end
 
@@ -797,11 +952,22 @@ local function paintHealth(f, ctx, cur, max)
         if d.bgTintByBar then
             f.healthBG:SetColorTexture(r * 0.28, g * 0.28, b * 0.28, 0.9)
         else
-            f.healthBG:SetColorTexture(0.05, 0.05, 0.06, 0.85)
+            -- The plain shade is a SETTING now (style section, 02.08.2026); the
+            -- default is the 0.05/0.05/0.06 it was hardcoded to, so an untouched
+            -- profile paints the same pixel. Alpha stays out of it -- bgAlpha
+            -- already rides on the texture's own frame (see applyPlateStyle).
+            local bc = d.bgColor
+            f.healthBG:SetColorTexture((bc and bc.r) or 0.05, (bc and bc.g) or 0.05,
+                                       (bc and bc.b) or 0.06, 0.85)
         end
     end
     paintSpark(f.health, f.spark, r, g, b, d.showSpark, d.sparkWidth, true, cur)
-    if d.showHealthText then f.healthText:SetText(healthTextString(d, cur, max)) end
+    -- The slot again, not the retired switch: with showHealthText still read
+    -- here, a profile that had it off would show an empty text in a slot that
+    -- says it is on -- and nothing on the page could put the text back.
+    if textCfg("health").slot ~= "none" then
+        f.healthText:SetText(healthTextString(d, cur, max))
+    end
 
     -- A ring around the bar once the unit drops below the mark. Painted here
     -- rather than on a ticker: this runs on every health change anyway, which is
@@ -1084,7 +1250,8 @@ local function paintCastTarget(f)
     local fs = f.castTarget
     if not fs then return end
     local d = db()
-    if not d.castTargetText or not f.unit then fs:Hide(); return end
+    migrateTextPositions()
+    if (d.castTargetSide or "none") == "none" or not f.unit then fs:Hide(); return end
 
     local tu = f.unit .. "target"
     if not UnitExists(tu) then fs:SetText(""); fs:Show(); return end
@@ -1104,7 +1271,7 @@ local function paintCast(f, name, icon, notInterruptible)
     local c = castColor(d, notInterruptible, f)
     f.cast:SetStatusBarColor(c.r, c.g, c.b)
     paintSpark(f.cast, f.castSpark, c.r, c.g, c.b, d.showSpark, d.sparkWidth)
-    if d.showCastText then f.castText:SetText(name or "") end
+    if (d.castNameSide or "center") ~= "none" then f.castText:SetText(name or "") end
     if d.showCastIcon then f.castIcon:SetTexture(icon) end
     paintCastTarget(f)
 end
@@ -1385,8 +1552,33 @@ local function renderAuraGroup(g, list, o)
             else
                 ic.cd:Hide()
             end
+            -- Re-anchored only on a change: this loop runs per icon per row per
+            -- aura event, and a position only moves when a dropdown does.
+            if ic._timerPos ~= o.timerPos then
+                ic._timerPos = o.timerPos
+                local a2 = AURA_TEXT_ANCHOR[o.timerPos or "center"]
+                if a2 then
+                    ic.timer:ClearAllPoints()
+                    ic.timer:SetPoint(a2[1], ic, a2[2], a2[3], a2[4])
+                end
+            end
+            if ic._stackPos ~= o.stackPos then
+                ic._stackPos = o.stackPos
+                local a2 = AURA_TEXT_ANCHOR[o.stackPos or "bottomright"]
+                if a2 then
+                    ic.count:ClearAllPoints()
+                    ic.count:SetPoint(a2[1], ic, a2[2], a2[3], a2[4])
+                end
+            end
             plateFont(ic.timer, d.auraTimerSize)
             plateFont(ic.count, d.auraStackSize)
+            -- Absent = white, which is what both drew before they had a colour
+            -- of their own. Set here rather than once at creation because
+            -- plateFont above can rebuild the font object.
+            local tc = d.auraTimerColor
+            ic.timer:SetTextColor((tc and tc.r) or 1, (tc and tc.g) or 1, (tc and tc.b) or 1)
+            local sc = d.auraStackColor
+            ic.count:SetTextColor((sc and sc.r) or 1, (sc and sc.g) or 1, (sc and sc.b) or 1)
             ic.count:SetText((showStacks and a.count > 1) and a.count or "")
             ic.timer:SetText("")
             ic._timerBucket = false
@@ -1470,7 +1662,11 @@ local function applyAuras(f, lists)
             - math.min(0, d.castOffsetY or 0)
     end
     local used = _used
-    used.top    = (d.showName and (d.nameSize + 6) or 4) + (d.auraOffsetY or 0)
+    -- Only the name ABOVE the bar takes room from the aura rows. Once it can sit
+    -- inside the bar (text slots, 02.08.2026) the old `showName` test would have
+    -- left a name-sized gap over a plate whose name is not up there at all.
+    local nameAbove = textCfg("name").slot == "top"
+    used.top    = (nameAbove and (d.nameSize + 6) or 4) + (d.auraOffsetY or 0)
     used.bottom = castRoom - (d.auraOffsetY or 0)
     -- The two side columns queue OUTWARD from the bar's edges, the same idea as
     -- top and bottom but along the other axis. Started at a small gap rather
@@ -1552,7 +1748,12 @@ local function applyAuras(f, lists)
             _ro.grow, _ro.perRow, _ro.side = cfg.grow or "center", perRow, side
             _ro.vertical = vertical
             _ro.crop = cfg.crop
-            _ro.showTimer, _ro.showStacks = d.showAuraTimer, d.showAuraStacks
+            -- "none" IS the off switch now; the old booleans became these
+            -- positions in migrateTextPositions.
+            _ro.timerPos = auraTextPos(row.key)
+            _ro.stackPos = auraStackPos()
+            _ro.showTimer   = _ro.timerPos ~= "none"
+            _ro.showStacks  = _ro.stackPos ~= "none"
             _ro.swipe = d.auraSwipe
             renderAuraGroup(group, list, _ro)
         elseif group then
@@ -1766,7 +1967,9 @@ local function plateCastFlash(f)
     f._casting = nil
     if f.castShield then f.castShield:Hide() end
     if f.kickTick then f.kickTick:Hide() end
-    if d.hideNameWhileCasting and f._mode == "full" then f.name:SetShown(d.showName) end
+    if d.hideNameWhileCasting and f._mode == "full" then
+        f.name:SetShown(textCfg("name").slot ~= "none")
+    end
     local c = d.colInterruptFlash
     if f.castSpark then f.castSpark:Hide() end
     f.cast:SetMinMaxValues(0, 1)
@@ -1884,17 +2087,11 @@ local function applyPlateMode(f, mode)
         f.title:SetPoint("TOP", f.name, "BOTTOM", 0, -1)
     else
         f.health:Show()
-        f.name:ClearAllPoints()
-        if d.nameInBar then
-            -- the reference look: name INSIDE the bar at the left edge, so
-            -- the right edge stays free for the health text
-            f.name:SetPoint("LEFT", f.health, "LEFT",
-                4 + (d.nameOffsetX or 0), d.nameOffsetY or 0)
-        else
-            f.name:SetPoint("BOTTOM", f.health, "TOP",
-                d.nameOffsetX or 0, 3 + (d.nameOffsetY or 0))
-        end
-        f.name:SetShown(d.showName)
+        -- The slot owns the placement; showName still owns whether it is drawn
+        -- at all, so the switch on the page keeps working and an element parked
+        -- in no slot stays hidden either way.
+        local placed = placeSlotText(f.name, f.health, "name")
+        f.name:SetShown(placed)
         f.title:Hide()
     end
 end
@@ -2373,7 +2570,11 @@ local function buildPreview(parent)
 
     local plate = CreateFrame("Frame", nil, host)
     plate:SetSize(160, 46)
-    plate:SetPoint("CENTER", host, "CENTER", 0, -28)
+    -- Only far enough below centre to clear the caption band at the top. The
+    -- -28 this replaces was measured against the old 170-tall card; once that
+    -- came down to 118 the same offset pushed the combo pips onto the card's
+    -- bottom edge (user report, 02.08.2026).
+    plate:SetPoint("CENTER", host, "CENTER", 0, -8)
     buildVisuals(plate)
     plate.unit = nil
     plate.cast:Show()
@@ -2414,8 +2615,17 @@ local function buildPreview(parent)
         -- then scroll once the rebuild has laid the sections out.
         if UIW.currentTab ~= "display" then
             UIW:BuildOptionsPage(UIW._currentBuildKey, "display")
-            ns.NextFrame(function() scanAndScroll(title) end)
+            ns.NextFrame(function()
+                if not scanAndScroll(title) then
+                    ns:Debug("preview zone: no section titled %q", tostring(title))
+                end
+            end)
+            return
         end
+        -- Already on the display tab and the heading is not there: the zone
+        -- points at a section that no longer exists. Says so instead of eating
+        -- the click -- three zones did exactly that for a day.
+        ns:Debug("preview zone: no section titled %q", tostring(title))
     end
 
     local function makeZone(title, level)
@@ -2435,10 +2645,16 @@ local function buildPreview(parent)
         if not region then return end
         makeZone(title, level):SetAllPoints(region)
     end
-    clickZone(plate.health,   L["Health Bar"],  25)
-    clickZone(plate.cast,     L["Cast Bar"],    25)
-    clickZone(plate.name,     L["Text"],        25)
-    clickZone(plate.raidIcon, L["Raid Marker"], 25)
+    -- These titles are looked up by TEXT against the sections the page actually
+    -- built. Rename or remove a section and every zone pointing at it stops
+    -- doing anything, silently -- which is exactly what happened when the page
+    -- was reorganised on 02.08.2026 (user report: clicking the cast bar and the
+    -- combo points did nothing). Any section renamed here has to be renamed
+    -- there in the same commit.
+    clickZone(plate.health,   L["Health and cast bar"], 25)
+    clickZone(plate.cast,     L["Health and cast bar"], 25)
+    clickZone(plate.name,     L["Main text positions"], 25)
+    clickZone(plate.raidIcon, L["Extra indicators"],    25)
     local fitted = {}
     local function fittedZone(g, key, title, level)
         if not g then return end
@@ -2446,11 +2662,13 @@ local function buildPreview(parent)
         z:Hide()
         fitted[#fitted + 1] = { zone = z, group = g, key = key }
     end
-    fittedZone(plate.debuffGroup, "icons", L["Auras"],         20)
-    fittedZone(plate.dotGroup,    "icons", L["Your Own Debuffs"], 20)
-    fittedZone(plate.buffGroup,   "icons", L["Auras"],         20)
-    fittedZone(plate.ccGroup,     "icons", L["Crowd Control"], 20)
-    fittedZone(plate.cpGroup,     "pips",  L["Combo Points"],  20)
+    -- The aura rows are placed from the slot section now, so that is where a
+    -- click on one of them belongs.
+    fittedZone(plate.debuffGroup, "icons", L["Main positions"],     20)
+    fittedZone(plate.dotGroup,    "icons", L["Your Own Debuffs"],   20)
+    fittedZone(plate.buffGroup,   "icons", L["Main positions"],     20)
+    fittedZone(plate.ccGroup,     "icons", L["Extra indicators"],   20)
+    fittedZone(plate.cpGroup,     "pips",  L["Extra indicators"],   20)
     function plate:_FitZones()
         for _, e in ipairs(fitted) do
             local g, z = e.group, e.zone
@@ -2559,7 +2777,13 @@ local function buildPreview(parent)
         -- the card with it, and clip as the last line of defence, so the
         -- preview can never paint over the option rows around it.
         local pf = plateBaseScale(db()) / (UIParent:GetEffectiveScale() or 1)
-        host:SetHeight(math.floor(170 * math.max(1, pf) + 0.5))
+        -- 170 was sized for the tallest thing the mock can be -- a plate with
+        -- every aura row filled. With the usual two rows it left a hand's width
+        -- of empty card above and below (user report, 02.08.2026). 118 still
+        -- clears the raid marker above the bar and the combo pips below it; the
+        -- pixel-perfect factor still grows it, and the clip below is what keeps
+        -- an over-tall mock inside the card.
+        host:SetHeight(math.floor(118 * math.max(1, pf) + 0.5))
         if self._FitZones then self:_FitZones() end
     end
     if host.SetClipsChildren then host:SetClipsChildren(true) end

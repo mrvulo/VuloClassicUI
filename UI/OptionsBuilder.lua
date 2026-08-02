@@ -247,6 +247,13 @@ end
 local ICON_DIR  = "Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\"
 local ICON_INFO = ICON_DIR .. "info.tga"
 local ICON_GEAR = ICON_DIR .. "gear.tga"
+-- The two arrows: opens item.popup as a floating panel instead of expanding
+-- inline. Not a second expander in the sense the section note below forbids --
+-- it is the SAME idea as the gear, drawn where the row has no width left for a
+-- sub-column (a half cell in a two-column grid).
+local ICON_EXPAND  = ICON_DIR .. "expand.tga"
+local ICON_EYE     = ICON_DIR .. "eye.tga"
+local ICON_EYE_OFF = ICON_DIR .. "eye_off.tga"
 
 -- One slot per row icon, and the strip is always reserved even when the row
 -- carries none. Two slots, because a row can show at most the gear and the info
@@ -502,6 +509,273 @@ local function makeSubColumn(parent)
     return f
 end
 
+-- ---------------------------------------------------------------------------
+-- Row popup: one row's fine tuning, in a floating panel.
+--
+-- WHY NOT THE GEAR. The gear unfolds a sub-column INSIDE the row's cell, which
+-- needs a cell wide enough to hold a second, indented run. Half a cell in a
+-- strict two-column grid is not -- and the nameplate slot rows are exactly that
+-- shape (user request, 02.08.2026). This is not the second collapse mechanism
+-- the section note further down forbids: it makes the SAME promise the gear
+-- makes -- "what is in here belongs to this row" -- drawn where the width is.
+--
+-- The rows inside are built by placeItemList, so they are the same widgets with
+-- the same look and the same settings-search reach as any page row. Pooling
+-- stays safe only because clearChildren releases per PARENT: a page rebuild
+-- reclaims the page's widgets and cannot reach into the panel, and the panel's
+-- own widgets are out of the pool while it is open, so no page can be handed
+-- one that is still on screen.
+local rowPopup
+
+local function closeRowPopup()
+    if rowPopup and rowPopup:IsShown() then rowPopup:Hide() end
+end
+UI.CloseRowPopup = closeRowPopup
+
+local function ensureRowPopup()
+    if rowPopup then return rowPopup end
+    -- Named on purpose: UISpecialFrames closes it on Escape, which is what the
+    -- key does to every other panel in this UI.
+    local f = CreateFrame("Frame", "VuloOptionsRowPopup", UIParent)
+    f:SetFrameStrata("FULLSCREEN_DIALOG")
+    f:SetFrameLevel(200)
+    f:SetClampedToScreen(true)
+    f:EnableMouse(true)          -- eats its own clicks, so the catcher below cannot see them
+    f:Hide()
+    UI:StyleBackdrop(f)
+    if UI.CreateShadow then UI:CreateShadow(f) end
+
+    local accent = f:CreateTexture(nil, "ARTWORK")
+    accent:SetPoint("TOPLEFT",  f, "TOPLEFT",   1, -1)
+    accent:SetPoint("TOPRIGHT", f, "TOPRIGHT", -1, -1)
+    accent:SetHeight(2)
+    f._accent = accent
+
+    local title = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    UI.Font(title, 12)
+    title:SetPoint("TOP", f, "TOP", 0, -10)
+    title:SetTextColor(0.95, 0.95, 0.97)
+    f._title = title
+
+    local body = CreateFrame("Frame", nil, f)
+    body:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -30)
+    f._body = body
+
+    -- A click anywhere else closes it. A full-screen catcher BEHIND the panel,
+    -- not a mouse test on OnUpdate: the test would have to run every frame for
+    -- a panel that is open for a second.
+    local catcher = CreateFrame("Frame", nil, UIParent)
+    catcher:SetAllPoints(UIParent)
+    catcher:EnableMouse(true)
+    catcher:SetFrameStrata("FULLSCREEN_DIALOG")
+    catcher:SetFrameLevel(100)
+    catcher:Hide()
+    catcher:SetScript("OnMouseDown", closeRowPopup)
+    f._catcher = catcher
+
+    f:SetScript("OnShow", function(self) self._catcher:Show() end)
+    f:SetScript("OnHide", function(self)
+        self._catcher:Hide()
+        self._owner = nil
+        -- A menu opened from one of these rows would otherwise outlive the
+        -- button it belongs to -- that button is about to go back to the pool.
+        if UI.CloseDropdownPopup then UI.CloseDropdownPopup() end
+        -- back to the pools, or the next open would stack a second set of rows
+        -- on top of these
+        clearChildren(self._body)
+    end)
+    if _G.UISpecialFrames then
+        tinsert(_G.UISpecialFrames, "VuloOptionsRowPopup")
+    end
+    rowPopup = f
+    return f
+end
+
+-- spec = { title = <string>, width = <number>, items = { <option items> } }
+local function openRowPopup(anchor, spec)
+    local f = ensureRowPopup()
+    -- the same icon twice is "close", the way every expander in this UI behaves
+    if f:IsShown() and f._owner == anchor then closeRowPopup(); return end
+    f:Hide()                     -- releases the previous panel's rows via OnHide
+    f._owner = anchor
+    f._title:SetText(spec.title or "")
+    local a = ns.COLORS.accent   -- read at paint time: the theme colour is live-mutated
+    f._accent:SetColorTexture(a.r, a.g, a.b, 0.9)
+
+    -- Width BEFORE the rows: placeItemList measures its columns against the
+    -- parent's width, and a body still at its default would lay the rows out
+    -- for a width the panel never has. Below MIN_CELL on purpose -- one column
+    -- is what a fine-tuning list should be.
+    local w = spec.width or 240
+    f:SetWidth(w)
+    f._body:SetSize(w, 10)
+
+    -- ONE column, with a label column measured for THESE rows at THIS width --
+    -- the same recipe placeSubColumn uses, and for the same reason.
+    --
+    -- Clearing the grid instead of setting it was the first attempt and it drew
+    -- the panel in two columns anyway (user report, 02.08.2026): with no grid,
+    -- placeColumns falls through to fitColumns, which pairs any run that fits --
+    -- and at half of 320px every label came out as "Ver-t...". The grid is not
+    -- only what forces pairing, it is also what can forbid it.
+    local savedGrid, savedSolo = UI._grid, UI._soloCol
+    local col = runLabelColumn(collectCompact(spec.items or {}, {}),
+        w - 2 * CONTENT_PADDING - 20 - ROW_ICON_SLOT, true)
+    UI._grid    = { cols = 1, labelCol = col, iconStrip = ROW_ICON_SLOT }
+    UI._soloCol = col
+    local ok, bottom = pcall(placeItemList, f._body, spec.items or {}, 0)
+    UI._grid, UI._soloCol = savedGrid, savedSolo
+    if not ok then
+        ns:Debug("row popup: %s", tostring(bottom))
+        f:Hide()
+        return
+    end
+    local bodyH = math.max(10, -bottom)
+    f._body:SetHeight(bodyH)
+    f:SetHeight(30 + bodyH + 10)
+
+    f:ClearAllPoints()
+    -- UPWARDS by default (user request, 02.08.2026). Opening downwards put the
+    -- panel over the rows below it and, on a row near the bottom of the page,
+    -- half of it off the screen -- where SetClampedToScreen shoved it back over
+    -- its own anchor. Above the row it covers what you have already read.
+    --
+    -- Flipped back down only when the panel would not fit above: measured
+    -- against the anchor's own top, so a row near the top of the screen still
+    -- gets a panel you can read rather than one pinned to the edge.
+    local top = anchor:GetTop()
+    local screenH = UIParent:GetHeight() or 768
+    if top and (top + f:GetHeight() + 10) > screenH then
+        f:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", -10, -6)
+    else
+        f:SetPoint("BOTTOMLEFT", anchor, "TOPLEFT", -10, 6)
+    end
+    f:Show()
+end
+UI.OpenRowPopup = openRowPopup
+
+-- Where a row's inline icons chain leftward from. A dropdown hands back its
+-- box, which is what the eye follows; anything else falls back to its own right
+-- edge. Inline icons sit LEFT of the control on purpose -- the right-hand strip
+-- is spoken for by the info dot and the gear, and widening it would move every
+-- control on every page.
+-- Where a row's inline icons chain leftward from: the point at which the
+-- CONTROL begins. A dropdown hands back its box, a slider its track, a
+-- checkbox or toggle its switch.
+--
+-- The fallback to the widget itself is a LAST resort and it looks wrong when it
+-- fires -- the widget starts at the label, so the icons land in front of the
+-- text. That is exactly what the toggle rows did before `_switch` was listed
+-- here (user report, 02.08.2026): "Zaubersymbol" drew its arrows left of its
+-- own name. Any widget type given inline icons needs a handle in this list.
+local function inlineAnchor(widget)
+    return widget._button or widget._slider or widget._switch or widget
+end
+
+-- Small square colour button for an inline swatch. Pooled like the row icons,
+-- so a page rebuild reclaims it through clearChildren.
+local function makeInlineColor(parent)
+    local b = acquire("inlinecolor", parent)
+    if b then return b end
+    b = CreateFrame("Button", nil, parent)
+    b._vcType  = "inlinecolor"
+    b._vcSetup = function() end
+    b:SetSize(18, 18)
+    local border = b:CreateTexture(nil, "BACKGROUND")
+    border:SetAllPoints(b)
+    border:SetColorTexture(0, 0, 0, 0.8)
+    b._border = border
+    local fill = b:CreateTexture(nil, "ARTWORK")
+    fill:SetPoint("TOPLEFT", b, "TOPLEFT", 1, -1)
+    fill:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -1, 1)
+    b._fill = fill
+    b:SetScript("OnEnter", function(self)
+        local a = ns.COLORS.accent
+        self._border:SetColorTexture(a.r, a.g, a.b, 1)
+        if self._tip then UI:ShowTooltip(self, { title = self._tip, wrap = true }) end
+    end)
+    b:SetScript("OnLeave", function(self)
+        self._border:SetColorTexture(0, 0, 0, 0.8)
+        UI:HideTooltip()
+    end)
+    b:SetScript("OnClick", function(self)
+        local cfg = self._cfg
+        if not (cfg and cfg.get) then return end
+        local c = cfg.get() or {}
+        ns:ShowColorPicker({ r = c.r or 1, g = c.g or 1, b = c.b or 1,
+            onChange = function(r, g, bl)
+                if cfg.set then cfg.set(r, g, bl) end
+                local nc = cfg.get() or {}
+                self._fill:SetColorTexture(nc.r or 1, nc.g or 1, nc.b or 1, 1)
+            end })
+    end)
+    return b
+end
+
+-- Draws item.inline (right to left) starting at the control's left edge, and
+-- returns how much width they took so the caller can shrink the control by it.
+local INLINE_SLOT = 24
+local function placeInlineIcons(parent, item, widget, level)
+    if not widget then return 0 end
+    local defs = item.inline
+    local n = (defs and #defs) or 0
+
+    -- A toggle's label spans from the row's left edge to its switch, so icons
+    -- placed between the two would draw over the end of the text. Move the
+    -- label's right edge out of their way -- and move it BACK when a pooled
+    -- toggle lands on a row with no icons, or the gap travels to a page that
+    -- never asked for it.
+    if widget._switch and widget._label then
+        widget._label:ClearAllPoints()
+        widget._label:SetPoint("LEFT", widget, "LEFT", 0, 0)
+        widget._label:SetPoint("RIGHT", widget._switch, "LEFT", -8 - n * INLINE_SLOT, 0)
+    end
+
+    if n == 0 then return 0 end
+    local anchor = inlineAnchor(widget)
+    local used = 0
+    for _, def in ipairs(defs) do
+        local b
+        if def.kind == "color" then
+            b = makeInlineColor(parent)
+            b._cfg = def
+            b._tip = def.tooltip
+            local c = (def.get and def.get()) or {}
+            b._fill:SetColorTexture(c.r or 1, c.g or 1, c.b or 1, 1)
+            -- A swatch that cannot do anything says so rather than lying
+            local off = def.disabled and def.disabled()
+            b:SetAlpha(off and 0.15 or 1)
+            b:EnableMouse(not off)
+            b:SetFrameLevel(level)
+            b:Show()
+        else
+            local tex = ICON_EXPAND
+            local onClick
+            if def.kind == "eye" then
+                local on = not (def.get and def.get() == false)
+                tex = on and ICON_EYE or ICON_EYE_OFF
+                onClick = function()
+                    if def.set then def.set(not on) end
+                    UI:BuildOptionsPage(UI._currentBuildKey, UI.currentTab)
+                end
+            else
+                -- Two icons, one mechanism, and the difference is what the rows
+                -- behind it ARE. The gear means "more of this setting" -- the
+                -- same promise the right-hand gear makes on every other page.
+                -- The two arrows mean "this thing has a place and a size", which
+                -- is what a position slot opens.
+                if def.kind == "gear" then tex = ICON_GEAR end
+                onClick = function() openRowPopup(widget, def.popup or def) end
+            end
+            b = setRowIcon(makeRowIcon(parent), tex, def.tooltip, onClick, level)
+        end
+        b:ClearAllPoints()
+        b:SetPoint("RIGHT", anchor, "LEFT", -6 - used, 0)
+        used = used + INLINE_SLOT
+    end
+    return used
+end
+
 local function placeSubColumn(parent, item, cellX, subY, cellW)
     local sub = makeSubColumn(parent)
     sub:ClearAllPoints()
@@ -655,15 +929,24 @@ local function placeColumns(parent, run, y)
         local rightStrip = (fullW or cols == 1)
             and ((grid and grid.iconStrip) or ROW_ICON_STRIP) or 0
 
+        -- Inline icons live between the label and the control, so the label
+        -- column has to give up their width -- otherwise a long label runs
+        -- straight under the swatch. Measured before the widget is sized.
+        local inlineW = (item.inline and #item.inline > 0)
+            and (#item.inline * INLINE_SLOT) or 0
+
         local widget = createWidget(parent, item)
         if widget then
             widget:SetWidth(cellW - 20 - lead - rightStrip - gearLead)
-            if labelCol and widget.SetLabelWidth then widget:SetLabelWidth(labelCol) end
+            if labelCol and widget.SetLabelWidth then
+                widget:SetLabelWidth(math.max(20, labelCol - inlineW))
+            end
             widget:SetFrameLevel(base + 4)
             local wh = widget:GetHeight() or 22
             widget:ClearAllPoints()
             widget:SetPoint("TOPLEFT", parent, "TOPLEFT",
                 cellX + 10 + lead, cellY - math.floor((CARD_H - wh) / 2))
+            placeInlineIcons(parent, item, widget, base + 5)
         end
 
         local used = ROW_H
@@ -868,6 +1151,10 @@ placeItem = function(parent, item, y)
     end
 
     widget:SetPoint("TOPLEFT", parent, "TOPLEFT", CONTENT_PADDING, y)
+    -- Full-width rows carry their inline icons too: the nameplate style rows
+    -- drop out of the grid whenever the page is narrow, and a swatch that
+    -- vanished with the pairing would look like a lost setting.
+    placeInlineIcons(parent, item, widget, (parent:GetFrameLevel() or 1) + 5)
     return y - h
 end
 
@@ -1097,6 +1384,12 @@ function UI:PlaceGroup(parent, group, y)
             if panel then p.widget:SetFrameLevel(base + 4) end
             local yo = y - PAD - math.floor((maxWH - p.wh) / 2)
             p.widget:SetPoint("TOPLEFT", parent, "TOPLEFT", cursorX, yo)
+            -- An explicitly paired row is a THIRD placement path, next to
+            -- placeColumns and placeItem, and it was the one the style rows take
+            -- -- so "Rand" and "Hintergrund" drew without their swatch and gear
+            -- while the slot rows below them had theirs (user report,
+            -- 02.08.2026). Every path that places a widget places its icons.
+            placeInlineIcons(parent, p.item, p.widget, base + 5)
             cursorX = cursorX + p.w + gap
         end
         if panel then panel:SetSize(availW, cardH) end
@@ -1143,6 +1436,7 @@ function UI:PlaceGroup(parent, group, y)
                     local xo = CONTENT_PADDING + (panel and 6 or 0) + (i - 1) * colWidth
                     local yo = curY - (panel and 4 or 0)
                     widget:SetPoint("TOPLEFT", parent, "TOPLEFT", xo, yo)
+                    placeInlineIcons(parent, ri, widget, base + 5)
                 end
             end
             curY = curY - rowMaxH
@@ -1218,6 +1512,10 @@ end
 function UI:BuildOptionsPage(key, tabId)
     local f = UI.mainFrame
     if not f then return end
+    -- A rebuild pulls the row the panel hangs off out from under it, and the
+    -- panel's own setters close over the OLD spec table. Closing first also
+    -- hands its rows back to the pools before the page asks for them.
+    closeRowPopup()
     -- a sub-module redirects to its container + own tab, so rebuildPage("itskey") keeps working
     local m0 = ns.modules[key]
     if m0 and m0.parentTab then

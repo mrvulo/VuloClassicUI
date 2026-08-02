@@ -113,6 +113,11 @@ function mod:GetOptions()
           set = function(_, v)
               mod.db.style = v
               refreshPanel()
+              -- FIRST consumer of this setting (02.08.2026). Until now the value
+              -- was written here and read by nothing, so switching styles
+              -- visibly did nothing -- the loadouts sidebar now takes its button
+              -- look and its selection colour from it.
+              if ns.RestyleLoadoutsSidebar then ns.RestyleLoadoutsSidebar() end
           end },
         { type = "desc", text = L["The options below apply to the Classic+ style."] },
 

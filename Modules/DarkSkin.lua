@@ -26,6 +26,9 @@ local mod = ns:RegisterModule("darkskin", {
         dmActionbars    = true,
         dmActionButtons = false,
         dmBags          = false,
+        -- Off: the gryphons are what Blizzard's bar looks like, and taking them
+        -- away unasked would change every profile that never opted in.
+        hideGryphons    = false,
     },
 })
 
@@ -628,6 +631,25 @@ local function applyMinimap(on)
     for _, n in ipairs(MINIMAP_BUTTONS) do paintNormal(n, on) end
 end
 local function applyActionbars(on) paintGlobals(ACTIONBAR_ART, on) end
+
+-- The two beasts at the ends of the main bar. Their own switch (user request,
+-- 02.08.2026), independent of Dark Mode: dark-tinted gryphons are still
+-- gryphons, and wanting the bar to end cleanly is a different wish from wanting
+-- the artwork darker.
+--
+-- Textures, not frames -- hiding one is unprotected, so this needs no combat
+-- guard and can run from an option setter at any time. The alpha is left alone:
+-- Dark Mode paints these same regions, and two owners of one alpha value is how
+-- a setting ends up depending on the order the two were last applied.
+local GRYPHONS = { "MainMenuBarLeftEndCap", "MainMenuBarRightEndCap" }
+local function applyGryphons(hide)
+    for _, n in ipairs(GRYPHONS) do
+        local t = _G[n]
+        if t then
+            if hide then t:Hide() else t:Show() end
+        end
+    end
+end
 local function applyActionButtons(on)
     if on and buttonSkinOwnsBars() then return end
     for _, bar in ipairs(ACTION_BUTTON_BARS) do
@@ -643,6 +665,10 @@ local function isDMOn(area)
 end
 
 local function applyAllDM()
+    -- Not gated on darkMode, unlike everything below it: this one is its own
+    -- switch and has to answer even with Dark Mode off. It rides along here
+    -- because this is the pass that runs whenever the artwork is re-applied.
+    applyGryphons(active and mod.db.hideGryphons and true or false)
     applyUnitframes(isDMOn("dmUnitframes"))
     applyMinimap(isDMOn("dmMinimap"))
     applyActionbars(isDMOn("dmActionbars"))
@@ -651,6 +677,7 @@ local function applyAllDM()
 end
 
 local function restoreAllDM()
+    applyGryphons(false)      -- the module going away must hand them back
     applyUnitframes(false)
     applyMinimap(false)
     applyActionbars(false)
@@ -706,7 +733,11 @@ end
 
 local function onWorldEnter()
     skinEverythingSoon()
-    if mod.db.darkMode then applyAllDM() end
+    -- Unconditional since the gryphon switch joined this pass: gated on darkMode
+    -- it would hide them at login and hand them back at the first zone change.
+    -- Harmless with Dark Mode off -- every other call in there then re-applies
+    -- "not tinted", which is what the artwork already is.
+    applyAllDM()
 end
 local function onTargetChanged()
     onTargetChangedWA()

@@ -114,17 +114,43 @@ end
 -- draws a flat background plus four one-pixel edges, applies the caller's
 -- font trio and recolours to accent on hover. Four modules carried copies.
 -- opts: fonts = { normal, highlight, disabled }, border = colour table.
+-- REVERSIBLE since 02.08.2026. This used to call r:SetTexture(nil) on every
+-- region, which DESTROYS Blizzard's artwork: a button skinned once could never
+-- wear its Blizzard look again without being rebuilt. The loadouts sidebar
+-- needs exactly that switch -- Classic+ shows Blizzard's buttons, the modern
+-- style the flat ones -- so the artwork is now only faded out and remembered.
+--
+-- Alpha rather than Hide() on purpose, and that is unchanged from before:
+-- Blizzard's own button-state code calls Show/Hide on these regions when a
+-- button is pressed or disabled, and would undo a Hide. It never touches alpha.
+--
+-- Calling it twice is now "switch back on" instead of a no-op, so a caller can
+-- toggle without knowing which state it is in.
 function UI:SkinPanelButton(b, opts)
-    if not b or b._vcuiSkin then return end
-    b._vcuiSkin = true
+    if not b then return end
     local ac = ns.COLORS.accent
     local bc = (opts and opts.border) or ns.COLORS.border or { r = 0.22, g = 0.22, b = 0.27 }
+
+    if b._vcuiSkin then
+        for _, r in ipairs(b._vcuiBlizzRegions or {}) do r:SetAlpha(0) end
+        if b._vcuiBG then b._vcuiBG:Show() end
+        for _, t in ipairs(b._vcuiEdges or {}) do t:Show() end
+        return
+    end
+    b._vcuiSkin = true
+
+    -- Only regions that carried artwork at skin time, with the alpha they had:
+    -- a region Blizzard keeps invisible must stay invisible when we hand it back.
+    local blizz = {}
     for _, r in ipairs({ b:GetRegions() }) do
         if r.IsObjectType and r:IsObjectType("Texture") then
-            r:SetTexture(nil)
+            blizz[#blizz + 1] = r
+            r._vcuiAlpha = r:GetAlpha()
             r:SetAlpha(0)
         end
     end
+    b._vcuiBlizzRegions = blizz
+
     local bg = b:CreateTexture(nil, "BACKGROUND")
     bg:SetAllPoints(b)
     bg:SetColorTexture(0.13, 0.13, 0.16, 1)
@@ -138,6 +164,7 @@ function UI:SkinPanelButton(b, opts)
     edges[2]:SetPoint("BOTTOMLEFT"); edges[2]:SetPoint("BOTTOMRIGHT"); edges[2]:SetHeight(1)
     edges[3]:SetPoint("TOPLEFT"); edges[3]:SetPoint("BOTTOMLEFT"); edges[3]:SetWidth(1)
     edges[4]:SetPoint("TOPRIGHT"); edges[4]:SetPoint("BOTTOMRIGHT"); edges[4]:SetWidth(1)
+    b._vcuiBG, b._vcuiEdges = bg, edges
     local fonts = opts and opts.fonts
     if fonts then
         if b.SetNormalFontObject then b:SetNormalFontObject(fonts[1]) end
@@ -152,6 +179,22 @@ function UI:SkinPanelButton(b, opts)
         bg:SetColorTexture(0.13, 0.13, 0.16, 1)
         for _, t in ipairs(edges) do t:SetColorTexture(bc.r, bc.g, bc.b, 1) end
     end)
+end
+
+-- Hands the button back its Blizzard look: our flat background and border step
+-- aside, the original artwork fades back to the alpha it had before we touched
+-- it. The hover hooks stay installed and keep recolouring textures nobody can
+-- see -- cheap, and it means SkinPanelButton can switch the look back on
+-- without rebuilding anything.
+--
+-- Safe on a button that was never skinned: there is nothing to restore.
+function UI:UnskinPanelButton(b)
+    if not b or not b._vcuiSkin then return end
+    if b._vcuiBG then b._vcuiBG:Hide() end
+    for _, t in ipairs(b._vcuiEdges or {}) do t:Hide() end
+    for _, r in ipairs(b._vcuiBlizzRegions or {}) do
+        r:SetAlpha(r._vcuiAlpha or 1)
+    end
 end
 
 function UI:CreateShadow(frame)
@@ -1056,6 +1099,9 @@ end
 -- One popup frame is shared by all dropdowns; only one can be open at a time.
 local activePopup
 
+-- Exported below as UI.CloseDropdownPopup: a panel that hands its widgets back
+-- to the pool has to shut any menu still hanging off one of them first, or the
+-- menu outlives the button it belongs to.
 local function closeActivePopup()
     if activePopup and activePopup:IsShown() then
         activePopup:Hide()
@@ -1065,6 +1111,7 @@ local function closeActivePopup()
         activePopup._owner = nil
     end
 end
+UI.CloseDropdownPopup = closeActivePopup
 
 -- Forward-declared: the wheel handler below is written before the function
 -- exists, and a plain reference there would resolve to a nil GLOBAL and scroll
@@ -1075,7 +1122,12 @@ local function ensurePopupFrame()
     if activePopup then return activePopup end
     local p = CreateFrame("Frame", "VCDropdownPopup", UIParent)
     p:SetFrameStrata("FULLSCREEN_DIALOG")
-    p:SetFrameLevel(200)
+    -- Above everything this UI can put on that strata. An open menu is the
+    -- frontmost thing on screen by definition -- it is what the next click is
+    -- for. At 200 it merely TIED with the options row panel, and a tie in the
+    -- same strata is resolved by creation order: the menu drew behind the panel
+    -- and its entries showed through as ghosts (user report, 02.08.2026).
+    p:SetFrameLevel(600)
     p:EnableMouse(true)
     -- The wheel is caught on the popup, not on each row: a row is only 24 px
     -- tall, and hitting the gap between two of them would drop the tick.

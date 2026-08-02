@@ -4883,11 +4883,11 @@ end
 end)(...);
 
 (function(...)
--- VulTraining: spell book tab listing trainable class abilities, built from per-class spell tables (Modules/VulTraining/Classes) so no trainer visit is needed.
+-- Training: spell book tab listing trainable class abilities, built from per-class spell tables (Modules/Training/Classes) so no trainer visit is needed.
 local _, ns = ...
 
 local mod = ns:RegisterModule("vultraining", {
-    name        = "VulTraining",
+    name        = "Training",
     group       = "Character",
     description = "Adds a tab to your spell book that lists the abilities you can still learn from your class trainer, grouped by level. Open the book icon below the spell schools.",
     defaults    = { enabled = true },
@@ -4902,9 +4902,15 @@ local MAX_ROWS, ROW_HEIGHT = 22, 14
 local SKILL_LINE_TAB = (MAX_SKILLLINE_TABS or 8) - 1
 local SPELLBOOK_SPELL = BOOKTYPE_SPELL or "spell"
 local PARENS = PARENS_TEMPLATE or "(%s)"
-local MEDIA = "Interface\\AddOns\\VuloClassicUI\\Media\\VulTraining\\"
+local MEDIA = "Interface\\AddOns\\VuloClassicUI\\Media\\Training\\"
 local TEX_LEFT, TEX_RIGHT, TEX_HL = MEDIA .. "page-left", MEDIA .. "page-right", MEDIA .. "row-highlight"
-local TAB_ICON = "Interface\\Icons\\INV_Misc_QuestionMark"
+-- Our own open-book glyph, not Blizzard's question mark (user request,
+-- 02.08.2026). The question mark is the client's "no icon" placeholder -- on a
+-- tab that IS a page of the spellbook it read as something broken rather than
+-- as something to click. A file of ours rather than one of Blizzard's icon
+-- paths: whether a given Interface\Icons name ships with this client is not
+-- something we can check from here, and a missing texture draws nothing at all.
+local TAB_ICON = "Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\book.tga"
 local CLOSE = FONT_COLOR_CODE_CLOSE
 local COMINGSOON = "|cff82c5ff"
 
@@ -5126,7 +5132,7 @@ end
 local function createFrame()
     if mod._frame or not SpellBookFrame then return end
 
-    local frame = CreateFrame("Frame", "VulTrainingFrame", SpellBookFrame)
+    local frame = CreateFrame("Frame", "TrainingFrame", SpellBookFrame)
     frame:SetPoint("TOPLEFT", SpellBookFrame, "TOPLEFT", 0, 0)
     frame:SetPoint("BOTTOMRIGHT", SpellBookFrame, "BOTTOMRIGHT", 0, 0)
     frame:SetFrameStrata("HIGH")

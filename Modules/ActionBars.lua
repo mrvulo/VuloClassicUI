@@ -2341,6 +2341,15 @@ function mod:GetOptions(tabId)
                 { type = "toggle", label = L["Also skin pet & stance buttons"],
                   get = function() return ds.db.skinPetStance end,
                   set = function(_, v) ds.db.skinPetStance = v; if ds.SkinAll then ds.SkinAll() end end },
+                -- Standard mode only, and that is the point: in Modern mode our
+                -- own bars replace Blizzard's and the gryphons are gone anyway.
+                -- The setting lives in the Dark Skin module because that is what
+                -- is still running here -- this module's own appliers stand down
+                -- while Blizzard keeps its bars.
+                { type = "toggle", label = L["Hide the gryphons"],
+                  tooltip = L["Removes the two beasts at the ends of Blizzard's main action bar. The bar itself stays."],
+                  get = function() return ds.db.hideGryphons end,
+                  set = function(_, v) ds.db.hideGryphons = v; if ds.ApplyAllDM then ds.ApplyAllDM() end end },
             } }
             items[#items + 1] = { type = "section", title = L["Dark Mode"], items = {
                 { type = "toggle", label = L["Enable Dark Mode"],
