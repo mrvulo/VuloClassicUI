@@ -1216,7 +1216,7 @@ local function buildModernSections()
 	-- this game have the stat" -- Era answers the first yes and the second no,
 	-- so a capability test would add three rows that always read zero. Wrath
 	-- has ratings, so it belongs in the list.
-	local hasRatings = ns.isBCC or ns.isWrath
+	local hasRatings = ns.Wrath.hasRatings
 	if hasRatings and GetCombatRatingBonus and _G.CR_HASTE_MELEE then
 		row(melee, L["Haste"], function() return GetCombatRatingBonus(CR_HASTE_MELEE) end, "%.2f%%")
 	end

@@ -4353,7 +4353,7 @@ local function enlarge()
     -- two-pane quest log; every number below is tuned to the single-pane BCC
     -- anatomy and shoved their detail pane into the button row (reported with
     -- screenshots). Nothing to gain there, so the enlargement never runs.
-    if ns.isWrath or ns.isCata then return end
+    if ns.Wrath.hasWideQuestLog then return end
     local QLF = _G.QuestLogFrame
     if not QLF then return end
     enlarged = true
@@ -4454,7 +4454,7 @@ function mod:GetOptions()
     -- The enlargement never runs on Wrath-based clients (see enlarge) -- their
     -- quest log is the wide two-pane frame already. A switch that does nothing
     -- is not offered; inserted before the theme row to keep the old order.
-    if not (ns.isWrath or ns.isCata) then
+    if not ns.Wrath.hasWideQuestLog then
         table.insert(items, #items, { type = "toggle", label = L["Larger quest log"],
             tooltip = L["Enlarges the quest log so more quests are visible with the detail pane beside the list. /reload to fully apply or revert."],
             get = function() return mod.db.larger end,

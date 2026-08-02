@@ -315,7 +315,7 @@ local function fontsOptions()
         local tokens = {}
         for _, tok in ipairs(CLASS_ORDER) do
             if rcc[tok] and names[tok]
-               and (tok ~= "DEATHKNIGHT" or ns.isWrath) then
+               and (tok ~= "DEATHKNIGHT" or ns.Wrath.hasDeathKnight) then
                 tokens[#tokens + 1] = tok
             end
         end
@@ -346,7 +346,7 @@ local function fontsOptions()
         local token = tok
         local name = _G[token]
         if type(name) == "string" and name ~= ""
-           and (token ~= "RUNIC_POWER" or ns.isWrath) then
+           and (token ~= "RUNIC_POWER" or ns.Wrath.hasRunicPower) then
             powerRows[#powerRows + 1] = {
                 type = "color", label = name,
                 labelTint = true, noOverride = true,

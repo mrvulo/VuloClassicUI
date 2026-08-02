@@ -922,7 +922,7 @@ local function build()
     -- Only on Wrath-family clients (Titan included): that is where the native
     -- bar shows a recall button and where the report came from. The spell also
     -- exists on TBC/Era, but there it stays middle-click only.
-    if ns.isWrath and totemicRecallSpell() then rows.recall = createRow(RECALL) end
+    if ns.Wrath.hasTotemicRecall and totemicRecallSpell() then rows.recall = createRow(RECALL) end
 
     container.mover = ns:CreateMover(container, {
         key    = "totems",

@@ -36,7 +36,7 @@ local BLIZZ = {
 -- straight onto UIParent from Lua. Wrath-family only: that is where the
 -- report came from, and the shipped TBC/Era variants keep their native loot
 -- behaviour (loot under mouse) untouched unless this ships for them one day.
-if ns.isWrath then
+if ns.Wrath.hasMovableLoot then
     BLIZZ[#BLIZZ + 1] = { key = "loot", name = "LootFrame", label = "LOOT", direct = true }
 end
 local anchors = {}

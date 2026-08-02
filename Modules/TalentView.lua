@@ -13,7 +13,7 @@
 local _, ns = ...
 local L = ns.L
 
-if not ns.isWrath then return end
+if not ns.Wrath.hasTalentTrees then return end
 
 local mod = ns:RegisterModule("talentview", {
     name        = "Talent Window",
