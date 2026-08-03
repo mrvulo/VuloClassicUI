@@ -6,6 +6,25 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+    { version = "1.52.0", sections = {
+        { category = "Chat", lines = {
+            "The own background for the input line is offered on every client. It was limited to one client generation, and the code already said it would work everywhere.",
+        } },
+        { category = "Cooldown Manager", lines = {
+            "The icon borders are pixel-exact. The border there is not a texture of its own but the rim of a plate behind the icon, so the two have to sit on the same pixel grid, the thickness has to be counted in pixels rather than frame units, and the icon size and spacing have to begin on whole pixels. None of the three was true, which is why a rim came out two pixels on one edge and none on the opposite.",
+        } },
+        { category = "Nameplates", lines = {
+            "NEW: Apply this arrangement – Puts the unit name and the health value inside the bar, crowd control left of it, incoming debuffs above that and buffs to its right, with the cast bar carrying its icon, its remaining time and its target",
+            "The unit name was hidden behind the health bar fill as soon as a text slot put it inside the bar. The name and the health value hang from different parents: the value is created on the bar, the name on the plate, and the bar is a child of the plate — so it draws over anything the plate draws. While the name only ever sat above the bar this never showed. It has its own layer now, above the bar but not attached to it, because name-only mode hides that bar and a text parented to a hidden frame would go with it.",
+            "The health text has its controls back: what it shows, and which mark goes between the two numbers. Both were still being read and had been unreachable since the page was rebuilt.",
+        } },
+        { category = "Talent Window", lines = {
+            "The active talent group was always reported as the first one on clients that do not carry the newer interface for it. Everything behind that believed group one was running: the header called the group you were standing in not active, the activate button offered to switch to the one already on, and the switch reported success while changing nothing. Five files ask that same question, so profile overrides and bar setups were reading it too.",
+            "The glyph page stands permanently beside the window. It is lifted out of Blizzard's talent frame, where it lives inside the scroll area of the very window we replace, and handed back when ours closes.",
+            "The separate glyph button is gone with it. Its only job was to send you to the page that now stands in front of you.",
+            "A band under the header carries the activate button and the name of the talent group on screen. Until now switching existed only as a right-click on the small side icons, and nothing announced it.",
+        } },
+    } },
     { version = "1.51.0", sections = {
         { category = "Character Panel", lines = {
             "NEW: Socket strip under the window – A row of every socket on your equipped gear, hung under the character window; click a socket to put a gem from your bags into it",
@@ -524,21 +543,6 @@ ns.CHANGELOG = {
         { category = "Action Bars", lines = {
             "All micro menu buttons open their windows again — the emptied default micro menu shell was invisibly swallowing clicks on the relocated buttons.",
             "Fixed a blocked-action error when the stance bar updated during combat; stance button visibility now only changes out of combat, while icon tint, cooldown and the active marker keep updating live.",
-        } },
-    } },
-    { version = "1.34.0", sections = {
-        { category = "Action Bars", lines = {
-            "NEW: An Action Bars module puts every action bar on its own movable frame — action bars 1 to 5, the stance bar and the pet bar — each placed and scaled in Edit Mode and configured on its own.",
-            "The main bar pages correctly with druid, rogue, warrior and priest forms, and your keybinds keep working on every bar, with the key shown on the buttons.",
-            "Per bar: visibility (always, mouseover, in or out of combat), opacity, icon size, buttons per row, spacing, vertical layout, reverse order, and hiding the keybind or macro text — with adjustable text sizes for keybind, macro, count and cooldown numbers.",
-            "Empty slots can be hidden and reappear automatically while you drag an ability onto the bar, and a bar can be made click-through.",
-            "Cooldown and look settings for all bars: cooldown sweep darkness, desaturating icons on cooldown, colouring icons while the target is out of range, and hiding button tooltips always or only in combat.",
-            "NEW: An own experience bar with adjustable width, height and colour, rested overlay and progress text — it replaces the default bar while enabled and hides at the level cap.",
-            "The micro menu, the bag bar and the performance bar sit on movable holders, and each of them can be hidden — as can the default experience bar.",
-            "Off by default: the standard bars stay untouched until you enable the module, and disabling hands everything back (a reload fully restores the default bars).",
-        } },
-        { category = "Dark Skin", lines = {
-            "The dark button skin now also covers the new action-bar buttons.",
         } },
     } },
 }
