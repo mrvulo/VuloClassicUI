@@ -6,6 +6,16 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+    { version = "1.51.0", sections = {
+        { category = "Character Panel", lines = {
+            "NEW: Socket strip under the window – A row of every socket on your equipped gear, hung under the character window; click a socket to put a gem from your bags into it",
+            "The enchant text on armour slots reads the enchant again instead of the item's difficulty tag. The filter took the first green line of the tooltip, and where an item carries a tag that tag stands above the enchant — so every such slot showed the tag, while a weapon two rows down showed its enchant correctly because nothing stood in front of it. The tag and the client's bracketed hints are both recognised now, in every language rather than only in English and German.",
+        } },
+        { category = "Loadouts", lines = {
+            "The set list no longer casts a shadow past its own frame. What looked like the background standing out over the border was a drop shadow: not an outline but four filled rectangles reaching up to seven pixels beyond the frame on every side, and behind Blizzard's dialog frame there was nothing for it to fall on. It is gone in both looks.",
+            "In the Classic+ look the dark ground stopped short of the ornate line instead of ending on it, and so showed past the frame on every side.",
+        } },
+    } },
     { version = "1.50.0", sections = {
         { category = "Bar Setups", lines = {
             "NEW: Export as string – Packs the selected setup into a string you can pass on, with its slots, macros and key bindings",
@@ -529,19 +539,6 @@ ns.CHANGELOG = {
         } },
         { category = "Dark Skin", lines = {
             "The dark button skin now also covers the new action-bar buttons.",
-        } },
-    } },
-    { version = "1.33.0", sections = {
-        { category = "Nameplates (German: Namensplaketten)", lines = {
-            "NEW: A custom Nameplates module draws its own health bar, cast bar, name and health text over enemy and NPC nameplates — fully configurable, with a live preview that updates as you change each option.",
-            "Health bar with your choice of texture, width, height, background, and a border drawn as thin lines or a texture, all in your own colours.",
-            "Colouring by reaction (hostile, neutral, friendly, tapped) and by class for players, plus role-based threat colouring for tanks and damage dealers.",
-            "Target and focus highlight rings, and an optional fade for plates that are not your target.",
-            "Cast bar with spell icon, spell name, and a separate colour for casts that cannot be interrupted.",
-            "Aura rows: your debuffs (or all of them), enemy buffs, and a separate prominent row for crowd control such as Polymorph, Fear and Sap. A glow marks enemy buffs you can steal or dispel.",
-            "Combo point pips on your target for Rogues and Druids in cat form.",
-            "Raid target markers (skull, cross, and the rest) with adjustable size and position.",
-            "Friendly plates can show name only, the full plate, or nothing — set separately for players and NPCs — and can show a friendly NPC's subtitle under its name.",
         } },
     } },
 }

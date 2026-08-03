@@ -3217,4 +3217,9 @@ ns:RegisterLocale("zhTW", function() return {
     ["Click to pick a gem from your bags."] = "點擊以從背包中挑選寶石。",
     ["Cannot socket gems in combat."] = "戰鬥中無法鑲嵌寶石。",
     ["Close the socketing window first."] = "請先關閉鑲嵌視窗。",
+    -- Patch notes 1.51.0
+    ["Socket strip under the window – A row of every socket on your equipped gear, hung under the character window; click a socket to put a gem from your bags into it"] = "視窗下方的插槽列 – 一列列出你所穿裝備全部插槽的條列，位於角色視窗下方；點擊某個插槽即可把背包裡的寶石鑲入其中",
+    ["The enchant text on armour slots reads the enchant again instead of the item's difficulty tag. The filter took the first green line of the tooltip, and where an item carries a tag that tag stands above the enchant — so every such slot showed the tag, while a weapon two rows down showed its enchant correctly because nothing stood in front of it. The tag and the client's bracketed hints are both recognised now, in every language rather than only in English and German."] = "護甲欄位的附魔文字重新顯示附魔，而不是物品的難度標記。過濾器取的是提示訊息裡第一行綠字，而帶標記的物品，其標記就排在附魔之上——於是每個這樣的欄位都顯示標記，而兩行之下的武器因為前面沒有別的，附魔顯示正確。現在標記和客戶端的角括號提示都會被識別，而且適用於所有語言，不再只有英語和德語。",
+    ["The set list no longer casts a shadow past its own frame. What looked like the background standing out over the border was a drop shadow: not an outline but four filled rectangles reaching up to seven pixels beyond the frame on every side, and behind Blizzard's dialog frame there was nothing for it to fall on. It is gone in both looks."] = "套裝清單不再把陰影投到自己的邊框之外。看上去像是背景越過邊框的那一塊其實是投影：它不是描邊，而是四個填滿的矩形，每一側最多伸出邊框七個像素，而在暴雪的對話框邊框後面它根本無處可落。兩種外觀下都已移除。",
+    ["In the Classic+ look the dark ground stopped short of the ornate line instead of ending on it, and so showed past the frame on every side."] = "在 Classic+ 外觀下，深色底面停在紋飾線之前而不是正好落在線上，因此四面都露到了邊框之外。",
 } end)
