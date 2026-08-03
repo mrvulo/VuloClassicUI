@@ -3214,4 +3214,14 @@ ns:RegisterLocale("koKR", function() return {
     ["The glyph page opens from a button under the talent group buttons, and it is dark now. The rune circle is dimmed rather than removed, because it is what makes that page recognisable; the sockets take the accent colour, and the glyph artwork and the pickup highlight stay as they are."] = "문양 페이지는 특성 그룹 버튼 아래의 버튼으로 열리며, 이제 어둡습니다. 룬 원은 지우지 않고 어둡게만 했습니다. 그 원이 있어야 이 페이지를 알아볼 수 있기 때문입니다. 홈은 강조색을 쓰고, 문양 그림과 집어들 때의 강조 표시는 그대로 둡니다.",
     ["The talent group button shows its tree's icon instead of a question mark. It asked for that icon through an interface that does not answer on every client, and fell back to the placeholder; the answer is now worked out from the ranks themselves, which cannot be misread."] = "특성 그룹 버튼이 물음표 대신 해당 계열의 아이콘을 보여줍니다. 모든 클라이언트에서 답하지 않는 인터페이스로 아이콘을 묻다가 자리 표시자로 물러났었는데, 이제는 잘못 읽힐 수 없는 특성 등급 자체에서 답을 구합니다.",
     ["The level number on the player frame sits where the client puts it on the Wrath client. Our two anchors are measured against one frame sheet, and where a different one ships, the number landed beside the portrait — the client keeps that anchor itself there anyway, moving it as the rest and PvP icons come and go."] = "Wrath 클라이언트에서 플레이어 프레임의 레벨 숫자가 클라이언트가 놓는 자리에 놓입니다. 우리 두 고정점은 하나의 프레임 이미지에 맞춰 측정된 것이라, 다른 이미지가 실린 곳에서는 숫자가 초상화 옆에 떨어졌습니다. 게다가 그곳에서는 클라이언트가 그 고정점을 직접 관리하며 휴식·PvP 아이콘이 나타나고 사라짐에 따라 옮깁니다.",
+
+    -- Character Panel: socket strip
+    ["Socket strip under the window"] = "창 아래 홈 막대",
+    ["Puts a strip with every socket of your equipped gear under the character window. Click a socket to put a gem from your bags into it. Stays empty on clients whose game has no gems."] = "착용 중인 장비의 모든 홈을 모은 막대를 캐릭터 창 아래에 놓습니다. 홈을 클릭하면 가방에 있는 보석을 그 홈에 박습니다. 보석이 없는 게임의 클라이언트에서는 비어 있습니다.",
+    ["Choose a gem"] = "보석 선택",
+    ["No gems in your bags."] = "가방에 보석이 없습니다.",
+    ["Empty socket"] = "빈 홈",
+    ["Click to pick a gem from your bags."] = "클릭하면 가방에서 보석을 고릅니다.",
+    ["Cannot socket gems in combat."] = "전투 중에는 보석을 박을 수 없습니다.",
+    ["Close the socketing window first."] = "먼저 보석 박기 창을 닫으세요.",
 } end)

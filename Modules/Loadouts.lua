@@ -1016,9 +1016,20 @@ local SIDEBAR_WIDTH = 190
 
 -- Only the BORDER of the classic look comes from Blizzard. Its matching
 -- background texture is not drawn on this client -- the window stayed
--- see-through -- so the ground is a white texture tinted dark by hand. The
--- insets pull that ground under the border and must stay SMALLER than the
--- visible frame, otherwise a gap opens between the two and one looks through it.
+-- see-through -- so the ground is a white texture tinted dark by hand.
+--
+-- The insets say where that ground STOPS, measured from the frame's own edge,
+-- and they have to land on the border's visible inner line. The dialog border is
+-- 32 pixels of art, and its ornate line does not sit at the outer pixel: there
+-- is roughly a dozen pixels of margin in front of it. At 5 the ground therefore
+-- stopped OUTSIDE the line and stood out past the frame on every side (reported
+-- with a screenshot, 03.08.2026). 11/12 is the pairing Blizzard itself uses with
+-- this exact art at this exact edge size, and it is asymmetric on purpose --
+-- the artwork is.
+--
+-- The number cannot simply be raised further: past the line the ground pulls
+-- away from the border and a gap opens that one looks through. It belongs ON
+-- the line, not merely inside it.
 local WINDOW_BACKDROPS = {
     modern = {
         bgFile   = "Interface\\Buttons\\WHITE8X8",
@@ -1030,12 +1041,14 @@ local WINDOW_BACKDROPS = {
         bgFile   = "Interface\\Buttons\\WHITE8X8",
         edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
         tile = false, edgeSize = 32,
-        insets = { left = 5, right = 5, top = 5, bottom = 5 },
+        insets = { left = 11, right = 12, top = 12, bottom = 11 },
     },
 }
 
 -- Both looks run through SetBackdrop, so a style switch is a second call on the
 -- same frame -- nothing is rebuilt and no /reload is needed.
+--
+-- Neither look carries a drop shadow any more; see where it used to be created.
 local function styleWindow(frame)
     if not frame or not frame.SetBackdrop then return end
     if sidebarClassic() then
@@ -1051,6 +1064,15 @@ local function styleWindow(frame)
         frame:SetBackdropBorderColor(bd.r, bd.g, bd.b, bd.a or 1)
     end
 end
+
+-- Handed out so anything that DOCKS onto these windows wears the same material
+-- instead of keeping its own copy of the recipe. The socket strip under the
+-- sidebar is the first taker: a copy there would have drifted the first time one
+-- of the two numbers above changed. The inset travels with it, because the
+-- classic look grows the frame by its border and the content has to move in by
+-- the same amount or it sits on the artwork.
+ns.StyleLoadoutsWindow = styleWindow
+ns.LoadoutsWindowInset = sidebarInset
 
 local _iconPicker
 local _iconBtns = {}
@@ -1761,9 +1783,9 @@ local function createSidebar()
         sidebar:ClearAllPoints()
         sidebar:SetPoint("TOPLEFT",    CharacterFrame, "TOPRIGHT", x, topOff)
         sidebar:SetPoint("BOTTOMLEFT", CharacterFrame, "BOTTOMRIGHT", x, botOff)
-        if sidebar._vcShadow then
-            for _, t in ipairs(sidebar._vcShadow) do t:SetShown(not modernOn) end
-        end
+        -- The shadow is NOT decided here any more; styleWindow owns it. Placing
+        -- the same call in two functions meant the later one won, and this one
+        -- runs on every re-anchor -- which put the shadow back in Classic+.
     end
     anchorToCharacterFrame()
     sidebar._reanchor = anchorToCharacterFrame
@@ -1797,7 +1819,12 @@ local function createSidebar()
     end
 
     local UIW = ns.UI
-    if UIW and UIW.CreateShadow then UIW:CreateShadow(sidebar) end
+    -- No drop shadow, in EITHER look (owner's decision, 03.08.2026). CreateShadow
+    -- is not an outline: it is four filled black rectangles standing 1, 3, 5 and
+    -- 7 pixels PAST the frame on every side. Behind Blizzard's dialog frame that
+    -- read as the background spilling out past the border, and against the flat
+    -- panel it was a dark band with nothing to cast it. Not created rather than
+    -- created-and-hidden, so there is no switch left to turn it back on.
     local gstrip = sidebar:CreateTexture(nil, "ARTWORK")
     gstrip:SetPoint("TOPLEFT", sidebar, "TOPLEFT", 0, 0)
     gstrip:SetPoint("TOPRIGHT", sidebar, "TOPRIGHT", 0, 0)

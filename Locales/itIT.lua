@@ -3214,4 +3214,14 @@ ns:RegisterLocale("itIT", function() return {
     ["The glyph page opens from a button under the talent group buttons, and it is dark now. The rune circle is dimmed rather than removed, because it is what makes that page recognisable; the sockets take the accent colour, and the glyph artwork and the pickup highlight stay as they are."] = "La pagina dei glifi si apre da un pulsante sotto i pulsanti dei gruppi talenti, ed è scura adesso. Il cerchio runico viene attenuato invece che rimosso, perché è ciò che rende riconoscibile quella pagina; gli incastoni prendono il colore d’accento, e la grafica del glifo e l’evidenziazione di presa restano come sono.",
     ["The talent group button shows its tree's icon instead of a question mark. It asked for that icon through an interface that does not answer on every client, and fell back to the placeholder; the answer is now worked out from the ranks themselves, which cannot be misread."] = "Il pulsante del gruppo talenti mostra l’icona del suo albero invece di un punto interrogativo. La chiedeva attraverso un’interfaccia che non risponde su ogni client e ripiegava sul segnaposto; ora la risposta viene ricavata dai ranghi stessi, che non possono essere letti male.",
     ["The level number on the player frame sits where the client puts it on the Wrath client. Our two anchors are measured against one frame sheet, and where a different one ships, the number landed beside the portrait — the client keeps that anchor itself there anyway, moving it as the rest and PvP icons come and go."] = "Il numero del livello sulla finestra del giocatore sta dove lo mette il client, sul client Wrath. I nostri due ancoraggi sono misurati su un foglio di cornice, e dove ne viene distribuito un altro il numero finiva accanto al ritratto: lì il client mantiene quell’ancoraggio da sé e lo sposta a seconda delle icone di riposo e PvP.",
+
+    -- Character Panel: socket strip
+    ["Socket strip under the window"] = "Barra dei castoni sotto la finestra",
+    ["Puts a strip with every socket of your equipped gear under the character window. Click a socket to put a gem from your bags into it. Stays empty on clients whose game has no gems."] = "Mette sotto la finestra del personaggio una barra con ogni castone del tuo equipaggiamento. Clicca su un castone per incastonarvi una gemma dalle tue borse. Resta vuota sui client il cui gioco non ha gemme.",
+    ["Choose a gem"] = "Scegli una gemma",
+    ["No gems in your bags."] = "Nessuna gemma nelle tue borse.",
+    ["Empty socket"] = "Castone vuoto",
+    ["Click to pick a gem from your bags."] = "Clicca per scegliere una gemma dalle tue borse.",
+    ["Cannot socket gems in combat."] = "Non è possibile incastonare gemme in combattimento.",
+    ["Close the socketing window first."] = "Chiudi prima la finestra di incastonatura.",
 } end)

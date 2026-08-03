@@ -1634,6 +1634,14 @@ ns:RegisterLocale("deDE", function() return {
     ["Adds a red ring around item sockets that have no gem."] = "Zeigt einen roten Ring um Item-Sockel ohne Stein.",
     ["Text shadow (instead of outline)"] = "Text-Schatten (statt Outline)",
     ["Cleaner text with a drop shadow instead of a thick outline."] = "Sauberer Text mit Schatten statt dickem Outline.",
+    ["Socket strip under the window"] = "Sockelleiste unter dem Fenster",
+    ["Puts a strip with every socket of your equipped gear under the character window. Click a socket to put a gem from your bags into it. Stays empty on clients whose game has no gems."] = "Setzt eine Leiste mit allen Sockeln deiner angelegten Ausrüstung unter das Charakterfenster. Ein Klick auf einen Sockel setzt einen Stein aus deinen Taschen ein. Bleibt leer auf Clients, deren Spiel keine Steine kennt.",
+    ["Choose a gem"] = "Stein wählen",
+    ["No gems in your bags."] = "Keine Steine in deinen Taschen.",
+    ["Empty socket"] = "Leerer Sockel",
+    ["Click to pick a gem from your bags."] = "Klicken, um einen Stein aus deinen Taschen zu wählen.",
+    ["Cannot socket gems in combat."] = "Im Kampf können keine Steine eingesetzt werden.",
+    ["Close the socketing window first."] = "Schließe zuerst das Sockelfenster.",
 
     -- Shaman Totem Timer
     -- MinimapStyle

@@ -3215,6 +3215,16 @@ local function T() return {
     ["The glyph page opens from a button under the talent group buttons, and it is dark now. The rune circle is dimmed rather than removed, because it is what makes that page recognisable; the sockets take the accent colour, and the glyph artwork and the pickup highlight stay as they are."] = "La página de glifos se abre con un botón bajo los botones de grupo de talentos, y ahora es oscura. El círculo rúnico se atenúa en lugar de quitarse, porque es lo que hace reconocible esa página; los engarces toman el color de acento, y el arte del glifo y el resalte al cogerlo se quedan como están.",
     ["The talent group button shows its tree's icon instead of a question mark. It asked for that icon through an interface that does not answer on every client, and fell back to the placeholder; the answer is now worked out from the ranks themselves, which cannot be misread."] = "El botón de grupo de talentos muestra el icono de su árbol en vez de un signo de interrogación. Lo pedía a través de una interfaz que no responde en todos los clientes y recurría al marcador de posición; ahora la respuesta se deduce de los propios rangos, que no se pueden malinterpretar.",
     ["The level number on the player frame sits where the client puts it on the Wrath client. Our two anchors are measured against one frame sheet, and where a different one ships, the number landed beside the portrait — the client keeps that anchor itself there anyway, moving it as the rest and PvP icons come and go."] = "El número de nivel del marco de jugador queda donde lo pone el cliente en el cliente Wrath. Nuestros dos anclajes están medidos contra una hoja de marco, y donde se distribuye otra, el número acababa junto al retrato: allí el cliente mantiene ese anclaje por su cuenta y lo mueve según aparecen y desaparecen los iconos de descanso y JcJ.",
+
+    -- Character Panel: socket strip
+    ["Socket strip under the window"] = "Barra de ranuras bajo la ventana",
+    ["Puts a strip with every socket of your equipped gear under the character window. Click a socket to put a gem from your bags into it. Stays empty on clients whose game has no gems."] = "Coloca bajo la ventana de personaje una barra con todas las ranuras de tu equipo. Haz clic en una ranura para engarzar en ella una gema de tus bolsas. Permanece vacía en clientes cuyo juego no tiene gemas.",
+    ["Choose a gem"] = "Elige una gema",
+    ["No gems in your bags."] = "No hay gemas en tus bolsas.",
+    ["Empty socket"] = "Ranura vacía",
+    ["Click to pick a gem from your bags."] = "Haz clic para elegir una gema de tus bolsas.",
+    ["Cannot socket gems in combat."] = "No se pueden engarzar gemas en combate.",
+    ["Close the socketing window first."] = "Cierra primero la ventana de engarce.",
 } end
 
 ns:RegisterLocale("esES", T)

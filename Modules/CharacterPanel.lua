@@ -16,6 +16,7 @@ local mod = ns:RegisterModule("characterpanel", {
         showItemLevel       = true,
         showSockets         = true,
         markEmptySockets    = true,
+        showSocketBar       = true,
         shortenEnchants     = true,
         ringsEnchantable    = true,
         showAvgItemLevel    = true,
@@ -123,6 +124,9 @@ function mod:GetOptions()
     local function refreshPanel()
         if ns.InvalidateCharacterPanel then ns.InvalidateCharacterPanel() end
         if ns.RefreshCharacterPanel then ns.RefreshCharacterPanel() end
+        -- The socket strip hangs off the window, not off a slot button, so the
+        -- per-slot invalidation above never reaches it.
+        if ns.RefreshSocketBar then ns.RefreshSocketBar() end
     end
 
     return {
@@ -160,6 +164,10 @@ function mod:GetOptions()
           tooltip = L["Adds a red ring around item sockets that have no gem."],
           get = function() return mod.db.markEmptySockets end,
           set = function(_, v) mod.db.markEmptySockets = v; refreshPanel() end },
+        { type = "checkbox", label = L["Socket strip under the window"],
+          tooltip = L["Puts a strip with every socket of your equipped gear under the character window. Click a socket to put a gem from your bags into it. Stays empty on clients whose game has no gems."],
+          get = function() return mod.db.showSocketBar end,
+          set = function(_, v) mod.db.showSocketBar = v; refreshPanel() end },
         { type = "checkbox", label = L["Text shadow (instead of outline)"],
           tooltip = L["Cleaner text with a drop shadow instead of a thick outline."],
           get = function() return mod.db.textShadow end,
@@ -515,7 +523,33 @@ local function tooltipNoisePatterns()
 	add(_G.ITEM_SPELL_TRIGGER_ONUSE)
 	add(_G.ITEM_SPELL_TRIGGER_ONPROC)
 	add(_G.ITEM_SOCKET_BONUS, true)
+	-- The difficulty tag. It is green, it is a line of its own, and it stands
+	-- ABOVE the enchant -- so on gear that carries it, every slot read "Heroic"
+	-- and the real enchant never showed (reported with a screenshot from 3.80.x,
+	-- 03.08.2026, where a weapon's "Berserking" came through correctly precisely
+	-- because no tag stood in front of it).
+	-- Confirmed by /dump on 3.80.x: ITEM_HEROIC = "Heroic". Worth writing down,
+	-- because the client's own GlobalStrings do NOT show it -- the string block
+	-- deduplicates, the word sits once under DUNGEON_DIFFICULTY2, and this tag
+	-- carries no copy of its own. Reading that file alone, "points at the same
+	-- word" and "is empty" look identical.
+	add(_G.ITEM_HEROIC)
+	add(_G.ITEM_HEROIC_EPIC)
+	-- Client hints: "<Shift Right Click to Socket>" and "<Right Click to Open>".
+	-- Both confirmed against the same source, and confirmed to be wrapped in
+	-- angle brackets in BOTH shipped languages -- which is what makes the
+	-- structural test below trustworthy rather than an English-only guess.
+	add(_G.ITEM_SOCKETABLE)
+	add(_G.ITEM_OPENABLE)
 	return tooltipNoise
+end
+
+-- A whole line wrapped in angle brackets is a BEDIENHINWEIS, never an enchant --
+-- true in every language and on every client, and it needs no global to be
+-- named correctly. This is the belt for the hints; the globals above are the
+-- braces.
+local function isClientHintLine(text)
+	return text:find("^%s*<") ~= nil and text:find(">%s*$") ~= nil
 end
 
 local function GetItemEnchantAsText(unit, slot)
@@ -540,6 +574,7 @@ local function GetItemEnchantAsText(unit, slot)
 				local isGreen = g and g > 0.9 and r < 0.2 and b < 0.2
 
 				if isGreen
+					and not isClientHintLine(text)
 					and not text:find("^Equip:")
 					and not text:find("^Benutzen:")
 					and not text:find("^Use:")
@@ -547,6 +582,9 @@ local function GetItemEnchantAsText(unit, slot)
 					and not text:find("Sockelbonus:")
 					and not text:find("^Requires")
 					and not text:find("^Benötigt")
+					-- same belt as the lines above, for the difficulty tag
+					and text ~= "Heroic"
+					and text ~= "Heroisch"
 				then
 					local noise = false
 					for _, pat in ipairs(tooltipNoisePatterns()) do
@@ -1714,6 +1752,10 @@ local function UpdateCharacterPanel()
 		end
 		if ns.ReanchorLoadoutsSidebar then ns.ReanchorLoadoutsSidebar() end
 	end
+	-- Outside the IsShown() guard on purpose: this is what takes the strip down
+	-- again when the module is switched off, and the refresh itself checks
+	-- whether its parent is visible before it draws anything.
+	if ns.RefreshSocketBar then ns.RefreshSocketBar() end
 end
 
 -- Covers the inspect window too: the module toggle refreshes through here, and

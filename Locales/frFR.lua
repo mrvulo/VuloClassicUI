@@ -3363,4 +3363,14 @@ ns:RegisterLocale("frFR", function() return {
     ["The glyph page opens from a button under the talent group buttons, and it is dark now. The rune circle is dimmed rather than removed, because it is what makes that page recognisable; the sockets take the accent colour, and the glyph artwork and the pickup highlight stay as they are."] = "La page des glyphes s’ouvre par un bouton sous les boutons de groupe de talents, et elle est sombre désormais. Le cercle runique est assombri plutôt que retiré, car c’est lui qui rend cette page reconnaissable ; les châsses prennent la couleur d’accentuation, et l’illustration du glyphe et la surbrillance de prise restent telles quelles.",
     ["The talent group button shows its tree's icon instead of a question mark. It asked for that icon through an interface that does not answer on every client, and fell back to the placeholder; the answer is now worked out from the ranks themselves, which cannot be misread."] = "Le bouton de groupe de talents affiche l’icône de son arbre au lieu d’un point d’interrogation. Il la demandait via une interface qui ne répond pas sur tous les clients et se rabattait sur l’espace réservé ; la réponse est maintenant déduite des rangs eux-mêmes, qui ne peuvent pas être mal lus.",
     ["The level number on the player frame sits where the client puts it on the Wrath client. Our two anchors are measured against one frame sheet, and where a different one ships, the number landed beside the portrait — the client keeps that anchor itself there anyway, moving it as the rest and PvP icons come and go."] = "Le niveau sur la fenêtre du joueur se place là où le client le met, sur le client Wrath. Nos deux ancrages sont mesurés sur une planche de cadre, et là où une autre est livrée, le nombre atterrissait à côté du portrait — le client y entretient cet ancrage lui-même et le déplace au gré des icônes de repos et JcJ.",
+
+    -- Character Panel: socket strip
+    ["Socket strip under the window"] = "Barre de châsses sous la fenêtre",
+    ["Puts a strip with every socket of your equipped gear under the character window. Click a socket to put a gem from your bags into it. Stays empty on clients whose game has no gems."] = "Place sous la fenêtre du personnage une barre reprenant chaque châsse de votre équipement. Cliquez sur une châsse pour y sertir une gemme de vos sacs. Reste vide sur les clients dont le jeu ne connaît pas les gemmes.",
+    ["Choose a gem"] = "Choisir une gemme",
+    ["No gems in your bags."] = "Aucune gemme dans vos sacs.",
+    ["Empty socket"] = "Châsse vide",
+    ["Click to pick a gem from your bags."] = "Cliquez pour choisir une gemme dans vos sacs.",
+    ["Cannot socket gems in combat."] = "Impossible de sertir des gemmes en combat.",
+    ["Close the socketing window first."] = "Fermez d’abord la fenêtre de sertissage.",
 } end)

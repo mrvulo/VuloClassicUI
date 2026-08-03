@@ -3214,4 +3214,14 @@ ns:RegisterLocale("ruRU", function() return {
     ["The glyph page opens from a button under the talent group buttons, and it is dark now. The rune circle is dimmed rather than removed, because it is what makes that page recognisable; the sockets take the accent colour, and the glyph artwork and the pickup highlight stay as they are."] = "Страница символов открывается кнопкой под кнопками наборов талантов и теперь тёмная. Рунный круг притушен, а не убран: именно по нему эта страница и узнаётся; гнёзда берут акцентный цвет, а рисунок символа и подсветка при взятии остаются как были.",
     ["The talent group button shows its tree's icon instead of a question mark. It asked for that icon through an interface that does not answer on every client, and fell back to the placeholder; the answer is now worked out from the ranks themselves, which cannot be misread."] = "Кнопка набора талантов показывает значок своей ветки вместо вопросительного знака. Она спрашивала его через интерфейс, который отвечает не на каждом клиенте, и откатывалась к заглушке; теперь ответ выводится из самих рангов, а их прочесть неверно нельзя.",
     ["The level number on the player frame sits where the client puts it on the Wrath client. Our two anchors are measured against one frame sheet, and where a different one ships, the number landed beside the portrait — the client keeps that anchor itself there anyway, moving it as the rest and PvP icons come and go."] = "Число уровня на рамке игрока стоит там, куда его ставит клиент, на клиенте Wrath. Наши две привязки вымерены под один лист рамки, и там, где поставляется другой, число оказывалось рядом с портретом — к тому же клиент сам поддерживает эту привязку и двигает её по мере появления значков отдыха и PvP.",
+
+    -- Character Panel: socket strip
+    ["Socket strip under the window"] = "Полоса гнёзд под окном",
+    ["Puts a strip with every socket of your equipped gear under the character window. Click a socket to put a gem from your bags into it. Stays empty on clients whose game has no gems."] = "Помещает под окно персонажа полосу со всеми гнёздами вашей экипировки. Щелчок по гнезду вставляет в него самоцвет из сумок. Остаётся пустой на клиентах, в игре которых нет самоцветов.",
+    ["Choose a gem"] = "Выберите самоцвет",
+    ["No gems in your bags."] = "В сумках нет самоцветов.",
+    ["Empty socket"] = "Пустое гнездо",
+    ["Click to pick a gem from your bags."] = "Щёлкните, чтобы выбрать самоцвет из сумок.",
+    ["Cannot socket gems in combat."] = "В бою нельзя вставлять самоцветы.",
+    ["Close the socketing window first."] = "Сначала закройте окно вставки самоцветов.",
 } end)

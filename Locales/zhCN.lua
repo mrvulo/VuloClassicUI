@@ -3207,4 +3207,14 @@ ns:RegisterLocale("zhCN", function() return {
     ["The glyph page opens from a button under the talent group buttons, and it is dark now. The rune circle is dimmed rather than removed, because it is what makes that page recognisable; the sockets take the accent colour, and the glyph artwork and the pickup highlight stay as they are."] = "雕文页面由天赋方案按钮下方的一个按钮打开，现在是深色的。符文圆环是被调暗而不是移除，因为正是它让人认出这个页面；镶孔取用强调色，雕文本身的图案和拾取时的高亮保持原样。",
     ["The talent group button shows its tree's icon instead of a question mark. It asked for that icon through an interface that does not answer on every client, and fell back to the placeholder; the answer is now worked out from the ranks themselves, which cannot be misread."] = "天赋方案按钮显示所属天赋树的图标，而不是问号。它此前通过一个并非在所有客户端都会作答的接口索取该图标，于是退回占位符；现在答案直接从天赋点数本身推得，而点数是不会被误读的。",
     ["The level number on the player frame sits where the client puts it on the Wrath client. Our two anchors are measured against one frame sheet, and where a different one ships, the number landed beside the portrait — the client keeps that anchor itself there anyway, moving it as the rest and PvP icons come and go."] = "在 Wrath 客户端上，玩家框体的等级数字回到客户端给它安排的位置。我们的两个锚点是照着一套框体贴图量出来的，换成另一套时数字就落到了头像旁边——何况客户端本来就自己维护这个锚点，会随着休息和 PvP 图标的出现与消失而挪动它。",
+
+    -- Character Panel: socket strip
+    ["Socket strip under the window"] = "窗口下方的插槽条",
+    ["Puts a strip with every socket of your equipped gear under the character window. Click a socket to put a gem from your bags into it. Stays empty on clients whose game has no gems."] = "在角色窗口下方放置一条列出你所穿装备全部插槽的条带。点击某个插槽，即可把背包里的宝石镶入其中。在没有宝石的游戏客户端上保持为空。",
+    ["Choose a gem"] = "选择宝石",
+    ["No gems in your bags."] = "背包里没有宝石。",
+    ["Empty socket"] = "空插槽",
+    ["Click to pick a gem from your bags."] = "点击以从背包中挑选宝石。",
+    ["Cannot socket gems in combat."] = "战斗中无法镶嵌宝石。",
+    ["Close the socketing window first."] = "请先关闭镶嵌窗口。",
 } end)

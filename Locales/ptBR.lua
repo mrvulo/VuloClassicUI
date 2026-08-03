@@ -3214,4 +3214,14 @@ ns:RegisterLocale("ptBR", function() return {
     ["The glyph page opens from a button under the talent group buttons, and it is dark now. The rune circle is dimmed rather than removed, because it is what makes that page recognisable; the sockets take the accent colour, and the glyph artwork and the pickup highlight stay as they are."] = "A página de glifos abre por um botão abaixo dos botões de grupo de talentos, e agora é escura. O círculo rúnico é escurecido em vez de removido, porque é o que torna aquela página reconhecível; os encaixes assumem a cor de destaque, e a arte do glifo e o realce ao pegá-lo ficam como estão.",
     ["The talent group button shows its tree's icon instead of a question mark. It asked for that icon through an interface that does not answer on every client, and fell back to the placeholder; the answer is now worked out from the ranks themselves, which cannot be misread."] = "O botão de grupo de talentos mostra o ícone da sua árvore em vez de um ponto de interrogação. Ele pedia esse ícone por uma interface que não responde em todo cliente e recorria ao espaço reservado; agora a resposta é deduzida dos próprios níveis de talento, que não podem ser lidos errado.",
     ["The level number on the player frame sits where the client puts it on the Wrath client. Our two anchors are measured against one frame sheet, and where a different one ships, the number landed beside the portrait — the client keeps that anchor itself there anyway, moving it as the rest and PvP icons come and go."] = "O número de nível no quadro do jogador fica onde o cliente o coloca, no cliente Wrath. Nossas duas âncoras são medidas contra uma folha de moldura, e onde outra é distribuída o número acabava ao lado do retrato — ali o cliente mantém essa âncora sozinho e a move conforme os ícones de descanso e JxJ aparecem e somem.",
+
+    -- Character Panel: socket strip
+    ["Socket strip under the window"] = "Barra de encaixes abaixo da janela",
+    ["Puts a strip with every socket of your equipped gear under the character window. Click a socket to put a gem from your bags into it. Stays empty on clients whose game has no gems."] = "Coloca abaixo da janela do personagem uma barra com todos os encaixes do seu equipamento. Clique em um encaixe para engastar nele uma gema das suas bolsas. Fica vazia em clientes cujo jogo não tem gemas.",
+    ["Choose a gem"] = "Escolha uma gema",
+    ["No gems in your bags."] = "Nenhuma gema nas suas bolsas.",
+    ["Empty socket"] = "Encaixe vazio",
+    ["Click to pick a gem from your bags."] = "Clique para escolher uma gema das suas bolsas.",
+    ["Cannot socket gems in combat."] = "Não é possível engastar gemas em combate.",
+    ["Close the socketing window first."] = "Feche primeiro a janela de engaste.",
 } end)
