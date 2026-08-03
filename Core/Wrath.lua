@@ -98,6 +98,19 @@ W.hasReshapedPlayerFrame = ns.isWrath
 -- replacement window is a Wrath-only feature and lives in its own module.
 W.hasTalentTrees = ns.isWrath
 
+-- The glyph page is lifted out of Blizzard's talent window and stands
+-- permanently beside ours, and the separate button that used to fetch it is
+-- gone with it.
+--
+-- The whole Wrath generation, not the 3.80.x builds alone (owner decision,
+-- 03.08.2026, narrowing an earlier one). Glyphs are a feature of the GAME here,
+-- not of one build: every client in this range has the page, and the names the
+-- lift needs -- GlyphFrame below PlayerTalentFrameScrollFrame, GlyphFrameGlyph<n>
+-- with its Ring and Setting -- are Blizzard's own and travel with it. Scoping to
+-- one build would have hidden the panel on the very client the owner keeps for
+-- measuring, which is where a fault would be spotted first.
+W.hasDockableGlyphPanel = ns.isWrath
+
 -- The trade-skill and craft windows are not the frames our reskin is keyed to.
 -- That reskin addresses Blizzard's own widgets by name and by REGION INDEX
 -- (4, 5, 8, 9, 10), anchors the search box to

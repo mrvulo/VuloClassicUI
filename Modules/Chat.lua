@@ -1225,8 +1225,12 @@ local reanchorChatMover
 local function editBoxIsOurs()
     if not active then return false end
     if mod.db.bgPanel then return true end
+    -- Our own background claims the line on every client (03.08.2026). Only the
+    -- SIDE stays Wrath-only, so its test moved below this one -- asking for the
+    -- flavour first would have kept answering no for the background too.
+    if mod.db.editBoxPanel ~= false then return true end
     if not ns.Wrath.is then return false end
-    return ebOnTop() or mod.db.editBoxPanel ~= false
+    return ebOnTop()
 end
 
 local function applyEditBox()
@@ -1244,7 +1248,7 @@ local function applyEditBox()
             if box then
                 -- The dark panel already reaches over the input line, so a
                 -- second layer of the same colour would only darken it twice.
-                local wanted = ns.Wrath.is and mod.db.editBoxPanel ~= false
+                local wanted = mod.db.editBoxPanel ~= false
                     and not (active and mod.db.bgPanel)
                 if wanted then box:Show() else box:Hide() end
             end
@@ -1573,21 +1577,27 @@ function mod:GetOptions()
         get = function() return mod.db.bgPanel end,
         set = function(_, v) mod.db.bgPanel = v; applyPanel() end,
     })
-    -- Not offered on the other clients. Both would work there -- the owner
-    -- scoped them to this generation on 02.08.2026 -- and a row that is not
-    -- offered beats one that is offered and does nothing.
+    -- The background is offered EVERYWHERE now (owner request, 03.08.2026). The
+    -- note this replaces already said the quiet part: both rows would work on
+    -- the other clients, and only a decision from 02.08.2026 kept them here. The
+    -- reason it was reported again is that the row was the only way to reach the
+    -- one case it was built for -- the dark panel off, which uncovers Blizzard's
+    -- own input chrome -- and on every client but one there was no row.
+    table.insert(items, {
+        type = "toggle", label = L["Own background for the input line"],
+        tooltip = L["Draws the input line on our own dark background instead of Blizzard's. The dark background panel already covers the input line, so this shows once that panel is off."],
+        get = function() return mod.db.editBoxPanel ~= false end,
+        set = function(_, v) mod.db.editBoxPanel = v; applyPanel() end,
+    })
+    -- The SIDE stays where it was. Moving the input line drags the panel and the
+    -- tab bar with it, and that geometry is measured on this generation only --
+    -- widening it is a separate decision from offering a background.
     if ns.Wrath.is then
         table.insert(items, {
             type = "toggle", label = L["Input line above the chat"],
             tooltip = L["Puts the chat input line above the message area instead of below it. The panel and the tab bar follow it."],
             get = function() return mod.db.editBoxTop end,
             set = function(_, v) mod.db.editBoxTop = v; applyPanel() end,
-        })
-        table.insert(items, {
-            type = "toggle", label = L["Own background for the input line"],
-            tooltip = L["Draws the input line on our own dark background instead of Blizzard's. The dark background panel already covers the input line, so this shows once that panel is off."],
-            get = function() return mod.db.editBoxPanel ~= false end,
-            set = function(_, v) mod.db.editBoxPanel = v; applyPanel() end,
         })
     end
     table.insert(items, {

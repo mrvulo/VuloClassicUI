@@ -209,6 +209,94 @@ end
 
 -- Returns false when the client's answers fail sanity -- the caller tears the
 -- window down and never replaces Blizzard's UI.
+-- ---------------------------------------------------------------------------
+-- The activate band
+--
+-- One button under the header that switches the SHOWN talent group to the
+-- active one, plus the name of that group beside it (owner request,
+-- 03.08.2026). Until now the switch existed only as a RIGHT-click on the small
+-- side icons, which nothing announced.
+--
+-- Every word comes from the client: TALENT_SPEC_ACTIVATE is exactly the caption
+-- Blizzard puts on its own button, TALENT_SPEC_PRIMARY and _SECONDARY name the
+-- two groups. Measured against the 3.4.3 client's GlobalStrings -- so this is
+-- the player's own language everywhere and there is nothing to translate.
+--
+-- No second client gate: the whole file already stands behind
+-- ns.Wrath.hasTalentTrees, which is the Wrath generation.
+local ACT_ROW_H = 26
+local actRow, actBtn, actFS
+local layoutActivateRow   -- forward: buildTrees calls it and sits above the body
+
+-- Nothing to switch between without dual specialisation, and a band holding one
+-- disabled button would be dead space on every character that never bought it.
+local function actRowHeight()
+    return ((ns:NumTalentGroups() or 1) > 1) and ACT_ROW_H or 0
+end
+
+local function groupName(g)
+    local key = (g == 1 and "TALENT_SPEC_PRIMARY") or (g == 2 and "TALENT_SPEC_SECONDARY")
+    local s = key and _G[key]
+    if type(s) == "string" and s ~= "" then return s end
+    return ns:TalentGroupText(g) or ("#" .. tostring(g))
+end
+
+local function ensureActivateRow()
+    if actRow or not win then return actRow end
+    actRow = CreateFrame("Frame", nil, win)
+
+    actFS = actRow:CreateFontString(nil, "OVERLAY")
+    ns.UI.Font(actFS, 12)
+
+    actBtn = ns.UI:CreateButton(actRow, {
+        label = _G.TALENT_SPEC_ACTIVATE or "", width = 190, primary = true,
+        onClick = function()
+            local g = shownGroup()
+            local ok, why = ns:ActivateTalentGroup(g)
+            if ok then
+                -- The event confirms it; this keeps the click honest meanwhile.
+                viewGroup = g
+            elseif why == "combat" then
+                ns:Print(L["Talent groups cannot be switched in combat."])
+            elseif why ~= "already" then
+                ns:Print(L["This client refused to switch the talent group."])
+            end
+            refreshAll()
+        end,
+    })
+    actBtn:SetHeight(20)
+    return actRow
+end
+
+layoutActivateRow = function(totalW)
+    if not ensureActivateRow() then return end
+    if actRowHeight() == 0 then actRow:Hide(); return end
+
+    actRow:ClearAllPoints()
+    actRow:SetPoint("TOPLEFT", win, "TOPLEFT", TREE_PAD, -HEAD_H)
+    actRow:SetSize(totalW - 2 * TREE_PAD, ACT_ROW_H)
+
+    local shown, active = shownGroup(), activeGroup()
+    actFS:SetText(groupName(shown))
+    actFS:ClearAllPoints()
+
+    if shown == active then
+        -- Already running: the name alone, centred. A button that would refuse
+        -- its own click is worse than no button.
+        local ac = ns.COLORS.accent
+        actFS:SetTextColor(ac.r, ac.g, ac.b)
+        actFS:SetPoint("CENTER", actRow, "CENTER", 0, 0)
+        actBtn:Hide()
+    else
+        actFS:SetTextColor(0.8, 0.8, 0.85)
+        actBtn:ClearAllPoints()
+        actBtn:SetPoint("CENTER", actRow, "CENTER", 46, 0)
+        actFS:SetPoint("RIGHT", actBtn, "LEFT", -8, 0)
+        actBtn:Show()
+    end
+    actRow:Show()
+end
+
 local function buildTrees()
     local okTabs, numTabs = pcall(_G.GetNumTalentTabs)
     if not okTabs or type(numTabs) ~= "number" or numTabs < 1 or numTabs > 5 then return false end
@@ -234,9 +322,15 @@ local function buildTrees()
 
     local treeH = TREE_HEAD + maxTier * BTN + (maxTier - 1) * GAP + TREE_PAD
     local totalW = numTabs * treeW + (numTabs - 1) * GAP + 2 * TREE_PAD
-    local totalH = HEAD_H + treeH + FOOT_H + 2 * TREE_PAD
+    -- The window GROWS by the band instead of taking the room out of the trees:
+    -- a talent tree is a fixed grid, and shortening it would drop a tier off the
+    -- bottom. Zero-height on a character without dual specialisation, so nothing
+    -- changes there.
+    local rowH = actRowHeight()
+    local totalH = HEAD_H + rowH + treeH + FOOT_H + 2 * TREE_PAD
 
     win:SetSize(totalW, totalH)
+    layoutActivateRow(totalW)
 
     local ac = ns.COLORS.accent
     for tab = 1, numTabs do
@@ -259,7 +353,7 @@ local function buildTrees()
         t.frame:SetSize(treeW, treeH)
         t.frame:ClearAllPoints()
         t.frame:SetPoint("TOPLEFT", win, "TOPLEFT",
-            TREE_PAD + (tab - 1) * (treeW + GAP), -(HEAD_H + TREE_PAD))
+            TREE_PAD + (tab - 1) * (treeW + GAP), -(HEAD_H + rowH + TREE_PAD))
         t.nameFS:SetText(treeName(tab))
 
         for _, d in ipairs(layout[tab]) do
@@ -400,76 +494,100 @@ local function makeSpecTab(group)
     return b
 end
 
--- ---------------------------------------------------------------------------
--- The glyph button, under the talent-group buttons
---
--- Blizzard keeps the glyphs on a tab of the very frame we replace, so the way in
--- is the one the Blizzard button below already uses: let that frame show, then
--- pick the tab. BY ITS LABEL, not by an index -- GLYPHS is a client global, so
--- this holds in every language, and a client that has no such tab simply lands
--- on the talent frame with nothing broken.
-local glyphTab
 local applyGlyphSkin   -- forward: defined with the paint further down
 
-local function openGlyphs()
-    local tf = _G.PlayerTalentFrame or _G.TalentFrame
-    if not tf then return false end
-    if win then win:Hide() end
-    mod._suppress = true
-    pcall(_G.ShowUIPanel or function(f) f:Show() end, tf)
-    if not tf:IsShown() then
-        -- Same trap as the Blizzard button: if the panel refused, its OnHide
-        -- never fires and the flag would let the NEXT talent open slip through.
-        mod._suppress = nil
-        return false
+-- ---------------------------------------------------------------------------
+-- The glyph page, docked beside our window
+--
+-- Blizzard keeps the glyphs INSIDE its own talent frame: the frame stack puts
+-- GlyphFrame below PlayerTalentFrameScrollFrame below PlayerTalentFrame -- and
+-- that last one is exactly what we hide to show ours. So the page cannot simply
+-- be told to show; it is lifted OUT of its parent onto a host of ours, and that
+-- lift is what frees it from the hidden parent's visibility.
+--
+-- Where it came from is remembered on the first lift and restored on close.
+-- Leaving a Blizzard frame reparented would break its own glyph tab for the rest
+-- of the session, and nothing about our window would point at the cause.
+local glyphDock, glyphHome
+
+local function glyphFrame()
+    if not (ns.Wrath and ns.Wrath.hasDockableGlyphPanel) then return nil end
+    if _G.GlyphFrame then return _G.GlyphFrame end
+    -- Its own addon, and it only loads when the glyph TAB is first clicked --
+    -- which nobody has done when our window opens instead of Blizzard's.
+    if _G.IsAddOnLoaded and not _G.IsAddOnLoaded("Blizzard_GlyphUI") then
+        pcall(_G.LoadAddOn, "Blizzard_GlyphUI")
     end
-    local want = _G.GLYPHS
-    if type(want) == "string" and want ~= "" then
-        for i = 1, 6 do
-            local tab = _G["PlayerTalentFrameTab" .. i]
-            local txt = tab and tab.GetText and tab:GetText()
-            if txt == want then pcall(tab.Click, tab); break end
-        end
-    end
-    -- The glyph addon loads the moment that tab is first clicked, so this is the
-    -- earliest point at which there is anything to paint.
-    if applyGlyphSkin then applyGlyphSkin() end
-    return true
+    return _G.GlyphFrame
 end
 
-local function ensureGlyphTab()
-    if glyphTab or not win then return glyphTab end
-    local b = CreateFrame("Button", nil, win)
-    b:SetSize(SPEC_BTN, SPEC_BTN)
+local function ensureGlyphDock()
+    if glyphDock or not win then return glyphDock end
+    local UI = ns.UI
+    glyphDock = CreateFrame("Frame", "VCUI_GlyphDock", win)
+    glyphDock:SetFrameStrata(win:GetFrameStrata())
+    UI:StyleBackdrop(glyphDock, { bg = ns.COLORS.bg, border = ns.COLORS.accentDim })
+    if UI.CreateShadow then UI:CreateShadow(glyphDock) end
 
-    b.ring = b:CreateTexture(nil, "BACKGROUND")
-    b.ring:SetAllPoints(b)
-    b.ring:SetColorTexture(0.22, 0.22, 0.26, 1)
+    local ac = ns.COLORS.accent
+    local strip = glyphDock:CreateTexture(nil, "ARTWORK")
+    strip:SetPoint("TOPLEFT", glyphDock, "TOPLEFT", 0, 0)
+    strip:SetPoint("TOPRIGHT", glyphDock, "TOPRIGHT", 0, 0)
+    strip:SetHeight(2)
+    UI.SetGradient(strip, "HORIZONTAL", ac.r, ac.g, ac.b, 0.1, ac.r, ac.g, ac.b, 0.9)
 
-    b.icon = b:CreateTexture(nil, "ARTWORK")
-    b.icon:SetPoint("TOPLEFT", 2, -2)
-    b.icon:SetPoint("BOTTOMRIGHT", -2, 2)
-    b.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-    b.icon:SetTexture("Interface\\Icons\\INV_Inscription_Tradeskill01")
+    local title = glyphDock:CreateFontString(nil, "OVERLAY")
+    UI.Font(title, 13)
+    title:SetPoint("TOPLEFT", glyphDock, "TOPLEFT", 12, -12)
+    title:SetText(_G.GLYPHS or L["Glyphs"])
+    title:SetTextColor(ac.r, ac.g, ac.b)
+    glyphDock:Hide()
+    return glyphDock
+end
 
-    b:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
-    b:SetScript("OnEnter", function(self)
-        local ac = ns.COLORS.accent
-        self.ring:SetColorTexture(ac.r, ac.g, ac.b, 1)
-        if ns.UI:OpenTooltip(self, "ANCHOR_RIGHT") then
-            GameTooltip:ClearLines()
-            GameTooltip:SetText(_G.GLYPHS or L["Glyphs"], ac.r, ac.g, ac.b)
-            GameTooltip:AddLine(L["Opens the glyph page of the client's own talent window."], 0.8, 0.8, 0.85, true)
-            GameTooltip:Show()
+local function dockGlyphs()
+    local gf = glyphFrame()
+    if not gf then return end
+    local host = ensureGlyphDock()
+    if not host then return end
+
+    -- Remembered ONCE. A second lift must not record our own dock as the home,
+    -- or the restore would put the frame back onto us.
+    if not glyphHome then
+        glyphHome = { parent = gf:GetParent(), points = {} }
+        for i = 1, (gf.GetNumPoints and gf:GetNumPoints() or 0) do
+            glyphHome.points[i] = { gf:GetPoint(i) }
         end
-    end)
-    b:SetScript("OnLeave", function(self)
-        self.ring:SetColorTexture(0.22, 0.22, 0.26, 1)
-        if GameTooltip then GameTooltip:Hide() end
-    end)
-    b:SetScript("OnClick", openGlyphs)
-    glyphTab = b
-    return b
+    end
+
+    local w = (gf.GetWidth and gf:GetWidth()) or 0
+    local h = (gf.GetHeight and gf:GetHeight()) or 0
+    if w < 40 then w = 320 end
+    if h < 40 then h = 400 end
+    host:SetSize(w + 2 * TREE_PAD, h + HEAD_H + TREE_PAD)
+    host:ClearAllPoints()
+    -- Clear of the talent-group strip when that flipped to the left as well.
+    local gap = GAP + (mod._specOnLeft and (SPEC_BTN + SPEC_GAP) or 0)
+    host:SetPoint("TOPRIGHT", win, "TOPLEFT", -gap, 0)
+
+    gf:SetParent(host)
+    gf:ClearAllPoints()
+    gf:SetPoint("TOP", host, "TOP", 0, -HEAD_H)
+    gf:Show()
+    host:Show()
+    if applyGlyphSkin then applyGlyphSkin() end
+end
+
+local function undockGlyphs()
+    local gf = _G.GlyphFrame
+    if glyphDock then glyphDock:Hide() end
+    if not (gf and glyphHome) then return end
+    gf:SetParent(glyphHome.parent)
+    gf:ClearAllPoints()
+    for _, p in ipairs(glyphHome.points) do pcall(gf.SetPoint, gf, unpack(p)) end
+    -- Blizzard's own tab logic decides its visibility from here on; leaving it
+    -- shown on a hidden parent is harmless, leaving it OURS is not.
+    glyphHome = nil
 end
 
 local function updateSpecTabs()
@@ -502,7 +620,9 @@ local function updateSpecTabs()
             b = makeSpecTab(g)
             specTabs[g] = b
         end
-        local y = -(HEAD_H + TREE_PAD + (g - 1) * (SPEC_BTN + SPEC_GAP))
+        -- The band pushes the trees down, and the strip lines up with the trees
+        -- rather than with the header -- so it has to count the band too.
+        local y = -(HEAD_H + actRowHeight() + TREE_PAD + (g - 1) * (SPEC_BTN + SPEC_GAP))
         b:ClearAllPoints()
         if onLeft then
             b:SetPoint("TOPRIGHT", win, "TOPLEFT", -SPEC_GAP, y)
@@ -529,26 +649,26 @@ local function updateSpecTabs()
         if specTabs[g] then specTabs[g]:Hide() end
     end
 
-    -- The glyphs sit one slot below the last talent group, on whichever side the
-    -- strip ended up on, with a slightly wider gap: it opens a different window,
-    -- and reading as a third talent group would be a lie about what it does.
-    local gb = ensureGlyphTab()
-    if gb then
-        local y = -(HEAD_H + TREE_PAD + n * (SPEC_BTN + SPEC_GAP) + SPEC_GAP)
-        gb:ClearAllPoints()
-        if onLeft then
-            gb:SetPoint("TOPRIGHT", win, "TOPLEFT", -SPEC_GAP, y)
-        else
-            gb:SetPoint("TOPLEFT", win, "TOPRIGHT", SPEC_GAP, y)
-        end
-        gb:Show()
-    end
+    -- The glyph BUTTON is gone (owner request, 03.08.2026). It existed to send
+    -- you to the client's own glyph page; the page now stands permanently beside
+    -- this window, so a button whose whole job was to go and fetch it would send
+    -- you away from something already in front of you.
+    --
+    -- Which side the strip picked. The glyph dock hangs on the left too and
+    -- would sit ON the strip when the window is far enough right that the strip
+    -- flipped over there.
+    mod._specOnLeft = onLeft
 end
 
 refreshAll = function()
     if not win or not win:IsShown() then return end
     local ac = ns.COLORS.accent
     updateSpecTabs()
+    -- Re-laid out on every refresh, not only when the window is built: the
+    -- button appears and disappears with WHICH group is being shown, and that
+    -- changes without the window ever being rebuilt.
+    layoutActivateRow(win:GetWidth() or 0)
+    dockGlyphs()
     local group = shownGroup()
     for tab, t in pairs(trees) do
         local spent = 0
@@ -672,6 +792,10 @@ local function ensureWindow()
     table.insert(_G.UISpecialFrames, "VCUI_TalentView")
 
     win:SetScript("OnShow", refreshAll)
+    -- Hooked, not set: whatever else wants to know the window closed keeps its
+    -- handler. The lift MUST be undone here -- a Blizzard frame left parented to
+    -- us stays broken on its own tab for the rest of the session.
+    win:HookScript("OnHide", undockGlyphs)
     applyPos()
     win:Hide()
     return win

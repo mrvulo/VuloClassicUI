@@ -3191,7 +3191,6 @@ local function T() return {
     ["Talent group buttons run down the right edge, one for each group you have bought. Left-click shows a group, right-click activates it, the same split Blizzard's own window uses. Talents can only be learned in the active group, so a click in the preview does nothing and the tooltip says so beforehand."] = "Por el borde derecho corren botones de grupos de talentos, uno por cada grupo que hayas comprado. Clic izquierdo muestra un grupo, clic derecho lo activa, el mismo reparto que usa la propia ventana de Blizzard. Los talentos solo pueden aprenderse en el grupo activo, así que un clic en la vista previa no hace nada y la ayuda emergente lo dice antes.",
     ["The tab carries a book instead of a question mark. That mark is Blizzard's placeholder for a missing icon and read like a defect."] = "La pestaña lleva un libro en vez de un signo de interrogación. Esa marca es el marcador de posición de Blizzard para un icono ausente y parecía un defecto.",
     ["Glyphs"] = "Glifos",
-    ["Opens the glyph page of the client's own talent window."] = "Abre la página de glifos de la propia ventana de talentos del cliente.",
     ["CHARACTER"] = "Personaje",
     ["Packs the selected bar setup into a string you can pass on. Slots, macros and key bindings travel with it."] = "Empaqueta el conjunto de barras seleccionado en una cadena que puedes compartir. Las asignaciones, las macros y los atajos viajan con ella.",
     ["Reads a bar setup string into your library. Putting it onto your bars stays a separate step."] = "Lee una cadena de conjunto de barras y la añade a tu biblioteca. Aplicarla a tus barras sigue siendo un paso aparte.",
@@ -3230,6 +3229,24 @@ local function T() return {
     ["The enchant text on armour slots reads the enchant again instead of the item's difficulty tag. The filter took the first green line of the tooltip, and where an item carries a tag that tag stands above the enchant — so every such slot showed the tag, while a weapon two rows down showed its enchant correctly because nothing stood in front of it. The tag and the client's bracketed hints are both recognised now, in every language rather than only in English and German."] = "El texto de encantamiento en las ranuras de armadura vuelve a mostrar el encantamiento en lugar de la marca de dificultad del objeto. El filtro tomaba la primera línea verde de la descripción, y cuando un objeto lleva esa marca, la marca está por encima del encantamiento — así que cada ranura mostraba la marca, mientras un arma dos filas más abajo mostraba el suyo correctamente porque no había nada delante. La marca y los avisos entre corchetes angulares del cliente se reconocen ahora ambos, y en todos los idiomas en vez de solo en inglés y alemán.",
     ["The set list no longer casts a shadow past its own frame. What looked like the background standing out over the border was a drop shadow: not an outline but four filled rectangles reaching up to seven pixels beyond the frame on every side, and behind Blizzard's dialog frame there was nothing for it to fall on. It is gone in both looks."] = "La lista de conjuntos ya no proyecta una sombra más allá de su propio marco. Lo que parecía un fondo saliéndose del borde era una sombra: no un contorno, sino cuatro rectángulos rellenos que llegaban hasta siete píxeles más allá del marco por cada lado, y detrás del marco de diálogo de Blizzard no había nada sobre lo que caer. Ha desaparecido en ambos estilos.",
     ["In the Classic+ look the dark ground stopped short of the ornate line instead of ending on it, and so showed past the frame on every side."] = "En el estilo Classic+ el fondo oscuro terminaba antes de la línea decorada en lugar de sobre ella, y por eso sobresalía del marco por todos los lados.",
+
+    -- Nameplates: layout preset + health text content
+    ["Apply this arrangement"] = "Aplicar esta disposición",
+    ["Puts the unit name and the health value inside the bar, crowd control left of it, incoming debuffs above that and buffs to its right, and gives the cast bar its icon, its remaining time and its target. Your current arrangement is saved first and the button beside this one brings it back."] = "Coloca el nombre de la unidad y el valor de salud dentro de la barra, el control de masas a su izquierda, las penalizaciones entrantes encima de este y las mejoras a su derecha, y da a la barra de lanzamiento su icono, su tiempo restante y su objetivo. Tu disposición actual se guarda antes y el botón de al lado la devuelve.",
+    ["Restore my arrangement"] = "Restaurar mi disposición",
+    ["Puts every text and aura position back to what it was before the arrangement was applied, and removes the saved copy. Anything you moved by hand since then goes back as well."] = "Devuelve cada posición de texto y de aura a como estaba antes de aplicar la disposición, y elimina la copia guardada. Todo lo que hayas movido a mano desde entonces vuelve también.",
+    ["Nameplate layout applied. The button beside it puts your old one back."] = "Disposición de placas de nombre aplicada. El botón de al lado devuelve la anterior.",
+    ["Nameplate layout restored."] = "Disposición de placas de nombre restaurada.",
+    ["Shows"] = "Muestra",
+    ["Current health"] = "Salud actual",
+    ["Current and maximum"] = "Actual y máxima",
+    ["Current and percent"] = "Actual y porcentaje",
+    ["Separator"] = "Separador",
+    ["What goes between the two numbers, when the row above is set to current and percent."] = "Lo que va entre los dos números, cuando la fila de arriba está en actual y porcentaje.",
+    ["Brackets"] = "Paréntesis",
+    ["Vertical bar"] = "Barra vertical",
+    ["Dash"] = "Guion",
+    ["Space"] = "Espacio",
 } end
 
 ns:RegisterLocale("esES", T)

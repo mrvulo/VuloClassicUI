@@ -726,6 +726,17 @@ local function makeIcon(bar, i)
     f.border:SetAllPoints(f)
     f.border:SetColorTexture(0, 0, 0, 1)
 
+    -- The border is not a texture of its own: it is the rim of this plate that
+    -- the icon above does not cover. So the two have to land on the SAME pixel
+    -- grid, or the client snaps each one for itself and the rim comes out two
+    -- pixels on one edge and none on the opposite. Switching texel snapping off
+    -- is what stops that -- the same recipe the bags, the minimap ring and the
+    -- item pickers already use.
+    for _, t in ipairs({ f.tex, f.border }) do
+        if t.SetSnapToPixelGrid then t:SetSnapToPixelGrid(false) end
+        if t.SetTexelSnappingBias then t:SetTexelSnappingBias(0) end
+    end
+
     f.glow = f:CreateTexture(nil, "BACKGROUND", nil, -2)
     f.glow:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
     f.glow:SetBlendMode("ADD")
@@ -925,7 +936,12 @@ end
 
 layoutIcons = function(group, list)
     local bar = ensureBar(group)
-    local size, pad = group.iconSize, group.spacing
+    -- Snapped for the same reason the border is: a rim can only be an even one
+    -- pixel if the icon it rims begins and ends on a pixel. Half a unit of
+    -- icon size or spacing puts every second icon of a row half a pixel off and
+    -- its border reads thicker than its neighbour's.
+    local size = ns:PixelSnap(group.iconSize, bar)
+    local pad  = ns:PixelSnap(group.spacing, bar)
     local count  = #list
     local perRow = math.max(1, group.perRow)
     local horiz  = (group.growth == "RIGHT" or group.growth == "LEFT")
@@ -961,14 +977,23 @@ relayoutGroup = function(group)
     local icons = bar._icons
 
     bar:SetScale(group.scale or 1)
+    -- After the scale, never before: both conversions below ask the bar what one
+    -- physical pixel is worth in its own units, and that answer moves with the
+    -- scale that was just set.
+    size = ns:PixelSnap(size, bar)
     do
         -- color only; layoutIcons owns visibility (an empty bar must show no bg)
         local c = group.barBgColor
         bar.bg:SetColorTexture((c and c.r) or 0, (c and c.g) or 0, (c and c.b) or 0,
             group.barBgAlpha or 0.5)
     end
+    -- The thickness is in PIXELS, not in frame units. A raw 1 is one pixel only
+    -- at scale 1.0; at any other group or interface scale it lands between two
+    -- and the client smears it over both. This is the same conversion the
+    -- nameplate border already runs through.
     local inset = group.borderSize
     if inset == nil then inset = 1 end
+    inset = ns:Pixel(bar, inset)
     local br, bgc, bbc = groupBorderColor(group)
 
     for i, e in ipairs(entries) do
@@ -1857,6 +1882,13 @@ local function ensureStripSlot(f, i)
     slot._icon:SetPoint("TOPLEFT", slot, "TOPLEFT", 1, -1)
     slot._icon:SetPoint("BOTTOMRIGHT", slot, "BOTTOMRIGHT", -1, 1)
     slot._icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+
+    -- The preview is only worth having while it lies about nothing, so it wears
+    -- the same grid treatment as the real icons.
+    for _, t in ipairs({ slot._icon, slot._bg }) do
+        if t.SetSnapToPixelGrid then t:SetSnapToPixelGrid(false) end
+        if t.SetTexelSnappingBias then t:SetTexelSnappingBias(0) end
+    end
 
     -- same mask mechanism the real icons use, so "Icon shape" previews truthfully
     if slot.CreateMaskTexture and slot._icon.AddMaskTexture then

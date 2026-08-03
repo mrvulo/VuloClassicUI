@@ -167,7 +167,10 @@ local function contentOf(slotKey)
     return "none"
 end
 
-local function setSlot(slotKey, rowKey)
+-- `quiet` skips the repaint. Only the layout preset passes it: it writes five
+-- slots in one click, and without it the page would be torn down and rebuilt
+-- five times for one visible change.
+local function setSlot(slotKey, rowKey, quiet)
     local slot
     for _, s in ipairs(SLOTS) do if s.key == slotKey then slot = s end end
     if not slot then return end
@@ -187,6 +190,7 @@ local function setSlot(slotKey, rowKey)
         local cfg = ns:NameplateRowCfg(rowKey)
         cfg.side, cfg.grow = slot.side, slot.grow
     end
+    if quiet then return end
     applyAndRefresh()
     refreshPage()
 end
@@ -366,6 +370,33 @@ local TEXT_ROWS = {
     { key = "health", label = "Health text" },
 }
 
+-- Built lazily, never at file scope: L[...] read while this file loads would
+-- bake the client language in before the saved override arrives.
+local HEALTH_TEXT_MODES, HEALTH_TEXT_SEPARATORS
+ns.OnLocaleReady(function()
+    HEALTH_TEXT_MODES = {
+        { value = "percent",    text = L["Percent"] },
+        { value = "current",    text = L["Current health"] },
+        { value = "currentmax", text = L["Current and maximum"] },
+        { value = "both",       text = L["Current and percent"] },
+    }
+    -- The value IS the format string the runtime hands to format(); both
+    -- placeholders have to survive, which is why these are picked from a list
+    -- rather than typed in. Named after the mark, not shown as a sample number:
+    -- a sample would have to be translated nine times and would then disagree
+    -- with whatever digit grouping the player actually sees.
+    HEALTH_TEXT_SEPARATORS = {
+        { value = "%s (%s)", text = L["Brackets"] },
+        { value = "%s | %s", text = L["Vertical bar"] },
+        { value = "%s - %s", text = L["Dash"] },
+        -- ONE space, because that is the value the control that used to live in
+        -- the removed Text section wrote. Two would match no stored profile,
+        -- and a dropdown that finds no match shows its raw value -- the player
+        -- would be looking at the literal characters of the format string.
+        { value = "%s %s",   text = L["Space"] },
+    }
+end)
+
 local function textCfg(key) return ns:NameplateTextCfg(key) end
 
 local function textContentOf(slotKey)
@@ -377,10 +408,11 @@ end
 
 -- Same exchange rule as the aura slots: giving a slot something takes it away
 -- from wherever it was, and evicts whatever was here.
-local function setTextSlot(slotKey, rowKey)
+local function setTextSlot(slotKey, rowKey, quiet)
     local prev = textContentOf(slotKey)
     if prev ~= "none" and prev ~= rowKey then textCfg(prev).slot = "none" end
     if rowKey ~= "none" then textCfg(rowKey).slot = slotKey end
+    if quiet then return end   -- see setSlot: the preset repaints once at the end
     applyAndRefresh()
     refreshPage()
 end
@@ -403,9 +435,35 @@ local function textSlotPanelItems(rowKey)
           get = function() return cfg().y or 0 end,
           set = function(_, v) cfg().y = v; applyAndRefresh() end },
     }
-    -- WHAT the health text says stays in the "Text" section; this panel only
-    -- says WHERE it sits. It was in both for a moment, which is one control too
-    -- many for one setting.
+    -- WHAT the health text says used to stay in the "Text" section, so that it
+    -- was not controlled from two places at once. That section is gone
+    -- (02.08.2026) and took the only home these two had with it: the runtime
+    -- still reads both, every profile still carries whatever it had, and
+    -- nothing could change them any more. So they come back HERE, which is now
+    -- the only place -- not a second one.
+    --
+    -- The two travel together on purpose. The separator is only ever read in
+    -- "current and percent" mode, so on its own it would be a control that does
+    -- nothing for every profile in any other mode, which reads as a fault.
+    if rowKey == "health" then
+        -- NEITHER setter calls refreshPage. These two live inside a popup whose
+        -- item list is a snapshot taken when it opened, and rebuilding the page
+        -- CLOSES that popup -- a repaint here would shut the panel in the
+        -- player's face on every change, which is worse than what it buys.
+        --
+        -- That is also why the separator is drawn ALWAYS instead of appearing
+        -- with the mode that reads it: making it conditional needs exactly the
+        -- repaint that closes the panel. Its tooltip carries the dependency.
+        items[#items + 1] = { type = "dropdown", label = L["Shows"], width = 200,
+            values = HEALTH_TEXT_MODES,
+            get = function() return mod.db.healthTextMode or "percent" end,
+            set = function(_, v) mod.db.healthTextMode = v; applyAndRefresh() end }
+        items[#items + 1] = { type = "dropdown", label = L["Separator"], width = 200,
+            tooltip = L["What goes between the two numbers, when the row above is set to current and percent."],
+            values = HEALTH_TEXT_SEPARATORS,
+            get = function() return mod.db.healthTextFormat or "%s (%s)" end,
+            set = function(_, v) mod.db.healthTextFormat = v; applyAndRefresh() end }
+    end
     return items
 end
 
@@ -433,6 +491,118 @@ local function textSlotItems()
         }
     end
     return items
+end
+
+-- ---------------------------------------------------------------------------
+-- Layout preset
+--
+-- One arrangement the owner asked for by picture (03.08.2026): the name and the
+-- health value INSIDE the bar, crowd control to the left of it, incoming
+-- debuffs above that, buffs to the right, and a cast bar carrying its icon, its
+-- remaining time and its target.
+--
+-- It sits HERE, below the text slots, because it writes through three different
+-- setters and all three have to exist first. Three shapes, because the module
+-- stores these three ways: plain keys on the module db, the TEXT slots and the
+-- AURA slots. Each goes through the setter that owns it -- the preset must not
+-- learn the exchange rules a second time, or the two copies drift apart.
+--
+-- Applying is reversible. The first click snapshots exactly what it is about to
+-- overwrite, a second click re-applies WITHOUT touching that snapshot (or the
+-- restore would hand back already-preset values), and the restore drops it.
+local PRESET_FLAGS = {
+    healthTextMode   = "both",
+    healthTextFormat = "%s | %s",
+    showCastbar      = true,
+    showCastIcon     = true,
+    castIconRight    = false,
+    castTimer        = true,
+    -- castTargetText is NOT the switch any more, the same way nameInBar is not:
+    -- a one-shot migration reads it once and every profile that has drawn a
+    -- plate is long past that, so writing it would set a key nobody reads.
+    -- castTargetSide is what the runtime asks, and "center" is its name for
+    -- UNDER the bar -- which is where the picture puts the target.
+    --
+    -- The name goes left in the same breath, because the two sides are mutually
+    -- exclusive: leaving the name on its default centre and putting the target
+    -- there too is the one combination the options page blanks on sight.
+    castNameSide     = "left",
+    castTargetSide   = "center",
+}
+local PRESET_TEXT_SLOTS = { left = "name", right = "health" }
+local PRESET_AURA_SLOTS = { left = "cc",   topleft = "debuff", right = "buff" }
+
+local function applyLayoutPreset()
+    local d = mod.db
+    if not d then return end
+
+    if not d.layoutBackup then
+        local b = { flags = {}, text = {}, aura = {} }
+        for k in pairs(PRESET_FLAGS) do b.flags[k] = d[k] end
+        -- Every text and aura row is snapshotted, not just the ones the preset
+        -- names: placing a row into a slot EVICTS whatever sat there, so rows
+        -- the preset never mentions still change under it.
+        for _, r in ipairs(TEXT_ROWS) do b.text[r.key] = textCfg(r.key).slot end
+        for _, r in ipairs(SLOT_ROWS) do
+            local cfg = ns:NameplateRowCfg(r.key)
+            b.aura[r.key] = { side = cfg.side, grow = cfg.grow, show = d[r.show] and true or false }
+        end
+        d.layoutBackup = b
+    end
+
+    for k, v in pairs(PRESET_FLAGS) do d[k] = v end
+    for slotKey, rowKey in pairs(PRESET_TEXT_SLOTS) do setTextSlot(slotKey, rowKey, true) end
+    for slotKey, rowKey in pairs(PRESET_AURA_SLOTS) do setSlot(slotKey, rowKey, true) end
+
+    applyAndRefresh()
+    refreshPage()
+    ns:Print(L["Nameplate layout applied. The button beside it puts your old one back."])
+end
+
+local function restoreLayoutPreset()
+    local d = mod.db
+    local b = d and d.layoutBackup
+    if not b then return end
+
+    for k, v in pairs(b.flags or {}) do d[k] = v end
+    for rowKey, slot in pairs(b.text or {}) do textCfg(rowKey).slot = slot end
+    for rowKey, saved in pairs(b.aura or {}) do
+        local cfg = ns:NameplateRowCfg(rowKey)
+        cfg.side, cfg.grow = saved.side, saved.grow
+        for _, r in ipairs(SLOT_ROWS) do
+            if r.key == rowKey then d[r.show] = saved.show end
+        end
+    end
+
+    d.layoutBackup = nil
+    applyAndRefresh()
+    refreshPage()
+    ns:Print(L["Nameplate layout restored."])
+end
+
+-- The restore button exists only while a snapshot does; both handlers rebuild
+-- the page, which is what makes it appear and disappear.
+local function presetRow()
+    local row = {
+        type = "group", layout = "row", gap = 10, align = "center",
+        items = {
+            { type = "button", label = L["Apply this arrangement"],
+              width = 240, primary = true,
+              tooltip = L["Puts the unit name and the health value inside the bar, crowd control left of it, incoming debuffs above that and buffs to its right, and gives the cast bar its icon, its remaining time and its target. Your current arrangement is saved first and the button beside this one brings it back."],
+              onClick = applyLayoutPreset },
+        },
+    }
+    if mod.db and mod.db.layoutBackup then
+        row.items[#row.items + 1] = {
+            type = "button", label = L["Restore my arrangement"],
+            -- Says the whole truth: the snapshot covers every text and aura row,
+            -- not only the ones the preset names, because placing a row EVICTS
+            -- whatever sat in that slot. So anything moved by hand after the
+            -- apply goes back too -- which is what makes the eviction undoable.
+            tooltip = L["Puts every text and aura position back to what it was before the arrangement was applied, and removes the saved copy. Anything you moved by hand since then goes back as well."],
+            onClick = restoreLayoutPreset }
+    end
+    return row
 end
 
 -- Declared above, filled here: it needs rowPlacementItems.
@@ -493,6 +663,10 @@ function mod:GetOptions(tabId)
     local all = {
         { type = "desc",
           text = L["|cffaaaaaaCustom nameplates for enemies and NPCs. Configure below — the live preview updates as you change each option.|r"] },
+
+        -- Not a section, so the filter at the bottom of this function keeps it
+        -- on the Display tab, where the live preview is.
+        presetRow(),
 
         { type = "group", layout = "row", gap = 8, items = {
             { type = "dropdown", label = L["Preview reaction"], width = 300, values = reactionPreviewValues(),

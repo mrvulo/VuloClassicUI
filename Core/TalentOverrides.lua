@@ -61,12 +61,31 @@ local MAX_TREE_POINTS = 100
 -- =========================================================================
 
 function ns:HasTalentGroups()
-    return (SI and SI.GetActiveSpecGroup) and true or false
+    return ((SI and SI.GetActiveSpecGroup) or _G.GetActiveTalentGroup) and true or false
 end
 
+-- TWO sources, for exactly the reason NumTalentGroups below gives -- and this
+-- one had only the first, which cost the whole talent-group feature on a client
+-- where C_SpecializationInfo does not exist. There it fell through to the
+-- hardcoded 1 and NEVER said anything else.
+--
+-- Measured 03.08.2026 on a Wrath client: C_SpecializationInfo was nil,
+-- GetActiveTalentGroup() answered 2, and this function still said 1. Everything
+-- downstream then believed group 1 was running: the header called the group you
+-- were looking at "not active" while you were standing in it, the activate
+-- button offered to switch to the group already active, and the switch itself
+-- reported success while changing nothing -- because it was told to activate
+-- what was already on.
+--
+-- A wrong answer here is worse than no answer: every caller trusts it, and none
+-- of them can tell a stale 1 from a real one.
 function ns:ActiveTalentGroup()
     if SI and SI.GetActiveSpecGroup then
         local ok, g = pcall(SI.GetActiveSpecGroup)
+        if ok and type(g) == "number" and g > 0 then return g end
+    end
+    if _G.GetActiveTalentGroup then
+        local ok, g = pcall(_G.GetActiveTalentGroup)
         if ok and type(g) == "number" and g > 0 then return g end
     end
     return 1

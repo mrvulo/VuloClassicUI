@@ -509,13 +509,28 @@ local function buildVisuals(f)
     f.spark:SetBlendMode("ADD")
     f.spark:Hide()
 
-    -- Name parents to the plate root, not the health bar, so name-only mode can hide the bar.
-    f.name = f:CreateFontString(nil, "OVERLAY")
+    -- Name, level and title do NOT parent to the health bar: name-only mode
+    -- hides that bar, and a text parented to a hidden frame goes with it.
+    --
+    -- But they cannot sit on the plate root either. The health bar is a CHILD
+    -- of the root, so everything the bar draws -- its fill above all -- covers
+    -- anything the root draws, and draw layers do not reach across frames. That
+    -- stayed invisible while the name only ever sat ABOVE the bar; the moment a
+    -- text slot puts it INSIDE, the name vanishes behind the fill while the
+    -- health value beside it stays readable, because THAT one is created on the
+    -- bar. Reported 03.08.2026 with a screenshot: name gone, value fine.
+    --
+    -- A sibling frame one level above the bar keeps both properties at once.
+    f.textLayer = CreateFrame("Frame", nil, f)
+    f.textLayer:SetAllPoints(f)
+    f.textLayer:SetFrameLevel(f.health:GetFrameLevel() + 3)
+
+    f.name = f.textLayer:CreateFontString(nil, "OVERLAY")
     f.name:SetPoint("BOTTOM", f.health, "TOP", 0, 3)
-    f.level = f:CreateFontString(nil, "OVERLAY")
+    f.level = f.textLayer:CreateFontString(nil, "OVERLAY")
     f.level:SetPoint("RIGHT", f.name, "LEFT", -3, 0)
     f.level:Hide()
-    f.title = f:CreateFontString(nil, "OVERLAY")
+    f.title = f.textLayer:CreateFontString(nil, "OVERLAY")
     f.title:Hide()
     f.healthText = f.health:CreateFontString(nil, "OVERLAY")
     f.healthText:SetPoint("CENTER", f.health, "CENTER", 0, 0)
