@@ -255,12 +255,27 @@ function moveCategory(key, delta)
     if key == "pinned" or key == "recent" then return end
     local eff = orderedCategoryKeys()
     mod.db.catOrder = mod.db.catOrder or {}
-    if #mod.db.catOrder == 0 then
-        for _, k in ipairs(eff) do
-            if k ~= "pinned" and k ~= "recent" then mod.db.catOrder[#mod.db.catOrder + 1] = k end
+    local order = mod.db.catOrder
+
+    -- Reconciled on every move, not filled once while the list was still empty.
+    -- Anything that did not exist at that one moment never got an entry, and its
+    -- own Move up/down then found no place in the list and returned without a
+    -- word: switch a built-in category off, move any other one (which fills the
+    -- list, minus the one that is off), switch it back on -- it reappears on
+    -- screen through the fallback in orderedCategoryKeys, but its arrows are
+    -- dead for the rest of the session.
+    --
+    -- Appended in render order, which is where the missing ones already sit on
+    -- screen, so nothing jumps on the first click.
+    local inOrder = {}
+    for _, k in ipairs(order) do inOrder[k] = true end
+    for _, k in ipairs(eff) do
+        if k ~= "pinned" and k ~= "recent" and not inOrder[k] then
+            order[#order + 1] = k
+            inOrder[k] = true
         end
     end
-    local order = mod.db.catOrder
+
     local idx
     for i, k in ipairs(order) do if k == key then idx = i; break end end
     if not idx then return end
@@ -1393,98 +1408,22 @@ end
 
 function categoriesChanged() refresh() end
 
--- Prefer native SortBags only when it genuinely exists, else our own Lua sort. Both bail in combat.
+-- Prefer the game's own SortBags when it genuinely exists, else the sort engine.
+-- Both bail in combat.
+--
+-- A hand-written selection sort used to sit here as a third path, for the case
+-- where the engine was missing. It could not be: the engine is installed
+-- unconditionally by the file loaded immediately before this one, so the branch
+-- below always took the engine and returned.
+--
+-- Unreachable code drifts unnoticed, and this had. It read the THIRD return of
+-- GetItemInfoInstant as the item quality; that return is the subtype TEXT, and
+-- the quality is not among that function's returns at all. Sorting by quality
+-- would have sorted by subtype name, and a link the client cannot resolve would
+-- have compared a number against a string and thrown. Removed rather than
+-- repaired: nothing can reach it to prove a repair right.
 local SORT_BAGS = { 0, 1, 2, 3, 4 }
 local sortBagsActive = SORT_BAGS
-
-local function sortKey(link)
-    local q, t, s, name = 0, "", "", ""
-    if link then
-        name = link:match("%[(.-)%]") or ""
-        if GetItemInfoInstant then
-            local _, _, qq, _, _, tt, ss = GetItemInfoInstant(link)
-            q, t, s = qq or 0, tt or "", ss or ""
-        end
-    end
-    return q, t, s, name
-end
-
-local function sortLess(la, lb)
-    local qa, ta, sa, na = sortKey(la)
-    local qb, tb, sb, nb = sortKey(lb)
-    if sortMode == "name" then
-        if na ~= nb then if sortReverse then return na > nb else return na < nb end end
-        if qa ~= qb then return qa > qb end
-        return false
-    elseif sortMode == "type" then
-        if ta ~= tb then if sortReverse then return ta > tb else return ta < tb end end
-        if sa ~= sb then return sa < sb end
-        if qa ~= qb then return qa > qb end
-        if na ~= nb then return na < nb end
-        return false
-    else
-        if qa ~= qb then if sortReverse then return qa < qb else return qa > qb end end
-        if ta ~= tb then return ta < tb end
-        if sa ~= sb then return sa < sb end
-        if na ~= nb then if sortReverse then return na > nb else return na < nb end end
-        return false
-    end
-end
-
--- Fallback selection sort: one 3-pickup swap per frame; never swaps two identical stacks.
-local _sortStep = 0
-local sortPos   = 1
-
-local function betterSlot(x, y)
-    if x.link and not y.link then return true  end
-    if y.link and not x.link then return false end
-    if not x.link and not y.link then return false end
-    return sortLess(x.link, y.link)
-end
-
-local function slotLocked(bag, slot)
-    local _, _, locked = GetContainerItemInfo(bag, slot)
-    return locked
-end
-
-local function customSortStep()
-    if InCombatLockdown() then sortInFlight = false; return end
-    _sortStep = _sortStep + 1
-    if _sortStep > 400 then sortInFlight = false; refresh(); return end
-
-    local slots = {}
-    for _, bag in ipairs(sortBagsActive) do
-        for slot = 1, (GetContainerNumSlots(bag) or 0) do
-            slots[#slots + 1] = { bag = bag, slot = slot, link = GetContainerItemLink(bag, slot) }
-        end
-    end
-
-    while sortPos <= #slots do
-        local best = sortPos
-        for j = sortPos + 1, #slots do
-            if betterSlot(slots[j], slots[best]) then best = j end
-        end
-        if best == sortPos then
-            sortPos = sortPos + 1
-        else
-            local a, b = slots[sortPos], slots[best]
-            if slotLocked(a.bag, a.slot) or slotLocked(b.bag, b.slot) then
-                if C_Timer and C_Timer.After then C_Timer.After(0, customSortStep) else sortInFlight = false end
-                return
-            end
-            -- proper 3-pickup swap (clean whether the other slot is empty or full)
-            PickupContainerItem(a.bag, a.slot)
-            PickupContainerItem(b.bag, b.slot)
-            PickupContainerItem(a.bag, a.slot)
-            ClearCursor()
-            sortPos = sortPos + 1
-            ns.NextFrame(customSortStep)
-            return
-        end
-    end
-    sortInFlight = false
-    refresh()
-end
 
 local function doSort(bagList, nativeFn)
     if sortInFlight then return end
@@ -1500,25 +1439,19 @@ local function doSort(bagList, nativeFn)
         refresh()
         return
     end
+    if not ns.SortEngine then return end
     sortBagsActive = bagList or SORT_BAGS
     -- the engine callback fires exactly once, also on abort, so sortInFlight always clears
-    if ns.SortEngine then
-        sortInFlight = true
-        local isBank = bagList ~= nil
-        ns.SortEngine.Run(sortBagsActive,
-            (sortMode == "blizzard") and "type" or sortMode,
-            sortReverse and true or false,
-            function()
-                sortInFlight = false
-                refresh()
-                if isBank and ns.BankRefresh then ns.BankRefresh() end
-            end)
-        return
-    end
     sortInFlight = true
-    _sortStep = 0
-    sortPos = 1
-    customSortStep()
+    local isBank = bagList ~= nil
+    ns.SortEngine.Run(sortBagsActive,
+        (sortMode == "blizzard") and "type" or sortMode,
+        sortReverse and true or false,
+        function()
+            sortInFlight = false
+            refresh()
+            if isBank and ns.BankRefresh then ns.BankRefresh() end
+        end)
 end
 
 ns.BagItemMatchesSearch = itemMatchesSearch
