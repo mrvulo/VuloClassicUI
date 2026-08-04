@@ -98,8 +98,21 @@ end
 function ns:ModUnregisterAllEvents(mod)
     local owned = mod._ownedEvents
     if not owned then return end
+    local key = mod.key or mod.name
     for i = #owned - 1, 1, -2 do
-        ns:UnregisterEvent(owned[i], owned[i + 1])
+        local handler = owned[i + 1]
+        ns:UnregisterEvent(owned[i], handler)
+        -- The owner note goes with it. Left behind, this table keeps a hard
+        -- reference to every handler a module ever registered, so nothing a
+        -- switched-off module built can be collected. It shows most on the
+        -- anonymous handlers: those have a fresh identity on every enable, so
+        -- switching a module off and on again added one permanent entry each
+        -- time. Nothing reads the table unless profiling is on, which is
+        -- exactly why it could grow unnoticed.
+        --
+        -- Only OUR note: if another module registered the same function after
+        -- us, the slot belongs to it and has to stay.
+        if ns.eventOwners[handler] == key then ns.eventOwners[handler] = nil end
         owned[i], owned[i + 1] = nil, nil
     end
 end
