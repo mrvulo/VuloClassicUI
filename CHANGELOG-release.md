@@ -1,17 +1,14 @@
-## 1.52.0
-**Chat:**
-- The own background for the input line is offered on every client. It was limited to one client generation, and the code already said it would work everywhere.
+## 1.52.1
+**Action Bars:**
+- **NEW: Keep the main bar on its page in every form** – Cat, bear, stealth, stances and Shadowform stop swapping action bar 1 to a page of their own
+- The ticker that paints cooldown dimming and range colouring no longer walks switched-off bars. It read and repainted every action bar five times a second, including the ones whose buttons nobody can see, so running two bars cost as much as running all of them.
+- Leaving a button no longer builds a fresh check each time. The check only ever reads the bar, not the button, so it is built once per bar and shared by all of its buttons.
 
-**Cooldown Manager:**
-- The icon borders are pixel-exact. The border there is not a texture of its own but the rim of a plate behind the icon, so the two have to sit on the same pixel grid, the thickness has to be counted in pixels rather than frame units, and the icon size and spacing have to begin on whole pixels. None of the three was true, which is why a rim came out two pixels on one edge and none on the opposite.
+**Arena:**
+- The opponent frames are left alone unless you actually asked for a different arrangement. They are protected frames: anchoring one from our side is allowed outside a fight, but it marks the frame for the rest of the session, and the next time the default interface repositions it during a round its own call is refused and the block is reported against us. There is no way to anchor a protected frame without leaving that mark, so an untouched setup now keeps the default stacking. Order, spacing, grow direction and slot offsets all still work — the message becomes the price of a feature you asked for rather than something every arena hands out for free.
 
-**Nameplates:**
-- **NEW: Apply this arrangement** – Puts the unit name and the health value inside the bar, crowd control left of it, incoming debuffs above that and buffs to its right, with the cast bar carrying its icon, its remaining time and its target
-- The unit name was hidden behind the health bar fill as soon as a text slot put it inside the bar. The name and the health value hang from different parents: the value is created on the bar, the name on the plate, and the bar is a child of the plate — so it draws over anything the plate draws. While the name only ever sat above the bar this never showed. It has its own layer now, above the bar but not attached to it, because name-only mode hides that bar and a text parented to a hidden frame would go with it.
-- The health text has its controls back: what it shows, and which mark goes between the two numbers. Both were still being read and had been unreachable since the page was rebuilt.
+**Bags:**
+- Move up and move down work again on a category you switched off and back on. The order list was filled once, while it was still empty, so anything that did not exist at that moment never got an entry, and its arrows then did nothing at all for the rest of the session without saying so.
 
-**Talent Window:**
-- The active talent group was always reported as the first one on clients that do not carry the newer interface for it. Everything behind that believed group one was running: the header called the group you were standing in not active, the activate button offered to switch to the one already on, and the switch reported success while changing nothing. Five files ask that same question, so profile overrides and bar setups were reading it too.
-- The glyph page stands permanently beside the window. It is lifted out of Blizzard's talent frame, where it lives inside the scroll area of the very window we replace, and handed back when ours closes.
-- The separate glyph button is gone with it. Its only job was to send you to the page that now stands in front of you.
-- A band under the header carries the activate button and the name of the talent group on screen. Until now switching existed only as a right-click on the small side icons, and nothing announced it.
+**Under the hood:**
+- Switching a module off releases its event handlers again. The note recording which module owns a handler stayed behind when the handler was unregistered, and that note kept a hard reference to every handler the module had ever registered.
