@@ -923,6 +923,45 @@ local function slotOffset(slotIndex)
     return tonumber(o.x) or 0, tonumber(o.y) or 0
 end
 
+-- The five opponent frames are protected: they carry unit attributes and can be
+-- clicked in combat, so the client guards their position. Anchoring one of them
+-- from our code is allowed outside a fight, but it marks the frame, and the next
+-- time the default interface repositions it during a round its own SetPoint is
+-- refused and the block is reported against us:
+--
+--   [ADDON_ACTION_BLOCKED] ... 'UNKNOWN()' / [C]: in function 'SetPoint'
+--
+-- There is no way to anchor a protected frame without leaving that mark, so the
+-- frames are only touched when the player actually asked for a different
+-- arrangement. An untouched setup keeps the default stacking and stays clean;
+-- moving a slot, the spacing slider or the grow direction takes it over from
+-- there, and the message becomes the price of a feature that was asked for
+-- rather than something every arena hands out for free.
+local DEFAULT_SPACING = 28
+
+local function layoutIsDefault()
+    if (mod.db.growDirection or "down") ~= "down" then return false end
+    if (tonumber(mod.db.slotSpacing) or DEFAULT_SPACING) ~= DEFAULT_SPACING then return false end
+
+    local order = mod.db.slotOrder
+    if type(order) == "table" then
+        for i = 1, 5 do
+            if tonumber(order[i]) ~= i then return false end
+        end
+    end
+
+    local offsets = mod.db.slotOffsets
+    if type(offsets) == "table" then
+        for _, o in pairs(offsets) do
+            if type(o) == "table" and ((tonumber(o.x) or 0) ~= 0 or (tonumber(o.y) or 0) ~= 0) then
+                return false
+            end
+        end
+    end
+
+    return true
+end
+
 -- Size of the whole stack, for the drag overlay. nil until the frames have a
 -- measurable height, which is the first tick after the arena UI loads.
 local stackW, stackH
@@ -931,6 +970,10 @@ function mod.GetStackSize()
 end
 
 local reportedLayoutError = false
+
+-- Installed on demand from applyLayout, so a default arrangement never writes
+-- anything into the protected frames at all.
+local watchFrameAnchors
 
 local function anchorSlots(owner, slots, spacing, grow)
     local previous = nil
@@ -974,13 +1017,26 @@ local function applyLayout()
     -- the frames would hang off the container's top edge and the drag overlay,
     -- which the mover engine keeps centred on the same point, could only ever
     -- cover them at one particular spacing.
+    -- Two measurements: the height our own spacing would produce, and the height
+    -- the frames actually occupy right now. The first is the right answer while
+    -- we are anchoring - the frames have not moved yet at that point - and the
+    -- second is the only honest one when we leave the stacking alone, because
+    -- then the gap is not ours to predict. Top and bottom need no scale
+    -- conversion: all five share the container's scale, so they are already in
+    -- the same units as GetHeight.
     local totalH, maxW, counted = 0, 0, 0
+    local top, bottom
     for _, slotIndex in ipairs(slots) do
         local frame = H.Frame(slotIndex)
         if frame then
             local h, w = frame:GetHeight() or 0, frame:GetWidth() or 0
             if h > 0 then totalH = totalH + h; counted = counted + 1 end
             if w > maxW then maxW = w end
+            local t, b = frame:GetTop(), frame:GetBottom()
+            if t and b then
+                if not top    or t > top    then top    = t end
+                if not bottom or b < bottom then bottom = b end
+            end
         end
     end
     if counted > 0 then
@@ -989,6 +1045,22 @@ local function applyLayout()
     else
         stackH, stackW = nil, nil
     end
+
+    -- Measuring above is harmless - it only reads. Anchoring is what marks the
+    -- protected frames, so a default arrangement stops here and leaves them to
+    -- the default interface. The overlay is still updated: it is our own frame
+    -- and the player can still drag the whole stack around.
+    if layoutIsDefault() then
+        if counted > 0 and top and bottom and top > bottom then
+            stackH = top - bottom
+        end
+        if mod.UpdateDragOverlay then mod:UpdateDragOverlay() end
+        return
+    end
+
+    -- Only from here on is the layout ours, so this is where the frames start
+    -- being watched for moves made behind our back.
+    watchFrameAnchors()
 
     -- pcall, and the flag cleared outside it: an error thrown between setting
     -- and clearing would leave `applying` true for the rest of the session, and
@@ -1041,7 +1113,7 @@ end
 -- cannot be undone until it ends. A late opponent walking into view mid-fight
 -- therefore keeps Blizzard's stacking until PLAYER_REGEN_ENABLED repairs it.
 local anchorWatched = {}
-local function watchFrameAnchors()
+function watchFrameAnchors()
     if not hooksecurefunc then return end
     H.ForEach(function(frame)
         if anchorWatched[frame] then return end
@@ -1064,9 +1136,6 @@ local function hookLayout()
         hooksecurefunc("ArenaEnemyFrames_UpdatePlayer", requestLayout)
         hooksecurefunc("ArenaEnemyFrames_Update", requestLayout)
     end
-
-    -- runs on every call: frames created after the last one still need watching
-    watchFrameAnchors()
 end
 
 mod.HookLayout = hookLayout
