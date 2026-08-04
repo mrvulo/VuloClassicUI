@@ -1879,6 +1879,15 @@ local function buildFrame()
         end
         return "Interface\\PaperDoll\\UI-PaperDoll-Slot-Bag"
     end
+    -- The inventory slot a bag is worn in, which is what the real item tooltip
+    -- hangs off. The backpack and the keyring are not equipped bags and have
+    -- none, so they keep the plain name.
+    local function barInvID(bag)
+        if bag == 0 or bag == KEYRING then return nil end
+        local toInv = (_G.C_Container and _G.C_Container.ContainerIDToInventoryID)
+                   or _G.ContainerIDToInventoryID
+        return toInv and toInv(bag) or nil
+    end
     local function barBagShown(bag)
         if bag == KEYRING then return mod.db.showKeyring and true or false end
         return not (mod.db.hiddenBags and mod.db.hiddenBags[bag])
@@ -1905,7 +1914,39 @@ local function buildFrame()
         ic._tex:SetPoint("TOPLEFT", 1, -1); ic._tex:SetPoint("BOTTOMRIGHT", -1, 1)
         ic._tex:SetTexCoord(0.07, 0.93, 0.07, 0.93)
         ic._bag = b
-        ic:SetScript("OnClick", function()
+        ic:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+
+        -- Putting a bag ON from here, the way the bank strip already allowed.
+        -- PutItemInBag and PickupBagFromSlot are unprotected, so this needs no
+        -- secure button and is not blocked in combat. Returns false where there
+        -- is no slot to fill: the backpack and the keyring are not worn bags.
+        local function swapBagHere(pickUpWhenEmptyHanded)
+            local invID = barInvID(b)
+            if not invID then return false end
+            if CursorHasItem and CursorHasItem() then
+                PutItemInBag(invID)
+            elseif pickUpWhenEmptyHanded then
+                PickupBagFromSlot(invID)
+            else
+                return false
+            end
+            f.updateBagBar()
+            refresh()
+            return true
+        end
+
+        ic:SetScript("OnReceiveDrag", function() swapBagHere(false) end)
+        ic:SetScript("OnClick", function(_, mouseButton)
+            -- A bag on the cursor means "put it here", whichever button drops
+            -- it -- the hand has already decided, and demanding a particular
+            -- button after the pickup would be a second decision for nothing.
+            if CursorHasItem and CursorHasItem() then
+                if swapBagHere(false) then return end
+            elseif mouseButton == "RightButton" then
+                swapBagHere(true)   -- takes the bag back off
+                return
+            end
+            if mouseButton == "RightButton" then return end
             if b == KEYRING then
                 mod.db.showKeyring = not mod.db.showKeyring
             else
@@ -1915,10 +1956,29 @@ local function buildFrame()
             f.updateBagBar()
             refresh()
         end)
-        UI:AttachTooltip(ic, function()
-            return { anchor = "ANCHOR_TOP", title = bagDisplayName(b),
-                     lines  = { L["Click to show or hide this bag."] } }
+        -- The bag's OWN item tooltip -- quality colour, slot count, what it can
+        -- hold -- with our click hint underneath, instead of the bare name the
+        -- strip used to show. Opened by hand rather than through a spec table:
+        -- an item tooltip is exactly the content a table cannot describe, which
+        -- is what UI:OpenTooltip exists for.
+        ic:SetScript("OnEnter", function(self)
+            if not UI:OpenTooltip(self, "ANCHOR_TOP") then return end
+            local invID = barInvID(b)
+            local shown = false
+            if invID and GameTooltip.SetInventoryItem then
+                shown = GameTooltip:SetInventoryItem("player", invID) and true or false
+            end
+            -- backpack, keyring and an empty bag slot have no item to describe
+            if not shown then GameTooltip:SetText(bagDisplayName(b)) end
+            GameTooltip:AddLine(L["Click to show or hide this bag."], 0.7, 0.7, 0.7)
+            -- only where there is a slot to swap; the backpack and the keyring
+            -- would advertise an action that does nothing
+            if invID then
+                GameTooltip:AddLine(L["Right-click: pick up or equip the bag."], 0.7, 0.7, 0.7)
+            end
+            GameTooltip:Show()
         end)
+        ic:SetScript("OnLeave", function() UI:HideTooltip() end)
         bar._icons[#bar._icons + 1] = ic
     end
     bagsBtn:SetScript("OnClick", function()

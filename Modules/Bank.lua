@@ -388,7 +388,16 @@ function bank.build()
             if not ns.UI:OpenTooltip(self, "ANCHOR_TOP") then return end
             local i2 = slotIndexOf(b)
             local owned = GetNumBankSlots() or 0
-            GameTooltip:SetText(bank.bagName(b))
+            -- The bag's OWN item tooltip where a bag actually sits in the slot,
+            -- the same as the strip in the bag window. The bank container
+            -- itself, an empty slot and a slot you have not bought yet have no
+            -- item to describe and keep the plain name.
+            local shown = false
+            if i2 and i2 <= owned and BankButtonIDToInvSlotID and GameTooltip.SetInventoryItem then
+                local inv = BankButtonIDToInvSlotID(i2, 1)
+                if inv then shown = GameTooltip:SetInventoryItem("player", inv) and true or false end
+            end
+            if not shown then GameTooltip:SetText(bank.bagName(b)) end
             GameTooltip:AddLine(L["Left-click: show or hide."], 0.7, 0.7, 0.7)
             if i2 then
                 if i2 <= owned then
