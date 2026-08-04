@@ -897,7 +897,7 @@ ns:RegisterLocale("zhTW", function() return {
     ["Moves the icon vertically. Positive = up, negative = down."] = "垂直移動圖示。正值 = 上，負值 = 下。",
     ["Test only available in 'Custom Castbar' mode."] = "測試僅在「自訂施法條」模式下可用。",
     ["Cooldown Pulse"] = "冷卻脈動",
-    ["Shows the icon of an expired cooldown as a brief pulsing animation in the screen center (based on Doom_CooldownPulse)."] = "在螢幕中央以短暫脈動動畫顯示冷卻結束的法術圖示（基於 Doom_CooldownPulse）。",
+    ["Shows the icon of an expired cooldown as a brief pulsing animation in the screen center."] = "在螢幕中央以短暫脈動動畫顯示冷卻結束的法術圖示。",
     ["Test Spell"] = "測試法術",
     ["Cooldown Pulse position reset."] = "冷卻脈動位置已重設。",
     ["Test Pulse"] = "測試脈動",

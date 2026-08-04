@@ -897,7 +897,7 @@ ns:RegisterLocale("zhCN", function() return {
     ["Moves the icon vertically. Positive = up, negative = down."] = "垂直移动图标。正值 = 上，负值 = 下。",
     ["Test only available in 'Custom Castbar' mode."] = "测试仅在“自定义施法条”模式下可用。",
     ["Cooldown Pulse"] = "冷却脉冲",
-    ["Shows the icon of an expired cooldown as a brief pulsing animation in the screen center (based on Doom_CooldownPulse)."] = "冷却结束时，在屏幕中央以短暂的脉冲动画显示该法术图标（基于 Doom_CooldownPulse）。",
+    ["Shows the icon of an expired cooldown as a brief pulsing animation in the screen center."] = "冷却结束时，在屏幕中央以短暂的脉冲动画显示该法术图标。",
     ["Test Spell"] = "测试法术",
     ["Cooldown Pulse position reset."] = "冷却脉冲位置已重置。",
     ["Test Pulse"] = "测试脉冲",

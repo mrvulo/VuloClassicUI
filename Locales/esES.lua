@@ -901,7 +901,7 @@ local function T() return {
     ["Moves the icon vertically. Positive = up, negative = down."] = "Mueve el icono verticalmente. Positivo = arriba, negativo = abajo.",
     ["Test only available in 'Custom Castbar' mode."] = "La prueba solo está disponible en el modo “Barra personalizada”.",
     ["Cooldown Pulse"] = "Pulso de reutilización",
-    ["Shows the icon of an expired cooldown as a brief pulsing animation in the screen center (based on Doom_CooldownPulse)."] = "Muestra el icono de un tiempo de reutilización que acaba de terminar como una breve animación pulsante en el centro de la pantalla (basado en Doom_CooldownPulse).",
+    ["Shows the icon of an expired cooldown as a brief pulsing animation in the screen center."] = "Muestra el icono de un tiempo de reutilización que acaba de terminar como una breve animación pulsante en el centro de la pantalla.",
     ["Test Spell"] = "Hechizo de prueba",
     ["Cooldown Pulse position reset."] = "Posición del pulso de reutilización restablecida.",
     ["Test Pulse"] = "Probar pulso",

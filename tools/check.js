@@ -32,7 +32,11 @@ const ROOT = path.resolve(__dirname, '..');
 const SCAN_DIRS = ['Core', 'Modules', 'UI', 'Locales', 'Trinkets'];
 const SYNTAX_ONLY_DIRS = ['Libs'];   // vendor code: syntax/locals checks only
 const DEDE = path.join(ROOT, 'Locales', 'deDE.lua');
-const FORBIDDEN = /baganator|ellesmere|chattynator|dragonflight|dfui|elvui|leatrix|masque|sexymap|ndui|bartender|dominos|totemtimers|tacotip|gearscore/i;
+// "doom_?cooldownpulse" joined 2026-08-04: it sat in the Cooldown Pulse module's
+// DESCRIPTION -- on screen in the options, and translated into all nine locale
+// files, so the name shipped nine times over. Nothing here caught it, which is
+// the only reason it survived that long.
+const FORBIDDEN = /baganator|ellesmere|chattynator|dragonflight|dfui|elvui|leatrix|masque|sexymap|ndui|bartender|dominos|totemtimers|tacotip|gearscore|doom_?cooldownpulse/i;
 // "masque" is also the ordinary French word for "hides", so the French locale
 // alone produced 60 false hits — enough noise to hide a real one. That name can
 // only appear meaningfully in code (an integration), so it is dropped for

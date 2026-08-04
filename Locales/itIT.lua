@@ -1580,7 +1580,7 @@ ns:RegisterLocale("itIT", function() return {
     ["Moves the icon vertically. Positive = up, negative = down."] = "Sposta l'icona in verticale. Positivo = su, negativo = giù.",
     ["Test only available in 'Custom Castbar' mode."] = "Prova disponibile solo in modalità “Barra personalizzata”.",
     ["Cooldown Pulse"] = "Impulso cooldown",
-    ["Shows the icon of an expired cooldown as a brief pulsing animation in the screen center (based on Doom_CooldownPulse)."] = "Mostra l'icona di un cooldown scaduto come breve animazione pulsante al centro dello schermo (basato su Doom_CooldownPulse).",
+    ["Shows the icon of an expired cooldown as a brief pulsing animation in the screen center."] = "Mostra l'icona di un cooldown scaduto come breve animazione pulsante al centro dello schermo.",
     ["Test Spell"] = "Incantesimo di prova",
     ["Cooldown Pulse position reset."] = "Posizione dell'impulso cooldown ripristinata.",
     ["Test Pulse"] = "Prova l'impulso",

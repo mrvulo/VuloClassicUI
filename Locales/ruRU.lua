@@ -564,7 +564,7 @@ ns:RegisterLocale("ruRU", function() return {
     ["Moves the icon vertically. Positive = up, negative = down."] = "Двигает значок по вертикали. Положительное — вверх, отрицательное — вниз.",
     ["Test only available in 'Custom Castbar' mode."] = "Тест доступен только в режиме «Своя полоса заклинания».",
     ["Cooldown Pulse"] = "Пульс восстановления",
-    ["Shows the icon of an expired cooldown as a brief pulsing animation in the screen center (based on Doom_CooldownPulse)."] = "Показывает значок завершенного восстановления в виде короткой пульсирующей анимации в центре экрана (на основе Doom_CooldownPulse).",
+    ["Shows the icon of an expired cooldown as a brief pulsing animation in the screen center."] = "Показывает значок завершенного восстановления в виде короткой пульсирующей анимации в центре экрана.",
     ["Test Spell"] = "Тестовое заклинание",
     ["Cooldown Pulse position reset."] = "Положение пульса восстановления сброшено.",
     ["Test Pulse"] = "Тестовый пульс",

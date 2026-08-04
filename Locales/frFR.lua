@@ -1003,7 +1003,7 @@ ns:RegisterLocale("frFR", function() return {
 
     -- Impulsion de recharge
     ["Cooldown Pulse"] = "Impulsion de recharge",
-    ["Shows the icon of an expired cooldown as a brief pulsing animation in the screen center (based on Doom_CooldownPulse)."] = "Affiche l'icône d'une recharge terminée sous forme d'une brève animation pulsée au centre de l'écran (d'après Doom_CooldownPulse).",
+    ["Shows the icon of an expired cooldown as a brief pulsing animation in the screen center."] = "Affiche l'icône d'une recharge terminée sous forme d'une brève animation pulsée au centre de l'écran.",
     ["Test Spell"] = "Sort de test",
     ["Cooldown Pulse position reset."] = "Position de l'impulsion réinitialisée.",
     ["Test Pulse"] = "Tester l'impulsion",

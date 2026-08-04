@@ -900,7 +900,7 @@ ns:RegisterLocale("koKR", function() return {
     ["Moves the icon vertically. Positive = up, negative = down."] = "아이콘을 위아래로 옮깁니다. 양수 = 위쪽, 음수 = 아래쪽.",
     ["Test only available in 'Custom Castbar' mode."] = "시험은 ‘사용자 지정 시전 바’ 방식에서만 사용할 수 있습니다.",
     ["Cooldown Pulse"] = "재사용 대기시간 펄스",
-    ["Shows the icon of an expired cooldown as a brief pulsing animation in the screen center (based on Doom_CooldownPulse)."] = "재사용 대기시간이 끝난 주문의 아이콘을 화면 중앙에 잠깐 확대되는 애니메이션으로 표시합니다 (Doom_CooldownPulse 기반).",
+    ["Shows the icon of an expired cooldown as a brief pulsing animation in the screen center."] = "재사용 대기시간이 끝난 주문의 아이콘을 화면 중앙에 잠깐 확대되는 애니메이션으로 표시합니다.",
     ["Test Spell"] = "시험용 주문",
     ["Cooldown Pulse position reset."] = "재사용 대기시간 펄스 위치가 초기화되었습니다.",
     ["Test Pulse"] = "시험 펄스",

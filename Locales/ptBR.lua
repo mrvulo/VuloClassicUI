@@ -1257,7 +1257,7 @@ ns:RegisterLocale("ptBR", function() return {
     ["Moves the icon vertically. Positive = up, negative = down."] = "Move o ícone na vertical. Positivo = cima, negativo = baixo.",
     ["Test only available in 'Custom Castbar' mode."] = "O teste só está disponível no modo 'Barra de Conjuração Personalizada'.",
     ["Cooldown Pulse"] = "Pulso de Recarga",
-    ["Shows the icon of an expired cooldown as a brief pulsing animation in the screen center (based on Doom_CooldownPulse)."] = "Mostra o ícone de um tempo de recarga expirado como uma breve animação pulsante no centro da tela (baseado em Doom_CooldownPulse).",
+    ["Shows the icon of an expired cooldown as a brief pulsing animation in the screen center."] = "Mostra o ícone de um tempo de recarga expirado como uma breve animação pulsante no centro da tela.",
     ["Test Spell"] = "Magia de Teste",
     ["Cooldown Pulse position reset."] = "Posição do Pulso de Recarga redefinida.",
     ["Test Pulse"] = "Pulso de Teste",

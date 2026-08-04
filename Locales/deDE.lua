@@ -1236,7 +1236,7 @@ ns:RegisterLocale("deDE", function() return {
 
     -- CooldownPulse
     ["Cooldown Pulse"] = "Cooldown-Pulse",
-    ["Shows the icon of an expired cooldown as a brief pulsing animation in the screen center (based on Doom_CooldownPulse)."] = "Zeigt das Icon eines abgelaufenen Cooldowns als kurze pulsierende Animation in der Bildschirmmitte (basierend auf Doom_CooldownPulse).",
+    ["Shows the icon of an expired cooldown as a brief pulsing animation in the screen center."] = "Zeigt das Icon eines abgelaufenen Cooldowns als kurze pulsierende Animation in der Bildschirmmitte.",
     ["Test Spell"] = "Testzauber",
     ["Cooldown Pulse position reset."] = "Cooldown-Pulse-Position zurückgesetzt.",
     ["Test Pulse"] = "Pulse testen",
