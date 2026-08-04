@@ -3256,4 +3256,7 @@ ns:RegisterLocale("koKR", function() return {
     ["The glyph page stands permanently beside the window. It is lifted out of Blizzard's talent frame, where it lives inside the scroll area of the very window we replace, and handed back when ours closes."] = "문양 페이지가 창 옆에 항상 자리합니다. 그것은 블리자드 특성 창에서 들어 올려집니다. 원래 그 페이지는 우리가 대체하는 바로 그 창의 스크롤 영역 안에 있으며, 우리 창을 닫으면 되돌려 줍니다.",
     ["The separate glyph button is gone with it. Its only job was to send you to the page that now stands in front of you."] = "그와 함께 별도의 문양 단추는 사라졌습니다. 그 단추의 유일한 일은 이제 여러분 앞에 놓인 그 페이지로 보내는 것이었습니다.",
     ["A band under the header carries the activate button and the name of the talent group on screen. Until now switching existed only as a right-click on the small side icons, and nothing announced it."] = "머리글 아래 띠에 활성화 단추와 화면에 보이는 특성 그룹의 이름이 놓입니다. 지금까지 전환은 옆쪽 작은 아이콘을 오른쪽 클릭하는 방법으로만 있었고, 그것을 알리는 것은 아무것도 없었습니다.",
+    ["Form paging"] = "변신 페이지 전환",
+    ["Keep the main bar on its page in every form"] = "모든 변신에서 주 행동 단축바를 현재 페이지로 유지",
+    ["|cffaaaaaaCat, bear, stealth, stances and Shadowform normally swap the main bar to their own page. Switch this off to keep the bar you built through every form.|r"] = "|cffaaaaaa표범, 곰, 은신, 태세, 어둠의 형상은 보통 주 행동 단축바를 각자의 페이지로 전환합니다. 이 기능을 끄면 직접 구성한 단축바가 모든 변신에서 그대로 유지됩니다.|r",
 } end)

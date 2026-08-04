@@ -62,7 +62,8 @@ local mod = ns:RegisterModule("actionbars", {
         xpbar = { on = true, width = 420, height = 14, x = 0, y = -320, scale = 1,
                   color = { r = 0.58, g = 0.0, b = 0.55 } },
         bars = {
-            main        = barDefaults({ y = -300, pageShift = 0, pageCtrl = 0, pageAlt = 0, pageHelp = 0, pageHarm = 0 }),
+            main        = barDefaults({ y = -300, pageShift = 0, pageCtrl = 0, pageAlt = 0, pageHelp = 0, pageHarm = 0,
+                                        noFormPaging = false }),
             bottomleft  = barDefaults({ y = -338 }),
             bottomright = barDefaults({ y = -376 }),
             right       = barDefaults({ perRow = 6,  x = 520,  y = -40 }),
@@ -121,6 +122,17 @@ local BAG_FRAMES   = {
     "CharacterBag0Slot", "CharacterBag1Slot", "CharacterBag2Slot", "CharacterBag3Slot",
 }
 
+-- The forms that swap the main bar under you, per class. Cat and Bear and
+-- Stealth and Shadowform all move the game's own bonus bar, and the main bar
+-- follows it; these entries are what makes our bar follow it too, so that the
+-- abilities on screen are the ones the form actually has.
+--
+-- Switched off, page 1 stays put through every form. That is only safe here
+-- because our keys are routed through the buttons (bindBar uses
+-- SetOverrideBindingClick), so a key always fires whatever its button shows. A
+-- bar left on the game's own ACTIONBUTTON commands would keep resolving through
+-- the bonus bar and cast the form ability the button no longer displays -- you
+-- would see one spell and fire another.
 local CLASS_STATES = {
     DRUID = {
         { m = "[bonusbar:3]", page = 9 },
@@ -166,12 +178,17 @@ local function pageDriver()
     modpage("[@target,help]", db.pageHelp)
     modpage("[@target,harm]", db.pageHarm)
     for p = 2, 6 do conds[#conds + 1] = ("[bar:%d]%d"):format(p, p) end
-    local _, class = UnitClass("player")
-    local states = CLASS_STATES[class]
-    if states then
-        for _, st in ipairs(states) do
-            local cond = st.m or (st.f and formCond(st.f))
-            if cond then conds[#conds + 1] = cond .. st.page end
+    -- The modifier and manual pages above are a deliberate choice and stay
+    -- either way; only the automatic form swap is dropped. Held Shift still
+    -- reaches its page in cat form.
+    if not db.noFormPaging then
+        local _, class = UnitClass("player")
+        local states = CLASS_STATES[class]
+        if states then
+            for _, st in ipairs(states) do
+                local cond = st.m or (st.f and formCond(st.f))
+                if cond then conds[#conds + 1] = cond .. st.page end
+            end
         end
     end
     conds[#conds + 1] = "1"
@@ -1364,11 +1381,18 @@ local function hookHover(desc)
             b:HookScript("OnLeave", function()
                 if not (mod.active and barDB(desc.key).visibility == "mouseover") then return end
                 if C_Timer and C_Timer.After then
-                    C_Timer.After(0.1, function()
-                        if not (mod.active and st.frame) or st.frame:IsMouseOver() then return end
-                        if mod.db.hoverShowsAll then setHovered(false)
-                        else st.hovered = false; refreshFade(desc) end
-                    end)
+                    -- Built once per bar, not once per mouse-leave. The check
+                    -- only ever reads the bar, so twelve buttons can share it,
+                    -- and sweeping the cursor along a bar stops handing the
+                    -- collector a fresh closure for every button it crosses.
+                    if not st.unhoverCheck then
+                        st.unhoverCheck = function()
+                            if not (mod.active and st.frame) or st.frame:IsMouseOver() then return end
+                            if mod.db.hoverShowsAll then setHovered(false)
+                            else st.hovered = false; refreshFade(desc) end
+                        end
+                    end
+                    C_Timer.After(0.1, st.unhoverCheck)
                 else
                     if mod.db.hoverShowsAll then setHovered(false)
                     else st.hovered = false; refreshFade(desc) end
@@ -1450,7 +1474,10 @@ local function lookTick()
     local dim = (mod.db.cdAlpha or 100) / 100
     local c = mod.db.rangeColor or { r = 0.8, g = 0.15, b = 0.15 }
     for _, desc in ipairs(BARS) do
-        if desc.kind == "own" or desc.kind == "reuse" then
+        -- A switched-off bar is hidden, and its twelve buttons were still being
+        -- read and repainted five times a second for nobody to see. Someone
+        -- running two bars was paying for eight.
+        if (desc.kind == "own" or desc.kind == "reuse") and barDB(desc.key).on then
             local st = state[desc.key]
             if st then
                 for _, b in ipairs(st.buttons) do
@@ -1826,6 +1853,21 @@ local function pagingRows()
         pageDrop(L["Alt held"],   "pageAlt"),
         pageDrop(L["Friendly target"], "pageHelp"),
         pageDrop(L["Hostile target"],  "pageHarm"),
+    } }
+end
+
+-- Only offered to the classes that have a form swap at all. A checkbox that
+-- cannot change anything is worse than a missing one: it reads as a setting the
+-- player got wrong rather than one their class never had.
+local function formPagingRow()
+    local _, class = UnitClass("player")
+    if not CLASS_STATES[class] then return nil end
+    return { type = "section", title = L["Form paging"], items = {
+        { type = "desc",
+          text = L["|cffaaaaaaCat, bear, stealth, stances and Shadowform normally swap the main bar to their own page. Switch this off to keep the bar you built through every form.|r"] },
+        { type = "checkbox", label = L["Keep the main bar on its page in every form"],
+          get = function() return barDB("main").noFormPaging end,
+          set = function(_, v) barDB("main").noFormPaging = v; reapply() end },
     } }
 end
 
@@ -2385,7 +2427,11 @@ function mod:GetOptions(tabId)
     -- picker in the header decides which bar `selectedBar` names.
     local d = BAR_BY_KEY[selectedBar] or BAR_BY_KEY.main
     for _, sec in ipairs(barModeSections(d)) do items[#items + 1] = sec end
-    if d.key == "main" then items[#items + 1] = pagingRows() end
+    if d.key == "main" then
+        items[#items + 1] = pagingRows()
+        local fp = formPagingRow()
+        if fp then items[#items + 1] = fp end
+    end
 
     -- Everything below applies to the modern bars as a whole; the chrome rows
     -- (micro menu, bags, XP bar) live on their own tab now.

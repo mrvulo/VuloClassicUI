@@ -3257,6 +3257,9 @@ local function T() return {
     ["The glyph page stands permanently beside the window. It is lifted out of Blizzard's talent frame, where it lives inside the scroll area of the very window we replace, and handed back when ours closes."] = "La página de glifos está permanentemente junto a la ventana. Se extrae del marco de talentos de Blizzard, donde vive dentro del área de desplazamiento de la misma ventana que sustituimos, y se devuelve cuando se cierra la nuestra.",
     ["The separate glyph button is gone with it. Its only job was to send you to the page that now stands in front of you."] = "El botón de glifos aparte desaparece con ello. Su única tarea era enviarte a la página que ahora está delante de ti.",
     ["A band under the header carries the activate button and the name of the talent group on screen. Until now switching existed only as a right-click on the small side icons, and nothing announced it."] = "Una banda bajo la cabecera lleva el botón de activar y el nombre del grupo de talentos en pantalla. Hasta ahora el cambio existía solo como clic derecho en los pequeños iconos laterales, y nada lo anunciaba.",
+    ["Form paging"] = "Paginación por forma",
+    ["Keep the main bar on its page in every form"] = "Mantener la barra principal en su página en todas las formas",
+    ["|cffaaaaaaCat, bear, stealth, stances and Shadowform normally swap the main bar to their own page. Switch this off to keep the bar you built through every form.|r"] = "|cffaaaaaaGato, oso, sigilo, actitudes y Forma de las Sombras cambian normalmente la barra principal a su propia página. Desactiva esto para mantener en todas las formas la barra que has creado.|r",
 } end
 
 ns:RegisterLocale("esES", T)

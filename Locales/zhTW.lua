@@ -3249,4 +3249,7 @@ ns:RegisterLocale("zhTW", function() return {
     ["The glyph page stands permanently beside the window. It is lifted out of Blizzard's talent frame, where it lives inside the scroll area of the very window we replace, and handed back when ours closes."] = "雕文頁面固定停在視窗旁邊。它是從暴雪的天賦框體裡取出來的——那頁原本就住在我們所替換的那個視窗的捲動區域內——並在我們的視窗關閉時交還回去。",
     ["The separate glyph button is gone with it. Its only job was to send you to the page that now stands in front of you."] = "單獨的雕文按鈕隨之取消。它唯一的用處就是把你送去那一頁，而那一頁現在就擺在你面前。",
     ["A band under the header carries the activate button and the name of the talent group on screen. Until now switching existed only as a right-click on the small side icons, and nothing announced it."] = "標題下方的一條區域放著啟用按鈕和目前所看方案的名稱。在此之前，切換只存在於右鍵點擊側邊的小圖示，而這一點沒有任何提示。",
+    ["Form paging"] = "形態換頁",
+    ["Keep the main bar on its page in every form"] = "在所有形態下讓主動作列保持目前頁面",
+    ["|cffaaaaaaCat, bear, stealth, stances and Shadowform normally swap the main bar to their own page. Switch this off to keep the bar you built through every form.|r"] = "|cffaaaaaa豹、熊、潛行、姿態和暗影形態通常會把主動作列切換到各自的頁面。關閉此項，你自己編排的動作列在任何形態下都保持不變。|r",
 } end)
