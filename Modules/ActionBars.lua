@@ -825,7 +825,15 @@ local MICRO_ICON_DIR = "Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\"
 local MODERN_MICRO = {
     { names = { "CharacterMicroButton" }, icon = "micro\\character",
       action = function() if ToggleCharacter then ToggleCharacter("PaperDollFrame") end end },
-    { names = { "SpellbookMicroButton" },                   icon = "micro\\spellbook" },
+    -- adopted, not forwarded: a Click() from our OnClick runs Blizzard's whole
+    -- chain inside our stack, and this one ends in
+    --     function ToggleSpellBook(bookType)
+    --         SpellBookFrame.bookType = bookType
+    -- so the book's own field gets marked as ours. SpellBook_GetSpellBookSlot
+    -- reads it on EVERY spell click, and CastSpell is refused from there on --
+    -- out of combat too, until the next reload. Blizzard's own button, clicked
+    -- by hand, keeps that whole chain out of our stack.
+    { adopt = "SpellbookMicroButton", icon = "micro\\spellbook" },
     { names = { "TalentMicroButton" },                      icon = "micro\\talents" },
     { names = { "QuestLogMicroButton" },                    icon = "micro\\questlog" },
     { custom = true, icon = "micro\\map",
@@ -951,6 +959,13 @@ local function ensureModernMicro()
                 ic:SetVertexColor(1, 1, 1, 0.45)
                 ns.UI:HideTooltip()
             end)
+            -- A forwarded click runs Blizzard's handler in OUR stack, so
+            -- everything that chain writes counts as ours from then on. That is
+            -- fine for panels nobody protected -- quest log, socials, help --
+            -- and NOT fine as soon as the chain writes a field that some
+            -- protected path reads later. The spell book is the case that bit
+            -- us; it is adopted above instead. Before adding a twin here, follow
+            -- its toggle to the end and check what it stores.
             b:SetScript("OnClick", function(self)
                 if self._action then
                     self._action(self)
