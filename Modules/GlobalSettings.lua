@@ -481,6 +481,16 @@ local function generalOptions()
           get = function() return getCVarNum("uiScale") end,
           set = function(_, v) applyUIScale(v) end },
 
+        -- Directly under the client's own scale, because the two get confused
+        -- otherwise: that one moves the whole game, this one moves this window
+        -- and nothing else. It takes effect while you drag it -- the window you
+        -- are dragging it in IS the preview.
+        { type = "slider", label = L["Settings Window Scale"],
+          min = 0.70, max = 1.30, step = 0.05,
+          tooltip = L["Scales this settings window on its own. The game's interface keeps the size it has."],
+          get = function() return ns.UI:MainFrameScale() end,
+          set = function(_, v) ns.UI:SetMainFrameScale(v) end },
+
         { type = "dropdown", label = L["UI Language"],
           tooltip = L["Choose the language for the VuloClassicUI interface. 'Auto' uses your WoW client's language (German clients see German, all others see English).\n\n|cffaaaaaaRequires /reload to apply.|r"],
           values = ns.SUPPORTED_LOCALES,

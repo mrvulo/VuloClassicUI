@@ -22,14 +22,56 @@ local TABBAR_H      = 32
 -- in both directions and the window can still be moved off centre.
 local MIN_WIDTH, MIN_HEIGHT, SCREEN_MARGIN = 820, 400, 60
 
+-- This window's own scale, on top of whatever the game's interface scale is.
+-- Read through a clamp rather than trusted: it comes out of a saved profile, and
+-- a window at scale 0.05 cannot be found again to fix it.
+local SCALE_MIN, SCALE_MAX = 0.70, 1.30
+function UI:MainFrameScale()
+    local ui = ns.db and ns.db.profile and ns.db.profile.ui
+    local s = ui and ui.mainFrameScale
+    if type(s) ~= "number" or s ~= s then return 1 end
+    if s < SCALE_MIN then return SCALE_MIN end
+    if s > SCALE_MAX then return SCALE_MAX end
+    return s
+end
+UI.MainFrameScaleRange = { SCALE_MIN, SCALE_MAX }
+
 local function fittedSize()
     local w, h = FRAME_WIDTH, FRAME_HEIGHT
+    -- The room is measured in UIParent units, the window is measured in its own:
+    -- at half scale the same screen holds twice the design size. Dividing here is
+    -- what lets scaling DOWN actually buy the window its full 1050x680 on a
+    -- screen that could not hold it before.
+    local s = UI:MainFrameScale()
     if UIParent and UIParent.GetWidth then
         local aw, ah = UIParent:GetWidth(), UIParent:GetHeight()
-        if aw and aw > 0 then w = math.min(w, math.max(MIN_WIDTH,  aw - SCREEN_MARGIN)) end
-        if ah and ah > 0 then h = math.min(h, math.max(MIN_HEIGHT, ah - SCREEN_MARGIN)) end
+        if aw and aw > 0 then w = math.min(w, math.max(MIN_WIDTH,  (aw - SCREEN_MARGIN) / s)) end
+        if ah and ah > 0 then h = math.min(h, math.max(MIN_HEIGHT, (ah - SCREEN_MARGIN) / s)) end
     end
     return w, h
+end
+
+-- Live, because the slider that calls this sits IN the window: the effect is the
+-- feedback. The row panel is closed rather than rescaled -- it hangs off a row
+-- that just moved and changed size under it.
+function UI:SetMainFrameScale(v)
+    local ui = ns.db and ns.db.profile and ns.db.profile.ui
+    if ui then ui.mainFrameScale = tonumber(v) or 1 end
+    local f = UI.mainFrame
+    if not f then return end
+    if UI.CloseRowPopup then UI:CloseRowPopup() end
+    f:SetScale(UI:MainFrameScale())
+    -- A rebuild only when the window actually changed SIZE, which happens where
+    -- the screen was cutting it off: the rows are laid out against that width.
+    -- Next frame, not here: the rebuild reclaims the very slider whose drag is
+    -- still running up the stack above this call.
+    if UI:FitMainFrame() and UI.BuildOptionsPage and UI._currentBuildKey then
+        ns.NextFrame(function()
+            if UI.mainFrame and UI.mainFrame:IsShown() then
+                UI:BuildOptionsPage(UI._currentBuildKey, UI.currentTab)
+            end
+        end)
+    end
 end
 
 -- Re-measured on every open: the interface scale can change while the addon is
@@ -37,14 +79,24 @@ end
 function UI:FitMainFrame()
     local f = UI.mainFrame
     if not f then return end
+    -- Re-applied here too, not only in the setter: a profile switch brings its
+    -- own scale along, and this runs on every open.
+    local s = UI:MainFrameScale()
+    if f:GetScale() ~= s then f:SetScale(s) end
     local w, h = fittedSize()
-    if f:GetWidth() ~= w or f:GetHeight() ~= h then f:SetSize(w, h) end
+    -- Reports whether it RESIZED. Scaling alone needs no relayout -- everything
+    -- inside is measured in the window's own units and comes along -- but a size
+    -- change does, and only the caller knows whether a rebuild is safe from
+    -- where it stands.
+    if f:GetWidth() ~= w or f:GetHeight() ~= h then f:SetSize(w, h); return true end
+    return false
 end
 
 function UI:CreateMainFrame()
     if UI.mainFrame then return UI.mainFrame end
 
     local f = CreateFrame("Frame", "VuloClassicUIMainFrame", UIParent)
+    f:SetScale(UI:MainFrameScale())   -- before the fit: the fit is measured against it
     f:SetSize(fittedSize())
     f:SetFrameStrata("HIGH")
     f:SetClampedToScreen(true)

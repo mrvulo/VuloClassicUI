@@ -32,6 +32,8 @@ ns.defaults = {
     profile = {
         ui = {
             mainFramePos = { point = "CENTER", relPoint = "CENTER", x = 0, y = 0 },
+            -- Scale of the settings window alone, not the game's interface.
+            mainFrameScale = 1,
         },
         editmode = {
             grid = { show = false, snap = true, size = 32 },
