@@ -253,10 +253,15 @@ local NUM_SOCKET_TEXTURES = 4
 local ILVL_FONT_SIZE = 11
 local ILVL_Y_OFFSET  = 4
 
-local WRIST_ENCH_Y   = -8
--- 14, not 6: the weapon-row enchant text sat visibly lower than the slot's
--- middle (user report, 31.07.2026 -- "30 Heal 10 Spell" hugging the bottom).
-local WEAPON_ENCH_Y  = 14
+-- -3, not -8: the wrist line hung too far below its slot against the rest of
+-- the left column (user report, 04.08.2026).
+local WRIST_ENCH_Y   = -3
+-- The weapon row has been eyeballed twice from opposite sides. 6 sat visibly
+-- below the slot's middle ("30 Heal 10 Spell" hugging the bottom, 31.07.2026),
+-- 14 then rode too high (04.08.2026). 8 is between them, nearer the low end
+-- because the complaint about 6 was that it looked detached, not that it
+-- collided with anything.
+local WEAPON_ENCH_Y  = 8
 
 local SOCKET_SIZE = 11
 local SOCKET_GAP  = 2
