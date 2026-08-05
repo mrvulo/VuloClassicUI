@@ -4907,7 +4907,6 @@ local tinsert, wipe, ipairs, pairs = table.insert, wipe, ipairs, pairs
 local L = ns.L
 
 local MAX_ROWS, ROW_HEIGHT = 22, 14
-local SKILL_LINE_TAB = (MAX_SKILLLINE_TABS or 8) - 1
 local SPELLBOOK_SPELL = BOOKTYPE_SPELL or "spell"
 local PARENS = PARENS_TEMPLATE or "(%s)"
 local MEDIA = "Interface\\AddOns\\VuloClassicUI\\Media\\Training\\"
@@ -5251,9 +5250,62 @@ local function createFrame()
     end
     frame.rows = rows
 
-    -- repurpose a spare skill-line tab as our tab
-    local tab = _G["SpellBookSkillLineTab" .. SKILL_LINE_TAB]
+    -- OUR OWN tab button, never one of Blizzard's SpellBookSkillLineTabN. Those
+    -- buttons are the spell book's own: it writes them in UpdateSkillLineTabs
+    -- and reads them straight back in UpdateSpells --
+    --
+    --   SpellBookPage1:SetDesaturated(
+    --       _G["SpellBookSkillLineTab" .. SpellBookFrame.selectedSkillLine].isOffSpec)
+    --
+    -- -- so as long as we sat on one of those slots, a table we had written was
+    -- being read in the middle of the book's own update, and a tab click set
+    -- selectedSkillLine to a slot with no skill line behind it at all. See the
+    -- note above mod:OnEnable.
+    --
+    -- A plain CheckButton built like Blizzard's own tab template (32x32, the
+    -- SpellBook-SkillLineTab backdrop, square highlight, checked glow) looks the
+    -- same and owes the book nothing.
+    local tab = CreateFrame("CheckButton", "TrainingFrameTab", SpellBookFrame)
+    tab:SetSize(32, 32)
+    tab:SetFrameStrata("HIGH")
+    tab:SetFrameLevel(frame:GetFrameLevel() + 5)
+    local tabBg = tab:CreateTexture(nil, "BACKGROUND")
+    tabBg:SetTexture("Interface\\SpellBook\\SpellBook-SkillLineTab")
+    tabBg:SetSize(64, 64)
+    tabBg:SetPoint("TOPLEFT", -3, 11)
+    tab:SetNormalTexture(TAB_ICON)
+    -- Two steps rather than SetHighlightTexture(file, "ADD"): the blend mode
+    -- argument on those setters has come and gone across clients, SetBlendMode
+    -- on the texture has not.
+    tab:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square")
+    local tabHighlight = tab:GetHighlightTexture()
+    if tabHighlight then tabHighlight:SetBlendMode("ADD") end
+    tab:SetCheckedTexture("Interface\\Buttons\\CheckButtonHilight")
+    local tabChecked = tab:GetCheckedTexture()
+    if tabChecked then tabChecked:SetBlendMode("ADD") end
+    tab:SetScript("OnEnter", function(self)
+        if not ns.UI:OpenTooltip(self, "ANCHOR_RIGHT") then return end
+        GameTooltip:SetText(L["What can I train?"])
+        GameTooltip:Show()
+    end)
+    tab:SetScript("OnLeave", function() ns.UI:HideTooltip() end)
+    tab:Hide()
     mod._tab = tab
+
+    -- Below the last real skill line, wherever that ends up -- the count grows
+    -- with the character. Only our own button moves; Blizzard's tab is the
+    -- anchor and nothing else.
+    local function placeTab()
+        local count = GetNumSpellTabs and GetNumSpellTabs() or 0
+        if count < 1 then count = 1 end
+        local last = _G["SpellBookSkillLineTab" .. count]
+        tab:ClearAllPoints()
+        if last then
+            tab:SetPoint("TOPLEFT", last, "BOTTOMLEFT", 0, -17)
+        else
+            tab:SetPoint("TOPLEFT", SpellBookFrame, "TOPRIGHT", -32, -65)
+        end
+    end
 
     -- OUR flag decides whether our page is up, never Blizzard's
     -- selectedSkillLine. The field belongs to the spell book, and writing it
@@ -5261,19 +5313,13 @@ local function createFrame()
     -- mod:OnEnable.
     local function onTabs()
         if not tab then return end
-        if mod._enabled == false then
+        if mod._enabled == false or SpellBookFrame.bookType ~= SPELLBOOK_SPELL then
             tab:Hide()
             frame:Hide()
             return
         end
-        tab:SetNormalTexture(TAB_ICON)
-        tab.tooltip = L["What can I train?"]
+        placeTab()
         tab:Show()
-        -- Blizzard landing on our slot IS the intent, however it got there --
-        -- most often by reopening a book that was left on it.
-        if SpellBookFrame.selectedSkillLine == SKILL_LINE_TAB then
-            mod._wantOurTab = true
-        end
         if mod._wantOurTab then
             tab:SetChecked(true)
             frame:Show()
@@ -5297,26 +5343,31 @@ local function createFrame()
     if SpellBookFrame.UpdateSkillLineTabs then hooksecurefunc(SpellBookFrame, "UpdateSkillLineTabs", onTabs) end
     if SpellBookFrame.Update then hooksecurefunc(SpellBookFrame, "Update", onUpdate) end
 
-    -- Blizzard's spell book throws its selection off our slot on SPELLS_CHANGED:
-    --     if ( GetNumSpellTabs() < SpellBookFrame.selectedSkillLine ) then
-    --         SpellBookFrame.selectedSkillLine = 2;
-    -- We deliberately live on a tab slot PAST the real skill lines, so that test
-    -- is always true for us and the book moves to the first class tab.
+    -- Our page hangs off mod._wantOurTab alone. The flag is only ever cleared by
+    -- picking a DIFFERENT tab; closing the book must not clear it, because
+    -- reopening on our page is by far the most common way to be sitting on it.
     --
-    -- That no longer takes our page down with it, because our page does not hang
-    -- off that field any more -- mod._wantOurTab does. The flag is only ever
-    -- cleared by picking a DIFFERENT tab; closing the book must not clear it,
-    -- because reopening on our page is by far the most common way to be sitting
-    -- on it.
-    if tab then
-        tab:HookScript("OnClick", function() mod._wantOurTab = true end)
-    end
+    -- Our own click handler, not a hook: this button is ours, so nothing here
+    -- reaches into the book. The skill lines keep their own selection while our
+    -- page covers them, which is why one of them stays checked next to ours --
+    -- unchecking it would mean writing Blizzard's button again.
+    tab:SetScript("OnClick", function()
+        mod._wantOurTab = true
+        if SOUNDKIT and SOUNDKIT.IG_ABILITY_PAGE_TURN then
+            PlaySound(SOUNDKIT.IG_ABILITY_PAGE_TURN)
+        end
+        onTabs()
+    end)
     for i = 1, (MAX_SKILLLINE_TABS or 8) do
         local other = _G["SpellBookSkillLineTab" .. i]
-        if other and other ~= tab then
-            other:HookScript("OnClick", function() mod._wantOurTab = false end)
+        if other then
+            other:HookScript("OnClick", function()
+                mod._wantOurTab = false
+                onTabs()
+            end)
         end
     end
+    mod._refreshTab = onTabs
 end
 
 local function cacheAllSpells()
@@ -5352,11 +5403,26 @@ end
 --
 -- The page hangs off mod._wantOurTab now and needs no repair at all: when
 -- Blizzard moves its selection away, our own flag is untouched and the two
--- hooks in createFrame keep the page up on their own. Nothing here writes the
--- spell book's state any more, so nothing taints its click path.
+-- hooks in createFrame keep the page up on their own.
 --
--- Do not reintroduce a write to selectedSkillLine, a sbf:Update() call, or a
--- tab:Click() -- all three put our stack underneath Blizzard's cast.
+-- That alone was not enough -- the same report came back with the fix loaded.
+-- Two doors into the book's own state were still open, and both are shut now:
+--
+--   1. The tab. We used to borrow SpellBookSkillLineTab7 and write it every
+--      update (icon, tooltip, checked, shown). The book reads those buttons
+--      back out of _G in UpdateSpells, indexed by its OWN selection, and
+--      clicking the borrowed tab set that selection to a slot with no skill
+--      line behind it. Our tab is our own CheckButton now.
+--   2. SpellBookFrame:UpdateSkillLineTabs() ran from here whenever the module
+--      came up with the book open -- Blizzard's own method out of our stack,
+--      which is exactly what cost the book its casting the first time.
+--
+-- Rule for this page: read the spell book, never write it, and never call one
+-- of its methods. No write to selectedSkillLine, no sbf:Update(), no
+-- tab:Click(), no field on a SpellBookSkillLineTab -- each one puts our stack
+-- underneath Blizzard's cast, and CastSpell is refused for the rest of the
+-- session. FORBIDDEN, not BLOCKED: leaving combat does not clear it, only a
+-- reload does.
 
 function mod:OnEnable()
     localizeCategories()
@@ -5369,8 +5435,9 @@ function mod:OnEnable()
     mod:RegisterEvent("PLAYER_LEVEL_UP", onLevelOrLearn)
     mod:RegisterEvent("LEARNED_SPELL_IN_SKILL_LINE", onLevelOrLearn)
     mod:RegisterEvent("LEARNED_SPELL_IN_TAB", onLevelOrLearn)
-    if mod._tab and SpellBookFrame and SpellBookFrame.UpdateSkillLineTabs and SpellBookFrame:IsVisible() then
-        SpellBookFrame:UpdateSkillLineTabs()
+    -- Our own refresh, not the book's: see rule 2 above.
+    if mod._refreshTab and SpellBookFrame and SpellBookFrame:IsVisible() then
+        mod._refreshTab()
     end
 end
 
