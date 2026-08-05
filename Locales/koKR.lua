@@ -3272,4 +3272,15 @@ ns:RegisterLocale("koKR", function() return {
     ["The bar in the inventory window takes bags now, the way the one at the bank already did: drag a bag onto a slot to put it there, or left-click a slot with a bag on the cursor. Right-click with an empty hand takes the bag off again, and left-click with an empty hand still shows and hides it. The backpack and the keyring are not slotted bags, so they accept nothing and are not offered the right-click line in the first place."] = "소지품 창의 막대도 이제 가방을 받습니다. 은행 쪽이 이미 하던 대로, 가방을 칸에 끌어다 놓으면 그 자리에 장착되고, 커서에 가방을 든 채 칸을 왼쪽 클릭해도 같습니다. 빈손으로 오른쪽 클릭하면 가방을 다시 빼고, 빈손으로 왼쪽 클릭하면 여전히 보이기와 숨기기를 합니다. 기본 가방과 열쇠 꾸러미는 장착된 가방이 아니므로 아무것도 받지 않고, 오른쪽 클릭 안내도 처음부터 제공되지 않습니다.",
     ["The enchant on the wrist slot sits closer to the rows around it, and the enchant on the weapon sits six pixels lower."] = "손목 칸의 마법부여 글씨가 주변 줄에 더 가까워지고, 무기의 마법부여 글씨는 여섯 픽셀 아래로 내려갑니다.",
     ["The trainer tab is a button of its own now. It used to be a spare tab of the spell book that we wrote on with every update, and the book reads those tabs back in the middle of its own pass. It also goes away with the pet book, where it used to stay behind."] = "교관 탭이 이제 우리 고유의 단추가 되었습니다. 예전에는 주문서의 남는 탭이었고 우리가 갱신할 때마다 거기에 기록했는데, 주문서는 자기 처리 도중에 그 탭들을 다시 읽습니다. 또한 소환수 주문서에서는 이제 함께 사라집니다. 전에는 그대로 남아 있었습니다.",
+    -- Nameplates: aura border + CC size
+    ["Match the health bar height"] = "생명력 막대 높이에 맞추기",
+    ["The icon becomes a square exactly as tall as the health bar. The three size sliders below step aside while this is on."] = "아이콘이 정사각형이 되어 생명력 막대와 정확히 같은 높이가 됩니다. 이 설정이 켜져 있는 동안 아래의 크기 조절 막대 세 개는 물러납니다.",
+    ["Border around aura icons"] = "오라 아이콘 테두리",
+    ["The thin rim around debuff, damage-over-time, buff and crowd-control icons. Its thickness follows the border size of the plate."] = "약화 효과, 지속 피해, 강화 효과, 군중 제어 아이콘을 두르는 얇은 테두리입니다. 두께는 이름표의 테두리 두께를 따릅니다.",
+    ["Aura border colour"] = "오라 테두리 색",
+    ["Border in the aura's own school colour"] = "효과의 계열 색으로 테두리 칠하기",
+    ["Magic blue, curse purple, disease orange, poison green — instead of the one colour beside it."] = "마법 파랑, 저주 보라, 질병 주황, 독 초록 — 옆의 단일 색 대신.",
+    -- Global settings: settings window scale
+    ["Settings Window Scale"] = "설정 창 크기",
+    ["Scales this settings window on its own. The game's interface keeps the size it has."] = "이 설정 창만 크기를 조절합니다. 게임 인터페이스는 지금 크기 그대로 유지됩니다.",
 } end)

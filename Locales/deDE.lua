@@ -3392,4 +3392,15 @@ ns:RegisterLocale("deDE", function() return {
     ["The bar in the inventory window takes bags now, the way the one at the bank already did: drag a bag onto a slot to put it there, or left-click a slot with a bag on the cursor. Right-click with an empty hand takes the bag off again, and left-click with an empty hand still shows and hides it. The backpack and the keyring are not slotted bags, so they accept nothing and are not offered the right-click line in the first place."] = "Die Leiste im Inventarfenster nimmt jetzt Taschen an, so wie die an der Bank es schon tat: eine Tasche auf ein Symbol ziehen legt sie in diesen Platz, ein Linksklick mit einer Tasche am Zeiger tut dasselbe. Ein Rechtsklick mit leerer Hand nimmt die Tasche wieder ab, ein Linksklick mit leerer Hand blendet sie weiterhin ein und aus. Rucksack und Schlüsselbund sind keine angelegten Taschen, sie nehmen nichts an und bekommen die Rechtsklick-Zeile gar nicht erst angeboten.",
     ["The enchant on the wrist slot sits closer to the rows around it, and the enchant on the weapon sits six pixels lower."] = "Der Verzauberungstext am Handgelenks-Platz sitzt näher an den Zeilen um ihn herum, der an der Waffe sechs Pixel tiefer.",
     ["The trainer tab is a button of its own now. It used to be a spare tab of the spell book that we wrote on with every update, and the book reads those tabs back in the middle of its own pass. It also goes away with the pet book, where it used to stay behind."] = "Der Trainer-Reiter ist jetzt ein eigener Knopf. Vorher war es ein freier Reiter des Zauberbuchs, den wir bei jedem Update beschrieben haben, und das Buch liest diese Reiter mitten in seinem eigenen Durchlauf zurück. Außerdem verschwindet er mit dem Tierbuch, wo er vorher stehen blieb.",
+    -- Nameplates: aura border + CC size
+    ["Match the health bar height"] = "An die Höhe des Lebensbalkens angleichen",
+    ["The icon becomes a square exactly as tall as the health bar. The three size sliders below step aside while this is on."] = "Das Symbol wird quadratisch und genau so hoch wie der Lebensbalken. Die drei Größenregler darunter treten so lange zurück.",
+    ["Border around aura icons"] = "Rahmen um Aura-Symbole",
+    ["The thin rim around debuff, damage-over-time, buff and crowd-control icons. Its thickness follows the border size of the plate."] = "Der dünne Rand um die Symbole für Schwächungen, eigene Schadenseffekte, Stärkungen und Massenkontrolle. Seine Stärke folgt der Rahmenstärke der Plakette.",
+    ["Aura border colour"] = "Farbe des Aura-Rahmens",
+    ["Border in the aura's own school colour"] = "Rahmen im Schulfarbton des Zaubers",
+    ["Magic blue, curse purple, disease orange, poison green — instead of the one colour beside it."] = "Magisch blau, Fluch violett, Krankheit orange, Gift grün — statt der einen Farbe daneben.",
+    -- Global settings: settings window scale
+    ["Settings Window Scale"] = "Größe des Einstellungsfensters",
+    ["Scales this settings window on its own. The game's interface keeps the size it has."] = "Skaliert allein dieses Einstellungsfenster. Die Spieloberfläche behält die Größe, die sie hat.",
 } end)

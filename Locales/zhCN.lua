@@ -3265,4 +3265,15 @@ ns:RegisterLocale("zhCN", function() return {
     ["The bar in the inventory window takes bags now, the way the one at the bank already did: drag a bag onto a slot to put it there, or left-click a slot with a bag on the cursor. Right-click with an empty hand takes the bag off again, and left-click with an empty hand still shows and hides it. The backpack and the keyring are not slotted bags, so they accept nothing and are not offered the right-click line in the first place."] = "物品栏窗口里的这条栏现在也能接收背包了，和银行那条早已支持的一样：把背包拖到某个格上即可装入该格，光标上拿着背包时左键点击该格也一样。空手右键点击可将背包取下，空手左键点击仍然是显示和隐藏。背包本体和钥匙链不是装上去的背包，因此不接收任何东西，也根本不会提供右键那一行提示。",
     ["The enchant on the wrist slot sits closer to the rows around it, and the enchant on the weapon sits six pixels lower."] = "护腕格的附魔文字更靠近周围的行，武器的附魔文字则下移六个像素。",
     ["The trainer tab is a button of its own now. It used to be a spare tab of the spell book that we wrote on with every update, and the book reads those tabs back in the middle of its own pass. It also goes away with the pet book, where it used to stay behind."] = "训练师标签现在是一个独立的按钮。此前它是法术书的一个空余标签，我们每次更新都会写它，而法术书会在自己的处理过程中回读这些标签。此外它现在会随宠物法术书一起消失，以前它会留在那里。",
+    -- Nameplates: aura border + CC size
+    ["Match the health bar height"] = "与生命条同高",
+    ["The icon becomes a square exactly as tall as the health bar. The three size sliders below step aside while this is on."] = "图标变为正方形，高度与生命条完全一致。开启期间下面三个尺寸滑块暂不生效。",
+    ["Border around aura icons"] = "光环图标边框",
+    ["The thin rim around debuff, damage-over-time, buff and crowd-control icons. Its thickness follows the border size of the plate."] = "减益、持续伤害、增益和控制效果图标周围的细边。粗细跟随姓名板的边框粗细。",
+    ["Aura border colour"] = "光环边框颜色",
+    ["Border in the aura's own school colour"] = "按效果自身的类型颜色描边",
+    ["Magic blue, curse purple, disease orange, poison green — instead of the one colour beside it."] = "魔法蓝色、诅咒紫色、疾病橙色、中毒绿色——而不是旁边的单一颜色。",
+    -- Global settings: settings window scale
+    ["Settings Window Scale"] = "设置窗口大小",
+    ["Scales this settings window on its own. The game's interface keeps the size it has."] = "仅缩放此设置窗口。游戏界面保持原有大小。",
 } end)

@@ -197,8 +197,10 @@ local mod = ns:RegisterModule("nameplates", {
         ccSize         = 28,
         ccWidth        = 0,
         ccHeight       = 0,
+        ccMatchBar     = false,
         auraSpacing    = 2,
         auraSwipe      = true,
+        auraBorder     = true,
         auraTypeBorder = true,
         auraExpireFlash = true,
         auraExpirePct  = 30,
@@ -377,6 +379,39 @@ local function placeSlotText(fs, bar, key)
     return true
 end
 
+-- The name shares the bar with the health value as soon as both sit inside it,
+-- and a long name ran straight through the numbers (user report, 05.08.2026).
+-- The client trims a font string with an ellipsis by itself once it has a width
+-- and no word wrap, so all this does is hand it the width that is actually free.
+--
+-- The cap is only applied when the name would OVERFLOW. Left at width 0 the box
+-- is the text, which is what keeps the level number -- anchored to the name's
+-- left edge -- glued to the name instead of hanging off an oversized box. Once
+-- the text is trimmed it fills the box exactly, so the edge is the text again.
+local function clampNameWidth(f)
+    if not (f and f.name and f.health) then return end
+    local slot = textCfg("name").slot
+    -- Above the bar, in no slot at all, or on a plate showing nothing but the
+    -- name: nothing to stay clear of.
+    if f._mode == "nameonly" or f._mode == "hidden"
+        or (slot ~= "left" and slot ~= "right" and slot ~= "center") then
+        if f._nameW ~= 0 then f._nameW = 0; f.name:SetWidth(0) end
+        return
+    end
+    local budget = math.floor((f.health:GetWidth() or 0) - 8)
+    local hslot = textCfg("health").slot
+    -- Only a health value on the OTHER end takes room away. Sharing one slot is
+    -- the user stacking them on purpose, and no width can fix that.
+    if hslot ~= "none" and hslot ~= slot and f.healthText and f.healthText:IsShown() then
+        budget = budget - math.ceil(f.healthText:GetStringWidth() or 0) - 6
+    end
+    if budget < 20 then budget = 20 end
+    local w = ((f.name:GetStringWidth() or 0) > budget) and budget or 0
+    -- Compared before it is written: this runs on every health change, and the
+    -- answer only moves when the name, the numbers or the bar do.
+    if f._nameW ~= w then f._nameW = w; f.name:SetWidth(w) end
+end
+
 -- No API for a unit's subname: scan line 2 of a hidden tooltip.
 local scanTip = CreateFrame("GameTooltip", "VCUINameplateScanTip", nil, "GameTooltipTemplate")
 scanTip:SetOwner(UIParent, "ANCHOR_NONE")
@@ -527,6 +562,9 @@ local function buildVisuals(f)
 
     f.name = f.textLayer:CreateFontString(nil, "OVERLAY")
     f.name:SetPoint("BOTTOM", f.health, "TOP", 0, 3)
+    -- Without this a name that hits the width clampNameWidth gives it would wrap
+    -- onto a second line instead of being trimmed with an ellipsis.
+    f.name:SetWordWrap(false)
     f.level = f.textLayer:CreateFontString(nil, "OVERLAY")
     f.level:SetPoint("RIGHT", f.name, "LEFT", -3, 0)
     f.level:Hide()
@@ -748,6 +786,7 @@ local function layoutPlate(f)
     -- migrateTextSlots writes into the slots on first load, so nothing moves for
     -- a profile that never touches the new rows.
     placeSlotText(f.healthText, f.health, "health")
+    clampNameWidth(f)      -- the bar it has to fit into may just have changed width
 
     f.castIcon:ClearAllPoints()
     if d.castIconRight then
@@ -1025,6 +1064,9 @@ local function paintHealth(f, ctx, cur, max)
     if textCfg("health").slot ~= "none" then
         f.healthText:SetText(healthTextString(d, cur, max))
     end
+    -- After the numbers, not before: how much room the name has left depends on
+    -- what they now read.
+    clampNameWidth(f)
 
     -- A ring around the bar once the unit drops below the mark. Painted here
     -- rather than on a ticker: this runs on every health change anyway, which is
@@ -1542,8 +1584,12 @@ local function renderAuraGroup(g, list, o)
     local perRow = (o.perRow or 0) > 0 and o.perRow or n
     local grow   = o.grow or "center"
     local lines  = math.max(1, math.ceil(n / perRow))
-    local bc = ns.COLORS.borderDark or { r = 0, g = 0, b = 0 }
-    local bsz = d.borderSize or 0
+    -- The aura border has its own switch and its own colour. Off is thickness
+    -- zero, so nothing else in the layout has to know about it; the THICKNESS
+    -- still comes from the module-wide border size, because an icon rim that
+    -- disagreed with every other rim on the plate would read as a mistake.
+    local bc = d.auraBorderColor or ns.COLORS.borderDark or { r = 0, g = 0, b = 0 }
+    local bsz = (d.auraBorder == false) and 0 or (d.borderSize or 0)
     for i, ic in ipairs(g.icons) do
         local a = list[i]
         if a then
@@ -1738,6 +1784,16 @@ local function applyAuras(f, lists)
             local size = d[row.size] or 22
             local w = row.w and d[row.w] or nil
             local h = row.h and d[row.h] or nil
+            -- The crowd-control row can take its size from the health bar
+            -- instead of its own sliders: one square icon exactly as tall as the
+            -- bar it stands beside. Pixel-snapped through the same call the bar
+            -- itself goes through, or the two ends would miss each other by the
+            -- fraction the snap removes. Width and height step aside for it --
+            -- kept in the profile, so switching the option back off returns to
+            -- the shape that was there before.
+            if row.key == "cc" and d.ccMatchBar then
+                size, w, h = ns:PixelSnap(d.healthHeight or 10, f), nil, nil
+            end
             local iw = (w and w > 0) and w or size
             local ih = (h and h > 0) and h or size
             local spacing = cfg.spacing or d.auraSpacing or 2
@@ -2149,6 +2205,7 @@ local function applyPlateMode(f, mode)
         -- in no slot stays hidden either way.
         local placed = placeSlotText(f.name, f.health, "name")
         f.name:SetShown(placed)
+        clampNameWidth(f)      -- the slot decides whether there is anything to clear
         f.title:Hide()
     end
 end
@@ -2318,6 +2375,7 @@ local function refreshPlate(f)
     if mode == "hidden" then return end
 
     f.name:SetText(UnitName(unit) or "")
+    clampNameWidth(f)
     applyNameColor(f, d, unit, enemy, isPlayer)
 
     if mode == "nameonly" and not enemy and not isPlayer and d.showNPCTitle and f._npcTitle then

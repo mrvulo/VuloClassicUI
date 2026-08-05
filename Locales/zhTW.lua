@@ -3265,4 +3265,15 @@ ns:RegisterLocale("zhTW", function() return {
     ["The bar in the inventory window takes bags now, the way the one at the bank already did: drag a bag onto a slot to put it there, or left-click a slot with a bag on the cursor. Right-click with an empty hand takes the bag off again, and left-click with an empty hand still shows and hides it. The backpack and the keyring are not slotted bags, so they accept nothing and are not offered the right-click line in the first place."] = "物品欄視窗裡的這條列現在也能接收背包了，和銀行那條早已支援的一樣：把背包拖到某個格上即可裝入該格，游標上拿著背包時左鍵點擊該格也一樣。空手右鍵點擊可把背包取下，空手左鍵點擊仍然是顯示與隱藏。背包本體和鑰匙圈不是裝上去的背包，因此不接收任何東西，也根本不會提供右鍵那一行提示。",
     ["The enchant on the wrist slot sits closer to the rows around it, and the enchant on the weapon sits six pixels lower."] = "護腕格的附魔文字更靠近周圍的行，武器的附魔文字則下移六個像素。",
     ["The trainer tab is a button of its own now. It used to be a spare tab of the spell book that we wrote on with every update, and the book reads those tabs back in the middle of its own pass. It also goes away with the pet book, where it used to stay behind."] = "訓練師標籤現在是獨立的按鈕。先前它是法術書的一個空餘標籤，我們每次更新都會寫它，而法術書會在自己的處理過程中回讀這些標籤。此外它現在會隨寵物法術書一起消失，以前它會留在原地。",
+    -- Nameplates: aura border + CC size
+    ["Match the health bar height"] = "與生命條同高",
+    ["The icon becomes a square exactly as tall as the health bar. The three size sliders below step aside while this is on."] = "圖示變為正方形，高度與生命條完全一致。開啟期間下面三個尺寸滑桿暫不作用。",
+    ["Border around aura icons"] = "光環圖示邊框",
+    ["The thin rim around debuff, damage-over-time, buff and crowd-control icons. Its thickness follows the border size of the plate."] = "減益、持續傷害、增益與控場效果圖示周圍的細邊。粗細跟隨名條的邊框粗細。",
+    ["Aura border colour"] = "光環邊框顏色",
+    ["Border in the aura's own school colour"] = "依效果自身的類型顏色描邊",
+    ["Magic blue, curse purple, disease orange, poison green — instead of the one colour beside it."] = "魔法藍色、詛咒紫色、疾病橘色、中毒綠色——而不是旁邊的單一顏色。",
+    -- Global settings: settings window scale
+    ["Settings Window Scale"] = "設定視窗大小",
+    ["Scales this settings window on its own. The game's interface keeps the size it has."] = "僅縮放此設定視窗。遊戲介面維持原本的大小。",
 } end)

@@ -3272,4 +3272,15 @@ ns:RegisterLocale("ptBR", function() return {
     ["The bar in the inventory window takes bags now, the way the one at the bank already did: drag a bag onto a slot to put it there, or left-click a slot with a bag on the cursor. Right-click with an empty hand takes the bag off again, and left-click with an empty hand still shows and hides it. The backpack and the keyring are not slotted bags, so they accept nothing and are not offered the right-click line in the first place."] = "A barra da janela de inventário aceita bolsas, como a do banco já fazia: arraste uma bolsa até um espaço para colocá-la ali, ou clique com o botão esquerdo num espaço com uma bolsa no cursor. O clique direito de mão vazia tira a bolsa de novo, e o clique esquerdo de mão vazia continua mostrando e escondendo. A mochila e o chaveiro não são bolsas equipadas, portanto não aceitam nada e nem recebem a linha do clique direito.",
     ["The enchant on the wrist slot sits closer to the rows around it, and the enchant on the weapon sits six pixels lower."] = "O encantamento do espaço dos pulsos fica mais perto das linhas ao redor, e o da arma seis pixels mais abaixo.",
     ["The trainer tab is a button of its own now. It used to be a spare tab of the spell book that we wrote on with every update, and the book reads those tabs back in the middle of its own pass. It also goes away with the pet book, where it used to stay behind."] = "A aba do treinador agora é um botão próprio. Antes era uma aba livre do livro de magias, que escrevíamos a cada atualização, e o livro relê essas abas no meio da própria passagem. Ela também desaparece junto com o livro do lacaio, onde antes ficava para trás.",
+    -- Nameplates: aura border + CC size
+    ["Match the health bar height"] = "Ajustar à altura da barra de vida",
+    ["The icon becomes a square exactly as tall as the health bar. The three size sliders below step aside while this is on."] = "O ícone fica quadrado e exatamente da mesma altura que a barra de vida. Os três controles de tamanho abaixo ficam de lado enquanto isto estiver ligado.",
+    ["Border around aura icons"] = "Borda ao redor dos ícones de auras",
+    ["The thin rim around debuff, damage-over-time, buff and crowd-control icons. Its thickness follows the border size of the plate."] = "A borda fina ao redor dos ícones de penalidades, dano ao longo do tempo, benefícios e controle de grupo. A espessura acompanha a espessura da borda da placa.",
+    ["Aura border colour"] = "Cor da borda das auras",
+    ["Border in the aura's own school colour"] = "Borda na cor de escola da aura",
+    ["Magic blue, curse purple, disease orange, poison green — instead of the one colour beside it."] = "Magia azul, maldição roxo, doença laranja, veneno verde — em vez da cor única ao lado.",
+    -- Global settings: settings window scale
+    ["Settings Window Scale"] = "Tamanho da janela de configurações",
+    ["Scales this settings window on its own. The game's interface keeps the size it has."] = "Redimensiona apenas esta janela de configurações. A interface do jogo mantém o tamanho que tem.",
 } end)

@@ -3272,4 +3272,15 @@ ns:RegisterLocale("ruRU", function() return {
     ["The bar in the inventory window takes bags now, the way the one at the bank already did: drag a bag onto a slot to put it there, or left-click a slot with a bag on the cursor. Right-click with an empty hand takes the bag off again, and left-click with an empty hand still shows and hides it. The backpack and the keyring are not slotted bags, so they accept nothing and are not offered the right-click line in the first place."] = "Панель в окне инвентаря теперь принимает сумки так же, как это давно умеет банковская: перетащите сумку на ячейку, чтобы вставить её туда, или щёлкните по ячейке левой кнопкой, держа сумку на курсоре. Щелчок правой кнопкой пустой рукой снимает сумку обратно, а левой — по-прежнему показывает и скрывает её. Рюкзак и связка ключей не являются надетыми сумками: они ничего не принимают, и строка про правый щелчок им даже не предлагается.",
     ["The enchant on the wrist slot sits closer to the rows around it, and the enchant on the weapon sits six pixels lower."] = "Текст чар в ячейке запястий стоит ближе к соседним строкам, а текст чар на оружии — на шесть пикселей ниже.",
     ["The trainer tab is a button of its own now. It used to be a spare tab of the spell book that we wrote on with every update, and the book reads those tabs back in the middle of its own pass. It also goes away with the pet book, where it used to stay behind."] = "Вкладка учителя теперь собственная кнопка. Раньше это была свободная вкладка книги заклинаний, которую мы переписывали при каждом обновлении, а книга перечитывает эти вкладки посреди собственного прохода. Кроме того, она исчезает вместе с книгой питомца, где раньше оставалась.",
+    -- Nameplates: aura border + CC size
+    ["Match the health bar height"] = "Подогнать под высоту полосы здоровья",
+    ["The icon becomes a square exactly as tall as the health bar. The three size sliders below step aside while this is on."] = "Значок становится квадратным и ровно такой же высоты, как полоса здоровья. Три ползунка размера ниже отступают, пока это включено.",
+    ["Border around aura icons"] = "Рамка вокруг значков эффектов",
+    ["The thin rim around debuff, damage-over-time, buff and crowd-control icons. Its thickness follows the border size of the plate."] = "Тонкий кант вокруг значков отрицательных эффектов, периодического урона, положительных эффектов и контроля. Его толщина следует толщине рамки индикатора.",
+    ["Aura border colour"] = "Цвет рамки эффектов",
+    ["Border in the aura's own school colour"] = "Рамка цветом школы эффекта",
+    ["Magic blue, curse purple, disease orange, poison green — instead of the one colour beside it."] = "Магия синим, проклятье фиолетовым, болезнь оранжевым, яд зелёным — вместо одного цвета рядом.",
+    -- Global settings: settings window scale
+    ["Settings Window Scale"] = "Размер окна настроек",
+    ["Scales this settings window on its own. The game's interface keeps the size it has."] = "Масштабирует только это окно настроек. Игровой интерфейс сохраняет свой размер.",
 } end)

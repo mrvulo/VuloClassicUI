@@ -1379,6 +1379,33 @@ function mod:GetOptions(tabId)
                   get = function() return mod.db.dispelGlowBySchool end,
                   set = function(_, v) mod.db.dispelGlowBySchool = v; applyAndRefresh(); refreshPage() end },
             } },
+            -- The border pair, shaped like the glow pair above it: a switch with
+            -- its colour on the row, and the school-colour option beside it that
+            -- takes the colour over. The school switch was read by the runtime
+            -- from the start and had no control anywhere -- like the four rows
+            -- this section was built for.
+            { type = "group", layout = "row", gap = 8, items = {
+                { type = "checkbox", label = L["Border around aura icons"],
+                  tooltip = L["The thin rim around debuff, damage-over-time, buff and crowd-control icons. Its thickness follows the border size of the plate."],
+                  get = function() return mod.db.auraBorder ~= false end,
+                  set = function(_, v) mod.db.auraBorder = v; applyAndRefresh() end,
+                  inline = {
+                      { kind = "color", tooltip = L["Aura border colour"],
+                        -- Dead while the school colours it, and while it is off.
+                        disabled = function()
+                            return mod.db.auraBorder == false or mod.db.auraTypeBorder == true
+                        end,
+                        get = function() return mod.db.auraBorderColor or ns.COLORS.borderDark end,
+                        set = function(r, g, b)
+                            mod.db.auraBorderColor = { r = r, g = g, b = b }; applyAndRefresh()
+                        end },
+                  } },
+                { type = "checkbox", label = L["Border in the aura's own school colour"],
+                  tooltip = L["Magic blue, curse purple, disease orange, poison green — instead of the one colour beside it."],
+                  disabled = function() return mod.db.auraBorder == false end,
+                  get = function() return mod.db.auraTypeBorder end,
+                  set = function(_, v) mod.db.auraTypeBorder = v; applyAndRefresh(); refreshPage() end },
+            } },
         } },
 
         -- Fourth on the general tab (user request, 02.08.2026). Not the same
@@ -1613,7 +1640,19 @@ function mod:GetOptions(tabId)
                   inline = {
                       { kind = "gear", tooltip = L["Crowd Control"],
                         popup = { title = L["Crowd Control"], width = 380, items = {
+                            { type = "checkbox", label = L["Match the health bar height"],
+                              tooltip = L["The icon becomes a square exactly as tall as the health bar. The three size sliders below step aside while this is on."],
+                              get = function() return mod.db.ccMatchBar end,
+                              -- The panel, not just the page: the three sliders
+                              -- this switch takes away stand in the panel it is
+                              -- itself in.
+                              set = function(_, v)
+                                  mod.db.ccMatchBar = v
+                                  applyAndRefresh()
+                                  ns.UI:RefreshRowPopup()
+                              end },
                             { type = "slider", label = L["CC icon size"], min = 12, max = 48, step = 1, width = 130,
+                              disabled = function() return mod.db.ccMatchBar == true end,
                               get = function() return mod.db.ccSize end,
                               set = function(_, v) mod.db.ccSize = v; applyAndRefresh() end },
                             { type = "slider", label = L["Max CC"], min = 1, max = 5, step = 1, width = 130,
@@ -1621,10 +1660,12 @@ function mod:GetOptions(tabId)
                               set = function(_, v) mod.db.maxCC = v; applyAndRefresh() end },
                             { type = "slider", label = L["CC icon width"], min = 0, max = 64, step = 1, width = 130,
                               tooltip = L["0 = square (uses the icon size)."],
+                              disabled = function() return mod.db.ccMatchBar == true end,
                               get = function() return mod.db.ccWidth or 0 end,
                               set = function(_, v) mod.db.ccWidth = v; applyAndRefresh() end },
                             { type = "slider", label = L["CC icon height"], min = 0, max = 64, step = 1, width = 130,
                               tooltip = L["0 = square (uses the icon size)."],
+                              disabled = function() return mod.db.ccMatchBar == true end,
                               get = function() return mod.db.ccHeight or 0 end,
                               set = function(_, v) mod.db.ccHeight = v; applyAndRefresh() end },
                             cropSlider("cc", 130),

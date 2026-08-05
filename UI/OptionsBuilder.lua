@@ -598,6 +598,11 @@ local function openRowPopup(anchor, spec)
     if f:IsShown() and f._owner == anchor then closeRowPopup(); return end
     f:Hide()                     -- releases the previous panel's rows via OnHide
     f._owner = anchor
+    f._spec  = spec              -- kept for RefreshRowPopup
+    -- A child of UIParent, not of the window it belongs to, so it does not
+    -- inherit the window's scale. Taken here rather than at creation: the panel
+    -- outlives any number of scale changes.
+    if UI.MainFrameScale then f:SetScale(UI:MainFrameScale()) end
     f._title:SetText(spec.title or "")
     local a = ns.COLORS.accent   -- read at paint time: the theme colour is live-mutated
     f._accent:SetColorTexture(a.r, a.g, a.b, 0.9)
@@ -653,6 +658,19 @@ local function openRowPopup(anchor, spec)
     f:Show()
 end
 UI.OpenRowPopup = openRowPopup
+
+-- Redraw the open panel in place. A setter inside it that decides whether OTHER
+-- rows in the same panel can do anything needs this: refreshing the PAGE leaves
+-- the panel exactly as it was, and its rows would go on looking available until
+-- it was closed and opened again. The owner is cleared first, or openRowPopup
+-- would read the call as clicking the same gear twice and close the panel.
+function UI:RefreshRowPopup()
+    local f = rowPopup
+    if not (f and f:IsShown() and f._owner and f._spec) then return end
+    local anchor, spec = f._owner, f._spec
+    f._owner = nil
+    openRowPopup(anchor, spec)
+end
 
 -- Where a row's inline icons chain leftward from. A dropdown hands back its
 -- box, which is what the eye follows; anything else falls back to its own right
@@ -1230,12 +1248,44 @@ local function applyOverrideMark(w, item)
     mark:Show()
 end
 
+-- A row whose `disabled` reads true is dimmed and stops taking clicks. The
+-- inline colour swatch has said that about itself from the start -- a swatch
+-- that cannot do anything says so rather than lying -- while a ROW could only
+-- ever look available with a setter that changed nothing, which is the same lie
+-- one level up. Widgets are pooled, so the state is stored and compared: a
+-- widget handed to a row without `disabled` comes back at full alpha.
+--
+-- Mouse state is REMEMBERED rather than switched back on. Blanket EnableMouse
+-- (true) would hand clicks to children that never took any.
+local function applyDisabled(w, item)
+    if not (w and w.SetAlpha) then return end
+    local off = (item.disabled and item.disabled()) and true or false
+    if w._vcuiDisabled == off then return end
+    w._vcuiDisabled = off
+    w:SetAlpha(off and 0.35 or 1)
+    local function mouse(f)
+        if not f.EnableMouse then return end
+        if off then
+            if f._vcuiMouseWas == nil then f._vcuiMouseWas = f:IsMouseEnabled() end
+            f:EnableMouse(false)
+        elseif f._vcuiMouseWas ~= nil then
+            f:EnableMouse(f._vcuiMouseWas)
+            f._vcuiMouseWas = nil
+        end
+    end
+    mouse(w)
+    if w.GetChildren then
+        for _, c in ipairs({ w:GetChildren() }) do mouse(c) end
+    end
+end
+
 -- Rebinding the local: every call site below reads this upvalue, so the mark is
 -- applied to all of them without touching the fifteen return points inside.
 local rawCreateWidget = createWidget
 createWidget = function(parent, item)
     local w, h, wide = rawCreateWidget(parent, item)
     applyOverrideMark(w, item)
+    applyDisabled(w, item)
     return w, h, wide
 end
 
