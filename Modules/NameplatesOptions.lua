@@ -428,6 +428,25 @@ end
 local function textSlotPanelItems(rowKey)
     local function cfg() return textCfg(rowKey) end
     local items = {
+        -- The size belongs to the TEXT, not to the slot: move the name to the
+        -- other end of the bar and its size goes along. Both keys were read by
+        -- the runtime from the start and had no control anywhere -- the same
+        -- kind of orphan the health text's own two rows were.
+        --
+        -- Two different sliders, because the two keys mean different things. The
+        -- name has a size, full stop. The health text stores 0 for "take the
+        -- plate's general text size", exactly like the three cast texts, and
+        -- their idiom is what this follows -- one module should not say the same
+        -- thing two ways, and pinning an absolute value here would take the
+        -- inheritance away with no way back to it.
+        (rowKey == "health")
+            and { type = "slider", label = L["Text size"], min = 0, max = 24, step = 1, width = 130,
+                  tooltip = L["0 = uses the general text size."],
+                  get = function() return mod.db.healthTextSize or 0 end,
+                  set = function(_, v) mod.db.healthTextSize = v; applyAndRefresh() end }
+             or { type = "slider", label = L["Text size"], min = 6, max = 24, step = 1, width = 130,
+                  get = function() return mod.db.nameSize or 10 end,
+                  set = function(_, v) mod.db.nameSize = v; applyAndRefresh() end },
         { type = "slider", label = L["Offset X"], min = -150, max = 150, step = 1, width = 130,
           get = function() return cfg().x or 0 end,
           set = function(_, v) cfg().x = v; applyAndRefresh() end },
