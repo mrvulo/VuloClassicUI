@@ -5255,23 +5255,26 @@ local function createFrame()
     local tab = _G["SpellBookSkillLineTab" .. SKILL_LINE_TAB]
     mod._tab = tab
 
+    -- OUR flag decides whether our page is up, never Blizzard's
+    -- selectedSkillLine. The field belongs to the spell book, and writing it
+    -- from here is what broke casting out of the book: see the note above
+    -- mod:OnEnable.
     local function onTabs()
         if not tab then return end
         if mod._enabled == false then
             tab:Hide()
-            if SpellBookFrame.selectedSkillLine == SKILL_LINE_TAB then frame:Hide() end
+            frame:Hide()
             return
         end
         tab:SetNormalTexture(TAB_ICON)
         tab.tooltip = L["What can I train?"]
         tab:Show()
+        -- Blizzard landing on our slot IS the intent, however it got there --
+        -- most often by reopening a book that was left on it.
         if SpellBookFrame.selectedSkillLine == SKILL_LINE_TAB then
-            -- Seeing our page selected IS the intent, however it got there --
-            -- most often by reopening a book that was left on it. Only ever set
-            -- true here: the repair path below runs while Blizzard has already
-            -- moved the selection away, and reading it there would conclude the
-            -- opposite of what the player wants.
             mod._wantOurTab = true
+        end
+        if mod._wantOurTab then
             tab:SetChecked(true)
             frame:Show()
             if ShowAllSpellRanksCheckbox then ShowAllSpellRanksCheckbox:Hide() end
@@ -5287,26 +5290,24 @@ local function createFrame()
     local function onUpdate()
         if SpellBookFrame.bookType ~= SPELLBOOK_SPELL then
             frame:Hide()
-        elseif mod._enabled ~= false and SpellBookFrame.selectedSkillLine == SKILL_LINE_TAB then
+        elseif mod._enabled ~= false and mod._wantOurTab then
             frame:Show()
         end
     end
     if SpellBookFrame.UpdateSkillLineTabs then hooksecurefunc(SpellBookFrame, "UpdateSkillLineTabs", onTabs) end
     if SpellBookFrame.Update then hooksecurefunc(SpellBookFrame, "Update", onUpdate) end
 
-    -- Blizzard's spell book throws our page away on SPELLS_CHANGED:
+    -- Blizzard's spell book throws its selection off our slot on SPELLS_CHANGED:
     --     if ( GetNumSpellTabs() < SpellBookFrame.selectedSkillLine ) then
     --         SpellBookFrame.selectedSkillLine = 2;
-    -- We deliberately live on a tab slot PAST the real skill lines, so that
-    -- test is always true for us and the book jumps to the first class tab --
-    -- Fury on a warrior. It only shows up where something fires SPELLS_CHANGED
-    -- while the book is open, which the rune system does constantly.
+    -- We deliberately live on a tab slot PAST the real skill lines, so that test
+    -- is always true for us and the book moves to the first class tab.
     --
-    -- So remember whether the player wants our page, and put the selection back
-    -- once Blizzard's own handler has finished with it. The flag is only ever
-    -- cleared by picking a DIFFERENT tab -- closing the book must not clear it,
-    -- because the book keeps its selection while closed, and reopening it on our
-    -- page is by far the most common way to be sitting on it.
+    -- That no longer takes our page down with it, because our page does not hang
+    -- off that field any more -- mod._wantOurTab does. The flag is only ever
+    -- cleared by picking a DIFFERENT tab; closing the book must not clear it,
+    -- because reopening on our page is by far the most common way to be sitting
+    -- on it.
     if tab then
         tab:HookScript("OnClick", function() mod._wantOurTab = true end)
     end
@@ -5334,24 +5335,28 @@ local function onLevelOrLearn()
     rebuild()
 end
 
--- Put our page back after Blizzard's SPELLS_CHANGED handler has kicked us off
--- it (see the comment in createFrame). File scope on purpose: createFrame runs
--- only once, so a handler declared in there could not be re-registered after
--- the module is switched off and on again.
-local function restoreOurTab()
-    if not mod._wantOurTab or mod._enabled == false then return end
-    local sbf = _G.SpellBookFrame
-    if not (sbf and sbf:IsVisible() and sbf.bookType == SPELLBOOK_SPELL) then return end
-    if sbf.selectedSkillLine == SKILL_LINE_TAB then return end
-    sbf.selectedSkillLine = SKILL_LINE_TAB
-    if sbf.Update then sbf:Update() end
-end
-
--- Next frame, not inline: Blizzard's handler for the very same event still has
--- to run, and it is the one doing the damage.
-local function onSpellsChanged()
-    ns.NextFrame(restoreOurTab)
-end
+-- There used to be a repair pass here that put SpellBookFrame.selectedSkillLine
+-- back on our slot after Blizzard's SPELLS_CHANGED handler had moved it away.
+-- It worked, and it cost the spell book its casting:
+--
+--   [ADDON_ACTION_FORBIDDEN] ... 'CastSpell()'
+--   [C]: in function 'CastSpell'
+--   Blizzard_UIPanels_Game/Vanilla/SpellBookFrame.lua:191: in function 'OnIconClick'
+--
+-- selectedSkillLine is the spell book's OWN state. Writing it from our Lua
+-- marks the field, and calling sbf:Update() afterwards ran Blizzard's own
+-- method out of our stack; from then on the book's click path counted as ours,
+-- and CastSpell -- which addons may never call, in combat or out -- was refused
+-- for the rest of the session. FORBIDDEN, not BLOCKED: leaving combat did not
+-- clear it, only a reload did.
+--
+-- The page hangs off mod._wantOurTab now and needs no repair at all: when
+-- Blizzard moves its selection away, our own flag is untouched and the two
+-- hooks in createFrame keep the page up on their own. Nothing here writes the
+-- spell book's state any more, so nothing taints its click path.
+--
+-- Do not reintroduce a write to selectedSkillLine, a sbf:Update() call, or a
+-- tab:Click() -- all three put our stack underneath Blizzard's cast.
 
 function mod:OnEnable()
     localizeCategories()
@@ -5364,7 +5369,6 @@ function mod:OnEnable()
     mod:RegisterEvent("PLAYER_LEVEL_UP", onLevelOrLearn)
     mod:RegisterEvent("LEARNED_SPELL_IN_SKILL_LINE", onLevelOrLearn)
     mod:RegisterEvent("LEARNED_SPELL_IN_TAB", onLevelOrLearn)
-    mod:RegisterEvent("SPELLS_CHANGED", onSpellsChanged)
     if mod._tab and SpellBookFrame and SpellBookFrame.UpdateSkillLineTabs and SpellBookFrame:IsVisible() then
         SpellBookFrame:UpdateSkillLineTabs()
     end
