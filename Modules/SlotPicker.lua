@@ -43,6 +43,13 @@ local SLOT_INVTYPES = {
     [18] = { INVTYPE_RANGED = true, INVTYPE_RANGEDRIGHT = true, INVTYPE_THROWN = true, INVTYPE_RELIC = true },
 }
 
+-- The three weapon slots are the only ones that sit in a ROW, at the bottom of
+-- the paper doll. A flyout beside them lands on their own neighbours: two icons
+-- for the main hand covered the off hand and the ranged slot. These open
+-- downward instead. The column slots keep the sideways opening -- there, beside
+-- them is the only direction that is free.
+local DOWNWARD_SLOTS = { [16] = true, [17] = true, [18] = true }
+
 local SLOT_FRAME_NAMES = {
     [1]  = "Head",    [2]  = "Neck",     [3]  = "Shoulder", [15] = "Back",
     [5]  = "Chest",   [9]  = "Wrist",    [10] = "Hands",    [6]  = "Waist",
@@ -406,7 +413,22 @@ local function showSlotPicker(slotID, anchorBtn, compact)
     if anchorBtn and anchorBtn.GetCenter then
         local x = anchorBtn:GetCenter()
         local mid = UIParent:GetWidth() * 0.5
-        if x and x > mid then
+        -- Which EDGES are aligned, in both directions: the popup grows away from
+        -- the screen centre, so it cannot run off the near side.
+        local corner = (x and x > mid) and "RIGHT" or "LEFT"
+        if DOWNWARD_SLOTS[slotID] then
+            -- Measured, not assumed: the character window can be dragged to the
+            -- bottom of the screen, and a flyout below it would render
+            -- off-screen and be unreachable. It goes above then -- same belt as
+            -- the gem picker on the socket strip. The size is already set above,
+            -- so the height asked for here is the real one.
+            local bottom = anchorBtn.GetBottom and anchorBtn:GetBottom()
+            if bottom and (bottom - popup:GetHeight() - 6) < 0 then
+                popup:SetPoint("BOTTOM" .. corner, anchorBtn, "TOP" .. corner, 0, 6)
+            else
+                popup:SetPoint("TOP" .. corner, anchorBtn, "BOTTOM" .. corner, 0, -6)
+            end
+        elseif corner == "RIGHT" then
             popup:SetPoint("TOPRIGHT", anchorBtn, "TOPLEFT", -6, 2)
         else
             popup:SetPoint("TOPLEFT", anchorBtn, "TOPRIGHT", 6, 2)
