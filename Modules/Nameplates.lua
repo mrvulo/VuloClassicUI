@@ -174,9 +174,11 @@ local mod = ns:RegisterModule("nameplates", {
 
         showRaidMarker = true,
         raidMarkerSize = 18,
-        raidMarkerPos  = "left",
-        raidMarkerX    = 0,
-        raidMarkerY    = 0,
+        -- Position and offsets are NOT here: they live on the marker's slot
+        -- config with everything else that shares those six places. The old
+        -- fields are only read once more, by the migrations, and dropped after
+        -- -- writing them back as defaults would recreate settings with no
+        -- control, the same reason the crowd-control offsets left this table.
 
         friendlyShow      = true,
         friendlyPlayers   = "nameonly",
@@ -1780,6 +1782,21 @@ local function migrateMarkerSlot()
     d.raidMarkerPos = nil
 end
 
+-- A second flag rather than folding this into the one above: the slot move
+-- already shipped, so every profile that has seen it is marked done and would
+-- skip whatever we added there. The offsets are the other half of the same
+-- move -- the slot panel's own fine tuning had no effect on the marker, which
+-- kept reading two fields nothing on that panel wrote (user report, 06.08.2026).
+local function migrateMarkerOffsets()
+    local d = db()
+    if not d or d.markerOffsetsMigrated then return end
+    local cfg = ns:NameplateRowCfg("marker")
+    if (d.raidMarkerX or 0) ~= 0 then cfg.x = d.raidMarkerX end
+    if (d.raidMarkerY or 0) ~= 0 then cfg.y = d.raidMarkerY end
+    d.markerOffsetsMigrated = true      -- only after the work, never before
+    d.raidMarkerX, d.raidMarkerY = nil, nil
+end
+
 -- Scratch tables, refilled per call: applyAuras runs per plate per UNIT_AURA,
 -- and neither table outlives the call (renderAuraGroup copies what it needs).
 local _used, _ro = {}, {}
@@ -1788,6 +1805,7 @@ local function applyAuras(f, lists)
     local d = db()
     migrateAuraRows()
     migrateMarkerSlot()
+    migrateMarkerOffsets()
     -- Rows on the same side queue outward from the plate; the two sides are
     -- independent, so moving one row to the bottom never shifts the other.
     -- The bottom side has to clear the cast bar, which hangs below the health
@@ -1920,14 +1938,25 @@ local function applyAuras(f, lists)
     if mk and d.showRaidMarker and f._mode ~= "hidden" and f._mode ~= "nameonly" then
         local cfg  = rowCfg("marker")
         local sz   = d.raidMarkerSize or 18
-        local gap  = d.auraSpacing or 2
-        local ox, oy = d.raidMarkerX or 0, d.raidMarkerY or 0
+        -- Read from the SLOT, exactly like the four rows a few lines up. The
+        -- marker used to keep its own pair of offset fields, which is why the
+        -- slot panel's sliders moved nothing: two controls for one question,
+        -- and the one you were looking at was the wrong one.
+        local gap  = cfg.spacing or d.auraSpacing or 2
+        local ox, oy = cfg.x or 0, cfg.y or 0
         local side = cfg.side or "left"
-        mk:ClearAllPoints()
+        -- Kept on the frame as well as applied: RAID_TARGET_UPDATE shows the
+        -- marker on its own, between two aura passes, and only this pass knows
+        -- how far out the rows on its side have already pushed. Without the
+        -- note the icon would come back anchored to nothing.
+        local p = f._markerPoint
+        if not p then p = {}; f._markerPoint = p end
         if side == "left" or side == "right" then
             local dx = used[side] + sz / 2 + ox
-            mk:SetPoint("CENTER", f.health, (side == "left") and "LEFT" or "RIGHT",
-                (side == "left") and -dx or dx, oy)
+            p[1] = "CENTER"
+            p[2] = (side == "left") and "LEFT" or "RIGHT"
+            p[3] = (side == "left") and -dx or dx
+            p[4] = oy
         else
             local grow = cfg.grow or "center"
             local hp = (grow == "right" and "LEFT") or (grow == "left" and "RIGHT") or "CENTER"
@@ -1936,9 +1965,17 @@ local function applyAuras(f, lists)
                 or (hp == "LEFT" and (bottom and "BOTTOMLEFT" or "TOPLEFT")
                                   or (bottom and "BOTTOMRIGHT" or "TOPRIGHT"))
             local dy = used[side] + sz / 2 + oy
-            mk:SetPoint(hp, f.health, rel, ox, bottom and -dy or dy)
+            p[1], p[2] = hp, rel
+            -- The general aura offset rides along on this axis for the rows
+            -- above; leaving it out here would make the marker the one thing
+            -- that ignores it.
+            p[3], p[4] = (d.auraOffsetX or 0) + ox, bottom and -dy or dy
         end
+        mk:ClearAllPoints()
+        mk:SetPoint(p[1], f.health, p[2], p[3], p[4])
         used[side] = used[side] + sz + gap
+    elseif f then
+        f._markerPoint = nil
     end
 end
 
@@ -2329,13 +2366,25 @@ local function positionRaidIcon(f)
     ic:SetSize(d.raidMarkerSize, d.raidMarkerSize)
     -- On a full plate the marker sits in a slot and is placed by the aura queue
     -- (see applyAuras): only that pass knows how much room the rows on its side
-    -- have already taken. Here that leaves the size, and the name-only plate --
-    -- which has no bar to queue along and no aura rows at all.
-    if f._mode ~= "nameonly" then return end
+    -- have already taken. Here that leaves the size, plus replaying the place
+    -- that pass worked out -- a marker set on a unit arrives on its own event
+    -- and would otherwise be shown with no anchor at all. What is left is the
+    -- name-only plate, which has no bar to queue along and no aura rows.
+    if f._mode ~= "nameonly" then
+        local p = f._markerPoint
+        if p and f.health then
+            ic:ClearAllPoints()
+            ic:SetPoint(p[1], f.health, p[2], p[3], p[4])
+        end
+        return
+    end
     local anchor = f.name
     ic:ClearAllPoints()
-    local pos = ns:NameplateRowCfg("marker").side or "left"
-    local ox, oy = d.raidMarkerX or 0, d.raidMarkerY or 0
+    -- Side AND fine tuning come from the slot here too, so the panel that moves
+    -- the marker on a full plate moves it on a name-only one as well.
+    local mcfg = ns:NameplateRowCfg("marker")
+    local pos = mcfg.side or "left"
+    local ox, oy = mcfg.x or 0, mcfg.y or 0
     if pos == "bottom" then
         ic:SetPoint("TOP", anchor, "BOTTOM", ox, -4 + oy)
     elseif pos == "left" then
@@ -2350,11 +2399,24 @@ local function positionRaidIcon(f)
     end
 end
 
+-- The eight markers live on ONE sheet, four across and two down, and the client
+-- helper only picks the tile: it sets the texture coordinates and nothing else.
+-- Blizzard's own frames put the sheet on the texture in their XML, so the helper
+-- has something to cut from. Ours was created bare, which is why the marker
+-- never drew anywhere -- on a plate or in the preview -- while everything around
+-- it reserved room for it. The sheet goes on first; the helper then picks the
+-- tile out of it.
+local RAID_ICON_SHEET = "Interface\\TargetingFrame\\UI-RaidTargetingIcons"
+
 local function setRaidIcon(ic, idx)
     if SetRaidTargetIconTexture then
+        ic:SetTexture(RAID_ICON_SHEET)
         SetRaidTargetIconTexture(ic, idx)
     else
+        -- One file per marker, whole image: the coordinates from a previous
+        -- sheet call would cut a quarter out of it.
         ic:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcon_" .. idx)
+        ic:SetTexCoord(0, 1, 0, 1)
     end
 end
 
@@ -2617,6 +2679,9 @@ function onPlateRemoved(_, unit)
     plateCastStop(f)
     hideGroup(f.debuffGroup); hideGroup(f.dotGroup); hideGroup(f.buffGroup); hideGroup(f.ccGroup)
     f.raidIcon:Hide()
+    -- The slot the aura queue worked out belonged to the unit that just left;
+    -- the next one gets its own on the first aura pass.
+    f._markerPoint = nil
     f.absorb:Hide()
     f.title:Hide()
     paintFocus(f, false)
@@ -2922,6 +2987,27 @@ local function buildPreview(parent)
         if d.showCastbar then
             self.cast:SetMinMaxValues(0, 1); self.cast:SetValue(0.6)
             paintCast(self, L["Fireball"], "Interface\\Icons\\Spell_Fire_FlameBolt", false)
+            -- The remaining time is written by the cast bar's OnUpdate, and that
+            -- one only runs while a plate is really casting. The mock never is,
+            -- so the field was shown and left EMPTY -- the switch and its colour
+            -- had nothing to show for themselves (user report, 06.08.2026). A
+            -- fixed sample instead, matching the 60% the bar is drawn at: at the
+            -- 3.5s this spell takes, that leaves 1.4.
+            if self.castTimer and self.castTimer:IsShown() then
+                self.castTimer:SetFormattedText("%.1f", 1.4)
+            end
+            -- Same hole one line over: paintCastTarget reads the unit's target
+            -- and the mock has no unit, so it hid the field whatever the setting
+            -- said. The player's own name is the honest sample -- it is also the
+            -- case worth seeing, because being the one cast at is what the
+            -- separate colour below is for.
+            local tside = d.castTargetSide or "none"
+            if self.castTarget and tside ~= "none" then
+                self.castTarget:SetText(UnitName("player") or L["Target Dummy"])
+                local c = d.colCastYou or { r = 1, g = 0.15, b = 0.15 }
+                self.castTarget:SetTextColor(c.r, c.g, c.b)
+                self.castTarget:Show()
+            end
             self.cast:Show()
         else
             self.cast:Hide()

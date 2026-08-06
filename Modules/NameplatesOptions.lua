@@ -248,8 +248,18 @@ end
 local function rowPlacementItems(key, SLW, applyAndRefresh, withFilter, stacked)
     local function cfg() return ns:NameplateRowCfg(key) end
     local items = {}
+    -- The target marker takes a slot like the rows do, but it is ONE icon.
+    -- Stacking axis and line wrapping describe how several icons arrange
+    -- themselves against each other, so for the marker both are questions with
+    -- no answer -- and a control that cannot change anything is worse than a
+    -- shorter panel. Offsets and the gap to its neighbour still apply, and are
+    -- the reason this panel is where the marker is moved at all.
+    local single = (key == "marker")
     -- A pair on the page, two lines in the panel.
     local function pair(a, b)
+        -- A pair with only one half left is just that one row: no empty cell
+        -- next to it, and in stacked mode nothing to notice at all.
+        if not b then items[#items + 1] = a; return end
         if stacked then
             items[#items + 1] = a
             items[#items + 1] = b
@@ -261,18 +271,20 @@ local function rowPlacementItems(key, SLW, applyAndRefresh, withFilter, stacked)
     -- ABSENT field, not a value: old profiles stay byte-identical and the
     -- engine's fallback (side slots = column, top/bottom = row) stays the
     -- single source of the default.
-    items[#items + 1] = { type = "dropdown", label = L["Orientation"], width = 300,
-        tooltip = L["Automatic stacks a side slot as a column and a top or bottom slot as a row."],
-        values = {
-            { value = "auto", text = L["Automatic"] },
-            { value = "h",    text = L["Horizontal"] },
-            { value = "v",    text = L["Vertical"] },
-        },
-        get = function() return cfg().orient or "auto" end,
-        set = function(_, v)
-            if v == "auto" then cfg().orient = nil else cfg().orient = v end
-            applyAndRefresh()
-        end }
+    if not single then
+        items[#items + 1] = { type = "dropdown", label = L["Orientation"], width = 300,
+            tooltip = L["Automatic stacks a side slot as a column and a top or bottom slot as a row."],
+            values = {
+                { value = "auto", text = L["Automatic"] },
+                { value = "h",    text = L["Horizontal"] },
+                { value = "v",    text = L["Vertical"] },
+            },
+            get = function() return cfg().orient or "auto" end,
+            set = function(_, v)
+                if v == "auto" then cfg().orient = nil else cfg().orient = v end
+                applyAndRefresh()
+            end }
+    end
     pair(
         { type = "slider", label = L["Offset X"], min = -150, max = 150, step = 1, width = SLW,
           get = function() return cfg().x or 0 end,
@@ -284,10 +296,11 @@ local function rowPlacementItems(key, SLW, applyAndRefresh, withFilter, stacked)
         { type = "slider", label = L["Icon spacing"], min = 0, max = 12, step = 1, width = SLW,
           get = function() return cfg().spacing or 2 end,
           set = function(_, v) cfg().spacing = v; applyAndRefresh() end },
+        (not single) and
         { type = "slider", label = L["Icons per line"], min = 0, max = 12, step = 1, width = SLW,
           tooltip = L["0 = one line. Otherwise the row wraps after this many icons."],
           get = function() return cfg().perRow or 0 end,
-          set = function(_, v) cfg().perRow = v; applyAndRefresh() end })
+          set = function(_, v) cfg().perRow = v; applyAndRefresh() end } or nil)
     if withFilter then
         items[#items + 1] = { type = "dropdown", label = L["Limit to"], width = 300, values = rowFilterValues(),
             tooltip = L["Narrows this row to auras you cast yourself, or to ones that can be removed."],
@@ -1709,18 +1722,18 @@ function mod:GetOptions(tabId)
                   inline = {
                       { kind = "gear", tooltip = L["Raid Marker"],
                         popup = { title = L["Raid Marker"], width = 380, items = {
-                            -- No position row here any more: the marker sits in
-                            -- one of the six slots above, and two controls for
-                            -- one answer is what this page keeps taking apart.
+                            -- Size only. Position and offsets belong to the slot
+                            -- the marker sits in, and are set in that slot's own
+                            -- panel under Main positions -- the same panel that
+                            -- moves every aura row. The pair that used to stand
+                            -- here wrote fields the drawing code stopped reading
+                            -- when the marker moved into the slots, so the
+                            -- sliders you were actually looking at did nothing
+                            -- (user report, 06.08.2026). Two controls for one
+                            -- question is what this page keeps taking apart.
                             { type = "slider", label = L["Marker size"], min = 8, max = 48, step = 1, width = 130,
                               get = function() return mod.db.raidMarkerSize end,
                               set = function(_, v) mod.db.raidMarkerSize = v; applyAndRefresh() end },
-                            { type = "slider", label = L["Marker offset X"], min = -40, max = 40, step = 1, width = 130,
-                              get = function() return mod.db.raidMarkerX end,
-                              set = function(_, v) mod.db.raidMarkerX = v; applyAndRefresh() end },
-                            { type = "slider", label = L["Marker offset Y"], min = -40, max = 40, step = 1, width = 130,
-                              get = function() return mod.db.raidMarkerY end,
-                              set = function(_, v) mod.db.raidMarkerY = v; applyAndRefresh() end },
                         } } },
                   } },
             } },
