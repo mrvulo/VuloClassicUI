@@ -6,6 +6,25 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+    { version = "1.52.4", sections = {
+        { category = "Character Panel", lines = {
+            "NEW: Ask before overwriting a gem – A click on a socket that already holds a gem asks first, because putting a gem in destroys the one that comes out",
+            "Pointing at an occupied socket says what a click on it costs. Clicking one was always allowed, nothing ever said so, and the gem that comes out is destroyed. The question names both gems in their quality colours, and it drops the action when the gear moved while it was standing — otherwise a swap under the open dialog would answer for a socket you never looked at.",
+        } },
+        { category = "Loadouts", lines = {
+            "Equipping a set at the bank takes the pieces that are lying in the bank, as long as the bank window is open. Until now they counted as missing, so you could stand at the bank and be told the set was not equippable. The message says how many of them came out of the bank, and the piece that comes off goes into the bank slot the new one came from. With the bank closed, a missing piece in there no longer only names its place, it says to open the bank window.",
+            "The line that tells you which sets an item belongs to appears in item tooltips. It was built and hooked up from the start, but it went in through the one tooltip mechanism this client offers and never uses, so no line was ever drawn and nothing complained.",
+        } },
+        { category = "Nameplates", lines = {
+            "NEW: Reverse the swipe – The shade grows back as the aura runs out, so a nearly clear icon means it is nearly gone",
+            "The cooldown swipe on the aura icons has a control of its own. It was read from the start and could not be changed anywhere.",
+            "The raid target marker is visible at all. The eight marks live on one sheet, and the call that picks a tile out of it was working on a frame that never got the sheet — a cut-out of nothing, on every plate and in the preview, since the module was built.",
+            "The raid target marker takes one of the six named slots, like the four aura rows. It had three positions of its own and could land on top of a row, which is the very collision the slots exist for. The old choice moves into the matching slot once and then goes, so there is no second control for the same question. Its room is reserved as soon as it is switched on, not only once a unit really carries a mark, so the rows do not jump every time somebody sets a skull.",
+            "The marker's own offset and spacing sliders take effect again. They were writing two fields of their own while the plate read the slot, so the visible control was the one without an effect. The old values move across once.",
+            "A mark set between two aura passes lands where it belongs. Where the marker goes is worked out in the aura pass, because only that knows how far the rows on its side reach, and the plate now remembers that point for the event that shows the marker on its own.",
+            "The cast time and the cast target show something in the preview. Both only exist for a cast that is really running on a real unit, so both stayed empty while their switches, colours and side settings stood next to them with nothing to show.",
+        } },
+    } },
     { version = "1.52.3", sections = {
         { category = "Nameplates", lines = {
             "NEW: Match the health bar height – Makes the crowd-control icon a square exactly as tall as the health bar, in place of its own size sliders",
@@ -534,27 +553,6 @@ ns.CHANGELOG = {
         { category = "Chat", lines = {
             "The drag area now covers the whole dark chat panel down to the edit box, not just the narrow message strip.",
             "Fixed right-click on the chat window not opening its settings panel in Edit Mode.",
-        } },
-    } },
-    { version = "1.35.0", sections = {
-        { category = "Nameplates", lines = {
-            "NEW: Interrupt help on the cast bar: own colours while your interrupt is on cooldown or ready, a tick marking where it comes back mid-cast, a shield on uninterruptible casts and an interrupt flash that can show who landed the kick.",
-            "NEW: Cast bar suite: icon side and scale, remaining time, own background, channel colour, a warning colour when the cast aims at YOU — and on your target the cast bar lines up flush with the health bar including its border.",
-            "NEW: Execute line, target and mouseover effects, crowd control section, combo point shapes and placement, per-element position, size and text-size controls plus a font picker.",
-            "NEW: The options page carries a clickable live preview that stays pinned while you scroll — click any element to jump to its settings.",
-            "NEW: Smooth health movement with a damage trail, value plus percent text layouts with short numbers, and a decimal toggle for aura timers.",
-        } },
-        { category = "Action Bars", lines = {
-            "NEW: Per-bar visibility conditions (instances, mounted, target, group), modifier paging, quick keybind mode (/vkb), a sixth bar, growth directions, button text styling and cooldown look options.",
-            "NEW: Micro menu and bag bar modern style: flat dark strips with an own monochrome icon set, plus world map, friends list, group finder, shop and key ring buttons.",
-            "The experience bar width now adjusts in single steps.",
-        } },
-        { category = "Resource Bar", lines = {
-            "NEW: Visibility conditions, colour modes with gradient, background and border colours, smooth value changes, hash marks and threshold colouring.",
-        } },
-        { category = "Fixes", lines = {
-            "Character sheet stats panel no longer bleeds into other tabs; loadout sidebar aligns with the modern character sheet.",
-            "Arena points calculator panel and button wear the addon look and dock beside the character sheet.",
         } },
     } },
 }
