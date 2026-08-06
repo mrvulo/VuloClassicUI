@@ -102,14 +102,6 @@ local function friendlyModeValues()
     }
 end
 
-local function markerPosValues()
-    return {
-        { value = "left",  text = L["Left"] },
-        { value = "right", text = L["Right"] },
-        { value = "top",   text = L["Above"] },
-    }
-end
-
 local function borderStyleValues()
     return {
         { value = "lines",   text = L["Thin lines"] },
@@ -143,6 +135,12 @@ local SLOT_ROWS = {
     { key = "buff",   label = "Buffs",             show = "showBuffs"   },
     { key = "cc",     label = "Crowd control",     show = "showCC"      },
     { key = "dot",    label = "Your own debuffs",  show = "showDots"    },
+    -- Not a row of auras but the same kind of thing to the eye: one item that
+    -- wants a side of the plate. It used to carry three positions of its own,
+    -- which meant it could sit on top of a row instead of beside it -- the very
+    -- collision the slots exist to make impossible. Its size and offsets stay
+    -- behind its own gear; only WHERE moved here.
+    { key = "marker", label = "Raid Marker",       show = "showRaidMarker" },
 }
 
 local function slotOf(rowKey)
@@ -1711,9 +1709,9 @@ function mod:GetOptions(tabId)
                   inline = {
                       { kind = "gear", tooltip = L["Raid Marker"],
                         popup = { title = L["Raid Marker"], width = 380, items = {
-                            { type = "dropdown", label = L["Marker position"], width = 220, values = markerPosValues(),
-                              get = function() return mod.db.raidMarkerPos end,
-                              set = function(_, v) mod.db.raidMarkerPos = v; applyAndRefresh() end },
+                            -- No position row here any more: the marker sits in
+                            -- one of the six slots above, and two controls for
+                            -- one answer is what this page keeps taking apart.
                             { type = "slider", label = L["Marker size"], min = 8, max = 48, step = 1, width = 130,
                               get = function() return mod.db.raidMarkerSize end,
                               set = function(_, v) mod.db.raidMarkerSize = v; applyAndRefresh() end },

@@ -1758,6 +1758,28 @@ local function migrateAuraRows()
     d.ccOffsetX, d.ccOffsetY = nil, nil
 end
 
+-- The target marker used to carry three positions of its own (left, right,
+-- above) while the aura rows had six named slots. It sits in those slots now,
+-- which is what lets it queue with them instead of drawing through whatever
+-- stands on the same side. Its old value picks the slot once; after that the
+-- slot dropdown owns the answer and the old field is dropped, so it cannot look
+-- like a setting with no control.
+local function migrateMarkerSlot()
+    local d = db()
+    if not d or d.markerSlotMigrated then return end
+    local pos = d.raidMarkerPos
+    local cfg = ns:NameplateRowCfg("marker")
+    if pos == "right" then
+        cfg.side, cfg.grow = "right", "center"
+    elseif pos == "top" then
+        cfg.side, cfg.grow = "top", "center"
+    else
+        cfg.side, cfg.grow = "left", "center"
+    end
+    d.markerSlotMigrated = true
+    d.raidMarkerPos = nil
+end
+
 -- Scratch tables, refilled per call: applyAuras runs per plate per UNIT_AURA,
 -- and neither table outlives the call (renderAuraGroup copies what it needs).
 local _used, _ro = {}, {}
@@ -1765,6 +1787,7 @@ local _used, _ro = {}, {}
 local function applyAuras(f, lists)
     local d = db()
     migrateAuraRows()
+    migrateMarkerSlot()
     -- Rows on the same side queue outward from the plate; the two sides are
     -- independent, so moving one row to the bottom never shifts the other.
     -- The bottom side has to clear the cast bar, which hangs below the health
@@ -1883,6 +1906,39 @@ local function applyAuras(f, lists)
         elseif group then
             hideGroup(group)
         end
+    end
+
+    -- The target marker owns one of the same six slots, so it queues in the
+    -- same lanes: a row on its side would otherwise draw straight through it.
+    -- One icon, so the block IS its size.
+    --
+    -- Room is reserved whenever the marker is SWITCHED ON, not only while a
+    -- unit actually carries one -- the same reasoning as the cast bar above.
+    -- Rows that shifted every time someone placed a skull would be worse than
+    -- a small gap that stays put.
+    local mk = f.raidIcon
+    if mk and d.showRaidMarker and f._mode ~= "hidden" and f._mode ~= "nameonly" then
+        local cfg  = rowCfg("marker")
+        local sz   = d.raidMarkerSize or 18
+        local gap  = d.auraSpacing or 2
+        local ox, oy = d.raidMarkerX or 0, d.raidMarkerY or 0
+        local side = cfg.side or "left"
+        mk:ClearAllPoints()
+        if side == "left" or side == "right" then
+            local dx = used[side] + sz / 2 + ox
+            mk:SetPoint("CENTER", f.health, (side == "left") and "LEFT" or "RIGHT",
+                (side == "left") and -dx or dx, oy)
+        else
+            local grow = cfg.grow or "center"
+            local hp = (grow == "right" and "LEFT") or (grow == "left" and "RIGHT") or "CENTER"
+            local bottom = (side == "bottom")
+            local rel = (hp == "CENTER") and (bottom and "BOTTOM" or "TOP")
+                or (hp == "LEFT" and (bottom and "BOTTOMLEFT" or "TOPLEFT")
+                                  or (bottom and "BOTTOMRIGHT" or "TOPRIGHT"))
+            local dy = used[side] + sz / 2 + oy
+            mk:SetPoint(hp, f.health, rel, ox, bottom and -dy or dy)
+        end
+        used[side] = used[side] + sz + gap
     end
 end
 
@@ -2271,10 +2327,18 @@ local function positionRaidIcon(f)
     local d = db()
     local ic = f.raidIcon
     ic:SetSize(d.raidMarkerSize, d.raidMarkerSize)
-    local anchor = (f._mode == "nameonly") and f.name or f.health
+    -- On a full plate the marker sits in a slot and is placed by the aura queue
+    -- (see applyAuras): only that pass knows how much room the rows on its side
+    -- have already taken. Here that leaves the size, and the name-only plate --
+    -- which has no bar to queue along and no aura rows at all.
+    if f._mode ~= "nameonly" then return end
+    local anchor = f.name
     ic:ClearAllPoints()
-    local pos, ox, oy = d.raidMarkerPos, d.raidMarkerX or 0, d.raidMarkerY or 0
-    if pos == "left" then
+    local pos = ns:NameplateRowCfg("marker").side or "left"
+    local ox, oy = d.raidMarkerX or 0, d.raidMarkerY or 0
+    if pos == "bottom" then
+        ic:SetPoint("TOP", anchor, "BOTTOM", ox, -4 + oy)
+    elseif pos == "left" then
         -- Both the marker and the level text sit left of the name in name-only
         -- mode; queue the marker outside the level so they don't stack up.
         if anchor == f.name and f.level and f.level:IsShown() then anchor = f.level end
