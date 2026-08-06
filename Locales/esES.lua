@@ -3292,6 +3292,9 @@ local function T() return {
     ["The aura border can also take the colour of the aura's own school. That switch was read from the start and had no control anywhere."] = "El borde de las auras también puede tomar el color de escuela del aura. Ese interruptor se leía desde el principio y no tenía ningún control en ninguna parte.",
     ["Settings Window Scale – Scales this settings window on its own, from 70 to 130 per cent, while the game's interface keeps the size it has"] = "Tamaño de la ventana de ajustes – Escala solo esta ventana de ajustes, del 70 al 130 por ciento, mientras la interfaz del juego conserva su tamaño",
     ["Making the window smaller now gives it back its full size on a screen that was cutting it off. The fitting measured the room in the game's units and the window in its own, so scaling it down changed nothing about what it was allowed to be."] = "Reducir la ventana le devuelve ahora su tamaño completo en una pantalla que antes la recortaba. El ajuste medía el espacio en las unidades del juego y la ventana en las suyas, así que reducirla no cambiaba nada de lo que se le permitía ocupar.",
+    -- Nameplates: reverse aura swipe
+    ["Reverse the swipe"] = "Invertir el barrido",
+    ["The shade grows back as the aura runs out, so a nearly clear icon means it is nearly gone."] = "La sombra vuelve a crecer mientras el aura se agota, así que un icono casi limpio significa que ya casi ha terminado.",
 } end
 
 ns:RegisterLocale("esES", T)

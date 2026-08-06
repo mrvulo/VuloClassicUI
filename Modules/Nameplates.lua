@@ -200,6 +200,7 @@ local mod = ns:RegisterModule("nameplates", {
         ccMatchBar     = false,
         auraSpacing    = 2,
         auraSwipe      = true,
+        auraSwipeReverse = false,
         auraBorder     = true,
         auraTypeBorder = true,
         auraExpireFlash = true,
@@ -1580,6 +1581,7 @@ local function renderAuraGroup(g, list, o)
     -- hardcode, which is why an untouched profile draws exactly as before.
     local crop    = o.crop or 0.08
     local showTimer, showStacks, swipe = o.showTimer, o.showStacks, o.swipe
+    local reverse = d.auraSwipeReverse and true or false
     local iw, ih = (o.w and o.w > 0) and o.w or size, (o.h and o.h > 0) and o.h or size
     local perRow = (o.perRow or 0) > 0 and o.perRow or n
     local grow   = o.grow or "center"
@@ -1649,6 +1651,15 @@ local function renderAuraGroup(g, list, o)
                 layoutEdges(ic.dispelGlow, ic, 2, gc.r, gc.g, gc.b, 1, 1)
             else
                 for _, t in pairs(ic.dispelGlow) do t:Hide() end
+            end
+            -- Which way the shade runs. Reversed, it GROWS back as the aura runs
+            -- out, so a nearly clear icon means nearly gone -- the same reading
+            -- the arena icons use. Compared before it is written, like the crop
+            -- above: this loop runs per icon per row per aura event, and the
+            -- answer only changes when the switch does.
+            if ic._swipeRev ~= reverse then
+                ic._swipeRev = reverse
+                if ic.cd.SetReverse then ic.cd:SetReverse(reverse) end
             end
             if swipe and a.duration > 0 and a.expiration > 0 then
                 ic.cd:SetCooldown(a.expiration - a.duration, a.duration); ic.cd:Show()

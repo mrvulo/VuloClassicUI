@@ -3411,4 +3411,7 @@ ns:RegisterLocale("deDE", function() return {
     ["The aura border can also take the colour of the aura's own school. That switch was read from the start and had no control anywhere."] = "Der Aura-Rahmen kann auch den Schulfarbton des Zaubers annehmen. Diesen Schalter las der Code von Anfang an, eine Bedienung dafür gab es nirgends.",
     ["Settings Window Scale – Scales this settings window on its own, from 70 to 130 per cent, while the game's interface keeps the size it has"] = "Größe des Einstellungsfensters – Skaliert allein dieses Einstellungsfenster, von 70 bis 130 Prozent, während die Spieloberfläche ihre Größe behält",
     ["Making the window smaller now gives it back its full size on a screen that was cutting it off. The fitting measured the room in the game's units and the window in its own, so scaling it down changed nothing about what it was allowed to be."] = "Das Fenster kleiner zu stellen gibt ihm jetzt seine volle Größe auf einem Bildschirm zurück, der es vorher beschnitten hat. Die Einpassung maß den Platz in den Einheiten des Spiels und das Fenster in seinen eigenen, wodurch Verkleinern nichts daran änderte, wie groß es sein durfte.",
+    -- Nameplates: reverse aura swipe
+    ["Reverse the swipe"] = "Wisch umkehren",
+    ["The shade grows back as the aura runs out, so a nearly clear icon means it is nearly gone."] = "Der Schatten wächst wieder an, während die Aura ausläuft — ein fast freies Symbol heißt also fast vorbei.",
 } end)

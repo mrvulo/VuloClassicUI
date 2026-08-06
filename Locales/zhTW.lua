@@ -3284,4 +3284,7 @@ ns:RegisterLocale("zhTW", function() return {
     ["The aura border can also take the colour of the aura's own school. That switch was read from the start and had no control anywhere."] = "光環邊框也可以採用效果自身的類型顏色。這個開關一直被讀取，卻在任何地方都沒有對應的控制項。",
     ["Settings Window Scale – Scales this settings window on its own, from 70 to 130 per cent, while the game's interface keeps the size it has"] = "設定視窗大小 – 僅縮放此設定視窗，範圍為百分之七十到百分之一百三十，遊戲介面維持原本的大小",
     ["Making the window smaller now gives it back its full size on a screen that was cutting it off. The fitting measured the room in the game's units and the window in its own, so scaling it down changed nothing about what it was allowed to be."] = "把視窗調小，現在能在原本會裁切它的螢幕上重新取得完整尺寸。先前的調整把空間以遊戲的單位衡量、把視窗以它自己的單位衡量，因此調小並不會改變它被允許占據的大小。",
+    -- Nameplates: reverse aura swipe
+    ["Reverse the swipe"] = "反向掃描",
+    ["The shade grows back as the aura runs out, so a nearly clear icon means it is nearly gone."] = "陰影會隨著光環接近結束重新長回來，因此圖示幾乎乾淨時就表示快要結束了。",
 } end)

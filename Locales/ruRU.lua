@@ -3291,4 +3291,7 @@ ns:RegisterLocale("ruRU", function() return {
     ["The aura border can also take the colour of the aura's own school. That switch was read from the start and had no control anywhere."] = "Рамка эффектов может также принимать цвет школы эффекта. Этот переключатель читался с самого начала, а управления для него нигде не было.",
     ["Settings Window Scale – Scales this settings window on its own, from 70 to 130 per cent, while the game's interface keeps the size it has"] = "Размер окна настроек – Масштабирует только это окно настроек, от 70 до 130 процентов, а игровой интерфейс сохраняет свой размер",
     ["Making the window smaller now gives it back its full size on a screen that was cutting it off. The fitting measured the room in the game's units and the window in its own, so scaling it down changed nothing about what it was allowed to be."] = "Уменьшение окна теперь возвращает ему полный размер на экране, который раньше его обрезал. Подгонка мерила место в единицах игры, а окно — в его собственных, поэтому уменьшение ничего не меняло в том, каким окну разрешено быть.",
+    -- Nameplates: reverse aura swipe
+    ["Reverse the swipe"] = "Обратить затемнение",
+    ["The shade grows back as the aura runs out, so a nearly clear icon means it is nearly gone."] = "Тень нарастает по мере того, как эффект заканчивается: почти чистый значок означает, что он почти прошёл.",
 } end)

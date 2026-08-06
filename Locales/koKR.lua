@@ -3291,4 +3291,7 @@ ns:RegisterLocale("koKR", function() return {
     ["The aura border can also take the colour of the aura's own school. That switch was read from the start and had no control anywhere."] = "오라 테두리도 효과의 계열 색을 따를 수 있습니다. 그 설정은 처음부터 읽히고 있었지만 어디에도 조작할 곳이 없었습니다.",
     ["Settings Window Scale – Scales this settings window on its own, from 70 to 130 per cent, while the game's interface keeps the size it has"] = "설정 창 크기 – 게임 인터페이스는 그대로 둔 채 이 설정 창만 70에서 130퍼센트까지 조절합니다",
     ["Making the window smaller now gives it back its full size on a screen that was cutting it off. The fitting measured the room in the game's units and the window in its own, so scaling it down changed nothing about what it was allowed to be."] = "창을 작게 하면 이제 창을 잘라내던 화면에서도 원래 크기를 되찾습니다. 맞춤 계산이 공간은 게임의 단위로, 창은 창 자체의 단위로 재고 있었기 때문에 작게 해도 창이 가질 수 있는 크기는 달라지지 않았습니다.",
+    -- Nameplates: reverse aura swipe
+    ["Reverse the swipe"] = "쓸어내기 방향 반대로",
+    ["The shade grows back as the aura runs out, so a nearly clear icon means it is nearly gone."] = "효과가 끝나갈수록 그림자가 다시 차오릅니다. 아이콘이 거의 깨끗해 보이면 거의 끝났다는 뜻입니다.",
 } end)

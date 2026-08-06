@@ -1425,6 +1425,20 @@ function mod:GetOptions(tabId)
                   get = function() return mod.db.auraTypeBorder end,
                   set = function(_, v) mod.db.auraTypeBorder = v; applyAndRefresh(); refreshPage() end },
             } },
+            -- The swipe pair. Its switch is another one the runtime read from
+            -- the start with no control anywhere; the label is the one the
+            -- arena icons already use, so the same thing is called the same
+            -- thing in both places.
+            { type = "group", layout = "row", gap = 8, items = {
+                { type = "checkbox", label = L["Cooldown swipe on the icons"],
+                  get = function() return mod.db.auraSwipe ~= false end,
+                  set = function(_, v) mod.db.auraSwipe = v; applyAndRefresh(); refreshPage() end },
+                { type = "checkbox", label = L["Reverse the swipe"],
+                  tooltip = L["The shade grows back as the aura runs out, so a nearly clear icon means it is nearly gone."],
+                  disabled = function() return mod.db.auraSwipe == false end,
+                  get = function() return mod.db.auraSwipeReverse end,
+                  set = function(_, v) mod.db.auraSwipeReverse = v; applyAndRefresh() end },
+            } },
         } },
 
         -- Fourth on the general tab (user request, 02.08.2026). Not the same
