@@ -3276,4 +3276,12 @@ ns:RegisterLocale("zhCN", function() return {
     -- Global settings: settings window scale
     ["Settings Window Scale"] = "设置窗口大小",
     ["Scales this settings window on its own. The game's interface keeps the size it has."] = "仅缩放此设置窗口。游戏界面保持原有大小。",
+    -- Patch notes 1.52.3
+    ["Match the health bar height – Makes the crowd-control icon a square exactly as tall as the health bar, in place of its own size sliders"] = "与生命条同高 – 让控制效果图标变成与生命条完全等高的正方形，取代它自己的尺寸滑块",
+    ["Border around aura icons – Switches the rim around debuff, damage-over-time, buff and crowd-control icons on or off, with its colour beside it"] = "光环图标边框 – 开关减益、持续伤害、增益和控制效果图标周围的细边，颜色就在旁边",
+    ["Text size – Sets how large the unit name and the health value are drawn, in the panel behind each of those two rows"] = "文本字号 – 设定目标名称和生命数值的绘制大小，位于各自那一行背后的面板中",
+    ["A long unit name is trimmed with three dots instead of running through the health value. The two share the bar as soon as both sit inside it, so the name now gets the width that is actually free — and only a health value at the other end takes room away, because sharing one slot is something you did on purpose. Only a name that would overflow is capped at all, which is what keeps the level number glued to the name instead of hanging off an oversized box."] = "过长的目标名称会以三个点截断，而不再穿过生命数值。两者都在条内时便共用同一条，因此名称现在获得真正空余的宽度——只有位于另一端的生命数值会占走位置，共用同一个位置本就是你自己的选择。只有会溢出的名称才会被限制，这也正是让等级数字紧贴名称、而不是挂在过宽方框边缘的原因。",
+    ["The aura border can also take the colour of the aura's own school. That switch was read from the start and had no control anywhere."] = "光环边框也可以采用效果自身的类型颜色。这个开关一直被读取，却在任何地方都没有对应的控件。",
+    ["Settings Window Scale – Scales this settings window on its own, from 70 to 130 per cent, while the game's interface keeps the size it has"] = "设置窗口大小 – 仅缩放此设置窗口，范围为百分之七十到百分之一百三十，游戏界面保持原有大小",
+    ["Making the window smaller now gives it back its full size on a screen that was cutting it off. The fitting measured the room in the game's units and the window in its own, so scaling it down changed nothing about what it was allowed to be."] = "把窗口调小，现在能在原本会裁切它的屏幕上重新获得完整尺寸。此前的适配把空间按游戏的单位度量、把窗口按它自己的单位度量，因此调小并不会改变它被允许占据的大小。",
 } end)

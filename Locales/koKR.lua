@@ -3283,4 +3283,12 @@ ns:RegisterLocale("koKR", function() return {
     -- Global settings: settings window scale
     ["Settings Window Scale"] = "설정 창 크기",
     ["Scales this settings window on its own. The game's interface keeps the size it has."] = "이 설정 창만 크기를 조절합니다. 게임 인터페이스는 지금 크기 그대로 유지됩니다.",
+    -- Patch notes 1.52.3
+    ["Match the health bar height – Makes the crowd-control icon a square exactly as tall as the health bar, in place of its own size sliders"] = "생명력 막대 높이에 맞추기 – 군중 제어 아이콘을 자체 크기 조절 막대 대신 생명력 막대와 정확히 같은 높이의 정사각형으로 만듭니다",
+    ["Border around aura icons – Switches the rim around debuff, damage-over-time, buff and crowd-control icons on or off, with its colour beside it"] = "오라 아이콘 테두리 – 약화 효과, 지속 피해, 강화 효과, 군중 제어 아이콘을 두르는 테두리를 켜거나 끕니다. 색은 바로 옆에 있습니다",
+    ["Text size – Sets how large the unit name and the health value are drawn, in the panel behind each of those two rows"] = "문자 크기 – 대상 이름과 생명력 값을 얼마나 크게 그릴지 정합니다. 각 줄 뒤의 판에 있습니다",
+    ["A long unit name is trimmed with three dots instead of running through the health value. The two share the bar as soon as both sit inside it, so the name now gets the width that is actually free — and only a health value at the other end takes room away, because sharing one slot is something you did on purpose. Only a name that would overflow is capped at all, which is what keeps the level number glued to the name instead of hanging off an oversized box."] = "긴 대상 이름은 생명력 값을 뚫고 지나가는 대신 점 세 개로 잘립니다. 둘이 모두 막대 안에 있으면 막대를 나눠 쓰게 되므로, 이름은 이제 실제로 비어 있는 너비를 받습니다 — 자리를 빼앗는 것은 반대쪽 끝의 생명력 값뿐이며, 같은 자리를 함께 쓰는 것은 직접 선택한 일입니다. 넘칠 이름만 제한되고, 그래서 레벨 숫자가 너무 넓은 상자 끝에 매달리지 않고 이름에 붙어 있습니다.",
+    ["The aura border can also take the colour of the aura's own school. That switch was read from the start and had no control anywhere."] = "오라 테두리도 효과의 계열 색을 따를 수 있습니다. 그 설정은 처음부터 읽히고 있었지만 어디에도 조작할 곳이 없었습니다.",
+    ["Settings Window Scale – Scales this settings window on its own, from 70 to 130 per cent, while the game's interface keeps the size it has"] = "설정 창 크기 – 게임 인터페이스는 그대로 둔 채 이 설정 창만 70에서 130퍼센트까지 조절합니다",
+    ["Making the window smaller now gives it back its full size on a screen that was cutting it off. The fitting measured the room in the game's units and the window in its own, so scaling it down changed nothing about what it was allowed to be."] = "창을 작게 하면 이제 창을 잘라내던 화면에서도 원래 크기를 되찾습니다. 맞춤 계산이 공간은 게임의 단위로, 창은 창 자체의 단위로 재고 있었기 때문에 작게 해도 창이 가질 수 있는 크기는 달라지지 않았습니다.",
 } end)

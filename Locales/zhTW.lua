@@ -3276,4 +3276,12 @@ ns:RegisterLocale("zhTW", function() return {
     -- Global settings: settings window scale
     ["Settings Window Scale"] = "設定視窗大小",
     ["Scales this settings window on its own. The game's interface keeps the size it has."] = "僅縮放此設定視窗。遊戲介面維持原本的大小。",
+    -- Patch notes 1.52.3
+    ["Match the health bar height – Makes the crowd-control icon a square exactly as tall as the health bar, in place of its own size sliders"] = "與生命條同高 – 讓控場效果圖示變成與生命條完全等高的正方形，取代它自己的尺寸滑桿",
+    ["Border around aura icons – Switches the rim around debuff, damage-over-time, buff and crowd-control icons on or off, with its colour beside it"] = "光環圖示邊框 – 開關減益、持續傷害、增益與控場效果圖示周圍的細邊，顏色就在旁邊",
+    ["Text size – Sets how large the unit name and the health value are drawn, in the panel behind each of those two rows"] = "文字大小 – 設定目標名稱與生命數值的繪製大小，位於各自那一行後方的面板中",
+    ["A long unit name is trimmed with three dots instead of running through the health value. The two share the bar as soon as both sit inside it, so the name now gets the width that is actually free — and only a health value at the other end takes room away, because sharing one slot is something you did on purpose. Only a name that would overflow is capped at all, which is what keeps the level number glued to the name instead of hanging off an oversized box."] = "過長的目標名稱會以三個點截斷，而不再穿過生命數值。兩者都在條內時便共用同一條，因此名稱現在取得真正空出的寬度——只有位於另一端的生命數值會占走位置，共用同一個位置本來就是你自己的選擇。只有會溢出的名稱才會被限制，這也正是讓等級數字緊貼名稱、而不是掛在過寬方框邊緣的原因。",
+    ["The aura border can also take the colour of the aura's own school. That switch was read from the start and had no control anywhere."] = "光環邊框也可以採用效果自身的類型顏色。這個開關一直被讀取，卻在任何地方都沒有對應的控制項。",
+    ["Settings Window Scale – Scales this settings window on its own, from 70 to 130 per cent, while the game's interface keeps the size it has"] = "設定視窗大小 – 僅縮放此設定視窗，範圍為百分之七十到百分之一百三十，遊戲介面維持原本的大小",
+    ["Making the window smaller now gives it back its full size on a screen that was cutting it off. The fitting measured the room in the game's units and the window in its own, so scaling it down changed nothing about what it was allowed to be."] = "把視窗調小，現在能在原本會裁切它的螢幕上重新取得完整尺寸。先前的調整把空間以遊戲的單位衡量、把視窗以它自己的單位衡量，因此調小並不會改變它被允許占據的大小。",
 } end)

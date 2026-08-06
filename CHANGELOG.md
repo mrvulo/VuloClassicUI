@@ -16,6 +16,18 @@
   ~1900 characters or it gets truncated with a link to the full notes.
 -->
 
+## 1.52.3
+**Nameplates:**
+- **NEW: Match the health bar height** – Makes the crowd-control icon a square exactly as tall as the health bar, in place of its own size sliders
+- **NEW: Border around aura icons** – Switches the rim around debuff, damage-over-time, buff and crowd-control icons on or off, with its colour beside it
+- **NEW: Text size** – Sets how large the unit name and the health value are drawn, in the panel behind each of those two rows
+- A long unit name is trimmed with three dots instead of running through the health value. The two share the bar as soon as both sit inside it, so the name now gets the width that is actually free — and only a health value at the other end takes room away, because sharing one slot is something you did on purpose. Only a name that would overflow is capped at all, which is what keeps the level number glued to the name instead of hanging off an oversized box.
+- The aura border can also take the colour of the aura's own school. That switch was read from the start and had no control anywhere.
+
+**Settings Window:**
+- **NEW: Settings Window Scale** – Scales this settings window on its own, from 70 to 130 per cent, while the game's interface keeps the size it has
+- Making the window smaller now gives it back its full size on a screen that was cutting it off. The fitting measured the room in the game's units and the window in its own, so scaling it down changed nothing about what it was allowed to be.
+
 ## 1.52.2
 **Action Bars:**
 - Casting out of the spell book keeps working after the book was opened from the micro menu. Our micro buttons are stand-ins that hand the click on to the default button behind them, which runs everything that follows inside our own call — and for the spell book that ends in the book writing down which half of itself it is showing. That note then counted as ours, the book reads it on every click on a spell, and so every cast from the book was refused as coming from an addon. Out of combat as well, for the rest of the session, until the interface was reloaded. Opening the book by its key was never affected. The micro menu now carries the default button itself, wearing our icon, so nothing is handed through us any more.
