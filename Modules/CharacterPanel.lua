@@ -17,6 +17,7 @@ local mod = ns:RegisterModule("characterpanel", {
         showSockets         = true,
         markEmptySockets    = true,
         showSocketBar       = true,
+        confirmSocketOverwrite = true,
         shortenEnchants     = true,
         ringsEnchantable    = true,
         showAvgItemLevel    = true,
@@ -167,7 +168,15 @@ function mod:GetOptions()
         { type = "checkbox", label = L["Socket strip under the window"],
           tooltip = L["Puts a strip with every socket of your equipped gear under the character window. Click a socket to put a gem from your bags into it. Stays empty on clients whose game has no gems."],
           get = function() return mod.db.showSocketBar end,
-          set = function(_, v) mod.db.showSocketBar = v; refreshPanel() end },
+          set = function(_, v) mod.db.showSocketBar = v; refreshPanel() end,
+          -- Behind the gear of the strip it belongs to: it is about what one
+          -- click on that strip may do, and it means nothing without it.
+          subOptions = {
+              { type = "checkbox", label = L["Ask before overwriting a gem"],
+                tooltip = L["A click on a socket that already holds a gem asks first — putting a gem in destroys the one that comes out."],
+                get = function() return mod.db.confirmSocketOverwrite end,
+                set = function(_, v) mod.db.confirmSocketOverwrite = v end },
+          } },
         { type = "checkbox", label = L["Text shadow (instead of outline)"],
           tooltip = L["Cleaner text with a drop shadow instead of a thick outline."],
           get = function() return mod.db.textShadow end,

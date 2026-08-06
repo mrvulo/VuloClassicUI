@@ -3414,4 +3414,13 @@ ns:RegisterLocale("deDE", function() return {
     -- Nameplates: reverse aura swipe
     ["Reverse the swipe"] = "Wisch umkehren",
     ["The shade grows back as the aura runs out, so a nearly clear icon means it is nearly gone."] = "Der Schatten wächst wieder an, während die Aura ausläuft — ein fast freies Symbol heißt also fast vorbei.",
+    -- Character panel: socket overwrite confirmation
+    ["Replace %s with %s? The gem that comes out is destroyed."] = "%s durch %s ersetzen? Der Stein, der herauskommt, wird zerstört.",
+    ["That socket has changed — nothing was socketed."] = "Dieser Sockel hat sich geändert — es wurde nichts eingesetzt.",
+    ["Click to replace the gem — the old one is destroyed."] = "Klicken, um den Stein zu ersetzen — der alte wird zerstört.",
+    ["Ask before overwriting a gem"] = "Vor dem Überschreiben eines Steins fragen",
+    ["A click on a socket that already holds a gem asks first — putting a gem in destroys the one that comes out."] = "Ein Klick auf einen Sockel, in dem schon ein Stein sitzt, fragt zuerst — einen Stein einzusetzen zerstört den, der herauskommt.",
+    -- Loadouts: equipping straight out of the bank
+    ["%d of them came out of the bank."] = "%d davon kamen aus der Bank.",
+    ["in the bank — open the bank window to equip it"] = "in der Bank — Bankfenster öffnen, um es anzulegen",
 } end)

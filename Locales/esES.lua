@@ -3295,6 +3295,15 @@ local function T() return {
     -- Nameplates: reverse aura swipe
     ["Reverse the swipe"] = "Invertir el barrido",
     ["The shade grows back as the aura runs out, so a nearly clear icon means it is nearly gone."] = "La sombra vuelve a crecer mientras el aura se agota, así que un icono casi limpio significa que ya casi ha terminado.",
+    -- Character panel: socket overwrite confirmation
+    ["Replace %s with %s? The gem that comes out is destroyed."] = "¿Reemplazar %s por %s? La gema que sale se destruye.",
+    ["That socket has changed — nothing was socketed."] = "Ese engarce ha cambiado — no se engarzó nada.",
+    ["Click to replace the gem — the old one is destroyed."] = "Haz clic para reemplazar la gema — la anterior se destruye.",
+    ["Ask before overwriting a gem"] = "Preguntar antes de sobrescribir una gema",
+    ["A click on a socket that already holds a gem asks first — putting a gem in destroys the one that comes out."] = "Un clic en un engarce que ya tiene una gema pregunta primero — engarzar una gema destruye la que sale.",
+    -- Loadouts: equipping straight out of the bank
+    ["%d of them came out of the bank."] = "%d de ellos salieron del banco.",
+    ["in the bank — open the bank window to equip it"] = "en el banco — abre la ventana del banco para equiparlo",
 } end
 
 ns:RegisterLocale("esES", T)

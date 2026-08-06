@@ -3443,4 +3443,13 @@ ns:RegisterLocale("frFR", function() return {
     -- Nameplates: reverse aura swipe
     ["Reverse the swipe"] = "Inverser le balayage",
     ["The shade grows back as the aura runs out, so a nearly clear icon means it is nearly gone."] = "L'ombre revient à mesure que l'aura s'épuise : une icône presque dégagée signifie donc qu'elle est presque terminée.",
+    -- Character panel: socket overwrite confirmation
+    ["Replace %s with %s? The gem that comes out is destroyed."] = "Remplacer %s par %s ? La gemme retirée est détruite.",
+    ["That socket has changed — nothing was socketed."] = "Cette châsse a changé — rien n’a été serti.",
+    ["Click to replace the gem — the old one is destroyed."] = "Cliquez pour remplacer la gemme — l’ancienne est détruite.",
+    ["Ask before overwriting a gem"] = "Demander avant d’écraser une gemme",
+    ["A click on a socket that already holds a gem asks first — putting a gem in destroys the one that comes out."] = "Un clic sur une châsse qui contient déjà une gemme demande d’abord — sertir une gemme détruit celle qui en sort.",
+    -- Loadouts: equipping straight out of the bank
+    ["%d of them came out of the bank."] = "%d d’entre eux sortaient de la banque.",
+    ["in the bank — open the bank window to equip it"] = "à la banque — ouvrez la fenêtre de la banque pour l’équiper",
 } end)

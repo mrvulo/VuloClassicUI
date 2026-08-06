@@ -107,6 +107,10 @@ local function barWanted()
     return cpOpt("showSocketBar", true) and true or false
 end
 
+local function confirmWanted()
+    return cpOpt("confirmSocketOverwrite", true) and true or false
+end
+
 --------------------------------------------------------------------------------
 --  Reading the sockets
 --------------------------------------------------------------------------------
@@ -384,6 +388,88 @@ local function onSocketInfoUpdate()
 end
 
 --------------------------------------------------------------------------------
+--  Overwriting a socket that already holds a gem
+--------------------------------------------------------------------------------
+-- Socketing over a gem DESTROYS the one that comes out, and the strip puts that
+-- one click away -- so a gemmed socket asks first.
+--
+-- What is remembered is the slot, the socket index and the gem that was in it,
+-- never the record the click came from: the dialog outlives that click, and
+-- every bag or equipment event throws the whole record list away and builds a
+-- new one. At accept time the socket is read again from the live item link, and
+-- the action is dropped when it no longer holds what the question was about --
+-- otherwise a gear swap under a standing dialog would answer for a socket the
+-- player never looked at.
+local overwrite   -- { slot, index, gemItemID, hadGemID }
+
+-- The link where the client has one: it carries the quality colour, and the
+-- question is much easier to read in the two gem colours than in bare names.
+local function gemLabel(id)
+    if not id then return UNKNOWN or "?" end
+    local name, link = GetItemInfo(id)
+    return link or name or (UNKNOWN or "?")
+end
+
+local function acceptOverwrite()
+    local o = overwrite
+    overwrite = nil
+    if not o then return end
+
+    local link = GetInventoryItemLink("player", o.slot)
+    if not link or gemIDAt(link, o.index) ~= o.hadGemID then
+        ns:Print(L["That socket has changed — nothing was socketed."])
+        return
+    end
+    -- A fresh minimal record on purpose: doSocket only reads slot and index, and
+    -- the one from the click may long have been replaced by a rebuild.
+    doSocket({ slot = o.slot, index = o.index }, o.gemItemID)
+end
+
+ns.OnLocaleReady(function()
+    StaticPopupDialogs["VCUI_SOCKET_OVERWRITE"] = {
+        text           = L["Replace %s with %s? The gem that comes out is destroyed."],
+        button1        = YES or "Yes",
+        button2        = NO or "No",
+        timeout        = 0,
+        whileDead      = true,
+        hideOnEscape   = true,
+        preferredIndex = 3,
+        OnAccept = acceptOverwrite,
+        -- Every other way out of the dialog drops the action. Left standing it
+        -- would be armed for the NEXT confirmation, whose accept would then
+        -- socket a gem the player did not pick.
+        OnCancel = function() overwrite = nil end,
+        OnHide   = function() overwrite = nil end,
+    }
+end)
+
+-- The one door from the picker into the socketing sequence: an empty socket goes
+-- straight through, a gemmed one only through the question.
+local function requestSocket(rec, gemItemID)
+    if not (rec.gemID and confirmWanted()) then
+        doSocket(rec, gemItemID)
+        return
+    end
+
+    overwrite = {
+        slot      = rec.slot,
+        index     = rec.index,
+        gemItemID = gemItemID,
+        hadGemID  = rec.gemID,
+    }
+    -- No dialog to ask with (the registration runs on locale ready, and a client
+    -- without StaticPopup would never get one): the click still does what it
+    -- says rather than dying silently.
+    if not (StaticPopupDialogs and StaticPopupDialogs["VCUI_SOCKET_OVERWRITE"]
+        and StaticPopup_Show) then
+        acceptOverwrite()
+        return
+    end
+    if picker then picker:Hide() end
+    StaticPopup_Show("VCUI_SOCKET_OVERWRITE", gemLabel(rec.gemID), gemLabel(gemItemID))
+end
+
+--------------------------------------------------------------------------------
 --  The gem picker
 --------------------------------------------------------------------------------
 local gemButtons = {}
@@ -498,7 +584,7 @@ local function acquireGemButton(i)
     btn:SetScript("OnLeave", function() ns.UI:HideTooltip() end)
     btn:SetScript("OnClick", function(self)
         if not (picker and picker.rec and self.itemID) then return end
-        doSocket(picker.rec, self.itemID)
+        requestSocket(picker.rec, self.itemID)
     end)
 
     gemButtons[i] = btn
@@ -608,6 +694,12 @@ local function acquireIcon(i)
         if not ns.UI:OpenTooltip(self, "ANCHOR_RIGHT") then return end
         if rec.gemID then
             GameTooltip:SetHyperlink("item:" .. rec.gemID)
+            -- The strip has always let a gemmed socket be clicked; until now
+            -- nothing said so, and nothing said what it costs.
+            if CAN_SOCKET then
+                GameTooltip:AddLine(L["Click to replace the gem — the old one is destroyed."],
+                    0.7, 0.7, 0.75, true)
+            end
         else
             GameTooltip:AddLine(L["Empty socket"], 1, 1, 1)
             if CAN_SOCKET then

@@ -3294,4 +3294,13 @@ ns:RegisterLocale("ruRU", function() return {
     -- Nameplates: reverse aura swipe
     ["Reverse the swipe"] = "Обратить затемнение",
     ["The shade grows back as the aura runs out, so a nearly clear icon means it is nearly gone."] = "Тень нарастает по мере того, как эффект заканчивается: почти чистый значок означает, что он почти прошёл.",
+    -- Character panel: socket overwrite confirmation
+    ["Replace %s with %s? The gem that comes out is destroyed."] = "Заменить %s на %s? Извлечённый самоцвет будет уничтожен.",
+    ["That socket has changed — nothing was socketed."] = "Это гнездо изменилось — ничего не вставлено.",
+    ["Click to replace the gem — the old one is destroyed."] = "Щёлкните, чтобы заменить самоцвет — старый будет уничтожен.",
+    ["Ask before overwriting a gem"] = "Спрашивать перед заменой самоцвета",
+    ["A click on a socket that already holds a gem asks first — putting a gem in destroys the one that comes out."] = "Щелчок по гнезду, в котором уже есть самоцвет, сначала спросит — вставка самоцвета уничтожает тот, что извлекается.",
+    -- Loadouts: equipping straight out of the bank
+    ["%d of them came out of the bank."] = "Из них %d взято из банка.",
+    ["in the bank — open the bank window to equip it"] = "в банке — откройте окно банка, чтобы надеть",
 } end)

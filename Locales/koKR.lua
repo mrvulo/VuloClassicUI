@@ -3294,4 +3294,13 @@ ns:RegisterLocale("koKR", function() return {
     -- Nameplates: reverse aura swipe
     ["Reverse the swipe"] = "쓸어내기 방향 반대로",
     ["The shade grows back as the aura runs out, so a nearly clear icon means it is nearly gone."] = "효과가 끝나갈수록 그림자가 다시 차오릅니다. 아이콘이 거의 깨끗해 보이면 거의 끝났다는 뜻입니다.",
+    -- Character panel: socket overwrite confirmation
+    ["Replace %s with %s? The gem that comes out is destroyed."] = "%s을(를) %s(으)로 교체할까요? 빠지는 보석은 파괴됩니다.",
+    ["That socket has changed — nothing was socketed."] = "그 홈이 변경되었습니다 — 아무것도 박지 않았습니다.",
+    ["Click to replace the gem — the old one is destroyed."] = "클릭하면 보석을 교체합니다 — 기존 보석은 파괴됩니다.",
+    ["Ask before overwriting a gem"] = "보석을 덮어쓰기 전에 확인",
+    ["A click on a socket that already holds a gem asks first — putting a gem in destroys the one that comes out."] = "이미 보석이 박힌 홈을 클릭하면 먼저 확인합니다 — 보석을 박으면 빠지는 보석이 파괴됩니다.",
+    -- Loadouts: equipping straight out of the bank
+    ["%d of them came out of the bank."] = "그중 %d개는 은행에서 꺼냈습니다.",
+    ["in the bank — open the bank window to equip it"] = "은행에 있음 — 착용하려면 은행 창을 여세요",
 } end)

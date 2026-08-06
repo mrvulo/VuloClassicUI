@@ -3287,4 +3287,13 @@ ns:RegisterLocale("zhTW", function() return {
     -- Nameplates: reverse aura swipe
     ["Reverse the swipe"] = "反向掃描",
     ["The shade grows back as the aura runs out, so a nearly clear icon means it is nearly gone."] = "陰影會隨著光環接近結束重新長回來，因此圖示幾乎乾淨時就表示快要結束了。",
+    -- Character panel: socket overwrite confirmation
+    ["Replace %s with %s? The gem that comes out is destroyed."] = "將 %s 替換為 %s？取出的寶石會被銷毀。",
+    ["That socket has changed — nothing was socketed."] = "該插槽已變動 — 未鑲嵌任何寶石。",
+    ["Click to replace the gem — the old one is destroyed."] = "點擊以替換寶石 — 原本的寶石會被銷毀。",
+    ["Ask before overwriting a gem"] = "覆寫寶石前先詢問",
+    ["A click on a socket that already holds a gem asks first — putting a gem in destroys the one that comes out."] = "點擊已鑲嵌寶石的插槽會先詢問 — 鑲嵌新寶石會銷毀被取出的寶石。",
+    -- Loadouts: equipping straight out of the bank
+    ["%d of them came out of the bank."] = "其中 %d 件來自銀行。",
+    ["in the bank — open the bank window to equip it"] = "在銀行中 — 開啟銀行視窗才能裝備",
 } end)

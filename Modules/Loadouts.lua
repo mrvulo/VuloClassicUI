@@ -104,14 +104,38 @@ end
 
 local _bankOpen = false
 local _snapPending = false
-local function snapshotBank()
-    local store = bankItems()
-    wipe(store)
+
+-- The bank's own container plus its bag slots. Built from the globals so a
+-- client with a different bank size contributes what it has.
+local function bankBagList()
     local bags = { _G.BANK_CONTAINER or -1 }
     for i = 1, (_G.NUM_BANKBAGSLOTS or 6) do
         bags[#bags + 1] = (_G.NUM_BAG_SLOTS or 4) + i
     end
-    for _, bag in ipairs(bags) do
+    return bags
+end
+
+-- Only answerable while the bank window is open: the bank containers read as
+-- empty otherwise, which is why the snapshot below exists for the markers. Gated
+-- on the EVENT, not on BankFrame:IsShown() -- the bank module hides Blizzard's
+-- window and puts its own up, while the session that makes the containers
+-- readable runs from BANKFRAME_OPENED to BANKFRAME_CLOSED either way.
+local function findItemInBank(targetItemID)
+    if not (_bankOpen and GetContainerItemID and GetContainerNumSlots) then return nil end
+    for _, bag in ipairs(bankBagList()) do
+        for slot = 1, (GetContainerNumSlots(bag) or 0) do
+            if GetContainerItemID(bag, slot) == targetItemID then
+                return bag, slot
+            end
+        end
+    end
+    return nil
+end
+
+local function snapshotBank()
+    local store = bankItems()
+    wipe(store)
+    for _, bag in ipairs(bankBagList()) do
         for slot = 1, (GetContainerNumSlots(bag) or 0) do
             local id = GetContainerItemID(bag, slot)
             if id then store[id] = true end
@@ -233,40 +257,56 @@ function ns.ItemSetMembership(itemID)
     if t and #t > 0 then return table.concat(t, ", ") end
 end
 
--- TooltipDataProcessor when available, else the classic hook — never both, or the line doubles up.
+-- BOTH mechanisms, deduped -- not whichever one the client appears to have.
+-- Picking by "is the table there" is what kept this line off the screen on
+-- Anniversary: TooltipDataProcessor EXISTS on that client and its post-call
+-- never fires (the same trap General.lua notes for unit tooltips), so the branch
+-- that would have worked was never installed and no set line ever appeared.
+-- General.lua's own item annotation belts both ways for exactly this reason.
+--
+-- The dedupe key is the item LINK, not a flag: OnTooltipSetItem fires twice per
+-- fill on the older clients, and whichever mechanism gets there second finds the
+-- link already annotated. Cleared on OnTooltipCleared, so the same item is
+-- annotated again on the next hover.
 local _tipHooked = false
 local function installSetTooltip()
     if _tipHooked then return end
     _tipHooked = true
+
     local function annotate(tip)
-        if not mod.active or not tip or tip ~= GameTooltip and tip ~= ItemRefTooltip then return end
+        if not mod.active or not tip then return end
+        if tip ~= GameTooltip and tip ~= ItemRefTooltip then return end
         if not tip.GetItem then return end
         local ok, _, link = pcall(tip.GetItem, tip)
         if not ok or not link then return end
+        if tip._vcuiSetLink == link then return end
         local sets = ns.ItemSetMembership(getItemIDFromLink(link))
-        if sets then
-            tip:AddLine(string.format(L["Part of set: %s"], sets),
-                ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
-            tip:Show()
-        end
+        if not sets then return end
+        -- Only ever set where a line actually went in, so an item in no set does
+        -- not block the next fill of the same tooltip.
+        tip._vcuiSetLink = link
+        tip:AddLine(string.format(L["Part of set: %s"], sets),
+            ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
+        tip:Show()
     end
+
+    local function onCleared(tip) tip._vcuiSetLink = nil end
+
+    -- pcall'd per script name: the newer clients dropped OnTooltipSetItem
+    -- entirely, and hooking a script a frame does not have is an error, not a
+    -- no-op. There the post-call below is the one that carries the line.
+    local function hookTip(tip)
+        if not (tip and tip.HookScript) then return end
+        pcall(tip.HookScript, tip, "OnTooltipSetItem", annotate)
+        pcall(tip.HookScript, tip, "OnTooltipCleared", onCleared)
+    end
+    hookTip(GameTooltip)
+    hookTip(ItemRefTooltip)
+
     if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall
        and Enum and Enum.TooltipDataType and Enum.TooltipDataType.Item then
-        TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, annotate)
-    elseif GameTooltip and GameTooltip.HookScript then
-        -- OnTooltipSetItem can fire twice per fill on classic — dedupe until cleared
-        local function annotateOnce(tip)
-            if tip._vcuiSetLineDone then return end
-            tip._vcuiSetLineDone = true
-            annotate(tip)
-        end
-        local function onCleared(tip) tip._vcuiSetLineDone = nil end
-        pcall(GameTooltip.HookScript, GameTooltip, "OnTooltipSetItem", annotateOnce)
-        pcall(GameTooltip.HookScript, GameTooltip, "OnTooltipCleared", onCleared)
-        if ItemRefTooltip and ItemRefTooltip.HookScript then
-            pcall(ItemRefTooltip.HookScript, ItemRefTooltip, "OnTooltipSetItem", annotateOnce)
-            pcall(ItemRefTooltip.HookScript, ItemRefTooltip, "OnTooltipCleared", onCleared)
-        end
+        pcall(TooltipDataProcessor.AddTooltipPostCall,
+            Enum.TooltipDataType.Item, annotate)
     end
 end
 
@@ -387,7 +427,7 @@ local function equipLoadout(name)
         return
     end
 
-    local swapped, missing = 0, 0
+    local swapped, missing, fromBank = 0, 0, 0
     local failedLinks = {}
     -- Ascending order so paired slots (11/12, 13/14) resolve predictably.
     local sortedSlots = {}
@@ -400,14 +440,33 @@ local function equipLoadout(name)
         if currentLink ~= link then
             local itemID = getItemIDFromLink(link)
             if itemID then
+                -- The bags first, then the bank -- and the bank only while it is
+                -- open. A piece lying in the bank was counted as missing until
+                -- now, which meant standing AT the bank and still being told the
+                -- set could not be equipped. The cursor route is the same one a
+                -- drag from the bank onto a paper-doll slot takes.
                 local bag, bagSlot = findItemInBags(itemID)
+                local viaBank = false
+                if not bag then
+                    bag, bagSlot = findItemInBank(itemID)
+                    viaBank = bag and true or false
+                end
                 if bag and bagSlot then
                     local ok = ns:EquipBagItemToSlot(bag, bagSlot, slot)
-                    if not ok and UseContainerItem then
+                    -- The fallback is for BAG slots only. On a bank slot
+                    -- UseContainerItem does not equip anything -- it MOVES the
+                    -- item into the bags -- so counting it as swapped would
+                    -- report an equip that never happened and leave the piece
+                    -- lying in a bag.
+                    if not ok and not viaBank and UseContainerItem then
                         ok = pcall(UseContainerItem, bag, bagSlot)
                     end
-                    if ok then swapped = swapped + 1
-                    else missing = missing + 1; failedLinks[#failedLinks + 1] = link end
+                    if ok then
+                        swapped = swapped + 1
+                        if viaBank then fromBank = fromBank + 1 end
+                    else
+                        missing = missing + 1; failedLinks[#failedLinks + 1] = link
+                    end
                 else
                     missing = missing + 1
                     failedLinks[#failedLinks + 1] = link
@@ -430,11 +489,22 @@ local function equipLoadout(name)
         ns:Print(string.format(L["Loadout '%s' already equipped."], name))
     end
 
+    -- Its own line rather than a fourth wording of the summary above: the three
+    -- there are already translated nine times over, and this one is additional
+    -- information, not a different outcome.
+    if fromBank > 0 then
+        ns:Print(string.format(L["%d of them came out of the bank."], fromBank))
+    end
+
     for _, flink in ipairs(failedLinks) do
         local a = itemAvailability(flink)
         local whereTxt
         if a == "bank" then
-            whereTxt = L["in the bank"]
+            -- With the bank open the piece was reachable and the attempt still
+            -- failed; with it closed there is something the player can do about
+            -- it, so say so instead of only naming the place.
+            whereTxt = _bankOpen and L["in the bank"]
+                or L["in the bank — open the bank window to equip it"]
         elseif a == "bags" or a == "equipped" then
             whereTxt = L["in bags, equip failed"]
         else
