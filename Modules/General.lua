@@ -6480,6 +6480,16 @@ local function removeFix()
     installed, origRole = false, nil
 end
 
+-- Asks the CLIENT, not our own state. While the shim is in, the global is our
+-- closure and would answer for it, so the original is asked instead. Reading and
+-- calling it from here is harmless: this runs when the options page is drawn, in
+-- our own execution -- it is WRITING the global that marks it.
+local function apiWorks()
+    local f = origRole or _G.GetSpecializationRole
+    if type(f) ~= "function" then return true end   -- Era: global absent, error path can't occur
+    return (pcall(f, 1))
+end
+
 function mod:OnEnable()
     installFix()
 end
@@ -6495,8 +6505,15 @@ function mod:GetOptions()
         { type = "spacer", height = 6 },
         { type = "desc", text = L["|cffff7777What it costs, and why this is off unless you switch it on: the answer has to sit on a name the client's own protected code reads, which hands the party and raid frames to this addon for the rest of the session. In combat they then refuse to resize and name this addon while doing it. Switching it back off stops it happening again but does not undo the session it already happened in - that takes a reload.|r"] },
         { type = "spacer", height = 6 },
+        -- Three states, not two. While the module was on by default, "not
+        -- installed" could only mean the client accepts the call. Off by
+        -- default it mostly means the player left it off, and answering
+        -- "not needed on this client" to that is a lie that contradicts the
+        -- paragraph above it (user screenshot, 08.08.2026).
         { type = "desc", text = string.format(L["|cffaaaaaaStatus: %s|r"],
-            installed and L["|cff66ff66applied|r"] or L["not needed on this client"]) },
+            installed and L["|cff66ff66applied|r"]
+            or (apiWorks() and L["not needed on this client"]
+                or L["not applied - this client does reject the call, so the error is firing"])) },
     }
 end
 
