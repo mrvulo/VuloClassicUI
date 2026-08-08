@@ -265,12 +265,14 @@ local ILVL_Y_OFFSET  = 4
 -- -3, not -8: the wrist line hung too far below its slot against the rest of
 -- the left column (user report, 04.08.2026).
 local WRIST_ENCH_Y   = -3
--- The weapon row has been eyeballed twice from opposite sides. 6 sat visibly
--- below the slot's middle ("30 Heal 10 Spell" hugging the bottom, 31.07.2026),
--- 14 then rode too high (04.08.2026). 8 is between them, nearer the low end
--- because the complaint about 6 was that it looked detached, not that it
--- collided with anything.
-local WEAPON_ENCH_Y  = 8
+-- The weapon line sits ABOVE its slot, and that ended a search rather than
+-- continuing it: BESIDE the slot the distance was eyeballed three times (6 hugged
+-- the bottom 31.07.2026, 14 rode too high 04.08.2026, 8 sat between them) and
+-- none of them could work, because beside a weapon there is the next weapon and
+-- the left column's own text. Over the weapon row the paper doll is empty
+-- (user request 06.08.2026). Small on purpose: the line belongs to the slot under
+-- it, and air between the two would hand it to the model instead.
+local WEAPON_ENCH_ABOVE = 3
 
 local SOCKET_SIZE = 11
 local SOCKET_GAP  = 2
@@ -902,11 +904,22 @@ local function positionCenter(button)
 
 	f.enchantDisplay:ClearAllPoints()
 
-	if button:GetID() == INVSLOT_MAINHAND then
-		f.enchantDisplay:SetPoint("BOTTOMRIGHT", button, "BOTTOMLEFT", -5, WEAPON_ENCH_Y)
-	else
-		f.enchantDisplay:SetPoint("BOTTOMLEFT", button, "BOTTOMRIGHT", 5, WEAPON_ENCH_Y)
-	end
+	-- Centred over its own slot, so there is no side to pick any more: the main
+	-- hand used to write leftwards into the left column and the other two
+	-- rightwards into each other.
+	--
+	-- Bounded to the slot's width plus the gap to its neighbour, and wrapping:
+	-- the line may be up to eighteen characters, so two enchanted weapons wrote
+	-- across each other as soon as both had something to say. The BOTTOM anchor
+	-- is what makes the bound harmless -- extra lines stack UPWARD into the empty
+	-- model area, and the first line stays right over the slot however many there
+	-- are.
+	local w = button:GetWidth()
+	if not w or w < 1 then w = 37 end
+	f.enchantDisplay:SetWidth(w + 4)
+	f.enchantDisplay:SetJustifyH("CENTER")
+	f.enchantDisplay:SetWordWrap(true)
+	f.enchantDisplay:SetPoint("BOTTOM", button, "TOP", 0, WEAPON_ENCH_ABOVE)
 end
 
 local function AnchorAdditionalDisplay(button)
