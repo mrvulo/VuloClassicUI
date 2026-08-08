@@ -487,7 +487,10 @@ local function equipLoadout(name)
                 -- open. A piece lying in the bank was counted as missing until
                 -- now, which meant standing AT the bank and still being told the
                 -- set could not be equipped. The cursor route is the same one a
-                -- drag from the bank onto a paper-doll slot takes.
+                -- drag from the bank onto a paper-doll slot takes -- and that the
+                -- server really allows that out of a BANK slot is measured now
+                -- rather than assumed: tried in the game on 06.08.2026, it
+                -- equips. No detour over the bags is needed, so none is built.
                 local bag, bagSlot = findItemInBags(itemID, want)
                 local viaBank = false
                 if not bag then
