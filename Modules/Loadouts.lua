@@ -42,6 +42,7 @@ end
 
 -- API compat: Anniversary moved container APIs into C_Container.
 local GetContainerItemID    = (C_Container and C_Container.GetContainerItemID)    or _G.GetContainerItemID
+local GetContainerItemLink  = (C_Container and C_Container.GetContainerItemLink)  or _G.GetContainerItemLink
 local GetContainerNumSlots  = (C_Container and C_Container.GetContainerNumSlots)  or _G.GetContainerNumSlots
 local UseContainerItem      = (C_Container and C_Container.UseContainerItem)      or _G.UseContainerItem
 
@@ -84,17 +85,39 @@ local function captureCurrentEquipment(slotList)
     return set
 end
 
-local function findItemInBags(targetItemID)
+-- Item id plus SUFFIX, which is what separates the ring "of the Owl" from the
+-- one "of the Bear": both carry the same item id, so an id-only search picks
+-- whichever lies further left in the bags and calls it a hit.
+--
+-- Deliberately NOT the enchant or the gems, although the link carries them: those
+-- change over an item's life, and a set saved before an enchant would suddenly
+-- report its own item as missing. The suffix never changes.
+local function itemVariant(link)
+    if not link then return nil end
+    local s = link:match("item[%-?%d:]+")
+    if not s then return nil end
+    local f = { strsplit(":", s) }
+    return (f[2] or "") .. ":" .. (f[8] or "")
+end
+
+-- The exact variant wins; an id match is kept as a fallback so nothing that was
+-- found before is reported missing now. Only the fallback path pays for reading
+-- the link, and only for slots whose id already matched.
+local function findItemInBags(targetItemID, wantVariant)
     if not GetContainerItemID or not GetContainerNumSlots then return nil end
+    local anyBag, anySlot
     for bag = 0, (NUM_BAG_SLOTS or 4) do
         local slots = GetContainerNumSlots(bag) or 0
         for slot = 1, slots do
             if GetContainerItemID(bag, slot) == targetItemID then
-                return bag, slot
+                if not wantVariant then return bag, slot end
+                local l = GetContainerItemLink and GetContainerItemLink(bag, slot)
+                if itemVariant(l) == wantVariant then return bag, slot end
+                if not anyBag then anyBag, anySlot = bag, slot end
             end
         end
     end
-    return nil
+    return anyBag, anySlot
 end
 
 -- Bank contents are snapshotted while the bank is open so "in the bank" stays answerable anywhere.
@@ -120,16 +143,20 @@ end
 -- on the EVENT, not on BankFrame:IsShown() -- the bank module hides Blizzard's
 -- window and puts its own up, while the session that makes the containers
 -- readable runs from BANKFRAME_OPENED to BANKFRAME_CLOSED either way.
-local function findItemInBank(targetItemID)
+local function findItemInBank(targetItemID, wantVariant)
     if not (_bankOpen and GetContainerItemID and GetContainerNumSlots) then return nil end
+    local anyBag, anySlot
     for _, bag in ipairs(bankBagList()) do
         for slot = 1, (GetContainerNumSlots(bag) or 0) do
             if GetContainerItemID(bag, slot) == targetItemID then
-                return bag, slot
+                if not wantVariant then return bag, slot end
+                local l = GetContainerItemLink and GetContainerItemLink(bag, slot)
+                if itemVariant(l) == wantVariant then return bag, slot end
+                if not anyBag then anyBag, anySlot = bag, slot end
             end
         end
     end
-    return nil
+    return anyBag, anySlot
 end
 
 local function snapshotBank()
@@ -276,9 +303,21 @@ local function installSetTooltip()
     local function annotate(tip)
         if not mod.active or not tip then return end
         if tip ~= GameTooltip and tip ~= ItemRefTooltip then return end
-        if not tip.GetItem then return end
-        local ok, _, link = pcall(tip.GetItem, tip)
-        if not ok or not link then return end
+        -- Two ways to ask what the tooltip is showing, probed in order: the
+        -- method is the classic one, and the newer clients moved it out to
+        -- TooltipUtil and dropped it. Only one of them is a special case if we
+        -- pick -- and picking is what kept this line off the screen here in the
+        -- first place.
+        local link
+        if tip.GetItem then
+            local ok, _, l = pcall(tip.GetItem, tip)
+            if ok then link = l end
+        end
+        if not link and TooltipUtil and TooltipUtil.GetDisplayedItem then
+            local ok, _, l = pcall(TooltipUtil.GetDisplayedItem, tip)
+            if ok then link = l end
+        end
+        if not link then return end
         if tip._vcuiSetLink == link then return end
         local sets = ns.ItemSetMembership(getItemIDFromLink(link))
         if not sets then return end
@@ -437,7 +476,11 @@ local function equipLoadout(name)
     for _, slot in ipairs(sortedSlots) do
         local link = loadout.slots[slot]
         local currentLink = GetInventoryItemLink("player", slot)
-        if currentLink ~= link then
+        -- By VARIANT, not by raw link: a stored link carries a unique id that the
+        -- same physical item does not keep, so the comparison said "different"
+        -- for the very item the set meant and re-equipped it for nothing.
+        local want = itemVariant(link)
+        if itemVariant(currentLink) ~= want then
             local itemID = getItemIDFromLink(link)
             if itemID then
                 -- The bags first, then the bank -- and the bank only while it is
@@ -445,10 +488,10 @@ local function equipLoadout(name)
                 -- now, which meant standing AT the bank and still being told the
                 -- set could not be equipped. The cursor route is the same one a
                 -- drag from the bank onto a paper-doll slot takes.
-                local bag, bagSlot = findItemInBags(itemID)
+                local bag, bagSlot = findItemInBags(itemID, want)
                 local viaBank = false
                 if not bag then
-                    bag, bagSlot = findItemInBank(itemID)
+                    bag, bagSlot = findItemInBank(itemID, want)
                     viaBank = bag and true or false
                 end
                 if bag and bagSlot then

@@ -447,14 +447,24 @@ local function applyRealHealth(bar)
     end
 end
 
+-- OUR writer, never Blizzard's updater.
+--
+-- Running Blizzard's updater from our stack is exactly what stamps the bars'
+-- text-state members with addon taint, and when Blizzard's own code later reads
+-- them the whole execution turns insecure -- the burn is written out at the
+-- applyAll comment further down (user report 31.07.2026). That fix only ever
+-- reached applyAll: this second call site kept doing it for the target and focus
+-- bars, on every enable, every loading screen and every option change in this
+-- module. The pcall around it laundered nothing -- it swallows errors, not taint.
+--
+-- The permanent path is the hooksecurefunc on the bars' updater, which is
+-- Blizzard calling US and therefore clean. This is only the one repaint that
+-- would otherwise wait for the next health tick, so it may just as well write
+-- the text itself. applyRealHealth gates on the module and the option, and a
+-- missing bar falls out of it unharmed.
 local function refreshHealth()
-    local function up(bar)
-        if not bar then return end
-        if bar.UpdateTextString then pcall(bar.UpdateTextString, bar)
-        elseif _G.TextStatusBar_UpdateTextString then pcall(_G.TextStatusBar_UpdateTextString, bar) end
-    end
-    up(_G.TargetFrameHealthBar)
-    up(_G.FocusFrameHealthBar)
+    applyRealHealth(_G.TargetFrameHealthBar)
+    applyRealHealth(_G.FocusFrameHealthBar)
 end
 
 local hooked, realHealthHooked, anchorHooked = false, false, false
@@ -556,7 +566,10 @@ function mod:OnDisable()
         local b = borderTexOf(frame); if b then b:SetVertexColor(1, 1, 1) end
         if classIcons[frame] then classIcons[frame]:Hide() end
     end
-    refreshHealth()
+    -- No repaint on the way out. Ours is already gone the moment the module is
+    -- inactive, and the only thing left to restore is BLIZZARD's own text --
+    -- which we may not fetch by running its updater from here. It comes back by
+    -- itself on the next UNIT_HEALTH tick, which follows within a beat.
     -- Hooks cannot be removed; they stay installed and gate on mod.active.
 end
 

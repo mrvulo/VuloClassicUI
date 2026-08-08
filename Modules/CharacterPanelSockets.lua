@@ -276,10 +276,20 @@ local function doSocket(rec, gemItemID)
     end
 
     -- The item name is read BEFORE the call, so the update handler can prove the
-    -- session it is looking at is the one this click asked for.
+    -- session it is looking at is the one this click asked for. Where the client
+    -- cannot name the item -- GetItemInfo answers nil for an uncached one, which
+    -- an EQUIPPED item practically never is -- the proof degrades to "some
+    -- session is open", and the guard rests on the token timeout instead.
     local wantName
-    if GetItemInfo then
-        wantName = GetItemInfo(GetInventoryItemLink("player", rec.slot) or "")
+    local wantLink = GetInventoryItemLink("player", rec.slot)
+    if wantLink then
+        if GetItemInfo then wantName = GetItemInfo(wantLink) end
+        -- The link carries the display name in its brackets and needs no cache
+        -- for it. That closes the hole the comment above used to paper over:
+        -- with no name there was nothing to compare, the proof fell back to
+        -- "some session is open", and a session the PLAYER opened by hand inside
+        -- the stale window would have been socketed and accepted for them.
+        if not wantName then wantName = wantLink:match("%[(.-)%]") end
     end
 
     local token = (pendingToken or 0) + 1
@@ -350,7 +360,13 @@ local function onSocketInfoUpdate()
     end
     if GetSocketItemInfoFn then
         local sessionName = GetSocketItemInfoFn()
-        if not sessionName or (pending.itemName and sessionName ~= pending.itemName) then
+        -- BOTH names have to be known and equal. The old test let a nameless
+        -- action through on any named session, which is not proof of anything --
+        -- it is the difference between "this is the item I asked for" and "a
+        -- window is open". Refusing costs nothing: the action clears itself on
+        -- the timeout, and the click can simply be repeated.
+        if not sessionName or not pending.itemName
+            or sessionName ~= pending.itemName then
             return
         end
     elseif not ourSession then
@@ -400,7 +416,16 @@ end
 -- the action is dropped when it no longer holds what the question was about --
 -- otherwise a gear swap under a standing dialog would answer for a socket the
 -- player never looked at.
-local overwrite   -- { slot, index, gemItemID, hadGemID }
+local overwrite   -- { slot, index, gemItemID, hadGemID, hadItemID }
+
+-- The equipped item's own id, so the re-check below can tell a swapped item from
+-- the one the question was asked about. The gem alone is not enough: two items in
+-- the same slot can carry the same gem in the same socket index, and that pair
+-- would pass a gem-only comparison.
+local function itemIDAt(link)
+    if not link then return nil end
+    return tonumber(link:match("item:(%d+)"))
+end
 
 -- The link where the client has one: it carries the quality colour, and the
 -- question is much easier to read in the two gem colours than in bare names.
@@ -416,7 +441,8 @@ local function acceptOverwrite()
     if not o then return end
 
     local link = GetInventoryItemLink("player", o.slot)
-    if not link or gemIDAt(link, o.index) ~= o.hadGemID then
+    if not link or itemIDAt(link) ~= o.hadItemID
+        or gemIDAt(link, o.index) ~= o.hadGemID then
         ns:Print(L["That socket has changed — nothing was socketed."])
         return
     end
@@ -451,22 +477,36 @@ local function requestSocket(rec, gemItemID)
         return
     end
 
-    overwrite = {
+    local ask = {
         slot      = rec.slot,
         index     = rec.index,
         gemItemID = gemItemID,
         hadGemID  = rec.gemID,
+        hadItemID = itemIDAt(GetInventoryItemLink("player", rec.slot)),
     }
+
     -- No dialog to ask with (the registration runs on locale ready, and a client
     -- without StaticPopup would never get one): the click still does what it
     -- says rather than dying silently.
     if not (StaticPopupDialogs and StaticPopupDialogs["VCUI_SOCKET_OVERWRITE"]
         and StaticPopup_Show) then
+        overwrite = ask
         acceptOverwrite()
         return
     end
     if picker then picker:Hide() end
-    StaticPopup_Show("VCUI_SOCKET_OVERWRITE", gemLabel(rec.gemID), gemLabel(gemItemID))
+
+    -- Armed only AFTER the dialog stands, never before. Asking a second question
+    -- while one is already up REUSES the same dialog, and the reuse runs the
+    -- standing one's OnCancel and OnHide first -- which would wipe a record armed
+    -- ahead of the call and leave the new question's Yes doing nothing at all,
+    -- silently.
+    local dialog = StaticPopup_Show("VCUI_SOCKET_OVERWRITE",
+        gemLabel(rec.gemID), gemLabel(gemItemID))
+    -- Every popup slot taken: nothing armed, so nothing can be answered later by
+    -- a question the player never saw.
+    if not dialog then return end
+    overwrite = ask
 end
 
 --------------------------------------------------------------------------------

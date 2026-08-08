@@ -108,6 +108,9 @@ end
 
 local popup
 local itemButtons = {}
+-- Forward: the item buttons are built long before it, and both the stale-click
+-- guard and the bag watcher have to be able to refill the picker.
+local showSlotPicker
 local BTN_SIZE = 36
 
 local function createPopup()
@@ -258,6 +261,20 @@ local function getItemButton(idx)
             return
         end
         if button == "LeftButton" and self.bag and self.slot then
+            -- The bag and slot on this button are from the moment the picker was
+            -- FILLED, and a pinned picker stands until the player closes it.
+            -- Bags move underneath: the addon's own sort button rearranges every
+            -- slot there is. Without this the click acts on whatever occupies the
+            -- position now -- the wrong ring at best, and with a merchant window
+            -- open the UseContainerItem branch below would SELL it.
+            local nowID = GetContainerItemID and GetContainerItemID(self.bag, self.slot)
+            if self.itemID and nowID ~= self.itemID then
+                ns:Print(L["Your bags moved — pick the item again."])
+                if popup.slotID then
+                    showSlotPicker(popup.slotID, popup.anchorBtn, popup._compact)
+                end
+                return
+            end
             local link = GetContainerItemLink and GetContainerItemLink(self.bag, self.slot)
             -- EquipItemByName honours the exact slot (lower ring/trinket) and keeps the BoE bind prompt
             if self.equipSlot and EquipItemByName and link then
@@ -297,13 +314,30 @@ local function applyItemLook(btn)
     btn.ilvl:SetText(lvl and lvl > 1 and tostring(lvl) or "")
 end
 
-local function showSlotPicker(slotID, anchorBtn, compact)
+showSlotPicker = function(slotID, anchorBtn, compact)
     if not GetItemInfoInstant then
         if not compact then ns:Print(L["Item scanning API not available on this client."]) end
         return
     end
 
     createPopup()
+
+    -- What is drawn follows the bags, instead of standing there as a picture of
+    -- the moment it was opened. Installed once, on first use: the handler stands
+    -- down while the picker is hidden, so it costs nothing then.
+    --
+    -- A PINNED picker is left alone on purpose: it was dragged where the player
+    -- wants it, and refilling runs the anchoring path, which would yank it back.
+    -- That one is covered by the identity check in the button's OnClick.
+    if not popup._bagWatch then
+        popup._bagWatch = true
+        popup:RegisterEvent("BAG_UPDATE_DELAYED")
+        popup:SetScript("OnEvent", function(self)
+            if not self:IsShown() or self.pinned or not self.slotID then return end
+            showSlotPicker(self.slotID, self.anchorBtn, self._compact)
+        end)
+    end
+    popup.slotID = slotID
 
     -- flyout and click picker share one pooled popup; never hijack a click popup
     if compact and popup:IsShown() and (popup.pinned or not popup._compact) then

@@ -4743,6 +4743,28 @@ local function buildWindow()
     cast:HookScript("PostClick", function()
         if current then win.countText:SetText(L["Disenchanting…"]) end
     end)
+
+    -- The only guard that still works once combat has started.
+    --
+    -- Every Lua guard around this button steps aside under lockdown -- and that
+    -- is precisely what leaves it ENABLED, carrying the bag and slot of the item
+    -- that was queued BEFORE the fight. Bags may be rearranged in combat, so one
+    -- click would disenchant whatever moved into that position: a queued green,
+    -- an epic afterwards. Clearing the attributes is no way out either, they are
+    -- protected exactly then.
+    --
+    -- A visibility driver is evaluated by the SECURE environment, so the client
+    -- hides the button itself when combat starts, with none of our code running.
+    -- What cannot be clicked cannot act on a stale target. Coming out of combat
+    -- it reappears, and the PLAYER_REGEN_ENABLED handler further down reloads the
+    -- queue, which rewrites the attributes for whatever is really lying there.
+    --
+    -- The window keeps showing the item; only the action goes away. Nothing here
+    -- worked in combat before either -- it only looked as if it did.
+    if RegisterStateDriver then
+        RegisterStateDriver(cast, "visibility", "[combat] hide; show")
+    end
+
     f.cast = cast
 
     local function tip(button, textKey)
@@ -7407,7 +7429,11 @@ local function installHooks()
             local kind = kindsByID[tonumber(data.type)]
 
             if kind == "unit" and data and data.guid then
-                local unitId = tonumber(data.guid:match("-(%d+)-%x+$"), 10)
+                -- Same order as in the legacy hook below: match first, and only
+                -- convert what the match actually returned. tonumber with a base
+                -- throws on nil rather than answering nil.
+                local unitIdStr = data.guid:match("-(%d+)-%x+$")
+                local unitId = unitIdStr and tonumber(unitIdStr, 10)
                 if unitId and data.guid:match("%a+") ~= "Player" then
                     add(tooltip, unitId, "unit")
                 else
@@ -7538,7 +7564,13 @@ local function installHooks()
         local unit = select(2, tooltip:GetUnit())
         if unit and UnitGUID then
             local guid = UnitGUID(unit) or ""
-            local id = tonumber(guid:match("-(%d+)-%x+$"), 10)
+            -- The match FIRST, then tonumber. With a base argument tonumber
+            -- demands a string and throws on nil -- and the `or ""` one line up
+            -- says outright that a missing id is expected here, which is a
+            -- guaranteed non-match. This is the hook that actually fires on
+            -- Anniversary, so the error landed in the live path.
+            local idStr = guid:match("-(%d+)-%x+$")
+            local id = idStr and tonumber(idStr, 10)
             if id and guid:match("%a+") ~= "Player" then
                 add(GameTooltip, id, "unit")
             end

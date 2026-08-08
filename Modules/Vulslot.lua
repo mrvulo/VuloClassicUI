@@ -152,11 +152,24 @@ local function sanitizeSetup(d)
     if type(d.bindings) == "table" then
         for _, b in ipairs(d.bindings) do
             if type(b) == "table" and type(b.command) == "string" and b.command ~= "" then
-                out.bindings[#out.bindings + 1] = {
-                    command = b.command,
-                    k1 = type(b.k1) == "string" and b.k1 or nil,
-                    k2 = type(b.k2) == "string" and b.k2 or nil,
-                }
+                local k1 = type(b.k1) == "string" and b.k1 or nil
+                local k2 = type(b.k2) == "string" and b.k2 or nil
+                -- A command whose keys did not survive the check is DROPPED, not
+                -- kept keyless. restoreBindings frees every listed command's
+                -- CURRENT keys in its first pass and binds back only what the
+                -- entry carries -- so a keyless entry out of a hand-made or
+                -- damaged string would strip the player's own key for that
+                -- command and then save it that way, permanently. Nothing
+                -- legitimate is lost by dropping it: snapshotBindings only ever
+                -- stores entries that have a key, so this shape cannot come out
+                -- of a setup saved here.
+                if k1 or k2 then
+                    out.bindings[#out.bindings + 1] = {
+                        command = b.command,
+                        k1 = k1,
+                        k2 = k2,
+                    }
+                end
             end
         end
     end

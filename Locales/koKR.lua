@@ -3315,4 +3315,6 @@ ns:RegisterLocale("koKR", function() return {
     ["The marker's own offset and spacing sliders take effect again. They were writing two fields of their own while the plate read the slot, so the visible control was the one without an effect. The old values move across once."] = "표식 자체의 위치와 간격 슬라이더가 다시 작동합니다. 이름판은 자리를 읽는데 슬라이더는 자체 항목 두 개에 쓰고 있어서, 눈에 보이는 설정이 아무 효과도 없는 쪽이었습니다. 옛 값은 한 번 함께 옮겨집니다.",
     ["A mark set between two aura passes lands where it belongs. Where the marker goes is worked out in the aura pass, because only that knows how far the rows on its side reach, and the plate now remembers that point for the event that shows the marker on its own."] = "두 효과 갱신 사이에 찍힌 표식도 제자리에 나타납니다. 표식의 위치는 효과 갱신에서 계산되는데, 그쪽만 같은 편의 줄이 얼마나 뻗어 있는지 알기 때문입니다. 이제 이름판이 그 지점을 기억해 표식만 따로 표시하는 상황에도 씁니다.",
     ["The cast time and the cast target show something in the preview. Both only exist for a cast that is really running on a real unit, so both stayed empty while their switches, colours and side settings stood next to them with nothing to show."] = "시전 시간과 시전 대상이 미리 보기에도 표시됩니다. 둘 다 실제 대상에게 실제로 진행되는 시전에서만 생기므로, 스위치와 색과 방향 설정이 나란히 있는데도 두 칸은 계속 비어 있었습니다.",
+    -- Slot picker: the bags moved under an open picker
+    ["Your bags moved — pick the item again."] = "가방이 바뀌었습니다 — 아이템을 다시 선택하세요.",
 } end)

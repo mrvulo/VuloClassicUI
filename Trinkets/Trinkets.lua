@@ -950,7 +950,11 @@ function Trinkets.ReflectTrinketUse(slot)
 end
 
 function Trinkets.newUseInventoryItem(slot)
-	if slot == 13 or slot == 14 and not MerchantFrame:IsVisible() then
+	-- The parentheses are the point: `and` binds tighter than `or`, so the
+	-- merchant test only ever applied to slot 14. Using the TOP trinket at a
+	-- vendor -- which is a SALE, not a use -- still armed the cooldown tracker for
+	-- an item that had just left the player's hands.
+	if (slot == 13 or slot == 14) and not MerchantFrame:IsVisible() then
 		Trinkets.ReflectTrinketUse(slot)
 	end
 end

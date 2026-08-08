@@ -1779,7 +1779,9 @@ local mod = ns.ArenaModule
 
 local DR_RESET_TIME = 18
 
--- spellId -> DR category; rank variants mostly map to the final rank only
+-- spellId -> DR category. ONE id per spell is enough and most of these are the
+-- rank-one id: the ranks are picked up by name at the gate (see drCategory), so
+-- nothing here has to be kept complete by hand.
 local DR_SPELLS = {
     [408]   = "stun",          -- Kidney Shot
     [1833]  = "stun",          -- Cheap Shot
@@ -2014,8 +2016,40 @@ function mod.RefreshDR()
     for unit in pairs(drState) do updateDRDisplay(unit) end
 end
 
-local function onAuraApplied(destUnit, spellId)
+-- Rank two and up used to be invisible to the tracker.
+--
+-- DR_SPELLS is a list of ids, and every rank of a spell has its OWN id: the table
+-- carries Polymorph 118 and Sap 6770, which are the RANK ONE ids, so the ranks a
+-- level 70 actually casts fell straight through the gate and no icon ever
+-- appeared. (The comment above the table claimed the opposite.) Writing the
+-- missing ids in by hand would be guessing at numbers I cannot verify here, and
+-- the list would go stale again with the next spell anyway.
+--
+-- So the CLIENT supplies them. Every rank of a spell shares its NAME, and
+-- GetSpellInfo answers the name for an id the client knows -- so one pass over
+-- the ids we already have yields a name table that covers every rank at once,
+-- in the client's own language, which is also the language the combat log speaks.
+-- Built on first use, not at load: spell data is not reliably readable then.
+local DR_BY_NAME
+local function drCategory(spellId, spellName)
     local cat = DR_SPELLS[spellId]
+    if cat then return cat end
+    if not spellName or not GetSpellInfo then return nil end
+    if not DR_BY_NAME then
+        DR_BY_NAME = {}
+        for id, c in pairs(DR_SPELLS) do
+            local n = GetSpellInfo(id)
+            -- First id wins for a name. Two categories under one name would be a
+            -- table bug, not a rank -- and silently picking the later one would
+            -- hide it.
+            if n and DR_BY_NAME[n] == nil then DR_BY_NAME[n] = c end
+        end
+    end
+    return DR_BY_NAME[spellName]
+end
+
+local function onAuraApplied(destUnit, spellId, spellName)
+    local cat = drCategory(spellId, spellName)
     if not cat then return end
 
     drState[destUnit] = drState[destUnit] or {}
@@ -2037,16 +2071,18 @@ local function onAuraApplied(destUnit, spellId)
 end
 
 local function onCombatLog()
-    local _, subevent, _, _, _, _, _, destGUID, _, _, _, spellId =
+    local _, subevent, _, _, _, _, _, destGUID, _, _, _, spellId, spellName =
         CombatLogGetCurrentEventInfo()
 
     if subevent ~= "SPELL_AURA_APPLIED" and subevent ~= "SPELL_AURA_REFRESH" then return end
-    if not DR_SPELLS[spellId] then return end
+    -- The same gate the handler uses, so a rank that only the NAME knows is not
+    -- dropped here before it ever gets there.
+    if not drCategory(spellId, spellName) then return end
 
     for i = 1, 5 do
         local unit = ns.ARENA_UNITS[i]
         if UnitExists(unit) and UnitGUID(unit) == destGUID then
-            onAuraApplied(unit, spellId)
+            onAuraApplied(unit, spellId, spellName)
             return
         end
     end
@@ -3616,8 +3652,10 @@ local mod = ns.ArenaModule
 local GetTime, floor, format, unpack = GetTime, math.floor, string.format, unpack
 
 -- id = { cooldown in seconds, class token, ability key }
--- The ability key groups ranks: all four ranks of one kick share it, so the
--- display never shows the same enemy ability twice.
+-- The ability key groups ranks: every rank of one kick shares it, so the display
+-- never shows the same enemy ability twice. The id lists below do NOT have to be
+-- rank-complete -- see spellDef further down, which picks up the ranks nobody
+-- wrote in by name.
 local SPELLS  = {}   -- every id that triggers the ability
 local ABILITY = {}   -- one entry per ability, carrying the id to draw
 local function put(cd, class, key, pet, ...)
@@ -3984,14 +4022,47 @@ end
 local HOSTILE = _G.COMBATLOG_OBJECT_REACTION_HOSTILE or 0x00000040
 local PLAYER  = _G.COMBATLOG_OBJECT_TYPE_PLAYER      or 0x00000400
 
+-- The ranks the lists above do not carry, resolved by NAME.
+--
+-- Every rank of a spell has its own id and shares its name, so a hand-written id
+-- list is only ever as complete as the day it was written: the top ranks of the
+-- rogue kick and the shield bash -- the ones a level 70 actually presses -- were
+-- missing, and those interrupts started no bar at all. Writing the numbers in by
+-- hand would be guessing at ids that cannot be verified from here, and the list
+-- would go stale with the next rank anyway.
+--
+-- GetSpellInfo answers the name for every id we DO carry, so one pass builds an
+-- index that covers all ranks at once, in the client's own language -- which is
+-- the language the combat log speaks. Built on first use, not at load: spell data
+-- is not reliably readable then. The ability key groups ranks already, so a hit
+-- by name lands on the same entry and the bar still draws the canonical icon.
+local BY_NAME
+local function spellDef(spellID, spellName)
+    local def = spellID and SPELLS[spellID]
+    if def then return def end
+    if not spellName or not GetSpellInfo then return nil end
+    if not BY_NAME then
+        BY_NAME = {}
+        for id, d in pairs(SPELLS) do
+            local n = GetSpellInfo(id)
+            -- First id wins for a name: within one ability every rank carries the
+            -- same cooldown, class and key, so which rank answered does not
+            -- matter -- and two ABILITIES under one name would be a list bug that
+            -- silently picking the later one would hide.
+            if n and BY_NAME[n] == nil then BY_NAME[n] = d end
+        end
+    end
+    return BY_NAME[spellName]
+end
+
 local function onCombatLog()
     if not mod._enabled or not db().enabled then return end
     local info = CombatLogGetCurrentEventInfo
     if not info then return end
-    local _, sub, _, sourceGUID, sourceName, sourceFlags, _, _, _, _, _, spellID = info()
+    local _, sub, _, sourceGUID, sourceName, sourceFlags, _, _, _, _, _, spellID, spellName = info()
     if sub ~= "SPELL_CAST_SUCCESS" then return end
 
-    local def = spellID and SPELLS[spellID]
+    local def = spellDef(spellID, spellName)
     if not def or not sourceGUID then return end
 
     -- Hostile only: a friendly kick is not what this bar is for.

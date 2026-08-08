@@ -3308,4 +3308,6 @@ ns:RegisterLocale("zhCN", function() return {
     ["The marker's own offset and spacing sliders take effect again. They were writing two fields of their own while the plate read the slot, so the visible control was the one without an effect. The old values move across once."] = "标记自己的偏移与间距滑块重新生效。姓名板读取的是位置，而滑块写的是自己的两个字段，于是看得见的那个设置正是没有作用的那个。旧的数值会一次性随之迁移。",
     ["A mark set between two aura passes lands where it belongs. Where the marker goes is worked out in the aura pass, because only that knows how far the rows on its side reach, and the plate now remembers that point for the event that shows the marker on its own."] = "在两次光环刷新之间打上的标记也会落在该在的地方。标记的位置在光环刷新中算出，因为只有它知道自己这一侧的行延伸到哪里，姓名板现在会记住这个点，供单独显示标记的事件使用。",
     ["The cast time and the cast target show something in the preview. Both only exist for a cast that is really running on a real unit, so both stayed empty while their switches, colours and side settings stood next to them with nothing to show."] = "施法时间与施法目标在预览里有内容了。两者只在真实目标上真正施法时才产生，所以它们的开关、颜色和方向设置就在旁边，两个字段却一直是空的。",
+    -- Slot picker: the bags moved under an open picker
+    ["Your bags moved — pick the item again."] = "背包已变动 — 请重新选择物品。",
 } end)
