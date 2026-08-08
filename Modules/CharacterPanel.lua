@@ -262,9 +262,13 @@ local NUM_SOCKET_TEXTURES = 4
 local ILVL_FONT_SIZE = 11
 local ILVL_Y_OFFSET  = 4
 
--- -3, not -8: the wrist line hung too far below its slot against the rest of
--- the left column (user report, 04.08.2026).
-local WRIST_ENCH_Y   = -3
+-- The wrist is the LAST slot of the left column, so its line had no room beside
+-- it: to the right of that slot lies the weapon row, and the line wrote into it
+-- (user report with screenshot, 08.08.2026). Under the slot the paper doll is
+-- empty all the way to the tabs, so the line goes there -- left-aligned with the
+-- slot's own left edge, not centred: centred under a 37px slot a line of
+-- eighteen characters would hang out over the panel's left border.
+local WRIST_ENCH_BELOW = -3
 -- The weapon line sits ABOVE its slot, and that ended a search rather than
 -- continuing it: BESIDE the slot the distance was eyeballed three times (6 hugged
 -- the bottom 31.07.2026, 14 rode too high 04.08.2026, 8 sat between them) and
@@ -852,11 +856,11 @@ local function positionLeft(button)
 	f.ilvlDisplay:SetPoint("CENTER", button, "CENTER", 0, ILVL_Y_OFFSET)
 
 	f.enchantDisplay:ClearAllPoints()
-	local enchY = -7
 	if button:GetID() == INVSLOT_WRIST then
-		enchY = enchY + WRIST_ENCH_Y
+		f.enchantDisplay:SetPoint("TOPLEFT", button, "BOTTOMLEFT", 0, WRIST_ENCH_BELOW)
+	else
+		f.enchantDisplay:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -7)
 	end
-	f.enchantDisplay:SetPoint("TOPLEFT", f, "TOPLEFT", 10, enchY)
 
 	f.durabilityDisplay:ClearAllPoints()
 	f.durabilityDisplay:SetWidth(2.3)
