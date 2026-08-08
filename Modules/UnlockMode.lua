@@ -156,10 +156,33 @@ local function emReanchor(def)
     return done
 end
 
+-- Two ways out of here, and the difference between them is this file's whole
+-- taint story.
+--
+-- SaveOnly writes the layout and stops. ApplyChanges writes it and then SHOWS the
+-- Edit Mode manager to make the client re-apply it -- and that rebuilds every
+-- system the editor owns out of OUR call stack, which makes all of them ours for
+-- the session. Measured on 06.08.2026 from the taint log: ONE such call at login,
+-- and twenty-one seconds later 1593 protected calls refused in combat, every one
+-- of them on the compact party and raid frames. The chain is
+--   emApply -> ApplyChanges -> ShowUIPanel(EditModeManagerFrame)
+--   -> EnterEditMode -> EditModeFrameSetup -> RefreshRaidFrames.
 local function emApply()
     pcall(function()
         if InCombatLockdown() then lib:SaveOnly() else lib:ApplyChanges() end
     end)
+end
+
+-- The same write WITHOUT entering the editor, and therefore without touching
+-- anything else the editor owns. Everything that happens by itself uses this one:
+-- what it costs is that the layout only takes effect the next time the CLIENT
+-- applies it, which is the next login. Nothing jumps in the meantime -- the frame
+-- keeps the place the client gave it at login, which is where the player has been
+-- looking at it all session anyway. Applying is reserved for the moment the
+-- player MOVES a frame: there the taint buys something they just asked for, and
+-- they are not in combat while doing it.
+local function emSaveOnly()
+    pcall(function() lib:SaveOnly() end)
 end
 
 local function emApplyDebounced()
@@ -365,7 +388,20 @@ function mod:OnEnable()
             end
         end
         if em and ensured then mod.db.emMigrated = true end
-        if any then emApply() end
+        -- SAVE, do not apply. This runs on every PLAYER_ENTERING_WORLD, so on
+        -- every loading screen, and it was the measured origin of the taint on the
+        -- compact party and raid frames: `drifted` fires whenever a placed frame
+        -- sits more than 1.5 pixels off the stored value, and the apply that
+        -- followed dragged the whole editor through our stack. The migration is
+        -- long done on every profile here, so drift was the only trigger left --
+        -- and correcting a couple of pixels is not worth 1593 refused calls in
+        -- the next fight.
+        --
+        -- The correction is not lost, only deferred: the layout is written, and
+        -- the client seats it the next time it applies the layout by itself. A
+        -- frame the player moves BY HAND still seats immediately, through the
+        -- mover's own onMove.
+        if any then emSaveOnly() end
     end
     -- restoreAll is a closure built inside this function, so it has a fresh
     -- identity on every call -- the registry's duplicate check cannot see that.
