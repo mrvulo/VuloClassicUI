@@ -163,6 +163,10 @@ local function defaultGroup(name)
         showStacks     = true,
         showReagents   = false,
         stackPos       = "BOTTOMRIGHT",
+        -- Nudges ON TOP of the corner's own inset, not instead of it: zero has to
+        -- keep meaning exactly what the seven corners meant before these existed.
+        stackX         = 0,
+        stackY         = 0,
         stackSize      = 13,
         stackColor     = { r = 1, g = 0.95, b = 0.6 },
         desaturate     = true,
@@ -245,6 +249,10 @@ local function ensureGroups()
         if g.iconZoom   == nil then g.iconZoom   = 0.08 end
         if g.swipeAlpha == nil then g.swipeAlpha = 0.6 end
         g.stackPos   = g.stackPos or "BOTTOMRIGHT"
+        -- "or 0" would be wrong here: a saved -3 is falsy to nobody, but a saved 0
+        -- must survive as 0 and not be re-derived every login.
+        if g.stackX == nil then g.stackX = 0 end
+        if g.stackY == nil then g.stackY = 0 end
         if g.minDuration == nil then g.minDuration = 1.5 end
         if g.stackSize  == nil then g.stackSize  = 13 end
         if type(g.stackColor) ~= "table" then g.stackColor = { r = 1, g = 0.95, b = 0.6 } end
@@ -1015,7 +1023,10 @@ relayoutGroup = function(group)
         f.text:SetFont(fontPath(), math.max(8, math.floor(size * (group.textScale or 0.4))), "OUTLINE")
         local si = STACK_INSETS[group.stackPos or "BOTTOMRIGHT"] or STACK_INSETS.BOTTOMRIGHT
         f.stack:ClearAllPoints()
-        f.stack:SetPoint(si[1], f, si[1], si[2], si[3])
+        -- The corner decides the anchor, the two nudges only move the number off
+        -- it. Added to the inset rather than replacing it, so a group that never
+        -- touches the sliders keeps the exact placement it has always had.
+        f.stack:SetPoint(si[1], f, si[1], si[2] + (group.stackX or 0), si[3] + (group.stackY or 0))
         f.stack:SetFont(fontPath(), group.stackSize or 13, "OUTLINE")
         local sc = group.stackColor or { r = 1, g = 0.95, b = 0.6 }
         f.stack:SetTextColor(sc.r or 1, sc.g or 0.95, sc.b or 0.6)
@@ -3078,7 +3089,19 @@ function mod:GetOptions(tabId)
               { value = "CENTER",      text = L["Center"]       },
           },
           get = function() return group.stackPos or "BOTTOMRIGHT" end,
-          set = function(_, v) group.stackPos = v; relayoutGroup(group) end },
+          set = function(_, v) group.stackPos = v; relayoutGroup(group) end,
+          -- Behind the gear because they refine the corner above them: with no
+          -- corner chosen there is nothing for them to nudge. Same range and step
+          -- as the keybind and macro nudges on the action bars, so a number learned
+          -- in one place means the same in the other.
+          subOptions = {
+              { type = "slider", label = L["X Offset"], min = -20, max = 20, step = 1, width = 150,
+                get = function() return group.stackX or 0 end,
+                set = function(_, v) group.stackX = v; relayoutGroup(group) end },
+              { type = "slider", label = L["Y Offset"], min = -20, max = 20, step = 1, width = 150,
+                get = function() return group.stackY or 0 end,
+                set = function(_, v) group.stackY = v; relayoutGroup(group) end },
+          } },
         { type = "slider", label = L["Stack / reagent size"], min = 8, max = 24, step = 1,
           get = function() return group.stackSize or 13 end,
           set = function(_, v) group.stackSize = v; relayoutGroup(group) end },
