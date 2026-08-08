@@ -6424,10 +6424,21 @@ end)(...);
 --
 -- There is no taint-free way to shim a global that secure code calls, so this
 -- stays a trade: a contained Lua error on nameplate spawn, or blocked
--- protected calls in the party and raid frames. Whoever leaves the module on
--- is choosing the second. Disabling it now genuinely removes the shim again --
--- it used to leave the closure in place and merely delegate, so turning the
--- module off changed nothing at all.
+-- protected calls in the party and raid frames.
+--
+-- OFF BY DEFAULT since 08.08.2026, and the reason is which side of that trade
+-- the player pays without being asked. The Lua error is invisible without an
+-- error catcher and merely truncates one update when a nameplate spawns. The
+-- taint costs a refusal in combat, on the party and raid frames, with this
+-- addon named in the message -- and it was reaching people who never chose it
+-- (user report with the full stack, 08.08.2026: CompactPartyFrameMember1
+-- :SetSize refused, entered cleanly from the client's own container event).
+--
+-- Two dead ends recorded so nobody re-treads them. Writing the CLIENT'S OWN
+-- function into the global instead of ours does not help: the taint attaches to
+-- the insecure WRITE, not to the value. Replacing the consumer
+-- (IsPlayerEffectivelyTank) instead of the producer only moves the same tainted
+-- read one level up, onto a hotter path.
 local _, ns = ...
 local L = ns.L
 
@@ -6435,7 +6446,7 @@ local mod = ns:RegisterModule("fixnameplaterole", {
     name        = "Nameplate Role Fix",
     group       = "Bugfixes",
     description = "Stops the Lua error that fires every time a nameplate appears (Blizzard's nameplate code calls a specialization API this client does not support).",
-    defaults = { enabled = true },
+    defaults = { enabled = false },
 })
 
 local installed = false
@@ -6453,9 +6464,16 @@ local function installFix()
     end
 end
 
--- Putting the client's own function back is the only way to stop tainting the
--- secure paths that call it; delegating from inside the closure does not, the
--- closure is still ours and still on the stack.
+-- Putting the client's own function back stops the CLOSURE from being reached,
+-- and delegating from inside it would not -- the closure is ours and stays on
+-- the stack. What it does NOT do is clean the global again: the variable was
+-- marked the moment our code wrote it, and writing to it a second time is
+-- another write from our code. The client's secure paths keep reading a marked
+-- global until the interface is reloaded.
+--
+-- So switching the module off mid-session stops it happening AGAIN; it does not
+-- undo the session it already happened in. That is what the option text says,
+-- and it is why the default matters more than the switch.
 local function removeFix()
     if not installed then return end
     _G.GetSpecializationRole = origRole
@@ -6474,6 +6492,8 @@ function mod:GetOptions()
     return {
         { type = "header", text = L["Nameplate Role Fix"] },
         { type = "desc", text = L["Blizzard's own nameplate code asks for your specialization role - an API the Anniversary client rejects. The resulting Lua error fires on every nameplate spawn and aborts part of the nameplate setup. This fix answers the question safely with 'no role'."] },
+        { type = "spacer", height = 6 },
+        { type = "desc", text = L["|cffff7777What it costs, and why this is off unless you switch it on: the answer has to sit on a name the client's own protected code reads, which hands the party and raid frames to this addon for the rest of the session. In combat they then refuse to resize and name this addon while doing it. Switching it back off stops it happening again but does not undo the session it already happened in - that takes a reload.|r"] },
         { type = "spacer", height = 6 },
         { type = "desc", text = string.format(L["|cffaaaaaaStatus: %s|r"],
             installed and L["|cff66ff66applied|r"] or L["not needed on this client"]) },
