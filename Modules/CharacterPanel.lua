@@ -948,6 +948,7 @@ local function UpdateAdditionalDisplay(button, unit)
 			local ilvl = GetItemLevelTBC(itemLink)
 
 			if ilvl then
+				f._ilvlTries = nil
 				local quality = GetInventoryItemQuality(unit, slot)
 
 				if quality then
@@ -957,11 +958,27 @@ local function UpdateAdditionalDisplay(button, unit)
 					itemiLvlText = tostring(ilvl)
 				end
 			else
-				C_Timer.After(0.1, function()
-					if button and button.BCPDisplay and GetInventoryItemLink(unit, slot) == itemLink then
-						UpdateAdditionalDisplay(button, unit)
-					end
-				end)
+				-- The retry was dead code: prevItemLink is stamped at the end of
+				-- this branch, so the second call with the SAME link fell out at
+				-- the gate above and painted nothing. An item the server had not
+				-- cached yet -- opening the character window right after login --
+				-- kept its slot empty until the link itself changed. Leaving the
+				-- stamp off is what lets the retry back in.
+				--
+				-- Counted, and per link: without a bound this would re-enter every
+				-- tenth of a second for as long as the item stays unknown. Two
+				-- seconds is a lot longer than the cache needs, and after that the
+				-- slot settles as it did before.
+				local tries = (f._ilvlTriesLink == itemLink) and (f._ilvlTries or 0) + 1 or 1
+				f._ilvlTriesLink, f._ilvlTries = itemLink, tries
+				if tries <= 20 then
+					f._ilvlRetry = true
+					C_Timer.After(0.1, function()
+						if button and button.BCPDisplay and GetInventoryItemLink(unit, slot) == itemLink then
+							UpdateAdditionalDisplay(button, unit)
+						end
+					end)
+				end
 			end
 		end
 
@@ -1007,7 +1024,14 @@ local function UpdateAdditionalDisplay(button, unit)
 
 		AnchorSocketsBelowCentered(f.ilvlDisplay, f.socketDisplay)
 
-		f.prevItemLink = itemLink
+		-- Not stamped while a retry is armed: the stamp is what closes the gate,
+		-- and closing it is what made the retry pointless. Everything else in
+		-- this branch has already been painted either way.
+		if f._ilvlRetry then
+			f._ilvlRetry = nil
+		else
+			f.prevItemLink = itemLink
+		end
 	end
 
 	local cur, max = GetInventoryItemDurability(slot)

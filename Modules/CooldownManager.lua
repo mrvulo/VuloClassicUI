@@ -2799,7 +2799,20 @@ function mod:GetOptions(tabId)
             if not e.auto then
                 subs[#subs + 1] = { type = "button", label = L["Remove"], width = 180, height = 26,
                     onClick = function()
-                        table.remove(group.entries, i); relayoutGroup(group); rebuildPage()
+                        -- By TABLE, not by the index this row was built with --
+                        -- the same rule the group delete follows, and for the
+                        -- same reason. The entry list is rewritten behind the
+                        -- open page: an equipment change runs the auto-trinket
+                        -- sync, which adds and removes entries without rebuilding
+                        -- it. A captured index then points one row further along,
+                        -- and the neighbour is what disappears.
+                        for idx = #group.entries, 1, -1 do
+                            if group.entries[idx] == e then
+                                table.remove(group.entries, idx)
+                                break
+                            end
+                        end
+                        relayoutGroup(group); rebuildPage()
                     end }
             end
 

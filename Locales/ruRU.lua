@@ -3317,4 +3317,7 @@ ns:RegisterLocale("ruRU", function() return {
     ["The cast time and the cast target show something in the preview. Both only exist for a cast that is really running on a real unit, so both stayed empty while their switches, colours and side settings stood next to them with nothing to show."] = "Время произнесения и цель произнесения показывают что-то в предпросмотре. И то, и другое существует только для действительно идущего произнесения по настоящей цели, поэтому оба оставались пустыми, пока их переключатели, цвета и настройки стороны стояли рядом и показать им было нечего.",
     -- Slot picker: the bags moved under an open picker
     ["Your bags moved — pick the item again."] = "Содержимое сумок изменилось — выберите предмет заново.",
+    -- Bar setups: load confirmation, imported macros left alone
+    ["Load '%s'? Every button on your bars is overwritten or cleared."] = "Загрузить '%s'? Каждая кнопка на панелях будет перезаписана или очищена.",
+    ["Macros: %d restored, %d of your own kept (an import does not rewrite them)."] = "Макросы: %d восстановлено, %d ваших сохранено (импорт их не перезаписывает).",
 } end)

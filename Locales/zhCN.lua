@@ -3310,4 +3310,7 @@ ns:RegisterLocale("zhCN", function() return {
     ["The cast time and the cast target show something in the preview. Both only exist for a cast that is really running on a real unit, so both stayed empty while their switches, colours and side settings stood next to them with nothing to show."] = "施法时间与施法目标在预览里有内容了。两者只在真实目标上真正施法时才产生，所以它们的开关、颜色和方向设置就在旁边，两个字段却一直是空的。",
     -- Slot picker: the bags moved under an open picker
     ["Your bags moved — pick the item again."] = "背包已变动 — 请重新选择物品。",
+    -- Bar setups: load confirmation, imported macros left alone
+    ["Load '%s'? Every button on your bars is overwritten or cleared."] = "载入 '%s'？动作条上的每个按钮都会被覆盖或清空。",
+    ["Macros: %d restored, %d of your own kept (an import does not rewrite them)."] = "宏：已恢复 %d 个，保留你自己的 %d 个（导入不会改写它们）。",
 } end)

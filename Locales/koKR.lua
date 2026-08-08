@@ -3317,4 +3317,7 @@ ns:RegisterLocale("koKR", function() return {
     ["The cast time and the cast target show something in the preview. Both only exist for a cast that is really running on a real unit, so both stayed empty while their switches, colours and side settings stood next to them with nothing to show."] = "시전 시간과 시전 대상이 미리 보기에도 표시됩니다. 둘 다 실제 대상에게 실제로 진행되는 시전에서만 생기므로, 스위치와 색과 방향 설정이 나란히 있는데도 두 칸은 계속 비어 있었습니다.",
     -- Slot picker: the bags moved under an open picker
     ["Your bags moved — pick the item again."] = "가방이 바뀌었습니다 — 아이템을 다시 선택하세요.",
+    -- Bar setups: load confirmation, imported macros left alone
+    ["Load '%s'? Every button on your bars is overwritten or cleared."] = "'%s'을(를) 불러올까요? 단축바의 모든 칸이 덮어써지거나 비워집니다.",
+    ["Macros: %d restored, %d of your own kept (an import does not rewrite them)."] = "매크로: %d개 복원, 내 매크로 %d개 유지 (가져오기는 덮어쓰지 않습니다).",
 } end)

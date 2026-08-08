@@ -3317,4 +3317,7 @@ ns:RegisterLocale("itIT", function() return {
     ["The cast time and the cast target show something in the preview. Both only exist for a cast that is really running on a real unit, so both stayed empty while their switches, colours and side settings stood next to them with nothing to show."] = "Il tempo di lancio e il bersaglio del lancio mostrano qualcosa nell'anteprima. Entrambi esistono solo per un lancio realmente in corso su un'unità reale, quindi restavano vuoti mentre i loro interruttori, colori e impostazioni di lato stavano accanto senza nulla da mostrare.",
     -- Slot picker: the bags moved under an open picker
     ["Your bags moved — pick the item again."] = "Le tue borse sono cambiate — scegli di nuovo l’oggetto.",
+    -- Bar setups: load confirmation, imported macros left alone
+    ["Load '%s'? Every button on your bars is overwritten or cleared."] = "Caricare '%s'? Ogni pulsante delle tue barre viene sovrascritto o svuotato.",
+    ["Macros: %d restored, %d of your own kept (an import does not rewrite them)."] = "Macro: %d ripristinate, %d tue mantenute (un’importazione non le riscrive).",
 } end)

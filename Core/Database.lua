@@ -199,13 +199,41 @@ local MIGRATIONS = {
     end,
 }
 
+-- A database that has never been written carries no profile with module
+-- settings in it. Anything that has been played with does -- that is the only
+-- tell available, and it is enough for the question below.
+local function looksUsed()
+    for _, prof in pairs(VuloClassicUIDB.profiles or {}) do
+        if type(prof) == "table" and type(prof.modules) == "table"
+            and next(prof.modules) then
+            return true
+        end
+    end
+    return false
+end
+
 local function runMigrations()
     local g = VuloClassicUIDB.global
     local from = tonumber(g.schema)
     if not from then
-        g.schema = SCHEMA          -- first sight of this install: stamp, run nothing
-        VuloClassicUICharDB.schema = VuloClassicUICharDB.schema or SCHEMA
-        return
+        -- No stamp means one of TWO things that need opposite treatment: a fresh
+        -- install, where there is nothing to migrate -- or an install from BEFORE
+        -- the stamp existed, where everything is still to be migrated. Both used
+        -- to be stamped at the current schema and skipped, so the older one lost
+        -- every migration in silence, bar setups in their old place included.
+        -- That is exactly the kind of loss the promise at the top of this file
+        -- rules out.
+        --
+        -- Starting such an install at zero is safe: the migrations are written to
+        -- survive a re-run (see the note on deterministic order in [2]), and an
+        -- install without a stamp is by definition older than all of them.
+        if not looksUsed() then
+            g.schema = SCHEMA
+            VuloClassicUICharDB.schema = VuloClassicUICharDB.schema or SCHEMA
+            return
+        end
+        from = 0
+        g.schema = 0
     end
     if from >= SCHEMA then return end
     for v = from + 1, SCHEMA do

@@ -3318,6 +3318,9 @@ local function T() return {
     ["The cast time and the cast target show something in the preview. Both only exist for a cast that is really running on a real unit, so both stayed empty while their switches, colours and side settings stood next to them with nothing to show."] = "El tiempo de lanzamiento y el objetivo del lanzamiento muestran algo en la vista previa. Ambos solo existen para un lanzamiento realmente en curso sobre una unidad real, así que ambos quedaban vacíos mientras sus interruptores, colores y ajustes de lado estaban al lado sin nada que mostrar.",
     -- Slot picker: the bags moved under an open picker
     ["Your bags moved — pick the item again."] = "Tus bolsas han cambiado — elige el objeto de nuevo.",
+    -- Bar setups: load confirmation, imported macros left alone
+    ["Load '%s'? Every button on your bars is overwritten or cleared."] = "¿Cargar '%s'? Cada botón de tus barras se sobrescribe o se vacía.",
+    ["Macros: %d restored, %d of your own kept (an import does not rewrite them)."] = "Macros: %d restauradas, %d propias conservadas (una importación no las reescribe).",
 } end
 
 ns:RegisterLocale("esES", T)

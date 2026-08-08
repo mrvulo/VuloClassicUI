@@ -3437,4 +3437,7 @@ ns:RegisterLocale("deDE", function() return {
     ["The cast time and the cast target show something in the preview. Both only exist for a cast that is really running on a real unit, so both stayed empty while their switches, colours and side settings stood next to them with nothing to show."] = "Zauberzeit und Zauberziel zeigen in der Vorschau etwas. Beide entstehen nur bei einem wirklich laufenden Zauber auf einer echten Einheit, also blieben beide leer, während Schalter, Farben und Seiteneinstellungen daneben standen und nichts vorzuweisen hatten.",
     -- Slot picker: the bags moved under an open picker
     ["Your bags moved — pick the item again."] = "Deine Taschen haben sich verändert — wähle den Gegenstand noch einmal.",
+    -- Bar setups: load confirmation, imported macros left alone
+    ["Load '%s'? Every button on your bars is overwritten or cleared."] = "'%s' laden? Jeder Knopf auf deinen Leisten wird überschrieben oder geleert.",
+    ["Macros: %d restored, %d of your own kept (an import does not rewrite them)."] = "Makros: %d wiederhergestellt, %d eigene behalten (ein Import schreibt sie nicht um).",
 } end)

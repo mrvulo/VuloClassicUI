@@ -2148,7 +2148,14 @@ local function plateCastStop(f)
     if f.castShield then f.castShield:Hide() end
     if f.kickTick then f.kickTick:Hide() end
     if db().hideNameWhileCasting and f._mode == "full" then
-        f.name:SetShown(db().showName)
+        -- The name's own slot decides, not the retired showName field: the text
+        -- moved into the slot model, and the options file says outright that this
+        -- field is no longer read anywhere -- while this one line still read it.
+        -- The result was a name that either stayed away after every cast or came
+        -- back where it no longer belongs, depending on which of the two the
+        -- profile happened to carry. The interrupt flash right below already asks
+        -- the right question; now both ask it the same way.
+        f.name:SetShown(textCfg("name").slot ~= "none")
     end
     f:SetScript("OnUpdate", nil)
 end
@@ -3127,6 +3134,10 @@ end
 -- leaves the client's size untouched no matter what these numbers say.
 local HITBOX_BASE_W, HITBOX_BASE_H = 152, 55
 
+-- Whether the setter has been called in THIS session. Not a setting: it is a
+-- statement about the client's current state, and a reload starts it over.
+local hitboxWritten = false
+
 local function applyHitbox()
     if InCombatLockdown() then return end
     if not (C_NamePlate and C_NamePlate.SetNamePlateEnemySize) then return end
@@ -3135,10 +3146,32 @@ local function applyHitbox()
     -- No calibration factor here: the click box is sized in HOST units, and
     -- with the scale CVars pinned to 1 the host runs at UIParent's scale --
     -- the same units the normalized visuals land in.
-    if pw == 100 and ph == 100 then return end
+    if pw == 100 and ph == 100 then
+        -- 100 means the client's own size, and NOT calling the setter only
+        -- delivers that while it has never been called. Once it has, the old box
+        -- stands until a reload -- so the sliders went up and never came back
+        -- down again, and the same held for switching the module off. The
+        -- measured base size is what puts it back. An untouched client is still
+        -- never called at all, exactly as the note above claims.
+        if hitboxWritten then
+            hitboxWritten = false
+            pcall(C_NamePlate.SetNamePlateEnemySize, HITBOX_BASE_W, HITBOX_BASE_H)
+        end
+        return
+    end
+    hitboxWritten = true
     pcall(C_NamePlate.SetNamePlateEnemySize,
         math.floor(HITBOX_BASE_W * pw / 100 + 0.5),
         math.floor(HITBOX_BASE_H * ph / 100 + 0.5))
+end
+
+-- Handed back on the way out, for the same reason: a module that is off must not
+-- leave the client with a click box nobody can see the cause of any more.
+local function restoreHitbox()
+    if InCombatLockdown() or not hitboxWritten then return end
+    if not (C_NamePlate and C_NamePlate.SetNamePlateEnemySize) then return end
+    hitboxWritten = false
+    pcall(C_NamePlate.SetNamePlateEnemySize, HITBOX_BASE_W, HITBOX_BASE_H)
 end
 
 -- One-time per profile: the two settings used to be absolute pixels, with 0
@@ -3202,6 +3235,7 @@ end
 function mod:OnDisable()
     if hoverTicker then hoverTicker:Hide() end
     for unit in pairs(ns.plates) do onPlateRemoved(nil, unit) end
+    restoreHitbox()
     if C_NamePlate and C_NamePlate.GetNamePlates then
         for _, p in ipairs(C_NamePlate.GetNamePlates()) do
             if p.UnitFrame then p.UnitFrame:SetAlpha(1); p.UnitFrame:Show() end

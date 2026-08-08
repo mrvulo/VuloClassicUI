@@ -502,6 +502,20 @@ local function applyMaxCameraZoom()
     elseif mod.db.cameraZoomPrev ~= nil then
         pcall(SetCVar, CAMERA_CVAR, mod.db.cameraZoomPrev)
         mod.db.cameraZoomPrev = nil
+    else
+        -- The fallback the comment above promised, which the code never made
+        -- good on. Nothing stored means the option was ALREADY on when this
+        -- session started, so what stands in the CVar is our maximum, not the
+        -- player's value -- and switching the option off left it there for good,
+        -- with no path back in this session or any later one.
+        --
+        -- Only our own value is overwritten: has the player set a distance in the
+        -- meantime, by hand or with the slider that drives this same CVar, it no
+        -- longer equals our maximum and stays untouched.
+        local cur = tonumber(GetCVar and GetCVar(CAMERA_CVAR))
+        if cur and cur == CAMERA_MAX then
+            pcall(SetCVar, CAMERA_CVAR, CAMERA_DEFAULT)
+        end
     end
 end
 
@@ -1652,6 +1666,35 @@ local function applyCVar(k, v)
     if cvarCache[k] == nil then cvarCache[k] = cur end
     SetCVar(k, v)
 end
+-- The cache IS the way back to the player's own values, and it used to live in
+-- memory only: a /reload, a disconnect or a crash with fishing mode running took
+-- it with it, and music, ambience, auto-loot and soft targeting stayed on the
+-- fishing values for good -- with nothing left anywhere to restore them from.
+--
+-- So it is written along into the saved settings while it holds anything. The
+-- next start finds it and finishes the job the crash interrupted. Cleared as
+-- soon as the restore has run, so a normal session leaves nothing behind.
+local function saveCVarBackup()
+    if not mod.db then return end
+    if not next(cvarCache) then mod.db.cvarBackup = nil; return end
+    local out = {}
+    for k, v in pairs(cvarCache) do out[k] = v end
+    mod.db.cvarBackup = out
+end
+
+-- Only reachable while the module is switched ON: a player who disables it in
+-- the same session where the crash happened keeps the fishing values until the
+-- next time it is on. Restoring from a module that is off would mean touching
+-- the client's settings behind the back of a switch the player just turned off.
+local function restoreOrphanedCVars()
+    local saved = mod.db and mod.db.cvarBackup
+    if not saved then return end
+    mod.db.cvarBackup = nil
+    for k, v in pairs(saved) do
+        if v ~= nil and GetCVar(k) ~= nil then SetCVar(k, v) end
+    end
+end
+
 local function doSetFishCVars()
     if cvarsActive then return end
     cvarsActive = true
@@ -1665,12 +1708,14 @@ local function doSetFishCVars()
         for k, v in pairs(SOUND_DIM) do applyCVar(k, v) end
     end
     if mod.db.soundBG then applyCVar("Sound_EnableSoundWhenGameIsInBG", "1") end
+    saveCVarBackup()
 end
 local function doRestoreFishCVars()
     if not cvarsActive then return end
     cvarsActive = false
     for k, v in pairs(cvarCache) do if v ~= nil then SetCVar(k, v) end end
     wipe(cvarCache)
+    saveCVarBackup()
 end
 cvarDefer:SetScript("OnEvent", function(self)
     self:UnregisterEvent("PLAYER_REGEN_ENABLED")
@@ -1912,6 +1957,10 @@ function mod:OnEnable()
     mod:RegisterEvent("PLAYER_REGEN_ENABLED", onRegenEnabled)
     mod:RegisterEvent("UNIT_INVENTORY_CHANGED", onInvChanged)
     mod:RegisterEvent("PLAYER_EQUIPMENT_CHANGED", onInvChanged)
+    -- Before anything else touches them: a session that ended while fishing mode
+    -- was running left the client on the fishing values, and this is where they
+    -- are handed back.
+    restoreOrphanedCVars()
     rebuildExtra()
     actionHandler()
 end

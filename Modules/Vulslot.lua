@@ -206,21 +206,30 @@ local function saveProfile(name)
     end
 end
 
-local function restoreMacros(list)
-    local edited, created, failed = 0, 0, 0
+local function restoreMacros(list, keepExisting)
+    local edited, created, failed, kept = 0, 0, 0, 0
     ClearCursor()
     for _, m in ipairs(list or {}) do
         local idx = GetMacroIndexByName(m.name) or 0
         if idx > 0 then
-            local ok = pcall(EditMacro, idx, m.name, m.icon, m.body)
-            if ok then edited = edited + 1 else failed = failed + 1 end
+            -- An IMPORTED setup never rewrites a macro that is already there.
+            -- Macros are matched by NAME, and names like Pull or Burst belong to
+            -- everyone -- a stranger's setup would otherwise replace the BODY of
+            -- yours, with the switch on by default and not a word about it. Your
+            -- own setups keep overwriting: there the match is exactly the point.
+            if keepExisting then
+                kept = kept + 1
+            else
+                local ok = pcall(EditMacro, idx, m.name, m.icon, m.body)
+                if ok then edited = edited + 1 else failed = failed + 1 end
+            end
         else
             local ok, newId = pcall(CreateMacro, m.name,
                 m.icon or "INV_MISC_QUESTIONMARK", m.body, m.perchar)
             if ok and newId then created = created + 1 else failed = failed + 1 end
         end
     end
-    return edited + created, failed
+    return edited + created, failed, kept
 end
 
 local function restoreSlot(slot, saved, counts)
@@ -292,7 +301,7 @@ local function restoreBindings(list)
     return n
 end
 
-local function loadProfile(name)
+local function doLoadProfile(name)
     local p = library()[name]
     if not p then return end
     if InCombatLockdown and InCombatLockdown() then
@@ -319,10 +328,14 @@ local function loadProfile(name)
         if not mod.db.restoreMacros then
             ns:Print(L["Macros left alone: the switch above is off."])
         else
-            local done, failed = restoreMacros(p.macros)
+            local done, failed, kept = restoreMacros(p.macros, p.imported)
             if (failed or 0) > 0 then
                 ns:Print(L["Macros: %d restored, |cffff8800%d failed|r -- the macro list may be full."],
                     done or 0, failed)
+            elseif (kept or 0) > 0 then
+                -- One line, not two: the kept ones are the whole story here.
+                ns:Print(L["Macros: %d restored, %d of your own kept (an import does not rewrite them)."],
+                    done or 0, kept)
             else
                 ns:Print(L["Macros: %d restored."], done or 0)
             end
@@ -349,6 +362,53 @@ local function loadProfile(name)
         ns:Print(L["Bar setup '%s' loaded: %d slots set, %d cleared."],
             name, counts.placed, counts.cleared)
     end
+end
+
+-- Loading is a write with no way back: 120 slots are set, and every slot the
+-- setup does not carry is CLEARED. One click in a dropdown was enough for that,
+-- and the only warning there ever was -- a setup saved on another class -- was a
+-- chat line that arrived after the damage.
+--
+-- The NAME is remembered, not the table: the list can be imported into or
+-- deleted from while the dialog stands, and a name that is gone by then simply
+-- does nothing. Armed only once the dialog IS up -- a second question reuses the
+-- same dialog, and the reuse wipes a record armed before the call.
+local pendingLoad
+
+ns.OnLocaleReady(function()
+    StaticPopupDialogs["VCUI_VULSLOT_LOAD"] = {
+        text           = L["Load '%s'? Every button on your bars is overwritten or cleared."],
+        button1        = YES or "Yes",
+        button2        = NO or "No",
+        timeout        = 0,
+        whileDead      = true,
+        hideOnEscape   = true,
+        preferredIndex = 3,
+        OnAccept = function()
+            local n = pendingLoad
+            pendingLoad = nil
+            if n then doLoadProfile(n) end
+        end,
+        OnCancel = function() pendingLoad = nil end,
+        OnHide   = function() pendingLoad = nil end,
+    }
+end)
+
+local function loadProfile(name)
+    if not library()[name] then return end
+    -- Refused before the question, not after it: a fight is no state to ask in.
+    if InCombatLockdown and InCombatLockdown() then
+        ns:Print(L["Not in combat — bars can't be changed while fighting."])
+        return
+    end
+    if not (StaticPopupDialogs and StaticPopupDialogs["VCUI_VULSLOT_LOAD"]
+        and StaticPopup_Show) then
+        doLoadProfile(name)
+        return
+    end
+    local dialog = StaticPopup_Show("VCUI_VULSLOT_LOAD", name)
+    if not dialog then return end
+    pendingLoad = name
 end
 
 -- Pure on-demand module: nothing to wire up in lifecycle
@@ -494,6 +554,11 @@ function mod:GetOptions()
                     and #d.macros == 0 and #d.bindings == 0) then
                     return L["The bar setup string is damaged."]
                 end
+                -- Marked as foreign, and it stays marked: restoreMacros reads
+                -- this to leave macros of your own alone. Saving over the setup
+                -- later builds a fresh table without the flag, which is right --
+                -- from then on it is yours.
+                d.imported = true
                 local name = (type(payload.n) == "string" and payload.n ~= "")
                     and payload.n or L["Imported"]
                 -- Never overwrite silently. Someone else's setup arriving under
