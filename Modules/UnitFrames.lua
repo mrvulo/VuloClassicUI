@@ -403,13 +403,22 @@ local function applyClassification(frame, lock)
     end
 end
 
+-- Our own paint again, for the same reason as refreshHealth below: this used to
+-- run Blizzard's TargetFrame_CheckClassification from OUR stack, which writes on
+-- the protected target frame out of insecure execution -- the identical shape to
+-- the burn this file documents further down. What it produced for us was one
+-- thing only: our rare-elite border, which applyClassification puts there
+-- directly.
+--
+-- What is given up is Blizzard's own default border when the option is switched
+-- OFF: that one returns on the next target change, when the client calls its
+-- checker itself. Same trade the health text makes.
 local function refreshClassification()
     if _G.TargetFrame and _G.TargetFrame:IsShown() then
-        if _G.TargetFrame_CheckClassification then
-            pcall(_G.TargetFrame_CheckClassification, _G.TargetFrame)
-        elseif _G.TargetFrame.CheckClassification then
-            pcall(_G.TargetFrame.CheckClassification, _G.TargetFrame)
-        end
+        applyClassification(_G.TargetFrame)
+    end
+    if _G.FocusFrame and _G.FocusFrame:IsShown() then
+        applyClassification(_G.FocusFrame)
     end
 end
 

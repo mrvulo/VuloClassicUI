@@ -67,9 +67,13 @@ local function applyPos(mover)
     if opts.onMove then opts.onMove(db.x or 0, db.y or 0) end
 end
 
+-- Forward: the secure test lives with the drag code much further down, but the
+-- gate below is the choke point every write to a target passes through.
+local isSecureTarget
+
 -- Movers with their OWN applyPos keep the plain-CENTER drop; they re-apply their
 -- custom anchor model from db themselves.
-local function commitPos(mover)
+local function writePos(mover)
     local opts = mover.opts
     if opts.applyPos then
         local db = opts.db
@@ -79,6 +83,39 @@ local function commitPos(mover)
     else
         applyPos(mover)
     end
+end
+
+-- Everything that repositions a target comes through here: the drop, the link
+-- pass, the edit-mode restore and the reset.
+--
+-- A PROTECTED target may not have its anchors written while the player is in
+-- combat. The call is refused -- and the position has already been stored by
+-- then, so the saved value and the frame on screen would disagree for the rest
+-- of the session. The write waits for the end of combat instead.
+--
+-- A drag can only START out of combat, but it can END inside it: one pull
+-- landing mid-drag is enough. And the link pass runs 0.8 seconds after every
+-- loading screen, which a battleground resurrection puts squarely into combat.
+-- Keyed by mover, so the same frame queued twice is written once.
+local pendingCommit, commitWatcher
+
+local function commitPos(mover)
+    if InCombatLockdown() and isSecureTarget and isSecureTarget(mover.target) then
+        pendingCommit = pendingCommit or {}
+        pendingCommit[mover] = true
+        if not commitWatcher then
+            commitWatcher = CreateFrame("Frame")
+            commitWatcher:SetScript("OnEvent", function(self)
+                self:UnregisterEvent("PLAYER_REGEN_ENABLED")
+                local list = pendingCommit
+                pendingCommit = nil
+                for m in pairs(list or {}) do writePos(m) end
+            end)
+        end
+        commitWatcher:RegisterEvent("PLAYER_REGEN_ENABLED")
+        return
+    end
+    writePos(mover)
 end
 
 -- ---------------------------------------------------------------------------
@@ -796,8 +833,15 @@ local AXIS_LOCK_THRESHOLD = 3
 -- Secure frames must not have their anchors written from insecure Lua: the
 -- taint spreads from the header to the action buttons it drives, and Blizzard's
 -- own UpdateShownButtons then gets blocked. Those frames keep the engine's own
--- drag, which costs us the axis lock but never taints anything.
-local function isSecureTarget(target)
+-- drag, which costs us the axis lock.
+--
+-- To be exact about what that does and does not buy, because the older wording
+-- here claimed too much: it keeps the whole DRAG out of Lua's hands. The DROP
+-- still writes the anchor once, through commitPos -- there is no other way to
+-- put a frame where the player let go and have it stay there across a reload.
+-- What commitPos does guarantee is that the write never happens under combat
+-- lockdown, where it would be refused outright.
+isSecureTarget = function(target)
     if not target then return false end
     if target.IsProtected then
         local ok, prot = pcall(target.IsProtected, target)
