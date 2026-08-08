@@ -6,6 +6,15 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+    { version = "1.52.5", sections = {
+        { category = "Character Panel", lines = {
+            "The enchant text of the wrist slot sits under its slot instead of beside it. The wrist is the last slot of the left column, and to the right of it lies the weapon row, which is where the line was writing.",
+        } },
+        { category = "Profession Window", lines = {
+            "NEW: Search field in the enchanting window – Leaves only the recipes whose name or reagents match what you type",
+            "The enchanting window is the one profession window that never had a search box. The field sits between the title and the slot dropdown: type into it and only the recipes whose name or one of their reagents matches stay, with the scroll bar shortening along with the list instead of leaving empty rows under the last hit. Recipes you starred still float to the top of what is left, and closing the window clears the text — otherwise the next visit would open on a list with most of the recipes missing and nothing on screen to explain it.",
+        } },
+    } },
     { version = "1.52.4", sections = {
         { category = "Character Panel", lines = {
             "NEW: Ask before overwriting a gem – A click on a socket that already holds a gem asks first, because putting a gem in destroys the one that comes out",
@@ -541,18 +550,6 @@ ns.CHANGELOG = {
             "The melee swing timer is off by default and only loads for melee classes and specialisations.",
             "Sliders got a proper look: soft edges, an inner shadow and a smoother hover.",
             "Own icons for the three collection pages, and class icons on the class tabs.",
-        } },
-    } },
-    { version = "1.36.0", sections = {
-        { category = "Edit Mode", lines = {
-            "NEW: Anchor a window to another one's edge (left/right/top/bottom) — the gap is kept edge-to-edge, so it survives either window being resized.",
-            "NEW: Click-to-anchor: press \"Anchor to window...\" in a window's panel, then click the target window. Loop and self-anchor are blocked.",
-            "NEW: While dragging, alignment lines now also show the pixel distance to the window you line up with.",
-            "NEW: Discard button — snapshots the layout when you open Edit Mode and restores it (positions, scale, anchors and links) if you discard.",
-        } },
-        { category = "Chat", lines = {
-            "The drag area now covers the whole dark chat panel down to the edit box, not just the narrow message strip.",
-            "Fixed right-click on the chat window not opening its settings panel in Edit Mode.",
         } },
     } },
 }

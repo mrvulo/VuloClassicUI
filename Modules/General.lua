@@ -3536,39 +3536,153 @@ local function enhanceRow(btn, cfg)
     end)
 end
 
--- Returns nil when there are no favourites, leaving Blizzard's own row order untouched.
-local function buildFavOrder(cfg)
-    if mod.db.favFirst == false or not next(mod.db.favorites) then return nil end
+-- The Craft window IS the enchanting window on this client generation, and it is
+-- the one the client never gave a search box: the profession window has one of
+-- its own (TradeSearchInputBox, repositioned above), Craft has only the slot
+-- dropdown and the materials checkbox. There is no name filter in the API to
+-- borrow either -- SetTradeSkillItemNameFilter has no Craft counterpart -- so the
+-- matching happens here.
+--
+-- Reagent names are folded into the haystack once per list, not per keystroke:
+-- eighty recipes with four reagents each is over three hundred calls, and typing
+-- five letters would otherwise pay for it five times.
+local craftSearch = { index = nil, count = -1, dirty = true }
+
+local function craftHaystack()
+    local num = GetNumCrafts and GetNumCrafts() or 0
+    if craftSearch.index and not craftSearch.dirty and craftSearch.count == num then
+        return craftSearch.index
+    end
+    local t = {}
+    for i = 1, num do
+        local name, subName = GetCraftInfo(i)
+        if name then
+            local s = name:lower()
+            if subName and subName ~= "" then s = s .. " " .. subName:lower() end
+            -- Nil-tolerant on purpose: should this client hand out reagent names
+            -- only for the SELECTED recipe, the search quietly stays a name
+            -- search instead of finding nothing.
+            local nr = GetCraftNumReagents and GetCraftNumReagents(i) or 0
+            for r = 1, nr do
+                local rn = GetCraftReagentInfo and GetCraftReagentInfo(i, r)
+                if rn then s = s .. " " .. rn:lower() end
+            end
+            t[i] = s
+        end
+    end
+    craftSearch.index = t
+    craftSearch.count = num
+    craftSearch.dirty = false
+    return t
+end
+
+local craftWatcher = CreateFrame("Frame")
+craftWatcher:RegisterEvent("CRAFT_SHOW")
+craftWatcher:RegisterEvent("CRAFT_UPDATE")
+craftWatcher:SetScript("OnEvent", function() craftSearch.dirty = true end)
+
+-- Read off a SHOWN box: hiding the box is how the beast training window and a
+-- disabled search switch the filter off, without a second flag to keep in step.
+local function searchQuery(cfg)
+    local st = cfg.isCraft and states[cfg.frame] or nil
+    local box = st and st.search
+    if not (box and box:IsShown()) then return "" end
+    local q = (box:GetText() or ""):lower()
+    q = q:gsub("^%s+", ""):gsub("%s+$", "")
+    return q
+end
+
+-- The one order the player sees: search hits first filtered out, favourites
+-- floated to the top of what is left. Both used to be separate passes and must
+-- not be -- two permutations stacked on each other hand the rows indices that
+-- point into the other one's numbering.
+--
+-- Returns nil when there is nothing to do, which leaves Blizzard's own row order
+-- untouched. The second return says whether the list got SHORTER, because only
+-- then do the scroll range and the surplus rows need correcting.
+local function buildRowOrder(cfg)
     local num = cfg.numFn and cfg.numFn() or 0
-    if num == 0 then return nil end
+    if num == 0 then return nil, false end
+
+    local q = searchQuery(cfg)
+    local filtered = q ~= ""
+    local favActive = mod.db.favFirst ~= false and next(mod.db.favorites) ~= nil
+    if not filtered and not favActive then return nil, false end
+
+    local hay = filtered and craftHaystack() or nil
     local favs, rest = {}, {}
     for i = 1, num do
         local name, skillType = cfg.info(i)
-        if name and skillType ~= "header" and mod.db.favorites[name] then
-            favs[#favs + 1] = i
-        else
-            rest[#rest + 1] = i
+        if name then
+            local keep = true
+            if filtered then
+                -- A header without its rows says nothing, so headers drop out of
+                -- a filtered list entirely.
+                if skillType == "header" then
+                    keep = false
+                else
+                    -- Plain find, not a pattern: a player typing "-" or "(" is
+                    -- searching for that character, not writing a pattern.
+                    keep = ((hay and hay[i]) or name:lower()):find(q, 1, true) ~= nil
+                end
+            end
+            if keep then
+                -- favActive, not just "is a favourite": with "Favourites first"
+                -- switched off, a search must not quietly reintroduce the sorting
+                -- through the back door.
+                if favActive and skillType ~= "header" and mod.db.favorites[name] then
+                    favs[#favs + 1] = i
+                else
+                    rest[#rest + 1] = i
+                end
+            end
         end
     end
-    if #favs == 0 then return nil end
+    if not filtered and #favs == 0 then return nil, false end
     for _, i in ipairs(rest) do favs[#favs + 1] = i end
-    return favs
+    return favs, filtered
 end
 
 -- Repaints rows against a permuted index order and re-SetIDs them; must mirror Blizzard's row recipe exactly.
 local function repaintReordered(cfg)
-    local order = buildFavOrder(cfg)
+    local order, filtered = buildRowOrder(cfg)
     if not order then return end
     local list = _G[cfg.list]
-    local offset = (FauxScrollFrame_GetOffset and list) and FauxScrollFrame_GetOffset(list) or 0
     local displayed = _G[cfg.displayed] or 0
     local hl = _G[cfg.highlight]
+
+    -- Blizzard ranged the bar off the client's own count (Blizzard_CraftUI, TBC:
+    -- FauxScrollFrame_Update with numCrafts), so with a filter it still measures a
+    -- list that is no longer on screen. Re-running it with OUR count is what makes
+    -- the thumb grow and the empty rows below the last hit go away. Blizzard's own
+    -- argument list, highlight widths included, so nothing about the bar changes
+    -- except the length it measures.
+    --
+    -- The re-entry guard is not decoration: a shorter range can move the thumb,
+    -- and moving the thumb calls the very update this hook is standing inside.
+    if filtered and list and FauxScrollFrame_Update and not cfg._reranging then
+        cfg._reranging = true
+        FauxScrollFrame_Update(list, #order, displayed, _G.CRAFT_SKILL_HEIGHT or 16,
+            nil, nil, nil, hl, 293, 316)
+        cfg._reranging = nil
+    end
+
+    -- After the re-range, never before: a range that no longer reaches the old
+    -- position pulls the offset back with it.
+    local offset = (FauxScrollFrame_GetOffset and list) and FauxScrollFrame_GetOffset(list) or 0
     local colorT = _G[cfg.colorTable] or {}
     local sel = cfg.selFn and cfg.selFn() or 0
     if hl then hl:Hide() end
     for i = 1, displayed do
         local btn = _G[cfg.rowFmt:format(i)]
         local idx = order[i + offset]
+        -- Only a filter shortens the list, and only then may a row's shown state be
+        -- overruled: Blizzard drew its pass against the full count, so rows past the
+        -- last hit are still standing, and rows the old offset had pushed off the
+        -- end are still hidden. Without a filter the client's own choice stands.
+        if btn and filtered then
+            if idx then btn:Show() else btn:Hide() end
+        end
         if btn and btn:IsShown() and idx then
             local rowHl = _G[cfg.rowFmt:format(i) .. "Highlight"]
             if cfg.isCraft then
@@ -3583,6 +3697,10 @@ local function repaintReordered(cfg)
                     if Craft_SetSubTextColor then Craft_SetSubTextColor(btn, color.r, color.g, color.b) end
                 end
                 -- Text widths are per-entry, so a permuted row must re-run Blizzard's whole width sequence.
+                -- The row itself belongs to that sequence as soon as a filter is in
+                -- play: shrinking the list can take the scroll bar away after
+                -- Blizzard already sized the rows for one being there.
+                if filtered and list then btn:SetWidth(list:IsVisible() and 293 or 323) end
                 if txtFS and not tpCost then
                     txtFS:SetWidth(list and list:IsVisible() and 290 or 320)
                 end
@@ -3655,6 +3773,17 @@ local function repaintReordered(cfg)
     end
 end
 
+-- The same window serves beast training, where searching recipes by reagent has
+-- nothing to search; the client hides its own two filters there for that reason
+-- and the box follows them. Hiding it is also what switches the filter off, so a
+-- text left in the box cannot shorten a list it no longer belongs to.
+local function syncSearchVisible(cfg)
+    local st = states[cfg.frame]
+    local box = st and st.search
+    if not box then return end
+    if _G.CraftIsEnchanting and not _G.CraftIsEnchanting() then box:Hide() else box:Show() end
+end
+
 local function refreshList(cfg)
     if not mod.active then return end
 
@@ -3690,6 +3819,9 @@ local function refreshList(cfg)
         end
         for _, r in ipairs(st.bars) do r:Hide() end
     end
+
+    -- Before the order is built, because the query is read off a shown box.
+    syncSearchVisible(cfg)
 
     -- Must run first: the loop below reads the remapped index off each button's new ID.
     repaintReordered(cfg)
@@ -3735,6 +3867,51 @@ local function installListEnhancements(cfg)
     cfg._listHooked = true
     hooksecurefunc(cfg.updateHook, function() refreshList(cfg) end)
     refreshList(cfg)
+end
+
+-- Sits where the other window carries its own: to the right of the materials
+-- checkbox, so both profession windows answer at the same spot.
+--
+-- Parented to the FRAME, never to the list: the client hides the whole list the
+-- moment it counts no recipes, and a search box that vanishes together with its
+-- own empty result could not be corrected.
+local function installCraftSearch(cfg, f)
+    local st = states[cfg.frame]
+    if not st or st.search then return end
+
+    local box = ns.UI:CreateSearchBox(f, {
+        width = 150,
+        onText = function()
+            if _G[cfg.updateHook] then pcall(_G[cfg.updateHook]) end
+        end,
+    })
+    -- The enlarged frame carries an empty strip between the title and the slot
+    -- dropdown, and that is where the box belongs (marked on a screenshot,
+    -- 08.08.2026). It takes the detail pane's own left edge instead of a round
+    -- number, so the box and the parchment below it stand on one line.
+    --
+    -- The unenlarged frame has no such strip -- there the box stays beside the
+    -- materials checkbox, the spot where the other window carries its own.
+    if mod.db.larger then
+        box:SetWidth(170)
+        box:SetPoint("TOPLEFT", f, "TOPLEFT", 352, -38)
+    else
+        local anchor = _G.CraftFrameAvailableFilterCheckButtonText or _G.CraftFrameAvailableFilterCheckButton
+        if anchor then
+            box:SetPoint("LEFT", anchor, "RIGHT", 30, 0)
+        else
+            box:SetPoint("TOPLEFT", f, "TOPLEFT", 150, -46)
+        end
+    end
+    ns.UI:AttachTooltip(box, { anchor = "ANCHOR_TOP", title = L["Search"] })
+    st.search = box
+
+    -- A filter left standing would greet the next visit as a list with most of the
+    -- recipes missing, and nothing on screen to explain it.
+    f:HookScript("OnHide", function()
+        if (box:GetText() or "") ~= "" then box:SetText("") end
+        box:ClearFocus()
+    end)
 end
 
 local AUC_ID = "VuloClassicUI"
@@ -4162,6 +4339,7 @@ local function setupFrame(cfg)
     end
 
     applyTheme(cfg)
+    if cfg.isCraft then installCraftSearch(cfg, f) end
     installListEnhancements(cfg)
     installDetail(DETAIL_CFG[cfg.frame])
 end

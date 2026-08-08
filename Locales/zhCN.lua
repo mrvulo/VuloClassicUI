@@ -3313,4 +3313,8 @@ ns:RegisterLocale("zhCN", function() return {
     -- Bar setups: load confirmation, imported macros left alone
     ["Load '%s'? Every button on your bars is overwritten or cleared."] = "载入 '%s'？动作条上的每个按钮都会被覆盖或清空。",
     ["Macros: %d restored, %d of your own kept (an import does not rewrite them)."] = "宏：已恢复 %d 个，保留你自己的 %d 个（导入不会改写它们）。",
+    -- Patch notes 1.52.5
+    ["The enchant text of the wrist slot sits under its slot instead of beside it. The wrist is the last slot of the left column, and to the right of it lies the weapon row, which is where the line was writing."] = "护腕的附魔文字显示在格子下方，而不是旁边。护腕是左列的最后一格，它右边就是武器栏，那正是这行文字原本写过去的地方。",
+    ["Search field in the enchanting window – Leaves only the recipes whose name or reagents match what you type"] = "附魔窗口的搜索框 – 只保留名称或材料与输入内容相符的配方",
+    ["The enchanting window is the one profession window that never had a search box. The field sits between the title and the slot dropdown: type into it and only the recipes whose name or one of their reagents matches stay, with the scroll bar shortening along with the list instead of leaving empty rows under the last hit. Recipes you starred still float to the top of what is left, and closing the window clears the text — otherwise the next visit would open on a list with most of the recipes missing and nothing on screen to explain it."] = "附魔窗口是唯一一个从未有过搜索框的专业窗口。它位于标题与部位下拉菜单之间：输入文字后，只保留名称或其中一种材料相符的配方，滚动条也会随列表一起变短，不会在最后一条结果下面留下空行。标记了星号的配方仍会浮到剩余列表的最上方；关闭窗口时会清空输入，否则下次打开时会看到一个缺了大半配方的列表，而屏幕上没有任何说明。",
 } end)

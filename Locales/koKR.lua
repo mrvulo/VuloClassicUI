@@ -3320,4 +3320,8 @@ ns:RegisterLocale("koKR", function() return {
     -- Bar setups: load confirmation, imported macros left alone
     ["Load '%s'? Every button on your bars is overwritten or cleared."] = "'%s'을(를) 불러올까요? 단축바의 모든 칸이 덮어써지거나 비워집니다.",
     ["Macros: %d restored, %d of your own kept (an import does not rewrite them)."] = "매크로: %d개 복원, 내 매크로 %d개 유지 (가져오기는 덮어쓰지 않습니다).",
+    -- Patch notes 1.52.5
+    ["The enchant text of the wrist slot sits under its slot instead of beside it. The wrist is the last slot of the left column, and to the right of it lies the weapon row, which is where the line was writing."] = "손목 방어구의 마법부여 문구가 옆이 아니라 칸 아래에 표시됩니다. 손목은 왼쪽 열의 마지막 칸이고 그 오른쪽에는 무기 칸이 있어서, 문구가 바로 그 자리에 쓰이고 있었습니다.",
+    ["Search field in the enchanting window – Leaves only the recipes whose name or reagents match what you type"] = "마법부여 창의 검색창 – 입력한 내용이 이름이나 재료와 맞는 제조법만 남깁니다",
+    ["The enchanting window is the one profession window that never had a search box. The field sits between the title and the slot dropdown: type into it and only the recipes whose name or one of their reagents matches stay, with the scroll bar shortening along with the list instead of leaving empty rows under the last hit. Recipes you starred still float to the top of what is left, and closing the window clears the text — otherwise the next visit would open on a list with most of the recipes missing and nothing on screen to explain it."] = "마법부여 창은 검색창이 한 번도 없었던 유일한 전문기술 창입니다. 검색창은 제목과 부위 선택 메뉴 사이에 있으며, 입력하면 이름이나 재료 중 하나가 일치하는 제조법만 남고, 목록이 줄어드는 만큼 스크롤 막대도 함께 줄어들어 마지막 결과 아래에 빈 줄이 남지 않습니다. 별표를 단 제조법은 남은 목록에서도 맨 위로 올라오며, 창을 닫으면 입력한 내용이 지워집니다. 그렇지 않으면 다음에 열었을 때 대부분의 제조법이 빠진 목록이 아무 설명도 없이 나타나게 됩니다.",
 } end)
