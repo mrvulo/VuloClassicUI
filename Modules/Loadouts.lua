@@ -19,7 +19,7 @@ local mod = ns:RegisterModule("loadouts", {
         specSwitchEnabled = true,
         specMapping       = {},
         sidebarEnabled      = true,
-        sidebarTopOffset    = -14,
+        sidebarTopOffset    = -8,
         sidebarBottomOffset = 45,
         sidebarPos          = { x = 0, y = 0 },
     },
@@ -1880,9 +1880,34 @@ local function createSidebar()
         if _iconPicker then _iconPicker:Hide() end
     end)
 
+    -- The rune panel opens to the RIGHT of the character sheet -- exactly where
+    -- this list docks, so the two stood on top of each other (user report with a
+    -- screenshot, 08.08.2026). Verified in game on 08.08.2026 by walking the
+    -- parent chain under the mouse: the frame is EngravingFrame, 193 wide, and it
+    -- hangs off UIParent -- NOT off the character sheet. So nothing that iterates
+    -- the sheet's children will ever see it, and closing the sheet does not take
+    -- it down either.
+    --
+    -- It is created on demand, so the hook cannot be installed once and for all at
+    -- load; this waits for the frame and takes the first chance it gets. Both
+    -- directions matter: without OnHide the list would stay parked out in the open
+    -- after the runes are closed again.
+    local engravingHooked = false
+    local function hookEngravingFrame()
+        if engravingHooked then return end
+        local ef = _G.EngravingFrame
+        if not (ef and ef.HookScript) then return end
+        engravingHooked = true
+        local function again() if ns.ReanchorLoadoutsSidebar then ns.ReanchorLoadoutsSidebar() end end
+        ef:HookScript("OnShow", again)
+        ef:HookScript("OnHide", again)
+    end
+
     -- Both corners anchor to CharacterFrame so the height tracks it live; never snapshot GetHeight().
+    local lastX, lastTop, lastBot, lastFlip
     local function anchorToCharacterFrame()
         if not sidebar or not CharacterFrame then return end
+        hookEngravingFrame()
         local pos    = mod.db and mod.db.sidebarPos
         local px     = (pos and pos.x) or 0
         local py     = (pos and pos.y) or 0
@@ -1896,9 +1921,53 @@ local function createSidebar()
             topOff = extTop + py
             botOff = extBot + py
         end
+        -- With the rune panel open its own right edge decides, and the widened
+        -- Modern window is then beside the point -- the panel already hangs off it,
+        -- so adding the extension on top would push the list a second window's
+        -- width into nowhere. The edge is read live rather than assumed from the
+        -- panel's width, because that width is not ours to depend on.
+        local cr = CharacterFrame.GetRight and CharacterFrame:GetRight()
+        local ef = _G.EngravingFrame
+        if ef and ef.IsShown and ef:IsShown() and ef.GetRight and cr then
+            local er = ef:GetRight()
+            if er and er > cr then x = -4 + px + (er - cr) + 6 end
+        end
+
+        -- Character sheet plus rune panel plus this list is wider than some
+        -- screens, and a list off the right edge cannot be reached. Then it goes
+        -- to the LEFT of the sheet -- but only if the left really has room, or the
+        -- flip would trade one invisible edge for the other. Same safeguard the
+        -- socket picker and the weapon strip already carry.
+        local flip = false
+        local w  = sidebar.GetWidth and sidebar:GetWidth() or 0
+        local cl = CharacterFrame.GetLeft and CharacterFrame:GetLeft()
+        local screenR = UIParent and UIParent.GetRight and UIParent:GetRight()
+        if cr and cl and screenR and w > 0 then
+            flip = (cr + x + w) > screenR and (cl - w - 4) > 0
+        end
+
+        -- Nothing to do when nothing moved. This is what lets the tick below call
+        -- in four times a second without re-anchoring a frame that is already
+        -- where it belongs -- and it keeps the drag on the mover from fighting a
+        -- re-anchor mid-pull.
+        --
+        -- The point count is part of the question, not decoration. Edit Mode's
+        -- "Reset this frame" tears the two-point anchor off onto a single CENTER
+        -- point and then calls back in here to have it restored -- with the same
+        -- offsets as before, so the values alone would say "nothing moved" and the
+        -- list would stay collapsed at the centre of the screen.
+        local intact = sidebar.GetNumPoints and sidebar:GetNumPoints() == 2
+        if intact and x == lastX and topOff == lastTop and botOff == lastBot and flip == lastFlip then return end
+        lastX, lastTop, lastBot, lastFlip = x, topOff, botOff, flip
+
         sidebar:ClearAllPoints()
-        sidebar:SetPoint("TOPLEFT",    CharacterFrame, "TOPRIGHT", x, topOff)
-        sidebar:SetPoint("BOTTOMLEFT", CharacterFrame, "BOTTOMRIGHT", x, botOff)
+        if flip then
+            sidebar:SetPoint("TOPRIGHT",    CharacterFrame, "TOPLEFT", -4 + px, topOff)
+            sidebar:SetPoint("BOTTOMRIGHT", CharacterFrame, "BOTTOMLEFT", -4 + px, botOff)
+        else
+            sidebar:SetPoint("TOPLEFT",    CharacterFrame, "TOPRIGHT", x, topOff)
+            sidebar:SetPoint("BOTTOMLEFT", CharacterFrame, "BOTTOMRIGHT", x, botOff)
+        end
         -- The shadow is NOT decided here any more; styleWindow owns it. Placing
         -- the same call in two functions meant the later one won, and this one
         -- runs on every re-anchor -- which put the shadow back in Classic+.
@@ -1907,6 +1976,22 @@ local function createSidebar()
     sidebar._reanchor = anchorToCharacterFrame
     mod._reanchorSidebar = anchorToCharacterFrame
     ns.ReanchorLoadoutsSidebar = anchorToCharacterFrame   -- character panel style switches call this
+
+    -- The hook above cannot cover the run on which the rune panel is BORN: it is
+    -- created on demand, so on the click that first opens it there is no frame to
+    -- have hooked, and the list only learned about it at the next re-anchor --
+    -- which is why closing and reopening the character sheet appeared to fix it
+    -- while opening the runes did not. This tick installs the hook the moment the
+    -- frame exists and otherwise costs one comparison: the re-anchor above returns
+    -- immediately while nothing has moved. It runs only while the list is visible,
+    -- and the list is only visible while the character sheet is open.
+    local sinceCheck = 0
+    sidebar:HookScript("OnUpdate", function(_, elapsed)
+        sinceCheck = sinceCheck + (elapsed or 0)
+        if sinceCheck < 0.25 then return end
+        sinceCheck = 0
+        anchorToCharacterFrame()
+    end)
 
     mod._debugSizes = function()
         local function dump(label, f)
