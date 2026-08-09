@@ -6,6 +6,28 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+    { version = "1.52.6", sections = {
+        { category = "Cooldown Manager", lines = {
+            "NEW: X Offset / Y Offset – Nudge the stack and reagent numbers away from their chosen corner; both sit behind the gear of the position row",
+        } },
+        { category = "Edit Mode", lines = {
+            "Opening Edit Mode no longer hands the party and raid frames to the addon for the rest of the session. Merely opening it drove the client's frame editor through the addon, and in combat the client then refused to update those frames, naming the addon in the message. Only really moving one of Blizzard's frames still writes to the editor, and a frame that is hidden, like the focus frame while nothing is focused, never does.",
+            "Opening Edit Mode closes the options window. It sat exactly on top of the boxes it had just unlocked.",
+        } },
+        { category = "Loadouts", lines = {
+            "The equipment list steps aside for the rune engraving panel. That panel opens on the right side of the character sheet, exactly where the list docks, so the two stood on top of each other. The list now follows the panel's edge, and where the screen is too narrow for sheet, panel and list together, it moves to the left side of the sheet.",
+        } },
+        { category = "Nameplates", lines = {
+            "The role fix ships switched off. What it fixes is a silent error that truncates one update when a nameplate appears; what it costs is that the party and raid frames count as touched by the addon for the whole session and refuse to resize in combat, with the addon named in the message. That price was reaching players who never chose it, so now only whoever switches the fix on pays it.",
+            "The status line of the role fix tells the whole truth. With the fix off it used to claim it was not needed on this client, even for players who do have the error; it now says whether the fix is applied, not needed, or simply not switched on while the error is firing.",
+        } },
+        { category = "Power Bar", lines = {
+            "The bar ships switched off. A second resource bar is a strong opinion to hand someone who never asked for one, and the client already draws its own. Installations that already exist keep the bar exactly as it was.",
+        } },
+        { category = "UI Reskin", lines = {
+            "The dark skin keeps Blizzard's rim off the stance buttons for good. Their updates write the button art back directly, past the hook that guards the action bars, so the rim used to return the first time you switched.",
+        } },
+    } },
     { version = "1.52.5", sections = {
         { category = "Arena", lines = {
             "Diminishing returns and interrupts recognise every rank of a spell. Both lists carried one identifier per spell, usually the one for rank one, so what is really cast at level seventy fell through: no icon for the polymorph, no bar for the kick. All ranks share their name, and the client knows the name behind every identifier already in the list, so one pass builds a name index that covers every rank at once, in the client's own language, which is the one the combat log speaks.",
@@ -565,35 +587,6 @@ ns.CHANGELOG = {
         } },
         { category = "Visuals", lines = {
             "Three modules got their own sidebar icons instead of the placeholder, and Reminders got a nicer bell.",
-        } },
-    } },
-    { version = "1.37.0", sections = {
-        { category = "Languages", lines = {
-            "NEW: Spanish, French, Italian, Portuguese, Russian and Korean. All six are complete — every one of the 2244 texts is translated, nothing falls back to English. Spanish also serves Latin American clients. Choose your language under General, or leave it on Auto.",
-        } },
-        { category = "Reminders (new module)", lines = {
-            "NEW: Shows what you are missing before a pull: weapon oils and stones, blessings, food and flask buffs, the aura or stance you forgot to set. Click a reminder to cast or use it. Off by default, found under Quality of Life.",
-        } },
-        { category = "Nameplates", lines = {
-            "NEW: A spark at the bar's fill point, rounded corners, aura rows you can assign freely, and your own damage-over-time effects on a row of their own.",
-            "NEW: Aura borders take the colour of their spell school, and an aura flashes shortly before it runs out.",
-            "NEW: Level and elite text, plus overall scale and vertical offset per plate.",
-        } },
-        { category = "Edit Mode", lines = {
-            "NEW: A window can take its width or height from another window and keep it.",
-            "NEW: Save button. While dragging, hold Shift to lock one axis.",
-        } },
-        { category = "Arena", lines = {
-            "NEW: Trinket and racial cooldowns, Shadow Sight timer, a ring on the class icon for the most important aura, and range checking.",
-        } },
-        { category = "Totems", lines = {
-            "Totem icons grey out once you leave the totem's range and regain their colour when you come back.",
-        } },
-        { category = "Fixes", lines = {
-            "The character sheet and spellbook open in combat again. The action bars no longer set a protected field from our own code, which was the real cause.",
-            "The melee swing timer is off by default and only loads for melee classes and specialisations.",
-            "Sliders got a proper look: soft edges, an inner shadow and a smoother hover.",
-            "Own icons for the three collection pages, and class icons on the class tabs.",
         } },
     } },
 }
