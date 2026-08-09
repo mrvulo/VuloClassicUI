@@ -115,12 +115,23 @@ local function getRegion(button, suffix, fallback)
     return (name and _G[name .. suffix]) or fallback
 end
 
+-- Hide(), not only texture-nil plus alpha 0. Emptying and fading is undone by
+-- anyone who later writes a texture and an alpha back onto the region, and the
+-- stance bar does exactly that: its updates poke the TEXTURE OBJECT
+-- (StanceButton1NormalTexture:SetTexture) instead of the button method, so the
+-- SetNormalTexture hook that guards the action bars never fires and Blizzard's
+-- rim came back for good (user report with a region dump, 08.08.2026: texture
+-- 130841, alpha 1, shown, on a button we had already skinned).
+--
+-- A hidden region draws nothing whatever is written into it afterwards, so this
+-- beats every writer instead of intercepting one of them.
 local function hideNormalTexture(button)
     local nt = (button.GetNormalTexture and button:GetNormalTexture())
             or getRegion(button, "NormalTexture", button.NormalTexture)
     if nt then
         nt:SetTexture(nil)
         nt:SetAlpha(0)
+        if nt.Hide then nt:Hide() end
     end
     local slot = getRegion(button, "SlotBackground", button.SlotBackground)
     if slot then slot:SetAlpha(0) end
@@ -136,6 +147,9 @@ local function applyNormalTexture(button)
     if nt then
         if button._vcuiNTOrig then nt:SetTexture(button._vcuiNTOrig) end
         nt:SetAlpha(1)
+        -- The mirror of the Hide() above: this style WANTS Blizzard's rim, only
+        -- darkened, so a region hidden by an earlier style has to come back.
+        if nt.Show then nt:Show() end
         if nt.SetDesaturated then nt:SetDesaturated(true) end
         nt:SetVertexColor(DARK_TINT, DARK_TINT, DARK_TINT, 1)
     end
@@ -311,6 +325,9 @@ local function unstyleButton(button)
     if nt then
         if button._vcuiNTOrig then nt:SetTexture(button._vcuiNTOrig) end
         nt:SetAlpha(1)
+        -- Undoing the skin has to undo the Hide() too, or a button handed back to
+        -- the client keeps an invisible rim for the rest of the session.
+        if nt.Show then nt:Show() end
         if nt.SetDesaturated then nt:SetDesaturated(false) end
         nt:SetVertexColor(1, 1, 1)
     end
@@ -780,6 +797,13 @@ function mod:OnEnable()
     -- It also hands the teardown to the framework.
     mod:RegisterEvent("PLAYER_ENTERING_WORLD",     onWorldEnter)
     mod:RegisterEvent("UPDATE_SHAPESHIFT_FORMS",   skinAllSoon)
+    -- FORMS (plural) only fires when the set of forms itself changes, which for a
+    -- paladin means learning an aura. Switching between them, and every usable or
+    -- cooldown update, goes through these three -- and each of them is a moment
+    -- the client rewrites the button art underneath us.
+    mod:RegisterEvent("UPDATE_SHAPESHIFT_FORM",     skinAllSoon)
+    mod:RegisterEvent("UPDATE_SHAPESHIFT_USABLE",   skinAllSoon)
+    mod:RegisterEvent("UPDATE_SHAPESHIFT_COOLDOWN", skinAllSoon)
     mod:RegisterEvent("PET_BAR_UPDATE",            skinAllSoon)
     mod:RegisterEvent("PLAYER_REGEN_DISABLED",     skinAllWAIcons)
     mod:RegisterEvent("PLAYER_REGEN_ENABLED",      skinAllWAIcons)
