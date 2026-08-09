@@ -897,9 +897,18 @@ end
 -- not be paying for it.
 -- One callback for both jobs: the swing decides whether the bar is up at all,
 -- and it is also what steps the rotation past an auto.
-local function onSwing(hand)
+-- reason "shift" means the pending swing MOVED (parry haste) without one
+-- landing. The bar has to follow that -- it is the whole point of tracking it --
+-- but the rotation must not: counting a parry as an auto-attack stepped the
+-- helper a swing early and prompted the seal swap into a swing that had not
+-- happened yet.
+local function onSwing(hand, reason)
     ST.ApplyVisibility()
-    ST.RotOnSwing(hand)
+    -- Allowlist, not a denylist: the tracker's reasons other than these all mean
+    -- "the swing moved without one landing", and every reason added later will
+    -- be of that kind, so excluding the ones known today would count each new
+    -- arrival as an attack.
+    if reason == nil or reason == "swing" then ST.RotOnSwing(hand) end
 end
 
 function ST.SyncTracker()
