@@ -3215,7 +3215,11 @@ local mod = ns:RegisterModule("powerbar", {
     group       = "HUD",
     description = "A movable resource bar for your character. The power type follows your class automatically (Mana / Rage / Energy) — and for Druids it switches with your form: Bear = Rage, Cat = Energy, otherwise Mana.",
     defaults = {
-        enabled    = true,
+        -- Off from the start: a second resource bar is a strong opinion to hand
+        -- someone who never asked for one, and the client already draws one. Who
+        -- wants it switches it on. Existing installs keep theirs -- see migration
+        -- 4 in Core/Database.lua, which writes their switch down explicitly.
+        enabled    = false,
         width      = 220,
         height     = 20,
         x          = 0,

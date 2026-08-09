@@ -90,7 +90,7 @@ end
 -- receive nothing: they operate on the saved tables directly. An install that
 -- has never been stamped is stamped at the current version WITHOUT running
 -- anything -- a fresh install has no old shape to convert.
-local SCHEMA = 3
+local SCHEMA = 4
 local MIGRATIONS = {
     -- Vulslot's snapshot library moves from every account profile into global.
     --
@@ -195,6 +195,34 @@ local MIGRATIONS = {
         end
         if moved > 0 then
             note(L["Arena: racial, PvP trinket and the DR row now share one icon strip; your chosen side was kept."])
+        end
+    end,
+
+    -- The power bar ships OFF from now on. For an install that already exists
+    -- that changes nothing: the switch was on while its owner set their interface
+    -- up, and they have watched the bar work ever since -- which is precisely the
+    -- value the rule at the top of this block protects, whether or not they ever
+    -- touched a switch to get it.
+    --
+    -- Writing the explicit true is what makes it hold. With the default now
+    -- false, a stored true is no longer equal to the default and stops being
+    -- stripped out on save; leaving the key absent would hand the profile the new
+    -- default at the next login and the bar would vanish.
+    --
+    -- A profile with no power bar table at all gets one: no table means nothing
+    -- was ever changed about the bar, which is the case where it has been ON the
+    -- whole time. A fresh install never reaches this at all -- it is stamped
+    -- current without running anything (see the note above runMigrations).
+    [4] = function()
+        for _, prof in pairs(VuloClassicUIDB.profiles or {}) do
+            if type(prof.modules) == "table" then
+                local p = prof.modules.powerbar
+                if type(p) == "table" then
+                    if p.enabled == nil then p.enabled = true end
+                else
+                    prof.modules.powerbar = { enabled = true }
+                end
+            end
         end
     end,
 }
