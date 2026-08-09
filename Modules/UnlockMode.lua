@@ -94,6 +94,30 @@ local function placeAnchor(anchor, x, y)
     anchor:SetPoint("CENTER", UIParent, "CENTER", x or 0, y or 0)
 end
 
+-- More than a pixel and a half off its stored spot. Every layout write in this
+-- file is gated on this: writing a layout that already matches is not free, it
+-- drags the editor through our stack (see emApply) and costs the session.
+local function drifted(frame, fdb)
+    local cx, cy = centerOffset(frame)
+    return math.abs(cx - (fdb.x or 0)) > 1.5 or math.abs(cy - (fdb.y or 0)) > 1.5
+end
+
+-- A HIDDEN frame drifts forever: the client does not seat a frame that is not
+-- shown, so the focus frame without a focus target sat 313px off its stored
+-- spot, counted as moved on every mover-mode open, and dragged the editor
+-- through our stack each time -- applying did not even cure the drift, the
+-- next check measured the same 313px again (chat trace, 09.08.2026). So a
+-- hidden frame never triggers an APPLY. Its layout entry is still worth a
+-- SaveOnly -- the client seats it at the next apply it performs by itself --
+-- but only once per STORED POSITION: the latch remembers what was written, so
+-- restores stop repeating the write while a real second drag (new stored
+-- position) still gets through.
+local wroteHidden = {}
+
+local function hiddenWriteKey(fdb)
+    return tostring(fdb.x or 0) .. ":" .. tostring(fdb.y or 0)
+end
+
 -- Classic Era path only (never on an Edit Mode client, never in combat).
 -- SetMovable(true) must precede SetUserPlaced(true) or the flag fails to stick.
 local function linkDirect(def)
@@ -167,6 +191,23 @@ end
 -- of them on the compact party and raid frames. The chain is
 --   emApply -> ApplyChanges -> ShowUIPanel(EditModeManagerFrame)
 --   -> EnterEditMode -> EditModeFrameSetup -> RefreshRaidFrames.
+-- ApplyChanges shows the editor, and the editor's raid frame refresh is often
+-- the FIRST thing in a session to touch two lazily built pieces of client
+-- state: the raid frame manager's filter table (created inside
+-- CompactRaidFrameManager_GetFilterOptions on first use) and the compact group
+-- member frames. Whoever's execution builds them owns them for the session --
+-- built out of our apply, every later party and raid frame update reads them,
+-- turns tainted and is refused in combat with this addon named.
+--
+-- Dead end, recorded so nobody re-treads it: pre-creating that state through
+-- securecallfunction does NOT help. The call runs the secure function, but our
+-- execution taint rides along and the lazy write comes out marked all the same
+-- (measured 09.08.2026: the table did not exist, one
+-- securecallfunction(CompactRaidFrameManager_GetFilterOptions, 1) later it
+-- existed and issecurevariable named this addon). There is no way to build the
+-- lazy state cleanly from our stack -- the only real lever is calling
+-- ApplyChanges as rarely as possible, which is what every gate in this file
+-- is for.
 local function emApply()
     pcall(function()
         if InCombatLockdown() then lib:SaveOnly() else lib:ApplyChanges() end
@@ -215,14 +256,29 @@ function ns:PrepareBlizzMovers()
     -- Blizzard frame with the editor. Anyone who never moved one now pays
     -- nothing at all. For anyone who did, the taint is the price of the
     -- feature: there is no way to write a layout from an addon without it.
+    --
+    -- "Placed" alone turned out to be too coarse a gate. emReanchor reports
+    -- done for every placed frame whether or not anything differs, so merely
+    -- OPENING the mover mode ran the whole apply -- and the apply's raid frame
+    -- refresh built the manager's lazy filter table under our name, poisoning
+    -- every later party and raid frame update of the session (measured
+    -- 09.08.2026: issecurevariable on the filter table flipped on the first
+    -- open, no move needed). The gate is therefore placed AND actually off its
+    -- stored spot, rechecked per frame below: opening costs nothing, and the
+    -- apply is reserved for the moment something truly moved -- which is what
+    -- the note above emSaveOnly promised all along.
     local wantsLayout = false
     for _, def in ipairs(BLIZZ) do
+        local frame = _G[def.name]
         local fdb = mod.db.frames[def.key]
-        if fdb and fdb.placed and not def.direct then wantsLayout = true break end
+        if frame and fdb and fdb.placed and not def.direct and drifted(frame, fdb)
+            and (frame:IsShown() or wroteHidden[def.key] ~= hiddenWriteKey(fdb)) then
+            wantsLayout = true
+        end
     end
     if wantsLayout and not emEnsure() then return end
 
-    local any = false
+    local any, hiddenWrote = false, false
     for _, def in ipairs(BLIZZ) do
         local frame, anchor = _G[def.name], anchors[def.key]
         local fdb = mod.db.frames[def.key]
@@ -231,7 +287,16 @@ function ns:PrepareBlizzMovers()
                 placeAnchor(anchor, fdb.x, fdb.y)
                 if def.direct then
                     applyDirect(def)
-                elseif emReanchor(def) then any = true end
+                elseif wantsLayout and drifted(frame, fdb) then
+                    if frame:IsShown() then
+                        if emReanchor(def) then any = true end
+                    elseif wroteHidden[def.key] ~= hiddenWriteKey(fdb) then
+                        if emReanchor(def) then
+                            wroteHidden[def.key] = hiddenWriteKey(fdb)
+                            hiddenWrote = true
+                        end
+                    end
+                end
             else
                 -- unplaced: park the box over the frame, don't link (would yank it on login)
                 local x, y = centerOffset(frame)
@@ -240,7 +305,13 @@ function ns:PrepareBlizzMovers()
             end
         end
     end
-    if any then emApply() end
+    if any then
+        emApply()
+    elseif hiddenWrote then
+        -- Only hidden frames needed writing: record the layout, never show the
+        -- editor for a frame nobody can see (see the wroteHidden note above).
+        emSaveOnly()
+    end
 
     -- Blizzard's Edit Mode owns far more frames than the five above, and
     -- emEnsure has to SELECT a layout before the library will let us write
@@ -309,7 +380,25 @@ function mod:OnEnable()
                     if def.direct then
                         applyDirect(def)
                     elseif emClient() then
-                        if emEnsure() and emReanchor(def) then emApplyDebounced() end
+                        -- The framework fires onMove for every RESTORE too, not
+                        -- only for a drag ("the drop, the link pass, the
+                        -- edit-mode restore and the reset" -- Core/Mover.lua),
+                        -- so merely opening the mover mode ran this for every
+                        -- placed frame and drove the editor out of our stack
+                        -- (measured 09.08.2026, four emEnsure calls on open).
+                        -- A restore hands us the position the frame already
+                        -- holds; only a real displacement is worth the write.
+                        local target = _G[def.name]
+                        local moved  = target and drifted(target, fdb)
+                        local shown  = target and target:IsShown()
+                        if moved and shown then
+                            if emEnsure() and emReanchor(def) then emApplyDebounced() end
+                        elseif moved and wroteHidden[def.key] ~= hiddenWriteKey(fdb) then
+                            if emEnsure() and emReanchor(def) then
+                                wroteHidden[def.key] = hiddenWriteKey(fdb)
+                                emSaveOnly()
+                            end
+                        end
                         if mod._needsTargetFocusSetting and not mod._warnedTF then
                             mod._warnedTF = true
                             ns:Print(L["Enable 'Target and Focus' in Blizzard's Edit Mode settings, then /reload, so VuloUI can move the target/focus frame."])
@@ -353,19 +442,31 @@ function mod:OnEnable()
         end)
     end
 
-    local function drifted(frame, fdb)
-        local cx, cy = centerOffset(frame)
-        return math.abs(cx - (fdb.x or 0)) > 1.5 or math.abs(cy - (fdb.y or 0)) > 1.5
-    end
     local function restoreAll()
         if InCombatLockdown() then mod._restorePending = true; return end
         mod._restorePending = false
         ensureEMLoaded()
         syncAnchorSizes()
-        local em      = emClient()
-        local ensured = em and emEnsure()
+        local em    = emClient()
         -- one-time migration: older versions wrote anchor frames as relativeTo into the EM layout
-        local force   = em and not mod.db.emMigrated
+        local force = em and not mod.db.emMigrated
+        -- Same gate as PrepareBlizzMovers: emEnsure may have to SELECT a
+        -- layout, and selecting re-applies it to every system out of our
+        -- stack. So the library is not even readied unless something actually
+        -- needs writing -- a frame off its stored spot, or the migration.
+        local needWrite = force
+        if em and not needWrite then
+            for _, def in ipairs(BLIZZ) do
+                local frame = _G[def.name]
+                local fdb = mod.db.frames[def.key]
+                if frame and fdb and fdb.placed and not def.direct and drifted(frame, fdb)
+                    and (frame:IsShown() or wroteHidden[def.key] ~= hiddenWriteKey(fdb)) then
+                    needWrite = true
+                    break
+                end
+            end
+        end
+        local ensured = em and needWrite and emEnsure()
         local any = false
         for _, def in ipairs(BLIZZ) do
             local frame, anchor = _G[def.name], anchors[def.key]
@@ -376,8 +477,15 @@ function mod:OnEnable()
                     -- login restore + wires the OnShow re-place hook
                     applyDirect(def)
                 elseif em then
-                    if (force or drifted(frame, fdb)) and ensured and emReanchor(def) then
+                    -- The latch guards THIS path too: restoreAll runs on every
+                    -- loading screen, and a hidden frame's permanent drift must
+                    -- not re-run the write each time -- only the first restore
+                    -- of the session records it (review find, 09.08.2026).
+                    local wantsWrite = force or (drifted(frame, fdb)
+                        and (frame:IsShown() or wroteHidden[def.key] ~= hiddenWriteKey(fdb)))
+                    if wantsWrite and ensured and emReanchor(def) then
                         any = true
+                        if not frame:IsShown() then wroteHidden[def.key] = hiddenWriteKey(fdb) end
                     end
                 elseif def.secure and frame.IsUserPlaced and frame:IsUserPlaced()
                        and not drifted(frame, fdb) then
