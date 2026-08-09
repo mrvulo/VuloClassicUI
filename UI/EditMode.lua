@@ -264,6 +264,13 @@ function ns:SetEditMode(state, opts)
         if ns.AbortMoverDrag then ns:AbortMoverDrag() end
         if not ns._editSnapshot and ns.SnapshotEditState then ns:SnapshotEditState() end
         if ns.PrepareBlizzMovers then ns:PrepareBlizzMovers() end
+        -- The options window sits exactly on top of the boxes it just
+        -- unlocked; entering the editor closes it, the same way the client's
+        -- own editor closes the settings panel (user report with screenshot,
+        -- 09.08.2026). Not reopened on exit: whoever finishes editing is
+        -- looking at their interface, not at the options.
+        local main = ns.UI and ns.UI.mainFrame
+        if main and main.IsShown and main:IsShown() then main:Hide() end
         dim:Show()
         toolbar:Show()
         refreshGrid()
