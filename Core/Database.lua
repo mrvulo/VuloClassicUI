@@ -1344,8 +1344,8 @@ function ns:ImportProfilePayload(payload, opts)
     -- string (plus the preview checkbox, when the UI offered one) is the
     -- consent to apply it right away. Same rule as
     -- ApplyThemeColor: an imported string may carry ARBITRARY values, and a
-    -- malformed color entry written into RAID_CLASS_COLORS would break every
-    -- consumer and re-poison itself from the SV at each login -- so only
+    -- malformed color entry written into the ns.CLASS_COLORS book would break
+    -- every consumer and re-poison itself from the SV at each login -- so only
     -- well-formed entries get in, everything else is dropped.
     if (not opts or opts.look ~= false)
         and type(payload.g) == "table" and ns.db and ns.db.global then

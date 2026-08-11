@@ -84,7 +84,7 @@ local function tokenFor(className)
 end
 
 local function classColor(token)
-    return token and (_G.RAID_CLASS_COLORS or {})[token]
+    return ns.ClassColor(token)
 end
 
 local ORB = {

@@ -726,7 +726,7 @@ function ns:OverrideSelfLabel()
 
     local locClass, token = UnitClass("player")
     local colored = name
-    local c = token and _G.RAID_CLASS_COLORS and _G.RAID_CLASS_COLORS[token]
+    local c = token and ns.ClassColor and ns.ClassColor(token)
     if c and c.colorStr then
         colored = "|c" .. c.colorStr .. name .. "|r"
     elseif c then

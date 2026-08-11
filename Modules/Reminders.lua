@@ -1311,8 +1311,8 @@ function mod:GetOptions()
         local subs = {}
         for _, r in ipairs(byCat[catKey] or {}) do
             local label = (r.optLabel and r.optLabel()) or r.key
-            if r.optClass and RAID_CLASS_COLORS and RAID_CLASS_COLORS[r.optClass] then
-                local col = RAID_CLASS_COLORS[r.optClass]
+            local col = r.optClass and ns.ClassColor(r.optClass)
+            if col then
                 label = string.format("|cff%02x%02x%02x%s|r",
                     col.r * 255, col.g * 255, col.b * 255, label)
             end

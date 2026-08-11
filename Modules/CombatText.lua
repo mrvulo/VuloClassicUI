@@ -507,7 +507,7 @@ local function onCLEU()
         local name = destName and destName:match("^[^%-]+") or "?"
         if mod.db.deathClassColor ~= false and GetPlayerInfoByGUID then
             local _, classToken = GetPlayerInfoByGUID(destGUID)
-            local cc = classToken and _G.RAID_CLASS_COLORS and _G.RAID_CLASS_COLORS[classToken]
+            local cc = classToken and ns.ClassColor(classToken)
             if cc then
                 local hex = cc.colorStr or string.format("ff%02x%02x%02x",
                     math.floor(cc.r * 255 + 0.5), math.floor(cc.g * 255 + 0.5),

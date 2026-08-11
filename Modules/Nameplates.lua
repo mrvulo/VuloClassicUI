@@ -432,13 +432,13 @@ local function getNPCTitle(unit)
 end
 
 -- Custom class colours have to win, and the table has to be looked up when the
--- colour is needed. The old version took RAID_CLASS_COLORS first - which is
--- always defined, so the custom branch was unreachable - and did it once at file
--- load, before an addon providing custom colours had necessarily loaded.
+-- colour is needed. Third-party CUSTOM_CLASS_COLORS keeps first claim; after
+-- that our own color book answers (it carries the user's overrides, Blizzard's
+-- table stays unwritten and taint-free).
 local function classColor(class)
     if not class then return nil end
-    local t = _G.CUSTOM_CLASS_COLORS or _G.RAID_CLASS_COLORS
-    local c = t and t[class]
+    local t = _G.CUSTOM_CLASS_COLORS
+    local c = (t and t[class]) or ns.ClassColor(class)
     if c then return c.r, c.g, c.b end
     return nil
 end

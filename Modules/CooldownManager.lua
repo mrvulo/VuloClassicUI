@@ -93,7 +93,7 @@ end
 local function groupBorderColor(group)
     if group.borderClassColor then
         local _, class = UnitClass("player")
-        local c = class and RAID_CLASS_COLORS and RAID_CLASS_COLORS[class]
+        local c = class and ns.ClassColor(class)
         if c then return c.r, c.g, c.b end
     end
     local c = group.borderColor
@@ -1113,7 +1113,7 @@ local ANTS_COLS, ANTS_CELLS, ANTS_CELL = 5, 22, 48 / 256
 local function glowColor(g)
     if g.colorMode == "class" then
         local _, cls = UnitClass("player")
-        local c = cls and RAID_CLASS_COLORS and RAID_CLASS_COLORS[cls]
+        local c = cls and ns.ClassColor(cls)
         if c then return c.r, c.g, c.b end
     elseif g.colorMode == "custom" and g.color then
         return g.color.r or 1, g.color.g or 1, g.color.b or 1
@@ -3310,7 +3310,7 @@ local function currentColor()
     if d.colorMode == "custom" and d.customColor then return d.customColor end
     if d.colorMode == "class" then
         local _, cls = UnitClass("player")
-        local c = RAID_CLASS_COLORS and RAID_CLASS_COLORS[cls]
+        local c = ns.ClassColor(cls)
         if c then return c end
     end
     local _, token = UnitPowerType("player")

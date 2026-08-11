@@ -1527,7 +1527,7 @@ end
 -- buttons, and clearing back to white undoes it without a reload.
 local function applyInteractions()
     local myClass = select(2, UnitClass("player"))
-    local cc = myClass and RAID_CLASS_COLORS and RAID_CLASS_COLORS[myClass]
+    local cc = myClass and ns.ClassColor(myClass)
     forAllButtons(function(b)
         local pt = b.GetPushedTexture and b:GetPushedTexture()
         if pt then

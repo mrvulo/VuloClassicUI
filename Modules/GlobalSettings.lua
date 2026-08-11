@@ -148,11 +148,30 @@ for tok, c in pairs(ns.POWER_COLORS) do
     POWER_DEFAULTS[tok] = { r = c.r, g = c.g, b = c.b }
 end
 
--- Client defaults, captured on first apply BEFORE the first mutation. Two
--- separate books on purpose: RAID_CLASS_COLORS and PowerBarColor are Blizzard
--- tables whose defaults we must be able to put back exactly.
+-- Client defaults, captured on first apply BEFORE any override is laid over
+-- them, so clearing an override restores the exact client color.
 local defaultClassColors = {}
-local defaultBlizzPower  = {}
+
+-- The addon's OWN class color book. Deliberately not Blizzard's table:
+-- writing RAID_CLASS_COLORS marks every entry as ours, and Blizzard's compact
+-- party/raid frames read that table while they build their members -- the
+-- read marks the whole execution and the next protected call in combat is
+-- refused with this addon named. Measured 11.08.2026 (flowsort probe): the
+-- clean edit-mode login apply turned ours exactly at the class color read
+-- inside CompactUnitFrame_UpdateAll, and the session ended in a blocked
+-- CompactPartyFramePet4:Hide(). So overrides live here, our own painters read
+-- this book, and Blizzard-owned displays keep stock colors on purpose.
+ns.CLASS_COLORS = {}
+
+-- Single lookup for every painter: the book first (defaults + overrides),
+-- the stock table as read-only guard for lookups before the first apply.
+function ns.ClassColor(token)
+    if not token then return nil end
+    local c = ns.CLASS_COLORS[token]
+    if c then return c end
+    local rcc = _G.RAID_CLASS_COLORS
+    return rcc and rcc[token] or nil
+end
 
 local function applyGlobalFont()
     local db = ns.db and ns.db.global and ns.db.global.fonts
@@ -191,10 +210,11 @@ local function applyGameTextFont()
 end
 
 -- In-place field mutation, never table replacement: every consumer in this
--- addon reads RAID_CLASS_COLORS / ns.POWER_COLORS at paint time, and Blizzard
--- keeps aliases into the same tables (PowerBarColor[0] IS PowerBarColor.MANA),
--- so rewriting the fields recolors everything on its next repaint. An absent
--- override restores the captured client default.
+-- addon reads ns.CLASS_COLORS / ns.POWER_COLORS at paint time and may cache a
+-- reference, so rewriting the fields recolors everything on its next repaint.
+-- An absent override restores the captured client default. Blizzard's
+-- RAID_CLASS_COLORS is read once for the defaults and never written;
+-- PowerBarColor is not touched at all -- see the book comment above.
 local function applyCustomColors()
     local g = ns.db and ns.db.global
     if not g then return end
@@ -205,34 +225,21 @@ local function applyCustomColors()
             if not defaultClassColors[tok] then
                 defaultClassColors[tok] = { r = c.r, g = c.g, b = c.b }
             end
+            local own = ns.CLASS_COLORS[tok]
+            if not own then own = {}; ns.CLASS_COLORS[tok] = own end
             local src = g.classColors[tok] or defaultClassColors[tok]
-            c.r, c.g, c.b = src.r, src.g, src.b
-            -- colorStr is what chat and name coloring read; it must follow.
-            if c.colorStr then
-                c.colorStr = string.format("ff%02x%02x%02x",
-                    math.floor(c.r * 255 + 0.5),
-                    math.floor(c.g * 255 + 0.5),
-                    math.floor(c.b * 255 + 0.5))
-            end
+            own.r, own.g, own.b = src.r, src.g, src.b
+            -- colorStr is what our chat and name coloring read; it must follow.
+            own.colorStr = string.format("ff%02x%02x%02x",
+                math.floor(own.r * 255 + 0.5),
+                math.floor(own.g * 255 + 0.5),
+                math.floor(own.b * 255 + 0.5))
         end
     end
 
     for tok, own in pairs(ns.POWER_COLORS) do
         local src = g.powerColors[tok] or POWER_DEFAULTS[tok]
         if src then own.r, own.g, own.b = src.r, src.g, src.b end
-    end
-    local pbc = _G.PowerBarColor
-    if pbc then
-        for tok in pairs(ns.POWER_COLORS) do
-            local e = pbc[tok]
-            if e then
-                if not defaultBlizzPower[tok] then
-                    defaultBlizzPower[tok] = { r = e.r, g = e.g, b = e.b }
-                end
-                local src = g.powerColors[tok] or defaultBlizzPower[tok]
-                e.r, e.g, e.b = src.r, src.g, src.b
-            end
-        end
     end
 end
 
@@ -325,7 +332,7 @@ local function fontsOptions()
             classRows[#classRows + 1] = {
                 type = "color", label = names[token],
                 labelTint = true, noOverride = true,
-                get = function() return _G.RAID_CLASS_COLORS[token] end,
+                get = function() return ns.CLASS_COLORS[token] or _G.RAID_CLASS_COLORS[token] end,
                 set = function(r, gg, b)
                     g.classColors[token] = { r = r, g = gg, b = b }
                     applyCustomColors()

@@ -1291,7 +1291,7 @@ local CLASS_ICON_TEXTURE = "Interface\\Glues\\CharacterCreate\\UI-CharacterCreat
 
 local function classColor(class)
     if not class then return nil end
-    local c = RAID_CLASS_COLORS and RAID_CLASS_COLORS[class]
+    local c = ns.ClassColor(class)
     if c then return c.r, c.g, c.b end
     return 1, 1, 1
 end
@@ -3866,7 +3866,7 @@ end
 local function classColor(class)
     local c = class and ns.COLORS and ns.COLORS.class and ns.COLORS.class[class]
     if c then return c.r, c.g, c.b end
-    local raw = class and _G.RAID_CLASS_COLORS and _G.RAID_CLASS_COLORS[class]
+    local raw = class and ns.ClassColor(class)
     if raw then return raw.r, raw.g, raw.b end
     return 0.6, 0.6, 0.6
 end

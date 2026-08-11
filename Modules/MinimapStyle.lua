@@ -157,7 +157,7 @@ function mm.applyRingColor()
     local c
     if d.ringColorMode == "class" then
         local _, token = UnitClass("player")
-        c = token and (_G.RAID_CLASS_COLORS or {})[token]
+        c = token and ns.ClassColor(token)
     elseif d.ringColorMode == "custom" then
         c = d.ringColor
     end

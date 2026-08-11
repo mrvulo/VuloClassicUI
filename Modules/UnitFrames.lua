@@ -1417,7 +1417,7 @@ local function c_applyFill(isChannel)
     local c
     if fm == "class" then
         local _, token = UnitClass("player")
-        c = token and _G.RAID_CLASS_COLORS and _G.RAID_CLASS_COLORS[token]
+        c = token and ns.ClassColor(token)
     end
     c = c or mod.db.accentColor or { r = 0.608, g = 0.424, b = 1.000 }
     c_applyColor({ r = c.r, g = c.g, b = c.b, a = 1 })
@@ -2028,7 +2028,7 @@ local function pvStyle()
         local c
         if fm == "class" then
             local _, token = UnitClass("player")
-            c = token and _G.RAID_CLASS_COLORS and _G.RAID_CLASS_COLORS[token]
+            c = token and ns.ClassColor(token)
         end
         c = c or d.accentColor or { r = 0.608, g = 0.424, b = 1 }
         pv.bar:SetStatusBarColor(c.r, c.g, c.b)

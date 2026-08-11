@@ -2977,7 +2977,7 @@ function ns.ShowGoldTooltip(owner)
         GameTooltip:AddDoubleLine(ns.C.accent .. L["Faction/Server Gold:|r"], coin(total))
         GameTooltip:AddLine(" ")
         for _, r in ipairs(rows) do
-            local cls = r.info.class and RAID_CLASS_COLORS and RAID_CLASS_COLORS[r.info.class]
+            local cls = r.info.class and ns.ClassColor(r.info.class)
             local colored = r.name
             if cls then
                 colored = string.format("|cff%02x%02x%02x%s|r",
