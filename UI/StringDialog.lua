@@ -108,6 +108,9 @@ local function ensureExportPanel()
     local UI = ns.UI
     exportPanel = CreateFrame("Frame", nil, dlg)
     exportPanel:SetAllPoints(dlg)
+    -- born hidden: the ensure*() calls run AFTER openShell's hideAll, so a
+    -- panel created on this very open would otherwise stay visible forever
+    exportPanel:Hide()
 
     local hint = exportPanel:CreateFontString(nil, "OVERLAY")
     UI.Font(hint, 12)
@@ -165,6 +168,7 @@ local function ensurePastePanel()
     local UI = ns.UI
     pastePanel = CreateFrame("Frame", nil, dlg)
     pastePanel:SetAllPoints(dlg)
+    pastePanel:Hide()
 
     local hint = pastePanel:CreateFontString(nil, "OVERLAY")
     UI.Font(hint, 12)
@@ -262,6 +266,7 @@ local function ensurePreviewPanel()
     local UI = ns.UI
     previewPanel = CreateFrame("Frame", nil, dlg)
     previewPanel:SetAllPoints(dlg)
+    previewPanel:Hide()
 
     w.nameBox = UI:CreateEditBox(previewPanel, {
         label = L["Name"], editWidth = 240, commitOnFocusLost = true,
