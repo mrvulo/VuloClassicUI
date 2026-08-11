@@ -11,11 +11,10 @@ local mod = ns:RegisterModule("darkskin", {
     description = "The dark look of the UI in one place: a built-in dark skin for action buttons and WeakAuras icons, plus an optional Dark Mode that darkens Blizzard's default frames, minimap and bars.",
     defaults = {
         enabled       = true,
-        style         = "shadow",  -- shadow | rounded | square | accent | circle | minimal | minimaldark
-        waStyle       = "shadow",
+        style         = "standard",  -- standard | minimaldark | circle | csquare | hexagon
+        waStyle       = "set1",  -- one of the five aura layer sets (WA_SETS)
         skinPetStance = true,
         skinBars      = true,
-        barIconSize   = 88,        -- shadow style: icon fills this % of the button (rest = rim)
         skinWeakAuras = true,
         hideWABorder  = true,
         darkMode        = false,
@@ -42,9 +41,7 @@ local EXTRA_PREFIXES = { "PetActionButton", "StanceButton" }
 
 local ICON_CROP = { 0.08, 0.92, 0.08, 0.92 }
 
--- Bundled masks under Media\Masks\; file paths load more reliably than fileIDs in Classic.
-local MASK_ROUNDED = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\csquare_mask.tga"
-local MASK_CIRCLE  = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\circle_mask.tga"
+-- File paths load more reliably than fileIDs in Classic.
 local MASK_SQUARE  = "Interface\\Buttons\\WHITE8X8"
 local TEX_BACKDROP = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\Backdrop.tga"
 local TEX_BORDER   = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\Normal.tga"
@@ -75,14 +72,23 @@ local function attachShadow(frame, store, outset)
     end
 end
 
+-- "standard" is the ships-with default -- Blizzard's button exactly as it
+-- comes, the appliers only put back what another style set in the same
+-- session. "minimaldark" carries the display name Shadow. The three masked
+-- shapes cut the icon with their mask and lay their own rim art over it
+-- (Media\Buttons, one _mask/_border pair per shape); migration [5] maps every
+-- retired style onto its nearest survivor. The bg/border/shadow flags and the
+-- machinery behind them stay as infrastructure; no current style sets them.
+local BTN_DIR = "Interface\\AddOns\\VuloClassicUI\\Media\\Buttons\\"
 local STYLES = {
-    shadow   = { border = nil,      bg = true,  mask = nil,          shadow = true  },
-    rounded  = { border = nil,      bg = true,  mask = MASK_ROUNDED, shadow = false },
-    square   = { border = "black",  bg = true,  mask = nil,          shadow = false },
-    accent   = { border = "accent", bg = true,  mask = nil,          shadow = false },
-    circle   = { border = nil,      bg = true,  mask = MASK_CIRCLE,  shadow = false },
-    minimal  = { border = nil,      bg = false, mask = nil,          shadow = false },
-    minimaldark = { border = nil,   bg = false, mask = nil,          shadow = false, darkenNormal = true },
+    standard = { border = nil,    bg = false, mask = nil, shadow = false, standard = true },
+    minimaldark = { border = nil, bg = false, mask = nil, shadow = false, darkenNormal = true },
+    circle  = { bg = false, shadow = false,
+                mask = BTN_DIR .. "circle_mask.tga",  borderTex = BTN_DIR .. "circle_border.tga" },
+    csquare = { bg = false, shadow = false,
+                mask = BTN_DIR .. "csquare_mask.tga", borderTex = BTN_DIR .. "csquare_border.tga" },
+    hexagon = { bg = false, shadow = false,
+                mask = BTN_DIR .. "hexagon_mask.tga", borderTex = BTN_DIR .. "hexagon_border.tga" },
 }
 
 local DARK_TINT = 0.12
@@ -90,9 +96,9 @@ local DARK_TINT = 0.12
 -- Gates the NormalTexture re-hide hooks; flipped by setBarsSkinned().
 local barsSkinned = false
 
-local function currentStyle(forWA)
-    local key = mod.db and (forWA and mod.db.waStyle or mod.db.style)
-    return STYLES[key] or STYLES.shadow
+local function currentStyle()
+    local key = mod.db and mod.db.style
+    return STYLES[key] or STYLES.standard
 end
 
 -- Measured: painting the WeakAuras icons cost a 28 ms hitch on EVERY combat
@@ -107,7 +113,9 @@ end
 local function waSignature()
     local db = mod.db
     if not db then return "?" end
-    return (db.waStyle or "shadow") .. (db.hideWABorder and "|B" or "|b")
+    local t = db.waBorderTint
+    local tint = t and string.format("|%.3f/%.3f/%.3f", t.r or 1, t.g or 1, t.b or 1) or ""
+    return (db.waStyle or "set1") .. (db.hideWABorder and "|B" or "|b") .. tint
 end
 
 local function getRegion(button, suffix, fallback)
@@ -135,26 +143,52 @@ local function hideNormalTexture(button)
     end
     local slot = getRegion(button, "SlotBackground", button.SlotBackground)
     if slot then slot:SetAlpha(0) end
+    button._vcuiNTDirty = true
 end
 
 local function applyNormalTexture(button)
-    if not currentStyle().darkenNormal then
+    local st = currentStyle()
+    if not (st.darkenNormal or st.standard) then
         hideNormalTexture(button)
         return
     end
+    -- Standard means hands off: a pristine Blizzard button is never written to
+    -- (the client owns rim states like the out-of-mana tint and the grid
+    -- half-alpha, and Dark Mode may own the tint) -- only a region a previous
+    -- style demonstrably altered gets put back, once.
+    if st.standard and not button._vcuiNTDirty then return end
+    button._vcuiNTDirty = not st.standard or nil
     local nt = (button.GetNormalTexture and button:GetNormalTexture())
             or getRegion(button, "NormalTexture", button.NormalTexture)
     if nt then
-        if button._vcuiNTOrig then nt:SetTexture(button._vcuiNTOrig) end
+        if st.standard then
+            -- Restore only when a previous style emptied the region: on the
+            -- SetNormalTexture hook path Blizzard just wrote the CURRENT
+            -- texture (stance/page swaps), and the capture must not undo it.
+            if button._vcuiNTOrig and nt.GetTexture and not nt:GetTexture() then
+                nt:SetTexture(button._vcuiNTOrig)
+            end
+        elseif button._vcuiNTOrig then
+            nt:SetTexture(button._vcuiNTOrig)
+        end
         nt:SetAlpha(1)
-        -- The mirror of the Hide() above: this style WANTS Blizzard's rim, only
-        -- darkened, so a region hidden by an earlier style has to come back.
+        -- The mirror of the Hide() above: these styles WANT Blizzard's rim, so
+        -- a region hidden by an earlier style has to come back.
         if nt.Show then nt:Show() end
-        if nt.SetDesaturated then nt:SetDesaturated(true) end
-        nt:SetVertexColor(DARK_TINT, DARK_TINT, DARK_TINT, 1)
+        if nt.SetDesaturated then nt:SetDesaturated(not st.standard) end
+        if st.standard then
+            nt:SetVertexColor(1, 1, 1, 1)
+        else
+            local c = mod.db and mod.db.barBorderTint
+            if c then
+                nt:SetVertexColor(c.r or DARK_TINT, c.g or DARK_TINT, c.b or DARK_TINT, 1)
+            else
+                nt:SetVertexColor(DARK_TINT, DARK_TINT, DARK_TINT, 1)
+            end
+        end
     end
     local slot = getRegion(button, "SlotBackground", button.SlotBackground)
-    if slot then slot:SetAlpha(0) end
+    if slot then slot:SetAlpha(st.standard and 1 or 0) end
 end
 
 -- This client has no reliable global ActionButton_Update, so hook each button's setter.
@@ -209,7 +243,13 @@ local function applyStyle(button)
     local st   = currentStyle()
     local icon = getRegion(button, "Icon", button.icon or button.Icon)
 
-    if icon and icon.SetTexCoord then icon:SetTexCoord(unpack(ICON_CROP)) end
+    if icon and icon.SetTexCoord then
+        if st.standard then
+            icon:SetTexCoord(0, 1, 0, 1)
+        else
+            icon:SetTexCoord(unpack(ICON_CROP))
+        end
+    end
 
     if button._vcuiBg then
         button._vcuiBg:SetShown((st.bg and not st.shadow) and true or false)
@@ -238,6 +278,25 @@ local function applyStyle(button)
         else
             button._vcuiBorder:Hide()
         end
+    end
+
+    -- The shaped styles bring their own rim art, laid over the masked icon.
+    if st.borderTex then
+        if not button._vcuiShape then
+            local t = button:CreateTexture(nil, "OVERLAY", nil, 1)
+            t:SetAllPoints(button)
+            button._vcuiShape = t
+        end
+        button._vcuiShape:SetTexture(st.borderTex)
+        local c = mod.db and mod.db.barBorderTint
+        if c then
+            button._vcuiShape:SetVertexColor(c.r or 1, c.g or 1, c.b or 1, 1)
+        else
+            button._vcuiShape:SetVertexColor(1, 1, 1, 1)
+        end
+        button._vcuiShape:Show()
+    elseif button._vcuiShape then
+        button._vcuiShape:Hide()
     end
 
     applyNormalTexture(button)
@@ -313,6 +372,7 @@ local function unstyleButton(button)
     if button._vcuiBack   then button._vcuiBack:Hide()   end
     if button._vcuiRing   then button._vcuiRing:Hide()   end
     if button._vcuiBorder then button._vcuiBorder:Hide() end
+    if button._vcuiShape  then button._vcuiShape:Hide()  end
 
     local icon = getRegion(button, "Icon", button.icon or button.Icon)
     if icon then
@@ -333,6 +393,7 @@ local function unstyleButton(button)
     end
     local slot = getRegion(button, "SlotBackground", button.SlotBackground)
     if slot then slot:SetAlpha(1) end
+    button._vcuiNTDirty = nil
 end
 
 local function setBarsSkinned(on)
@@ -356,6 +417,91 @@ local function insetCooldown(region, icon, pct)
         cd:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", -inset,  inset)
     else
         cd:SetAllPoints(icon)
+    end
+end
+
+-- ===== Aura layer sets ====================================================
+-- The aura look is a three-layer texture set: a backdrop under the icon, a
+-- rim (normal) and a border over it. Scales are the source art's layer size
+-- over its icon size; color and blend follow the layer spec. The state
+-- layers of a clickable button (pushed, checked, hotkey) have no meaning on
+-- a passive aura, and the gloss shine stays out on purpose -- the source
+-- framework draws it at user-set alpha with a DEFAULT OF ZERO, so the look
+-- everyone knows is the one without it (drawn at full alpha it whitewashes
+-- every icon; measured in game, 11.08.2026).
+local WA_DIR = "Interface\\AddOns\\VuloClassicUI\\Media\\AuraSkins\\"
+local WA_SETS = {
+    set1 = { dir = "1",
+        back   = { scale = 1.3125, color = {0.3, 0.3, 0.3, 1} },
+        normal = { scale = 1.3125, color = {0, 0, 0, 1} },
+        border = { scale = 1.3125 },
+    },
+    set2 = { dir = "2",
+        back   = { scale = 1 },
+        normal = { scale = 1.25 },
+        border = { scale = 1.25, add = true },
+    },
+    set3 = { dir = "3",
+        back   = { scale = 1.3125, color = {0.3, 0.3, 0.3, 1} },
+        normal = { scale = 1.3125, color = {0, 0, 0, 1} },
+        border = { scale = 1.3125 },
+    },
+    set4 = { dir = "4",
+        back   = { scale = 1, color = {0.3, 0.3, 0.3, 1} },
+        normal = { scale = 1, color = {0, 0, 0, 1} },
+        border = { scale = 1 },
+    },
+    set5 = { dir = "5",
+        back   = { scale = 1.54 },
+        normal = { scale = 1.54, color = {0, 0, 0, 1} },
+        border = { scale = 1.62, add = true },
+    },
+}
+
+local function currentWASet()
+    local key = mod.db and mod.db.waStyle
+    return WA_SETS[key] or WA_SETS.set1
+end
+
+local WA_LAYERS = {
+    { key = "_vcuiWaBack",   file = "Backdrop.tga", spec = "back",   layer = "BACKGROUND", sub = -5 },
+    { key = "_vcuiWaNormal", file = "Normal.tga",   spec = "normal", layer = "OVERLAY",    sub = 1 },
+    { key = "_vcuiWaBorder", file = "Border.tga",   spec = "border", layer = "OVERLAY",    sub = 2 },
+}
+
+-- Lays the three set layers around the icon; parent owns the textures, region
+-- carries the refs (the same parent/store convention as attachShadow).
+local function placeWALayers(region, parent, icon, set, w)
+    for _, Ld in ipairs(WA_LAYERS) do
+        local spec = set[Ld.spec]
+        local t = region[Ld.key]
+        if spec then
+            if not t then
+                t = parent:CreateTexture(nil, Ld.layer, nil, Ld.sub)
+                region[Ld.key] = t
+            end
+            local out = w * (spec.scale - 1) / 2
+            t:ClearAllPoints()
+            t:SetPoint("TOPLEFT",     icon, "TOPLEFT",     -out,  out)
+            t:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT",  out, -out)
+            t:SetTexture(WA_DIR .. set.dir .. "\\" .. Ld.file)
+            t:SetBlendMode(spec.add and "ADD" or "BLEND")
+            local c = spec.color
+            -- The user's border tint outranks the set's own border spec;
+            -- the other layers keep the set look.
+            if Ld.spec == "border" then
+                local o = mod.db and mod.db.waBorderTint
+                if o then c = { o.r or 1, o.g or 1, o.b or 1, 1 } end
+            end
+            if c then
+                t:SetVertexColor(c[1], c[2], c[3], c[4] or 1)
+            else
+                t:SetVertexColor(1, 1, 1, 1)
+            end
+            t:Show()
+        elseif t then
+            t:Hide()
+        end
     end
 end
 
@@ -386,30 +532,16 @@ local function styleWAIcon(region)
     if region._vcuiWASig == sig and region._vcuiWAWidth == w then return end
     region._vcuiWASig, region._vcuiWAWidth = sig, w
 
-    attachShadow(region, region, 1)
-    local st = currentStyle(true)
-    local showShadow = st.shadow and true or false
+    placeWALayers(region, region, icon, currentWASet(), w)
 
-    local WA_SHRINK = 0.08
-    local WA_RIM    = 0.12
-    local out = w * WA_RIM
-
-    for _, t in ipairs({ region._vcuiBack, region._vcuiRing }) do
-        if t then
-            t:SetShown(showShadow)
-            t:ClearAllPoints()
-            t:SetPoint("TOPLEFT",     region, "TOPLEFT",     -out,  out)
-            t:SetPoint("BOTTOMRIGHT", region, "BOTTOMRIGHT",  out, -out)
-        end
-    end
-    if region._vcuiBack then region._vcuiBack:SetVertexColor(0.02, 0.02, 0.03, 1) end
-
-    local maskTex = st.mask or (st.shadow and MASK_SQUARE) or nil
-    local pct     = st.shadow and WA_SHRINK or 0
-    setMasked(region, icon, maskTex ~= nil, maskTex, pct)
+    -- Leftovers from the older per-style painting of the same session.
+    if region._vcuiBack  then region._vcuiBack:Hide()  end
+    if region._vcuiRing  then region._vcuiRing:Hide()  end
+    if region._vcuiShape then region._vcuiShape:Hide() end
+    setMasked(region, icon, false)
 
     local function fixCD(cd)
-        insetCooldown(region, icon, pct)
+        insetCooldown(region, icon, 0)
         if cd.SetSwipeColor then pcall(cd.SetSwipeColor, cd, 0, 0, 0, 0) end
     end
     if region.cooldown then
@@ -439,25 +571,13 @@ local function styleWAAuraBarIcon(region)
     if region._vcuiWASig == sig and region._vcuiWAWidth == w then return end
     region._vcuiWASig, region._vcuiWAWidth = sig, w
 
-    attachShadow(frame, region, 1)
-    local st = currentStyle(true)
-    local showShadow = st.shadow and true or false
+    placeWALayers(region, frame, icon, currentWASet(), w)
 
-    local out = w * 0.12
-
-    for _, t in ipairs({ region._vcuiBack, region._vcuiRing }) do
-        if t then
-            t:SetShown(showShadow)
-            t:ClearAllPoints()
-            t:SetPoint("TOPLEFT",     frame, "TOPLEFT",     -out,  out)
-            t:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT",  out, -out)
-        end
-    end
-    if region._vcuiBack then region._vcuiBack:SetVertexColor(0.02, 0.02, 0.03, 1) end
-
-    local maskTex = st.mask or (st.shadow and MASK_SQUARE) or nil
-    local pct     = st.shadow and 0.08 or 0
-    setMasked(frame, icon, maskTex ~= nil, maskTex, pct)
+    -- Leftovers from the older per-style painting of the same session.
+    if region._vcuiBack  then region._vcuiBack:Hide()  end
+    if region._vcuiRing  then region._vcuiRing:Hide()  end
+    if region._vcuiShape then region._vcuiShape:Hide() end
+    setMasked(frame, icon, false)
 end
 
 local function skinWARegion(region)
@@ -637,9 +757,11 @@ local BAG_BUTTONS = {
     "KeyRingButton",
 }
 
--- The button skin hides the same NormalTexture, so the tint must stand down.
+-- The button skin hides or repaints the same NormalTexture, so the tint must
+-- stand down -- except under "standard", which by contract leaves Blizzard's
+-- rim alone and hands it to whoever wants it, Dark Mode included.
 local function buttonSkinOwnsBars()
-    return (mod.db.skinBars and barsSkinned) and true or false
+    return (mod.db.skinBars and barsSkinned and not currentStyle().standard) and true or false
 end
 
 local function applyUnitframes(on) paintGlobals(UNIT_BORDERS, on) end
@@ -833,15 +955,14 @@ end
 -- appliers -- they are file-locals here on purpose.
 function mod.BarStyleValues()
     return {
-        { value = "shadow",  text = L["Shadow (dark rounded rim)"] },
-        { value = "rounded", text = L["Rounded icon (masked corners)"] },
-        { value = "square",  text = L["Square (black edge)"] },
-        { value = "accent",  text = L["Square (accent edge)"] },
-        { value = "circle",  text = L["Circle"] },
-        { value = "minimal", text = L["Minimal (icon only)"] },
-        { value = "minimaldark", text = L["Minimal Dark (darkened Blizzard border)"] },
+        { value = "standard", text = L["Standard (Blizzard's own look)"] },
+        { value = "minimaldark", text = L["Shadow (darkened Blizzard border)"] },
+        { value = "circle",  text = L["Circle (masked shape)"] },
+        { value = "csquare", text = L["Square (masked shape)"] },
+        { value = "hexagon", text = L["Hexagon (masked shape)"] },
     }
 end
+mod.BAR_TINT       = DARK_TINT   -- the mirror page's color fallback reads this
 mod.SetBarsSkinned = setBarsSkinned
 mod.RefreshAll     = refreshAll
 mod.SkinAll        = skinAll
@@ -869,16 +990,19 @@ function mod:GetOptions()
           get = function() return mod.db.skinBars end,
           set = function(_, v) mod.db.skinBars = v; setBarsSkinned(v) end },
         { type = "dropdown", label = L["Bar style"],
-          tooltip = L["Pick how the action buttons look. Rounded/Circle use an icon mask; Minimal is just the cropped icon."],
+          tooltip = L["Pick how the action buttons look: Blizzard's own untouched button, the dark Shadow skin, or a masked shape (circle, square, hexagon)."],
           width = 260,
           values = STYLE_VALUES,
-          get = function() return mod.db.style or "shadow" end,
-          set = function(_, v) mod.db.style = v; refreshAll() end },
-        { type = "slider", label = L["Bar icon size"],
-          tooltip = L["How much of the button the icon fills in Shadow style. Higher = bigger icons with a thinner rim."],
-          min = 76, max = 100, step = 2,
-          get = function() return mod.db.barIconSize or 90 end,
-          set = function(_, v) mod.db.barIconSize = v; refreshAll() end },
+          get = function() return mod.db.style or "standard" end,
+          -- The DM pass follows every style switch: standard hands the rim to
+          -- Dark Mode, the skin takes it back -- either way the tint must be
+          -- re-decided right now, not at the next button update.
+          set = function(_, v) mod.db.style = v; refreshAll(); applyAllDM() end },
+        { type = "color", label = L["Border color"],
+          tooltip = L["Tints the frame of the Shadow and shape styles. Reset it to get each style's built-in coloring back."],
+          get = function() return mod.db.barBorderTint or { r = DARK_TINT, g = DARK_TINT, b = DARK_TINT } end,
+          set = function(r, g, b) mod.db.barBorderTint = { r = r, g = g, b = b }; refreshAll() end,
+          onReset = function() mod.db.barBorderTint = nil; refreshAll() end },
         { type = "toggle", label = L["Also skin pet & stance buttons"],
           get = function() return mod.db.skinPetStance end,
           set = function(_, v) mod.db.skinPetStance = v; skinAll() end },
@@ -904,9 +1028,21 @@ function mod:GetOptions()
         { type = "dropdown", label = L["WeakAuras style"],
           tooltip = L["Style for WeakAuras icons, independent of the action bars."],
           width = 260,
-          values = STYLE_VALUES,
-          get = function() return mod.db.waStyle or "shadow" end,
+          -- Its own list, not the bar styles: the five aura layer sets.
+          values = {
+              { value = "set1", text = L["Shadow 1"] },
+              { value = "set2", text = L["Shadow 2"] },
+              { value = "set3", text = L["Shadow 3"] },
+              { value = "set4", text = L["Shadow 4"] },
+              { value = "set5", text = L["Shadow 5"] },
+          },
+          get = function() return mod.db.waStyle or "set1" end,
           set = function(_, v) mod.db.waStyle = v; skinAllWAIcons() end },
+        { type = "color", label = L["Border color"],
+          tooltip = L["Tints the border layer of the aura sets. Reset it to get each set's built-in coloring back."],
+          get = function() return mod.db.waBorderTint or { r = 1, g = 1, b = 1 } end,
+          set = function(r, g, b) mod.db.waBorderTint = { r = r, g = g, b = b }; skinAllWAIcons() end,
+          onReset = function() mod.db.waBorderTint = nil; skinAllWAIcons() end },
         { type = "toggle", label = L["Hide WeakAuras' own border"],
           tooltip = L["Hides the light border WeakAuras draws on icons, so only our dark rim shows. /reload to fully restore it."],
           get = function() return mod.db.hideWABorder end,

@@ -90,7 +90,7 @@ end
 -- receive nothing: they operate on the saved tables directly. An install that
 -- has never been stamped is stamped at the current version WITHOUT running
 -- anything -- a fresh install has no old shape to convert.
-local SCHEMA = 4
+local SCHEMA = 5
 local MIGRATIONS = {
     -- Vulslot's snapshot library moves from every account profile into global.
     --
@@ -222,6 +222,45 @@ local MIGRATIONS = {
                 else
                     prof.modules.powerbar = { enabled = true }
                 end
+            end
+        end
+    end,
+
+    -- The bar styles were rebuilt: "standard" (Blizzard's untouched button)
+    -- is the new shipped default, "minimaldark" carries the display name
+    -- Shadow, and three masked shapes (circle, csquare, hexagon) replace the
+    -- old mask/edge styles. Every install from before this cut watched a
+    -- SKINNED bar, so per the [4] rule each stored style maps to its nearest
+    -- surviving look and is stamped explicitly -- an absent key meant the old
+    -- skinned default "shadow". Only fresh installs start on "standard". The
+    -- WeakAuras choice was rebuilt as its own aura layer sets, so every old
+    -- value there simply drops to the shipped set; the icon size key goes --
+    -- it only ever worked inside the old Shadow rim.
+    [5] = function()
+        local map = {
+            shadow = "minimaldark", minimal = "minimaldark",
+            rounded = "csquare", square = "csquare", accent = "csquare",
+            circle = "circle",
+        }
+        -- keep makes a re-run inert on already-stamped values; reachable only
+        -- through a hand-edited saved file, but symmetry with the import wash
+        -- costs one line.
+        local keep = { standard = true, minimaldark = true,
+                       circle = true, csquare = true, hexagon = true }
+        for _, prof in pairs(VuloClassicUIDB.profiles or {}) do
+            if type(prof.modules) == "table" then
+                local d = prof.modules.darkskin
+                if type(d) ~= "table" then
+                    d = {}
+                    prof.modules.darkskin = d
+                end
+                d.style = map[d.style] or (keep[d.style] and d.style) or "minimaldark"
+                -- The aura sets are a new value space; anything older drops
+                -- to the shipped set. waKeep makes a re-run inert.
+                local waKeep = { set1 = true, set2 = true, set3 = true,
+                                 set4 = true, set5 = true }
+                if not waKeep[d.waStyle] then d.waStyle = nil end
+                d.barIconSize = nil
             end
         end
     end,
@@ -1335,6 +1374,28 @@ function ns:ImportProfilePayload(payload, opts)
         end
         if data.overrideGroups ~= nil then merged.overrideGroups = data.overrideGroups end
         data = merged
+    end
+
+    -- Strings exported before migration [5] can carry any retired bar style;
+    -- imports never pass through runMigrations, so the same wash happens
+    -- here: retired skins map to their nearest surviving look, the retired
+    -- WeakAuras choice and the dead size value go. An absent key stays
+    -- absent -- in a new string that legitimately means "standard".
+    local dsk = type(data.modules) == "table" and data.modules.darkskin
+    if type(dsk) == "table" then
+        local keep = { standard = true, minimaldark = true,
+                       circle = true, csquare = true, hexagon = true }
+        local map = {
+            shadow = "minimaldark", minimal = "minimaldark",
+            rounded = "csquare", square = "csquare", accent = "csquare",
+        }
+        if dsk.style ~= nil and not keep[dsk.style] then
+            dsk.style = map[dsk.style] or "minimaldark"
+        end
+        local waKeep = { set1 = true, set2 = true, set3 = true,
+                         set4 = true, set5 = true }
+        if not waKeep[dsk.waStyle] then dsk.waStyle = nil end
+        dsk.barIconSize = nil
     end
 
     -- defaults are refilled by LoadProfile when the profile gets activated

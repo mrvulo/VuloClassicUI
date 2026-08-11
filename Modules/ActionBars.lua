@@ -2387,14 +2387,30 @@ function mod:GetOptions(tabId)
                   get = function() return ds.db.skinBars end,
                   set = function(_, v) ds.db.skinBars = v; if ds.SetBarsSkinned then ds.SetBarsSkinned(v) end end },
                 { type = "dropdown", label = L["Bar style"], width = 260,
-                  tooltip = L["Pick how the action buttons look. Rounded/Circle use an icon mask; Minimal is just the cropped icon."],
+                  tooltip = L["Pick how the action buttons look: Blizzard's own untouched button, the dark Shadow skin, or a masked shape (circle, square, hexagon)."],
                   values = ds.BarStyleValues and ds.BarStyleValues() or {},
-                  get = function() return ds.db.style or "shadow" end,
-                  set = function(_, v) ds.db.style = v; if ds.RefreshAll then ds.RefreshAll() end end },
-                { type = "slider", label = L["Bar icon size"], min = 76, max = 100, step = 2,
-                  tooltip = L["How much of the button the icon fills in Shadow style. Higher = bigger icons with a thinner rim."],
-                  get = function() return ds.db.barIconSize or 90 end,
-                  set = function(_, v) ds.db.barIconSize = v; if ds.RefreshAll then ds.RefreshAll() end end },
+                  get = function() return ds.db.style or "standard" end,
+                  -- DM pass after the style switch, same reason as on the
+                  -- Dark Skin page: the rim owner just changed.
+                  set = function(_, v)
+                      ds.db.style = v
+                      if ds.RefreshAll then ds.RefreshAll() end
+                      if ds.ApplyAllDM then ds.ApplyAllDM() end
+                  end },
+                { type = "color", label = L["Border color"],
+                  tooltip = L["Tints the frame of the Shadow and shape styles. Reset it to get each style's built-in coloring back."],
+                  get = function()
+                      local d = ds.BAR_TINT or 0.12
+                      return ds.db.barBorderTint or { r = d, g = d, b = d }
+                  end,
+                  set = function(r, g, b)
+                      ds.db.barBorderTint = { r = r, g = g, b = b }
+                      if ds.RefreshAll then ds.RefreshAll() end
+                  end,
+                  onReset = function()
+                      ds.db.barBorderTint = nil
+                      if ds.RefreshAll then ds.RefreshAll() end
+                  end },
                 { type = "toggle", label = L["Also skin pet & stance buttons"],
                   get = function() return ds.db.skinPetStance end,
                   set = function(_, v) ds.db.skinPetStance = v; if ds.SkinAll then ds.SkinAll() end end },
@@ -2436,7 +2452,7 @@ function mod:GetOptions(tabId)
     items[#items + 1] = { type = "desc",
         text = L["|cffaaaaaaOwn buttons for every action bar (1-5): real combat / mouseover show-hide, scale and grid layout, correct main-bar paging (druid/rogue/warrior/priest forms) and your keybinds. Move each in Edit Mode (/vedit). After disabling, /reload to fully restore Blizzard's bars.|r"] }
     items[#items + 1] = { type = "desc",
-        text = L["|cff9b6cffButton border / icon style lives in the Dark Skin module (Action Bars > Bar style): square, accent edge, shadow and more.|r"] }
+        text = L["|cff9b6cffButton border / icon style lives in the Dark Skin module (Action Bars > Bar style): Blizzard's own look, the dark Shadow skin, or masked shapes.|r"] }
 
     -- The selected bar's sections, straight under the pinned picker; the
     -- picker in the header decides which bar `selectedBar` names.
