@@ -1326,22 +1326,99 @@ local function spellCritTip(tt)
 	end
 end
 
+local function tipLine(tt, label, value, r, g, b)
+	tt:AddDoubleLine(label, value, 0.8, 0.8, 0.85, r or 1, g or 1, b or 1)
+end
+local function bonusLine(tt, bonus, fmt)
+	if bonus == 0 then return end
+	local r, g, b = 0.4, 1, 0.4
+	if bonus < 0 then r, g, b = 1, 0.4, 0.4 end
+	tipLine(tt, L["Bonus"], string.format(fmt or "%+d", bonus), r, g, b)
+end
+-- description sentence plus optional extra writers, composed into one tip(tt)
+local function tipText(text, ...)
+	local extras = { ... }
+	return function(tt)
+		if text then tt:AddLine(text, 0.85, 0.85, 0.9, true) end
+		for _, f in ipairs(extras) do f(tt) end
+	end
+end
+local function ratingLines(cr, showBonus)
+	return function(tt)
+		if not (ns.Wrath.hasRatings and cr) then return end
+		if GetCombatRating then tipLine(tt, L["Rating"], tostring(GetCombatRating(cr) or 0)) end
+		if showBonus and GetCombatRatingBonus then
+			bonusLine(tt, GetCombatRatingBonus(cr) or 0, "%+.2f%%")
+		end
+	end
+end
+local function statBreak(i)
+	return function(tt)
+		local _, eff, pos, neg = UnitStat("player", i)
+		tipLine(tt, L["Base"], tostring((eff or 0) - (pos or 0) - (neg or 0)))
+		bonusLine(tt, (pos or 0) + (neg or 0))
+	end
+end
+local function resBreak(school)
+	return function(tt)
+		local base, _, pos, neg = UnitResistance("player", school)
+		tipLine(tt, L["Base"], tostring(base or 0))
+		bonusLine(tt, (pos or 0) + (neg or 0))
+	end
+end
+local function apTip(tt)
+	local b, p, n = UnitAttackPower("player")
+	local total = (b or 0) + (p or 0) + (n or 0)
+	tt:AddLine(string.format(L["Increases your damage with melee weapons by %.1f damage per second."], total / 14), 0.85, 0.85, 0.9, true)
+	tipLine(tt, L["Base"], tostring(b or 0))
+	bonusLine(tt, (p or 0) + (n or 0))
+end
+local function armorTip(tt)
+	local armor = select(2, UnitArmor("player")) or 0
+	local lvl = UnitLevel("player") or 1
+	-- TBC mitigation vs an attacker of the player's own level, capped at 75%
+	local denom = (lvl < 60) and (armor + 400 + 85 * lvl)
+		or (armor + 400 + 85 * (lvl + 4.5 * (lvl - 59)))
+	local pct = denom > 0 and math.min(75, armor / denom * 100) or 0
+	tt:AddLine(string.format(L["Reduces physical damage taken by %.2f%% against enemies of your level."], pct), 0.85, 0.85, 0.9, true)
+end
+local function defenseTip(tt)
+	tt:AddLine(L["Reduces your chance to be hit and to be critically hit."], 0.85, 0.85, 0.9, true)
+	if UnitDefense then
+		local b, m = UnitDefense("player")
+		tipLine(tt, L["Base"], tostring(b or 0))
+		bonusLine(tt, m or 0)
+	end
+	ratingLines(_G.CR_DEFENSE_SKILL)(tt)
+end
+local function blockTip(tt)
+	tt:AddLine(L["Chance to block enemy melee attacks with your shield."], 0.85, 0.85, 0.9, true)
+	ratingLines(_G.CR_BLOCK)(tt)
+	if GetShieldBlock then tipLine(tt, L["Block value"], tostring(GetShieldBlock() or 0)) end
+end
+
 local function buildModernSections()
 	local S = {}
 	local function sec(key, title) local t = { key = key, title = title, rows = {} }; S[#S+1] = t; return t end
 	local function row(t, name, get, fmt, tip) t.rows[#t.rows+1] = { name = name, get = get, fmt = fmt, tip = tip } end
 
 	local attr = sec("attributes", L["Attributes"])
-	row(attr, L["Strength"],  function() return select(2, UnitStat("player", 1)) end)
-	row(attr, L["Agility"],   function() return select(2, UnitStat("player", 2)) end)
-	row(attr, L["Stamina"],   function() return select(2, UnitStat("player", 3)) end)
-	row(attr, L["Intellect"], function() return select(2, UnitStat("player", 4)) end)
-	row(attr, L["Spirit"],    function() return select(2, UnitStat("player", 5)) end)
+	row(attr, L["Strength"],  function() return select(2, UnitStat("player", 1)) end, nil,
+		tipText(L["Increases your melee attack power."], statBreak(1)))
+	row(attr, L["Agility"],   function() return select(2, UnitStat("player", 2)) end, nil,
+		tipText(L["Increases your armor, critical strike chance, and chance to dodge."], statBreak(2)))
+	row(attr, L["Stamina"],   function() return select(2, UnitStat("player", 3)) end, nil,
+		tipText(L["Increases your maximum health."], statBreak(3)))
+	row(attr, L["Intellect"], function() return select(2, UnitStat("player", 4)) end, nil,
+		tipText(L["Increases your maximum mana and spell critical strike chance."], statBreak(4)))
+	row(attr, L["Spirit"],    function() return select(2, UnitStat("player", 5)) end, nil,
+		tipText(L["Increases your health and mana regeneration."], statBreak(5)))
 	row(attr, L["Health"],    function() return UnitHealthMax("player") end)
 
 	local melee = sec("melee", L["Melee"])
-	row(melee, L["Attack Power"], function() local b, p, n = UnitAttackPower("player"); return (b or 0) + (p or 0) + (n or 0) end)
-	row(melee, L["Crit"], function() return GetCritChance and GetCritChance() or 0 end, "%.2f%%")
+	row(melee, L["Attack Power"], function() local b, p, n = UnitAttackPower("player"); return (b or 0) + (p or 0) + (n or 0) end, nil, apTip)
+	row(melee, L["Crit"], function() return GetCritChance and GetCritChance() or 0 end, "%.2f%%",
+		tipText(L["Chance for your melee attacks to critically hit."], ratingLines(_G.CR_CRIT_MELEE)))
 	-- Combat ratings: a named list on purpose, unlike the module gate above.
 	-- The question here is not "does the client expose the function" but "does
 	-- this game have the stat" -- Era answers the first yes and the second no,
@@ -1349,36 +1426,48 @@ local function buildModernSections()
 	-- has ratings, so it belongs in the list.
 	local hasRatings = ns.Wrath.hasRatings
 	if hasRatings and GetCombatRatingBonus and _G.CR_HASTE_MELEE then
-		row(melee, L["Haste"], function() return GetCombatRatingBonus(CR_HASTE_MELEE) end, "%.2f%%")
+		row(melee, L["Haste"], function() return GetCombatRatingBonus(CR_HASTE_MELEE) end, "%.2f%%",
+			tipText(L["Increases your melee attack speed."], ratingLines(_G.CR_HASTE_MELEE)))
 	end
 	if hasRatings and GetCombatRating and _G.CR_HIT_MELEE then
-		row(melee, L["Hit"], function() return GetCombatRating(CR_HIT_MELEE) end)
+		row(melee, L["Hit"], function() return GetCombatRating(CR_HIT_MELEE) end, nil,
+			tipText(L["Reduces the chance that your melee attacks miss."], ratingLines(_G.CR_HIT_MELEE, true)))
 	end
 
 	local spell = sec("spell", L["Spell"])
-	row(spell, L["Spell Power"], maxSpellPower, nil, spellPowerTip)
-	row(spell, L["Healing"], function() return GetSpellBonusHealing and GetSpellBonusHealing() or 0 end)
-	row(spell, L["Spell Crit"], maxSpellCrit, "%.2f%%", spellCritTip)
+	row(spell, L["Spell Power"], maxSpellPower, nil,
+		tipText(L["Increases the damage of your spells."], spellPowerTip))
+	row(spell, L["Healing"], function() return GetSpellBonusHealing and GetSpellBonusHealing() or 0 end, nil,
+		tipText(L["Increases the healing done by your spells."]))
+	row(spell, L["Spell Crit"], maxSpellCrit, "%.2f%%",
+		tipText(L["Chance for your spells to critically hit."], spellCritTip))
+	if hasRatings and GetCombatRatingBonus and _G.CR_HASTE_SPELL then
+		row(spell, L["Spell Haste"], function() return GetCombatRatingBonus(CR_HASTE_SPELL) end, "%.2f%%",
+			tipText(L["Reduces the cast time of your spells."], ratingLines(_G.CR_HASTE_SPELL)))
+	end
 	if hasRatings and GetCombatRating and _G.CR_HIT_SPELL then
-		row(spell, L["Spell Hit"], function() return GetCombatRating(CR_HIT_SPELL) end)
+		row(spell, L["Spell Hit"], function() return GetCombatRating(CR_HIT_SPELL) end, nil,
+			tipText(L["Reduces the chance that your spells miss."], ratingLines(_G.CR_HIT_SPELL, true)))
 	end
 
 	local def = sec("defense", L["Defense"])
-	row(def, L["Armor"], function() return select(2, UnitArmor("player")) end)
+	row(def, L["Armor"], function() return select(2, UnitArmor("player")) end, nil, armorTip)
 	if UnitDefense then
-		row(def, L["Defense"], function() local b, m = UnitDefense("player"); return (b or 0) + (m or 0) end)
+		row(def, L["Defense"], function() local b, m = UnitDefense("player"); return (b or 0) + (m or 0) end, nil, defenseTip)
 	end
-	row(def, L["Dodge"], function() return GetDodgeChance and GetDodgeChance() or 0 end, "%.2f%%")
-	row(def, L["Parry"], function() return GetParryChance and GetParryChance() or 0 end, "%.2f%%")
-	row(def, L["Block"], function() return GetBlockChance and GetBlockChance() or 0 end, "%.2f%%")
+	row(def, L["Dodge"], function() return GetDodgeChance and GetDodgeChance() or 0 end, "%.2f%%",
+		tipText(L["Chance to dodge enemy melee attacks."], ratingLines(_G.CR_DODGE)))
+	row(def, L["Parry"], function() return GetParryChance and GetParryChance() or 0 end, "%.2f%%",
+		tipText(L["Chance to parry enemy melee attacks."], ratingLines(_G.CR_PARRY)))
+	row(def, L["Block"], function() return GetBlockChance and GetBlockChance() or 0 end, "%.2f%%", blockTip)
 
 	-- UnitResistance index: 6 Arcane, 2 Fire, 3 Nature, 4 Frost, 5 Shadow
 	local res = sec("resistances", L["Resistances"])
-	row(res, L["Arcane"], function() return select(2, UnitResistance("player", 6)) end)
-	row(res, L["Fire"],   function() return select(2, UnitResistance("player", 2)) end)
-	row(res, L["Nature"], function() return select(2, UnitResistance("player", 3)) end)
-	row(res, L["Frost"],  function() return select(2, UnitResistance("player", 4)) end)
-	row(res, L["Shadow"], function() return select(2, UnitResistance("player", 5)) end)
+	row(res, L["Arcane"], function() return select(2, UnitResistance("player", 6)) end, nil, resBreak(6))
+	row(res, L["Fire"],   function() return select(2, UnitResistance("player", 2)) end, nil, resBreak(2))
+	row(res, L["Nature"], function() return select(2, UnitResistance("player", 3)) end, nil, resBreak(3))
+	row(res, L["Frost"],  function() return select(2, UnitResistance("player", 4)) end, nil, resBreak(4))
+	row(res, L["Shadow"], function() return select(2, UnitResistance("player", 5)) end, nil, resBreak(5))
 
 	return S
 end
