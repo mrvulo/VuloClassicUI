@@ -232,6 +232,377 @@ local function cropSlider(key, SLW)
         end }
 end
 
+-- ---------------------------------------------------------------------------
+-- Per-row spell lists: one dialog, two columns. The left list always shows its
+-- spells in the row -- past the row's own gates, which is the whole point of
+-- putting an ID there by hand. The right list never shows them. Entries are
+-- tri-state (true = active, false = kept but switched off), so a spell can be
+-- benched without retyping its ID, and an include only counts your own casts
+-- until its scope tag says any caster. Every edit applies live; the runtime
+-- reads the lists through rowLists in Modules/Nameplates.lua.
+local showAuraListDialog
+do
+    local host, dlg
+    local w = {}                 -- widget refs shared across opens
+    local DLG_W, DLG_H = 560, 430
+    local PAD   = 14
+    local COL_W = (DLG_W - 3 * PAD) / 2
+    local ROW_H = 26
+    local QUESTION_ICON = "Interface\\Icons\\INV_Misc_QuestionMark"
+
+    -- Same labels the slot dropdown uses, so the dialog and the slot that
+    -- opened it call the row by one name.
+    local ROW_TITLE = {
+        debuff = "Debuffs", dot = "Your own debuffs",
+        buff = "Buffs", cc = "Crowd control",
+    }
+
+    local function listOf(rowKey, which, create)
+        local cfg = ns:NameplateRowCfg(rowKey)
+        local t = cfg[which]
+        if type(t) ~= "table" then
+            if not create then return nil end
+            t = {}; cfg[which] = t
+        end
+        return t
+    end
+
+    -- Emptied tables leave the profile again: an untouched row stays
+    -- byte-identical, the same rule the crop and orientation fields follow.
+    local function pruneEmpty(rowKey)
+        local cfg = ns:NameplateRowCfg(rowKey)
+        if type(cfg.include) == "table" and next(cfg.include) == nil then cfg.include = nil end
+        if type(cfg.exclude) == "table" and next(cfg.exclude) == nil then cfg.exclude = nil end
+        -- scope flags only mean anything next to their include entry
+        if type(cfg.includeAny) == "table" then
+            local inc = cfg.include
+            for id in pairs(cfg.includeAny) do
+                if not (inc and inc[id] ~= nil) then cfg.includeAny[id] = nil end
+            end
+            if next(cfg.includeAny) == nil then cfg.includeAny = nil end
+        end
+    end
+
+    local function refreshBoth()
+        if w.refreshInc then w.refreshInc() end
+        if w.refreshEx then w.refreshEx() end
+    end
+
+    local function applyAccent()
+        -- the theme color is live-mutated; re-tint on every open, never bake it
+        local ac = ns.COLORS.accent
+        ns.UI.SetGradient(w.strip, "HORIZONTAL", ac.r, ac.g, ac.b, 0.1, ac.r, ac.g, ac.b, 0.9)
+        w.title:SetTextColor(ac.r, ac.g, ac.b)
+    end
+
+    -- One column: caps header, ID box + add button, scrolling entry list.
+    -- `which`/`other` name the two stored tables; withScope marks the include
+    -- side, whose entries carry the own-casts/any-caster tag.
+    local function buildColumn(x, headerKey, headerTip, which, other, withScope)
+        local UI = ns.UI
+        local col = { which = which, other = other, withScope = withScope, rows = {} }
+
+        local header = dlg:CreateFontString(nil, "OVERLAY")
+        UI.Font(header, 11)
+        header:SetPoint("TOPLEFT", dlg, "TOPLEFT", x, -40)
+        header:SetTextColor(0.55, 0.55, 0.6)
+        header:SetText(L[headerKey]:upper())
+
+        local addBtn = UI:CreateButton(dlg, {
+            label = L["Add"], width = 60, tooltip = headerTip,
+            onClick = function() col.add() end,
+        })
+        addBtn:SetHeight(22)
+        addBtn:SetPoint("TOPRIGHT", dlg, "TOPLEFT", x + COL_W, -58)
+
+        local eb = CreateFrame("EditBox", nil, dlg)
+        eb:SetAutoFocus(false)
+        eb:SetNumeric(true)
+        eb:SetMaxLetters(7)
+        UI.Font(eb, 12)
+        eb:SetTextInsets(6, 6, 0, 0)
+        eb:SetHeight(22)
+        eb:SetPoint("TOPLEFT", dlg, "TOPLEFT", x, -58)
+        eb:SetPoint("RIGHT", addBtn, "LEFT", -6, 0)
+        local ebg = eb:CreateTexture(nil, "BACKGROUND")
+        ebg:SetAllPoints(eb)
+        ebg:SetColorTexture(0.06, 0.05, 0.10, 0.85)
+        local bc = ns.COLORS.border
+        local edges = {}
+        for i = 1, 4 do
+            local t = eb:CreateTexture(nil, "BORDER")
+            t:SetColorTexture(bc.r, bc.g, bc.b, bc.a or 1)
+            edges[i] = t
+        end
+        edges[1]:SetPoint("TOPLEFT"); edges[1]:SetPoint("TOPRIGHT"); edges[1]:SetHeight(1)
+        edges[2]:SetPoint("BOTTOMLEFT"); edges[2]:SetPoint("BOTTOMRIGHT"); edges[2]:SetHeight(1)
+        edges[3]:SetPoint("TOPLEFT"); edges[3]:SetPoint("BOTTOMLEFT"); edges[3]:SetWidth(1)
+        edges[4]:SetPoint("TOPRIGHT"); edges[4]:SetPoint("BOTTOMRIGHT"); edges[4]:SetWidth(1)
+        eb:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+        eb:SetScript("OnEnterPressed", function() col.add() end)
+        eb:SetScript("OnEnter", function(self) UI:ShowTooltip(self, headerTip) end)
+        eb:SetScript("OnLeave", function() UI:HideTooltip() end)
+        col.eb = eb
+
+        local sf = CreateFrame("ScrollFrame", nil, dlg, "UIPanelScrollFrameTemplate")
+        sf:SetPoint("TOPLEFT", dlg, "TOPLEFT", x, -90)
+        sf:SetPoint("BOTTOMRIGHT", dlg, "TOPLEFT", x + COL_W - 16, -(DLG_H - 52))
+        local child = CreateFrame("Frame", nil, sf)
+        child:SetSize(COL_W - 18, 1)
+        sf:SetScrollChild(child)
+        UI.StyleScrollbar(sf)
+        col.child = child
+
+        local empty = dlg:CreateFontString(nil, "OVERLAY")
+        UI.Font(empty, 11)
+        empty:SetPoint("TOP", sf, "TOP", 0, -18)
+        empty:SetTextColor(0.45, 0.45, 0.5)
+        empty:SetText(L["No entries yet."])
+        col.empty = empty
+
+        function col.add()
+            local id = tonumber(eb:GetText() or "")
+            if not id or id <= 0 then return end
+            id = floor(id)
+            local list = listOf(w.rowKey, which, true)
+            -- one list per spell: adding here pulls it out of the other one,
+            -- and a fresh include starts as own-casts-only -- except on the
+            -- buff row, where the shown auras are mostly cast by the unit
+            -- itself, so an own-casts default would hide the very spell the
+            -- player just typed in. The scope tag flips either choice.
+            local o = listOf(w.rowKey, other)
+            if o then o[id] = nil end
+            local anym = listOf(w.rowKey, "includeAny")
+            if anym then anym[id] = nil end
+            if withScope and w.rowKey == "buff" then
+                listOf(w.rowKey, "includeAny", true)[id] = true
+            end
+            list[id] = true
+            pruneEmpty(w.rowKey)
+            eb:SetText("")
+            eb:ClearFocus()
+            applyAndRefresh()
+            refreshBoth()
+        end
+
+        function col.refresh()
+            local UIc = ns.UI
+            local ac = ns.COLORS.accent
+            local list = listOf(w.rowKey, which)
+            local entries = {}
+            if list then
+                for id, v in pairs(list) do
+                    local name, _, icon = GetSpellInfo(id)
+                    entries[#entries + 1] = {
+                        id = id, on = v == true,
+                        name = name or L["Unknown spell"], icon = icon,
+                    }
+                end
+            end
+            table.sort(entries, function(a, b)
+                if a.name == b.name then return a.id < b.id end
+                return a.name < b.name
+            end)
+            empty:SetShown(#entries == 0)
+            for i = 1, #entries do
+                local row = col.rows[i]
+                if not row then
+                    row = CreateFrame("Button", nil, child)
+                    row:SetSize(COL_W - 20, ROW_H - 2)
+                    row:SetPoint("TOPLEFT", child, "TOPLEFT", 0, -(i - 1) * ROW_H)
+                    row.hover = row:CreateTexture(nil, "BACKGROUND")
+                    row.hover:SetAllPoints(row)
+                    row.hover:SetColorTexture(1, 1, 1, 0)
+                    -- the on/off mark: dark backing, filled while active
+                    row.boxBack = row:CreateTexture(nil, "ARTWORK")
+                    row.boxBack:SetSize(14, 14)
+                    row.boxBack:SetPoint("LEFT", row, "LEFT", 2, 0)
+                    local bd = ns.COLORS.borderDark or ns.COLORS.border
+                    row.boxBack:SetColorTexture(bd.r, bd.g, bd.b, 1)
+                    row.boxFill = row:CreateTexture(nil, "OVERLAY")
+                    row.boxFill:SetSize(10, 10)
+                    row.boxFill:SetPoint("CENTER", row.boxBack, "CENTER", 0, 0)
+                    row.icon = row:CreateTexture(nil, "ARTWORK")
+                    row.icon:SetSize(18, 18)
+                    row.icon:SetPoint("LEFT", row.boxBack, "RIGHT", 6, 0)
+                    row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+                    row.name = row:CreateFontString(nil, "OVERLAY")
+                    UIc.Font(row.name, 12)
+                    row.name:SetPoint("LEFT", row.icon, "RIGHT", 6, 0)
+                    row.name:SetPoint("RIGHT", row, "RIGHT", withScope and -56 or -20, 0)
+                    row.name:SetJustifyH("LEFT")
+                    row.name:SetWordWrap(false)
+                    row.del = CreateFrame("Button", nil, row)
+                    row.del:SetSize(16, 16)
+                    row.del:SetPoint("RIGHT", row, "RIGHT", -2, 0)
+                    row.del.txt = row.del:CreateFontString(nil, "OVERLAY")
+                    UIc.Font(row.del.txt, 12)
+                    row.del.txt:SetPoint("CENTER")
+                    row.del.txt:SetText("×")
+                    row.del.txt:SetTextColor(0.6, 0.6, 0.65)
+                    row.del:SetScript("OnEnter", function(self)
+                        local c = ns.COLORS.accent
+                        self.txt:SetTextColor(c.r, c.g, c.b)
+                        UIc:ShowTooltip(self, L["Remove"])
+                    end)
+                    row.del:SetScript("OnLeave", function(self)
+                        self.txt:SetTextColor(0.6, 0.6, 0.65)
+                        UIc:HideTooltip()
+                    end)
+                    if withScope then
+                        row.scope = CreateFrame("Button", nil, row)
+                        row.scope:SetSize(36, 16)
+                        row.scope:SetPoint("RIGHT", row.del, "LEFT", -2, 0)
+                        row.scope.txt = row.scope:CreateFontString(nil, "OVERLAY")
+                        UIc.Font(row.scope.txt, 10)
+                        row.scope.txt:SetPoint("CENTER")
+                        row.scope:SetScript("OnLeave", function() UIc:HideTooltip() end)
+                    end
+                    row:SetScript("OnEnter", function(self)
+                        self.hover:SetColorTexture(1, 1, 1, 0.04)
+                        UIc:ShowTooltip(self, L["Click to switch this entry on or off without deleting it."])
+                    end)
+                    row:SetScript("OnLeave", function(self)
+                        self.hover:SetColorTexture(1, 1, 1, 0)
+                        UIc:HideTooltip()
+                    end)
+                    col.rows[i] = row
+                end
+                local e = entries[i]
+                row._id = e.id
+                row.icon:SetTexture(e.icon or QUESTION_ICON)
+                row.icon:SetDesaturated(not e.on)
+                row.icon:SetAlpha(e.on and 1 or 0.45)
+                row.name:SetText(e.name .. " |cff808080(" .. e.id .. ")|r")
+                row.name:SetAlpha(e.on and 0.95 or 0.45)
+                if e.on then
+                    row.boxFill:SetColorTexture(ac.r, ac.g, ac.b, 1)
+                else
+                    row.boxFill:SetColorTexture(0.3, 0.3, 0.34, 1)
+                end
+                row:SetScript("OnClick", function(self)
+                    local l = listOf(w.rowKey, which)
+                    if not l then return end
+                    l[self._id] = not (l[self._id] == true)
+                    applyAndRefresh()
+                    col.refresh()
+                end)
+                row.del:SetScript("OnClick", function()
+                    local l = listOf(w.rowKey, which)
+                    if l then l[row._id] = nil end
+                    local anym = listOf(w.rowKey, "includeAny")
+                    if anym then anym[row._id] = nil end
+                    pruneEmpty(w.rowKey)
+                    applyAndRefresh()
+                    refreshBoth()
+                end)
+                if row.scope then
+                    local anym = listOf(w.rowKey, "includeAny")
+                    local any = anym and anym[e.id] == true
+                    if any then
+                        row.scope.txt:SetText(L["Any"])
+                        row.scope.txt:SetTextColor(0.6, 0.6, 0.65, e.on and 1 or 0.45)
+                    else
+                        row.scope.txt:SetText(L["Mine"])
+                        row.scope.txt:SetTextColor(ac.r, ac.g, ac.b, e.on and 1 or 0.45)
+                    end
+                    row.scope:SetScript("OnEnter", function(self)
+                        local am = listOf(w.rowKey, "includeAny")
+                        ns.UI:ShowTooltip(self, (am and am[row._id] == true)
+                            and L["Counts any caster - click to count only your own casts."]
+                            or L["Counts only your own casts - click to count any caster."])
+                    end)
+                    row.scope:SetScript("OnClick", function()
+                        local am = listOf(w.rowKey, "includeAny", true)
+                        if am[row._id] then am[row._id] = nil else am[row._id] = true end
+                        pruneEmpty(w.rowKey)
+                        applyAndRefresh()
+                        col.refresh()
+                    end)
+                end
+                row:Show()
+            end
+            for i = #entries + 1, #col.rows do col.rows[i]:Hide() end
+            child:SetHeight(math.max(1, #entries * ROW_H))
+        end
+        return col
+    end
+
+    local function ensureShell()
+        if host then return end
+        local UI = ns.UI
+
+        host = CreateFrame("Frame", "VCUI_NameplateAuraListHost", UIParent)
+        host:SetFrameStrata("FULLSCREEN_DIALOG")
+        -- The slot panel that opens this sits at level 200 with a full-screen
+        -- click-catcher at 100, both on this strata (UI/OptionsBuilder.lua) --
+        -- and the panel stays open underneath. Anything lower buries the
+        -- dialog under the catcher, which then eats its first click.
+        host:SetFrameLevel(300)
+        host:SetAllPoints(UIParent)
+        host:EnableMouse(true)
+        host:Hide()
+        local dim = host:CreateTexture(nil, "BACKGROUND")
+        dim:SetAllPoints(host)
+        dim:SetColorTexture(0, 0, 0, 0.35)
+        -- click beside the window closes it, like ESC
+        host:SetScript("OnMouseDown", function() host:Hide() end)
+        _G.UISpecialFrames = _G.UISpecialFrames or {}
+        table.insert(_G.UISpecialFrames, "VCUI_NameplateAuraListHost")
+
+        dlg = CreateFrame("Frame", nil, host)
+        dlg:SetSize(DLG_W, DLG_H)
+        dlg:SetPoint("CENTER", host, "CENTER", 0, 40)
+        dlg:EnableMouse(true)   -- swallows clicks so they never reach the dimmer
+        UI:StyleBackdrop(dlg, { bg = ns.COLORS.bg, border = ns.COLORS.accentDim })
+        if UI.CreateShadow then UI:CreateShadow(dlg) end
+
+        w.strip = dlg:CreateTexture(nil, "ARTWORK")
+        w.strip:SetPoint("TOPLEFT", dlg, "TOPLEFT", 0, 0)
+        w.strip:SetPoint("TOPRIGHT", dlg, "TOPRIGHT", 0, 0)
+        w.strip:SetHeight(2)
+
+        w.title = dlg:CreateFontString(nil, "OVERLAY")
+        UI.Font(w.title, 13)
+        w.title:SetPoint("TOPLEFT", dlg, "TOPLEFT", PAD, -12)
+
+        UI:CreateCloseX(dlg, function() host:Hide() end)
+
+        -- the gutter between the two lists
+        local vdiv = dlg:CreateTexture(nil, "ARTWORK")
+        vdiv:SetWidth(1)
+        vdiv:SetPoint("TOP", dlg, "TOP", 0, -84)
+        vdiv:SetPoint("BOTTOM", dlg, "BOTTOM", 0, 52)
+        vdiv:SetColorTexture(1, 1, 1, 0.06)
+
+        local incCol = buildColumn(PAD, "Always show",
+            L["Auras on this list always appear in this row, even when its own rules would hide them."],
+            "include", "exclude", true)
+        local exCol = buildColumn(PAD * 2 + COL_W, "Never show",
+            L["Auras on this list never appear in this row."],
+            "exclude", "include", false)
+        w.refreshInc = incCol.refresh
+        w.refreshEx  = exCol.refresh
+        w.incEB, w.exEB = incCol.eb, exCol.eb
+
+        local done = ns.UI:CreateButton(dlg, {
+            label = CLOSE, width = 120, primary = true,
+            onClick = function() host:Hide() end,
+        })
+        done:SetPoint("BOTTOM", dlg, "BOTTOM", 0, 14)
+    end
+
+    showAuraListDialog = function(rowKey)
+        ensureShell()
+        w.rowKey = rowKey
+        w.title:SetText(L[ROW_TITLE[rowKey] or "Debuffs"] .. " — " .. L["Spell lists"])
+        applyAccent()
+        w.incEB:SetText(""); w.exEB:SetText("")
+        refreshBoth()
+        host:Show()
+    end
+end
+
 -- Placement controls shared by every aura row; `key` selects which row's
 -- settings the widgets read and write. withFilter is off for the rows whose
 -- contents are already defined by what they collect (crowd control, your DoTs).
@@ -306,6 +677,12 @@ local function rowPlacementItems(key, SLW, applyAndRefresh, withFilter, stacked)
             tooltip = L["Narrows this row to auras you cast yourself, or to ones that can be removed."],
             get = function() return cfg().filter or "all" end,
             set = function(_, v) cfg().filter = v; applyAndRefresh() end }
+    end
+    -- The marker is one icon, not a collection -- there is nothing to list.
+    if not single then
+        items[#items + 1] = { type = "button", label = L["Edit spell lists"], width = 300,
+            tooltip = L["Always-show and never-show spell IDs for this row."],
+            onClick = function() showAuraListDialog(key) end }
     end
     return items
 end
@@ -1483,6 +1860,38 @@ function mod:GetOptions(tabId)
                 { type = "slider", label = L["Execute line percent"], min = 5, max = 90, step = 1, width = SLW,
                   get = function() return mod.db.execPct or 20 end,
                   set = function(_, v) mod.db.execPct = v; applyAndRefresh() end },
+            } },
+            -- The mark for "almost dead". The runtime for this existed all
+            -- along (lowHpGlow/lowHpPct/colLowHp in paintHealth) but no page
+            -- ever offered it -- the same orphan story as the execute line
+            -- above. Surfaced together with its new second style.
+            { type = "group", layout = "row", gap = 8, items = {
+                { type = "checkbox", label = L["Low-health glow"],
+                  tooltip = L["Lights the plate up once the unit drops below the chosen health percentage."],
+                  get = function() return mod.db.lowHpGlow end,
+                  set = function(_, v) mod.db.lowHpGlow = v; applyAndRefresh() end,
+                  inline = {
+                      { kind = "color", tooltip = L["Glow colour"],
+                        disabled = function() return not mod.db.lowHpGlow end,
+                        get = function() return mod.db.colLowHp end,
+                        set = function(r, g, b)
+                            mod.db.colLowHp = { r = r, g = g, b = b }; applyAndRefresh()
+                        end },
+                      { kind = "gear", tooltip = L["Low-health glow"],
+                        popup = { title = L["Low-health glow"], width = 380, items = {
+                            { type = "dropdown", label = L["Style"], width = 300,
+                              subKey = "lowHpStyle",
+                              values = {
+                                  { value = "ring",  text = L["Thin ring"] },
+                                  { value = "pulse", text = L["Pulsing glow"] },
+                              },
+                              get = function() return mod.db.lowHpStyle or "ring" end,
+                              set = function(_, v) mod.db.lowHpStyle = v; applyAndRefresh() end },
+                        } } },
+                  } },
+                { type = "slider", label = L["Low-health percent"], min = 5, max = 90, step = 1, width = SLW,
+                  get = function() return mod.db.lowHpPct or 35 end,
+                  set = function(_, v) mod.db.lowHpPct = v; applyAndRefresh() end },
             } },
             { type = "group", layout = "row", gap = 8, items = {
                 { type = "slider", label = L["Target plate scale"], min = 100, max = 150, step = 5, width = SLW,

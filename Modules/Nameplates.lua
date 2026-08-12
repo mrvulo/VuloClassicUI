@@ -28,6 +28,7 @@ local mod = ns:RegisterModule("nameplates", {
 
         lowHpGlow   = false,
         lowHpPct    = 35,
+        lowHpStyle  = "ring",   -- "ring" = thin edge frame, "pulse" = breathing halo
         colLowHp    = { r = 1.00, g = 0.20, b = 0.20 },
 
         showAbsorb  = true,
@@ -1033,6 +1034,62 @@ local function paintSpark(bar, spark, r, g, b, show, width, hideAtZero, goalValu
     spark:Show()
 end
 
+-- The soft variant of the low-health mark: a 9-slice halo around the health
+-- bar that breathes. The art is one white glow square (Media/textures/
+-- soft-glow), tinted at paint time so the colour option stays live; ADD blend
+-- makes it light up instead of covering. Built lazily -- a plate whose profile
+-- keeps the thin ring never pays for the nine textures or the animation.
+local function ensureLowHpPulse(f)
+    if f.lowHpPulse then return f.lowHpPulse end
+    -- Constants live here, not at file scope: this runs once per plate and the
+    -- chunk is close enough to Lua's 200-locals wall to be stingy up there.
+    local GLOW_TEX = "Interface\\AddOns\\VuloClassicUI\\Media\\textures\\soft-glow"
+    local GLOW_MARGIN, GLOW_CORNER, GLOW_EXTEND = 0.42, 12, 7
+    local g = CreateFrame("Frame", nil, f)
+    -- Just under the bar: the halo's centre piece hides behind the bar's own
+    -- ground, only the overhang past the edges reads as the glow.
+    g:SetFrameLevel(math.max(0, f.health:GetFrameLevel() - 1))
+    g:SetPoint("TOPLEFT", f.health, "TOPLEFT", -GLOW_EXTEND, GLOW_EXTEND)
+    g:SetPoint("BOTTOMRIGHT", f.health, "BOTTOMRIGHT", GLOW_EXTEND, -GLOW_EXTEND)
+    g:Hide()
+    local texs = {}
+    local function slice()
+        local t = g:CreateTexture(nil, "ARTWORK")
+        t:SetTexture(GLOW_TEX)
+        t:SetBlendMode("ADD")
+        texs[#texs + 1] = t
+        return t
+    end
+    local m = GLOW_MARGIN
+    local tl = slice(); tl:SetSize(GLOW_CORNER, GLOW_CORNER); tl:SetPoint("TOPLEFT");     tl:SetTexCoord(0, m, 0, m)
+    local tr = slice(); tr:SetSize(GLOW_CORNER, GLOW_CORNER); tr:SetPoint("TOPRIGHT");    tr:SetTexCoord(1 - m, 1, 0, m)
+    local bl = slice(); bl:SetSize(GLOW_CORNER, GLOW_CORNER); bl:SetPoint("BOTTOMLEFT");  bl:SetTexCoord(0, m, 1 - m, 1)
+    local br = slice(); br:SetSize(GLOW_CORNER, GLOW_CORNER); br:SetPoint("BOTTOMRIGHT"); br:SetTexCoord(1 - m, 1, 1 - m, 1)
+    local top = slice(); top:SetPoint("TOPLEFT", tl, "TOPRIGHT");    top:SetPoint("BOTTOMRIGHT", tr, "BOTTOMLEFT"); top:SetTexCoord(m, 1 - m, 0, m)
+    local bot = slice(); bot:SetPoint("BOTTOMLEFT", bl, "BOTTOMRIGHT"); bot:SetPoint("TOPRIGHT", br, "TOPLEFT");    bot:SetTexCoord(m, 1 - m, 1 - m, 1)
+    local lft = slice(); lft:SetPoint("TOPLEFT", tl, "BOTTOMLEFT");  lft:SetPoint("BOTTOMRIGHT", bl, "TOPRIGHT");   lft:SetTexCoord(0, m, m, 1 - m)
+    local rgt = slice(); rgt:SetPoint("TOPRIGHT", tr, "BOTTOMRIGHT"); rgt:SetPoint("BOTTOMLEFT", br, "TOPLEFT");    rgt:SetTexCoord(1 - m, 1, m, 1 - m)
+    local ctr = slice(); ctr:SetPoint("TOPLEFT", tl, "BOTTOMRIGHT"); ctr:SetPoint("BOTTOMRIGHT", br, "TOPLEFT");    ctr:SetTexCoord(m, 1 - m, m, 1 - m)
+    g.texs = texs
+    -- Kept addressable: on bars flatter than the default the fixed corner
+    -- would overlap its opposite number and ADD-blend the band double-bright,
+    -- so the paint pass shrinks the corners to half the halo's height.
+    g.corners = { tl, tr, bl, br }
+    -- The breath: a looping C-side alpha bounce, no Lua ticks. Frame alpha and
+    -- the textures' vertex colour are separate channels, so the tint and the
+    -- pulse never fight.
+    local ag = g:CreateAnimationGroup()
+    ag:SetLooping("BOUNCE")
+    local a = ag:CreateAnimation("Alpha")
+    a:SetFromAlpha(1)
+    a:SetToAlpha(0.35)
+    a:SetDuration(0.55)
+    a:SetSmoothing("IN_OUT")
+    g.pulse = ag
+    f.lowHpPulse = g
+    return g
+end
+
 local function paintHealth(f, ctx, cur, max)
     local d = db()
     if max <= 0 then max = 1 end
@@ -1071,16 +1128,36 @@ local function paintHealth(f, ctx, cur, max)
     -- what they now read.
     clampNameWidth(f)
 
-    -- A ring around the bar once the unit drops below the mark. Painted here
-    -- rather than on a ticker: this runs on every health change anyway, which is
-    -- exactly when the answer can change.
+    -- The mark for "almost dead", once the unit drops below the chosen share:
+    -- the thin ring this always drew, or the breathing halo (style dropdown).
+    -- Painted here rather than on a ticker: this runs on every health change
+    -- anyway, which is exactly when the answer can change.
+    local below = d.lowHpGlow and (cur / max) <= ((d.lowHpPct or 35) / 100)
+    local pulse = (d.lowHpStyle == "pulse")
     if f.lowHpGlow then
-        if d.lowHpGlow and (cur / max) <= ((d.lowHpPct or 35) / 100) then
+        if below and not pulse then
             local c = d.colLowHp or { r = 1, g = 0.2, b = 0.2 }
             layoutEdges(f.lowHpGlow, f.health, 2, c.r, c.g, c.b, 1, 1)
         else
             for _, t in pairs(f.lowHpGlow) do t:Hide() end
         end
+    end
+    if below and pulse then
+        local halo = ensureLowHpPulse(f)
+        local c = d.colLowHp or { r = 1, g = 0.2, b = 0.2 }
+        for i = 1, #halo.texs do halo.texs[i]:SetVertexColor(c.r, c.g, c.b, 1) end
+        -- Half the halo height (bar + 2x7 overhang), capped at the art's
+        -- design size; compared before it is written, this runs per health tick.
+        local ch = math.min(12, math.floor(((d.healthHeight or 10) + 14) / 2))
+        if halo._corner ~= ch then
+            halo._corner = ch
+            for i = 1, 4 do halo.corners[i]:SetSize(ch, ch) end
+        end
+        halo:Show()
+        if not halo.pulse:IsPlaying() then halo.pulse:Play() end
+    elseif f.lowHpPulse then
+        f.lowHpPulse.pulse:Stop()
+        f.lowHpPulse:Hide()
     end
 end
 
@@ -1496,6 +1573,7 @@ local function collectAuras(unit, filter, max, out, mode, skipMine)
             rec.dispelType = dispelType
             rec.mine       = mine
             rec.isCC       = isCC
+            rec.spellId    = spellId
             rec.dispel     = (stealable and playerCanSteal) and true or false
             out[n] = rec
             if n >= max then break end
@@ -1979,22 +2057,53 @@ local function applyAuras(f, lists)
     end
 end
 
+-- Per-row spell lists (the aura-list dialog): include = always show, exclude =
+-- never show. Values are tri-state -- true is active, false is kept but
+-- switched off -- so every reader tests == true. Read-only on this path:
+-- absent tables stay absent, the dialog creates them on first write.
+local function rowLists(key)
+    local d = db()
+    local rows = d and d.auraRows
+    local r = rows and rows[key]
+    if type(r) ~= "table" then return nil, nil, nil end
+    return r.include, r.includeAny, r.exclude
+end
+
+-- One verdict for both filter stages below. Excludes always win; an include
+-- overrides whatever gate the caller was about to apply, but only counts your
+-- own casts unless the entry is flagged for any caster -- the same reading in
+-- every row, so a spell cannot show through one stage and vanish in the next.
+-- nil = the lists have no opinion, the caller's own gates decide.
+local function listVerdict(a, inc, incAny, ex)
+    local id = a.spellId
+    if not id then return nil end
+    if ex and ex[id] == true then return false end
+    if inc and inc[id] == true then
+        return (a.mine or (incAny and incAny[id] == true)) and true or false
+    end
+    return nil
+end
+
 -- Drops entries a row's filter rejects, then trims to max. The client filter
 -- string cannot express "removable", so it has to happen here -- and it has to
 -- happen BEFORE the cap, or a target whose first entries are all unremovable
 -- yields an empty row while a removable aura sits just past the cut.
-local function applyRowFilter(list, filter, max)
+local function applyRowFilter(list, filter, max, inc, incAny, ex)
     if not list then return list end
-    if filter and filter ~= "all" then
+    if (filter and filter ~= "all") or inc or ex then
         local keep = 0
         for i = 1, #list do
             local a = list[i]
-            local ok = true
-            if filter == "dispel" then
-                -- harmful auras carry a school; enemy buffs carry the steal flag
-                ok = (a.dispelType ~= nil and a.dispelType ~= "") or a.dispel == true
-            elseif filter == "mine" then
-                ok = a.mine == true
+            local ok = listVerdict(a, inc, incAny, ex)
+            if ok == nil then
+                if filter == "dispel" then
+                    -- harmful auras carry a school; enemy buffs carry the steal flag
+                    ok = (a.dispelType ~= nil and a.dispelType ~= "") or a.dispel == true
+                elseif filter == "mine" then
+                    ok = a.mine == true
+                else
+                    ok = true
+                end
             end
             if ok then
                 keep = keep + 1
@@ -2017,15 +2126,17 @@ local _lists = {}
 -- client's PLAYER filter (those auras carry caster == "player"), and mineOnly
 -- and skipMine are never requested together. dst entries are references into
 -- _harm, which stays untouched until the next scan.
-local function deriveHarm(dst, ccOnly, skipCC, mineOnly, skipMine, max)
+local function deriveHarm(dst, ccOnly, skipCC, mineOnly, skipMine, max, inc, incAny, ex)
     local n = 0
     for i = 1, #_harm do
         local a = _harm[i]
-        local keep
-        if ccOnly then keep = a.isCC
-        else keep = not (skipCC and a.isCC) end
-        if keep and mineOnly and not a.mine then keep = false end
-        if keep and skipMine and a.mine then keep = false end
+        local keep = listVerdict(a, inc, incAny, ex)
+        if keep == nil then
+            if ccOnly then keep = a.isCC
+            else keep = not (skipCC and a.isCC) end
+            if keep and mineOnly and not a.mine then keep = false end
+            if keep and skipMine and a.mine then keep = false end
+        end
         if keep then
             n = n + 1
             dst[n] = a
@@ -2053,29 +2164,33 @@ local function plateUpdateAuras(f)
     end
     if d.showDebuffs then
         local cfg = rowCfg("debuff")
+        local inc, incAny, ex = rowLists("debuff")
         local wantsMine = (cfg.filter == "mine")
         -- Your own auras belong to the dedicated row while it is on, or the two
         -- rows show an identical list twice on stock settings. A row explicitly
         -- set to "only mine" keeps them.
         local handOff = d.showDots and not wantsMine
         local mineOnly = wantsMine or (not d.debuffsAll and not handOff)
-        deriveHarm(_dbuf, false, d.showCC, mineOnly, handOff)
-        applyRowFilter(_dbuf, cfg.filter, d.maxDebuffs)
+        deriveHarm(_dbuf, false, d.showCC, mineOnly, handOff, nil, inc, incAny, ex)
+        applyRowFilter(_dbuf, cfg.filter, d.maxDebuffs, inc, incAny, ex)
         _lists.debuff = _dbuf
     end
     if d.showDots then
-        deriveHarm(_dotbuf, false, d.showCC, true, false)
+        local inc, incAny, ex = rowLists("dot")
+        deriveHarm(_dotbuf, false, d.showCC, true, false, nil, inc, incAny, ex)
         applyRowFilter(_dotbuf, nil, d.maxDots)
         _lists.dot = _dotbuf
     end
     if d.showBuffs then
         local cfg = rowCfg("buff")
+        local inc, incAny, ex = rowLists("buff")
         collectAuras(f.unit, "HELPFUL", WIDE, _bbuf)
-        applyRowFilter(_bbuf, cfg.filter, d.maxBuffs)
+        applyRowFilter(_bbuf, cfg.filter, d.maxBuffs, inc, incAny, ex)
         _lists.buff = _bbuf
     end
     if d.showCC then
-        deriveHarm(_ccbuf, true, false, false, false, d.maxCC)
+        local inc, incAny, ex = rowLists("cc")
+        deriveHarm(_ccbuf, true, false, false, false, d.maxCC, inc, incAny, ex)
         _lists.cc = _ccbuf
     end
     applyAuras(f, _lists)
@@ -2297,6 +2412,13 @@ end
 local function applyPlateMode(f, mode)
     f._mode = mode
     local d = db()
+    -- The halo hangs on the plate root, not on f.health: a mode that hides the
+    -- bar must park it explicitly or it keeps breathing around a bar that is
+    -- no longer there. Full mode gets it back through paintHealth.
+    if mode ~= "full" and f.lowHpPulse then
+        f.lowHpPulse.pulse:Stop()
+        f.lowHpPulse:Hide()
+    end
     if mode == "hidden" then
         f.health:Hide(); f.cast:Hide(); f.name:Hide(); f.title:Hide()
         if f.level then f.level:Hide() end
@@ -2691,6 +2813,13 @@ function onPlateRemoved(_, unit)
     f._markerPoint = nil
     f.absorb:Hide()
     f.title:Hide()
+    -- The halo hangs on the plate ROOT, not on f.health, so a mode that hides
+    -- only the bar (name-only) would leave it breathing in mid-air on reuse --
+    -- and a hidden frame's animation keeps running. Park both here.
+    if f.lowHpPulse then
+        f.lowHpPulse.pulse:Stop()
+        f.lowHpPulse:Hide()
+    end
     paintFocus(f, false)
     renderComboPips(f, 0)
     f.unit = nil
