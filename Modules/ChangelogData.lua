@@ -6,6 +6,34 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+    { version = "1.53.0", sections = {
+        { category = "Character Panel", lines = {
+            "Every row of the stats sheet now explains itself when you point at it, and spell haste has joined the sheet.",
+        } },
+        { category = "Global Settings", lines = {
+            "Custom class colours moved into the addon's own colour book. Writing them into the client's shared tables marked the party and raid frames as touched by the addon at every login, and the client then refused to resize them in combat. The clean-up has a price: the client's own windows and other addons show the standard class colours again, while the custom ones colour everything this addon draws.",
+        } },
+        { category = "Nameplates", lines = {
+            "NEW: Edit spell lists – Every aura row carries an always-show and a never-show spell ID list, kept in its own editing window behind the slot's fine tuning",
+            "NEW: Low-health glow – Marks plates below a chosen health percentage, as a thin ring or a soft pulsing glow, in a colour of your choice",
+            "The pulsing glow ships as a new texture file, so it takes one full client restart to appear; a reload is not enough.",
+        } },
+        { category = "Paladin", lines = {
+            "The seal-twist helper no longer counts a swing ahead on parries or when attacking starts; its window used to point at a swing that never came.",
+        } },
+        { category = "Profiles", lines = {
+            "The import preview no longer sits on top of the paste step of the import dialog.",
+        } },
+        { category = "Swing Timer", lines = {
+            "The clock keeps ticking through abilities that replace the swing, Heroic Strike and Cleave among them: they write their own combat log line instead of a swing line, so the bar used to stand still exactly for the classes that queue such an ability on every swing.",
+            "Swing-resetting spells that deal no damage, parried special attacks and extra attacks now reach the clock too.",
+        } },
+        { category = "UI Reskin", lines = {
+            "NEW: WeakAuras style – A separate icon style for WeakAuras, independent of the action bars, with five Shadow aura sets",
+            "NEW: Border color – Tints the frame of the Shadow and shape styles; resetting it restores each style's built-in colouring",
+            "The bar style now starts at Blizzard's own untouched look, and the masked shapes circle, square and hexagon bring their own frames.",
+        } },
+    } },
     { version = "1.52.6", sections = {
         { category = "Cooldown Manager", lines = {
             "NEW: X Offset / Y Offset – Nudge the stack and reagent numbers away from their chosen corner; both sit behind the gear of the position row",
@@ -564,29 +592,6 @@ ns.CHANGELOG = {
         } },
         { category = "Under the hood", lines = {
             "The performance readout in the header uses your client's own always-on measurement, so it needs no setting and no reload.",
-        } },
-    } },
-    { version = "1.37.1", sections = {
-        { category = "Languages", lines = {
-            "The language option under General now actually applies. It silently never took effect — the addon read the client language before your saved choice was loaded. After a /reload every label, dropdown and popup follows your choice.",
-            "NEW: The Patch Notes page is translated into all languages, including every past version.",
-            "The trinket panel, its queue window and the /trinket help are translated too.",
-            "German: sixteen duplicated translations cleaned up, five of which contradicted each other.",
-        } },
-        { category = "Performance", lines = {
-            "Third pass over the busiest code paths: nameplate auras scan once instead of four times, combat-log and aura events skip a safety wrapper, timer texts only redraw when the shown number changes, and several background listeners now sleep while their feature is off or hidden. Less stutter in raids and arenas.",
-        } },
-        { category = "Arena", lines = {
-            "The frames can be turned off again without leftovers.",
-            "An interrupted enemy cast now shows INTERRUPTED briefly — it used to vanish the same instant.",
-            "Diminishing-returns icons clean up correctly after toggling the tracker mid-arena.",
-        } },
-        { category = "Fixes", lines = {
-            "Seven working settings that were invisible in the options are shown again, and several switches that did nothing are wired up.",
-            "Modules tidy up after themselves when disabled: totem range dimming, the inspect window, queue timer, quest log and font bars no longer leave stale pieces behind.",
-        } },
-        { category = "Visuals", lines = {
-            "Three modules got their own sidebar icons instead of the placeholder, and Reminders got a nicer bell.",
         } },
     } },
 }

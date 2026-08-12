@@ -1,20 +1,26 @@
-## 1.52.6
-**Cooldown Manager:**
-- **NEW: X Offset / Y Offset** – Nudge the stack and reagent numbers away from their chosen corner; both sit behind the gear of the position row
+## 1.53.0
+**Character Panel:**
+- Every row of the stats sheet now explains itself when you point at it, and spell haste has joined the sheet.
 
-**Edit Mode:**
-- Opening Edit Mode no longer hands the party and raid frames to the addon for the rest of the session. Merely opening it drove the client's frame editor through the addon, and in combat the client then refused to update those frames, naming the addon in the message. Only really moving one of Blizzard's frames still writes to the editor, and a frame that is hidden, like the focus frame while nothing is focused, never does.
-- Opening Edit Mode closes the options window. It sat exactly on top of the boxes it had just unlocked.
-
-**Loadouts:**
-- The equipment list steps aside for the rune engraving panel. That panel opens on the right side of the character sheet, exactly where the list docks, so the two stood on top of each other. The list now follows the panel's edge, and where the screen is too narrow for sheet, panel and list together, it moves to the left side of the sheet.
+**Global Settings:**
+- Custom class colours moved into the addon's own colour book. Writing them into the client's shared tables marked the party and raid frames as touched by the addon at every login, and the client then refused to resize them in combat. The clean-up has a price: the client's own windows and other addons show the standard class colours again, while the custom ones colour everything this addon draws.
 
 **Nameplates:**
-- The role fix ships switched off. What it fixes is a silent error that truncates one update when a nameplate appears; what it costs is that the party and raid frames count as touched by the addon for the whole session and refuse to resize in combat, with the addon named in the message. That price was reaching players who never chose it, so now only whoever switches the fix on pays it.
-- The status line of the role fix tells the whole truth. With the fix off it used to claim it was not needed on this client, even for players who do have the error; it now says whether the fix is applied, not needed, or simply not switched on while the error is firing.
+- **NEW: Edit spell lists** – Every aura row carries an always-show and a never-show spell ID list, kept in its own editing window behind the slot's fine tuning
+- **NEW: Low-health glow** – Marks plates below a chosen health percentage, as a thin ring or a soft pulsing glow, in a colour of your choice
+- The pulsing glow ships as a new texture file, so it takes one full client restart to appear; a reload is not enough.
 
-**Power Bar:**
-- The bar ships switched off. A second resource bar is a strong opinion to hand someone who never asked for one, and the client already draws its own. Installations that already exist keep the bar exactly as it was.
+**Paladin:**
+- The seal-twist helper no longer counts a swing ahead on parries or when attacking starts; its window used to point at a swing that never came.
+
+**Profiles:**
+- The import preview no longer sits on top of the paste step of the import dialog.
+
+**Swing Timer:**
+- The clock keeps ticking through abilities that replace the swing, Heroic Strike and Cleave among them: they write their own combat log line instead of a swing line, so the bar used to stand still exactly for the classes that queue such an ability on every swing.
+- Swing-resetting spells that deal no damage, parried special attacks and extra attacks now reach the clock too.
 
 **UI Reskin:**
-- The dark skin keeps Blizzard's rim off the stance buttons for good. Their updates write the button art back directly, past the hook that guards the action bars, so the rim used to return the first time you switched.
+- **NEW: WeakAuras style** – A separate icon style for WeakAuras, independent of the action bars, with five Shadow aura sets
+- **NEW: Border color** – Tints the frame of the Shadow and shape styles; resetting it restores each style's built-in colouring
+- The bar style now starts at Blizzard's own untouched look, and the masked shapes circle, square and hexagon bring their own frames.
