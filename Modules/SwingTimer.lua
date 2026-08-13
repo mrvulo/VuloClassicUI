@@ -79,7 +79,11 @@ local COLOR_PRESETS = {
     gold   = { r = 0.95, g = 0.75, b = 0.25 },
     red    = { r = 0.90, g = 0.32, b = 0.32 },
 }
+-- The picked colour wins; colorPreset stays as the fallback so profiles from
+-- before the colour picker keep the colour their preset gave them.
 local function barColor()
+    local c = mod.db.barColor
+    if type(c) == "table" and c.r then return c end
     return COLOR_PRESETS[mod.db.colorPreset] or COLOR_PRESETS.blue
 end
 
@@ -503,18 +507,12 @@ function mod:GetOptions()
         set = function(_, v) mod.db.onlyWhileActive = v; applyVisibility() end,
     })
     table.insert(items, {
-        type = "dropdown", label = L["Bar color"],
-        width = 240,
-        values = {
-            { value = "blue",   text = L["Blue"] },
-            { value = "violet", text = L["Violet"] },
-            { value = "cyan",   text = L["Cyan"] },
-            { value = "green",  text = L["Green"] },
-            { value = "gold",   text = L["Gold"] },
-            { value = "red",    text = L["Red"] },
-        },
-        get = function() return mod.db.colorPreset end,
-        set = function(_, v) mod.db.colorPreset = v; applyDisplay() end,
+        type = "color", label = L["Bar color"], width = 240,
+        get = function() return barColor() end,
+        set = function(r, g, b)
+            mod.db.barColor = { r = r, g = g, b = b }
+            applyDisplay()
+        end,
     })
     table.insert(items, {
         type = "dropdown", label = L["Foreground texture"],
