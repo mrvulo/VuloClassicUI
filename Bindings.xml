@@ -1,0 +1,24 @@
+<!-- WoW loads a Bindings.xml at the addon root by itself; it must NOT be
+     listed in the TOC as well, or every binding registers twice.
+     The action names are permanent: WoW stores keybinds against the action
+     string, so renaming one would unbind every ring players have set up.
+     Display strings live in Locales (BINDING_HEADER_/BINDING_NAME_ globals),
+     set inside OnLocaleReady by Modules/ActionRing.lua. -->
+<Bindings>
+	<Binding name="VULO_ACTIONRING1" header="VULOACTIONRING" category="VuloClassicUI" />
+	<Binding name="VULO_ACTIONRING2" category="VuloClassicUI" />
+	<Binding name="VULO_ACTIONRING3" category="VuloClassicUI" />
+	<Binding name="VULO_ACTIONRING4" category="VuloClassicUI" />
+	<Binding name="VULO_ACTIONRING5" category="VuloClassicUI" />
+	<Binding name="VULO_ACTIONRING6" category="VuloClassicUI" />
+	<Binding name="VULO_ACTIONRING7" category="VuloClassicUI" />
+	<Binding name="VULO_ACTIONRING8" category="VuloClassicUI" />
+	<Binding name="VULO_ACTIONRING9" category="VuloClassicUI" />
+	<Binding name="VULO_ACTIONRING10" category="VuloClassicUI" />
+	<Binding name="VULO_ACTIONRING11" category="VuloClassicUI" />
+	<Binding name="VULO_ACTIONRING12" category="VuloClassicUI" />
+	<Binding name="VULO_ACTIONRING13" category="VuloClassicUI" />
+	<Binding name="VULO_ACTIONRING14" category="VuloClassicUI" />
+	<Binding name="VULO_ACTIONRING15" category="VuloClassicUI" />
+	<Binding name="VULO_ACTIONRING16" category="VuloClassicUI" />
+</Bindings>

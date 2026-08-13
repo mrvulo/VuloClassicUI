@@ -63,6 +63,10 @@ Modules\Nameplates.lua
 Modules\NameplatesOptions.lua
 Modules\SwingTimer.lua
 Modules\ActionBars.lua
+# Bindings.xml is auto-loaded from the addon root and must not be listed here,
+# or every binding would register twice.
+Modules\ActionRing.lua
+Modules\ActionRingOptions.lua
 Modules\Reminders.lua
 Modules\Arena.lua
 Modules\CharacterPanel.lua
