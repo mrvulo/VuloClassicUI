@@ -1044,7 +1044,10 @@ local function ensureLowHpPulse(f)
     -- Constants live here, not at file scope: this runs once per plate and the
     -- chunk is close enough to Lua's 200-locals wall to be stingy up there.
     local GLOW_TEX = "Interface\\AddOns\\VuloClassicUI\\Media\\textures\\soft-glow"
-    local GLOW_MARGIN, GLOW_CORNER, GLOW_EXTEND = 0.42, 12, 7
+    -- Wider overhang and bigger corners than the first cut: the art is
+    -- full-strength at the bar edge and fades over the whole overhang, so the
+    -- halo reads as a bright rim with a soft tail (user screenshot, 12.08.2026).
+    local GLOW_MARGIN, GLOW_CORNER, GLOW_EXTEND = 0.42, 16, 11
     local g = CreateFrame("Frame", nil, f)
     -- Just under the bar: the halo's centre piece hides behind the bar's own
     -- ground, only the overhang past the edges reads as the glow.
@@ -1073,8 +1076,10 @@ local function ensureLowHpPulse(f)
     g.texs = texs
     -- Kept addressable: on bars flatter than the default the fixed corner
     -- would overlap its opposite number and ADD-blend the band double-bright,
-    -- so the paint pass shrinks the corners to half the halo's height.
+    -- so the paint pass shrinks the corners to half the halo's height. The
+    -- numbers ride along so the paint pass never duplicates them.
     g.corners = { tl, tr, bl, br }
+    g.maxCorner, g.extend = GLOW_CORNER, GLOW_EXTEND
     -- The breath: a looping C-side alpha bounce, no Lua ticks. Frame alpha and
     -- the textures' vertex colour are separate channels, so the tint and the
     -- pulse never fight.
@@ -1146,9 +1151,10 @@ local function paintHealth(f, ctx, cur, max)
         local halo = ensureLowHpPulse(f)
         local c = d.colLowHp or { r = 1, g = 0.2, b = 0.2 }
         for i = 1, #halo.texs do halo.texs[i]:SetVertexColor(c.r, c.g, c.b, 1) end
-        -- Half the halo height (bar + 2x7 overhang), capped at the art's
-        -- design size; compared before it is written, this runs per health tick.
-        local ch = math.min(12, math.floor(((d.healthHeight or 10) + 14) / 2))
+        -- Half the halo height (bar + overhang on both sides), capped at the
+        -- art's design size; compared before written, this runs per health tick.
+        local ch = math.min(halo.maxCorner,
+            math.floor(((d.healthHeight or 10) + 2 * halo.extend) / 2))
         if halo._corner ~= ch then
             halo._corner = ch
             for i = 1, 4 do halo.corners[i]:SetSize(ch, ch) end
