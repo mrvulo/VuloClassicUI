@@ -3266,6 +3266,8 @@ local mod = ns:RegisterModule("powerbar", {
         thresholdDir   = "below",
         thresholdColor = { r = 0.9, g = 0.2, b = 0.2 },
         thresholdText  = false,
+        queueTintOn    = false,
+        queueTintColor = { r = 1, g = 0.82, b = 0.2 },
     },
 })
 
@@ -3277,6 +3279,29 @@ local format, floor = string.format, math.floor
 -- every read below unchanged.
 local POWER_COLORS = ns.POWER_COLORS
 local DEFAULT_COLOR = POWER_COLORS.MANA
+
+-- "On next swing" attacks sit queued until the swing lands, and the resource
+-- they will eat is already spoken for -- which is exactly the moment the
+-- queued tint marks. IsCurrentSpell answers the queued state; every rank id
+-- is listed because the queued one is whichever rank sits on the bar.
+local SWING_QUEUE_SPELLS = {
+    WARRIOR = { 78, 284, 285, 1608, 11564, 11565, 11566, 11567, 25286, 29707, 30324,  -- Heroic Strike
+                845, 7369, 11608, 11609, 20569, 25231 },                              -- Cleave
+    HUNTER  = { 2973, 14260, 14261, 14262, 14263, 14264, 14265, 14266, 27014 },       -- Raptor Strike
+    DRUID   = { 6807, 6808, 6809, 8972, 9745, 9880, 9881, 26996 },                    -- Maul
+}
+local swingQueueIds   -- resolved once; false = this class queues nothing
+local function swingQueued()
+    if not IsCurrentSpell then return false end
+    if swingQueueIds == nil then
+        swingQueueIds = SWING_QUEUE_SPELLS[select(2, UnitClass("player"))] or false
+    end
+    if not swingQueueIds then return false end
+    for i = 1, #swingQueueIds do
+        if IsCurrentSpell(swingQueueIds[i]) then return true end
+    end
+    return false
+end
 
 local DEFAULT_TEXTURE = "Atrocity"
 local lsmStatusbar   = ns.MediaStatusbar
@@ -3486,6 +3511,11 @@ local function updateValue()
             else c = d.thresholdColor or c end
         end
     end
+    -- The queued tint outranks the threshold: a queued strike is the more
+    -- transient signal, and it is the one this colour exists to mark.
+    if d.queueTintOn and swingQueued() then
+        c = d.queueTintColor or c
+    end
     bar:SetStatusBarColor(c.r, c.g, c.b)
 
     if not barText then return end
@@ -3647,6 +3677,9 @@ local function registerEvents()
     ev:RegisterEvent("PLAYER_REGEN_ENABLED")
     ev:RegisterEvent("PLAYER_REGEN_DISABLED")
     ev:RegisterEvent("PLAYER_TARGET_CHANGED")
+    -- Queue state of on-next-swing attacks; lands in the generic updateValue
+    -- branch, which is where the queued tint is applied.
+    ev:RegisterEvent("CURRENT_SPELL_CAST_CHANGED")
     ev:RegisterEvent("GROUP_ROSTER_UPDATE")
     ev:RegisterEvent("ZONE_CHANGED_NEW_AREA")
 end
@@ -3994,6 +4027,15 @@ function mod:GetOptions()
                   { type = "checkbox", label = L["Recolour the text instead of the bar"],
                     get = function() return mod.db.thresholdText end,
                     set = function(_, v) mod.db.thresholdText = v; updateValue() end },
+              } },
+            { type = "checkbox", label = L["Colour while a swing attack is queued"],
+              tooltip = L["While an on-next-swing attack (Heroic Strike, Cleave, Raptor Strike, Maul) is queued, the bar takes this colour - the resource it will eat is already spoken for."],
+              get = function() return mod.db.queueTintOn end,
+              set = function(_, v) mod.db.queueTintOn = v; updateValue() end,
+              subOptions = {
+                  { type = "color", label = L["Queued colour"], width = 200,
+                    get = function() return mod.db.queueTintColor end,
+                    set = function(r, g, b) mod.db.queueTintColor = { r = r, g = g, b = b }; updateValue() end },
               } },
         } },
     }
