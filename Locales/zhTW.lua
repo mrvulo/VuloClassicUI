@@ -3510,4 +3510,12 @@ ns:RegisterLocale("zhTW", function() return {
     ["Colour while a swing attack is queued"] = "攻擊排入佇列時上色",
     ["While an on-next-swing attack (Heroic Strike, Cleave, Raptor Strike, Maul) is queued, the bar takes this colour - the resource it will eat is already spoken for."] = "當下次攻擊技能（英勇打擊、順劈斬、猛禽一擊、重毆）排入佇列時，資源條會顯示此顏色——它將消耗的資源已被預留。",
     ["Queued colour"] = "佇列顏色",
+    -- Patch notes 1.54.0
+    ["Action Ring – Hold a keybind to open a ring of actions, aim at an entry and release to use it, spells, items and macros alike, in and out of combat"] = "動作環 – 按住設定的按鍵即可開啟一個動作環，指向條目後放開按鍵即可使用，法術、物品和巨集一視同仁，戰鬥內外皆可",
+    ["Choose between a ring, a grid and a mouse-wheel strip, run up to 16 rings with their own keys, entries and look, and start from ready-made templates such as raid marks, teleports, potions or shapeshifts."] = "可在圓環、網格和滑鼠滾輪條之間選擇，最多可設 16 個動作環，各有自己的按鍵、條目和外觀，還能從團隊標記、傳送、藥水或變形等現成範本開始。",
+    ["The options page shows a live preview of the selected ring that redraws while you drag a slider, and a plus button right in the picture adds entries."] = "選項頁面會顯示所選動作環的即時預覽，拖曳滑桿時立即重繪，圖中的加號按鈕可直接加入條目。",
+    ["Colour while a swing attack is queued – The resource bar shows a colour of your choice while an on-next-swing attack waits for the hit, so you can see that the resource is already spoken for"] = "攻擊排入佇列時上色 – 當下一擊攻擊排入佇列時，資源條會顯示你選擇的顏色，提醒你這部分資源已被預定",
+    ["The low-health glow now reaches further past the plate and rounds its corners more generously; before, it hugged the frame so tightly that it read as a border instead of a glow."] = "低生命值光效現在向名條外延伸得更遠，圓角也更大；之前它緊貼邊框，看起來像框線而不是光效。",
+    ["The glow texture changed on disk, so it takes one full client restart to show its new shape; a reload is not enough."] = "光效材質在磁碟上已變更，需要完全重新啟動客戶端才能看到新形狀；重新載入介面並不足夠。",
+    ["The bar colour opens a full colour picker instead of a short list of presets; existing profiles keep the colour they had."] = "計時條顏色改為完整的調色器，不再是簡短的預設清單；現有設定檔保留原本的顏色。",
 } end)

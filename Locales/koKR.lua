@@ -3517,4 +3517,12 @@ ns:RegisterLocale("koKR", function() return {
     ["Colour while a swing attack is queued"] = "다음 공격이 대기 중일 때 색상 적용",
     ["While an on-next-swing attack (Heroic Strike, Cleave, Raptor Strike, Maul) is queued, the bar takes this colour - the resource it will eat is already spoken for."] = "다음 공격 시 발동하는 기술(영웅의 일격, 쪼개기, 랩터의 일격, 후려갈기기)이 대기 중인 동안 막대가 이 색상으로 표시됩니다. 소모될 자원은 이미 예약된 상태입니다.",
     ["Queued colour"] = "대기 색상",
+    -- Patch notes 1.54.0
+    ["Action Ring – Hold a keybind to open a ring of actions, aim at an entry and release to use it, spells, items and macros alike, in and out of combat"] = "행동 고리 – 지정한 단축키를 누르고 있으면 행동의 고리가 열립니다. 항목을 겨눈 채 키를 떼면 사용되며, 주문과 아이템과 매크로 모두 전투 안팎에서 똑같이 작동합니다",
+    ["Choose between a ring, a grid and a mouse-wheel strip, run up to 16 rings with their own keys, entries and look, and start from ready-made templates such as raid marks, teleports, potions or shapeshifts."] = "고리, 격자, 마우스 휠 목록 중에서 고를 수 있고, 저마다의 키와 항목과 모양을 가진 고리를 16개까지 둘 수 있으며, 공격대 표식, 순간이동, 물약, 변신 같은 미리 만들어진 본보기에서 시작할 수 있습니다.",
+    ["The options page shows a live preview of the selected ring that redraws while you drag a slider, and a plus button right in the picture adds entries."] = "옵션 페이지에 선택한 고리의 실시간 미리 보기가 표시되어 조절기를 끄는 동안에도 다시 그려지고, 그림 안의 더하기 버튼으로 항목을 추가할 수 있습니다.",
+    ["Colour while a swing attack is queued – The resource bar shows a colour of your choice while an on-next-swing attack waits for the hit, so you can see that the resource is already spoken for"] = "다음 공격이 대기 중일 때 색상 적용 – 다음 공격이 대기하는 동안 자원 막대가 원하는 색으로 바뀌어, 그 자원이 이미 쓰일 예정임을 알 수 있습니다",
+    ["The low-health glow now reaches further past the plate and rounds its corners more generously; before, it hugged the frame so tightly that it read as a border instead of a glow."] = "낮은 생명력 표시가 이제 이름표 밖으로 더 넓게 퍼지고 모서리도 더 둥글게 그려집니다. 전에는 틀에 너무 붙어 있어서 빛이 아니라 테두리처럼 보였습니다.",
+    ["The glow texture changed on disk, so it takes one full client restart to show its new shape; a reload is not enough."] = "표시에 쓰이는 텍스처 파일이 바뀌었기 때문에 새 모양은 클라이언트를 완전히 재시작해야 보입니다. 다시 불러오기로는 부족합니다.",
+    ["The bar colour opens a full colour picker instead of a short list of presets; existing profiles keep the colour they had."] = "막대 색상이 짧은 목록 대신 자유로운 색상 선택기로 바뀌었습니다. 기존 프로필은 쓰던 색을 그대로 유지합니다.",
 } end)

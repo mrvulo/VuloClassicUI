@@ -3510,4 +3510,12 @@ ns:RegisterLocale("zhCN", function() return {
     ["Colour while a swing attack is queued"] = "攻击排队时着色",
     ["While an on-next-swing attack (Heroic Strike, Cleave, Raptor Strike, Maul) is queued, the bar takes this colour - the resource it will eat is already spoken for."] = "当下次攻击技能（英勇打击、顺劈斩、猛禽一击、重殴）排队时，资源条会显示此颜色——它将消耗的资源已被预定。",
     ["Queued colour"] = "排队颜色",
+    -- Patch notes 1.54.0
+    ["Action Ring – Hold a keybind to open a ring of actions, aim at an entry and release to use it, spells, items and macros alike, in and out of combat"] = "动作环 – 按住设定的按键即可打开一个动作环，指向条目后松开按键即可使用，法术、物品和宏一视同仁，战斗内外均可",
+    ["Choose between a ring, a grid and a mouse-wheel strip, run up to 16 rings with their own keys, entries and look, and start from ready-made templates such as raid marks, teleports, potions or shapeshifts."] = "可在圆环、网格和鼠标滚轮条之间选择，最多可设 16 个动作环，各有自己的按键、条目和外观，还可以从团队标记、传送、药水或变形等现成模板开始。",
+    ["The options page shows a live preview of the selected ring that redraws while you drag a slider, and a plus button right in the picture adds entries."] = "设置页面会显示所选动作环的实时预览，拖动滑块时即时重绘，图中的加号按钮可直接添加条目。",
+    ["Colour while a swing attack is queued – The resource bar shows a colour of your choice while an on-next-swing attack waits for the hit, so you can see that the resource is already spoken for"] = "攻击排队时着色 – 当下一击攻击排入队列时，资源条会显示你选择的颜色，提醒你这部分资源已被预定",
+    ["The low-health glow now reaches further past the plate and rounds its corners more generously; before, it hugged the frame so tightly that it read as a border instead of a glow."] = "低血量光效现在向姓名板外延伸得更远，圆角也更大；之前它紧贴边框，看起来像描边而不是光效。",
+    ["The glow texture changed on disk, so it takes one full client restart to show its new shape; a reload is not enough."] = "光效贴图在磁盘上已更改，需要完全重启客户端才能看到新形状；重载界面不够。",
+    ["The bar colour opens a full colour picker instead of a short list of presets; existing profiles keep the colour they had."] = "计时条颜色改为完整的取色器，不再是简短的预设列表；现有配置文件保留原来的颜色。",
 } end)
