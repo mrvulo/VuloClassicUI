@@ -1825,6 +1825,71 @@ function mod:OnDisable()
     mod.UpdateBindings()
 end
 
+-- Centre-relative picture of ring `index` for the options page's preview:
+-- where every drawn entry would sit at open, through the SAME geometry
+-- helpers the real open uses -- no second copy of the maths to drift apart.
+-- The slots come unfiltered: the page previews the list being edited, not
+-- the usability of the moment. Also hands back where the page's add button
+-- naturally sits: the arc's free middle, the grid's next cell, one pitch
+-- past the strip's last drawn entry; an empty ring puts it in the middle.
+local function previewLayout(index)
+    local p = PA(index)
+    local model = layoutModel(p)
+    local slots = menu(index).slots or {}
+    local shown = math.min(#slots, MAX_SLOTS)
+    local out = {
+        model    = model,
+        total    = shown,   -- the strip culls entries below; this stays the count
+        iconSize = tonumber(p.iconSize) or 40,
+        scale    = math.max(tonumber(p.scale) or 1, 0.01),
+        showText = p.showActionText == true,
+        plusX    = 0,
+        plusY    = 0,
+        entries  = {},
+    }
+    if shown == 0 then return out end
+
+    if model == "ANGULAR" then
+        local step, start = arcGeom(p, shown)
+        local radius = ringRadius(p, shown, step)
+        for i = 1, shown do
+            local ang = math.rad(start + (i - 1) * step)
+            out.entries[i] = { slot = slots[i],
+                x = math.sin(ang) * radius, y = math.cos(ang) * radius }
+        end
+    elseif model == "POINTER" then
+        local pitch = pitchOf(p)
+        local cols, rows = gridDims(p, shown)
+        for i = 1, shown do
+            local x, y = gridBase(i, cols, rows, pitch, shown)
+            out.entries[i] = { slot = slots[i], x = x, y = y }
+        end
+        -- No "next cell" for the button: adding an entry recentres the last
+        -- row (and can reflow the whole grid), so that cell is never where
+        -- the preview draws free ground. It parks below the picture instead.
+        if shown < MAX_SLOTS then
+            out.plusY = -(rows + 1) * 0.5 * pitch - out.iconSize * 0.5
+        end
+    else -- SCROLL: the strip's opening state, target on slot 1, same cull
+        local pitch = pitchOf(p)
+        local win = fanWindow(p)
+        local horiz = fanHoriz(p)
+        local far = 0
+        for i = 1, shown do
+            local d = fanFold(i, 1, shown)
+            if math.abs(d) <= win and d * 2 <= shown and -d * 2 < shown then
+                local x, y = d * pitch, 0
+                if not horiz then x, y = 0, -d * pitch end
+                out.entries[#out.entries + 1] = { slot = slots[i], x = x, y = y }
+                if d > far then far = d end
+            end
+        end
+        if horiz then out.plusX = (far + 1) * pitch
+        else out.plusY = -(far + 1) * pitch end
+    end
+    return out
+end
+
 -- Everything the options file needs, in one place -- same pattern as the
 -- nameplates split. The options half may be loaded or replaced without the
 -- runtime half changing shape.
@@ -1845,6 +1910,7 @@ mod.optionsBridge = {
         return m.appearance
     end,
     pa             = PA,
+    previewLayout  = previewLayout,
     requestPush    = function() requestPush() end,
     updateBindings = function() mod.UpdateBindings() end,
     openPreview    = function(i) openRing(i, true) end,

@@ -591,6 +591,16 @@ local EROW_H, PANEL_H = 26, 240
 -- `or` fallback would be dead code).
 local entriesPanel
 
+-- Forward: the entries panel's row actions (move, remove) redraw themselves
+-- without the full page rebuild every other setter goes through, so they
+-- poke the preview by hand.
+local previewPanel
+local function refreshPreview()
+    if previewPanel and previewPanel:IsShown() and previewPanel.refresh then
+        previewPanel.refresh()
+    end
+end
+
 local function buildEntriesPanel(parent)
     local UI = ns.UI
     if entriesPanel then
@@ -714,18 +724,18 @@ local function buildEntriesPanel(parent)
             row.onUp = function()
                 if i > 1 then
                     slots[i], slots[i - 1] = slots[i - 1], slots[i]
-                    br.requestPush(); refresh()
+                    br.requestPush(); refresh(); refreshPreview()
                 end
             end
             row.onDown = function()
                 if i < #slots then
                     slots[i], slots[i + 1] = slots[i + 1], slots[i]
-                    br.requestPush(); refresh()
+                    br.requestPush(); refresh(); refreshPreview()
                 end
             end
             row.onDel = function()
                 table.remove(slots, i)
-                br.requestPush(); refresh()
+                br.requestPush(); refresh(); refreshPreview()
             end
             row.up:SetShown(i > 1)
             row.down:SetShown(i < n)
@@ -743,6 +753,148 @@ local function buildEntriesPanel(parent)
         end)
     end)
     entriesPanel = panel
+    refresh()
+    return panel
+end
+
+-------------------------------------------------------------------------------
+--  The preview panel -- the selected ring's entries in their real arrangement,
+--  redrawn by every refreshPage(), which the layout setters already call on
+--  each slider tick: live update rides the page's own rebuild.
+-------------------------------------------------------------------------------
+
+local PREVIEW_H = 210
+local WHITE8X8  = "Interface\\Buttons\\WHITE8X8"
+
+-- The panel itself is memoised like entriesPanel, and for the same reasons;
+-- its local lives above the entries panel, which pokes it.
+local function buildPreviewPanel(parent)
+    local UI = ns.UI
+    if previewPanel then
+        previewPanel:SetParent(parent)
+        previewPanel:Show()
+        previewPanel.refresh()
+        return previewPanel
+    end
+    local panel = CreateFrame("Frame", nil, parent)
+    panel:SetSize(480, PREVIEW_H)
+
+    -- The stage: entries sit in true geometry inside the holder, and the
+    -- HOLDER shrinks to fit -- proportions, gaps and sizes stay true to each
+    -- other, and a ring that fits is shown at its real size, never enlarged.
+    local holder = CreateFrame("Frame", nil, panel)
+    holder:SetPoint("CENTER")
+    holder:SetSize(1, 1)
+
+    -- Tiles in the look of the real ring's slices (ActionRing.lua newSlice):
+    -- same backdrop, border, icon inset and trim, so the preview promises the
+    -- picture the hold will deliver.
+    local tiles = {}
+    local function tile(i)
+        local t = tiles[i]
+        if not t then
+            t = CreateFrame("Frame", nil, holder, "BackdropTemplate")
+            t:SetBackdrop({ bgFile = WHITE8X8, edgeFile = WHITE8X8, edgeSize = 1 })
+            t:SetBackdropColor(0.05, 0.05, 0.06, 0.92)
+            t:SetBackdropBorderColor(0.22, 0.22, 0.27, 1)
+            t.icon = t:CreateTexture(nil, "ARTWORK")
+            t.icon:SetPoint("TOPLEFT", 2, -2)
+            t.icon:SetPoint("BOTTOMRIGHT", -2, 2)
+            t.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+            t.label = t:CreateFontString(nil, "OVERLAY")
+            t.label:SetFont(UI.FONT_PATH, 10, "OUTLINE")
+            t.label:SetPoint("TOP", t, "BOTTOM", 0, -2)
+            t.label:SetTextColor(0.8, 0.8, 0.85)
+            t:EnableMouse(true)
+            t:SetScript("OnEnter", function(self)
+                if self.tipText then UI:ShowTooltip(self, self.tipText) end
+            end)
+            t:SetScript("OnLeave", function() UI:HideTooltip() end)
+            tiles[i] = t
+        end
+        return t
+    end
+
+    -- The add button lives INSIDE the holder, placed by the same layout that
+    -- placed the entries, so it lands where the next entry would.
+    local plus = CreateFrame("Button", nil, holder, "BackdropTemplate")
+    plus:SetBackdrop({ bgFile = WHITE8X8, edgeFile = WHITE8X8, edgeSize = 1 })
+    plus:SetBackdropColor(0.05, 0.05, 0.06, 0.6)
+    plus:SetBackdropBorderColor(0.35, 0.35, 0.4, 1)
+    plus.txt = plus:CreateFontString(nil, "OVERLAY")
+    UI.Font(plus.txt, 16)
+    plus.txt:SetPoint("CENTER")
+    plus.txt:SetText("+")
+    plus.txt:SetTextColor(0.7, 0.7, 0.75)
+    plus:SetScript("OnEnter", function(self)
+        local acc = ns.COLORS.accent
+        self.txt:SetTextColor(acc.r, acc.g, acc.b)
+        self:SetBackdropBorderColor(acc.r, acc.g, acc.b, 1)
+        UI:ShowTooltip(self, L["Add entry"])
+    end)
+    plus:SetScript("OnLeave", function(self)
+        self.txt:SetTextColor(0.7, 0.7, 0.75)
+        self:SetBackdropBorderColor(0.35, 0.35, 0.4, 1)
+        UI:HideTooltip()
+    end)
+    plus:SetScript("OnClick", function() openPicker("entries") end)
+
+    local function refresh()
+        local pp = panel:GetParent()
+        local pw = pp and pp:GetWidth() or 0
+        if pw > 60 then panel:SetWidth(pw - 24) end
+
+        local lay = br.previewLayout(selectedMenu)
+        local half = lay.iconSize * 0.5
+        local labelPad = lay.showText and 14 or 0
+
+        -- Half-extents of the drawn picture, add button included; the fit is
+        -- computed against the REAL on-screen size (geometry times the ring's
+        -- own scale), so the scale slider visibly acts until space runs out.
+        local plusHalf = math.max(half * 0.6, 11)
+        local maxX = math.abs(lay.plusX) + plusHalf
+        local maxY = math.abs(lay.plusY) + plusHalf
+        for _, e in ipairs(lay.entries) do
+            maxX = math.max(maxX, math.abs(e.x) + half)
+            maxY = math.max(maxY, math.abs(e.y) + half + labelPad)
+        end
+        local availW = math.max(100, (panel:GetWidth() or 480) - 20)
+        local availH = PREVIEW_H - 12
+        local fit = math.min(1,
+            availW * 0.5 / math.max(1, maxX * lay.scale),
+            availH * 0.5 / math.max(1, maxY * lay.scale))
+        holder:SetScale(lay.scale * fit)
+
+        for i, e in ipairs(lay.entries) do
+            local t = tile(i)
+            t:SetSize(lay.iconSize, lay.iconSize)
+            local icon, label = br.slotDisplay(e.slot)
+            t.icon:SetTexture(icon or 134400)
+            t.label:SetText(lay.showText and label or "")
+            t.tipText = label
+            t:ClearAllPoints()
+            t:SetPoint("CENTER", holder, "CENTER", e.x, e.y)
+            t:Show()
+        end
+        for i = #lay.entries + 1, #tiles do tiles[i]:Hide() end
+
+        plus:SetSize(plusHalf * 2, plusHalf * 2)
+        plus:ClearAllPoints()
+        plus:SetPoint("CENTER", holder, "CENTER", lay.plusX, lay.plusY)
+        -- A full ring gets no add button -- a grid's "next cell" would sit on
+        -- top of an entry, and addSlot would only print the refusal anyway.
+        plus:SetShown(lay.total < MAX_SLOTS)
+    end
+    panel.refresh = refresh
+    -- Same deferred measuring pass as the entries panel: at build time the
+    -- parent may not have real geometry yet.
+    panel:SetScript("OnShow", function(self)
+        self:SetScript("OnUpdate", function(s)
+            s:SetScript("OnUpdate", nil)
+            refresh()
+        end)
+    end)
+    previewPanel = panel
     refresh()
     return panel
 end
@@ -1038,6 +1190,11 @@ function mod:GetOptions()
     table.insert(items, { type = "header", text = L["Entries"] })
     table.insert(items, { type = "custom", height = PANEL_H,
         build = buildEntriesPanel })
+
+    table.insert(items, { type = "spacer", height = 6 })
+    table.insert(items, { type = "header", text = L["Preview"] })
+    table.insert(items, { type = "custom", height = PREVIEW_H,
+        build = buildPreviewPanel })
 
     table.insert(items, { type = "spacer", height = 6 })
     table.insert(items, { type = "header", text = L["Layout"] })
