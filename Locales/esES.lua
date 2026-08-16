@@ -2765,9 +2765,6 @@ local function T() return {
     ["Arena: racial, PvP trinket and the DR row now share one icon strip; your chosen side was kept."] = "Arena: la habilidad racial, el abalorio JcJ y la fila de DR comparten ahora una sola tira de iconos; se ha mantenido el lado que elegiste.",
     ["|cffff5555Arena layout failed:|r %s"] = "|cffff5555Fallo en la disposición de la arena:|r %s",
     ["|cffff5555Arena icon strip error:|r %s"] = "|cffff5555Error en la tira de iconos de la arena:|r %s",
-    ["Drag to reorder. Right-click removes it."] = "Arrastra para reordenar. Clic derecho para quitarlo.",
-    ["That icon is added automatically — switch off auto-tracking to remove it."] = "Ese icono se añade automáticamente: desactiva el seguimiento automático para quitarlo.",
-    ["Drag to reorder. Right-click an icon to remove it."] = "Arrastra para reordenar. Clic derecho en un icono para quitarlo.",
     ["Nothing in this bar yet. Add a spell or trinket below, or drag one onto the bar."] = "Aún no hay nada en esta barra. Añade abajo un hechizo o abalorio, o arrastra uno a la barra.",
     ["+  New cooldown bar"] = "+  Nueva barra de reutilizaciones",
     ["+  New buff / proc bar"] = "+  Nueva barra de beneficios y procs",
@@ -3526,6 +3523,14 @@ local function T() return {
     ["The low-health glow now reaches further past the plate and rounds its corners more generously; before, it hugged the frame so tightly that it read as a border instead of a glow."] = "El brillo de salud baja llega ahora más allá de la placa y redondea sus esquinas con más generosidad; antes se pegaba tanto al marco que parecía un borde en lugar de un brillo.",
     ["The glow texture changed on disk, so it takes one full client restart to show its new shape; a reload is not enough."] = "La textura del brillo cambió en el disco, así que hace falta un reinicio completo del cliente para ver su nueva forma; recargar no basta.",
     ["The bar colour opens a full colour picker instead of a short list of presets; existing profiles keep the colour they had."] = "El color de la barra abre un selector de color completo en lugar de una lista corta de opciones fijas; los perfiles existentes conservan el color que tenían.",
+    ["Bar default"] = "Predeterminado de la barra",
+    ["Edit glows..."] = "Editar brillos...",
+    ["Sound when ready"] = "Sonido cuando esté lista",
+    ["Custom icon..."] = "Icono personalizado...",
+    ["Park this icon (kept, never shown)"] = "Aparcar este icono (se conserva, nunca se muestra)",
+    ["Drag to reorder. Right-click opens this icon's settings."] = "Arrastra para reordenar. Clic derecho abre los ajustes de este icono.",
+    ["Drag to reorder. Right-click an icon for its settings."] = "Arrastra para reordenar. Clic derecho en un icono para sus ajustes.",
+    ["Custom icon: enter a spell or item ID, or a texture path. Empty returns the real icon."] = "Icono personalizado: introduce el ID de un hechizo u objeto, o la ruta de una textura. Vacío devuelve el icono real.",
 } end
 
 ns:RegisterLocale("esES", T)

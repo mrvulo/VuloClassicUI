@@ -319,15 +319,28 @@ local function resolveInput(text, allowRawName)
 end
 
 local function entryInfo(e)
+    -- e.iconTex (the right-click menu's custom icon) wins over every resolved
+    -- icon, in both branches and on the preview strip alike
     if e.kind == "spell" then
         local name, _, icon = GetSpellInfo(e.id)
         -- unresolvable proc/aura IDs fall back to what refreshGroup cached when the aura was first seen
         return name or e.savedName or (type(e.id) == "string" and e.id or nil),
-               icon or e.savedIcon
+               e.iconTex or icon or e.savedIcon
     else
         local name = GetItemInfo(e.id)
-        return name, (GetItemIcon and GetItemIcon(e.id))
+        return name, e.iconTex or (GetItemIcon and GetItemIcon(e.id))
     end
+end
+
+-- Per-entry overrides from the right-click menu on the preview strip. e.ovr
+-- holds true/false per key and overrides the bar's setting; a missing key
+-- follows the bar, so entries from before this feature behave unchanged.
+local function eopt(e, key, groupVal)
+    local o = e and e.ovr
+    if o == nil then return groupVal end
+    local v = o[key]
+    if v == nil then return groupVal end
+    return v
 end
 
 local function entryCooldown(e)
@@ -1019,7 +1032,15 @@ relayoutGroup = function(group)
         end
         -- SetSwipeColor's alpha can be a no-op in 2.5.5, so dim the whole cooldown frame instead
         if f.cd.SetSwipeColor then f.cd:SetSwipeColor(0, 0, 0, 1) end
-        f.cd:SetAlpha(group.swipeAlpha or 0.6)
+        do
+            -- per-entry tri-state: "off" blanks the swipe, "on" forces it
+            -- visible even on a bar whose swipe slider sits at 0
+            local sw = group.swipeAlpha or 0.6
+            local esw = e.ovr and e.ovr.swipe
+            if esw == false then sw = 0
+            elseif esw == true and sw <= 0 then sw = 0.6 end
+            f.cd:SetAlpha(sw)
+        end
         f.text:SetFont(fontPath(), math.max(8, math.floor(size * (group.textScale or 0.4))), "OUTLINE")
         local si = STACK_INSETS[group.stackPos or "BOTTOMRIGHT"] or STACK_INSETS.BOTTOMRIGHT
         f.stack:ClearAllPoints()
@@ -1279,7 +1300,7 @@ local function updateIcon(group, f, now)
     if onCD then
         local remain = start + duration - now
         f.cd:SetCooldown(start, duration)
-        if group.showText then
+        if eopt(e, "showText", group.showText) then
             -- the visible text only changes when the second (or minute) does;
             -- rebuilding the string ten times a second per icon added up
             local bucket = remain >= 60 and -math.floor(remain / 60 + 0.5) or math.ceil(remain)
@@ -1293,7 +1314,8 @@ local function updateIcon(group, f, now)
             f._textBucket = nil
             f.text:Hide()
         end
-        if group.desaturate then f.tex:SetDesaturated(true); f.tex:SetVertexColor(0.6, 0.6, 0.6)
+        if eopt(e, "desaturate", group.desaturate) then
+            f.tex:SetDesaturated(true); f.tex:SetVertexColor(0.6, 0.6, 0.6)
         else f.tex:SetDesaturated(false); f.tex:SetVertexColor(1, 1, 1) end
         f.glow:Hide()
         f.prevRemain = remain
@@ -1321,18 +1343,35 @@ local function updateIcon(group, f, now)
                 end
             end
         end
-        if group.readyFlash and (f.prevRemain or 0) > 0 then
+        local becameReady = (f.prevRemain or 0) > 0
+        if eopt(e, "readyFlash", group.readyFlash) and becameReady then
             f.flashT = 0
             f.flash:SetAlpha(0.9)
             f.flash:Show()
         end
-        if group.readyGlow then
+        -- Per-entry ready sound (right-click menu). Same transition the flash
+        -- uses, so a login with everything already ready stays silent. One
+        -- global debounce: two spells coming off cooldown on the same tick
+        -- must not stack into a double blast (the reference debounces too).
+        if becameReady and e.readySound then
+            if (mod._lastReadySound or 0) + 1 < now then
+                mod._lastReadySound = now
+                local hash = ns.LSM and ns.LSM:HashTable("sound")
+                local path = hash and hash[e.readySound]
+                if path and path ~= "" and PlaySoundFile then
+                    pcall(PlaySoundFile, path, "Master")
+                end
+            end
+        end
+        if eopt(e, "readyGlow", group.readyGlow) then
             local usable = true
             if e.kind == "spell" and IsUsableSpell then
                 usable = IsUsableSpell(e.id) and true or false
             end
             if usable then
-                local c = AURA_COLORS[group.readyGlowColor or "yellow"] or AURA_COLORS.yellow
+                local colorKey = (e.ovr and e.ovr.readyGlowColor)
+                    or group.readyGlowColor or "yellow"
+                local c = AURA_COLORS[colorKey] or AURA_COLORS.yellow
                 f.glow:SetVertexColor(c[1], c[2], c[3], 0.9)
                 f.glow:Show()
             else
@@ -1426,7 +1465,7 @@ local function updateAuraIcon(group, f, rec, now)
     if rec.exp and rec.dur and rec.dur > 0 then
         f.cd:SetCooldown(rec.exp - rec.dur, rec.dur)
         local remain = rec.exp - now
-        if group.showText and remain > 0 then
+        if eopt(f.entry, "showText", group.showText) and remain > 0 then
             f.text:SetText(fmtRemain(remain))
             applyTimerColor(group, f.text, remain)
             f.text:Show()
@@ -1503,7 +1542,10 @@ refreshGroup = function(group, now)
                 if show then
                     active[#active + 1] = f
                     f._rec = rec
-                    if rec and rec.icon and f._auraIconTex ~= rec.icon then
+                    -- a custom icon (right-click menu) is the user's word
+                    -- against the aura's own art; the user wins
+                    if rec and rec.icon and not (e and e.iconTex)
+                       and f._auraIconTex ~= rec.icon then
                         f.tex:SetTexture(rec.icon); f._auraIconTex = rec.icon
                     end
                     f:Show()
@@ -1879,6 +1921,201 @@ local function cancelStripDrag(f)
     if f._dragLine then f._dragLine:Hide() end
 end
 
+-- ---------------------------------------------------------------------------
+-- Right-click menu on a strip icon: every per-entry setting in one place.
+-- Tri-state rows write e.ovr[key] = true/false and "Bar default" clears the
+-- key, so an entry without overrides costs the render path nothing.
+
+local pendingIconEntry, pendingIconGroup
+
+local function setOvr(group, e, key, v)
+    if v == nil then
+        if e.ovr then
+            e.ovr[key] = nil
+            if next(e.ovr) == nil then e.ovr = nil end
+        end
+    else
+        e.ovr = e.ovr or {}
+        e.ovr[key] = v
+    end
+    -- relayout, not just refresh: the swipe override is applied there
+    relayoutGroup(group)
+    refreshAll()
+end
+
+local function triSub(group, e, key)
+    local function row(text, v)
+        return { text = text, radio = true,
+            checked = function() return (e.ovr and e.ovr[key]) == v end,
+            func = function() setOvr(group, e, key, v) end }
+    end
+    return {
+        row(L["Bar default"], nil),
+        row(L["On"], true),
+        row(L["Off"], false),
+    }
+end
+
+local OVR_GLOW_COLORS = {
+    { "yellow", "Yellow" }, { "gold", "Gold" }, { "green", "Green" },
+    { "purple", "Purple" }, { "red", "Red" }, { "blue", "Blue" },
+    { "white", "White" },
+}
+
+local function glowColorSub(group, e)
+    local list = { { text = L["Bar default"], radio = true,
+        checked = function() return not (e.ovr and e.ovr.readyGlowColor) end,
+        func = function() setOvr(group, e, "readyGlowColor", nil) end } }
+    for _, c in ipairs(OVR_GLOW_COLORS) do
+        local key, label = c[1], c[2]
+        list[#list + 1] = { text = L[label], radio = true,
+            checked = function() return (e.ovr and e.ovr.readyGlowColor) == key end,
+            func = function() setOvr(group, e, "readyGlowColor", key) end }
+    end
+    return list
+end
+
+-- Selecting a sound PLAYS it and keeps the menu open, so the list can be
+-- auditioned in place; the choice is already saved with each click.
+local function soundSub(e)
+    local list = {
+        { text = L["None"], radio = true, keepOpen = true,
+          checked = function() return e.readySound == nil end,
+          func = function() e.readySound = nil end },
+    }
+    local lib = ns.LSM
+    local hash = lib and lib:HashTable("sound")
+    if hash then
+        for _, name in ipairs(lib:List("sound") or {}) do
+            local path = hash[name]
+            -- shared media's own "None" carries an empty path; ours above is the one
+            if path and path ~= "" then
+                list[#list + 1] = { text = name, radio = true, keepOpen = true,
+                    checked = function() return e.readySound == name end,
+                    func = function()
+                        e.readySound = name
+                        if PlaySoundFile then pcall(PlaySoundFile, path, "Master") end
+                    end }
+            end
+        end
+    end
+    return list
+end
+
+local function ownOnlySub(e)
+    local function row(text, v)
+        return { text = text, radio = true,
+            checked = function() return e.ownOnly == v end,
+            func = function() e.ownOnly = v; rebuildBars() end }
+    end
+    return {
+        row(L["Group default"], nil),
+        row(L["Only mine"], true),
+        row(L["Anyone's"], false),
+    }
+end
+
+local function applyCustomIcon(dialog)
+    local e = pendingIconEntry
+    if not e then return end
+    local box = ns.PopupEditBox(dialog)
+    local txt = box and tostring(box:GetText() or "") or ""
+    txt = txt:gsub("^%s+", ""):gsub("%s+$", "")
+    if txt == "" then
+        e.iconTex = nil
+    else
+        local num = tonumber(txt)
+        if num then
+            -- spell first, then item; a number neither resolves is kept as a
+            -- texture fileID, which SetTexture accepts on this client
+            e.iconTex = select(3, GetSpellInfo(num))
+                or (GetItemIcon and GetItemIcon(num)) or num
+        else
+            e.iconTex = txt
+        end
+    end
+    -- the entry's OWN group, captured at menu time: the bar picker may have
+    -- moved on while the (non-modal) dialog sat open
+    local group = pendingIconGroup or curGroup()
+    if group then relayoutGroup(group) end
+    rebuildPage()
+end
+
+local function openEntryMenu(slot, group, e)
+    if not (group and e) then return end
+    local nm = entryInfo(e) or ("#" .. tostring(e.id))
+    local m = { { title = true, text = nm } }
+
+    -- removal leads, like the reference's menu; auto trinkets stay put, the
+    -- equipment sync would re-add them and the click would look like nothing
+    if e.auto then
+        m[#m + 1] = { text = L["Remove"] .. " |cff888888(auto)|r", disabled = true }
+    else
+        m[#m + 1] = { text = L["Remove"], func = function()
+            -- by TABLE, not index: the auto-trinket sync rewrites the list
+            -- behind an open menu, and a stale index removes the neighbour
+            for idx = #group.entries, 1, -1 do
+                if group.entries[idx] == e then
+                    table.remove(group.entries, idx)
+                    break
+                end
+            end
+            relayoutGroup(group); rebuildPage()
+        end }
+    end
+    m[#m + 1] = { separator = true }
+
+    -- the glow watchers own a whole tab; the menu jumps there with this entry picked
+    m[#m + 1] = { text = L["Edit glows..."], func = function()
+        mod._glowSel = e
+        if ns.UI and ns.UI.ShowTab then ns.UI:ShowTab("glows") end
+    end }
+
+    if group.mode == "cooldown" then
+        m[#m + 1] = { text = L["Glow while ready"],
+            submenu = function() return triSub(group, e, "readyGlow") end }
+        m[#m + 1] = { text = L["Glow color"],
+            submenu = function() return glowColorSub(group, e) end }
+        m[#m + 1] = { text = L["Flash when ready"],
+            submenu = function() return triSub(group, e, "readyFlash") end }
+        m[#m + 1] = { text = L["Dim icon while on cooldown"],
+            submenu = function() return triSub(group, e, "desaturate") end }
+        m[#m + 1] = { text = L["Cooldown swipe"],
+            submenu = function() return triSub(group, e, "swipe") end }
+        m[#m + 1] = { text = L["Show countdown text"],
+            submenu = function() return triSub(group, e, "showText") end }
+        m[#m + 1] = { text = L["Sound when ready"],
+            submenu = function() return soundSub(e) end }
+    else
+        m[#m + 1] = { text = L["Show countdown text"],
+            submenu = function() return triSub(group, e, "showText") end }
+        -- same override the tracked list offers behind the gear
+        m[#m + 1] = { text = L["Only what I cast myself"],
+            submenu = function() return ownOnlySub(e) end }
+    end
+
+    m[#m + 1] = { text = L["Custom icon..."], func = function()
+        pendingIconEntry, pendingIconGroup = e, group
+        local dialog = StaticPopup_Show("VCUI_CDM_CUSTOM_ICON")
+        local box = ns.PopupEditBox(dialog)
+        if box then
+            box:SetText(type(e.iconTex) == "string" and e.iconTex
+                or (e.iconTex and tostring(e.iconTex)) or "")
+            box:HighlightText()
+        end
+    end }
+
+    m[#m + 1] = { separator = true }
+    m[#m + 1] = { text = L["Park this icon (kept, never shown)"],
+        checked = function() return e.off == true end,
+        func = function()
+            e.off = (not e.off) and true or nil
+            rebuildBars(); rebuildPage()
+        end }
+
+    ns:ShowPopupMenu(m, slot)
+end
+
 local function ensureStripSlot(f, i)
     local slot = f._slots[i]
     if slot then return slot end
@@ -1937,7 +2174,7 @@ local function ensureStripSlot(f, i)
             GameTooltip:AddLine(
                 (ns.UI and ns.UI.currentTab == "glows")
                     and L["Click to edit this icon's glow."]
-                    or  L["Drag to reorder. Right-click removes it."],
+                    or  L["Drag to reorder. Right-click opens this icon's settings."],
                 0.7, 0.7, 0.7, true)
             GameTooltip:Show()
         end
@@ -1952,27 +2189,20 @@ local function ensureStripSlot(f, i)
     slot:SetScript("OnClick", function(self, button)
         local group = curGroup()
         if not (group and self._entryIndex) then return end
-        -- On the glows tab any click PICKS the icon whose glow the page edits;
-        -- removing stays a tracked-tab action, so a mis-click here cannot
-        -- silently shorten the bar. The ENTRY TABLE is stored, not the index:
-        -- removals, reorders and the trinket auto-sync shift indices under an
-        -- open editor, and an index would silently retarget a different icon
-        -- (the same rule the rename/delete dialogs follow).
-        if ns.UI and ns.UI.currentTab == "glows" then
-            mod._glowSel = group.entries[self._entryIndex]
-            rebuildPage()
+        -- The ENTRY TABLE is handed on, not the index: removals, reorders and
+        -- the trinket auto-sync shift indices under an open menu or editor,
+        -- and an index would silently retarget a different icon (the same
+        -- rule the rename/delete dialogs follow).
+        local e = group.entries[self._entryIndex]
+        -- right-click opens the per-entry menu on every tab; removing lives
+        -- in there now, behind a deliberate second click
+        if button == "RightButton" then
+            openEntryMenu(self, group, e)
             return
         end
-        if button == "RightButton" then
-            local e = group.entries[self._entryIndex]
-            -- auto trinkets are re-added by the equipment sync, so removing one
-            -- by hand would look like the click did nothing
-            if e and e.auto then
-                ns:Print(L["That icon is added automatically — switch off auto-tracking to remove it."])
-                return
-            end
-            table.remove(group.entries, self._entryIndex)
-            relayoutGroup(group)
+        -- on the glows tab a left click PICKS the icon whose glow the page edits
+        if ns.UI and ns.UI.currentTab == "glows" then
+            mod._glowSel = e
             rebuildPage()
         end
     end)
@@ -2183,7 +2413,7 @@ local function buildIconStrip(parent)
             or  L["Nothing in this bar yet. Add a spell or trinket on the CDM Bars tab first."])
     else
         f._hint:SetText(n > 0
-            and L["Drag to reorder. Right-click an icon to remove it."]
+            and L["Drag to reorder. Right-click an icon for its settings."]
             or  L["Nothing in this bar yet. Add a spell or trinket below, or drag one onto the bar."])
     end
     f:SetSize(W, stripHeight(group))
@@ -2351,6 +2581,24 @@ ns.OnLocaleReady(function()
         hideOnEscape = true,
         preferredIndex = 3,
         OnAccept = function() if pendingDeleteGroup then deleteGroup(pendingDeleteGroup) end end,
+    }
+    StaticPopupDialogs["VCUI_CDM_CUSTOM_ICON"] = {
+        text         = L["Custom icon: enter a spell or item ID, or a texture path. Empty returns the real icon."],
+        button1      = ACCEPT or "OK",
+        button2      = CANCEL or "Cancel",
+        hasEditBox   = true,
+        maxLetters   = 120,
+        timeout      = 0,
+        whileDead    = true,
+        hideOnEscape = true,
+        preferredIndex = 3,
+        OnAccept = function(self) applyCustomIcon(self) end,
+        EditBoxOnEnterPressed = function(self)
+            local parent = self:GetParent()
+            applyCustomIcon(parent)
+            parent:Hide()
+        end,
+        EditBoxOnEscapePressed = function(self) self:GetParent():Hide() end,
     }
 end)
 

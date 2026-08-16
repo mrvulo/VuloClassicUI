@@ -147,7 +147,9 @@ function mod:ShowDropdown(anchor)
     table.insert(entries, { separator = true })
     table.insert(entries, { text = L["Reload UI"], func = function() ReloadUI() end })
 
-    ns:ShowPopupMenu(entries, anchor or "cursor")
+    -- the button as owner: a cursor anchor cannot be mouse-over-tested, and
+    -- without it the opening click could never toggle the menu closed again
+    ns:ShowPopupMenu(entries, anchor or "cursor", anchor or button)
 end
 
 function mod:OnEnable()
