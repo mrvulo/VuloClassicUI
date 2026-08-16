@@ -3523,4 +3523,9 @@ ns:RegisterLocale("zhCN", function() return {
     ["Drag to reorder. Right-click opens this icon's settings."] = "拖动以调整顺序。右键点击打开此图标的设置。",
     ["Drag to reorder. Right-click an icon for its settings."] = "拖动以调整顺序。右键点击图标可打开其设置。",
     ["Custom icon: enter a spell or item ID, or a texture path. Empty returns the real icon."] = "自定义图标：输入法术或物品 ID，或材质路径。留空恢复原始图标。",
+    ["Switching the module off now hands the micro buttons and the bag buttons back to their exact Blizzard positions, and a dialog offers the reload right away; the addon's row layout used to survive into the default bars until the next reload."] = "关闭模块时，微型按钮和背包按钮会精确回到暴雪的原始位置，并弹出对话框提示立即重载界面；此前插件的排布会残留在默认动作条上，直到下次重载。",
+    ["Sound when ready – Every icon can announce the end of its cooldown with a sound from the shared media list, auditioned right in the menu with every click"] = "就绪时音效 – 每个图标都可以在冷却结束时播放共享媒体列表中的音效，在菜单中每次点击即可试听",
+    ["Custom icon... – Any entry can wear an icon of your choice, named by spell or item ID or a texture path"] = "自定义图标... – 任意条目都可以使用你选择的图标，通过法术或物品 ID 或材质路径指定",
+    ["Right-clicking an icon in the preview strip opens a settings menu for that one entry: glow while ready with its own colour, the ready flash, the dimming, the cooldown swipe and the countdown text can each override the bar's setting, and the glow editor, parking and removing live in the same place. Removing is no longer the bare right-click itself, so a stray click cannot shorten the bar."] = "右键点击预览条中的图标会打开仅针对该条目的设置菜单：就绪时发光及其颜色、就绪闪光、冷却变暗、冷却扫描和倒计时文字都可以逐项覆盖该栏的设置，光效编辑器、搁置和移除也在同一处。移除不再是单纯的右键点击本身，误点不会再缩短该栏。",
+    ["Long popup menus, the module list on the minimap button among them, now show a window that scrolls with the mouse wheel instead of growing past the screen edge."] = "过长的弹出菜单（包括小地图按钮上的模块列表）现在会显示一个可用鼠标滚轮滚动的窗口，而不是超出屏幕边缘。",
 } end)

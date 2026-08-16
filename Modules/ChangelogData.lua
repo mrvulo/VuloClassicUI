@@ -6,6 +6,19 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+    { version = "1.55.0", sections = {
+        { category = "Action Bars", lines = {
+            "Switching the module off now hands the micro buttons and the bag buttons back to their exact Blizzard positions, and a dialog offers the reload right away; the addon's row layout used to survive into the default bars until the next reload.",
+        } },
+        { category = "Cooldown Manager", lines = {
+            "NEW: Sound when ready – Every icon can announce the end of its cooldown with a sound from the shared media list, auditioned right in the menu with every click",
+            "NEW: Custom icon... – Any entry can wear an icon of your choice, named by spell or item ID or a texture path",
+            "Right-clicking an icon in the preview strip opens a settings menu for that one entry: glow while ready with its own colour, the ready flash, the dimming, the cooldown swipe and the countdown text can each override the bar's setting, and the glow editor, parking and removing live in the same place. Removing is no longer the bare right-click itself, so a stray click cannot shorten the bar.",
+        } },
+        { category = "General", lines = {
+            "Long popup menus, the module list on the minimap button among them, now show a window that scrolls with the mouse wheel instead of growing past the screen edge.",
+        } },
+    } },
     { version = "1.54.0", sections = {
         { category = "Action Ring", lines = {
             "NEW: Action Ring – Hold a keybind to open a ring of actions, aim at an entry and release to use it, spells, items and macros alike, in and out of combat",
@@ -580,14 +593,6 @@ ns.CHANGELOG = {
         } },
         { category = "Performance", lines = {
             "Fixed a stutter of almost two frames every time you entered or left combat, if you use WeakAuras and have the WeakAuras skin switched on. Every combat change repainted every aura you have ever saved — including the ones not on screen — with a look that had not changed. Auras are now only repainted when the settings or their size actually changed. Measured: 28 ms down to under 2 ms. The skin itself is unchanged.",
-        } },
-    } },
-    { version = "1.37.3", sections = {
-        { category = "Class Trainer page", lines = {
-            "Fixed the page being thrown away again a moment after you opened it, dropping you back on a class tab. The spell book resets its own page whenever your spells change, and our page sits past the last real tab, so it was always the one discarded. Most noticeable on Season of Discovery, where engraving changes spells constantly.",
-        } },
-        { category = "Under the hood", lines = {
-            "NEW: `/vcuiprof` measures how much frame time each part of the addon costs, then prints a list. It ships switched off and costs nothing while it is — the measuring code is only put in place when you turn it on. Type it once to start, once more to read.",
         } },
     } },
 }

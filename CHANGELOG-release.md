@@ -1,15 +1,11 @@
-## 1.54.0
-**Action Ring:**
-- **NEW: Action Ring** – Hold a keybind to open a ring of actions, aim at an entry and release to use it, spells, items and macros alike, in and out of combat
-- Choose between a ring, a grid and a mouse-wheel strip, run up to 16 rings with their own keys, entries and look, and start from ready-made templates such as raid marks, teleports, potions or shapeshifts.
-- The options page shows a live preview of the selected ring that redraws while you drag a slider, and a plus button right in the picture adds entries.
+## 1.55.0
+**Action Bars:**
+- Switching the module off now hands the micro buttons and the bag buttons back to their exact Blizzard positions, and a dialog offers the reload right away; the addon's row layout used to survive into the default bars until the next reload.
 
 **Cooldown Manager:**
-- **NEW: Colour while a swing attack is queued** – The resource bar shows a colour of your choice while an on-next-swing attack waits for the hit, so you can see that the resource is already spoken for
+- **NEW: Sound when ready** – Every icon can announce the end of its cooldown with a sound from the shared media list, auditioned right in the menu with every click
+- **NEW: Custom icon...** – Any entry can wear an icon of your choice, named by spell or item ID or a texture path
+- Right-clicking an icon in the preview strip opens a settings menu for that one entry: glow while ready with its own colour, the ready flash, the dimming, the cooldown swipe and the countdown text can each override the bar's setting, and the glow editor, parking and removing live in the same place. Removing is no longer the bare right-click itself, so a stray click cannot shorten the bar.
 
-**Nameplates:**
-- The low-health glow now reaches further past the plate and rounds its corners more generously; before, it hugged the frame so tightly that it read as a border instead of a glow.
-- The glow texture changed on disk, so it takes one full client restart to show its new shape; a reload is not enough.
-
-**Swing Timer:**
-- The bar colour opens a full colour picker instead of a short list of presets; existing profiles keep the colour they had.
+**General:**
+- Long popup menus, the module list on the minimap button among them, now show a window that scrolls with the mouse wheel instead of growing past the screen edge.
