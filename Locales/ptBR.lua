@@ -2042,7 +2042,7 @@ ns:RegisterLocale("ptBR", function() return {
     ["Stance bar"] = "Barra de postura",
     ["Pet bar"] = "Barra do mascote",
     ["Takes over every action bar with its own movable frames: real combat/mouseover show-hide, scale and grid layout per bar, correct main-bar paging (druid/rogue/warrior/priest forms) and your keybinds. EXPERIMENTAL — test ability clicks and paging in combat; /reload after disabling."] = "Assume todas as barras de ação com quadros móveis próprios: exibição/ocultação real em combate/ao passar o mouse, escala e disposição em grade por barra, paginação correta da barra principal (formas de druida/ladino/guerreiro/sacerdote) e seus atalhos. EXPERIMENTAL — teste os cliques de habilidade e a paginação em combate; use /reload após desativar.",
-    ["|cffffcc00Action Bars disabled — type /reload to fully restore the default bars.|r"] = "|cffffcc00Barras de Ação desativadas — digite /reload para restaurar totalmente as barras padrão.|r",
+    ["Standard action bars are back. Reload the interface to restore every last piece of the default layout."] = "As barras de ação padrão voltaram. Recarregar a interface restaura até o último detalhe do layout padrão.",
     ["Buttons per row"] = "Botões por fileira",
     ["Button spacing"] = "Espaçamento dos botões",
     ["Reset ALL VuloClassicUI settings for every character on this account? This cannot be undone."] = "Redefinir TODAS as configurações do VuloClassicUI para todos os personagens desta conta? Esta ação não pode ser desfeita.",

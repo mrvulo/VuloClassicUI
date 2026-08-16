@@ -1027,7 +1027,7 @@ ns:RegisterLocale("ruRU", function() return {
     ["Stance bar"] = "Панель стоек",
     ["Pet bar"] = "Панель питомца",
     ["Takes over every action bar with its own movable frames: real combat/mouseover show-hide, scale and grid layout per bar, correct main-bar paging (druid/rogue/warrior/priest forms) and your keybinds. EXPERIMENTAL — test ability clicks and paging in combat; /reload after disabling."] = "Берет все панели команд под свое управление собственными перемещаемыми рамками: настоящий показ/скрытие в бою и при наведении, масштаб и сетка для каждой панели, правильное переключение страниц основной панели (формы друида/разбойника/воина/жреца) и ваши горячие клавиши. ЭКСПЕРИМЕНТАЛЬНО — проверьте нажатие способностей и смену страниц в бою; после отключения введите /reload.",
-    ["|cffffcc00Action Bars disabled — type /reload to fully restore the default bars.|r"] = "|cffffcc00Панели команд отключены — введите /reload, чтобы полностью вернуть стандартные панели.|r",
+    ["Standard action bars are back. Reload the interface to restore every last piece of the default layout."] = "Стандартные панели команд вернулись. Перезагрузка интерфейса восстановит порядок по умолчанию до последней детали.",
     ["Buttons per row"] = "Кнопок в ряду",
     ["Button spacing"] = "Расстояние между кнопками",
     ["World"] = "Мир",

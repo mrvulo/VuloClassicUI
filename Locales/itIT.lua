@@ -1385,7 +1385,7 @@ ns:RegisterLocale("itIT", function() return {
     ["Stance bar"] = "Barra delle posture",
     ["Pet bar"] = "Barra del pet",
     ["Takes over every action bar with its own movable frames: real combat/mouseover show-hide, scale and grid layout per bar, correct main-bar paging (druid/rogue/warrior/priest forms) and your keybinds. EXPERIMENTAL — test ability clicks and paging in combat; /reload after disabling."] = "Prende il controllo di ogni barra delle azioni con frame propri e spostabili: vera comparsa/scomparsa in combattimento e al mouseover, scala e layout a griglia per barra, paginazione corretta della barra principale (forme di druido/ladro/guerriero/sacerdote) e i tuoi tasti assegnati. SPERIMENTALE — prova i clic sulle abilità e la paginazione in combattimento; /reload dopo la disattivazione.",
-    ["|cffffcc00Action Bars disabled — type /reload to fully restore the default bars.|r"] = "|cffffcc00Barre delle azioni disattivate — digita /reload per ripristinare completamente le barre predefinite.|r",
+    ["Standard action bars are back. Reload the interface to restore every last piece of the default layout."] = "Le barre delle azioni standard sono tornate. Ricaricare l'interfaccia ripristina fino all'ultimo dettaglio della disposizione predefinita.",
     ["Buttons per row"] = "Pulsanti per riga",
     ["Button spacing"] = "Spaziatura dei pulsanti",
     ["|cffffffffPOWER BAR|r\n|cffaaaaaaDrag or arrow keys|r"] = "|cffffffffBARRA DELLA RISORSA|r\\n|cffaaaaaaTrascina o frecce direzionali|r",

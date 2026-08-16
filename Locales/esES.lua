@@ -1737,7 +1737,7 @@ local function T() return {
     ["Stance bar"] = "Barra de actitudes",
     ["Pet bar"] = "Barra de mascota",
     ["Takes over every action bar with its own movable frames: real combat/mouseover show-hide, scale and grid layout per bar, correct main-bar paging (druid/rogue/warrior/priest forms) and your keybinds. EXPERIMENTAL — test ability clicks and paging in combat; /reload after disabling."] = "Toma el control de todas las barras de acción con marcos propios y móviles: mostrar/ocultar real por combate o ratón, escala y disposición en cuadrícula por barra, paginado correcto de la barra principal (formas de druida/pícaro/guerrero/sacerdote) y tus asignaciones de teclas. EXPERIMENTAL: prueba los clics de habilidad y el paginado en combate; /reload tras desactivarlo.",
-    ["|cffffcc00Action Bars disabled — type /reload to fully restore the default bars.|r"] = "|cffffcc00Barras de acción desactivadas: escribe /reload para restaurar por completo las barras predeterminadas.|r",
+    ["Standard action bars are back. Reload the interface to restore every last piece of the default layout."] = "Las barras de acción estándar han vuelto. Recargar la interfaz restaura hasta el último detalle del diseño predeterminado.",
     ["Buttons per row"] = "Botones por fila",
     ["Button spacing"] = "Separación entre botones",
     ["Item name (exactly as in-game)"] = "Nombre del objeto (exactamente como en el juego)",

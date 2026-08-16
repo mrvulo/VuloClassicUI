@@ -2044,7 +2044,7 @@ ns:RegisterLocale("zhCN", function() return {
     ["Stance bar"] = "姿态条",
     ["Pet bar"] = "宠物动作条",
     ["Takes over every action bar with its own movable frames: real combat/mouseover show-hide, scale and grid layout per bar, correct main-bar paging (druid/rogue/warrior/priest forms) and your keybinds. EXPERIMENTAL — test ability clicks and paging in combat; /reload after disabling."] = "用自己的可移动框架接管所有动作条：真正的战斗/鼠标悬停显隐、每条动作条独立的缩放与网格布局、正确的主动作条翻页（德鲁伊/潜行者/战士/牧师形态）以及你的按键绑定。实验性功能——请在战斗中测试技能点击和翻页；禁用后请 /reload。",
-    ["|cffffcc00Action Bars disabled — type /reload to fully restore the default bars.|r"] = "|cffffcc00动作条模块已禁用——输入 /reload 以完全恢复默认动作条。|r",
+    ["Standard action bars are back. Reload the interface to restore every last piece of the default layout."] = "标准动作条已恢复。重新载入界面即可将默认布局恢复到最后一处细节。",
     ["Buttons per row"] = "每行按钮数",
     ["Button spacing"] = "按钮间距",
     ["Reset ALL VuloClassicUI settings for every character on this account? This cannot be undone."] = "重置此账号下所有角色的全部 VuloClassicUI 设置？此操作无法撤销。",

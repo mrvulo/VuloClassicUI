@@ -2042,7 +2042,7 @@ ns:RegisterLocale("koKR", function() return {
     ["Stance bar"] = "태세 단축바",
     ["Pet bar"] = "소환수 단축바",
     ["Takes over every action bar with its own movable frames: real combat/mouseover show-hide, scale and grid layout per bar, correct main-bar paging (druid/rogue/warrior/priest forms) and your keybinds. EXPERIMENTAL — test ability clicks and paging in combat; /reload after disabling."] = "모든 행동 단축바를 이동 가능한 자체 프레임으로 대체합니다: 실제 전투/마우스 오버 표시·숨김, 단축바별 크기 비율과 격자 배치, 올바른 주 단축바 페이지 전환(드루이드/도적/전사/사제 형태), 기존 단축키를 지원합니다. 실험적 기능 — 전투 중에 능력 클릭과 페이지 전환을 시험해 보세요. 비활성화한 뒤에는 /reload 를 실행하세요.",
-    ["|cffffcc00Action Bars disabled — type /reload to fully restore the default bars.|r"] = "|cffffcc00행동 단축바 비활성화됨 — 기본 단축바를 완전히 복원하려면 /reload 를 입력하세요.|r",
+    ["Standard action bars are back. Reload the interface to restore every last piece of the default layout."] = "기본 행동 단축바가 돌아왔습니다. 인터페이스를 다시 불러오면 기본 배치가 마지막 하나까지 복원됩니다.",
     ["Buttons per row"] = "줄당 버튼 수",
     ["Button spacing"] = "버튼 간격",
     ["Reset ALL VuloClassicUI settings for every character on this account? This cannot be undone."] = "이 계정의 모든 캐릭터에 대해 VuloClassicUI의 모든 설정을 초기화합니까? 되돌릴 수 없습니다.",

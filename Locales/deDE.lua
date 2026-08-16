@@ -2497,7 +2497,7 @@ ns:RegisterLocale("deDE", function() return {
     ["Stance bar"] = "Haltungsleiste",
     ["Pet bar"] = "Begleiterleiste",
     ["Takes over every action bar with its own movable frames: real combat/mouseover show-hide, scale and grid layout per bar, correct main-bar paging (druid/rogue/warrior/priest forms) and your keybinds. EXPERIMENTAL — test ability clicks and paging in combat; /reload after disabling."] = "Übernimmt jede Aktionsleiste mit eigenem, frei beweglichem Rahmen: echtes Ein-/Ausblenden (Kampf/Mouseover), Skalierung und Raster-Layout pro Leiste, korrektes Paging der Hauptleiste (Druiden-/Schurken-/Krieger-/Priester-Gestalten) und deine Tastenbelegungen. EXPERIMENTELL — teste Fähigkeiten-Klicks und Paging im Kampf; /reload nach dem Deaktivieren.",
-    ["|cffffcc00Action Bars disabled — type /reload to fully restore the default bars.|r"] = "|cffffcc00Aktionsleisten deaktiviert — /reload eingeben, um die Standardleisten vollständig wiederherzustellen.|r",
+    ["Standard action bars are back. Reload the interface to restore every last piece of the default layout."] = "Die Standard-Aktionsleisten sind zurück. Ein Neuladen der Oberfläche stellt auch das letzte Stück des Standard-Layouts wieder her.",
     ["Buttons per row"] = "Buttons pro Reihe",
     ["Button spacing"] = "Button-Abstand",
     ["Reset ALL VuloClassicUI settings for every character on this account? This cannot be undone."] = "Wirklich ALLE Einstellungen von VuloClassicUI für jeden Charakter dieses Accounts zurücksetzen? Das lässt sich nicht rückgängig machen.",

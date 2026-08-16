@@ -708,6 +708,11 @@ local MICRO_ORDER = {
 }
 local microHooked = false
 local microSeen = {}
+-- Original anchor chain and shown state of every micro button, first write
+-- wins -- taken BEFORE the first row layout below, which is the only thing
+-- that ever moves them. Without this, restore() had nothing to put back and
+-- the row layout survived into Blizzard's own bars until the next reload.
+local microOrig = {}
 local function showAllMicro()
     local cs = chromeState.micro
     local container = cs and cs.targets and cs.targets[1]
@@ -715,6 +720,13 @@ local function showAllMicro()
     local btns = {}
     for _, b in ipairs({ container:GetChildren() }) do
         if b.IsObjectType and b:IsObjectType("Button") then
+            if microOrig[b] == nil and b.GetNumPoints then
+                local pts = {}
+                for i = 1, (b:GetNumPoints() or 0) do
+                    pts[i] = { n = select("#", b:GetPoint(i)), b:GetPoint(i) }
+                end
+                microOrig[b] = { shown = b:IsShown() and true or false, pts = pts }
+            end
             -- never resurrect buttons Blizzard never shows (deprecated twins)
             if b:IsShown() then
                 microSeen[b] = true
@@ -818,6 +830,24 @@ local function restoreChrome()
     for _, cs in pairs(chromeState) do
         if cs.holder then cs.holder:Hide() end
     end
+end
+
+-- The counterpart to showAllMicro's row: every micro button gets its Blizzard
+-- anchors and its shown state back, then Blizzard's own updater re-asserts --
+-- the same pattern restoreMainButtons uses. Runs AFTER restoreChrome, so the
+-- container the anchors point into is already home.
+local function restoreMicroLayout()
+    for b, o in pairs(microOrig) do
+        local ok, err = pcall(function()
+            b:ClearAllPoints()
+            for _, p in ipairs(o.pts) do b:SetPoint(unpack(p, 1, p.n)) end
+            b:SetShown(o.shown)
+        end)
+        if not ok then ns:Debug("restoreMicroLayout: %s", tostring(err)) end
+        microOrig[b] = nil
+    end
+    wipe(microSeen)
+    if type(_G.UpdateMicroButtons) == "function" then pcall(_G.UpdateMicroButtons) end
 end
 
 local MICRO_ICON_DIR = "Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\"
@@ -1121,6 +1151,19 @@ local function unskinBagButton(b)
     b:SetScale(o.scale)
     if o.width and o.width > 0 then b:SetWidth(o.width) end
     b:SetParent(o.parent)
+    -- pinFrame snapshotted the Blizzard anchors before the first pin. Without
+    -- replaying them here the button keeps its pin to the hidden modern row --
+    -- whose name the stranded check in restoreChrome does not cover -- and the
+    -- bag bar comes back scattered instead of in Blizzard's own chain.
+    local pts = origAnchor[b]
+    if pts then
+        local ok, err = pcall(function()
+            b:ClearAllPoints()
+            for _, p in ipairs(pts) do b:SetPoint(unpack(p, 1, p.n)) end
+        end)
+        if not ok then ns:Debug("unskinBagButton anchor: %s", tostring(err)) end
+        origAnchor[b] = nil
+    end
     -- never re-show the key ring button: its OnShow errors on this client
     if o.wasShown ~= nil and b ~= _G.KeyRingButton then
         b:SetShown(o.wasShown)
@@ -1691,6 +1734,7 @@ local function restore()
     setFramesHidden(BAG_FRAMES, false)
     setFramesHidden(STANCE_HIDE, false)
     restoreChrome()
+    restoreMicroLayout()
     if xpBar then xpBar:Hide() end
     local stbm = _G.StatusTrackingBarManager
     if stbm then stbm:Show(); if stbm.RegisterAllEvents then stbm:RegisterAllEvents() end end
@@ -1704,7 +1748,23 @@ local function restore()
     -- insurance for the reparented pet buttons, which would carry the tint
     -- back to Blizzard's bar if a later change hands them back on disable.
     applyInteractions()
-    ns:Print(L["|cffffcc00Action Bars disabled — type /reload to fully restore the default bars.|r"])
+    -- Registered here, not at file scope: a file-scope L[...] bakes the client
+    -- language in before the saved override loads. The offer beats the old
+    -- chat line: art textures and the key ring quirk stay ours until a reload,
+    -- and one click is cheaper than typing the command.
+    if not StaticPopupDialogs["VCUI_RELOAD_ACTIONBARS"] then
+        StaticPopupDialogs["VCUI_RELOAD_ACTIONBARS"] = {
+            text = L["Standard action bars are back. Reload the interface to restore every last piece of the default layout."],
+            button1 = L["Reload now"],
+            button2 = L["Later"],
+            OnAccept = function() ReloadUI() end,
+            timeout = 0,
+            whileDead = true,
+            hideOnEscape = true,
+            preferredIndex = 3,
+        }
+    end
+    StaticPopup_Show("VCUI_RELOAD_ACTIONBARS")
 end
 
 local function applyAll()

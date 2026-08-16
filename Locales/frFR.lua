@@ -1970,7 +1970,7 @@ ns:RegisterLocale("frFR", function() return {
     ["Stance bar"] = "Barre de posture",
     ["Pet bar"] = "Barre du familier",
     ["Takes over every action bar with its own movable frames: real combat/mouseover show-hide, scale and grid layout per bar, correct main-bar paging (druid/rogue/warrior/priest forms) and your keybinds. EXPERIMENTAL — test ability clicks and paging in combat; /reload after disabling."] = "Prend en charge toutes les barres d'action avec ses propres fenêtres déplaçables : affichage / masquage réel en combat ou au survol, échelle et disposition en grille par barre, pagination correcte de la barre principale (formes druide/voleur/guerrier/prêtre) et vos raccourcis. EXPÉRIMENTAL — testez les clics de capacité et la pagination en combat ; /reload après désactivation.",
-    ["|cffffcc00Action Bars disabled — type /reload to fully restore the default bars.|r"] = "|cffffcc00Barres d'action désactivées — tapez /reload pour rétablir entièrement les barres par défaut.|r",
+    ["Standard action bars are back. Reload the interface to restore every last piece of the default layout."] = "Les barres d'action standard sont de retour. Recharger l'interface rétablit jusqu'au dernier détail de la disposition par défaut.",
     ["Buttons per row"] = "Boutons par rangée",
     ["Button spacing"] = "Espacement des boutons",
     ["Overlays damage-absorption shields (e.g. Power Word: Shield) on the health bar."] = "Superpose les boucliers d'absorption de dégâts (par ex. Mot de pouvoir : Bouclier) sur la barre de vie.",
