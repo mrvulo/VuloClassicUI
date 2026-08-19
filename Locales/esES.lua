@@ -3536,6 +3536,11 @@ local function T() return {
     ["Custom icon... – Any entry can wear an icon of your choice, named by spell or item ID or a texture path"] = "Icono personalizado... – Cualquier entrada puede llevar el icono que elijas, indicado por ID de hechizo u objeto o por la ruta de una textura",
     ["Right-clicking an icon in the preview strip opens a settings menu for that one entry: glow while ready with its own colour, the ready flash, the dimming, the cooldown swipe and the countdown text can each override the bar's setting, and the glow editor, parking and removing live in the same place. Removing is no longer the bare right-click itself, so a stray click cannot shorten the bar."] = "Un clic derecho en un icono de la tira de vista previa abre un menú de ajustes para esa única entrada: el destello mientras esté lista con su propio color, el parpadeo, la atenuación, el barrido de reutilización y el texto de cuenta atrás pueden anular uno a uno el ajuste de la barra, y el editor de brillos, el aparcado y la eliminación viven en el mismo sitio. Eliminar ya no es el clic derecho a secas, así que un clic perdido ya no puede acortar la barra.",
     ["Long popup menus, the module list on the minimap button among them, now show a window that scrolls with the mouse wheel instead of growing past the screen edge."] = "Los menús emergentes largos, entre ellos la lista de módulos del botón del minimapa, muestran ahora una ventana que se desplaza con la rueda del ratón en lugar de crecer más allá del borde de la pantalla.",
+    ["Helm"] = "Yelmo",
+    ["Cloak"] = "Capa",
+    ["Don't change"] = "No cambiar",
+    ["shown"] = "visible",
+    ["hidden"] = "oculto",
 } end
 
 ns:RegisterLocale("esES", T)

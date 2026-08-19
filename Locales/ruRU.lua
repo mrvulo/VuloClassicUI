@@ -3535,4 +3535,9 @@ ns:RegisterLocale("ruRU", function() return {
     ["Custom icon... – Any entry can wear an icon of your choice, named by spell or item ID or a texture path"] = "Свой значок... – Любая запись может носить значок на ваш выбор, заданный ID заклинания или предмета либо путём к текстуре",
     ["Right-clicking an icon in the preview strip opens a settings menu for that one entry: glow while ready with its own colour, the ready flash, the dimming, the cooldown swipe and the countdown text can each override the bar's setting, and the glow editor, parking and removing live in the same place. Removing is no longer the bare right-click itself, so a stray click cannot shorten the bar."] = "Правый щелчок по значку в полосе предпросмотра открывает меню настроек именно этой записи: свечение при готовности со своим цветом, вспышку, затемнение, развертку восстановления и текст отсчёта можно по отдельности переопределить относительно настроек панели, а редактор свечения, запас и удаление живут там же. Удаление больше не выполняется голым правым щелчком, так что случайный щелчок не укоротит панель.",
     ["Long popup menus, the module list on the minimap button among them, now show a window that scrolls with the mouse wheel instead of growing past the screen edge."] = "Длинные всплывающие меню, в том числе список модулей на кнопке у миникарты, теперь показывают окно, прокручиваемое колесом мыши, вместо того чтобы вырастать за край экрана.",
+    ["Helm"] = "Шлем",
+    ["Cloak"] = "Плащ",
+    ["Don't change"] = "Не менять",
+    ["shown"] = "показан",
+    ["hidden"] = "скрыт",
 } end)

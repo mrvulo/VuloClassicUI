@@ -3655,4 +3655,9 @@ ns:RegisterLocale("deDE", function() return {
     ["Custom icon... – Any entry can wear an icon of your choice, named by spell or item ID or a texture path"] = "Eigenes Symbol... – Jeder Eintrag kann ein Symbol deiner Wahl tragen, benannt über Zauber- oder Gegenstands-ID oder einen Texturpfad",
     ["Right-clicking an icon in the preview strip opens a settings menu for that one entry: glow while ready with its own colour, the ready flash, the dimming, the cooldown swipe and the countdown text can each override the bar's setting, and the glow editor, parking and removing live in the same place. Removing is no longer the bare right-click itself, so a stray click cannot shorten the bar."] = "Ein Rechtsklick auf ein Symbol im Vorschau-Streifen öffnet ein Einstellungsmenü für genau diesen Eintrag: Leuchten wenn bereit samt eigener Farbe, das Aufblitzen, das Ausgrauen, der Abklingzeit-Wischer und der Countdown-Text können die Leisten-Einstellung einzeln übersteuern, und der Leuchten-Editor, das Parken und das Entfernen wohnen am selben Ort. Entfernen ist nicht mehr der blanke Rechtsklick selbst, ein verirrter Klick kann die Leiste also nicht mehr verkürzen.",
     ["Long popup menus, the module list on the minimap button among them, now show a window that scrolls with the mouse wheel instead of growing past the screen edge."] = "Lange Aufklappmenüs, darunter die Modulliste am Minimap-Knopf, zeigen jetzt ein Fenster, das mit dem Mausrad rollt, statt über den Bildschirmrand hinauszuwachsen.",
+    ["Helm"] = "Helm",
+    ["Cloak"] = "Umhang",
+    ["Don't change"] = "Nicht ändern",
+    ["shown"] = "sichtbar",
+    ["hidden"] = "verborgen",
 } end)

@@ -3535,4 +3535,9 @@ ns:RegisterLocale("itIT", function() return {
     ["Custom icon... – Any entry can wear an icon of your choice, named by spell or item ID or a texture path"] = "Icona personalizzata... – Ogni voce può indossare un'icona a tua scelta, indicata tramite ID di incantesimo o oggetto oppure il percorso di una texture",
     ["Right-clicking an icon in the preview strip opens a settings menu for that one entry: glow while ready with its own colour, the ready flash, the dimming, the cooldown swipe and the countdown text can each override the bar's setting, and the glow editor, parking and removing live in the same place. Removing is no longer the bare right-click itself, so a stray click cannot shorten the bar."] = "Un clic destro su un'icona della striscia di anteprima apre un menu di impostazioni per quella singola voce: il bagliore quando è pronto con il proprio colore, il lampeggio, l'attenuazione, l'animazione del cooldown e il testo del conto alla rovescia possono scavalcare una a una l'impostazione della barra, e l'editor dei bagliori, il parcheggio e la rimozione vivono nello stesso posto. La rimozione non è più il semplice clic destro, quindi un clic vagante non può più accorciare la barra.",
     ["Long popup menus, the module list on the minimap button among them, now show a window that scrolls with the mouse wheel instead of growing past the screen edge."] = "I menu a comparsa lunghi, tra cui la lista dei moduli sul pulsante della minimappa, mostrano ora una finestra che scorre con la rotellina del mouse invece di crescere oltre il bordo dello schermo.",
+    ["Helm"] = "Elmo",
+    ["Cloak"] = "Mantello",
+    ["Don't change"] = "Non modificare",
+    ["shown"] = "visibile",
+    ["hidden"] = "nascosto",
 } end)

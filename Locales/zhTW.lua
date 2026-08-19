@@ -3528,4 +3528,9 @@ ns:RegisterLocale("zhTW", function() return {
     ["Custom icon... – Any entry can wear an icon of your choice, named by spell or item ID or a texture path"] = "自訂圖示... – 任一條目都可以使用你選擇的圖示，透過法術或物品 ID 或材質路徑指定",
     ["Right-clicking an icon in the preview strip opens a settings menu for that one entry: glow while ready with its own colour, the ready flash, the dimming, the cooldown swipe and the countdown text can each override the bar's setting, and the glow editor, parking and removing live in the same place. Removing is no longer the bare right-click itself, so a stray click cannot shorten the bar."] = "右鍵點擊預覽條中的圖示會開啟僅針對該條目的設定選單：就緒時發光及其顏色、就緒閃光、冷卻變暗、冷卻掃描和倒數文字都可以逐項覆蓋該列的設定，光效編輯器、擱置和移除也在同一處。移除不再是單純的右鍵點擊本身，誤點不會再縮短該列。",
     ["Long popup menus, the module list on the minimap button among them, now show a window that scrolls with the mouse wheel instead of growing past the screen edge."] = "過長的彈出選單（包括小地圖按鈕上的模組清單）現在會顯示一個可用滑鼠滾輪捲動的視窗，而不是超出螢幕邊緣。",
+    ["Helm"] = "頭盔",
+    ["Cloak"] = "披風",
+    ["Don't change"] = "不更改",
+    ["shown"] = "顯示",
+    ["hidden"] = "隱藏",
 } end)

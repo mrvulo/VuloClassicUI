@@ -3535,4 +3535,9 @@ ns:RegisterLocale("koKR", function() return {
     ["Custom icon... – Any entry can wear an icon of your choice, named by spell or item ID or a texture path"] = "사용자 지정 아이콘... – 주문이나 아이템 ID 또는 텍스처 경로로 지정해 원하는 아이콘을 항목마다 입힐 수 있습니다",
     ["Right-clicking an icon in the preview strip opens a settings menu for that one entry: glow while ready with its own colour, the ready flash, the dimming, the cooldown swipe and the countdown text can each override the bar's setting, and the glow editor, parking and removing live in the same place. Removing is no longer the bare right-click itself, so a stray click cannot shorten the bar."] = "미리보기 줄의 아이콘을 우클릭하면 해당 항목만의 설정 메뉴가 열립니다. 준비되면 광채와 그 색상, 번쩍임, 흐리게 표시, 재사용 대기시간 회전 표시, 카운트다운 글자를 각각 바의 설정과 다르게 지정할 수 있고, 발광 편집기, 보관, 제거도 같은 곳에 있습니다. 제거는 더 이상 우클릭 한 번으로 실행되지 않으므로, 잘못 누른 클릭이 바를 줄이는 일도 없습니다.",
     ["Long popup menus, the module list on the minimap button among them, now show a window that scrolls with the mouse wheel instead of growing past the screen edge."] = "긴 팝업 메뉴는 이제 화면 가장자리를 넘어 커지는 대신 마우스 휠로 스크롤되는 창으로 표시됩니다. 미니맵 버튼의 모듈 목록도 여기에 포함됩니다.",
+    ["Helm"] = "투구",
+    ["Cloak"] = "망토",
+    ["Don't change"] = "변경 안 함",
+    ["shown"] = "표시됨",
+    ["hidden"] = "숨겨짐",
 } end)

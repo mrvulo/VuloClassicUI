@@ -3535,4 +3535,9 @@ ns:RegisterLocale("ptBR", function() return {
     ["Custom icon... – Any entry can wear an icon of your choice, named by spell or item ID or a texture path"] = "Ícone personalizado... – Qualquer entrada pode usar um ícone de sua escolha, indicado por ID de feitiço ou item ou pelo caminho de uma textura",
     ["Right-clicking an icon in the preview strip opens a settings menu for that one entry: glow while ready with its own colour, the ready flash, the dimming, the cooldown swipe and the countdown text can each override the bar's setting, and the glow editor, parking and removing live in the same place. Removing is no longer the bare right-click itself, so a stray click cannot shorten the bar."] = "Um clique direito em um ícone da faixa de prévia abre um menu de configurações só daquela entrada: o brilho quando pronta com sua própria cor, o lampejo, o escurecimento, a varredura de recarga e o texto de contagem regressiva podem cada um sobrepor a configuração da barra, e o editor de brilhos, o estacionamento e a remoção moram no mesmo lugar. Remover não é mais o clique direito puro, então um clique perdido não encurta mais a barra.",
     ["Long popup menus, the module list on the minimap button among them, now show a window that scrolls with the mouse wheel instead of growing past the screen edge."] = "Menus suspensos longos, entre eles a lista de módulos no botão do minimapa, agora mostram uma janela que rola com a roda do mouse em vez de crescer além da borda da tela.",
+    ["Helm"] = "Elmo",
+    ["Cloak"] = "Capa",
+    ["Don't change"] = "Não alterar",
+    ["shown"] = "visível",
+    ["hidden"] = "oculto",
 } end)
