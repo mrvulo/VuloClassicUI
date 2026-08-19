@@ -432,6 +432,10 @@ local function saveAs(name, slotList)
     local set = LO()[name]
     if not set then
         set = { createdAt = time() }
+        -- Erst durchnummerieren lassen: Bestaende von vor dem Umsortier-Feature
+        -- haben noch keine Nummer, und ohne diesen Aufruf bekaeme das neue Set
+        -- die 1 und stuende VOR ihnen statt hinten.
+        sortedLoadoutNames()
         -- ans Ende der angezeigten Liste, nicht alphabetisch einsortiert
         local maxOrder = 0
         for _, other in pairs(LO()) do
@@ -1511,6 +1515,10 @@ local function updateDragVisual()
     line:Show()
 end
 
+-- Der Neuaufbau steht NUR im Anwenden-Zweig: der Abbruch-Zweig laesst alles,
+-- wie es ist, und darf deshalb auch mitten aus refreshSidebar heraus gerufen
+-- werden (Zeilen werden dort versteckt und neu gezeigt), ohne sich im Kreis
+-- zu drehen.
 local function stopDrag(apply)
     local name = _dragName
     _dragName = nil
@@ -1526,8 +1534,8 @@ local function stopDrag(apply)
             if b.setName == name and i < idx then idx = idx - 1 break end
         end
         moveLoadout(name, idx)
+        refreshSidebar()
     end
-    refreshSidebar()
 end
 
 -- Dreistufiger Anzeige-Schalter als Untermenue: Zeigen / Verstecken /
@@ -1984,6 +1992,12 @@ end
 refreshSidebar = function()
     if not sidebar then return end
 
+    -- Ein Neuaufbau mitten im Ziehen (Taschen-Ereignis waehrend der Maustaste)
+    -- versteckt gleich alle Zeilen -- das bricht den Zug clientseitig ab, ohne
+    -- dass OnDragStop je feuert. Also hier selbst aufraeumen, sonst blieben
+    -- Geist und _dragName haengen und jeder Zeilen-Tooltip waere tot.
+    if _dragName then stopDrag(false) end
+
     if sidebarSelected and not (LO() and LO()[sidebarSelected]) then
         sidebarSelected = nil
     end
@@ -2004,6 +2018,10 @@ refreshSidebar = function()
     local y = -(32 + inset)
     for i, name in ipairs(names) do
         local btn = createSetRow(sidebar, i)
+        -- Wechselt die Zeile ihr Set (etwa nach dem Umsortieren), verfaellt der
+        -- Doppelklick-Zeitstempel -- sonst legte ein schneller Klick danach das
+        -- NEUE Set der Zeile an, obwohl der erste Klick dem alten galt.
+        if btn.setName ~= name then btn._lastClick = nil end
         btn.setName = name
         -- Marker in absteigender Dringlichkeit: fehlende Teile schlagen
         -- Bankteile, und gruen erscheint nur, wenn wirklich alles getragen
@@ -2089,6 +2107,10 @@ local function createSidebar()
     -- hide the list, so no future one can forget.
     sidebar:HookScript("OnHide", function()
         if _iconPicker then _iconPicker:Hide() end
+        -- Schliesst das Charakterfenster mitten im Ziehen (Escape), feuert
+        -- OnDragStop nie -- der Geist hinge sonst am Mauszeiger fest und
+        -- _dragName wuerde jeden Zeilen-Tooltip dauerhaft unterdruecken.
+        stopDrag(false)
     end)
 
     -- The rune panel opens to the RIGHT of the character sheet -- exactly where
