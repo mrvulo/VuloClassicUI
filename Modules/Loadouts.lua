@@ -380,12 +380,39 @@ end
 local function sortedLoadoutNames()
     local names = {}
     if mod.db and LO() then
-        for name in pairs(LO()) do
-            table.insert(names, name)
+        local lo = LO()
+        for name in pairs(lo) do table.insert(names, name) end
+        -- Ohne order ans Ende und dort alphabetisch: Bestaende von vor dem
+        -- Umsortier-Feature (alle ohne order) stehen so weiter in ihrer
+        -- gewohnten Reihenfolge, der erste Aufbau sieht aus wie immer.
+        table.sort(names, function(a, b)
+            local oa = lo[a].order or math.huge
+            local ob = lo[b].order or math.huge
+            if oa ~= ob then return oa < ob end
+            return a < b
+        end)
+        -- Fehlende Nummern einmalig vergeben und Luecken schliessen; die
+        -- Vergabe ist idempotent, ein zweiter Aufruf aendert nichts mehr.
+        for i, name in ipairs(names) do
+            if lo[name].order ~= i then lo[name].order = i end
         end
-        table.sort(names)
     end
     return names
+end
+
+-- Fuegt das Set an targetIndex der angezeigten Liste ein (1..n) und
+-- nummeriert alles neu; targetIndex zaehlt auf der Liste OHNE das gezogene Set.
+local function moveLoadout(name, targetIndex)
+    local lo = LO()
+    if not lo or not lo[name] then return end
+    local names = sortedLoadoutNames()
+    for i, n in ipairs(names) do
+        if n == name then table.remove(names, i) break end
+    end
+    if targetIndex < 1 then targetIndex = 1 end
+    if targetIndex > #names + 1 then targetIndex = #names + 1 end
+    table.insert(names, targetIndex, name)
+    for i, n in ipairs(names) do lo[n].order = i end
 end
 
 local function copySlotList(list)
@@ -405,6 +432,12 @@ local function saveAs(name, slotList)
     local set = LO()[name]
     if not set then
         set = { createdAt = time() }
+        -- ans Ende der angezeigten Liste, nicht alphabetisch einsortiert
+        local maxOrder = 0
+        for _, other in pairs(LO()) do
+            if other.order and other.order > maxOrder then maxOrder = other.order end
+        end
+        set.order = maxOrder + 1
         LO()[name] = set
     end
     set.slots    = captureCurrentEquipment(slotList)
