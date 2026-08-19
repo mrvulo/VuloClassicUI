@@ -3689,4 +3689,6 @@ ns:RegisterLocale("frFR", function() return {
     ["Don't change"] = "Ne pas modifier",
     ["shown"] = "affiché",
     ["hidden"] = "masqué",
+    ["Resilience"] = "Résilience",
+    ["Reduces the chance to be critically hit and the damage taken from critical strikes."] = "Réduit le risque de subir un coup critique et les dégâts des coups critiques.",
 } end)

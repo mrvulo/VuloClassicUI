@@ -3540,4 +3540,6 @@ ns:RegisterLocale("koKR", function() return {
     ["Don't change"] = "변경 안 함",
     ["shown"] = "표시됨",
     ["hidden"] = "숨겨짐",
+    ["Resilience"] = "탄력도",
+    ["Reduces the chance to be critically hit and the damage taken from critical strikes."] = "치명타를 받을 확률과 치명타로 받는 피해가 감소합니다.",
 } end)

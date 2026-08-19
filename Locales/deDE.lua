@@ -3660,4 +3660,6 @@ ns:RegisterLocale("deDE", function() return {
     ["Don't change"] = "Nicht ändern",
     ["shown"] = "sichtbar",
     ["hidden"] = "verborgen",
+    ["Resilience"] = "Abhärtungswertung",
+    ["Reduces the chance to be critically hit and the damage taken from critical strikes."] = "Verringert die Chance, kritisch getroffen zu werden, und den Schaden kritischer Treffer.",
 } end)

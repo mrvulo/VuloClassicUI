@@ -3541,6 +3541,8 @@ local function T() return {
     ["Don't change"] = "No cambiar",
     ["shown"] = "visible",
     ["hidden"] = "oculto",
+    ["Resilience"] = "Temple",
+    ["Reduces the chance to be critically hit and the damage taken from critical strikes."] = "Reduce la probabilidad de recibir golpes críticos y el daño que estos infligen.",
 } end
 
 ns:RegisterLocale("esES", T)

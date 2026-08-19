@@ -3540,4 +3540,6 @@ ns:RegisterLocale("itIT", function() return {
     ["Don't change"] = "Non modificare",
     ["shown"] = "visibile",
     ["hidden"] = "nascosto",
+    ["Resilience"] = "Resilienza",
+    ["Reduces the chance to be critically hit and the damage taken from critical strikes."] = "Riduce la probabilità di subire colpi critici e i danni da essi inflitti.",
 } end)

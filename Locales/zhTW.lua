@@ -3533,4 +3533,6 @@ ns:RegisterLocale("zhTW", function() return {
     ["Don't change"] = "不更改",
     ["shown"] = "顯示",
     ["hidden"] = "隱藏",
+    ["Resilience"] = "韌性",
+    ["Reduces the chance to be critically hit and the damage taken from critical strikes."] = "降低受到致命一擊的機率以及所受的致命一擊傷害。",
 } end)

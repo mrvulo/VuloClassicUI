@@ -3533,4 +3533,6 @@ ns:RegisterLocale("zhCN", function() return {
     ["Don't change"] = "不更改",
     ["shown"] = "显示",
     ["hidden"] = "隐藏",
+    ["Resilience"] = "韧性",
+    ["Reduces the chance to be critically hit and the damage taken from critical strikes."] = "降低受到致命一击的几率以及所受的致命一击伤害。",
 } end)

@@ -572,6 +572,36 @@ local function isClientHintLine(text)
 	return text:find("^%s*<") ~= nil and text:find(">%s*$") ~= nil
 end
 
+-- Die Ruestungszeile ist auf Teilen mit eingebauter Bonus-Ruestung (etwa den
+-- Gladiatoren-Teilen) GRUEN -- sie steht als erste gruene Zeile VOR der
+-- Verzauberung und wurde als solche angezeigt ("311 Ruestung" statt der
+-- echten Verzauberung; Nutzerbild 19.08.2026). Ganz verwerfen darf man sie
+-- aber nicht: eine reine Ruestungs-Verzauberung (Ruestungsset) bekommt KEINE
+-- eigene Zeile, der Client faerbt nur die Ruestungszahl -- dann ist genau
+-- diese Zeile der einzige Beleg. Also: nur nehmen, wenn sonst nichts kommt.
+-- Gleiche Form beim Blockwert des Schilds. Globale zuerst, Literale als Belt.
+local statValuePatterns
+local function isStatValueLine(text)
+	if not statValuePatterns then
+		statValuePatterns = {}
+		local function addTpl(tpl)
+			if type(tpl) == "string" and tpl ~= "" then
+				statValuePatterns[#statValuePatterns + 1] =
+					"^" .. tpl:gsub("(%W)", "%%%1"):gsub("%%%%d", "%%d+") .. "$"
+			end
+		end
+		addTpl(_G.ARMOR_TEMPLATE)          -- "%d Armor"
+		addTpl(_G.SHIELD_BLOCK_TEMPLATE)   -- "%d Block"
+		addTpl("%d Armor")
+		addTpl("%d Rüstung")
+		addTpl("%d Block")
+	end
+	for _, pat in ipairs(statValuePatterns) do
+		if text:find(pat) then return true end
+	end
+	return false
+end
+
 local function GetItemEnchantAsText(unit, slot)
 	local itemLink = GetInventoryItemLink(unit, slot)
 	if not itemLink then return nil, nil end
@@ -582,6 +612,8 @@ local function GetItemEnchantAsText(unit, slot)
 
 	scanningTooltip:ClearLines()
 	scanningTooltip:SetInventoryItem(unit, slot)
+
+	local statValueFallback
 
 	for i = 2, scanningTooltip:NumLines() do
 		local fs = _G["BCPScanningTooltipTextLeft" .. i]
@@ -611,13 +643,20 @@ local function GetItemEnchantAsText(unit, slot)
 						if text:find(pat) then noise = true; break end
 					end
 					if not noise then
-						return nil, ProcessEnchantText(text)
+						if isStatValueLine(text) then
+							statValueFallback = statValueFallback or text
+						else
+							return nil, ProcessEnchantText(text)
+						end
 					end
 				end
 			end
 		end
 	end
 
+	if statValueFallback then
+		return nil, ProcessEnchantText(statValueFallback)
+	end
 	return nil, nil
 end
 
@@ -1460,6 +1499,15 @@ local function buildModernSections()
 	row(def, L["Parry"], function() return GetParryChance and GetParryChance() or 0 end, "%.2f%%",
 		tipText(L["Chance to parry enemy melee attacks."], ratingLines(_G.CR_PARRY)))
 	row(def, L["Block"], function() return GetBlockChance and GetBlockChance() or 0 end, "%.2f%%", blockTip)
+	if hasRatings and GetCombatRating then
+		-- Die Konstante steht in FrameXML/Constants.lua, das im 2.5.x-Quelldump
+		-- fehlt (der enthaelt nur Interface/AddOns) -- deshalb die 15 als
+		-- Rueckfall: CR_CRIT_TAKEN_MELEE ist seit TBC fest auf 15.
+		local crResilience = _G.CR_CRIT_TAKEN_MELEE or 15
+		row(def, L["Resilience"], function() return GetCombatRating(crResilience) or 0 end, nil,
+			tipText(L["Reduces the chance to be critically hit and the damage taken from critical strikes."],
+				ratingLines(crResilience, true)))
+	end
 
 	-- UnitResistance index: 6 Arcane, 2 Fire, 3 Nature, 4 Frost, 5 Shadow
 	local res = sec("resistances", L["Resistances"])

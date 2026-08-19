@@ -3540,4 +3540,6 @@ ns:RegisterLocale("ruRU", function() return {
     ["Don't change"] = "Не менять",
     ["shown"] = "показан",
     ["hidden"] = "скрыт",
+    ["Resilience"] = "Устойчивость",
+    ["Reduces the chance to be critically hit and the damage taken from critical strikes."] = "Снижает вероятность получения критического удара и урон от критических ударов.",
 } end)
