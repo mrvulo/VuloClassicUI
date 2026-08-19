@@ -554,6 +554,17 @@ local function equipLoadout(name)
         end
     end
 
+    -- Anzeige von Helm und Umhang gehoert zum Set: nur angefasst, wenn das
+    -- Set einen Wunsch hat, und nur geschrieben, wenn er noch nicht gilt.
+    if ShowHelm and loadout.helm then
+        local want = (loadout.helm == "show")
+        if not ShowingHelm or ShowingHelm() ~= want then ShowHelm(want) end
+    end
+    if ShowCloak and loadout.cloak then
+        local want = (loadout.cloak == "show")
+        if not ShowingCloak or ShowingCloak() ~= want then ShowCloak(want) end
+    end
+
     if swapped > 0 then
         if missing > 0 then
             ns:Print(string.format(L["Loadout '%s' equipped (%d swapped, %d missing from bags)."],
@@ -1519,6 +1530,33 @@ local function stopDrag(apply)
     refreshSidebar()
 end
 
+-- Dreistufiger Anzeige-Schalter als Untermenue: Zeigen / Verstecken /
+-- Nicht aendern. nil heisst "nicht anfassen" und ist der Standard, damit
+-- Sets von vor dem Feature sich exakt wie bisher verhalten.
+local function displayToggleEntry(setName, field, label)
+    local function option(value, text)
+        return {
+            text    = text,
+            checked = function()
+                local lo = LO()[setName]
+                return lo and lo[field] == value
+            end,
+            func = function()
+                local lo = LO()[setName]
+                if lo then lo[field] = value end
+            end,
+        }
+    end
+    return {
+        text = label,
+        submenu = {
+            option("show", L["Show"]),
+            option("hide", L["Hide"]),
+            option(nil,    L["Don't change"]),
+        },
+    }
+end
+
 local function createSetRow(parent, index)
     local btn = sidebarSetButtons[index]
     if btn then return btn end
@@ -1627,6 +1665,19 @@ local function createSetRow(parent, index)
                         0.6, 0.6, 0.6, 1, 0.35, 0.35)
                 end
             end
+            if loadout.helm or loadout.cloak then
+                GameTooltip:AddLine(" ")
+                if loadout.helm then
+                    GameTooltip:AddDoubleLine(L["Helm"],
+                        loadout.helm == "show" and L["shown"] or L["hidden"],
+                        0.6, 0.6, 0.6, 0.95, 0.95, 1)
+                end
+                if loadout.cloak then
+                    GameTooltip:AddDoubleLine(L["Cloak"],
+                        loadout.cloak == "show" and L["shown"] or L["hidden"],
+                        0.6, 0.6, 0.6, 0.95, 0.95, 1)
+                end
+            end
             GameTooltip:AddLine(" ")
             GameTooltip:AddLine(L["Left-click: select"], 1, 1, 1)
             GameTooltip:AddLine(L["Double-click / Right-click menu: equip"], 0.7, 0.7, 0.7)
@@ -1657,6 +1708,11 @@ local function createSetRow(parent, index)
                     StaticPopup_Show("VCUI_LOADOUT_RENAME", setName, nil, setName)
                 end },
             }
+
+            if ShowHelm and ShowCloak then
+                table.insert(menu, displayToggleEntry(setName, "helm",  L["Helm"]))
+                table.insert(menu, displayToggleEntry(setName, "cloak", L["Cloak"]))
+            end
 
             if getNumSpecGroups() >= 2 then
                 table.insert(menu, { separator = true })
