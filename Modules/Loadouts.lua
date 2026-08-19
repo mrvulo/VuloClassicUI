@@ -1414,6 +1414,111 @@ function mod._repaintSidebarRows()
     end
 end
 
+-- Ziehen zum Umsortieren: _dragName ist gesetzt, solange eine Zeile am
+-- Mauszeiger haengt. Geist und Linie werden faul gebaut und wiederverwendet.
+local _dragName, _dragGhost, _dragLine
+
+local function visibleSetRows()
+    local rows = {}
+    for _, b in ipairs(sidebarSetButtons) do
+        if b:IsShown() then table.insert(rows, b) end
+    end
+    return rows
+end
+
+-- Einfuegeposition aus den Y-Mitten der SET-Zeilen; ausgeklappte Item-Zeilen
+-- sind bewusst keine Ziele, die Luecke unter ihnen gehoert zur Zeile darueber.
+local function dragInsertIndex()
+    local scale = sidebar:GetEffectiveScale()
+    local _, cy = GetCursorPosition()
+    cy = cy / scale
+    local rows = visibleSetRows()
+    for i, b in ipairs(rows) do
+        local top, bottom = b:GetTop(), b:GetBottom()
+        if top and bottom and cy > (top + bottom) / 2 then return i end
+    end
+    return #rows + 1
+end
+
+local function ensureDragGhost()
+    if _dragGhost then return _dragGhost end
+    local g = CreateFrame("Frame", nil, UIParent)
+    g:SetSize(150, 28)
+    g:SetFrameStrata("TOOLTIP")
+    g:SetAlpha(0.6)
+    g.icon = g:CreateTexture(nil, "ARTWORK")
+    g.icon:SetSize(22, 22)
+    g.icon:SetPoint("LEFT", g, "LEFT", 2, 0)
+    g.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    g.text = g:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    if ns.UI and ns.UI.Font then ns.UI.Font(g.text, 12) end
+    g.text:SetPoint("LEFT", g.icon, "RIGHT", 6, 0)
+    g:Hide()
+    _dragGhost = g
+    return g
+end
+
+local function ensureDragLine()
+    if _dragLine then return _dragLine end
+    local l = sidebar:CreateTexture(nil, "OVERLAY")
+    l:SetHeight(2)
+    local c = ns.COLORS.accent
+    l:SetColorTexture(c.r, c.g, c.b, 0.9)
+    l:Hide()
+    _dragLine = l
+    return l
+end
+
+local function updateDragVisual()
+    local ghost = ensureDragGhost()
+    local scale = UIParent:GetEffectiveScale()
+    local cx, cy = GetCursorPosition()
+    ghost:ClearAllPoints()
+    ghost:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT",
+        cx / scale + 12, cy / scale - 8)
+
+    local line = ensureDragLine()
+    if not sidebar:IsMouseOver() then line:Hide() return end
+    local rows = visibleSetRows()
+    local idx  = dragInsertIndex()
+    line:ClearAllPoints()
+    if idx <= #rows then
+        -- OBERKANTE der Zielzeile: dort wird eingefuegt
+        line:SetPoint("TOPLEFT",  rows[idx], "TOPLEFT",  0, 2)
+        line:SetPoint("TOPRIGHT", rows[idx], "TOPRIGHT", 0, 2)
+    elseif rows[#rows] then
+        -- hinter die letzte Zeile; haengt dort eine Item-Zeile, unter diese
+        local anchor = rows[#rows]
+        if sidebarExpanded == anchor.setName then
+            for _, r in pairs(sidebarItemRows) do
+                if r:IsShown() then anchor = r break end
+            end
+        end
+        line:SetPoint("TOPLEFT",  anchor, "BOTTOMLEFT",  0, -2)
+        line:SetPoint("TOPRIGHT", anchor, "BOTTOMRIGHT", 0, -2)
+    end
+    line:Show()
+end
+
+local function stopDrag(apply)
+    local name = _dragName
+    _dragName = nil
+    if _dragGhost then _dragGhost:Hide(); _dragGhost:SetScript("OnUpdate", nil) end
+    if _dragLine  then _dragLine:Hide() end
+    if not name then return end
+    if apply and sidebar and sidebar:IsMouseOver() then
+        local idx  = dragInsertIndex()
+        local rows = visibleSetRows()
+        -- idx zaehlt MIT der gezogenen Zeile; fuer moveLoadout zaehlt die
+        -- Liste ohne sie, also rueckt hinter ihr alles um eins auf
+        for i, b in ipairs(rows) do
+            if b.setName == name and i < idx then idx = idx - 1 break end
+        end
+        moveLoadout(name, idx)
+    end
+    refreshSidebar()
+end
+
 local function createSetRow(parent, index)
     local btn = sidebarSetButtons[index]
     if btn then return btn end
@@ -1493,6 +1598,7 @@ local function createSetRow(parent, index)
     btn.hl:Hide()
 
     btn:SetScript("OnEnter", function(self)
+        if _dragName then return end
         if not self.isSelected then self.hl:Show() end
         -- Body is a loop over the set's slots, so this opens the tooltip and
         -- fills it by hand -- see UI/Tooltip.lua on why that stays possible.
@@ -1601,6 +1707,22 @@ local function createSetRow(parent, index)
             end
         end
     end)
+
+    -- Umsortieren: OnDragStart feuert erst ab Blizzards Zieh-Schwelle, daher
+    -- bleiben Klick, Doppelklick und das Rechtsklickmenue davon unberuehrt.
+    btn:RegisterForDrag("LeftButton")
+    btn:SetScript("OnDragStart", function(self)
+        if not self.setName then return end
+        _dragName = self.setName
+        ns.UI:HideTooltip()
+        local g = ensureDragGhost()
+        g.icon:SetTexture(getSetIcon(self.setName))
+        g.text:SetText(self.setName)
+        g:Show()
+        g:SetScript("OnUpdate", updateDragVisual)
+        updateDragVisual()
+    end)
+    btn:SetScript("OnDragStop", function() stopDrag(true) end)
 
     sidebarSetButtons[index] = btn
     return btn
