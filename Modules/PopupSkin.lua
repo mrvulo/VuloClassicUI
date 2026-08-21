@@ -180,8 +180,32 @@ local function ensureStrip(entry)
     else
         strip:SetColorTexture(a.r, a.g, a.b, 0.7)
     end
+    -- siehe skinPopup: eigene Texturen duerfen nicht in die Layout-Messung
+    strip.ignoreInLayout = true
     entry.ours[#entry.ours + 1] = strip
     entry.strip = strip
+end
+
+-- Der moderne Dialog ist ein ResizeLayoutFrame: StaticPopup_Show misst seine
+-- Hoehe aus den Kindern, und zwar VOR unserem Schrifttausch im Show-Hook.
+-- Faellt der Text mit unserer Schrift hoeher aus, fliesst der Inhalt ueber
+-- die gemessene Kante und die Knoepfe haengen unter dem Rahmen -- sichtbar
+-- geworden am Loeschen-Bestaetigungsdialog, wo langer Text plus Eingabefeld
+-- den Fehler aufsummieren (Nutzerbild 19.08.2026). Nach jedem Schriftwechsel
+-- deshalb die dialogeigene Rechnung erneut anstossen; die misst dann mit der
+-- Schrift, die wirklich gezeichnet wird. Der Rueckfall auf das alte globale
+-- StaticPopup_Resize deckt Clients ohne den Mixin-Umbau.
+local function resizeShownPopups()
+    for i = 1, (_G.STATICPOPUP_NUMDIALOGS or 4) do
+        local f = _G["StaticPopup" .. i]
+        if f and f.IsShown and f:IsShown() then
+            if f.Resize and f.dialogInfo then
+                pcall(f.Resize, f)
+            elseif _G.StaticPopup_Resize and f.which then
+                pcall(_G.StaticPopup_Resize, f, f.which)
+            end
+        end
+    end
 end
 
 -- popups that were visible when we wanted to skin them; skinned on OnHide
@@ -261,6 +285,14 @@ local function skinPopup(f)
 
     restyleFont(part("text", "Text", "SetTextColor"), 13, 0.92, 0.90, 0.96, entry)
 
+    -- Der Dialog misst als ResizeLayoutFrame JEDE sichtbare Region ohne
+    -- ignoreInLayout mit -- auch unsere. Der Schatten ragt bis 7px ueber jede
+    -- Kante und wuerde den Rahmen bei jeder Messung aufblasen; die uebrigen
+    -- Stuecke haengen an den Rahmenkanten oder an Kind-Fenstern (Knoepfe,
+    -- Eingabefeld -- dort misst niemand) und sind harmlos, bekommen die
+    -- Markierung aber mit, damit die Frage nie wieder offen ist.
+    for _, t in ipairs(entry.ours) do t.ignoreInLayout = true end
+
     return entry
 end
 
@@ -305,6 +337,7 @@ local function installHooks()
         -- not just stripBackdrop: a dialog first seen here still needs its
         -- recorded fonts applied
         setShown(true)
+        resizeShownPopups()
     end)
 end
 
@@ -312,6 +345,7 @@ local function setup()
     installHooks()
     skinAll()
     setShown(true)
+    resizeShownPopups()
     -- clear any hover left frozen by a toggle-off mid-hover (OnLeave bails
     -- while inactive). Deliberately NOT in the Show-hook: there it would reset
     -- a button the mouse is legitimately resting on.
@@ -332,6 +366,8 @@ end
 
 function mod:OnDisable()
     setShown(false)
+    -- zurueck zu Blizzards Schrift heisst auch: zurueck zu Blizzards Mass
+    resizeShownPopups()
 end
 
 function mod:GetOptions()
