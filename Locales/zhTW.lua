@@ -3535,4 +3535,12 @@ ns:RegisterLocale("zhTW", function() return {
     ["hidden"] = "隱藏",
     ["Resilience"] = "韌性",
     ["Reduces the chance to be critically hit and the damage taken from critical strikes."] = "降低受到致命一擊的機率以及所受的致命一擊傷害。",
+    -- Patch notes 1.56.0
+    ["Keeping the main bar on its page in every form now also holds the standard main bar, even while the whole module is off. The keys fire exactly what the buttons show, and switching to bars 2 to 6 by hand still works."] = "在所有形態下把主快捷列按在原頁的開關，現在也作用於標準主快捷列，即使整個模組已關閉。按鍵觸發的正是按鈕顯示的內容，手動切換到第 2 到第 6 條快捷列照樣可用。",
+    ["The stats sheet shows resilience under Defense, with the rating and its percent effect in the tooltip."] = "屬性面板在防禦之下顯示韌性，滑鼠提示裡給出數值和它的百分比效果。",
+    ["The enchant text on the equipment slots no longer falls onto the green armor line of pieces with built-in bonus armor; that line only stands in when no real enchant follows."] = "裝備欄位的附魔文字不再落到自帶額外護甲的部位的綠色護甲行上；只有在沒有真正的附魔時，那一行才會頂替進來。",
+    ["Helm / Cloak – Each set can show, hide or leave untouched the helm and the cloak as it is equipped, chosen in the row's right-click menu, and the row tooltip names the choice"] = "頭盔 / 披風 – 每個套裝在穿戴時可以顯示、隱藏或不更動頭盔和披風，在該列的右鍵選單裡選擇，列的滑鼠提示會說明所選狀態",
+    ["The set rows can be reordered with the left mouse button held down: a translucent ghost follows the pointer, a line in the accent colour marks where the row will land, and letting go outside the list cancels. Existing sets keep their alphabetical order as the starting point, new ones join at the end."] = "套裝列可以按住滑鼠左鍵重新排序：一個半透明的殘影跟著指標，一條強調色的線標出該列將落下的位置，在清單外放開則取消。既有套裝以原本的字母順序為起點，新套裝排在最後。",
+    ["The red auto-attack blink sits exactly on the icon in the skinned button styles and is cut to the same shape; it used to be drawn for the standard button art and blinked beside the icon."] = "紅色的自動攻擊閃爍在換裝按鈕樣式裡正好落在圖示上，並按同樣的形狀裁剪；它原本是為標準按鈕外觀繪製的，閃在圖示旁邊。",
+    ["Popup dialogs measure their frame with the font that is really drawn; with long texts the buttons used to hang below the border."] = "對話框用真正繪製的字型來測量邊框；文字很長時，按鈕曾懸在邊框之下。",
 } end)

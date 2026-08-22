@@ -3542,4 +3542,12 @@ ns:RegisterLocale("koKR", function() return {
     ["hidden"] = "숨겨짐",
     ["Resilience"] = "탄력도",
     ["Reduces the chance to be critically hit and the damage taken from critical strikes."] = "치명타를 받을 확률과 치명타로 받는 피해가 감소합니다.",
+    -- Patch notes 1.56.0
+    ["Keeping the main bar on its page in every form now also holds the standard main bar, even while the whole module is off. The keys fire exactly what the buttons show, and switching to bars 2 to 6 by hand still works."] = "모든 형상에서 기본 행동 단축바를 제자리에 붙잡는 스위치가 이제 표준 기본 단축바에도 적용됩니다. 모듈 전체가 꺼져 있어도 마찬가지입니다. 키는 버튼이 보여주는 것을 정확히 발동하며, 2번부터 6번 단축바로 손수 전환하는 것은 그대로 됩니다.",
+    ["The stats sheet shows resilience under Defense, with the rating and its percent effect in the tooltip."] = "능력치 창이 방어 아래에 탄력도를 표시하며, 툴팁에 수치와 백분율 효과가 함께 나옵니다.",
+    ["The enchant text on the equipment slots no longer falls onto the green armor line of pieces with built-in bonus armor; that line only stands in when no real enchant follows."] = "장비 칸의 마법부여 문구가 보너스 방어도가 내장된 부위의 초록 방어도 줄 위로 더는 떨어지지 않습니다. 그 줄은 실제 마법부여가 없을 때만 대신 들어갑니다.",
+    ["Helm / Cloak – Each set can show, hide or leave untouched the helm and the cloak as it is equipped, chosen in the row's right-click menu, and the row tooltip names the choice"] = "투구 / 망토 – 각 세트는 착용할 때 투구와 망토를 표시하거나 숨기거나 건드리지 않을 수 있으며, 줄의 우클릭 메뉴에서 고르고 줄의 툴팁이 선택을 알려줍니다",
+    ["The set rows can be reordered with the left mouse button held down: a translucent ghost follows the pointer, a line in the accent colour marks where the row will land, and letting go outside the list cancels. Existing sets keep their alphabetical order as the starting point, new ones join at the end."] = "세트 줄은 마우스 왼쪽 버튼을 누른 채 순서를 바꿀 수 있습니다. 반투명한 잔상이 포인터를 따라오고, 강조 색의 선이 줄이 놓일 자리를 표시하며, 목록 밖에서 손을 떼면 취소됩니다. 기존 세트는 알파벳 순서를 출발점으로 삼고, 새 세트는 뒤에 붙습니다.",
+    ["The red auto-attack blink sits exactly on the icon in the skinned button styles and is cut to the same shape; it used to be drawn for the standard button art and blinked beside the icon."] = "빨간 자동 공격 점멸이 꾸며진 버튼 스타일에서 아이콘 위에 정확히 자리 잡고 같은 모양으로 잘립니다. 원래 표준 버튼 그림에 맞춰 그려져 아이콘 옆에서 깜빡였습니다.",
+    ["Popup dialogs measure their frame with the font that is really drawn; with long texts the buttons used to hang below the border."] = "대화 상자가 실제로 그려지는 글꼴로 테두리를 잽니다. 긴 문구에서는 버튼이 테두리 아래에 매달려 있었습니다.",
 } end)

@@ -6,6 +6,23 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+    { version = "1.56.0", sections = {
+        { category = "Action Bars", lines = {
+            "Keeping the main bar on its page in every form now also holds the standard main bar, even while the whole module is off. The keys fire exactly what the buttons show, and switching to bars 2 to 6 by hand still works.",
+        } },
+        { category = "Character Panel", lines = {
+            "The stats sheet shows resilience under Defense, with the rating and its percent effect in the tooltip.",
+            "The enchant text on the equipment slots no longer falls onto the green armor line of pieces with built-in bonus armor; that line only stands in when no real enchant follows.",
+        } },
+        { category = "Loadouts", lines = {
+            "NEW: Helm / Cloak – Each set can show, hide or leave untouched the helm and the cloak as it is equipped, chosen in the row's right-click menu, and the row tooltip names the choice",
+            "The set rows can be reordered with the left mouse button held down: a translucent ghost follows the pointer, a line in the accent colour marks where the row will land, and letting go outside the list cancels. Existing sets keep their alphabetical order as the starting point, new ones join at the end.",
+        } },
+        { category = "UI Reskin", lines = {
+            "The red auto-attack blink sits exactly on the icon in the skinned button styles and is cut to the same shape; it used to be drawn for the standard button art and blinked beside the icon.",
+            "Popup dialogs measure their frame with the font that is really drawn; with long texts the buttons used to hang below the border.",
+        } },
+    } },
     { version = "1.55.0", sections = {
         { category = "Action Bars", lines = {
             "Switching the module off now hands the micro buttons and the bag buttons back to their exact Blizzard positions, and a dialog offers the reload right away; the addon's row layout used to survive into the default bars until the next reload.",
@@ -585,14 +602,6 @@ ns.CHANGELOG = {
     { version = "1.38.0", sections = {
         { category = "Languages", lines = {
             "NEW: Simplified Chinese and Traditional Chinese. Both are complete: every interface text, every option and every patch note, 2528 entries each. They are separate translations, not one converted into the other. Pick yours under General, or leave the setting on Auto and it follows your game client.",
-        } },
-    } },
-    { version = "1.37.4", sections = {
-        { category = "Fixes", lines = {
-            "Clicking a trinket button while that trinket slot is empty no longer throws an error. The game's own shortcut for \"use the item in slot N\" stopped tolerating an empty slot with July's interface update, so the button now takes a different route to the same action.",
-        } },
-        { category = "Performance", lines = {
-            "Fixed a stutter of almost two frames every time you entered or left combat, if you use WeakAuras and have the WeakAuras skin switched on. Every combat change repainted every aura you have ever saved — including the ones not on screen — with a look that had not changed. Auras are now only repainted when the settings or their size actually changed. Measured: 28 ms down to under 2 ms. The skin itself is unchanged.",
         } },
     } },
 }
