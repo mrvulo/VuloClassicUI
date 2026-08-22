@@ -239,6 +239,75 @@ local function setMasked(button, icon, on, maskTex, pct)
     end
 end
 
+-- The client draws the auto-attack blink (the Flash region) for its OWN button
+-- art: an oversized frame texture anchored to the button, not to the icon. The
+-- skinned styles shrink the visible icon, so the red blink sat visibly beside
+-- it (user screenshot, 22.08.2026). The skinned styles seat the flash on the
+-- icon, crop it like the icon and cut it with the same mask; standard and
+-- unstyle put the client's own layout back from a one-time capture.
+local FLASH_TEX = "Interface\\Buttons\\UI-QuickslotRed"
+
+local function restoreFlash(button, flash)
+    local o = button._vcuiFlashOrig
+    if not o then return end
+    button._vcuiFlashDirty = nil
+    flash:SetTexCoord(0, 1, 0, 1)
+    if flash.SetBlendMode and o.blend then flash:SetBlendMode(o.blend) end
+    if o.atlas then
+        flash:SetAtlas(o.atlas, true)
+    else
+        flash:SetTexture(o.tex)
+        flash:SetSize(o.w or 0, o.h or 0)
+    end
+    flash:ClearAllPoints()
+    for _, p in ipairs(o.points) do
+        flash:SetPoint(p[1], p[2], p[3], p[4], p[5])
+    end
+    if button._vcuiFlashMasked and button._vcuiMask then
+        pcall(flash.RemoveMaskTexture, flash, button._vcuiMask)
+        button._vcuiFlashMasked = false
+    end
+end
+
+local function applyFlash(button, icon)
+    local flash = getRegion(button, "Flash", button.Flash)
+    if not flash then return end
+    local st = currentStyle()
+    if st.standard or not icon then
+        if button._vcuiFlashDirty then restoreFlash(button, flash) end
+        return
+    end
+    if not button._vcuiFlashOrig then
+        local o = { points = {} }
+        o.atlas = flash.GetAtlas and flash:GetAtlas() or nil
+        if not o.atlas then
+            o.tex = flash.GetTexture and flash:GetTexture() or nil
+            o.w, o.h = flash:GetSize()
+        end
+        o.blend = flash.GetBlendMode and flash:GetBlendMode() or nil
+        for i = 1, flash:GetNumPoints() do o.points[i] = { flash:GetPoint(i) } end
+        button._vcuiFlashOrig = o
+    end
+    button._vcuiFlashDirty = true
+    flash:SetTexture(FLASH_TEX)
+    flash:SetTexCoord(unpack(ICON_CROP))
+    if flash.SetBlendMode then flash:SetBlendMode("BLEND") end
+    flash:ClearAllPoints()
+    flash:SetAllPoints(icon)
+    -- useAtlasSize leaves an explicit size behind that would beat the anchors
+    flash:SetWidth(0); flash:SetHeight(0)
+    local m = button._vcuiMask
+    if m and button._vcuiMaskOn then
+        if not button._vcuiFlashMasked and flash.AddMaskTexture then
+            pcall(flash.AddMaskTexture, flash, m)
+            button._vcuiFlashMasked = true
+        end
+    elseif button._vcuiFlashMasked and m then
+        pcall(flash.RemoveMaskTexture, flash, m)
+        button._vcuiFlashMasked = false
+    end
+end
+
 local function applyStyle(button)
     local st   = currentStyle()
     local icon = getRegion(button, "Icon", button.icon or button.Icon)
@@ -265,6 +334,8 @@ local function applyStyle(button)
         local pct  = st.shadow and ((100 - size) / 200) or 0
         setMasked(button, icon, maskTex ~= nil, maskTex, pct)
     end
+
+    applyFlash(button, icon)
 
     if button._vcuiBorder then
         if st.border then
@@ -379,6 +450,9 @@ local function unstyleButton(button)
         setMasked(button, icon, false)
         if icon.SetTexCoord then icon:SetTexCoord(0, 1, 0, 1) end
     end
+
+    local flash = getRegion(button, "Flash", button.Flash)
+    if flash and button._vcuiFlashDirty then restoreFlash(button, flash) end
 
     local nt = (button.GetNormalTexture and button:GetNormalTexture())
             or getRegion(button, "NormalTexture", button.NormalTexture)
