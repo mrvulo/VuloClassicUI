@@ -195,6 +195,57 @@ local function pageDriver()
     return table.concat(conds, ";")
 end
 
+-- The same switch for Blizzard's OWN main bar, so it also holds when the main
+-- bar runs standard or the whole module is off (user request, 22.08.2026).
+--
+-- Measured against the client source (classic_anniversary branch): the form
+-- swap works by the client writing the parent MainActionBar's actionpage
+-- attribute, and SecureActionButtonMixin:CalculateAction consults the BUTTON's
+-- own actionpage attribute FIRST -- for the secure click path and the display
+-- update alike (OnAttributeChanged -> UpdateAction -> CalculateAction). An
+-- attribute driver per button therefore pins what you see and what the key
+-- fires together; there is no seeing-one-spell-firing-another split here, the
+-- way there would be for a bar on its own buttons. The [bar:] conditions keep
+-- manual page switching alive; only the client-driven swaps (forms, and with
+-- them possess pages) stop moving the bar.
+--
+-- Deliberately OUTSIDE the module lifecycle: db exists for disabled modules,
+-- and the pin must survive OnDisable. While the module owns the main bar the
+-- drivers sit on hidden buttons and change nothing.
+local PIN_DRIVER = "[bar:2]2;[bar:3]3;[bar:4]4;[bar:5]5;[bar:6]6;1"
+local pinApplied = false
+local pinFrame = CreateFrame("Frame")
+
+local function applyStandardPin()
+    if not (mod.db and mod.db.bars) then return end
+    if InCombatLockdown() then
+        pinFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+        return
+    end
+    local want = barDB("main").noFormPaging and true or false
+    if want == pinApplied then return end
+    pinApplied = want
+    for i = 1, 12 do
+        local b = _G["ActionButton" .. i]
+        if b then
+            if want then
+                RegisterAttributeDriver(b, "actionpage", PIN_DRIVER)
+            else
+                UnregisterAttributeDriver(b, "actionpage")
+                -- the driver's last value stays on the button; only nil hands
+                -- the page back to the parent's useparent-actionpage fallback
+                b:SetAttribute("actionpage", nil)
+            end
+        end
+    end
+end
+
+pinFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+pinFrame:SetScript("OnEvent", function(self, event)
+    if event == "PLAYER_REGEN_ENABLED" then self:UnregisterEvent("PLAYER_REGEN_ENABLED") end
+    applyStandardPin()
+end)
+
 local function keyAbbr(key)
     if not key then return nil end
     return (key
@@ -1942,7 +1993,9 @@ local function formPagingRow()
           text = L["|cffaaaaaaCat, bear, stealth, stances and Shadowform normally swap the main bar to their own page. Switch this off to keep the bar you built through every form.|r"] },
         { type = "checkbox", label = L["Keep the main bar on its page in every form"],
           get = function() return barDB("main").noFormPaging end,
-          set = function(_, v) barDB("main").noFormPaging = v; reapply() end },
+          -- reapply covers the module's own bar and no-ops while the module is
+          -- off; the pin covers Blizzard's standard bar in every module state
+          set = function(_, v) barDB("main").noFormPaging = v; reapply(); applyStandardPin() end },
     } }
 end
 
