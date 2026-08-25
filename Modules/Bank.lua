@@ -553,8 +553,11 @@ function bank.refresh()
 end
 
 -- Offline mirror: per-character snapshot plus a read-only viewer usable anywhere.
+-- Gated on sessionOpen, not bank.open: the containers are readable from
+-- BANKFRAME_OPENED to BANKFRAME_CLOSED whether or not the replacement window
+-- is on, and the tooltip counts below want the mirror from every visit.
 function bank.snapshotMirror(closing)
-    if not bank.open then return end
+    if not bank.sessionOpen then return end
     _G.VuloClassicUICharDB = _G.VuloClassicUICharDB or {}
     local mir = { when = time and time() or 0, free = 0, items = 0, bags = {} }
     for _, bag in ipairs(bank.bags) do
@@ -582,7 +585,7 @@ function bank.snapshotMirror(closing)
         -- first scan can lag OPENED: don't clobber a good mirror, rescan shortly
         bank.mirrorScans = 1
         if C_Timer and C_Timer.After then
-            C_Timer.After(0.7, function() if bank.open then bank.snapshotMirror() end end)
+            C_Timer.After(0.7, function() if bank.sessionOpen then bank.snapshotMirror() end end)
             return
         end
     end
@@ -793,8 +796,93 @@ function ns.ToggleBankMirror()
     f:Show()
 end
 
+-- ---------------------------------------------------------------------------
+-- Item counts in tooltips (user request, 23.08.2026): how many you carry, and
+-- how many sit in the bank as last seen at a banker -- read from the mirror
+-- above, so it answers anywhere, not only at the bank.
+--
+-- BOTH tooltip mechanisms are hooked and deduped by item link, never picked by
+-- table existence: on Anniversary TooltipDataProcessor EXISTS and its item
+-- post-call never fires (measured 06.08.2026; same recipe as the set line in
+-- Loadouts.lua and the lines in General.lua).
+local _mirIdx, _mirSrc
+local function bankCount(itemID)
+    local mir = _G.VuloClassicUICharDB and _G.VuloClassicUICharDB.bankMirror
+    if not mir then return 0 end
+    -- snapshotMirror writes a fresh table each pass, so table identity is the
+    -- cheapest staleness check for this index
+    if _mirSrc ~= mir then
+        _mirSrc = mir
+        _mirIdx = {}
+        for _, b in ipairs(mir.bags or {}) do
+            for _, s in ipairs(b.slots or {}) do
+                local id = s.l and tonumber(string.match(s.l, "item:(%d+)"))
+                if id then _mirIdx[id] = (_mirIdx[id] or 0) + (s.c or 1) end
+            end
+        end
+    end
+    return _mirIdx[itemID] or 0
+end
+
+local _GetItemCount = (C_Item and C_Item.GetItemCount) or _G.GetItemCount
+
+local _countTipHooked = false
+function bank.installTooltipCounts()
+    if _countTipHooked then return end
+    _countTipHooked = true
+
+    local function annotate(tip)
+        if not tip or (tip ~= GameTooltip and tip ~= ItemRefTooltip) then return end
+        if not mod.db or bank.db().tipCounts == false then return end
+        local link
+        if tip.GetItem then
+            local ok, _, l = pcall(tip.GetItem, tip)
+            if ok then link = l end
+        end
+        if not link and TooltipUtil and TooltipUtil.GetDisplayedItem then
+            local ok, _, l = pcall(TooltipUtil.GetDisplayedItem, tip)
+            if ok then link = l end
+        end
+        if not link then return end
+        if tip._vcuiCountLink == link then return end
+        local itemID = tonumber(string.match(link, "item:(%d+)"))
+        if not itemID then return end
+        local bags = _GetItemCount and _GetItemCount(itemID) or 0
+        local inBank = bankCount(itemID)
+        if bags <= 0 and inBank <= 0 then return end
+        -- only marked when a line actually went in, so an unowned item does
+        -- not block the next fill of the same tooltip
+        tip._vcuiCountLink = link
+        if bags > 0 then
+            tip:AddLine(string.format(L["In your bags: %d"], bags), 0.85, 0.85, 0.9)
+        end
+        if inBank > 0 then
+            tip:AddLine(string.format(L["In the bank: %d"], inBank), 0.85, 0.85, 0.9)
+        end
+        tip:Show()
+    end
+
+    local function onCleared(tip) tip._vcuiCountLink = nil end
+
+    -- pcall'd per script name: the newer clients dropped OnTooltipSetItem, and
+    -- hooking a script a frame does not have is an error, not a no-op
+    local function hookTip(tip)
+        if not (tip and tip.HookScript) then return end
+        pcall(tip.HookScript, tip, "OnTooltipSetItem", annotate)
+        pcall(tip.HookScript, tip, "OnTooltipCleared", onCleared)
+    end
+    hookTip(GameTooltip)
+    hookTip(ItemRefTooltip)
+
+    if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall
+       and Enum and Enum.TooltipDataType and Enum.TooltipDataType.Item then
+        pcall(TooltipDataProcessor.AddTooltipPostCall, Enum.TooltipDataType.Item, annotate)
+    end
+end
+
 function bank.onEvent(event, arg1, arg2)
     if event == "PLAYER_ENTERING_WORLD" then
+        bank.installTooltipCounts()
         -- suppress BEFORE the first banker visit: Blizzard's BankFrame OnEvent would otherwise ShowUIPanel on the very BANKFRAME_OPENED we react to
         if bank.enabled() then
             bank.suppressDefault()
@@ -817,9 +905,20 @@ function bank.onEvent(event, arg1, arg2)
     end
 
     if event == "BANKFRAME_OPENED" then
-        if not bank.enabled() then return end
-        bank.open = true
+        -- the mirror wants every banker visit, replacement window or not
+        bank.sessionOpen = true
         bank.mirrorScans = 0
+        if not bank.enabled() then
+            -- item data lags OPENED, and without the replacement window no
+            -- refresh pass follows -- scan on a short delay instead
+            if C_Timer and C_Timer.After then
+                C_Timer.After(0.5, function() if bank.sessionOpen then bank.snapshotMirror() end end)
+            else
+                bank.snapshotMirror()
+            end
+            return
+        end
+        bank.open = true
         bank.suppressDefault()
         if not bank.frame then bank.build() end
         if not bank.frame then bank.open = false; return end
@@ -833,6 +932,7 @@ function bank.onEvent(event, arg1, arg2)
     if event == "BANKFRAME_CLOSED" then
         -- fires TWICE and on walking away; idempotent. Snapshot first, then clear bank.open so OnHide skips CloseBankFrame.
         bank.snapshotMirror(true)
+        bank.sessionOpen = false
         bank.open = false
         if ns.SortEngine and ns.SortEngine.CancelContaining then
             ns.SortEngine.CancelContaining(-1)
@@ -882,6 +982,12 @@ function ns.BankOptions()
                 bank.restoreDefault()
             end
         end,
+    })
+    table.insert(items, {
+        type = "toggle", label = L["Item counts in tooltips"],
+        tooltip = L["Item tooltips show how many you carry in your bags and how many sit in the bank, as last seen at a banker."],
+        get = function() return bank.db().tipCounts ~= false end,
+        set = function(_, v) bank.db().tipCounts = v and true or false end,
     })
     table.insert(items, {
         type = "slider", label = L["Bank window scale"], min = 50, max = 150, step = 5,
