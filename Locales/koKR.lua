@@ -3565,4 +3565,12 @@ ns:RegisterLocale("koKR", function() return {
     ["Requires /reload."] = "/reload가 필요합니다.",
     ["Reduces the chance that your attacks are dodged or parried."] = "적이 당신의 공격을 회피하거나 무기 막기로 막을 확률을 줄입니다.",
     ["Dodge and parry reduction"] = "회피 및 무기 막기 감소",
+    -- Patch notes 1.57.0
+    ["Bags & Bank"] = "가방과 은행",
+    ["Item counts in tooltips – Item tooltips show how many you carry in your bags and how many sit in the bank, as last seen at a banker"] = "툴팁에 소지 수량 표시 – 아이템 툴팁에 가방에 든 수량과 은행에 보관된 수량을 표시합니다. 은행 수량은 마지막으로 은행을 연 시점 기준입니다",
+    ["The bank mirror is taken on every banker visit now, with the default bank window and with the bags module switched off alike; it used to fill only while the replacement window was on."] = "은행 거울이 이제 은행을 열 때마다 기록됩니다. 기본 은행 창에서도, 가방 모듈이 꺼져 있어도 마찬가지입니다. 예전에는 대체 창이 켜져 있을 때만 채워졌습니다.",
+    ["The melee section shows expertise the way the game's own sheet does, with both weapons when dual wielding; the tooltip names the dodge and parry reduction in percent along with the rating. Only on clients whose game has the stat."] = "근접 항목이 게임 자체 능력치 창과 같은 방식으로 숙련을 표시하며, 쌍수일 때는 양손 모두 보여줍니다. 툴팁에는 회피·무기 막기 감소율과 숙련도가 함께 나옵니다. 이 능력치가 있는 클라이언트에서만 표시됩니다.",
+    ["Module Fonts – Give single modules their own font: action bars, nameplates, cooldown manager, chat and the stats sheet each take a face of their own, everything else follows the global font"] = "모듈별 글꼴 – 개별 모듈에 전용 글꼴을 줄 수 있습니다: 행동 단축바, 이름표, 재사용 대기시간 관리자, 대화, 능력치 시트가 각각 전용 글꼴을 가지며 나머지는 전역 글꼴을 따릅니다",
+    ["Fonts and colors live on two separate tabs now; the class and resource colors moved to their own Colors tab unchanged."] = "글꼴과 색상이 이제 두 개의 별도 탭으로 나뉘었습니다. 직업 색상과 자원 색상은 그대로 색상 탭으로 옮겨졌습니다.",
+    ["An imported look string carries the module fonts along, and the action bar buttons keep the game's own lettering until a module font is chosen for them."] = "가져온 모양 문자열에 모듈별 글꼴이 함께 담기며, 행동 단축바 버튼은 모듈 글꼴을 지정하기 전까지 게임 고유 글씨를 유지합니다.",
 } end)

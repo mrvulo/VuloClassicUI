@@ -3565,4 +3565,12 @@ ns:RegisterLocale("ruRU", function() return {
     ["Requires /reload."] = "Требуется /reload.",
     ["Reduces the chance that your attacks are dodged or parried."] = "Снижает вероятность того, что противник уклонится от вашей атаки или парирует её.",
     ["Dodge and parry reduction"] = "Снижение уклонения и парирования",
+    -- Patch notes 1.57.0
+    ["Bags & Bank"] = "Сумки и банк",
+    ["Item counts in tooltips – Item tooltips show how many you carry in your bags and how many sit in the bank, as last seen at a banker"] = "Количество в подсказках – Подсказки предметов показывают, сколько их у вас в сумках и сколько лежит в банке по данным последнего визита к банкиру",
+    ["The bank mirror is taken on every banker visit now, with the default bank window and with the bags module switched off alike; it used to fill only while the replacement window was on."] = "Зеркало банка теперь снимается при каждом визите к банкиру, в том числе со стандартным окном банка и при выключенном модуле сумок; раньше оно заполнялось только при включённом заменяющем окне.",
+    ["The melee section shows expertise the way the game's own sheet does, with both weapons when dual wielding; the tooltip names the dodge and parry reduction in percent along with the rating. Only on clients whose game has the stat."] = "Раздел ближнего боя показывает мастерство так же, как собственный лист игры, при двух оружиях — для обеих рук; подсказка называет снижение уклонения и парирования в процентах вместе с рейтингом. Только на клиентах, где игра знает эту характеристику.",
+    ["Module Fonts – Give single modules their own font: action bars, nameplates, cooldown manager, chat and the stats sheet each take a face of their own, everything else follows the global font"] = "Шрифты модулей – Отдельным модулям можно задать собственный шрифт: панели команд, именные планки, менеджер восстановления, чат и лист характеристик получают каждый свой, всё остальное следует глобальному шрифту",
+    ["Fonts and colors live on two separate tabs now; the class and resource colors moved to their own Colors tab unchanged."] = "Шрифты и цвета теперь на двух отдельных вкладках; цвета классов и ресурсов без изменений переехали на собственную вкладку цветов.",
+    ["An imported look string carries the module fonts along, and the action bar buttons keep the game's own lettering until a module font is chosen for them."] = "Импортированная строка оформления переносит и шрифты модулей, а кнопки панелей команд сохраняют игровой шрифт, пока для них не выбран шрифт модуля.",
 } end)

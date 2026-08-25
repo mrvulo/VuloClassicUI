@@ -3558,4 +3558,12 @@ ns:RegisterLocale("zhCN", function() return {
     ["Requires /reload."] = "需要 /reload。",
     ["Reduces the chance that your attacks are dodged or parried."] = "降低你的攻击被躲闪或招架的几率。",
     ["Dodge and parry reduction"] = "躲闪和招架降低",
+    -- Patch notes 1.57.0
+    ["Bags & Bank"] = "背包与银行",
+    ["Item counts in tooltips – Item tooltips show how many you carry in your bags and how many sit in the bank, as last seen at a banker"] = "鼠标提示显示数量 – 物品提示会显示背包里已有的数量和银行里存放的数量（以上次开启银行时为准）",
+    ["The bank mirror is taken on every banker visit now, with the default bank window and with the bags module switched off alike; it used to fill only while the replacement window was on."] = "银行镜像现在每次拜访银行职员时都会记录，使用标准银行窗口或关闭背包模块时也一样；以前只有替代窗口开启时才会填充。",
+    ["The melee section shows expertise the way the game's own sheet does, with both weapons when dual wielding; the tooltip names the dodge and parry reduction in percent along with the rating. Only on clients whose game has the stat."] = "近战部分像游戏自带的属性页一样显示精准，双持时显示双手；鼠标提示给出躲闪和招架降低的百分比以及等级值。仅在游戏包含该属性的客户端上显示。",
+    ["Module Fonts – Give single modules their own font: action bars, nameplates, cooldown manager, chat and the stats sheet each take a face of their own, everything else follows the global font"] = "模块字体 – 为单个模块指定专属字体：动作条、姓名板、冷却管理器、聊天和属性页可各自使用专属字体，其余部分跟随全局字体",
+    ["Fonts and colors live on two separate tabs now; the class and resource colors moved to their own Colors tab unchanged."] = "字体和颜色现在分为两个独立标签页；职业颜色和资源颜色原样移到了自己的颜色标签页。",
+    ["An imported look string carries the module fonts along, and the action bar buttons keep the game's own lettering until a module font is chosen for them."] = "导入的外观字符串会带上模块字体；动作条按钮在为其选择模块字体之前，保留游戏自带的字体。",
 } end)

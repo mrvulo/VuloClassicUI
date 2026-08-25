@@ -3566,6 +3566,14 @@ local function T() return {
     ["Requires /reload."] = "Necesita /reload.",
     ["Reduces the chance that your attacks are dodged or parried."] = "Reduce la probabilidad de que tus ataques sean esquivados o parados.",
     ["Dodge and parry reduction"] = "Reducción de esquivar y parar",
+    -- Patch notes 1.57.0
+    ["Bags & Bank"] = "Bolsas y banco",
+    ["Item counts in tooltips – Item tooltips show how many you carry in your bags and how many sit in the bank, as last seen at a banker"] = "Cantidades en las descripciones – Las descripciones de objeto muestran cuántos llevas en las bolsas y cuántos hay en el banco, según la última visita al banquero",
+    ["The bank mirror is taken on every banker visit now, with the default bank window and with the bags module switched off alike; it used to fill only while the replacement window was on."] = "El espejo del banco se toma ahora en cada visita al banquero, también con la ventana de banco estándar y con el módulo de bolsas desactivado; antes solo se llenaba mientras la ventana de reemplazo estaba activa.",
+    ["The melee section shows expertise the way the game's own sheet does, with both weapons when dual wielding; the tooltip names the dodge and parry reduction in percent along with the rating. Only on clients whose game has the stat."] = "La sección de cuerpo a cuerpo muestra la pericia como la propia hoja del juego, con ambas armas al luchar con dos; la descripción indica la reducción de esquivar y parar en porcentaje junto con la puntuación. Solo en clientes cuyo juego tiene esa estadística.",
+    ["Module Fonts – Give single modules their own font: action bars, nameplates, cooldown manager, chat and the stats sheet each take a face of their own, everything else follows the global font"] = "Fuentes por módulo – Da a módulos concretos su propia fuente: barras de acción, placas de nombre, gestor de reutilización, chat y la hoja de estadísticas aceptan cada uno su letra, todo lo demás sigue la fuente global",
+    ["Fonts and colors live on two separate tabs now; the class and resource colors moved to their own Colors tab unchanged."] = "Las fuentes y los colores están ahora en dos pestañas separadas; los colores de clase y de recurso pasaron sin cambios a su propia pestaña de colores.",
+    ["An imported look string carries the module fonts along, and the action bar buttons keep the game's own lettering until a module font is chosen for them."] = "Una cadena de aspecto importada lleva consigo las fuentes por módulo, y los botones de las barras de acción conservan la letra propia del juego hasta que se les elige una fuente de módulo.",
 } end
 
 ns:RegisterLocale("esES", T)

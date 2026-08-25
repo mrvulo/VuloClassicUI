@@ -6,6 +6,20 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+    { version = "1.57.0", sections = {
+        { category = "Bags & Bank", lines = {
+            "NEW: Item counts in tooltips – Item tooltips show how many you carry in your bags and how many sit in the bank, as last seen at a banker",
+            "The bank mirror is taken on every banker visit now, with the default bank window and with the bags module switched off alike; it used to fill only while the replacement window was on.",
+        } },
+        { category = "Character Panel", lines = {
+            "The melee section shows expertise the way the game's own sheet does, with both weapons when dual wielding; the tooltip names the dodge and parry reduction in percent along with the rating. Only on clients whose game has the stat.",
+        } },
+        { category = "Global Settings", lines = {
+            "NEW: Module Fonts – Give single modules their own font: action bars, nameplates, cooldown manager, chat and the stats sheet each take a face of their own, everything else follows the global font",
+            "Fonts and colors live on two separate tabs now; the class and resource colors moved to their own Colors tab unchanged.",
+            "An imported look string carries the module fonts along, and the action bar buttons keep the game's own lettering until a module font is chosen for them.",
+        } },
+    } },
     { version = "1.56.0", sections = {
         { category = "Action Bars", lines = {
             "Keeping the main bar on its page in every form now also holds the standard main bar, even while the whole module is off. The keys fire exactly what the buttons show, and switching to bars 2 to 6 by hand still works.",
@@ -597,11 +611,6 @@ ns.CHANGELOG = {
         { category = "Paladin", lines = {
             "NEW: Seal Twist Helper – A swing bar with the twist window marked, plus the next sensible action",
             "The bar counts down to your next auto attack with two marks: green is the last moment the second seal can still land, purple is how long a Judgement still fits in front of it. The next action is worked out live from your swing timer, the global cooldown and the seals actually on you — not from a fixed rotation. Crusader Strike is only suggested while there is room for it and the holding seal afterwards. Judgement deliberately gets none: it consumes the seal, and a wrong hint costs more there than no hint. Off by default.",
-        } },
-    } },
-    { version = "1.38.0", sections = {
-        { category = "Languages", lines = {
-            "NEW: Simplified Chinese and Traditional Chinese. Both are complete: every interface text, every option and every patch note, 2528 entries each. They are separate translations, not one converted into the other. Pick yours under General, or leave the setting on Auto and it follows your game client.",
         } },
     } },
 }
