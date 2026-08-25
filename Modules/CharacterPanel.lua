@@ -1472,6 +1472,37 @@ local function buildModernSections()
 		row(melee, L["Hit"], function() return GetCombatRating(CR_HIT_MELEE) end, nil,
 			tipText(L["Reduces the chance that your melee attacks miss."], ratingLines(_G.CR_HIT_MELEE, true)))
 	end
+	-- Expertise is a TBC-and-later stat (Era has neither the API nor the
+	-- rating), so it rides the same gate as the other combat ratings. Verified
+	-- against the classic_anniversary source (TBC PaperDollFrame): GetExpertise
+	-- returns main and off hand points, GetExpertisePercent the dodge/parry
+	-- reduction, CR_EXPERTISE is 24. The label is the client's own localized
+	-- stat name -- it exists wherever the stat does. GetCombatRatingBonus
+	-- answers POINTS for this rating, not a percent, so ratingLines' bonus
+	-- formatting stays off and the percent line is our own.
+	if hasRatings and GetExpertise then
+		row(melee, _G.STAT_EXPERTISE or "Expertise", function()
+			return (GetExpertise())
+		end, nil,
+			tipText(L["Reduces the chance that your attacks are dodged or parried."], function(tt)
+				local _, oh = GetExpertise()
+				-- dual-wield test straight from the client's own sheet: a
+				-- second attack speed only exists with an off-hand weapon
+				local dual = select(2, UnitAttackSpeed("player")) ~= nil
+				if dual and oh then
+					tipLine(tt, _G.INVTYPE_WEAPONOFFHAND or "Off Hand", tostring(oh))
+				end
+				if GetExpertisePercent then
+					local p, po = GetExpertisePercent()
+					local txt = string.format("%.2f%%", p or 0)
+					if dual and po then
+						txt = txt .. " / " .. string.format("%.2f%%", po)
+					end
+					tipLine(tt, L["Dodge and parry reduction"], txt)
+				end
+				ratingLines(_G.CR_EXPERTISE or 24)(tt)
+			end))
+	end
 
 	local spell = sec("spell", L["Spell"])
 	row(spell, L["Spell Power"], maxSpellPower, nil,
