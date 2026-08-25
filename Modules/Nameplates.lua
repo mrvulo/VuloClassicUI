@@ -860,7 +860,13 @@ local function plateFont(fs, size, flags)
             done = true
         end
     end
-    if not done and ns.UI and ns.UI.Font then ns.UI.Font(fs, size, realFlags) end
+    -- The fallback resolves the module font override (Global Settings ->
+    -- Fonts) before the global face; realFlags is always a string here, so
+    -- the explicit-flags path of FontFor is taken and outlines stay ours.
+    if not done and ns.UI then
+        if ns.UI.FontFor then ns.UI.FontFor("nameplates", fs, size, realFlags)
+        elseif ns.UI.Font then ns.UI.Font(fs, size, realFlags) end
+    end
     if fs.SetShadowOffset then
         fs:SetShadowOffset(shadow and 1 or 0, shadow and -1 or 0)
         if fs.SetShadowColor then fs:SetShadowColor(0, 0, 0, shadow and 1 or 0) end

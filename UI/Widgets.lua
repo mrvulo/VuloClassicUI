@@ -27,6 +27,19 @@ function UI.Font(fs, size, flags)
     return fs
 end
 
+-- Like UI.Font, but a module's own font override (Global Settings -> Fonts)
+-- wins over the global face. Explicit flags stay explicit -- text that chose
+-- its outline keeps it; only unflagged text follows the module outline.
+function UI.FontFor(modKey, fs, size, flags)
+    local path = ns.ModuleFontPath and ns.ModuleFontPath(modKey) or UI.FONT_PATH
+    local fl = flags
+    if fl == nil then
+        fl = ns.ModuleFontFlags and ns.ModuleFontFlags(modKey) or UI.FONT_FLAGS
+    end
+    fs:SetFont(path, size or 12, fl)
+    return fs
+end
+
 -- SetGradient(tex, orient, ...): first color is bottom/left, second is top/right.
 function UI.SetGradient(tex, orient, r1, g1, b1, a1, r2, g2, b2, a2)
     tex:SetTexture("Interface\\Buttons\\WHITE8X8")

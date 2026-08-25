@@ -332,7 +332,7 @@ local function styleOneTab(i)
     if txt then
         if txt.SetFont then
             local fallback = _G.ChatFontNormal and select(1, ChatFontNormal:GetFont())
-            local fam = (mod.db.font and UI.FONT_PATH) or fallback
+            local fam = (mod.db.font and (ns.ModuleFontPath and ns.ModuleFontPath("chat") or UI.FONT_PATH)) or fallback
             local sz  = mod.db.tabFontSize or 12
             if fam then pcall(txt.SetFont, txt, fam, sz, "") end
         end
@@ -1298,15 +1298,16 @@ end
 local function applyFont()
     local use = active and mod.db.font
     local fallback = _G.ChatFontNormal and select(1, ChatFontNormal:GetFont())
+    local face = (ns.ModuleFontPath and ns.ModuleFontPath("chat")) or UI.FONT_PATH
     eachChatFrame(function(cf, i)
         local size = chatFontSize(i)
         if cf.SetFont then
-            if use then pcall(cf.SetFont, cf, UI.FONT_PATH, size, "")
+            if use then pcall(cf.SetFont, cf, face, size, "")
             elseif fallback then pcall(cf.SetFont, cf, fallback, size, "") end
         end
         local eb = _G["ChatFrame" .. i .. "EditBox"]
         if eb and eb.SetFont then
-            if use then pcall(eb.SetFont, eb, UI.FONT_PATH, size, "")
+            if use then pcall(eb.SetFont, eb, face, size, "")
             elseif fallback then pcall(eb.SetFont, eb, fallback, size, "") end
         end
         -- tab labels are owned by styleOneTab, not here, so the two never fight

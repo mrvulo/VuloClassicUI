@@ -8,7 +8,7 @@ local mod = ns:RegisterModule("globalsettings", {
     description = "Global UI settings + profile management.",
     -- Per TAB, because this module owns the profile tab and only delegates its
     -- options -- there is no "profile" module to carry the flag.
-    optionsGrid = { profile = true, general = true, fonts = true },
+    optionsGrid = { profile = true, general = true, fonts = true, colors = true },
     defaults    = {
         enabled    = true,
         themeColor = { r = 0.608, g = 0.424, b = 1.000 },   -- house purple
@@ -17,7 +17,8 @@ local mod = ns:RegisterModule("globalsettings", {
 
 mod.tabs = {
     { id = "general", label = "General" },
-    { id = "fonts",   label = "Fonts & Colors" },
+    { id = "fonts",   label = "Fonts" },
+    { id = "colors",  label = "Colors" },
     { id = "profile", label = "Profile" },
     -- Bar setups get their own tab rather than a ninth section on the profile
     -- page. Two reasons: on that page it would need scrolling to reach, which
@@ -180,6 +181,26 @@ local function applyGlobalFont()
     ns.UI.FONT_FLAGS = (db.outline and db.outline ~= "NONE") and db.outline or ""
 end
 
+-- Per-module font overrides: g.fonts.modules[key] = { font = <media name>,
+-- outline = <mode> }, either field absent = follow the global font. Resolved at
+-- text-creation time through UI.FontFor; like the global font, a change takes
+-- a /reload to reach text that is already on screen (the reference resolves
+-- the same way and reloads too -- no live reapply loop to maintain).
+function ns.ModuleFontPath(key)
+    local db = ns.db and ns.db.global and ns.db.global.fonts
+    local o = db and db.modules and db.modules[key]
+    local name = o and o.font
+    return (name and ns.MediaFont and ns.MediaFont(name)) or ns.UI.FONT_PATH
+end
+
+function ns.ModuleFontFlags(key)
+    local db = ns.db and ns.db.global and ns.db.global.fonts
+    local o = db and db.modules and db.modules[key]
+    local m = o and o.outline
+    if not m then return ns.UI.FONT_FLAGS end
+    return m ~= "NONE" and m or ""
+end
+
 -- The client keeps a registry of every named font object; replacing the face
 -- there reaches chat, tooltips, quest text and the rest without a hook. Size
 -- and flags stay native. Pull-style consumers pick the path up on their own.
@@ -264,6 +285,75 @@ local CLASS_ORDER = { "WARRIOR", "PALADIN", "HUNTER", "ROGUE", "PRIEST",
 
 local OUTLINE_VALUES  -- built lazily: labels are locale lookups
 
+-- The module-fonts list, modeled on the reference layout the user pointed at
+-- (23.08.2026): one row per module, a dropdown whose first entry follows the
+-- global font. ALL rows store in g.fonts.modules[key].font -- account-wide
+-- like the global font, so no class or profile carries a different reach than
+-- its neighbours (review find: the nameplates row briefly wrote the module
+-- db and would have read empty on every other class). Read through
+-- ns.ModuleFontPath at text-creation time. Uniform apply semantics: /reload,
+-- like the global font itself -- no live reapply loop to maintain.
+local MODULE_FONT_DEFS  -- built lazily: labels are locale lookups
+
+local function moduleFontValues()
+    local v = { { value = "", text = L["Global Font"] } }
+    for _, e in ipairs(ns.MediaFontValues and ns.MediaFontValues() or {}) do
+        v[#v + 1] = e
+    end
+    return v
+end
+
+local function moduleFontsSection()
+    local g = ns.db.global
+
+    MODULE_FONT_DEFS = MODULE_FONT_DEFS or {
+        { key = "actionbars", name = L["Action Bars"],
+          desc = L["Button texts (keybind, macro name, count) and the XP bar text."] },
+        { key = "nameplates", name = L["Nameplates"],
+          desc = L["Name, level, health, cast and aura text on nameplates."] },
+        { key = "cooldownmanager", name = L["Cooldown Manager"],
+          desc = L["Duration, stacks and keybind text on the icons, the strip and the resource bar."] },
+        { key = "chat", name = L["Chat"],
+          desc = L["Chat messages, the input box and the tab labels, while the chat module uses the addon font."] },
+        { key = "characterpanel", name = L["Character Panel"],
+          desc = L["The stats sheet of the modern character panel."] },
+    }
+
+    local rows = {
+        { type = "desc",
+          text = L["|cffaaaaaaGive single modules their own font; everything else follows the global font. Changes need a /reload.|r"] },
+    }
+    for _, def in ipairs(MODULE_FONT_DEFS) do
+        local d = def
+        rows[#rows + 1] = {
+            type = "dropdown", label = d.name, width = 220, noOverride = true,
+            values = moduleFontValues(),
+            tooltip = d.desc .. "\n\n|cffaaaaaa" .. L["Requires /reload."] .. "|r",
+            get = function()
+                local m = g.fonts.modules
+                local o = m and m[d.key]
+                return (o and o.font) or ""
+            end,
+            set = function(_, v)
+                if v == "" then v = nil end
+                local m = g.fonts.modules
+                if v then
+                    -- created on first real override, not on opening the tab
+                    if not m then m = {}; g.fonts.modules = m end
+                    m[d.key] = m[d.key] or {}
+                    m[d.key].font = v
+                elseif m and m[d.key] then
+                    m[d.key].font = nil
+                    if next(m[d.key]) == nil then m[d.key] = nil end
+                    if next(m) == nil then g.fonts.modules = nil end
+                end
+                StaticPopup_Show("VCUI_RELOAD_FONT")
+            end,
+        }
+    end
+    return { type = "section", title = L["Module Fonts"], items = rows }
+end
+
 local function fontsOptions()
     local g = ns.db.global
     local fdb = g.fonts
@@ -307,6 +397,15 @@ local function fontsOptions()
               end
           end },
     }
+
+    return {
+        { type = "section", title = L["Global Font"], items = fontRows },
+        moduleFontsSection(),
+    }
+end
+
+local function colorsOptions()
+    local g = ns.db.global
 
     -- Only classes this era can PLAY (the fixed order above) and this client
     -- can NAME. The client's color table is retail-complete and also carries
@@ -371,7 +470,6 @@ local function fontsOptions()
     end
 
     return {
-        { type = "section", title = L["Global Font"],     items = fontRows },
         { type = "section", title = L["Class Colors"],    items = classRows },
         { type = "section", title = L["Resource Colors"], items = powerRows },
     }
@@ -632,6 +730,9 @@ end
 function mod:GetOptions(tabId)
     if tabId == "fonts" then
         return fontsOptions()
+    end
+    if tabId == "colors" then
+        return colorsOptions()
     end
     if tabId == "profile" then
         return delegate("profiles", L["|cffff5555Profile module not loaded.|r"])

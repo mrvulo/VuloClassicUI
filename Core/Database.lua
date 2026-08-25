@@ -1435,6 +1435,25 @@ function ns:ImportProfilePayload(payload, opts)
                 g.fonts.outline = fonts.outline
             end
             g.fonts.gameText = fonts.gameText and true or false
+            -- The module font overrides ride the look block too -- without
+            -- this, an imported look kept the global font but silently
+            -- dropped every per-module face. Sanitized copy, replace-wholesale
+            -- when the field is present; old exports without it change nothing.
+            if type(fonts.modules) == "table" then
+                local out = {}
+                for k, o in pairs(fonts.modules) do
+                    if type(k) == "string" and type(o) == "table" then
+                        local e = {}
+                        if type(o.font) == "string" and o.font ~= "" then e.font = o.font end
+                        if o.outline == "NONE" or o.outline == "OUTLINE"
+                           or o.outline == "THICKOUTLINE" then
+                            e.outline = o.outline
+                        end
+                        if next(e) then out[k] = e end
+                    end
+                end
+                g.fonts.modules = next(out) and out or nil
+            end
         end
         local cc = cleanColors(payload.g.classColors)
         if cc then g.classColors = cc end

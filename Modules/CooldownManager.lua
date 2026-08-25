@@ -47,6 +47,7 @@ local GCD_MAX = 1.5
 local FONT = "Fonts\\FRIZQT__.TTF"
 
 local function fontPath()
+    if ns.ModuleFontPath then return ns.ModuleFontPath("cooldownmanager") end
     return (ns.UI and ns.UI.FONT_PATH) or FONT
 end
 
@@ -2160,7 +2161,7 @@ local function ensureStripSlot(f, i)
     slot._ring:Hide()
 
     slot._count = slot:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    ns.UI.Font(slot._count, 11)
+    ns.UI.FontFor("cooldownmanager", slot._count, 11)
     slot._count:SetPoint("BOTTOMRIGHT", slot, "BOTTOMRIGHT", -1, 1)
     slot._count:SetTextColor(1, 0.95, 0.6)
 
@@ -2288,7 +2289,7 @@ local function ensureStripFrame(parent)
         })
 
         stripFrame._hint = stripFrame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-        ns.UI.Font(stripFrame._hint, 11)
+        ns.UI.FontFor("cooldownmanager", stripFrame._hint, 11)
         stripFrame._hint:SetTextColor(0.62, 0.62, 0.62)
         stripFrame._hint:SetJustifyH("CENTER")
         stripFrame._hint:SetWordWrap(true)
@@ -3570,7 +3571,7 @@ local frame, bar, barText, borderEdges
 local function applyFont()
     if not barText then return end
     if ns.UI and ns.UI.Font then
-        ns.UI.Font(barText, mod.db.fontSize, "OUTLINE")
+        ns.UI.FontFor("cooldownmanager", barText, mod.db.fontSize, "OUTLINE")
     else
         barText:SetFont(STANDARD_TEXT_FONT, mod.db.fontSize, "OUTLINE")
     end
@@ -4005,7 +4006,7 @@ local function pvStyle()
     local cur = floor(max * (pvPct or 60) / 100 + 0.5)
     pv.bar:SetMinMaxValues(0, max)
     pv.bar:SetValue(cur)
-    if ns.UI and ns.UI.Font then ns.UI.Font(pv.text, d.fontSize, "OUTLINE") end
+    if ns.UI and ns.UI.FontFor then ns.UI.FontFor("cooldownmanager", pv.text, d.fontSize, "OUTLINE") end
     local tc = d.textColor or { r = 1, g = 1, b = 1 }
     pv.text:SetTextColor(tc.r or 1, tc.g or 1, tc.b or 1)
     local mode = d.textMode

@@ -430,6 +430,15 @@ local function layoutBar(desc)
 
     local function fontSize(fs, size)
         if fs and size and size > 0 and ns.ApplyFontSize then ns:ApplyFontSize(fs, size) end
+        -- A module font override also swaps the FACE. Without one the button
+        -- texts deliberately keep whatever face the client (or the game-text
+        -- sweep) put there -- that is today's behavior and stays the default.
+        local fdb = ns.db and ns.db.global and ns.db.global.fonts
+        local o = fdb and fdb.modules and fdb.modules.actionbars
+        if fs and o and o.font and o.font ~= "" then
+            local _, s, fl = fs:GetFont()
+            if s then fs:SetFont(ns.ModuleFontPath("actionbars"), s, fl) end
+        end
     end
     local function styleText(fs, color, ox2, oy2)
         if not fs then return end
@@ -1326,7 +1335,7 @@ local function ensureXPBar()
     bar:SetFrameLevel(rested:GetFrameLevel() + 1)
     local txt = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     txt:SetPoint("CENTER")
-    if ns.UI and ns.UI.Font then ns.UI.Font(txt, 10) end
+    if ns.UI and ns.UI.FontFor then ns.UI.FontFor("actionbars", txt, 10) end
     f.rested, f.bar, f.text = rested, bar, txt
     xpBar = f
     if ns.CreateMover then
@@ -2310,7 +2319,7 @@ local function buildHeader(host)
         ic:SetPoint("BOTTOMRIGHT", -1, 1)
         pb.icon = ic
         local ks = pb:CreateFontString(nil, "OVERLAY")
-        ns.UI.Font(ks, 9, "OUTLINE")
+        ns.UI.FontFor("actionbars", ks, 9, "OUTLINE")
         ks:SetPoint("TOPRIGHT", pb, "TOPRIGHT", -1, -1)
         pb.keyFS = ks
         f.icons[i] = pb

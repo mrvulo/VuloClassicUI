@@ -1815,7 +1815,8 @@ local function ensureModernPanel()
 	local UI = ns.UI
 	local ac = ns.COLORS.accent
 	local function font(fs, size, fallback)
-		if UI and UI.FONT_PATH then fs:SetFont(UI.FONT_PATH, size, "") else fs:SetFontObject(fallback) end
+		local path = (ns.ModuleFontPath and ns.ModuleFontPath("characterpanel")) or (UI and UI.FONT_PATH)
+		if path then fs:SetFont(path, size, "") else fs:SetFontObject(fallback) end
 	end
 
 	local p = CreateFrame("Frame", "VCUI_ModernCharStats", CharacterFrame)
