@@ -1,12 +1,9 @@
-## 1.57.0
-**Bags & Bank:**
-- **NEW: Item counts in tooltips** – Item tooltips show how many you carry in your bags and how many sit in the bank, as last seen at a banker
-- The bank mirror is taken on every banker visit now, with the default bank window and with the bags module switched off alike; it used to fill only while the replacement window was on.
+## 1.57.1
+**Action Bars:**
+- The form-paging section shows up in Standard mode too. The switch itself already reached the standard main bar; the row that flips it was only drawn in Modern mode, so nobody running the standard bars could find it.
 
-**Character Panel:**
-- The melee section shows expertise the way the game's own sheet does, with both weapons when dual wielding; the tooltip names the dodge and parry reduction in percent along with the rating. Only on clients whose game has the stat.
+**Performance:**
+- Seven hot paths allocate less memory: unit-frame health text, nameplate number formatting and health smoothing, cooldown-manager scan keys, combat-text throttling, bag refreshes, the arena bar-text hook and the reminder pass all reuse what they used to rebuild, so the garbage collector has less to clean up in combat.
 
-**Global Settings:**
-- **NEW: Module Fonts** – Give single modules their own font: action bars, nameplates, cooldown manager, chat and the stats sheet each take a face of their own, everything else follows the global font
-- Fonts and colors live on two separate tabs now; the class and resource colors moved to their own Colors tab unchanged.
-- An imported look string carries the module fonts along, and the action bar buttons keep the game's own lettering until a module font is chosen for them.
+**UI Reskin:**
+- The red auto-attack blink sits on the icon in every button style now, the untouched standard button included. The game defines that blink with retail-sized frame art and a single corner anchor, so on the classic button art it hung past the button to the right and bottom.
