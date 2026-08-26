@@ -2568,6 +2568,13 @@ function mod:GetOptions(tabId)
                   set = function(_, v) ds.db.dmActionButtons = v; if ds.ApplyAllDM then ds.ApplyAllDM() end end },
             } }
         end
+        -- The form-paging switch reaches the STANDARD main bar too (the pin
+        -- drives Blizzard's own buttons and lives outside the module
+        -- lifecycle), so the row must be visible in this mode as well -- it
+        -- used to exist only in the Modern branch, where a player running the
+        -- standard bars could never find it (user report, 26.08.2026).
+        local fp = formPagingRow()
+        if fp then items[#items + 1] = fp end
         return items
     end
 
