@@ -239,12 +239,15 @@ local function setMasked(button, icon, on, maskTex, pct)
     end
 end
 
--- The client draws the auto-attack blink (the Flash region) for its OWN button
--- art: an oversized frame texture anchored to the button, not to the icon. The
--- skinned styles shrink the visible icon, so the red blink sat visibly beside
--- it (user screenshot, 22.08.2026). The skinned styles seat the flash on the
--- icon, crop it like the icon and cut it with the same mask; standard and
--- unstyle put the client's own layout back from a one-time capture.
+-- The client's auto-attack blink (the Flash region) is BROKEN on this client
+-- in every style, not just the skinned ones: the Classic flavor's template
+-- gives it the retail atlas at atlas size with a single TOPLEFT anchor
+-- (measured in the classic_anniversary source, ActionButtonTemplate.xml), so
+-- the retail-sized frame art hangs past the classic button to the right and
+-- bottom (user screenshots 22.08. and 26.08.2026). Every style therefore
+-- seats the flash on the icon, crops it like the icon and cuts it with the
+-- icon's mask where one is active; only unstyle (skin off) hands the client
+-- layout back from the one-time capture.
 local FLASH_TEX = "Interface\\Buttons\\UI-QuickslotRed"
 
 local function restoreFlash(button, flash)
@@ -273,7 +276,7 @@ local function applyFlash(button, icon)
     local flash = getRegion(button, "Flash", button.Flash)
     if not flash then return end
     local st = currentStyle()
-    if st.standard or not icon then
+    if not icon then
         if button._vcuiFlashDirty then restoreFlash(button, flash) end
         return
     end
@@ -290,7 +293,12 @@ local function applyFlash(button, icon)
     end
     button._vcuiFlashDirty = true
     flash:SetTexture(FLASH_TEX)
-    flash:SetTexCoord(unpack(ICON_CROP))
+    -- same crop as the icon: standard leaves the icon uncropped
+    if st.standard then
+        flash:SetTexCoord(0, 1, 0, 1)
+    else
+        flash:SetTexCoord(unpack(ICON_CROP))
+    end
     if flash.SetBlendMode then flash:SetBlendMode("BLEND") end
     flash:ClearAllPoints()
     flash:SetAllPoints(icon)
