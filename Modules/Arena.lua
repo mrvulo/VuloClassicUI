@@ -557,18 +557,29 @@ local function installFontHooks()
     fontHooksInstalled = true
     hooksecurefunc("TextStatusBar_UpdateTextString", function(bar)
         if not mod._enabled or not bar then return end
-        for i = 1, 5 do
-            local f = H.Frame(i)
-            if f then
-                local hb, pb = H.GetArenaBars(f)
-                if bar == hb then
-                    ns:SetBarTextFontSize(bar, mod.db.healthSize)
-                    return
-                elseif bar == pb then
-                    ns:SetBarTextFontSize(bar, mod.db.powerSize)
-                    return
+        -- Verdict memoized per bar: this hook fires for EVERY status bar in
+        -- the UI, and the five-frame probe with its name concats ran on each
+        -- of them -- in raids, far from any arena (perf sweep 26.08.2026).
+        -- A bar's arena-ness never changes, and an arena bar cannot fire
+        -- before its frame exists, so the first look decides for good.
+        local kind = bar._vcuiArenaKind
+        if kind == nil then
+            kind = false
+            for i = 1, 5 do
+                local f = H.Frame(i)
+                if f then
+                    local hb, pb = H.GetArenaBars(f)
+                    if bar == hb then kind = "health"
+                    elseif bar == pb then kind = "power" end
+                    if kind then break end
                 end
             end
+            bar._vcuiArenaKind = kind
+        end
+        if kind == "health" then
+            ns:SetBarTextFontSize(bar, mod.db.healthSize)
+        elseif kind == "power" then
+            ns:SetBarTextFontSize(bar, mod.db.powerSize)
         end
     end)
 end

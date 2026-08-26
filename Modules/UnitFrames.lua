@@ -443,10 +443,18 @@ local function applyRealHealth(bar)
     local cur, max = UnitHealth(unit), UnitHealthMax(unit)
     if not (cur and max and max > 0) then return end
     local pct = math.floor(cur / max * 100 + 0.5)
-    local function fs(field, suffix)
-        return bar[field] or (bar.GetName and _G[(bar:GetName() or "") .. suffix])
+    -- The text regions of a bar never change identity, and this runs inside
+    -- the busiest text hook in the addon -- resolving them through a fresh
+    -- closure and _G[name..suffix] lookups on every call was the hottest
+    -- allocation the perf sweep found (26.08.2026). Resolved once per bar.
+    if not bar._vcuiTextResolved then
+        bar._vcuiTextResolved = true
+        local name = (bar.GetName and bar:GetName()) or ""
+        bar._vcuiLeftT  = bar.LeftText   or _G[name .. "LeftText"]
+        bar._vcuiRightT = bar.RightText  or _G[name .. "RightText"]
+        bar._vcuiTS     = bar.TextString or _G[name .. "TextString"]
     end
-    local left, right, ts = fs("LeftText", "LeftText"), fs("RightText", "RightText"), fs("TextString", "TextString")
+    local left, right, ts = bar._vcuiLeftT, bar._vcuiRightT, bar._vcuiTS
     if left and right then
         left:SetText(pct .. "%");   left:Show()
         right:SetText(abbrev(cur)); right:Show()

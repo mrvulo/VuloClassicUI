@@ -443,12 +443,17 @@ local function isPlayerGUID(guid)
 end
 
 -- Per-(event, spell) throttle: raid-wide buffs would otherwise flood the pool.
+-- Nested tables, not a concatenated key: the key string was built on every
+-- qualifying combat log line, throttled or not (perf sweep 26.08.2026).
 local _lastRich = {}
 local function throttled(eventKey, spellId)
-    local k = eventKey .. ":" .. (spellId or 0)
+    local byEvent = _lastRich[eventKey]
+    if not byEvent then byEvent = {}; _lastRich[eventKey] = byEvent end
+    local id = spellId or 0
     local now = GetTime()
-    if _lastRich[k] and (now - _lastRich[k]) < 2 then return true end
-    _lastRich[k] = now
+    local last = byEvent[id]
+    if last and (now - last) < 2 then return true end
+    byEvent[id] = now
     return false
 end
 
@@ -464,16 +469,21 @@ local function deathThrottled()
     return false
 end
 
--- GUID -> group unit token (nil if not in our party/raid).
+-- GUID -> group unit token (nil if not in our party/raid). The token strings
+-- are fixed, so they are built once -- the old `"raid" .. i` walk allocated
+-- forty fresh strings per checked death (perf sweep 26.08.2026).
+local RAID_UNITS, PARTY_UNITS = {}, {}
+for i = 1, 40 do RAID_UNITS[i] = "raid" .. i end
+for i = 1, 4 do PARTY_UNITS[i] = "party" .. i end
 local function groupUnitByGUID(guid)
     if IsInRaid and IsInRaid() then
         for i = 1, 40 do
-            local u = "raid" .. i
+            local u = RAID_UNITS[i]
             if UnitExists(u) and UnitGUID(u) == guid then return u end
         end
     else
         for i = 1, 4 do
-            local u = "party" .. i
+            local u = PARTY_UNITS[i]
             if UnitExists(u) and UnitGUID(u) == guid then return u end
         end
     end

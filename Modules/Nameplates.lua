@@ -957,11 +957,14 @@ local function fmtShortNum(v)
 end
 
 -- Unshortened values read in groups of three (7,400), like the reference row
--- the user pointed at. The double reverse puts the commas from the right; the
--- final gsub strips the leading comma a 3/6/9-digit value would keep.
+-- the user pointed at. Arithmetic instead of the old reverse/gsub/reverse
+-- chain: that built ~five intermediate strings per plate per health tick
+-- (perf sweep 26.08.2026); this builds one. Three tiers cover every health
+-- value this game produces.
 local function fmtGroupNum(v)
-    local g = tostring(v):reverse():gsub("(%d%d%d)", "%1,"):reverse()
-    return (g:gsub("^,", ""))
+    if v < 1000 then return tostring(v) end
+    if v < 1000000 then return format("%d,%03d", floor(v / 1000), v % 1000) end
+    return format("%d,%03d,%03d", floor(v / 1000000), floor(v / 1000) % 1000, v % 1000)
 end
 
 local function healthTextString(d, cur, max)
@@ -981,8 +984,41 @@ local function healthTextString(d, cur, max)
 end
 
 -- OnUpdate lives on the health bar; the plate root's OnUpdate belongs to the cast bar.
+-- ONE shared handler for every smoothing bar: a fresh closure per health
+-- change was one allocation per damage tick per plate (perf sweep 26.08.2026).
+-- The bar carries its plate as a back-reference; plates are pooled, so the
+-- pairing is stable for the bar's lifetime.
+local function smoothOnUpdate(bar, e)
+    local f = bar._vcuiPlate
+    if not f then bar:SetScript("OnUpdate", nil); return end
+    local goal = f._hGoal or 0
+    f._hShow = f._hShow + (goal - f._hShow) * math.min(1, (e or 0) * 14)
+    if math.abs(goal - f._hShow) < 0.5 then
+        f._hShow = goal
+        bar:SetScript("OnUpdate", nil)
+        if f.cutaway then f.cutaway:Hide() end
+    end
+    bar:SetValue(f._hShow)
+    local ct = f.cutaway
+    if ct then
+        local _, mx = bar:GetMinMaxValues()
+        local w = bar:GetWidth() or 0
+        if f._hShow > goal + 0.5 and mx > 0 and w > 0 then
+            local a = goal / mx
+            ct:ClearAllPoints()
+            ct:SetPoint("TOPLEFT", bar, "TOPLEFT", w * a, 0)
+            ct:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", w * a, 0)
+            ct:SetWidth(math.max(1, w * (f._hShow / mx - a)))
+            ct:Show()
+        else
+            ct:Hide()
+        end
+    end
+end
+
 local function smoothHealthTo(f, cur)
     local hb = f.health
+    hb._vcuiPlate = f
     f._hGoal = cur
     if f._hShow == nil or math.abs(f._hShow - cur) < 0.5 then
         f._hShow = cur
@@ -991,31 +1027,7 @@ local function smoothHealthTo(f, cur)
         if f.cutaway then f.cutaway:Hide() end
         return
     end
-    hb:SetScript("OnUpdate", function(bar, e)
-        local goal = f._hGoal or 0
-        f._hShow = f._hShow + (goal - f._hShow) * math.min(1, (e or 0) * 14)
-        if math.abs(goal - f._hShow) < 0.5 then
-            f._hShow = goal
-            bar:SetScript("OnUpdate", nil)
-            if f.cutaway then f.cutaway:Hide() end
-        end
-        bar:SetValue(f._hShow)
-        local ct = f.cutaway
-        if ct then
-            local _, mx = bar:GetMinMaxValues()
-            local w = bar:GetWidth() or 0
-            if f._hShow > goal + 0.5 and mx > 0 and w > 0 then
-                local a = goal / mx
-                ct:ClearAllPoints()
-                ct:SetPoint("TOPLEFT", bar, "TOPLEFT", w * a, 0)
-                ct:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", w * a, 0)
-                ct:SetWidth(math.max(1, w * (f._hShow / mx - a)))
-                ct:Show()
-            else
-                ct:Hide()
-            end
-        end
-    end)
+    hb:SetScript("OnUpdate", smoothOnUpdate)
 end
 
 -- Glow pinned to the fill edge and tinted with the bar colour. Anchoring to the
@@ -2904,6 +2916,25 @@ local function onComboUpdate(_, unit)
     updateAllComboPips()
 end
 
+-- Own frame so the register can be UNIT-FILTERED: the broad register put every
+-- group member's mana tick through the dispatcher for a handler that only ever
+-- wanted the player (perf sweep 26.08.2026). Falls back to the broad register
+-- where RegisterUnitEvent is missing; unregistered in OnDisable.
+local comboEvents
+local function registerComboEvents()
+    local _, playerClass = UnitClass("player")
+    if playerClass ~= "ROGUE" and playerClass ~= "DRUID" then return end
+    if not comboEvents then
+        comboEvents = CreateFrame("Frame")
+        comboEvents:SetScript("OnEvent", function(_, _, unit) onComboUpdate(nil, unit) end)
+    end
+    if comboEvents.RegisterUnitEvent then
+        comboEvents:RegisterUnitEvent("UNIT_POWER_UPDATE", "player")
+    else
+        mod:RegisterEvent("UNIT_POWER_UPDATE", onComboUpdate)
+    end
+end
+
 local previewFrame
 
 local PREVIEW_CTX = {
@@ -3363,7 +3394,7 @@ function mod:OnEnable()
     mod:RegisterEvent("PLAYER_TARGET_CHANGED", onTargetChanged)
     mod:RegisterEvent("PLAYER_FOCUS_CHANGED", updateAllFocus)
     mod:RegisterEvent("RAID_TARGET_UPDATE", onRaidTargetUpdate)
-    mod:RegisterEvent("UNIT_POWER_UPDATE", onComboUpdate)
+    registerComboEvents()
     mod:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", onCombatLogEvent)
     if C_NamePlate and C_NamePlate.GetNamePlates then
         for _, p in ipairs(C_NamePlate.GetNamePlates()) do
@@ -3375,6 +3406,8 @@ end
 
 function mod:OnDisable()
     if hoverTicker then hoverTicker:Hide() end
+    -- the combo frame is private, so the module's event sweep does not cover it
+    if comboEvents then comboEvents:UnregisterAllEvents() end
     for unit in pairs(ns.plates) do onPlateRemoved(nil, unit) end
     restoreHitbox()
     if C_NamePlate and C_NamePlate.GetNamePlates then

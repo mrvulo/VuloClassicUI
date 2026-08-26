@@ -455,13 +455,24 @@ local buildSidebar, rebuildSidebar, applySidebarWidth
 
 -- Everything that RENDERS iterates visibleBags(); sorting + the Recent baseline use BAGS.
 local KEYRING = _G.KEYRING_CONTAINER or -2
+-- Cached: the list changes only when a bag is toggled in the menu below or the
+-- profile swaps (db identity check) -- yet a fresh table was built on every
+-- call, several times per refresh, on every loot burst (perf sweep
+-- 26.08.2026). Callers iterate immediately and never keep the table.
+local _visBags, _visDirty, _visSrc = {}, true, nil
 local function visibleBags()
-    local out, hidden = {}, (mod.db and mod.db.hiddenBags) or {}
-    for _, bag in ipairs(BAGS) do
-        if not hidden[bag] then out[#out + 1] = bag end
+    if _visDirty or _visSrc ~= mod.db then
+        _visDirty, _visSrc = false, mod.db
+        wipe(_visBags)
+        local hidden = (mod.db and mod.db.hiddenBags) or {}
+        for _, bag in ipairs(BAGS) do
+            if not hidden[bag] then _visBags[#_visBags + 1] = bag end
+        end
+        if mod.db and mod.db.showKeyring and not hidden[KEYRING] then
+            _visBags[#_visBags + 1] = KEYRING
+        end
     end
-    if mod.db and mod.db.showKeyring and not hidden[KEYRING] then out[#out + 1] = KEYRING end
-    return out
+    return _visBags
 end
 
 local function bagDisplayName(bag)
@@ -765,9 +776,18 @@ function ns.BagsPaintContainerButton(btn, bag, slot, db, cache)
     SetItemButtonCount(btn, count)
     SetItemButtonDesaturated(btn, locked)
 
-    local ng = btn.NewItemTexture or _G[btn:GetName() .. "NewItemTexture"]
+    -- Region identities never change on a pooled button; the name concats ran
+    -- per button per repaint, hundreds of strings per bag refresh (perf sweep
+    -- 26.08.2026). Resolved once per button; false marks "looked, not there".
+    if btn._vcuiNewTex == nil then
+        local name = btn.GetName and btn:GetName()
+        btn._vcuiNewTex = btn.NewItemTexture or (name and _G[name .. "NewItemTexture"]) or false
+        btn._vcuiBpTex  = btn.BattlepayItemTexture or (name and _G[name .. "BattlepayItemTexture"]) or false
+        btn._vcuiCd     = (name and _G[name .. "Cooldown"]) or false
+    end
+    local ng = btn._vcuiNewTex
     if ng and ng:IsShown() then ng:Hide() end
-    local bp = btn.BattlepayItemTexture or _G[btn:GetName() .. "BattlepayItemTexture"]
+    local bp = btn._vcuiBpTex
     if bp and bp:IsShown() then bp:Hide() end
 
     ns.BagsPaintQuality(btn, quality, link)
@@ -795,7 +815,7 @@ function ns.BagsPaintContainerButton(btn, bag, slot, db, cache)
         qb:Hide()
     end
 
-    local cd = _G[btn:GetName() .. "Cooldown"]
+    local cd = btn._vcuiCd
     if cd then
         local start, dur, enable = GetContainerItemCooldown(bag, slot)
         if start and dur and dur > 0 then
@@ -1949,9 +1969,11 @@ local function buildFrame()
             if mouseButton == "RightButton" then return end
             if b == KEYRING then
                 mod.db.showKeyring = not mod.db.showKeyring
+                _visDirty = true
             else
                 mod.db.hiddenBags = mod.db.hiddenBags or {}
                 mod.db.hiddenBags[b] = not mod.db.hiddenBags[b] or nil
+                _visDirty = true
             end
             f.updateBagBar()
             refresh()

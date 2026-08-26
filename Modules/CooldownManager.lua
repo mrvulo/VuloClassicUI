@@ -478,8 +478,27 @@ end
 -- still allocates nothing after the first sighting of a key.
 local scans = {}
 
+-- Interned "unit|filter" keys plus their decomposition: the 10 Hz ticker used
+-- to concatenate the key on every scanFor call and match() it apart again in
+-- refreshAll -- a handful of fresh strings per visible group, ten times a
+-- second, all session (perf sweep 26.08.2026). After the first sighting of a
+-- pair, no string is ever built again.
+local scanKeys = {}                 -- scanKeys[unit][filter] = key
+local keyUnit, keyFilter = {}, {}   -- key -> parts, for refreshAll's loop
+local function scanKey(unit, filter)
+    local byUnit = scanKeys[unit]
+    if not byUnit then byUnit = {}; scanKeys[unit] = byUnit end
+    local key = byUnit[filter]
+    if not key then
+        key = unit .. "|" .. filter
+        byUnit[filter] = key
+        keyUnit[key], keyFilter[key] = unit, filter
+    end
+    return key
+end
+
 local function scanFor(unit, filter)
-    local key = unit .. "|" .. filter
+    local key = scanKey(unit, filter)
     local s = scans[key]
     if not s then s = { byName = {}, byID = {}, pool = {} }; scans[key] = s end
     return s
@@ -545,8 +564,14 @@ local function groupSource(group)
     local mode = group.mode
     local harmful = (mode == "targetdebuff")
     local unit = group.auraUnit or (harmful and "target" or "player")
-    local filter = harmful and "HARMFUL" or "HELPFUL"
-    if not groupNeedsLoose(group) then filter = filter .. "|PLAYER" end
+    -- literals, not `.. "|PLAYER"`: this runs per group per 0.1s tick and the
+    -- four possible values are known
+    local filter
+    if groupNeedsLoose(group) then
+        filter = harmful and "HARMFUL" or "HELPFUL"
+    else
+        filter = harmful and "HARMFUL|PLAYER" or "HELPFUL|PLAYER"
+    end
     return unit, filter
 end
 
@@ -1612,18 +1637,20 @@ refreshAll = function()
         if vis and hasWork then
             if g.mode == "aura" or g.mode == "missing" or g.mode == "targetdebuff" then
                 local unit, filter = groupSource(g)
-                wantedScans[unit .. "|" .. filter] = true
+                wantedScans[scanKey(unit, filter)] = true
             end
             -- the stack number on a cooldown icon reads the player's own
             -- auras, and so do the custom glow watchers
             if g.showStacks or groupHasGlows(g) then
-                wantedScans["player|HELPFUL"] = true
+                wantedScans[scanKey("player", "HELPFUL")] = true
             end
         end
     end
+    -- keys come interned from scanKey, so the parts are table lookups, not a
+    -- match() that builds two fresh strings per key per tick
     for key in pairs(wantedScans) do
-        local unit, filter = key:match("^([^|]+)|(.+)$")
-        if unit then runScan(unit, filter) end
+        local unit = keyUnit[key]
+        if unit then runScan(unit, keyFilter[key]) end
     end
 
     for i, group in ipairs(groups) do

@@ -967,6 +967,11 @@ local function suppressed()
     return false
 end
 
+-- Containers for the pass below, allocated once; the pass runs on a two-second
+-- clock for the whole session.
+local _ctx, _hits, _shown = {}, {}, {}
+local function byPriorityDesc(a, b) return a.priority > b.priority end
+
 local function evaluate()
     -- The options-page preview rides the same refresh path, BEFORE any of the
     -- early returns: it must follow setting changes even while the module is
@@ -981,8 +986,14 @@ local function evaluate()
     scanPlayerAuras()
     if suppressed() then hideAll(); return end
 
-    local ctx = { class = select(2, UnitClass("player")) }
-    local now, hits = GetTime(), {}
+    -- Reused containers: this pass runs every two seconds for the whole
+    -- session, and ctx/hits/shown plus the sort comparator were fresh
+    -- allocations each time (perf sweep 26.08.2026). layout and the cursor
+    -- row copy field-by-field onto pooled frames and keep no reference.
+    wipe(_ctx); wipe(_hits)
+    local ctx = _ctx
+    ctx.class = select(2, UnitClass("player"))
+    local now, hits = GetTime(), _hits
 
     for _, r in ipairs(RULES) do
         -- Category switch first, then the per-rule switch under it; a rule
@@ -1014,12 +1025,13 @@ local function evaluate()
     end
 
     if #hits == 0 then hideAll(); return end
-    table.sort(hits, function(a, b) return a.priority > b.priority end)
+    table.sort(hits, byPriorityDesc)
 
     local cap = math.min(mod.db.maxIcons or 4, POOL_SIZE)
     local shown, extra = hits, 0
     if #hits > cap then
-        shown = {}
+        wipe(_shown)
+        shown = _shown
         for i = 1, cap do shown[i] = hits[i] end
         extra = #hits - cap
     end
@@ -1028,11 +1040,12 @@ local function evaluate()
 end
 
 local queued = false
+local function runQueuedRefresh() queued = false; evaluate() end
 local function requestRefresh()
     if queued then return end
     queued = true
     if C_Timer and C_Timer.After then
-        C_Timer.After(0.2, function() queued = false; evaluate() end)
+        C_Timer.After(0.2, runQueuedRefresh)
     else
         queued = false
         evaluate()
