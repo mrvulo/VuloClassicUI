@@ -100,23 +100,40 @@ local function itemVariant(link)
     return (f[2] or "") .. ":" .. (f[8] or "")
 end
 
--- The exact variant wins; an id match is kept as a fallback so nothing that was
--- found before is reported missing now. Only the fallback path pays for reading
--- the link, and only for slots whose id already matched.
-local function findItemInBags(targetItemID, wantVariant)
+-- Includes enchant and gems so two copies of the same item can be told apart
+-- when their enhancements differ. The unique id is deliberately excluded for
+-- the same reason itemVariant excludes it.
+local function itemExact(link)
+    if not link then return nil end
+    local s = link:match("item[%-?%d:]+")
+    if not s then return nil end
+    local f = { strsplit(":", s) }
+    return (f[2] or "") .. ":" .. (f[3] or "") .. ":" .. (f[4] or "") .. ":"
+        .. (f[5] or "") .. ":" .. (f[6] or "") .. ":" .. (f[7] or "") .. ":" .. (f[8] or "")
+end
+
+-- The exact match wins; a variant match is kept before the id fallback so two
+-- copies can be distinguished without making a changed single copy missing.
+local function findItemInBags(targetItemID, wantVariant, wantExact)
     if not GetContainerItemID or not GetContainerNumSlots then return nil end
     local anyBag, anySlot
+    local variantBag, variantSlot
     for bag = 0, (NUM_BAG_SLOTS or 4) do
         local slots = GetContainerNumSlots(bag) or 0
         for slot = 1, slots do
             if GetContainerItemID(bag, slot) == targetItemID then
-                if not wantVariant then return bag, slot end
+                if not wantVariant and not wantExact then return bag, slot end
                 local l = GetContainerItemLink and GetContainerItemLink(bag, slot)
-                if itemVariant(l) == wantVariant then return bag, slot end
-                if not anyBag then anyBag, anySlot = bag, slot end
+                if wantExact and itemExact(l) == wantExact then return bag, slot end
+                if wantVariant and itemVariant(l) == wantVariant then
+                    if not variantBag then variantBag, variantSlot = bag, slot end
+                elseif not variantBag and not anyBag then
+                    anyBag, anySlot = bag, slot
+                end
             end
         end
     end
+    if variantBag then return variantBag, variantSlot end
     return anyBag, anySlot
 end
 
@@ -143,19 +160,25 @@ end
 -- on the EVENT, not on BankFrame:IsShown() -- the bank module hides Blizzard's
 -- window and puts its own up, while the session that makes the containers
 -- readable runs from BANKFRAME_OPENED to BANKFRAME_CLOSED either way.
-local function findItemInBank(targetItemID, wantVariant)
+local function findItemInBank(targetItemID, wantVariant, wantExact)
     if not (_bankOpen and GetContainerItemID and GetContainerNumSlots) then return nil end
     local anyBag, anySlot
+    local variantBag, variantSlot
     for _, bag in ipairs(bankBagList()) do
         for slot = 1, (GetContainerNumSlots(bag) or 0) do
             if GetContainerItemID(bag, slot) == targetItemID then
-                if not wantVariant then return bag, slot end
+                if not wantVariant and not wantExact then return bag, slot end
                 local l = GetContainerItemLink and GetContainerItemLink(bag, slot)
-                if itemVariant(l) == wantVariant then return bag, slot end
-                if not anyBag then anyBag, anySlot = bag, slot end
+                if wantExact and itemExact(l) == wantExact then return bag, slot end
+                if wantVariant and itemVariant(l) == wantVariant then
+                    if not variantBag then variantBag, variantSlot = bag, slot end
+                elseif not variantBag and not anyBag then
+                    anyBag, anySlot = bag, slot
+                end
             end
         end
     end
+    if variantBag then return variantBag, variantSlot end
     return anyBag, anySlot
 end
 
@@ -517,7 +540,13 @@ local function equipLoadout(name)
         -- same physical item does not keep, so the comparison said "different"
         -- for the very item the set meant and re-equipped it for nothing.
         local want = itemVariant(link)
-        if itemVariant(currentLink) ~= want then
+        local wantExact = itemExact(link)
+        local needSwap = itemVariant(currentLink) ~= want
+        local exactOnly = false
+        if not needSwap and wantExact and itemExact(currentLink) ~= wantExact then
+            needSwap, exactOnly = true, true -- right id+suffix on the body, wrong gems/enchant
+        end
+        if needSwap then
             local itemID = getItemIDFromLink(link)
             if itemID then
                 -- The bags first, then the bank -- and the bank only while it is
@@ -528,13 +557,21 @@ local function equipLoadout(name)
                 -- server really allows that out of a BANK slot is measured now
                 -- rather than assumed: tried in the game on 06.08.2026, it
                 -- equips. No detour over the bags is needed, so none is built.
-                local bag, bagSlot = findItemInBags(itemID, want)
+                local bag, bagSlot = findItemInBags(itemID, want, wantExact)
                 local viaBank = false
                 if not bag then
-                    bag, bagSlot = findItemInBank(itemID, want)
+                    bag, bagSlot = findItemInBank(itemID, want, wantExact)
                     viaBank = bag and true or false
                 end
-                if bag and bagSlot then
+                local usable = bag and bagSlot
+                if exactOnly and usable then
+                    local foundLink = GetContainerItemLink and GetContainerItemLink(bag, bagSlot)
+                    if itemExact(foundLink) ~= wantExact then
+                        -- The equipped piece is the set's piece, only regemmed; without an exact copy, leave it alone and report nothing.
+                        usable = false
+                    end
+                end
+                if usable then
                     local ok = ns:EquipBagItemToSlot(bag, bagSlot, slot)
                     -- The fallback is for BAG slots only. On a bank slot
                     -- UseContainerItem does not equip anything -- it MOVES the
@@ -550,7 +587,7 @@ local function equipLoadout(name)
                     else
                         missing = missing + 1; failedLinks[#failedLinks + 1] = link
                     end
-                else
+                elseif not exactOnly then
                     missing = missing + 1
                     failedLinks[#failedLinks + 1] = link
                 end
