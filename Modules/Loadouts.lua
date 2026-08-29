@@ -1336,7 +1336,9 @@ local _iconPicker
 local _iconBtns = {}
 local ICON_SIZE = 30
 local ICON_COLS = 6
+local ICON_ROWS = 8
 local ICON_PAD  = 3
+local _iconScroll = 0
 
 local GENERIC_ICONS = {
     "Interface\\Icons\\Spell_Holy_PowerWordShield",
@@ -1355,6 +1357,42 @@ local GENERIC_ICONS = {
     "Interface\\Icons\\Achievement_PVP_A_A",
 }
 
+local _libraryIcons
+
+-- The client's full macro icon library, built once the way Blizzard's own
+-- icon provider does it (loose string paths first, then numeric file ids;
+-- both are valid SetTexture arguments and valid table keys for the dedupe).
+-- Bare loose filenames carry no folder, so they get the icons path put on.
+local function libraryIcons()
+    if _libraryIcons then return _libraryIcons end
+    if not GetMacroIcons or not GetMacroItemIcons then
+        _libraryIcons = {}
+        return _libraryIcons
+    end
+
+    local t1, t2 = {}, {}
+    if GetLooseMacroIcons then GetLooseMacroIcons(t1) end
+    GetMacroIcons(t1)
+    if GetLooseMacroItemIcons then GetLooseMacroItemIcons(t2) end
+    if GetMacroItemIcons then GetMacroItemIcons(t2) end
+
+    local prefix = "Interface\\Icons\\"
+    local seen = {}
+    _libraryIcons = {}
+    for _, source in ipairs({ t1, t2 }) do
+        for _, v in ipairs(source) do
+            if type(v) == "string" and not v:find("\\", 1, true) then
+                v = prefix .. v
+            end
+            if not seen[v] then
+                seen[v] = true
+                table.insert(_libraryIcons, v)
+            end
+        end
+    end
+    return _libraryIcons
+end
+
 local function getIconPickerButton(idx)
     local b = _iconBtns[idx]
     if b then return b end
@@ -1371,7 +1409,46 @@ local function getIconPickerButton(idx)
     return b
 end
 
+-- Fixed window of ICON_COLS x ICON_ROWS pooled buttons over the icon list at
+-- the current wheel offset -- the library holds thousands of entries, so the
+-- pool never grows past one view and scrolling only remaps textures.
+local function layoutIconPicker()
+    local icons = _iconPicker._icons
+    local inset = _iconPicker._inset
+    local hover = _iconPicker._hoverColor
+    local startY = _iconPicker._startY
+
+    for cell = 1, ICON_COLS * ICON_ROWS do
+        local col = (cell - 1) % ICON_COLS
+        local visRow = math.floor((cell - 1) / ICON_COLS)
+        local srcIndex = (visRow + _iconScroll) * ICON_COLS + col + 1
+        local entry = icons[srcIndex]
+        local b = getIconPickerButton(cell)
+        if entry then
+            b.hl:SetColorTexture(hover[1], hover[2], hover[3], hover[4])
+            b:Show()
+            if entry.isAuto then
+                b.tex:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+                b.tex:SetVertexColor(0.7, 0.7, 0.7)
+                b._iconValue = nil
+            else
+                b.tex:SetTexture(entry.tex)
+                b.tex:SetVertexColor(1, 1, 1)
+                b._iconValue = entry.tex
+            end
+            b:SetScript("OnClick", _iconPicker.onSwatchClick)
+            b:ClearAllPoints()
+            b:SetPoint("TOPLEFT", _iconPicker, "TOPLEFT",
+                6 + inset + col * (ICON_SIZE + ICON_PAD),
+                -(startY + inset + visRow * (ICON_SIZE + ICON_PAD)))
+        else
+            b:Hide()
+        end
+    end
+end
+
 local function showIconPicker(loadoutName, anchor)
+    _iconScroll = 0
     local loadout = LO()[loadoutName]
     if not loadout then return end
 
@@ -1422,6 +1499,19 @@ local function showIconPicker(loadoutName, anchor)
             _iconPicker:Hide()
             refreshSidebar()
         end
+
+        _iconPicker:EnableMouseWheel(true)
+        _iconPicker:SetScript("OnMouseWheel", function(_, delta)
+            local icons = _iconPicker._icons or {}
+            local maxRow = math.max(0, math.ceil(#icons / ICON_COLS) - ICON_ROWS)
+            _iconScroll = _iconScroll - delta * 3
+            if _iconScroll < 0 then
+                _iconScroll = 0
+            elseif _iconScroll > maxRow then
+                _iconScroll = maxRow
+            end
+            layoutIconPicker()
+        end)
     end
 
     -- Which set the swatches write to. One picker, one set at a time.
@@ -1470,6 +1560,12 @@ local function showIconPicker(loadoutName, anchor)
             table.insert(icons, { tex = ic })
         end
     end
+    for _, ic in ipairs(libraryIcons()) do
+        if not seen[ic] then
+            seen[ic] = true
+            table.insert(icons, { tex = ic })
+        end
+    end
 
     for _, b in ipairs(_iconBtns) do b:Hide() end
 
@@ -1479,31 +1575,16 @@ local function showIconPicker(loadoutName, anchor)
     if sidebarClassic() then hoverR, hoverG, hoverB, hoverA = 0.42, 0.34, 0.12, 0.40 end
 
     local startY = 24
-    for i, entry in ipairs(icons) do
-        local b = getIconPickerButton(i)
-        b.hl:SetColorTexture(hoverR, hoverG, hoverB, hoverA)
-        b:Show()
-        if entry.isAuto then
-            b.tex:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
-            b.tex:SetVertexColor(0.7, 0.7, 0.7)
-            b._iconValue = nil
-        else
-            b.tex:SetTexture(entry.tex)
-            b.tex:SetVertexColor(1, 1, 1)
-            b._iconValue = entry.tex
-        end
-        b:SetScript("OnClick", _iconPicker.onSwatchClick)
-        local col = (i - 1) % ICON_COLS
-        local row = math.floor((i - 1) / ICON_COLS)
-        b:ClearAllPoints()
-        b:SetPoint("TOPLEFT", _iconPicker, "TOPLEFT",
-            6 + inset + col * (ICON_SIZE + ICON_PAD),
-            -(startY + inset + row * (ICON_SIZE + ICON_PAD)))
-    end
+    _iconPicker._icons = icons
+    _iconPicker._inset = inset
+    _iconPicker._hoverColor = { hoverR, hoverG, hoverB, hoverA }
+    _iconPicker._startY = startY
+    layoutIconPicker()
 
     -- The window GROWS by the frame it wears instead of losing the room to it:
     -- the six columns have to fit either way.
     local numRows = math.ceil(#icons / ICON_COLS)
+    if #icons > ICON_COLS * ICON_ROWS then numRows = ICON_ROWS end
     _iconPicker:SetSize(
         ICON_COLS * (ICON_SIZE + ICON_PAD) + 12 + inset * 2,
         startY + numRows * (ICON_SIZE + ICON_PAD) + 8 + inset * 2)
