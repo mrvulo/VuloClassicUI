@@ -3649,4 +3649,10 @@ ns:RegisterLocale("koKR", function() return {
     ["The XP block renders a real progress bar with the rested bonus overlaid, and a right-click switches it to the tracked reputation."] = "경험치 블록은 휴식 보너스가 겹쳐진 진짜 진행 막대를 그리며, 오른쪽 클릭으로 추적 중인 평판으로 전환됩니다.",
     ["The micro menu opens the spellbook, talents and friends through the game's own buttons, so it works safely in combat and never blocks spell casting."] = "마이크로 메뉴는 게임 자체 버튼을 통해 마법책, 특성, 친구 창을 열기 때문에 전투 중에도 안전하게 작동하고 주문 시전을 방해하지 않습니다.",
     ["The module ships disabled: switch it on under HUD in the options window."] = "이 모듈은 꺼진 상태로 제공됩니다. 옵션 창의 HUD에서 켜세요.",
+-- Resistance verdict
+["Resists on average %d%% of matching spell damage against boss enemies."] = "우두머리를 상대로 해당 계열 주문 피해의 평균 %d%%에 저항합니다.",
+["Decent"] = "준수함",
+["Good"] = "좋음",
+["Very good"] = "매우 좋음",
+["Maximum"] = "최대",
 } end)

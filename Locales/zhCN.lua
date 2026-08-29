@@ -3642,4 +3642,10 @@ ns:RegisterLocale("zhCN", function() return {
     ["The XP block renders a real progress bar with the rested bonus overlaid, and a right-click switches it to the tracked reputation."] = "经验区块绘制真正的进度条并叠加休息加成，右键点击可切换到追踪中的声望。",
     ["The micro menu opens the spellbook, talents and friends through the game's own buttons, so it works safely in combat and never blocks spell casting."] = "微型菜单通过游戏自带的按钮打开法术书、天赋和好友界面，因此在战斗中也能安全使用，绝不会妨碍施法。",
     ["The module ships disabled: switch it on under HUD in the options window."] = "该模块默认关闭：请在选项窗口的 HUD 分类下开启。",
+-- Resistance verdict
+["Resists on average %d%% of matching spell damage against boss enemies."] = "对首领敌人平均抵抗 %d%% 的对应法术伤害。",
+["Decent"] = "尚可",
+["Good"] = "良好",
+["Very good"] = "很好",
+["Maximum"] = "上限",
 } end)

@@ -3649,4 +3649,10 @@ ns:RegisterLocale("itIT", function() return {
     ["The XP block renders a real progress bar with the rested bonus overlaid, and a right-click switches it to the tracked reputation."] = "Il blocco dei PE disegna una vera barra di avanzamento con il bonus riposo sovrapposto, e un clic destro lo passa alla reputazione seguita.",
     ["The micro menu opens the spellbook, talents and friends through the game's own buttons, so it works safely in combat and never blocks spell casting."] = "Il micromenu apre libro degli incantesimi, talenti e amici tramite i pulsanti del gioco stesso, quindi funziona in sicurezza in combattimento e non blocca mai il lancio degli incantesimi.",
     ["The module ships disabled: switch it on under HUD in the options window."] = "Il modulo arriva disattivato: attivalo sotto HUD nella finestra delle opzioni.",
+-- Resistance verdict
+["Resists on average %d%% of matching spell damage against boss enemies."] = "Resiste in media al %d%% dei danni da incantesimo corrispondenti contro i boss.",
+["Decent"] = "Discreto",
+["Good"] = "Buono",
+["Very good"] = "Molto buono",
+["Maximum"] = "Massimo",
 } end)

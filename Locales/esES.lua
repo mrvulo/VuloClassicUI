@@ -3650,6 +3650,12 @@ local function T() return {
     ["The XP block renders a real progress bar with the rested bonus overlaid, and a right-click switches it to the tracked reputation."] = "El bloque de EXP dibuja una barra de progreso real con la bonificación de descanso superpuesta, y un clic derecho lo cambia a la reputación seguida.",
     ["The micro menu opens the spellbook, talents and friends through the game's own buttons, so it works safely in combat and never blocks spell casting."] = "El micromenú abre el libro de hechizos, los talentos y los amigos mediante los propios botones del juego, así que funciona con seguridad en combate y nunca bloquea el lanzamiento de hechizos.",
     ["The module ships disabled: switch it on under HUD in the options window."] = "El módulo viene desactivado: actívalo en HUD dentro de la ventana de opciones.",
+-- Resistance verdict
+["Resists on average %d%% of matching spell damage against boss enemies."] = "Resiste de media un %d%% del daño de hechizos correspondiente contra jefes.",
+["Decent"] = "Aceptable",
+["Good"] = "Bueno",
+["Very good"] = "Muy bueno",
+["Maximum"] = "Máximo",
 } end
 
 ns:RegisterLocale("esES", T)

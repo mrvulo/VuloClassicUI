@@ -3649,4 +3649,10 @@ ns:RegisterLocale("ptBR", function() return {
     ["The XP block renders a real progress bar with the rested bonus overlaid, and a right-click switches it to the tracked reputation."] = "O bloco de XP desenha uma barra de progresso de verdade com o bônus de descanso sobreposto, e um clique direito o alterna para a reputação acompanhada.",
     ["The micro menu opens the spellbook, talents and friends through the game's own buttons, so it works safely in combat and never blocks spell casting."] = "O micromenu abre o livro de feitiços, os talentos e os amigos pelos próprios botões do jogo, então funciona com segurança em combate e nunca bloqueia a conjuração.",
     ["The module ships disabled: switch it on under HUD in the options window."] = "O módulo vem desativado: ligue-o em HUD na janela de opções.",
+-- Resistance verdict
+["Resists on average %d%% of matching spell damage against boss enemies."] = "Resiste em média a %d%% do dano de feitiços correspondente contra chefes.",
+["Decent"] = "Razoável",
+["Good"] = "Bom",
+["Very good"] = "Muito bom",
+["Maximum"] = "Máximo",
 } end)

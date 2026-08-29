@@ -1400,9 +1400,29 @@ local function statBreak(i)
 end
 local function resBreak(school)
 	return function(tt)
-		local base, _, pos, neg = UnitResistance("player", school)
+		local base, total, pos, neg = UnitResistance("player", school)
 		tipLine(tt, L["Base"], tostring(base or 0))
 		bonusLine(tt, (pos or 0) + (neg or 0))
+		if (total or 0) > 0 then
+			local lvl = UnitLevel("player") or 70
+			-- TBC average resist = R / (5 x attacker level), capped at 75%; boss = player level + 3
+			local pct = math.min(75, total / (5 * (lvl + 3)) * 100)
+			tt:AddLine(string.format(L["Resists on average %d%% of matching spell damage against boss enemies."], pct), 0.85, 0.85, 0.9, true)
+			local frac = total / (3.75 * (lvl + 3))
+			local word, r, g, b
+			if frac < 0.25 then
+				word, r, g, b = "Low", 1, 0.4, 0.4
+			elseif frac < 0.5 then
+				word, r, g, b = "Decent", 1, 0.82, 0
+			elseif frac < 0.75 then
+				word, r, g, b = "Good", 0.6, 1, 0.4
+			elseif frac < 1 then
+				word, r, g, b = "Very good", 0.4, 1, 0.4
+			else
+				word, r, g, b = "Maximum", 1, 0.82, 0
+			end
+			tipLine(tt, L["Rating"], L[word], r, g, b)
+		end
 	end
 end
 local function apTip(tt)

@@ -3649,4 +3649,10 @@ ns:RegisterLocale("ruRU", function() return {
     ["The XP block renders a real progress bar with the rested bonus overlaid, and a right-click switches it to the tracked reputation."] = "Блок опыта рисует настоящую полосу прогресса с наложенным бонусом отдыха, а щелчок правой кнопкой переключает его на отслеживаемую репутацию.",
     ["The micro menu opens the spellbook, talents and friends through the game's own buttons, so it works safely in combat and never blocks spell casting."] = "Микроменю открывает книгу заклинаний, таланты и список друзей через собственные кнопки игры, поэтому безопасно работает в бою и никогда не мешает произнесению заклинаний.",
     ["The module ships disabled: switch it on under HUD in the options window."] = "Модуль поставляется выключенным: включите его в разделе HUD окна настроек.",
+-- Resistance verdict
+["Resists on average %d%% of matching spell damage against boss enemies."] = "В среднем сопротивляется %d%% урона от заклинаний этой школы против боссов.",
+["Decent"] = "Неплохо",
+["Good"] = "Хорошо",
+["Very good"] = "Очень хорошо",
+["Maximum"] = "Максимум",
 } end)
