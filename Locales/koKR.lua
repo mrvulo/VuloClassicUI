@@ -3640,4 +3640,13 @@ ns:RegisterLocale("koKR", function() return {
 ["Custom length"] = "사용자 지정 길이",
 ["Even split"] = "균등 분배",
 
+    -- Patch notes 1.58.0
+    ["Trackbars"] = "Trackbars",
+    ["Trackbars – Build your own info bars from blocks: clock, gold, XP, latency, micro menu and more"] = "Trackbars – 시계, 골드, 경험치, 지연 시간, 마이크로 메뉴 등 블록으로 나만의 정보 막대를 만듭니다",
+    ["Bars are created from templates: start empty, a full-width info bar pinned to the top or bottom edge, a compact minimap companion, or a micro menu strip. Every bar stays fully editable afterwards."] = "막대는 양식에서 만들어집니다. 빈 막대로 시작하거나, 화면 위나 아래 가장자리에 붙는 전체 폭 정보 막대, 소형 미니맵 동반 막대, 마이크로 메뉴 막대 중에서 고를 수 있습니다. 어떤 막대든 만든 뒤에도 자유롭게 편집할 수 있습니다.",
+    ["Ten blocks to stack and order: clock, gold, XP and reputation, FPS, latency, durability, free bag slots, zone with coordinates, micro menu, and a spacer."] = "쌓고 정렬할 수 있는 블록 열 가지: 시계, 골드, 경험치와 평판, FPS, 지연 시간, 내구도, 남은 가방 칸, 좌표가 있는 지역, 마이크로 메뉴, 그리고 간격 블록입니다.",
+    ["The gold block tracks what the current session earned and spent, and its tooltip lists the gold of every character on the account, richest first."] = "골드 블록은 현재 세션의 수입과 지출을 기록하고, 툴팁에는 계정의 모든 캐릭터가 가진 골드가 부자 순으로 나열됩니다.",
+    ["The XP block renders a real progress bar with the rested bonus overlaid, and a right-click switches it to the tracked reputation."] = "경험치 블록은 휴식 보너스가 겹쳐진 진짜 진행 막대를 그리며, 오른쪽 클릭으로 추적 중인 평판으로 전환됩니다.",
+    ["The micro menu opens the spellbook, talents and friends through the game's own buttons, so it works safely in combat and never blocks spell casting."] = "마이크로 메뉴는 게임 자체 버튼을 통해 마법책, 특성, 친구 창을 열기 때문에 전투 중에도 안전하게 작동하고 주문 시전을 방해하지 않습니다.",
+    ["The module ships disabled: switch it on under HUD in the options window."] = "이 모듈은 꺼진 상태로 제공됩니다. 옵션 창의 HUD에서 켜세요.",
 } end)

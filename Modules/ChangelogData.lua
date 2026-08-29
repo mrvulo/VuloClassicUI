@@ -6,6 +6,17 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+    { version = "1.58.0", sections = {
+        { category = "Trackbars", lines = {
+            "NEW: Trackbars – Build your own info bars from blocks: clock, gold, XP, latency, micro menu and more",
+            "Bars are created from templates: start empty, a full-width info bar pinned to the top or bottom edge, a compact minimap companion, or a micro menu strip. Every bar stays fully editable afterwards.",
+            "Ten blocks to stack and order: clock, gold, XP and reputation, FPS, latency, durability, free bag slots, zone with coordinates, micro menu, and a spacer.",
+            "The gold block tracks what the current session earned and spent, and its tooltip lists the gold of every character on the account, richest first.",
+            "The XP block renders a real progress bar with the rested bonus overlaid, and a right-click switches it to the tracked reputation.",
+            "The micro menu opens the spellbook, talents and friends through the game's own buttons, so it works safely in combat and never blocks spell casting.",
+            "The module ships disabled: switch it on under HUD in the options window.",
+        } },
+    } },
     { version = "1.57.1", sections = {
         { category = "Action Bars", lines = {
             "The form-paging section shows up in Standard mode too. The switch itself already reached the standard main bar; the row that flips it was only drawn in Modern mode, so nobody running the standard bars could find it.",
@@ -580,29 +591,6 @@ ns.CHANGELOG = {
         { category = "Settings", lines = {
             "Sections no longer fold away. Long pages fold at the gear on a row instead, which says something a section expander never could: the rows behind it belong to the switch it sits on.",
             "Controls line up down a page now, and a switch sits in the middle of its row.",
-        } },
-    } },
-    { version = "1.40.0", sections = {
-        { category = "Bar Setups", lines = {
-            "Moved out of the sidebar into Global Settings, as its own tab beside Profiles. Your saved setups were kept.",
-            "They were stored once per class profile — seven copies of one macro library. Stored once now, which cut the settings file by a third. Identical copies are merged, ones that differ are kept side by side.",
-        } },
-        { category = "Fixes", lines = {
-            "The chat window no longer jumps back the moment you open the edit mode. Switching layouts re-anchors every window the game knows about, including ones we place ourselves.",
-            "A dropdown with a long entry no longer wraps into the row below it.",
-        } },
-        { category = "Overview", lines = {
-            "The first page is a picture of your interface instead of a second sidebar: modules running, frame time and memory, windows you moved, pages you last visited.",
-        } },
-        { category = "Settings", lines = {
-            "NEW: Talent Overrides – Named groups hold their own value for individual settings and apply when you switch talent specs",
-            "A group can also name a situation — raid, dungeon, arena, battleground, in a group, alone. Anything you change while a group is active is recorded into it, and every overridden row is marked.",
-            "Sliders are one row like every other setting, their number can be typed into, and labels line up in a measured column across the page. A long translation no longer pushes a value box into the next column or a button off its card.",
-            "Every section starts closed, so a long page opens as a list of headings.",
-        } },
-        { category = "Trinkets", lines = {
-            "The automatic swap queue has controls again — order, delay and the stop marker, on the trinket page. They only ever existed in a window this addon hides.",
-            "Trinket icons show up again: on the buttons, on the queue marker, and on your worn trinkets right after login instead of only once you click them.",
         } },
     } },
 }

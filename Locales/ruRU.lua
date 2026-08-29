@@ -3640,4 +3640,13 @@ ns:RegisterLocale("ruRU", function() return {
 ["Custom length"] = "Своя длина",
 ["Even split"] = "Равномерное распределение",
 
+    -- Patch notes 1.58.0
+    ["Trackbars"] = "Trackbars",
+    ["Trackbars – Build your own info bars from blocks: clock, gold, XP, latency, micro menu and more"] = "Trackbars – Собирайте собственные информационные панели из блоков: часы, золото, опыт, задержка, микроменю и не только",
+    ["Bars are created from templates: start empty, a full-width info bar pinned to the top or bottom edge, a compact minimap companion, or a micro menu strip. Every bar stays fully editable afterwards."] = "Панели создаются по шаблонам: начать с пустой, панель во всю ширину у верхнего или нижнего края экрана, компактный спутник миникарты или полоса микроменю. Любая панель после этого остаётся полностью настраиваемой.",
+    ["Ten blocks to stack and order: clock, gold, XP and reputation, FPS, latency, durability, free bag slots, zone with coordinates, micro menu, and a spacer."] = "Десять блоков, которые можно складывать и упорядочивать: часы, золото, опыт и репутация, FPS, задержка, прочность, свободные ячейки сумок, зона с координатами, микроменю и разделитель.",
+    ["The gold block tracks what the current session earned and spent, and its tooltip lists the gold of every character on the account, richest first."] = "Блок золота ведёт учёт доходов и расходов текущей сессии, а его подсказка перечисляет золото всех персонажей учётной записи, начиная с самых богатых.",
+    ["The XP block renders a real progress bar with the rested bonus overlaid, and a right-click switches it to the tracked reputation."] = "Блок опыта рисует настоящую полосу прогресса с наложенным бонусом отдыха, а щелчок правой кнопкой переключает его на отслеживаемую репутацию.",
+    ["The micro menu opens the spellbook, talents and friends through the game's own buttons, so it works safely in combat and never blocks spell casting."] = "Микроменю открывает книгу заклинаний, таланты и список друзей через собственные кнопки игры, поэтому безопасно работает в бою и никогда не мешает произнесению заклинаний.",
+    ["The module ships disabled: switch it on under HUD in the options window."] = "Модуль поставляется выключенным: включите его в разделе HUD окна настроек.",
 } end)

@@ -3641,6 +3641,15 @@ local function T() return {
 ["Custom length"] = "Longitud personalizada",
 ["Even split"] = "Reparto uniforme",
 
+    -- Patch notes 1.58.0
+    ["Trackbars"] = "Trackbars",
+    ["Trackbars – Build your own info bars from blocks: clock, gold, XP, latency, micro menu and more"] = "Trackbars – Crea tus propias barras de información con bloques: reloj, oro, EXP, latencia, micromenú y más",
+    ["Bars are created from templates: start empty, a full-width info bar pinned to the top or bottom edge, a compact minimap companion, or a micro menu strip. Every bar stays fully editable afterwards."] = "Las barras se crean a partir de plantillas: empezar vacía, una barra de información a ancho completo fijada al borde superior o inferior, un compañero de minimapa compacto o una barra de micromenú. Toda barra sigue siendo totalmente editable después.",
+    ["Ten blocks to stack and order: clock, gold, XP and reputation, FPS, latency, durability, free bag slots, zone with coordinates, micro menu, and a spacer."] = "Diez bloques para apilar y ordenar: reloj, oro, EXP y reputación, FPS, latencia, durabilidad, espacios libres de bolsa, zona con coordenadas, micromenú y un separador.",
+    ["The gold block tracks what the current session earned and spent, and its tooltip lists the gold of every character on the account, richest first."] = "El bloque de oro registra lo ganado y lo gastado en la sesión actual, y su descripción lista el oro de cada personaje de la cuenta, los más ricos primero.",
+    ["The XP block renders a real progress bar with the rested bonus overlaid, and a right-click switches it to the tracked reputation."] = "El bloque de EXP dibuja una barra de progreso real con la bonificación de descanso superpuesta, y un clic derecho lo cambia a la reputación seguida.",
+    ["The micro menu opens the spellbook, talents and friends through the game's own buttons, so it works safely in combat and never blocks spell casting."] = "El micromenú abre el libro de hechizos, los talentos y los amigos mediante los propios botones del juego, así que funciona con seguridad en combate y nunca bloquea el lanzamiento de hechizos.",
+    ["The module ships disabled: switch it on under HUD in the options window."] = "El módulo viene desactivado: actívalo en HUD dentro de la ventana de opciones.",
 } end
 
 ns:RegisterLocale("esES", T)

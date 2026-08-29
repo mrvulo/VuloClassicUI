@@ -3633,4 +3633,13 @@ ns:RegisterLocale("zhCN", function() return {
 ["Custom length"] = "自定义长度",
 ["Even split"] = "平均分配",
 
+    -- Patch notes 1.58.0
+    ["Trackbars"] = "Trackbars",
+    ["Trackbars – Build your own info bars from blocks: clock, gold, XP, latency, micro menu and more"] = "Trackbars – 用积木式区块打造你自己的信息栏：时钟、金币、经验、延迟、微型菜单等",
+    ["Bars are created from templates: start empty, a full-width info bar pinned to the top or bottom edge, a compact minimap companion, or a micro menu strip. Every bar stays fully editable afterwards."] = "信息栏由模板创建：从空栏开始、贴在屏幕上缘或下缘的全宽信息栏、紧凑的小地图伴侣，或一条微型菜单栏。每条信息栏之后都可以完全自由编辑。",
+    ["Ten blocks to stack and order: clock, gold, XP and reputation, FPS, latency, durability, free bag slots, zone with coordinates, micro menu, and a spacer."] = "十种可堆叠排序的区块：时钟、金币、经验与声望、FPS、延迟、耐久度、背包剩余空位、带坐标的区域、微型菜单，以及间隔块。",
+    ["The gold block tracks what the current session earned and spent, and its tooltip lists the gold of every character on the account, richest first."] = "金币区块记录当前会话的收入与支出，其提示还会列出账号中每个角色的金币，最富有的排在最前。",
+    ["The XP block renders a real progress bar with the rested bonus overlaid, and a right-click switches it to the tracked reputation."] = "经验区块绘制真正的进度条并叠加休息加成，右键点击可切换到追踪中的声望。",
+    ["The micro menu opens the spellbook, talents and friends through the game's own buttons, so it works safely in combat and never blocks spell casting."] = "微型菜单通过游戏自带的按钮打开法术书、天赋和好友界面，因此在战斗中也能安全使用，绝不会妨碍施法。",
+    ["The module ships disabled: switch it on under HUD in the options window."] = "该模块默认关闭：请在选项窗口的 HUD 分类下开启。",
 } end)

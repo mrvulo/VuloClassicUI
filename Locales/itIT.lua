@@ -3640,4 +3640,13 @@ ns:RegisterLocale("itIT", function() return {
 ["Custom length"] = "Lunghezza personalizzata",
 ["Even split"] = "Ripartizione equa",
 
+    -- Patch notes 1.58.0
+    ["Trackbars"] = "Trackbars",
+    ["Trackbars – Build your own info bars from blocks: clock, gold, XP, latency, micro menu and more"] = "Trackbars – Costruisci le tue barre informative dai blocchi: orologio, oro, PE, latenza, micromenu e altro",
+    ["Bars are created from templates: start empty, a full-width info bar pinned to the top or bottom edge, a compact minimap companion, or a micro menu strip. Every bar stays fully editable afterwards."] = "Le barre nascono da modelli: iniziare vuota, una barra informativa a tutta larghezza agganciata al bordo superiore o inferiore, un compagno di minimappa compatto o una barra del micromenu. Ogni barra resta poi pienamente modificabile.",
+    ["Ten blocks to stack and order: clock, gold, XP and reputation, FPS, latency, durability, free bag slots, zone with coordinates, micro menu, and a spacer."] = "Dieci blocchi da impilare e ordinare: orologio, oro, PE e reputazione, FPS, latenza, durabilità, spazi liberi delle borse, zona con coordinate, micromenu e un distanziatore.",
+    ["The gold block tracks what the current session earned and spent, and its tooltip lists the gold of every character on the account, richest first."] = "Il blocco dell'oro tiene il conto di guadagni e spese della sessione corrente, e il suo suggerimento elenca l'oro di ogni personaggio dell'account, i più ricchi per primi.",
+    ["The XP block renders a real progress bar with the rested bonus overlaid, and a right-click switches it to the tracked reputation."] = "Il blocco dei PE disegna una vera barra di avanzamento con il bonus riposo sovrapposto, e un clic destro lo passa alla reputazione seguita.",
+    ["The micro menu opens the spellbook, talents and friends through the game's own buttons, so it works safely in combat and never blocks spell casting."] = "Il micromenu apre libro degli incantesimi, talenti e amici tramite i pulsanti del gioco stesso, quindi funziona in sicurezza in combattimento e non blocca mai il lancio degli incantesimi.",
+    ["The module ships disabled: switch it on under HUD in the options window."] = "Il modulo arriva disattivato: attivalo sotto HUD nella finestra delle opzioni.",
 } end)

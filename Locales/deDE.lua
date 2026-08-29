@@ -3759,4 +3759,13 @@ ns:RegisterLocale("deDE", function() return {
     ["Full width"] = "Volle Breite",
     ["Custom length"] = "Eigene Länge",
     ["Even split"] = "Gleichmäßig verteilt",
+    -- Patch notes 1.58.0
+    ["Trackbars"] = "Trackbars",
+    ["Trackbars – Build your own info bars from blocks: clock, gold, XP, latency, micro menu and more"] = "Trackbars – Baue dir eigene Infoleisten aus Blöcken: Uhr, Gold, EP, Latenz, Mikromenü und mehr",
+    ["Bars are created from templates: start empty, a full-width info bar pinned to the top or bottom edge, a compact minimap companion, or a micro menu strip. Every bar stays fully editable afterwards."] = "Leisten entstehen aus Vorlagen: leer beginnen, eine Infoleiste über die volle Breite an der oberen oder unteren Bildschirmkante, ein kompakter Minimap-Begleiter oder eine Mikromenüleiste. Jede Leiste bleibt danach voll bearbeitbar.",
+    ["Ten blocks to stack and order: clock, gold, XP and reputation, FPS, latency, durability, free bag slots, zone with coordinates, micro menu, and a spacer."] = "Zehn Blöcke zum Stapeln und Sortieren: Uhr, Gold, EP und Ruf, FPS, Latenz, Haltbarkeit, freie Taschenplätze, Zone mit Koordinaten, Mikromenü und ein Abstandshalter.",
+    ["The gold block tracks what the current session earned and spent, and its tooltip lists the gold of every character on the account, richest first."] = "Der Goldblock führt Buch über Einnahmen und Ausgaben der laufenden Sitzung, und sein Tooltip listet das Gold aller Charaktere des Kontos, die reichsten zuerst.",
+    ["The XP block renders a real progress bar with the rested bonus overlaid, and a right-click switches it to the tracked reputation."] = "Der EP-Block zeichnet einen echten Fortschrittsbalken mit aufgelegtem Erholungsbonus, und ein Rechtsklick schaltet ihn auf den verfolgten Ruf um.",
+    ["The micro menu opens the spellbook, talents and friends through the game's own buttons, so it works safely in combat and never blocks spell casting."] = "Das Mikromenü öffnet Zauberbuch, Talente und Freunde über die eigenen Knöpfe des Spiels, funktioniert dadurch sicher im Kampf und blockiert nie das Zaubern.",
+    ["The module ships disabled: switch it on under HUD in the options window."] = "Das Modul kommt abgeschaltet: einschalten unter HUD im Optionsfenster.",
 } end)

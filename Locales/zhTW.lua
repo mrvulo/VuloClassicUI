@@ -3633,4 +3633,13 @@ ns:RegisterLocale("zhTW", function() return {
 ["Custom length"] = "自訂長度",
 ["Even split"] = "平均分配",
 
+    -- Patch notes 1.58.0
+    ["Trackbars"] = "Trackbars",
+    ["Trackbars – Build your own info bars from blocks: clock, gold, XP, latency, micro menu and more"] = "Trackbars – 用區塊打造你自己的資訊列：時鐘、金幣、經驗、延遲、微型選單等",
+    ["Bars are created from templates: start empty, a full-width info bar pinned to the top or bottom edge, a compact minimap companion, or a micro menu strip. Every bar stays fully editable afterwards."] = "資訊列由範本建立：從空白開始、貼齊螢幕上緣或下緣的全寬資訊列、精簡的小地圖夥伴，或一條微型選單列。每條資訊列之後都能完全自由編輯。",
+    ["Ten blocks to stack and order: clock, gold, XP and reputation, FPS, latency, durability, free bag slots, zone with coordinates, micro menu, and a spacer."] = "十種可堆疊排序的區塊：時鐘、金幣、經驗與聲望、FPS、延遲、耐久度、背包剩餘空位、含座標的區域、微型選單，以及間隔區塊。",
+    ["The gold block tracks what the current session earned and spent, and its tooltip lists the gold of every character on the account, richest first."] = "金幣區塊記錄目前階段的收入與支出，其提示還會列出帳號中每個角色的金幣，最富有的排在最前。",
+    ["The XP block renders a real progress bar with the rested bonus overlaid, and a right-click switches it to the tracked reputation."] = "經驗區塊繪製真正的進度條並疊加休息加成，按右鍵可切換到追蹤中的聲望。",
+    ["The micro menu opens the spellbook, talents and friends through the game's own buttons, so it works safely in combat and never blocks spell casting."] = "微型選單透過遊戲自身的按鈕開啟法術書、天賦和好友介面，因此在戰鬥中也能安全使用，絕不會妨礙施法。",
+    ["The module ships disabled: switch it on under HUD in the options window."] = "該模組預設為關閉：請在選項視窗的 HUD 分類下開啟。",
 } end)

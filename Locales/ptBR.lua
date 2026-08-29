@@ -3640,4 +3640,13 @@ ns:RegisterLocale("ptBR", function() return {
 ["Custom length"] = "Comprimento personalizado",
 ["Even split"] = "Divisão igual",
 
+    -- Patch notes 1.58.0
+    ["Trackbars"] = "Trackbars",
+    ["Trackbars – Build your own info bars from blocks: clock, gold, XP, latency, micro menu and more"] = "Trackbars – Monte suas próprias barras de informação com blocos: relógio, ouro, XP, latência, micromenu e mais",
+    ["Bars are created from templates: start empty, a full-width info bar pinned to the top or bottom edge, a compact minimap companion, or a micro menu strip. Every bar stays fully editable afterwards."] = "As barras são criadas a partir de modelos: começar vazia, uma barra de informação de largura total presa à borda superior ou inferior, um companheiro de minimapa compacto ou uma barra de micromenu. Toda barra continua totalmente editável depois.",
+    ["Ten blocks to stack and order: clock, gold, XP and reputation, FPS, latency, durability, free bag slots, zone with coordinates, micro menu, and a spacer."] = "Dez blocos para empilhar e ordenar: relógio, ouro, XP e reputação, FPS, latência, durabilidade, espaços livres das bolsas, zona com coordenadas, micromenu e um espaçador.",
+    ["The gold block tracks what the current session earned and spent, and its tooltip lists the gold of every character on the account, richest first."] = "O bloco de ouro registra o que a sessão atual ganhou e gastou, e sua dica lista o ouro de cada personagem da conta, os mais ricos primeiro.",
+    ["The XP block renders a real progress bar with the rested bonus overlaid, and a right-click switches it to the tracked reputation."] = "O bloco de XP desenha uma barra de progresso de verdade com o bônus de descanso sobreposto, e um clique direito o alterna para a reputação acompanhada.",
+    ["The micro menu opens the spellbook, talents and friends through the game's own buttons, so it works safely in combat and never blocks spell casting."] = "O micromenu abre o livro de feitiços, os talentos e os amigos pelos próprios botões do jogo, então funciona com segurança em combate e nunca bloqueia a conjuração.",
+    ["The module ships disabled: switch it on under HUD in the options window."] = "O módulo vem desativado: ligue-o em HUD na janela de opções.",
 } end)
