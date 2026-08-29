@@ -441,6 +441,7 @@ ns:RegisterLocale("deDE", function() return {
     ["Loadout '%s' equipped (%d items swapped)."] = "Set '%s' angelegt (%d Items gewechselt).",
     ["Loadout '%s' equipped (%d swapped, %d missing from bags)."] = "Set '%s' angelegt (%d gewechselt, %d fehlen in den Taschen).",
     ["Loadout '%s': %d items missing from bags, nothing swapped."] = "Set '%s': %d Items fehlen in den Taschen, nichts gewechselt.",
+    ["Not enough free bag space to unequip everything."] = "Nicht genug freier Taschenplatz, um alles abzulegen.",
     ["Loadout '%s' already equipped."] = "Set '%s' bereits angelegt.",
     ["Delete loadout '%s'?"] = "Set '%s' löschen?",
     ["Cannot change equipment in combat."] = "Ausrüstung kann nicht im Kampf geändert werden.",

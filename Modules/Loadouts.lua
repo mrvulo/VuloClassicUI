@@ -80,7 +80,7 @@ local function captureCurrentEquipment(slotList)
     local set = {}
     for _, slot in ipairs(slotList) do
         local link = GetInventoryItemLink("player", slot)
-        if link then set[slot] = link end
+        set[slot] = link or false
     end
     return set
 end
@@ -270,12 +270,21 @@ local function setStatus(name)
     local lo = LO()[name]
     if not (lo and lo.slots) then return 0, 0, 0, 0 end
     local missing, inBank, equipped, total = 0, 0, 0, 0
-    for _, link in pairs(lo.slots) do
+    for slot, link in pairs(lo.slots) do
         total = total + 1
-        local a = itemAvailability(link)
-        if a == "bank" then inBank = inBank + 1
-        elseif a == "equipped" then equipped = equipped + 1
-        elseif not a then missing = missing + 1 end
+        if link == false then
+            -- Deliberate empty marker: satisfied while the body slot is bare.
+            -- Unsatisfied counts to total only -- the worn piece is surplus,
+            -- not missing, so neither the red nor the green marker may fire.
+            if not GetInventoryItemLink("player", slot) then
+                equipped = equipped + 1
+            end
+        else
+            local a = itemAvailability(link)
+            if a == "bank" then inBank = inBank + 1
+            elseif a == "equipped" then equipped = equipped + 1
+            elseif not a then missing = missing + 1 end
+        end
     end
     return missing, inBank, equipped, total
 end
@@ -392,10 +401,40 @@ function ns:EquipBagItemToSlot(bag, bagSlot, equipSlot)
     return ok
 end
 
+-- Moves whatever is in `slot` off the character and into the bags, for a
+-- loadout slot explicitly marked empty (false). PutItemInBackpack fails
+-- SILENTLY when the backpack is full -- it does not error and does not leave
+-- the item on the cursor in an obviously-still-holding way that a single
+-- check catches, so this walks the bags by hand as a fallback and only reports
+-- success once the cursor is actually empty.
+local function unequipSlotToBags(slot)
+    if InCombatLockdown() then return false end
+    if CursorHasItem and CursorHasItem() then return false end
+    PickupInventoryItem(slot)
+    if CursorHasItem and not CursorHasItem() then return false end
+    if PutItemInBackpack then PutItemInBackpack() end
+    if CursorHasItem and CursorHasItem() then
+        for bag = 1, (NUM_BAG_SLOTS or 4) do
+            if (GetContainerNumFreeSlots and (GetContainerNumFreeSlots(bag) or 0) > 0)
+               and ContainerIDToInventoryID and PutItemInBag then
+                PutItemInBag(ContainerIDToInventoryID(bag))
+                if not (CursorHasItem and CursorHasItem()) then break end
+            end
+        end
+    end
+    if CursorHasItem and CursorHasItem() then
+        ClearCursor()
+        return false
+    end
+    return true
+end
+
 local function countSlots(loadout)
     local n = 0
     if loadout and loadout.slots then
-        for _ in pairs(loadout.slots) do n = n + 1 end
+        for _, v in pairs(loadout.slots) do
+            if type(v) == "string" then n = n + 1 end
+        end
     end
     return n
 end
@@ -527,6 +566,7 @@ local function equipLoadout(name)
     end
 
     local swapped, missing, fromBank = 0, 0, 0
+    local bagsFull = false
     local failedLinks = {}
     -- Ascending order so paired slots (11/12, 13/14) resolve predictably.
     local sortedSlots = {}
@@ -535,61 +575,72 @@ local function equipLoadout(name)
 
     for _, slot in ipairs(sortedSlots) do
         local link = loadout.slots[slot]
-        local currentLink = GetInventoryItemLink("player", slot)
-        -- By VARIANT, not by raw link: a stored link carries a unique id that the
-        -- same physical item does not keep, so the comparison said "different"
-        -- for the very item the set meant and re-equipped it for nothing.
-        local want = itemVariant(link)
-        local wantExact = itemExact(link)
-        local needSwap = itemVariant(currentLink) ~= want
-        local exactOnly = false
-        if not needSwap and wantExact and itemExact(currentLink) ~= wantExact then
-            needSwap, exactOnly = true, true -- right id+suffix on the body, wrong gems/enchant
-        end
-        if needSwap then
-            local itemID = getItemIDFromLink(link)
-            if itemID then
-                -- The bags first, then the bank -- and the bank only while it is
-                -- open. A piece lying in the bank was counted as missing until
-                -- now, which meant standing AT the bank and still being told the
-                -- set could not be equipped. The cursor route is the same one a
-                -- drag from the bank onto a paper-doll slot takes -- and that the
-                -- server really allows that out of a BANK slot is measured now
-                -- rather than assumed: tried in the game on 06.08.2026, it
-                -- equips. No detour over the bags is needed, so none is built.
-                local bag, bagSlot = findItemInBags(itemID, want, wantExact)
-                local viaBank = false
-                if not bag then
-                    bag, bagSlot = findItemInBank(itemID, want, wantExact)
-                    viaBank = bag and true or false
+        if link == false then
+            local currentLink = GetInventoryItemLink("player", slot)
+            if currentLink then
+                if unequipSlotToBags(slot) then
+                    swapped = swapped + 1
+                else
+                    bagsFull = true
                 end
-                local usable = bag and bagSlot
-                if exactOnly and usable then
-                    local foundLink = GetContainerItemLink and GetContainerItemLink(bag, bagSlot)
-                    if itemExact(foundLink) ~= wantExact then
-                        -- The equipped piece is the set's piece, only regemmed; without an exact copy, leave it alone and report nothing.
-                        usable = false
+            end
+        else
+            local currentLink = GetInventoryItemLink("player", slot)
+            -- By VARIANT, not by raw link: a stored link carries a unique id that the
+            -- same physical item does not keep, so the comparison said "different"
+            -- for the very item the set meant and re-equipped it for nothing.
+            local want = itemVariant(link)
+            local wantExact = itemExact(link)
+            local needSwap = itemVariant(currentLink) ~= want
+            local exactOnly = false
+            if not needSwap and wantExact and itemExact(currentLink) ~= wantExact then
+                needSwap, exactOnly = true, true -- right id+suffix on the body, wrong gems/enchant
+            end
+            if needSwap then
+                local itemID = getItemIDFromLink(link)
+                if itemID then
+                    -- The bags first, then the bank -- and the bank only while it is
+                    -- open. A piece lying in the bank was counted as missing until
+                    -- now, which meant standing AT the bank and still being told the
+                    -- set could not be equipped. The cursor route is the same one a
+                    -- drag from the bank onto a paper-doll slot takes -- and that the
+                    -- server really allows that out of a BANK slot is measured now
+                    -- rather than assumed: tried in the game on 06.08.2026, it
+                    -- equips. No detour over the bags is needed, so none is built.
+                    local bag, bagSlot = findItemInBags(itemID, want, wantExact)
+                    local viaBank = false
+                    if not bag then
+                        bag, bagSlot = findItemInBank(itemID, want, wantExact)
+                        viaBank = bag and true or false
                     end
-                end
-                if usable then
-                    local ok = ns:EquipBagItemToSlot(bag, bagSlot, slot)
-                    -- The fallback is for BAG slots only. On a bank slot
-                    -- UseContainerItem does not equip anything -- it MOVES the
-                    -- item into the bags -- so counting it as swapped would
-                    -- report an equip that never happened and leave the piece
-                    -- lying in a bag.
-                    if not ok and not viaBank and UseContainerItem then
-                        ok = pcall(UseContainerItem, bag, bagSlot)
+                    local usable = bag and bagSlot
+                    if exactOnly and usable then
+                        local foundLink = GetContainerItemLink and GetContainerItemLink(bag, bagSlot)
+                        if itemExact(foundLink) ~= wantExact then
+                            -- The equipped piece is the set's piece, only regemmed; without an exact copy, leave it alone and report nothing.
+                            usable = false
+                        end
                     end
-                    if ok then
-                        swapped = swapped + 1
-                        if viaBank then fromBank = fromBank + 1 end
-                    else
-                        missing = missing + 1; failedLinks[#failedLinks + 1] = link
+                    if usable then
+                        local ok = ns:EquipBagItemToSlot(bag, bagSlot, slot)
+                        -- The fallback is for BAG slots only. On a bank slot
+                        -- UseContainerItem does not equip anything -- it MOVES the
+                        -- item into the bags -- so counting it as swapped would
+                        -- report an equip that never happened and leave the piece
+                        -- lying in a bag.
+                        if not ok and not viaBank and UseContainerItem then
+                            ok = pcall(UseContainerItem, bag, bagSlot)
+                        end
+                        if ok then
+                            swapped = swapped + 1
+                            if viaBank then fromBank = fromBank + 1 end
+                        else
+                            missing = missing + 1; failedLinks[#failedLinks + 1] = link
+                        end
+                    elseif not exactOnly then
+                        missing = missing + 1
+                        failedLinks[#failedLinks + 1] = link
                     end
-                elseif not exactOnly then
-                    missing = missing + 1
-                    failedLinks[#failedLinks + 1] = link
                 end
             end
         end
@@ -625,6 +676,10 @@ local function equipLoadout(name)
     -- information, not a different outcome.
     if fromBank > 0 then
         ns:Print(string.format(L["%d of them came out of the bank."], fromBank))
+    end
+
+    if bagsFull then
+        ns:Print(L["Not enough free bag space to unequip everything."])
     end
 
     for _, flink in ipairs(failedLinks) do
@@ -1184,8 +1239,10 @@ local function getSetIcon(name)
     if loadout.iconOverride then return loadout.iconOverride end
     if GetItemInfoInstant then
         for _, link in pairs(loadout.slots) do
-            local _, _, _, _, icon = GetItemInfoInstant(link)
-            if icon then return icon end
+            if type(link) == "string" then
+                local _, _, _, _, icon = GetItemInfoInstant(link)
+                if icon then return icon end
+            end
         end
     end
     return "Interface\\Icons\\INV_Misc_QuestionMark"
@@ -1397,10 +1454,13 @@ local function showIconPicker(loadoutName, anchor)
         for s in pairs(loadout.slots) do table.insert(slots, s) end
         table.sort(slots)
         for _, s in ipairs(slots) do
-            local _, _, _, _, ic = GetItemInfoInstant(loadout.slots[s])
-            if ic and not seen[ic] then
-                seen[ic] = true
-                table.insert(icons, { tex = ic })
+            local slotLink = loadout.slots[s]
+            if type(slotLink) == "string" then
+                local _, _, _, _, ic = GetItemInfoInstant(slotLink)
+                if ic and not seen[ic] then
+                    seen[ic] = true
+                    table.insert(icons, { tex = ic })
+                end
             end
         end
     end
@@ -1692,7 +1752,9 @@ local function createSetRow(parent, index)
             GameTooltip:AddLine(string.format("%d %s", countSlots(loadout), L["items"]),
                 0.6, 0.6, 0.6)
             local slots = {}
-            for s in pairs(loadout.slots or {}) do slots[#slots + 1] = s end
+            for s, v in pairs(loadout.slots or {}) do
+                if type(v) == "string" then slots[#slots + 1] = s end
+            end
             table.sort(slots)
             if #slots > 0 then GameTooltip:AddLine(" ") end
             for _, s in ipairs(slots) do
