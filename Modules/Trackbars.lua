@@ -380,3 +380,21 @@ function mod:OnDisable()
     for _, rec in pairs(barRecs) do rec.frame:Hide() end
     for key in pairs(hbListeners) do mod.UnregisterHeartbeat(key) end
 end
+
+-- Everything the options page (TrackbarsOptions.lua, loads after this file) is
+-- allowed to touch: one table, so the page never reaches into engine locals.
+-- Filled at the very end so every function reference is the final one.
+mod.optionsBridge = {
+    BarCfg         = mod.BarCfg,
+    CreateBar      = mod.CreateBar,
+    DeleteBar      = mod.DeleteBar,
+    RenameBar      = mod.RenameBar,
+    AddBlock       = mod.AddBlock,
+    RemoveBlock    = mod.RemoveBlock,
+    MoveBlock      = mod.MoveBlock,
+    ApplyBar       = mod.ApplyBar,
+    RequestLayout  = mod.RequestLayout,
+    TEMPLATES      = mod.TEMPLATES,
+    BLOCK_TYPES    = mod.BLOCK_TYPES,
+    BLOCK_DEFAULTS = mod.BLOCK_DEFAULTS,
+}
