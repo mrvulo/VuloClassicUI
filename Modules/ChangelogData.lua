@@ -6,6 +6,17 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+    { version = "1.58.1", sections = {
+        { category = "Character Panel", lines = {
+            "The resistance tooltips now rate the value: how much matching spell damage you resist on average against boss enemies, by the game's own formula, plus a colored verdict from Low to Maximum.",
+        } },
+        { category = "Loadouts", lines = {
+            "Two copies of the same item that differ only in their gems or enchants now swap correctly when switching sets. A regemmed single copy still counts as equipped and is never reported missing. If a set was saved before the gems went in, save it once more while wearing the right copy.",
+        } },
+        { category = "Performance", lines = {
+            "A sweep over thirteen files cuts memory churn and idle work in hot paths: timer texts only rebuild when their value changes, the trinket queue checks once per second instead of every frame, the arena binds its aura events per zone, and the dark skin, bags, tooltips and class trackers reuse what they already computed.",
+        } },
+    } },
     { version = "1.58.0", sections = {
         { category = "Trackbars", lines = {
             "NEW: Trackbars – Build your own info bars from blocks: clock, gold, XP, latency, micro menu and more",
@@ -564,33 +575,6 @@ ns.CHANGELOG = {
         { category = "Settings", lines = {
             "Rows that span the page now start their control where their neighbours do, instead of each sizing its own label.",
             "A dropdown with more entries than fit on screen scrolls instead of running off the bottom, and a label that had grown too long fits its row again.",
-        } },
-    } },
-    { version = "1.41.0", sections = {
-        { category = "Fixes", lines = {
-            "Moving a frame could throw a blocked-action error if you happened to be in combat while the frames were built. The keyboard is only taken over once a mover is on screen.",
-            "The trinket window's settings were being written to the saved file a second time under their old names. They are stored once now.",
-        } },
-        { category = "Languages", lines = {
-            "42 texts existed in German only, among them the whole talent override interface and the trinket queue. All nine languages are complete again.",
-        } },
-        { category = "Nameplates", lines = {
-            "NEW: Main positions – Six slots around the plate, each holding one thing: debuffs, buffs, crowd control or your own damage-over-time",
-            "NEW: Glow when low on health – A coloured ring once the unit drops past your mark",
-            "NEW: Arrows beside your target – Two arrows pointing in at the bar",
-            "NEW: Mark on the focus plate – A short text, so target and focus stay apart at a glance",
-            "NEW: Preset – One click for a wide, flat, dark look, and one to put the small plates back",
-            "Two of the six slots sit beside the plate as a column, which was not possible before. And two rows can no longer land on top of each other: giving a slot something takes it away from the slot that had it.",
-            "The cast bar can name who the cast is aimed at, your own name coloured.",
-        } },
-        { category = "Paladin", lines = {
-            "NEW: Twist zones – The swing bar answers what you may press now instead of counting down",
-            "NEW: Rotation helper – A short sequence rather than a single next step, worked out from your weapon and cast speed",
-            "The seal you twist into may be any other seal, not only the two that arrive at level 64.",
-        } },
-        { category = "Settings", lines = {
-            "Sections no longer fold away. Long pages fold at the gear on a row instead, which says something a section expander never could: the rows behind it belong to the switch it sits on.",
-            "Controls line up down a page now, and a switch sits in the middle of its row.",
         } },
     } },
 }

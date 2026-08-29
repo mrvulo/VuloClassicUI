@@ -3655,4 +3655,8 @@ ns:RegisterLocale("koKR", function() return {
 ["Good"] = "좋음",
 ["Very good"] = "매우 좋음",
 ["Maximum"] = "최대",
+    -- Patch notes 1.58.1
+    ["The resistance tooltips now rate the value: how much matching spell damage you resist on average against boss enemies, by the game's own formula, plus a colored verdict from Low to Maximum."] = "저항 툴팁이 이제 값을 평가합니다. 우두머리를 상대로 해당 계열 주문 피해를 평균적으로 얼마나 저항하는지 게임 공식대로 보여주고, 낮음부터 최대까지 색이 입혀진 판정을 함께 표시합니다.",
+    ["Two copies of the same item that differ only in their gems or enchants now swap correctly when switching sets. A regemmed single copy still counts as equipped and is never reported missing. If a set was saved before the gems went in, save it once more while wearing the right copy."] = "보석이나 마법부여만 다른 같은 아이템 두 개가 이제 세트 전환 시 올바르게 교체됩니다. 보석을 새로 박은 단 하나뿐인 아이템은 여전히 착용 중으로 간주되며 없다고 표시되지 않습니다. 보석을 박기 전에 저장한 세트라면 올바른 아이템을 착용한 채 한 번 다시 저장하세요.",
+    ["A sweep over thirteen files cuts memory churn and idle work in hot paths: timer texts only rebuild when their value changes, the trinket queue checks once per second instead of every frame, the arena binds its aura events per zone, and the dark skin, bags, tooltips and class trackers reuse what they already computed."] = "열세 개 파일을 훑는 정리로 뜨거운 경로의 메모리 생성과 유휴 작업이 줄었습니다. 시간 문구는 값이 바뀔 때만 다시 만들어지고, 장신구 대기열은 매 프레임 대신 초당 한 번 확인하며, 투기장은 오라 이벤트를 지역별로 묶고, 어두운 스킨과 가방, 툴팁, 직업 추적기는 이미 계산한 것을 재사용합니다.",
 } end)

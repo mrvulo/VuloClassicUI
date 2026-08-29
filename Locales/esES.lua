@@ -3656,6 +3656,10 @@ local function T() return {
 ["Good"] = "Bueno",
 ["Very good"] = "Muy bueno",
 ["Maximum"] = "Máximo",
+    -- Patch notes 1.58.1
+    ["The resistance tooltips now rate the value: how much matching spell damage you resist on average against boss enemies, by the game's own formula, plus a colored verdict from Low to Maximum."] = "Las descripciones de resistencias ahora valoran el valor: cuánto daño de hechizos correspondiente resistes de media contra jefes, según la fórmula del propio juego, más un veredicto coloreado de Bajo a Máximo.",
+    ["Two copies of the same item that differ only in their gems or enchants now swap correctly when switching sets. A regemmed single copy still counts as equipped and is never reported missing. If a set was saved before the gems went in, save it once more while wearing the right copy."] = "Dos copias del mismo objeto que solo se diferencian en gemas o encantamientos ahora se intercambian correctamente al cambiar de conjunto. Una copia única con gemas nuevas sigue contando como equipada y nunca se marca como ausente. Si un conjunto se guardó antes de engarzar las gemas, guárdalo una vez más llevando la copia correcta.",
+    ["A sweep over thirteen files cuts memory churn and idle work in hot paths: timer texts only rebuild when their value changes, the trinket queue checks once per second instead of every frame, the arena binds its aura events per zone, and the dark skin, bags, tooltips and class trackers reuse what they already computed."] = "Una pasada por trece archivos reduce el trabajo de memoria y en reposo en las rutas calientes: los textos de tiempo solo se reconstruyen al cambiar su valor, la cola de abalorios comprueba una vez por segundo en lugar de cada fotograma, la arena vincula sus eventos de auras por zona, y el estilo oscuro, las bolsas, las descripciones y los rastreadores de clase reutilizan lo ya calculado.",
 } end
 
 ns:RegisterLocale("esES", T)
