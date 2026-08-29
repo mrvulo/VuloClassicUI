@@ -368,7 +368,7 @@ function mod:GetOptions()
     items[#items + 1] = {
         type = "slider", label = L["Height"], min = 16, max = 48, step = 1,
         get = function() return cfg.thickness or 26 end,
-        set = function(_, v) cfg.thickness = v; br.ApplyBar(cfg.id) end,
+        set = function(_, v) cfg.thickness = v; br.RebuildBar(cfg.id) end,
     }
     items[#items + 1] = {
         type = "dropdown", label = L["Distribution"], width = 240,
@@ -383,7 +383,12 @@ function mod:GetOptions()
     items[#items + 1] = {
         type = "slider", label = L["Font scale"], min = 50, max = 150, step = 5,
         get = function() return cfg.fontScale or 100 end,
-        set = function(_, v) cfg.fontScale = v; br.ApplyBar(cfg.id) end,
+        set = function(_, v) cfg.fontScale = v; br.RebuildBar(cfg.id) end,
+    }
+    items[#items + 1] = {
+        type = "toggle", label = L["Only on mouseover"],
+        get = function() return cfg.mouseoverOnly end,
+        set = function(_, v) cfg.mouseoverOnly = v; br.ApplyBar(cfg.id) end,
     }
     items[#items + 1] = {
         type = "color", label = L["Background"],

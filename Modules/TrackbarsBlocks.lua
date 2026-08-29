@@ -25,7 +25,7 @@ local function MakeTextBlock(prefix, def)
     return function(b, slot, content, bar)
         local inst = { _key = instKey(prefix, b, bar) }
         local fs = content:CreateFontString(nil, "OVERLAY")
-        UI.FontFor("trackbars", fs, math.floor((bar.thickness or 26) * (def.fontScale or 0.5) + 0.5))
+        UI.FontFor("trackbars", fs, math.floor((bar.thickness or 26) * (def.fontScale or 0.5) * ((bar.fontScale or 100) / 100) + 0.5))
         fs:SetPoint("RIGHT", content, "RIGHT", 0, 0)
         local icon
         if def.icon then
@@ -296,7 +296,7 @@ addType("zone", "Zone", { showCoords = true }, MakeTextBlock("zone", {
 addType("xprep", "XP / Reputation", { mode = "auto" }, function(b, slot, content, bar)
     local inst = { _key = instKey("xprep", b, bar) }
     local fs = content:CreateFontString(nil, "OVERLAY")
-    UI.FontFor("trackbars", fs, math.floor((bar.thickness or 26) * 0.42 + 0.5))
+    UI.FontFor("trackbars", fs, math.floor((bar.thickness or 26) * 0.42 * ((bar.fontScale or 100) / 100) + 0.5))
     fs:SetPoint("TOP", content, "TOP", 0, -1)
     local sb = CreateFrame("StatusBar", nil, content)
     sb:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")

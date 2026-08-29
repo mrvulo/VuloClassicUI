@@ -43,6 +43,34 @@ end
 local barRecs = {}
 mod._barRecs = barRecs   -- fuer Blocks/Options
 
+-- Known v1 quirk: secure micromenu buttons remain clickable while a
+-- mouseover-only bar is faded to alpha 0; this is cosmetic-only for now.
+local mouseoverTicker = nil
+local function mouseoverTick()
+    if not mod.active then return end
+    for _, cfg in ipairs(mod.db.bars) do
+        if cfg.mouseoverOnly then
+            local rec = barRecs[cfg.id]
+            if rec then
+                rec.frame:SetAlpha(rec.frame:IsMouseOver(12, -12, -12, 12) and 1 or 0)
+            end
+        end
+    end
+end
+local function updateMouseoverTicker()
+    local need = false
+    if mod.active then
+        for _, cfg in ipairs(mod.db.bars) do
+            if cfg.mouseoverOnly then need = true; break end
+        end
+    end
+    if need and not mouseoverTicker then
+        mouseoverTicker = C_Timer.NewTicker(0.2, mouseoverTick)
+    elseif not need and mouseoverTicker then
+        mouseoverTicker:Cancel(); mouseoverTicker = nil
+    end
+end
+
 local function applyBarPosition(cfg, f)
     f:ClearAllPoints()
     if cfg.lengthMode == "full" then
@@ -94,6 +122,11 @@ function mod.EnsureBarFrame(cfg)
             label = "|cffffffff" .. (cfg.name or ("Trackbar " .. cfg.id)) .. "|r",
             db    = cfg,
         })
+    end
+    if cfg.lengthMode == "full" and f.mover then
+        -- The mover/edit-mode system may briefly re-show this during an active
+        -- edit-mode session; that cosmetic behavior is not a bug.
+        f.mover:Hide()
     end
     f:Show()
     return f
@@ -169,6 +202,7 @@ function mod.ApplyBar(id)
     local rec = barRecs[cfg.id] or {}
     mod.EnsureBarFrame(cfg)
     rec = barRecs[cfg.id]
+    if not cfg.mouseoverOnly then rec.frame:SetAlpha(1) end
     -- 1) Teardown: instances whose block is gone or whose type changed
     for blockId, inst in pairs(rec.insts) do
         local b = mod.BlockCfg(id, blockId)
@@ -180,6 +214,7 @@ function mod.ApplyBar(id)
         end
     end
     -- 2) Build: create missing instances
+    local newBlockIds = {}
     for _, b in ipairs(cfg.blocks) do
         if not rec.insts[b.id] then
             local factory = mod.BlockFactories[b.type]
@@ -189,12 +224,35 @@ function mod.ApplyBar(id)
                 local inst = factory(b, slot, slot.content, cfg)
                 inst._type = b.type
                 rec.insts[b.id] = inst
+                newBlockIds[b.id] = true
                 inst:Enable()
                 inst:Refresh()
             end
         end
     end
+    -- 3) Refresh survivors after the slot dimensions and content scale may change
+    for _, b in ipairs(cfg.blocks) do
+        local inst = rec.insts[b.id]
+        if inst and not newBlockIds[b.id] then
+            ensureSlot(rec, b)
+            inst:Refresh()
+        end
+    end
+    updateMouseoverTicker()
     mod.RequestLayout(id)
+end
+
+function mod.RebuildBar(barId)
+    local rec = barRecs[barId]
+    if rec then
+        for blockId, inst in pairs(rec.insts) do
+            inst:Disable()
+            if inst.Destroy then inst:Destroy() end
+            rec.insts[blockId] = nil
+        end
+        for _, slot in pairs(rec.slots) do slot:Hide() end
+    end
+    mod.ApplyBar(barId)
 end
 
 local pendingLayout = {}
@@ -286,6 +344,7 @@ function mod.DeleteBar(barId)
         end
         rec.frame:Hide()
     end
+    updateMouseoverTicker()
 end
 
 function mod.RenameBar(barId, name)
@@ -370,6 +429,7 @@ function mod.ApplyAll()
     for id, rec in pairs(barRecs) do
         if not mod.BarCfg(id) then rec.frame:Hide() end
     end
+    updateMouseoverTicker()
 end
 
 function mod:OnEnable()
@@ -377,7 +437,11 @@ function mod:OnEnable()
 end
 
 function mod:OnDisable()
-    for _, rec in pairs(barRecs) do rec.frame:Hide() end
+    if mouseoverTicker then mouseoverTicker:Cancel(); mouseoverTicker = nil end
+    for _, rec in pairs(barRecs) do
+        rec.frame:SetAlpha(1)
+        rec.frame:Hide()
+    end
     for key in pairs(hbListeners) do mod.UnregisterHeartbeat(key) end
 end
 
@@ -393,6 +457,7 @@ mod.optionsBridge = {
     RemoveBlock    = mod.RemoveBlock,
     MoveBlock      = mod.MoveBlock,
     ApplyBar       = mod.ApplyBar,
+    RebuildBar     = mod.RebuildBar,
     RequestLayout  = mod.RequestLayout,
     TEMPLATES      = mod.TEMPLATES,
     BLOCK_TYPES    = mod.BLOCK_TYPES,
