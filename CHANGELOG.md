@@ -16,6 +16,10 @@
   ~1900 characters or it gets truncated with a link to the full notes.
 -->
 
+## 1.58.2
+**Loadouts:**
+- Empty slots are now part of a set: saving records deliberately bare slots, and equipping strips those pieces into the bags, with a single notice when the bags are too full. Sets saved before this change keep their old behavior, so save a set once more to pick up its empty slots.
+
 ## 1.58.1
 **Character Panel:**
 - The resistance tooltips now rate the value: how much matching spell damage you resist on average against boss enemies, by the game's own formula, plus a colored verdict from Low to Maximum.

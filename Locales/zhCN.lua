@@ -3653,4 +3653,6 @@ ns:RegisterLocale("zhCN", function() return {
     ["Two copies of the same item that differ only in their gems or enchants now swap correctly when switching sets. A regemmed single copy still counts as equipped and is never reported missing. If a set was saved before the gems went in, save it once more while wearing the right copy."] = "只有宝石或附魔不同的两件相同物品，现在在切换套装时能正确交换。重新镶嵌的唯一一件仍视为已装备，绝不会被报告为缺失。如果套装是在镶嵌宝石之前保存的，请穿戴正确的那件再保存一次。",
     ["A sweep over thirteen files cuts memory churn and idle work in hot paths: timer texts only rebuild when their value changes, the trinket queue checks once per second instead of every frame, the arena binds its aura events per zone, and the dark skin, bags, tooltips and class trackers reuse what they already computed."] = "一次覆盖十三个文件的整理减少了热点路径的内存开销和空转工作：时间文字只在数值变化时重建，饰品队列每秒检查一次而不是每帧，竞技场按区域绑定光环事件，深色皮肤、背包、提示和职业监视会复用已经算好的结果。",
 ["Not enough free bag space to unequip everything."] = "背包空间不足，无法卸下所有装备。",
+    -- Patch notes 1.58.2
+    ["Empty slots are now part of a set: saving records deliberately bare slots, and equipping strips those pieces into the bags, with a single notice when the bags are too full. Sets saved before this change keep their old behavior, so save a set once more to pick up its empty slots."] = "空栏位现在也是套装的一部分：保存时会记录刻意留空的栏位，切换时会把这些位置上的装备收进背包；背包太满时只提示一次。此更改之前保存的套装保持旧行为——重新保存一次套装即可让它记住空栏位。",
 } end)
