@@ -772,9 +772,6 @@ function Trinkets.TimersFrame_OnUpdate(elapsed)
 			end
 		end
 	end
-	if Trinkets.PeriodicQueueCheck then
-		Trinkets.PeriodicQueueCheck()
-	end
 end
 
 function Trinkets.TimerDebug()
@@ -1201,6 +1198,13 @@ function Trinkets.UpdateCombatQueue()
 			icon:SetVertexColor(0.608, 0.424, 1)
 			icon:Show()
 		end
+	end
+	-- Every queue-enable path funnels through here, so this is the one place
+	-- that arms the 1s QueueUpdate timer. Arm only -- running the check here
+	-- would recurse (ProcessAutoQueue calls back into this function). The
+	-- check disarms itself once both queues are off.
+	if Trinkets.QueueInit and TrinketsQueue and (TrinketsQueue.Enabled[0] or TrinketsQueue.Enabled[1]) and not Trinkets.IsTimerActive("QueueUpdate") then
+		Trinkets.StartTimer("QueueUpdate")
 	end
 end
 

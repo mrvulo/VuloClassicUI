@@ -465,6 +465,20 @@ local function totemInRange(t, have, startTime, icon)
     return not st.saw      -- never seen an aura for it -> unknowable -> leave lit
 end
 
+-- GetSpellInfo is a C call per row per tick, and its answer only changes when
+-- the spellbook does -- so the resolved icon is memoized and the cache dropped
+-- on SPELLS_CHANGED. false marks "asked, no icon" so a miss is not re-asked.
+local spellIconCache = {}
+local function spellIcon(spell)
+    if not spell then return nil end
+    local icon = spellIconCache[spell]
+    if icon == nil then
+        icon = select(3, GetSpellInfo(spell)) or false
+        spellIconCache[spell] = icon
+    end
+    return icon or nil
+end
+
 local function updateRow(row, preview)
     local d = db()
     local t = row.totem
@@ -474,12 +488,13 @@ local function updateRow(row, preview)
     -- of it applies -- including GetTotemInfo, which would be handed a nil slot.
     if t.call then
         local spell = t.spellFn and t.spellFn() or callSpell()
-        row.icon:SetTexture((spell and select(3, GetSpellInfo(spell))) or t.icon)
+        row.icon:SetTexture(spellIcon(spell) or t.icon)
         row.icon:SetDesaturated(false)
         row.icon:SetVertexColor(1, 1, 1)
         row.border:SetVertexColor(1, 1, 1)
         row.ring:SetColorTexture(t.color[1], t.color[2], t.color[3], 1)
         row.elem:SetColorTexture(t.color[1], t.color[2], t.color[3], 0.9)
+        row._timeBucket = nil
         row.time:SetText("")
         row.time:Hide()
         if d.layout ~= "icons" then row.fill:Hide(); row.spark:Hide() end
@@ -490,9 +505,7 @@ local function updateRow(row, preview)
     if preview then have, startTime, duration = true, GetTime(), 60 end
 
     if not (have and icon) then
-        local spell = buttonSpell(t)
-        local sIcon = spell and select(3, GetSpellInfo(spell))
-        icon = sIcon or t.icon
+        icon = spellIcon(buttonSpell(t)) or t.icon
     end
     row.icon:SetTexture(icon or t.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
 
@@ -539,10 +552,18 @@ local function updateRow(row, preview)
             row.elem:SetColorTexture(t.color[1], t.color[2], t.color[3], 0.35)
         end
 
-        if remaining < 10 then
-            row.time:SetText(string.format("%.1f", remaining))
-        else
-            row.time:SetText(string.format("%d", remaining + 0.5))
+        -- The label only needs a new string when the displayed value moves --
+        -- tenths under ten seconds, whole seconds above (offset so the two
+        -- ranges cannot collide on the same bucket number).
+        local bucket = remaining < 10 and math.floor(remaining * 10)
+            or 1000 + math.floor(remaining + 0.5)
+        if row._timeBucket ~= bucket then
+            row._timeBucket = bucket
+            if remaining < 10 then
+                row.time:SetFormattedText("%.1f", remaining)
+            else
+                row.time:SetFormattedText("%d", remaining + 0.5)
+            end
         end
         row.time:Show()
         if not inRange then
@@ -576,6 +597,7 @@ local function updateRow(row, preview)
         row.border:SetVertexColor(0.55, 0.55, 0.55)
         row.ring:SetColorTexture(0.22, 0.22, 0.26, 1)
         row.elem:SetColorTexture(t.color[1], t.color[2], t.color[3], 0.35)
+        row._timeBucket = nil
         row.time:SetText("")
         row.time:Hide()
         if d.layout ~= "icons" then
@@ -970,6 +992,7 @@ end
 
 -- named upvalue: Events.lua unregisters by identity
 local function onSpellsChanged()
+    wipe(spellIconCache)
     applyButtonSpells()
     rebuildFlyouts()
 end
@@ -977,6 +1000,7 @@ end
 local function onEnable()
     ensureDB()
     build()
+    wipe(spellIconCache)      -- the spellbook may have changed while SPELLS_CHANGED was unregistered
     playerAurasDirty = true   -- auras may have changed while UNIT_AURA was unregistered
     container:SetScript("OnUpdate", onUpdate)
     csMod:RegisterEvent("PLAYER_TOTEM_UPDATE",   learnActiveTotems)

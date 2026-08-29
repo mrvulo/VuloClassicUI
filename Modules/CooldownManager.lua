@@ -1670,15 +1670,18 @@ refreshAll = function()
     if mod.UpdateStripCooldowns then mod.UpdateStripCooldowns() end
 end
 
--- C_Timer.After(0) fires next frame, collapsing a burst of events into one refreshAll
+-- C_Timer.After(0) fires next frame, collapsing a burst of events into one refreshAll.
+-- The callback is a named local: SPELL_UPDATE_COOLDOWN lands on practically
+-- every GCD, and an anonymous function here would be a fresh closure per frame.
 local _refreshQueued = false
+local function runQueuedRefresh()
+    _refreshQueued = false
+    if mod._enabled then refreshAll() end
+end
 local function refreshSoon()
     if _refreshQueued then return end
     _refreshQueued = true
-    C_Timer.After(0, function()
-        _refreshQueued = false
-        if mod._enabled then refreshAll() end
-    end)
+    C_Timer.After(0, runQueuedRefresh)
 end
 
 local function onUnitAura(_, unit)

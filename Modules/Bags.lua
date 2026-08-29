@@ -1175,12 +1175,14 @@ local function collectByCategory()
     return buckets
 end
 
-local function layoutCategorized()
+local function layoutCategorized(prebuiltBuckets)
     if not (bagFrame and mod.active) then return end
     local cols = mod.db.columns or 12
     if cols < 1 then cols = 1 end
 
-    local buckets = collectByCategory()
+    -- refresh() may already have collected this frame's buckets for its
+    -- filter check; collecting again would double the whole scan-and-sort.
+    local buckets = prebuiltBuckets or collectByCategory()
     local btnN, hdrN, ghN, blocked = 0, 0, 0, false
     local y = 0   -- distance from content TOPLEFT (positive downward)
     local filtered = (selectedCategory ~= "all")
@@ -1386,7 +1388,7 @@ layoutMultiBag = function()
 end
 
 local lastLayoutSig   -- identity of the last laid-out view (mode|filter|sort|categorized)
-function layout()
+function layout(prebuiltBuckets)
     if not (bagFrame and mod.active) then return end
     -- reset scroll only when the view IDENTITY changes; a plain refresh keeps its offset
     local sig = tostring(viewMode) .. "|" .. tostring(selectedCategory) .. "|"
@@ -1401,29 +1403,33 @@ function layout()
     end
     if     viewMode == "onebag"   then layoutOneBag()
     elseif viewMode == "multibag" then layoutMultiBag()
-    elseif useCategories          then layoutCategorized()
+    elseif useCategories          then layoutCategorized(prebuiltBuckets)
     else                               layoutFlat() end
 end
 
 local refreshScheduled = false
+-- Named rather than a closure per scheduled repaint; and the buckets built for
+-- the filter check ride along into layout() instead of being built twice.
+local function runScheduledRefresh()
+    refreshScheduled = false
+
+    local prebuilt
+    if selectedCategory ~= "all" then
+        prebuilt = collectByCategory()
+        local b = prebuilt[selectedCategory]
+        if not (b and #b > 0) then selectedCategory = "all" end
+    end
+    if sidebarExpanded and rebuildSidebar then rebuildSidebar() end
+    if bagFrame.bagBar and bagFrame.bagBar:IsShown() and bagFrame.updateBagBar then
+        bagFrame.updateBagBar()
+    end
+    layout(prebuilt)
+end
 local function refresh()
     if not (mod.active and bagFrame and bagFrame:IsShown()) then return end
     if refreshScheduled then return end
     refreshScheduled = true
-    local function run()
-        refreshScheduled = false
-
-        if selectedCategory ~= "all" then
-            local b = collectByCategory()[selectedCategory]
-            if not (b and #b > 0) then selectedCategory = "all" end
-        end
-        if sidebarExpanded and rebuildSidebar then rebuildSidebar() end
-        if bagFrame.bagBar and bagFrame.bagBar:IsShown() and bagFrame.updateBagBar then
-            bagFrame.updateBagBar()
-        end
-        layout()
-    end
-    ns.NextFrame(run)
+    ns.NextFrame(runScheduledRefresh)
 end
 
 function categoriesChanged() refresh() end

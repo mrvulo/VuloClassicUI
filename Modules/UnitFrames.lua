@@ -685,10 +685,21 @@ local function remember(fs)
 end
 local function setBarSize(bar, size)
     if not bar then return end
-    remember(bar.TextString or ns:SafeGetFontString(bar, "Text"))
-    remember(bar.LeftText   or ns:SafeGetFontString(bar, "TextLeft"))
-    remember(bar.RightText  or ns:SafeGetFontString(bar, "TextRight"))
-    ns:SetBarTextFontSize(bar, size)
+    -- The three text regions never change, but this runs from the
+    -- TextStatusBar hook on every health/power text tick -- so they are
+    -- resolved (and remembered for OnDisable) once per bar, not per call.
+    -- false marks a region the bar simply does not have.
+    local c = bar._vcuiTexts
+    if not c then
+        c = {
+            bar.TextString or ns:SafeGetFontString(bar, "Text")      or false,
+            bar.LeftText   or ns:SafeGetFontString(bar, "TextLeft")  or false,
+            bar.RightText  or ns:SafeGetFontString(bar, "TextRight") or false,
+        }
+        bar._vcuiTexts = c
+        for i = 1, 3 do if c[i] then remember(c[i]) end end
+    end
+    for i = 1, 3 do if c[i] then ns:ApplyFontSize(c[i], size) end end
 end
 
 local function applyPetFeedbackFont()

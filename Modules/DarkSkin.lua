@@ -273,7 +273,13 @@ local function restoreFlash(button, flash)
 end
 
 local function applyFlash(button, icon)
-    local flash = getRegion(button, "Flash", button.Flash)
+    -- Resolved once per button: the region never changes, and getRegion's
+    -- name..suffix concat ran per button per pass. false marks "none".
+    local flash = button._vcuiFlashR
+    if flash == nil then
+        flash = getRegion(button, "Flash", button.Flash) or false
+        button._vcuiFlashR = flash
+    end
     if not flash then return end
     local st = currentStyle()
     if not icon then
@@ -318,7 +324,13 @@ end
 
 local function applyStyle(button)
     local st   = currentStyle()
-    local icon = getRegion(button, "Icon", button.icon or button.Icon)
+    -- Same caching as the flash region in applyFlash: resolve once, keep.
+    local icon = button._vcuiIconR
+    if icon == nil then
+        icon = getRegion(button, "Icon", button.icon or button.Icon) or false
+        button._vcuiIconR = icon
+    end
+    icon = icon or nil
 
     if icon and icon.SetTexCoord then
         if st.standard then
@@ -413,20 +425,36 @@ local function skinButton(button)
     applyStyle(button)
 end
 
-local function forEachButton(fn)
-    for _, prefix in ipairs(BAR_PREFIXES) do
-        for i = 1, 12 do
-            local b = _G[prefix .. i]
-            if b then fn(b) end
+-- This walk runs on every debounced shapeshift/pet-bar event, up to ten times
+-- a second in combat, and prefix..i built ~180 fresh strings per pass. The
+-- names are a fixed vocabulary, so a found button is kept for good and only
+-- the names that missed are re-asked -- a bar created later (our own lazy
+-- ones included) is still picked up on its first appearance.
+local function resolveButtons(prefixes, hits, misses)
+    if not misses then
+        misses = {}
+        for _, prefix in ipairs(prefixes) do
+            for i = 1, 12 do misses[#misses + 1] = prefix .. i end
         end
     end
-    if mod.db.skinPetStance then
-        for _, prefix in ipairs(EXTRA_PREFIXES) do
-            for i = 1, 12 do
-                local b = _G[prefix .. i]
-                if b then fn(b) end
-            end
+    for i = #misses, 1, -1 do
+        local b = _G[misses[i]]
+        if b then
+            hits[#hits + 1] = b
+            misses[i] = misses[#misses]
+            misses[#misses] = nil
         end
+    end
+    return misses
+end
+local coreButtons, coreMisses = {}, nil
+local extraButtons, extraMisses = {}, nil
+local function forEachButton(fn)
+    coreMisses = resolveButtons(BAR_PREFIXES, coreButtons, coreMisses)
+    for i = 1, #coreButtons do fn(coreButtons[i]) end
+    if mod.db.skinPetStance then
+        extraMisses = resolveButtons(EXTRA_PREFIXES, extraButtons, extraMisses)
+        for i = 1, #extraButtons do fn(extraButtons[i]) end
     end
 end
 
@@ -678,16 +706,23 @@ local function skinWAById(id)
     if ok then skinWARegion(region) end
 end
 
-local function skinFrameTree(frame, depth)
+-- The walk visits hundreds of frames on a big interface, so the children stay
+-- on the stack (select) instead of being packed into a throwaway table per
+-- node -- that packing alone was one allocation per visited frame.
+local skinFrameTree
+local function skinTreeChildren(depth, ok, ...)
+    if not ok then return end
+    for i = 1, select("#", ...) do
+        skinFrameTree((select(i, ...)), depth)
+    end
+end
+skinFrameTree = function(frame, depth)
     if not frame or depth > 10 then return end
     if frame.IsForbidden and frame:IsForbidden() then return end
     local rt = frame.regionType
     if rt == "icon" or rt == "aurabar" then pcall(skinWARegion, frame) end
     if not frame.GetChildren then return end
-    local packed = { pcall(frame.GetChildren, frame) }
-    if packed[1] then
-        for i = 2, #packed do skinFrameTree(packed[i], depth + 1) end
-    end
+    skinTreeChildren(depth + 1, pcall(frame.GetChildren, frame))
 end
 
 local function skinAllWAIcons()
@@ -728,14 +763,17 @@ local function skinWAFrameOnly()
     if not (mod._enabled and mod.db and mod.db.skinWeakAuras) then return end
     skinFrameTree(_G.WeakAurasFrame, 0)
 end
+-- Named callback: the trigger is raid-wide UNIT_AURA, and an anonymous
+-- function here would be a fresh closure per debounce window, all fight long.
+local function runWASoon()
+    _waSoonPending = false
+    skinWAFrameOnly()
+end
 local function skinWASoon()
     if _waSoonPending or not (mod._enabled and mod.db and mod.db.skinWeakAuras) then return end
     if not (C_Timer and C_Timer.After) then return end
     _waSoonPending = true
-    C_Timer.After(0.25, function()
-        _waSoonPending = false
-        skinWAFrameOnly()
-    end)
+    C_Timer.After(0.25, runWASoon)
 end
 
 local waHooked = false
@@ -759,21 +797,26 @@ local function skinEverything()
     skinAllWAIcons()
 end
 
+-- Named callbacks: the shapeshift and pet-bar events behind these land many
+-- times a second in combat, and anonymous functions would be one closure per
+-- debounce window.
 local _skinAllPending, _skinEvtPending
+local function runSkinAll() _skinAllPending = false; if mod._enabled then skinAll() end end
 local function skinAllSoon()
     if not (C_Timer and C_Timer.After) then return skinAll() end
     if _skinAllPending then return end
     _skinAllPending = true
-    C_Timer.After(0.1, function() _skinAllPending = false; if mod._enabled then skinAll() end end)
+    C_Timer.After(0.1, runSkinAll)
 end
 
 -- Entry point for other modules to re-skin freshly created action buttons.
 ns.ReskinActionButtons = skinAllSoon
+local function runSkinEverything() _skinEvtPending = false; if mod._enabled then skinEverything() end end
 local function skinEverythingSoon()
     if not (C_Timer and C_Timer.After) then return skinEverything() end
     if _skinEvtPending then return end
     _skinEvtPending = true
-    C_Timer.After(0.2, function() _skinEvtPending = false; if mod._enabled then skinEverything() end end)
+    C_Timer.After(0.2, runSkinEverything)
 end
 
 -- Cannot gate on mod._enabled: the core sets it true only AFTER OnEnable returns.

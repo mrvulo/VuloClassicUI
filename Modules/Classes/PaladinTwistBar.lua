@@ -38,6 +38,7 @@ local sealCountSig
 
 local lastSound, lastLateSound = 0, 0
 local wasPrompting, wasLate = false, false
+local lastInfoAt = 0
 
 -- Memo for the zone geometry, declared up here because ST.Layout has to be able
 -- to drop it: layout shows the zone textures again, and a zone that placeZones
@@ -441,6 +442,48 @@ end
 -- Which seals are on the player, and for how long. Both show while the twist is
 -- in -- that overlap IS the pay-off, and seeing it is how a player confirms the
 -- twist landed instead of inferring it from a colour.
+-- Shared by every putSeal call of one updateSeals pass. A closure here would be
+-- rebuilt fifty times a second, so the state travels through upvalues instead.
+local sealN, sealNow, sealSwipe = 0, 0, false
+local function putSeal(icon, expires, duration)
+    sealN = sealN + 1
+    local slot = sealSlots[sealN]
+    if not slot then return end
+    -- Only on a change: this runs fifty times a second, and re-setting the
+    -- same texture path is the kind of small waste that adds up in a raid.
+    if slot.shown ~= icon then
+        slot.icon:SetTexture(icon)
+        slot.shown = icon
+    end
+    local left = expires and (expires - sealNow) or 0
+    -- The label shows whole seconds, so it only needs a new string when the
+    -- rounded value moves -- not on every tick of the fifty-hertz driver.
+    local bucket = left > 0 and floor(left + 0.5) or -1
+    if slot.timeShown ~= bucket then
+        slot.timeShown = bucket
+        if bucket >= 0 then
+            slot.time:SetFormattedText("%d", bucket)
+        else
+            slot.time:SetText("")
+        end
+    end
+    -- Re-armed only when the aura actually changed. SetCooldown restarts the
+    -- animation from the top, so calling it every frame freezes the sweep at
+    -- its first pixel -- which looks exactly like a sweep that is not
+    -- working rather than one being reset.
+    if sealSwipe and duration and duration > 0 and expires then
+        local start = expires - duration
+        if slot.cdStart ~= start or slot.cdDur ~= duration then
+            slot.cdStart, slot.cdDur = start, duration
+            slot.cd:SetCooldown(start, duration)
+        end
+    elseif slot.cdStart then
+        slot.cdStart, slot.cdDur = nil, nil
+        slot.cd:Clear()
+    end
+    slot:Show()
+end
+
 local function updateSeals(d, now)
     if not d.showSeals then return end
 
@@ -449,49 +492,16 @@ local function updateSeals(d, now)
     -- container can be dragged to where it belongs.
     local preview = (d.sealPos and d.sealPos.unlocked) or ns:IsMoverEditMode()
 
-    local n = 0
-    local function put(icon, expires, duration)
-        n = n + 1
-        local slot = sealSlots[n]
-        if not slot then return end
-        -- Only on a change: this runs fifty times a second, and re-setting the
-        -- same texture path is the kind of small waste that adds up in a raid.
-        if slot.shown ~= icon then
-            slot.icon:SetTexture(icon)
-            slot.shown = icon
-        end
-        local left = expires and (expires - now) or 0
-        if left > 0 then
-            slot.time:SetText(format("%d", floor(left + 0.5)))
-        else
-            slot.time:SetText("")
-        end
-        -- Re-armed only when the aura actually changed. SetCooldown restarts the
-        -- animation from the top, so calling it every frame freezes the sweep at
-        -- its first pixel -- which looks exactly like a sweep that is not
-        -- working rather than one being reset.
-        if d.sealSwipe and duration and duration > 0 and expires then
-            local start = expires - duration
-            if slot.cdStart ~= start or slot.cdDur ~= duration then
-                slot.cdStart, slot.cdDur = start, duration
-                slot.cd:SetCooldown(start, duration)
-            end
-        elseif slot.cdStart then
-            slot.cdStart, slot.cdDur = nil, nil
-            slot.cd:Clear()
-        end
-        slot:Show()
-    end
-
+    sealN, sealNow, sealSwipe = 0, now, d.sealSwipe
     if preview then
-        put(ST.heldTex or ST.heldIcon)
-        put(ST.twistTex or ST.twistIcon)
+        putSeal(ST.heldTex or ST.heldIcon)
+        putSeal(ST.twistTex or ST.twistIcon)
     else
-        if ST.hasHeld  then put(ST.heldIcon,  ST.heldExpires,  ST.heldDuration)  end
-        if ST.hasTwist then put(ST.twistIcon, ST.twistExpires, ST.twistDuration) end
+        if ST.hasHeld  then putSeal(ST.heldIcon,  ST.heldExpires,  ST.heldDuration)  end
+        if ST.hasTwist then putSeal(ST.twistIcon, ST.twistExpires, ST.twistDuration) end
     end
-    placeSeals(d, n)
-    for i = n + 1, 2 do sealSlots[i]:Hide() end
+    placeSeals(d, sealN)
+    for i = sealN + 1, 2 do sealSlots[i]:Hide() end
 end
 
 -- The spell name each step points at, and the tint that says which seal carries
@@ -554,21 +564,34 @@ end
 local function updateSideText(d, fs, what, swingDur, remaining, gcd)
     if what == "none" or not fs:IsShown() then return end
     local warn = false
-    local text = ""
+    -- One decimal is all the display shows, so the value is bucketed to tenths
+    -- (milliseconds stay whole) and a new string is only built when the bucket
+    -- moves. The colour is set every tick on purpose: it is allocation-free,
+    -- and gating it would leave a stale tint after a settings change.
+    local bucket = -1
     if what == "attackSpeed" then
         local speed = swingDur or UnitAttackSpeed("player")
         if speed and speed > 0 then
-            text = format("%.1f", speed)
+            bucket = floor(speed * 10 + 0.5)
             warn = speed < 2 * gcd
         end
     elseif what == "swingTimer" then
-        if remaining then text = format("%.1f", remaining) end
+        if remaining then bucket = floor(remaining * 10 + 0.5) end
     elseif what == "latency" then
-        text = format("%d", floor(ST.LagWorldMs(d) + 0.5))
+        bucket = floor(ST.LagWorldMs(d) + 0.5)
     elseif what == "gcd" then
-        text = format("%.1f", ST.GCDRemaining())
+        bucket = floor(ST.GCDRemaining() * 10 + 0.5)
     end
-    fs:SetText(text)
+    if fs._vcBucket ~= bucket or fs._vcWhat ~= what then
+        fs._vcBucket, fs._vcWhat = bucket, what
+        if bucket < 0 then
+            fs:SetText("")
+        elseif what == "latency" then
+            fs:SetFormattedText("%d", bucket)
+        else
+            fs:SetFormattedText("%.1f", bucket / 10)
+        end
+    end
     if warn then
         fs:SetTextColor(ST.Color(d.colWarning, 1.00, 0.80, 0.20))
     else
@@ -620,6 +643,10 @@ local function onUpdate()
         bar:SetMinMaxValues(0, 1)
         bar:SetValue(0)
         bar:SetStatusBarColor(ST.Color(d.colDefault, 0.35, 0.35, 0.42))
+        -- The gate below caches what the label shows; clearing it here without
+        -- dropping the cache would leave the label blank when the SAME action
+        -- comes back after the pause.
+        actionFS._vcKey, actionFS._vcName = nil, nil
         actionFS:SetText("")
         if d.showNumbers then infoFS:SetText(L["waiting for a swing"]) end
         -- Everything measured against a swing has nothing to measure against.
@@ -679,36 +706,54 @@ local function onUpdate()
     bar:SetStatusBarColor(cr, cg, cb)
 
     if d.showAction then
-        local label, warn
         local wrap = ST.ACTION_TEXT[action]
-        if wrap and action == ST.ACTION_HOLD then
-            -- The word, not the spell: "wait" is the instruction, and the spell
-            -- being waited FOR is what the icon guide shows.
-            label = format(wrap, L["wait"])
-        elseif wrap then
-            label = format(wrap, actName
-                or (action == ST.ACTION_TWIST and L["Twist"])
-                or (action == ST.ACTION_HELD and L["Hold seal"])
-                or "")
+        -- The label only depends on these few inputs, and they change per
+        -- decision, not per frame -- so the format() strings are rebuilt on a
+        -- change of key, not fifty times a second.
+        local warn
+        local key
+        if wrap then
+            key = action
         elseif lost then
             warn = true
-            -- Short on purpose: this sits on a bar a few hundred pixels wide and
-            -- is read out of the corner of the eye mid-fight. The reason it is
-            -- lost (a cooldown landing late) is one of several, and naming that
-            -- one made the line too long to take in at a glance.
-            --
-            -- No colour code in the string any more: the warning colour is a
-            -- setting now, and a colour baked into a translated string is one
-            -- the player cannot reach and nine locales have to agree on.
-            label = L["Twist lost"]
+            key = "lost"
         elseif zone == ST.Z_READY and not fake then
-            -- A swing that is due and stays due means auto-attack is off. It is
-            -- the classic way to lose a whole rotation without noticing, and
-            -- the bar is the only place it shows.
             warn = true
-            label = L["Swing ready -- restart your attack"]
+            key = "ready"
         else
-            label = ""
+            key = ""
+        end
+        if actionFS._vcKey ~= key or actionFS._vcName ~= actName then
+            actionFS._vcKey, actionFS._vcName = key, actName
+            local label
+            if wrap and action == ST.ACTION_HOLD then
+                -- The word, not the spell: "wait" is the instruction, and the
+                -- spell being waited FOR is what the icon guide shows.
+                label = format(wrap, L["wait"])
+            elseif wrap then
+                label = format(wrap, actName
+                    or (action == ST.ACTION_TWIST and L["Twist"])
+                    or (action == ST.ACTION_HELD and L["Hold seal"])
+                    or "")
+            elseif key == "lost" then
+                -- Short on purpose: this sits on a bar a few hundred pixels wide
+                -- and is read out of the corner of the eye mid-fight. The reason
+                -- it is lost (a cooldown landing late) is one of several, and
+                -- naming that one made the line too long to take in at a glance.
+                --
+                -- No colour code in the string any more: the warning colour is a
+                -- setting now, and a colour baked into a translated string is
+                -- one the player cannot reach and nine locales have to agree on.
+                label = L["Twist lost"]
+            elseif key == "ready" then
+                -- A swing that is due and stays due means auto-attack is off. It
+                -- is the classic way to lose a whole rotation without noticing,
+                -- and the bar is the only place it shows.
+                label = L["Swing ready -- restart your attack"]
+            else
+                label = ""
+            end
+            actionFS:SetText(label)
         end
         -- The action labels carry their own colour wrappers, so the base colour
         -- only shows through on the warnings. Set either way: a wrapper that
@@ -729,10 +774,12 @@ local function onUpdate()
             local path, outline = ST.FontFace(d)
             actionFS:SetFont(path, want, outline)
         end
-        actionFS:SetText(label)
     end
 
-    if d.showNumbers then
+    if d.showNumbers and now - lastInfoAt >= 0.1 then
+        -- Ten times a second, not fifty: the last digit churns too fast to read
+        -- at full rate anyway, and each pass builds one or two strings.
+        lastInfoAt = now
         -- No bare "|" as a separator: it opens an escape sequence for the font
         -- renderer and eats the character after it.
         local line = format(L["%.2fs left  -  swing %.2fs  -  GCD %.2fs"], remaining, swingDur, gcd)

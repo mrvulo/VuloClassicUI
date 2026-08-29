@@ -1606,6 +1606,11 @@ local FISH_CVARS = { SoftTargetInteract = "3", SoftTargetInteractRange = "15", S
 local SOUND_DIM = { Sound_MusicVolume = "0", Sound_AmbienceVolume = "0" }
 
 local owner = CreateFrame("Frame", "VulFishOwner", UIParent)
+-- Hidden until the module enables: a shown frame pays the C-to-Lua OnUpdate
+-- call every single frame of the session, even when the body bails out on the
+-- first line. Override bindings are unaffected -- the frame is only their
+-- clearing handle, not their on-switch.
+owner:Hide()
 local macroBtn = CreateFrame("Button", "VulFishMacroButton", UIParent, "SecureActionButtonTemplate")
 macroBtn:SetAttribute("type", "macro")
 macroBtn:RegisterForClicks("AnyUp", "AnyDown")
@@ -1963,9 +1968,11 @@ function mod:OnEnable()
     restoreOrphanedCVars()
     rebuildExtra()
     actionHandler()
+    owner:Show()
 end
 
 function mod:OnDisable()
+    owner:Hide()
     setQuiet(false)
     restoreFishCVars()
     if not InCombatLockdown() then ClearOverrideBindings(owner) end
@@ -3935,8 +3942,18 @@ end
 local function coin(c) return GetCoinTextureString and GetCoinTextureString(c) or (math.floor((c or 0) / 10000) .. "g") end
 
 -- Bags come live from the tradeskill API; bank mats are cached per character so counts work away from the bank.
+-- Memoized once both halves answer: the key is fixed for the session, and
+-- this used to build two strings per call -- with a call per bank BAG_UPDATE
+-- and per tooltip count lookup.
+local _charKey
 local function charKey()
-    return (UnitName("player") or "?") .. " - " .. (GetRealmName() or "?")
+    local k = _charKey
+    if not k then
+        local name, realm = UnitName("player"), GetRealmName()
+        k = (name or "?") .. " - " .. (realm or "?")
+        if name and realm then _charKey = k end
+    end
+    return k
 end
 
 -- Container API moved to C_Container on newer clients; both paths are needed.
@@ -3961,15 +3978,19 @@ end
 local BANK_BAGS = { -1, 5, 6, 7, 8, 9, 10, 11 }
 local function scanBank()
     if not (mod.active and mod.db) then return end
-    local counts = {}
+    -- Refill the saved table in place: one stack move at the bank fires
+    -- several BAG_UPDATEs, and each pass used to hand a ~hundred-entry table
+    -- to the garbage collector.
+    mod.db.bank = mod.db.bank or {}
+    local key = charKey()
+    local counts = mod.db.bank[key]
+    if counts then wipe(counts) else counts = {}; mod.db.bank[key] = counts end
     for _, bag in ipairs(BANK_BAGS) do
         for slot = 1, (cSlots(bag) or 0) do
             local id = cItemID(bag, slot)
             if id then counts[id] = (counts[id] or 0) + cItemCount(bag, slot) end
         end
     end
-    mod.db.bank = mod.db.bank or {}
-    mod.db.bank[charKey()] = counts
 end
 
 local function bankCount(itemID)
@@ -7451,6 +7472,17 @@ local function isSecret(value)
     return issecretvalue(value) or issecrettable(value)
 end
 
+-- "GameTooltipTextLeft3" and friends are a tiny fixed vocabulary; built once
+-- here instead of two fresh concats per tooltip line per added row.
+local lineNameCache = {}
+local function lineFrame(name, i)
+    local perName = lineNameCache[name]
+    if not perName then perName = {}; lineNameCache[name] = perName end
+    local key = perName[i]
+    if not key then key = name .. "TextLeft" .. i; perName[i] = key end
+    return _G[key]
+end
+
 local function addLine(tooltip, id, kind)
     if isSecret(id) then return end
     if not id or id == "" or not tooltip or not tooltip.GetName then return end
@@ -7461,10 +7493,11 @@ local function addLine(tooltip, id, kind)
 
     local frame, text
     for i = tooltip:NumLines(), 1, -1 do
-        frame = _G[name .. "TextLeft" .. i]
+        frame = lineFrame(name, i)
         if frame then text = frame:GetText() end
         if isSecret(text) then return end
-        if text and string.find(text, kinds[kind]) then return end
+        -- plain find: the labels are literal words, not patterns
+        if text and string.find(text, kinds[kind], 1, true) then return end
     end
 
     local multiple = type(id) == "table"
@@ -7531,13 +7564,24 @@ local function addByKind(tooltip, id, kind)
     end
 end
 
+-- Scratch buffers: addItemInfo runs on every item tooltip show, so its three
+-- work tables are reused instead of allocated per call. Safe to share -- the
+-- consumers (table.concat in addLine) read them synchronously.
+local _bonuses, _itemSplit, _gems = {}, {}, {}
+
 local function addItemInfo(tooltip, link)
     if not link then return end
+    -- All the parsing below is wasted when every kind this can emit is off --
+    -- and the hook fires whether or not the player ever enabled ID lines.
+    if not (isEnabled("item") or isEnabled("enchant") or isEnabled("bonus")
+        or isEnabled("gem") or isEnabled("expansion") or isEnabled("set")
+        or isEnabled("icon") or isEnabled("spell")) then return end
     local itemString = string.match(link, "item:([%-?%d:]+)")
     if not itemString then return end
 
-    local bonuses = {}
-    local itemSplit = {}
+    local bonuses = _bonuses
+    local itemSplit = _itemSplit
+    wipe(bonuses); wipe(itemSplit)
 
     for v in string.gmatch(itemString, "(%d*:?)") do
         if v == ":" then
@@ -7553,7 +7597,8 @@ local function addItemInfo(tooltip, link)
         end
     end
 
-    local gems = {}
+    local gems = _gems
+    wipe(gems)
     if GetItemGem then
         for i = 1, 4 do
             local gemLink = select(2, GetItemGem(link, i))

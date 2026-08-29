@@ -1058,10 +1058,14 @@ mod.RequestRefresh = requestRefresh
 local function onPlayerUnit(_, unit) if unit == "player" then requestRefresh() end end
 -- Group members' auras matter only while the group scan is on; the debounce
 -- in requestRefresh coalesces a raid's UNIT_AURA bursts.
+-- party1-4 / raid1-40 are a fixed vocabulary, so a hash lookup replaces the
+-- two anchored pattern matches this ran for every UNIT_AURA in a raid.
+local GROUP_UNITS = {}
+for i = 1, 4  do GROUP_UNITS["party" .. i] = true end
+for i = 1, 40 do GROUP_UNITS["raid"  .. i] = true end
 local function onUnitAura(_, unit)
     if unit == "player" then requestRefresh(); return end
-    if mod.db.othersMissing and type(unit) == "string"
-       and (unit:find("^party%d+$") or unit:find("^raid%d+$")) then
+    if mod.db.othersMissing and GROUP_UNITS[unit] then
         requestRefresh()
     end
 end

@@ -2806,8 +2806,13 @@ end
 mod.RefreshAuraIcons = function() H.ForEach(updateAuraIcon) end
 mod:OnArenaFramesReady(updateAuraIcon)
 
+-- Reverse map instead of a pattern match: this runs per UNIT_AURA in the
+-- arena, and unit:match() would allocate a capture string every time.
+local ARENA_INDEX = {}
+for i = 1, #ns.ARENA_UNITS do ARENA_INDEX[ns.ARENA_UNITS[i]] = i end
+
 function mod.AuraIconUpdate(unit)
-    local i = tonumber(unit and unit:match("^arena(%d)$") or "")
+    local i = unit and ARENA_INDEX[unit]
     local arenaFrame = i and H.Frame(i)
     if arenaFrame then updateAuraIcon(arenaFrame, i) end
 end
@@ -3154,6 +3159,17 @@ local function setPvPCombatLog(on)
     mod.SetDynEvent("COMBAT_LOG_EVENT_UNFILTERED", onPvPCombatLog, on)
 end
 
+-- Zone-bound like the combat-log handlers around it: outside an arena the
+-- registry never sees this handler, so raid-wide UNIT_AURA traffic costs
+-- nothing here. The prefix guard stays as a belt for odd units inside.
+local function ev_UNIT_AURA(_, unit)
+    if not unit or string.sub(unit, 1, 5) ~= "arena" then return end
+    if mod.AuraIconUpdate then mod.AuraIconUpdate(unit) end
+end
+local function setAuraIconEvent(on)
+    mod.SetDynEvent("UNIT_AURA", ev_UNIT_AURA, on)
+end
+
 local function ev_PLAYER_ENTERING_WORLD_3()
     -- see the trinket capsule: a switched-off module must not take the combat
     -- log, and must not start the range ticker either
@@ -3164,6 +3180,7 @@ local function ev_PLAYER_ENTERING_WORLD_3()
         inArena = (instanceType == "arena")
     end
     setPvPCombatLog(inArena)
+    setAuraIconEvent(inArena)
     if inArena then
         if mod.ResetRacials then mod.ResetRacials() end
         if mod.ResetDispels then mod.ResetDispels() end
@@ -3191,14 +3208,6 @@ local function ev_ARENA_OPPONENT_UPDATE_3(_, unit, eventType)
     if unit and mod.AuraIconUpdate then mod.AuraIconUpdate(unit) end
 end
 mod.RegEvent("ARENA_OPPONENT_UPDATE", ev_ARENA_OPPONENT_UPDATE_3)
-
-local function ev_UNIT_AURA(_, unit)
-    if not mod._enabled then return end
-    -- fires for every unit everywhere; only arena1-5 matter here
-    if not unit or string.sub(unit, 1, 5) ~= "arena" then return end
-    if mod.AuraIconUpdate then mod.AuraIconUpdate(unit) end
-end
-mod.RegEvent("UNIT_AURA", ev_UNIT_AURA)
 
 local function ev_PLAYER_LEAVING_WORLD()
     gatesOpen = false
@@ -3494,6 +3503,11 @@ end
 -- moves on an event. Once the number would go negative the scan decides
 -- whether a second effect is still holding, so the display never blanks out
 -- while something is in fact still on the player.
+--
+-- The label shows tenths, so the string is only rebuilt when the tenth moves
+-- -- everything below that would be sixty allocations a second for digits
+-- nobody can read.
+local lastTimeBucket
 ticker:SetScript("OnUpdate", function()
     if not current then ticker:Hide(); return end
     local left = current.expiry - GetTime()
@@ -3501,7 +3515,11 @@ ticker:SetScript("OnUpdate", function()
         if GetTime() >= previewUntil then refresh() end
         return
     end
-    primary.time:SetText(format(L["%.1f seconds"], left))
+    local bucket = math.floor(left * 10)
+    if lastTimeBucket ~= bucket then
+        lastTimeBucket = bucket
+        primary.time:SetFormattedText(L["%.1f seconds"], left)
+    end
 end)
 
 local function ev_loss()
@@ -3885,9 +3903,23 @@ end
 -- Enemies whose interrupt has not been seen yet, so the bar reads as "these are
 -- the kicks in this match" from the opening gate rather than filling up as they
 -- are spent. Arena only: outside it there is no reliable enemy roster.
+-- The guid/key lookup strings and the ready-marker tables are both rebuilt
+-- five times a second while the ticker runs, so both are cached: the keys per
+-- opponent (a roster is a handful of guids), the markers in a pool reused by
+-- index. Pool entries are read-only for the consumer and always ready=true.
+local guidKeyCache = {}
+local function activeKey(guid, key)
+    local per = guidKeyCache[guid]
+    if not per then per = {}; guidKeyCache[guid] = per end
+    local full = per[key]
+    if not full then full = guid .. "/" .. key; per[key] = full end
+    return full
+end
+local unusedPool = {}
 local function unusedEntries(out)
     if not db().showUnused then return end
     if not (IsInInstance and select(2, IsInInstance()) == "arena") then return end
+    local pi = 0
     for i = 1, 5 do
         local unit = ns.ARENA_UNITS[i]
         if UnitExists and UnitExists(unit) then
@@ -3898,8 +3930,12 @@ local function unusedEntries(out)
             if abilities then
                 for ai = 1, #abilities do
                     local ab = abilities[ai]
-                    if not (guid and active[guid .. "/" .. ab.key]) then
-                        out[#out + 1] = { id = ab.id, class = class, ready = true }
+                    if not (guid and active[activeKey(guid, ab.key)]) then
+                        pi = pi + 1
+                        local e = unusedPool[pi]
+                        if not e then e = { ready = true }; unusedPool[pi] = e end
+                        e.id, e.class = ab.id, class
+                        out[#out + 1] = e
                     end
                 end
             end
@@ -4084,7 +4120,7 @@ local function onCombatLog()
     -- the one interrupt in the list nobody casts personally.
     if not def.pet and bit.band(flags, PLAYER) == 0 then return end
 
-    active[sourceGUID .. "/" .. def.key] = {
+    active[activeKey(sourceGUID, def.key)] = {
         id     = ABILITY[def.key].id,
         cd     = def.cd,
         class  = def.class,

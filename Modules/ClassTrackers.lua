@@ -127,7 +127,7 @@ local dotsRows     = {}
 local dotsThrottle = 0
 
 local DOT_GREEN     = { 0.20, 1.00, 0.20 }
-local dotsSnapshots = {}  -- destGUID..dotKey -> damage-estimate snapshot at cast
+local dotsSnapshots = {}  -- destGUID -> { dotKey -> damage-estimate snapshot at cast }
 
 -- school: GetSpellBonusDamage index (6 = Shadow, 3 = Fire).
 local function dotsCurrentPower(school)
@@ -152,8 +152,13 @@ local function dotsRecomputeMult()
     dotsMultCache = m
 end
 
+-- The target scan only reruns when the target's auras actually changed --
+-- UNIT_AURA says so -- instead of ten times a second. Between changes the
+-- cached duration/expiry pair counts down on its own.
+local dotsTargetDirty = true
 local function dotsOnUnitAura(_, unit)
     if unit == "player" then dotsRecomputeMult() end
+    if unit == "target" then dotsTargetDirty = true end
 end
 
 local function dotsFactor(dot, mult)
@@ -165,7 +170,8 @@ end
 local function dotsGain(dot, mult)
     local guid = UnitGUID("target")
     if not guid then return nil end
-    local snap = dotsSnapshots[guid .. dot.key]
+    local byKey = dotsSnapshots[guid]
+    local snap = byKey and byKey[dot.key]
     if not snap or snap <= 0 then return nil end
     return (dotsFactor(dot, mult) / snap - 1) * 100
 end
@@ -212,8 +218,15 @@ local function onCombatLog()
     if apply or remove then
         for _, dot in ipairs(dotDefs) do
             if dot.name and spellName == dot.name then
-                dotsSnapshots[destGUID .. dot.key] =
-                    apply and dotsFactor(dot, dotsDamageMult()) or nil
+                -- Nested by GUID rather than guid..key: the read side runs per
+                -- row per repaint and a concatenated key was a string per look.
+                local byKey = dotsSnapshots[destGUID]
+                if apply then
+                    if not byKey then byKey = {}; dotsSnapshots[destGUID] = byKey end
+                    byKey[dot.key] = dotsFactor(dot, dotsDamageMult())
+                elseif byKey then
+                    byKey[dot.key] = nil
+                end
                 return
             end
         end
@@ -405,10 +418,17 @@ local function dotsUpdateRow(row, hasTarget, preview, mult)
         end
         local better = (gain and gain > 0.5) and true or false
 
-        if remaining < 10 then
-            row.time:SetText(string.format("%.1f", remaining))
-        else
-            row.time:SetText(string.format("%d", remaining + 0.5))
+        -- Only a moved display value earns a new string: tenths below ten
+        -- seconds, whole seconds above (offset keeps the ranges apart).
+        local bucket = remaining < 10 and math.floor(remaining * 10)
+            or 1000 + math.floor(remaining + 0.5)
+        if row._timeBucket ~= bucket then
+            row._timeBucket = bucket
+            if remaining < 10 then
+                row.time:SetFormattedText("%.1f", remaining)
+            else
+                row.time:SetFormattedText("%d", remaining + 0.5)
+            end
         end
         row.time:Show()
         if db.colorText and better then
@@ -420,7 +440,11 @@ local function dotsUpdateRow(row, hasTarget, preview, mult)
         end
 
         if db.showGain and gain and math.abs(gain) >= 1 then
-            row.pct:SetText(string.format("%+.0f%%", gain))
+            local pctBucket = math.floor(gain + 0.5)
+            if row._pctBucket ~= pctBucket then
+                row._pctBucket = pctBucket
+                row.pct:SetFormattedText("%+.0f%%", gain)
+            end
             if gain > 0 then
                 row.pct:SetTextColor(DOT_GREEN[1], DOT_GREEN[2], DOT_GREEN[3])
             else
@@ -462,6 +486,7 @@ local function dotsUpdateRow(row, hasTarget, preview, mult)
             if frac > 0.02 and frac < 0.99 then row.spark:Show() else row.spark:Hide() end
         end
     else
+        row._timeBucket, row._pctBucket = nil, nil
         row.time:SetText("")
         row.time:Hide()
         row.pct:Hide()
@@ -501,7 +526,10 @@ local function dotsRefresh()
     end
 
     dotsContainer:Show()
-    dotsScanTarget()
+    if dotsTargetDirty then
+        dotsTargetDirty = false
+        dotsScanTarget()
+    end
     local mult = dotsDamageMult()
     for _, dot in ipairs(dotDefs) do
         local row = dotsRows[dot.key]
@@ -514,6 +542,12 @@ local function dotsOnUpdate(self, elapsed)
     if dotsThrottle < 0.1 then return end
     dotsThrottle = 0
     if not mod._enabled then return end
+    dotsRefresh()
+end
+
+-- A fresh target means the cached aura pair describes the old one.
+local function dotsOnTargetChanged()
+    dotsTargetDirty = true
     dotsRefresh()
 end
 
@@ -604,9 +638,10 @@ local function trackersEnable(class)
         dotsContainer:SetScript("OnUpdate", dotsOnUpdate)
         mod:RegisterEvent("UNIT_AURA",             dotsOnUnitAura)
         mod:RegisterEvent("SPELLS_CHANGED",        dotsRefreshSpellData)
-        mod:RegisterEvent("PLAYER_TARGET_CHANGED", dotsRefresh)
-        mod:RegisterEvent("PLAYER_ENTERING_WORLD", dotsRefresh)
+        mod:RegisterEvent("PLAYER_TARGET_CHANGED", dotsOnTargetChanged)
+        mod:RegisterEvent("PLAYER_ENTERING_WORLD", dotsOnTargetChanged)
         dotsRecomputeMult()
+        dotsTargetDirty = true   -- auras may have moved while events were off
         dotsRefresh()
     end
 end

@@ -210,8 +210,12 @@ end
 
 function ns:ApplyFontSize(fs, size)
     if not fs or not fs.GetFont or not fs.SetFont then return end
-    local font, _, flags = fs:GetFont()
-    if font then
+    local font, cur, flags = fs:GetFont()
+    -- Skip when the size already matches: this sits behind a hook that fires
+    -- on every health/power text tick, and SetFont is not a cheap setter --
+    -- it re-lays-out the string. Epsilon, not equality: GetFont answers with
+    -- values like 9.999999 for a size that was set as 10.
+    if font and not (cur and cur > size - 0.05 and cur < size + 0.05) then
         fs:SetFont(font, size, flags)
     end
 end

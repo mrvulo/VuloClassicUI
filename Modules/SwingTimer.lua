@@ -209,6 +209,7 @@ end
 local function updateBar(bar, sw, t)
     if not sw.active or sw.dur <= 0 then
         bar:SetValue(0)
+        bar._timeBucket = -1
         bar.time:SetText("")
         bar.spark:Hide()
         return
@@ -220,6 +221,7 @@ local function updateBar(bar, sw, t)
         if not mod.db.unlocked and elapsed > sw.dur + 2 then
             sw.active = false
             bar:SetValue(0)
+            bar._timeBucket = -1
             bar.time:SetText("")
             bar.spark:Hide()
             return
@@ -229,7 +231,17 @@ local function updateBar(bar, sw, t)
         frac, remaining = elapsed / sw.dur, sw.dur - elapsed
     end
     bar:SetValue(frac)
-    bar.time:SetText(mod.db.showText and format("%.1f", remaining) or "")
+    -- One decimal on the label, fifty ticks a second on the driver: the string
+    -- is only rebuilt when the displayed tenth actually moves.
+    local bucket = mod.db.showText and math.floor(remaining * 10) or -1
+    if bar._timeBucket ~= bucket then
+        bar._timeBucket = bucket
+        if bucket >= 0 then
+            bar.time:SetFormattedText("%.1f", remaining)
+        else
+            bar.time:SetText("")
+        end
+    end
     bar.spark:ClearAllPoints()
     bar.spark:SetPoint("CENTER", bar, "LEFT", bar:GetWidth() * frac, 0)
     bar.spark:Show()
@@ -352,8 +364,8 @@ local function create()
 end
 
 local function clearBars()
-    if mhBar then mhBar:SetValue(0); mhBar.time:SetText(""); mhBar.spark:Hide() end
-    if ohBar then ohBar:SetValue(0); ohBar.time:SetText(""); ohBar.spark:Hide() end
+    if mhBar then mhBar:SetValue(0); mhBar._timeBucket = -1; mhBar.time:SetText(""); mhBar.spark:Hide() end
+    if ohBar then ohBar:SetValue(0); ohBar._timeBucket = -1; ohBar.time:SetText(""); ohBar.spark:Hide() end
 end
 
 -- The tracker calls this on every swing reset and on leaving combat; a real
