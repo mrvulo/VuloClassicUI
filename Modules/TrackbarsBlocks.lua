@@ -178,3 +178,233 @@ addType("durability", "Durability", {}, MakeTextBlock("dur", {
         GameTooltip:Show()
     end,
 }))
+
+-- Gold: shared session ledger across all gold block instances and an
+-- account-wide character store.
+local goldLedger = { profit = 0, spent = 0, last = nil }
+local function goldStore()
+    VuloClassicUIDB.global.trackbarsGold = VuloClassicUIDB.global.trackbarsGold or {}
+    return VuloClassicUIDB.global.trackbarsGold
+end
+local function goldCharKey()
+    return (UnitName("player") or "?") .. "-" .. (GetRealmName() or "?")
+end
+local function goldLedgerUpdate()
+    local money = GetMoney() or 0
+    if goldLedger.last then
+        local d = money - goldLedger.last
+        if d > 0 then goldLedger.profit = goldLedger.profit + d
+        elseif d < 0 then goldLedger.spent = goldLedger.spent - d end
+    end
+    goldLedger.last = money
+    local _, class = UnitClass("player")
+    goldStore()[goldCharKey()] = { money = money, class = class }
+end
+
+addType("gold", "Gold", { showBagSlots = false, shorten = false }, MakeTextBlock("gold", {
+    events = { "PLAYER_MONEY", "PLAYER_ENTERING_WORLD", "BAG_UPDATE" },
+    fontScale = 0.5,
+    text = function(b)
+        goldLedgerUpdate()
+        local money = GetMoney() or 0
+        local txt
+        if b.settings.shorten then
+            txt = string.format("%d|cffffd700g|r", math.floor(money / 10000))
+        else
+            txt = GetCoinTextureString(money)
+        end
+        if b.settings.showBagSlots then
+            local free = 0
+            for bag = 0, 4 do free = free + (GetContainerNumFreeSlots(bag) or 0) end
+            txt = txt .. string.format(" (%d)", free)
+        end
+        return txt
+    end,
+    onEnter = function(self, b)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:SetText(L["Gold"])
+        GameTooltip:AddDoubleLine(L["Session earned"], GetCoinTextureString(goldLedger.profit), 1,1,1, 1,1,1)
+        GameTooltip:AddDoubleLine(L["Session spent"], GetCoinTextureString(goldLedger.spent), 1,1,1, 1,1,1)
+        local net = goldLedger.profit - goldLedger.spent
+        GameTooltip:AddDoubleLine(L["Session profit"], GetCoinTextureString(math.abs(net)),
+            1,1,1, net >= 0 and 0.3 or 0.9, net >= 0 and 0.9 or 0.3, 0.3)
+        GameTooltip:AddLine(" ")
+        local rows, total = {}, 0
+        for key, e in pairs(goldStore()) do
+            table.insert(rows, { key = key, money = e.money or 0, class = e.class })
+            total = total + (e.money or 0)
+        end
+        table.sort(rows, function(a, bb) return a.money > bb.money end)
+        for i, r in ipairs(rows) do
+            if i > 10 then GameTooltip:AddLine(string.format(L["+%d more"], #rows - 10), 0.6,0.6,0.6); break end
+            local cc = r.class and RAID_CLASS_COLORS[r.class]
+            GameTooltip:AddDoubleLine(r.key:match("^(.-)%-") or r.key, GetCoinTextureString(r.money),
+                cc and cc.r or 1, cc and cc.g or 1, cc and cc.b or 1, 1,1,1)
+        end
+        GameTooltip:AddDoubleLine(L["Total"], GetCoinTextureString(total), 1,0.82,0, 1,1,1)
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine(L["Left-Click: bags -- Ctrl+Right-Click: reset session"], 0.5, 0.7, 1)
+        GameTooltip:Show()
+    end,
+    onClick = function(self, b, btn)
+        if btn == "LeftButton" then
+            if OpenAllBags then OpenAllBags() end
+        elseif btn == "RightButton" and IsControlKeyDown() then
+            goldLedger.profit, goldLedger.spent = 0, 0
+            goldLedger.last = GetMoney()
+        end
+    end,
+}))
+
+-- Bag slots: standalone block for free-slot count without the gold suffix.
+addType("bags", "Bag slots", {}, MakeTextBlock("bags", {
+    events = { "BAG_UPDATE", "PLAYER_ENTERING_WORLD" },
+    fontScale = 0.5,
+    text = function()
+        local free, total = 0, 0
+        for bag = 0, 4 do
+            free  = free  + (GetContainerNumFreeSlots(bag) or 0)
+            total = total + (GetContainerNumSlots(bag) or 0)
+        end
+        return string.format("%d/%d %s", free, total, L["free"])
+    end,
+    onClick = function() if OpenAllBags then OpenAllBags() end end,
+}))
+
+-- Zone and coordinates block.
+addType("zone", "Zone", { showCoords = true }, MakeTextBlock("zone", {
+    interval = 1,
+    events = { "ZONE_CHANGED", "ZONE_CHANGED_INDOORS", "ZONE_CHANGED_NEW_AREA", "PLAYER_ENTERING_WORLD" },
+    fontScale = 0.5,
+    text = function(b)
+        local zone = GetMinimapZoneText() or GetRealZoneText() or ""
+        if b.settings.showCoords and C_Map and C_Map.GetBestMapForUnit then
+            local map = C_Map.GetBestMapForUnit("player")
+            local pos = map and C_Map.GetPlayerMapPosition(map, "player")
+            if pos then
+                local x, y = pos:GetXY()
+                return string.format("%s %.0f, %.0f", zone, x * 100, y * 100)
+            end
+        end
+        return zone
+    end,
+    onClick = function() if ToggleWorldMap then ToggleWorldMap() end end,
+}))
+
+-- XP and reputation progress block. The text sits above a four-pixel bar,
+-- with a second overlaid bar for rested XP.
+addType("xprep", "XP / Reputation", { mode = "auto" }, function(b, slot, content, bar)
+    local inst = { _key = instKey("xprep", b, bar) }
+    local fs = content:CreateFontString(nil, "OVERLAY")
+    UI.FontFor("trackbars", fs, math.floor((bar.thickness or 26) * 0.42 + 0.5))
+    fs:SetPoint("TOP", content, "TOP", 0, -1)
+    local sb = CreateFrame("StatusBar", nil, content)
+    sb:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
+    sb:SetHeight(4)
+    sb:SetPoint("TOP", fs, "BOTTOM", 0, -2)
+    local track = sb:CreateTexture(nil, "BACKGROUND")
+    track:SetAllPoints(sb); track:SetColorTexture(1, 1, 1, 0.10)
+    local rest = CreateFrame("StatusBar", nil, content)
+    rest:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
+    rest:SetStatusBarColor(0.3, 0.3, 1, 0.5)
+    rest:SetAllPoints(sb)
+    rest:SetFrameLevel(sb:GetFrameLevel() - 1)
+    local lastLen = -1
+
+    -- The TOC targets both 20505 and 38001; never hardcode max level to 70.
+    local function maxLevel()
+        return (GetMaxPlayerLevel and GetMaxPlayerLevel())
+            or (MAX_PLAYER_LEVEL_TABLE and GetAccountExpansionLevel
+                and MAX_PLAYER_LEVEL_TABLE[GetAccountExpansionLevel()])
+            or 70
+    end
+    local function currentMode()
+        local m = b.settings.mode
+        if m == "xp" or m == "rep" then return m end
+        if UnitLevel("player") >= maxLevel() then return "rep" end
+        return "xp"
+    end
+
+    function inst:Refresh()
+        local mode = currentMode()
+        local a = ns.COLORS and ns.COLORS.accent or { r = 0.61, g = 0.42, b = 1 }
+        if mode == "xp" then
+            local cur, max = UnitXP("player"), UnitXPMax("player")
+            if UnitLevel("player") >= maxLevel() then
+                fs:SetText(L["Max level (Right-Click: reputation)"])
+                fs:SetTextColor(0.6, 0.6, 0.6)
+                sb:Hide(); rest:Hide()
+            else
+                fs:SetTextColor(blockColor(b))
+                fs:SetFormattedText("%s: %d%%", L["XP"], math.floor(cur / math.max(max, 1) * 100 + 0.5))
+                sb:SetMinMaxValues(0, max); sb:SetValue(cur)
+                sb:SetStatusBarColor(a.r, a.g, a.b)
+                local exh = GetXPExhaustion()
+                rest:SetMinMaxValues(0, max)
+                rest:SetValue(math.min(max, cur + (exh or 0)))
+                sb:Show(); rest:SetShown(exh and exh > 0)
+            end
+        else
+            local name, _, minV, maxV, value = GetWatchedFactionInfo()
+            if not name then
+                fs:SetText(L["No reputation tracked"])
+                fs:SetTextColor(0.6, 0.6, 0.6)
+                sb:Hide(); rest:Hide()
+            else
+                fs:SetTextColor(blockColor(b))
+                fs:SetFormattedText("%s: %d%%", name,
+                    math.floor((value - minV) / math.max(maxV - minV, 1) * 100 + 0.5))
+                sb:SetMinMaxValues(0, maxV - minV); sb:SetValue(value - minV)
+                sb:SetStatusBarColor(a.r, a.g, a.b)
+                sb:Show(); rest:Hide()
+            end
+        end
+        local len = inst:GetAutoLength()
+        if len ~= lastLen then lastLen = len; mod.RequestLayout(bar.id) end
+    end
+    function inst:GetAutoLength()
+        local w = fs:GetStringWidth() or 0
+        if w <= 0 then return 0 end
+        sb:SetWidth(w + 30); return math.ceil(w + 30)
+    end
+    local evFrame
+    function inst:Enable()
+        evFrame = evFrame or CreateFrame("Frame")
+        for _, ev in ipairs({ "PLAYER_XP_UPDATE", "UPDATE_EXHAUSTION", "PLAYER_LEVEL_UP",
+                              "UPDATE_FACTION", "PLAYER_ENTERING_WORLD" }) do
+            pcall(evFrame.RegisterEvent, evFrame, ev)
+        end
+        evFrame:SetScript("OnEvent", function() inst:Refresh() end)
+        slot:EnableMouse(true)
+        slot:SetScript("OnMouseUp", function(_, btn)
+            if btn == "RightButton" then
+                b.settings.mode = (currentMode() == "xp") and "rep" or "xp"
+                inst:Refresh()
+            end
+        end)
+        slot:SetScript("OnEnter", function(s)
+            GameTooltip:SetOwner(s, "ANCHOR_TOP")
+            if currentMode() == "xp" then
+                GameTooltip:SetText(L["XP"])
+                GameTooltip:AddDoubleLine(L["Current"], string.format("%d / %d", UnitXP("player"), UnitXPMax("player")), 1,1,1, 1,1,1)
+                local exh = GetXPExhaustion()
+                if exh then GameTooltip:AddDoubleLine(L["Rested"], tostring(exh), 1,1,1, 0.4,0.4,1) end
+            else
+                local name, standing, minV, maxV, value = GetWatchedFactionInfo()
+                GameTooltip:SetText(name or L["Reputation"])
+                if name then
+                    GameTooltip:AddDoubleLine(_G["FACTION_STANDING_LABEL" .. (standing or 4)] or "",
+                        string.format("%d / %d", value - minV, maxV - minV), 1,1,1, 1,1,1)
+                end
+            end
+            GameTooltip:AddLine(L["Right-Click: toggle XP / reputation"], 0.5, 0.7, 1)
+            GameTooltip:Show()
+        end)
+        slot:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    end
+    function inst:Disable()
+        if evFrame then evFrame:UnregisterAllEvents(); evFrame:SetScript("OnEvent", nil) end
+        slot:EnableMouse(false)
+    end
+    return inst
+end)
