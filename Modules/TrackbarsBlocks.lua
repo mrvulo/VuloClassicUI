@@ -75,6 +75,11 @@ local function MakeTextBlock(prefix, def)
                     if c >= n then c = 0; inst:Refresh() end
                 end)
             end
+            -- CAUTION if instances ever get re-Enabled: this guard keeps the
+            -- frame but Disable() cleared its events, so a second Enable of
+            -- the SAME instance would leave them unregistered. Today every
+            -- Enable runs on a fresh instance (engine rebuilds on re-enable),
+            -- so the frame is always new here.
             if def.events and not evFrame then
                 evFrame = CreateFrame("Frame")
                 for _, ev in ipairs(def.events) do pcall(evFrame.RegisterEvent, evFrame, ev) end
