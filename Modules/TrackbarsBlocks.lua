@@ -21,11 +21,16 @@ end
 -- def = { icon=texturePfad|nil, events={...}|nil, interval=1|n|nil (Herzschlag
 --         alle n Ticks; nil = kein Herzschlag), text=function(b) -> string,
 --         onEnter/onLeave/onClick = function(self, b)|nil, fontScale=0.5 }
+local function textBlockFontSize(bar, def)
+    return math.floor((bar.thickness or 26) * (def.fontScale or 0.5) *
+        ((bar.fontScale or 100) / 100) + 0.5)
+end
+
 local function MakeTextBlock(prefix, def)
     return function(b, slot, content, bar)
         local inst = { _key = instKey(prefix, b, bar) }
         local fs = content:CreateFontString(nil, "OVERLAY")
-        UI.FontFor("trackbars", fs, math.floor((bar.thickness or 26) * (def.fontScale or 0.5) * ((bar.fontScale or 100) / 100) + 0.5))
+        UI.FontFor("trackbars", fs, textBlockFontSize(bar, def))
         fs:SetPoint("RIGHT", content, "RIGHT", 0, 0)
         local icon
         if def.icon then
@@ -36,6 +41,13 @@ local function MakeTextBlock(prefix, def)
             icon:SetTexture(def.icon)
         end
         inst.fs, inst.icon = fs, icon
+        function inst:Restyle()
+            UI.FontFor("trackbars", fs, textBlockFontSize(bar, def))
+            if icon then
+                local isz = math.floor((bar.thickness or 26) * 0.62 + 0.5)
+                icon:SetSize(isz, isz)
+            end
+        end
         local lastLen = -1
         function inst:Refresh()
             local r, g, bl = blockColor(b)
@@ -104,20 +116,23 @@ addType("spacer", "Spacer", { width = 20 }, function(b, slot, content, bar)
 end)
 
 -- Uhr: Herzschlag 1s; lokale oder Serverzeit, 24h-Schalter
+local function formatClock(h, m, hour24)
+    if hour24 then return string.format("%02d:%02d", h, m) end
+    local suf = (h >= 12) and " PM" or " AM"
+    h = h % 12; if h == 0 then h = 12 end
+    return string.format("%d:%02d%s", h, m, suf)
+end
+
 addType("clock", "Clock", { hour24 = true, source = "local" }, MakeTextBlock("clock", {
     interval = 1, fontScale = 0.55,
     text = function(b)
         local s = b.settings
         if s.source == "server" then
             local h, m = GetGameTime()
-            if not s.hour24 then
-                local suf = (h >= 12) and " PM" or " AM"
-                h = h % 12; if h == 0 then h = 12 end
-                return string.format("%d:%02d%s", h, m, suf)
-            end
-            return string.format("%02d:%02d", h, m)
+            return formatClock(h, m, s.hour24)
         end
-        return date(s.hour24 and "%H:%M" or "%I:%M %p")
+        local t = date("*t")
+        return formatClock(t.hour, t.min, s.hour24)
     end,
     onEnter = function(self, b)
         GameTooltip:SetOwner(self, "ANCHOR_TOP")
@@ -198,7 +213,14 @@ local function goldLedgerUpdate()
     end
     goldLedger.last = money
     local _, class = UnitClass("player")
-    goldStore()[goldCharKey()] = { money = money, class = class }
+    local store = goldStore()
+    local key = goldCharKey()
+    local entry = store[key]
+    if entry then
+        entry.money, entry.class = money, class
+    else
+        store[key] = { money = money, class = class }
+    end
 end
 
 addType("gold", "Gold", { showBagSlots = false, shorten = false }, MakeTextBlock("gold", {
@@ -311,6 +333,10 @@ addType("xprep", "XP / Reputation", { mode = "auto" }, function(b, slot, content
     rest:SetFrameLevel(sb:GetFrameLevel() - 1)
     local lastLen = -1
 
+    function inst:Restyle()
+        UI.FontFor("trackbars", fs, math.floor((bar.thickness or 26) * 0.42 * ((bar.fontScale or 100) / 100) + 0.5))
+    end
+
     -- The TOC targets both 20505 and 38001; never hardcode max level to 70.
     local function maxLevel()
         return (GetMaxPlayerLevel and GetMaxPlayerLevel())
@@ -365,7 +391,9 @@ addType("xprep", "XP / Reputation", { mode = "auto" }, function(b, slot, content
     function inst:GetAutoLength()
         local w = fs:GetStringWidth() or 0
         if w <= 0 then return 0 end
-        sb:SetWidth(w + 30); return math.ceil(w + 30)
+        sb:SetWidth(w + 30)
+        content:SetSize(math.max(math.ceil(w + 30), 1), bar.thickness or 26)
+        return math.ceil(w + 30)
     end
     local evFrame
     function inst:Enable()

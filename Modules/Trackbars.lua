@@ -196,9 +196,22 @@ local function ensureSlot(rec, b)
     return slot
 end
 
+-- Frames cannot be destroyed in WoW's UI API; retiring the content frame
+-- (hide the old one, create a fresh CENTER-anchored replacement) orphans
+-- every region a previous block factory drew on it -- one leaked frame
+-- per block-type change instead of duplicated/overlapping visuals.
+local function retireContent(slot)
+    slot.content:Hide()
+    slot.content = CreateFrame("Frame", nil, slot)
+    slot.content:SetPoint("CENTER")
+end
+
 function mod.ApplyBar(id)
     local cfg = mod.BarCfg(id)
     if not cfg then return end
+    -- The options page can call in while the module is toggled off; config
+    -- edits stay stored, frames wait for enable.
+    if not mod.active then return end
     local rec = barRecs[cfg.id] or {}
     mod.EnsureBarFrame(cfg)
     rec = barRecs[cfg.id]
@@ -209,6 +222,7 @@ function mod.ApplyBar(id)
         if not b or b.type ~= inst._type then
             inst:Disable()
             if inst.Destroy then inst:Destroy() end
+            if rec.slots[blockId] then retireContent(rec.slots[blockId]) end
             rec.insts[blockId] = nil
             if rec.slots[blockId] then rec.slots[blockId]:Hide() end
         end
@@ -235,24 +249,12 @@ function mod.ApplyBar(id)
         local inst = rec.insts[b.id]
         if inst and not newBlockIds[b.id] then
             ensureSlot(rec, b)
+            if inst.Restyle then inst:Restyle() end
             inst:Refresh()
         end
     end
     updateMouseoverTicker()
     mod.RequestLayout(id)
-end
-
-function mod.RebuildBar(barId)
-    local rec = barRecs[barId]
-    if rec then
-        for blockId, inst in pairs(rec.insts) do
-            inst:Disable()
-            if inst.Destroy then inst:Destroy() end
-            rec.insts[blockId] = nil
-        end
-        for _, slot in pairs(rec.slots) do slot:Hide() end
-    end
-    mod.ApplyBar(barId)
 end
 
 local pendingLayout = {}
@@ -441,6 +443,12 @@ function mod:OnDisable()
     for _, rec in pairs(barRecs) do
         rec.frame:SetAlpha(1)
         rec.frame:Hide()
+        for blockId, inst in pairs(rec.insts) do
+            inst:Disable()
+            if inst.Destroy then inst:Destroy() end
+            if rec.slots[blockId] then retireContent(rec.slots[blockId]) end
+        end
+        rec.insts = {}
     end
     for key in pairs(hbListeners) do mod.UnregisterHeartbeat(key) end
 end
@@ -457,7 +465,6 @@ mod.optionsBridge = {
     RemoveBlock    = mod.RemoveBlock,
     MoveBlock      = mod.MoveBlock,
     ApplyBar       = mod.ApplyBar,
-    RebuildBar     = mod.RebuildBar,
     RequestLayout  = mod.RequestLayout,
     TEMPLATES      = mod.TEMPLATES,
     BLOCK_TYPES    = mod.BLOCK_TYPES,

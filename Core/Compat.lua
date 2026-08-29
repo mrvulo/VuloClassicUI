@@ -165,3 +165,20 @@ if cfu then
     ChatFrame_RemoveMessageEventFilter = ChatFrame_RemoveMessageEventFilter
         or cfu.RemoveMessageEventFilter
 end
+
+-- reputation: unlike deprecated globals gated by the fallback CVar, this one
+-- is absent on Anniversary; C_Reputation is the only data source.
+local cr = _G.C_Reputation
+if not GetWatchedFactionInfo and cr and cr.GetWatchedFactionData then
+    GetWatchedFactionInfo = function()
+        local d = cr.GetWatchedFactionData()
+        if not d then return nil end
+        return d.name, d.reaction, d.currentReactionThreshold,
+               d.nextReactionThreshold, d.currentStanding
+    end
+end
+
+-- currency: the namespaced helper retains the legacy signature 1:1.
+if not GetCoinTextureString and C_CurrencyInfo and C_CurrencyInfo.GetCoinTextureString then
+    GetCoinTextureString = GetCoinTextureString or C_CurrencyInfo.GetCoinTextureString
+end
