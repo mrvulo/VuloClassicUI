@@ -99,12 +99,179 @@ function mod.EnsureBarFrame(cfg)
     return f
 end
 
+mod.BLOCK_DEFAULTS = {}   -- TrackbarsBlocks.lua fills one entry per type
+mod.BLOCK_TYPES    = {}   -- likewise: { key="clock", label=function() return L["Clock"] end }
+
+local function deepCopy(t)
+    if type(t) ~= "table" then return t end
+    local r = {}
+    for k, v in pairs(t) do r[k] = deepCopy(v) end
+    return r
+end
+
+function mod.BlockCfg(barId, blockId)
+    local cfg = mod.BarCfg(barId)
+    if not cfg then return end
+    for i, b in ipairs(cfg.blocks) do
+        if b.id == blockId then return b, i end
+    end
+end
+
+function mod.AddBlock(barId, typeKey)
+    local cfg = mod.BarCfg(barId)
+    if not (cfg and mod.BlockFactories[typeKey]) then return end
+    local b = {
+        id = cfg.nextBlockId, type = typeKey, side = "left",
+        gap = 10, scale = 100,
+        settings = deepCopy(mod.BLOCK_DEFAULTS[typeKey] or {}),
+    }
+    cfg.nextBlockId = cfg.nextBlockId + 1
+    table.insert(cfg.blocks, b)
+    mod.ApplyBar(barId)
+    return b
+end
+
+function mod.RemoveBlock(barId, blockId)
+    local cfg = mod.BarCfg(barId)
+    if not cfg then return end
+    for i, b in ipairs(cfg.blocks) do
+        if b.id == blockId then table.remove(cfg.blocks, i); break end
+    end
+    mod.ApplyBar(barId)
+end
+
+function mod.MoveBlock(barId, blockId, delta)
+    local cfg = mod.BarCfg(barId)
+    if not cfg then return end
+    local _, i = mod.BlockCfg(barId, blockId)
+    local j = i and (i + delta)
+    if not (i and j and j >= 1 and j <= #cfg.blocks) then return end
+    cfg.blocks[i], cfg.blocks[j] = cfg.blocks[j], cfg.blocks[i]
+    mod.RequestLayout(barId)
+end
+
+local function ensureSlot(rec, b)
+    local slot = rec.slots[b.id]
+    if not slot then
+        slot = CreateFrame("Frame", nil, rec.frame)
+        slot.content = CreateFrame("Frame", nil, slot)
+        slot.content:SetPoint("CENTER")
+        rec.slots[b.id] = slot
+    end
+    slot:SetHeight(rec.frame:GetHeight())
+    slot.content:SetScale((b.scale or 100) / 100)
+    return slot
+end
+
 function mod.ApplyBar(id)
     local cfg = mod.BarCfg(id)
     if not cfg then return end
+    local rec = barRecs[cfg.id] or {}
     mod.EnsureBarFrame(cfg)
+    rec = barRecs[cfg.id]
+    -- 1) Teardown: instances whose block is gone or whose type changed
+    for blockId, inst in pairs(rec.insts) do
+        local b = mod.BlockCfg(id, blockId)
+        if not b or b.type ~= inst._type then
+            inst:Disable()
+            if inst.Destroy then inst:Destroy() end
+            rec.insts[blockId] = nil
+            if rec.slots[blockId] then rec.slots[blockId]:Hide() end
+        end
+    end
+    -- 2) Build: create missing instances
+    for _, b in ipairs(cfg.blocks) do
+        if not rec.insts[b.id] then
+            local factory = mod.BlockFactories[b.type]
+            if factory then
+                local slot = ensureSlot(rec, b)
+                slot:Show()
+                local inst = factory(b, slot, slot.content, cfg)
+                inst._type = b.type
+                rec.insts[b.id] = inst
+                inst:Enable()
+                inst:Refresh()
+            end
+        end
+    end
+    mod.RequestLayout(id)
 end
-function mod.RequestLayout(id) end   -- Task 2 fuellt das
+
+local pendingLayout = {}
+function mod.RequestLayout(barId)
+    if pendingLayout[barId] then return end
+    pendingLayout[barId] = true
+    C_Timer.After(0, function()
+        pendingLayout[barId] = nil
+        mod.LayoutBar(barId)
+    end)
+end
+
+function mod.LayoutBar(barId)
+    local cfg, rec = mod.BarCfg(barId), barRecs[barId]
+    if not (cfg and rec) then return end
+    local f = rec.frame
+    local W = f:GetWidth()
+    if not W or W < 1 then return end
+
+    -- collect visible blocks with width (order = array order)
+    local buckets = { left = {}, center = {}, right = {} }
+    for _, b in ipairs(cfg.blocks) do
+        local inst, slot = rec.insts[b.id], rec.slots[b.id]
+        if inst and slot then
+            local len = inst:GetAutoLength() or 0
+            if len > 0 then
+                local w = len * ((b.scale or 100) / 100) + (b.gap or 10)
+                table.insert(buckets[b.side or "left"], { b = b, slot = slot, w = w })
+            else
+                slot:Hide()
+            end
+        end
+    end
+
+    if cfg.sizingMode == "even" then
+        -- equal split across ALL visible blocks in array order
+        local all = {}
+        for _, side in ipairs({ "left", "center", "right" }) do
+            for _, e in ipairs(buckets[side]) do table.insert(all, e) end
+        end
+        local n = #all
+        if n == 0 then return end
+        local share = W / n
+        for i, e in ipairs(all) do
+            e.slot:Show(); e.slot:ClearAllPoints()
+            e.slot:SetWidth(share)
+            e.slot:SetPoint("LEFT", f, "LEFT", (i - 1) * share, 0)
+        end
+        return
+    end
+
+    -- auto: left forward, right backward, center as a centered group
+    local x = 0
+    for _, e in ipairs(buckets.left) do
+        e.slot:Show(); e.slot:ClearAllPoints()
+        e.slot:SetWidth(e.w)
+        e.slot:SetPoint("LEFT", f, "LEFT", x, 0)
+        x = x + e.w
+    end
+    local xr = 0
+    for i = #buckets.right, 1, -1 do
+        local e = buckets.right[i]
+        e.slot:Show(); e.slot:ClearAllPoints()
+        e.slot:SetWidth(e.w)
+        e.slot:SetPoint("RIGHT", f, "RIGHT", -xr, 0)
+        xr = xr + e.w
+    end
+    local cw = 0
+    for _, e in ipairs(buckets.center) do cw = cw + e.w end
+    local cx = (W - cw) / 2
+    for _, e in ipairs(buckets.center) do
+        e.slot:Show(); e.slot:ClearAllPoints()
+        e.slot:SetWidth(e.w)
+        e.slot:SetPoint("LEFT", f, "LEFT", cx, 0)
+        cx = cx + e.w
+    end
+end
 
 function mod.ApplyAll()
     for _, cfg in ipairs(mod.db.bars) do mod.ApplyBar(cfg.id) end
