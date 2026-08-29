@@ -207,6 +207,97 @@ function mod.RequestLayout(barId)
     end)
 end
 
+mod.TEMPLATES = {
+    { key = "empty", label = function() return L["Start empty"] end,
+      desc = function() return L["An empty bar to build from scratch."] end,
+      cfg = { lengthMode = "custom", length = 400, thickness = 26, x = 0, y = -250 } },
+    { key = "bottom", label = function() return L["Top/Bottom info bar"] end,
+      desc = function() return L["Full-width bar with the classic info blocks."] end,
+      cfg = { lengthMode = "full", edge = "bottom", edgeOffset = 0, thickness = 24 },
+      blocks = {
+          { type = "micromenu", side = "left" },
+          { type = "zone",      side = "left" },
+          { type = "clock",     side = "center" },
+          { type = "durability", side = "right" },
+          { type = "gold",      side = "right" },
+          { type = "fps",       side = "right" },
+          { type = "ms",        side = "right" },
+      } },
+    { key = "minimapc", label = function() return L["Minimap companion"] end,
+      desc = function() return L["Compact clock and FPS readout."] end,
+      cfg = { lengthMode = "custom", length = 200, thickness = 20, sizingMode = "even",
+              x = math.floor((UIParent and UIParent:GetWidth() or 1920) / 2) - 110, y = 180 },
+      blocks = { { type = "clock" }, { type = "fps" }, { type = "ms" } } },
+    { key = "microstrip", label = function() return L["Micro menu strip"] end,
+      desc = function() return L["Just the micro menu buttons."] end,
+      cfg = { lengthMode = "custom", length = 300, thickness = 30, x = 0, y = -300 },
+      blocks = { { type = "micromenu", side = "center" } } },
+}
+
+function mod.NewBarCfg()
+    local cfg = {
+        id = mod.db.nextBarId, name = string.format(L["Bar %d"], mod.db.nextBarId),
+        lengthMode = "custom", length = 400, thickness = 26,
+        edge = "bottom", edgeOffset = 0, x = 0, y = -250,
+        sizingMode = "auto", fontScale = 100,
+        bg = { r = 0.05, g = 0.05, b = 0.06, a = 0.90 }, hideBorder = false,
+        mouseoverOnly = false, strata = "MEDIUM",
+        nextBlockId = 1, blocks = {},
+    }
+    mod.db.nextBarId = mod.db.nextBarId + 1
+    return cfg
+end
+
+function mod.CreateBar(templateKey)
+    local tpl
+    for _, t in ipairs(mod.TEMPLATES) do
+        if t.key == templateKey then tpl = t; break end
+    end
+    local cfg = mod.NewBarCfg()
+    if tpl then
+        for k, v in pairs(tpl.cfg or {}) do
+            cfg[k] = (type(v) == "table") and deepCopy(v) or v
+        end
+        table.insert(mod.db.bars, cfg)
+        for _, bt in ipairs(tpl.blocks or {}) do
+            local b = mod.AddBlock(cfg.id, bt.type)
+            if b then
+                b.side = bt.side or b.side
+                for sk, sv in pairs(bt.settings or {}) do b.settings[sk] = sv end
+            end
+        end
+    else
+        table.insert(mod.db.bars, cfg)
+    end
+    mod.ApplyBar(cfg.id)
+    return cfg
+end
+
+function mod.DeleteBar(barId)
+    for i, cfg in ipairs(mod.db.bars) do
+        if cfg.id == barId then table.remove(mod.db.bars, i); break end
+    end
+    local rec = barRecs[barId]
+    if rec then
+        for blockId, inst in pairs(rec.insts) do
+            inst:Disable()
+            if inst.Destroy then inst:Destroy() end
+            rec.insts[blockId] = nil
+        end
+        rec.frame:Hide()
+    end
+end
+
+function mod.RenameBar(barId, name)
+    local cfg = mod.BarCfg(barId)
+    if not cfg then return end
+    cfg.name = name
+    local rec = barRecs[barId]
+    if rec and rec.frame.mover and rec.frame.mover.label then
+        rec.frame.mover.label:SetText("|cffffffff" .. name .. "|r")
+    end
+end
+
 function mod.LayoutBar(barId)
     local cfg, rec = mod.BarCfg(barId), barRecs[barId]
     if not (cfg and rec) then return end
