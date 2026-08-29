@@ -408,3 +408,172 @@ addType("xprep", "XP / Reputation", { mode = "auto" }, function(b, slot, content
     end
     return inst
 end)
+
+-- ---------------------------------------------------------------------------
+-- Micro menu: a strip of micro buttons inside a data bar.
+--
+-- Buttons whose Blizzard twin toggles its panel in an OnClick handler get a
+-- SecureActionButtonTemplate with click redirection (*type1 = "click",
+-- clickbutton1 = the real button): the panel-open then runs entirely in
+-- Blizzard's stack, never in ours. That is mandatory for the spellbook --
+-- opening it from addon Lua taints SpellBookFrame.bookType and CastSpell is
+-- refused until reload (see the MODERN_MICRO catalog notes in
+-- Modules/ActionBars.lua).
+--
+-- Buttons whose twin acts in OnMouseUp behind an IsMouseOver check get NO
+-- redirection: a forwarded Click() only fires OnClick and would be a no-op.
+-- On this client that is character, lfg and menu (verified against the
+-- anniversary UI source, Blizzard_MicroMenu/Classic). Those are plain
+-- buttons with a direct, taint-uncritical call; their twin is still
+-- resolved so its tooltipText can be shown.
+--
+-- Secure buttons are protected frames: create, position, show and hide them
+-- only out of combat. In lockdown everything defers via inst._deferred and
+-- is caught up on PLAYER_REGEN_ENABLED; until built, GetAutoLength() is 0.
+-- ---------------------------------------------------------------------------
+local MM_ICON = "Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\"
+-- twins = candidate globals, first hit wins (also feeds the tooltip).
+-- action present  -> plain button with a direct call.
+-- action absent   -> secure click redirection onto the resolved twin.
+-- Neither a resolvable twin nor an action -> the key is skipped.
+local MM_BUTTONS = {
+    { key = "character", icon = "micro\\character", twins = { "CharacterMicroButton" },
+      -- twin toggles in OnMouseUp, so it gets a direct call; same call the
+      -- action bar micro menu uses, safe from addon Lua
+      action = function() if ToggleCharacter then ToggleCharacter("PaperDollFrame") end end },
+    { key = "spellbook", icon = "micro\\spellbook", twins = { "SpellbookMicroButton" } },
+    { key = "talents",   icon = "micro\\talents",   twins = { "TalentMicroButton" } },
+    { key = "quests",    icon = "micro\\questlog",  twins = { "QuestLogMicroButton" } },
+    { key = "social",    icon = "micro\\socials",   twins = { "SocialsMicroButton", "GuildMicroButton" } },
+    { key = "lfg",       icon = "micro\\lfg",       twins = { "LFGMicroButton" },
+      -- twin toggles in OnMouseUp as well; PVEFrame_ToggleFrame is the call
+      -- its own handler makes on this client, older clients keep the
+      -- LFGParentFrame names
+      action = function()
+          if PVEFrame_ToggleFrame then PVEFrame_ToggleFrame()
+          elseif ToggleLFGParentFrame then ToggleLFGParentFrame()
+          elseif _G.LFGParentFrame then
+              local f = _G.LFGParentFrame
+              if f:IsShown() then HideUIPanel(f) else ShowUIPanel(f) end
+          end
+      end },
+    { key = "map",       icon = "micro\\map",       twins = { "WorldMapMicroButton" },
+      action = function() if ToggleWorldMap then ToggleWorldMap() end end },
+    { key = "help",      icon = "micro\\help",      twins = { "HelpMicroButton" } },
+    { key = "menu",      icon = "gear",             twins = { "MainMenuMicroButton" },
+      action = function()
+          local gm = _G.GameMenuFrame
+          if not gm then return end
+          if gm:IsShown() then HideUIPanel(gm)
+          else
+              if CloseMenus then CloseMenus() end
+              if PlaySound and SOUNDKIT then pcall(PlaySound, SOUNDKIT.IG_MAINMENU_OPEN) end
+              ShowUIPanel(gm)
+          end
+      end },
+}
+
+addType("micromenu", "Micro menu",
+    { character = true, spellbook = true, talents = true, quests = true,
+      social = true, lfg = true, map = true, menu = true, help = false, spacing = 2 },
+    function(b, slot, content, bar)
+        local inst = { _key = instKey("mm", b, bar), _buttons = {}, _width = 0 }
+        local function resolveTwin(def)
+            for _, n in ipairs(def.twins or {}) do
+                if _G[n] then return _G[n] end
+            end
+        end
+        local function ensureButtons()
+            if inst._built then return true end
+            if InCombatLockdown() then inst._deferred = true; return false end
+            local sz = math.floor((bar.thickness or 26) * 0.72 + 0.5)
+            for _, def in ipairs(MM_BUTTONS) do
+                local twin = resolveTwin(def)
+                if twin or def.action then
+                    local btn
+                    if def.action then
+                        -- plain button, direct call; twin (if any) only feeds
+                        -- the tooltip below
+                        btn = CreateFrame("Button", nil, content)
+                        btn:SetScript("OnClick", def.action)
+                    else
+                        -- secure click redirection; house recipe for 20505:
+                        -- wildcard *type1, clickbutton1 without asterisk
+                        btn = CreateFrame("Button",
+                            "VuloTrackbarMM" .. bar.id .. "_" .. b.id .. "_" .. def.key,
+                            content, "SecureActionButtonTemplate")
+                        btn:RegisterForClicks("AnyUp", "AnyDown")
+                        btn:SetAttribute("*type1", "click")
+                        btn:SetAttribute("clickbutton1", twin)
+                    end
+                    btn:SetSize(sz, sz)
+                    local tex = btn:CreateTexture(nil, "ARTWORK")
+                    tex:SetAllPoints(btn)
+                    tex:SetTexture(MM_ICON .. def.icon)
+                    tex:SetVertexColor(0.85, 0.85, 0.85)
+                    btn:SetScript("OnEnter", function(s)
+                        local a = ns.COLORS and ns.COLORS.accent
+                        if a then tex:SetVertexColor(a.r, a.g, a.b)
+                        else tex:SetVertexColor(1, 1, 1) end
+                        local tip = twin and twin.tooltipText
+                        if tip then
+                            GameTooltip:SetOwner(s, "ANCHOR_TOP")
+                            GameTooltip:SetText(tip); GameTooltip:Show()
+                        end
+                    end)
+                    btn:SetScript("OnLeave", function()
+                        tex:SetVertexColor(0.85, 0.85, 0.85)
+                        GameTooltip:Hide()
+                    end)
+                    inst._buttons[def.key] = btn
+                end
+            end
+            inst._built = true
+            return true
+        end
+        local function layoutButtons()
+            -- the secure buttons are protected: never Show/Hide/SetPoint them
+            -- in combat; defer and catch up on PLAYER_REGEN_ENABLED
+            if InCombatLockdown() then inst._deferred = true; return end
+            local sz = math.floor((bar.thickness or 26) * 0.72 + 0.5)
+            local gap = b.settings.spacing or 2
+            local x = 0
+            for _, def in ipairs(MM_BUTTONS) do
+                local btn = inst._buttons[def.key]
+                if btn then
+                    if b.settings[def.key] then
+                        btn:SetSize(sz, sz)
+                        btn:Show()
+                        btn:ClearAllPoints()
+                        btn:SetPoint("LEFT", content, "LEFT", x, 0)
+                        x = x + sz + gap
+                    else
+                        btn:Hide()
+                    end
+                end
+            end
+            inst._width = (x > 0) and (x - gap) or 0
+            content:SetSize(math.max(inst._width, 1), sz)
+        end
+        function inst:Refresh()
+            if ensureButtons() then layoutButtons() end
+            mod.RequestLayout(bar.id)
+        end
+        function inst:GetAutoLength() return inst._built and inst._width or 0 end
+        local evFrame
+        function inst:Enable()
+            content:Show()
+            evFrame = evFrame or CreateFrame("Frame")
+            evFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+            evFrame:SetScript("OnEvent", function()
+                if inst._deferred then inst._deferred = nil; inst:Refresh() end
+            end)
+        end
+        function inst:Disable()
+            if evFrame then evFrame:UnregisterAllEvents() end
+            -- hide via the insecure parent: btn:Hide() on a protected button
+            -- would be blocked in combat
+            content:Hide()
+        end
+        return inst
+    end)
