@@ -61,6 +61,9 @@ Modules\UnitFrames.lua
 Modules\Nameplates.lua
 Modules\NameplatesOptions.lua
 Modules\SwingTimer.lua
+Modules\Trackbars.lua
+Modules\TrackbarsBlocks.lua
+Modules\TrackbarsOptions.lua
 Modules\ActionBars.lua
 # Bindings.xml is auto-loaded from the addon root and must not be listed here,
 # or every binding would register twice.
