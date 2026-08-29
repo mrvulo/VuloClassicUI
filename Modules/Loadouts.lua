@@ -44,6 +44,7 @@ end
 local GetContainerItemID    = (C_Container and C_Container.GetContainerItemID)    or _G.GetContainerItemID
 local GetContainerItemLink  = (C_Container and C_Container.GetContainerItemLink)  or _G.GetContainerItemLink
 local GetContainerNumSlots  = (C_Container and C_Container.GetContainerNumSlots)  or _G.GetContainerNumSlots
+local GetContainerNumFreeSlots = (C_Container and C_Container.GetContainerNumFreeSlots) or _G.GetContainerNumFreeSlots
 local UseContainerItem      = (C_Container and C_Container.UseContainerItem)      or _G.UseContainerItem
 
 -- Skips shirt (4) and tabard (19).
@@ -401,29 +402,55 @@ function ns:EquipBagItemToSlot(bag, bagSlot, equipSlot)
     return ok
 end
 
--- Moves whatever is in `slot` off the character and into the bags, for a
--- loadout slot explicitly marked empty (false). PutItemInBackpack fails
--- SILENTLY when the backpack is full -- it does not error and does not leave
--- the item on the cursor in an obviously-still-holding way that a single
--- check catches, so this walks the bags by hand as a fallback and only reports
--- success once the cursor is actually empty.
-local function unequipSlotToBags(slot)
-    if InCombatLockdown() then return false end
-    if CursorHasItem and CursorHasItem() then return false end
-    PickupInventoryItem(slot)
-    if CursorHasItem and not CursorHasItem() then return false end
-    if PutItemInBackpack then PutItemInBackpack() end
-    if CursorHasItem and CursorHasItem() then
-        for bag = 1, (NUM_BAG_SLOTS or 4) do
-            if (GetContainerNumFreeSlots and (GetContainerNumFreeSlots(bag) or 0) > 0)
-               and ContainerIDToInventoryID and PutItemInBag then
-                PutItemInBag(ContainerIDToInventoryID(bag))
-                if not (CursorHasItem and CursorHasItem()) then break end
+-- All empty {bag, slot} pairs in NORMAL bags (family 0). Special bags (quiver,
+-- soul bag, profession bags) report free slots but reject armor, so they are
+-- skipped entirely rather than tried and failed on.
+local function emptyBagSlots()
+    local empties = {}
+    if not (GetContainerNumFreeSlots and GetContainerNumSlots and GetContainerItemID) then
+        return empties
+    end
+    for bag = 0, (NUM_BAG_SLOTS or 4) do
+        local free, family = GetContainerNumFreeSlots(bag)
+        if (free or 0) > 0 and (family or 0) == 0 then
+            for slot = 1, (GetContainerNumSlots(bag) or 0) do
+                if GetContainerItemID(bag, slot) == nil then
+                    table.insert(empties, { bag, slot })
+                end
             end
         end
     end
+    return empties
+end
+
+-- Moves whatever is in `slot` off the character and into a slot claimed from
+-- `empties` (built once per set change by emptyBagSlots). Targeted placement
+-- instead of PutItemInBackpack, for three reasons measured in the field:
+-- PutItemInBackpack on a full backpack raises the red "That bag is full" UI
+-- error client-side; free-slot counts go stale across one run because bag data
+-- only updates after BAG_UPDATE, so stripping several slots kept aiming every
+-- piece at the same already-taken slot; and special bags count as free space
+-- while rejecting gear. Claiming a concrete empty slot per piece from a list
+-- built up front sidesteps all three.
+local function unequipSlotToBags(invSlot, empties)
+    if InCombatLockdown() then return false end
+    if CursorHasItem and CursorHasItem() then return false end
+    -- UseContainerItem cannot place INTO a chosen slot, so only the pickup
+    -- route works here; without it, leave the piece where it is.
+    if not _PickupContainerItem then return false end
+    -- No claimed slot means no free space: leave the piece on the body and do
+    -- not touch the cursor, so no red client error ever fires from us.
+    local target = table.remove(empties)
+    if not target then return false end
+    PickupInventoryItem(invSlot)
+    if CursorHasItem and not CursorHasItem() then
+        table.insert(empties, target)
+        return false
+    end
+    _PickupContainerItem(target[1], target[2])
     if CursorHasItem and CursorHasItem() then
         ClearCursor()
+        table.insert(empties, target)
         return false
     end
     return true
@@ -568,6 +595,10 @@ local function equipLoadout(name)
     local swapped, missing, fromBank = 0, 0, 0
     local bagsFull = false
     local failedLinks = {}
+    -- Claimed-empty-slot list for stripping, built lazily on the first slot
+    -- that actually needs it and shared across the whole run: one snapshot,
+    -- each strip consumes one concrete slot from it.
+    local empties = nil
     -- Ascending order so paired slots (11/12, 13/14) resolve predictably.
     local sortedSlots = {}
     for slot in pairs(loadout.slots) do table.insert(sortedSlots, slot) end
@@ -578,7 +609,8 @@ local function equipLoadout(name)
         if link == false then
             local currentLink = GetInventoryItemLink("player", slot)
             if currentLink then
-                if unequipSlotToBags(slot) then
+                if not empties then empties = emptyBagSlots() end
+                if unequipSlotToBags(slot, empties) then
                     swapped = swapped + 1
                 else
                     bagsFull = true
