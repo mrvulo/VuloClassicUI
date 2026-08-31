@@ -3662,4 +3662,10 @@ ns:RegisterLocale("ruRU", function() return {
 ["Not enough free bag space to unequip everything."] = "Недостаточно свободного места в сумках, чтобы снять всё.",
     -- Patch notes 1.58.2
     ["Empty slots are now part of a set: saving records deliberately bare slots, and equipping strips those pieces into the bags, with a single notice when the bags are too full. Sets saved before this change keep their old behavior, so save a set once more to pick up its empty slots."] = "Пустые ячейки теперь часть комплекта: при сохранении отмечаются намеренно свободные ячейки, а при надевании находящиеся там предметы убираются в сумки, с одним уведомлением, если сумки переполнены. Комплекты, сохранённые до этого изменения, ведут себя по-старому; сохраните комплект ещё раз, чтобы он перенял свои пустые ячейки.",
+    ["The unit's level at the name's left edge, coloured by how dangerous it is to you."] = "Уровень существа у левого края имени, окрашенный по тому, насколько оно опасно для вас.",
+    ["Elite and rare tag"] = "Метка элитных и редких",
+    ["Adds + for elite, R for rare, R+ for rare elite and B for world bosses. A tagged level turns gold."] = "Добавляет + для элитных, R для редких, R+ для редких элитных и B для мировых боссов. Уровень с меткой становится золотым.",
+    ["Level text size"] = "Размер текста уровня",
+    ["0 = uses the name's text size."] = "0 = использует размер текста имени.",
+    ["Where the row extends as more icons arrive. Left and right apply to a horizontal row above or below the plate. Up and down give a vertical column beside the plate a fixed starting end instead of staying centred."] = "Куда расширяется ряд, когда появляются новые значки. Влево и вправо действуют для горизонтального ряда над или под полосой. Вверх и вниз дают вертикальной колонке рядом с полосой фиксированное начало вместо выравнивания по центру.",
 } end)

@@ -3662,4 +3662,10 @@ ns:RegisterLocale("koKR", function() return {
 ["Not enough free bag space to unequip everything."] = "모든 장비를 벗기에는 가방 공간이 부족합니다.",
     -- Patch notes 1.58.2
     ["Empty slots are now part of a set: saving records deliberately bare slots, and equipping strips those pieces into the bags, with a single notice when the bags are too full. Sets saved before this change keep their old behavior, so save a set once more to pick up its empty slots."] = "빈 칸도 이제 세트의 일부입니다. 저장할 때 일부러 비워 둔 칸이 기록되고, 착용할 때 그 자리의 장비는 가방으로 들어가며, 가방이 가득 차면 한 번만 알림이 표시됩니다. 이 변경 전에 저장한 세트는 기존 동작을 유지하므로, 빈 칸을 반영하려면 세트를 한 번 다시 저장하세요.",
+    ["The unit's level at the name's left edge, coloured by how dangerous it is to you."] = "이름 왼쪽 가장자리에 유닛의 레벨을 표시하며, 당신에게 얼마나 위험한지에 따라 색이 달라집니다.",
+    ["Elite and rare tag"] = "정예·희귀 표기",
+    ["Adds + for elite, R for rare, R+ for rare elite and B for world bosses. A tagged level turns gold."] = "정예는 +, 희귀는 R, 희귀 정예는 R+, 월드 보스는 B를 붙입니다. 표기가 붙은 레벨은 금색으로 표시됩니다.",
+    ["Level text size"] = "레벨 글자 크기",
+    ["0 = uses the name's text size."] = "0 = 이름 글자 크기 사용.",
+    ["Where the row extends as more icons arrive. Left and right apply to a horizontal row above or below the plate. Up and down give a vertical column beside the plate a fixed starting end instead of staying centred."] = "아이콘이 늘어날 때 줄이 어느 방향으로 확장되는지 정합니다. 왼쪽과 오른쪽은 이름표 위나 아래의 가로 줄에 적용됩니다. 위와 아래는 이름표 옆의 세로 열이 가운데에 머무르는 대신 고정된 시작점을 갖게 합니다.",
 } end)

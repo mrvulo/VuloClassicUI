@@ -58,6 +58,8 @@ local mod = ns:RegisterModule("nameplates", {
         showLevel       = false,
         showLevelMod    = true,
         levelSize       = 0,
+        levelX          = 0,
+        levelY          = 0,
         showHealthText  = true,
         healthTextMode  = "percent",
         healthTextFormat = "%s (%s)",
@@ -1705,14 +1707,26 @@ local function renderAuraGroup(g, list, o)
             local dx, dy
             local onSide = (o.side == "left" or o.side == "right")
             if o.vertical then
-                -- A column, centred on its anchor. Above the plate it stacks
-                -- upward (first aura nearest the bar), everywhere else
-                -- downward -- which for the side slots is the shape this
-                -- always drew.
                 if     grow == "right" and not onSide then dx =  0.5 * (iw + spacing)
                 elseif grow == "left"  and not onSide then dx = -0.5 * (iw + spacing)
                 else   dx = 0 end
-                dy = ((o.side == "top") and 1 or -1) * ((i - 1) - (n - 1) / 2) * (ih + spacing)
+                if onSide and (grow == "up" or grow == "down") then
+                    -- Anchored, not centred: the first icon sits on the bar's
+                    -- midline and the stack extends one way as more arrive --
+                    -- the point of choosing a direction. Only the side slots
+                    -- get this; above or below the plate the slot itself
+                    -- dictates which way the room is.
+                    dy = ((grow == "up") and 1 or -1) * (i - 1) * (ih + spacing)
+                else
+                    -- A column, centred on its anchor. Above the plate it
+                    -- stacks upward (first aura nearest the bar), everywhere
+                    -- else downward -- which for the side slots is the shape
+                    -- this always drew. Up/down flip that order; the block
+                    -- stays put because the group anchor holds its near edge.
+                    local vm = (grow == "up" and 1) or (grow == "down" and -1)
+                        or ((o.side == "top") and 1 or -1)
+                    dy = vm * ((i - 1) - (n - 1) / 2) * (ih + spacing)
+                end
             elseif onSide then
                 -- A row BESIDE the plate (cfg.orient = "h"): the block hangs
                 -- centred on the bar's edge, so lines centre too -- mirrored,
@@ -2482,6 +2496,10 @@ local function paintLevel(f, unit)
     if not fs then return end
     local d = db()
     if not d.showLevel then fs:Hide(); return end
+    -- Re-anchored on every paint, not only at creation: the two offsets are
+    -- settings, and this is the one path every refresh already runs through.
+    -- Same point name, so SetPoint replaces rather than accumulates.
+    fs:SetPoint("RIGHT", f.name, "LEFT", -3 + (d.levelX or 0), d.levelY or 0)
     -- no unit = the options preview; show a representative elite sample
     local lvl  = unit and (UnitLevel(unit) or 0) or 70
     local rank = unit and (UnitClassification and UnitClassification(unit) or "normal")

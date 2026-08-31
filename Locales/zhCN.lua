@@ -3655,4 +3655,10 @@ ns:RegisterLocale("zhCN", function() return {
 ["Not enough free bag space to unequip everything."] = "背包空间不足，无法卸下所有装备。",
     -- Patch notes 1.58.2
     ["Empty slots are now part of a set: saving records deliberately bare slots, and equipping strips those pieces into the bags, with a single notice when the bags are too full. Sets saved before this change keep their old behavior, so save a set once more to pick up its empty slots."] = "空栏位现在也是套装的一部分：保存时会记录刻意留空的栏位，切换时会把这些位置上的装备收进背包；背包太满时只提示一次。此更改之前保存的套装保持旧行为——重新保存一次套装即可让它记住空栏位。",
+    ["The unit's level at the name's left edge, coloured by how dangerous it is to you."] = "在名字左侧显示单位等级，颜色按它对你的危险程度而定。",
+    ["Elite and rare tag"] = "精英与稀有标记",
+    ["Adds + for elite, R for rare, R+ for rare elite and B for world bosses. A tagged level turns gold."] = "精英加 +，稀有加 R，稀有精英加 R+，世界首领加 B。带标记的等级显示为金色。",
+    ["Level text size"] = "等级文本字号",
+    ["0 = uses the name's text size."] = "0 = 使用名字的文本字号。",
+    ["Where the row extends as more icons arrive. Left and right apply to a horizontal row above or below the plate. Up and down give a vertical column beside the plate a fixed starting end instead of staying centred."] = "决定出现更多图标时该行向哪个方向延伸。左和右适用于姓名版上方或下方的水平行。上和下让姓名版旁边的垂直列有固定的起点，而不是保持居中。",
 } end)

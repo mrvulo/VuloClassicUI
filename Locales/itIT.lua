@@ -3662,4 +3662,10 @@ ns:RegisterLocale("itIT", function() return {
 ["Not enough free bag space to unequip everything."] = "Spazio libero nelle borse insufficiente per togliere tutto.",
     -- Patch notes 1.58.2
     ["Empty slots are now part of a set: saving records deliberately bare slots, and equipping strips those pieces into the bags, with a single notice when the bags are too full. Sets saved before this change keep their old behavior, so save a set once more to pick up its empty slots."] = "Le caselle vuote ora fanno parte del set: al salvataggio vengono annotate le caselle lasciate libere di proposito, e al cambio quei pezzi finiscono nelle borse, con un solo avviso se le borse sono troppo piene. I set salvati prima di questa modifica mantengono il vecchio comportamento; salva un set ancora una volta perché adotti le sue caselle vuote.",
+    ["The unit's level at the name's left edge, coloured by how dangerous it is to you."] = "Il livello dell'unità sul bordo sinistro del nome, colorato in base a quanto è pericolosa per te.",
+    ["Elite and rare tag"] = "Etichetta élite e raro",
+    ["Adds + for elite, R for rare, R+ for rare elite and B for world bosses. A tagged level turns gold."] = "Aggiunge + per élite, R per raro, R+ per élite raro e B per i boss mondiali. Un livello etichettato diventa dorato.",
+    ["Level text size"] = "Dimensione del testo del livello",
+    ["0 = uses the name's text size."] = "0 = usa la dimensione del testo del nome.",
+    ["Where the row extends as more icons arrive. Left and right apply to a horizontal row above or below the plate. Up and down give a vertical column beside the plate a fixed starting end instead of staying centred."] = "Dove si estende la fila quando arrivano altre icone. Sinistra e destra valgono per una fila orizzontale sopra o sotto la targhetta. Su e giù danno a una colonna verticale accanto alla targhetta un'estremità iniziale fissa invece di restare centrata.",
 } end)

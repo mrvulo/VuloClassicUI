@@ -655,6 +655,21 @@ local function rowPlacementItems(key, SLW, applyAndRefresh, withFilter, stacked)
                 if v == "auto" then cfg().orient = nil else cfg().orient = v end
                 applyAndRefresh()
             end }
+        -- The engine read this field all along; the control is new. Left and
+        -- right act on horizontal rows in a top or bottom slot, up and down on
+        -- vertical columns in a side slot -- the other combinations keep the
+        -- slot's own direction, which the tooltip says out loud.
+        items[#items + 1] = { type = "dropdown", label = L["Growth direction"], width = 300,
+            tooltip = L["Where the row extends as more icons arrive. Left and right apply to a horizontal row above or below the plate. Up and down give a vertical column beside the plate a fixed starting end instead of staying centred."],
+            values = {
+                { value = "center", text = L["Centre"] },
+                { value = "left",   text = L["Left"] },
+                { value = "right",  text = L["Right"] },
+                { value = "up",     text = L["Up"] },
+                { value = "down",   text = L["Down"] },
+            },
+            get = function() return cfg().grow or "center" end,
+            set = function(_, v) cfg().grow = v; applyAndRefresh() end }
     end
     pair(
         { type = "slider", label = L["Offset X"], min = -150, max = 150, step = 1, width = SLW,
@@ -1255,6 +1270,30 @@ function mod:GetOptions(tabId)
             local items = { { type = "desc",
                 text = L["|cffaaaaaaOne thing per slot. The level rides at the name's left edge and follows it.|r"] } }
             for _, it in ipairs(textSlotItems()) do items[#items + 1] = it end
+            -- The level the desc above talks about. The runtime painted it all
+            -- along for profiles that had it on; the switch lost its home when
+            -- the old "Text" section went (02.08.2026). It is not a slot -- it
+            -- rides the name -- so it sits after the slots as its own row.
+            items[#items + 1] = { type = "checkbox", label = L["Show level"],
+                tooltip = L["The unit's level at the name's left edge, coloured by how dangerous it is to you."],
+                get = function() return mod.db.showLevel end,
+                set = function(_, v) mod.db.showLevel = v; applyAndRefresh() end,
+                subOptions = {
+                    { type = "checkbox", label = L["Elite and rare tag"],
+                      tooltip = L["Adds + for elite, R for rare, R+ for rare elite and B for world bosses. A tagged level turns gold."],
+                      get = function() return mod.db.showLevelMod end,
+                      set = function(_, v) mod.db.showLevelMod = v; applyAndRefresh() end },
+                    { type = "slider", label = L["Level text size"], min = 0, max = 24, step = 1, width = 130,
+                      tooltip = L["0 = uses the name's text size."],
+                      get = function() return mod.db.levelSize or 0 end,
+                      set = function(_, v) mod.db.levelSize = v; applyAndRefresh() end },
+                    { type = "slider", label = L["Offset X"], min = -40, max = 40, step = 1, width = 130,
+                      get = function() return mod.db.levelX or 0 end,
+                      set = function(_, v) mod.db.levelX = v; applyAndRefresh() end },
+                    { type = "slider", label = L["Offset Y"], min = -40, max = 40, step = 1, width = 130,
+                      get = function() return mod.db.levelY or 0 end,
+                      set = function(_, v) mod.db.levelY = v; applyAndRefresh() end },
+                } }
             return items
         end)() },
 
@@ -2236,14 +2275,14 @@ function mod:GetOptions(tabId)
         -- "Text" is gone too (user request, 02.08.2026). showName and
         -- showHealthText went with it and are no longer read at all -- the text
         -- SLOT decides whether those two are drawn now, and "none" is the off.
-        -- The rest (font, outline, sizes, the health text's own format, the
-        -- level) currently has NO control; the runtime still reads it, so every
-        -- profile keeps what it had.
+        -- The rest (font, outline, sizes, the health text's own format)
+        -- currently has NO control; the runtime still reads it, so every
+        -- profile keeps what it had. The level got its own row back in
+        -- "Main text positions".
         [L["Enemy colours"]]    = "colors",
-        -- "Cast Bar" is gone as well (user request, 02.08.2026). NOTE showCastbar
-        -- went with it: that is the cast bar's own on/off, and "Health and cast
-        -- bar" has its height, icon, background, border and timer but no switch.
-        -- It is the one row out of this section that most likely needs a home.
+        -- "Cast Bar" is gone as well (user request, 02.08.2026). showCastbar
+        -- has its home back: the "Show cast bar" row in "Health and cast bar"
+        -- decides whether there is a bar for the rest of that section to shape.
         [L["Target & Threat"]]  = "colors",
         -- "Auras" is gone too (user request, 02.08.2026). Two things the
         -- setter-counting script cannot see, so they are written down here:

@@ -3663,6 +3663,12 @@ local function T() return {
 ["Not enough free bag space to unequip everything."] = "No hay suficiente espacio libre en las bolsas para quitarse todo.",
     -- Patch notes 1.58.2
     ["Empty slots are now part of a set: saving records deliberately bare slots, and equipping strips those pieces into the bags, with a single notice when the bags are too full. Sets saved before this change keep their old behavior, so save a set once more to pick up its empty slots."] = "Los espacios vacíos ahora forman parte del conjunto: al guardar se registran los espacios dejados libres a propósito, y al equipar esas piezas se retiran a las bolsas, con un único aviso si las bolsas están demasiado llenas. Los conjuntos guardados antes de este cambio conservan su comportamiento anterior; guarda un conjunto una vez más para que adopte sus espacios vacíos.",
+    ["The unit's level at the name's left edge, coloured by how dangerous it is to you."] = "El nivel de la unidad en el borde izquierdo del nombre, coloreado según lo peligrosa que es para ti.",
+    ["Elite and rare tag"] = "Etiqueta de élite y raro",
+    ["Adds + for elite, R for rare, R+ for rare elite and B for world bosses. A tagged level turns gold."] = "Añade + para élite, R para raro, R+ para élite raro y B para jefes de mundo. Un nivel etiquetado se vuelve dorado.",
+    ["Level text size"] = "Tamaño del texto del nivel",
+    ["0 = uses the name's text size."] = "0 = usa el tamaño de texto del nombre.",
+    ["Where the row extends as more icons arrive. Left and right apply to a horizontal row above or below the plate. Up and down give a vertical column beside the plate a fixed starting end instead of staying centred."] = "Hacia dónde se extiende la fila cuando llegan más iconos. Izquierda y derecha se aplican a una fila horizontal encima o debajo de la placa. Arriba y abajo dan a una columna vertical junto a la placa un extremo inicial fijo en lugar de mantenerse centrada.",
 } end
 
 ns:RegisterLocale("esES", T)
