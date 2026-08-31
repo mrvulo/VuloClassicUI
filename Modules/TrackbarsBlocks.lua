@@ -638,6 +638,29 @@ function(b, slot, content, bar)
         return ldb:GetDataObjectByName(name), name
     end
 
+    -- Die Callbacks folgen dem KONFIGURIERTEN Namen, nicht dem Namen zur
+    -- Enable-Zeit: ein Plugin-Wechsel im Klappmenue laeuft nur ueber
+    -- ApplyBar -> Refresh (die Engine ruft Enable nie ein zweites Mal),
+    -- und ohne Umregistrierung friert der Block bis zum /reload ein
+    -- (Review-Fund). false = noch nie registriert, nil = registriert
+    -- ohne Plugin -- die beiden muessen sich unterscheiden, sonst wuerde
+    -- der allererste Lauf ohne Plugin gar nichts registrieren.
+    local regName = false
+    local function ensureCallbacks()
+        if not ldb then return end
+        local name = b.settings.plugin
+        if name == "" then name = nil end
+        if name == regName then return end
+        ldb.UnregisterAllCallbacks(inst)
+        if name then
+            ldb.RegisterCallback(inst, "LibDataBroker_AttributeChanged_" .. name,
+                function() inst:Refresh() end)
+        end
+        ldb.RegisterCallback(inst, "LibDataBroker_DataObjectCreated",
+            function() inst:Refresh() end)
+        regName = name
+    end
+
     function inst:Restyle()
         UI.FontFor("trackbars", fs, textBlockFontSize(bar, {}))
         local sz = math.floor((bar.thickness or 26) * 0.62 + 0.5)
@@ -646,17 +669,21 @@ function(b, slot, content, bar)
 
     local lastLen = -1
     function inst:Refresh()
+        ensureCallbacks()
         local o, name = obj()
         local r, g, bl = blockColor(b)
         fs:SetTextColor(r, g, bl)
         local txt
         if o then
-            txt = o.text or o.label or name or ""
+            -- tostring: ein Plugin, das eine Zahl in .text schreibt, darf
+            -- den Block nicht crashen (Review-Haertung)
+            txt = tostring(o.text or o.label or name or "")
             if b.settings.stripColors then
                 txt = txt:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
             end
-            if o.icon then
-                icon:SetTexture(o.icon)
+            local tex = o.icon
+            if type(tex) == "string" or type(tex) == "number" then
+                icon:SetTexture(tex)
                 local c = o.iconCoords
                 if type(c) == "table" and c[4] then
                     icon:SetTexCoord(c[1], c[2], c[3], c[4])
@@ -695,15 +722,7 @@ function(b, slot, content, bar)
     end
 
     function inst:Enable()
-        if ldb then
-            local name = b.settings.plugin
-            if name and name ~= "" then
-                ldb.RegisterCallback(inst, "LibDataBroker_AttributeChanged_" .. name,
-                    function() inst:Refresh() end)
-            end
-            ldb.RegisterCallback(inst, "LibDataBroker_DataObjectCreated",
-                function() inst:Refresh() end)
-        end
+        ensureCallbacks()
         slot:EnableMouse(true)
         slot:SetScript("OnMouseUp", function(s, btn)
             local o = obj()
@@ -732,6 +751,13 @@ function(b, slot, content, bar)
 
     function inst:Disable()
         if ldb then ldb.UnregisterAllCallbacks(inst) end
+        regName = false
+        -- Skripte mit abraeumen: der Slot wird von der Engine je Block-Kennung
+        -- wiederverwendet, und ein Nachmieter anderen Typs setzt nicht
+        -- zwingend alle drei neu (Review-Haertung)
+        slot:SetScript("OnMouseUp", nil)
+        slot:SetScript("OnEnter", nil)
+        slot:SetScript("OnLeave", nil)
         slot:EnableMouse(false)
     end
 
