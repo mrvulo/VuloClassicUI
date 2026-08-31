@@ -159,6 +159,46 @@ local function addTypeBlockItems(items, cfg, b)
             get = function() return s.mode or "auto" end,
             set = function(_, v) s.mode = v; br.ApplyBar(cfg.id) end,
         }
+    elseif t == "broker" then
+        local ldb = LibStub and LibStub:GetLibrary("LibDataBroker-1.1", true)
+        local values = {}
+        if ldb then
+            for name in ldb:DataObjectIterator() do
+                values[#values + 1] = { value = name, text = name }
+            end
+            table.sort(values, function(a, b2) return a.value < b2.value end)
+        end
+        local cur = s.plugin or ""
+        if cur ~= "" and not (ldb and ldb:GetDataObjectByName(cur)) then
+            -- konfiguriert, aber gerade nicht registriert: waehlbar lassen,
+            -- damit die Auswahl ein /reload ohne das Plugin ueberlebt
+            table.insert(values, 1, { value = cur,
+                text = "|cff888888" .. cur .. " (" .. L["not loaded"] .. ")|r" })
+        end
+        if #values == 0 then
+            values[1] = { value = "",
+                text = "|cff888888" .. L["No broker plugins found"] .. "|r" }
+        end
+        items[#items + 1] = {
+            type = "dropdown", label = L["Plugin"], width = 240,
+            values = values,
+            get = function() return s.plugin or "" end,
+            set = function(_, v)
+                if v ~= "" then s.plugin = v; br.ApplyBar(cfg.id) end
+            end,
+        }
+        items[#items + 1] = {
+            type = "toggle", label = L["Strip colors"],
+            tooltip = L["Removes the plugin's own color codes so the text takes the block color."],
+            get = function() return s.stripColors end,
+            set = function(_, v) s.stripColors = v; br.ApplyBar(cfg.id) end,
+        }
+        items[#items + 1] = {
+            type = "slider", label = L["Max width"], min = 0, max = 400, step = 10,
+            tooltip = L["0 = automatic width. Above 0 the text is cut off at this width."],
+            get = function() return s.maxWidth or 0 end,
+            set = function(_, v) s.maxWidth = v; br.ApplyBar(cfg.id) end,
+        }
     elseif t == "spacer" then
         items[#items + 1] = {
             type = "slider", label = L["Width"], min = 4, max = 200, step = 1,

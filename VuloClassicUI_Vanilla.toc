@@ -12,6 +12,7 @@
 # NOTE: file list must stay in sync with VuloClassicUI.toc (the BCC/TBC variant).
 Libs\LibStub\LibStub.lua
 Libs\CallbackHandler-1.0\CallbackHandler-1.0.lua
+Libs\LibDataBroker-1.1\LibDataBroker-1.1.lua
 Libs\LibSharedMedia-3.0\LibSharedMedia-3.0.lua
 Libs\LibDeflate\LibDeflate.lua
 Libs\LibEditModeOverride\LibEditModeOverride.xml

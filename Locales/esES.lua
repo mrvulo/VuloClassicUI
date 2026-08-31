@@ -3673,6 +3673,13 @@ local function T() return {
     ["Stripping pieces into the bags claims an empty slot for every piece before anything moves, so switching to a set with bare slots no longer fails with red bag-is-full errors from stale free-space counts or special bags that cannot hold armor."] = "Al desequipar piezas a las bolsas se reserva de antemano un hueco vacío para cada pieza: cambiar a un conjunto con huecos libres ya no falla con errores rojos de bolsa llena por recuentos de espacio anticuados o bolsas especiales que no admiten armadura.",
     ["Show level – The unit's level at the name's left edge, colored by difficulty, with an elite and rare tag, text size and offsets behind its gear"] = "Mostrar el nivel – El nivel de la unidad en el borde izquierdo del nombre, coloreado por dificultad, con etiqueta de élite y raro, tamaño de texto y desplazamientos tras su engranaje",
     ["Growth direction – Decide where an aura row extends as more icons arrive: left or right for a horizontal row, up or down for a column beside the plate"] = "Dirección de crecimiento – Decide hacia dónde se extiende una fila de auras cuando llegan más iconos: izquierda o derecha en una fila horizontal, arriba o abajo en una columna junto a la placa",
+    ["Broker plugin"] = "Plugin Broker",
+    ["Plugin"] = "Plugin",
+    ["No broker plugins found"] = "No se encontraron plugins Broker",
+    ["Strip colors"] = "Quitar colores",
+    ["Max width"] = "Anchura máxima",
+    ["Removes the plugin's own color codes so the text takes the block color."] = "Elimina los códigos de color propios del plugin para que el texto tome el color del bloque.",
+    ["0 = automatic width. Above 0 the text is cut off at this width."] = "0 = anchura automática. Por encima de 0, el texto se corta en esta anchura.",
 } end
 
 ns:RegisterLocale("esES", T)

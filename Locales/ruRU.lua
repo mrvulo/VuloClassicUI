@@ -3672,4 +3672,11 @@ ns:RegisterLocale("ruRU", function() return {
     ["Stripping pieces into the bags claims an empty slot for every piece before anything moves, so switching to a set with bare slots no longer fails with red bag-is-full errors from stale free-space counts or special bags that cannot hold armor."] = "При снятии предметов в сумки для каждого предмета заранее резервируется пустая ячейка: переключение на комплект со свободными ячейками больше не срывается красными ошибками о переполненной сумке из-за устаревшего подсчёта свободного места или особых сумок, не вмещающих броню.",
     ["Show level – The unit's level at the name's left edge, colored by difficulty, with an elite and rare tag, text size and offsets behind its gear"] = "Показывать уровень – Уровень существа у левого края имени, окрашенный по сложности, с меткой элитных и редких, размером текста и смещениями за шестерёнкой",
     ["Growth direction – Decide where an aura row extends as more icons arrive: left or right for a horizontal row, up or down for a column beside the plate"] = "Направление роста – Решайте, куда расширяется ряд аур, когда появляются новые значки: влево или вправо для горизонтального ряда, вверх или вниз для колонки рядом с полосой",
+    ["Broker plugin"] = "Плагин Broker",
+    ["Plugin"] = "Плагин",
+    ["No broker plugins found"] = "Плагины Broker не найдены",
+    ["Strip colors"] = "Убирать цвета",
+    ["Max width"] = "Максимальная ширина",
+    ["Removes the plugin's own color codes so the text takes the block color."] = "Убирает собственные цветовые коды плагина, чтобы текст принимал цвет блока.",
+    ["0 = automatic width. Above 0 the text is cut off at this width."] = "0 = автоматическая ширина. Больше 0 — текст обрезается на этой ширине.",
 } end)

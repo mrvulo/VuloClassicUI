@@ -3790,4 +3790,11 @@ ns:RegisterLocale("deDE", function() return {
     ["Stripping pieces into the bags claims an empty slot for every piece before anything moves, so switching to a set with bare slots no longer fails with red bag-is-full errors from stale free-space counts or special bags that cannot hold armor."] = "Beim Ausziehen in die Taschen wird für jedes Teil vorab ein leerer Platz beansprucht — der Wechsel auf ein Set mit freien Plätzen scheitert nicht mehr mit roten Tasche-ist-voll-Fehlern durch veraltete Frei-Platz-Zählung oder Spezialtaschen ohne Platz für Rüstung.",
     ["Show level – The unit's level at the name's left edge, colored by difficulty, with an elite and rare tag, text size and offsets behind its gear"] = "Stufe anzeigen – Die Stufe der Einheit an der linken Kante des Namens, nach Schwierigkeit gefärbt, mit Elite- und Selten-Kennzeichen, Textgröße und Versatz hinter ihrem Zahnrad",
     ["Growth direction – Decide where an aura row extends as more icons arrive: left or right for a horizontal row, up or down for a column beside the plate"] = "Wachstumsrichtung – Bestimme, wohin eine Aura-Reihe sich ausdehnt, wenn weitere Symbole dazukommen: links oder rechts bei einer waagerechten Reihe, nach oben oder unten bei einer Spalte neben der Plakette",
+    ["Broker plugin"] = "Broker-Plugin",
+    ["Plugin"] = "Plugin",
+    ["No broker plugins found"] = "Keine Broker-Plugins gefunden",
+    ["Strip colors"] = "Farbcodes entfernen",
+    ["Max width"] = "Maximale Breite",
+    ["Removes the plugin's own color codes so the text takes the block color."] = "Entfernt die eigenen Farbcodes des Plugins, damit der Text die Blockfarbe übernimmt.",
+    ["0 = automatic width. Above 0 the text is cut off at this width."] = "0 = automatische Breite. Über 0 wird der Text an dieser Breite abgeschnitten.",
 } end)

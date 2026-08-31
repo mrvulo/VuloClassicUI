@@ -610,3 +610,130 @@ addType("micromenu", "Micro menu",
         end
         return inst
     end)
+
+-- Broker-Plugin: zeigt ein Datenobjekt, das ein anderes Addon ueber die
+-- eingebettete Broker-Bibliothek registriert hat. Aktualisierung rein ueber
+-- deren Attribut-Callbacks -- die Bibliothek feuert bei JEDER Aenderung,
+-- ein Herzschlag wuerde nur dasselbe noch einmal malen. Jeder Griff in
+-- Plugin-Code laeuft durch pcall: ein kaputtes Fremd-Plugin darf die
+-- Leiste nicht mitreissen.
+addType("broker", "Broker plugin", { plugin = "", stripColors = false, maxWidth = 0 },
+function(b, slot, content, bar)
+    local inst = { _key = instKey("broker", b, bar) }
+    local ldb = LibStub and LibStub:GetLibrary("LibDataBroker-1.1", true)
+    local fs = content:CreateFontString(nil, "OVERLAY")
+    UI.FontFor("trackbars", fs, textBlockFontSize(bar, {}))
+    fs:SetPoint("RIGHT", content, "RIGHT", 0, 0)
+    fs:SetWordWrap(false)
+    local icon = content:CreateTexture(nil, "ARTWORK")
+    local isz = math.floor((bar.thickness or 26) * 0.62 + 0.5)
+    icon:SetSize(isz, isz)
+    icon:SetPoint("RIGHT", fs, "LEFT", -4, 0)
+    icon:Hide()
+    inst.fs, inst.icon = fs, icon
+
+    local function obj()
+        local name = b.settings.plugin
+        if not ldb or not name or name == "" then return nil, name end
+        return ldb:GetDataObjectByName(name), name
+    end
+
+    function inst:Restyle()
+        UI.FontFor("trackbars", fs, textBlockFontSize(bar, {}))
+        local sz = math.floor((bar.thickness or 26) * 0.62 + 0.5)
+        icon:SetSize(sz, sz)
+    end
+
+    local lastLen = -1
+    function inst:Refresh()
+        local o, name = obj()
+        local r, g, bl = blockColor(b)
+        fs:SetTextColor(r, g, bl)
+        local txt
+        if o then
+            txt = o.text or o.label or name or ""
+            if b.settings.stripColors then
+                txt = txt:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+            end
+            if o.icon then
+                icon:SetTexture(o.icon)
+                local c = o.iconCoords
+                if type(c) == "table" and c[4] then
+                    icon:SetTexCoord(c[1], c[2], c[3], c[4])
+                else
+                    icon:SetTexCoord(0, 1, 0, 1)
+                end
+                icon:Show()
+            else
+                icon:Hide()
+            end
+        else
+            -- konfiguriert, aber (noch) nicht registriert: Name ausgegraut,
+            -- der DataObjectCreated-Callback unten holt den Block dann ab
+            txt = "|cff888888" .. ((name and name ~= "" and name) or L["Broker plugin"]) .. "|r"
+            icon:Hide()
+        end
+        -- vor JEDER Messung die natuerliche Breite herstellen, sonst misst
+        -- GetStringWidth nach einem frueheren Kappen falsch weiter
+        fs:SetWidth(0)
+        fs:SetText(txt or "")
+        local mw = b.settings.maxWidth or 0
+        local natural = fs:GetStringWidth() or 0
+        if mw > 0 and natural > mw then fs:SetWidth(mw) end
+        local len = self:GetAutoLength()
+        content:SetSize(math.max(len, 1), bar.thickness or 26)
+        if len ~= lastLen then lastLen = len; mod.RequestLayout(bar.id) end
+    end
+
+    function inst:GetAutoLength()
+        local w = fs:GetStringWidth() or 0
+        local mw = b.settings.maxWidth or 0
+        if mw > 0 and w > mw then w = mw end
+        if w <= 0 then return 0 end
+        if icon:IsShown() then w = w + (icon:GetWidth() or 0) + 4 end
+        return math.ceil(w)
+    end
+
+    function inst:Enable()
+        if ldb then
+            local name = b.settings.plugin
+            if name and name ~= "" then
+                ldb.RegisterCallback(inst, "LibDataBroker_AttributeChanged_" .. name,
+                    function() inst:Refresh() end)
+            end
+            ldb.RegisterCallback(inst, "LibDataBroker_DataObjectCreated",
+                function() inst:Refresh() end)
+        end
+        slot:EnableMouse(true)
+        slot:SetScript("OnMouseUp", function(s, btn)
+            local o = obj()
+            if o and type(o.OnClick) == "function" then pcall(o.OnClick, s, btn) end
+        end)
+        slot:SetScript("OnEnter", function(s)
+            local o, name = obj()
+            if o and type(o.OnTooltipShow) == "function" then
+                GameTooltip:SetOwner(s, "ANCHOR_TOP")
+                pcall(o.OnTooltipShow, GameTooltip)
+                GameTooltip:Show()
+            elseif o and type(o.OnEnter) == "function" then
+                pcall(o.OnEnter, s)
+            elseif name and name ~= "" then
+                GameTooltip:SetOwner(s, "ANCHOR_TOP")
+                GameTooltip:SetText(name)
+                GameTooltip:Show()
+            end
+        end)
+        slot:SetScript("OnLeave", function(s)
+            local o = obj()
+            if o and type(o.OnLeave) == "function" then pcall(o.OnLeave, s) end
+            GameTooltip:Hide()
+        end)
+    end
+
+    function inst:Disable()
+        if ldb then ldb.UnregisterAllCallbacks(inst) end
+        slot:EnableMouse(false)
+    end
+
+    return inst
+end)

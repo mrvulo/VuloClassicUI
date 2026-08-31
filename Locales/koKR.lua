@@ -3672,4 +3672,11 @@ ns:RegisterLocale("koKR", function() return {
     ["Stripping pieces into the bags claims an empty slot for every piece before anything moves, so switching to a set with bare slots no longer fails with red bag-is-full errors from stale free-space counts or special bags that cannot hold armor."] = "장비를 가방으로 벗을 때 각 장비마다 빈 칸을 미리 확보합니다. 빈 칸이 있는 세트로 바꿀 때 오래된 빈 칸 계산이나 방어구를 담을 수 없는 특수 가방 때문에 붉은 가방이 가득 참 오류가 더는 발생하지 않습니다.",
     ["Show level – The unit's level at the name's left edge, colored by difficulty, with an elite and rare tag, text size and offsets behind its gear"] = "레벨 표시 – 이름 왼쪽 가장자리에 유닛의 레벨을 난이도에 따라 색을 입혀 표시하며, 정예·희귀 표기와 글자 크기, 위치 조정은 톱니바퀴 뒤에 있습니다",
     ["Growth direction – Decide where an aura row extends as more icons arrive: left or right for a horizontal row, up or down for a column beside the plate"] = "확장 방향 – 아이콘이 늘어날 때 오라 줄이 어느 방향으로 확장될지 정합니다. 가로 줄은 왼쪽이나 오른쪽으로, 이름표 옆의 세로 열은 위나 아래로 확장됩니다",
+    ["Broker plugin"] = "브로커 플러그인",
+    ["Plugin"] = "플러그인",
+    ["No broker plugins found"] = "브로커 플러그인이 없습니다",
+    ["Strip colors"] = "색상 제거",
+    ["Max width"] = "최대 너비",
+    ["Removes the plugin's own color codes so the text takes the block color."] = "플러그인의 색상 코드를 제거하여 문자가 블록 색상을 따르게 합니다.",
+    ["0 = automatic width. Above 0 the text is cut off at this width."] = "0 = 자동 너비. 0보다 크면 문자가 이 너비에서 잘립니다.",
 } end)

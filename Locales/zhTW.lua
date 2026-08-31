@@ -3665,4 +3665,11 @@ ns:RegisterLocale("zhTW", function() return {
     ["Stripping pieces into the bags claims an empty slot for every piece before anything moves, so switching to a set with bare slots no longer fails with red bag-is-full errors from stale free-space counts or special bags that cannot hold armor."] = "把裝備脫到背包時會先為每件裝備預留一個空格，切換到帶空欄位的套裝不再因過期的空格計數或裝不下護甲的特殊背包而跳出紅色背包已滿錯誤。",
     ["Show level – The unit's level at the name's left edge, colored by difficulty, with an elite and rare tag, text size and offsets behind its gear"] = "顯示等級 – 在名字左側顯示單位等級，依難度著色，精英與稀有標記、文字大小和偏移都在其齒輪後面",
     ["Growth direction – Decide where an aura row extends as more icons arrive: left or right for a horizontal row, up or down for a column beside the plate"] = "延伸方向 – 決定出現更多圖示時光環行向哪個方向延伸：水平行向左或向右，名條旁的垂直列向上或向下",
+    ["Broker plugin"] = "Broker 插件",
+    ["Plugin"] = "插件",
+    ["No broker plugins found"] = "找不到 Broker 插件",
+    ["Strip colors"] = "移除顏色",
+    ["Max width"] = "最大寬度",
+    ["Removes the plugin's own color codes so the text takes the block color."] = "移除插件自帶的顏色代碼，讓文字使用區塊的顏色。",
+    ["0 = automatic width. Above 0 the text is cut off at this width."] = "0 = 自動寬度。大於 0 時文字在此寬度處截斷。",
 } end)

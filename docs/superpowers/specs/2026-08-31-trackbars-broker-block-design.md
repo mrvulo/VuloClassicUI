@@ -54,8 +54,10 @@ möglich (je Block ein Plugin, über die vorhandenen `b.settings`).
 - **Klick**: `slot`-OnMouseUp → `pcall(obj.OnClick, slot, button)`, nur wenn
   Funktion vorhanden.
 - **Tooltip** (Broker-Konvention, in dieser Reihenfolge):
-  1. `obj.OnTooltipShow`: GameTooltip am Slot verankern (`SetOwner` +
-     Anker je nach Leistenkante oben/unten), `pcall(obj.OnTooltipShow, GameTooltip)`, `Show`.
+  1. `obj.OnTooltipShow`: GameTooltip am Slot verankern (`SetOwner` mit
+     `ANCHOR_TOP` — dieselbe Verankerung wie JEDER andere Trackbars-Block;
+     der GameTooltip klemmt sich selbst an den Bildschirm),
+     `pcall(obj.OnTooltipShow, GameTooltip)`, `Show`.
   2. sonst `obj.OnEnter`/`obj.OnLeave`: `pcall(obj.OnEnter, slot)` bzw. Leave.
   3. sonst: GameTooltip mit dem Plugin-Namen.
   OnLeave versteckt den GameTooltip immer zusätzlich.
