@@ -3661,4 +3661,8 @@ ns:RegisterLocale("zhCN", function() return {
     ["Level text size"] = "等级文本字号",
     ["0 = uses the name's text size."] = "0 = 使用名字的文本字号。",
     ["Where the row extends as more icons arrive. Left and right apply to a horizontal row above or below the plate. Up and down give a vertical column beside the plate a fixed starting end instead of staying centred."] = "决定出现更多图标时该行向哪个方向延伸。左和右适用于姓名版上方或下方的水平行。上和下让姓名版旁边的垂直列有固定的起点，而不是保持居中。",
+    ["The icon picker offers the client's complete icon library in a mouse-wheel scrollable grid; the automatic choice and the set's own pieces stay in front."] = "图标选择器现在以可用鼠标滚轮滚动的网格提供游戏的完整图标库；自动选项和套装自身的装备仍排在最前。",
+    ["Stripping pieces into the bags claims an empty slot for every piece before anything moves, so switching to a set with bare slots no longer fails with red bag-is-full errors from stale free-space counts or special bags that cannot hold armor."] = "把装备脱到背包时会先为每件装备预留一个空格，切换到带空栏位的套装不再因过期的空格计数或装不下护甲的特殊背包而弹出红色背包已满错误。",
+    ["Show level – The unit's level at the name's left edge, colored by difficulty, with an elite and rare tag, text size and offsets behind its gear"] = "显示等级 – 在名字左侧显示单位等级，按难度着色，精英与稀有标记、文本字号和偏移都在其齿轮后面",
+    ["Growth direction – Decide where an aura row extends as more icons arrive: left or right for a horizontal row, up or down for a column beside the plate"] = "延伸方向 – 决定出现更多图标时光环行向哪个方向延伸：水平行向左或向右，姓名版旁的垂直列向上或向下",
 } end)

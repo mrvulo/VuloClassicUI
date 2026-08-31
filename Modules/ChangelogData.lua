@@ -6,6 +6,16 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+    { version = "1.58.3", sections = {
+        { category = "Loadouts", lines = {
+            "The icon picker offers the client's complete icon library in a mouse-wheel scrollable grid; the automatic choice and the set's own pieces stay in front.",
+            "Stripping pieces into the bags claims an empty slot for every piece before anything moves, so switching to a set with bare slots no longer fails with red bag-is-full errors from stale free-space counts or special bags that cannot hold armor.",
+        } },
+        { category = "Nameplates", lines = {
+            "NEW: Show level – The unit's level at the name's left edge, colored by difficulty, with an elite and rare tag, text size and offsets behind its gear",
+            "NEW: Growth direction – Decide where an aura row extends as more icons arrive: left or right for a horizontal row, up or down for a column beside the plate",
+        } },
+    } },
     { version = "1.58.2", sections = {
         { category = "Loadouts", lines = {
             "Empty slots are now part of a set: saving records deliberately bare slots, and equipping strips those pieces into the bags, with a single notice when the bags are too full. Sets saved before this change keep their old behavior, so save a set once more to pick up its empty slots.",
@@ -526,23 +536,6 @@ ns.CHANGELOG = {
             "Modules with several pages show them as a tab row along the top; when the tabs outgrow the row, two arrows page through it instead of wrapping into a second line.",
             "The sidebar got shorter: player and target frames, font bars, castbar and cooldown pulse are one entry now, and a new General entry under Reminders collects the former Extras, Character and Bug Fixes rows — the bug fixes as a single tab.",
             "Typing into an add field and then clicking the button beside it silently did nothing; the typed text only counted after pressing Enter. Buttons now take the field's text with them.",
-        } },
-    } },
-    { version = "1.43.0", sections = {
-        { category = "Character Panel", lines = {
-            "The character window stayed empty on clients we had never named. The panel asked whether the client called itself one of two specific versions and refused every other one, including clients that have exactly the frames it needs. It now asks for the one thing it cannot work without. Enchants, sockets and item stats were missing for the same reason and return with it.",
-            "Hit rating, haste rating and spell hit rating appear on Wrath-based clients too. They were tied to a single version by name, although the game there has those stats.",
-            "The stat rows Wrath draws in pages with two dropdowns are hidden underneath our own panel now, instead of showing through it.",
-        } },
-        { category = "Compatibility", lines = {
-            "NEW: Titan Reforged – The addon no longer reports itself out of date on the Chinese client, whose build is listed now",
-            "Version detection falls back to the build number whenever a client reports an identifier we have no name for. Such a client used to end up with every version flag false, which left it worse off than a client with no identifier at all, because that one at least fell back to something.",
-        } },
-        { category = "Languages", lines = {
-            "242 texts that nothing in the interface looks up any more are gone from all nine language files, roughly eight percent of each. Renamed settings left them behind: the action bars were given clearer names a while ago and the old entries simply stayed. A check now asks the reverse question after every change, whether every translated text is still in use, so they cannot pile up again.",
-        } },
-        { category = "Shaman", lines = {
-            "NEW: Call button – A fifth totem button for the spells that summon a whole saved totem set, shown only to characters who know one",
         } },
     } },
 }

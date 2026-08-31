@@ -3668,4 +3668,8 @@ ns:RegisterLocale("koKR", function() return {
     ["Level text size"] = "레벨 글자 크기",
     ["0 = uses the name's text size."] = "0 = 이름 글자 크기 사용.",
     ["Where the row extends as more icons arrive. Left and right apply to a horizontal row above or below the plate. Up and down give a vertical column beside the plate a fixed starting end instead of staying centred."] = "아이콘이 늘어날 때 줄이 어느 방향으로 확장되는지 정합니다. 왼쪽과 오른쪽은 이름표 위나 아래의 가로 줄에 적용됩니다. 위와 아래는 이름표 옆의 세로 열이 가운데에 머무르는 대신 고정된 시작점을 갖게 합니다.",
+    ["The icon picker offers the client's complete icon library in a mouse-wheel scrollable grid; the automatic choice and the set's own pieces stay in front."] = "아이콘 선택기가 게임의 전체 아이콘 목록을 마우스 휠로 스크롤되는 격자로 제공합니다. 자동 선택과 세트의 장비는 맨 앞에 남습니다.",
+    ["Stripping pieces into the bags claims an empty slot for every piece before anything moves, so switching to a set with bare slots no longer fails with red bag-is-full errors from stale free-space counts or special bags that cannot hold armor."] = "장비를 가방으로 벗을 때 각 장비마다 빈 칸을 미리 확보합니다. 빈 칸이 있는 세트로 바꿀 때 오래된 빈 칸 계산이나 방어구를 담을 수 없는 특수 가방 때문에 붉은 가방이 가득 참 오류가 더는 발생하지 않습니다.",
+    ["Show level – The unit's level at the name's left edge, colored by difficulty, with an elite and rare tag, text size and offsets behind its gear"] = "레벨 표시 – 이름 왼쪽 가장자리에 유닛의 레벨을 난이도에 따라 색을 입혀 표시하며, 정예·희귀 표기와 글자 크기, 위치 조정은 톱니바퀴 뒤에 있습니다",
+    ["Growth direction – Decide where an aura row extends as more icons arrive: left or right for a horizontal row, up or down for a column beside the plate"] = "확장 방향 – 아이콘이 늘어날 때 오라 줄이 어느 방향으로 확장될지 정합니다. 가로 줄은 왼쪽이나 오른쪽으로, 이름표 옆의 세로 열은 위나 아래로 확장됩니다",
 } end)
