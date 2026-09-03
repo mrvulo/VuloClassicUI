@@ -1,8 +1,9 @@
-## 1.58.3
-**Loadouts:**
-- The icon picker offers the client's complete icon library in a mouse-wheel scrollable grid; the automatic choice and the set's own pieces stay in front.
-- Stripping pieces into the bags claims an empty slot for every piece before anything moves, so switching to a set with bare slots no longer fails with red bag-is-full errors from stale free-space counts or special bags that cannot hold armor.
+## 1.59.0
+**Languages:**
+- Texts that nothing in the interface looks up any more are gone from all nine languages: option labels from before the nameplate options were rebuilt, and patch notes of versions that have left the in-game list.
 
 **Nameplates:**
-- **NEW: Show level** – The unit's level at the name's left edge, colored by difficulty, with an elite and rare tag, text size and offsets behind its gear
-- **NEW: Growth direction** – Decide where an aura row extends as more icons arrive: left or right for a horizontal row, up or down for a column beside the plate
+- Aura icons no longer flicker. Every aura event on a unit rebuilt each icon from scratch, so the countdown went blank until the next tick, the expiry pulse snapped back to full, and the cooldown sweep restarted. An icon now keeps its state until a genuinely different aura takes its place, and a new aura shows its number in the same frame it appears.
+
+**Trackbars:**
+- **NEW: Broker plugin** – A block that shows another addon's data object with its icon and text, reacts to clicks and shows its tooltip, with switches to strip the plugin's color codes and cap the width

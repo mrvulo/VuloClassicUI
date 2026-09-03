@@ -3398,6 +3398,10 @@ local function T() return {
     ["Max width"] = "Anchura máxima",
     ["Removes the plugin's own color codes so the text takes the block color."] = "Elimina los códigos de color propios del plugin para que el texto tome el color del bloque.",
     ["0 = automatic width. Above 0 the text is cut off at this width."] = "0 = anchura automática. Por encima de 0, el texto se corta en esta anchura.",
+    -- Patch notes 1.59.0
+    ["Texts that nothing in the interface looks up any more are gone from all nine languages: option labels from before the nameplate options were rebuilt, and patch notes of versions that have left the in-game list."] = "Los textos que ya nada en la interfaz consulta han desaparecido de los nueve idiomas: etiquetas de opciones anteriores a la reconstrucción de las opciones de placas de nombre y notas de versiones que ya no aparecen en la lista del juego.",
+    ["Aura icons no longer flicker. Every aura event on a unit rebuilt each icon from scratch, so the countdown went blank until the next tick, the expiry pulse snapped back to full, and the cooldown sweep restarted. An icon now keeps its state until a genuinely different aura takes its place, and a new aura shows its number in the same frame it appears."] = "Los iconos de auras ya no parpadean. Cada evento de aura en una unidad reconstruía cada icono desde cero, de modo que la cuenta atrás quedaba en blanco hasta el siguiente tic, el pulso de expiración volvía de golpe a opacidad completa y el barrido de reutilización se reiniciaba. Ahora un icono conserva su estado hasta que un aura realmente distinta ocupa su lugar, y un aura nueva muestra su número en el mismo fotograma en que aparece.",
+    ["Broker plugin – A block that shows another addon's data object with its icon and text, reacts to clicks and shows its tooltip, with switches to strip the plugin's color codes and cap the width"] = "Plugin Broker – Un bloque que muestra el objeto de datos de otro addon con su icono y su texto, reacciona a los clics y muestra su descripción emergente, con interruptores para eliminar los códigos de color del plugin y limitar el ancho",
 } end
 
 ns:RegisterLocale("esES", T)

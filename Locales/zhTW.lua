@@ -3390,4 +3390,8 @@ ns:RegisterLocale("zhTW", function() return {
     ["Max width"] = "最大寬度",
     ["Removes the plugin's own color codes so the text takes the block color."] = "移除插件自帶的顏色代碼，讓文字使用區塊的顏色。",
     ["0 = automatic width. Above 0 the text is cut off at this width."] = "0 = 自動寬度。大於 0 時文字在此寬度處截斷。",
+    -- Patch notes 1.59.0
+    ["Texts that nothing in the interface looks up any more are gone from all nine languages: option labels from before the nameplate options were rebuilt, and patch notes of versions that have left the in-game list."] = "介面中不再查找的文字已從全部九種語言中移除：名條選項重建之前的選項標籤，以及已不在遊戲內清單中的版本的更新說明。",
+    ["Aura icons no longer flicker. Every aura event on a unit rebuilt each icon from scratch, so the countdown went blank until the next tick, the expiry pulse snapped back to full, and the cooldown sweep restarted. An icon now keeps its state until a genuinely different aura takes its place, and a new aura shows its number in the same frame it appears."] = "光環圖示不再閃爍。此前單位上的每次光環事件都會從頭重建每個圖示，導致倒數在下一次更新前空白、到期脈動突然回到完全不透明、冷卻掃過重新開始。現在圖示會保持其狀態，直到確實不同的光環佔據它的位置；新光環會在出現的同一幀顯示數字。",
+    ["Broker plugin – A block that shows another addon's data object with its icon and text, reacts to clicks and shows its tooltip, with switches to strip the plugin's color codes and cap the width"] = "Broker 插件 – 一個顯示其他插件資料物件的區塊，帶有圖示和文字，回應點擊並顯示其提示，附帶移除插件顏色代碼和限制寬度的開關",
 } end)

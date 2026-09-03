@@ -3397,4 +3397,8 @@ ns:RegisterLocale("koKR", function() return {
     ["Max width"] = "최대 너비",
     ["Removes the plugin's own color codes so the text takes the block color."] = "플러그인의 색상 코드를 제거하여 문자가 블록 색상을 따르게 합니다.",
     ["0 = automatic width. Above 0 the text is cut off at this width."] = "0 = 자동 너비. 0보다 크면 문자가 이 너비에서 잘립니다.",
+    -- Patch notes 1.59.0
+    ["Texts that nothing in the interface looks up any more are gone from all nine languages: option labels from before the nameplate options were rebuilt, and patch notes of versions that have left the in-game list."] = "인터페이스에서 더 이상 참조하지 않는 문구가 아홉 개 언어 모두에서 제거되었습니다. 이름표 옵션이 재구성되기 전의 옵션 이름과, 게임 내 목록에서 빠진 버전의 패치 노트입니다.",
+    ["Aura icons no longer flicker. Every aura event on a unit rebuilt each icon from scratch, so the countdown went blank until the next tick, the expiry pulse snapped back to full, and the cooldown sweep restarted. An icon now keeps its state until a genuinely different aura takes its place, and a new aura shows its number in the same frame it appears."] = "오라 아이콘이 더 이상 깜빡이지 않습니다. 이전에는 대상의 오라 이벤트마다 모든 아이콘을 처음부터 다시 만들어, 남은 시간 표시가 다음 갱신까지 비어 있고 만료 깜빡임이 완전 불투명으로 되돌아가며 재사용 대기시간 표시가 다시 시작되었습니다. 이제 아이콘은 정말로 다른 오라가 그 자리를 차지할 때까지 상태를 유지하고, 새 오라는 나타나는 바로 그 프레임에 숫자를 표시합니다.",
+    ["Broker plugin – A block that shows another addon's data object with its icon and text, reacts to clicks and shows its tooltip, with switches to strip the plugin's color codes and cap the width"] = "브로커 플러그인 – 다른 애드온의 데이터 객체를 아이콘과 문구로 보여 주고, 클릭에 반응하며 툴팁을 표시하는 블록으로, 플러그인의 색상 코드 제거와 너비 제한 스위치가 함께 제공됩니다",
 } end)

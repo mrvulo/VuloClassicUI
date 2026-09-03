@@ -6,6 +6,17 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+    { version = "1.59.0", sections = {
+        { category = "Languages", lines = {
+            "Texts that nothing in the interface looks up any more are gone from all nine languages: option labels from before the nameplate options were rebuilt, and patch notes of versions that have left the in-game list.",
+        } },
+        { category = "Nameplates", lines = {
+            "Aura icons no longer flicker. Every aura event on a unit rebuilt each icon from scratch, so the countdown went blank until the next tick, the expiry pulse snapped back to full, and the cooldown sweep restarted. An icon now keeps its state until a genuinely different aura takes its place, and a new aura shows its number in the same frame it appears.",
+        } },
+        { category = "Trackbars", lines = {
+            "NEW: Broker plugin – A block that shows another addon's data object with its icon and text, reacts to clicks and shows its tooltip, with switches to strip the plugin's color codes and cap the width",
+        } },
+    } },
     { version = "1.58.3", sections = {
         { category = "Loadouts", lines = {
             "The icon picker offers the client's complete icon library in a mouse-wheel scrollable grid; the automatic choice and the set's own pieces stay in front.",
@@ -513,29 +524,6 @@ ns.CHANGELOG = {
         } },
         { category = "Settings Window", lines = {
             "Long dropdown lists open upwards when there is no room below. They used to run off the bottom edge of the screen, where the last entries could never be scrolled into view.",
-        } },
-    } },
-    { version = "1.44.0", sections = {
-        { category = "Arena", lines = {
-            "NEW: Icon Strip – Racial, trinket and the diminishing-returns row share one edge of the frame in a fixed order, with one set of controls — they can no longer land on top of each other",
-            "The frame layout — order, spacing, grow direction — never actually applied: its hooks were installed before the arena interface had loaded. The frames now report their own moves and the layout follows; during a fight they are protected, so a move mid-round is corrected when it ends.",
-            "The default gap between frames clears the opponent's pet bar, and the drag box in edit mode covers the whole stack instead of a fixed area.",
-        } },
-        { category = "Cooldown Manager", lines = {
-            "NEW: Bar Glows – Any icon can glow while a buff of yours is active or missing: three styles, gold, class or custom color, and one click watches the spell's own buff",
-            "The page is built around a preview that stays put while you scroll: the bar picker with rename, delete and drag-to-reorder on top, under it every icon of the bar at its real size and shape with the real cooldown sweep. Drag reorders, right-click removes.",
-            "The page is split into tabs, and the resource bar moved in as one of them. Spells you add belong to the class that added them and no longer show up on your other characters.",
-        } },
-        { category = "Fishing", lines = {
-            "The third extra-item slot no longer stretches across the page with its box flung to the far edge.",
-        } },
-        { category = "Languages", lines = {
-            "The interface no longer compares itself with the other game version anywhere; a check keeps such wording out for good.",
-        } },
-        { category = "Settings Window", lines = {
-            "Modules with several pages show them as a tab row along the top; when the tabs outgrow the row, two arrows page through it instead of wrapping into a second line.",
-            "The sidebar got shorter: player and target frames, font bars, castbar and cooldown pulse are one entry now, and a new General entry under Reminders collects the former Extras, Character and Bug Fixes rows — the bug fixes as a single tab.",
-            "Typing into an add field and then clicking the button beside it silently did nothing; the typed text only counted after pressing Enter. Buttons now take the field's text with them.",
         } },
     } },
 }
