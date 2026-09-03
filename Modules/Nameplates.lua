@@ -1636,6 +1636,21 @@ local function hideGroup(g)
     if g.icons then for _, ic in ipairs(g.icons) do ic:Hide() end end
 end
 
+-- Repaints the countdown only when the displayed value can have changed: whole
+-- seconds above ten, tenths below. Shared by the tick and by renderAuraGroup,
+-- so a freshly placed aura shows its number in the same frame it appears in
+-- instead of waiting for the next tick.
+local function paintAuraTimer(ic, rem)
+    local bucket = false
+    if ic._showTimer and rem and rem > 0 then
+        bucket = (rem >= 10) and math.floor(rem) or math.floor(rem * 10)
+    end
+    if ic._timerBucket ~= bucket then
+        ic._timerBucket = bucket
+        ic.timer:SetText(bucket and fmtAuraTime(rem) or "")
+    end
+end
+
 -- One shared handler instead of a fresh closure per row per UNIT_AURA: on a big
 -- pull the closures were the last remaining allocator in this path (the entry
 -- tables are pooled above). Everything it needs lives on the group/icons.
@@ -1652,17 +1667,7 @@ local function auraGroupOnUpdate(self, elapsed)
     for i = 1, (self._active or 0) do
         local ic = self.icons[i]
         local rem = (ic._exp and ic._exp > 0) and (ic._exp - now) or nil
-        if doText then
-            -- repaint only when the displayed value can have changed
-            local bucket = false
-            if ic._showTimer and rem and rem > 0 then
-                bucket = (rem >= 10) and math.floor(rem) or math.floor(rem * 10)
-            end
-            if ic._timerBucket ~= bucket then
-                ic._timerBucket = bucket
-                ic.timer:SetText(bucket and fmtAuraTime(rem) or "")
-            end
-        end
+        if doText then paintAuraTimer(ic, rem) end
         if doPulse then
             if rem and rem > 0 and (ic._dur or 0) > 0 and rem <= (ic._dur * pct) then
                 ic:SetAlpha(0.45 + 0.55 * math.abs(math.sin(now * 4)))
@@ -1698,6 +1703,8 @@ local function renderAuraGroup(g, list, o)
     -- disagreed with every other rim on the plate would read as a mistake.
     local bc = d.auraBorderColor or ns.COLORS.borderDark or { r = 0, g = 0, b = 0 }
     local bsz = (d.auraBorder == false) and 0 or (d.borderSize or 0)
+    local flash = d.auraExpireFlash and (d.auraExpirePct or 30) > 0
+    local now = GetTime()
     for i, ic in ipairs(g.icons) do
         local a = list[i]
         if a then
@@ -1779,10 +1786,28 @@ local function renderAuraGroup(g, list, o)
                 ic._swipeRev = reverse
                 if ic.cd.SetReverse then ic.cd:SetReverse(reverse) end
             end
-            if swipe and a.duration > 0 and a.expiration > 0 then
-                ic.cd:SetCooldown(a.expiration - a.duration, a.duration); ic.cd:Show()
-            else
-                ic.cd:Hide()
+            -- Only a CHANGED aura resets the slot. UNIT_AURA fires for every
+            -- tick and stack change on the unit, and each event rebuilt every
+            -- icon from scratch: the countdown went blank until the next text
+            -- tick (up to 0.1 s), the expiry pulse snapped back to full, and
+            -- the swipe restarted -- a visible flicker on any plate with a
+            -- busy aura list. The same spell with the same expiry IS the same
+            -- aura, so cooldown, text and alpha are left exactly as they are.
+            local exp, dur = a.expiration, a.duration
+            local same = ic._spellId == a.spellId and ic._exp == exp
+                and ic._dur == dur and ic._swipeOn == swipe
+            if not same then
+                ic._spellId, ic._exp, ic._dur, ic._swipeOn = a.spellId, exp, dur, swipe
+                if swipe and dur > 0 and exp > 0 then
+                    ic.cd:SetCooldown(exp - dur, dur); ic.cd:Show()
+                else
+                    ic.cd:Hide()
+                end
+                ic._timerBucket = false
+                ic:SetAlpha(1)
+            elseif not flash and ic:GetAlpha() ~= 1 then
+                -- pulse switched off mid-pulse: no tick will restore this
+                ic:SetAlpha(1)
             end
             -- Re-anchored only on a change: this loop runs per icon per row per
             -- aura event, and a position only moves when a dropdown does.
@@ -1812,18 +1837,16 @@ local function renderAuraGroup(g, list, o)
             local sc = d.auraStackColor
             ic.count:SetTextColor((sc and sc.r) or 1, (sc and sc.g) or 1, (sc and sc.b) or 1)
             ic.count:SetText((showStacks and a.count > 1) and a.count or "")
-            ic.timer:SetText("")
-            ic._timerBucket = false
-            ic._exp, ic._showTimer = a.expiration, showTimer
-            ic._dur = a.duration
-            ic:SetAlpha(1)
+            ic._showTimer = showTimer
+            -- Painted now rather than at the next tick, so a new aura never
+            -- shows an empty slot first; an unchanged one is a no-op here.
+            paintAuraTimer(ic, (exp > 0) and (exp - now) or nil)
             ic:Show()
         else
             ic:Hide()
         end
     end
     g._active = n
-    local flash = d.auraExpireFlash and (d.auraExpirePct or 30) > 0
     -- Two clocks: the pulse needs to be smooth, the countdown text does not.
     -- Rebuilding the text at pulse rate would triple the string churn.
     g._flash, g._showTimer = flash, showTimer
