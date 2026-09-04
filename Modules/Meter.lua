@@ -282,6 +282,8 @@ local function onRoster()
             if current then pendingReset = true else Meter:Reset() end
         end
         kind = k
+        local cdb = VuloClassicUICharDB
+        if cdb and cdb.meter then cdb.meter.kind = k end
     end
 end
 
@@ -351,7 +353,10 @@ local function onCLEU()
 end
 
 function mod:EngineEnable()
-    kind = groupKind()
+    -- Seeded from the saved kind: at ADDON_LOADED on a fresh login the client
+    -- does not know the group yet, and "solo -> raid" would wipe the overall.
+    local cdb = VuloClassicUICharDB
+    kind = (cdb and cdb.meter and cdb.meter.kind) or groupKind()
     self:RegisterEvent("GROUP_ROSTER_UPDATE",         onRoster)
     self:RegisterEvent("PLAYER_ENTERING_WORLD",       onRoster)
     self:RegisterEvent("UNIT_PET",                    onUnitPet)
