@@ -101,6 +101,7 @@ function mod:GetOptions()
               label = ns:IsMoverEditMode() and L["Stop moving"] or L["Unlock / Move"],
               onClick = function()
                   ns:SetMoversEditMode(not ns:IsMoverEditMode())
+                  apply()
                   refreshPage()
               end },
             { type = "button", width = 150, label = L["Reset position"],

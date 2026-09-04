@@ -61,6 +61,7 @@ end
 local fmtCache, fmtCount = {}, 0
 local function short(n)
     n = floor(n + 0.5)
+    if n ~= n then n = 0 end   -- NaN would poison the cache table
     local s = fmtCache[n]
     if s then return s end
     if n >= 1000000 then
@@ -132,7 +133,7 @@ local function rowSlots()
 end
 
 local function texturePath()
-    return ns.MediaStatusbar(mod.db.texture, "Atrocity")
+    return ns.MediaStatusbar(mod.db.texture)
 end
 
 local tipLines = {}
@@ -300,8 +301,12 @@ refresh = function()
             end
             r.right:SetText(rightText(p, v, total, dur))
             r.hl:SetShown(db.highlightSelf and guid == me)
+            local changed = r.guid ~= guid
             r.guid = guid
             r:Show()
+            -- A re-sort can move another player under the cursor; OnEnter does
+            -- not fire again, so refresh the tooltip by hand.
+            if changed and r:IsMouseOver() then rowEnter(r) end
         elseif r then
             r.guid = nil
             r:Hide()
@@ -338,8 +343,7 @@ end
 local function onEngine(what)
     if what == "start" then
         scroll = 0
-        Meter:ClearDirty()
-        refresh()
+        -- No immediate paint: the segment is still empty, the first tick fills it.
         startTicker()
         applyVisibility()
     elseif what == "end" then
@@ -409,9 +413,12 @@ end
 -- Visibility
 ------------------------------------------------------------------------
 applyVisibility = function()
-    if not win then return end
+    -- mod.active: Core/Modules.lua clears it before OnDisable, so a hide-delay
+    -- timer that outlives WindowDisable can no longer re-show the window.
+    if not win or not mod.active then return end
     local db = mod.db
-    if ns.IsEditModeActive and ns:IsEditModeActive() then
+    if (ns.IsEditModeActive and ns:IsEditModeActive())
+    or (ns.IsMoverEditMode and ns:IsMoverEditMode()) then
         win:Show()
         return
     end
@@ -474,7 +481,6 @@ local function build()
 
     win = CreateFrame("Frame", "VuloClassicUIMeter", UIParent)
     win:SetSize(db.width, db.height)
-    win:SetClampedToScreen(true)
     win:SetMovable(true)
     win:SetResizable(true)
     if win.SetResizeBounds then

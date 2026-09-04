@@ -69,7 +69,7 @@ local function addUnit(unit)
     local _, class = UnitClass(unit)
     local e = roster[guid]
     if not e then e = {}; roster[guid] = e end
-    e.unit, e.name, e.class = unit, UnitName(unit), class
+    e.unit, e.name, e.class = unit, UnitName(unit) or "?", class
     local petUnit = PET_UNIT[unit]
     if petUnit then
         local petGUID = UnitGUID(petUnit)
@@ -173,7 +173,7 @@ function Meter:Reset()
         current.start = GetTime()
     end
     last = nil
-    wipe(owners)
+    -- owners stays: summoned pets keep their owner; resolve() already gates on roster.
     rebuildRoster()
     dirty = true
     notify("reset")
@@ -211,9 +211,13 @@ local function closeSegment()
     notify("end")
 end
 
+-- Pets count too: a pet-only pull keeps the fight open, and a segment the log
+-- opened for a pet does not churn open/close every second.
 local function anyoneInCombat()
     for _, r in pairs(roster) do
         if UnitAffectingCombat(r.unit) then return true end
+        local petUnit = PET_UNIT[r.unit]
+        if petUnit and UnitAffectingCombat(petUnit) then return true end
     end
     return false
 end
@@ -301,7 +305,12 @@ local function addDamage(src, amount)
     if not amount or amount <= 0 then return end
     local owner = resolve(src)
     if not owner then return end
-    if not current then openSegment(nil) end
+    if not current then
+        -- Residual ticks after a fight closed (a DoT on a dead boss) must not
+        -- open a fresh segment: the log opens a fight only while someone fights.
+        if not anyoneInCombat() then return end
+        openSegment(nil)
+    end
     local p = entry(current, owner)
     p.damage = p.damage + amount
     dirty = true
