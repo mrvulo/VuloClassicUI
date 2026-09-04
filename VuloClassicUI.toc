@@ -107,6 +107,7 @@ Modules\Classes\PaladinTwistOptions.lua
 Modules\Vulslot.lua
 Modules\CooldownManager.lua
 Modules\CombatText.lua
+Modules\Meter.lua
 Modules\Loadouts.lua
 Modules\SlotPicker.lua
 Modules\AddonSkins.lua

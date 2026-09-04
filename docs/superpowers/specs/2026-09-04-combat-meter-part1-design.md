@@ -51,6 +51,9 @@ Protokollreichweite.
 
 Die Engine hält genau zwei lebende Abschnitte:
 
+Nach dem Kampfende bleibt der zuletzt beendete Abschnitt als „aktueller Kampf"
+sichtbar, bis ein neuer beginnt. `InCombat()` ist ab dem Schließen `false`.
+
 - **`current`**: der laufende Kampf; `nil` außerhalb des Kampfes.
 - **`overall`**: Summe aller beendeten Kämpfe seit dem letzten Zurücksetzen.
 
@@ -163,10 +166,11 @@ Ende (faltet `current` in `overall`, sichert, setzt `current = nil`):
 
 ## Sicherung und Zurücksetzen
 
-- `overall` wird bei jedem Abschnittsende und bei `PLAYER_LOGOUT` nach
-  `VuloClassicUICharDB.meter.overall` geschrieben (Spielertabelle und
-  `duration`). Beim Modulstart wird sie zurückgeladen. Im Kampf wird nie
-  geschrieben.
+- `overall` IST die Tabelle `VuloClassicUICharDB.meter.overall`; sie wird beim
+  Modulstart übernommen (fehlende Felder ergänzt) und lebt dort. Es gibt keine
+  Kopie am Kampfende und keinen Logout-Haken. Im Kampf wird nichts geschrieben,
+  weil der laufende Abschnitt eine eigene Tabelle ist, die erst am Ende
+  eingefaltet wird.
 - Zurücksetzen (Menü) leert `overall`, `current` und die Begleiter-Karte,
   löscht die Sicherung.
 - Option `resetOnNewGroup` (Standard an): beim Wechsel von „keine Gruppe" zu
@@ -179,10 +183,13 @@ Ende (faltet `current` in `overall`, sichert, setzt `current = nil`):
 Damit ein späterer Umzug nach `Core` ein Verschieben bleibt:
 
 ```lua
-ns.Meter:GetSegment("current" | "overall")   -- Abschnitt oder nil
+ns.Meter:GetSegment("current" | "overall")   -- laufender oder letzter Kampf / gesamt
+ns.Meter:Duration(seg)                         -- laufende Dauer beim offenen Abschnitt
 ns.Meter:IsDirty() / ns.Meter:ClearDirty()
+ns.Meter:InCombat()                            -- true, solange ein Abschnitt offen ist
+ns.Meter:SetListener(fn)                       -- fn("start" | "end" | "reset")
+ns.Meter:PlayerGUID()
 ns.Meter:Reset()
-ns.Meter:InCombat()                            -- true, solange current läuft
 ```
 
 Das Fenster liest über diese vier Griffe und schreibt nie in die
@@ -251,8 +258,9 @@ klappen nicht.
 - **Aktivieren** als Modulschalter oben.
 - **Anzeige**: Balkenhöhe (12–30, Standard 18), Schriftgröße (8–16, Standard
   11), Balkentextur (Medienliste, Standard wie Schwungtimer), Skalierung.
-  Zahnrad: `showRank`, `showPerSecond`, `showPercent`, `highlightSelf` (alle
-  Standard an).
+  Danach vier flache Schalter `showRank`, `showPerSecond`, `showPercent`,
+  `highlightSelf` (alle Standard an); sie haben kein Elternteil, hinter dem
+  sie nichts täten.
 - **Sichtbarkeit**: die drei Schalter oben; Zahnrad: `hideDelay`.
 - **Verhalten**: `defaultMode` (Klappmenü mit den vier Modi, Standard Schaden),
   `defaultSegment` (Klappmenü, Standard aktueller Kampf), `resetOnNewGroup`.
