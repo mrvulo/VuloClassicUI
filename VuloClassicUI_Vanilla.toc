@@ -110,6 +110,7 @@ Modules\CooldownManager.lua
 Modules\CombatText.lua
 Modules\Meter.lua
 Modules\MeterWindow.lua
+Modules\MeterOptions.lua
 Modules\Loadouts.lua
 Modules\SlotPicker.lua
 Modules\AddonSkins.lua
