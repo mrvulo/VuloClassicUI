@@ -154,6 +154,7 @@ function Meter:GetSegment(which)
 end
 
 function Meter:Duration(seg)
+    if not seg then return 0 end
     if seg == current then return GetTime() - seg.start end
     return seg.duration or 0
 end
@@ -270,8 +271,10 @@ local function onRoster()
     local k = groupKind()
     if k ~= kind then
         -- Solo -> group and party -> raid start a fresh overall; a member
-        -- joining or leaving does not. Mid-fight the reset waits for the end.
-        if kind and k ~= "solo" and mod.db.resetOnNewGroup then
+        -- joining or leaving, or a raid shrinking to a party, does not.
+        -- Mid-fight the reset waits for the end.
+        local upgrade = (kind == "solo" and k ~= "solo") or (kind == "party" and k == "raid")
+        if kind and upgrade and mod.db.resetOnNewGroup then
             if current then pendingReset = true else Meter:Reset() end
         end
         kind = k

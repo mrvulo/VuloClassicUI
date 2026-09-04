@@ -51,11 +51,11 @@ Protokollreichweite.
 
 Die Engine hält genau zwei lebende Abschnitte:
 
-Nach dem Kampfende bleibt der zuletzt beendete Abschnitt als „aktueller Kampf"
-sichtbar, bis ein neuer beginnt. `InCombat()` ist ab dem Schließen `false`.
-
 - **`current`**: der laufende Kampf; `nil` außerhalb des Kampfes.
 - **`overall`**: Summe aller beendeten Kämpfe seit dem letzten Zurücksetzen.
+
+Nach dem Kampfende bleibt der zuletzt beendete Abschnitt als „aktueller Kampf"
+sichtbar, bis ein neuer beginnt. `InCombat()` ist ab dem Schließen `false`.
 
 Ein Abschnitt:
 
@@ -192,7 +192,7 @@ ns.Meter:PlayerGUID()
 ns.Meter:Reset()
 ```
 
-Das Fenster liest über diese vier Griffe und schreibt nie in die
+Das Fenster liest über diese Griffe und schreibt nie in die
 Abschnittstabellen.
 
 ## Fenster
