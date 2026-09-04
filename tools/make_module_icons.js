@@ -58,6 +58,7 @@ const MAP = {
   slotpicker:         'mouse-pointer-click',
   trinkets:           'gem',
   swingtimer:         'gauge',
+  meter:              'chart-bar-big',
   vulmail:            'mail',
   vulfishing:         'fish',
   vullfg:             'megaphone',
@@ -147,7 +148,11 @@ function pngToTga(pngBuf, outFile) {
 (async () => {
   fs.mkdirSync(OUT, { recursive: true });
   const failed = [];
+  // Optional: `node make_module_icons.js meter` regenerates only those keys,
+  // so adding one icon does not rewrite every existing TGA.
+  const only = process.argv.slice(2);
   for (const [key, icon] of Object.entries(MAP)) {
+    if (only.length && !only.includes(key)) continue;
     try {
       // unpkg answers HTTP 500 for perfectly valid icon names often enough that
       // a single source makes this script unreliable; jsdelivr serves the same
