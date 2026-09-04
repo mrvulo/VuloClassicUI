@@ -182,6 +182,180 @@ end
 Meter.HANDLERS = {}
 
 ------------------------------------------------------------------------
+-- Segment boundaries
+------------------------------------------------------------------------
+local CLGetInfo = CombatLogGetCurrentEventInfo
+local waitTicker, clearChecks
+local pendingReset = false
+local kind                     -- "solo" | "party" | "raid", for resetOnNewGroup
+
+local function stopWait()
+    if waitTicker then
+        ns:CancelTicker(waitTicker)
+        waitTicker = nil
+    end
+end
+
+local function closeSegment()
+    if not current then return end
+    stopWait()
+    current.duration = GetTime() - current.start
+    fold(overall, current)
+    last, current = current, nil
+    if pendingReset then
+        pendingReset = false
+        Meter:Reset()
+    end
+    dirty = true
+    notify("end")
+end
+
+local function anyoneInCombat()
+    for _, r in pairs(roster) do
+        if UnitAffectingCombat(r.unit) then return true end
+    end
+    return false
+end
+
+-- Runs only between our own PLAYER_REGEN_ENABLED and the group's last exit
+-- from combat. Two clear checks in a row (about one second) close the fight.
+local function waitTick()
+    if anyoneInCombat() then
+        clearChecks = 0
+        return
+    end
+    clearChecks = clearChecks + 1
+    if clearChecks >= 2 then closeSegment() end
+end
+
+local function beginWait()
+    if not current or waitTicker then return end
+    clearChecks = 0
+    waitTicker = ns:AddTicker(0.5, waitTick, nil, "meter-wait")
+end
+
+local function openSegment(title)
+    if current then return end
+    current = newSegment()
+    current.start = GetTime()
+    current.title = title
+    dirty = true
+    notify("start")
+    -- Opened by the log while we stand outside combat (a healer at the pull):
+    -- no PLAYER_REGEN_ENABLED will ever come for us, so the wait starts now.
+    if not UnitAffectingCombat("player") then beginWait() end
+end
+
+local function onRegenDisabled()
+    stopWait()
+    openSegment(nil)
+end
+
+local function onRegenEnabled()
+    beginWait()
+end
+
+-- ENCOUNTER_START(encounterID, encounterName, difficultyID, groupSize)
+local function onEncounterStart(_, _, name)
+    closeSegment()
+    openSegment(name)
+end
+
+local function onEncounterEnd()
+    closeSegment()
+end
+
+local function onRoster()
+    rebuildRoster()
+    local k = groupKind()
+    if k ~= kind then
+        -- Solo -> group and party -> raid start a fresh overall; a member
+        -- joining or leaving does not. Mid-fight the reset waits for the end.
+        if kind and k ~= "solo" and mod.db.resetOnNewGroup then
+            if current then pendingReset = true else Meter:Reset() end
+        end
+        kind = k
+    end
+end
+
+-- UNIT_PET(unit): the pet of a group unit changed.
+local function onUnitPet(_, unit)
+    local petUnit = PET_UNIT[unit]
+    if not petUnit then return end
+    local guid = UnitGUID(unit)
+    if not (guid and roster[guid]) then return end
+    local petGUID = UnitGUID(petUnit)
+    if petGUID then owners[petGUID] = guid end
+end
+
+------------------------------------------------------------------------
+-- Combat log reader: one CombatLogGetCurrentEventInfo per firing, one table
+-- lookup per subevent, no allocation on the hot path.
+------------------------------------------------------------------------
+local HANDLERS = Meter.HANDLERS
+
+local function addDamage(src, amount)
+    if not amount or amount <= 0 then return end
+    local owner = resolve(src)
+    if not owner then return end
+    if not current then openSegment(nil) end
+    local p = entry(current, owner)
+    p.damage = p.damage + amount
+    dirty = true
+end
+
+-- SWING_DAMAGE: amount is field 12. Spell-prefixed subevents carry spellId,
+-- spellName, spellSchool in 12-14 and amount in 15.
+HANDLERS.SWING_DAMAGE = function(src, _, a12) addDamage(src, a12) end
+local function spellDamage(src, _, _, a15) addDamage(src, a15) end
+HANDLERS.RANGE_DAMAGE          = spellDamage
+HANDLERS.SPELL_DAMAGE          = spellDamage
+HANDLERS.SPELL_PERIODIC_DAMAGE = spellDamage
+HANDLERS.DAMAGE_SHIELD         = spellDamage
+HANDLERS.DAMAGE_SPLIT          = spellDamage
+
+-- Healing never opens a fight (pre-pull heals are not combat); field 16 is
+-- overhealing.
+local function spellHeal(src, _, _, a15, a16)
+    if not current or not a15 then return end
+    local owner = resolve(src)
+    if not owner then return end
+    local p = entry(current, owner)
+    p.heal     = p.heal + a15
+    p.overheal = p.overheal + (a16 or 0)
+    dirty = true
+end
+HANDLERS.SPELL_HEAL          = spellHeal
+HANDLERS.SPELL_PERIODIC_HEAL = spellHeal
+
+HANDLERS.SPELL_SUMMON = function(src, dst)
+    if dst and roster[src] then owners[dst] = src end
+end
+
+local function onCLEU()
+    local _, sub, _, src, _, _, _, dst, _, _, _, a12, _, _, a15, a16 = CLGetInfo()
+    local h = HANDLERS[sub]
+    if h then h(src, dst, a12, a15, a16) end
+end
+
+function mod:EngineEnable()
+    kind = groupKind()
+    self:RegisterEvent("GROUP_ROSTER_UPDATE",         onRoster)
+    self:RegisterEvent("PLAYER_ENTERING_WORLD",       onRoster)
+    self:RegisterEvent("UNIT_PET",                    onUnitPet)
+    self:RegisterEvent("PLAYER_REGEN_DISABLED",       onRegenDisabled)
+    self:RegisterEvent("PLAYER_REGEN_ENABLED",        onRegenEnabled)
+    self:RegisterEvent("ENCOUNTER_START",             onEncounterStart)
+    self:RegisterEvent("ENCOUNTER_END",               onEncounterEnd)
+    self:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", onCLEU)
+end
+
+function mod:EngineDisable()
+    closeSegment()
+    stopWait()
+end
+
+------------------------------------------------------------------------
 -- Enable / disable
 ------------------------------------------------------------------------
 function mod:OnEnable()
