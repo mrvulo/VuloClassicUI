@@ -357,9 +357,53 @@ local function onEngine(what)
     end
 end
 
--- Stubs replaced in Task 5
-onTitleWheel = function() end
-openMenu     = function() end
+------------------------------------------------------------------------
+-- Mode / segment switching and the title menu
+------------------------------------------------------------------------
+function mod:SetMode(m)
+    if not MODE_IDX[m] then return end
+    mode   = m
+    scroll = 0
+    refresh()
+end
+
+function mod:SetSegment(s)
+    segment = (s == "overall") and "overall" or "current"
+    scroll  = 0
+    refresh()
+end
+
+-- Wheel up = previous mode, wheel down = next, wrapping around.
+onTitleWheel = function(delta)
+    local i = MODE_IDX[mode] - delta
+    if i < 1 then i = #MODES elseif i > #MODES then i = 1 end
+    mod:SetMode(MODES[i])
+end
+
+local function isMode(m)    return function() return mode == m end end
+local function setMode(m)   return function() mod:SetMode(m) end end
+
+local function menuEntries()
+    local e = {}
+    for i = 1, #MODES do
+        local m = MODES[i]
+        e[#e + 1] = { text = modeLabel(m), checked = isMode(m), func = setMode(m) }
+    end
+    e[#e + 1] = { separator = true }
+    e[#e + 1] = { text = L["Current fight"],
+                  checked = function() return segment == "current" end,
+                  func = function() mod:SetSegment("current") end }
+    e[#e + 1] = { text = L["Overall"],
+                  checked = function() return segment == "overall" end,
+                  func = function() mod:SetSegment("overall") end }
+    e[#e + 1] = { separator = true }
+    e[#e + 1] = { text = L["Reset"], func = function() Meter:Reset() end }
+    return e
+end
+
+openMenu = function()
+    ns:ShowPopupMenu(menuEntries(), "cursor", win.title)
+end
 
 ------------------------------------------------------------------------
 -- Visibility
