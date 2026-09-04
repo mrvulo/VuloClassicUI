@@ -6,6 +6,14 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+    { version = "1.60.0", sections = {
+        { category = "Combat Meter", lines = {
+            "NEW: Combat Meter – A lightweight damage and healing meter as its own HUD module: who did how much, per fight and overall",
+            "The engine reads your own combat log, counts damage and healing per group member, credits pets, totems and guardians to their owner, and keeps overhealing apart from effective healing. A fight is group-wide: it opens on your own combat or on the first damage a group member deals, takes the boss name from the encounter events, and closes once nobody in the group is fighting any more. The overall total survives a reload and starts fresh when you join a new group.",
+            "The window is a fixed-size bar list in class colours showing rank, name, total and, in brackets, the per-second value and share. Left-click on the title opens the menu with the four modes and two segments, the mouse wheel on the title cycles the modes, the wheel over the bars scrolls, and hovering a bar shows the details. Right-drag the title to move the window, resize it in edit mode.",
+            "Options cover bar height, font size, texture, scale, which parts of the bar text to show, the visibility rules (only in a group, in combat, out of combat with a delay) and the default mode and segment.",
+        } },
+    } },
     { version = "1.59.0", sections = {
         { category = "Languages", lines = {
             "Texts that nothing in the interface looks up any more are gone from all nine languages: option labels from before the nameplate options were rebuilt, and patch notes of versions that have left the in-game list.",
@@ -498,32 +506,6 @@ ns.CHANGELOG = {
         } },
         { category = "Talents", lines = {
             "NEW: Talent Window – All three talent trees side by side with live ranks and click-to-learn on Wrath clients; glyphs stay one button away",
-        } },
-    } },
-    { version = "1.45.0", sections = {
-        { category = "Chat", lines = {
-            "The item level on equipment links sits after the link now, not inside its brackets. Some clients re-check link text against their own data, and the changed text turned the link into the name of whatever quest carried that number.",
-        } },
-        { category = "Cooldown Manager", lines = {
-            "A spell no longer shows up on another class just because that class owns a different spell with the same name. Entries respect their class stamp on the bars, and old entries are adopted by spell ID instead of by name.",
-        } },
-        { category = "Download", lines = {
-            "The bundled media library silently dropped font registrations when no other addon shipped a newer copy of it; the addon font now registers on every install.",
-        } },
-        { category = "Equipment Sets", lines = {
-            "NEW: Rename... – In the set's right-click menu and on the sets page; icon, contents and talent binding move along with the name",
-        } },
-        { category = "Global Settings", lines = {
-            "NEW: Optimize My FPS and Graphics – A proven set of graphics settings with a one-time backup; the restore button next to it brings your old values back",
-            "NEW: Fonts & Colors – A new tab: global font with outline mode, optionally for all game texts, plus class and resource colors with a reset on every row",
-            "NEW: Developer – Suppress Lua errors, switch tooltip IDs and reset all settings from a new section on the General tab",
-            "The General tab is organised in sections on a two-column grid like the rest of the window. The new tab ships a texture file: restart the client once after updating, a /reload alone will not show the reset arrows.",
-        } },
-        { category = "Quest Log", lines = {
-            "The enlargement stays off on Wrath-based clients (Titan Reforged): their quest log is already the wide two-pane frame, and enlarging it pushed the detail pane into the button row.",
-        } },
-        { category = "Settings Window", lines = {
-            "Long dropdown lists open upwards when there is no room below. They used to run off the bottom edge of the screen, where the last entries could never be scrolled into view.",
         } },
     } },
 }

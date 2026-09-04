@@ -16,6 +16,13 @@
   ~1900 characters or it gets truncated with a link to the full notes.
 -->
 
+## 1.60.0
+**Combat Meter:**
+- **NEW: Combat Meter** – A lightweight damage and healing meter as its own HUD module: who did how much, per fight and overall
+- The engine reads your own combat log, counts damage and healing per group member, credits pets, totems and guardians to their owner, and keeps overhealing apart from effective healing. A fight is group-wide: it opens on your own combat or on the first damage a group member deals, takes the boss name from the encounter events, and closes once nobody in the group is fighting any more. The overall total survives a reload and starts fresh when you join a new group.
+- The window is a fixed-size bar list in class colours showing rank, name, total and, in brackets, the per-second value and share. Left-click on the title opens the menu with the four modes and two segments, the mouse wheel on the title cycles the modes, the wheel over the bars scrolls, and hovering a bar shows the details. Right-drag the title to move the window, resize it in edit mode.
+- Options cover bar height, font size, texture, scale, which parts of the bar text to show, the visibility rules (only in a group, in combat, out of combat with a delay) and the default mode and segment.
+
 ## 1.59.0
 **Languages:**
 - Texts that nothing in the interface looks up any more are gone from all nine languages: option labels from before the nameplate options were rebuilt, and patch notes of versions that have left the in-game list.

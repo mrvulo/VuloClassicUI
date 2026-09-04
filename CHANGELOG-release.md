@@ -1,9 +1,6 @@
-## 1.59.0
-**Languages:**
-- Texts that nothing in the interface looks up any more are gone from all nine languages: option labels from before the nameplate options were rebuilt, and patch notes of versions that have left the in-game list.
-
-**Nameplates:**
-- Aura icons no longer flicker. Every aura event on a unit rebuilt each icon from scratch, so the countdown went blank until the next tick, the expiry pulse snapped back to full, and the cooldown sweep restarted. An icon now keeps its state until a genuinely different aura takes its place, and a new aura shows its number in the same frame it appears.
-
-**Trackbars:**
-- **NEW: Broker plugin** – A block that shows another addon's data object with its icon and text, reacts to clicks and shows its tooltip, with switches to strip the plugin's color codes and cap the width
+## 1.60.0
+**Combat Meter:**
+- **NEW: Combat Meter** – A lightweight damage and healing meter as its own HUD module: who did how much, per fight and overall
+- The engine reads your own combat log, counts damage and healing per group member, credits pets, totems and guardians to their owner, and keeps overhealing apart from effective healing. A fight is group-wide: it opens on your own combat or on the first damage a group member deals, takes the boss name from the encounter events, and closes once nobody in the group is fighting any more. The overall total survives a reload and starts fresh when you join a new group.
+- The window is a fixed-size bar list in class colours showing rank, name, total and, in brackets, the per-second value and share. Left-click on the title opens the menu with the four modes and two segments, the mouse wheel on the title cycles the modes, the wheel over the bars scrolls, and hovering a bar shows the details. Right-drag the title to move the window, resize it in edit mode.
+- Options cover bar height, font size, texture, scale, which parts of the bar text to show, the visibility rules (only in a group, in combat, out of combat with a delay) and the default mode and segment.

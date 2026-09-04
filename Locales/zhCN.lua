@@ -3419,4 +3419,9 @@ ns:RegisterLocale("zhCN", function() return {
     ["Default mode"] = "默认模式",
     ["Default segment"] = "默认区段",
     ["Reset overall when joining a new group"] = "加入新队伍时重置总计",
+    -- Patch notes 1.60.0
+    ["Combat Meter – A lightweight damage and healing meter as its own HUD module: who did how much, per fight and overall"] = "战斗统计 – 作为独立 HUD 模块的轻量级伤害与治疗统计：每场战斗和总计中每个人的输出",
+    ["The engine reads your own combat log, counts damage and healing per group member, credits pets, totems and guardians to their owner, and keeps overhealing apart from effective healing. A fight is group-wide: it opens on your own combat or on the first damage a group member deals, takes the boss name from the encounter events, and closes once nobody in the group is fighting any more. The overall total survives a reload and starts fresh when you join a new group."] = "引擎读取你自己的战斗记录，按队伍成员统计伤害和治疗，将宠物、图腾和守护者归于其主人，并将过量治疗与有效治疗分开。战斗以整个队伍为准：从你自己进入战斗或队伍成员造成第一次伤害时开始，从首领遭遇事件中获取首领名称，并在队伍中无人再战斗时结束。总计在重载界面后保留，加入新队伍时重新开始。",
+    ["The window is a fixed-size bar list in class colours showing rank, name, total and, in brackets, the per-second value and share. Left-click on the title opens the menu with the four modes and two segments, the mouse wheel on the title cycles the modes, the wheel over the bars scrolls, and hovering a bar shows the details. Right-drag the title to move the window, resize it in edit mode."] = "窗口是一个固定大小、按职业着色的条形列表，显示排名、名称、总计以及括号中的每秒数值和占比。左键点击标题打开包含四种模式和两个区段的菜单，在标题上滚动鼠标滚轮切换模式，在条上滚动滚轮翻页，将鼠标悬停在条上显示详情。右键拖动标题移动窗口，在编辑模式下调整大小。",
+    ["Options cover bar height, font size, texture, scale, which parts of the bar text to show, the visibility rules (only in a group, in combat, out of combat with a delay) and the default mode and segment."] = "选项包括条高度、字体大小、材质、缩放、条文字显示哪些部分、可见性规则（仅在队伍中、战斗中、脱离战斗后延迟隐藏）以及默认模式和默认区段。",
 } end)
