@@ -54,18 +54,311 @@ local function segmentLabel(seg)
 end
 
 ------------------------------------------------------------------------
--- Stubs replaced in Task 4
+-- Numbers
 ------------------------------------------------------------------------
-layoutRows = function() end
+-- Integer -> short string, cached: the same totals repeat across ticks and
+-- rows, and a raid fight would otherwise mint thousands of strings.
+local fmtCache, fmtCount = {}, 0
+local function short(n)
+    n = floor(n + 0.5)
+    local s = fmtCache[n]
+    if s then return s end
+    if n >= 1000000 then
+        s = format("%.2fm", n / 1000000)
+    elseif n >= 1000 then
+        s = format("%.1fk", n / 1000)
+    else
+        s = tostring(n)
+    end
+    fmtCount = fmtCount + 1
+    if fmtCount > 4000 then
+        wipe(fmtCache)
+        fmtCount = 0
+    end
+    fmtCache[n] = s
+    return s
+end
+
+local function clock(sec)
+    sec = floor(sec + 0.5)
+    return format("%d:%02d", floor(sec / 60), sec % 60)
+end
+
+local function valueOf(p, dur)
+    if mode == "damage" then return p.damage end
+    if mode == "heal"   then return p.heal - p.overheal end
+    if dur <= 0 then return 0 end
+    if mode == "dps" then return p.damage / dur end
+    return (p.heal - p.overheal) / dur
+end
+
+-- Ties break on the guid so equal values keep a stable order between ticks.
+local function byValue(a, b)
+    local va, vb = vals[a], vals[b]
+    if va == vb then return a < b end
+    return va > vb
+end
+
+local function rightText(p, v, total, dur)
+    local db  = mod.db
+    local pct = total > 0 and (v / total * 100) or 0
+    local secondary
+    if mode == "damage" then
+        secondary = dur > 0 and p.damage / dur or 0
+    elseif mode == "heal" then
+        secondary = dur > 0 and (p.heal - p.overheal) / dur or 0
+    elseif mode == "dps" then
+        secondary = p.damage
+    else
+        secondary = p.heal - p.overheal
+    end
+    local main = short(v)
+    if db.showPerSecond and db.showPercent then
+        return format("%s (%s, %.1f%%)", main, short(secondary), pct)
+    elseif db.showPerSecond then
+        return format("%s (%s)", main, short(secondary))
+    elseif db.showPercent then
+        return format("%s (%.1f%%)", main, pct)
+    end
+    return main
+end
+
+------------------------------------------------------------------------
+-- Rows
+------------------------------------------------------------------------
+local function rowSlots()
+    local db = mod.db
+    return max(1, floor((db.height - TITLE_H - PAD * 2) / (db.barHeight + db.barGap)))
+end
+
+local function texturePath()
+    return ns.MediaStatusbar(mod.db.texture, "Atrocity")
+end
+
+local tipLines = {}
+local tipSpec  = { title = "", lines = tipLines, anchor = "ANCHOR_RIGHT" }
+
+rowEnter = function(self)
+    local seg = Meter:GetSegment(segment)
+    local p = seg and self.guid and seg.players[self.guid]
+    if not p then return end
+    local dur   = Meter:Duration(seg)
+    local v     = vals[self.guid] or 0
+    local total = 0
+    for i = 1, #order do total = total + (vals[order[i]] or 0) end
+    local isHeal = (mode == "heal" or mode == "hps")
+    local amount = isHeal and (p.heal - p.overheal) or p.damage
+    wipe(tipLines)
+    tipLines[1] = format("%s: %s", L["Total"], short(amount))
+    tipLines[2] = format("%s: %s", L["Per second"], short(dur > 0 and amount / dur or 0))
+    tipLines[3] = format("%s: %.1f%%", L["Share"], total > 0 and v / total * 100 or 0)
+    if isHeal then
+        tipLines[4] = format("%s: %.1f%%", L["Overhealing"], p.heal > 0 and p.overheal / p.heal * 100 or 0)
+    end
+    tipLines[#tipLines + 1] = format("%s: %s", L["Fight duration"], clock(dur))
+    tipSpec.title = p.name
+    UI:ShowTooltip(self, tipSpec)
+end
+
+onWheel = function(delta)
+    scroll = max(0, scroll - delta)
+    refresh()
+end
+
+local function createRow()
+    local r = CreateFrame("StatusBar", nil, win.body)
+    r:SetMinMaxValues(0, 1)
+    r.bg = r:CreateTexture(nil, "BACKGROUND")
+    r.bg:SetAllPoints(r)
+    r.bg:SetColorTexture(1, 1, 1, 0.05)
+    r.left = r:CreateFontString(nil, "OVERLAY")
+    r.left:SetPoint("LEFT", r, "LEFT", 4, 0)
+    r.left:SetJustifyH("LEFT")
+    r.left:SetWordWrap(false)
+    r.right = r:CreateFontString(nil, "OVERLAY")
+    r.right:SetPoint("RIGHT", r, "RIGHT", -4, 0)
+    r.right:SetJustifyH("RIGHT")
+    r.left:SetPoint("RIGHT", r.right, "LEFT", -4, 0)
+    r.hl = CreateFrame("Frame", nil, r, BackdropTemplateMixin and "BackdropTemplate")
+    r.hl:SetAllPoints(r)
+    if r.hl.SetBackdrop then
+        r.hl:SetBackdrop({ edgeFile = TEX_FLAT, edgeSize = 1 })
+        local a = ns.COLORS.accent
+        r.hl:SetBackdropBorderColor(a.r, a.g, a.b, 0.9)
+    end
+    r.hl:Hide()
+    r:EnableMouse(true)
+    r:EnableMouseWheel(true)
+    r:SetScript("OnEnter", rowEnter)
+    r:SetScript("OnLeave", function() UI:HideTooltip() end)
+    r:SetScript("OnMouseWheel", function(_, delta) onWheel(delta) end)
+    return r
+end
+
+layoutRows = function()
+    if not win then return end
+    local db  = mod.db
+    local n   = rowSlots()
+    local tex = texturePath()
+    local step = db.barHeight + db.barGap
+    for i = 1, n do
+        local r = rows[i]
+        if not r then
+            r = createRow()
+            rows[i] = r
+        end
+        r:SetStatusBarTexture(tex)
+        local t = r:GetStatusBarTexture()
+        if t and t.SetHorizTile then
+            t:SetHorizTile(false)
+            t:SetVertTile(false)
+        end
+        r:SetHeight(db.barHeight)
+        r:ClearAllPoints()
+        r:SetPoint("TOPLEFT",  win.body, "TOPLEFT",  0, -((i - 1) * step))
+        r:SetPoint("TOPRIGHT", win.body, "TOPRIGHT", 0, -((i - 1) * step))
+        UI.FontFor("meter", r.left,  db.fontSize)
+        UI.FontFor("meter", r.right, db.fontSize)
+        r:Hide()
+    end
+    for i = n + 1, #rows do rows[i]:Hide() end
+end
+
+------------------------------------------------------------------------
+-- Refresh: sort once, paint the visible slots, update the title.
+------------------------------------------------------------------------
+local lastTitle, lastCount
+
+local function setTitle(seg, first, lastIdx, n)
+    local t = modeLabel(mode) .. " \194\183 " .. segmentLabel(seg)
+    if t ~= lastTitle then
+        win.titleText:SetText(t)
+        lastTitle = t
+    end
+    local c = ""
+    if n > 0 and n > (lastIdx - first + 1) then
+        c = format("%d-%d / %d", first, lastIdx, n)
+    end
+    if c ~= lastCount then
+        win.count:SetText(c)
+        lastCount = c
+    end
+end
+
 refresh = function()
     if not win then return end
-    win.titleText:SetText(modeLabel(mode) .. " \194\183 " .. segmentLabel(Meter:GetSegment(segment)))
-    win.count:SetText("")
-    win.empty:Show()
+    local db  = mod.db
+    local seg = Meter:GetSegment(segment)
+    local n   = 0
+    local dur = 0
+    if seg then
+        dur = Meter:Duration(seg)
+        for guid, p in pairs(seg.players) do
+            n = n + 1
+            order[n] = guid
+            vals[guid] = valueOf(p, dur)
+        end
+    end
+    for i = n + 1, #order do order[i] = nil end
+
+    if n == 0 then
+        for i = 1, #rows do rows[i]:Hide() end
+        win.empty:Show()
+        setTitle(seg, 0, 0, 0)
+        return
+    end
+    win.empty:Hide()
+
+    sort(order, byValue)
+    local slots = rowSlots()
+    local maxScroll = max(0, n - slots)
+    if scroll > maxScroll then scroll = maxScroll end
+
+    local total = 0
+    for i = 1, n do total = total + vals[order[i]] end
+    local top = vals[order[1]]
+    local me  = Meter:PlayerGUID()
+
+    for i = 1, slots do
+        local r    = rows[i]
+        local idx  = i + scroll
+        local guid = order[idx]
+        if r and guid then
+            local p = seg.players[guid]
+            local v = vals[guid]
+            r:SetValue(top > 0 and v / top or 0)
+            local c = ns.ClassColor(p.class)
+            if c then
+                r:SetStatusBarColor(c.r, c.g, c.b, 0.85)
+            else
+                r:SetStatusBarColor(0.6, 0.6, 0.6, 0.85)
+            end
+            if db.showRank then
+                r.left:SetFormattedText("%d. %s", idx, p.name)
+            else
+                r.left:SetText(p.name)
+            end
+            r.right:SetText(rightText(p, v, total, dur))
+            r.hl:SetShown(db.highlightSelf and guid == me)
+            r.guid = guid
+            r:Show()
+        elseif r then
+            r.guid = nil
+            r:Hide()
+        end
+    end
+    setTitle(seg, scroll + 1, min(scroll + slots, n), n)
 end
-onWheel      = function() end
+
+------------------------------------------------------------------------
+-- Ticker: only while a fight is open. Dirty -> full repaint; otherwise the
+-- per-second modes still move with the clock.
+------------------------------------------------------------------------
+local function tick()
+    if Meter:IsDirty() then
+        Meter:ClearDirty()
+        refresh()
+    elseif mode == "dps" or mode == "hps" then
+        refresh()
+    end
+end
+
+local function startTicker()
+    if ticker then return end
+    ticker = ns:AddTicker(0.5, tick, nil, "meter-window")
+end
+
+local function stopTicker()
+    if ticker then
+        ns:CancelTicker(ticker)
+        ticker = nil
+    end
+end
+
+local function onEngine(what)
+    if what == "start" then
+        scroll = 0
+        Meter:ClearDirty()
+        refresh()
+        startTicker()
+        applyVisibility()
+    elseif what == "end" then
+        stopTicker()
+        lastCombatEnd = GetTime()
+        Meter:ClearDirty()
+        refresh()
+        applyVisibility()
+        wipe(fmtCache)
+        fmtCount = 0
+    else
+        scroll = 0
+        Meter:ClearDirty()
+        refresh()
+    end
+end
+
+-- Stubs replaced in Task 5
 onTitleWheel = function() end
-rowEnter     = function() end
 openMenu     = function() end
 
 ------------------------------------------------------------------------
@@ -267,14 +560,13 @@ function mod:WindowEnable()
     self:RegisterEvent("PLAYER_REGEN_DISABLED", applyVisibility)
     self:RegisterEvent("PLAYER_REGEN_ENABLED",  applyVisibility)
     self:RegisterEvent("GROUP_ROSTER_UPDATE",   applyVisibility)
+    Meter:SetListener(onEngine)
     self:ApplyWindow()
+    if Meter:InCombat() then startTicker() end
 end
 
 function mod:WindowDisable()
-    if ticker then
-        ns:CancelTicker(ticker)
-        ticker = nil
-    end
+    stopTicker()
     Meter:SetListener(nil)
     if win then win:Hide() end
 end
