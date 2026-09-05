@@ -35,11 +35,14 @@ local function resolveLocale()
     return _cachedLocale
 end
 
+local reverseMap   -- translated text -> English key, for the active locale
+
 function ns:RefreshLocale()
     _cachedLocale = nil
     -- Drop memoised lookups too, or a language change would keep serving the
     -- strings resolved under the previous one.
     if ns.L then wipe(ns.L) end
+    reverseMap = nil
 end
 
 -- File-scope code must never evaluate L[...]: the saved language override only
@@ -136,6 +139,22 @@ function ns:RegisterLocale(code, tblOrBuilder)
     for k, v in pairs(tblOrBuilder) do
         ns.localeData[code][k] = v
     end
+end
+
+-- The English key behind a translated string, or the string itself when no
+-- entry maps to it (English client, or a formatted label like "Window 2").
+-- Anything stored across sessions must be keyed by this, never by L[...]:
+-- the talent overrides learned that the hard way when a language switch left
+-- every stored setting unreachable.
+function ns:EnglishKey(text)
+    if type(text) ~= "string" then return text end
+    if not reverseMap then
+        reverseMap = {}
+        for k, v in pairs(materialize(resolveLocale())) do
+            if type(v) == "string" and reverseMap[v] == nil then reverseMap[v] = k end
+        end
+    end
+    return reverseMap[text] or text
 end
 
 -- Takes full effect only on /reload: module strings are evaluated at file-load time.

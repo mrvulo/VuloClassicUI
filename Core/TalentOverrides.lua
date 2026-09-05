@@ -427,9 +427,12 @@ function ns:ClearOverrides(id)
     if g then g.values = {} end
 end
 
+-- The label part is the ENGLISH key, not the translated text: an id is stored
+-- across sessions and must survive a language switch. Formatted labels that
+-- no locale entry maps to stay as they are (see ns:EnglishKey).
 function ns:OverrideId(modKey, tabId, label)
     if not modKey or not label then return nil end
-    return modKey .. SEP .. (tabId or "") .. SEP .. label
+    return modKey .. SEP .. (tabId or "") .. SEP .. ns:EnglishKey(label)
 end
 
 local function splitId(id)
@@ -630,7 +633,7 @@ function ns:ApplyOverrideGroup(id)
             local ok, items = pcall(mod.GetOptions, mod, page.tabId)
             if ok and type(items) == "table" then
                 walkItems(items, function(it)
-                    local want = it.label and page.items[it.label]
+                    local want = it.label and page.items[ns:EnglishKey(it.label)]
                     -- nil means "not overridden"; false is a real stored value.
                     if want ~= nil and type(it.set) == "function" then
                         -- Two setter shapes, one loop: a colour takes (r, g, b)
@@ -682,6 +685,42 @@ end
 -- Picking a group enters editing mode, so the whole suite is the editor and the
 -- real widgets do the editing -- there is no second, lesser copy of the options.
 -- =========================================================================
+
+-- Ids recorded before 1.60.1 carried the TRANSLATED label. Re-key them to the
+-- English key under the language they were recorded in -- which is still the
+-- active one on every login until the user switches, so the rewrite lands
+-- first. Runs over every profile, not only the active one.
+ns.OnLocaleReady(function()
+    local profiles = VuloClassicUIDB and VuloClassicUIDB.profiles
+    if type(profiles) ~= "table" then return end
+    for _, p in pairs(profiles) do
+        local groups = type(p) == "table" and p.overrideGroups
+        if type(groups) == "table" then
+            for _, g in pairs(groups) do
+                local values = type(g) == "table" and g.values
+                if type(values) == "table" then
+                    local rekey
+                    for oid in pairs(values) do
+                        local modKey, tabId, label = splitId(oid)
+                        if modKey then
+                            local nid = ns:OverrideId(modKey, tabId, label)
+                            if nid and nid ~= oid then
+                                rekey = rekey or {}
+                                rekey[oid] = nid
+                            end
+                        end
+                    end
+                    if rekey then
+                        for oid, nid in pairs(rekey) do
+                            if values[nid] == nil then values[nid] = values[oid] end
+                            values[oid] = nil
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
 
 -- Registered inside OnLocaleReady: the dialog carries L[...] strings, and at
 -- file scope those resolve before the saved language override is readable and

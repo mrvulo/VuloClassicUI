@@ -43,14 +43,17 @@ end
 
 -- One row per window: mode, segment, and a close button once there is more
 -- than one window to close. The window file re-syncs the frames on apply.
+-- noOverride: the rows share their labels ("Segment" on every window) and the
+-- list itself grows and shrinks, so a talent override could neither name one
+-- window reliably nor survive a closed one.
 local function windowRow(i, w, closable)
     local items = {
         { type = "dropdown", label = string.format(L["Window %d"], i), width = 150,
-          values = modeValues(),
+          values = modeValues(), noOverride = true,
           get = function() return w.mode end,
           set = function(_, v) w.mode = v; apply() end },
         { type = "dropdown", label = L["Segment"], width = 150,
-          values = segmentValues(),
+          values = segmentValues(), noOverride = true,
           get = function() return w.segment end,
           set = function(_, v) w.segment = v; apply() end },
     }
