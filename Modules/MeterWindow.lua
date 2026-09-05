@@ -371,7 +371,7 @@ layoutRows = function(w)
         r.left:SetPoint("LEFT", r, "LEFT", textLeft, 0)
         UI.FontFor("meter", r.left,  db.fontSize)
         UI.FontFor("meter", r.right, db.fontSize)
-        r.class = nil
+        r.class = nil   -- never equals a class token or false: next paint repaints
         r:Hide()
     end
     for i = n + 1, #rows do rows[i]:Hide() end
@@ -399,8 +399,9 @@ end
 
 local function paintClass(r, p, db)
     if not db.showClassIcon then return end
-    if r.class == p.class then return end
-    r.class = p.class
+    local cls = p.class or false
+    if r.class == cls then return end
+    r.class = cls
     local tex, coords = ns:GetClassIcon(p.class)
     if tex then
         r.icon:SetTexture(tex)
@@ -584,14 +585,16 @@ function mod:AddWindow(mode, fromIndex)
     local src  = list[fromIndex] or list[#list]
     list[#list + 1] = newWindowDB(mode, src.segment, src.x + 30, src.y - 30,
                                   src.width, src.height, src.scale, false)
-    syncFrames()
+    if mod.active then syncFrames() end
+    pageChanged()
 end
 
 function mod:CloseWindow(index)
     local list = ensureWindows()
     if #list <= 1 or not list[index] then return end
     remove(list, index)
-    syncFrames()
+    if mod.active then syncFrames() end
+    pageChanged()
 end
 
 function mod:SetMode(index, m)
@@ -602,6 +605,7 @@ function mod:SetMode(index, m)
     w.mode    = m
     w.scroll  = 0
     refresh(w)
+    pageChanged()
 end
 
 function mod:SetSegment(index, s)
@@ -612,6 +616,7 @@ function mod:SetSegment(index, s)
     w.segment    = s
     w.scroll     = 0
     refresh(w)
+    pageChanged()
 end
 
 -- Wheel up = previous mode, wheel down = next, wrapping around.
@@ -876,6 +881,11 @@ syncFrames = function()
         w.frame:Hide()
     end
     applyVisibility()
+end
+
+-- The options page lists the windows; a change made from a title menu must
+-- reach an open page. Only the window actions call this, never a slider.
+local function pageChanged()
     if UI.RebuildCurrentPage and UI.currentModule == "meter" then UI:RebuildCurrentPage() end
 end
 

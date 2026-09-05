@@ -58,7 +58,6 @@ local function windowRow(i, w, closable)
         items[#items + 1] = { type = "button", width = 110, label = L["Close"],
             onClick = function()
                 if mod.CloseWindow then mod:CloseWindow(i) end
-                refreshPage()
             end }
     end
     return { type = "group", layout = "row", gap = 8, items = items }
@@ -120,7 +119,6 @@ function mod:GetOptions()
             { type = "button", width = 180, label = L["New window"],
               onClick = function()
                   if mod.AddWindow then mod:AddWindow("damage", #list) end
-                  refreshPage()
               end },
         },
     }

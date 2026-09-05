@@ -1033,6 +1033,9 @@ function ns:CreateMover(target, opts)
             elseif ns.EditSnapXY then
                 x, y = ns:EditSnapXY(x, y, ns:GetScaleRatio(target))
             end
+            -- opts.db, not the creation-time upvalue: a target may re-point its
+            -- table later (pooled windows re-bound after a close, profile switch).
+            local db = opts.db
             db.x, db.y = x, y
             commitPos(mover)
             -- shift followers by the leader's snap delta so the group stays rigid
@@ -1093,6 +1096,7 @@ function ns:CreateMover(target, opts)
     mover:SetScript("OnKeyDown", function(self, key)
         -- Der Kampf kann waehrend des Verschiebens beginnen.
         if InCombatLockdown and InCombatLockdown() then return end
+        local db = opts.db   -- fresh, see OnDragStop
         if not (moverShouldEdit(self) or db.unlocked or db.freeMove) or ns._activeMover ~= self then
             self:SetPropagateKeyboardInput(true)
             return
