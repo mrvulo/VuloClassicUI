@@ -160,6 +160,12 @@ local spellLeft = {}
 local function spellText(id)
     local s = spellLeft[id]
     if s then return s end
+    if type(id) == "string" then
+        -- environmental kind from the log; the client's own string when it has one
+        s = _G["STRING_ENVIRONMENTAL_DAMAGE_" .. id:upper()] or id
+        spellLeft[id] = s
+        return s
+    end
     local name, _, icon = GetSpellInfo(id)
     if name then
         s = icon and format(ICON_FMT, icon, name) or name
@@ -190,7 +196,9 @@ end
 local sortIds, sortSrc = {}, {}
 local function byCount(a, b)
     local va, vb = sortSrc[a], sortSrc[b]
-    if va == vb then return a < b end
+    -- ids are spell numbers, environmental kinds are strings: tostring keeps
+    -- the tie-break comparable
+    if va == vb then return tostring(a) < tostring(b) end
     return va > vb
 end
 
@@ -235,8 +243,10 @@ local function deathLines(p)
         local d = log[#log - i + 1]
         local left = clock(d.t or 0) .. "  " .. (d.spell and spellText(d.spell) or L["Unknown"])
         local right
-        if d.amount then
-            right = short(d.amount) .. " \194\183 " .. (d.src or "?")
+        if d.amount and d.src then
+            right = short(d.amount) .. " \194\183 " .. d.src
+        elseif d.amount then
+            right = short(d.amount)      -- environment: no source to name
         else
             right = L["Unknown"]
         end

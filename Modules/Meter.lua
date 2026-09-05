@@ -453,10 +453,17 @@ HANDLERS.SPELL_SUMMON = function(src, _, dst)
     if dst and roster[src] then owners[dst] = src end
 end
 
+-- ENVIRONMENTAL_DAMAGE: no source, field 12 is the kind ("Falling", "Lava"...),
+-- field 13 the amount. Counted as damage taken under the kind itself, so a
+-- fall shows up in the breakdown and can be the killing blow.
+HANDLERS.ENVIRONMENTAL_DAMAGE = function(_, _, dst, a12, _, _, a13)
+    if type(a12) == "string" then addTaken(dst, nil, a13, a12) end
+end
+
 local function onCLEU()
-    local _, sub, _, src, srcName, _, _, dst, _, _, _, a12, _, _, a15, a16 = CLGetInfo()
+    local _, sub, _, src, srcName, _, _, dst, _, _, _, a12, a13, _, a15, a16 = CLGetInfo()
     local h = HANDLERS[sub]
-    if h then h(src, srcName, dst, a12, a15, a16) end
+    if h then h(src, srcName, dst, a12, a15, a16, a13) end
 end
 
 function mod:EngineEnable()
