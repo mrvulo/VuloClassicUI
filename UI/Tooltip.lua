@@ -36,7 +36,8 @@
 --     wrap    = true,                 -- let the title wrap instead of widening
 --     lines   = { "Right-click to toggle sort order.",   -- plain string: grey
 --                 { "Watch out", 1, 0.35, 0.35 },        -- text with a color
---                 { "Long note", nil, nil, nil, true } } -- ... and wrapping
+--                 { "Long note", nil, nil, nil, true },  -- ... and wrapping
+--                 { "Frostbolt", right = "12.3k (34%)" } } -- two columns, right side white
 --   }
 --
 -- A spec may also be a FUNCTION, called with the owner frame and returning any
@@ -87,9 +88,16 @@ local function fill(tip, spec)
         if type(line) == "string" then
             tip:AddLine(line, GREY_R, GREY_G, GREY_B)
         elseif type(line) == "table" then
-            -- {1} text, {2..4} color (nil means grey), {5} wrap
-            tip:AddLine(line[1], line[2] or GREY_R, line[3] or GREY_G, line[4] or GREY_B,
-                        line[5] and true or false)
+            -- {1} text, {2..4} color (nil means grey), {5} wrap; a `right`
+            -- field makes it a two-column line with a white right side
+            if line.right then
+                tip:AddDoubleLine(line[1], line.right,
+                                  line[2] or GREY_R, line[3] or GREY_G, line[4] or GREY_B,
+                                  1, 1, 1)
+            else
+                tip:AddLine(line[1], line[2] or GREY_R, line[3] or GREY_G, line[4] or GREY_B,
+                            line[5] and true or false)
+            end
         end
     end
 end
