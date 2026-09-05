@@ -3432,6 +3432,17 @@ local function T() return {
     ["The engine reads your own combat log, counts damage and healing per group member, credits pets, totems and guardians to their owner, and keeps overhealing apart from effective healing. A fight is group-wide: it opens on your own combat or on the first damage a group member deals, takes the boss name from the encounter events, and closes once nobody in the group is fighting any more. The overall total survives a reload and starts fresh when you join a new group."] = "El motor lee tu propio registro de combate, cuenta daño y sanación por miembro del grupo, atribuye mascotas, tótems y guardianes a su dueño y mantiene la sobrecuración separada de la sanación efectiva. Un combate abarca a todo el grupo: empieza con tu propio combate o con el primer daño que inflige un miembro del grupo, toma el nombre del jefe de los eventos de encuentro y termina cuando nadie del grupo sigue luchando. El total sobrevive a una recarga y empieza de cero cuando te unes a un grupo nuevo.",
     ["The window is a fixed-size bar list in class colours showing rank, name, total and, in brackets, the per-second value and share. Left-click on the title opens the menu with the four modes and two segments, the mouse wheel on the title cycles the modes, the wheel over the bars scrolls, and hovering a bar shows the details. Right-drag the title to move the window, resize it in edit mode."] = "La ventana es una lista de barras de tamaño fijo en colores de clase que muestra posición, nombre, total y, entre paréntesis, el valor por segundo y el porcentaje. Clic izquierdo en el título abre el menú con los cuatro modos y los dos segmentos, la rueda del ratón sobre el título cambia de modo, la rueda sobre las barras desplaza la lista y al pasar el cursor por una barra se muestran los detalles. Arrastra el título con el botón derecho para mover la ventana y cambia su tamaño en el modo de edición.",
     ["Options cover bar height, font size, texture, scale, which parts of the bar text to show, the visibility rules (only in a group, in combat, out of combat with a delay) and the default mode and segment."] = "Las opciones cubren la altura de las barras, el tamaño de fuente, la textura, la escala, qué partes del texto de la barra se muestran, las reglas de visibilidad (solo en grupo, en combate, fuera de combate con retraso) y el modo y segmento predeterminados.",
+    ["Damage taken"] = "Daño recibido",
+    ["Deaths"] = "Muertes",
+    ["Window %d"] = "Ventana %d",
+    ["Segment"] = "Segmento",
+    ["Abilities in tooltip"] = "Habilidades en la descripción",
+    ["Show class icon"] = "Mostrar icono de clase",
+    ["New window"] = "Nueva ventana",
+    ["No details yet"] = "Aún sin detalles",
+    ["Unknown"] = "Desconocido",
+    ["Close window"] = "Cerrar ventana",
+    ["Combat Meter %d"] = "Medidor de combate %d",
 } end
 
 ns:RegisterLocale("esES", T)
