@@ -621,6 +621,24 @@ local function remapLinks(removed)
         end
     end
     for key, link in pairs(moved) do store[key] = link end
+
+    -- Size links (edit mode "width like / height like") use the same keys.
+    local sizes = p.moverSizeLinks
+    if type(sizes) ~= "table" then return end
+    local movedSizes = {}
+    for key, e in pairs(sizes) do
+        local nk, isMeter = shift(key)
+        local nw, wMeter = shift(type(e) == "table" and e.w or nil)
+        local nh, hMeter = shift(type(e) == "table" and e.h or nil)
+        if isMeter or wMeter or hMeter then
+            sizes[key] = nil
+            if nk then
+                e.w, e.h = nw, nh
+                if e.w or e.h then movedSizes[nk] = e end
+            end
+        end
+    end
+    for key, e in pairs(movedSizes) do sizes[key] = e end
 end
 
 function mod:CloseWindow(index)
@@ -693,6 +711,8 @@ local function dock(w, parentKey, side)
     if ns:SetMoverLink(m, parentKey, side) and ns:SetMoverLinkSide(m, side, 0) then
         ns:ApplyMoverLink(m)
         ns:OnMoverRepositioned(m)
+    elseif ns.FlashMoverReject then
+        ns:FlashMoverReject(m, L["Not possible - that would create a loop."])
     end
 end
 
@@ -831,13 +851,13 @@ local function iconButton(parent, tex, tipText, onClick)
     return b
 end
 
+-- Resize path: a docked window's position is derived from its parent, so
+-- after a size change it is re-derived (ns:ApplyMover), never re-measured.
 local function savePosition(w)
     local x, y = ns:GetCenterOffsets(w.frame)
     if x and y then
         w.db.x, w.db.y = x, y
         ns:ApplyMover(w.mover)
-        -- Re-measures this window's own link and carries anything docked to it.
-        ns:OnMoverRepositioned(w.mover)
     end
 end
 
@@ -854,7 +874,11 @@ dragStop = function(w)
     w.dragging = nil
     w.dragEnd  = GetTime()
     w.frame:StopMovingOrSizing()
-    savePosition(w)
+    -- Drag path: keep the drop point. MoverSetCenter writes it, re-measures
+    -- this window's own link at the new distance and carries its followers;
+    -- ns:ApplyMover would snap a docked window straight back onto its edge.
+    local x, y = ns:GetCenterOffsets(w.frame)
+    if x and y then ns:MoverSetCenter(w.mover, x, y) end
 end
 
 -- OnMouseUp follows a drag release in either order with OnDragStop.
@@ -880,6 +904,9 @@ local function build(i, wdb)
     end
     win:SetFrameStrata("LOW")
     win:Hide()
+    -- Hidden mid-drag (hide-in-combat, group disbands): no OnDragStop comes,
+    -- so end the drag here or the title would swallow clicks for good.
+    win:HookScript("OnHide", function() if w.dragging then dragStop(w) end end)
 
     win.bg = win:CreateTexture(nil, "BACKGROUND")
     win.bg:SetAllPoints(win)
@@ -926,7 +953,10 @@ local function build(i, wdb)
         b.tex:SetTexture(ICONS .. (locked and "lock.tga" or "lock_open.tga"))
         b.tipText = locked and L["Unlock position"] or L["Lock position"]
         b.tint = (not locked) and ns.COLORS.accent or nil
-        if b.tint then
+        if b:IsMouseOver() then
+            -- toggled under the cursor: hover colour and the new tooltip text
+            b:GetScript("OnEnter")(b)
+        elseif b.tint then
             b.tex:SetVertexColor(b.tint.r, b.tint.g, b.tint.b)
         else
             b.tex:SetVertexColor(0.6, 0.6, 0.65)
