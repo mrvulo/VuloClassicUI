@@ -3413,4 +3413,5 @@ ns:RegisterLocale("zhCN", function() return {
     ["Unlock position"] = "解锁位置",
     ["Lightweight damage and healing meter: who did how much, per fight and overall. Left-click the title for mode and segment, mouse wheel on the title cycles modes, the padlock frees a window for dragging."] = "轻量级伤害与治疗统计：每场战斗和总计中每个人的输出。左键点击标题选择模式和区段，在标题上滚动鼠标滚轮切换模式，点击锁图标后可拖动窗口。",
     ["Open as many windows as you need: the title menu adds a window for any mode and closes one again, and every window keeps its own mode, segment, position and size while the look and the visibility rules are shared. The padlock in the title bar frees a window for dragging or pins it in place, and the anchor entry in the title menu docks a window to any side of another so the two move as one."] = "想开多少窗口就开多少：标题菜单可为任意模式新增窗口，也可再关闭，每个窗口保留自己的模式、区段、位置和大小，外观与可见性规则则共用。标题栏上的锁可让窗口自由拖动或固定在原位，标题菜单中的锚定项可把一个窗口停靠到另一个窗口的任意一侧，两者一起移动。",
+    ["Patch notes of versions that have left the in-game list are gone from all nine languages; nothing the interface shows was affected."] = "已从全部九种语言中移除不再出现在游戏内列表中的版本说明；界面显示的内容不受影响。",
 } end)

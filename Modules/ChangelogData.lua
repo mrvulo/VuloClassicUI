@@ -14,6 +14,9 @@ ns.CHANGELOG = {
             "Open as many windows as you need: the title menu adds a window for any mode and closes one again, and every window keeps its own mode, segment, position and size while the look and the visibility rules are shared. The padlock in the title bar frees a window for dragging or pins it in place, and the anchor entry in the title menu docks a window to any side of another so the two move as one.",
             "Options cover bar height, font size, texture, the class icon, how many abilities the tooltip lists, which parts of the bar text to show, the visibility rules (only in a group, in combat, out of combat with a delay) and the window list.",
         } },
+        { category = "Languages", lines = {
+            "Patch notes of versions that have left the in-game list are gone from all nine languages; nothing the interface shows was affected.",
+        } },
     } },
     { version = "1.59.0", sections = {
         { category = "Languages", lines = {
