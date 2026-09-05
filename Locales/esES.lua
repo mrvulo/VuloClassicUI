@@ -3408,7 +3408,6 @@ local function T() return {
     ["HPS"] = "HPS",
     ["Overall"] = "Total",
     ["Current fight"] = "Combate actual",
-    ["No combat data"] = "Sin datos de combate",
     ["Mode, segment and reset"] = "Modo, segmento y reinicio",
     ["Per second"] = "Por segundo",
     ["Share"] = "Porcentaje",

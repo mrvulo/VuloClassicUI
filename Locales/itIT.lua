@@ -3407,7 +3407,6 @@ ns:RegisterLocale("itIT", function() return {
     ["HPS"] = "HPS",
     ["Overall"] = "Totale",
     ["Current fight"] = "Combattimento attuale",
-    ["No combat data"] = "Nessun dato di combattimento",
     ["Mode, segment and reset"] = "Modalità, segmento e azzeramento",
     ["Per second"] = "Al secondo",
     ["Share"] = "Quota",

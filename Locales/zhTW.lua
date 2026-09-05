@@ -3400,7 +3400,6 @@ ns:RegisterLocale("zhTW", function() return {
     ["HPS"] = "HPS",
     ["Overall"] = "總計",
     ["Current fight"] = "目前戰鬥",
-    ["No combat data"] = "沒有戰鬥資料",
     ["Mode, segment and reset"] = "模式、區段與重置",
     ["Per second"] = "每秒",
     ["Share"] = "佔比",

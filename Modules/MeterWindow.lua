@@ -438,12 +438,9 @@ refresh = function(w)
 
     if n == 0 then
         for i = 1, #rows do rows[i]:Hide() end
-        win.empty:Show()
         setTitle(w, seg, 0, 0, 0)
         return
     end
-    win.empty:Hide()
-
     sortVals = vals
     sort(order, byValue)
     local slots = rowSlots(w)
@@ -986,12 +983,6 @@ local function build(i, wdb)
     win.body:RegisterForDrag("LeftButton")
     win.body:SetScript("OnDragStart", function() dragStart(w) end)
     win.body:SetScript("OnDragStop",  function() dragStop(w) end)
-
-    win.empty = win.body:CreateFontString(nil, "OVERLAY")
-    UI.FontFor("meter", win.empty, 11)
-    win.empty:SetPoint("TOP", win.body, "TOP", 0, -8)
-    win.empty:SetTextColor(0.5, 0.5, 0.55)
-    win.empty:SetText(L["No combat data"])
 
     -- Mover box (edit mode); the resize grip is its child, so it shows and
     -- hides with the box and never needs its own edit-mode hook.

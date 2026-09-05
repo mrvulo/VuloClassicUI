@@ -221,7 +221,7 @@ Abschnittstabellen.
   zeigt bei gescrollter Liste „7 von 25".
 - **Balkenrahmen** werden einmal je sichtbarer Zeile angelegt und
   wiederverwendet; es gibt keinen Rahmen je Spieler.
-- **Leerzustand**: Titelzeile bleibt, darunter grau der Hinweis „No combat
+- **Leerzustand**: Titelzeile bleibt, der Bereich darunter bleibt leer (Hinweistext am 05.09. auf Nutzerwunsch entfernt; ehemals „No combat
   data" (lokalisiert).
 
 ## Aktualisierung

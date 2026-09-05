@@ -3400,7 +3400,6 @@ ns:RegisterLocale("zhCN", function() return {
     ["HPS"] = "HPS",
     ["Overall"] = "总计",
     ["Current fight"] = "当前战斗",
-    ["No combat data"] = "没有战斗数据",
     ["Mode, segment and reset"] = "模式、区段与重置",
     ["Per second"] = "每秒",
     ["Share"] = "占比",

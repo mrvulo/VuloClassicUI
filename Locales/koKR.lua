@@ -3407,7 +3407,6 @@ ns:RegisterLocale("koKR", function() return {
     ["HPS"] = "HPS",
     ["Overall"] = "전체",
     ["Current fight"] = "현재 전투",
-    ["No combat data"] = "전투 데이터 없음",
     ["Mode, segment and reset"] = "모드, 구간 및 초기화",
     ["Per second"] = "초당",
     ["Share"] = "비율",

@@ -3407,7 +3407,6 @@ ns:RegisterLocale("ruRU", function() return {
     ["HPS"] = "HPS",
     ["Overall"] = "Всего",
     ["Current fight"] = "Текущий бой",
-    ["No combat data"] = "Нет данных о бое",
     ["Mode, segment and reset"] = "Режим, сегмент и сброс",
     ["Per second"] = "В секунду",
     ["Share"] = "Доля",

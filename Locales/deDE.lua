@@ -3525,7 +3525,6 @@ ns:RegisterLocale("deDE", function() return {
     ["HPS"] = "HPS",
     ["Overall"] = "Gesamt",
     ["Current fight"] = "Aktueller Kampf",
-    ["No combat data"] = "Keine Kampfdaten",
     ["Mode, segment and reset"] = "Modus, Abschnitt und Zurücksetzen",
     ["Per second"] = "Pro Sekunde",
     ["Share"] = "Anteil",
