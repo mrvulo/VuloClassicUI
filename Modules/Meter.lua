@@ -1,8 +1,9 @@
--- VuloClassicUI / Modules / Meter: combat meter engine. Counts damage and
--- healing per group member (pets credited to their owner) in two live
--- segments -- the running fight and the overall total -- and hands the window
--- a read-only view through ns.Meter. Knows nothing about bars; those live in
--- Modules/MeterWindow.lua and attach through mod:WindowEnable().
+-- VuloClassicUI / Modules / Meter: combat meter engine. Counts damage,
+-- healing, damage taken, interrupts, dispels and deaths per group member
+-- (pets credited to their owner) in two live segments -- the running fight
+-- and the overall total -- and hands the window a read-only view through
+-- ns.Meter. Knows nothing about bars; those live in Modules/MeterWindow.lua
+-- and attach through mod:WindowEnable().
 -- No L here on purpose: the engine has no text of its own.
 local _, ns = ...
 
@@ -12,25 +13,24 @@ local mod = ns:RegisterModule("meter", {
     description = "Lightweight damage and healing meter: who did how much, per fight and overall. Left-click the title for mode and segment, mouse wheel on the title cycles modes, right-drag the title to move.",
     defaults    = {
         enabled         = true,
-        width           = 220,
-        height          = 160,
         barHeight       = 18,
         barGap          = 1,
         fontSize        = 11,
         texture         = "Atrocity",
-        scale           = 1.0,
         showRank        = true,
+        showClassIcon   = true,
         showPerSecond   = true,
-        showPercent     = true,
+        showPercent     = false,
         highlightSelf   = true,
+        tooltipRows     = 5,
         onlyInGroup     = false,
         hideInCombat    = false,
         hideOutOfCombat = false,
         hideDelay       = 10,
-        defaultMode     = "damage",      -- damage | dps | heal | hps
-        defaultSegment  = "current",     -- current | overall
         resetOnNewGroup = true,
-        x = 0, y = 0, unlocked = false,
+        -- One entry per window: { mode, segment, x, y, width, height, scale,
+        -- unlocked }. Filled by the window file; empty means "one window".
+        windows         = {},
     },
 })
 
@@ -39,6 +39,7 @@ local UnitGUID            = UnitGUID
 local UnitName            = UnitName
 local UnitClass           = UnitClass
 local UnitAffectingCombat = UnitAffectingCombat
+local UnitIsFeignDeath    = UnitIsFeignDeath
 local IsInRaid            = IsInRaid
 local IsInGroup           = IsInGroup
 local GetNumGroupMembers  = GetNumGroupMembers
@@ -48,6 +49,12 @@ local type, tonumber      = type, tonumber
 
 local Meter = {}
 ns.Meter = Meter
+
+-- Melee swings carry no spell id; the auto-attack spell gives them a name
+-- and an icon from the game itself.
+local MELEE_ID   = 6603
+Meter.MELEE_ID   = MELEE_ID
+local MAX_DEATHS = 20
 
 ------------------------------------------------------------------------
 -- Group roster and pet owners
@@ -112,15 +119,32 @@ local function notify(what)
     if listener then listener(what) end
 end
 
+local function newPlayer(name, class)
+    return { name = name, class = class,
+             damage = 0, heal = 0, overheal = 0,
+             taken = 0, interrupts = 0, dispels = 0, deaths = 0 }
+end
+
 -- Only called after resolve() confirmed roster[guid] exists.
 local function entry(seg, guid)
     local p = seg.players[guid]
     if not p then
         local r = roster[guid]
-        p = { name = r.name, class = r.class, damage = 0, heal = 0, overheal = 0 }
+        p = newPlayer(r.name, r.class)
         seg.players[guid] = p
     end
     return p
+end
+
+-- The per-spell tables are born on the first event of their kind for a
+-- player, never per event: p.spells, p.heals, p.takenBy, p.kicks, p.purges.
+local function bump(p, key, id, n)
+    local t = p[key]
+    if not t then
+        t = {}
+        p[key] = t
+    end
+    t[id] = (t[id] or 0) + n
 end
 
 -- Source GUID -> the roster GUID it counts for, or nil when nobody we track.
@@ -131,16 +155,43 @@ local function resolve(guid)
     return nil
 end
 
+local SUB_TABLES = { "spells", "heals", "takenBy", "kicks", "purges" }
+
+local function foldPlayer(d, p)
+    d.damage     = d.damage     + p.damage
+    d.heal       = d.heal       + p.heal
+    d.overheal   = d.overheal   + p.overheal
+    d.taken      = d.taken      + (p.taken      or 0)
+    d.interrupts = d.interrupts + (p.interrupts or 0)
+    d.dispels    = d.dispels    + (p.dispels    or 0)
+    d.deaths     = d.deaths     + (p.deaths     or 0)
+    for i = 1, #SUB_TABLES do
+        local key = SUB_TABLES[i]
+        local src = p[key]
+        if src then
+            for id, n in pairs(src) do bump(d, key, id, n) end
+        end
+    end
+    local log = p.deathLog
+    if log then
+        local dl = d.deathLog
+        if not dl then
+            dl = {}
+            d.deathLog = dl
+        end
+        for i = 1, #log do dl[#dl + 1] = log[i] end
+        while #dl > MAX_DEATHS do table.remove(dl, 1) end
+    end
+end
+
 local function fold(dst, src)
     for guid, p in pairs(src.players) do
         local d = dst.players[guid]
         if not d then
-            d = { name = p.name, class = p.class, damage = 0, heal = 0, overheal = 0 }
+            d = newPlayer(p.name, p.class)
             dst.players[guid] = d
         end
-        d.damage   = d.damage   + p.damage
-        d.heal     = d.heal     + p.heal
-        d.overheal = d.overheal + p.overheal
+        foldPlayer(d, p)
     end
     dst.duration = dst.duration + src.duration
 end
@@ -179,7 +230,7 @@ function Meter:Reset()
     notify("reset")
 end
 
--- Parts 2 and 3 add their own subevent entries here.
+-- Later parts add their own subevent entries here.
 Meter.HANDLERS = {}
 
 ------------------------------------------------------------------------
@@ -303,7 +354,7 @@ end
 ------------------------------------------------------------------------
 local HANDLERS = Meter.HANDLERS
 
-local function addDamage(src, amount)
+local function addDamage(src, amount, spellId)
     if not amount or amount <= 0 then return end
     local owner = resolve(src)
     if not owner then return end
@@ -315,13 +366,33 @@ local function addDamage(src, amount)
     end
     local p = entry(current, owner)
     p.damage = p.damage + amount
+    bump(p, "spells", spellId, amount)
+    dirty = true
+end
+
+-- Damage landing on a group member (players only, never their pets). The
+-- last hit stays on the entry so a death can name its killing blow. Taking
+-- damage never opens a fight; PLAYER_REGEN_DISABLED already did.
+local function addTaken(dst, srcName, amount, spellId)
+    if not current or not amount or amount <= 0 then return end
+    if not roster[dst] then return end
+    local p = entry(current, dst)
+    p.taken = p.taken + amount
+    bump(p, "takenBy", spellId, amount)
+    p.lastSpell, p.lastAmount, p.lastSrc = spellId, amount, srcName
     dirty = true
 end
 
 -- SWING_DAMAGE: amount is field 12. Spell-prefixed subevents carry spellId,
 -- spellName, spellSchool in 12-14 and amount in 15.
-HANDLERS.SWING_DAMAGE = function(src, _, a12) addDamage(src, a12) end
-local function spellDamage(src, _, _, a15) addDamage(src, a15) end
+HANDLERS.SWING_DAMAGE = function(src, srcName, dst, a12)
+    addDamage(src, a12, MELEE_ID)
+    addTaken(dst, srcName, a12, MELEE_ID)
+end
+local function spellDamage(src, srcName, dst, a12, a15)
+    addDamage(src, a15, a12)
+    addTaken(dst, srcName, a15, a12)
+end
 HANDLERS.RANGE_DAMAGE          = spellDamage
 HANDLERS.SPELL_DAMAGE          = spellDamage
 HANDLERS.SPELL_PERIODIC_DAMAGE = spellDamage
@@ -329,27 +400,63 @@ HANDLERS.DAMAGE_SHIELD         = spellDamage
 HANDLERS.DAMAGE_SPLIT          = spellDamage
 
 -- Healing never opens a fight (pre-pull heals are not combat); field 16 is
--- overhealing.
-local function spellHeal(src, _, _, a15, a16)
+-- overhealing. The per-spell table holds effective healing, like the bar.
+local function spellHeal(src, _, _, a12, a15, a16)
     if not current or not a15 then return end
     local owner = resolve(src)
     if not owner then return end
     local p = entry(current, owner)
+    a16 = a16 or 0
     p.heal     = p.heal + a15
-    p.overheal = p.overheal + (a16 or 0)
+    p.overheal = p.overheal + a16
+    bump(p, "heals", a12, a15 - a16)
     dirty = true
 end
 HANDLERS.SPELL_HEAL          = spellHeal
 HANDLERS.SPELL_PERIODIC_HEAL = spellHeal
 
-HANDLERS.SPELL_SUMMON = function(src, dst)
+-- SPELL_INTERRUPT / SPELL_DISPEL / SPELL_STOLEN: 12-14 is our spell, 15-17
+-- the spell we stopped or the aura we removed.
+local function countFor(src, key, counter, a15)
+    if not current then return end
+    local owner = resolve(src)
+    if not owner then return end
+    local p = entry(current, owner)
+    p[counter] = p[counter] + 1
+    bump(p, key, a15 or 0, 1)
+    dirty = true
+end
+HANDLERS.SPELL_INTERRUPT = function(src, _, _, _, a15) countFor(src, "kicks",  "interrupts", a15) end
+HANDLERS.SPELL_DISPEL    = function(src, _, _, _, a15) countFor(src, "purges", "dispels",    a15) end
+HANDLERS.SPELL_STOLEN    = HANDLERS.SPELL_DISPEL
+
+-- UNIT_DIED: the dead unit is the destination. A hunter feigning death fires
+-- the same subevent, and the unit flag tells the two apart.
+HANDLERS.UNIT_DIED = function(_, _, dst)
+    if not current then return end
+    local r = roster[dst]
+    if not r or UnitIsFeignDeath(r.unit) then return end
+    local p = entry(current, dst)
+    p.deaths = p.deaths + 1
+    local log = p.deathLog
+    if not log then
+        log = {}
+        p.deathLog = log
+    end
+    log[#log + 1] = { t = GetTime() - current.start,
+                      spell = p.lastSpell, amount = p.lastAmount, src = p.lastSrc }
+    if #log > MAX_DEATHS then table.remove(log, 1) end
+    dirty = true
+end
+
+HANDLERS.SPELL_SUMMON = function(src, _, dst)
     if dst and roster[src] then owners[dst] = src end
 end
 
 local function onCLEU()
-    local _, sub, _, src, _, _, _, dst, _, _, _, a12, _, _, a15, a16 = CLGetInfo()
+    local _, sub, _, src, srcName, _, _, dst, _, _, _, a12, _, _, a15, a16 = CLGetInfo()
     local h = HANDLERS[sub]
-    if h then h(src, dst, a12, a15, a16) end
+    if h then h(src, srcName, dst, a12, a15, a16) end
 end
 
 function mod:EngineEnable()
@@ -387,6 +494,13 @@ function mod:OnEnable()
         end
         saved.players  = saved.players or {}
         saved.duration = tonumber(saved.duration) or 0
+        -- Entries saved by part 1 lack the new counters; fill them once.
+        for _, p in pairs(saved.players) do
+            p.taken      = p.taken      or 0
+            p.interrupts = p.interrupts or 0
+            p.dispels    = p.dispels    or 0
+            p.deaths     = p.deaths     or 0
+        end
         overall = saved
     end
     rebuildRoster()
