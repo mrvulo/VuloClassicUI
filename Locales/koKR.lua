@@ -2091,7 +2091,6 @@ ns:RegisterLocale("koKR", function() return {
     -- Patch notes 1.37.3
     -- Patch notes 1.37.4
     -- Patch notes 1.39.0
-    ["Download"] = "다운로드",
     -- Sidebar groups (QoL split, 1.40.0)
     ["Bags & Items"] = "가방 및 아이템",
     ["Chat & Social"] = "대화 및 사교",
@@ -2532,17 +2531,6 @@ ns:RegisterLocale("koKR", function() return {
     ["|cffaaaaaaNo watcher yet. Most spells put a buff of the same name on you when used — one click below makes this icon glow while that buff is on you. Or type any other buff into the field.|r"] = "|cffaaaaaa아직 감시자가 없습니다. 대부분의 주문은 사용 시 같은 이름의 강화 효과를 겁니다 — 아래를 한 번 클릭하면 그 강화 효과가 유지되는 동안 이 아이콘이 빛납니다. 다른 강화 효과를 입력란에 적어도 됩니다.|r",
     ["Glow while '%s' is on me"] = "'%s'가 걸려 있는 동안 발광",
     -- Patch notes 1.44.0
-    ["Icon Strip – Racial, trinket and the diminishing-returns row share one edge of the frame in a fixed order, with one set of controls — they can no longer land on top of each other"] = "아이콘 줄 – 종족 특성, 장신구, 효과 감소 줄이 프레임의 한쪽 가장자리를 정해진 순서로 나눠 쓰고 설정도 한 벌입니다 — 더 이상 서로 겹치지 않습니다",
-    ["The frame layout — order, spacing, grow direction — never actually applied: its hooks were installed before the arena interface had loaded. The frames now report their own moves and the layout follows; during a fight they are protected, so a move mid-round is corrected when it ends."] = "투기장 프레임의 배치 — 순서, 간격, 확장 방향 — 는 실제로 적용된 적이 없었습니다. 훅이 투기장 인터페이스가 로드되기 전에 설치됐기 때문입니다. 이제 프레임이 자신의 이동을 직접 알리고 배치가 뒤따릅니다. 전투 중에는 보호되므로, 라운드 중의 이동은 전투가 끝나면 바로잡힙니다.",
-    ["The default gap between frames clears the opponent's pet bar, and the drag box in edit mode covers the whole stack instead of a fixed area."] = "프레임 사이의 기본 간격이 상대 소환수 바 자리를 비워 두고, 편집 모드의 드래그 상자는 고정 영역 대신 전체 묶음을 덮습니다.",
-    ["Bar Glows – Any icon can glow while a buff of yours is active or missing: three styles, gold, class or custom color, and one click watches the spell's own buff"] = "바 발광 – 어떤 아이콘이든 자신의 강화 효과가 활성이거나 없는 동안 빛날 수 있습니다: 세 가지 스타일, 금색, 직업 색 또는 사용자 지정 색, 그리고 한 번의 클릭으로 주문 자신의 강화 효과를 감시합니다",
-    ["The page is built around a preview that stays put while you scroll: the bar picker with rename, delete and drag-to-reorder on top, under it every icon of the bar at its real size and shape with the real cooldown sweep. Drag reorders, right-click removes."] = "이 페이지는 스크롤해도 제자리에 있는 미리 보기를 중심으로 만들어졌습니다. 위에는 이름 바꾸기, 삭제, 끌어서 재정렬이 되는 바 선택기가, 아래에는 바의 모든 아이콘이 실제 크기와 모양, 실제 재사용 대기시간 회전과 함께 놓입니다. 끌면 재정렬되고 오른쪽 클릭으로 제거합니다.",
-    ["The page is split into tabs, and the resource bar moved in as one of them. Spells you add belong to the class that added them and no longer show up on your other characters."] = "페이지가 탭으로 나뉘었고, 자원 바가 그중 하나로 들어왔습니다. 추가한 주문은 추가한 직업의 것이 되어 다른 캐릭터에는 더 이상 나타나지 않습니다.",
-    ["The third extra-item slot no longer stretches across the page with its box flung to the far edge."] = "세 번째 추가 아이템 칸이 입력란을 가장자리로 내던진 채 페이지 전체로 늘어나지 않습니다.",
-    ["The interface no longer compares itself with the other game version anywhere; a check keeps such wording out for good."] = "인터페이스가 더 이상 어디에서도 다른 게임 버전과 자신을 비교하지 않으며, 검사가 그런 표현을 계속 막습니다.",
-    ["Modules with several pages show them as a tab row along the top; when the tabs outgrow the row, two arrows page through it instead of wrapping into a second line."] = "여러 페이지가 있는 모듈은 이를 상단의 탭 줄로 보여 줍니다. 탭이 줄을 넘치면 둘째 줄로 꺾이는 대신 화살표 두 개로 넘겨 봅니다.",
-    ["The sidebar got shorter: player and target frames, font bars, castbar and cooldown pulse are one entry now, and a new General entry under Reminders collects the former Extras, Character and Bug Fixes rows — the bug fixes as a single tab."] = "사이드바가 짧아졌습니다. 플레이어·대상 프레임, 글꼴 바, 시전 바, 재사용 대기시간 펄스가 이제 하나의 항목이고, 알림 아래의 새 일반 항목이 예전의 기타, 캐릭터, 버그 수정 줄을 모읍니다 — 버그 수정은 단 하나의 탭으로.",
-    ["Typing into an add field and then clicking the button beside it silently did nothing; the typed text only counted after pressing Enter. Buttons now take the field's text with them."] = "추가 입력란에 입력한 뒤 옆의 버튼을 눌러도 아무 일도 없이 조용했습니다. 입력한 텍스트는 Enter를 눌러야만 인정됐습니다. 이제 버튼이 입력란의 텍스트를 함께 가져갑니다.",
     ["Developer"] = "개발자",
     ["Suppress Lua Errors"] = "Lua 오류 숨기기",
     ["Hides the game's own Lua error popup (CVar scriptErrors). Errors still happen and error-collecting addons still see them - they just stop interrupting you."] = "게임 자체의 Lua 오류 창을 숨깁니다(CVar scriptErrors). 오류는 계속 발생하고 오류 수집 애드온도 여전히 볼 수 있으며, 단지 더 이상 방해하지 않을 뿐입니다.",
@@ -2570,16 +2558,6 @@ ns:RegisterLocale("koKR", function() return {
     ["A loadout named '%s' already exists."] = "‘%s’(이)라는 장비 세트가 이미 있습니다.",
     ["Loadout '%s' renamed to '%s'."] = "장비 세트 ‘%s’의 이름을 ‘%s’(으)로 바꿨습니다.",
     -- Patch notes 1.45.0
-    ["The item level on equipment links sits after the link now, not inside its brackets. Some clients re-check link text against their own data, and the changed text turned the link into the name of whatever quest carried that number."] = "장비 링크의 아이템 레벨이 이제 괄호 안이 아니라 링크 뒤에 붙습니다. 일부 클라이언트는 링크 텍스트를 자체 데이터와 다시 대조하는데, 바뀐 텍스트 때문에 링크가 그 번호의 퀘스트 이름으로 바뀌었습니다.",
-    ["A spell no longer shows up on another class just because that class owns a different spell with the same name. Entries respect their class stamp on the bars, and old entries are adopted by spell ID instead of by name."] = "다른 직업이 같은 이름의 다른 주문을 가지고 있다는 이유만으로 주문이 그 직업에 나타나지 않습니다. 항목은 막대에서 직업 표시를 따르며, 오래된 항목은 이름 대신 주문 ID로 귀속됩니다.",
-    ["The bundled media library silently dropped font registrations when no other addon shipped a newer copy of it; the addon font now registers on every install."] = "포함된 미디어 라이브러리가 다른 애드온이 더 새 복사본을 제공하지 않으면 글꼴 등록을 조용히 버렸습니다. 이제 애드온 글꼴은 모든 설치에서 등록됩니다.",
-    ["Rename... – In the set's right-click menu and on the sets page; icon, contents and talent binding move along with the name"] = "이름 바꾸기... – 세트의 우클릭 메뉴와 세트 페이지에서; 아이콘, 구성, 전문화 연결이 이름과 함께 이동합니다",
-    ["Optimize My FPS and Graphics – A proven set of graphics settings with a one-time backup; the restore button next to it brings your old values back"] = "내 FPS와 그래픽 최적화 – 검증된 그래픽 설정 모음을 한 번의 백업과 함께 적용; 옆의 복원 버튼이 이전 값을 되돌립니다",
-    ["Fonts & Colors – A new tab: global font with outline mode, optionally for all game texts, plus class and resource colors with a reset on every row"] = "글꼴 및 색상 – 새 탭: 외곽선 모드를 갖춘 전역 글꼴(원하면 모든 게임 텍스트에), 그리고 줄마다 초기화가 있는 직업 및 자원 색상",
-    ["Developer – Suppress Lua errors, switch tooltip IDs and reset all settings from a new section on the General tab"] = "개발자 – Lua 오류 숨기기, 툴팁 ID 전환, 모든 설정 초기화를 일반 탭의 새 구역에서",
-    ["The General tab is organised in sections on a two-column grid like the rest of the window. The new tab ships a texture file: restart the client once after updating, a /reload alone will not show the reset arrows."] = "일반 탭이 창의 나머지처럼 두 열 격자 위 구역으로 정리되었습니다. 새 탭에는 텍스처 파일이 들어 있습니다. 업데이트 후 클라이언트를 한 번 재시작하세요. /reload 만으로는 초기화 화살표가 보이지 않습니다.",
-    ["The enlargement stays off on Wrath-based clients (Titan Reforged): their quest log is already the wide two-pane frame, and enlarging it pushed the detail pane into the button row."] = "리치 왕 기반 클라이언트(Titan Reforged)에서는 확대가 꺼진 채로 유지됩니다. 그곳의 퀘스트 기록은 이미 넓은 두 패널 창이고, 확대하면 상세 패널이 버튼 줄로 밀려 들어갔습니다.",
-    ["Long dropdown lists open upwards when there is no room below. They used to run off the bottom edge of the screen, where the last entries could never be scrolled into view."] = "긴 드롭다운 목록은 아래에 공간이 없으면 위로 열립니다. 지금까지는 화면 아래 가장자리를 넘어가, 마지막 항목을 끝내 볼 수 없었습니다.",
     ["On"] = "켜기",
     ["Select all"] = "모두 선택",
     ["Deselect all"] = "모두 선택 해제",
@@ -3421,8 +3399,6 @@ ns:RegisterLocale("koKR", function() return {
     ["Only in group"] = "파티에서만",
     ["Hide out of combat"] = "비전투 시 숨기기",
     ["Hide delay (seconds)"] = "숨기기 지연 (초)",
-    ["Default mode"] = "기본 모드",
-    ["Default segment"] = "기본 구간",
     ["Reset overall when joining a new group"] = "새 파티에 참가하면 전체 초기화",
     -- Patch notes 1.60.0
     ["Combat Meter – A lightweight damage and healing meter as its own HUD module: who did how much, per fight and overall"] = "전투 미터 – 별도의 HUD 모듈로 제공되는 가벼운 피해 및 치유 미터: 전투별 및 전체 기준으로 누가 얼마나 했는지 표시",

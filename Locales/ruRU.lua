@@ -2091,7 +2091,6 @@ ns:RegisterLocale("ruRU", function() return {
     -- Patch notes 1.37.3
     -- Patch notes 1.37.4
     -- Patch notes 1.39.0
-    ["Download"] = "Загрузка",
     -- Sidebar groups (QoL split, 1.40.0)
     ["Bags & Items"] = "Сумки и предметы",
     ["Chat & Social"] = "Чат и общение",
@@ -2532,17 +2531,6 @@ ns:RegisterLocale("ruRU", function() return {
     ["|cffaaaaaaNo watcher yet. Most spells put a buff of the same name on you when used — one click below makes this icon glow while that buff is on you. Or type any other buff into the field.|r"] = "|cffaaaaaaНаблюдателя пока нет. Большинство заклинаний при применении накладывают на вас одноимённое усиление — один щелчок ниже заставит этот значок светиться, пока это усиление на вас. Либо впишите в поле любое другое усиление.|r",
     ["Glow while '%s' is on me"] = "Светиться, пока на мне «%s»",
     -- Patch notes 1.44.0
-    ["Icon Strip – Racial, trinket and the diminishing-returns row share one edge of the frame in a fixed order, with one set of controls — they can no longer land on top of each other"] = "Полоса значков – Расовая способность, аксессуар и ряд DR делят один край рамки в фиксированном порядке, с одним набором настроек — они больше не могут накладываться друг на друга",
-    ["The frame layout — order, spacing, grow direction — never actually applied: its hooks were installed before the arena interface had loaded. The frames now report their own moves and the layout follows; during a fight they are protected, so a move mid-round is corrected when it ends."] = "Расположение рамок арены — порядок, расстояние, направление роста — никогда не применялось: его перехватчики устанавливались до загрузки интерфейса арены. Теперь рамки сами сообщают о своих перемещениях, и расположение следует за ними; в бою они защищены, и сдвиг посреди раунда исправляется по его окончании.",
-    ["The default gap between frames clears the opponent's pet bar, and the drag box in edit mode covers the whole stack instead of a fixed area."] = "Расстояние между рамками по умолчанию оставляет место полосе питомца противника, а рамка перетаскивания в режиме редактирования покрывает весь столбец, а не фиксированную область.",
-    ["Bar Glows – Any icon can glow while a buff of yours is active or missing: three styles, gold, class or custom color, and one click watches the spell's own buff"] = "Свечение панелей – Любой значок может светиться, пока ваше усиление активно или отсутствует: три стиля, золото, цвет класса или свой цвет, и один щелчок ставит под наблюдение собственное усиление заклинания",
-    ["The page is built around a preview that stays put while you scroll: the bar picker with rename, delete and drag-to-reorder on top, under it every icon of the bar at its real size and shape with the real cooldown sweep. Drag reorders, right-click removes."] = "Страница построена вокруг предпросмотра, который стоит на месте при прокрутке: сверху выбор панели с переименованием, удалением и перетаскиванием для сортировки, под ним каждый значок панели в настоящем размере и форме с настоящей разверткой восстановления. Перетаскивание сортирует, правый щелчок удаляет.",
-    ["The page is split into tabs, and the resource bar moved in as one of them. Spells you add belong to the class that added them and no longer show up on your other characters."] = "Страница разделена на вкладки, и панель ресурсов переехала внутрь как одна из них. Добавленные заклинания принадлежат классу, который их добавил, и больше не появляются у ваших других персонажей.",
-    ["The third extra-item slot no longer stretches across the page with its box flung to the far edge."] = "Третья ячейка дополнительных предметов больше не растягивается на всю страницу с полем, отброшенным к краю.",
-    ["The interface no longer compares itself with the other game version anywhere; a check keeps such wording out for good."] = "Интерфейс больше нигде не сравнивает себя с другой версией игры; проверка навсегда не пускает такие формулировки.",
-    ["Modules with several pages show them as a tab row along the top; when the tabs outgrow the row, two arrows page through it instead of wrapping into a second line."] = "Модули с несколькими страницами показывают их рядом вкладок вдоль верхнего края; когда вкладки не помещаются, две стрелки листают ряд вместо переноса на вторую строку.",
-    ["The sidebar got shorter: player and target frames, font bars, castbar and cooldown pulse are one entry now, and a new General entry under Reminders collects the former Extras, Character and Bug Fixes rows — the bug fixes as a single tab."] = "Боковая панель стала короче: рамки игрока и цели, шрифтовые полосы, полоса чтения и пульс восстановления теперь одна строка, а новая строка «Общее» под «Напоминаниями» собирает прежние строки «Мелочи», «Персонаж» и «Исправления ошибок» — исправления одной-единственной вкладкой.",
-    ["Typing into an add field and then clicking the button beside it silently did nothing; the typed text only counted after pressing Enter. Buttons now take the field's text with them."] = "Ввод в поле добавления и щелчок по кнопке рядом молча ничего не делали; набранный текст засчитывался только после Enter. Теперь кнопки забирают текст поля с собой.",
     ["Developer"] = "Разработчик",
     ["Suppress Lua Errors"] = "Скрывать ошибки Lua",
     ["Hides the game's own Lua error popup (CVar scriptErrors). Errors still happen and error-collecting addons still see them - they just stop interrupting you."] = "Скрывает игровое окно ошибок Lua (CVar scriptErrors). Ошибки по-прежнему происходят, и собирающие их аддоны их видят - они просто больше вас не прерывают.",
@@ -2570,16 +2558,6 @@ ns:RegisterLocale("ruRU", function() return {
     ["A loadout named '%s' already exists."] = "Набор с именем «%s» уже существует.",
     ["Loadout '%s' renamed to '%s'."] = "Набор «%s» переименован в «%s».",
     -- Patch notes 1.45.0
-    ["The item level on equipment links sits after the link now, not inside its brackets. Some clients re-check link text against their own data, and the changed text turned the link into the name of whatever quest carried that number."] = "Уровень предмета в ссылках на экипировку теперь стоит после ссылки, а не внутри её скобок. Некоторые клиенты заново сверяют текст ссылок со своими данными, и изменённый текст превращал ссылку в название задания с этим номером.",
-    ["A spell no longer shows up on another class just because that class owns a different spell with the same name. Entries respect their class stamp on the bars, and old entries are adopted by spell ID instead of by name."] = "Заклинание больше не появляется у другого класса лишь потому, что у того есть другое заклинание с тем же названием. Записи на полосах учитывают свою классовую метку, а старые записи привязываются по идентификатору заклинания, а не по имени.",
-    ["The bundled media library silently dropped font registrations when no other addon shipped a newer copy of it; the addon font now registers on every install."] = "Встроенная библиотека медиа молча отбрасывала регистрации шрифтов, если никакой другой аддон не приносил более новую копию; шрифт аддона теперь регистрируется при любой установке.",
-    ["Rename... – In the set's right-click menu and on the sets page; icon, contents and talent binding move along with the name"] = "Переименовать... – В контекстном меню набора и на странице наборов; значок, содержимое и привязка к талантам переезжают вместе с именем",
-    ["Optimize My FPS and Graphics – A proven set of graphics settings with a one-time backup; the restore button next to it brings your old values back"] = "Оптимизировать мои FPS и графику – Проверенный набор настроек графики с одноразовой резервной копией; кнопка восстановления рядом вернёт прежние значения",
-    ["Fonts & Colors – A new tab: global font with outline mode, optionally for all game texts, plus class and resource colors with a reset on every row"] = "Шрифты и цвета – Новая вкладка: общий шрифт с режимом обводки, по желанию для всех игровых текстов, плюс цвета классов и ресурсов со сбросом в каждой строке",
-    ["Developer – Suppress Lua errors, switch tooltip IDs and reset all settings from a new section on the General tab"] = "Разработчик – Скрывать ошибки Lua, включать ID в подсказках и сбрасывать все настройки — в новом разделе вкладки Общее",
-    ["The General tab is organised in sections on a two-column grid like the rest of the window. The new tab ships a texture file: restart the client once after updating, a /reload alone will not show the reset arrows."] = "Вкладка Общее организована в разделы на сетке из двух столбцов, как и остальное окно. Новая вкладка приносит файл текстуры: перезапустите клиент один раз после обновления, один /reload стрелки сброса не покажет.",
-    ["The enlargement stays off on Wrath-based clients (Titan Reforged): their quest log is already the wide two-pane frame, and enlarging it pushed the detail pane into the button row."] = "Увеличение остаётся выключенным на клиентах на основе Wrath (Titan Reforged): их журнал заданий уже является широким окном с двумя панелями, и увеличение сдвигало панель деталей на ряд кнопок.",
-    ["Long dropdown lists open upwards when there is no room below. They used to run off the bottom edge of the screen, where the last entries could never be scrolled into view."] = "Длинные выпадающие списки открываются вверх, когда снизу нет места. Раньше они уходили за нижний край экрана, где последние записи никогда нельзя было прокрутить в поле зрения.",
     ["On"] = "Вкл.",
     ["Select all"] = "Выбрать все",
     ["Deselect all"] = "Снять выбор",
@@ -3421,8 +3399,6 @@ ns:RegisterLocale("ruRU", function() return {
     ["Only in group"] = "Только в группе",
     ["Hide out of combat"] = "Скрывать вне боя",
     ["Hide delay (seconds)"] = "Задержка скрытия (секунды)",
-    ["Default mode"] = "Режим по умолчанию",
-    ["Default segment"] = "Сегмент по умолчанию",
     ["Reset overall when joining a new group"] = "Сбрасывать итог при входе в новую группу",
     -- Patch notes 1.60.0
     ["Combat Meter – A lightweight damage and healing meter as its own HUD module: who did how much, per fight and overall"] = "Боевой счётчик – Лёгкий счётчик урона и исцеления в виде отдельного модуля интерфейса: кто сколько сделал за бой и в целом",
