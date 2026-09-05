@@ -15,10 +15,14 @@ end
 
 local function modeValues()
     return {
-        { value = "damage", text = L["Damage"] },
-        { value = "dps",    text = L["DPS"] },
-        { value = "heal",   text = L["Healing"] },
-        { value = "hps",    text = L["HPS"] },
+        { value = "damage",     text = L["Damage"] },
+        { value = "dps",        text = L["DPS"] },
+        { value = "heal",       text = L["Healing"] },
+        { value = "hps",        text = L["HPS"] },
+        { value = "taken",      text = L["Damage taken"] },
+        { value = "interrupts", text = L["Interrupts"] },
+        { value = "dispels",    text = L["Dispels"] },
+        { value = "deaths",     text = L["Deaths"] },
     }
 end
 
@@ -35,6 +39,29 @@ local function toggle(label, key, tooltip)
         get = function() return mod.db[key] end,
         set = function(_, v) mod.db[key] = v; apply() end,
     }
+end
+
+-- One row per window: mode, segment, and a close button once there is more
+-- than one window to close. The window file re-syncs the frames on apply.
+local function windowRow(i, w, closable)
+    local items = {
+        { type = "dropdown", label = string.format(L["Window %d"], i), width = 150,
+          values = modeValues(),
+          get = function() return w.mode end,
+          set = function(_, v) w.mode = v; apply() end },
+        { type = "dropdown", label = L["Segment"], width = 150,
+          values = segmentValues(),
+          get = function() return w.segment end,
+          set = function(_, v) w.segment = v; apply() end },
+    }
+    if closable then
+        items[#items + 1] = { type = "button", width = 110, label = L["Close"],
+            onClick = function()
+                if mod.CloseWindow then mod:CloseWindow(i) end
+                refreshPage()
+            end }
+    end
+    return { type = "group", layout = "row", gap = 8, items = items }
 end
 
 function mod:GetOptions()
@@ -56,10 +83,11 @@ function mod:GetOptions()
         values = ns.MediaStatusbarValues(),
         get = function() return mod.db.texture end,
         set = function(_, v) mod.db.texture = v; apply() end }
-    items[#items + 1] = { type = "slider", label = L["Scale"], min = 50, max = 200, step = 5,
-        get = function() return math.floor((mod.db.scale or 1) * 100 + 0.5) end,
-        set = function(_, v) mod.db.scale = v / 100; apply() end }
+    items[#items + 1] = { type = "slider", label = L["Abilities in tooltip"], min = 3, max = 10, step = 1,
+        get = function() return mod.db.tooltipRows end,
+        set = function(_, v) mod.db.tooltipRows = v end }
     items[#items + 1] = toggle(L["Show rank"], "showRank")
+    items[#items + 1] = toggle(L["Show class icon"], "showClassIcon")
     items[#items + 1] = toggle(L["Show value in brackets"], "showPerSecond",
         L["Per-second value next to the total. In the per-second modes the brackets show the total instead."])
     items[#items + 1] = toggle(L["Show percent"], "showPercent")
@@ -81,15 +109,21 @@ function mod:GetOptions()
     }
 
     items[#items + 1] = { type = "spacer", height = 6 }
-    items[#items + 1] = { type = "header", text = L["Behavior"] }
-    items[#items + 1] = { type = "dropdown", label = L["Default mode"], width = 200,
-        values = modeValues(),
-        get = function() return mod.db.defaultMode end,
-        set = function(_, v) mod.db.defaultMode = v end }
-    items[#items + 1] = { type = "dropdown", label = L["Default segment"], width = 200,
-        values = segmentValues(),
-        get = function() return mod.db.defaultSegment end,
-        set = function(_, v) mod.db.defaultSegment = v end }
+    items[#items + 1] = { type = "header", text = L["Windows"] }
+    local list = mod.db.windows or {}
+    for i = 1, #list do
+        items[#items + 1] = windowRow(i, list[i], #list > 1)
+    end
+    items[#items + 1] = {
+        type = "group", layout = "row", gap = 8,
+        items = {
+            { type = "button", width = 180, label = L["New window"],
+              onClick = function()
+                  if mod.AddWindow then mod:AddWindow("damage", #list) end
+                  refreshPage()
+              end },
+        },
+    }
     items[#items + 1] = toggle(L["Reset overall when joining a new group"], "resetOnNewGroup")
 
     items[#items + 1] = { type = "spacer", height = 6 }
@@ -106,7 +140,9 @@ function mod:GetOptions()
               end },
             { type = "button", width = 150, label = L["Reset position"],
               onClick = function()
-                  mod.db.x, mod.db.y = 0, 0
+                  for i = 1, #list do
+                      list[i].x, list[i].y = (i - 1) * 30, -(i - 1) * 30
+                  end
                   apply()
               end },
         },

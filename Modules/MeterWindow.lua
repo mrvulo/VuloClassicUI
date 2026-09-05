@@ -1,5 +1,8 @@
--- VuloClassicUI / Modules / MeterWindow: the bar window for the combat meter.
--- Reads the engine through ns.Meter and never writes into its tables.
+-- VuloClassicUI / Modules / MeterWindow: the bar windows for the combat meter.
+-- One frame per entry of mod.db.windows, pooled by slot; every frame carries
+-- its own mode, segment, sort order and scroll, while bar look, font and the
+-- visibility rules are shared. Reads the engine through ns.Meter and never
+-- writes into its tables.
 local _, ns = ...
 local L     = ns.L
 local UI    = ns.UI
@@ -7,48 +10,62 @@ local mod   = ns.modules.meter
 local Meter = ns.Meter
 
 local GetTime             = GetTime
+local GetSpellInfo        = GetSpellInfo
 local floor               = math.floor
 local max                 = math.max
 local min                 = math.min
 local format              = string.format
 local sort                = table.sort
+local remove              = table.remove
 local wipe                = wipe
 local pairs               = pairs
+local type                = type
 local IsInGroup           = IsInGroup
 local UnitAffectingCombat = UnitAffectingCombat
 local CreateFrame         = CreateFrame
 
 local TITLE_H  = 20
 local PAD      = 2
-local MODES    = { "damage", "dps", "heal", "hps" }
-local MODE_IDX = { damage = 1, dps = 2, heal = 3, hps = 4 }
+local MODES    = { "damage", "dps", "heal", "hps", "taken", "interrupts", "dispels", "deaths" }
+local MODE_IDX = {}
+for i = 1, #MODES do MODE_IDX[MODES[i]] = i end
+local PER_SEC  = { dps = true, hps = true }
+local COUNT    = { interrupts = true, dispels = true, deaths = true }
+local HEALING  = { heal = true, hps = true }
+-- Which per-spell table of the player entry a mode breaks down into.
+local SUB_KEY  = { damage = "spells", dps = "spells", heal = "heals", hps = "heals",
+                   taken = "takenBy", interrupts = "kicks", dispels = "purges" }
 local ICONS    = "Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\"
 local TEX_FLAT = "Interface\\Buttons\\WHITE8X8"
+local ICON_FMT = "|T%s:14:14:0:0:64:64:5:59:5:59|t %s"
 
-local win, mover
-local rows  = {}     -- one StatusBar per visible slot, reused across players
-local order = {}     -- guids sorted by the current mode's value
-local vals  = {}     -- guid -> value for the comparator
-local mode, segment, scroll = "damage", "current", 0
+-- frames[i] = window record: { index, frame, db, mover, rows, order, vals,
+-- scroll, mode, segment, lastTitle, lastCount }. db is nil while the slot is
+-- unbound (more frames than windows after a close).
+local frames = {}
 local ticker
 local lastCombatEnd  = 0
 local hideTimerArmed = false
 
--- Forward declarations; filled in further down (and replaced in Task 4/5).
-local layoutRows, refresh, applyVisibility, openMenu, onWheel, onTitleWheel, rowEnter
+-- Forward declarations; filled in further down.
+local layoutRows, refresh, applyVisibility, openMenu, rowEnter, syncFrames
 
 ------------------------------------------------------------------------
 -- Labels
 ------------------------------------------------------------------------
 local function modeLabel(m)
-    if m == "damage" then return L["Damage"] end
-    if m == "dps"    then return L["DPS"] end
-    if m == "heal"   then return L["Healing"] end
-    return L["HPS"]
+    if m == "damage"     then return L["Damage"] end
+    if m == "dps"        then return L["DPS"] end
+    if m == "heal"       then return L["Healing"] end
+    if m == "hps"        then return L["HPS"] end
+    if m == "taken"      then return L["Damage taken"] end
+    if m == "interrupts" then return L["Interrupts"] end
+    if m == "dispels"    then return L["Dispels"] end
+    return L["Deaths"]
 end
 
-local function segmentLabel(seg)
-    if segment == "overall" then return L["Overall"] end
+local function segmentLabel(w, seg)
+    if w.segment == "overall" then return L["Overall"] end
     if seg and seg.title then return seg.title end
     return L["Current fight"]
 end
@@ -85,33 +102,43 @@ local function clock(sec)
     return format("%d:%02d", floor(sec / 60), sec % 60)
 end
 
-local function valueOf(p, dur)
-    if mode == "damage" then return p.damage end
-    if mode == "heal"   then return p.heal - p.overheal end
+local function valueOf(mode, p, dur)
+    if mode == "damage"     then return p.damage end
+    if mode == "heal"       then return p.heal - p.overheal end
+    if mode == "taken"      then return p.taken      or 0 end
+    if mode == "interrupts" then return p.interrupts or 0 end
+    if mode == "dispels"    then return p.dispels    or 0 end
+    if mode == "deaths"     then return p.deaths     or 0 end
     if dur <= 0 then return 0 end
     if mode == "dps" then return p.damage / dur end
     return (p.heal - p.overheal) / dur
 end
 
 -- Ties break on the guid so equal values keep a stable order between ticks.
+-- sortVals is set right before each sort; one comparator serves every window.
+local sortVals
 local function byValue(a, b)
-    local va, vb = vals[a], vals[b]
+    local va, vb = sortVals[a], sortVals[b]
     if va == vb then return a < b end
     return va > vb
 end
 
-local function rightText(p, v, total, dur)
+-- Amount modes: total (per second); per-second modes swap the two; count
+-- modes show the count alone. Percent is appended inside the brackets.
+local function rightText(mode, p, v, total, dur)
     local db  = mod.db
     local pct = total > 0 and (v / total * 100) or 0
+    if COUNT[mode] then
+        if db.showPercent then return format("%d (%.1f%%)", v, pct) end
+        return format("%d", v)
+    end
     local secondary
-    if mode == "damage" then
-        secondary = dur > 0 and p.damage / dur or 0
-    elseif mode == "heal" then
-        secondary = dur > 0 and (p.heal - p.overheal) / dur or 0
-    elseif mode == "dps" then
+    if mode == "dps" then
         secondary = p.damage
-    else
+    elseif mode == "hps" then
         secondary = p.heal - p.overheal
+    else
+        secondary = dur > 0 and v / dur or 0
     end
     local main = short(v)
     if db.showPerSecond and db.showPercent then
@@ -125,55 +152,174 @@ local function rightText(p, v, total, dur)
 end
 
 ------------------------------------------------------------------------
+-- Tooltip: the breakdown block for the window's mode, then the summary.
+------------------------------------------------------------------------
+-- Spell id -> "|Ticon|t Name", built once per id; the strings live as long
+-- as the session, which is what a tooltip that repaints on every re-sort wants.
+local spellLeft = {}
+local function spellText(id)
+    local s = spellLeft[id]
+    if s then return s end
+    local name, _, icon = GetSpellInfo(id)
+    if name then
+        s = icon and format(ICON_FMT, icon, name) or name
+    else
+        s = "#" .. tostring(id)
+    end
+    spellLeft[id] = s
+    return s
+end
+
+local tipLines = {}
+local tipColor = {}
+local tipSpec  = { title = "", lines = tipLines, anchor = "ANCHOR_RIGHT" }
+-- Line tables are pooled: the tooltip is rebuilt on every re-sort under the
+-- cursor, and a fresh table per line per tick would be garbage for nothing.
+local linePool = {}
+local function line(i, left, right)
+    local t = linePool[i]
+    if not t then
+        t = {}
+        linePool[i] = t
+    end
+    t[1], t.right = left, right
+    tipLines[#tipLines + 1] = t
+    return t
+end
+
+local sortIds, sortSrc = {}, {}
+local function byCount(a, b)
+    local va, vb = sortSrc[a], sortSrc[b]
+    if va == vb then return a < b end
+    return va > vb
+end
+
+local function spellLines(p, key, own, isCount)
+    local t = p[key]
+    local n = 0
+    if t then
+        for id, v in pairs(t) do
+            if v > 0 then
+                n = n + 1
+                sortIds[n] = id
+            end
+        end
+    end
+    for i = n + 1, #sortIds do sortIds[i] = nil end
+    if n == 0 then
+        tipLines[#tipLines + 1] = L["No details yet"]
+        return
+    end
+    sortSrc = t
+    sort(sortIds, byCount)
+    local rows = min(n, mod.db.tooltipRows or 5)
+    for i = 1, rows do
+        local id = sortIds[i]
+        local v  = t[id]
+        if isCount then
+            line(i, spellText(id), format("%d", v))
+        else
+            line(i, spellText(id), format("%s (%.1f%%)", short(v), own > 0 and v / own * 100 or 0))
+        end
+    end
+end
+
+local function deathLines(p)
+    local log = p.deathLog
+    if not log or #log == 0 then
+        tipLines[#tipLines + 1] = L["No details yet"]
+        return
+    end
+    local rows = min(#log, mod.db.tooltipRows or 5)
+    for i = 1, rows do
+        local d = log[#log - i + 1]
+        local left = clock(d.t or 0) .. "  " .. (d.spell and spellText(d.spell) or L["Unknown"])
+        local right
+        if d.amount then
+            right = short(d.amount) .. " \194\183 " .. (d.src or "?")
+        else
+            right = L["Unknown"]
+        end
+        line(i, left, right)
+    end
+end
+
+rowEnter = function(self)
+    local w   = self.win
+    local seg = Meter:GetSegment(w.segment)
+    local p   = seg and self.guid and seg.players[self.guid]
+    if not p then return end
+    local mode  = w.mode
+    local vals  = w.vals
+    local order = w.order
+    local dur   = Meter:Duration(seg)
+    local v     = vals[self.guid] or 0
+    local total = 0
+    for i = 1, #order do total = total + (vals[order[i]] or 0) end
+
+    wipe(tipLines)
+    local isCount = COUNT[mode]
+    if mode == "deaths" then
+        deathLines(p)
+    else
+        local own = HEALING[mode] and (p.heal - p.overheal)
+                 or (mode == "taken" and (p.taken or 0))
+                 or p.damage
+        spellLines(p, SUB_KEY[mode], own, isCount)
+    end
+    tipLines[#tipLines + 1] = " "
+
+    if isCount then
+        tipLines[#tipLines + 1] = format("%s: %d", L["Total"], v)
+    else
+        local amount = PER_SEC[mode] and (mode == "dps" and p.damage or (p.heal - p.overheal)) or v
+        tipLines[#tipLines + 1] = format("%s: %s", L["Total"], short(amount))
+        tipLines[#tipLines + 1] = format("%s: %s", L["Per second"], short(dur > 0 and amount / dur or 0))
+    end
+    tipLines[#tipLines + 1] = format("%s: %.1f%%", L["Share"], total > 0 and v / total * 100 or 0)
+    if HEALING[mode] then
+        tipLines[#tipLines + 1] = format("%s: %.1f%%", L["Overhealing"], p.heal > 0 and p.overheal / p.heal * 100 or 0)
+    end
+    tipLines[#tipLines + 1] = format("%s: %s", L["Fight duration"], clock(dur))
+
+    tipSpec.title = p.name
+    local c = ns.ClassColor(p.class)
+    if c then
+        tipColor[1], tipColor[2], tipColor[3] = c.r, c.g, c.b
+        tipSpec.color = tipColor
+    else
+        tipSpec.color = nil
+    end
+    UI:ShowTooltip(self, tipSpec)
+end
+
+------------------------------------------------------------------------
 -- Rows
 ------------------------------------------------------------------------
-local function rowSlots()
+local function rowSlots(w)
     local db = mod.db
-    return max(1, floor((db.height - TITLE_H - PAD * 2) / (db.barHeight + db.barGap)))
+    return max(1, floor((w.db.height - TITLE_H - PAD * 2) / (db.barHeight + db.barGap)))
 end
 
 local function texturePath()
     return ns.MediaStatusbar(mod.db.texture)
 end
 
-local tipLines = {}
-local tipSpec  = { title = "", lines = tipLines, anchor = "ANCHOR_RIGHT" }
-
-rowEnter = function(self)
-    local seg = Meter:GetSegment(segment)
-    local p = seg and self.guid and seg.players[self.guid]
-    if not p then return end
-    local dur   = Meter:Duration(seg)
-    local v     = vals[self.guid] or 0
-    local total = 0
-    for i = 1, #order do total = total + (vals[order[i]] or 0) end
-    local isHeal = (mode == "heal" or mode == "hps")
-    local amount = isHeal and (p.heal - p.overheal) or p.damage
-    wipe(tipLines)
-    tipLines[1] = format("%s: %s", L["Total"], short(amount))
-    tipLines[2] = format("%s: %s", L["Per second"], short(dur > 0 and amount / dur or 0))
-    tipLines[3] = format("%s: %.1f%%", L["Share"], total > 0 and v / total * 100 or 0)
-    if isHeal then
-        tipLines[4] = format("%s: %.1f%%", L["Overhealing"], p.heal > 0 and p.overheal / p.heal * 100 or 0)
-    end
-    tipLines[#tipLines + 1] = format("%s: %s", L["Fight duration"], clock(dur))
-    tipSpec.title = p.name
-    UI:ShowTooltip(self, tipSpec)
+local function onWheel(w, delta)
+    w.scroll = max(0, w.scroll - delta)
+    refresh(w)
 end
 
-onWheel = function(delta)
-    scroll = max(0, scroll - delta)
-    refresh()
-end
-
-local function createRow()
-    local r = CreateFrame("StatusBar", nil, win.body)
+local function createRow(w)
+    local r = CreateFrame("StatusBar", nil, w.frame.body)
+    r.win = w
     r:SetMinMaxValues(0, 1)
     r.bg = r:CreateTexture(nil, "BACKGROUND")
     r.bg:SetAllPoints(r)
     r.bg:SetColorTexture(1, 1, 1, 0.05)
+    r.icon = r:CreateTexture(nil, "OVERLAY")
+    r.icon:SetPoint("LEFT", r, "LEFT", 1, 0)
     r.left = r:CreateFontString(nil, "OVERLAY")
-    r.left:SetPoint("LEFT", r, "LEFT", 4, 0)
     r.left:SetJustifyH("LEFT")
     r.left:SetWordWrap(false)
     r.right = r:CreateFontString(nil, "OVERLAY")
@@ -192,20 +338,22 @@ local function createRow()
     r:EnableMouseWheel(true)
     r:SetScript("OnEnter", rowEnter)
     r:SetScript("OnLeave", function() UI:HideTooltip() end)
-    r:SetScript("OnMouseWheel", function(_, delta) onWheel(delta) end)
+    r:SetScript("OnMouseWheel", function(self, delta) onWheel(self.win, delta) end)
     return r
 end
 
-layoutRows = function()
-    if not win then return end
-    local db  = mod.db
-    local n   = rowSlots()
-    local tex = texturePath()
+layoutRows = function(w)
+    local db   = mod.db
+    local n    = rowSlots(w)
+    local tex  = texturePath()
     local step = db.barHeight + db.barGap
+    local iconSize = max(1, db.barHeight - 2)
+    local textLeft = db.showClassIcon and (iconSize + 4) or 4
+    local rows = w.rows
     for i = 1, n do
         local r = rows[i]
         if not r then
-            r = createRow()
+            r = createRow(w)
             rows[i] = r
         end
         r:SetStatusBarTexture(tex)
@@ -216,10 +364,14 @@ layoutRows = function()
         end
         r:SetHeight(db.barHeight)
         r:ClearAllPoints()
-        r:SetPoint("TOPLEFT",  win.body, "TOPLEFT",  0, -((i - 1) * step))
-        r:SetPoint("TOPRIGHT", win.body, "TOPRIGHT", 0, -((i - 1) * step))
+        r:SetPoint("TOPLEFT",  w.frame.body, "TOPLEFT",  0, -((i - 1) * step))
+        r:SetPoint("TOPRIGHT", w.frame.body, "TOPRIGHT", 0, -((i - 1) * step))
+        r.icon:SetSize(iconSize, iconSize)
+        r.icon:SetShown(db.showClassIcon and true or false)
+        r.left:SetPoint("LEFT", r, "LEFT", textLeft, 0)
         UI.FontFor("meter", r.left,  db.fontSize)
         UI.FontFor("meter", r.right, db.fontSize)
+        r.class = nil
         r:Hide()
     end
     for i = n + 1, #rows do rows[i]:Hide() end
@@ -228,36 +380,54 @@ end
 ------------------------------------------------------------------------
 -- Refresh: sort once, paint the visible slots, update the title.
 ------------------------------------------------------------------------
-local lastTitle, lastCount
-
-local function setTitle(seg, first, lastIdx, n)
-    local t = modeLabel(mode) .. " \194\183 " .. segmentLabel(seg)
-    if t ~= lastTitle then
+local function setTitle(w, seg, first, lastIdx, n)
+    local win = w.frame
+    local t = modeLabel(w.mode) .. " \194\183 " .. segmentLabel(w, seg)
+    if t ~= w.lastTitle then
         win.titleText:SetText(t)
-        lastTitle = t
+        w.lastTitle = t
     end
     local c = ""
     if n > 0 and n > (lastIdx - first + 1) then
         c = format("%d-%d / %d", first, lastIdx, n)
     end
-    if c ~= lastCount then
+    if c ~= w.lastCount then
         win.count:SetText(c)
-        lastCount = c
+        w.lastCount = c
     end
 end
 
-refresh = function()
-    if not win then return end
-    local db  = mod.db
-    local seg = Meter:GetSegment(segment)
-    local n   = 0
-    local dur = 0
+local function paintClass(r, p, db)
+    if not db.showClassIcon then return end
+    if r.class == p.class then return end
+    r.class = p.class
+    local tex, coords = ns:GetClassIcon(p.class)
+    if tex then
+        r.icon:SetTexture(tex)
+        r.icon:SetTexCoord(coords[1], coords[2], coords[3], coords[4])
+        r.icon:Show()
+    else
+        r.icon:Hide()
+    end
+end
+
+refresh = function(w)
+    if not w.db then return end
+    local db    = mod.db
+    local win   = w.frame
+    local mode  = w.mode
+    local order = w.order
+    local vals  = w.vals
+    local rows  = w.rows
+    local seg   = Meter:GetSegment(w.segment)
+    local n     = 0
+    local dur   = 0
     if seg then
         dur = Meter:Duration(seg)
         for guid, p in pairs(seg.players) do
             n = n + 1
             order[n] = guid
-            vals[guid] = valueOf(p, dur)
+            vals[guid] = valueOf(mode, p, dur)
         end
     end
     for i = n + 1, #order do order[i] = nil end
@@ -265,15 +435,17 @@ refresh = function()
     if n == 0 then
         for i = 1, #rows do rows[i]:Hide() end
         win.empty:Show()
-        setTitle(seg, 0, 0, 0)
+        setTitle(w, seg, 0, 0, 0)
         return
     end
     win.empty:Hide()
 
+    sortVals = vals
     sort(order, byValue)
-    local slots = rowSlots()
+    local slots = rowSlots(w)
     local maxScroll = max(0, n - slots)
-    if scroll > maxScroll then scroll = maxScroll end
+    if w.scroll > maxScroll then w.scroll = maxScroll end
+    local scroll = w.scroll
 
     local total = 0
     for i = 1, n do total = total + vals[order[i]] end
@@ -294,12 +466,13 @@ refresh = function()
             else
                 r:SetStatusBarColor(0.6, 0.6, 0.6, 0.85)
             end
+            paintClass(r, p, db)
             if db.showRank then
                 r.left:SetFormattedText("%d. %s", idx, p.name)
             else
                 r.left:SetText(p.name)
             end
-            r.right:SetText(rightText(p, v, total, dur))
+            r.right:SetText(rightText(mode, p, v, total, dur))
             r.hl:SetShown(db.highlightSelf and guid == me)
             local changed = r.guid ~= guid
             r.guid = guid
@@ -312,19 +485,23 @@ refresh = function()
             r:Hide()
         end
     end
-    setTitle(seg, scroll + 1, min(scroll + slots, n), n)
+    setTitle(w, seg, scroll + 1, min(scroll + slots, n), n)
+end
+
+local function refreshAll()
+    for i = 1, #frames do refresh(frames[i]) end
 end
 
 ------------------------------------------------------------------------
 -- Ticker: only while a fight is open. Dirty -> full repaint; otherwise the
--- per-second modes still move with the clock.
+-- per-second windows still move with the clock.
 ------------------------------------------------------------------------
 local function tick()
-    if Meter:IsDirty() then
-        Meter:ClearDirty()
-        refresh()
-    elseif mode == "dps" or mode == "hps" then
-        refresh()
+    local dirty = Meter:IsDirty()
+    if dirty then Meter:ClearDirty() end
+    for i = 1, #frames do
+        local w = frames[i]
+        if dirty or PER_SEC[w.mode] then refresh(w) end
     end
 end
 
@@ -340,9 +517,13 @@ local function stopTicker()
     end
 end
 
+local function resetScroll()
+    for i = 1, #frames do frames[i].scroll = 0 end
+end
+
 local function onEngine(what)
     if what == "start" then
-        scroll = 0
+        resetScroll()
         -- No immediate paint: the segment is still empty, the first tick fills it.
         startTicker()
         applyVisibility()
@@ -350,97 +531,175 @@ local function onEngine(what)
         stopTicker()
         lastCombatEnd = GetTime()
         Meter:ClearDirty()
-        refresh()
+        refreshAll()
         applyVisibility()
         wipe(fmtCache)
         fmtCount = 0
     else
-        scroll = 0
+        resetScroll()
         Meter:ClearDirty()
-        refresh()
+        refreshAll()
     end
 end
 
 ------------------------------------------------------------------------
--- Mode / segment switching and the title menu
+-- Windows: the list in mod.db.windows and the frames bound to it
 ------------------------------------------------------------------------
-function mod:SetMode(m)
-    if not MODE_IDX[m] then return end
-    mode   = m
-    scroll = 0
-    refresh()
+local function newWindowDB(mode, segment, x, y, width, height, scale, unlocked)
+    return { mode = MODE_IDX[mode] and mode or "damage",
+             segment = (segment == "overall") and "overall" or "current",
+             x = x or 0, y = y or 0, width = width or 220, height = height or 160,
+             scale = scale or 1, unlocked = unlocked and true or false }
 end
 
-function mod:SetSegment(s)
-    segment = (s == "overall") and "overall" or "current"
-    scroll  = 0
-    refresh()
+-- Empty list (fresh profile, or one written by part 1): window 1 inherits
+-- the single-window fields part 1 kept on the module, which then go away.
+local function ensureWindows()
+    local db = mod.db
+    if type(db.windows) ~= "table" then db.windows = {} end
+    local list = db.windows
+    if #list == 0 then
+        list[1] = newWindowDB(db.defaultMode, db.defaultSegment, db.x, db.y,
+                              db.width, db.height, db.scale, db.unlocked)
+        db.x, db.y, db.width, db.height, db.scale, db.unlocked = nil, nil, nil, nil, nil, nil
+        db.defaultMode, db.defaultSegment = nil, nil
+    end
+    for i = 1, #list do
+        local e = list[i]
+        if type(e) ~= "table" then
+            e = newWindowDB()
+            list[i] = e
+        end
+        if not MODE_IDX[e.mode] then e.mode = "damage" end
+        if e.segment ~= "overall" then e.segment = "current" end
+        e.x, e.y = e.x or 0, e.y or 0
+        e.width, e.height = e.width or 220, e.height or 160
+        e.scale = e.scale or 1
+    end
+    return list
+end
+
+function mod:AddWindow(mode, fromIndex)
+    local list = ensureWindows()
+    local src  = list[fromIndex] or list[#list]
+    list[#list + 1] = newWindowDB(mode, src.segment, src.x + 30, src.y - 30,
+                                  src.width, src.height, src.scale, false)
+    syncFrames()
+end
+
+function mod:CloseWindow(index)
+    local list = ensureWindows()
+    if #list <= 1 or not list[index] then return end
+    remove(list, index)
+    syncFrames()
+end
+
+function mod:SetMode(index, m)
+    if not MODE_IDX[m] then return end
+    local w = frames[index]
+    if not (w and w.db) then return end
+    w.db.mode = m
+    w.mode    = m
+    w.scroll  = 0
+    refresh(w)
+end
+
+function mod:SetSegment(index, s)
+    local w = frames[index]
+    if not (w and w.db) then return end
+    s = (s == "overall") and "overall" or "current"
+    w.db.segment = s
+    w.segment    = s
+    w.scroll     = 0
+    refresh(w)
 end
 
 -- Wheel up = previous mode, wheel down = next, wrapping around.
-onTitleWheel = function(delta)
-    local i = MODE_IDX[mode] - delta
+local function onTitleWheel(w, delta)
+    local i = MODE_IDX[w.mode] - delta
     if i < 1 then i = #MODES elseif i > #MODES then i = 1 end
-    mod:SetMode(MODES[i])
+    mod:SetMode(w.index, MODES[i])
 end
 
-local function isMode(m)    return function() return mode == m end end
-local function setMode(m)   return function() mod:SetMode(m) end end
-
-local function menuEntries()
+local function menuEntries(w)
+    local idx = w.index
     local e = {}
     for i = 1, #MODES do
         local m = MODES[i]
-        e[#e + 1] = { text = modeLabel(m), checked = isMode(m), func = setMode(m) }
+        e[#e + 1] = { text = modeLabel(m),
+                      checked = function() return w.mode == m end,
+                      func = function() mod:SetMode(idx, m) end }
     end
     e[#e + 1] = { separator = true }
     e[#e + 1] = { text = L["Current fight"],
-                  checked = function() return segment == "current" end,
-                  func = function() mod:SetSegment("current") end }
+                  checked = function() return w.segment == "current" end,
+                  func = function() mod:SetSegment(idx, "current") end }
     e[#e + 1] = { text = L["Overall"],
-                  checked = function() return segment == "overall" end,
-                  func = function() mod:SetSegment("overall") end }
+                  checked = function() return w.segment == "overall" end,
+                  func = function() mod:SetSegment(idx, "overall") end }
+    e[#e + 1] = { separator = true }
+    local sub = {}
+    for i = 1, #MODES do
+        local m = MODES[i]
+        sub[#sub + 1] = { text = modeLabel(m), func = function() mod:AddWindow(m, idx) end }
+    end
+    e[#e + 1] = { text = L["New window"], submenu = sub }
+    if #mod.db.windows > 1 then
+        e[#e + 1] = { text = L["Close window"], func = function() mod:CloseWindow(idx) end }
+    end
     e[#e + 1] = { separator = true }
     e[#e + 1] = { text = L["Reset"], func = function() Meter:Reset() end }
     return e
 end
 
-openMenu = function()
-    ns:ShowPopupMenu(menuEntries(), "cursor", win.title)
+openMenu = function(w)
+    ns:ShowPopupMenu(menuEntries(w), "cursor", w.frame.title)
+end
+
+local function openOptions()
+    local U = ns.UI
+    if not U then return end
+    if U.ToggleMainFrame and not (U.mainFrame and U.mainFrame:IsShown()) then
+        U:ToggleMainFrame()
+    end
+    if U.ShowModulePage then U:ShowModulePage("meter") end
 end
 
 ------------------------------------------------------------------------
--- Visibility
+-- Visibility (one verdict, applied to every bound frame)
 ------------------------------------------------------------------------
 applyVisibility = function()
     -- mod.active: Core/Modules.lua clears it before OnDisable, so a hide-delay
-    -- timer that outlives WindowDisable can no longer re-show the window.
-    if not win or not mod.active then return end
+    -- timer that outlives WindowDisable can no longer re-show the windows.
+    if not mod.active then return end
     local db = mod.db
+    local show = true
     if (ns.IsEditModeActive and ns:IsEditModeActive())
     or (ns.IsMoverEditMode and ns:IsMoverEditMode()) then
-        win:Show()
-        return
-    end
-    local inCombat = Meter:InCombat() or UnitAffectingCombat("player")
-    local show = true
-    if db.onlyInGroup and not IsInGroup() then show = false end
-    if db.hideInCombat and inCombat then show = false end
-    if show and db.hideOutOfCombat and not inCombat then
-        local left = (db.hideDelay or 0) - (GetTime() - lastCombatEnd)
-        if left > 0 then
-            if not hideTimerArmed then
-                hideTimerArmed = true
-                C_Timer.After(left + 0.1, function()
-                    hideTimerArmed = false
-                    applyVisibility()
-                end)
+        show = true
+    else
+        local inCombat = Meter:InCombat() or UnitAffectingCombat("player")
+        if db.onlyInGroup and not IsInGroup() then show = false end
+        if db.hideInCombat and inCombat then show = false end
+        if show and db.hideOutOfCombat and not inCombat then
+            local left = (db.hideDelay or 0) - (GetTime() - lastCombatEnd)
+            if left > 0 then
+                if not hideTimerArmed then
+                    hideTimerArmed = true
+                    C_Timer.After(left + 0.1, function()
+                        hideTimerArmed = false
+                        applyVisibility()
+                    end)
+                end
+            else
+                show = false
             end
-        else
-            show = false
         end
     end
-    win:SetShown(show)
+    for i = 1, #frames do
+        local w = frames[i]
+        w.frame:SetShown(show and w.db ~= nil)
+    end
 end
 
 ------------------------------------------------------------------------
@@ -466,21 +725,23 @@ local function iconButton(parent, tex, tipText, onClick)
     return b
 end
 
-local function savePosition()
-    local x, y = ns:GetCenterOffsets(win)
+local function savePosition(w)
+    local x, y = ns:GetCenterOffsets(w.frame)
     if x and y then
-        mod.db.x, mod.db.y = x, y
-        if mover then ns:ApplyMover(mover) end
+        w.db.x, w.db.y = x, y
+        ns:ApplyMover(w.mover)
     end
 end
 
-local function build()
-    if win then return end
-    local db = mod.db
+local function build(i, wdb)
     local accent = ns.COLORS.accent
+    local w = { index = i, db = wdb, rows = {}, order = {}, vals = {}, scroll = 0,
+                mode = "damage", segment = "current" }
+    frames[i] = w
 
-    win = CreateFrame("Frame", "VuloClassicUIMeter", UIParent)
-    win:SetSize(db.width, db.height)
+    local win = CreateFrame("Frame", "VuloClassicUIMeter" .. i, UIParent)
+    w.frame = win
+    win:SetSize(wdb.width, wdb.height)
     win:SetMovable(true)
     win:SetResizable(true)
     if win.SetResizeBounds then
@@ -489,6 +750,7 @@ local function build()
         win:SetMinResize(120, 60)
     end
     win:SetFrameStrata("LOW")
+    win:Hide()
 
     win.bg = win:CreateTexture(nil, "BACKGROUND")
     win.bg:SetAllPoints(win)
@@ -515,22 +777,24 @@ local function build()
     title:SetScript("OnDragStart", function() win:StartMoving() end)
     title:SetScript("OnDragStop", function()
         win:StopMovingOrSizing()
-        savePosition()
+        savePosition(w)
     end)
     title:SetScript("OnMouseUp", function(_, button)
-        if button == "LeftButton" then openMenu() end
+        if button == "LeftButton" then openMenu(w) end
     end)
-    title:SetScript("OnMouseWheel", function(_, delta) onTitleWheel(delta) end)
+    title:SetScript("OnMouseWheel", function(_, delta) onTitleWheel(w, delta) end)
     win.title = title
 
-    win.menuBtn = iconButton(title, "arrow_down.tga", L["Mode, segment and reset"], function() openMenu() end)
+    win.menuBtn = iconButton(title, "arrow_down.tga", L["Mode, segment and reset"], function() openMenu(w) end)
     win.menuBtn:SetPoint("RIGHT", title, "RIGHT", -5, 0)
     win.resetBtn = iconButton(title, "reset.tga", L["Reset"], function() Meter:Reset() end)
     win.resetBtn:SetPoint("RIGHT", win.menuBtn, "LEFT", -4, 0)
+    win.gearBtn = iconButton(title, "gear.tga", L["Settings"], openOptions)
+    win.gearBtn:SetPoint("RIGHT", win.resetBtn, "LEFT", -4, 0)
 
     win.count = title:CreateFontString(nil, "OVERLAY")
     UI.FontFor("meter", win.count, 9)
-    win.count:SetPoint("RIGHT", win.resetBtn, "LEFT", -6, 0)
+    win.count:SetPoint("RIGHT", win.gearBtn, "LEFT", -6, 0)
     win.count:SetTextColor(0.55, 0.55, 0.6)
 
     win.titleText = title:CreateFontString(nil, "OVERLAY")
@@ -541,12 +805,12 @@ local function build()
     win.titleText:SetWordWrap(false)
     win.titleText:SetTextColor(accent.r, accent.g, accent.b)
 
-    -- Body: the bar rows live here (Task 4); wheel scrolls.
+    -- Body: the bar rows live here; wheel scrolls.
     win.body = CreateFrame("Frame", nil, win)
     win.body:SetPoint("TOPLEFT",     win, "TOPLEFT",     PAD, -(TITLE_H + PAD))
     win.body:SetPoint("BOTTOMRIGHT", win, "BOTTOMRIGHT", -PAD, PAD)
     win.body:EnableMouseWheel(true)
-    win.body:SetScript("OnMouseWheel", function(_, delta) onWheel(delta) end)
+    win.body:SetScript("OnMouseWheel", function(_, delta) onWheel(w, delta) end)
 
     win.empty = win.body:CreateFontString(nil, "OVERLAY")
     UI.FontFor("meter", win.empty, 11)
@@ -556,11 +820,11 @@ local function build()
 
     -- Mover box (edit mode); the resize grip is its child, so it shows and
     -- hides with the box and never needs its own edit-mode hook.
-    mover = ns:CreateMover(win, {
-        db = db, key = "meter", scalable = true,
-        label = L["Combat Meter"], width = 220, height = 40,
+    local mover = ns:CreateMover(win, {
+        db = wdb, key = "meter" .. i, scalable = true,
+        label = format(L["Combat Meter %d"], i), width = 220, height = 40,
     })
-    ns:ApplyMover(mover)
+    w.mover = mover
 
     local grip = CreateFrame("Button", nil, mover)
     grip:SetSize(14, 14)
@@ -573,50 +837,71 @@ local function build()
     grip:SetScript("OnMouseDown", function() win:StartSizing("BOTTOMRIGHT") end)
     grip:SetScript("OnMouseUp", function()
         win:StopMovingOrSizing()
-        -- mod.db, not the captured db: a profile switch swaps the table.
-        mod.db.width  = floor(win:GetWidth()  + 0.5)
-        mod.db.height = floor(win:GetHeight() + 0.5)
-        savePosition()
-        if mover then ns:RefreshMoverGeometry(mover) end
-        layoutRows()
-        refresh()
+        if not w.db then return end
+        w.db.width  = floor(win:GetWidth()  + 0.5)
+        w.db.height = floor(win:GetHeight() + 0.5)
+        savePosition(w)
+        ns:RefreshMoverGeometry(mover)
+        layoutRows(w)
+        refresh(w)
     end)
     win.grip = grip
+    return w
+end
 
-    if ns.RegisterEditModeHook then
-        ns:RegisterEditModeHook(function() applyVisibility() end)
+-- Points slot i at its window table: the mover reads opts.db at use time, so
+-- a profile switch or a closed window in front of this one only re-binds.
+local function bind(w, wdb)
+    w.db      = wdb
+    w.mode    = wdb.mode
+    w.segment = wdb.segment
+    w.scroll  = 0
+    w.lastTitle, w.lastCount = nil, nil
+    w.mover.opts.db = wdb
+    w.frame:SetSize(wdb.width, wdb.height)
+    ns:ApplyMover(w.mover)
+    layoutRows(w)
+    refresh(w)
+end
+
+syncFrames = function()
+    local list = ensureWindows()
+    for i = 1, #list do
+        local w = frames[i] or build(i, list[i])
+        bind(w, list[i])
     end
+    for i = #list + 1, #frames do
+        local w = frames[i]
+        w.db = nil
+        w.frame:Hide()
+    end
+    applyVisibility()
+    if UI.RebuildCurrentPage and UI.currentModule == "meter" then UI:RebuildCurrentPage() end
 end
 
 ------------------------------------------------------------------------
--- Module hooks (called from Modules/Meter.lua)
+-- Module hooks (called from Modules/Meter.lua and MeterOptions.lua)
 ------------------------------------------------------------------------
 function mod:ApplyWindow()
-    if not win then return end
-    local db = self.db
-    win:SetSize(db.width, db.height)
-    ns:ApplyMover(mover)
-    layoutRows()
-    refresh()
-    applyVisibility()
+    if not self.active then return end
+    syncFrames()
 end
 
 function mod:WindowEnable()
-    build()
-    local db = self.db
-    mode    = MODE_IDX[db.defaultMode] and db.defaultMode or "damage"
-    segment = (db.defaultSegment == "overall") and "overall" or "current"
-    scroll  = 0
     self:RegisterEvent("PLAYER_REGEN_DISABLED", applyVisibility)
     self:RegisterEvent("PLAYER_REGEN_ENABLED",  applyVisibility)
     self:RegisterEvent("GROUP_ROSTER_UPDATE",   applyVisibility)
     Meter:SetListener(onEngine)
-    self:ApplyWindow()
+    if not self._editHook and ns.RegisterEditModeHook then
+        self._editHook = true
+        ns:RegisterEditModeHook(function() applyVisibility() end)
+    end
+    syncFrames()
     if Meter:InCombat() then startTicker() end
 end
 
 function mod:WindowDisable()
     stopTicker()
     Meter:SetListener(nil)
-    if win then win:Hide() end
+    for i = 1, #frames do frames[i].frame:Hide() end
 end
