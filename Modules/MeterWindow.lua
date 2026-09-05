@@ -48,7 +48,7 @@ local lastCombatEnd  = 0
 local hideTimerArmed = false
 
 -- Forward declarations; filled in further down.
-local layoutRows, refresh, applyVisibility, openMenu, rowEnter, syncFrames
+local layoutRows, refresh, applyVisibility, openMenu, rowEnter, syncFrames, dragStart, dragStop
 
 ------------------------------------------------------------------------
 -- Labels
@@ -339,6 +339,9 @@ local function createRow(w)
     r:SetScript("OnEnter", rowEnter)
     r:SetScript("OnLeave", function() UI:HideTooltip() end)
     r:SetScript("OnMouseWheel", function(self, delta) onWheel(self.win, delta) end)
+    r:RegisterForDrag("LeftButton")
+    r:SetScript("OnDragStart", function(self) dragStart(self.win) end)
+    r:SetScript("OnDragStop",  function(self) dragStop(self.win) end)
     return r
 end
 
@@ -550,7 +553,8 @@ local function newWindowDB(mode, segment, x, y, width, height, scale, unlocked)
     return { mode = MODE_IDX[mode] and mode or "damage",
              segment = (segment == "overall") and "overall" or "current",
              x = x or 0, y = y or 0, width = width or 220, height = height or 160,
-             scale = scale or 1, unlocked = unlocked and true or false }
+             scale = scale or 1, unlocked = unlocked and true or false,
+             locked = true }
 end
 
 -- Empty list (fresh profile, or one written by part 1): window 1 inherits
@@ -576,6 +580,7 @@ local function ensureWindows()
         e.x, e.y = e.x or 0, e.y or 0
         e.width, e.height = e.width or 220, e.height or 160
         e.scale = e.scale or 1
+        if e.locked == nil then e.locked = true end
     end
     return list
 end
@@ -589,12 +594,52 @@ function mod:AddWindow(mode, fromIndex)
     pageChanged()
 end
 
+-- Mover keys are slot numbers, so closing a window shifts every key above it.
+-- Links stored under the old keys (as child or as parent) move with the
+-- window; links to the closed window are dropped.
+local function remapLinks(removed)
+    local p = ns.db and ns.db.profile
+    local store = p and p.moverLinks
+    if type(store) ~= "table" then return end
+    local function shift(key)
+        local i = type(key) == "string" and tonumber(key:match("^meter(%d+)$"))
+        if not i then return key, false end
+        if i == removed then return nil, true end
+        if i > removed then return "meter" .. (i - 1), true end
+        return key, true
+    end
+    local moved = {}
+    for key, link in pairs(store) do
+        local nk, isMeter = shift(key)
+        local nt, toMeter = shift(type(link) == "table" and link.to or nil)
+        if isMeter or toMeter then
+            store[key] = nil
+            if nk and nt then
+                link.to   = nt
+                moved[nk] = link
+            end
+        end
+    end
+    for key, link in pairs(moved) do store[key] = link end
+end
+
 function mod:CloseWindow(index)
     local list = ensureWindows()
     if #list <= 1 or not list[index] then return end
     remove(list, index)
-    if mod.active then syncFrames() end
+    remapLinks(index)
+    if mod.active then
+        syncFrames()
+        ns:ApplyAllMoverLinks()
+    end
     pageChanged()
+end
+
+function mod:ToggleLock(index)
+    local w = frames[index]
+    if not (w and w.db) then return end
+    w.db.locked = not w.db.locked
+    if w.paintLock then w.paintLock() end
 end
 
 function mod:SetMode(index, m)
@@ -626,6 +671,56 @@ local function onTitleWheel(w, delta)
     mod:SetMode(w.index, MODES[i])
 end
 
+-- Docking uses the framework's mover links, so an anchored window also shows
+-- up as linked in edit mode and follows whenever its parent moves.
+local SIDES = { "BOTTOM", "TOP", "LEFT", "RIGHT" }
+local function sideLabel(side)
+    if side == "BOTTOM" then return L["Below"] end
+    if side == "TOP"    then return L["Above"] end
+    if side == "LEFT"   then return L["Left"] end
+    return L["Right"]
+end
+
+local function dock(w, parentKey, side)
+    local m = w.mover
+    if not parentKey then
+        ns:SetMoverLink(m, nil)
+        return
+    end
+    -- SetMoverLink measures the current distance; the side call then docks
+    -- flush, and the apply/reposition pair moves the window onto its edge
+    -- before its own followers are carried along (order matters, see Core).
+    if ns:SetMoverLink(m, parentKey, side) and ns:SetMoverLinkSide(m, side, 0) then
+        ns:ApplyMoverLink(m)
+        ns:OnMoverRepositioned(m)
+    end
+end
+
+local function anchorEntries(w)
+    local key = "meter" .. w.index
+    local e = { { text = L["None"],
+                  checked = function() return not ns:GetMoverLink(key) end,
+                  func = function() dock(w, nil) end } }
+    for j = 1, #frames do
+        local o = frames[j]
+        if o ~= w and o.db then
+            local pkey = "meter" .. j
+            for i = 1, #SIDES do
+                local side = SIDES[i]
+                e[#e + 1] = {
+                    text = format(L["Combat Meter %d"], j) .. " \194\183 " .. sideLabel(side),
+                    checked = function()
+                        local l = ns:GetMoverLink(key)
+                        return l and l.to == pkey and l.side == side
+                    end,
+                    func = function() dock(w, pkey, side) end,
+                }
+            end
+        end
+    end
+    return e
+end
+
 local function menuEntries(w)
     local idx = w.index
     local e = {}
@@ -648,6 +743,7 @@ local function menuEntries(w)
         local m = MODES[i]
         sub[#sub + 1] = { text = modeLabel(m), func = function() mod:AddWindow(m, idx) end }
     end
+    e[#e + 1] = { text = L["Anchor to"], submenu = anchorEntries(w) }
     e[#e + 1] = { text = L["New window"], submenu = sub }
     if #mod.db.windows > 1 then
         e[#e + 1] = { text = L["Close window"], func = function() mod:CloseWindow(idx) end }
@@ -723,7 +819,12 @@ local function iconButton(parent, tex, tipText, onClick)
         UI:ShowTooltip(self, self.tipText)
     end)
     b:SetScript("OnLeave", function(self)
-        self.tex:SetVertexColor(0.6, 0.6, 0.65)
+        local c = self.tint
+        if c then
+            self.tex:SetVertexColor(c.r, c.g, c.b)
+        else
+            self.tex:SetVertexColor(0.6, 0.6, 0.65)
+        end
         UI:HideTooltip()
     end)
     b:SetScript("OnClick", onClick)
@@ -735,7 +836,30 @@ local function savePosition(w)
     if x and y then
         w.db.x, w.db.y = x, y
         ns:ApplyMover(w.mover)
+        -- Re-measures this window's own link and carries anything docked to it.
+        ns:OnMoverRepositioned(w.mover)
     end
+end
+
+-- Left-drag anywhere on an unlocked window moves it; the padlock in the
+-- title bar decides. Locked windows still move through the edit-mode box.
+dragStart = function(w)
+    if not w.db or w.db.locked then return end
+    w.dragging = true
+    w.frame:StartMoving()
+end
+
+dragStop = function(w)
+    if not w.dragging then return end
+    w.dragging = nil
+    w.dragEnd  = GetTime()
+    w.frame:StopMovingOrSizing()
+    savePosition(w)
+end
+
+-- OnMouseUp follows a drag release in either order with OnDragStop.
+local function justDragged(w)
+    return w.dragging or (w.dragEnd and GetTime() - w.dragEnd < 0.2)
 end
 
 local function build(i, wdb)
@@ -778,14 +902,11 @@ local function build(i, wdb)
     title.bg:SetColorTexture(1, 1, 1, 0.04)
     title:EnableMouse(true)
     title:EnableMouseWheel(true)
-    title:RegisterForDrag("RightButton")
-    title:SetScript("OnDragStart", function() win:StartMoving() end)
-    title:SetScript("OnDragStop", function()
-        win:StopMovingOrSizing()
-        savePosition(w)
-    end)
+    title:RegisterForDrag("LeftButton")
+    title:SetScript("OnDragStart", function() dragStart(w) end)
+    title:SetScript("OnDragStop", function() dragStop(w) end)
     title:SetScript("OnMouseUp", function(_, button)
-        if button == "LeftButton" then openMenu(w) end
+        if button == "LeftButton" and not justDragged(w) then openMenu(w) end
     end)
     title:SetScript("OnMouseWheel", function(_, delta) onTitleWheel(w, delta) end)
     win.title = title
@@ -796,10 +917,25 @@ local function build(i, wdb)
     win.resetBtn:SetPoint("RIGHT", win.menuBtn, "LEFT", -4, 0)
     win.gearBtn = iconButton(title, "gear.tga", L["Settings"], openOptions)
     win.gearBtn:SetPoint("RIGHT", win.resetBtn, "LEFT", -4, 0)
+    win.lockBtn = iconButton(title, "lock.tga", "", function() mod:ToggleLock(w.index) end)
+    win.lockBtn:SetPoint("RIGHT", win.gearBtn, "LEFT", -4, 0)
+    w.paintLock = function()
+        local b = win.lockBtn
+        if not w.db then return end
+        local locked = w.db.locked
+        b.tex:SetTexture(ICONS .. (locked and "lock.tga" or "lock_open.tga"))
+        b.tipText = locked and L["Unlock position"] or L["Lock position"]
+        b.tint = (not locked) and ns.COLORS.accent or nil
+        if b.tint then
+            b.tex:SetVertexColor(b.tint.r, b.tint.g, b.tint.b)
+        else
+            b.tex:SetVertexColor(0.6, 0.6, 0.65)
+        end
+    end
 
     win.count = title:CreateFontString(nil, "OVERLAY")
     UI.FontFor("meter", win.count, 9)
-    win.count:SetPoint("RIGHT", win.gearBtn, "LEFT", -6, 0)
+    win.count:SetPoint("RIGHT", win.lockBtn, "LEFT", -6, 0)
     win.count:SetTextColor(0.55, 0.55, 0.6)
 
     win.titleText = title:CreateFontString(nil, "OVERLAY")
@@ -814,8 +950,12 @@ local function build(i, wdb)
     win.body = CreateFrame("Frame", nil, win)
     win.body:SetPoint("TOPLEFT",     win, "TOPLEFT",     PAD, -(TITLE_H + PAD))
     win.body:SetPoint("BOTTOMRIGHT", win, "BOTTOMRIGHT", -PAD, PAD)
+    win.body:EnableMouse(true)
     win.body:EnableMouseWheel(true)
     win.body:SetScript("OnMouseWheel", function(_, delta) onWheel(w, delta) end)
+    win.body:RegisterForDrag("LeftButton")
+    win.body:SetScript("OnDragStart", function() dragStart(w) end)
+    win.body:SetScript("OnDragStop",  function() dragStop(w) end)
 
     win.empty = win.body:CreateFontString(nil, "OVERLAY")
     UI.FontFor("meter", win.empty, 11)
@@ -847,6 +987,7 @@ local function build(i, wdb)
         w.db.height = floor(win:GetHeight() + 0.5)
         savePosition(w)
         ns:RefreshMoverGeometry(mover)
+        ns:RepositionMoverChildren(mover)
         layoutRows(w)
         refresh(w)
     end)
@@ -863,6 +1004,8 @@ local function bind(w, wdb)
     w.scroll  = 0
     w.lastTitle, w.lastCount = nil, nil
     w.mover.opts.db = wdb
+    w.dragging, w.dragEnd = nil, nil
+    if w.paintLock then w.paintLock() end
     w.frame:SetSize(wdb.width, wdb.height)
     ns:ApplyMover(w.mover)
     layoutRows(w)

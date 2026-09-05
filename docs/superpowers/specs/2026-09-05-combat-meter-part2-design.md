@@ -208,3 +208,26 @@ eigenes Aussehen.
    dem unterbrochenen Zauber im Tooltip, Bannung beim Priester, ein Tod mit
    Zeit und Todesstoß; Totstellen des Jägers zählt nicht.
 5. Checker: `node tools/check.js`, `node tools/optcheck.cjs`.
+
+## Nachtrag 05.09.2026: Schloss und Andocken
+
+Vom Nutzer nach der Abnahme gewünscht, im selben Zug gebaut.
+
+- **Schloss** in der Titelzeile (links vom Zahnrad, `lock.tga` / `lock_open.tga`
+  aus dem Lucide-Satz). Je Fenster `locked` (Standard an). Entsperrt: Linksziehen
+  auf Titel, Fläche oder Balken verschiebt das Fenster, das Schloss leuchtet in
+  Akzentfarbe. Gesperrt: kein Ziehen; der Bearbeiten-Modus-Mover bewegt weiter.
+  Das Rechtsziehen am Titel entfällt.
+- **Andocken** über das Titelmenü „Ankern an": Untermenü mit „Keine" und je
+  anderem Fenster vier Einträgen (Unten, Oben, Links, Rechts). Nutzt die
+  Mover-Links des Gerüsts (`ns:SetMoverLink` + `SetMoverLinkSide(side, 0)` +
+  `ApplyMoverLink` + `OnMoverRepositioned`), also dieselbe Verankerung wie im
+  Bearbeiten-Modus. Verschieben eines Fensters trägt Angedockte mit
+  (`OnMoverRepositioned` in `savePosition`), Größenänderung ebenso
+  (`RepositionMoverChildren`).
+- **Schließen mit Links**: Mover-Schlüssel sind Platznummern; beim Schließen
+  werden die Link-Einträge im Profil (`moverLinks`) auf die verschobenen
+  Schlüssel umgeschrieben, Links auf das geschlossene Fenster verworfen,
+  danach `ApplyAllMoverLinks`.
+- Neue Schlüssel: `Lock position`, `Unlock position`; Modulbeschreibung und
+  Fenster-Zeile der Versionshinweise angepasst.
