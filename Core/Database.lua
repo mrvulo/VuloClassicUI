@@ -1230,8 +1230,16 @@ function ns:ExportProfileString(name, opts)
     if opts then
         if opts.modules then
             partial = true
-            for k in pairs(copy.modules or {}) do
+            copy.modules = copy.modules or {}
+            for k in pairs(copy.modules) do
                 if not opts.modules[k] then copy.modules[k] = nil end
+            end
+            -- A module sitting entirely on its defaults was stripped to nothing
+            -- above and would vanish from the string; the importer merges module
+            -- by module, so it would then keep its OWN values. An empty table
+            -- says "this module, at defaults" and replaces them.
+            for k, on in pairs(opts.modules) do
+                if on and ns.modules[k] and copy.modules[k] == nil then copy.modules[k] = {} end
             end
         end
         if opts.layout == false then
