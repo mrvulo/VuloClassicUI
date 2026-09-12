@@ -58,7 +58,7 @@ local hideTimerArmed = false
 -- declaration those calls resolved to a nil global, and every mode change
 -- from the title menu ended in a silent Lua error after the visible work.
 local layoutRows, refresh, applyVisibility, openMenu, rowEnter, syncFrames, dragStart, dragStop
-local pageChanged, syncThreatEvents
+local pageChanged, syncThreatEvents, onRowClick, justDragged
 
 ------------------------------------------------------------------------
 -- Labels
@@ -444,6 +444,7 @@ local function createRow(w)
     r:RegisterForDrag("LeftButton")
     r:SetScript("OnDragStart", function(self) dragStart(self.win) end)
     r:SetScript("OnDragStop",  function(self) dragStop(self.win) end)
+    r:SetScript("OnMouseUp", function(self, btn) onRowClick(self, btn) end)
     return r
 end
 
@@ -487,7 +488,13 @@ end
 ------------------------------------------------------------------------
 local function setTitle(w, seg, first, lastIdx, n)
     local win = w.frame
-    local t = modeLabel(w.mode) .. " \194\183 " .. segmentLabel(w, seg)
+    local t
+    if w.detail then
+        local p = seg and seg.players[w.detail]
+        t = ((p and p.name) or "?") .. " \194\183 " .. modeLabel(w.mode)
+    else
+        t = modeLabel(w.mode) .. " \194\183 " .. segmentLabel(w, seg)
+    end
     if t ~= w.lastTitle then
         win.titleText:SetText(t)
         w.lastTitle = t
@@ -517,6 +524,104 @@ local function paintClass(r, p, db)
     end
 end
 
+------------------------------------------------------------------------
+-- Detail view: a left-click on a bar turns the window into that player's
+-- ability list for the current mode (right-click or a click on the title
+-- goes back). Window state only, never saved; any mode or segment change
+-- and every reset drop it.
+------------------------------------------------------------------------
+local function refreshDetail(w, seg)
+    local db    = mod.db
+    local mode  = w.mode
+    local order = w.order
+    local vals  = w.vals
+    local rows  = w.rows
+    local p     = seg and seg.players[w.detail]
+    local key   = SUB_KEY[mode]
+    local t     = p and key and p[key]
+    if not t then
+        w.detail = nil
+        return false
+    end
+    w._wasDetail = true
+    local n = 0
+    for i = 1, #order do order[i] = nil end
+    for id, v in pairs(t) do
+        if v > 0 then
+            n = n + 1
+            order[n] = id
+            vals[id] = v
+        end
+    end
+    if n == 0 then
+        for i = 1, #rows do rows[i]:Hide() end
+        setTitle(w, seg, 0, 0, 0)
+        return true
+    end
+    sortSrc = vals
+    sort(order, byCount)
+    local slots = rowSlots(w)
+    local maxScroll = max(0, n - slots)
+    if w.scroll > maxScroll then w.scroll = maxScroll end
+    local scroll = w.scroll
+    local total = 0
+    for i = 1, n do total = total + vals[order[i]] end
+    local top = vals[order[1]]
+    local isCount = COUNT[mode]
+    local c = ns.ClassColor(p.class)
+    for i = 1, slots do
+        local r   = rows[i]
+        local idx = i + scroll
+        local id  = order[idx]
+        if r and id then
+            local v = vals[id]
+            r:SetValue(top > 0 and v / top or 0)
+            if c then r:SetStatusBarColor(c.r, c.g, c.b, 0.85) else r:SetStatusBarColor(0.6, 0.6, 0.6, 0.85) end
+            r.icon:Hide()
+            r.class = nil
+            r.left:SetPoint("LEFT", r, "LEFT", 4, 0)
+            if db.showRank then
+                r.left:SetFormattedText("%d. %s", idx, spellText(id))
+            else
+                r.left:SetText(spellText(id))
+            end
+            if isCount then
+                r.right:SetFormattedText("%d", v)
+            else
+                r.right:SetFormattedText("%s (%.1f%%)", short(v), total > 0 and v / total * 100 or 0)
+            end
+            r.hl:Hide()
+            r.guid = nil
+            r:Show()
+        elseif r then
+            r.guid = nil
+            r:Hide()
+        end
+    end
+    setTitle(w, seg, scroll + 1, min(scroll + slots, n), n)
+    return true
+end
+
+onRowClick = function(r, btn)
+    local w = r.win
+    if not w.db or justDragged(w) then return end
+    if btn == "RightButton" then
+        if w.detail then
+            w.detail = nil
+            w.scroll = 0
+            layoutRows(w)
+            refresh(w)
+        end
+        return
+    end
+    if btn ~= "LeftButton" or w.detail or not r.guid then return end
+    if not SUB_KEY[w.mode] then return end
+    w.detail = r.guid
+    w.scroll = 0
+    UI:HideTooltip()
+    refresh(w)
+end
+
 refresh = function(w)
     if not w.db then return end
     local db    = mod.db
@@ -528,6 +633,12 @@ refresh = function(w)
     local seg   = segmentOf(w)
     local n     = 0
     local dur   = 0
+    if w.detail and refreshDetail(w, seg) then return end
+    if w._wasDetail then
+        -- back from the detail list: the rows need their class icon slot again
+        w._wasDetail = nil
+        layoutRows(w)
+    end
     if seg then
         dur = (mode ~= "threat") and Meter:Duration(seg) or 0
         for guid, p in pairs(seg.players) do
@@ -705,6 +816,7 @@ local function onEngine(what)
         fmtCount = 0
     else
         resetScroll()
+        for i = 1, #frames do frames[i].detail = nil end
         Meter:ClearDirty()
         refreshAll()
     end
@@ -833,6 +945,7 @@ function mod:SetMode(index, m, quiet)
     w.db.mode = m
     w.mode    = m
     w.scroll  = 0
+    w.detail  = nil
     syncThreatEvents()
     refresh(w)
     if not quiet then pageChanged() end
@@ -854,6 +967,7 @@ function mod:SetSegment(index, s, quiet)
         w.segment    = s
     end
     w.scroll = 0
+    w.detail = nil
     refresh(w)
     if not quiet then pageChanged() end
 end
@@ -941,7 +1055,11 @@ local function sendReport(w, chatType, target)
     local seg = segmentOf(w)
     if not seg then return end
     if w.mode == "threat" then Meter:ThreatSnapshot() end
+    -- the report is always the player list, never an open detail view
+    local wasDetail = w.detail
+    w.detail = nil
     refresh(w)   -- the list is as fresh as the window; a stale order would lie
+    w.detail = wasDetail
     local order, vals = w.order, w.vals
     local n = #order
     if n == 0 then return end
@@ -1168,7 +1286,8 @@ dragStop = function(w)
 end
 
 -- OnMouseUp follows a drag release in either order with OnDragStop.
-local function justDragged(w)
+-- Forward-declared at the top: the row click above this line reads it.
+justDragged = function(w)
     return w.dragging or (w.dragEnd and GetTime() - w.dragEnd < 0.2)
 end
 
@@ -1219,7 +1338,15 @@ local function build(i, wdb)
     title:SetScript("OnDragStart", function() dragStart(w) end)
     title:SetScript("OnDragStop", function() dragStop(w) end)
     title:SetScript("OnMouseUp", function(_, button)
-        if button == "LeftButton" and not justDragged(w) then openMenu(w) end
+        if justDragged(w) then return end
+        if w.detail then
+            -- any click on the title leaves the detail list
+            w.detail = nil
+            w.scroll = 0
+            refresh(w)
+            return
+        end
+        if button == "LeftButton" then openMenu(w) end
     end)
     title:SetScript("OnMouseWheel", function(_, delta) onTitleWheel(w, delta) end)
     win.title = title

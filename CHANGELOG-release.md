@@ -1,4 +1,7 @@
 ## 1.62.0
+**Combat Meter:**
+- A left-click on a bar turns the window into that player's ability list for the current mode, sorted by value with the share of their total; right-click or a click on the title goes back. The list is not saved, and a mode or segment change leaves it.
+
 **Quest Tracker:**
 - **NEW: Quest Tracker** – The quest watch list in the addon font with accent titles and green finished objectives, movable in edit mode once you drag it; until then it keeps the game's own place
 

@@ -7,6 +7,9 @@ local _, ns = ...
 
 ns.CHANGELOG = {
     { version = "1.62.0", sections = {
+        { category = "Combat Meter", lines = {
+            "A left-click on a bar turns the window into that player's ability list for the current mode, sorted by value with the share of their total; right-click or a click on the title goes back. The list is not saved, and a mode or segment change leaves it.",
+        } },
         { category = "Quest Tracker", lines = {
             "NEW: Quest Tracker – The quest watch list in the addon font with accent titles and green finished objectives, movable in edit mode once you drag it; until then it keeps the game's own place",
         } },
