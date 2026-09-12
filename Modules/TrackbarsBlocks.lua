@@ -675,9 +675,11 @@ end
 
 addType("hearth", "Hearthstone", { showLocation = true }, function(b, slot, content, bar)
     local inst = { _key = instKey("hearth", b, bar), _width = 0 }
+    -- Icon at the left edge, text to its right: with no text the icon then
+    -- sits exactly in the measured width instead of 4 px beside it.
     local fs = content:CreateFontString(nil, "OVERLAY")
     UI.FontFor("trackbars", fs, textBlockFontSize(bar, {}))
-    fs:SetPoint("RIGHT", content, "RIGHT", 0, 0)
+    fs:SetPoint("LEFT", content, "LEFT", 0, 0)
     fs:SetWordWrap(false)
     local btn
     local function ensureButton()
@@ -691,7 +693,8 @@ addType("hearth", "Hearthstone", { showLocation = true }, function(b, slot, cont
         btn:SetAttribute("item", GetItemInfo(HEARTHSTONE_ID) or ("item:" .. HEARTHSTONE_ID))
         local sz = math.floor((bar.thickness or 26) * 0.72 + 0.5)
         btn:SetSize(sz, sz)
-        btn:SetPoint("RIGHT", fs, "LEFT", -4, 0)
+        btn:SetPoint("LEFT", content, "LEFT", 0, 0)
+        fs:SetPoint("LEFT", btn, "RIGHT", 4, 0)
         btn.tex = btn:CreateTexture(nil, "ARTWORK")
         btn.tex:SetAllPoints(btn)
         btn.tex:SetTexture(itemIcon(HEARTHSTONE_ID))
@@ -773,39 +776,52 @@ end)
 -- ---------------------------------------------------------------------------
 local PROF_SPELLS = { 2259, 2018, 7411, 4036, 2366, 2108, 2575, 8613, 3908, 25229, 45357 }
 local SECONDARY_SPELLS = { 2550, 3273, 7620 }
-local profIcons        -- spell name -> icon, built lazily (spell data is late)
-local secondaryNames   -- spell name -> true
+-- Which spell OPENS a profession's window, by the profession's skill name.
+-- Gathering has none (its skill spell sits in the spellbook too, so "is the
+-- name a known spell" is not the test); mining opens through smelting, and
+-- fishing would cast the rod, so it is left out on purpose.
+local OPEN_SPELLS = { [2259] = 2259, [2018] = 2018, [7411] = 7411, [4036] = 4036, [2108] = 2108,
+                      [3908] = 3908, [25229] = 25229, [45357] = 45357, [2550] = 2550, [3273] = 3273,
+                      [2575] = 2656 }
+local profIcons        -- skill name -> icon, built lazily (spell data is late)
+local secondaryNames   -- skill name -> true
+local openSpell        -- skill name -> spell name that opens the window
 local function buildProfMaps()
     if profIcons then return end
-    profIcons, secondaryNames = {}, {}
-    for _, id in ipairs(PROF_SPELLS) do
+    profIcons, secondaryNames, openSpell = {}, {}, {}
+    local function learn(id, secondary)
         local name, _, icon = GetSpellInfo(id)
-        if name then profIcons[name] = icon end
+        if not name then return end
+        profIcons[name] = icon
+        if secondary then secondaryNames[name] = true end
+        local opener = OPEN_SPELLS[id]
+        if opener then
+            local oname = GetSpellInfo(opener)
+            if oname then openSpell[name] = oname end
+        end
     end
-    for _, id in ipairs(SECONDARY_SPELLS) do
-        local name, _, icon = GetSpellInfo(id)
-        if name then profIcons[name] = icon; secondaryNames[name] = true end
-    end
+    for _, id in ipairs(PROF_SPELLS) do learn(id, false) end
+    for _, id in ipairs(SECONDARY_SPELLS) do learn(id, true) end
 end
 
 -- The professions this character has: { name, rank, max, secondary, icon }.
--- A collapsed header in the skill window hides its lines from this API, so
--- collapsed headers are expanded first; that fires SKILL_LINES_CHANGED once,
--- and the second pass finds nothing left to expand.
+-- A collapsed header in the skill window hides its lines from this API. Only
+-- the two headers that hold professions are expanded (the client's own
+-- strings name them); the player's other collapses stay as they are. The
+-- expand fires SKILL_LINES_CHANGED, which refreshes this block once more;
+-- rate-limited so a header the client refuses to expand cannot bounce.
 local lastExpand = 0
 local function professions(includeSecondary)
     buildProfMaps()
     local out = {}
     if not GetNumSkillLines then return out end
-    -- Rate-limited: the expand fires SKILL_LINES_CHANGED, which refreshes
-    -- this block; a header the client refuses to expand must not bounce the
-    -- two into a loop.
     if ExpandSkillHeader and GetTime() - lastExpand > 5 then
+        local wanted = { [_G.TRADE_SKILLS or ""] = true, [_G.SECONDARY_SKILLS or ""] = true }
         for i = 1, GetNumSkillLines() do
-            local _, isHeader, isExpanded = GetSkillLineInfo(i)
-            if isHeader and not isExpanded then
+            local hname, isHeader, isExpanded = GetSkillLineInfo(i)
+            if isHeader and not isExpanded and wanted[hname] then
                 lastExpand = GetTime()
-                ExpandSkillHeader(0)
+                ExpandSkillHeader(i)
                 break
             end
         end
@@ -836,8 +852,9 @@ function(b, slot, content, bar)
         if row then return row end
         if InCombatLockdown() then inst._deferred = true; return nil end
         row = {}
-        -- a known spell of the same name opens a window; gathering has none
-        local opens = GetSpellInfo(p.name) ~= nil
+        local opener = openSpell and openSpell[p.name]
+        local opens = opener ~= nil and GetSpellInfo(opener) ~= nil
+        row.opener = opener
         inst._rowCount = (inst._rowCount or 0) + 1
         local i = inst._rowCount
         if opens then
@@ -878,7 +895,7 @@ function(b, slot, content, bar)
             shown[p.name] = true
             row.name, row.rank, row.max = p.name, p.rank, p.max
             if row.secure and not row.spellSet then
-                row.btn:SetAttribute("spell", p.name)
+                row.btn:SetAttribute("spell", row.opener)
                 row.spellSet = true
             end
             row.tex:SetTexture(p.icon)

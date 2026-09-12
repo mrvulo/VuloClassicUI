@@ -425,8 +425,9 @@ function mod.LayoutBar(barId)
         -- gap; the block itself is centred in its row.
         local H = f:GetHeight()
         if not H or H < 1 then return end
+        -- a scaled block draws taller than the row, so the row grows with it
         local rowH = cfg.thickness or 26
-        local function rowHeight(e) return rowH + (e.b.gap or 10) end
+        local function rowHeight(e) return rowH * ((e.b.scale or 100) / 100) + (e.b.gap or 10) end
         if cfg.sizingMode == "even" then
             local all = {}
             for _, side in ipairs({ "left", "center", "right" }) do
