@@ -26,6 +26,10 @@ for _, key in ipairs({
     "swingtimer", "vulmail", "vulfishing", "vullfg", "vultraining",
     "fixinspect", "fixlfgbrowsenil", "fixguildnews", "fixauctiondropdown",
     "fixbindsocket", "fixcombatglow",
+    -- added 12.09.2026: these had a glyph on disk (or got one now) but were
+    -- missing from this list, so the sidebar showed the fallback for them
+    "meter", "changelog", "actionring", "auras", "trackbars", "talentview",
+    "fixnameplaterole",
 }) do
     MODULE_ICONS[key] = ICON_DIR .. key .. ".tga"
 end

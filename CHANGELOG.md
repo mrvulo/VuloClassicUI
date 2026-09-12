@@ -27,6 +27,9 @@
 **Quest Tracker:**
 - **NEW: Quest Tracker** – The quest watch list in the addon font with accent titles and green finished objectives, movable in edit mode once you drag it; until then it keeps the game's own place
 
+**Settings Window:**
+- Every module row in the sidebar carries its own glyph now. The combat meter, the action ring, the trackbars, the talent window, the nameplate role fix and the new auras and quest tracker used to show the placeholder.
+
 **Trackbars:**
 - **NEW: Vertical** – A bar can stand upright: full height on the left or right screen edge or free-standing, with its blocks stacked top-down
 - **NEW: Professions** – One icon per profession with its skill rank; a crafting icon opens its window, and the secondary skills are optional
