@@ -4,6 +4,8 @@
 //
 // Checks, in order:
 //   1. Lua 5.1 syntax of every .lua file (luaparse)
+//   1c. a local function read above its own definition (compiles as a nil
+//      global; hard fail -- shipped twice on 2026-09-12 before this existed)
 //   2. top-level locals per chunk (Lua 5.1 hard cap: 200; warn at 175)
 //   3. locale coverage: every L["..."] key used in code exists in deDE.lua
 //      (missing keys fall back to English — listed so nothing slips through)
@@ -108,6 +110,80 @@ for (const f of [...files, ...syntaxOnly]) {
 }
 console.log('checked ' + (files.length + syntaxOnly.length) + ' files ('
     + syntaxOnly.length + ' vendor, syntax-only)');
+
+// ---- 1c: local functions read before their definition ------------------------
+// `local function f()` is only a local FROM THAT LINE ON. A call to f written
+// above it -- in an earlier function, say -- compiles as a read of the GLOBAL
+// f, which is nil, and the file parses, the checker was green, and the crash
+// waited for the one code path that runs the line. It shipped twice in one
+// day (pageChanged in the meter window, justDragged an hour later), each time
+// found by the IDE's linter and by nobody else. The fix is always the same:
+// put the name in the forward-declaration list at the top of the file and
+// assign `f = function` where the body lives.
+//
+// A local declaration of the same name at an EARLIER line -- the forward
+// declaration, a parameter, an inner local -- makes the read legitimate; the
+// scoping is approximated by line order, which is exact for the pattern that
+// matters and only ever too lenient otherwise.
+console.log('\n== local functions read before their definition ==');
+{
+    const walkP = (node, fn, parent, key) => {
+        if (!node || typeof node !== 'object') return;
+        if (Array.isArray(node)) { node.forEach(n => walkP(n, fn, parent, key)); return; }
+        fn(node, parent, key);
+        for (const k of Object.keys(node)) if (k !== 'loc' && k !== 'range') walkP(node[k], fn, node, k);
+    };
+    let hits = 0;
+    for (const f of files) {
+        let ast;
+        try { ast = luaparse.parse(fs.readFileSync(f, 'utf8'), { luaVersion: '5.1', locations: true }); }
+        catch (e) { continue; }
+        // late-defined locals: local function NAME / local NAME = function
+        const defs = {};
+        for (const s of ast.body) {
+            if (s.type === 'FunctionDeclaration' && s.isLocal && s.identifier && s.identifier.type === 'Identifier') {
+                defs[s.identifier.name] = s.loc.start.line;
+            } else if (s.type === 'LocalStatement' && s.init && s.init.length === 1 && s.init[0].type === 'FunctionExpression') {
+                defs[s.variables[0].name] = s.loc.start.line;
+            }
+        }
+        if (!Object.keys(defs).length) continue;
+        // every local declaration of those names, any scope, by line
+        const declared = {};
+        const note = (name, line) => { if (defs[name] !== undefined && (declared[name] === undefined || line < declared[name])) declared[name] = line; };
+        walkP(ast, (n) => {
+            if (n.type === 'LocalStatement') for (const v of n.variables) note(v.name, n.loc.start.line);
+            if (n.type === 'FunctionDeclaration' || n.type === 'FunctionExpression') {
+                for (const p of n.parameters || []) if (p.type === 'Identifier') note(p.name, n.loc.start.line);
+                if (n.isLocal && n.identifier && n.identifier.type === 'Identifier') note(n.identifier.name, n.loc.start.line);
+            }
+            if (n.type === 'ForNumericStatement') note(n.variable.name, n.loc.start.line);
+            if (n.type === 'ForGenericStatement') for (const v of n.variables) note(v.name, n.loc.start.line);
+        });
+        const seen = new Set();
+        walkP(ast, (n, parent, key) => {
+            if (n.type !== 'Identifier') return;
+            const name = n.name;
+            const defLine = defs[name];
+            if (defLine === undefined) return;
+            const line = n.loc.start.line;
+            if (line >= defLine) return;
+            if (declared[name] !== undefined && declared[name] <= line) return;
+            // not a read: member names, table keys, declarations, parameters
+            if (parent && (parent.type === 'MemberExpression' && key === 'identifier')) return;
+            if (parent && parent.type === 'TableKeyString') return;
+            if (parent && (parent.type === 'LocalStatement' || parent.type === 'FunctionDeclaration')) return;
+            if (parent && parent.type === 'FunctionExpression') return;
+            const tag = path.relative(ROOT, f) + ':' + line;
+            if (seen.has(tag + name)) return;
+            seen.add(tag + name);
+            hits++;
+            console.log('  NIL-GLOBAL ' + tag + '  ' + name + '() is a local defined at line ' + defLine + ' -- forward-declare it');
+            hardFail = true;
+        });
+    }
+    if (hits === 0) console.log('clean');
+}
 
 // ---- 3: locale coverage -----------------------------------------------------
 console.log('\n== locale coverage (deDE) ==');
