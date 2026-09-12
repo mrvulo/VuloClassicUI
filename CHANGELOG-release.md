@@ -1,10 +1,10 @@
-## 1.60.0
+## 1.60.1
 **Combat Meter:**
-- **NEW: Combat Meter** – A lightweight damage and healing meter as its own HUD module: who did how much, per fight and overall
-- The engine reads your own combat log and counts, per group member, damage, healing, damage taken, interrupts, dispels and deaths, with a per-ability breakdown behind each. Pets, totems and guardians credit their owner, overhealing stays apart from effective healing, and a feigning hunter is not a death. A fight is group-wide: it opens on your own combat or on the first damage a group member deals, takes the boss name from the encounter events, and closes once nobody in the group is fighting any more. The overall total survives a reload and starts fresh when you join a new group.
-- The bars come in class colours with the class icon, rank and name on the left and the total with the per-second value in brackets on the right. Hovering a bar lists the strongest abilities with icon, value and share; the interrupt and dispel modes list what was stopped or removed, and the death mode lists each death with its time and killing blow. Left-click on the title opens the menu, the mouse wheel on the title cycles the eight modes, the wheel over the bars scrolls, the gear opens the options. Right-drag the title to move a window, resize it in edit mode.
-- Open as many windows as you need: the title menu adds a window for any mode and closes one again, and every window keeps its own mode, segment, position and size while the look and the visibility rules are shared. The padlock in the title bar frees a window for dragging or pins it in place, and the anchor entry in the title menu docks a window to any side of another so the two move as one.
-- Options cover bar height, font size, texture, the class icon, how many abilities the tooltip lists, which parts of the bar text to show, the visibility rules (only in a group, in combat, out of combat with a delay) and the window list.
+- Environmental damage counts as damage taken: falling, drowning, lava and the like land on the victim under their kind, appear in the breakdown and can be the killing blow. A fall used to leave no trace, and the death line named the spell before it instead. A death without a source shows only the amount.
+- The window rows on the options page no longer take part in talent overrides. Every window carries the same row label, so an override for one window switched the mode of all of them.
 
-**Languages:**
-- Patch notes of versions that have left the in-game list are gone from all nine languages; nothing the interface shows was affected.
+**Profiles:**
+- A partial export keeps a chosen module that stands entirely on its default values. Stripping the defaults used to remove the whole module table, and the import, which replaces module by module, then kept the receiving profile's own values instead. An empty table now means: this module, on defaults.
+
+**Settings:**
+- Talent overrides survive a language change. Their identifiers carried the translated label, so after switching the game language the saved settings were no longer found and nothing was applied. They carry the English key now, and identifiers saved earlier are converted once on load in every profile.

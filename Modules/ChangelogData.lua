@@ -6,6 +6,18 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+    { version = "1.60.1", sections = {
+        { category = "Combat Meter", lines = {
+            "Environmental damage counts as damage taken: falling, drowning, lava and the like land on the victim under their kind, appear in the breakdown and can be the killing blow. A fall used to leave no trace, and the death line named the spell before it instead. A death without a source shows only the amount.",
+            "The window rows on the options page no longer take part in talent overrides. Every window carries the same row label, so an override for one window switched the mode of all of them.",
+        } },
+        { category = "Profiles", lines = {
+            "A partial export keeps a chosen module that stands entirely on its default values. Stripping the defaults used to remove the whole module table, and the import, which replaces module by module, then kept the receiving profile's own values instead. An empty table now means: this module, on defaults.",
+        } },
+        { category = "Settings", lines = {
+            "Talent overrides survive a language change. Their identifiers carried the translated label, so after switching the game language the saved settings were no longer found and nothing was applied. They carry the English key now, and identifiers saved earlier are converted once on load in every profile.",
+        } },
+    } },
     { version = "1.60.0", sections = {
         { category = "Combat Meter", lines = {
             "NEW: Combat Meter – A lightweight damage and healing meter as its own HUD module: who did how much, per fight and overall",
@@ -457,59 +469,6 @@ ns.CHANGELOG = {
         } },
         { category = "Talent Window", lines = {
             "On the Wrath client the talent tooltip showed a placeholder instead of the description, and the talent key would open the window but not close it — both fixed",
-        } },
-    } },
-    { version = "1.46.0", sections = {
-        { category = "Action Bars", lines = {
-            "The page opens with two modes: Standard keeps Blizzard's bars with the skin rows, Modern runs the addon's own bars with a live preview, a per-bar background, button press and hover tints and an XP bar texture",
-        } },
-        { category = "Cast Bar", lines = {
-            "NEW: Modern – Third player cast bar style: flat look with name and timer on the bar, plus bar texture, border, a coloured last tick and a latency readout",
-            "The options page carries a live preview; clicking its icon or bar jumps to the matching section",
-        } },
-        { category = "Character Panel", lines = {
-            "Enchant and gem displays no longer displace each other on non-English clients, and Chinese enchant text is no longer cut mid-character",
-        } },
-        { category = "Cooldown Manager", lines = {
-            "Tracked entries sit two per row, each with a gear: park an entry without deleting it, move or remove it, set conditions, and override Only what I cast myself for that entry alone",
-        } },
-        { category = "Edit Mode", lines = {
-            "NEW: See-through – Hides the box fill and labels while editing, so you can see the interface you are aligning",
-            "Coordinates appear on the box while dragging or nudging, and the window being snapped to pulses white",
-            "The loot window can be moved on Wrath clients",
-        } },
-        { category = "Friends List", lines = {
-            "NEW: Widen window – Extra width so long names, notes and zones fit on one line",
-        } },
-        { category = "General", lines = {
-            "The close glyph of every window is larger now",
-        } },
-        { category = "Nameplates", lines = {
-            "Three tabs with a pinned live preview, a name-in-bar option and thousands separators on health numbers",
-        } },
-        { category = "Options", lines = {
-            "Gear rows open inside their own column, aura rows align per row, helper tools share one tab, and the pinned page header of the last visited tab is cleared on switching",
-        } },
-        { category = "Patch Notes", lines = {
-            "Only the last five versions build at once; a button loads the older ones",
-        } },
-        { category = "Power Bar", lines = {
-            "Orientation, fill opacity, frame strata and a live preview on the options page",
-        } },
-        { category = "Profiles", lines = {
-            "A profile string can carry a selection: chosen modules, the window layout, talent overrides, and the account-wide fonts and colours",
-        } },
-        { category = "Reminders", lines = {
-            "Per-rule switches with class-coloured names, a group scan for missing buffs, preferred food, flask and weapon oil, raid and dungeon thresholds, glow styles, scale and a live preview; middle-click hides a reminder until the next loading screen",
-        } },
-        { category = "Settings", lines = {
-            "Broken numeric values are removed before saving and reported at the next login. A single such value used to reset every setting of the account to defaults",
-        } },
-        { category = "Shaman", lines = {
-            "Totemic Recall stands as its own button after the elements on Wrath clients",
-        } },
-        { category = "Talents", lines = {
-            "NEW: Talent Window – All three talent trees side by side with live ranks and click-to-learn on Wrath clients; glyphs stay one button away",
         } },
     } },
 }
