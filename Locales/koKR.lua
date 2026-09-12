@@ -3485,4 +3485,15 @@ ns:RegisterLocale("koKR", function() return {
     ["Done colour"] = "완료 색상",
     ["|cffaaaaaaThe list keeps the game's own place until you drag its box in edit mode; from then on it stays where you put it.|r"] = "|cffaaaaaa편집 모드에서 상자를 드래그하기 전까지 목록은 게임의 기본 위치에 남습니다. 그 뒤로는 놓아둔 곳에 머뭅니다.|r",
     ["Back to the game's place"] = "게임의 기본 위치로",
+    -- Auras module
+    ["Your buffs and debuffs as rows of dark icons with the time left underneath, replacing the game's own frames. Right-click cancels a buff. Ships disabled: switch it on here."] = "강화 효과와 약화 효과를 어두운 아이콘 줄로 표시하고 아래에 남은 시간을 보여줍니다. 게임 기본 창을 대체합니다. 오른쪽 클릭으로 강화 효과를 취소합니다. 기본 꺼짐: 여기서 켜세요.",
+    ["Enable auras"] = "오라 사용",
+    ["Grow to the left"] = "왼쪽으로 확장",
+    ["New icons appear to the left of the first one, as the game does it; off grows to the right."] = "새 아이콘이 게임처럼 첫 번째 아이콘의 왼쪽에 나타납니다. 끄면 오른쪽으로 확장됩니다.",
+    ["Sort by"] = "정렬 기준",
+    ["Time left"] = "남은 시간",
+    ["Order applied"] = "적용 순서",
+    ["Own auras first"] = "내 오라 먼저",
+    ["Show time left"] = "남은 시간 표시",
+    ["|cffaaaaaaBuffs and debuffs are two boxes in edit mode; drag each where you want it.|r"] = "|cffaaaaaa편집 모드에서 강화 효과와 약화 효과는 두 개의 상자입니다. 각각 원하는 곳으로 드래그하세요.|r",
 } end)

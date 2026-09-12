@@ -3485,4 +3485,15 @@ ns:RegisterLocale("ruRU", function() return {
     ["Done colour"] = "Цвет выполнения",
     ["|cffaaaaaaThe list keeps the game's own place until you drag its box in edit mode; from then on it stays where you put it.|r"] = "|cffaaaaaaСписок остаётся на месте, заданном игрой, пока вы не перетащите его рамку в режиме редактирования; после этого он остаётся там, куда вы его поместили.|r",
     ["Back to the game's place"] = "Вернуть на место игры",
+    -- Auras module
+    ["Your buffs and debuffs as rows of dark icons with the time left underneath, replacing the game's own frames. Right-click cancels a buff. Ships disabled: switch it on here."] = "Ваши положительные и отрицательные эффекты рядами тёмных значков с оставшимся временем под ними вместо рамок игры. ПКМ снимает положительный эффект. По умолчанию выключено: включите здесь.",
+    ["Enable auras"] = "Включить ауры",
+    ["Grow to the left"] = "Расти влево",
+    ["New icons appear to the left of the first one, as the game does it; off grows to the right."] = "Новые значки появляются слева от первого, как в игре; выключено — рост вправо.",
+    ["Sort by"] = "Сортировать по",
+    ["Time left"] = "Оставшееся время",
+    ["Order applied"] = "Порядок наложения",
+    ["Own auras first"] = "Свои ауры первыми",
+    ["Show time left"] = "Показывать оставшееся время",
+    ["|cffaaaaaaBuffs and debuffs are two boxes in edit mode; drag each where you want it.|r"] = "|cffaaaaaaПоложительные и отрицательные эффекты — две рамки в режиме редактирования; перетащите каждую куда нужно.|r",
 } end)

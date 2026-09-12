@@ -3478,4 +3478,15 @@ ns:RegisterLocale("zhCN", function() return {
     ["Done colour"] = "完成颜色",
     ["|cffaaaaaaThe list keeps the game's own place until you drag its box in edit mode; from then on it stays where you put it.|r"] = "|cffaaaaaa在编辑模式中拖动其方框之前，列表保持游戏默认位置；之后它会停留在你放置的地方。|r",
     ["Back to the game's place"] = "回到游戏默认位置",
+    -- Auras module
+    ["Your buffs and debuffs as rows of dark icons with the time left underneath, replacing the game's own frames. Right-click cancels a buff. Ships disabled: switch it on here."] = "你的增益和减益以深色图标行显示，下方带剩余时间，替代游戏自带框架。右键取消增益。默认关闭：在此开启。",
+    ["Enable auras"] = "启用光环",
+    ["Grow to the left"] = "向左扩展",
+    ["New icons appear to the left of the first one, as the game does it; off grows to the right."] = "新图标出现在第一个图标的左侧，与游戏相同；关闭则向右扩展。",
+    ["Sort by"] = "排序方式",
+    ["Time left"] = "剩余时间",
+    ["Order applied"] = "施加顺序",
+    ["Own auras first"] = "自己的光环优先",
+    ["Show time left"] = "显示剩余时间",
+    ["|cffaaaaaaBuffs and debuffs are two boxes in edit mode; drag each where you want it.|r"] = "|cffaaaaaa在编辑模式中，增益和减益是两个方框；把每个拖到你想要的位置。|r",
 } end)

@@ -353,6 +353,12 @@ function mod:OnEnable()
         if def.key == "minimap" and ns.IsModuleEnabled and ns:IsModuleEnabled("minimapstyle") then
             frame = nil
         end
+        -- the auras module hides the game's buff frame under a shadow parent
+        -- and brings its own movers; a BUFFS box here would move a frame
+        -- nobody can see
+        if def.key == "buffs" and ns.IsModuleEnabled and ns:IsModuleEnabled("auras") then
+            frame = nil
+        end
         if frame and not def._wired then
             def._wired = true
             local fdb = mod.db.frames[def.key] or {}

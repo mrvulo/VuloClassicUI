@@ -3566,6 +3566,17 @@ ns:RegisterLocale("deDE", function() return {
     ["Done colour"] = "Erledigt-Farbe",
     ["|cffaaaaaaThe list keeps the game's own place until you drag its box in edit mode; from then on it stays where you put it.|r"] = "|cffaaaaaaDie Liste behält den Platz des Spiels, bis du ihren Kasten im Bearbeitungsmodus ziehst; ab dann bleibt sie, wo du sie hingelegt hast.|r",
     ["Back to the game's place"] = "Zurück an den Platz des Spiels",
+    -- Auras module
+    ["Your buffs and debuffs as rows of dark icons with the time left underneath, replacing the game's own frames. Right-click cancels a buff. Ships disabled: switch it on here."] = "Deine Stärkungen und Schwächungen als Reihen dunkler Symbole mit der Restzeit darunter, anstelle der Fenster des Spiels. Rechtsklick bricht eine Stärkung ab. Ab Werk aus: hier einschalten.",
+    ["Enable auras"] = "Auren aktivieren",
+    ["Grow to the left"] = "Nach links wachsen",
+    ["New icons appear to the left of the first one, as the game does it; off grows to the right."] = "Neue Symbole erscheinen links vom ersten, wie im Spiel; aus wächst nach rechts.",
+    ["Sort by"] = "Sortieren nach",
+    ["Time left"] = "Restzeit",
+    ["Order applied"] = "Reihenfolge des Auftragens",
+    ["Own auras first"] = "Eigene Auren zuerst",
+    ["Show time left"] = "Restzeit anzeigen",
+    ["|cffaaaaaaBuffs and debuffs are two boxes in edit mode; drag each where you want it.|r"] = "|cffaaaaaaStärkungen und Schwächungen sind im Bearbeitungsmodus zwei Kästen; zieh jeden dorthin, wo du ihn willst.|r",
     -- Patch notes 1.60.1
     ["Environmental damage counts as damage taken: falling, drowning, lava and the like land on the victim under their kind, appear in the breakdown and can be the killing blow. A fall used to leave no trace, and the death line named the spell before it instead. A death without a source shows only the amount."] = "Umgebungsschaden zählt als erlittener Schaden: Fallen, Ertrinken, Lava und Ähnliches landen beim Opfer unter ihrer Art, erscheinen in der Aufschlüsselung und können der Todesstoß sein. Ein Sturz hinterließ vorher keine Spur, und die Todeszeile nannte stattdessen den Zauber davor. Ein Tod ohne Quelle zeigt nur den Betrag.",
     ["The window rows on the options page no longer take part in talent overrides. Every window carries the same row label, so an override for one window switched the mode of all of them."] = "Die Fensterzeilen auf der Optionsseite nehmen nicht mehr an Talent-Overrides teil. Jedes Fenster trägt dieselbe Zeilenbeschriftung, darum stellte ein Override für ein Fenster den Modus aller Fenster um.",

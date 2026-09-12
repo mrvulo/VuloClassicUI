@@ -3485,4 +3485,15 @@ ns:RegisterLocale("itIT", function() return {
     ["Done colour"] = "Colore completato",
     ["|cffaaaaaaThe list keeps the game's own place until you drag its box in edit mode; from then on it stays where you put it.|r"] = "|cffaaaaaaL’elenco mantiene la posizione del gioco finché non trascini la sua casella in modalità modifica; da allora resta dove l’hai messo.|r",
     ["Back to the game's place"] = "Torna alla posizione del gioco",
+    -- Auras module
+    ["Your buffs and debuffs as rows of dark icons with the time left underneath, replacing the game's own frames. Right-click cancels a buff. Ships disabled: switch it on here."] = "I tuoi benefici e malefici come file di icone scure con il tempo rimanente sotto, al posto dei riquadri del gioco. Il clic destro annulla un beneficio. Disattivato in partenza: attivalo qui.",
+    ["Enable auras"] = "Attiva aure",
+    ["Grow to the left"] = "Cresci verso sinistra",
+    ["New icons appear to the left of the first one, as the game does it; off grows to the right."] = "Le nuove icone compaiono a sinistra della prima, come fa il gioco; disattivato cresce verso destra.",
+    ["Sort by"] = "Ordina per",
+    ["Time left"] = "Tempo rimanente",
+    ["Order applied"] = "Ordine di applicazione",
+    ["Own auras first"] = "Prima le aure proprie",
+    ["Show time left"] = "Mostra tempo rimanente",
+    ["|cffaaaaaaBuffs and debuffs are two boxes in edit mode; drag each where you want it.|r"] = "|cffaaaaaaBenefici e malefici sono due caselle in modalità modifica; trascina ciascuna dove vuoi.|r",
 } end)

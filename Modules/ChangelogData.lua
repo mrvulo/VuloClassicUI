@@ -7,6 +7,10 @@ local _, ns = ...
 
 ns.CHANGELOG = {
     { version = "1.62.0", sections = {
+        { category = "Auras", lines = {
+            "NEW: Auras – Your buffs and debuffs as rows of dark icons with the time left underneath, in place of the game's own frames; right-click cancels a buff, weapon enchants ride along, and the two rows move in edit mode",
+            "Built on the game's own secure aura rows, so cancelling works in combat too. The module ships disabled: switch it on under HUD.",
+        } },
         { category = "Combat Meter", lines = {
             "A left-click on a bar turns the window into that player's ability list for the current mode, sorted by value with the share of their total; right-click or a click on the title goes back. The list is not saved, and a mode or segment change leaves it.",
         } },

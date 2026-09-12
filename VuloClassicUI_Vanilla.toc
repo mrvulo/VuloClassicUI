@@ -64,6 +64,7 @@ Modules\UnitFrames.lua
 Modules\Nameplates.lua
 Modules\NameplatesOptions.lua
 Modules\SwingTimer.lua
+Modules\Auras.lua
 Modules\Trackbars.lua
 Modules\TrackbarsBlocks.lua
 Modules\TrackbarsOptions.lua
