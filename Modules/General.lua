@@ -3117,7 +3117,7 @@ local L = ns.L
 
 local mod = ns:RegisterModule("autoitembuy", {
     name        = "Auto Item Buy",
-    group       = "Character"   -- shown inside the Gold & Vendors page (Character), never as its own row,
+    group       = "Character",   -- shown inside the Gold & Vendors page, never as its own row
     description = "Automatically buys configured items at configured vendors. Shift when opening the merchant window = emergency stop.",
     defaults = {
         enabled    = false,
@@ -4733,7 +4733,7 @@ local DISENCHANT_SPELL_ID = 13262
 
 local mod = ns:RegisterModule("disenchantqueue", {
     name        = "Disenchant Queue",
-    group       = "Character"   -- shown inside the Windows & Professions page (Character), never as its own row,
+    group       = "Character",   -- shown inside the Windows & Professions page, never as its own row
     description = "For enchanters: a window with one button that disenchants your bag items one click each, auto-advancing through the queue (no casting + picking each item by hand).",
     defaults = {
         enabled    = true,
