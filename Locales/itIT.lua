@@ -3509,4 +3509,13 @@ ns:RegisterLocale("itIT", function() return {
     ["Back to the current fight on pull"] = "Torna al combattimento in corso al pull",
     ["A window showing a previous fight returns to the running fight when the next one starts."] = "Una finestra che mostra un combattimento precedente torna a quello in corso quando inizia il successivo.",
     ["Toggle combat meter windows"] = "Mostra/nascondi finestre del misuratore",
+    -- Cast history
+    ["Cast History"] = "Cronologia incantesimi",
+    ["A strip of icons for the spells you just cast, newest first; a failed or interrupted cast turns red. Ships disabled: switch it on here."] = "Una striscia di icone degli incantesimi appena lanciati, il più recente per primo; un lancio fallito o interrotto diventa rosso. Disattivato in partenza: attivalo qui.",
+    ["Enable cast history"] = "Attiva cronologia incantesimi",
+    ["Icon count"] = "Numero di icone",
+    ["Fade after (seconds)"] = "Dissolvi dopo (secondi)",
+    ["0 keeps every icon until a newer cast pushes it out."] = "0 mantiene ogni icona finché un lancio più recente non la spinge fuori.",
+    ["Show failed casts"] = "Mostra lanci falliti",
+    ["A cast that failed or was interrupted appears with a red border."] = "Un lancio fallito o interrotto appare con un bordo rosso.",
 } end)

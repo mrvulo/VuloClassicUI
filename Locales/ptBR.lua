@@ -3509,4 +3509,13 @@ ns:RegisterLocale("ptBR", function() return {
     ["Back to the current fight on pull"] = "Voltar ao combate atual no pull",
     ["A window showing a previous fight returns to the running fight when the next one starts."] = "Uma janela mostrando um combate anterior volta ao combate em andamento quando o próximo começa.",
     ["Toggle combat meter windows"] = "Mostrar/ocultar janelas do medidor",
+    -- Cast history
+    ["Cast History"] = "Histórico de lançamentos",
+    ["A strip of icons for the spells you just cast, newest first; a failed or interrupted cast turns red. Ships disabled: switch it on here."] = "Uma faixa de ícones dos feitiços que você acabou de lançar, o mais recente primeiro; um lançamento falho ou interrompido fica vermelho. Vem desativado: ligue aqui.",
+    ["Enable cast history"] = "Ativar histórico de lançamentos",
+    ["Icon count"] = "Quantidade de ícones",
+    ["Fade after (seconds)"] = "Esmaecer após (segundos)",
+    ["0 keeps every icon until a newer cast pushes it out."] = "0 mantém cada ícone até um lançamento mais recente empurrá-lo para fora.",
+    ["Show failed casts"] = "Mostrar lançamentos falhos",
+    ["A cast that failed or was interrupted appears with a red border."] = "Um lançamento falho ou interrompido aparece com borda vermelha.",
 } end)

@@ -54,6 +54,7 @@ const MAP = {
   trackbars:          'panel-bottom',
   talentview:         'network',
   fixnameplaterole:   'shield-check',
+  casthistory:        'history',
   professionwindow:   'hammer',
   disenchantqueue:    'flask-conical',
   vtmanadisplay:      'droplet',

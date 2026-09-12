@@ -3502,4 +3502,13 @@ ns:RegisterLocale("zhTW", function() return {
     ["Back to the current fight on pull"] = "開戰時回到目前戰鬥",
     ["A window showing a previous fight returns to the running fight when the next one starts."] = "顯示上一場戰鬥的視窗會在下一場戰鬥開始時回到目前戰鬥。",
     ["Toggle combat meter windows"] = "顯示/隱藏戰鬥統計視窗",
+    -- Cast history
+    ["Cast History"] = "施法記錄",
+    ["A strip of icons for the spells you just cast, newest first; a failed or interrupted cast turns red. Ships disabled: switch it on here."] = "剛剛施放的法術圖示條，最新的在前；失敗或被打斷的施法變為紅色。預設關閉：在此開啟。",
+    ["Enable cast history"] = "啟用施法記錄",
+    ["Icon count"] = "圖示數量",
+    ["Fade after (seconds)"] = "淡出時間（秒）",
+    ["0 keeps every icon until a newer cast pushes it out."] = "0 表示保留每個圖示，直到更新的施法將其擠出。",
+    ["Show failed casts"] = "顯示失敗的施法",
+    ["A cast that failed or was interrupted appears with a red border."] = "失敗或被打斷的施法以紅色邊框顯示。",
 } end)

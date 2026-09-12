@@ -3509,4 +3509,13 @@ ns:RegisterLocale("ruRU", function() return {
     ["Back to the current fight on pull"] = "Возврат к текущему бою при пулле",
     ["A window showing a previous fight returns to the running fight when the next one starts."] = "Окно, показывающее предыдущий бой, возвращается к текущему, когда начинается следующий.",
     ["Toggle combat meter windows"] = "Показать/скрыть окна счётчика",
+    -- Cast history
+    ["Cast History"] = "История заклинаний",
+    ["A strip of icons for the spells you just cast, newest first; a failed or interrupted cast turns red. Ships disabled: switch it on here."] = "Полоса значков только что прочитанных заклинаний, новейшее первым; сорванное или прерванное становится красным. По умолчанию выключено: включите здесь.",
+    ["Enable cast history"] = "Включить историю заклинаний",
+    ["Icon count"] = "Число значков",
+    ["Fade after (seconds)"] = "Исчезать через (секунд)",
+    ["0 keeps every icon until a newer cast pushes it out."] = "0 сохраняет каждый значок, пока более новое заклинание его не вытеснит.",
+    ["Show failed casts"] = "Показывать сорванные заклинания",
+    ["A cast that failed or was interrupted appears with a red border."] = "Сорванное или прерванное заклинание показывается с красной рамкой.",
 } end)

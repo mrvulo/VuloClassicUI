@@ -3658,4 +3658,13 @@ ns:RegisterLocale("frFR", function() return {
     ["Back to the current fight on pull"] = "Retour au combat en cours au pull",
     ["A window showing a previous fight returns to the running fight when the next one starts."] = "Une fenêtre affichant un combat précédent revient au combat en cours quand le suivant commence.",
     ["Toggle combat meter windows"] = "Afficher/masquer les fenêtres du compteur",
+    -- Cast history
+    ["Cast History"] = "Historique des sorts",
+    ["A strip of icons for the spells you just cast, newest first; a failed or interrupted cast turns red. Ships disabled: switch it on here."] = "Une bande d’icônes des sorts que vous venez de lancer, le plus récent en premier ; un sort raté ou interrompu devient rouge. Livré désactivé : activez-le ici.",
+    ["Enable cast history"] = "Activer l’historique des sorts",
+    ["Icon count"] = "Nombre d’icônes",
+    ["Fade after (seconds)"] = "Disparition après (secondes)",
+    ["0 keeps every icon until a newer cast pushes it out."] = "0 garde chaque icône jusqu’à ce qu’un sort plus récent la pousse dehors.",
+    ["Show failed casts"] = "Afficher les sorts ratés",
+    ["A cast that failed or was interrupted appears with a red border."] = "Un sort raté ou interrompu apparaît avec une bordure rouge.",
 } end)

@@ -3,6 +3,9 @@
 - **NEW: Auras** – Your buffs and debuffs as rows of dark icons with the time left underneath, in place of the game's own frames; right-click cancels a buff, weapon enchants ride along, and the two rows move in edit mode
 - Built on the game's own secure aura rows, so cancelling works in combat too. The module ships disabled: switch it on under HUD.
 
+**Cast History:**
+- **NEW: Cast History** – A strip of icons for the spells you just cast, newest first, a failed or interrupted cast in red; size, count, direction and fade are options, and the strip moves in edit mode. Ships disabled.
+
 **Combat Meter:**
 - **NEW: Enemies** – A tenth mode that lists what the group hit: each enemy with the damage it took, every mob of a kind folded into one row, and the attackers behind it in the tooltip
 - **NEW: Keep your own bar in view** – When your bar scrolls out of the window it stays pinned at the top or bottom edge with its real rank

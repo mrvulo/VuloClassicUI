@@ -3509,4 +3509,13 @@ ns:RegisterLocale("koKR", function() return {
     ["Back to the current fight on pull"] = "전투 시작 시 현재 전투로 복귀",
     ["A window showing a previous fight returns to the running fight when the next one starts."] = "이전 전투를 보여주던 창은 다음 전투가 시작되면 진행 중인 전투로 돌아갑니다.",
     ["Toggle combat meter windows"] = "전투 미터 창 표시/숨기기",
+    -- Cast history
+    ["Cast History"] = "시전 기록",
+    ["A strip of icons for the spells you just cast, newest first; a failed or interrupted cast turns red. Ships disabled: switch it on here."] = "방금 시전한 주문의 아이콘 띠로, 최신 것이 먼저 옵니다. 실패하거나 끊긴 시전은 빨간색이 됩니다. 기본 꺼짐: 여기서 켜세요.",
+    ["Enable cast history"] = "시전 기록 사용",
+    ["Icon count"] = "아이콘 개수",
+    ["Fade after (seconds)"] = "사라지기까지 (초)",
+    ["0 keeps every icon until a newer cast pushes it out."] = "0이면 새 시전이 밀어낼 때까지 모든 아이콘을 유지합니다.",
+    ["Show failed casts"] = "실패한 시전 표시",
+    ["A cast that failed or was interrupted appears with a red border."] = "실패했거나 끊긴 시전은 빨간 테두리로 표시됩니다.",
 } end)

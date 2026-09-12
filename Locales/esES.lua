@@ -3510,6 +3510,15 @@ local function T() return {
     ["Back to the current fight on pull"] = "Volver al combate actual al iniciar",
     ["A window showing a previous fight returns to the running fight when the next one starts."] = "Una ventana que muestra un combate anterior vuelve al combate en curso cuando empieza el siguiente.",
     ["Toggle combat meter windows"] = "Mostrar/ocultar ventanas del medidor",
+    -- Cast history
+    ["Cast History"] = "Historial de lanzamientos",
+    ["A strip of icons for the spells you just cast, newest first; a failed or interrupted cast turns red. Ships disabled: switch it on here."] = "Una tira de iconos con los hechizos que acabas de lanzar, el más reciente primero; un lanzamiento fallido o interrumpido se vuelve rojo. Viene desactivado: actívalo aquí.",
+    ["Enable cast history"] = "Activar historial de lanzamientos",
+    ["Icon count"] = "Número de iconos",
+    ["Fade after (seconds)"] = "Desvanecer tras (segundos)",
+    ["0 keeps every icon until a newer cast pushes it out."] = "0 conserva cada icono hasta que un lanzamiento más reciente lo desplace.",
+    ["Show failed casts"] = "Mostrar lanzamientos fallidos",
+    ["A cast that failed or was interrupted appears with a red border."] = "Un lanzamiento fallido o interrumpido aparece con borde rojo.",
 } end
 
 ns:RegisterLocale("esES", T)
