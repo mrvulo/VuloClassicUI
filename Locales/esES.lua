@@ -3427,6 +3427,25 @@ local function T() return {
     ["Finished fights the title menu offers under Previous fights. They live until a reload; the overall total is what survives one."] = "Combates terminados que el menú del título ofrece en Combates anteriores. Duran hasta una recarga; el total general es lo que sobrevive a ella.",
     ["Rows in report"] = "Filas del informe",
     ["Lines below the header when a window is reported to a chat channel from its title menu."] = "Líneas debajo del encabezado cuando una ventana se envía a un canal de chat desde su menú del título.",
+    -- First-time setup
+    ["Set up VuloClassicUI"] = "Configurar VuloClassicUI",
+    ["Step %d of %d"] = "Paso %d de %d",
+    ["Standard"] = "Estándar",
+    ["Minimal"] = "Mínimo",
+    ["Healer"] = "Sanador",
+    ["Every module as the addon ships it: the dark look, the HUD, bags, nameplates, the combat meter and the class tools."] = "Todos los módulos tal como los entrega el addon: el aspecto oscuro, el HUD, las bolsas, las placas de nombre, el medidor de combate y las herramientas de clase.",
+    ["Only the look: the dark skin for the game's windows, chat, bags, unit frames and the character panel. No HUD modules, no nameplates, no meter. Switch on later what you miss."] = "Solo el aspecto: la piel oscura para las ventanas del juego, el chat, las bolsas, los marcos de unidad y el panel de personaje. Sin módulos de HUD, sin placas de nombre, sin medidor. Activa después lo que eches en falta.",
+    ["The standard set plus what a healer watches: the meter opens on healing, the power bar and the buff reminders are on, and the combat text shows your heals."] = "El conjunto estándar más lo que vigila un sanador: el medidor se abre en sanación, la barra de poder y los recordatorios de beneficios están activos, y el texto de combate muestra tus curas.",
+    ["The standard set plus the arena frames, the trinket tracker, the power bar and the reminders; the meter opens on damage."] = "El conjunto estándar más los marcos de arena, el rastreador de abalorios, la barra de poder y los recordatorios; el medidor se abre en daño.",
+    ["Choose a starting point. The template switches modules on or off for this character's profile; every setting stays editable afterwards."] = "Elige un punto de partida. La plantilla activa o desactiva módulos para el perfil de este personaje; todos los ajustes siguen siendo editables después.",
+    ["The font reaches everything after the reload at the end; the scale changes while you drag."] = "La fuente llega a todo tras la recarga del final; la escala cambia mientras arrastras.",
+    ["You can run this again any time with /vcui setup or from Global Settings."] = "Puedes volver a ejecutar esto en cualquier momento con /vcui setup o desde los Ajustes globales.",
+    ["Everything is written. A reload applies the template, the font and the scale."] = "Todo está guardado. Una recarga aplica la plantilla, la fuente y la escala.",
+    ["Template"] = "Plantilla",
+    ["Next"] = "Siguiente",
+    ["Open setup again"] = "Abrir la configuración de nuevo",
+    ["Show the first-time setup again: template, font and scale."] = "Muestra de nuevo la configuración inicial: plantilla, fuente y escala.",
+    ["run the first-time setup again"] = "volver a ejecutar la configuración inicial",
 } end
 
 ns:RegisterLocale("esES", T)

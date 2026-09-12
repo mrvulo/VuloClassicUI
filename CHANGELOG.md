@@ -29,6 +29,11 @@
 **Languages:**
 - Patch notes of versions that have left the in-game list are gone from all nine languages; nothing the interface shows was affected.
 
+**Setup:**
+- **NEW: First-time setup** – A fresh install opens a three-step window after the first login: pick a template, set font and scale, reload
+- Four templates to start from: Standard as the addon ships, Minimal with only the dark look and no HUD modules, Healer with the meter on healing plus power bar and reminders, and PvP with the arena frames, the trinket tracker, power bar and reminders. A template switches modules for the class profile and for classes rolled later; every setting stays editable, and nothing is switched live: the template is written when the window is finished and the reload applies it.
+- The setup is there again any time through the command below and a button under Global Settings, and it starts from the template chosen last time: /vcui setup
+
 ## 1.60.1
 **Combat Meter:**
 - Environmental damage counts as damage taken: falling, drowning, lava and the like land on the victim under their kind, appear in the breakdown and can be the killing blow. A fall used to leave no trace, and the death line named the spell before it instead. A death without a source shows only the amount.

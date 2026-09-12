@@ -30,6 +30,8 @@ initFrame:SetScript("OnEvent", function(_, event, addonName)
             ns:Print(unpack(n))
         end
         ns.migrationNotes = nil
+        -- Fresh account: the first-time setup (UI/Setup.lua) opens once.
+        if ns.MaybeShowSetup then ns:MaybeShowSetup() end
     end
 end)
 
@@ -50,6 +52,7 @@ local function printVcuiHelp()
     ns:Print(A .. "/vcui modules|r — " .. L["list all modules with on/off state"])
     ns:Print(A .. "/vcui spam <name>|r — " .. L["toggle a name on/off the spam-filter whitelist"])
     ns:Print(A .. "/vcui goldreset|r — " .. L["reset the gold tracker session"])
+    ns:Print(A .. "/vcui setup|r — " .. L["run the first-time setup again"])
     ns:Print(A .. "/vcui debug|r, " .. A .. "/vcui reset|r")
     if ns.PrintSlashHelp then ns:PrintSlashHelp() end
 end
@@ -120,6 +123,9 @@ ns.Slash.OPTIONS = function(msg)
                 local m = ns.modules[key]
                 ns:Print("  - %s (%s) [%s]", m.name, key, ns:IsModuleEnabled(key) and L["ON"] or L["off"])
             end
+
+        elseif msg == "setup" then
+            if ns.ShowSetup then ns:ShowSetup() end
 
         elseif msg == "goldreset" then
             local gt = ns.modules.goldtracker

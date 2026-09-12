@@ -28,6 +28,10 @@ ns.defaults = {
         -- with long or non-ASCII names.
         profileKeybindButtonIds = {},
         nextProfileKeybindButtonId = 0,
+        -- The first-time setup (UI/Setup.lua). True by default so an existing
+        -- install never sees it; InitDB sets it false for a database that did
+        -- not exist before this login.
+        setupDone = true,
     },
     profile = {
         ui = {
@@ -335,6 +339,7 @@ end
 
 -- Runs on ADDON_LOADED, once SavedVariables exist.
 function ns:InitDB()
+    local freshInstall  = (VuloClassicUIDB == nil)
     VuloClassicUIDB     = VuloClassicUIDB     or {}
     VuloClassicUICharDB = VuloClassicUICharDB or {}
 
@@ -354,6 +359,7 @@ function ns:InitDB()
     VuloClassicUIDB.classAssignments  = VuloClassicUIDB.classAssignments  or {}
 
     VuloClassicUIDB.global = ns:ApplyDefaults(VuloClassicUIDB.global, ns.defaults.global)
+    if freshInstall then VuloClassicUIDB.global.setupDone = false end
 
     -- The logout scrub parks its count here; saying it out loud is the whole
     -- point — a player whose settings kept resetting needs to see the cause.

@@ -1,10 +1,17 @@
-## 1.60.1
+## 1.61.0
 **Combat Meter:**
-- Environmental damage counts as damage taken: falling, drowning, lava and the like land on the victim under their kind, appear in the breakdown and can be the killing blow. A fall used to leave no trace, and the death line named the spell before it instead. A death without a source shows only the amount.
-- The window rows on the options page no longer take part in talent overrides. Every window carries the same row label, so an override for one window switched the mode of all of them.
+- **NEW: Threat** – A ninth mode that shows the threat list of your current target live: the tank on top, everyone else in percent of the tank, pets as their own rows
+- **NEW: Previous fights** – The title menu keeps the last finished fights, named by their boss and duration, and any window can be pinned to one of them
+- **NEW: Report** – Send the top rows of a window to a chat channel from its title menu: say, party, raid, guild, officer or a whisper to a name you type
+- The threat mode reads the game's own threat list and updates only while a window shows it; a target change redraws at once. It ignores the segment choice and the bracket switches, and it exists only on clients that expose the threat list.
+- A window pinned to a previous fight stays there when the next fight begins and drops back to its saved segment when that fight leaves the list. The list lives until a reload; the number of fights kept is an option, and a fight in which nobody scored is not listed.
+- The report carries a header with mode, segment and duration, then one line per row with the value, the per-second value and the share; the number of rows is an option. An empty window sends nothing.
+- Every change made from the title menu, such as a new mode or a closed window, ended in a silent Lua error after the visible work, and the options page did not follow the change. The helper that refreshes the page was called before it was defined.
 
-**Profiles:**
-- A partial export keeps a chosen module that stands entirely on its default values. Stripping the defaults used to remove the whole module table, and the import, which replaces module by module, then kept the receiving profile's own values instead. An empty table now means: this module, on defaults.
+**Languages:**
+- Patch notes of versions that have left the in-game list are gone from all nine languages; nothing the interface shows was affected.
 
-**Settings:**
-- Talent overrides survive a language change. Their identifiers carried the translated label, so after switching the game language the saved settings were no longer found and nothing was applied. They carry the English key now, and identifiers saved earlier are converted once on load in every profile.
+**Setup:**
+- **NEW: First-time setup** – A fresh install opens a three-step window after the first login: pick a template, set font and scale, reload
+- Four templates to start from: Standard as the addon ships, Minimal with only the dark look and no HUD modules, Healer with the meter on healing plus power bar and reminders, and PvP with the arena frames, the trinket tracker, power bar and reminders. A template switches modules for the class profile and for classes rolled later; every setting stays editable, and nothing is switched live: the template is written when the window is finished and the reload applies it.
+- The setup is there again any time through the command below and a button under Global Settings, and it starts from the template chosen last time: /vcui setup

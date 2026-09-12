@@ -180,6 +180,11 @@ local function applyGlobalFont()
     ns.UI.FONT_PATH  = (ns.MediaFont and ns.MediaFont(db.font)) or ns.UI.FONT_PATH
     ns.UI.FONT_FLAGS = (db.outline and db.outline ~= "NONE") and db.outline or ""
 end
+-- The first-time setup (UI/Setup.lua) offers the same font and scale rows;
+-- it goes through these so the two pages cannot drift apart.
+ns.ApplyGlobalFont   = applyGlobalFont
+ns.ApplyUIScale      = applyUIScale
+ns.PixelPerfectScale = pixelPerfectScale
 
 -- Per-module font overrides: g.fonts.modules[key] = { font = <media name>,
 -- outline = <mode> }, either field absent = follow the global font. Resolved at
@@ -645,6 +650,10 @@ local function generalOptions()
               onClick = function() applyUIScale(768/1440); ns:Print(L["UI Scale = 0.5333 (1440p)"]) end },
         },
     }
+
+    display[#display + 1] = { type = "button", label = L["Open setup again"], width = 200,
+        tooltip = L["Show the first-time setup again: template, font and scale."],
+        onClick = function() if ns.ShowSetup then ns:ShowSetup() end end }
 
     if alwaysOnProfiler then
         display[#display + 1] = { type = "desc",
