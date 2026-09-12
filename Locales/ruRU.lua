@@ -3496,4 +3496,7 @@ ns:RegisterLocale("ruRU", function() return {
     ["Own auras first"] = "Свои ауры первыми",
     ["Show time left"] = "Показывать оставшееся время",
     ["|cffaaaaaaBuffs and debuffs are two boxes in edit mode; drag each where you want it.|r"] = "|cffaaaaaaПоложительные и отрицательные эффекты — две рамки в режиме редактирования; перетащите каждую куда нужно.|r",
+    -- Meter: mode follows talents
+    ["Mode follows your talents"] = "Режим следует за талантами",
+    ["The first window opens on healing while your talents make you a healer and on damage otherwise; it switches with your spec."] = "Первое окно открывается на исцелении, пока таланты делают вас лекарем, иначе на уроне; оно меняется вместе со специализацией.",
 } end)

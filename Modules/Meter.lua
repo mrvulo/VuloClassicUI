@@ -30,6 +30,7 @@ local mod = ns:RegisterModule("meter", {
         resetOnNewGroup = true,
         historySize     = 10,   -- finished fights kept for the window menu; 0 = none
         reportRows      = 10,   -- lines a chat report carries below its header
+        followRole      = false, -- window 1 opens on healing for a healing spec, damage otherwise
         -- One entry per window: { mode, segment, x, y, width, height, scale,
         -- unlocked }. Filled by the window file; empty means "one window".
         windows         = {},

@@ -3614,4 +3614,7 @@ ns:RegisterLocale("deDE", function() return {
     ["Combat timer"] = "Kampf-Timer",
     ["Professions"] = "Berufe",
     ["Full height"] = "Volle Höhe",
+    -- Meter: mode follows talents
+    ["Mode follows your talents"] = "Modus folgt deinen Talenten",
+    ["The first window opens on healing while your talents make you a healer and on damage otherwise; it switches with your spec."] = "Das erste Fenster öffnet auf Heilung, solange deine Talente dich zum Heiler machen, sonst auf Schaden; es wechselt mit deiner Spezialisierung.",
 } end)

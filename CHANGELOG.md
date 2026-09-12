@@ -22,6 +22,7 @@
 - Built on the game's own secure aura rows, so cancelling works in combat too. The module ships disabled: switch it on under HUD.
 
 **Combat Meter:**
+- **NEW: Mode follows your talents** – The first window opens on healing while your talents make you a healer and on damage otherwise, switching with your spec
 - A left-click on a bar turns the window into that player's ability list for the current mode, sorted by value with the share of their total; right-click or a click on the title goes back. The list is not saved, and a mode or segment change leaves it.
 
 **Quest Tracker:**

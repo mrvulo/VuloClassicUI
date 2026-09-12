@@ -1476,6 +1476,37 @@ pageChanged = function()
 end
 
 ------------------------------------------------------------------------
+-- Mode follows the talents: window 1 opens on healing for a healing tree,
+-- on damage for anything else. Tree order on this client is Priest
+-- 1 Discipline / 2 Holy, Paladin 1 Holy, Druid 3 Restoration, Shaman
+-- 3 Restoration (the same numbering Modules/SwingTimer.lua relies on).
+------------------------------------------------------------------------
+local HEAL_TREES = {
+    PRIEST  = { [1] = true, [2] = true },
+    PALADIN = { [1] = true },
+    DRUID   = { [3] = true },
+    SHAMAN  = { [3] = true },
+}
+
+local function roleMode()
+    local _, cls = UnitClass("player")
+    local trees = cls and HEAL_TREES[cls]
+    if not trees then return "damage" end
+    local tree = ns.DominantTalentTree and ns:DominantTalentTree()
+    if not tree then return nil end          -- unreadable: do not judge
+    return trees[tree] and "heal" or "damage"
+end
+
+local function applyRoleMode()
+    if not (mod.active and mod.db.followRole) then return end
+    local m = roleMode()
+    if not m then return end
+    local w = frames[1]
+    if w and w.db and w.mode ~= m then mod:SetMode(1, m) end
+end
+mod.ApplyRoleMode = applyRoleMode
+
+------------------------------------------------------------------------
 -- Module hooks (called from Modules/Meter.lua and MeterOptions.lua)
 ------------------------------------------------------------------------
 function mod:ApplyWindow()
@@ -1494,6 +1525,10 @@ function mod:WindowEnable()
     end
     syncFrames()
     if Meter:InCombat() then startTicker() end
+    -- talents are not readable at ADDON_LOADED; the world entry is late enough
+    self:RegisterEvent("PLAYER_TALENT_UPDATE",        applyRoleMode)
+    self:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED", applyRoleMode)
+    self:RegisterEvent("PLAYER_ENTERING_WORLD", function() C_Timer.After(2, applyRoleMode) end)
 end
 
 function mod:WindowDisable()

@@ -3496,4 +3496,7 @@ ns:RegisterLocale("koKR", function() return {
     ["Own auras first"] = "내 오라 먼저",
     ["Show time left"] = "남은 시간 표시",
     ["|cffaaaaaaBuffs and debuffs are two boxes in edit mode; drag each where you want it.|r"] = "|cffaaaaaa편집 모드에서 강화 효과와 약화 효과는 두 개의 상자입니다. 각각 원하는 곳으로 드래그하세요.|r",
+    -- Meter: mode follows talents
+    ["Mode follows your talents"] = "모드가 특성을 따름",
+    ["The first window opens on healing while your talents make you a healer and on damage otherwise; it switches with your spec."] = "특성이 치유 담당이면 첫 창이 치유로, 아니면 피해로 열립니다. 전문화가 바뀌면 함께 바뀝니다.",
 } end)

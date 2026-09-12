@@ -3489,4 +3489,7 @@ ns:RegisterLocale("zhCN", function() return {
     ["Own auras first"] = "自己的光环优先",
     ["Show time left"] = "显示剩余时间",
     ["|cffaaaaaaBuffs and debuffs are two boxes in edit mode; drag each where you want it.|r"] = "|cffaaaaaa在编辑模式中，增益和减益是两个方框；把每个拖到你想要的位置。|r",
+    -- Meter: mode follows talents
+    ["Mode follows your talents"] = "模式跟随天赋",
+    ["The first window opens on healing while your talents make you a healer and on damage otherwise; it switches with your spec."] = "当天赋使你成为治疗时，第一个窗口以治疗模式打开，否则以伤害模式打开；随专精切换而改变。",
 } end)

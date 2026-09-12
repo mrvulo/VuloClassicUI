@@ -3645,4 +3645,7 @@ ns:RegisterLocale("frFR", function() return {
     ["Own auras first"] = "Auras personnelles en premier",
     ["Show time left"] = "Afficher le temps restant",
     ["|cffaaaaaaBuffs and debuffs are two boxes in edit mode; drag each where you want it.|r"] = "|cffaaaaaaAméliorations et affaiblissements sont deux boîtes en mode édition ; déplacez chacune où vous voulez.|r",
+    -- Meter: mode follows talents
+    ["Mode follows your talents"] = "Le mode suit vos talents",
+    ["The first window opens on healing while your talents make you a healer and on damage otherwise; it switches with your spec."] = "La première fenêtre s’ouvre sur les soins tant que vos talents font de vous un soigneur, sinon sur les dégâts ; elle change avec votre spécialisation.",
 } end)

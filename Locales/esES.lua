@@ -3497,6 +3497,9 @@ local function T() return {
     ["Own auras first"] = "Auras propias primero",
     ["Show time left"] = "Mostrar tiempo restante",
     ["|cffaaaaaaBuffs and debuffs are two boxes in edit mode; drag each where you want it.|r"] = "|cffaaaaaaBeneficios y perjuicios son dos cajas en el modo de edición; arrastra cada una adonde quieras.|r",
+    -- Meter: mode follows talents
+    ["Mode follows your talents"] = "El modo sigue tus talentos",
+    ["The first window opens on healing while your talents make you a healer and on damage otherwise; it switches with your spec."] = "La primera ventana se abre en sanación mientras tus talentos te hagan sanador y en daño en caso contrario; cambia con tu especialización.",
 } end
 
 ns:RegisterLocale("esES", T)

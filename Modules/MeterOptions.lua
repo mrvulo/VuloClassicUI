@@ -143,6 +143,13 @@ function mod:GetOptions()
         },
     }
     items[#items + 1] = toggle(L["Reset overall when joining a new group"], "resetOnNewGroup")
+    items[#items + 1] = { type = "toggle", label = L["Mode follows your talents"],
+        tooltip = L["The first window opens on healing while your talents make you a healer and on damage otherwise; it switches with your spec."],
+        get = function() return mod.db.followRole end,
+        set = function(_, v)
+            mod.db.followRole = v
+            if v and mod.ApplyRoleMode then mod.ApplyRoleMode() end
+        end }
     items[#items + 1] = { type = "slider", label = L["Fights to keep"], min = 0, max = 30, step = 1,
         tooltip = L["Finished fights the title menu offers under Previous fights. They live until a reload; the overall total is what survives one."],
         get = function() return mod.db.historySize end,
