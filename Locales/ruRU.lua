@@ -3475,4 +3475,14 @@ ns:RegisterLocale("ruRU", function() return {
     ["Combat timer"] = "Таймер боя",
     ["Professions"] = "Профессии",
     ["Full height"] = "Полная высота",
+    -- Quest tracker
+    ["Quest Tracker"] = "Отслеживание заданий",
+    ["The quest watch list with the addon font, accent titles and green finished objectives; move it in edit mode."] = "Список отслеживаемых заданий шрифтом аддона, с заголовками в акцентном цвете и зелёными выполненными целями; перемещается в режиме редактирования.",
+    ["Enable quest tracker"] = "Включить отслеживание заданий",
+    ["Accent colour titles"] = "Заголовки акцентным цветом",
+    ["Quest names in the interface accent colour; finished quests turn the done colour either way."] = "Названия заданий в акцентном цвете интерфейса; выполненные задания в любом случае окрашиваются цветом выполнения.",
+    ["Objective colour"] = "Цвет целей",
+    ["Done colour"] = "Цвет выполнения",
+    ["|cffaaaaaaThe list keeps the game's own place until you drag its box in edit mode; from then on it stays where you put it.|r"] = "|cffaaaaaaСписок остаётся на месте, заданном игрой, пока вы не перетащите его рамку в режиме редактирования; после этого он остаётся там, куда вы его поместили.|r",
+    ["Back to the game's place"] = "Вернуть на место игры",
 } end)

@@ -127,4 +127,5 @@ Modules\Trinkets.lua
 Modules\Pages.lua
 Modules\UIReskin.lua
 Modules\General.lua
+Modules\QuestTracker.lua
 Core\Init.lua

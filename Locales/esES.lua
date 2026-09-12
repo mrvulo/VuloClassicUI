@@ -3476,6 +3476,16 @@ local function T() return {
     ["Combat timer"] = "Temporizador de combate",
     ["Professions"] = "Profesiones",
     ["Full height"] = "Altura completa",
+    -- Quest tracker
+    ["Quest Tracker"] = "Seguimiento de misiones",
+    ["The quest watch list with the addon font, accent titles and green finished objectives; move it in edit mode."] = "La lista de misiones seguidas con la fuente del addon, títulos en color de acento y objetivos completados en verde; muévela en el modo de edición.",
+    ["Enable quest tracker"] = "Activar seguimiento de misiones",
+    ["Accent colour titles"] = "Títulos en color de acento",
+    ["Quest names in the interface accent colour; finished quests turn the done colour either way."] = "Nombres de misión en el color de acento de la interfaz; las misiones completadas toman el color de completado de todos modos.",
+    ["Objective colour"] = "Color de objetivos",
+    ["Done colour"] = "Color de completado",
+    ["|cffaaaaaaThe list keeps the game's own place until you drag its box in edit mode; from then on it stays where you put it.|r"] = "|cffaaaaaaLa lista conserva el lugar del juego hasta que arrastres su caja en el modo de edición; desde entonces se queda donde la pongas.|r",
+    ["Back to the game's place"] = "Volver al lugar del juego",
 } end
 
 ns:RegisterLocale("esES", T)

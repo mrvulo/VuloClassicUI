@@ -3468,4 +3468,14 @@ ns:RegisterLocale("zhTW", function() return {
     ["Combat timer"] = "戰鬥計時器",
     ["Professions"] = "專業",
     ["Full height"] = "全高",
+    -- Quest tracker
+    ["Quest Tracker"] = "任務追蹤",
+    ["The quest watch list with the addon font, accent titles and green finished objectives; move it in edit mode."] = "使用插件字型、強調色標題和綠色已完成目標的任務追蹤列表；可在編輯模式中移動。",
+    ["Enable quest tracker"] = "啟用任務追蹤",
+    ["Accent colour titles"] = "標題使用強調色",
+    ["Quest names in the interface accent colour; finished quests turn the done colour either way."] = "任務名稱使用介面強調色；已完成的任務無論如何都使用完成顏色。",
+    ["Objective colour"] = "目標顏色",
+    ["Done colour"] = "完成顏色",
+    ["|cffaaaaaaThe list keeps the game's own place until you drag its box in edit mode; from then on it stays where you put it.|r"] = "|cffaaaaaa在編輯模式中拖曳其方框之前，列表保持遊戲預設位置；之後它會停留在你放置的地方。|r",
+    ["Back to the game's place"] = "回到遊戲預設位置",
 } end)

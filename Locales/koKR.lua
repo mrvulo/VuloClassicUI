@@ -3475,4 +3475,14 @@ ns:RegisterLocale("koKR", function() return {
     ["Combat timer"] = "전투 타이머",
     ["Professions"] = "전문 기술",
     ["Full height"] = "전체 높이",
+    -- Quest tracker
+    ["Quest Tracker"] = "퀘스트 추적",
+    ["The quest watch list with the addon font, accent titles and green finished objectives; move it in edit mode."] = "애드온 글꼴, 강조색 제목, 완료된 목표의 초록색이 적용된 퀘스트 추적 목록입니다. 편집 모드에서 옮길 수 있습니다.",
+    ["Enable quest tracker"] = "퀘스트 추적 사용",
+    ["Accent colour titles"] = "제목을 강조색으로",
+    ["Quest names in the interface accent colour; finished quests turn the done colour either way."] = "퀘스트 이름을 인터페이스 강조색으로 표시합니다. 완료된 퀘스트는 어느 경우든 완료 색을 사용합니다.",
+    ["Objective colour"] = "목표 색상",
+    ["Done colour"] = "완료 색상",
+    ["|cffaaaaaaThe list keeps the game's own place until you drag its box in edit mode; from then on it stays where you put it.|r"] = "|cffaaaaaa편집 모드에서 상자를 드래그하기 전까지 목록은 게임의 기본 위치에 남습니다. 그 뒤로는 놓아둔 곳에 머뭅니다.|r",
+    ["Back to the game's place"] = "게임의 기본 위치로",
 } end)

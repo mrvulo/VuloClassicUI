@@ -3475,4 +3475,14 @@ ns:RegisterLocale("itIT", function() return {
     ["Combat timer"] = "Timer di combattimento",
     ["Professions"] = "Professioni",
     ["Full height"] = "Altezza piena",
+    -- Quest tracker
+    ["Quest Tracker"] = "Tracciamento missioni",
+    ["The quest watch list with the addon font, accent titles and green finished objectives; move it in edit mode."] = "L’elenco delle missioni seguite con il carattere dell’addon, titoli in colore accento e obiettivi completati in verde; spostalo in modalità modifica.",
+    ["Enable quest tracker"] = "Attiva tracciamento missioni",
+    ["Accent colour titles"] = "Titoli in colore accento",
+    ["Quest names in the interface accent colour; finished quests turn the done colour either way."] = "Nomi delle missioni nel colore accento dell’interfaccia; le missioni completate prendono comunque il colore completato.",
+    ["Objective colour"] = "Colore obiettivi",
+    ["Done colour"] = "Colore completato",
+    ["|cffaaaaaaThe list keeps the game's own place until you drag its box in edit mode; from then on it stays where you put it.|r"] = "|cffaaaaaaL’elenco mantiene la posizione del gioco finché non trascini la sua casella in modalità modifica; da allora resta dove l’hai messo.|r",
+    ["Back to the game's place"] = "Torna alla posizione del gioco",
 } end)
