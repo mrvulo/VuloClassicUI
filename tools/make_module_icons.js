@@ -48,6 +48,7 @@ const MAP = {
   chat:               'message-circle',
   bags:               'backpack',
   questlog:           'book-open',
+  questtracker:       'list-checks',
   professionwindow:   'hammer',
   disenchantqueue:    'flask-conical',
   vtmanadisplay:      'droplet',

@@ -20,7 +20,7 @@ for _, key in ipairs({
     "arenaframes", "characterpanel", "darkskin", "friendlist",
     "miscqol", "queuetimer", "tooltipids", "autoitembuy", "goldtracker",
     "addonskins", "popupskin", "reminders",
-    "spamfilter", "chat", "bags", "questlog",
+    "spamfilter", "chat", "bags", "questlog", "questtracker",
     "professionwindow", "disenchantqueue", "vtmanadisplay", "lazyvulo",
     "vulslot", "combattext", "loadouts", "slotpicker", "trinkets",
     "swingtimer", "vulmail", "vulfishing", "vullfg", "vultraining",
