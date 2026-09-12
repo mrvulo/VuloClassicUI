@@ -94,9 +94,10 @@ local function dress(btn)
         GameTooltip:Show()
     end)
     btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    -- The plain action template registers no clicks of its own; without this
-    -- the right button never reaches type2 and nothing ever cancels.
-    btn:RegisterForClicks("RightButtonUp")
+    -- The plain action template registers no clicks of its own; and on this
+    -- client a secure button fires only with AnyUp + AnyDown registered and
+    -- the wildcard type attribute (house recipe, verified live on 20505).
+    btn:RegisterForClicks("AnyUp", "AnyDown")
     btn._vcDressed = true
     return true
 end
@@ -238,7 +239,10 @@ local function applyHeader(kind)
     end
     -- Every button the header creates: right-click cancels through the
     -- secure action; the restricted snippet runs once per new button.
-    h:SetAttribute("initialConfigFunction", [[ self:SetAttribute("type2", "cancelaura") ]])
+    h:SetAttribute("initialConfigFunction", [[
+        self:SetAttribute("*type2", "cancelaura")
+        self:SetAttribute("type2", "cancelaura")
+    ]])
     -- button geometry the header does not know about
     local i = 1
     while true do
@@ -384,10 +388,17 @@ function mod:OnEnable()
     self:RegisterEvent("PLAYER_ENTERING_WORLD", function() if not InCombatLockdown() then applyAll() end end)
 end
 
+local function hideHeaders()
+    for _, h in pairs(headers) do h:Hide() end
+end
+
 function mod:OnDisable()
     if ticker then ns:CancelTicker(ticker); ticker = nil end
-    for _, h in pairs(headers) do
-        if not InCombatLockdown() then h:Hide() end
+    if InCombatLockdown() then
+        -- the headers are protected: they go when the fight does
+        ns:RegisterEventOnce("PLAYER_REGEN_ENABLED", hideHeaders)
+    else
+        hideHeaders()
     end
     showBlizzard()
 end

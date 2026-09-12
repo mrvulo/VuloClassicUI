@@ -19,3 +19,4 @@
 - **NEW: Hearthstone** – A button that uses the hearthstone, with the inn it is bound to beside it and the cooldown while it runs
 - **NEW: Combat timer** – How long the current fight has been running, and the last fight's length out of combat
 - A fifth template, Side bar, puts professions, hearthstone, combat timer and clock on the left screen edge.
+- The professions block expands the Professions and Secondary Skills headers of the skills window if they were collapsed: the game hides collapsed lines from addons. Other headers keep their state.

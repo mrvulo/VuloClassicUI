@@ -687,6 +687,8 @@ addType("hearth", "Hearthstone", { showLocation = true }, function(b, slot, cont
         if InCombatLockdown() then inst._deferred = true; return false end
         btn = CreateFrame("Button", "VuloTrackbarHearth" .. bar.id .. "_" .. b.id, content, "SecureActionButtonTemplate")
         btn:RegisterForClicks("AnyUp", "AnyDown")
+        -- wildcard form first: the plain type attribute does not fire on 20505
+        btn:SetAttribute("*type1", "item")
         btn:SetAttribute("type", "item")
         -- the secure item action uses the item by NAME; the id string is the
         -- fallback until the client has the item cached (Refresh retries)
@@ -861,6 +863,8 @@ function(b, slot, content, bar)
             row.btn = CreateFrame("Button", "VuloTrackbarProf" .. bar.id .. "_" .. b.id .. "_" .. i,
                 content, "SecureActionButtonTemplate")
             row.btn:RegisterForClicks("AnyUp", "AnyDown")
+            -- wildcard form first: the plain type attribute does not fire on 20505
+            row.btn:SetAttribute("*type1", "spell")
             row.btn:SetAttribute("type", "spell")
         else
             row.btn = CreateFrame("Button", nil, content)

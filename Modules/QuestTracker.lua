@@ -107,8 +107,17 @@ local function onClassicUpdate()
     if w and total > 0 and total ~= lastFrameHeight then
         lastFrameHeight = total
         w:SetHeight(total)
+        -- The manager also anchors protected bars (pet, stance). Called from
+        -- our insecure hook in combat that would be a blocked SetPoint, so the
+        -- relayout waits for the fight to end.
         if not mod.db.moved and _G.UIParent_ManageFramePositions then
-            pcall(_G.UIParent_ManageFramePositions)
+            if InCombatLockdown() then
+                ns:RegisterEventOnce("PLAYER_REGEN_ENABLED", function()
+                    if mod.active and not mod.db.moved then pcall(_G.UIParent_ManageFramePositions) end
+                end)
+            else
+                pcall(_G.UIParent_ManageFramePositions)
+            end
         end
     end
 end
