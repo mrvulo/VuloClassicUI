@@ -31,6 +31,8 @@ local mod = ns:RegisterModule("meter", {
         historySize     = 10,   -- finished fights kept for the window menu; 0 = none
         reportRows      = 10,   -- lines a chat report carries below its header
         followRole      = false, -- window 1 opens on healing for a healing spec, damage otherwise
+        pinSelf         = false, -- own bar stays in view when scrolled out
+        autoCurrent     = false, -- a window on an old fight returns to the running one on pull
         -- One entry per window: { mode, segment, x, y, width, height, scale,
         -- unlocked }. Filled by the window file; empty means "one window".
         windows         = {},
@@ -110,8 +112,61 @@ end
 ------------------------------------------------------------------------
 -- Segments
 ------------------------------------------------------------------------
+-- enemies[name] = { name, damage, by = { [guid] = amount } }: what the group
+-- did to each enemy, for the enemies mode.
 local function newSegment()
-    return { title = nil, start = 0, duration = 0, players = {} }
+    return { title = nil, start = 0, duration = 0, players = {}, enemies = {} }
+end
+
+-- The last few things that happened to each group member, for the death
+-- recap: a ring of RECAP_N records per member, fields overwritten in place
+-- so a raid's hit rate mints no tables. A death copies the ring out.
+local RECAP_N = 8
+local recent = {}          -- guid -> { pos = i, [1..RECAP_N] = rec }
+local UnitHealth, UnitHealthMax = UnitHealth, UnitHealthMax
+
+local function recapPush(guid, spell, amount, heal, src, overkill)
+    local ring = recent[guid]
+    if not ring then
+        ring = { pos = 0 }
+        for i = 1, RECAP_N do ring[i] = {} end
+        recent[guid] = ring
+    end
+    local pos = ring.pos % RECAP_N + 1
+    ring.pos = pos
+    local rec = ring[pos]
+    rec.t, rec.spell, rec.amount, rec.heal, rec.src, rec.overkill = GetTime(), spell, amount, heal, src, overkill
+    local r = roster[guid]
+    if r then
+        rec.hp, rec.hpMax = UnitHealth(r.unit), UnitHealthMax(r.unit)
+    else
+        rec.hp, rec.hpMax = nil, nil
+    end
+end
+
+-- Oldest first, as fresh tables (the ring keeps turning).
+local function recapCopy(guid, deathTime)
+    local ring = recent[guid]
+    if not ring then return nil end
+    local out = {}
+    for i = 1, RECAP_N do
+        local idx = (ring.pos + i - 1) % RECAP_N + 1   -- oldest .. newest
+        local rec = ring[idx]
+        if rec.t then
+            out[#out + 1] = { t = deathTime - rec.t, spell = rec.spell, amount = rec.amount,
+                              heal = rec.heal, src = rec.src, overkill = rec.overkill,
+                              hp = rec.hp, hpMax = rec.hpMax }
+        end
+    end
+    return out
+end
+
+local function recapClear(guid)
+    local ring = recent[guid]
+    if ring then
+        for i = 1, RECAP_N do ring[i].t = nil end
+        ring.pos = 0
+    end
 end
 
 local current               -- the running fight, nil outside combat
@@ -221,9 +276,11 @@ function Meter:PlayerGUID()  return playerGUID end
 
 function Meter:Reset()
     wipe(overall.players)
+    wipe(overall.enemies)
     overall.duration = 0
     if current then
         wipe(current.players)
+        wipe(current.enemies)
         current.start = GetTime()
     end
     last = nil
@@ -425,9 +482,21 @@ end
 ------------------------------------------------------------------------
 local HANDLERS = Meter.HANDLERS
 
+-- Enemies are keyed by name: every trash mob of a kind folds into one row,
+-- which is what a reader wants to know ("how much went into the adds").
+local function enemyHit(seg, name, owner, amount)
+    local e = seg.enemies[name]
+    if not e then
+        e = { name = name, damage = 0, by = {} }
+        seg.enemies[name] = e
+    end
+    e.damage = e.damage + amount
+    e.by[owner] = (e.by[owner] or 0) + amount
+end
+
 -- Every counter lands in the running fight AND in the overall; the per-target
 -- table (dstName) feeds the tooltip's target block.
-local function addDamage(src, amount, spellId, dstName)
+local function addDamage(src, amount, spellId, dstName, dst)
     if not amount or amount <= 0 then return end
     local owner = resolve(src)
     if not owner then return end
@@ -446,6 +515,12 @@ local function addDamage(src, amount, spellId, dstName)
     if dstName then
         bump(p, "targets", dstName, amount)
         bump(o, "targets", dstName, amount)
+        -- the enemy side of the same hit: only for things outside the group
+        -- (a friendly-fire hit on a member is the member's damage taken)
+        if not roster[dst] and not owners[dst] then
+            enemyHit(current, dstName, owner, amount)
+            enemyHit(overall, dstName, owner, amount)
+        end
     end
     dirty = true
 end
@@ -453,7 +528,7 @@ end
 -- Damage landing on a group member (players only, never their pets). The
 -- last hit stays on the entry so a death can name its killing blow. Taking
 -- damage never opens a fight; PLAYER_REGEN_DISABLED already did.
-local function addTaken(dst, srcName, amount, spellId)
+local function addTaken(dst, srcName, amount, spellId, overkill)
     if not current or not amount or amount <= 0 then return end
     if not roster[dst] then return end
     local p = entry(current, dst)
@@ -463,18 +538,19 @@ local function addTaken(dst, srcName, amount, spellId)
     bump(p, "takenBy", spellId, amount)
     bump(o, "takenBy", spellId, amount)
     p.lastSpell, p.lastAmount, p.lastSrc = spellId, amount, srcName
+    recapPush(dst, spellId, amount, false, srcName, (overkill and overkill > 0) and overkill or nil)
     dirty = true
 end
 
--- SWING_DAMAGE: amount is field 12. Spell-prefixed subevents carry spellId,
--- spellName, spellSchool in 12-14 and amount in 15.
-HANDLERS.SWING_DAMAGE = function(src, srcName, dst, a12, _, _, _, dstName)
-    addDamage(src, a12, MELEE_ID, dstName)
-    addTaken(dst, srcName, a12, MELEE_ID)
+-- SWING_DAMAGE: amount is field 12, overkill 13. Spell-prefixed subevents
+-- carry spellId, spellName, spellSchool in 12-14, amount in 15, overkill 16.
+HANDLERS.SWING_DAMAGE = function(src, srcName, dst, a12, _, _, a13, dstName)
+    addDamage(src, a12, MELEE_ID, dstName, dst)
+    addTaken(dst, srcName, a12, MELEE_ID, a13)
 end
-local function spellDamage(src, srcName, dst, a12, a15, _, _, dstName)
-    addDamage(src, a15, a12, dstName)
-    addTaken(dst, srcName, a15, a12)
+local function spellDamage(src, srcName, dst, a12, a15, a16, _, dstName)
+    addDamage(src, a15, a12, dstName, dst)
+    addTaken(dst, srcName, a15, a12, a16)
 end
 HANDLERS.RANGE_DAMAGE          = spellDamage
 HANDLERS.SPELL_DAMAGE          = spellDamage
@@ -485,8 +561,12 @@ HANDLERS.DAMAGE_SPLIT          = spellDamage
 -- Healing never opens a fight (pre-pull heals are not combat); field 16 is
 -- overhealing. The per-spell and per-target tables hold effective healing,
 -- like the bar.
-local function spellHeal(src, _, _, a12, a15, a16, _, dstName)
+local function spellHeal(src, srcName, dst, a12, a15, a16, _, dstName)
     if not current or not a15 then return end
+    -- a heal landing on a member is part of their recap even from outside
+    if roster[dst] and a15 > (a16 or 0) then
+        recapPush(dst, a12, a15 - (a16 or 0), true, srcName, nil)
+    end
     local owner = resolve(src)
     if not owner then return end
     local p = entry(current, owner)
@@ -536,8 +616,11 @@ HANDLERS.UNIT_DIED = function(_, _, dst)
     local o = entry(overall, dst)
     p.deaths = p.deaths + 1
     o.deaths = o.deaths + 1
-    local rec = { t = GetTime() - current.start,
-                  spell = p.lastSpell, amount = p.lastAmount, src = p.lastSrc }
+    local now = GetTime()
+    local rec = { t = now - current.start,
+                  spell = p.lastSpell, amount = p.lastAmount, src = p.lastSrc,
+                  recap = recapCopy(dst, now) }
+    recapClear(dst)
     pushDeath(p, rec)
     pushDeath(o, rec)
     dirty = true
@@ -551,7 +634,7 @@ end
 -- field 13 the amount. Counted as damage taken under the kind itself, so a
 -- fall shows up in the breakdown and can be the killing blow.
 HANDLERS.ENVIRONMENTAL_DAMAGE = function(_, _, dst, a12, _, _, a13)
-    if type(a12) == "string" then addTaken(dst, nil, a13, a12) end
+    if type(a12) == "string" then addTaken(dst, nil, a13, a12, nil) end
 end
 
 local function onCLEU()
@@ -599,6 +682,7 @@ function mod:OnEnable()
             cdb.meter.overall = saved
         end
         saved.players  = saved.players or {}
+        saved.enemies  = saved.enemies or {}
         saved.duration = tonumber(saved.duration) or 0
         -- Entries saved by part 1 lack the new counters; fill them once.
         for _, p in pairs(saved.players) do

@@ -21,4 +21,5 @@
 	<Binding name="VULO_ACTIONRING14" category="VuloClassicUI" />
 	<Binding name="VULO_ACTIONRING15" category="VuloClassicUI" />
 	<Binding name="VULO_ACTIONRING16" category="VuloClassicUI" />
+	<Binding name="VULO_METER_TOGGLE" category="VuloClassicUI">if VuloClassicUI and VuloClassicUI.modules and VuloClassicUI.modules.meter and VuloClassicUI.modules.meter.ToggleWindows then VuloClassicUI.modules.meter:ToggleWindows() end</Binding>
 </Bindings>

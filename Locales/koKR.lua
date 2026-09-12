@@ -3499,4 +3499,14 @@ ns:RegisterLocale("koKR", function() return {
     -- Meter: mode follows talents
     ["Mode follows your talents"] = "모드가 특성을 따름",
     ["The first window opens on healing while your talents make you a healer and on damage otherwise; it switches with your spec."] = "특성이 치유 담당이면 첫 창이 치유로, 아니면 피해로 열립니다. 전문화가 바뀌면 함께 바뀝니다.",
+    -- Meter: enemies, death recap, pinned self, auto-current, hotkey
+    ["Enemies"] = "적",
+    ["Death recap"] = "사망 요약",
+    ["overkill"] = "초과 피해",
+    ["By attacker"] = "공격자별",
+    ["Keep your own bar in view"] = "내 막대를 항상 표시",
+    ["When your own bar scrolls out of view it stays pinned at the top or bottom edge with its real rank."] = "내 막대가 스크롤로 화면 밖으로 나가면 실제 순위와 함께 위 또는 아래 가장자리에 고정됩니다.",
+    ["Back to the current fight on pull"] = "전투 시작 시 현재 전투로 복귀",
+    ["A window showing a previous fight returns to the running fight when the next one starts."] = "이전 전투를 보여주던 창은 다음 전투가 시작되면 진행 중인 전투로 돌아갑니다.",
+    ["Toggle combat meter windows"] = "전투 미터 창 표시/숨기기",
 } end)

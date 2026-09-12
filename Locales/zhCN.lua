@@ -3492,4 +3492,14 @@ ns:RegisterLocale("zhCN", function() return {
     -- Meter: mode follows talents
     ["Mode follows your talents"] = "模式跟随天赋",
     ["The first window opens on healing while your talents make you a healer and on damage otherwise; it switches with your spec."] = "当天赋使你成为治疗时，第一个窗口以治疗模式打开，否则以伤害模式打开；随专精切换而改变。",
+    -- Meter: enemies, death recap, pinned self, auto-current, hotkey
+    ["Enemies"] = "敌人",
+    ["Death recap"] = "死亡回顾",
+    ["overkill"] = "溢出伤害",
+    ["By attacker"] = "按攻击者",
+    ["Keep your own bar in view"] = "保持自己的条可见",
+    ["When your own bar scrolls out of view it stays pinned at the top or bottom edge with its real rank."] = "当你的条滚动出视野时，它会以真实排名固定在顶部或底部边缘。",
+    ["Back to the current fight on pull"] = "开战时回到当前战斗",
+    ["A window showing a previous fight returns to the running fight when the next one starts."] = "显示上一场战斗的窗口会在下一场战斗开始时回到当前战斗。",
+    ["Toggle combat meter windows"] = "显示/隐藏战斗统计窗口",
 } end)

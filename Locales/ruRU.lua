@@ -3499,4 +3499,14 @@ ns:RegisterLocale("ruRU", function() return {
     -- Meter: mode follows talents
     ["Mode follows your talents"] = "Режим следует за талантами",
     ["The first window opens on healing while your talents make you a healer and on damage otherwise; it switches with your spec."] = "Первое окно открывается на исцелении, пока таланты делают вас лекарем, иначе на уроне; оно меняется вместе со специализацией.",
+    -- Meter: enemies, death recap, pinned self, auto-current, hotkey
+    ["Enemies"] = "Противники",
+    ["Death recap"] = "Итог смерти",
+    ["overkill"] = "перебор",
+    ["By attacker"] = "По атакующему",
+    ["Keep your own bar in view"] = "Держать свою полосу на виду",
+    ["When your own bar scrolls out of view it stays pinned at the top or bottom edge with its real rank."] = "Когда ваша полоса уходит из вида при прокрутке, она закрепляется у верхнего или нижнего края с настоящим местом.",
+    ["Back to the current fight on pull"] = "Возврат к текущему бою при пулле",
+    ["A window showing a previous fight returns to the running fight when the next one starts."] = "Окно, показывающее предыдущий бой, возвращается к текущему, когда начинается следующий.",
+    ["Toggle combat meter windows"] = "Показать/скрыть окна счётчика",
 } end)

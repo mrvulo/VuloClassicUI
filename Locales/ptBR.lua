@@ -3499,4 +3499,14 @@ ns:RegisterLocale("ptBR", function() return {
     -- Meter: mode follows talents
     ["Mode follows your talents"] = "O modo segue seus talentos",
     ["The first window opens on healing while your talents make you a healer and on damage otherwise; it switches with your spec."] = "A primeira janela abre em cura enquanto seus talentos fizerem de você um curandeiro e em dano caso contrário; muda com a sua especialização.",
+    -- Meter: enemies, death recap, pinned self, auto-current, hotkey
+    ["Enemies"] = "Inimigos",
+    ["Death recap"] = "Resumo da morte",
+    ["overkill"] = "excesso",
+    ["By attacker"] = "Por atacante",
+    ["Keep your own bar in view"] = "Manter sua barra à vista",
+    ["When your own bar scrolls out of view it stays pinned at the top or bottom edge with its real rank."] = "Quando sua barra sai da vista ao rolar, ela fica fixada na borda superior ou inferior com sua posição real.",
+    ["Back to the current fight on pull"] = "Voltar ao combate atual no pull",
+    ["A window showing a previous fight returns to the running fight when the next one starts."] = "Uma janela mostrando um combate anterior volta ao combate em andamento quando o próximo começa.",
+    ["Toggle combat meter windows"] = "Mostrar/ocultar janelas do medidor",
 } end)

@@ -20,6 +20,7 @@ local function modeValues()
         { value = "heal",       text = L["Healing"] },
         { value = "hps",        text = L["HPS"] },
         { value = "taken",      text = L["Damage taken"] },
+        { value = "enemies",    text = L["Enemies"] },
         { value = "interrupts", text = L["Interrupts"] },
         { value = "dispels",    text = L["Dispels"] },
         { value = "deaths",     text = L["Deaths"] },
@@ -111,6 +112,8 @@ function mod:GetOptions()
         L["Per-second value next to the total. In the per-second modes the brackets show the total instead."])
     items[#items + 1] = toggle(L["Show percent"], "showPercent")
     items[#items + 1] = toggle(L["Highlight your own bar"], "highlightSelf")
+    items[#items + 1] = toggle(L["Keep your own bar in view"], "pinSelf",
+        L["When your own bar scrolls out of view it stays pinned at the top or bottom edge with its real rank."])
 
     items[#items + 1] = { type = "spacer", height = 6 }
     items[#items + 1] = { type = "header", text = L["Visibility"] }
@@ -143,6 +146,8 @@ function mod:GetOptions()
         },
     }
     items[#items + 1] = toggle(L["Reset overall when joining a new group"], "resetOnNewGroup")
+    items[#items + 1] = toggle(L["Back to the current fight on pull"], "autoCurrent",
+        L["A window showing a previous fight returns to the running fight when the next one starts."])
     items[#items + 1] = { type = "toggle", label = L["Mode follows your talents"],
         tooltip = L["The first window opens on healing while your talents make you a healer and on damage otherwise; it switches with your spec."],
         get = function() return mod.db.followRole end,

@@ -29,7 +29,7 @@ local CreateFrame         = CreateFrame
 
 local TITLE_H  = 20
 local PAD      = 2
-local MODES    = { "damage", "dps", "heal", "hps", "taken", "interrupts", "dispels", "deaths" }
+local MODES    = { "damage", "dps", "heal", "hps", "taken", "enemies", "interrupts", "dispels", "deaths" }
 -- The threat mode reads the client's threat API, not the log; a client
 -- without it simply has eight modes, and a saved "threat" falls to damage.
 if Meter.HAS_THREAT then MODES[#MODES + 1] = "threat" end
@@ -69,6 +69,7 @@ local function modeLabel(m)
     if m == "heal"       then return L["Healing"] end
     if m == "hps"        then return L["HPS"] end
     if m == "taken"      then return L["Damage taken"] end
+    if m == "enemies"    then return L["Enemies"] end
     if m == "interrupts" then return L["Interrupts"] end
     if m == "dispels"    then return L["Dispels"] end
     if m == "threat"     then return L["Threat"] end
@@ -96,6 +97,14 @@ end
 -- whatever the engine has under the window's choice. A history pick that the
 -- engine has trimmed since is dropped back to the saved choice here, so the
 -- title and the rows never disagree about what they show.
+-- The row set a window paints from its segment: the enemies table in the
+-- enemies mode (rows are what the group hit), the players otherwise.
+local function rowsOf(seg, mode)
+    if not seg then return nil end
+    if mode == "enemies" then return seg.enemies or {} end
+    return seg.players
+end
+
 local function segmentOf(w)
     if w.mode == "threat" then return Meter:ThreatSegment() end
     local seg = Meter:GetSegment(w.segment)
@@ -146,6 +155,7 @@ local function valueOf(mode, p, dur)
     if mode == "dispels"    then return p.dispels    or 0 end
     if mode == "deaths"     then return p.deaths     or 0 end
     if mode == "threat"     then return p.threat     or 0 end
+    if mode == "enemies"    then return p.damage     or 0 end
     if dur <= 0 then return 0 end
     if mode == "dps" then return p.damage / dur end
     return (p.heal - p.overheal) / dur
@@ -298,6 +308,36 @@ local function targetLines(p, key, own)
     end
 end
 
+-- The last things that happened before the newest death: seconds before
+-- it, what hit (or healed), the amount and the health left afterwards.
+-- Damage red, healing green, the killing blow with its overkill.
+local function recapLines(rec)
+    local recap = rec and rec.recap
+    if not recap or #recap == 0 then return end
+    tipLines[#tipLines + 1] = " "
+    tipLines[#tipLines + 1] = L["Death recap"]
+    local n = #recap
+    local first = max(1, n - (mod.db.tooltipRows or 5) + 1)
+    for i = first, n do
+        local d = recap[i]
+        local name = d.spell and spellText(d.spell) or (d.heal and L["Healing"] or L["Unknown"])
+        local left = format("-%.1fs  %s", d.t or 0, name)
+        local right
+        if d.heal then
+            right = "|cff66dd66+" .. short(d.amount or 0) .. "|r"
+        else
+            right = "|cffff6666-" .. short(d.amount or 0) .. "|r"
+            if i == n and d.overkill then
+                right = right .. " |cffff3333(" .. short(d.overkill) .. " " .. L["overkill"] .. ")|r"
+            end
+        end
+        if d.hp and d.hpMax and d.hpMax > 0 then
+            right = right .. format(" (%d%%)", floor(d.hp / d.hpMax * 100 + 0.5))
+        end
+        line(200 + i, left, right)
+    end
+end
+
 local function deathLines(p)
     local log = p.deathLog
     if not log or #log == 0 then
@@ -318,6 +358,44 @@ local function deathLines(p)
         end
         line(i, left, right)
     end
+    recapLines(log[#log])
+end
+
+-- Enemies mode: who did the damage to this enemy.
+local sortBy
+local function byAmount(a, b)
+    local va, vb = sortBy[a], sortBy[b]
+    if va == vb then return tostring(a) < tostring(b) end
+    return va > vb
+end
+
+local function attackerLines(e, seg)
+    local by = e.by
+    local n = 0
+    if by then
+        for guid, v in pairs(by) do
+            if v > 0 then
+                n = n + 1
+                sortIds[n] = guid
+            end
+        end
+    end
+    for i = n + 1, #sortIds do sortIds[i] = nil end
+    if n == 0 then
+        tipLines[#tipLines + 1] = L["No details yet"]
+        return
+    end
+    sortBy = by
+    sort(sortIds, byAmount)
+    tipLines[#tipLines + 1] = L["By attacker"]
+    local rows = min(n, mod.db.tooltipRows or 5)
+    local own = e.damage or 0
+    for i = 1, rows do
+        local guid = sortIds[i]
+        local p = seg.players[guid]
+        local v = by[guid]
+        line(i, (p and p.name) or "?", format("%s (%.1f%%)", short(v), own > 0 and v / own * 100 or 0))
+    end
 end
 
 local function threatStatus(p)
@@ -329,7 +407,8 @@ end
 rowEnter = function(self)
     local w   = self.win
     local seg = segmentOf(w)
-    local p   = seg and self.guid and seg.players[self.guid]
+    local set = rowsOf(seg, w.mode)
+    local p   = set and self.guid and set[self.guid]
     if not p then return end
     local mode  = w.mode
     local vals  = w.vals
@@ -358,6 +437,8 @@ rowEnter = function(self)
     local isCount = COUNT[mode]
     if mode == "deaths" then
         deathLines(p)
+    elseif mode == "enemies" then
+        attackerLines(p, seg)
     else
         local own = HEALING[mode] and (p.heal - p.overheal)
                  or (mode == "taken" and (p.taken or 0))
@@ -388,6 +469,9 @@ rowEnter = function(self)
     local c = ns.ClassColor(p.class)
     if c then
         tipColor[1], tipColor[2], tipColor[3] = c.r, c.g, c.b
+        tipSpec.color = tipColor
+    elseif mode == "enemies" then
+        tipColor[1], tipColor[2], tipColor[3] = 0.9, 0.35, 0.35
         tipSpec.color = tipColor
     else
         tipSpec.color = nil
@@ -639,9 +723,10 @@ refresh = function(w)
         w._wasDetail = nil
         layoutRows(w)
     end
-    if seg then
+    local set = rowsOf(seg, mode)
+    if set then
         dur = (mode ~= "threat") and Meter:Duration(seg) or 0
-        for guid, p in pairs(seg.players) do
+        for guid, p in pairs(set) do
             n = n + 1
             order[n] = guid
             vals[guid] = valueOf(mode, p, dur)
@@ -666,17 +751,35 @@ refresh = function(w)
     local top = vals[order[1]]
     local me  = Meter:PlayerGUID()
 
+    -- Own bar pinned: scrolled out above, it takes the top slot; scrolled
+    -- out below, the bottom slot -- with its real rank, so the window still
+    -- says where you stand.
+    local pinIdx, pinSlot
+    if db.pinSelf and me and mode ~= "enemies" and slots < n then
+        for i = 1, n do
+            if order[i] == me then pinIdx = i; break end
+        end
+        if pinIdx then
+            if pinIdx <= scroll then pinSlot = 1
+            elseif pinIdx > scroll + slots then pinSlot = slots
+            else pinIdx = nil end
+        end
+    end
+
     for i = 1, slots do
         local r    = rows[i]
         local idx  = i + scroll
+        if pinSlot == i then idx = pinIdx end
         local guid = order[idx]
         if r and guid then
-            local p = seg.players[guid]
+            local p = set[guid]
             local v = vals[guid]
             r:SetValue(top > 0 and v / top or 0)
             local c = ns.ClassColor(p.class)
             if c then
                 r:SetStatusBarColor(c.r, c.g, c.b, 0.85)
+            elseif mode == "enemies" then
+                r:SetStatusBarColor(0.75, 0.25, 0.25, 0.85)
             else
                 r:SetStatusBarColor(0.6, 0.6, 0.6, 0.85)
             end
@@ -803,6 +906,16 @@ end
 local function onEngine(what)
     if what == "start" then
         resetScroll()
+        -- Option: a window parked on an old fight comes back for the pull.
+        if mod.db.autoCurrent then
+            for i = 1, #frames do
+                local w = frames[i]
+                if w.db and type(w.segment) == "table" then
+                    w.segment = w.db.segment
+                    w.detail  = nil
+                end
+            end
+        end
         -- No immediate paint: the segment is still empty, the first tick fills it.
         startTicker()
         applyVisibility()
@@ -1064,6 +1177,7 @@ local function sendReport(w, chatType, target)
     local n = #order
     if n == 0 then return end
     local mode  = w.mode
+    local set   = rowsOf(seg, mode)
     local dur   = (mode ~= "threat") and Meter:Duration(seg) or 0
     local total = 0
     for i = 1, n do total = total + (vals[order[i]] or 0) end
@@ -1073,7 +1187,7 @@ local function sendReport(w, chatType, target)
     local rows = min(n, tonumber(mod.db.reportRows) or 10)
     for i = 1, rows do
         local guid = order[i]
-        local p = seg.players[guid]
+        local p = set[guid]
         if p then
             SendChatMessage(format("%d. %s  %s", i, p.name, reportRight(mode, p, vals[guid] or 0, total, dur)),
                             chatType, nil, target)
@@ -1193,6 +1307,14 @@ end
 ------------------------------------------------------------------------
 -- Visibility (one verdict, applied to every bound frame)
 ------------------------------------------------------------------------
+-- The hotkey hides every window until pressed again. Runtime only: a
+-- reload must never leave the player staring at nothing.
+local hiddenByKey = false
+function mod:ToggleWindows()
+    hiddenByKey = not hiddenByKey
+    applyVisibility()
+end
+
 applyVisibility = function()
     -- mod.active: Core/Modules.lua clears it before OnDisable, so a hide-delay
     -- timer that outlives WindowDisable can no longer re-show the windows.
@@ -1202,6 +1324,8 @@ applyVisibility = function()
     if (ns.IsEditModeActive and ns:IsEditModeActive())
     or (ns.IsMoverEditMode and ns:IsMoverEditMode()) then
         show = true
+    elseif hiddenByKey then
+        show = false
     else
         local inCombat = Meter:InCombat() or UnitAffectingCombat("player")
         if db.onlyInGroup and not IsInGroup() then show = false end
@@ -1481,6 +1605,12 @@ end
 -- 1 Discipline / 2 Holy, Paladin 1 Holy, Druid 3 Restoration, Shaman
 -- 3 Restoration (the same numbering Modules/SwingTimer.lua relies on).
 ------------------------------------------------------------------------
+-- Binding label for the key that toggles the windows (Bindings.xml, action
+-- VULO_METER_TOGGLE); lazily, like every other text.
+ns.OnLocaleReady(function()
+    _G["BINDING_NAME_VULO_METER_TOGGLE"] = L["Toggle combat meter windows"]
+end)
+
 local HEAL_TREES = {
     PRIEST  = { [1] = true, [2] = true },
     PALADIN = { [1] = true },

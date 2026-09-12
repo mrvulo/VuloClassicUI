@@ -3500,6 +3500,16 @@ local function T() return {
     -- Meter: mode follows talents
     ["Mode follows your talents"] = "El modo sigue tus talentos",
     ["The first window opens on healing while your talents make you a healer and on damage otherwise; it switches with your spec."] = "La primera ventana se abre en sanación mientras tus talentos te hagan sanador y en daño en caso contrario; cambia con tu especialización.",
+    -- Meter: enemies, death recap, pinned self, auto-current, hotkey
+    ["Enemies"] = "Enemigos",
+    ["Death recap"] = "Resumen de muerte",
+    ["overkill"] = "exceso",
+    ["By attacker"] = "Por atacante",
+    ["Keep your own bar in view"] = "Mantener tu barra a la vista",
+    ["When your own bar scrolls out of view it stays pinned at the top or bottom edge with its real rank."] = "Cuando tu barra sale de la vista al desplazar, se queda fijada en el borde superior o inferior con su posición real.",
+    ["Back to the current fight on pull"] = "Volver al combate actual al iniciar",
+    ["A window showing a previous fight returns to the running fight when the next one starts."] = "Una ventana que muestra un combate anterior vuelve al combate en curso cuando empieza el siguiente.",
+    ["Toggle combat meter windows"] = "Mostrar/ocultar ventanas del medidor",
 } end
 
 ns:RegisterLocale("esES", T)

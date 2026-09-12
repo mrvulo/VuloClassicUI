@@ -22,6 +22,11 @@
 - Built on the game's own secure aura rows, so cancelling works in combat too. The module ships disabled: switch it on under HUD.
 
 **Combat Meter:**
+- **NEW: Enemies** – A tenth mode that lists what the group hit: each enemy with the damage it took, every mob of a kind folded into one row, and the attackers behind it in the tooltip
+- **NEW: Keep your own bar in view** – When your bar scrolls out of the window it stays pinned at the top or bottom edge with its real rank
+- **NEW: Back to the current fight on pull** – A window parked on a previous fight returns to the running one when the next fight starts
+- The death tooltip ends with a death recap: the last hits and heals before the newest death, each with the seconds before it, the amount, the health left afterwards and the overkill of the killing blow. Healing received counts, so a death shows what came in as well as what took it.
+- A keybinding under VuloClassicUI in the game's key bindings shows and hides every meter window at once; the hidden state is never saved, so a reload brings the windows back.
 - **NEW: Mode follows your talents** – The first window opens on healing while your talents make you a healer and on damage otherwise, switching with your spec
 - A left-click on a bar turns the window into that player's ability list for the current mode, sorted by value with the share of their total; right-click or a click on the title goes back. The list is not saved, and a mode or segment change leaves it.
 

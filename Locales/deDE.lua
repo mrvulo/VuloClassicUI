@@ -3617,4 +3617,14 @@ ns:RegisterLocale("deDE", function() return {
     -- Meter: mode follows talents
     ["Mode follows your talents"] = "Modus folgt deinen Talenten",
     ["The first window opens on healing while your talents make you a healer and on damage otherwise; it switches with your spec."] = "Das erste Fenster öffnet auf Heilung, solange deine Talente dich zum Heiler machen, sonst auf Schaden; es wechselt mit deiner Spezialisierung.",
+    -- Meter: enemies, death recap, pinned self, auto-current, hotkey
+    ["Enemies"] = "Gegner",
+    ["Death recap"] = "Todes-Rückblick",
+    ["overkill"] = "Overkill",
+    ["By attacker"] = "Nach Angreifer",
+    ["Keep your own bar in view"] = "Eigenen Balken im Blick behalten",
+    ["When your own bar scrolls out of view it stays pinned at the top or bottom edge with its real rank."] = "Scrollt dein eigener Balken aus dem Sichtfeld, bleibt er mit seinem echten Rang am oberen oder unteren Rand stehen.",
+    ["Back to the current fight on pull"] = "Beim Pull zurück zum laufenden Kampf",
+    ["A window showing a previous fight returns to the running fight when the next one starts."] = "Ein Fenster, das einen vorherigen Kampf zeigt, springt zum laufenden Kampf, sobald der nächste beginnt.",
+    ["Toggle combat meter windows"] = "Kampfmeter-Fenster ein-/ausblenden",
 } end)
