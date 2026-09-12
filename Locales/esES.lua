@@ -3407,6 +3407,26 @@ local function T() return {
     ["The window rows on the options page no longer take part in talent overrides. Every window carries the same row label, so an override for one window switched the mode of all of them."] = "Las filas de ventana de la página de opciones ya no participan en las anulaciones de talentos. Todas las ventanas llevan la misma etiqueta de fila, así que una anulación para una ventana cambiaba el modo de todas.",
     ["A partial export keeps a chosen module that stands entirely on its default values. Stripping the defaults used to remove the whole module table, and the import, which replaces module by module, then kept the receiving profile's own values instead. An empty table now means: this module, on defaults."] = "Una exportación parcial conserva un módulo elegido que está por completo en sus valores predeterminados. La limpieza de valores predeterminados eliminaba antes toda la tabla del módulo, y la importación, que sustituye módulo por módulo, conservaba entonces los valores propios del perfil receptor. Una tabla vacía significa ahora: este módulo, en valores predeterminados.",
     ["Talent overrides survive a language change. Their identifiers carried the translated label, so after switching the game language the saved settings were no longer found and nothing was applied. They carry the English key now, and identifiers saved earlier are converted once on load in every profile."] = "Las anulaciones de talentos sobreviven a un cambio de idioma. Sus identificadores llevaban la etiqueta traducida, así que tras cambiar el idioma del juego los ajustes guardados ya no se encontraban y no se aplicaba nada. Ahora llevan la clave en inglés, y los identificadores guardados antes se convierten una vez al cargar en cada perfil.",
+    -- Combat Meter part 4: threat, history, report
+    ["Threat"] = "Amenaza",
+    ["No target"] = "Sin objetivo",
+    ["Tanking"] = "Tanqueando",
+    ["Above the tank"] = "Por encima del tanque",
+    ["Safe"] = "Seguro",
+    ["Percent of tank"] = "Porcentaje del tanque",
+    ["Previous fights"] = "Combates anteriores",
+    ["Fight %d"] = "Combate %d",
+    ["Report"] = "Informe",
+    ["Say"] = "Decir",
+    ["Party"] = "Grupo",
+    ["Raid"] = "Banda",
+    ["Officer"] = "Oficial",
+    ["Whisper to..."] = "Susurrar a...",
+    ["Whisper the report to whom?"] = "¿A quién susurrar el informe?",
+    ["Fights to keep"] = "Combates a conservar",
+    ["Finished fights the title menu offers under Previous fights. They live until a reload; the overall total is what survives one."] = "Combates terminados que el menú del título ofrece en Combates anteriores. Duran hasta una recarga; el total general es lo que sobrevive a ella.",
+    ["Rows in report"] = "Filas del informe",
+    ["Lines below the header when a window is reported to a chat channel from its title menu."] = "Líneas debajo del encabezado cuando una ventana se envía a un canal de chat desde su menú del título.",
 } end
 
 ns:RegisterLocale("esES", T)

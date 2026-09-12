@@ -14,7 +14,7 @@ local function refreshPage()
 end
 
 local function modeValues()
-    return {
+    local v = {
         { value = "damage",     text = L["Damage"] },
         { value = "dps",        text = L["DPS"] },
         { value = "heal",       text = L["Healing"] },
@@ -24,6 +24,10 @@ local function modeValues()
         { value = "dispels",    text = L["Dispels"] },
         { value = "deaths",     text = L["Deaths"] },
     }
+    if ns.Meter and ns.Meter.HAS_THREAT then
+        v[#v + 1] = { value = "threat", text = L["Threat"] }
+    end
+    return v
 end
 
 local function segmentValues()
@@ -46,16 +50,29 @@ end
 -- noOverride: the rows share their labels ("Segment" on every window) and the
 -- list itself grows and shrinks, so a talent override could neither name one
 -- window reliably nor survive a closed one.
+-- While the module runs, the window actions do the work (they also clear a
+-- fight picked from the title menu and arm the threat events); a re-sync of
+-- every frame would keep such a pick and swallow the dropdown's choice.
+local function setMode(i, w, v)
+    w.mode = v
+    if mod.active and mod.SetMode then mod:SetMode(i, v, true) else apply() end
+end
+
+local function setSegment(i, w, v)
+    w.segment = v
+    if mod.active and mod.SetSegment then mod:SetSegment(i, v, true) else apply() end
+end
+
 local function windowRow(i, w, closable)
     local items = {
         { type = "dropdown", label = string.format(L["Window %d"], i), width = 150,
           values = modeValues(), noOverride = true,
           get = function() return w.mode end,
-          set = function(_, v) w.mode = v; apply() end },
+          set = function(_, v) setMode(i, w, v) end },
         { type = "dropdown", label = L["Segment"], width = 150,
           values = segmentValues(), noOverride = true,
           get = function() return w.segment end,
-          set = function(_, v) w.segment = v; apply() end },
+          set = function(_, v) setSegment(i, w, v) end },
     }
     if closable then
         items[#items + 1] = { type = "button", width = 110, label = L["Close"],
@@ -126,6 +143,17 @@ function mod:GetOptions()
         },
     }
     items[#items + 1] = toggle(L["Reset overall when joining a new group"], "resetOnNewGroup")
+    items[#items + 1] = { type = "slider", label = L["Fights to keep"], min = 0, max = 30, step = 1,
+        tooltip = L["Finished fights the title menu offers under Previous fights. They live until a reload; the overall total is what survives one."],
+        get = function() return mod.db.historySize end,
+        set = function(_, v) mod.db.historySize = v end }
+
+    items[#items + 1] = { type = "spacer", height = 6 }
+    items[#items + 1] = { type = "header", text = L["Report"] }
+    items[#items + 1] = { type = "slider", label = L["Rows in report"], min = 3, max = 25, step = 1,
+        tooltip = L["Lines below the header when a window is reported to a chat channel from its title menu."],
+        get = function() return mod.db.reportRows end,
+        set = function(_, v) mod.db.reportRows = v end }
 
     items[#items + 1] = { type = "spacer", height = 6 }
     items[#items + 1] = { type = "header", text = L["Position"] }

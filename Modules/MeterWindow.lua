@@ -21,12 +21,18 @@ local wipe                = wipe
 local pairs               = pairs
 local type                = type
 local IsInGroup           = IsInGroup
+local IsInRaid            = IsInRaid
+local IsInGuild           = IsInGuild
+local UnitIsUnit          = UnitIsUnit
 local UnitAffectingCombat = UnitAffectingCombat
 local CreateFrame         = CreateFrame
 
 local TITLE_H  = 20
 local PAD      = 2
 local MODES    = { "damage", "dps", "heal", "hps", "taken", "interrupts", "dispels", "deaths" }
+-- The threat mode reads the client's threat API, not the log; a client
+-- without it simply has eight modes, and a saved "threat" falls to damage.
+if Meter.HAS_THREAT then MODES[#MODES + 1] = "threat" end
 local MODE_IDX = {}
 for i = 1, #MODES do MODE_IDX[MODES[i]] = i end
 local PER_SEC  = { dps = true, hps = true }
@@ -47,8 +53,12 @@ local ticker
 local lastCombatEnd  = 0
 local hideTimerArmed = false
 
--- Forward declarations; filled in further down.
+-- Forward declarations; filled in further down. pageChanged is on the list
+-- because the window actions above its definition call it: without the
+-- declaration those calls resolved to a nil global, and every mode change
+-- from the title menu ended in a silent Lua error after the visible work.
 local layoutRows, refresh, applyVisibility, openMenu, rowEnter, syncFrames, dragStart, dragStop
+local pageChanged, syncThreatEvents
 
 ------------------------------------------------------------------------
 -- Labels
@@ -61,13 +71,39 @@ local function modeLabel(m)
     if m == "taken"      then return L["Damage taken"] end
     if m == "interrupts" then return L["Interrupts"] end
     if m == "dispels"    then return L["Dispels"] end
+    if m == "threat"     then return L["Threat"] end
     return L["Deaths"]
 end
 
+-- A finished fight is named by its boss, else by its place in the history
+-- (1 = the most recent); the same text serves the menu and the title.
+local function fightLabel(seg, idx)
+    if seg.title then return seg.title end
+    return format(L["Fight %d"], idx or (Meter:HistoryIndex(seg) or 0))
+end
+
 local function segmentLabel(w, seg)
+    if w.mode == "threat" then
+        return (seg and seg.title) or L["No target"]
+    end
     if w.segment == "overall" then return L["Overall"] end
+    if type(w.segment) == "table" and seg == w.segment then return fightLabel(seg) end
     if seg and seg.title then return seg.title end
     return L["Current fight"]
+end
+
+-- The segment a window paints: the threat snapshot in threat mode, else
+-- whatever the engine has under the window's choice. A history pick that the
+-- engine has trimmed since is dropped back to the saved choice here, so the
+-- title and the rows never disagree about what they show.
+local function segmentOf(w)
+    if w.mode == "threat" then return Meter:ThreatSegment() end
+    local seg = Meter:GetSegment(w.segment)
+    if type(w.segment) == "table" and seg ~= w.segment then
+        w.segment = w.db.segment
+        seg = Meter:GetSegment(w.segment)
+    end
+    return seg
 end
 
 ------------------------------------------------------------------------
@@ -109,6 +145,7 @@ local function valueOf(mode, p, dur)
     if mode == "interrupts" then return p.interrupts or 0 end
     if mode == "dispels"    then return p.dispels    or 0 end
     if mode == "deaths"     then return p.deaths     or 0 end
+    if mode == "threat"     then return p.threat     or 0 end
     if dur <= 0 then return 0 end
     if mode == "dps" then return p.damage / dur end
     return (p.heal - p.overheal) / dur
@@ -128,6 +165,9 @@ end
 local function rightText(mode, p, v, total, dur)
     local db  = mod.db
     local pct = total > 0 and (v / total * 100) or 0
+    -- Threat: the percent is the whole point (share of the tank's threat,
+    -- not of the sum), so it ignores the bracket switches.
+    if mode == "threat" then return format("%s (%.0f%%)", short(v), p.pct or 0) end
     if COUNT[mode] then
         if db.showPercent then return format("%d (%.1f%%)", v, pct) end
         return format("%d", v)
@@ -254,20 +294,41 @@ local function deathLines(p)
     end
 end
 
+local function threatStatus(p)
+    if p.tanking or (p.status or 0) >= 2 then return L["Tanking"] end
+    if p.status == 1 then return L["Above the tank"] end
+    return L["Safe"]
+end
+
 rowEnter = function(self)
     local w   = self.win
-    local seg = Meter:GetSegment(w.segment)
+    local seg = segmentOf(w)
     local p   = seg and self.guid and seg.players[self.guid]
     if not p then return end
     local mode  = w.mode
     local vals  = w.vals
     local order = w.order
-    local dur   = Meter:Duration(seg)
     local v     = vals[self.guid] or 0
     local total = 0
     for i = 1, #order do total = total + (vals[order[i]] or 0) end
 
     wipe(tipLines)
+    if mode == "threat" then
+        tipLines[#tipLines + 1] = format("%s: %s", L["Threat"], short(v))
+        tipLines[#tipLines + 1] = format("%s: %.0f%%", L["Percent of tank"], p.pct or 0)
+        tipLines[#tipLines + 1] = threatStatus(p)
+        tipSpec.title = p.name
+        local c = ns.ClassColor(p.class)
+        if c then
+            tipColor[1], tipColor[2], tipColor[3] = c.r, c.g, c.b
+            tipSpec.color = tipColor
+        else
+            tipSpec.color = nil
+        end
+        UI:ShowTooltip(self, tipSpec)
+        return
+    end
+    local dur     = Meter:Duration(seg)
     local isCount = COUNT[mode]
     if mode == "deaths" then
         deathLines(p)
@@ -433,11 +494,11 @@ refresh = function(w)
     local order = w.order
     local vals  = w.vals
     local rows  = w.rows
-    local seg   = Meter:GetSegment(w.segment)
+    local seg   = segmentOf(w)
     local n     = 0
     local dur   = 0
     if seg then
-        dur = Meter:Duration(seg)
+        dur = (mode ~= "threat") and Meter:Duration(seg) or 0
         for guid, p in pairs(seg.players) do
             n = n + 1
             order[n] = guid
@@ -512,7 +573,8 @@ local function tick()
     if dirty then Meter:ClearDirty() end
     for i = 1, #frames do
         local w = frames[i]
-        if dirty or PER_SEC[w.mode] then refresh(w) end
+        -- threat windows repaint from their own events, never from the log
+        if w.mode ~= "threat" and (dirty or PER_SEC[w.mode]) then refresh(w) end
     end
 end
 
@@ -530,6 +592,70 @@ end
 
 local function resetScroll()
     for i = 1, #frames do frames[i].scroll = 0 end
+end
+
+------------------------------------------------------------------------
+-- Threat windows: driven by the threat events, not the fight ticker. The
+-- events are registered only while a bound window is in threat mode; a
+-- raid fires UNIT_THREAT_LIST_UPDATE constantly and nobody should pay for
+-- a mode they are not looking at. Events set a flag, one 0.25 s collector
+-- snapshots and repaints; a target change repaints at once.
+------------------------------------------------------------------------
+local threatArmed   = false
+local threatPending = false
+
+local function refreshThreat()
+    threatPending = false
+    if not mod.active then return end
+    Meter:ThreatSnapshot()
+    for i = 1, #frames do
+        local w = frames[i]
+        if w.db and w.mode == "threat" then refresh(w) end
+    end
+end
+
+local function threatSoon()
+    if threatPending then return end
+    threatPending = true
+    C_Timer.After(0.25, refreshThreat)
+end
+
+local function onThreatList(_, unit)
+    -- The mob's list changed; only our target's list is on screen. The unit
+    -- token is whichever one the client saw the mob under (nameplate, boss,
+    -- target itself), so compare identity instead of the token.
+    if unit and UnitIsUnit(unit, "target") then threatSoon() end
+end
+
+local function onThreatSituation()
+    threatSoon()
+end
+
+local function onTargetChanged()
+    threatPending = false
+    refreshThreat()
+end
+
+syncThreatEvents = function()
+    local want = false
+    if Meter.HAS_THREAT and mod.active then
+        for i = 1, #frames do
+            local w = frames[i]
+            if w.db and w.mode == "threat" then want = true; break end
+        end
+    end
+    if want == threatArmed then return end
+    threatArmed = want
+    if want then
+        ns:RegisterEvent("UNIT_THREAT_LIST_UPDATE",      onThreatList)
+        ns:RegisterEvent("UNIT_THREAT_SITUATION_UPDATE", onThreatSituation)
+        ns:RegisterEvent("PLAYER_TARGET_CHANGED",        onTargetChanged)
+        refreshThreat()
+    else
+        ns:UnregisterEvent("UNIT_THREAT_LIST_UPDATE",      onThreatList)
+        ns:UnregisterEvent("UNIT_THREAT_SITUATION_UPDATE", onThreatSituation)
+        ns:UnregisterEvent("PLAYER_TARGET_CHANGED",        onTargetChanged)
+    end
 end
 
 local function onEngine(what)
@@ -667,26 +793,38 @@ function mod:ToggleLock(index)
     if w.paintLock then w.paintLock() end
 end
 
-function mod:SetMode(index, m)
+-- quiet: called from the options page itself, which must not be rebuilt
+-- under the pointer by its own dropdown.
+function mod:SetMode(index, m, quiet)
     if not MODE_IDX[m] then return end
     local w = frames[index]
     if not (w and w.db) then return end
     w.db.mode = m
     w.mode    = m
     w.scroll  = 0
+    syncThreatEvents()
     refresh(w)
-    pageChanged()
+    if not quiet then pageChanged() end
 end
 
-function mod:SetSegment(index, s)
+-- s is "current", "overall", or a finished fight's table from the history.
+-- A fight pick lives only in the window record: the history does not survive
+-- a reload, so the saved choice stays what it was. A plain choice always
+-- clears a fight pick, so the options dropdown can leave one again.
+function mod:SetSegment(index, s, quiet)
     local w = frames[index]
     if not (w and w.db) then return end
-    s = (s == "overall") and "overall" or "current"
-    w.db.segment = s
-    w.segment    = s
-    w.scroll     = 0
+    if type(s) == "table" then
+        if not Meter:HistoryIndex(s) then return end
+        w.segment = s
+    else
+        s = (s == "overall") and "overall" or "current"
+        w.db.segment = s
+        w.segment    = s
+    end
+    w.scroll = 0
     refresh(w)
-    pageChanged()
+    if not quiet then pageChanged() end
 end
 
 -- Wheel up = previous mode, wheel down = next, wrapping around.
@@ -748,6 +886,102 @@ local function anchorEntries(w)
     return e
 end
 
+------------------------------------------------------------------------
+-- Chat report: the window's sorted list, header plus the top N rows, one
+-- chat line each. Reads w.order/w.vals as the last refresh left them, so
+-- the report says exactly what the window shows.
+------------------------------------------------------------------------
+local function reportRight(mode, p, v, total, dur)
+    if mode == "threat" then return format("%s (%.0f%%)", short(v), p.pct or 0) end
+    if COUNT[mode] then return format("%d", v) end
+    local pct = total > 0 and (v / total * 100) or 0
+    local secondary
+    if mode == "dps" then
+        secondary = p.damage
+    elseif mode == "hps" then
+        secondary = p.heal - p.overheal
+    else
+        secondary = dur > 0 and v / dur or 0
+    end
+    return format("%s (%s, %.1f%%)", short(v), short(secondary), pct)
+end
+
+local function sendReport(w, chatType, target)
+    local seg = segmentOf(w)
+    if not seg then return end
+    if w.mode == "threat" then Meter:ThreatSnapshot() end
+    refresh(w)   -- the list is as fresh as the window; a stale order would lie
+    local order, vals = w.order, w.vals
+    local n = #order
+    if n == 0 then return end
+    local mode  = w.mode
+    local dur   = (mode ~= "threat") and Meter:Duration(seg) or 0
+    local total = 0
+    for i = 1, n do total = total + (vals[order[i]] or 0) end
+    local head = "VuloClassicUI \194\183 " .. modeLabel(mode) .. " \194\183 " .. segmentLabel(w, seg)
+    if mode ~= "threat" then head = head .. " (" .. clock(dur) .. ")" end
+    SendChatMessage(head, chatType, nil, target)
+    local rows = min(n, tonumber(mod.db.reportRows) or 10)
+    for i = 1, rows do
+        local guid = order[i]
+        local p = seg.players[guid]
+        if p then
+            SendChatMessage(format("%d. %s  %s", i, p.name, reportRight(mode, p, vals[guid] or 0, total, dur)),
+                            chatType, nil, target)
+        end
+    end
+end
+
+-- Whisper asks for a name in a popup; the window index rides on the dialog.
+local WHISPER_POPUP = "VCUI_METER_WHISPER"
+local function whisperAccept(dialog)
+    local box = ns.PopupEditBox(dialog)
+    local name = box and box:GetText() or ""
+    name = name:gsub("^%s+", ""):gsub("%s+$", "")
+    local w = dialog.data and frames[dialog.data]
+    if name == "" or not (w and w.db) then return end
+    sendReport(w, "WHISPER", name)
+end
+
+local function promptWhisper(w)
+    if not StaticPopupDialogs[WHISPER_POPUP] then
+        StaticPopupDialogs[WHISPER_POPUP] = {
+            text         = L["Whisper the report to whom?"],
+            button1      = ACCEPT or "OK",
+            button2      = CANCEL or "Cancel",
+            hasEditBox   = true,
+            maxLetters   = 48,
+            timeout      = 0,
+            whileDead    = true,
+            hideOnEscape = true,
+            preferredIndex = 3,
+            OnAccept = function(self) whisperAccept(self) end,
+            EditBoxOnEnterPressed = function(self)
+                local parent = self:GetParent()
+                whisperAccept(parent)
+                parent:Hide()
+            end,
+            EditBoxOnEscapePressed = function(self) self:GetParent():Hide() end,
+        }
+    end
+    local dialog = StaticPopup_Show(WHISPER_POPUP)
+    if dialog then dialog.data = w.index end
+end
+
+local function reportEntries(w)
+    local inGroup = IsInGroup()
+    local inRaid  = IsInRaid()
+    local inGuild = IsInGuild()
+    return {
+        { text = L["Say"],   func = function() sendReport(w, "SAY") end },
+        { text = L["Party"], disabled = not inGroup, func = function() sendReport(w, "PARTY") end },
+        { text = L["Raid"],  disabled = not inRaid,  func = function() sendReport(w, "RAID") end },
+        { text = L["Guild"], disabled = not inGuild, func = function() sendReport(w, "GUILD") end },
+        { text = L["Officer"], disabled = not inGuild, func = function() sendReport(w, "OFFICER") end },
+        { text = L["Whisper to..."], func = function() promptWhisper(w) end },
+    }
+end
+
 local function menuEntries(w)
     local idx = w.index
     local e = {}
@@ -764,7 +998,21 @@ local function menuEntries(w)
     e[#e + 1] = { text = L["Overall"],
                   checked = function() return w.segment == "overall" end,
                   func = function() mod:SetSegment(idx, "overall") end }
+    local history = Meter:GetHistory()
+    if #history > 0 then
+        local fights = {}
+        for i = 1, #history do
+            local seg = history[i]
+            fights[#fights + 1] = {
+                text = fightLabel(seg, i) .. "  (" .. clock(seg.duration or 0) .. ")",
+                checked = function() return w.segment == seg end,
+                func = function() mod:SetSegment(idx, seg) end,
+            }
+        end
+        e[#e + 1] = { text = L["Previous fights"], submenu = fights }
+    end
     e[#e + 1] = { separator = true }
+    e[#e + 1] = { text = L["Report"], submenu = reportEntries(w) }
     local sub = {}
     for i = 1, #MODES do
         local m = MODES[i]
@@ -1029,9 +1277,14 @@ end
 -- Points slot i at its window table: the mover reads opts.db at use time, so
 -- a profile switch or a closed window in front of this one only re-binds.
 local function bind(w, wdb)
+    -- A fight picked from the history is window state, not saved state; it
+    -- survives a re-sync of the same window (every slider on the options page
+    -- re-binds) and drops only when the slot changes hands.
+    if not (w.db == wdb and type(w.segment) == "table") then
+        w.segment = wdb.segment
+    end
     w.db      = wdb
     w.mode    = wdb.mode
-    w.segment = wdb.segment
     w.scroll  = 0
     w.lastTitle, w.lastCount = nil, nil
     w.mover.opts.db = wdb
@@ -1054,12 +1307,13 @@ syncFrames = function()
         w.db = nil
         w.frame:Hide()
     end
+    syncThreatEvents()
     applyVisibility()
 end
 
 -- The options page lists the windows; a change made from a title menu must
 -- reach an open page. Only the window actions call this, never a slider.
-local function pageChanged()
+pageChanged = function()
     if UI.RebuildCurrentPage and UI.currentModule == "meter" then UI:RebuildCurrentPage() end
 end
 
@@ -1086,6 +1340,8 @@ end
 
 function mod:WindowDisable()
     stopTicker()
+    -- mod.active is already false here, so this unregisters the threat events.
+    syncThreatEvents()
     Meter:SetListener(nil)
     for i = 1, #frames do frames[i].frame:Hide() end
 end

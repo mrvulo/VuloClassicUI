@@ -28,6 +28,8 @@ local mod = ns:RegisterModule("meter", {
         hideOutOfCombat = false,
         hideDelay       = 10,
         resetOnNewGroup = true,
+        historySize     = 10,   -- finished fights kept for the window menu; 0 = none
+        reportRows      = 10,   -- lines a chat report carries below its header
         -- One entry per window: { mode, segment, x, y, width, height, scale,
         -- unlocked }. Filled by the window file; empty means "one window".
         windows         = {},
@@ -40,6 +42,8 @@ local UnitName            = UnitName
 local UnitClass           = UnitClass
 local UnitAffectingCombat = UnitAffectingCombat
 local UnitIsFeignDeath    = UnitIsFeignDeath
+local UnitExists          = UnitExists
+local UnitCanAttack       = UnitCanAttack
 local IsInRaid            = IsInRaid
 local IsInGroup           = IsInGroup
 local GetNumGroupMembers  = GetNumGroupMembers
@@ -112,6 +116,10 @@ end
 local current               -- the running fight, nil outside combat
 local last                  -- the last finished fight, shown until the next starts
 local overall = newSegment() -- swapped for the saved table in OnEnable
+-- Finished fights, newest first, capped by db.historySize. Session only: the
+-- overall total is what survives a reload, the fight list is not worth the
+-- saved-variable weight (per-spell tables for every member of every fight).
+local history = {}
 local dirty = false
 local listener              -- window callback: fn("start" | "end" | "reset")
 
@@ -199,9 +207,27 @@ end
 ------------------------------------------------------------------------
 -- Public read interface (the window reads through this and never writes)
 ------------------------------------------------------------------------
+-- "overall", a finished fight from the history (its table), or anything
+-- else for the running fight. A history table that has since been trimmed
+-- falls through to the running fight, so a window pinned to it degrades
+-- instead of going blank.
 function Meter:GetSegment(which)
     if which == "overall" then return overall end
+    if type(which) == "table" then
+        for i = 1, #history do
+            if history[i] == which then return which end
+        end
+    end
     return current or last
+end
+
+function Meter:GetHistory() return history end
+
+function Meter:HistoryIndex(seg)
+    for i = 1, #history do
+        if history[i] == seg then return i end
+    end
+    return nil
 end
 
 function Meter:Duration(seg)
@@ -224,6 +250,7 @@ function Meter:Reset()
         current.start = GetTime()
     end
     last = nil
+    wipe(history)
     -- owners stays: summoned pets keep their owner; resolve() already gates on roster.
     rebuildRoster()
     dirty = true
@@ -232,6 +259,66 @@ end
 
 -- Later parts add their own subevent entries here.
 Meter.HANDLERS = {}
+
+------------------------------------------------------------------------
+-- Threat: a live snapshot of the target's threat list, not a segment. The
+-- window asks for it on threat events; the table is reused between calls.
+------------------------------------------------------------------------
+local UnitDetailedThreatSituation = UnitDetailedThreatSituation
+Meter.HAS_THREAT = UnitDetailedThreatSituation ~= nil
+
+local threatSeg  = { title = nil, start = 0, duration = 0, players = {} }
+local threatPool = {}   -- guid -> row table, so a raid does not mint 40 tables per tick
+
+local function threatRow(guid, name, class)
+    local p = threatPool[guid]
+    if not p then
+        p = { threat = 0, pct = 0, status = 0, tanking = false }
+        threatPool[guid] = p
+    end
+    p.name, p.class = name, class
+    return p
+end
+
+-- One row per group member and per pet that holds threat on the target;
+-- pets wear their owner's class colour. threat is the raw value in whole
+-- points (the API hands back hundredths), pct the share of the tank's.
+local function threatUnit(unit, guid, name, class)
+    local tanking, status, _, pct, value = UnitDetailedThreatSituation(unit, "target")
+    if not value then return end
+    local p = threatRow(guid, name, class)
+    p.threat  = value / 100
+    p.pct     = pct or 0
+    p.status  = status or 0
+    p.tanking = tanking and true or false
+    threatSeg.players[guid] = p
+end
+
+function Meter:ThreatSnapshot()
+    local players = threatSeg.players
+    wipe(players)
+    -- A friend or a corpse has no threat list; the title says "no target"
+    -- rather than naming someone with an empty window under it.
+    if not UnitDetailedThreatSituation or not UnitExists("target")
+    or not UnitCanAttack("player", "target") then
+        threatSeg.title = nil
+        return threatSeg
+    end
+    threatSeg.title = UnitName("target")
+    for guid, r in pairs(roster) do
+        threatUnit(r.unit, guid, r.name, r.class)
+        local petUnit = PET_UNIT[r.unit]
+        if petUnit and UnitExists(petUnit) then
+            local petGUID = UnitGUID(petUnit)
+            if petGUID then
+                threatUnit(petUnit, petGUID, UnitName(petUnit) or "?", r.class)
+            end
+        end
+    end
+    return threatSeg
+end
+
+function Meter:ThreatSegment() return threatSeg end
 
 ------------------------------------------------------------------------
 -- Segment boundaries
@@ -254,6 +341,13 @@ local function closeSegment()
     current.duration = GetTime() - current.start
     fold(overall, current)
     last, current = current, nil
+    -- Into the history, newest first; the cap is read live so a lowered
+    -- slider (0 included) trims on the next fight end without a reload. A
+    -- fight nobody scored in (aggro that never connected) is not worth a
+    -- menu line.
+    local cap = tonumber(mod.db.historySize) or 0
+    if cap > 0 and next(last.players) then table.insert(history, 1, last) end
+    while #history > cap do table.remove(history) end
     if pendingReset then
         pendingReset = false
         Meter:Reset()
