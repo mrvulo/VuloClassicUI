@@ -205,6 +205,36 @@ local function addTypeBlockItems(items, cfg, b)
             get = function() return s.width or 20 end,
             set = function(_, v) s.width = v; br.RequestLayout(cfg.id) end,
         }
+    elseif t == "combattimer" then
+        items[#items + 1] = {
+            type = "toggle", label = L["Show last fight out of combat"],
+            get = function() return s.showLast end,
+            set = function(_, v) s.showLast = v; br.ApplyBar(cfg.id) end,
+        }
+    elseif t == "hearth" then
+        items[#items + 1] = {
+            type = "toggle", label = L["Show location"],
+            tooltip = L["The inn the hearthstone is bound to, next to the icon; the cooldown replaces it while running."],
+            get = function() return s.showLocation end,
+            set = function(_, v) s.showLocation = v; br.ApplyBar(cfg.id) end,
+        }
+    elseif t == "professions" then
+        items[#items + 1] = {
+            type = "toggle", label = L["Show secondary skills"],
+            tooltip = L["Cooking, first aid and fishing beside the primary professions."],
+            get = function() return s.showSecondary end,
+            set = function(_, v) s.showSecondary = v; br.ApplyBar(cfg.id) end,
+        }
+        items[#items + 1] = {
+            type = "toggle", label = L["Show rank"],
+            get = function() return s.showRank end,
+            set = function(_, v) s.showRank = v; br.ApplyBar(cfg.id) end,
+        }
+        items[#items + 1] = {
+            type = "slider", label = L["Spacing"], min = 0, max = 16, step = 1,
+            get = function() return s.spacing or 6 end,
+            set = function(_, v) s.spacing = v; br.ApplyBar(cfg.id) end,
+        }
     elseif t == "micromenu" then
         for row = 0, 2 do
             local group = { type = "group", layout = "row", gap = 8, items = {} }
@@ -358,10 +388,27 @@ function mod:GetOptions()
     -- ----------------------------------------------------------- bar settings
     items[#items + 1] = { type = "spacer", height = 6 }
     items[#items + 1] = { type = "header", text = L["Bar Settings"] }
+    local vertical = br.IsVertical and br.IsVertical(cfg)
+    items[#items + 1] = {
+        type = "dropdown", label = L["Orientation"], width = 240,
+        values = {
+            { value = "horizontal", text = "Horizontal" },
+            { value = "vertical",   text = "Vertical" },
+        },
+        get = function() return cfg.orientation or "horizontal" end,
+        set = function(_, v)
+            cfg.orientation = v
+            -- an edge only makes sense on its own axis
+            if v == "vertical" and (cfg.edge == "top" or cfg.edge == "bottom" or not cfg.edge) then cfg.edge = "left" end
+            if v ~= "vertical" and (cfg.edge == "left" or cfg.edge == "right") then cfg.edge = "bottom" end
+            br.ApplyBar(cfg.id)
+            refreshPage()
+        end,
+    }
     items[#items + 1] = {
         type = "dropdown", label = L["Length"], width = 240,
         values = {
-            { value = "full",   text = "Full width" },
+            { value = "full",   text = vertical and "Full height" or "Full width" },
             { value = "custom", text = "Custom length" },
         },
         get = function() return cfg.lengthMode or "custom" end,
@@ -374,11 +421,14 @@ function mod:GetOptions()
     if cfg.lengthMode == "full" then
         items[#items + 1] = {
             type = "dropdown", label = L["Edge"], width = 240,
-            values = {
+            values = vertical and {
+                { value = "left",  text = "Left" },
+                { value = "right", text = "Right" },
+            } or {
                 { value = "bottom", text = "Bottom" },
                 { value = "top",    text = "Top" },
             },
-            get = function() return cfg.edge or "bottom" end,
+            get = function() return cfg.edge or (vertical and "left" or "bottom") end,
             set = function(_, v) cfg.edge = v; br.ApplyBar(cfg.id) end,
         }
         items[#items + 1] = {
@@ -388,7 +438,7 @@ function mod:GetOptions()
         }
     else
         items[#items + 1] = {
-            type = "slider", label = L["Width"], min = 100, max = 2000, step = 10,
+            type = "slider", label = vertical and L["Height"] or L["Width"], min = 100, max = 2000, step = 10,
             get = function() return cfg.length or 400 end,
             set = function(_, v) cfg.length = v; br.ApplyBar(cfg.id) end,
         }
@@ -405,8 +455,15 @@ function mod:GetOptions()
             },
         }
     end
+    if vertical then
+        items[#items + 1] = {
+            type = "slider", label = L["Width"], min = 60, max = 600, step = 5,
+            get = function() return cfg.breadth or 160 end,
+            set = function(_, v) cfg.breadth = v; br.ApplyBar(cfg.id) end,
+        }
+    end
     items[#items + 1] = {
-        type = "slider", label = L["Height"], min = 16, max = 48, step = 1,
+        type = "slider", label = vertical and L["Row height"] or L["Height"], min = 16, max = 48, step = 1,
         get = function() return cfg.thickness or 26 end,
         set = function(_, v) cfg.thickness = v; br.ApplyBar(cfg.id) end,
     }

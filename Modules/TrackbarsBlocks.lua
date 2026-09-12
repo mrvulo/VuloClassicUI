@@ -611,6 +611,330 @@ addType("micromenu", "Micro menu",
         return inst
     end)
 
+-- ---------------------------------------------------------------------------
+-- Combat timer: seconds in the current fight, or the last fight's length out
+-- of combat. Heartbeat-driven; the two regen events make the flip immediate.
+-- ---------------------------------------------------------------------------
+local combatStart, lastFight = nil, 0
+local function combatClock()
+    local inCombat = UnitAffectingCombat("player")
+    local now = GetTime()
+    if inCombat and not combatStart then
+        combatStart = now
+    elseif not inCombat and combatStart then
+        lastFight = now - combatStart
+        combatStart = nil
+    end
+    local sec = combatStart and (now - combatStart) or lastFight
+    sec = math.floor(sec + 0.5)
+    return combatStart ~= nil, string.format("%d:%02d", math.floor(sec / 60), sec % 60)
+end
+
+addType("combattimer", "Combat timer", { showLast = true }, MakeTextBlock("combat", {
+    interval = 1, fontScale = 0.5,
+    events = { "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "PLAYER_ENTERING_WORLD" },
+    text = function(b)
+        local fighting, txt = combatClock()
+        if fighting then return L["Combat"] .. " " .. txt end
+        if b.settings.showLast and lastFight > 0 then
+            return "|cff888888" .. L["Last fight"] .. " " .. txt .. "|r"
+        end
+        return ""
+    end,
+}))
+
+-- ---------------------------------------------------------------------------
+-- Hearthstone: a secure item button (using it is a protected action, so the
+-- click runs in the client's own stack), the bind location or the cooldown
+-- as text beside it. Same combat rules as the micro menu: created, shown and
+-- placed only out of combat, deferred through PLAYER_REGEN_ENABLED.
+-- ---------------------------------------------------------------------------
+local HEARTHSTONE_ID = 6948
+local function itemCooldown(itemID)
+    if _G.GetItemCooldown then return GetItemCooldown(itemID) end
+    if C_Item and C_Item.GetItemCooldown then
+        local s, d = C_Item.GetItemCooldown(itemID)
+        return s, d
+    end
+    if C_Container and C_Container.GetItemCooldown then return C_Container.GetItemCooldown(itemID) end
+    return 0, 0
+end
+local function itemIcon(itemID)
+    if _G.GetItemIcon then return GetItemIcon(itemID) end
+    if C_Item and C_Item.GetItemIconByID then return C_Item.GetItemIconByID(itemID) end
+    return "Interface\\Icons\\INV_Misc_Rune_01"
+end
+local function cooldownText(start, dur)
+    if not start or not dur or dur <= 0 then return nil end
+    local left = start + dur - GetTime()
+    if left <= 0 then return nil end
+    left = math.floor(left + 0.5)
+    if left >= 60 then return string.format("%d:%02d", math.floor(left / 60), left % 60) end
+    return tostring(left)
+end
+
+addType("hearth", "Hearthstone", { showLocation = true }, function(b, slot, content, bar)
+    local inst = { _key = instKey("hearth", b, bar), _width = 0 }
+    local fs = content:CreateFontString(nil, "OVERLAY")
+    UI.FontFor("trackbars", fs, textBlockFontSize(bar, {}))
+    fs:SetPoint("RIGHT", content, "RIGHT", 0, 0)
+    fs:SetWordWrap(false)
+    local btn
+    local function ensureButton()
+        if btn then return true end
+        if InCombatLockdown() then inst._deferred = true; return false end
+        btn = CreateFrame("Button", "VuloTrackbarHearth" .. bar.id .. "_" .. b.id, content, "SecureActionButtonTemplate")
+        btn:RegisterForClicks("AnyUp", "AnyDown")
+        btn:SetAttribute("type", "item")
+        -- the secure item action uses the item by NAME; the id string is the
+        -- fallback until the client has the item cached (Refresh retries)
+        btn:SetAttribute("item", GetItemInfo(HEARTHSTONE_ID) or ("item:" .. HEARTHSTONE_ID))
+        local sz = math.floor((bar.thickness or 26) * 0.72 + 0.5)
+        btn:SetSize(sz, sz)
+        btn:SetPoint("RIGHT", fs, "LEFT", -4, 0)
+        btn.tex = btn:CreateTexture(nil, "ARTWORK")
+        btn.tex:SetAllPoints(btn)
+        btn.tex:SetTexture(itemIcon(HEARTHSTONE_ID))
+        btn.tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        btn:SetScript("OnEnter", function(s)
+            GameTooltip:SetOwner(s, "ANCHOR_TOP")
+            GameTooltip:SetText(L["Hearthstone"])
+            GameTooltip:AddLine(GetBindLocation() or "", 1, 1, 1)
+            local cd = cooldownText(itemCooldown(HEARTHSTONE_ID))
+            if cd then GameTooltip:AddDoubleLine(L["Cooldown"], cd, 1,1,1, 1,0.6,0.3) end
+            GameTooltip:Show()
+        end)
+        btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        return true
+    end
+    function inst:Restyle()
+        UI.FontFor("trackbars", fs, textBlockFontSize(bar, {}))
+        if btn and not InCombatLockdown() then
+            local sz = math.floor((bar.thickness or 26) * 0.72 + 0.5)
+            btn:SetSize(sz, sz)
+        end
+    end
+    local lastLen = -1
+    function inst:Refresh()
+        ensureButton()
+        if btn and not btn._named and not InCombatLockdown() then
+            local name = GetItemInfo(HEARTHSTONE_ID)
+            if name then btn:SetAttribute("item", name); btn._named = true end
+        end
+        local r, g, bl = blockColor(b)
+        local cd = cooldownText(itemCooldown(HEARTHSTONE_ID))
+        if cd then
+            fs:SetTextColor(1, 0.6, 0.3)
+            fs:SetText(cd)
+        elseif b.settings.showLocation then
+            fs:SetTextColor(r, g, bl)
+            fs:SetText(GetBindLocation() or "")
+        else
+            fs:SetText("")
+        end
+        if btn then btn.tex:SetVertexColor(cd and 0.5 or 1, cd and 0.5 or 1, cd and 0.5 or 1) end
+        local len = self:GetAutoLength()
+        content:SetSize(math.max(len, 1), bar.thickness or 26)
+        if len ~= lastLen then lastLen = len; mod.RequestLayout(bar.id) end
+    end
+    function inst:GetAutoLength()
+        if not btn then return 0 end
+        local w = btn:GetWidth() or 0
+        local tw = fs:GetStringWidth() or 0
+        if tw > 0 then w = w + 4 + tw end
+        return math.ceil(w)
+    end
+    local evFrame
+    function inst:Enable()
+        content:Show()
+        mod.RegisterHeartbeat(self._key, function() inst:Refresh() end)
+        evFrame = evFrame or CreateFrame("Frame")
+        for _, ev in ipairs({ "PLAYER_REGEN_ENABLED", "HEARTHSTONE_BOUND", "PLAYER_ENTERING_WORLD", "BAG_UPDATE_COOLDOWN" }) do
+            pcall(evFrame.RegisterEvent, evFrame, ev)
+        end
+        evFrame:SetScript("OnEvent", function(_, ev)
+            if ev == "PLAYER_REGEN_ENABLED" and inst._deferred then inst._deferred = nil end
+            inst:Refresh()
+        end)
+    end
+    function inst:Disable()
+        mod.UnregisterHeartbeat(self._key)
+        if evFrame then evFrame:UnregisterAllEvents(); evFrame:SetScript("OnEvent", nil) end
+        content:Hide()
+    end
+    return inst
+end)
+
+-- ---------------------------------------------------------------------------
+-- Professions: one icon per profession with its rank; a crafting profession's
+-- icon is a secure spell button that opens its window (a protected cast), a
+-- gathering one just shows the rank. Primary professions are the abandonable
+-- skill lines, secondary ones are matched by the names of their spells.
+-- ---------------------------------------------------------------------------
+local PROF_SPELLS = { 2259, 2018, 7411, 4036, 2366, 2108, 2575, 8613, 3908, 25229, 45357 }
+local SECONDARY_SPELLS = { 2550, 3273, 7620 }
+local profIcons        -- spell name -> icon, built lazily (spell data is late)
+local secondaryNames   -- spell name -> true
+local function buildProfMaps()
+    if profIcons then return end
+    profIcons, secondaryNames = {}, {}
+    for _, id in ipairs(PROF_SPELLS) do
+        local name, _, icon = GetSpellInfo(id)
+        if name then profIcons[name] = icon end
+    end
+    for _, id in ipairs(SECONDARY_SPELLS) do
+        local name, _, icon = GetSpellInfo(id)
+        if name then profIcons[name] = icon; secondaryNames[name] = true end
+    end
+end
+
+-- The professions this character has: { name, rank, max, secondary, icon }.
+-- A collapsed header in the skill window hides its lines from this API, so
+-- collapsed headers are expanded first; that fires SKILL_LINES_CHANGED once,
+-- and the second pass finds nothing left to expand.
+local lastExpand = 0
+local function professions(includeSecondary)
+    buildProfMaps()
+    local out = {}
+    if not GetNumSkillLines then return out end
+    -- Rate-limited: the expand fires SKILL_LINES_CHANGED, which refreshes
+    -- this block; a header the client refuses to expand must not bounce the
+    -- two into a loop.
+    if ExpandSkillHeader and GetTime() - lastExpand > 5 then
+        for i = 1, GetNumSkillLines() do
+            local _, isHeader, isExpanded = GetSkillLineInfo(i)
+            if isHeader and not isExpanded then
+                lastExpand = GetTime()
+                ExpandSkillHeader(0)
+                break
+            end
+        end
+    end
+    for i = 1, GetNumSkillLines() do
+        local name, isHeader, _, rank, _, _, maxRank, isAbandonable = GetSkillLineInfo(i)
+        if name and not isHeader then
+            local secondary = secondaryNames[name] == true
+            if isAbandonable or (secondary and includeSecondary) then
+                out[#out + 1] = { name = name, rank = rank or 0, max = maxRank or 0,
+                                  secondary = secondary,
+                                  icon = profIcons[name] or "Interface\\Icons\\INV_Misc_Book_09" }
+            end
+        end
+    end
+    return out
+end
+
+addType("professions", "Professions", { showSecondary = false, showRank = true, spacing = 6 },
+function(b, slot, content, bar)
+    local inst = { _key = instKey("prof", b, bar), _rows = {}, _width = 0 }
+    -- Rows are keyed by profession NAME, not by position: learning or
+    -- dropping a profession must not hand a crafting spell button to a
+    -- gathering skill (or the other way round). A row that no longer has a
+    -- profession is hidden and kept.
+    local function ensureRow(p)
+        local row = inst._rows[p.name]
+        if row then return row end
+        if InCombatLockdown() then inst._deferred = true; return nil end
+        row = {}
+        -- a known spell of the same name opens a window; gathering has none
+        local opens = GetSpellInfo(p.name) ~= nil
+        inst._rowCount = (inst._rowCount or 0) + 1
+        local i = inst._rowCount
+        if opens then
+            row.btn = CreateFrame("Button", "VuloTrackbarProf" .. bar.id .. "_" .. b.id .. "_" .. i,
+                content, "SecureActionButtonTemplate")
+            row.btn:RegisterForClicks("AnyUp", "AnyDown")
+            row.btn:SetAttribute("type", "spell")
+        else
+            row.btn = CreateFrame("Button", nil, content)
+        end
+        row.secure = opens
+        row.tex = row.btn:CreateTexture(nil, "ARTWORK")
+        row.tex:SetAllPoints(row.btn)
+        row.tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        row.fs = content:CreateFontString(nil, "OVERLAY")
+        row.fs:SetWordWrap(false)
+        row.btn:SetScript("OnEnter", function(s)
+            GameTooltip:SetOwner(s, "ANCHOR_TOP")
+            GameTooltip:SetText(row.name or "")
+            GameTooltip:AddLine(string.format("%d / %d", row.rank or 0, row.max or 0), 1, 1, 1)
+            GameTooltip:Show()
+        end)
+        row.btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        inst._rows[p.name] = row
+        return row
+    end
+    local function layoutRows()
+        if InCombatLockdown() then inst._deferred = true; return end
+        local list = professions(b.settings.showSecondary)
+        local sz = math.floor((bar.thickness or 26) * 0.72 + 0.5)
+        local gap = b.settings.spacing or 6
+        local x = 0
+        local r, g, bl = blockColor(b)
+        local shown = {}
+        for _, p in ipairs(list) do
+            local row = ensureRow(p)
+            if not row then break end
+            shown[p.name] = true
+            row.name, row.rank, row.max = p.name, p.rank, p.max
+            if row.secure and not row.spellSet then
+                row.btn:SetAttribute("spell", p.name)
+                row.spellSet = true
+            end
+            row.tex:SetTexture(p.icon)
+            row.btn:SetSize(sz, sz)
+            row.btn:ClearAllPoints()
+            row.btn:SetPoint("LEFT", content, "LEFT", x, 0)
+            row.btn:Show()
+            x = x + sz
+            UI.FontFor("trackbars", row.fs, textBlockFontSize(bar, {}))
+            if b.settings.showRank then
+                row.fs:SetTextColor(r, g, bl)
+                row.fs:SetFormattedText("%d", p.rank)
+                row.fs:ClearAllPoints()
+                row.fs:SetPoint("LEFT", content, "LEFT", x + 3, 0)
+                row.fs:Show()
+                x = x + 3 + math.ceil(row.fs:GetStringWidth() or 0)
+            else
+                row.fs:Hide()
+            end
+            x = x + gap
+        end
+        for name, row in pairs(inst._rows) do
+            if not shown[name] then row.btn:Hide(); row.fs:Hide() end
+        end
+        inst._width = (x > 0) and (x - gap) or 0
+        content:SetSize(math.max(inst._width, 1), bar.thickness or 26)
+    end
+    local lastLen = -1
+    function inst:Refresh()
+        layoutRows()
+        local len = self:GetAutoLength()
+        if len ~= lastLen then lastLen = len; mod.RequestLayout(bar.id) end
+    end
+    function inst:GetAutoLength() return inst._width end
+    local evFrame
+    function inst:Enable()
+        content:Show()
+        evFrame = evFrame or CreateFrame("Frame")
+        for _, ev in ipairs({ "PLAYER_REGEN_ENABLED", "SKILL_LINES_CHANGED", "PLAYER_ENTERING_WORLD" }) do
+            pcall(evFrame.RegisterEvent, evFrame, ev)
+        end
+        evFrame:SetScript("OnEvent", function(_, ev)
+            if ev == "PLAYER_REGEN_ENABLED" then
+                if inst._deferred then inst._deferred = nil; inst:Refresh() end
+            else
+                inst:Refresh()
+            end
+        end)
+    end
+    function inst:Disable()
+        if evFrame then evFrame:UnregisterAllEvents(); evFrame:SetScript("OnEvent", nil) end
+        content:Hide()
+    end
+    return inst
+end)
+
 -- Broker-Plugin: zeigt ein Datenobjekt, das ein anderes Addon ueber die
 -- eingebettete Broker-Bibliothek registriert hat. Aktualisierung rein ueber
 -- deren Attribut-Callbacks -- die Bibliothek feuert bei JEDER Aenderung,

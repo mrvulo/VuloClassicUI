@@ -3461,6 +3461,21 @@ local function T() return {
     ["The setup is there again any time through the command below and a button under Global Settings, and it starts from the template chosen last time: /vcui setup"] = "La configuración vuelve a estar disponible en cualquier momento mediante el comando de abajo y un botón en los Ajustes globales, y empieza por la plantilla elegida la última vez: /vcui setup",
     ["Show ranged bar – A third bar for the auto shot or wand shoot while a bow, gun or wand is equipped, with the aim window marked at its end"] = "Mostrar barra a distancia – Una tercera barra para el disparo automático o de varita mientras llevas equipado arco, arma de fuego o varita, con la ventana de puntería marcada al final",
     ["The ranged clock starts on each shot the client reports and stops with auto-repeat. Moving or casting inside the aim window holds the shot back, and the bar holds at the edge of that window until you stand still or finish the cast; weapon haste rescales the bar except inside the window. The module now also serves hunters and wand users, who used to be turned away at login as no melee spec."] = "El reloj a distancia arranca con cada disparo que informa el cliente y se detiene con la repetición automática. Moverse o lanzar hechizos dentro de la ventana de puntería retiene el disparo, y la barra se queda en el borde de esa ventana hasta que te quedas quieto o terminas el hechizo; la celeridad del arma reescala la barra salvo dentro de la ventana. El módulo ahora también sirve a cazadores y usuarios de varita, a quienes antes se rechazaba al iniciar sesión por no ser especialización cuerpo a cuerpo.",
+    -- Trackbars stage 2: vertical bars, professions, hearthstone, combat timer
+    ["Side bar"] = "Barra lateral",
+    ["A vertical bar on the left screen edge: professions, hearthstone, combat timer and clock stacked top-down."] = "Una barra vertical en el borde izquierdo de la pantalla: profesiones, piedra de hogar, temporizador de combate y reloj apilados de arriba abajo.",
+    ["Combat"] = "Combate",
+    ["Last fight"] = "Último combate",
+    ["Cooldown"] = "Reutilización",
+    ["Show last fight out of combat"] = "Mostrar el último combate fuera de combate",
+    ["Show location"] = "Mostrar ubicación",
+    ["The inn the hearthstone is bound to, next to the icon; the cooldown replaces it while running."] = "La posada a la que está vinculada la piedra de hogar, junto al icono; la reutilización la sustituye mientras corre.",
+    ["Show secondary skills"] = "Mostrar habilidades secundarias",
+    ["Cooking, first aid and fishing beside the primary professions."] = "Cocina, primeros auxilios y pesca junto a las profesiones principales.",
+    ["Row height"] = "Altura de fila",
+    ["Combat timer"] = "Temporizador de combate",
+    ["Professions"] = "Profesiones",
+    ["Full height"] = "Altura completa",
 } end
 
 ns:RegisterLocale("esES", T)

@@ -6,6 +6,15 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+    { version = "1.62.0", sections = {
+        { category = "Trackbars", lines = {
+            "NEW: Vertical – A bar can stand upright: full height on the left or right screen edge or free-standing, with its blocks stacked top-down",
+            "NEW: Professions – One icon per profession with its skill rank; a crafting icon opens its window, and the secondary skills are optional",
+            "NEW: Hearthstone – A button that uses the hearthstone, with the inn it is bound to beside it and the cooldown while it runs",
+            "NEW: Combat timer – How long the current fight has been running, and the last fight's length out of combat",
+            "A fifth template, Side bar, puts professions, hearthstone, combat timer and clock on the left screen edge.",
+        } },
+    } },
     { version = "1.61.0", sections = {
         { category = "Combat Meter", lines = {
             "NEW: Threat – A ninth mode that shows the threat list of your current target live: the tank on top, everyone else in percent of the tank, pets as their own rows",
@@ -440,40 +449,6 @@ ns.CHANGELOG = {
         } },
         { category = "Trainer", lines = {
             "The tab carries a book instead of a question mark. That mark is Blizzard's placeholder for a missing icon and read like a defect.",
-        } },
-    } },
-    { version = "1.48.0", sections = {
-        { category = "Arena", lines = {
-            "NEW: Loss of Control – Shows the stun, fear, root, silence or lockout holding you, with its icon, its name and the time left",
-            "NEW: Interrupts – Tracks enemy interrupts from the combat log, one icon per caster, bordered in the caster's class colour",
-            "NEW: Timer Text On The Icons – Seconds left on the interrupt icons, with their own font, outline and colour",
-            "NEW: Cooldown Swipe On The Icons – Drop the sweeping shade and keep only the number",
-            "The icon strip beside the enemy frames has a live preview on the General tab. Those frames exist only inside an arena, so its sliders used to move something you could not see.",
-            "An unlocked mover box no longer vanished a moment after the button put it there. The box and a running preview now ignore the zone filter: you place a bar where you are standing, and that is rarely an arena.",
-        } },
-        { category = "Cooldown Manager", lines = {
-            "The pinned icon strip also appears on the Layout tab, where icon size, spacing, shape and zoom read back off it while the slider moves.",
-        } },
-        { category = "Edit Mode", lines = {
-            "Moving Blizzard frames no longer marks every Edit Mode window as touched by this addon, which had the pet frame refused in combat. Selecting a layout caused it, and that ran on every editor entry even when nothing had been placed.",
-        } },
-        { category = "Equipment Sets", lines = {
-            "The icon picker has a close button, and no longer floats over the game after the character sheet is shut.",
-        } },
-        { category = "Fishing", lines = {
-            "NEW: Only Take Over The Key While A Fishing Pole Is Worn – Without a pole the key keeps whatever you bound it to",
-        } },
-        { category = "Options Window", lines = {
-            "The mouse wheel scrolls the sidebar and the page. The window also shrinks to fit a screen smaller than itself, which is what left it undraggable on a high interface scale.",
-        } },
-        { category = "Profiles", lines = {
-            "NEW: Profile Keybind – Put a profile on a key and switch to it out of combat",
-        } },
-        { category = "Reminders", lines = {
-            "The bag sweep behind the food, flask and weapon oil reminders is kept until the bags change, instead of walking every bag three times over twice a second.",
-        } },
-        { category = "Unit Frames", lines = {
-            "The modern player frame style no longer reaches into the pet and totem frames.",
         } },
     } },
 }

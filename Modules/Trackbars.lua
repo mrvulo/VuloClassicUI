@@ -71,8 +71,30 @@ local function updateMouseoverTicker()
     end
 end
 
+-- A vertical bar stacks its blocks top-down: `length` is its height, `breadth`
+-- its width, and `thickness` stays the row height every block sizes its font
+-- and icons by. Full mode pins it to the left or right screen edge.
+function mod.IsVertical(cfg)
+    return cfg.orientation == "vertical"
+end
+
 local function applyBarPosition(cfg, f)
     f:ClearAllPoints()
+    if mod.IsVertical(cfg) then
+        local w = cfg.breadth or 160
+        if cfg.lengthMode == "full" then
+            local edge = (cfg.edge == "right") and "RIGHT" or "LEFT"
+            local off  = cfg.edgeOffset or 0
+            local dx   = (edge == "LEFT") and off or -off
+            f:SetPoint("TOP" .. edge,    UIParent, "TOP" .. edge,    dx, 0)
+            f:SetPoint("BOTTOM" .. edge, UIParent, "BOTTOM" .. edge, dx, 0)
+        else
+            f:SetPoint("CENTER", UIParent, "CENTER", cfg.x or 0, cfg.y or 0)
+            f:SetHeight(cfg.length or 400)
+        end
+        f:SetWidth(w)
+        return
+    end
     if cfg.lengthMode == "full" then
         local edge = (cfg.edge == "top") and "TOP" or "BOTTOM"
         local off  = cfg.edgeOffset or 0
@@ -183,7 +205,7 @@ function mod.MoveBlock(barId, blockId, delta)
     mod.RequestLayout(barId)
 end
 
-local function ensureSlot(rec, b)
+local function ensureSlot(rec, b, cfg)
     local slot = rec.slots[b.id]
     if not slot then
         slot = CreateFrame("Frame", nil, rec.frame)
@@ -191,7 +213,12 @@ local function ensureSlot(rec, b)
         slot.content:SetPoint("CENTER")
         rec.slots[b.id] = slot
     end
-    slot:SetHeight(rec.frame:GetHeight())
+    -- a vertical bar's rows are thickness high; the layout sets their width
+    if cfg and mod.IsVertical(cfg) then
+        slot:SetHeight(cfg.thickness or 26)
+    else
+        slot:SetHeight(rec.frame:GetHeight())
+    end
     slot.content:SetScale((b.scale or 100) / 100)
     return slot
 end
@@ -233,7 +260,7 @@ function mod.ApplyBar(id)
         if not rec.insts[b.id] then
             local factory = mod.BlockFactories[b.type]
             if factory then
-                local slot = ensureSlot(rec, b)
+                local slot = ensureSlot(rec, b, cfg)
                 slot:Show()
                 local inst = factory(b, slot, slot.content, cfg)
                 inst._type = b.type
@@ -248,7 +275,7 @@ function mod.ApplyBar(id)
     for _, b in ipairs(cfg.blocks) do
         local inst = rec.insts[b.id]
         if inst and not newBlockIds[b.id] then
-            ensureSlot(rec, b)
+            ensureSlot(rec, b, cfg)
             if inst.Restyle then inst:Restyle() end
             inst:Refresh()
         end
@@ -292,12 +319,23 @@ mod.TEMPLATES = {
       desc = function() return L["Just the micro menu buttons."] end,
       cfg = { lengthMode = "custom", length = 300, thickness = 30, x = 0, y = -300 },
       blocks = { { type = "micromenu", side = "center" } } },
+    { key = "sidebar", label = function() return L["Side bar"] end,
+      desc = function() return L["A vertical bar on the left screen edge: professions, hearthstone, combat timer and clock stacked top-down."] end,
+      cfg = { orientation = "vertical", lengthMode = "full", edge = "left", edgeOffset = 0,
+              thickness = 26, breadth = 170 },
+      blocks = {
+          { type = "professions", side = "left" },
+          { type = "hearth",      side = "left" },
+          { type = "combattimer", side = "center" },
+          { type = "clock",       side = "right" },
+      } },
 }
 
 function mod.NewBarCfg()
     local cfg = {
         id = mod.db.nextBarId, name = string.format(L["Bar %d"], mod.db.nextBarId),
         lengthMode = "custom", length = 400, thickness = 26,
+        orientation = "horizontal", breadth = 160,
         edge = "bottom", edgeOffset = 0, x = 0, y = -250,
         sizingMode = "auto", fontScale = 100,
         bg = { r = 0.05, g = 0.05, b = 0.06, a = 0.90 }, hideBorder = false,
@@ -379,6 +417,59 @@ function mod.LayoutBar(barId)
                 slot:Hide()
             end
         end
+    end
+
+    if mod.IsVertical(cfg) then
+        -- Rows: "left" fills from the top, "right" from the bottom, "center"
+        -- sits in the middle. Every row is thickness high plus the block's
+        -- gap; the block itself is centred in its row.
+        local H = f:GetHeight()
+        if not H or H < 1 then return end
+        local rowH = cfg.thickness or 26
+        local function rowHeight(e) return rowH + (e.b.gap or 10) end
+        if cfg.sizingMode == "even" then
+            local all = {}
+            for _, side in ipairs({ "left", "center", "right" }) do
+                for _, e in ipairs(buckets[side]) do table.insert(all, e) end
+            end
+            local n = #all
+            if n == 0 then return end
+            local share = H / n
+            for i, e in ipairs(all) do
+                e.slot:Show(); e.slot:ClearAllPoints()
+                e.slot:SetSize(W, share)
+                e.slot:SetPoint("TOP", f, "TOP", 0, -((i - 1) * share))
+            end
+            return
+        end
+        local y = 0
+        for _, e in ipairs(buckets.left) do
+            local h = rowHeight(e)
+            e.slot:Show(); e.slot:ClearAllPoints()
+            e.slot:SetSize(W, h)
+            e.slot:SetPoint("TOP", f, "TOP", 0, -y)
+            y = y + h
+        end
+        local yb = 0
+        for i = #buckets.right, 1, -1 do
+            local e = buckets.right[i]
+            local h = rowHeight(e)
+            e.slot:Show(); e.slot:ClearAllPoints()
+            e.slot:SetSize(W, h)
+            e.slot:SetPoint("BOTTOM", f, "BOTTOM", 0, yb)
+            yb = yb + h
+        end
+        local ch = 0
+        for _, e in ipairs(buckets.center) do ch = ch + rowHeight(e) end
+        local cy = (H - ch) / 2
+        for _, e in ipairs(buckets.center) do
+            local h = rowHeight(e)
+            e.slot:Show(); e.slot:ClearAllPoints()
+            e.slot:SetSize(W, h)
+            e.slot:SetPoint("TOP", f, "TOP", 0, -cy)
+            cy = cy + h
+        end
+        return
     end
 
     if cfg.sizingMode == "even" then
@@ -469,4 +560,5 @@ mod.optionsBridge = {
     TEMPLATES      = mod.TEMPLATES,
     BLOCK_TYPES    = mod.BLOCK_TYPES,
     BLOCK_DEFAULTS = mod.BLOCK_DEFAULTS,
+    IsVertical     = mod.IsVertical,
 }
