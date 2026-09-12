@@ -232,7 +232,6 @@ ns:RegisterLocale("frFR", function() return {
 
     -- Minuteur d'attaque : textes longs
     ["Weapon swing timer for your melee auto-attacks (any melee class). Shows a main-hand bar and, while dual-wielding, an off-hand bar."] = "Minuteur d'attaque pour vos attaques automatiques au corps à corps (toute classe de mêlée). Affiche une barre de main droite et, en ambidextrie, une barre de main gauche.",
-    ["|cffaaaaaaShows when your next melee auto-attack lands (any melee class). The off-hand bar only appears while dual-wielding. The bar fills up toward the swing; the number is the time left.|r"] = "|cffaaaaaaIndique quand tombe votre prochaine attaque automatique (toute classe de mêlée). La barre de main gauche n'apparaît qu'en ambidextrie. La barre se remplit jusqu'au coup ; le chiffre est le temps restant.|r",
     ["|cffffffffSWING TIMER|r\n|cffaaaaaaDrag or arrow keys|r"] = "|cffffffffMINUTEUR D'ATTAQUE|r\n|cffaaaaaaGlisser ou touches fléchées|r",
     ["|cffffffffLOADOUTS SIDEBAR|r\n|cffaaaaaaDrag or arrow keys|r"] = "|cffffffffBARRE DES ENSEMBLES|r\n|cffaaaaaaGlisser ou touches fléchées|r",
     ["Swing Timer mover active. |cff9b6cffDrag the purple box|r or use |cff9b6cffarrow keys|r (SHIFT = 5px). Click 'Unlock / Test' again to finish."] = "Déplacement du minuteur d'attaque actif. |cff9b6cffGlissez le cadre violet|r ou utilisez les |cff9b6cfftouches fléchées|r (MAJ = 5 px). Cliquez de nouveau sur « Déverrouiller / Tester » pour terminer.",
@@ -2114,7 +2113,6 @@ ns:RegisterLocale("frFR", function() return {
     ["Count text size"] = "Taille du texte de quantité",
     ["Cooldown text size"] = "Taille du texte de recharge",
     ["Reset ALL VuloClassicUI settings for every character on this account? This cannot be undone."] = "Réinitialiser TOUS les réglages de VuloClassicUI pour chaque personnage de ce compte ? Cette action est irréversible.",
-    ["Swing Timer switched off: it only tracks melee auto-attacks, which this character's talents do not use."] = "Minuteur d’attaque désactivé : il ne suit que les attaques automatiques en mêlée, que les talents de ce personnage n’utilisent pas.",
     ["|cffff5555Settings migration %s failed:|r %s"] = "|cffff5555Échec de la migration des réglages %s :|r %s",
     ["Plays a raid warning sound the moment an opponent uses their PvP trinket."] = "Joue un son d’alerte de raid dès qu’un adversaire utilise son bijou JcJ.",
     ["Flashes the icon briefly when an opponent uses their PvP trinket."] = "Fait clignoter brièvement l’icône quand un adversaire utilise son bijou JcJ.",
@@ -3594,4 +3592,13 @@ ns:RegisterLocale("frFR", function() return {
     ["Open setup again"] = "Rouvrir la configuration",
     ["Show the first-time setup again: template, font and scale."] = "Affiche à nouveau la configuration initiale : modèle, police et échelle.",
     ["run the first-time setup again"] = "relancer la configuration initiale",
+    -- Swing timer: ranged bar; meter targets
+    ["Targets"] = "Cibles",
+    ["RA"] = "DIST",
+    ["Show ranged bar"] = "Afficher la barre à distance",
+    ["The auto shot or wand shoot clock, shown while a ranged weapon is equipped."] = "L’horloge du tir automatique ou du tir de baguette, visible tant qu’une arme à distance est équipée.",
+    ["Mark the aim window"] = "Marquer la fenêtre de visée",
+    ["Brightens the last part of the ranged bar: a shot fired from there is delayed by moving or casting."] = "Éclaircit la fin de la barre à distance : un tir parti de là est retardé par un déplacement ou une incantation.",
+    ["|cffaaaaaaShows when your next auto-attack lands: main hand, off hand while dual-wielding, and the ranged shot while a bow, gun or wand is equipped. The bar fills up toward the swing; the number is the time left. The light stretch at the end of the ranged bar is the aim: moving or casting there holds the shot back.|r"] = "|cffaaaaaaIndique quand votre prochaine attaque automatique touche : main droite, main gauche en ambidextrie, et le tir à distance tant qu’un arc, un fusil ou une baguette est équipé. La barre se remplit jusqu’au coup ; le nombre est le temps restant. La partie claire à la fin de la barre à distance est la visée : s’y déplacer ou incanter retient le tir.|r",
+    ["Swing Timer switched off: it only tracks melee auto-attacks and ranged shots, and this character has neither."] = "Chronomètre d’attaque désactivé : il ne suit que les attaques automatiques en mêlée et les tirs à distance, et ce personnage n’a ni l’un ni l’autre.",
 } end)

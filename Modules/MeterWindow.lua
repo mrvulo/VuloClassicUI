@@ -272,6 +272,32 @@ local function spellLines(p, key, own, isCount)
     end
 end
 
+-- Who the damage or healing went to. Keys are unit names, so no icon; the
+-- line pool is shared with the ability block, hence the offset.
+local function targetLines(p, key, own)
+    local t = p[key]
+    if not t then return end
+    local n = 0
+    for name, v in pairs(t) do
+        if v > 0 then
+            n = n + 1
+            sortIds[n] = name
+        end
+    end
+    for i = n + 1, #sortIds do sortIds[i] = nil end
+    if n == 0 then return end
+    sortSrc = t
+    sort(sortIds, byCount)
+    tipLines[#tipLines + 1] = " "
+    tipLines[#tipLines + 1] = L["Targets"]
+    local rows = min(n, mod.db.tooltipRows or 5)
+    for i = 1, rows do
+        local name = sortIds[i]
+        local v = t[name]
+        line(100 + i, name, format("%s (%.1f%%)", short(v), own > 0 and v / own * 100 or 0))
+    end
+end
+
 local function deathLines(p)
     local log = p.deathLog
     if not log or #log == 0 then
@@ -337,6 +363,11 @@ rowEnter = function(self)
                  or (mode == "taken" and (p.taken or 0))
                  or p.damage
         spellLines(p, SUB_KEY[mode], own, isCount)
+        if HEALING[mode] then
+            targetLines(p, "healed", own)
+        elseif mode == "damage" or mode == "dps" then
+            targetLines(p, "targets", own)
+        end
     end
     tipLines[#tipLines + 1] = " "
 

@@ -13,10 +13,24 @@ local _, ns = ...
 local CLGetInfo = CombatLogGetCurrentEventInfo
 local GetTime, UnitAttackSpeed, UnitGUID = GetTime, UnitAttackSpeed, UnitGUID
 local GetInventoryItemID = GetInventoryItemID
+local UnitRangedDamage   = UnitRangedDamage
+local GetUnitSpeed       = GetUnitSpeed
+local UnitCastingInfo    = UnitCastingInfo
+local UnitChannelInfo    = UnitChannelInfo
 
 local mh = { start = 0, dur = 0, active = false }
 local oh = { start = 0, dur = 0, active = false }
+-- The ranged clock: auto shot and wand shoot. Not the combat log -- the shot is
+-- heard on its own cast event, and the auto-repeat events bound the clock.
+local ra = { start = 0, dur = 0, active = false }
 local dualWield = false
+
+-- Auto Shot (75) and Shoot (5019, the wand). The last part of every shot is
+-- the aim: move or cast inside it and the shot waits, so a bar marks that
+-- window and the clock holds at its edge while the player does either.
+local RANGED_SHOT_IDS = { [75] = true, [5019] = true }
+local AIM_WINDOW = 0.7
+ns.RANGED_AIM_WINDOW = AIM_WINDOW
 local playerGUID
 local mhItem, ohItem
 
@@ -66,6 +80,65 @@ local function resetOH()
     local _, offSpeed = UnitAttackSpeed("player")
     if not offSpeed or offSpeed <= 0 then return end
     oh.start, oh.dur, oh.active = GetTime(), offSpeed, true
+end
+
+-- Speed of the equipped ranged weapon, nil without one (or on a client that
+-- lacks the call).
+local function rangedSpeed()
+    if not UnitRangedDamage then return nil end
+    local speed = UnitRangedDamage("player")
+    if speed and speed > 0 then return speed end
+    return nil
+end
+
+local function resetRA()
+    local speed = rangedSpeed()
+    if not speed then return end
+    ra.start, ra.dur, ra.active = GetTime(), speed, true
+end
+
+-- Haste on the ranged weapon keeps the elapsed fraction like the melee hands
+-- do -- except inside the aim window, where the shot is already committed and
+-- moving it would only lie about a shot that is about to land.
+local function rescaleRA()
+    if not ra.active or ra.dur <= 0 then return end
+    local speed = rangedSpeed()
+    if not speed or speed == ra.dur then return end
+    local t = GetTime()
+    local left = (ra.start + ra.dur) - t
+    if left <= AIM_WINDOW then return end
+    local frac = (t - ra.start) / ra.dur
+    ra.dur = speed
+    ra.start = t - frac * ra.dur
+end
+
+-- Movement or a cast inside the aim window delays the shot until it stops;
+-- the clock holds at the window's edge meanwhile, so the bar shows the shot
+-- as "ready and waiting" rather than overdue. Read on the consumer's path
+-- (fifty times a second at most, only while a ranged bar is drawn), never
+-- on an event of its own.
+local function holdRanged()
+    if not ra.active or ra.dur <= 0 then return end
+    local now = GetTime()
+    local left = (ra.start + ra.dur) - now
+    if left > AIM_WINDOW then return end
+    local moving  = GetUnitSpeed and (GetUnitSpeed("player") or 0) > 0
+    local casting = (UnitCastingInfo and UnitCastingInfo("player") ~= nil)
+                 or (UnitChannelInfo and UnitChannelInfo("player") ~= nil)
+    if moving or casting then ra.start = now + AIM_WINDOW - ra.dur end
+end
+
+-- Same belt-and-braces the hands have: the event is the fast path, and a
+-- tenth-of-a-second compare catches a haste change it missed. rescaleRA
+-- itself refuses inside the aim window.
+local lastRangedVerify = 0
+local function verifyRanged()
+    if not ra.active then return end
+    local t = GetTime()
+    if t - lastRangedVerify < 0.1 then return end
+    lastRangedVerify = t
+    local speed = rangedSpeed()
+    if speed and speed ~= ra.dur then rescaleRA() end
 end
 
 -- A haste change mid-swing keeps the elapsed fraction; it does not restart the
@@ -297,6 +370,20 @@ local function onEvent(_, event, arg1, _, arg3)
         if arg1 == "player" and mh.active and isCastReset(arg3) then
             resetMH(); notify("mainhand", "shift")
         end
+        -- A shot left the weapon: the next one is a full weapon speed away.
+        if arg1 == "player" and RANGED_SHOT_IDS[arg3] then
+            resetRA(); notify("ranged")
+        end
+    elseif event == "START_AUTOREPEAT_SPELL" then
+        -- Auto-repeat began; the first shot announces itself on its own cast
+        -- event, so no clock starts here. Consumers only get to re-evaluate
+        -- their visibility ("start" is never a landing).
+        notify("ranged", "start")
+    elseif event == "STOP_AUTOREPEAT_SPELL" then
+        ra.active = false
+        notify("ranged")
+    elseif event == "UNIT_RANGEDDAMAGE" then
+        rescaleRA()
     elseif event == "UNIT_ATTACK_SPEED" then
         rescale()
     elseif event == "UNIT_INVENTORY_CHANGED" then
@@ -334,12 +421,16 @@ local function startListening()
     frame:RegisterEvent("PLAYER_LEAVE_COMBAT")
     frame:RegisterEvent("PLAYER_ENTERING_WORLD")
     frame:RegisterEvent("UNIT_INVENTORY_CHANGED")
+    frame:RegisterEvent("START_AUTOREPEAT_SPELL")
+    frame:RegisterEvent("STOP_AUTOREPEAT_SPELL")
     if frame.RegisterUnitEvent then
         frame:RegisterUnitEvent("UNIT_ATTACK_SPEED", "player")
         frame:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
+        pcall(frame.RegisterUnitEvent, frame, "UNIT_RANGEDDAMAGE", "player")
     else
         frame:RegisterEvent("UNIT_ATTACK_SPEED")
         frame:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED")
+        pcall(frame.RegisterEvent, frame, "UNIT_RANGEDDAMAGE")
     end
 end
 
@@ -363,7 +454,7 @@ function ns:ReleaseSwingTracker(tag)
     if holderCount <= 0 then
         holderCount = 0
         if frame then frame:UnregisterAllEvents() end
-        mh.active, oh.active = false, false
+        mh.active, oh.active, ra.active = false, false, false
     end
 end
 
@@ -407,22 +498,35 @@ local function prune(s)
     return s
 end
 
--- start, duration, active. Callers must treat a false "active" as "no swing
--- known" rather than "swing at time 0".
-function ns:GetSwing(hand)
+local function stateFor(hand)
+    if hand == "ranged" then
+        verifyRanged()
+        holdRanged()
+        return prune(ra)
+    end
     verifySpeeds()
-    local s = prune((hand == "offhand") and oh or mh)
+    return prune((hand == "offhand") and oh or mh)
+end
+
+-- start, duration, active. Callers must treat a false "active" as "no swing
+-- known" rather than "swing at time 0". hand: "mainhand", "offhand", "ranged".
+function ns:GetSwing(hand)
+    local s = stateFor(hand)
     return s.start, s.dur, s.active
 end
 
 -- Seconds until the next swing lands, or nil when there is no live swing.
 function ns:SwingRemaining(hand)
-    verifySpeeds()
-    local s = prune((hand == "offhand") and oh or mh)
+    local s = stateFor(hand)
     if not s.active or s.dur <= 0 then return nil end
     local left = (s.start + s.dur) - GetTime()
     if left < 0 then return 0 end
     return left
+end
+
+-- A ranged weapon that can shoot: bow, gun, crossbow, wand (or thrown).
+function ns:HasRangedWeapon()
+    return rangedSpeed() ~= nil
 end
 
 -- Read fresh rather than from the cached field: consumers call this from their

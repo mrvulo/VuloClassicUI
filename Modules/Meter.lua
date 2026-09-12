@@ -163,45 +163,17 @@ local function resolve(guid)
     return nil
 end
 
-local SUB_TABLES = { "spells", "heals", "takenBy", "kicks", "purges" }
-
-local function foldPlayer(d, p)
-    d.damage     = d.damage     + p.damage
-    d.heal       = d.heal       + p.heal
-    d.overheal   = d.overheal   + p.overheal
-    d.taken      = d.taken      + (p.taken      or 0)
-    d.interrupts = d.interrupts + (p.interrupts or 0)
-    d.dispels    = d.dispels    + (p.dispels    or 0)
-    d.deaths     = d.deaths     + (p.deaths     or 0)
-    for i = 1, #SUB_TABLES do
-        local key = SUB_TABLES[i]
-        local src = p[key]
-        if src then
-            for id, n in pairs(src) do bump(d, key, id, n) end
-        end
-    end
+-- The overall total is written on the hot path together with the running
+-- fight (two entries per event instead of a fold at the fight's end), so an
+-- overall window moves during the fight and a crash mid-fight loses nothing.
+local function pushDeath(p, rec)
     local log = p.deathLog
-    if log then
-        local dl = d.deathLog
-        if not dl then
-            dl = {}
-            d.deathLog = dl
-        end
-        for i = 1, #log do dl[#dl + 1] = log[i] end
-        while #dl > MAX_DEATHS do table.remove(dl, 1) end
+    if not log then
+        log = {}
+        p.deathLog = log
     end
-end
-
-local function fold(dst, src)
-    for guid, p in pairs(src.players) do
-        local d = dst.players[guid]
-        if not d then
-            d = newPlayer(p.name, p.class)
-            dst.players[guid] = d
-        end
-        foldPlayer(d, p)
-    end
-    dst.duration = dst.duration + src.duration
+    log[#log + 1] = rec
+    if #log > MAX_DEATHS then table.remove(log, 1) end
 end
 
 ------------------------------------------------------------------------
@@ -233,6 +205,10 @@ end
 function Meter:Duration(seg)
     if not seg then return 0 end
     if seg == current then return GetTime() - seg.start end
+    if seg == overall and current then
+        -- the running fight is already counted in the overall's totals
+        return (seg.duration or 0) + (GetTime() - current.start)
+    end
     return seg.duration or 0
 end
 
@@ -339,7 +315,7 @@ local function closeSegment()
     if not current then return end
     stopWait()
     current.duration = GetTime() - current.start
-    fold(overall, current)
+    overall.duration = overall.duration + current.duration
     last, current = current, nil
     -- Into the history, newest first; the cap is read live so a lowered
     -- slider (0 included) trims on the next fight end without a reload. A
@@ -448,7 +424,9 @@ end
 ------------------------------------------------------------------------
 local HANDLERS = Meter.HANDLERS
 
-local function addDamage(src, amount, spellId)
+-- Every counter lands in the running fight AND in the overall; the per-target
+-- table (dstName) feeds the tooltip's target block.
+local function addDamage(src, amount, spellId, dstName)
     if not amount or amount <= 0 then return end
     local owner = resolve(src)
     if not owner then return end
@@ -459,8 +437,15 @@ local function addDamage(src, amount, spellId)
         openSegment(nil)
     end
     local p = entry(current, owner)
+    local o = entry(overall, owner)
     p.damage = p.damage + amount
+    o.damage = o.damage + amount
     bump(p, "spells", spellId, amount)
+    bump(o, "spells", spellId, amount)
+    if dstName then
+        bump(p, "targets", dstName, amount)
+        bump(o, "targets", dstName, amount)
+    end
     dirty = true
 end
 
@@ -471,20 +456,23 @@ local function addTaken(dst, srcName, amount, spellId)
     if not current or not amount or amount <= 0 then return end
     if not roster[dst] then return end
     local p = entry(current, dst)
+    local o = entry(overall, dst)
     p.taken = p.taken + amount
+    o.taken = o.taken + amount
     bump(p, "takenBy", spellId, amount)
+    bump(o, "takenBy", spellId, amount)
     p.lastSpell, p.lastAmount, p.lastSrc = spellId, amount, srcName
     dirty = true
 end
 
 -- SWING_DAMAGE: amount is field 12. Spell-prefixed subevents carry spellId,
 -- spellName, spellSchool in 12-14 and amount in 15.
-HANDLERS.SWING_DAMAGE = function(src, srcName, dst, a12)
-    addDamage(src, a12, MELEE_ID)
+HANDLERS.SWING_DAMAGE = function(src, srcName, dst, a12, _, _, _, dstName)
+    addDamage(src, a12, MELEE_ID, dstName)
     addTaken(dst, srcName, a12, MELEE_ID)
 end
-local function spellDamage(src, srcName, dst, a12, a15)
-    addDamage(src, a15, a12)
+local function spellDamage(src, srcName, dst, a12, a15, _, _, dstName)
+    addDamage(src, a15, a12, dstName)
     addTaken(dst, srcName, a15, a12)
 end
 HANDLERS.RANGE_DAMAGE          = spellDamage
@@ -494,16 +482,26 @@ HANDLERS.DAMAGE_SHIELD         = spellDamage
 HANDLERS.DAMAGE_SPLIT          = spellDamage
 
 -- Healing never opens a fight (pre-pull heals are not combat); field 16 is
--- overhealing. The per-spell table holds effective healing, like the bar.
-local function spellHeal(src, _, _, a12, a15, a16)
+-- overhealing. The per-spell and per-target tables hold effective healing,
+-- like the bar.
+local function spellHeal(src, _, _, a12, a15, a16, _, dstName)
     if not current or not a15 then return end
     local owner = resolve(src)
     if not owner then return end
     local p = entry(current, owner)
+    local o = entry(overall, owner)
     a16 = a16 or 0
+    local eff = a15 - a16
     p.heal     = p.heal + a15
+    o.heal     = o.heal + a15
     p.overheal = p.overheal + a16
-    bump(p, "heals", a12, a15 - a16)
+    o.overheal = o.overheal + a16
+    bump(p, "heals", a12, eff)
+    bump(o, "heals", a12, eff)
+    if dstName then
+        bump(p, "healed", dstName, eff)
+        bump(o, "healed", dstName, eff)
+    end
     dirty = true
 end
 HANDLERS.SPELL_HEAL          = spellHeal
@@ -516,8 +514,11 @@ local function countFor(src, key, counter, a15)
     local owner = resolve(src)
     if not owner then return end
     local p = entry(current, owner)
+    local o = entry(overall, owner)
     p[counter] = p[counter] + 1
+    o[counter] = o[counter] + 1
     bump(p, key, a15 or 0, 1)
+    bump(o, key, a15 or 0, 1)
     dirty = true
 end
 HANDLERS.SPELL_INTERRUPT = function(src, _, _, _, a15) countFor(src, "kicks",  "interrupts", a15) end
@@ -531,15 +532,13 @@ HANDLERS.UNIT_DIED = function(_, _, dst)
     local r = roster[dst]
     if not r or UnitIsFeignDeath(r.unit) then return end
     local p = entry(current, dst)
+    local o = entry(overall, dst)
     p.deaths = p.deaths + 1
-    local log = p.deathLog
-    if not log then
-        log = {}
-        p.deathLog = log
-    end
-    log[#log + 1] = { t = GetTime() - current.start,
-                      spell = p.lastSpell, amount = p.lastAmount, src = p.lastSrc }
-    if #log > MAX_DEATHS then table.remove(log, 1) end
+    o.deaths = o.deaths + 1
+    local rec = { t = GetTime() - current.start,
+                  spell = p.lastSpell, amount = p.lastAmount, src = p.lastSrc }
+    pushDeath(p, rec)
+    pushDeath(o, rec)
     dirty = true
 end
 
@@ -555,9 +554,9 @@ HANDLERS.ENVIRONMENTAL_DAMAGE = function(_, _, dst, a12, _, _, a13)
 end
 
 local function onCLEU()
-    local _, sub, _, src, srcName, _, _, dst, _, _, _, a12, a13, _, a15, a16 = CLGetInfo()
+    local _, sub, _, src, srcName, _, _, dst, dstName, _, _, a12, a13, _, a15, a16 = CLGetInfo()
     local h = HANDLERS[sub]
-    if h then h(src, srcName, dst, a12, a15, a16, a13) end
+    if h then h(src, srcName, dst, a12, a15, a16, a13, dstName) end
 end
 
 function mod:EngineEnable()
@@ -573,6 +572,11 @@ function mod:EngineEnable()
     self:RegisterEvent("ENCOUNTER_START",             onEncounterStart)
     self:RegisterEvent("ENCOUNTER_END",               onEncounterEnd)
     self:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", onCLEU)
+    -- A reload or logout mid-fight: the counters are already in the overall,
+    -- the fight's duration is not until it closes. Close it here, or the saved
+    -- overall carries the damage of that fight with none of its seconds and
+    -- overstates every per-second value after the reload.
+    self:RegisterEvent("PLAYER_LOGOUT", closeSegment)
 end
 
 function mod:EngineDisable()

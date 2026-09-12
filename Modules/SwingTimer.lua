@@ -53,6 +53,8 @@ local mod = ns:RegisterModule("swingtimer", {
         y               = -140,
         unlocked        = false,
         showOffHand     = true,
+        showRanged      = true,
+        showAimWindow   = true,
         showText        = true,
         onlyWhileActive = true,
         colorPreset     = "blue",
@@ -63,10 +65,10 @@ local mod = ns:RegisterModule("swingtimer", {
     },
 })
 
-local GetTime         = GetTime
-local UnitAttackSpeed = UnitAttackSpeed
-local UnitGUID        = UnitGUID
-local format          = string.format
+local GetTime            = GetTime
+local UnitClass          = UnitClass
+local GetInventoryItemID = GetInventoryItemID
+local format             = string.format
 
 local TEX_FILL  = "Interface\\TargetingFrame\\UI-StatusBar"
 local TEX_SPARK = "Interface\\AddOns\\VuloClassicUI\\Media\\Castbar\\CastingBarSpark"
@@ -116,9 +118,34 @@ local function applyBarTexture(bar)
 end
 
 local frame
-local mhBar, ohBar
+local mhBar, ohBar, raBar
 local eventFrame
 local previewActive, previewExpire = false, 0
+
+-- The ranged bar exists for anyone holding a shooting weapon: a hunter's bow
+-- or gun, a caster's wand. Read live (the tracker asks the client), so a
+-- weapon swap moves the bar in and out through the inventory event.
+local function hasRanged()
+    return ns.HasRangedWeapon and ns:HasRangedWeapon() or false
+end
+
+-- The enable gate runs at ADDON_LOADED, where the client may not report the
+-- ranged weapon's speed yet. A hunter, or anyone with something in the
+-- ranged slot, is not judged on that answer -- the talent path has the same
+-- "don't judge while unreadable" rule.
+local function mayHaveRanged()
+    if hasRanged() then return true end
+    local _, cls = UnitClass("player")
+    if cls == "HUNTER" then return true end
+    return GetInventoryItemID("player", 18) ~= nil
+end
+
+-- The main-hand bar is for melee specs; a hunter or a wand user sees it only
+-- while a melee swing is actually running, not as an empty row above the shot.
+local function showMainHand()
+    if mod.db.unlocked or ns.SwingTimerIsMeleeSpec() then return true end
+    return (select(3, ns:GetSwing("mainhand"))) and true or false
+end
 
 -- The real swing clock lives in Core/SwingTracker (shared with the paladin
 -- seal-twist helper). Preview and unlock run on their own fake swings so that
@@ -129,8 +156,10 @@ local previewActive, previewExpire = false, 0
 -- frame it draws.
 local previewMH = { start = 0, dur = 2.6, active = true }
 local previewOH = { start = 0, dur = 1.8, active = true }
+local previewRA = { start = 0, dur = 2.9, active = true }
 local liveMH    = { start = 0, dur = 0, active = false }
 local liveOH    = { start = 0, dur = 0, active = false }
+local liveRA    = { start = 0, dur = 0, active = false }
 
 local function isFake()
     return previewActive or (mod.db and mod.db.unlocked) or ns:IsMoverEditMode()
@@ -139,16 +168,18 @@ end
 -- Scratch tables, deliberately reused: this runs 50x a second per bar.
 local function swingState(hand)
     if isFake() then
+        if hand == "ranged" then return previewRA end
         return (hand == "offhand") and previewOH or previewMH
     end
-    local out = (hand == "offhand") and liveOH or liveMH
+    local out = (hand == "ranged") and liveRA or (hand == "offhand") and liveOH or liveMH
     out.start, out.dur, out.active = ns:GetSwing(hand)
     return out
 end
 
 local function anySwingActive()
-    if isFake() then return previewMH.active or previewOH.active end
+    if isFake() then return previewMH.active or previewOH.active or previewRA.active end
     return (select(3, ns:GetSwing("mainhand"))) or (select(3, ns:GetSwing("offhand")))
+        or (select(3, ns:GetSwing("ranged")))
 end
 
 local function addBorder(bar)
@@ -188,6 +219,15 @@ local function createBar(parent, labelText)
     bar.spark:SetBlendMode("ADD")
     bar.spark:SetWidth(14)
     bar.spark:Hide()
+
+    -- The aim window at the end of a ranged shot: the stretch where moving or
+    -- casting holds the shot back. Only the ranged bar shows it.
+    bar.aim = bar:CreateTexture(nil, "ARTWORK", nil, 2)
+    bar.aim:SetColorTexture(1, 1, 1, 0.16)
+    bar.aim:SetPoint("TOPRIGHT",    bar, "TOPRIGHT",    0, 0)
+    bar.aim:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", 0, 0)
+    bar.aim:SetWidth(1)
+    bar.aim:Hide()
 
     local font = "Fonts\\FRIZQT__.TTF"
     bar.label = bar:CreateFontString(nil, "OVERLAY")
@@ -245,32 +285,59 @@ local function updateBar(bar, sw, t)
     bar.spark:ClearAllPoints()
     bar.spark:SetPoint("CENTER", bar, "LEFT", bar:GetWidth() * frac, 0)
     bar.spark:Show()
+    if bar.isRanged and mod.db.showAimWindow then
+        local win = ns.RANGED_AIM_WINDOW or 0.7
+        local w = bar:GetWidth() * math.min(1, win / sw.dur)
+        if w ~= bar._aimW then
+            bar._aimW = w
+            bar.aim:SetWidth(math.max(1, w))
+        end
+        bar.aim:Show()
+    elseif bar.isRanged then
+        bar.aim:Hide()
+    end
 end
 
+-- Bars stack top-down in the order main hand, off hand, ranged; a bar that
+-- does not apply (no second weapon, nothing to shoot with) leaves no gap.
 local function layout()
     if not frame then return end
     local w, h, gap = mod.db.width, mod.db.height, mod.db.gap
+    local showMH = showMainHand()
     local showOH = (mod.db.showOffHand and ns:IsDualWielding()) or mod.db.unlocked
-    local totalH = showOH and (h * 2 + gap) or h
+    local showRA = (mod.db.showRanged and hasRanged()) or mod.db.unlocked
+    if not (showMH or showOH or showRA) then showMH = true end
+    local rows = (showMH and 1 or 0) + (showOH and 1 or 0) + (showRA and 1 or 0)
+    local totalH = h * rows + gap * (rows - 1)
 
     frame:SetSize(w, totalH)
     frame:ClearAllPoints()
     frame:SetPoint("CENTER", UIParent, "CENTER", mod.db.x, mod.db.y)
 
-    mhBar:ClearAllPoints()
-    mhBar:SetPoint("TOPLEFT",  frame, "TOPLEFT",  0, 0)
-    mhBar:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, 0)
-    mhBar:SetHeight(h)
-
-    ohBar:ClearAllPoints()
-    ohBar:SetPoint("TOPLEFT",  mhBar, "BOTTOMLEFT",  0, -gap)
-    ohBar:SetPoint("TOPRIGHT", mhBar, "BOTTOMRIGHT", 0, -gap)
-    ohBar:SetHeight(h)
-    ohBar:SetShown(showOH)
+    -- Stack whatever is shown, top down, with no gap for a hidden bar.
+    local above
+    for _, pair in ipairs({ { mhBar, showMH }, { ohBar, showOH }, { raBar, showRA } }) do
+        local bar, shown = pair[1], pair[2]
+        bar:ClearAllPoints()
+        if shown then
+            if above then
+                bar:SetPoint("TOPLEFT",  above, "BOTTOMLEFT",  0, -gap)
+                bar:SetPoint("TOPRIGHT", above, "BOTTOMRIGHT", 0, -gap)
+            else
+                bar:SetPoint("TOPLEFT",  frame, "TOPLEFT",  0, 0)
+                bar:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, 0)
+            end
+            above = bar
+        end
+        bar:SetHeight(h)
+        bar:SetShown(shown)
+    end
+    raBar._aimW = nil
 
     applyBarTexture(mhBar)
     applyBarTexture(ohBar)
-    for _, b in ipairs({ mhBar, ohBar }) do
+    applyBarTexture(raBar)
+    for _, b in ipairs({ mhBar, ohBar, raBar }) do
         b.spark:SetHeight(h + 6)
         b.gloss:ClearAllPoints()
         b.gloss:SetPoint("TOPLEFT",  b, "TOPLEFT",  0, 0)
@@ -300,6 +367,7 @@ local function startPreview()
     if anySwingActive() then return end
     previewMH.start, previewMH.dur, previewMH.active = t, 2.6, true
     previewOH.start, previewOH.dur, previewOH.active = t, 1.8, true
+    previewRA.start, previewRA.dur, previewRA.active = t, 2.9, true
     previewActive = true
     previewExpire = t + 4
     frame:Show()
@@ -321,13 +389,15 @@ local function create()
 
     mhBar = createBar(frame, L["MH"])
     ohBar = createBar(frame, L["OH"])
+    raBar = createBar(frame, L["RA"])
+    raBar.isRanged = true
 
     frame.mover = ns:CreateMover(frame, {
         key    = "swingtimer",
         label  = L["|cffffffffSWING TIMER|r\n|cffaaaaaaDrag or arrow keys|r"],
         db     = mod.db,
         width  = math.max(mod.db.width + 40, 180),
-        height = math.max(70, mod.db.height * 2 + 40),
+        height = math.max(90, mod.db.height * 3 + 40),
         onMove = function(x, y)
             ns:Print(format(L["Swing Timer position: x=%.0f, y=%.0f"], x, y))
         end,
@@ -343,13 +413,15 @@ local function create()
         if isFake() then
             if t - previewMH.start >= previewMH.dur then previewMH.start = t end
             if t - previewOH.start >= previewOH.dur then previewOH.start = t end
+            if t - previewRA.start >= previewRA.dur then previewRA.start = t end
         end
         if previewActive and t > previewExpire then
             previewActive = false
             applyVisibility()
         end
-        updateBar(mhBar, swingState("mainhand"), t)
-        if ohBar:IsShown() then updateBar(ohBar, swingState("offhand"), t) end
+        if mhBar:IsShown() then updateBar(mhBar, swingState("mainhand"), t) end
+        if ohBar:IsShown() then updateBar(ohBar, swingState("offhand"),  t) end
+        if raBar:IsShown() then updateBar(raBar, swingState("ranged"),   t) end
         -- Edit Mode has to be exempt here as well, not just in applyVisibility:
         -- that one shows the frame, and a hundredth of a second later this hid
         -- it again. A hidden frame stops running OnUpdate, so nothing ever
@@ -363,20 +435,33 @@ local function create()
     return frame
 end
 
+local function clearBar(bar)
+    if not bar then return end
+    bar:SetValue(0)
+    bar._timeBucket = -1
+    bar.time:SetText("")
+    bar.spark:Hide()
+    bar.aim:Hide()
+end
+
 local function clearBars()
-    if mhBar then mhBar:SetValue(0); mhBar._timeBucket = -1; mhBar.time:SetText(""); mhBar.spark:Hide() end
-    if ohBar then ohBar:SetValue(0); ohBar._timeBucket = -1; ohBar.time:SetText(""); ohBar.spark:Hide() end
+    clearBar(mhBar)
+    clearBar(ohBar)
+    clearBar(raBar)
 end
 
 -- The tracker calls this on every swing reset and on leaving combat; a real
 -- swing supersedes the settings preview, which is why previewActive is dropped
 -- here rather than inside the tracker (which knows nothing about our preview).
-local function onSwing()
+local function onSwing(hand)
     if not mod._enabled then return end
     if previewActive then previewActive = false end
-    if not (select(3, ns:GetSwing("mainhand"))) and not (select(3, ns:GetSwing("offhand"))) then
+    if not (select(3, ns:GetSwing("mainhand"))) and not (select(3, ns:GetSwing("offhand")))
+       and not (select(3, ns:GetSwing("ranged"))) then
         clearBars()
     end
+    -- A ranged character's main-hand bar comes and goes with its swing.
+    if hand ~= "ranged" and not ns.SwingTimerIsMeleeSpec() then layout() end
     applyVisibility()
 end
 
@@ -410,6 +495,7 @@ local function setUnlocked(state)
         local t = GetTime()
         previewMH.start, previewMH.dur, previewMH.active = t, 2.6, true
         previewOH.start, previewOH.dur, previewOH.active = t, 1.8, true
+        previewRA.start, previewRA.dur, previewRA.active = t, 2.9, true
         layout()
         frame:Show()
         frame.mover:Show()
@@ -446,14 +532,16 @@ function mod:OnEnable()
         return
     end
 
-    -- A swing timer means nothing without melee auto-attacks, so it stays shut
-    -- for casting specs even if an old saved preference says otherwise. Say so,
-    -- and record it: switching a module off behind the player's back while the
-    -- sidebar keeps showing it as enabled gives them nothing to go on, and
-    -- leaving the preference alone repeats the whole thing on every login.
-    if not isMeleeSpec() then
+    -- A swing timer means nothing without auto-attacks to time: melee swings
+    -- for a melee spec, shots for anyone holding a ranged weapon. A caster
+    -- with neither stays shut even if an old saved preference says otherwise.
+    -- Say so, and record it: switching a module off behind the player's back
+    -- while the sidebar keeps showing it as enabled gives them nothing to go
+    -- on, and leaving the preference alone repeats the whole thing on every
+    -- login.
+    if not isMeleeSpec() and not mayHaveRanged() then
         ns:SetModuleEnabledPref("swingtimer", false)
-        ns:Print(L["Swing Timer switched off: it only tracks melee auto-attacks, which this character's talents do not use."])
+        ns:Print(L["Swing Timer switched off: it only tracks melee auto-attacks and ranged shots, and this character has neither."])
         bailOut()
         return
     end
@@ -480,7 +568,7 @@ function mod:GetOptions()
     local items = {}
 
     table.insert(items, { type = "desc",
-        text = L["|cffaaaaaaShows when your next melee auto-attack lands (any melee class). The off-hand bar only appears while dual-wielding. The bar fills up toward the swing; the number is the time left.|r"] })
+        text = L["|cffaaaaaaShows when your next auto-attack lands: main hand, off hand while dual-wielding, and the ranged shot while a bow, gun or wand is equipped. The bar fills up toward the swing; the number is the time left. The light stretch at the end of the ranged bar is the aim: moving or casting there holds the shot back.|r"] })
 
     table.insert(items, { type = "toggle", label = L["Enable swing timer"],
         get = function() return ns:IsModuleEnabled("swingtimer") end,
@@ -506,6 +594,18 @@ function mod:GetOptions()
         type = "toggle", label = L["Show off-hand bar (while dual-wielding)"],
         get = function() return mod.db.showOffHand end,
         set = function(_, v) mod.db.showOffHand = v; applyDisplay() end,
+    })
+    table.insert(items, {
+        type = "toggle", label = L["Show ranged bar"],
+        tooltip = L["The auto shot or wand shoot clock, shown while a ranged weapon is equipped."],
+        get = function() return mod.db.showRanged end,
+        set = function(_, v) mod.db.showRanged = v; applyDisplay() end,
+        subOptions = {
+            { type = "toggle", label = L["Mark the aim window"],
+              tooltip = L["Brightens the last part of the ranged bar: a shot fired from there is delayed by moving or casting."],
+              get = function() return mod.db.showAimWindow end,
+              set = function(_, v) mod.db.showAimWindow = v; applyDisplay() end },
+        },
     })
     table.insert(items, {
         type = "toggle", label = L["Show time remaining"],

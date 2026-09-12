@@ -168,7 +168,6 @@ local function T() return {
     ["MH"] = "MD",
     ["OH"] = "MI",
     ["Weapon swing timer for your melee auto-attacks (any melee class). Shows a main-hand bar and, while dual-wielding, an off-hand bar."] = "Temporizador de golpe para tus ataques automáticos cuerpo a cuerpo (cualquier clase cuerpo a cuerpo). Muestra una barra de mano derecha y, mientras uses dos armas, otra de mano izquierda.",
-    ["|cffaaaaaaShows when your next melee auto-attack lands (any melee class). The off-hand bar only appears while dual-wielding. The bar fills up toward the swing; the number is the time left.|r"] = "|cffaaaaaaMuestra cuándo cae tu próximo ataque automático cuerpo a cuerpo (cualquier clase cuerpo a cuerpo). La barra de mano izquierda solo aparece mientras usas dos armas. La barra se llena hasta el golpe; el número es el tiempo restante.|r",
     ["Enable swing timer"] = "Activar temporizador de golpe",
     ["Foreground texture"] = "Textura de primer plano",
     ["Foreground transparency"] = "Transparencia de primer plano",
@@ -1966,7 +1965,6 @@ local function T() return {
     ["Pins this window to another one - it then moves along whenever that window is moved. Dragging this window keeps the pin and just updates the distance."] = "Ancla esta ventana a otra: se moverá con ella siempre que esa ventana se mueva. Arrastrar esta ventana mantiene el anclaje y solo actualiza la distancia.",
     ["Not possible - that would create a loop."] = "No es posible: se crearía un bucle.",
     ["Reset ALL VuloClassicUI settings for every character on this account? This cannot be undone."] = "¿Restablecer TODOS los ajustes de VuloClassicUI para todos los personajes de esta cuenta? Esta acción no se puede deshacer.",
-    ["Swing Timer switched off: it only tracks melee auto-attacks, which this character's talents do not use."] = "Temporizador de golpe desactivado: solo registra los ataques automáticos cuerpo a cuerpo, que los talentos de este personaje no usan.",
     ["|cffff5555Settings migration %s failed:|r %s"] = "|cffff5555Error en la migración de ajustes %s:|r %s",
     ["Plays a raid warning sound the moment an opponent uses their PvP trinket."] = "Reproduce un sonido de aviso de banda en cuanto un rival usa su abalorio JcJ.",
     ["Flashes the icon briefly when an opponent uses their PvP trinket."] = "Hace destellar el icono brevemente cuando un rival usa su abalorio JcJ.",
@@ -3446,6 +3444,15 @@ local function T() return {
     ["Open setup again"] = "Abrir la configuración de nuevo",
     ["Show the first-time setup again: template, font and scale."] = "Muestra de nuevo la configuración inicial: plantilla, fuente y escala.",
     ["run the first-time setup again"] = "volver a ejecutar la configuración inicial",
+    -- Swing timer: ranged bar; meter targets
+    ["Targets"] = "Objetivos",
+    ["RA"] = "DIST",
+    ["Show ranged bar"] = "Mostrar barra a distancia",
+    ["The auto shot or wand shoot clock, shown while a ranged weapon is equipped."] = "El reloj del disparo automático o del disparo de varita, visible mientras llevas un arma a distancia equipada.",
+    ["Mark the aim window"] = "Marcar la ventana de puntería",
+    ["Brightens the last part of the ranged bar: a shot fired from there is delayed by moving or casting."] = "Aclara la última parte de la barra a distancia: un disparo desde ahí se retrasa al moverte o lanzar hechizos.",
+    ["|cffaaaaaaShows when your next auto-attack lands: main hand, off hand while dual-wielding, and the ranged shot while a bow, gun or wand is equipped. The bar fills up toward the swing; the number is the time left. The light stretch at the end of the ranged bar is the aim: moving or casting there holds the shot back.|r"] = "|cffaaaaaaMuestra cuándo aterriza tu próximo ataque automático: mano derecha, mano izquierda al empuñar dos armas y el disparo a distancia mientras llevas arco, arma de fuego o varita. La barra se llena hacia el golpe; el número es el tiempo restante. El tramo claro al final de la barra a distancia es la puntería: moverte o lanzar hechizos ahí retiene el disparo.|r",
+    ["Swing Timer switched off: it only tracks melee auto-attacks and ranged shots, and this character has neither."] = "Temporizador de golpes desactivado: solo sigue ataques automáticos cuerpo a cuerpo y disparos a distancia, y este personaje no tiene ninguno.",
 } end
 
 ns:RegisterLocale("esES", T)
