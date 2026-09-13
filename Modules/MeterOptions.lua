@@ -20,10 +20,14 @@ local function modeValues()
         { value = "heal",       text = L["Healing"] },
         { value = "hps",        text = L["HPS"] },
         { value = "taken",      text = L["Damage taken"] },
+        { value = "avoidance",  text = L["Avoidance"] },
         { value = "enemies",    text = L["Enemies"] },
         { value = "interrupts", text = L["Interrupts"] },
         { value = "dispels",    text = L["Dispels"] },
         { value = "deaths",     text = L["Deaths"] },
+        { value = "buffs",      text = L["Buff uptime"] },
+        { value = "debuffs",    text = L["Debuff uptime"] },
+        { value = "mana",       text = L["Mana gained"] },
     }
     if ns.Meter and ns.Meter.HAS_THREAT then
         v[#v + 1] = { value = "threat", text = L["Threat"] }
@@ -146,6 +150,12 @@ function mod:GetOptions()
         } }
     items[#items + 1] = toggle(L["Bars grow upwards"], "growUp",
         L["The title bar moves to the bottom edge and the bars stack up from it."])
+    items[#items + 1] = toggle(L["Icon box beside the bar"], "iconBox",
+        L["The class or spec icon sits in its own framed square left of the bar instead of on it."])
+    items[#items + 1] = toggle(L["Smooth bar movement"], "smoothBars",
+        L["Bars glide to their new length instead of jumping."])
+    items[#items + 1] = toggle(L["Boss damage only"], "bossOnly",
+        L["The damage modes count only what went into the encounter's bosses; trash and adds are left out."])
     items[#items + 1] = { type = "dropdown", label = L["Per-second basis"], width = 200,
         tooltip = L["Fight time divides by the whole fight. Active time divides by the seconds in which the player kept casting or hitting, so a late joiner or a paused healer is judged on their own time."],
         values = {
@@ -204,6 +214,8 @@ function mod:GetOptions()
         set = function(_, v) mod.db.resetOnInstance = v end }
     items[#items + 1] = toggle(L["Back to the current fight on pull"], "autoCurrent",
         L["A window showing a previous fight returns to the running fight when the next one starts."])
+    items[#items + 1] = toggle(L["Switch to Overall after a fight"], "autoSegment",
+        L["A window on the current fight shows the overall total once the fight ends and returns to the current fight on the next pull."])
     items[#items + 1] = { type = "toggle", label = L["Mode follows your talents"],
         tooltip = L["The first window opens on healing while your talents make you a healer and on damage otherwise; it switches with your spec."],
         get = function() return mod.db.followRole end,

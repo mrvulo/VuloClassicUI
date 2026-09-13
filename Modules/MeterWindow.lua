@@ -29,18 +29,24 @@ local CreateFrame         = CreateFrame
 
 local TITLE_H  = 20
 local PAD      = 2
-local MODES    = { "damage", "dps", "heal", "hps", "taken", "enemies", "interrupts", "dispels", "deaths" }
+local GRAPH_H  = 44   -- the timeline strip above a breakdown
+local MODES    = { "damage", "dps", "heal", "hps", "taken", "avoidance", "enemies",
+                   "interrupts", "dispels", "deaths", "buffs", "debuffs", "mana" }
 -- The threat mode reads the client's threat API, not the log; a client
 -- without it simply has eight modes, and a saved "threat" falls to damage.
 if Meter.HAS_THREAT then MODES[#MODES + 1] = "threat" end
 local MODE_IDX = {}
 for i = 1, #MODES do MODE_IDX[MODES[i]] = i end
 local PER_SEC  = { dps = true, hps = true }
-local COUNT    = { interrupts = true, dispels = true, deaths = true }
+local COUNT    = { interrupts = true, dispels = true, deaths = true, avoidance = true, buffs = true, debuffs = true }
 local HEALING  = { heal = true, hps = true }
+local UPTIME   = { buffs = true, debuffs = true }   -- breakdown values are seconds, shown as a share of the fight
 -- Which per-spell table of the player entry a mode breaks down into.
 local SUB_KEY  = { damage = "spells", dps = "spells", heal = "heals", hps = "heals",
-                   taken = "takenBy", interrupts = "kicks", dispels = "purges" }
+                   taken = "takenBy", interrupts = "kicks", dispels = "purges",
+                   buffs = "buffUp", debuffs = "debuffUp", mana = "gains" }
+-- Which timeline of the player entry a mode can draw.
+local TL_KEY   = { damage = "tlDamage", dps = "tlDamage", heal = "tlHeal", hps = "tlHeal" }
 local ICONS    = "Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\"
 local TEX_FLAT = "Interface\\Buttons\\WHITE8X8"
 local ICON_FMT = "|T%s:14:14:0:0:64:64:5:59:5:59|t %s"
@@ -73,6 +79,10 @@ local function modeLabel(m)
     if m == "interrupts" then return L["Interrupts"] end
     if m == "dispels"    then return L["Dispels"] end
     if m == "threat"     then return L["Threat"] end
+    if m == "avoidance"  then return L["Avoidance"] end
+    if m == "buffs"      then return L["Buff uptime"] end
+    if m == "debuffs"    then return L["Debuff uptime"] end
+    if m == "mana"       then return L["Mana gained"] end
     return L["Deaths"]
 end
 
@@ -159,8 +169,44 @@ local function basisOf(p, dur)
     return dur
 end
 
-local function valueOf(mode, p, dur)
-    if mode == "damage"     then return p.damage end
+-- The damage a row counts: everything, or only what went into bosses.
+local function damageOf(p)
+    if mod.db.bossOnly then return p.bossDamage or 0 end
+    return p.damage
+end
+
+local function avoided(p)
+    local a = p.avoid
+    if not a then return 0 end
+    return a.dodge + a.parry + a.block + a.miss + a.absorb + a.resist + a.immune
+end
+
+local function countKeys(t)
+    local n = 0
+    if t then for _ in pairs(t) do n = n + 1 end end
+    return n
+end
+
+-- The aura seconds a player has in a segment: what has ended, plus what is
+-- still up when the segment is the running fight. One scratch table, so the
+-- ticker never mints one; callers read it before the next call.
+local auraScratch = {}
+local function auraSeconds(seg, p, guid, key)
+    wipe(auraScratch)
+    local t = p[key]
+    if t then for id, v in pairs(t) do auraScratch[id] = v end end
+    if guid and Meter:InCombat() and seg == Meter:GetSegment("current") then
+        Meter:OpenAuraSeconds(guid, key, auraScratch)
+    end
+    return auraScratch
+end
+
+local function valueOf(mode, p, dur, seg, guid)
+    if mode == "damage"     then return damageOf(p) end
+    if mode == "avoidance"  then return avoided(p) end
+    if mode == "buffs"      then return countKeys(auraSeconds(seg, p, guid, "buffUp")) end
+    if mode == "debuffs"    then return countKeys(auraSeconds(seg, p, guid, "debuffUp")) end
+    if mode == "mana"       then return p.mana or 0 end
     if mode == "heal"       then return p.heal - p.overheal end
     if mode == "taken"      then return p.taken      or 0 end
     if mode == "interrupts" then return p.interrupts or 0 end
@@ -170,7 +216,7 @@ local function valueOf(mode, p, dur)
     if mode == "enemies"    then return p.damage     or 0 end
     if dur <= 0 then return 0 end
     local basis = basisOf(p, dur)
-    if mode == "dps" then return p.damage / basis end
+    if mode == "dps" then return damageOf(p) / basis end
     return (p.heal - p.overheal) / basis
 end
 
@@ -191,13 +237,18 @@ local function rightText(mode, p, v, total, dur)
     -- Threat: the percent is the whole point (share of the tank's threat,
     -- not of the sum), so it ignores the bracket switches.
     if mode == "threat" then return format("%s (%.0f%%)", short(v), p.pct or 0) end
+    -- Avoidance: the share is of the attacks that came in, not of the group
+    if mode == "avoidance" then
+        local att = v + ((p.avoid and p.avoid.hits) or 0)
+        return format("%d (%.1f%%)", v, att > 0 and v / att * 100 or 0)
+    end
     if COUNT[mode] then
         if db.showPercent then return format("%d (%.1f%%)", v, pct) end
         return format("%d", v)
     end
     local secondary
     if mode == "dps" then
-        secondary = p.damage
+        secondary = damageOf(p)
     elseif mode == "hps" then
         secondary = p.heal - p.overheal
     else
@@ -411,6 +462,62 @@ local function attackerLines(e, seg)
     end
 end
 
+-- Avoidance: whole attacks by kind with their share of everything that
+-- came in, then what was shaved off the hits that landed.
+local function avoidLines(p)
+    local a = p.avoid
+    if not a then
+        tipLines[#tipLines + 1] = L["No details yet"]
+        return
+    end
+    local att = avoided(p) + a.hits
+    local function kind(i, label, n)
+        if n > 0 then line(i, label, format("%d (%.1f%%)", n, att > 0 and n / att * 100 or 0)) end
+    end
+    kind(1, L["Dodged"],   a.dodge)
+    kind(2, L["Parried"],  a.parry)
+    kind(3, L["Blocked"],  a.block)
+    kind(4, L["Missed"],   a.miss)
+    kind(5, L["Absorbed"], a.absorb)
+    kind(6, L["Resisted"], a.resist)
+    kind(7, L["Immune"],   a.immune)
+    line(8, L["Hits taken"], format("%d", a.hits))
+    if a.blocked > 0 or a.absorbed > 0 or a.resisted > 0 then
+        tipLines[#tipLines + 1] = " "
+        tipLines[#tipLines + 1] = L["Taken off landed hits"]
+        if a.blocked  > 0 then line(9,  L["Blocked"],  short(a.blocked))  end
+        if a.absorbed > 0 then line(10, L["Absorbed"], short(a.absorbed)) end
+        if a.resisted > 0 then line(11, L["Resisted"], short(a.resisted)) end
+    end
+end
+
+-- Aura uptime: seconds per aura against the fight, as a share.
+local function uptimeLines(p, key, dur, seg, guid)
+    local t = auraSeconds(seg, p, guid, key)
+    local n = 0
+    if t then
+        for id, v in pairs(t) do
+            if v > 0 then
+                n = n + 1
+                sortIds[n] = id
+            end
+        end
+    end
+    for i = n + 1, #sortIds do sortIds[i] = nil end
+    if n == 0 then
+        tipLines[#tipLines + 1] = L["No details yet"]
+        return
+    end
+    sortSrc = t
+    sort(sortIds, byCount)
+    local rows = min(n, mod.db.tooltipRows or 5)
+    for i = 1, rows do
+        local id = sortIds[i]
+        local v = min(t[id], dur > 0 and dur or t[id])
+        line(i, spellText(id), format("%.0f%%", dur > 0 and v / dur * 100 or 0))
+    end
+end
+
 local function threatStatus(p)
     if p.tanking or (p.status or 0) >= 2 then return L["Tanking"] end
     if p.status == 1 then return L["Above the tank"] end
@@ -451,7 +558,10 @@ end
 rowEnter = function(self)
     local w   = self.win
     local seg = segmentOf(w)
-    if w.detail and self.spellId then return spellStatTip(self, w, seg) end
+    if w.detail and self.spellId then
+        if STAT_KEY[w.mode] then return spellStatTip(self, w, seg) end
+        return
+    end
     local set = rowsOf(seg, w.mode)
     local p   = set and self.guid and set[self.guid]
     if not p then return end
@@ -490,7 +600,15 @@ rowEnter = function(self)
         deathLines(p)
     elseif mode == "enemies" then
         attackerLines(p, seg)
+    elseif mode == "avoidance" then
+        avoidLines(p)
+    elseif UPTIME[mode] then
+        uptimeLines(p, SUB_KEY[mode], dur, seg, self.guid)
+    elseif mode == "mana" then
+        spellLines(p, "gains", p.mana or 0, false)
     else
+        -- shares of ALL the damage: the per-spell and per-target tables hold
+        -- everything, whatever the boss filter shows on the bar
         local own = HEALING[mode] and (p.heal - p.overheal)
                  or (mode == "taken" and (p.taken or 0))
                  or p.damage
@@ -506,7 +624,7 @@ rowEnter = function(self)
     if isCount then
         tipLines[#tipLines + 1] = format("%s: %d", L["Total"], v)
     else
-        local amount = PER_SEC[mode] and (mode == "dps" and p.damage or (p.heal - p.overheal)) or v
+        local amount = PER_SEC[mode] and (mode == "dps" and damageOf(p) or (p.heal - p.overheal)) or v
         tipLines[#tipLines + 1] = format("%s: %s", L["Total"], short(amount))
         tipLines[#tipLines + 1] = format("%s: %s", L["Per second"], short(dur > 0 and amount / basisOf(p, dur) or 0))
         if mode ~= "taken" and mode ~= "enemies" then
@@ -540,7 +658,58 @@ end
 ------------------------------------------------------------------------
 local function rowSlots(w)
     local db = mod.db
-    return max(1, floor((w.db.height - TITLE_H - PAD * 2) / (db.barHeight + db.barGap)))
+    local h = w.db.height - TITLE_H - PAD * 2
+    if w.graphShown then h = h - GRAPH_H - 2 end
+    return max(1, floor(h / (db.barHeight + db.barGap)))
+end
+
+-- Bars glide to their new length: the target is stored, an OnUpdate on the
+-- body walks every visible bar towards it and switches itself off once all
+-- have arrived. A bar handed to another player snaps, so no length ever
+-- slides from one name to the next.
+local function animate(w)
+    local body = w.frame.body
+    if body._anim then return end
+    body._anim = true
+    body:SetScript("OnUpdate", function(self, dt)
+        local rows, active = w.rows, false
+        local k = min(1, (dt or 0.016) * 12)
+        for i = 1, #rows do
+            local r = rows[i]
+            local tgt = r._target
+            if tgt and r:IsShown() then
+                local cur = r._cur or tgt
+                local d = tgt - cur
+                if d > 0.002 or d < -0.002 then
+                    cur = cur + d * k
+                    active = true
+                else
+                    cur = tgt
+                end
+                r._cur = cur
+                r:SetValue(cur)
+            end
+        end
+        if not active then
+            self:SetScript("OnUpdate", nil)
+            self._anim = nil
+        end
+    end)
+end
+
+local function setBarValue(w, r, v, snap)
+    r._target = v
+    if snap or not mod.db.smoothBars then
+        r._cur = v
+        r:SetValue(v)
+        return
+    end
+    if r._cur == nil then
+        r._cur = v
+        r:SetValue(v)
+        return
+    end
+    animate(w)
 end
 
 local function texturePath()
@@ -574,15 +743,18 @@ end
 
 -- Rows hang from the top of the body, or stand on its bottom when the bars
 -- grow upwards; the title bar sits on the same edge the rows start from.
-local function placeRow(w, r, i, step)
+local function placeRow(w, r, i, step, inset)
     local body = w.frame.body
+    inset = inset or 0
     r:ClearAllPoints()
     if mod.db.growUp then
-        r:SetPoint("BOTTOMLEFT",  body, "BOTTOMLEFT",  0, (i - 1) * step)
+        r:SetPoint("BOTTOMLEFT",  body, "BOTTOMLEFT",  inset, (i - 1) * step)
         r:SetPoint("BOTTOMRIGHT", body, "BOTTOMRIGHT", 0, (i - 1) * step)
     else
-        r:SetPoint("TOPLEFT",  body, "TOPLEFT",  0, -((i - 1) * step))
-        r:SetPoint("TOPRIGHT", body, "TOPRIGHT", 0, -((i - 1) * step))
+        -- the timeline strip, when shown, takes the top of the body
+        local gy = w.graphShown and (GRAPH_H + 2) or 0
+        r:SetPoint("TOPLEFT",  body, "TOPLEFT",  inset, -((i - 1) * step) - gy)
+        r:SetPoint("TOPRIGHT", body, "TOPRIGHT", 0, -((i - 1) * step) - gy)
     end
 end
 
@@ -616,6 +788,19 @@ local function createRow(w)
     r.bg:SetColorTexture(1, 1, 1, 0.05)
     r.icon = r:CreateTexture(nil, "OVERLAY")
     r.icon:SetPoint("LEFT", r, "LEFT", 1, 0)
+    -- The icon's own framed square left of the bar (option): the bar starts
+    -- after it, the way the big meters draw their rows.
+    r.box = CreateFrame("Frame", nil, r, BackdropTemplateMixin and "BackdropTemplate")
+    r.box:SetPoint("RIGHT", r, "LEFT", -3, 0)
+    if r.box.SetBackdrop then
+        r.box:SetBackdrop({ bgFile = TEX_FLAT, edgeFile = TEX_FLAT, edgeSize = 1 })
+        r.box:SetBackdropColor(0, 0, 0, 0.6)
+        r.box:SetBackdropBorderColor(0, 0, 0, 0.9)
+    end
+    r.boxIcon = r.box:CreateTexture(nil, "ARTWORK")
+    r.boxIcon:SetPoint("TOPLEFT",     r.box, "TOPLEFT",     1, -1)
+    r.boxIcon:SetPoint("BOTTOMRIGHT", r.box, "BOTTOMRIGHT", -1, 1)
+    r.box:Hide()
     r.left = r:CreateFontString(nil, "OVERLAY")
     r.left:SetJustifyH("LEFT")
     r.left:SetWordWrap(false)
@@ -650,7 +835,9 @@ layoutRows = function(w)
     local step = db.barHeight + db.barGap
     local iconSize = max(1, db.barHeight - 2)
     local icons    = showIcons()
-    local textLeft = icons and (iconSize + 4) or 4
+    local box      = icons and db.iconBox
+    local textLeft = (icons and not box) and (iconSize + 4) or 4
+    local inset    = box and (db.barHeight + 3) or 0
     local rows = w.rows
     for i = 1, n do
         local r = rows[i]
@@ -665,9 +852,12 @@ layoutRows = function(w)
             t:SetVertTile(false)
         end
         r:SetHeight(db.barHeight)
-        placeRow(w, r, i, step)
+        placeRow(w, r, i, step, inset)
         r.icon:SetSize(iconSize, iconSize)
-        r.icon:SetShown(icons)
+        r.icon:SetShown(icons and not box)
+        r.box:SetSize(db.barHeight, db.barHeight)
+        r.box:SetShown(box and true or false)
+        r._cur = nil   -- a re-laid row snaps to its next value
         r.left:SetPoint("LEFT", r, "LEFT", textLeft, 0)
         UI.FontFor("meter", r.left,  db.fontSize)
         UI.FontFor("meter", r.right, db.fontSize)
@@ -710,26 +900,108 @@ local function paintClass(r, p, db, guid)
     if not showIcons() then return end
     local cls  = p.class or false
     local tree = (db.barIcon == "spec" and cls and guid and Meter.SpecOf) and Meter:SpecOf(guid) or nil
-    local key  = tree and (cls .. tree) or cls
+    local box  = db.iconBox
+    local key  = (box and "b" or "i") .. (tree and (cls .. tree) or tostring(cls))
     if r.class == key then return end
     r.class = key
+    local target = box and r.boxIcon or r.icon
     if tree then
         local icon = Meter:SpecInfo(p.class, tree)
         if icon then
-            r.icon:SetTexture(icon)
-            r.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-            r.icon:Show()
+            target:SetTexture(icon)
+            target:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+            target:Show()
             return
         end
     end
     local tex, coords = ns:GetClassIcon(p.class)
     if tex then
-        r.icon:SetTexture(tex)
-        r.icon:SetTexCoord(coords[1], coords[2], coords[3], coords[4])
-        r.icon:Show()
+        target:SetTexture(tex)
+        target:SetTexCoord(coords[1], coords[2], coords[3], coords[4])
+        target:Show()
+    elseif not cls then
+        -- an enemy row: the skull marker, so the icon slot is never empty
+        target:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcon_8")
+        target:SetTexCoord(0, 1, 0, 1)
+        target:Show()
     else
-        r.icon:Hide()
+        target:Hide()
     end
+end
+
+------------------------------------------------------------------------
+-- Timeline strip: the player's damage or healing per five-second bucket
+-- of the fight, above the breakdown. Long fights fold several buckets into
+-- one bar so the strip never grows past the window.
+------------------------------------------------------------------------
+local function ensureGraph(w)
+    local g = w.frame.graph
+    if g then return g end
+    local body = w.frame.body
+    g = CreateFrame("Frame", nil, body)
+    g:SetPoint("TOPLEFT",  body, "TOPLEFT",  0, 0)
+    g:SetPoint("TOPRIGHT", body, "TOPRIGHT", 0, 0)
+    g:SetHeight(GRAPH_H)
+    g.bg = g:CreateTexture(nil, "BACKGROUND")
+    g.bg:SetAllPoints(g)
+    g.bg:SetColorTexture(1, 1, 1, 0.04)
+    g.label = g:CreateFontString(nil, "OVERLAY")
+    UI.FontFor("meter", g.label, 9)
+    g.label:SetPoint("TOPLEFT", g, "TOPLEFT", 3, -2)
+    g.label:SetTextColor(0.6, 0.6, 0.65)
+    g.bars = {}
+    g:Hide()
+    w.frame.graph = g
+    return g
+end
+
+local function drawGraph(w, seg, p)
+    local key = TL_KEY[w.mode]
+    local tl  = key and p and p[key]
+    local g   = ensureGraph(w)
+    -- the overall has no clock; a history fight and the running one do
+    if not tl or seg == Meter:GetSegment("overall") then g:Hide(); return false end
+    local dur = Meter:Duration(seg)
+    if dur <= 0 then g:Hide(); return false end
+    local step  = Meter.TL_STEP or 5
+    local n     = max(1, math.ceil(dur / step))
+    local width = w.frame.body:GetWidth() or 0
+    if width < 10 then width = (w.db.width or 220) - 2 * PAD end
+    -- at least two pixels per bar: fold buckets when the fight is long
+    local k    = max(1, math.ceil(n / floor(width / 2)))
+    local bars = math.ceil(n / k)
+    local bw   = max(1, floor(width / bars))
+    local top, peak = 0, 0
+    for b = 1, n do
+        local v = tl[b] or 0
+        if v > peak then peak = v end
+    end
+    local c = ns.ClassColor(p.class) or { r = 0.6, g = 0.6, b = 0.6 }
+    local inner = GRAPH_H - 14
+    for i = 1, bars do
+        local v = 0
+        for b = (i - 1) * k + 1, min(n, i * k) do v = v + (tl[b] or 0) end
+        if v > top then top = v end
+    end
+    for i = 1, bars do
+        local t = g.bars[i]
+        if not t then
+            t = g:CreateTexture(nil, "ARTWORK")
+            g.bars[i] = t
+        end
+        local v = 0
+        for b = (i - 1) * k + 1, min(n, i * k) do v = v + (tl[b] or 0) end
+        local h = top > 0 and max(1, floor(inner * v / top)) or 1
+        t:SetColorTexture(c.r, c.g, c.b, 0.85)
+        t:ClearAllPoints()
+        t:SetPoint("BOTTOMLEFT", g, "BOTTOMLEFT", (i - 1) * bw, 1)
+        t:SetSize(max(1, bw - 1), h)
+        t:Show()
+    end
+    for i = bars + 1, #g.bars do g.bars[i]:Hide() end
+    g.label:SetFormattedText("%s  |cffffffff%s|r / %ds", modeLabel(w.mode), short(peak), step)
+    g:Show()
+    return true
 end
 
 ------------------------------------------------------------------------
@@ -747,11 +1019,19 @@ local function refreshDetail(w, seg)
     local p     = seg and seg.players[w.detail]
     local key   = SUB_KEY[mode]
     local t     = p and key and p[key]
+    if t and UPTIME[mode] then t = auraSeconds(seg, p, w.detail, key) end
     if not t then
         w.detail = nil
         return false
     end
     w._wasDetail = true
+    -- the timeline strip claims the top of the body while it has something to draw
+    local wantGraph = drawGraph(w, seg, p)
+    if wantGraph ~= (w.graphShown or false) then
+        w.graphShown = wantGraph
+        layoutRows(w)
+    end
+    local dur = Meter:Duration(seg)
     local n = 0
     for i = 1, #order do order[i] = nil end
     for id, v in pairs(t) do
@@ -782,19 +1062,33 @@ local function refreshDetail(w, seg)
         local id  = order[idx]
         if r and id then
             local v = vals[id]
-            r:SetValue(top > 0 and v / top or 0)
+            local changed = r.spellId ~= id
+            setBarValue(w, r, top > 0 and v / top or 0, changed)
             barColor(r, p.class, 0.6, 0.6, 0.6)
             r.icon:Hide()
             r.class = nil
-            local changed = r.spellId ~= id
             r.spellId = id
+            -- in the framed square the spell's own icon takes the class's place
+            if r.box:IsShown() then
+                local icon
+                if type(id) == "number" then icon = select(3, GetSpellInfo(id)) end
+                if icon then
+                    r.boxIcon:SetTexture(icon)
+                    r.boxIcon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+                    r.boxIcon:Show()
+                else
+                    r.boxIcon:Hide()
+                end
+            end
             r.left:SetPoint("LEFT", r, "LEFT", 4, 0)
             if db.showRank then
                 r.left:SetFormattedText("%d. %s", idx, spellText(id))
             else
                 r.left:SetText(spellText(id))
             end
-            if isCount then
+            if UPTIME[mode] then
+                r.right:SetFormattedText("%.0f%%", dur > 0 and min(v, dur) / dur * 100 or 0)
+            elseif isCount then
                 r.right:SetFormattedText("%d", v)
             else
                 r.right:SetFormattedText("%s (%.1f%%)", short(v), total > 0 and v / total * 100 or 0)
@@ -846,8 +1140,11 @@ refresh = function(w)
     local dur   = 0
     if w.detail and refreshDetail(w, seg) then return end
     if w._wasDetail then
-        -- back from the detail list: the rows need their class icon slot again
+        -- back from the detail list: the rows need their class icon slot again,
+        -- and the timeline strip goes with the list it belonged to
         w._wasDetail = nil
+        w.graphShown = false
+        if w.frame.graph then w.frame.graph:Hide() end
         layoutRows(w)
     end
     local set = rowsOf(seg, mode)
@@ -856,7 +1153,7 @@ refresh = function(w)
         for guid, p in pairs(set) do
             n = n + 1
             order[n] = guid
-            vals[guid] = valueOf(mode, p, dur)
+            vals[guid] = valueOf(mode, p, dur, seg, guid)
         end
     end
     for i = n + 1, #order do order[i] = nil end
@@ -901,7 +1198,8 @@ refresh = function(w)
         if r and guid then
             local p = set[guid]
             local v = vals[guid]
-            r:SetValue(top > 0 and v / top or 0)
+            local changed = r.guid ~= guid
+            setBarValue(w, r, top > 0 and v / top or 0, changed)
             if mode == "enemies" then
                 barColor(r, p.class, 0.75, 0.25, 0.25)
             else
@@ -916,7 +1214,6 @@ refresh = function(w)
             end
             r.right:SetText(rightText(mode, p, v, total, dur))
             r.hl:SetShown(db.highlightSelf and guid == me)
-            local changed = r.guid ~= guid
             r.guid = guid
             r:Show()
             -- A re-sort can move another player under the cursor; OnEnter does
@@ -1031,6 +1328,14 @@ end
 local function onEngine(what)
     if what == "start" then
         resetScroll()
+        -- A window the fight's end moved to the overall comes back for the pull.
+        for i = 1, #frames do
+            local w = frames[i]
+            if w._autoOverall then
+                w._autoOverall = nil
+                if w.db then w.segment = w.db.segment end
+            end
+        end
         -- Option: a window parked on an old fight comes back for the pull.
         if mod.db.autoCurrent then
             for i = 1, #frames do
@@ -1047,6 +1352,18 @@ local function onEngine(what)
     elseif what == "end" then
         stopTicker()
         lastCombatEnd = GetTime()
+        -- Option: after the fight the current-fight windows show the overall.
+        if mod.db.autoSegment then
+            for i = 1, #frames do
+                local w = frames[i]
+                if w.db and w.segment == "current" then
+                    w.segment = "overall"
+                    w._autoOverall = true
+                    w.scroll = 0
+                    w.detail = nil   -- a breakdown of the fight is not one of the overall
+                end
+            end
+        end
         Meter:ClearDirty()
         refreshAll()
         applyVisibility()
@@ -1209,6 +1526,7 @@ function mod:SetSegment(index, s, quiet)
         w.db.segment = s
         w.segment    = s
     end
+    w._autoOverall = nil   -- a chosen segment is not one the fight's end may take back
     w.scroll = 0
     w.detail = nil
     refresh(w)
@@ -1285,7 +1603,7 @@ local function reportRight(mode, p, v, total, dur)
     local pct = total > 0 and (v / total * 100) or 0
     local secondary
     if mode == "dps" then
-        secondary = p.damage
+        secondary = damageOf(p)
     elseif mode == "hps" then
         secondary = p.heal - p.overheal
     else
@@ -1582,7 +1900,8 @@ local function build(i, wdb)
         win.edge:SetBackdropBorderColor(b.r or 0, b.g or 0, b.b or 0, 0.8)
     end
 
-    -- Title bar: left-click = menu, wheel = mode, right-drag = move.
+    -- Title bar: left-click = next mode, right-click = menu, wheel = mode,
+    -- left-drag = move while unlocked.
     local title = CreateFrame("Frame", nil, win)
     title:SetPoint("TOPLEFT",  win, "TOPLEFT",  0, 0)
     title:SetPoint("TOPRIGHT", win, "TOPRIGHT", 0, 0)
@@ -1604,7 +1923,15 @@ local function build(i, wdb)
             refresh(w)
             return
         end
-        if button == "LeftButton" then openMenu(w) end
+        -- Left: next mode, like the wheel. Right: the menu, which the arrow
+        -- button in the title bar also opens.
+        if button == "LeftButton" then
+            local i = MODE_IDX[w.mode] + 1
+            if i > #MODES then i = 1 end
+            mod:SetMode(w.index, MODES[i])
+        elseif button == "RightButton" then
+            openMenu(w)
+        end
     end)
     title:SetScript("OnMouseWheel", function(_, delta) onTitleWheel(w, delta) end)
     win.title = title

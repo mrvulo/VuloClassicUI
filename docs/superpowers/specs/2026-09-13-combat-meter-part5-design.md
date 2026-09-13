@@ -99,3 +99,40 @@ in der abgenommenen Reihenfolge).
 - DPS-Basis „aktive Zeit" verändert die Werte plausibel.
 - Balken nach oben: Titel unten, Reihenfolge stimmt, Scrollen stimmt.
 - Instanz-Reset „Fragen" zeigt den Dialog genau einmal je Instanz.
+
+## Nachtrag 13.09.2026: Teil 5b (Auftrag „mach das", alle Restpunkte)
+
+- **Verlaufsgraph**: Engine sammelt je Spieler und laufendem Kampf Schaden
+  und effektive Heilung in Fünf-Sekunden-Eimern (`tlDamage`, `tlHeal`, nur
+  `current`, keine Sicherung). Die Aufschlüsselung eines Spielers zeigt oben im
+  Fenster einen Streifen (`GRAPH_H` 44 px) mit einem Balken je Eimer; lange
+  Kämpfe falten mehrere Eimer in einen Balken (mindestens zwei Pixel je
+  Balken). Gesamt hat keinen Graph.
+- **Buff-/Debuff-Laufzeit**: Modi `buffs` und `debuffs`. Buffs zählen auf dem
+  Mitglied, auf dem sie liegen; Debuffs auf dem Mitglied, das sie angebracht
+  hat. Laufende Auren werden beim Kampfende gutgeschrieben und laufen in den
+  nächsten Kampf weiter. Zeilenwert = Zahl der Auren, Aufschlüsselung und
+  Tooltip = Anteil an der Kampfzeit.
+- **Vermeidung**: Modus `avoidance` aus `SWING_MISSED`/`SPELL_MISSED`
+  (Ausweichen, Parieren, Blocken, Verfehlen, Absorbiert, Widerstanden, Immun)
+  plus Treffer und die von gelandeten Treffern abgezogenen Beträge (Felder
+  15–17 bzw. 18–20). Wert = vermiedene Angriffe, Anteil an allen Angriffen.
+- **Manaquellen**: Modus `mana` aus `SPELL_ENERGIZE` mit Machtart 0, je Zauber.
+- **Bossfilter**: Option `bossOnly`; Bosse sind die `boss1..5`-Einheiten des
+  Encounters und alles, was den Encounter-Namen trägt. Schadensmodi lesen dann
+  `bossDamage`.
+- **Titelklick**: links nächster Modus, rechts Menü (Pfeilknopf bleibt).
+- **Weiche Balken**: Option `smoothBars` (an); OnUpdate auf dem Körper gleitet
+  sichtbare Balken zum Ziel und schaltet sich ab; ein Balken, der den Spieler
+  wechselt, springt.
+- **Nach dem Kampf auf Gesamt**: Option `autoSegment`; Fenster auf „aktueller
+  Kampf" zeigen nach dem Ende „gesamt" (nur Laufzeitzustand) und kehren beim
+  Pull zurück; eine bewusste Segmentwahl hebt den Zustand auf.
+- **Symbolkasten**: Option `iconBox`; das Symbol sitzt in einem umrahmten
+  Quadrat links vom Balken, der Balken beginnt danach; in der Aufschlüsselung
+  trägt der Kasten das Zaubersymbol.
+
+Prüfliste: Graph nach einem Kampf in der Aufschlüsselung; Vermeidung am Tank
+mit Prozenten; Buff-Laufzeit nach einem Kampf mit bekannten Buffs; Bossfilter
+im Encounter; Titelklick links/rechts; weiche Balken an/aus; Auto-Gesamt nach
+dem Kampf und zurück beim Pull; Symbolkasten mit und ohne Spec.

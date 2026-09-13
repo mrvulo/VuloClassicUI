@@ -10,7 +10,7 @@ local _, ns = ...
 local mod = ns:RegisterModule("meter", {
     name        = "Combat Meter",
     group       = "HUD",
-    description = "Lightweight damage and healing meter: who did how much, per fight and overall. Left-click the title for mode and segment, mouse wheel on the title cycles modes, the padlock frees a window for dragging.",
+    description = "Lightweight damage and healing meter: who did how much, per fight and overall. Left-click the title for the next mode, right-click for the menu, mouse wheel on the title cycles modes, the padlock frees a window for dragging.",
     defaults    = {
         enabled         = true,
         barHeight       = 18,
@@ -41,6 +41,10 @@ local mod = ns:RegisterModule("meter", {
         growUp          = false,     -- title at the bottom, bars stack upwards
         resetOnInstance = "never",   -- never | ask | always: entering a new dungeon or raid
         hideInPvP       = false,     -- arena and battlegrounds
+        bossOnly        = false,     -- damage modes count only what went into bosses
+        smoothBars      = true,      -- bars glide to their new length
+        autoSegment     = false,     -- current -> overall after a fight, back on the pull
+        iconBox         = false,     -- icon in its own framed square left of the bar
         -- One entry per window: { mode, segment, x, y, width, height, scale,
         -- unlocked }. Filled by the window file; empty means "one window".
         windows         = {},
@@ -193,6 +197,8 @@ local overall = newSegment() -- swapped for the saved table in OnEnable
 local history = {}
 local dirty = false
 local listener              -- window callback: fn("start" | "end" | "reset")
+-- Aura uptime hooks; the bodies live with the aura handlers further down.
+local creditAuras, seedAuras, resetAuras
 
 local function notify(what)
     if listener then listener(what) end
@@ -202,8 +208,68 @@ local function newPlayer(name, class)
     return { name = name, class = class,
              damage = 0, heal = 0, overheal = 0,
              taken = 0, interrupts = 0, dispels = 0, deaths = 0,
-             active = 0 }
+             active = 0, mana = 0, bossDamage = 0 }
 end
+
+-- Timeline: damage and healing per TL_STEP-second bucket of the running
+-- fight, for the graph in the breakdown. Only the fight itself keeps one;
+-- the overall has no clock to draw against.
+local TL_STEP = 5
+Meter.TL_STEP = TL_STEP
+local function timeline(p, key, seg, now, amount)
+    local t = p[key]
+    if not t then
+        t = {}
+        p[key] = t
+    end
+    local b = math.floor((now - seg.start) / TL_STEP) + 1
+    t[b] = (t[b] or 0) + amount
+end
+
+-- Bosses: the encounter units the client names, plus whatever carries the
+-- running encounter's name. Damage into them is counted twice, once as
+-- damage and once as boss damage, so the boss filter is a different column
+-- rather than a different fight.
+local bossGUIDs = {}
+local UnitClassification = UnitClassification
+-- A unit the client ranks as a world boss (the skull level) counts too:
+-- that is what every raid boss on this client carries, and it needs no
+-- encounter units to work.
+local function markBossUnit(unit)
+    if not UnitExists(unit) then return end
+    local g = UnitGUID(unit)
+    if g and UnitClassification(unit) == "worldboss" then bossGUIDs[g] = true end
+end
+local function onEngageUnit()
+    wipe(bossGUIDs)
+    for i = 1, 5 do
+        local g = UnitGUID("boss" .. i)
+        if g then bossGUIDs[g] = true end
+    end
+    markBossUnit("target")
+end
+local function onTargetChanged()
+    markBossUnit("target")
+end
+local function isBoss(seg, dst, dstName)
+    if dst and bossGUIDs[dst] then return true end
+    return seg.title ~= nil and dstName == seg.title
+end
+
+-- Avoidance and mitigation on the taken side, born on the first hit or
+-- miss: whole attacks avoided by kind, the hits that landed, and the amounts
+-- shaved off landed hits.
+local function avoidRec(p)
+    local a = p.avoid
+    if not a then
+        a = { dodge = 0, parry = 0, block = 0, miss = 0, absorb = 0, resist = 0, immune = 0,
+              hits = 0, blocked = 0, absorbed = 0, resisted = 0 }
+        p.avoid = a
+    end
+    return a
+end
+local MISS_KEY = { DODGE = "dodge", PARRY = "parry", BLOCK = "block", MISS = "miss",
+                   ABSORB = "absorb", RESIST = "resist", IMMUNE = "immune", DEFLECT = "miss", EVADE = "miss" }
 
 -- Only called after resolve() confirmed roster[guid] exists.
 local function entry(seg, guid)
@@ -341,6 +407,7 @@ function Meter:Reset()
     end
     last = nil
     wipe(history)
+    if resetAuras then resetAuras() end
     -- owners stays: summoned pets keep their owner; resolve() already gates on roster.
     rebuildRoster()
     dirty = true
@@ -650,9 +717,12 @@ local function stopWait()
     end
 end
 
+-- Auras still up when the fight ends are credited to it and start over for
+-- the next one, so a buff that spans two fights shows in both.
 local function closeSegment()
     if not current then return end
     stopWait()
+    if creditAuras then creditAuras(GetTime()) end
     current.duration = GetTime() - current.start
     overall.duration = overall.duration + current.duration
     last, current = current, nil
@@ -704,6 +774,7 @@ local function openSegment(title)
     current = newSegment()
     current.start = GetTime()
     current.title = title
+    if seedAuras then seedAuras(current.start) end
     dirty = true
     notify("start")
     -- Opened by the log while we stand outside combat (a healer at the pull):
@@ -792,6 +863,11 @@ local function addDamage(src, amount, spellId, dstName, dst, crit)
     local o = entry(overall, owner)
     p.damage = p.damage + amount
     o.damage = o.damage + amount
+    if isBoss(current, dst, dstName) then
+        p.bossDamage = (p.bossDamage or 0) + amount
+        o.bossDamage = (o.bossDamage or 0) + amount
+    end
+    timeline(p, "tlDamage", current, GetTime(), amount)
     bump(p, "spells", spellId, amount)
     bump(o, "spells", spellId, amount)
     stat(p, "spellStats", spellId, amount, crit)
@@ -815,7 +891,7 @@ end
 -- Damage landing on a group member (players only, never their pets). The
 -- last hit stays on the entry so a death can name its killing blow. Taking
 -- damage never opens a fight; PLAYER_REGEN_DISABLED already did.
-local function addTaken(dst, srcName, amount, spellId, overkill)
+local function addTaken(dst, srcName, amount, spellId, overkill, resisted, blocked, absorbed)
     if not current or not amount or amount <= 0 then return end
     if not roster[dst] then return end
     local p = entry(current, dst)
@@ -824,6 +900,15 @@ local function addTaken(dst, srcName, amount, spellId, overkill)
     o.taken = o.taken + amount
     bump(p, "takenBy", spellId, amount)
     bump(o, "takenBy", spellId, amount)
+    -- Environmental damage (a string kind, no attacker) is not an attack
+    -- that could have been avoided: it stays out of the avoidance count.
+    if type(spellId) ~= "string" then
+        local ap, ao = avoidRec(p), avoidRec(o)
+        ap.hits, ao.hits = ap.hits + 1, ao.hits + 1
+        if resisted and resisted > 0 then ap.resisted = ap.resisted + resisted; ao.resisted = ao.resisted + resisted end
+        if blocked  and blocked  > 0 then ap.blocked  = ap.blocked  + blocked;  ao.blocked  = ao.blocked  + blocked  end
+        if absorbed and absorbed > 0 then ap.absorbed = ap.absorbed + absorbed; ao.absorbed = ao.absorbed + absorbed end
+    end
     p.lastSpell, p.lastAmount, p.lastSrc = spellId, amount, srcName
     recapPush(dst, spellId, amount, false, srcName, (overkill and overkill > 0) and overkill or nil)
     dirty = true
@@ -832,13 +917,15 @@ end
 -- SWING_DAMAGE: amount is field 12, overkill 13, critical 18. Spell-prefixed
 -- subevents carry spellId, spellName, spellSchool in 12-14, amount in 15,
 -- overkill 16, critical 21 (healing: critical 18).
-HANDLERS.SWING_DAMAGE = function(src, srcName, dst, a12, _, _, a13, dstName, a18)
+-- Partial mitigation rides on the hit: swing resisted 15, blocked 16,
+-- absorbed 17; spell resisted 18, blocked 19, absorbed 20.
+HANDLERS.SWING_DAMAGE = function(src, srcName, dst, a12, a15, a16, a13, dstName, a18, _, _, a17)
     addDamage(src, a12, MELEE_ID, dstName, dst, a18)
-    addTaken(dst, srcName, a12, MELEE_ID, a13)
+    addTaken(dst, srcName, a12, MELEE_ID, a13, a15, a16, a17)
 end
-local function spellDamage(src, srcName, dst, a12, a15, a16, a13, dstName, _, a21)
+local function spellDamage(src, srcName, dst, a12, a15, a16, a13, dstName, a18, a21, _, _, a19, a20)
     addDamage(src, a15, a12, dstName, dst, a21)
-    addTaken(dst, srcName, a15, a12, a16)
+    addTaken(dst, srcName, a15, a12, a16, a18, a19, a20)
     noteSpec(src, a13)
 end
 HANDLERS.RANGE_DAMAGE          = spellDamage
@@ -874,6 +961,7 @@ local function spellHeal(src, srcName, dst, a12, a15, a16, a13, dstName, a18)
     local now = GetTime()
     touch(p, now)
     touch(o, now)
+    if eff > 0 then timeline(p, "tlHeal", current, now, eff) end
     if dstName then
         bump(p, "healed", dstName, eff)
         bump(o, "healed", dstName, eff)
@@ -888,6 +976,163 @@ HANDLERS.SPELL_PERIODIC_HEAL = spellHeal
 HANDLERS.SPELL_CAST_SUCCESS = function(src, _, _, _, _, _, a13)
     noteSpec(src, a13)
 end
+
+-- A whole attack that never landed on a member: SWING_MISSED carries the
+-- kind in 12 and the amount it would have done in 14, SPELL_MISSED in 15
+-- and 17. Never opens a fight.
+local function missed(dst, kind, amountMissed)
+    if not current or not roster[dst] then return end
+    local key = MISS_KEY[kind]
+    if not key then return end
+    local p = entry(current, dst)
+    local o = entry(overall, dst)
+    local ap, ao = avoidRec(p), avoidRec(o)
+    ap[key], ao[key] = ap[key] + 1, ao[key] + 1
+    -- The amount a whole avoidance would have done is not added to the
+    -- mitigation sums: those are "taken off landed hits", and this one
+    -- never landed.
+    dirty = true
+end
+HANDLERS.SWING_MISSED = function(_, _, dst, a12, _, _, _, _, _, _, a14)
+    missed(dst, a12, a14)
+end
+HANDLERS.SPELL_MISSED = function(_, _, dst, _, a15, _, _, _, _, _, _, a17)
+    missed(dst, a15, a17)
+end
+HANDLERS.RANGE_MISSED          = HANDLERS.SPELL_MISSED
+HANDLERS.SPELL_PERIODIC_MISSED = HANDLERS.SPELL_MISSED
+
+-- Mana from spells and effects (innervate, judgements, potions, mana tide):
+-- SPELL_ENERGIZE amount 15, over-energize 16, power type 17. Only mana; the
+-- mode is named for it.
+local function energize(dst, a12, a15, a17)
+    if not current or not roster[dst] then return end
+    if a17 ~= 0 or not a15 or a15 <= 0 then return end
+    local p = entry(current, dst)
+    local o = entry(overall, dst)
+    p.mana = (p.mana or 0) + a15
+    o.mana = (o.mana or 0) + a15
+    bump(p, "gains", a12, a15)
+    bump(o, "gains", a12, a15)
+    dirty = true
+end
+HANDLERS.SPELL_ENERGIZE = function(_, _, dst, a12, a15, _, _, _, _, _, _, a17)
+    energize(dst, a12, a15, a17)
+end
+HANDLERS.SPELL_PERIODIC_ENERGIZE = HANDLERS.SPELL_ENERGIZE
+
+-- Aura uptime. Buffs are counted on the member they sit on, whoever cast
+-- them; debuffs on the member who applied them, whatever they sit on. An
+-- aura is a start time in auraStart until it ends; then the seconds go to
+-- the running fight and the overall. Field 15 says BUFF or DEBUFF.
+--
+-- Only the fight counts: every record is re-stamped when a fight opens,
+-- and one that ends between fights is dropped without credit. Buffs
+-- survive a fight's end (a raid buff is up for the night); debuffs do not
+-- (their mob is dead, and the client does not always say so).
+-- SPELL_AURA_BROKEN(_SPELL) are not hooked: the client sends REMOVED for
+-- the same aura, and their source is the breaker, not the applier.
+local auraStart = {}
+local function auraKey(guid, id, dst) return guid .. ":" .. id .. (dst or "") end
+
+local function creditOne(key, now)
+    local rec = auraStart[key]
+    if not rec then return end
+    local secs = now - rec.t
+    -- a member who has left the roster has no entry to credit
+    if secs > 0 and current and roster[rec.guid] then
+        bump(entry(current, rec.guid), rec.key, rec.id, secs)
+        bump(entry(overall, rec.guid), rec.key, rec.id, secs)
+    end
+    rec.t = now
+end
+
+-- Fight end: credit everything, keep the buffs running, drop the debuffs.
+creditAuras = function(now)
+    for key, rec in pairs(auraStart) do
+        creditOne(key, now)
+        if rec.key == "debuffUp" then auraStart[key] = nil end
+    end
+end
+
+-- Fight start: the clock restarts for whatever is still up, and the buffs
+-- standing on the roster before the pull (the raid buffs, the flasks) get
+-- their record, or the mode would only ever see what was cast mid-fight.
+local UnitAura = UnitAura
+seedAuras = function(now)
+    for _, rec in pairs(auraStart) do rec.t = now end
+    if not UnitAura then return end
+    for guid, r in pairs(roster) do
+        for i = 1, 40 do
+            local name, _, _, _, _, _, _, _, _, id = UnitAura(r.unit, i, "HELPFUL")
+            if not name then break end
+            if id then
+                local key = auraKey(guid, id)
+                if not auraStart[key] then
+                    auraStart[key] = { t = now, guid = guid, id = id, key = "buffUp" }
+                end
+            end
+        end
+    end
+end
+
+-- A reset: the open auras start over, the debuffs are dropped with their
+-- numbers.
+resetAuras = function()
+    local now = GetTime()
+    for key, rec in pairs(auraStart) do
+        if rec.key == "debuffUp" then auraStart[key] = nil else rec.t = now end
+    end
+end
+
+-- Seconds of the auras still up in the running fight, added into `into`
+-- by aura id: the window reads a live picture, not only what has ended.
+function Meter:OpenAuraSeconds(guid, key, into)
+    if not current then return into end
+    local now = GetTime()
+    for _, rec in pairs(auraStart) do
+        if rec.guid == guid and rec.key == key then
+            into[rec.id] = (into[rec.id] or 0) + (now - rec.t)
+        end
+    end
+    return into
+end
+
+local function auraApplied(src, dst, id, auraType)
+    if not current then return end
+    if auraType == "BUFF" then
+        if not roster[dst] then return end
+        local key = auraKey(dst, id)
+        if not auraStart[key] then auraStart[key] = { t = GetTime(), guid = dst, id = id, key = "buffUp" } end
+    elseif auraType == "DEBUFF" then
+        local owner = resolve(src)
+        if not owner then return end
+        local key = auraKey(owner, id, dst)
+        if not auraStart[key] then auraStart[key] = { t = GetTime(), guid = owner, id = id, key = "debuffUp" } end
+    end
+end
+
+local function auraRemoved(src, dst, id, auraType)
+    if not next(auraStart) then return end
+    local key
+    if auraType == "BUFF" then
+        if not roster[dst] then return end
+        key = auraKey(dst, id)
+    elseif auraType == "DEBUFF" then
+        local owner = resolve(src)
+        if not owner then return end
+        key = auraKey(owner, id, dst)
+    else
+        return
+    end
+    if not auraStart[key] then return end
+    if current then creditOne(key, GetTime()) end
+    auraStart[key] = nil
+    dirty = true
+end
+
+HANDLERS.SPELL_AURA_APPLIED = function(src, _, dst, a12, a15) auraApplied(src, dst, a12, a15) end
+HANDLERS.SPELL_AURA_REMOVED = function(src, _, dst, a12, a15) auraRemoved(src, dst, a12, a15) end
 
 -- SPELL_INTERRUPT / SPELL_DISPEL / SPELL_STOLEN: 12-14 is our spell, 15-17
 -- the spell we stopped or the aura we removed.
@@ -939,9 +1184,9 @@ HANDLERS.ENVIRONMENTAL_DAMAGE = function(_, _, dst, a12, _, _, a13)
 end
 
 local function onCLEU()
-    local _, sub, _, src, srcName, _, _, dst, dstName, _, _, a12, a13, _, a15, a16, _, a18, _, _, a21 = CLGetInfo()
+    local _, sub, _, src, srcName, _, _, dst, dstName, _, _, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21 = CLGetInfo()
     local h = HANDLERS[sub]
-    if h then h(src, srcName, dst, a12, a15, a16, a13, dstName, a18, a21) end
+    if h then h(src, srcName, dst, a12, a15, a16, a13, dstName, a18, a21, a14, a17, a19, a20) end
 end
 
 ------------------------------------------------------------------------
@@ -1003,6 +1248,8 @@ function mod:EngineEnable()
     self:RegisterEvent("PLAYER_REGEN_ENABLED",        onRegenEnabled)
     self:RegisterEvent("ENCOUNTER_START",             onEncounterStart)
     self:RegisterEvent("ENCOUNTER_END",               onEncounterEnd)
+    self:RegisterEvent("INSTANCE_ENCOUNTER_ENGAGE_UNIT", onEngageUnit)
+    self:RegisterEvent("PLAYER_TARGET_CHANGED",          onTargetChanged)
     self:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", onCLEU)
     -- A reload or logout mid-fight: the counters are already in the overall,
     -- the fight's duration is not until it closes. Close it here, or the saved

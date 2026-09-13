@@ -727,6 +727,43 @@ end)
 -- would bake in the client language. StaticPopupDialogs is a table the client
 -- always provides -- we add to it, never assign it.
 ns.OnLocaleReady(function()
+    -- Renaming had a function (ns:RenameOverrideGroup) and no door to it;
+    -- this is the door, offered for the group being edited.
+    StaticPopupDialogs["VCUI_OVERRIDE_GROUP_RENAME"] = {
+        text         = L["Rename to"],
+        button1      = ACCEPT or "OK",
+        button2      = CANCEL or "Cancel",
+        hasEditBox   = true,
+        maxLetters   = 32,
+        timeout      = 0,
+        whileDead    = true,
+        hideOnEscape = true,
+        preferredIndex = 3,
+        OnShow = function(self)
+            local box = ns.PopupEditBox and ns.PopupEditBox(self)
+            local g = self.data and ns:OverrideGroup(self.data)
+            if box and g then
+                box:SetText(g.name or "")
+                box:HighlightText()
+                box:SetFocus()
+            end
+        end,
+        OnAccept = function(self)
+            local box  = ns.PopupEditBox and ns.PopupEditBox(self)
+            local name = box and box:GetText()
+            if not name or name == "" or not self.data then return end
+            ns:RenameOverrideGroup(self.data, name)
+            if ns.UI and ns.UI.RefreshOverrideButton then ns.UI:RefreshOverrideButton() end
+            if ns.UI and ns.UI.RebuildCurrentPage then ns.UI:RebuildCurrentPage() end
+        end,
+        EditBoxOnEnterPressed = function(self)
+            local parent = self:GetParent()
+            StaticPopupDialogs["VCUI_OVERRIDE_GROUP_RENAME"].OnAccept(parent)
+            parent:Hide()
+        end,
+        EditBoxOnEscapePressed = function(self) self:GetParent():Hide() end,
+    }
+
     StaticPopupDialogs["VCUI_OVERRIDE_GROUP_NEW"] = {
         text         = L["Name for the new group"],
         button1      = ACCEPT or "OK",
@@ -780,8 +817,8 @@ end
 function ns:ShowOverrideMenu(anchor)
     if not ns.ShowPopupMenu then return end
     local entries = {}
+    -- the group being edited, read once; the rename entry below needs it
     local editing = ns._ovEditing
-    local active  = ns:ActiveTalentGroup()
 
     entries[#entries + 1] = { title = true, text = L["Editing as"] }
 
@@ -828,6 +865,15 @@ function ns:ShowOverrideMenu(anchor)
         text = L["New group..."],
         func = function() StaticPopup_Show("VCUI_OVERRIDE_GROUP_NEW") end,
     }
+    if editing and ns:OverrideGroup(editing) then
+        entries[#entries + 1] = {
+            text = L["Rename..."],
+            func = function()
+                local dialog = StaticPopup_Show("VCUI_OVERRIDE_GROUP_RENAME")
+                if dialog then dialog.data = editing end
+            end,
+        }
+    end
     entries[#entries + 1] = {
         text = L["Manage groups..."],
         func = function()

@@ -3388,7 +3388,6 @@ local function T() return {
     ["Options cover bar height, font size, texture, the class icon, how many abilities the tooltip lists, which parts of the bar text to show, the visibility rules (only in a group, in combat, out of combat with a delay) and the window list."] = "Las opciones cubren la altura de las barras, el tamaño de fuente, la textura, el icono de clase, cuántas habilidades muestra la descripción, qué partes del texto de la barra se muestran, las reglas de visibilidad (solo en grupo, en combate, fuera de combate con retardo) y la lista de ventanas.",
     ["Lock position"] = "Bloquear posición",
     ["Unlock position"] = "Desbloquear posición",
-    ["Lightweight damage and healing meter: who did how much, per fight and overall. Left-click the title for mode and segment, mouse wheel on the title cycles modes, the padlock frees a window for dragging."] = "Medidor ligero de daño y sanación: quién hizo cuánto, por combate y en total. Clic izquierdo en el título para modo y segmento, rueda del ratón sobre el título cambia el modo, el candado libera la ventana para arrastrarla.",
     ["Open as many windows as you need: the title menu adds a window for any mode and closes one again, and every window keeps its own mode, segment, position and size while the look and the visibility rules are shared. The padlock in the title bar frees a window for dragging or pins it in place, and the anchor entry in the title menu docks a window to any side of another so the two move as one."] = "Abre tantas ventanas como necesites: el menú del título añade una ventana para cualquier modo y también la cierra, y cada ventana conserva su propio modo, segmento, posición y tamaño mientras el aspecto y las reglas de visibilidad se comparten. El candado de la barra de título libera una ventana para arrastrarla o la fija en su sitio, y la entrada de anclaje del menú del título acopla una ventana a cualquier lado de otra para que ambas se muevan juntas.",
     ["Patch notes of versions that have left the in-game list are gone from all nine languages; nothing the interface shows was affected."] = "Las notas de versiones que ya no aparecen en la lista del juego se han eliminado de los nueve idiomas; nada de lo que muestra la interfaz se vio afectado.",
     -- Patch notes 1.60.1
@@ -3560,6 +3559,23 @@ local function T() return {
     ["Critical"] = "Críticos",
     ["Average"] = "Promedio",
     ["Minimum"] = "Mínimo",
+    ["Avoidance"] = "Evasión",
+    ["Buff uptime"] = "Tiempo activo de beneficios",
+    ["Debuff uptime"] = "Tiempo activo de perjuicios",
+    ["Mana gained"] = "Maná obtenido",
+    ["Icon box beside the bar"] = "Recuadro del icono junto a la barra",
+    ["The class or spec icon sits in its own framed square left of the bar instead of on it."] = "El icono de clase o especialización se muestra en su propio recuadro a la izquierda de la barra en lugar de sobre ella.",
+    ["Smooth bar movement"] = "Movimiento suave de las barras",
+    ["Bars glide to their new length instead of jumping."] = "Las barras se deslizan hasta su nueva longitud en lugar de saltar.",
+    ["Boss damage only"] = "Solo daño a jefes",
+    ["The damage modes count only what went into the encounter's bosses; trash and adds are left out."] = "Los modos de daño cuentan solo lo que recibieron los jefes del encuentro; la basura y los adds quedan fuera.",
+    ["Switch to Overall after a fight"] = "Cambiar a Total tras un combate",
+    ["A window on the current fight shows the overall total once the fight ends and returns to the current fight on the next pull."] = "Una ventana en el combate actual muestra el total general cuando el combate termina y vuelve al combate actual en el siguiente pull.",
+    ["Resisted"] = "Resistido",
+    ["Immune"] = "Inmune",
+    ["Hits taken"] = "Golpes recibidos",
+    ["Taken off landed hits"] = "Reducido de los golpes que impactaron",
+    ["Lightweight damage and healing meter: who did how much, per fight and overall. Left-click the title for the next mode, right-click for the menu, mouse wheel on the title cycles modes, the padlock frees a window for dragging."] = "Medidor ligero de daño y sanación: quién hizo cuánto, por combate y en total. Clic izquierdo en el título pasa al siguiente modo, clic derecho abre el menú, la rueda del ratón sobre el título recorre los modos, el candado libera una ventana para arrastrarla.",
 } end
 
 ns:RegisterLocale("esES", T)
