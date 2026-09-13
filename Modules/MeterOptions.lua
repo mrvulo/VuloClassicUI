@@ -74,6 +74,11 @@ local function windowRow(i, w, closable)
           values = segmentValues(), noOverride = true,
           get = function() return w.segment end,
           set = function(_, v) setSegment(i, w, v) end },
+        -- Per window, through the mover's own scale: the edit-mode box and
+        -- this slider write the same field.
+        { type = "slider", label = L["Scale"], min = 0.5, max = 1.5, step = 0.05, noOverride = true,
+          get = function() return w.scale or 1 end,
+          set = function(_, v) w.scale = v; apply() end },
     }
     if closable then
         items[#items + 1] = { type = "button", width = 110, label = L["Close"],
@@ -106,8 +111,49 @@ function mod:GetOptions()
     items[#items + 1] = { type = "slider", label = L["Abilities in tooltip"], min = 3, max = 10, step = 1,
         get = function() return mod.db.tooltipRows end,
         set = function(_, v) mod.db.tooltipRows = v end }
+    items[#items + 1] = { type = "slider", label = L["Bar spacing"], min = 0, max = 6, step = 1,
+        get = function() return mod.db.barGap end,
+        set = function(_, v) mod.db.barGap = v; apply() end }
     items[#items + 1] = toggle(L["Show rank"], "showRank")
-    items[#items + 1] = toggle(L["Show class icon"], "showClassIcon")
+    items[#items + 1] = { type = "dropdown", label = L["Bar icon"], width = 200,
+        tooltip = L["The spec is the tree a player has been seen to play: your own talents, a talent-only spell in the log, or an inspect in range. Until it is known the class icon stands in."],
+        values = {
+            { value = "off",   text = L["Off"] },
+            { value = "class", text = L["Class"] },
+            { value = "spec",  text = L["Spec"] },
+        },
+        get = function() return mod.db.barIcon end,
+        set = function(_, v) mod.db.barIcon = v; apply() end }
+    items[#items + 1] = { type = "dropdown", label = L["Bar colour"], width = 200,
+        values = {
+            { value = "class",  text = L["Class colour"] },
+            { value = "custom", text = L["Custom colour"] },
+        },
+        get = function() return mod.db.barColorMode end,
+        set = function(_, v) mod.db.barColorMode = v; apply() end,
+        subOptions = {
+            { type = "color", label = L["Custom colour"],
+              get = function() return mod.db.barColor end,
+              set = function(r, g, b) mod.db.barColor = { r = r, g = g, b = b }; apply() end },
+        } }
+    items[#items + 1] = { type = "color", label = L["Window background"],
+        get = function() return mod.db.bgColor end,
+        set = function(r, g, b) mod.db.bgColor = { r = r, g = g, b = b }; apply() end,
+        subOptions = {
+            { type = "slider", label = L["Background opacity"], min = 0, max = 100, step = 5,
+              get = function() return mod.db.bgAlpha end,
+              set = function(_, v) mod.db.bgAlpha = v; apply() end },
+        } }
+    items[#items + 1] = toggle(L["Bars grow upwards"], "growUp",
+        L["The title bar moves to the bottom edge and the bars stack up from it."])
+    items[#items + 1] = { type = "dropdown", label = L["Per-second basis"], width = 200,
+        tooltip = L["Fight time divides by the whole fight. Active time divides by the seconds in which the player kept casting or hitting, so a late joiner or a paused healer is judged on their own time."],
+        values = {
+            { value = "fight",  text = L["Fight time"] },
+            { value = "active", text = L["Active time"] },
+        },
+        get = function() return mod.db.dpsBasis end,
+        set = function(_, v) mod.db.dpsBasis = v; apply() end }
     items[#items + 1] = toggle(L["Show value in brackets"], "showPerSecond",
         L["Per-second value next to the total. In the per-second modes the brackets show the total instead."])
     items[#items + 1] = toggle(L["Show percent"], "showPercent")
@@ -118,6 +164,7 @@ function mod:GetOptions()
     items[#items + 1] = { type = "spacer", height = 6 }
     items[#items + 1] = { type = "header", text = L["Visibility"] }
     items[#items + 1] = toggle(L["Only in group"], "onlyInGroup")
+    items[#items + 1] = toggle(L["Hide in arena and battlegrounds"], "hideInPvP")
     items[#items + 1] = toggle(L["Hide in combat"], "hideInCombat")
     items[#items + 1] = {
         type = "toggle", label = L["Hide out of combat"],
@@ -146,6 +193,15 @@ function mod:GetOptions()
         },
     }
     items[#items + 1] = toggle(L["Reset overall when joining a new group"], "resetOnNewGroup")
+    items[#items + 1] = { type = "dropdown", label = L["Reset when entering an instance"], width = 200,
+        tooltip = L["A new dungeon or raid resets the overall total: at once, after a question, or never. A reload inside the same instance never counts as entering it."],
+        values = {
+            { value = "never",  text = L["Never"] },
+            { value = "ask",    text = L["Ask"] },
+            { value = "always", text = L["Always"] },
+        },
+        get = function() return mod.db.resetOnInstance end,
+        set = function(_, v) mod.db.resetOnInstance = v end }
     items[#items + 1] = toggle(L["Back to the current fight on pull"], "autoCurrent",
         L["A window showing a previous fight returns to the running fight when the next one starts."])
     items[#items + 1] = { type = "toggle", label = L["Mode follows your talents"],

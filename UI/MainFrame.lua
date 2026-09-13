@@ -336,7 +336,7 @@ function UI:CreateMainFrame()
     placeholder:SetTextColor(0.45, 0.45, 0.52)
 
     local searchDD = CreateFrame("Frame", nil, f)
-    searchDD:SetSize(320, 200)
+    searchDD:SetSize(440, 200)
     searchDD:SetPoint("TOPRIGHT", searchBox, "BOTTOMRIGHT", 0, -2)
     searchDD:SetFrameStrata("FULLSCREEN_DIALOG")
     searchDD:SetFrameLevel(300)
@@ -353,52 +353,114 @@ function UI:CreateMainFrame()
         ddBorder:SetBackdropBorderColor(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 1)
     end
 
+    -- Every hit remembers where it sits -- tab, section, the gear rows above
+    -- it -- so opening it can unfold and scroll to the row itself
+    -- (UI:RevealRow), not merely to its page. Tooltips are indexed too: the
+    -- word a player remembers is often in the explanation, not in the label.
+    local SEP = "  \194\187  "
     local function searchOptions(query)
         query = query:lower()
-        local results = {}
+        local results, seen = {}, {}
         for _, key in ipairs(ns.moduleOrder or {}) do
             if #results >= 20 then break end
             local m = ns.modules[key]
-            -- page members are indexed once via their page
-            if m and m.GetOptions and not m._pageMember then
-                local tabIds = {}
+            -- page members are indexed once via their page, and a sub-module
+            -- once via its container's tab -- indexing it under its own key as
+            -- well listed every one of its rows twice
+            if m and m.GetOptions and not m._pageMember and not m.parentTab then
+                local tabIds, tabLabels = {}, {}
+                local realTabs = m.tabs and #m.tabs > 1
                 if m.tabs then
-                    for _, t in ipairs(m.tabs) do table.insert(tabIds, t.id) end
+                    for _, t in ipairs(m.tabs) do
+                        table.insert(tabIds, t.id); tabLabels[t.id] = t.label
+                    end
                 else
                     table.insert(tabIds, "default")
                 end
+                local modName = L[m.name]
+                local container = m.parentTab and ns.modules[m.parentTab]
+                if container then modName = L[container.name] .. SEP .. modName end
                 for _, tid in ipairs(tabIds) do
                     local ok, items = pcall(m.GetOptions, m, tid)
                     if ok and type(items) == "table" then
-                        local function scan(list)
+                        local tabName = realTabs and tabLabels[tid] and L[tabLabels[tid]] or nil
+                        local function add(res)
+                            -- The section is part of the identity: two rows
+                            -- with the same label under different headings
+                            -- are two hits, not one.
+                            local id = key .. "/" .. tostring(tid) .. "/" .. tostring(res.section)
+                                .. "/" .. tostring(res.subKey or res.label)
+                            if seen[id] then return false end
+                            seen[id] = true
+                            local path = modName
+                            if tabName then path = path .. SEP .. tabName end
+                            if res.section and res.section ~= res.label then
+                                path = path .. SEP .. tostring(res.section)
+                            end
+                            res.modKey, res.tabId, res.path = key, tid, path
+                            table.insert(results, res)
+                            return #results >= 20
+                        end
+                        local function matches(raw)
+                            if not raw or raw == "" then return false end
+                            -- match the translated label AND the English key, so
+                            -- searching works in the user's language and in English
+                            local shown = L[raw]
+                            return shown:lower():find(query, 1, true)
+                                or tostring(raw):lower():find(query, 1, true)
+                        end
+                        local function scan(list, sec, parents)
                             for _, item in ipairs(list) do
-                                -- title: sections. Their headings were plain
-                                -- header rows once and searchable via text;
-                                -- becoming sections must not unlist them.
-                                local raw = item.label or item.text or item.title or ""
-                                -- match the translated label AND the English key, so
-                                -- searching works in the user's language and in English
-                                local shown = raw ~= "" and L[raw] or ""
-                                if raw ~= "" and (shown:lower():find(query, 1, true)
-                                    or raw:lower():find(query, 1, true)) then
-                                    if #results >= 20 then return true end
-                                    table.insert(results, {
-                                        modName = L[m.name], modKey = key,
-                                        tabId = tid, label = shown,
-                                    })
-                                end
-                                if item.items then
-                                    if scan(item.items) then return true end
-                                end
-                                -- and behind a gear: folded away is not gone,
-                                -- and a setting you cannot find is the one you
-                                -- search for
-                                if item.subOptions then
-                                    if scan(item.subOptions) then return true end
+                                if type(item) == "table" then
+                                    if item.type == "section" then
+                                        local s = { title = item.title, key = item.key or item.title,
+                                                    collapsible = item.collapsible, collapsed = item.collapsed }
+                                        -- title: sections. Their headings were plain
+                                        -- header rows once and searchable via text;
+                                        -- becoming sections must not unlist them.
+                                        if matches(item.title) then
+                                            if add({ label = L[item.title], section = item.title, isPlace = true }) then return true end
+                                        end
+                                        if scan(item.items or {}, s, parents) then return true end
+                                    else
+                                        local raw = item.label or item.text
+                                        local hit = matches(raw)
+                                        if not hit and item.label and type(item.tooltip) == "string" then
+                                            hit = item.tooltip:lower():find(query, 1, true)
+                                        end
+                                        if hit then
+                                            local res = { label = raw, shown = L[raw],
+                                                section = sec and sec.title,
+                                                subKey = item.subKey,
+                                                parents = (#parents > 0) and parents or nil }
+                                            if sec and sec.collapsible then
+                                                res.sectionKey, res.sectionClosed = sec.key, sec.collapsed
+                                            end
+                                            -- text and headings are places, not rows: they
+                                            -- scroll to their heading rather than flash
+                                            if not item.label then
+                                                res.isPlace = true
+                                                if item.type == "header" then res.section = raw end
+                                            end
+                                            if add(res) then return true end
+                                        end
+                                        if item.items then
+                                            if scan(item.items, sec, parents) then return true end
+                                        end
+                                        -- and behind a gear: folded away is not gone,
+                                        -- and a setting you cannot find is the one you
+                                        -- search for
+                                        if item.subOptions then
+                                            local chain = {}
+                                            for i, v in ipairs(parents) do chain[i] = v end
+                                            chain[#chain + 1] = item.subKey or item.label
+                                            if scan(item.subOptions, sec, chain) then return true end
+                                        end
+                                    end
                                 end
                             end
                         end
-                        if scan(items) then break end
+                        if scan(items, nil, {}) then break end
                     end
                 end
             end
@@ -407,8 +469,42 @@ function UI:CreateMainFrame()
     end
 
     local resultRows = {}
+    local shownResults = {}
+    local selected = 1
+
+    local function closeSearch()
+        searchBox:ClearFocus()
+        searchBox:SetText("")
+        placeholder:Show()
+        searchDD:Hide()
+    end
+
+    local function openResult(res)
+        if not res then return end
+        closeSearch()
+        if not UI.RevealRow then
+            if UI.ShowModulePage then UI:ShowModulePage(res.modKey) end
+            return
+        end
+        UI:RevealRow({
+            mod = res.modKey, tab = res.tabId,
+            label = (not res.isPlace) and res.label or nil,
+            subKey = res.subKey, parents = res.parents,
+            sectionKey = res.sectionKey, sectionClosed = res.sectionClosed,
+            section = res.section,
+        })
+    end
+
+    local function paintSelection()
+        for i, row in ipairs(resultRows) do
+            if row:IsShown() then row.hover:SetShown(i == selected) end
+        end
+    end
+
     local function renderResults(results)
         for _, row in ipairs(resultRows) do row:Hide() end
+        shownResults = results
+        selected = 1
         if #results == 0 then searchDD:Hide(); return end
         local y = -4
         for i, res in ipairs(results) do
@@ -428,30 +524,23 @@ function UI:CreateMainFrame()
                 row.hover:SetAllPoints(row)
                 row.hover:SetColorTexture(ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b, 0.25)
                 row.hover:Hide()
-                row:SetScript("OnEnter", function(self) self.hover:Show() end)
-                row:SetScript("OnLeave", function(self) self.hover:Hide() end)
+                -- the mouse and the arrow keys move the same selection
+                row:SetScript("OnEnter", function(self) selected = self._index; paintSelection() end)
+                row:SetScript("OnClick", function(self) openResult(shownResults[self._index]) end)
                 resultRows[i] = row
             end
+            row._index = i
             row:SetPoint("TOP", searchDD, "TOP", 0, y)
-            row.text:SetText(string.format("%s%s|r  »  %s",
-                (ns.C and ns.C.accent) or "|cff9b6cff", res.modName, res.label))
-            row._modKey = res.modKey
-            row._tabId  = res.tabId
-            row:SetScript("OnClick", function(self)
-                searchBox:ClearFocus()
-                searchBox:SetText("")
-                placeholder:Show()
-                searchDD:Hide()
-                if UI.ShowModulePage then UI:ShowModulePage(self._modKey) end
-                if self._tabId and self._tabId ~= "default" and UI.ShowTab then
-                    UI:ShowTab(self._tabId)
-                end
-            end)
+            -- the path in the muted tone, the hit itself bright: the eye goes
+            -- to what it typed, the path says where that is
+            row.text:SetText(string.format("|cff8a8a96%s|r%s%s",
+                res.path or "", SEP, res.shown or res.label or ""))
             row:Show()
             y = y - 22
         end
         searchDD:SetHeight(math.min(440, 8 + #results * 22))
         searchDD:Show()
+        paintSelection()
     end
 
     searchBox:HookScript("OnTextChanged", function(self)
@@ -463,7 +552,35 @@ function UI:CreateMainFrame()
     searchBox:SetScript("OnEscapePressed", function(self)
         self:SetText(""); self:ClearFocus(); searchDD:Hide(); placeholder:Show()
     end)
-    searchBox:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
+    -- Enter opens the selected hit; arrows move the selection. Typing a word
+    -- and pressing Enter therefore lands on the first hit without the mouse.
+    searchBox:SetScript("OnEnterPressed", function(self)
+        if searchDD:IsShown() and shownResults[selected] then
+            openResult(shownResults[selected])
+        else
+            self:ClearFocus()
+        end
+    end)
+    local function onArrow(_, key)
+        if not searchDD:IsShown() or #shownResults == 0 then return end
+        if key == "DOWN" then
+            selected = (selected % #shownResults) + 1
+        elseif key == "UP" then
+            selected = ((selected - 2) % #shownResults) + 1
+        else
+            return
+        end
+        paintSelection()
+    end
+    -- The edit box's own arrow handler where the client has it; the generic
+    -- key handler otherwise -- SetScript with a name this client does not
+    -- know would be an error at load, not a silent no-op.
+    if searchBox:HasScript("OnArrowPressed") then
+        searchBox:SetScript("OnArrowPressed", onArrow)
+    else
+        searchBox:SetScript("OnKeyDown", onArrow)
+    end
+
     local closeText = closeBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     UI.Font(closeText, 20)
     closeText:SetPoint("CENTER", closeBtn, "CENTER", 0, 0)
@@ -511,6 +628,22 @@ function UI:CreateMainFrame()
     -- The dashboard's search prompt hands focus here rather than matching on its
     -- own, so there is only ever one search implementation.
     f.searchBox       = searchBox
+
+    -- Where you are: "Group › Module › Tab", in the title bar's idle stretch
+    -- between the frame-time readout and the search box. The sidebar shows the
+    -- module, the tab row shows the tab; this is the one line that shows both
+    -- and the group above them.
+    local crumb = titleBar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    UI.Font(crumb, 11)
+    crumb:SetPoint("LEFT", cpuText, "RIGHT", 16, 0)
+    crumb:SetPoint("RIGHT", searchBox, "LEFT", -40, 0)
+    crumb:SetJustifyH("LEFT")
+    crumb:SetWordWrap(false)
+    crumb:SetTextColor(ns.COLORS.textDim.r, ns.COLORS.textDim.g, ns.COLORS.textDim.b)
+    f.crumb = crumb
+    function UI:SetCrumb(text)
+        if UI.mainFrame and UI.mainFrame.crumb then UI.mainFrame.crumb:SetText(text or "") end
+    end
 
     -- Override-group picker, left of the search box. It only appears where the
     -- talent API exists, so a client without it shows no dead control.
@@ -634,6 +767,41 @@ function UI:CreateMainFrame()
     f.tabPrev:SetPoint("TOPLEFT", tabBar, "TOPLEFT", 2, -2)
     f.tabNext = makeTabArrow(1)
     f.tabNext:SetPoint("TOPRIGHT", tabBar, "TOPRIGHT", -2, -2)
+
+    -- Beside the arrows, only while they are needed: a menu of every tab,
+    -- the current one ticked. Paging a rail of fourteen tabs two at a time to
+    -- reach the last one is the case this exists for.
+    local tabMenu = CreateFrame("Button", nil, tabBar)
+    tabMenu:SetSize(18, TABBAR_H - 4)
+    tabMenu:SetPoint("RIGHT", f.tabNext, "LEFT", -2, 0)
+    local tmIcon = tabMenu:CreateTexture(nil, "ARTWORK")
+    tmIcon:SetSize(12, 12)
+    tmIcon:SetPoint("CENTER", tabMenu, "CENTER", 0, 0)
+    tmIcon:SetTexture("Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\arrow_down.tga")
+    tmIcon:SetVertexColor(0.7, 0.7, 0.75)
+    tabMenu:SetScript("OnEnter", function(self)
+        tmIcon:SetVertexColor(1, 1, 1)
+        UI:ShowTooltip(self, { title = L["All tabs"] })
+    end)
+    tabMenu:SetScript("OnLeave", function()
+        tmIcon:SetVertexColor(0.7, 0.7, 0.75)
+        UI:HideTooltip()
+    end)
+    tabMenu:SetScript("OnClick", function(self)
+        if not ns.ShowPopupMenu then return end
+        local entries = {}
+        for _, tab in ipairs(f.tabs or {}) do
+            local id = tab._tabId
+            entries[#entries + 1] = {
+                text    = tab._text:GetText() or "",
+                checked = function() return UI.currentTab == id end,
+                func    = function() UI:ShowTab(id) end,
+            }
+        end
+        ns:ShowPopupMenu(entries, self)
+    end)
+    tabMenu:Hide()
+    f.tabMenu = tabMenu
 
     local TABCOL_W = 170
     local tabColumn = CreateFrame("Frame", nil, f)
@@ -797,6 +965,21 @@ function UI:CreateMainFrame()
     UI.mainFrame = f
     return f
 end
+
+-- Entry from outside the window: the slash command. File level, not inside
+-- CreateMainFrame -- defined there it did not exist until the window had been
+-- opened once, and "/vcui search x" on a fresh login did nothing. Setting the
+-- text runs the search, so the list is open on arrival.
+function UI:OpenSearch(text)
+    local main = UI:CreateMainFrame()
+    if not main:IsShown() then UI:ToggleMainFrame() end
+    local box = main.searchBox
+    if not box then return end
+    box:SetText(text or "")
+    box:SetFocus()
+    if text and text ~= "" then box:SetCursorPosition(#text) end
+end
+
 
 -- Optional per-module spec: mod.tabs = { { id = "general", label = "General" }, ... }.
 -- Tab buttons are pooled: frames are never garbage-collected.
@@ -964,12 +1147,15 @@ function UI:UpdateTabScroll()
     if not (f and f.tabStrip) then return end
     local barW  = f.tabBar:GetWidth() or 800
     local total = f._tabTotalW or 0
-    -- two-pass width: the arrows themselves take room away from the strip
+    -- two-pass width: the arrows themselves take room away from the strip,
+    -- and the tab menu beside the right arrow takes its own
     local overflow = total > barW - 8
-    local inset    = overflow and 22 or 4
-    f.tabStrip:SetPoint("TOPLEFT",     f.tabBar, "TOPLEFT",     inset, 0)
-    f.tabStrip:SetPoint("BOTTOMRIGHT", f.tabBar, "BOTTOMRIGHT", -inset, 0)
-    local visible = barW - 2 * inset
+    local insetL   = overflow and 22 or 4
+    local insetR   = overflow and 42 or 4
+    f.tabStrip:SetPoint("TOPLEFT",     f.tabBar, "TOPLEFT",     insetL, 0)
+    f.tabStrip:SetPoint("BOTTOMRIGHT", f.tabBar, "BOTTOMRIGHT", -insetR, 0)
+    local visible = barW - insetL - insetR
+    f._tabVisibleW = visible
     local maxOff  = math.max(0, total - visible)
     local off     = math.min(math.max(UI._tabOffset or 0, 0), maxOff)
     UI._tabOffset = off
@@ -977,6 +1163,7 @@ function UI:UpdateTabScroll()
     f.tabRail:SetPoint("TOPLEFT", f.tabStrip, "TOPLEFT", -off, -2)
     f.tabPrev:SetShown(overflow)
     f.tabNext:SetShown(overflow)
+    if f.tabMenu then f.tabMenu:SetShown(overflow) end
     -- an arrow with nothing left in its direction dims instead of vanishing,
     -- so the pair keeps its place
     if overflow then
@@ -990,9 +1177,32 @@ function UI:ScrollTabs(dir)
     UI:UpdateTabScroll()
 end
 
+-- Pages the rail just far enough that the tab is in the window. A tab chosen
+-- from the menu or reached by a search hit may sit past the right arrow.
+function UI:EnsureTabVisible(tabId)
+    local f = UI.mainFrame
+    if not (f and f.tabs and f.tabPrev:IsShown()) then return end
+    local vis = f._tabVisibleW or 0
+    if vis <= 0 then return end
+    local x = 0
+    for _, tab in ipairs(f.tabs) do
+        local w = tab:GetWidth() or 40
+        if tab._tabId == tabId then
+            local off = UI._tabOffset or 0
+            if x < off then off = x
+            elseif x + w > off + vis then off = x + w - vis end
+            UI._tabOffset = off
+            UI:UpdateTabScroll()
+            return
+        end
+        x = x + w + 2
+    end
+end
+
 function UI:ShowTab(tabId)
     UI.currentTab = tabId
     local f = UI.mainFrame
+    UI:EnsureTabVisible(tabId)
     for _, tab in ipairs(f.tabs) do
         local mark = tab._activeMark or tab._underline
         if tab._tabId == tabId then

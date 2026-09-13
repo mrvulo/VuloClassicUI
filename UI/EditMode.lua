@@ -483,6 +483,11 @@ local function refreshPanel()
         name = name .. string.format("  %s+%d|r", (ns.C and ns.C.accent) or "|cff9b6cff", n - 1)
     end
     panel.title:SetText(name)
+    if panel.optBtn then
+        local key = ns.ModuleForMover and ns:ModuleForMover(m) or nil
+        panel.optBtn._key = key
+        panel.optBtn:SetShown(key ~= nil)
+    end
     local x, y = moverXY(m)
     if not panel.xBox._editBox:HasFocus() then
         panel.xBox._editBox:SetText(tostring(math.floor(x + 0.5)))
@@ -516,7 +521,7 @@ local function buildPanel()
     panel.title = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     UI.Font(panel.title, 14)
     panel.title:SetPoint("TOPLEFT",  panel, "TOPLEFT",  16, -13)
-    panel.title:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -32, -13)
+    panel.title:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -56, -13)
     panel.title:SetJustifyH("LEFT")
     panel.title:SetWordWrap(false)
     panel.title:SetTextColor(accent.r, accent.g, accent.b)
@@ -532,6 +537,38 @@ local function buildPanel()
     close:SetScript("OnEnter", function() cfs:SetTextColor(accent.r, accent.g, accent.b) end)
     close:SetScript("OnLeave", function() cfs:SetTextColor(0.7, 0.7, 0.75) end)
     close:SetScript("OnClick", function() if ns.DeselectMover then ns:DeselectMover() end end)
+
+    -- The gear: straight from the box to its module's settings page. The
+    -- editor closes first, the way it does whenever the options open over it;
+    -- the module is read off the mover's position table (ns:ModuleForMover),
+    -- and the gear stays hidden for a box no module claims.
+    local opt = CreateFrame("Button", nil, panel)
+    opt:SetSize(18, 18)
+    opt:SetPoint("RIGHT", close, "LEFT", -4, 0)
+    local optIcon = opt:CreateTexture(nil, "ARTWORK")
+    optIcon:SetSize(14, 14)
+    optIcon:SetPoint("CENTER", opt, "CENTER", 0, 0)
+    optIcon:SetTexture("Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\gear.tga")
+    optIcon:SetVertexColor(0.7, 0.7, 0.75)
+    opt:SetScript("OnEnter", function(self)
+        optIcon:SetVertexColor(accent.r, accent.g, accent.b)
+        UI:ShowTooltip(self, { title = L["Open this element's settings"] })
+    end)
+    opt:SetScript("OnLeave", function()
+        optIcon:SetVertexColor(0.7, 0.7, 0.75)
+        UI:HideTooltip()
+    end)
+    opt:SetScript("OnClick", function(self)
+        local key = self._key
+        if not key then return end
+        ns:SetEditMode(false)
+        if not UI.ShowModulePage then return end
+        local main = UI.mainFrame
+        if not (main and main:IsShown()) and UI.ToggleMainFrame then UI:ToggleMainFrame() end
+        UI:ShowModulePage(key)
+    end)
+    opt:Hide()
+    panel.optBtn = opt
 
     local sep = panel:CreateTexture(nil, "ARTWORK")
     sep:SetPoint("TOPLEFT",  panel, "TOPLEFT",  14, -38)
@@ -1207,7 +1244,7 @@ local function drawMeasures(mover, moverX, moverY)
     end
     -- vertical guide (shared X) -> vertical gap to the partner
     if moverX and moverX.target then
-        local bcx, bcy, bhw, bhh = boxUI(moverX.target)
+        local bcx, bcy, _, bhh = boxUI(moverX.target)
         if bcx then
             local gap = math.abs(acy - bcy) - (ahh + bhh)
             local t = mtex()
@@ -1218,7 +1255,7 @@ local function drawMeasures(mover, moverX, moverY)
     end
     -- horizontal guide (shared Y) -> horizontal gap to the partner
     if moverY and moverY.target then
-        local bcx, bcy, bhw, bhh = boxUI(moverY.target)
+        local bcx, _, bhw = boxUI(moverY.target)
         if bcx then
             local gap = math.abs(acx - bcx) - (ahw + bhw)
             local t = mtex()

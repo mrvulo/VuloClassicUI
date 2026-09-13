@@ -32,6 +32,13 @@ ns.defaults = {
         -- install never sees it; InitDB sets it false for a database that did
         -- not exist before this login.
         setupDone = true,
+        -- Settings window bookkeeping, account-wide like recentPages: which
+        -- pages a player keeps returning to is a habit, not profile data.
+        -- pinnedModules: module keys in the order they were pinned (UI/Sidebar.lua).
+        -- recentChanges: the last settings written from the window, newest
+        -- first (UI/OptionsBuilder.lua records, UI/Dashboard.lua lists).
+        pinnedModules = {},
+        recentChanges = {},
     },
     profile = {
         ui = {

@@ -219,6 +219,72 @@ local function createChip(parent)
     return chip
 end
 
+-- One line of the "recently changed" list: the path to the setting on the
+-- left, how long ago on the right. A click reveals the row (UI:RevealRow).
+local function createChangeRow(parent)
+    local row = CreateFrame("Button", nil, parent)
+    row:SetHeight(20)
+    local hl = row:CreateTexture(nil, "HIGHLIGHT")
+    hl:SetAllPoints(row)
+    hl:SetColorTexture(1, 1, 1, 0.05)
+
+    row.when = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    UI.Font(row.when, 10)
+    row.when:SetPoint("RIGHT", row, "RIGHT", -6, 0)
+    row.when:SetJustifyH("RIGHT")
+    local d = ns.COLORS.textMuted
+    row.when:SetTextColor(d.r, d.g, d.b)
+
+    row.text = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    UI.Font(row.text, 11)
+    row.text:SetPoint("LEFT", row, "LEFT", 6, 0)
+    row.text:SetPoint("RIGHT", row.when, "LEFT", -10, 0)
+    row.text:SetJustifyH("LEFT")
+    row.text:SetWordWrap(false)
+
+    row:SetScript("OnClick", function(self)
+        local e = self._entry
+        if not (e and UI.RevealRow) then return end
+        -- Entries hold English keys; the page's row keys are the translated
+        -- labels, so everything is put through L on the way to the row.
+        local parents
+        if type(e.parents) == "table" then
+            parents = {}
+            for i, v in ipairs(e.parents) do parents[i] = L[tostring(v)] end
+        end
+        UI:RevealRow({
+            mod = e.mod, tab = e.tab, subKey = e.subKey,
+            label = e.label and L[tostring(e.label)] or nil,
+            section = e.section and L[tostring(e.section)] or nil,
+            parents = parents,
+        })
+    end)
+    return row
+end
+
+local function timeAgo(t)
+    local d = (time() or 0) - (tonumber(t) or 0)
+    if d < 60 then return L["just now"] end
+    if d < 3600 then return string.format(L["%d min ago"], math.floor(d / 60)) end
+    if d < 86400 then return string.format(L["%d h ago"], math.floor(d / 3600)) end
+    return string.format(L["%d d ago"], math.floor(d / 86400))
+end
+
+local PATH_SEP = "  \194\187  "
+local function changePath(e)
+    local m = ns.modules[e.mod]
+    if not m then return nil end
+    local parts = { L[m.name] }
+    if e.tab and e.tab ~= "default" and m.tabs and #m.tabs > 1 then
+        for _, t in ipairs(m.tabs) do
+            if t.id == e.tab then parts[#parts + 1] = L[t.label]; break end
+        end
+    end
+    if e.section then parts[#parts + 1] = L[tostring(e.section)] end
+    local path = table.concat(parts, PATH_SEP)
+    return string.format("|cff8a8a96%s|r%s%s", path, PATH_SEP, L[tostring(e.label or "")])
+end
+
 -- The prompt does not search by itself: it hands focus and text to the real
 -- search box in the title bar, which already owns the matching and the result
 -- list. Two implementations of the same search would drift apart.
@@ -287,6 +353,12 @@ function UI:ShowDashboard()
         f.pageHeader:Hide()
         f.scroll:SetPoint("TOPLEFT", f.content, "TOPLEFT", 8, -8)
     end
+    -- The jump strip belongs to a module page as much as the header does.
+    if f.pageNav then
+        f.pageNav:Hide()
+        f.scroll:SetPoint("TOPLEFT", f.content, "TOPLEFT", 8, -8)
+    end
+    if UI.SetCrumb then UI:SetCrumb(L["Overview"]) end
     f.content:ClearAllPoints()
     f.content:SetPoint("TOPLEFT",     f.sidebar, "TOPRIGHT",  1, 0)
     f.content:SetPoint("BOTTOMRIGHT", f,         "BOTTOMRIGHT", 0, 44)
@@ -474,6 +546,130 @@ function UI:ShowDashboard()
     else
         cont.recentHdr:Hide()
     end
+
+    -- ---- recently changed -------------------------------------------------
+    -- What was touched last, with a way back to it. The list the settings
+    -- pages write into (UI/OptionsBuilder.lua); entries whose module is gone
+    -- are skipped rather than shown as dead links.
+    UI._dashChangeRows = UI._dashChangeRows or {}
+    for _, r in ipairs(UI._dashChangeRows) do r:Hide() end
+    if not cont.changedHdr then
+        cont.changedHdr = cont:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        UI.Font(cont.changedHdr, 10)
+        cont.changedHdr:SetTextColor(ns.COLORS.sectionHdr.r, ns.COLORS.sectionHdr.g, ns.COLORS.sectionHdr.b)
+    end
+    local changes = ns.db and ns.db.global and ns.db.global.recentChanges
+    local shownChanges = 0
+    if type(changes) == "table" and #changes > 0 then
+        cont.changedHdr:ClearAllPoints()
+        cont.changedHdr:SetPoint("TOPLEFT", cont, "TOPLEFT", PAD, y)
+        cont.changedHdr:SetText(string.upper(L["Recently changed"]))
+        local ry = y - 20
+        for _, e in ipairs(changes) do
+            if shownChanges >= 8 then break end
+            local text = type(e) == "table" and changePath(e)
+            if text then
+                shownChanges = shownChanges + 1
+                local row = UI._dashChangeRows[shownChanges]
+                if not row then
+                    row = createChangeRow(cont)
+                    UI._dashChangeRows[shownChanges] = row
+                end
+                row._entry = e
+                row.text:SetText(text)
+                row.when:SetText(timeAgo(e.t))
+                row:ClearAllPoints()
+                row:SetPoint("TOPLEFT",  cont, "TOPLEFT",  PAD, ry)
+                row:SetPoint("TOPRIGHT", cont, "TOPRIGHT", -PAD, ry)
+                row:Show()
+                ry = ry - 20
+            end
+        end
+        if shownChanges > 0 then
+            cont.changedHdr:Show()
+            y = ry - 12
+        end
+    end
+    if shownChanges == 0 then cont.changedHdr:Hide() end
+
+    -- ---- modules by area -------------------------------------------------
+    -- Every sidebar group with its rows as chips, so the whole suite fits on
+    -- one screen: the sidebar lists it top to bottom, this lays it out side
+    -- by side. Same order and the same "3/7" as the sidebar headings.
+    UI._dashGroupHdrs = UI._dashGroupHdrs or {}
+    for _, h in ipairs(UI._dashGroupHdrs) do h:Hide() end
+    local groups = 0
+    local buckets = UI.sidebarGroupBuckets or {}
+    local order   = UI.sidebarGroupOrder or {}
+    local first = true
+    for _, groupName in ipairs(order) do
+        local keys = buckets[groupName]
+        local hidden = UI.sidebarHiddenGroups and UI.sidebarHiddenGroups[groupName]
+        if keys and #keys > 0 and not hidden then
+            if first then
+                if not cont.areasHdr then
+                    cont.areasHdr = cont:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+                    UI.Font(cont.areasHdr, 10)
+                    cont.areasHdr:SetTextColor(ns.COLORS.sectionHdr.r, ns.COLORS.sectionHdr.g, ns.COLORS.sectionHdr.b)
+                end
+                cont.areasHdr:ClearAllPoints()
+                cont.areasHdr:SetPoint("TOPLEFT", cont, "TOPLEFT", PAD, y)
+                cont.areasHdr:SetText(string.upper(L["Modules by area"]))
+                cont.areasHdr:Show()
+                y = y - 22
+                first = false
+            end
+            groups = groups + 1
+            local hdr = UI._dashGroupHdrs[groups]
+            if not hdr then
+                hdr = cont:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+                UI.Font(hdr, 11)
+                UI._dashGroupHdrs[groups] = hdr
+            end
+            local on = 0
+            for _, key in ipairs(keys) do
+                local m = ns.modules[key]
+                local isOn
+                if m and m.toggleGet then isOn = m.toggleGet() else isOn = ns:IsModuleEnabled(key) end
+                if isOn then on = on + 1 end
+            end
+            hdr:SetText(string.format("%s  %s%d/%d|r", L[groupName],
+                (ns.C and ns.C.accent) or "|cff9b6cff", on, #keys))
+            hdr:SetTextColor(0.85, 0.85, 0.9)
+            hdr:ClearAllPoints()
+            hdr:SetPoint("TOPLEFT", cont, "TOPLEFT", PAD + 2, y)
+            hdr:Show()
+            y = y - 18
+
+            local x, row = PAD, 0
+            for _, key in ipairs(keys) do
+                local m = ns.modules[key]
+                if m then
+                    chips = chips + 1
+                    local chip = UI._dashChips[chips]
+                    if not chip then
+                        chip = createChip(cont)
+                        UI._dashChips[chips] = chip
+                    end
+                    chip._key = key
+                    chip.icon:SetTexture(ns:GetModuleIcon(key))
+                    chip.text:SetText(L[m.name])
+                    local w = (chip.text:GetStringWidth() or 60) + 34
+                    if x > PAD and x + w > width - PAD then
+                        x = PAD
+                        row = row + 1
+                    end
+                    chip:SetWidth(w)
+                    chip:ClearAllPoints()
+                    chip:SetPoint("TOPLEFT", cont, "TOPLEFT", x, y - row * 30)
+                    chip:Show()
+                    x = x + w + 8
+                end
+            end
+            y = y - (row + 1) * 30 - 6
+        end
+    end
+    if groups > 0 then y = y - 6 elseif cont.areasHdr then cont.areasHdr:Hide() end
 
     cont:SetHeight(math.max(-y + 20, 100))
     parent:SetHeight(math.max(-y + 20, 100))

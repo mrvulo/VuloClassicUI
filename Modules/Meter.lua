@@ -18,7 +18,7 @@ local mod = ns:RegisterModule("meter", {
         fontSize        = 11,
         texture         = "Atrocity",
         showRank        = true,
-        showClassIcon   = true,
+        barIcon         = "class",  -- off | class | spec (showClassIcon before part 5)
         showPerSecond   = true,
         showPercent     = false,
         highlightSelf   = true,
@@ -33,6 +33,14 @@ local mod = ns:RegisterModule("meter", {
         followRole      = false, -- window 1 opens on healing for a healing spec, damage otherwise
         pinSelf         = false, -- own bar stays in view when scrolled out
         autoCurrent     = false, -- a window on an old fight returns to the running one on pull
+        dpsBasis        = "fight",   -- fight | active: what the per-second values divide by
+        barColorMode    = "class",   -- class | custom
+        barColor        = { r = 0.60, g = 0.60, b = 0.60 },
+        bgColor         = { r = 0.05, g = 0.05, b = 0.06 },
+        bgAlpha         = 90,        -- window background opacity in percent
+        growUp          = false,     -- title at the bottom, bars stack upwards
+        resetOnInstance = "never",   -- never | ask | always: entering a new dungeon or raid
+        hideInPvP       = false,     -- arena and battlegrounds
         -- One entry per window: { mode, segment, x, y, width, height, scale,
         -- unlocked }. Filled by the window file; empty means "one window".
         windows         = {},
@@ -57,6 +65,10 @@ local type, tonumber      = type, tonumber
 local Meter = {}
 ns.Meter = Meter
 
+-- Damage and healing events closer together than this count as one stretch
+-- of activity; the per-second values can divide by that instead of the fight.
+local ACTIVE_GAP = 3
+
 -- Melee swings carry no spell id; the auto-attack spell gives them a name
 -- and an icon from the game itself.
 local MELEE_ID   = 6603
@@ -77,6 +89,8 @@ local PET_UNIT = { player = "pet" }
 for i = 1, 4  do PET_UNIT["party" .. i] = "partypet" .. i end
 for i = 1, 40 do PET_UNIT["raid"  .. i] = "raidpet"  .. i end
 
+local seedSpec   -- forward: the spec store is further down
+
 local function addUnit(unit)
     local guid = UnitGUID(unit)
     if not guid then return end
@@ -89,6 +103,7 @@ local function addUnit(unit)
         local petGUID = UnitGUID(petUnit)
         if petGUID then owners[petGUID] = guid end
     end
+    if seedSpec then seedSpec(guid, e.name, class) end
 end
 
 -- Rebuilt whole on every roster change. Segment entries copy name and class,
@@ -186,7 +201,8 @@ end
 local function newPlayer(name, class)
     return { name = name, class = class,
              damage = 0, heal = 0, overheal = 0,
-             taken = 0, interrupts = 0, dispels = 0, deaths = 0 }
+             taken = 0, interrupts = 0, dispels = 0, deaths = 0,
+             active = 0 }
 end
 
 -- Only called after resolve() confirmed roster[guid] exists.
@@ -209,6 +225,37 @@ local function bump(p, key, id, n)
         p[key] = t
     end
     t[id] = (t[id] or 0) + n
+end
+
+-- Hits, crits, smallest and largest per spell: what the breakdown's tooltip
+-- shows. One small table per spell per player, born on its first hit.
+local function stat(p, key, id, amount, crit)
+    local t = p[key]
+    if not t then
+        t = {}
+        p[key] = t
+    end
+    local e = t[id]
+    if not e then
+        e = { n = 0, c = 0, sum = 0, min = amount, max = amount }
+        t[id] = e
+    end
+    e.n   = e.n + 1
+    e.sum = e.sum + amount
+    if crit then e.c = e.c + 1 end
+    if amount < e.min then e.min = amount end
+    if amount > e.max then e.max = amount end
+end
+
+-- Activity: two of a player's events within ACTIVE_GAP seconds extend their
+-- active time by the gap between them. A lone hit adds nothing, a steady
+-- rotation adds almost the whole fight.
+local function touch(p, now)
+    local lt = p.lastT
+    if lt and now - lt <= ACTIVE_GAP then
+        p.active = (p.active or 0) + (now - lt)
+    end
+    p.lastT = now
 end
 
 -- Source GUID -> the roster GUID it counts for, or nil when nobody we track.
@@ -268,6 +315,15 @@ function Meter:Duration(seg)
     return seg.duration or 0
 end
 
+-- Seconds the player was active in the segment, for the tooltip and the
+-- active-time basis; never above the fight's own length.
+function Meter:ActiveTime(seg, p)
+    local a = p and p.active or 0
+    local d = self:Duration(seg)
+    if a > d then a = d end
+    return a
+end
+
 function Meter:IsDirty()     return dirty end
 function Meter:ClearDirty()  dirty = false end
 function Meter:InCombat()    return current ~= nil end
@@ -293,6 +349,231 @@ end
 
 -- Later parts add their own subevent entries here.
 Meter.HANDLERS = {}
+
+------------------------------------------------------------------------
+-- Specs: which talent tree a group member plays, for the bar icon.
+--
+-- Three sources, each stronger than the last: the account-wide store from
+-- earlier sessions (0), a talent-exclusive spell seen in the log (1), the
+-- talent trees themselves -- own via ns:DominantTalentTree, others through
+-- an inspect (2). A stronger source overwrites a weaker one; a weaker one
+-- never overwrites. Icons and names come from the client's own class/tree
+-- table, so nothing ships.
+------------------------------------------------------------------------
+local specs = {}          -- guid -> { tree = 1..3, src = 0..2, tried = t }
+local CLASS_ID = { WARRIOR = 1, PALADIN = 2, HUNTER = 3, ROGUE = 4, PRIEST = 5,
+                   SHAMAN = 7, MAGE = 8, WARLOCK = 9, DRUID = 11 }
+
+-- Base rank ids of spells that exist in exactly one tree (TBC). Resolved to
+-- NAMES at first use through GetSpellInfo, so every rank in the log matches
+-- without listing the ranks. A spell the client does not know is skipped.
+local SIG_BASE = {
+    WARRIOR = { [12294] = 1, [23881] = 2, [23922] = 3, [20243] = 3, [12292] = 2, [12328] = 1 },
+    PALADIN = { [20473] = 1, [31842] = 1, [20925] = 2, [31935] = 2, [35395] = 3, [20375] = 3 },
+    HUNTER  = { [19574] = 1, [19577] = 1, [19434] = 2, [19506] = 2, [34490] = 2, [19386] = 3, [19306] = 3, [23989] = 3 },
+    ROGUE   = { [14177] = 1, [1329] = 1, [14183] = 3, [13877] = 2, [13750] = 2, [16511] = 3, [36554] = 3, [14185] = 3 },
+    PRIEST  = { [10060] = 1, [33206] = 1, [14751] = 1, [34861] = 2, [724] = 2, [15473] = 3, [15286] = 3, [15407] = 3, [34914] = 3, [15487] = 3 },
+    SHAMAN  = { [16166] = 1, [30706] = 1, [17364] = 2, [30823] = 2, [974] = 3, [16190] = 3, [16188] = 3 },
+    MAGE    = { [12042] = 1, [12043] = 1, [31589] = 1, [11366] = 2, [11129] = 2, [11113] = 2, [31661] = 2, [11426] = 3, [12472] = 3, [31687] = 3 },
+    WARLOCK = { [30108] = 1, [18220] = 1, [18288] = 1, [18708] = 2, [19028] = 2, [30146] = 2, [18788] = 2, [17877] = 3, [17962] = 3, [30283] = 3 },
+    DRUID   = { [24858] = 1, [5570] = 1, [33831] = 1, [33878] = 2, [33876] = 2, [16979] = 2, [18562] = 3, [33891] = 3, [17116] = 3 },
+}
+local sigByName        -- class -> name -> tree, built once; per class, because
+                       -- two classes share a spell name (Nature's Swiftness)
+
+local function sigTable()
+    if sigByName then return sigByName end
+    sigByName = {}
+    local GetSpellInfo = GetSpellInfo
+    for class, list in pairs(SIG_BASE) do
+        local t = {}
+        sigByName[class] = t
+        for id, tree in pairs(list) do
+            local name = GetSpellInfo(id)
+            if name then t[name] = tree end
+        end
+    end
+    return sigByName
+end
+
+local function specStore()
+    local g = ns.db and ns.db.global
+    if not g then return nil end
+    if type(g.meterSpecs) ~= "table" then g.meterSpecs = {} end
+    return g.meterSpecs
+end
+
+-- An entry may exist with no answer yet (an inspect was tried): src -1.
+local function setSpec(guid, tree, src)
+    local s = specs[guid]
+    if s and (s.src or -1) > src then return end
+    if s and s.tree == tree and s.src == src then return end
+    if not s then
+        s = {}
+        specs[guid] = s
+    end
+    s.tree, s.src = tree, src
+    local r = roster[guid]
+    local store = r and specStore()
+    if store and src > 0 then
+        store[r.name] = { class = r.class, tree = tree, t = time() }
+    end
+    dirty = true
+    -- Outside a fight no ticker paints; the window repaints on request.
+    if not current then notify("repaint") end
+end
+
+-- Forward-declared above addUnit: a member joining gets last session's
+-- answer at once, and the pull already shows the icon.
+seedSpec = function(guid, name, class)
+    if specs[guid] then return end
+    local store = specStore()
+    local e = store and store[name]
+    if e and e.class == class and type(e.tree) == "number" then
+        specs[guid] = { tree = e.tree, src = 0 }
+    end
+end
+
+-- A log event from a group member that only one tree can cast.
+local function noteSpec(src, spellName)
+    if type(spellName) ~= "string" then return end
+    local r = roster[src]
+    if not r then return end
+    local s = specs[src]
+    if s and (s.src or -1) >= 1 and s.tree then return end   -- a real source already answered
+    local byClass = sigTable()[r.class]
+    local tree = byClass and byClass[spellName]
+    if tree then setSpec(src, tree, 1) end
+end
+
+function Meter:SpecOf(guid)
+    local s = specs[guid]
+    return s and s.tree or nil
+end
+
+-- Icon (file id) and name of a class's tree; cached per pair.
+local specInfo = {}
+local SI = C_SpecializationInfo
+function Meter:SpecInfo(class, tree)
+    if not (class and tree) then return nil end
+    local key = class .. tree
+    local e = specInfo[key]
+    if e then return e.icon, e.name end
+    local classID = CLASS_ID[class]
+    local icon, name
+    if classID and SI and SI.GetSpecializationInfoForClassID then
+        local ok, _, n, _, ic = pcall(SI.GetSpecializationInfoForClassID, classID, tree)
+        if ok then
+            if type(n) == "string" and n ~= "" then name = n end
+            if type(ic) == "number" or (type(ic) == "string" and ic ~= "") then icon = ic end
+        end
+    end
+    specInfo[key] = { icon = icon or false, name = name or false }
+    return icon, name
+end
+
+local function readOwnSpec()
+    if not (playerGUID and ns.DominantTalentTree) then return end
+    local ok, idx = pcall(ns.DominantTalentTree, ns)
+    if ok and type(idx) == "number" then setSpec(playerGUID, idx, 2) end
+end
+
+-- Inspect queue: one request every two seconds to a member whose spec no
+-- talent read has confirmed yet, in range, out of combat, and never while
+-- the inspect window is open (its own request would be answered with ours).
+local INSPECT_RETRY = 300
+local inspectTicker
+local pendingGUID, pendingAt
+local CanInspect, NotifyInspect, ClearInspectPlayer = CanInspect, NotifyInspect, ClearInspectPlayer
+
+local UnitIsVisible = UnitIsVisible
+local function inspectCandidate()
+    local now = GetTime()
+    for guid, r in pairs(roster) do
+        local s = specs[guid]
+        if guid ~= playerGUID and (not s or (s.src or -1) < 2)
+           and (not s or not s.tried or now - s.tried > INSPECT_RETRY)
+           and UnitExists(r.unit) and UnitIsVisible(r.unit) and CanInspect(r.unit) then
+            -- Visible and inspectable; a request that still gets no answer
+            -- is released by the four-second wait in inspectTick.
+            return guid, r.unit
+        end
+    end
+    return nil
+end
+
+-- Anyone besides us to ask at all? Solo, the ticker has nothing to do.
+local function othersInRoster()
+    for guid in pairs(roster) do
+        if guid ~= playerGUID then return true end
+    end
+    return false
+end
+
+local function stopInspect()
+    if inspectTicker then
+        ns:CancelTicker(inspectTicker)
+        inspectTicker = nil
+    end
+end
+
+local function inspectTick()
+    if not NotifyInspect then stopInspect(); return end
+    if pendingGUID and GetTime() - pendingAt < 4 then return end
+    pendingGUID = nil
+    if UnitAffectingCombat("player") then return end
+    local frame = _G.InspectFrame
+    if frame and frame:IsShown() then return end
+    local guid, unit = inspectCandidate()
+    if not guid then
+        -- Nobody in range right now is not "nobody ever": the ticker keeps
+        -- looking (a roster scan every two seconds) as long as there is a
+        -- group; solo it stops.
+        if not othersInRoster() then stopInspect() end
+        return
+    end
+    local s = specs[guid]
+    if not s then
+        s = { src = -1 }
+        specs[guid] = s
+    end
+    s.tried = GetTime()
+    pendingGUID, pendingAt = guid, GetTime()
+    NotifyInspect(unit)
+end
+
+local function startInspect()
+    if inspectTicker or not NotifyInspect then return end
+    inspectTicker = ns:AddTicker(2, inspectTick, nil, "meter-inspect")
+end
+
+local function onInspectReady(_, guid)
+    if not pendingGUID or guid ~= pendingGUID then return end
+    pendingGUID = nil
+    if not (SI and SI.GetSpecializationInfo) then return end
+    local bestIdx, bestPts
+    for i = 1, 3 do
+        -- inspectTarget nil, as the client's own TBC shim passes it: the
+        -- inspected unit is the one NotifyInspect named.
+        local ok, _, _, _, _, _, _, points = pcall(SI.GetSpecializationInfo, i, true, false, nil)
+        if ok and type(points) == "number" and points >= 0 and points <= 61
+           and (not bestPts or points > bestPts) then
+            bestPts, bestIdx = points, i
+        end
+    end
+    if bestIdx and bestPts and bestPts > 0 then setSpec(guid, bestIdx, 2) end
+    local frame = _G.InspectFrame
+    if ClearInspectPlayer and not (frame and frame:IsShown()) then ClearInspectPlayer() end
+end
+
+local function pruneSpecStore()
+    local store = specStore()
+    if not store then return end
+    local cutoff = time() - 30 * 86400
+    for name, e in pairs(store) do
+        if type(e) ~= "table" or (tonumber(e.t) or 0) < cutoff then store[name] = nil end
+    end
+end
 
 ------------------------------------------------------------------------
 -- Threat: a live snapshot of the target's threat list, not a segment. The
@@ -451,6 +732,7 @@ end
 
 local function onRoster()
     rebuildRoster()
+    startInspect()
     local k = groupKind()
     if k ~= kind then
         -- Solo -> group and party -> raid start a fresh overall; a member
@@ -496,7 +778,7 @@ end
 
 -- Every counter lands in the running fight AND in the overall; the per-target
 -- table (dstName) feeds the tooltip's target block.
-local function addDamage(src, amount, spellId, dstName, dst)
+local function addDamage(src, amount, spellId, dstName, dst, crit)
     if not amount or amount <= 0 then return end
     local owner = resolve(src)
     if not owner then return end
@@ -512,6 +794,11 @@ local function addDamage(src, amount, spellId, dstName, dst)
     o.damage = o.damage + amount
     bump(p, "spells", spellId, amount)
     bump(o, "spells", spellId, amount)
+    stat(p, "spellStats", spellId, amount, crit)
+    stat(o, "spellStats", spellId, amount, crit)
+    local now = GetTime()
+    touch(p, now)
+    touch(o, now)
     if dstName then
         bump(p, "targets", dstName, amount)
         bump(o, "targets", dstName, amount)
@@ -542,15 +829,17 @@ local function addTaken(dst, srcName, amount, spellId, overkill)
     dirty = true
 end
 
--- SWING_DAMAGE: amount is field 12, overkill 13. Spell-prefixed subevents
--- carry spellId, spellName, spellSchool in 12-14, amount in 15, overkill 16.
-HANDLERS.SWING_DAMAGE = function(src, srcName, dst, a12, _, _, a13, dstName)
-    addDamage(src, a12, MELEE_ID, dstName, dst)
+-- SWING_DAMAGE: amount is field 12, overkill 13, critical 18. Spell-prefixed
+-- subevents carry spellId, spellName, spellSchool in 12-14, amount in 15,
+-- overkill 16, critical 21 (healing: critical 18).
+HANDLERS.SWING_DAMAGE = function(src, srcName, dst, a12, _, _, a13, dstName, a18)
+    addDamage(src, a12, MELEE_ID, dstName, dst, a18)
     addTaken(dst, srcName, a12, MELEE_ID, a13)
 end
-local function spellDamage(src, srcName, dst, a12, a15, a16, _, dstName)
-    addDamage(src, a15, a12, dstName, dst)
+local function spellDamage(src, srcName, dst, a12, a15, a16, a13, dstName, _, a21)
+    addDamage(src, a15, a12, dstName, dst, a21)
     addTaken(dst, srcName, a15, a12, a16)
+    noteSpec(src, a13)
 end
 HANDLERS.RANGE_DAMAGE          = spellDamage
 HANDLERS.SPELL_DAMAGE          = spellDamage
@@ -561,8 +850,9 @@ HANDLERS.DAMAGE_SPLIT          = spellDamage
 -- Healing never opens a fight (pre-pull heals are not combat); field 16 is
 -- overhealing. The per-spell and per-target tables hold effective healing,
 -- like the bar.
-local function spellHeal(src, srcName, dst, a12, a15, a16, _, dstName)
+local function spellHeal(src, srcName, dst, a12, a15, a16, a13, dstName, a18)
     if not current or not a15 then return end
+    noteSpec(src, a13)
     -- a heal landing on a member is part of their recap even from outside
     if roster[dst] and a15 > (a16 or 0) then
         recapPush(dst, a12, a15 - (a16 or 0), true, srcName, nil)
@@ -579,6 +869,11 @@ local function spellHeal(src, srcName, dst, a12, a15, a16, _, dstName)
     o.overheal = o.overheal + a16
     bump(p, "heals", a12, eff)
     bump(o, "heals", a12, eff)
+    stat(p, "healStats", a12, a15, a18)
+    stat(o, "healStats", a12, a15, a18)
+    local now = GetTime()
+    touch(p, now)
+    touch(o, now)
     if dstName then
         bump(p, "healed", dstName, eff)
         bump(o, "healed", dstName, eff)
@@ -587,6 +882,12 @@ local function spellHeal(src, srcName, dst, a12, a15, a16, _, dstName)
 end
 HANDLERS.SPELL_HEAL          = spellHeal
 HANDLERS.SPELL_PERIODIC_HEAL = spellHeal
+
+-- A cast alone names a spec too (a buff, a form, a cooldown): no damage or
+-- healing needed before the icon is right.
+HANDLERS.SPELL_CAST_SUCCESS = function(src, _, _, _, _, _, a13)
+    noteSpec(src, a13)
+end
 
 -- SPELL_INTERRUPT / SPELL_DISPEL / SPELL_STOLEN: 12-14 is our spell, 15-17
 -- the spell we stopped or the aura we removed.
@@ -638,9 +939,49 @@ HANDLERS.ENVIRONMENTAL_DAMAGE = function(_, _, dst, a12, _, _, a13)
 end
 
 local function onCLEU()
-    local _, sub, _, src, srcName, _, _, dst, dstName, _, _, a12, a13, _, a15, a16 = CLGetInfo()
+    local _, sub, _, src, srcName, _, _, dst, dstName, _, _, a12, a13, _, a15, a16, _, a18, _, _, a21 = CLGetInfo()
     local h = HANDLERS[sub]
-    if h then h(src, srcName, dst, a12, a15, a16, a13, dstName) end
+    if h then h(src, srcName, dst, a12, a15, a16, a13, dstName, a18, a21) end
+end
+
+------------------------------------------------------------------------
+-- Entering a new dungeon or raid: reset the overall, or ask. The instance
+-- id is remembered per session; the first world entry only records it, so
+-- a reload inside the raid never wipes the numbers.
+------------------------------------------------------------------------
+local lastInstance
+local RESET_POPUP = "VCUI_METER_INSTANCE_RESET"
+
+local function resetSoon()
+    if current then pendingReset = true else Meter:Reset() end
+end
+
+local function onWorld()
+    onRoster()
+    local inInst, kindOf = IsInInstance()
+    if not inInst or (kindOf ~= "party" and kindOf ~= "raid") then return end
+    local id = select(8, GetInstanceInfo())
+    if not id then return end
+    -- Only instance-to-instance counts: a corpse run back into the same raid
+    -- is not a new raid, and the first entry of the session only records.
+    local first = (lastInstance == nil)
+    local changed = id ~= lastInstance
+    lastInstance = id
+    if first or not changed then return end
+    local mode = mod.db.resetOnInstance
+    if mode == "always" then
+        resetSoon()
+    elseif mode == "ask" and StaticPopup_Show then
+        if not StaticPopupDialogs[RESET_POPUP] then
+            StaticPopupDialogs[RESET_POPUP] = {
+                text = ns.L["Reset the combat meter for this instance?"],
+                button1 = YES or "Yes", button2 = NO or "No",
+                OnAccept = function() resetSoon() end,
+                timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
+            }
+        end
+        StaticPopup_Show(RESET_POPUP)
+    end
 end
 
 function mod:EngineEnable()
@@ -649,8 +990,15 @@ function mod:EngineEnable()
     local cdb = VuloClassicUICharDB
     kind = (cdb and cdb.meter and cdb.meter.kind) or groupKind()
     self:RegisterEvent("GROUP_ROSTER_UPDATE",         onRoster)
-    self:RegisterEvent("PLAYER_ENTERING_WORLD",       onRoster)
+    self:RegisterEvent("PLAYER_ENTERING_WORLD",       onWorld)
     self:RegisterEvent("UNIT_PET",                    onUnitPet)
+    self:RegisterEvent("INSPECT_READY",               onInspectReady)
+    self:RegisterEvent("PLAYER_TALENT_UPDATE",        readOwnSpec)
+    self:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED", readOwnSpec)
+    -- talents are not readable at ADDON_LOADED; the world entry is late enough
+    self:RegisterEvent("PLAYER_ENTERING_WORLD", function() C_Timer.After(2, readOwnSpec) end)
+    pruneSpecStore()
+    startInspect()
     self:RegisterEvent("PLAYER_REGEN_DISABLED",       onRegenDisabled)
     self:RegisterEvent("PLAYER_REGEN_ENABLED",        onRegenEnabled)
     self:RegisterEvent("ENCOUNTER_START",             onEncounterStart)
@@ -666,6 +1014,8 @@ end
 function mod:EngineDisable()
     closeSegment()
     stopWait()
+    stopInspect()
+    pendingGUID = nil
 end
 
 ------------------------------------------------------------------------
@@ -673,6 +1023,12 @@ end
 ------------------------------------------------------------------------
 function mod:OnEnable()
     playerGUID = UnitGUID("player")
+    -- Part 5 folded the class-icon switch into the three-way icon choice; a
+    -- saved "off" (the only value the strip keeps) carries over once.
+    if self.db.showClassIcon ~= nil then
+        self.db.barIcon = self.db.showClassIcon and "class" or "off"
+        self.db.showClassIcon = nil
+    end
     local cdb = VuloClassicUICharDB
     if cdb then
         cdb.meter = cdb.meter or {}
@@ -685,11 +1041,15 @@ function mod:OnEnable()
         saved.enemies  = saved.enemies or {}
         saved.duration = tonumber(saved.duration) or 0
         -- Entries saved by part 1 lack the new counters; fill them once.
+        -- lastT is a GetTime stamp: after a reboot the clock starts over and
+        -- an old stamp would read as "three seconds ago".
         for _, p in pairs(saved.players) do
             p.taken      = p.taken      or 0
             p.interrupts = p.interrupts or 0
             p.dispels    = p.dispels    or 0
             p.deaths     = p.deaths     or 0
+            p.active     = p.active     or 0
+            p.lastT      = nil
         end
         overall = saved
     end

@@ -147,6 +147,18 @@ local function clock(sec)
     return format("%d:%02d", floor(sec / 60), sec % 60)
 end
 
+-- The seconds a per-second value divides by: the fight, or the player's own
+-- active stretch when the option says so. A lone hit has no stretch yet;
+-- one second keeps the number finite and honest ("that hit, per second").
+local function basisOf(p, dur)
+    if mod.db.dpsBasis == "active" then
+        local a = p.active or 0
+        if a > dur then a = dur end
+        return max(a, 1)
+    end
+    return dur
+end
+
 local function valueOf(mode, p, dur)
     if mode == "damage"     then return p.damage end
     if mode == "heal"       then return p.heal - p.overheal end
@@ -157,8 +169,9 @@ local function valueOf(mode, p, dur)
     if mode == "threat"     then return p.threat     or 0 end
     if mode == "enemies"    then return p.damage     or 0 end
     if dur <= 0 then return 0 end
-    if mode == "dps" then return p.damage / dur end
-    return (p.heal - p.overheal) / dur
+    local basis = basisOf(p, dur)
+    if mode == "dps" then return p.damage / basis end
+    return (p.heal - p.overheal) / basis
 end
 
 -- Ties break on the guid so equal values keep a stable order between ticks.
@@ -188,7 +201,7 @@ local function rightText(mode, p, v, total, dur)
     elseif mode == "hps" then
         secondary = p.heal - p.overheal
     else
-        secondary = dur > 0 and v / dur or 0
+        secondary = dur > 0 and v / basisOf(p, dur) or 0
     end
     local main = short(v)
     if db.showPerSecond and db.showPercent then
@@ -404,9 +417,41 @@ local function threatStatus(p)
     return L["Safe"]
 end
 
+-- A row of the breakdown: the spell's hit statistics.
+local STAT_KEY = { damage = "spellStats", dps = "spellStats", heal = "healStats", hps = "healStats" }
+local function spellStatTip(self, w, seg)
+    local p    = seg and seg.players[w.detail]
+    local key  = STAT_KEY[w.mode]
+    local id   = self.spellId
+    local e    = p and key and p[key] and p[key][id]
+    local name = type(id) == "number" and GetSpellInfo(id) or spellText(id)
+    wipe(tipLines)
+    if not e or e.n == 0 then
+        tipLines[#tipLines + 1] = L["No details yet"]
+    else
+        line(1, L["Hits"], format("%d", e.n))
+        line(2, L["Critical"], format("%d (%.1f%%)", e.c, e.c / e.n * 100))
+        -- The stats count raw amounts (a heal before overhealing is taken
+        -- off), so the average is theirs and min and max bracket it.
+        line(3, L["Average"], short(e.n > 0 and (e.sum or 0) / e.n or 0))
+        line(4, L["Minimum"], short(e.min))
+        line(5, L["Maximum"], short(e.max))
+    end
+    tipSpec.title = name or "?"
+    local c = p and ns.ClassColor(p.class)
+    if c then
+        tipColor[1], tipColor[2], tipColor[3] = c.r, c.g, c.b
+        tipSpec.color = tipColor
+    else
+        tipSpec.color = nil
+    end
+    UI:ShowTooltip(self, tipSpec)
+end
+
 rowEnter = function(self)
     local w   = self.win
     local seg = segmentOf(w)
+    if w.detail and self.spellId then return spellStatTip(self, w, seg) end
     local set = rowsOf(seg, w.mode)
     local p   = set and self.guid and set[self.guid]
     if not p then return end
@@ -435,6 +480,12 @@ rowEnter = function(self)
     end
     local dur     = Meter:Duration(seg)
     local isCount = COUNT[mode]
+    -- the spec first: it is what the icon on the bar just claimed
+    if mode ~= "enemies" then
+        local tree = Meter.SpecOf and Meter:SpecOf(self.guid)
+        local _, specName = tree and Meter:SpecInfo(p.class, tree)
+        if specName then tipLines[#tipLines + 1] = format("%s: %s", L["Spec"], specName) end
+    end
     if mode == "deaths" then
         deathLines(p)
     elseif mode == "enemies" then
@@ -457,7 +508,12 @@ rowEnter = function(self)
     else
         local amount = PER_SEC[mode] and (mode == "dps" and p.damage or (p.heal - p.overheal)) or v
         tipLines[#tipLines + 1] = format("%s: %s", L["Total"], short(amount))
-        tipLines[#tipLines + 1] = format("%s: %s", L["Per second"], short(dur > 0 and amount / dur or 0))
+        tipLines[#tipLines + 1] = format("%s: %s", L["Per second"], short(dur > 0 and amount / basisOf(p, dur) or 0))
+        if mode ~= "taken" and mode ~= "enemies" then
+            local active = Meter:ActiveTime(seg, p)
+            tipLines[#tipLines + 1] = format("%s: %s (%.0f%%)", L["Active time"], clock(active),
+                dur > 0 and active / dur * 100 or 0)
+        end
     end
     tipLines[#tipLines + 1] = format("%s: %.1f%%", L["Share"], total > 0 and v / total * 100 or 0)
     if HEALING[mode] then
@@ -494,6 +550,61 @@ end
 local function onWheel(w, delta)
     w.scroll = max(0, w.scroll - delta)
     refresh(w)
+end
+
+local function showIcons()
+    return mod.db.barIcon ~= "off"
+end
+
+-- The bar colour: the player's class, or the one colour the option names.
+local function barColor(r, class, fallbackR, fallbackG, fallbackB)
+    local db = mod.db
+    if db.barColorMode == "custom" and type(db.barColor) == "table" then
+        local c = db.barColor
+        r:SetStatusBarColor(c.r or 0.6, c.g or 0.6, c.b or 0.6, 0.85)
+        return
+    end
+    local c = ns.ClassColor(class)
+    if c then
+        r:SetStatusBarColor(c.r, c.g, c.b, 0.85)
+    else
+        r:SetStatusBarColor(fallbackR, fallbackG, fallbackB, 0.85)
+    end
+end
+
+-- Rows hang from the top of the body, or stand on its bottom when the bars
+-- grow upwards; the title bar sits on the same edge the rows start from.
+local function placeRow(w, r, i, step)
+    local body = w.frame.body
+    r:ClearAllPoints()
+    if mod.db.growUp then
+        r:SetPoint("BOTTOMLEFT",  body, "BOTTOMLEFT",  0, (i - 1) * step)
+        r:SetPoint("BOTTOMRIGHT", body, "BOTTOMRIGHT", 0, (i - 1) * step)
+    else
+        r:SetPoint("TOPLEFT",  body, "TOPLEFT",  0, -((i - 1) * step))
+        r:SetPoint("TOPRIGHT", body, "TOPRIGHT", 0, -((i - 1) * step))
+    end
+end
+
+local function layoutChrome(w)
+    local win, title, body = w.frame, w.frame.title, w.frame.body
+    title:ClearAllPoints()
+    body:ClearAllPoints()
+    if mod.db.growUp then
+        title:SetPoint("BOTTOMLEFT",  win, "BOTTOMLEFT",  0, 0)
+        title:SetPoint("BOTTOMRIGHT", win, "BOTTOMRIGHT", 0, 0)
+        body:SetPoint("TOPLEFT",     win, "TOPLEFT",     PAD, -PAD)
+        body:SetPoint("BOTTOMRIGHT", win, "BOTTOMRIGHT", -PAD, TITLE_H + PAD)
+    else
+        title:SetPoint("TOPLEFT",  win, "TOPLEFT",  0, 0)
+        title:SetPoint("TOPRIGHT", win, "TOPRIGHT", 0, 0)
+        body:SetPoint("TOPLEFT",     win, "TOPLEFT",     PAD, -(TITLE_H + PAD))
+        body:SetPoint("BOTTOMRIGHT", win, "BOTTOMRIGHT", -PAD, PAD)
+    end
+    local db = mod.db
+    local c = type(db.bgColor) == "table" and db.bgColor or { r = 0.05, g = 0.05, b = 0.06 }
+    local a = (tonumber(db.bgAlpha) or 90) / 100
+    win.bg:SetColorTexture(c.r or 0.05, c.g or 0.05, c.b or 0.06, a)
 end
 
 local function createRow(w)
@@ -538,7 +649,8 @@ layoutRows = function(w)
     local tex  = texturePath()
     local step = db.barHeight + db.barGap
     local iconSize = max(1, db.barHeight - 2)
-    local textLeft = db.showClassIcon and (iconSize + 4) or 4
+    local icons    = showIcons()
+    local textLeft = icons and (iconSize + 4) or 4
     local rows = w.rows
     for i = 1, n do
         local r = rows[i]
@@ -553,11 +665,9 @@ layoutRows = function(w)
             t:SetVertTile(false)
         end
         r:SetHeight(db.barHeight)
-        r:ClearAllPoints()
-        r:SetPoint("TOPLEFT",  w.frame.body, "TOPLEFT",  0, -((i - 1) * step))
-        r:SetPoint("TOPRIGHT", w.frame.body, "TOPRIGHT", 0, -((i - 1) * step))
+        placeRow(w, r, i, step)
         r.icon:SetSize(iconSize, iconSize)
-        r.icon:SetShown(db.showClassIcon and true or false)
+        r.icon:SetShown(icons)
         r.left:SetPoint("LEFT", r, "LEFT", textLeft, 0)
         UI.FontFor("meter", r.left,  db.fontSize)
         UI.FontFor("meter", r.right, db.fontSize)
@@ -593,11 +703,25 @@ local function setTitle(w, seg, first, lastIdx, n)
     end
 end
 
-local function paintClass(r, p, db)
-    if not db.showClassIcon then return end
-    local cls = p.class or false
-    if r.class == cls then return end
-    r.class = cls
+-- The icon: the class, or the tree the player has been seen to play; the
+-- class stays the fallback while the tree is unknown. r.class caches the
+-- pair, so an unchanged row costs one comparison.
+local function paintClass(r, p, db, guid)
+    if not showIcons() then return end
+    local cls  = p.class or false
+    local tree = (db.barIcon == "spec" and cls and guid and Meter.SpecOf) and Meter:SpecOf(guid) or nil
+    local key  = tree and (cls .. tree) or cls
+    if r.class == key then return end
+    r.class = key
+    if tree then
+        local icon = Meter:SpecInfo(p.class, tree)
+        if icon then
+            r.icon:SetTexture(icon)
+            r.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+            r.icon:Show()
+            return
+        end
+    end
     local tex, coords = ns:GetClassIcon(p.class)
     if tex then
         r.icon:SetTexture(tex)
@@ -652,7 +776,6 @@ local function refreshDetail(w, seg)
     for i = 1, n do total = total + vals[order[i]] end
     local top = vals[order[1]]
     local isCount = COUNT[mode]
-    local c = ns.ClassColor(p.class)
     for i = 1, slots do
         local r   = rows[i]
         local idx = i + scroll
@@ -660,9 +783,11 @@ local function refreshDetail(w, seg)
         if r and id then
             local v = vals[id]
             r:SetValue(top > 0 and v / top or 0)
-            if c then r:SetStatusBarColor(c.r, c.g, c.b, 0.85) else r:SetStatusBarColor(0.6, 0.6, 0.6, 0.85) end
+            barColor(r, p.class, 0.6, 0.6, 0.6)
             r.icon:Hide()
             r.class = nil
+            local changed = r.spellId ~= id
+            r.spellId = id
             r.left:SetPoint("LEFT", r, "LEFT", 4, 0)
             if db.showRank then
                 r.left:SetFormattedText("%d. %s", idx, spellText(id))
@@ -677,8 +802,11 @@ local function refreshDetail(w, seg)
             r.hl:Hide()
             r.guid = nil
             r:Show()
+            -- a re-sort can move another spell under the cursor
+            if changed and r:IsMouseOver() then rowEnter(r) end
         elseif r then
             r.guid = nil
+            r.spellId = nil
             r:Hide()
         end
     end
@@ -709,7 +837,6 @@ end
 refresh = function(w)
     if not w.db then return end
     local db    = mod.db
-    local win   = w.frame
     local mode  = w.mode
     local order = w.order
     local vals  = w.vals
@@ -775,15 +902,13 @@ refresh = function(w)
             local p = set[guid]
             local v = vals[guid]
             r:SetValue(top > 0 and v / top or 0)
-            local c = ns.ClassColor(p.class)
-            if c then
-                r:SetStatusBarColor(c.r, c.g, c.b, 0.85)
-            elseif mode == "enemies" then
-                r:SetStatusBarColor(0.75, 0.25, 0.25, 0.85)
+            if mode == "enemies" then
+                barColor(r, p.class, 0.75, 0.25, 0.25)
             else
-                r:SetStatusBarColor(0.6, 0.6, 0.6, 0.85)
+                barColor(r, p.class, 0.6, 0.6, 0.6)
             end
-            paintClass(r, p, db)
+            r.spellId = nil
+            paintClass(r, p, db, guid)
             if db.showRank then
                 r.left:SetFormattedText("%d. %s", idx, p.name)
             else
@@ -927,6 +1052,11 @@ local function onEngine(what)
         applyVisibility()
         wipe(fmtCache)
         fmtCount = 0
+    elseif what == "repaint" then
+        -- something outside the log changed a bar (a spec learned out of
+        -- combat): repaint without touching scroll or detail state
+        Meter:ClearDirty()
+        refreshAll()
     else
         resetScroll()
         for i = 1, #frames do frames[i].detail = nil end
@@ -1330,6 +1460,10 @@ applyVisibility = function()
         local inCombat = Meter:InCombat() or UnitAffectingCombat("player")
         if db.onlyInGroup and not IsInGroup() then show = false end
         if db.hideInCombat and inCombat then show = false end
+        if show and db.hideInPvP and IsInInstance then
+            local _, kind = IsInInstance()
+            if kind == "arena" or kind == "pvp" then show = false end
+        end
         if show and db.hideOutOfCombat and not inCombat then
             local left = (db.hideDelay or 0) - (GetTime() - lastCombatEnd)
             if left > 0 then
@@ -1513,10 +1647,9 @@ local function build(i, wdb)
     win.titleText:SetWordWrap(false)
     win.titleText:SetTextColor(accent.r, accent.g, accent.b)
 
-    -- Body: the bar rows live here; wheel scrolls.
+    -- Body: the bar rows live here; wheel scrolls. Anchored in layoutChrome,
+    -- which also knows which edge the title takes.
     win.body = CreateFrame("Frame", nil, win)
-    win.body:SetPoint("TOPLEFT",     win, "TOPLEFT",     PAD, -(TITLE_H + PAD))
-    win.body:SetPoint("BOTTOMRIGHT", win, "BOTTOMRIGHT", -PAD, PAD)
     win.body:EnableMouse(true)
     win.body:EnableMouseWheel(true)
     win.body:SetScript("OnMouseWheel", function(_, delta) onWheel(w, delta) end)
@@ -1574,6 +1707,7 @@ local function bind(w, wdb)
     if w.paintLock then w.paintLock() end
     w.frame:SetSize(wdb.width, wdb.height)
     ns:ApplyMover(w.mover)
+    layoutChrome(w)
     layoutRows(w)
     refresh(w)
 end
@@ -1648,6 +1782,8 @@ function mod:WindowEnable()
     self:RegisterEvent("PLAYER_REGEN_DISABLED", applyVisibility)
     self:RegisterEvent("PLAYER_REGEN_ENABLED",  applyVisibility)
     self:RegisterEvent("GROUP_ROSTER_UPDATE",   applyVisibility)
+    -- arena and battleground are a place, not a state: re-judged on arrival
+    self:RegisterEvent("PLAYER_ENTERING_WORLD",  applyVisibility)
     Meter:SetListener(onEngine)
     if not self._editHook and ns.RegisterEditModeHook then
         self._editHook = true

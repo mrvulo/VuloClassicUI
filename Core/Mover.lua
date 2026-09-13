@@ -144,6 +144,35 @@ end
 -- the editor is open, which is exactly when the frame budget is tightest.
 ns._moversByKey = ns._moversByKey or {}
 
+-- Which module a mover belongs to, for "open this element's settings" from the
+-- edit panel. Nothing is declared per mover: the answer is read off the
+-- position table the mover writes into, which is the module's db or a table
+-- one or two levels inside it (mod.db.chrome[c.key], mod.db.bars.main). A
+-- caller may still say so outright with opts.module. Not cached: a profile
+-- switch re-points mod.db, and the lookup is a handful of table compares on a
+-- click.
+function ns:ModuleForMover(mover)
+    if not (mover and mover.opts) then return nil end
+    if mover.opts.module and ns.modules[mover.opts.module] then return mover.opts.module end
+    local db = mover.opts.db
+    if type(db) ~= "table" then return nil end
+    for _, key in ipairs(ns.moduleOrder) do
+        local mdb = ns.modules[key] and ns.modules[key].db
+        if type(mdb) == "table" then
+            if rawequal(mdb, db) then return key end
+            for _, v in pairs(mdb) do
+                if rawequal(v, db) then return key end
+                if type(v) == "table" then
+                    for _, v2 in pairs(v) do
+                        if rawequal(v2, db) then return key end
+                    end
+                end
+            end
+        end
+    end
+    return nil
+end
+
 function ns:GetMoverByKey(key)
     if not key then return nil end
     return ns._moversByKey[key]

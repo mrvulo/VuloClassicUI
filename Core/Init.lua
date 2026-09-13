@@ -49,6 +49,7 @@ local function printVcuiHelp()
     local A = (ns.C and ns.C.accent) or "|cff9b6cff"
     ns:Print(L["VuloClassicUI — commands:"])
     ns:Print(A .. "/vcui <module>|r — " .. L["jump to that module's page"])
+    ns:Print(A .. "/vcui search <text>|r — " .. L["search the settings for a word"])
     ns:Print(A .. "/vcui modules|r — " .. L["list all modules with on/off state"])
     ns:Print(A .. "/vcui spam <name>|r — " .. L["toggle a name on/off the spam-filter whitelist"])
     ns:Print(A .. "/vcui goldreset|r — " .. L["reset the gold tracker session"])
@@ -126,6 +127,13 @@ ns.Slash.OPTIONS = function(msg)
 
         elseif msg == "setup" then
             if ns.ShowSetup then ns:ShowSetup() end
+
+        elseif msg == "search" or msg == "suche" or msg == "find"
+            or msg:match("^search%s") or msg:match("^suche%s") or msg:match("^find%s") then
+            -- The window opens with the word already in the search box and the
+            -- results open, so a setting is one Enter away from the chat line.
+            local arg = raw:match("^%S+%s+(.-)$") or ""
+            if ns.UI.OpenSearch then ns.UI:OpenSearch(arg) end
 
         elseif msg == "goldreset" then
             local gt = ns.modules.goldtracker

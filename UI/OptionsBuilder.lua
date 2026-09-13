@@ -266,6 +266,297 @@ local ICON_CFG = {
 }
 UI.rowExpanded = UI.rowExpanded or {}
 
+-- ---------------------------------------------------------------------------
+-- Finding things again: three registers the page fills on every build.
+--   _rowFrames    rowKey -> the row's card, so a search hit or a "recently
+--                 changed" entry can scroll to the row and light it up
+--   _sectionList  the headings in page order with their scroll offsets, for
+--                 the jump chips above the page
+--   onlyChanged   the page filter: only rows that differ from their defaults
+-- ---------------------------------------------------------------------------
+UI._rowFrames   = UI._rowFrames or {}
+UI._sectionList = UI._sectionList or {}
+UI.onlyChanged  = UI.onlyChanged or false
+
+-- ---------------------------------------------------------------------------
+-- Rows that differ from their defaults.
+--
+-- No row declares which db key it reads: every getter is a closure over
+-- mod.db. So the default is not looked up, it is MEASURED. For the length of
+-- one getter pass every module's db holds its defaults, the getters are called,
+-- and their answers are the defaults; the live pass then compares.
+--
+-- The CONTENTS are swapped, never the table: the identity of mod.db and of
+-- every sub-table that also exists in the defaults is kept, and the values
+-- inside are replaced and afterwards restored from a snapshot. This is what
+-- makes it work for the 200-odd getters that read through an alias taken at
+-- GetOptions time (`local db = self.db`, `local d = mod.db.bars`): a pointer
+-- swap would leave all of those reading live values on both passes, and whole
+-- pages (auras, cast history, quest tracker) would never show a mark. A key the
+-- live table has and the defaults do not (a list, runtime state) is absent for
+-- the pass, and a getter that trips over that is pcall'd per row. Whatever a
+-- getter writes during the pass is wiped by the restore.
+-- ---------------------------------------------------------------------------
+local function pushDefaults(live, def, undo)
+    -- ApplyDefaults never shares a table between the two, but a module that
+    -- hands the same table as both would be emptied by its own swap.
+    if rawequal(live, def) then return end
+    local snap = {}
+    for k, v in pairs(live) do snap[k] = v end
+    undo[#undo + 1] = { t = live, snap = snap }
+    for k, v in pairs(snap) do
+        local dv = def[k]
+        if type(dv) == "table" and type(v) == "table" then
+            pushDefaults(v, dv, undo)
+        else
+            live[k] = nil
+        end
+    end
+    for k, dv in pairs(def) do
+        if type(dv) == "table" then
+            if type(live[k]) ~= "table" then live[k] = ns:DeepCopy(dv) end
+        else
+            live[k] = dv
+        end
+    end
+end
+
+local function withDefaultDbs(fn)
+    local undo = {}
+    local okSwap, errSwap = pcall(function()
+        for _, m in pairs(ns.modules) do
+            if type(m.db) == "table" and type(m.defaults) == "table" then
+                pushDefaults(m.db, m.defaults, undo)
+            end
+        end
+    end)
+    local ok, err = true, nil
+    if okSwap then ok, err = pcall(fn) end
+    -- Reverse order: a sub-table's contents come back before the parent's
+    -- keys point at it again. Every table gets exactly its snapshot back.
+    for i = #undo, 1, -1 do
+        local e = undo[i]
+        for k in pairs(e.t) do e.t[k] = nil end
+        for k, v in pairs(e.snap) do e.t[k] = v end
+    end
+    if not okSwap then ns:Debug("defaults pass (swap): %s", tostring(errSwap)) end
+    if not ok then ns:Debug("defaults pass: %s", tostring(err)) end
+end
+
+-- nil and false are the same switch position; numbers get a tolerance; a
+-- colour compares by channel. Anything else is equal only when it IS equal.
+local function sameValue(a, b)
+    if a == b then return true end
+    if (a == nil or a == false) and (b == nil or b == false) then return true end
+    local ta, tb = type(a), type(b)
+    if ta == "number" and tb == "number" then return math.abs(a - b) < 1e-6 end
+    if ta == "table" and tb == "table" then
+        for _, k in ipairs({ "r", "g", "b", 1, 2, 3 }) do
+            local x, y = a[k], b[k]
+            if x ~= nil or y ~= nil then
+                if not (type(x) == "number" and type(y) == "number" and math.abs(x - y) < 1e-3) then
+                    return false
+                end
+            end
+        end
+        local xa, ya = a.a or a[4] or 1, b.a or b[4] or 1
+        return type(xa) == "number" and type(ya) == "number" and math.abs(xa - ya) < 1e-3
+    end
+    return false
+end
+
+local function copyValue(v)
+    if type(v) ~= "table" then return v end
+    local c = {}
+    for k, x in pairs(v) do c[k] = x end
+    return c
+end
+
+-- Marks every compact row of the page: item._vcChanged and item._vcDefault on
+-- the row, item._vcChangedInside on whatever holds a changed row (a section, a
+-- group, a gear row). Returns how many rows changed.
+local function markChanged(items, skip)
+    local rows = {}
+    local function collect(list)
+        for _, it in ipairs(list) do
+            if type(it) == "table" then
+                it._vcChanged, it._vcChangedInside, it._vcHasDefault = false, false, false
+                if COMPACT[it.type] and type(it.get) == "function" and not it.noDefaultMark then
+                    rows[#rows + 1] = it
+                end
+                if it.items then collect(it.items) end
+                if it.subOptions then collect(it.subOptions) end
+            end
+        end
+    end
+    collect(items)
+    if skip or #rows == 0 then return 0 end
+    withDefaultDbs(function()
+        for _, it in ipairs(rows) do
+            local ok, v = pcall(it.get)
+            if ok then it._vcDefault = copyValue(v); it._vcHasDefault = true end
+        end
+    end)
+    local n = 0
+    for _, it in ipairs(rows) do
+        if it._vcHasDefault then
+            local ok, v = pcall(it.get)
+            -- A default of nil against a live string or number says "this key
+            -- is not in the defaults at all" (list rows, runtime state), not
+            -- "changed".
+            if ok and not sameValue(v, it._vcDefault)
+               and not (it._vcDefault == nil and v ~= nil and type(v) ~= "boolean") then
+                it._vcChanged = true
+                n = n + 1
+            end
+        end
+    end
+    if n == 0 then return 0 end
+    local function mark(list)
+        local inside = false
+        for _, it in ipairs(list) do
+            if type(it) == "table" then
+                local sub = false
+                if it.items then sub = mark(it.items) or sub end
+                if it.subOptions then sub = mark(it.subOptions) or sub end
+                it._vcChangedInside = sub
+                if it._vcChanged or sub then inside = true end
+            end
+        end
+        return inside
+    end
+    mark(items)
+    return n
+end
+
+local function describeValue(item, v)
+    if v == nil or v == false then return L["Off"] end
+    if v == true then return L["On"] end
+    if type(v) == "number" then
+        if math.floor(v) == v then return tostring(v) end
+        return string.format("%.2f", v)
+    end
+    if type(v) == "table" then
+        local r = math.floor((v.r or v[1] or 1) * 255 + 0.5)
+        local g = math.floor((v.g or v[2] or 1) * 255 + 0.5)
+        local b = math.floor((v.b or v[3] or 1) * 255 + 0.5)
+        return string.format("|cff%02x%02x%02x#%02x%02x%02x|r", r, g, b, r, g, b)
+    end
+    local vals = item.values
+    if type(vals) == "function" then
+        local ok, res = pcall(vals)
+        vals = ok and res or nil
+    end
+    if type(vals) == "table" then
+        for _, o in ipairs(vals) do
+            -- through L, the way the dropdown itself shows the entry
+            if type(o) == "table" and o.value == v and o.text then return L[tostring(o.text)] end
+        end
+    end
+    return tostring(v)
+end
+
+-- Puts the row back to its measured default through its own setter, so the
+-- module applies the value the way it applies any other change.
+local function resetRow(item, widget)
+    if not (item and item._vcHasDefault and type(item.set) == "function") then return end
+    local d = item._vcDefault
+    local ok, err
+    if item.type == "color" then
+        local c = type(d) == "table" and d or {}
+        ok, err = pcall(item.set, c.r or c[1] or 1, c.g or c[2] or 1, c.b or c[3] or 1)
+    elseif item.type == "toggle" or item.type == "checkbox" then
+        ok, err = pcall(item.set, widget, d and true or false)
+    else
+        ok, err = pcall(item.set, widget, d)
+    end
+    if not ok then ns:Debug("reset row: %s", tostring(err)) end
+    UI:BuildOptionsPage(UI._currentBuildKey, UI.currentTab)
+end
+
+-- The mark: an accent dot on the card's left edge. A button, because the
+-- reset lives on it -- the row's icon strip has fixed slots for the gear and
+-- the info dot and nothing else may move in there.
+local ICON_DOT = "Interface\\COMMON\\Indicator-Gray"
+local function makeChangeDot(parent)
+    local b = acquire("changedot", parent)
+    if b then return b end
+    b = CreateFrame("Button", nil, parent)
+    b._vcType  = "changedot"
+    b._vcSetup = function() end
+    b:SetSize(12, 12)
+    b.icon = b:CreateTexture(nil, "OVERLAY")
+    b.icon:SetAllPoints(b)
+    b.icon:SetTexture(ICON_DOT)
+    b:SetScript("OnEnter", function(self)
+        self.icon:SetVertexColor(1, 1, 1)
+        local it = self._item
+        if not it then return end
+        UI:ShowTooltip(self, {
+            title = L["Differs from the default"],
+            lines = {
+                { string.format(L["Default: %s"], describeValue(it, it._vcDefault)), 0.85, 0.85, 0.9 },
+                { L["Click: reset this setting"], 0.6, 0.6, 0.66 },
+            },
+        })
+    end)
+    b:SetScript("OnLeave", function(self)
+        local a = ns.COLORS.accent
+        self.icon:SetVertexColor(a.r, a.g, a.b)
+        UI:HideTooltip()
+    end)
+    b:SetScript("OnClick", function(self) resetRow(self._item, self._widget) end)
+    return b
+end
+
+-- `passive`: a smaller dot that takes no mouse. In a row of side-by-side
+-- controls the gap between two of them is 8 px, and a clickable 12 px dot
+-- there would sit on the tail of the control to its left.
+local function placeChangedDot(parent, item, widget, x, midY, level, passive)
+    if not item._vcChanged then return end
+    local d = makeChangeDot(parent)
+    d._item, d._widget = item, widget
+    local a = ns.COLORS.accent
+    d.icon:SetVertexColor(a.r, a.g, a.b)
+    d:SetSize(passive and 8 or 12, passive and 8 or 12)
+    d:EnableMouse(not passive)
+    d:ClearAllPoints()
+    d:SetPoint("CENTER", parent, "TOPLEFT", x, midY)
+    d:SetFrameLevel(level)
+    d:Show()
+end
+
+-- How many settings a heading groups: the compact rows below it, gears included.
+local function countRows(list)
+    local n = 0
+    for _, it in ipairs(list or {}) do
+        if type(it) == "table" then
+            if COMPACT[it.type] then n = n + 1 end
+            if it.items then n = n + countRows(it.items) end
+            if it.subOptions then n = n + countRows(it.subOptions) end
+        end
+    end
+    return n
+end
+
+-- With the filter on, a list keeps only what changed: rows, and the sections,
+-- groups and gear rows holding one. Text, buttons and spacers drop out --
+-- they explain a page, and the filtered page is not that page.
+local FILTER_SKIP = { desc = true, header = true, button = true, iconbutton = true, spacer = true, custom = true }
+local function filterChanged(items)
+    local out = {}
+    for _, it in ipairs(items) do
+        if type(it) == "table" then
+            if it.type == "section" or it.type == "group" then
+                if it._vcChangedInside then out[#out + 1] = it end
+            elseif not FILTER_SKIP[it.type] and (it._vcChanged or it._vcChangedInside) then
+                out[#out + 1] = it
+            end
+        end
+    end
+    return out
+end
+
 local function makeRowIcon(parent)
     local b = acquire("rowicon", parent)
     if b then return b end
@@ -894,6 +1185,10 @@ local function placeColumns(parent, run, y)
         p:SetSize(cellW, CARD_H)
         p:SetFrameLevel(base + 1)
         p:Show()
+        -- Only the page's own rows: a row popup lays its rows out through this
+        -- same function, and its cards must not answer for a page row of the
+        -- same label.
+        if UI._building then UI._rowFrames[rowKey(item)] = p end
 
         local lead = 0
         if item.tooltip then
@@ -965,10 +1260,13 @@ local function placeColumns(parent, run, y)
             widget:SetPoint("TOPLEFT", parent, "TOPLEFT",
                 cellX + 10 + lead, cellY - math.floor((CARD_H - wh) / 2))
             placeInlineIcons(parent, item, widget, base + 5)
+            placeChangedDot(parent, item, widget, cellX - 2, cellY - CARD_H / 2, base + 6)
         end
 
         local used = ROW_H
-        if item.subOptions and UI.rowExpanded[rowKey(item)] then
+        -- The filter unfolds a gear whose rows changed even if nobody opened it.
+        if item.subOptions and (UI.rowExpanded[rowKey(item)]
+                or (UI.onlyChanged and UI._building and item._vcChangedInside)) then
             used = used + placeSubColumn(parent, item, cellX, cellY - ROW_H, cellW)
         end
         if fullW then
@@ -1012,7 +1310,14 @@ local function placeSection(parent, section, y)
     y = y - 24
 
     -- Remembered per build: ScrollToSection turns a title into this offset.
-    if UI._sectionY then UI._sectionY[title] = math.max(0, -y - 8) end
+    local off = math.max(0, -y - 8)
+    if UI._sectionY then UI._sectionY[title] = off end
+    local count = countRows(section.items)
+    -- Top-level headings only: a heading inside another section is a
+    -- sub-heading, and the jump chips are a table of contents, not an index.
+    if UI._building and (UI._sectionDepth or 0) == 0 then
+        UI._sectionList[#UI._sectionList + 1] = { title = title, y = off }
+    end
 
     local open, onClick = true, nil
     if section.collapsible then
@@ -1028,15 +1333,18 @@ local function placeSection(parent, section, y)
 
     local hdr = acquire("collapsible", parent)
     if hdr then
-        hdr:_vcSetup(title, open, onClick)
+        hdr:_vcSetup(title, open, onClick, count)
     else
-        hdr = UI:CreateCollapsibleHeader(parent, title, open, onClick)
+        hdr = UI:CreateCollapsibleHeader(parent, title, open, onClick, count)
     end
     hdr:SetPoint("TOPLEFT", parent, "TOPLEFT", CONTENT_PADDING, y)
     y = y - 26
 
     if not open then return y end
-    return placeItemList(parent, section.items or {}, y)
+    UI._sectionDepth = (UI._sectionDepth or 0) + 1
+    y = placeItemList(parent, section.items or {}, y)
+    UI._sectionDepth = UI._sectionDepth - 1
+    return y
 end
 
 local CARD_TYPES = { toggle = true, checkbox = true, dropdown = true, editbox = true, slider = true, color = true, segmented = true }
@@ -1053,6 +1361,13 @@ placeItem = function(parent, item, y)
     end
     if item.type == "header" then
         y = y - 12
+        -- A plain heading at page level is a chapter too, on the pages that
+        -- never adopted sections; it gets a jump chip like a section does.
+        if UI._building and (UI._sectionDepth or 0) == 0 and item.text and item.text ~= "" then
+            local off = math.max(0, -y - 8)
+            UI._sectionY[item.text] = off
+            UI._sectionList[#UI._sectionList + 1] = { title = item.text, y = off }
+        end
     end
 
     local widget, h = createWidget(parent, item)
@@ -1078,6 +1393,8 @@ placeItem = function(parent, item, y)
         local key = (UI._currentBuildKey or "?") .. "/" .. (UI.currentTab or "")
             .. "/r/" .. tostring(item.subKey or item.label or item.text or item)
         local expanded = UI.rowExpanded[key]
+            or (UI.onlyChanged and UI._building and item._vcChangedInside)
+        if UI._building then UI._rowFrames[key] = p end
 
         -- THE ICON STRIP IS ALWAYS RESERVED, AND EACH ICON HAS A FIXED SLOT.
         --
@@ -1126,6 +1443,10 @@ placeItem = function(parent, item, y)
         local wh = widget:GetHeight() or h
         widget:SetPoint("TOPLEFT", parent, "TOPLEFT",
             CONTENT_PADDING + 10, y - math.floor((h - wh) / 2))
+        -- Two pixels left of the card edge: the talent-override bar sits at
+        -- widget-left minus 6 (card x 18-20), and a dot centred on the edge
+        -- reached x 20. Centred at 12 it ends at 18 and the two never meet.
+        placeChangedDot(parent, item, widget, CONTENT_PADDING - 2, y - h / 2, base + 6)
 
         y = y - h - CARD_GAP
         if expanded and item.subOptions then
@@ -1193,6 +1514,9 @@ local function joinsRun(it)
 end
 
 placeItemList = function(parent, items, y)
+    -- Only while a page is being built: a row popup lays its rows out through
+    -- this same function, and its rows are not the page's to filter.
+    if UI.onlyChanged and UI._building then items = filterChanged(items) end
     local i = 1
     while i <= #items do
         local it = items[i]
@@ -1440,6 +1764,7 @@ function UI:PlaceGroup(parent, group, y)
             -- while the slot rows below them had theirs (user report,
             -- 02.08.2026). Every path that places a widget places its icons.
             placeInlineIcons(parent, p.item, p.widget, base + 5)
+            placeChangedDot(parent, p.item, p.widget, cursorX - 6, yo - p.wh / 2, base + 6, true)
             cursorX = cursorX + p.w + gap
         end
         if panel then panel:SetSize(availW, cardH) end
@@ -1487,6 +1812,7 @@ function UI:PlaceGroup(parent, group, y)
                     local yo = curY - (panel and 4 or 0)
                     widget:SetPoint("TOPLEFT", parent, "TOPLEFT", xo, yo)
                     placeInlineIcons(parent, ri, widget, base + 5)
+                    placeChangedDot(parent, ri, widget, xo - 6, yo - (widget:GetHeight() or 22) / 2, base + 6, true)
                 end
             end
             curY = curY - rowMaxH
@@ -1550,6 +1876,377 @@ function UI:ScrollToSection(title)
     f.scroll:SetVerticalScroll(math.min(off, maxOff))
 end
 
+-- ---------------------------------------------------------------------------
+-- Reveal a row: open its page, unfold what hides it, scroll to it, light it up.
+-- Used by the settings search and by the "recently changed" list. The target
+-- carries what those two know: { mod, tab, label | subKey, parents = { gear
+-- row labels above it }, sectionKey (collapsible section holding it),
+-- sectionClosed, section (title, the fallback when the row is not found) }.
+-- ---------------------------------------------------------------------------
+local flashFrame
+local function flashRow(p)
+    local fl = flashFrame
+    if not fl then
+        fl = CreateFrame("Frame", nil, UIParent)
+        fl:EnableMouse(false)
+        local fill = fl:CreateTexture(nil, "ARTWORK")
+        fill:SetAllPoints(fl)
+        fl._fill = fill
+        fl._edges = {}
+        for i, s in ipairs({ "TOP", "BOTTOM", "LEFT", "RIGHT" }) do
+            local t = fl:CreateTexture(nil, "OVERLAY")
+            if s == "TOP" or s == "BOTTOM" then
+                t:SetPoint(s .. "LEFT"); t:SetPoint(s .. "RIGHT"); t:SetHeight(2)
+            else
+                t:SetPoint("TOP" .. s); t:SetPoint("BOTTOM" .. s); t:SetWidth(2)
+            end
+            fl._edges[i] = t
+        end
+        -- Two pulses and a long fade: enough to draw the eye to where the
+        -- page stopped, gone before it becomes decoration.
+        local ag = fl:CreateAnimationGroup()
+        local function step(order, from, to, dur)
+            local a = ag:CreateAnimation("Alpha")
+            a:SetFromAlpha(from); a:SetToAlpha(to); a:SetDuration(dur); a:SetOrder(order)
+        end
+        step(1, 0, 1, 0.12); step(2, 1, 0.25, 0.30); step(3, 0.25, 1, 0.12); step(4, 1, 0, 1.2)
+        ag:SetScript("OnFinished", function() fl:Hide() end)
+        fl._anim = ag
+        flashFrame = fl
+    end
+    if fl._anim:IsPlaying() then fl._anim:Stop() end
+    local a = ns.COLORS.accent
+    fl._fill:SetColorTexture(a.r, a.g, a.b, 0.14)
+    for _, t in ipairs(fl._edges) do t:SetColorTexture(a.r, a.g, a.b, 0.9) end
+    -- Inside the scroll child, so the scroll frame clips it like the row.
+    fl:SetParent(p:GetParent())
+    fl:SetFrameLevel((p:GetFrameLevel() or 1) + 8)
+    fl:ClearAllPoints()
+    fl:SetPoint("TOPLEFT",     p, "TOPLEFT",     -3,  3)
+    fl:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT",  3, -3)
+    fl:SetAlpha(0)
+    fl:Show()
+    fl._anim:Play()
+end
+
+function UI:RevealRow(t)
+    if type(t) ~= "table" or not t.mod or not ns.modules[t.mod] then return end
+    local f = UI:CreateMainFrame()
+    if not f:IsShown() then UI:ToggleMainFrame() end
+    UI:ShowModulePage(t.mod)
+    if t.tab and t.tab ~= "default" and UI.currentTab ~= t.tab then
+        -- Only a tab the page really has: a stale record would otherwise
+        -- build an empty page under a tab that no longer exists.
+        local m = ns.modules[UI.currentModule]
+        if m and m.tabs then
+            for _, tb in ipairs(m.tabs) do
+                if tb.id == t.tab then UI:ShowTab(t.tab); break end
+            end
+        end
+    end
+    local prefix = (UI._currentBuildKey or "?") .. "/" .. (UI.currentTab or "")
+    local rk = prefix .. "/r/" .. tostring(t.subKey or t.label)
+    local rebuild = false
+    if t.parents then
+        for _, pl in ipairs(t.parents) do
+            local k = prefix .. "/r/" .. tostring(pl)
+            if not UI.rowExpanded[k] then UI.rowExpanded[k] = true; rebuild = true end
+        end
+    end
+    if t.sectionKey then
+        local k = prefix .. "/s/" .. tostring(t.sectionKey)
+        if UI.sectionOpen[k] == false or (UI.sectionOpen[k] == nil and t.sectionClosed) then
+            UI.sectionOpen[k] = true; rebuild = true
+        end
+    end
+    -- The changed-only filter must not hide the very row that was asked for.
+    if UI.onlyChanged and not UI._rowFrames[rk] then
+        UI.onlyChanged = false; rebuild = true
+    end
+    if rebuild then UI:BuildOptionsPage(UI._currentBuildKey, UI.currentTab) end
+    local buildKey, buildTab = UI._currentBuildKey, UI.currentTab
+    -- Next frame: the rows were anchored this frame and measure against a
+    -- scroll child whose height was set a moment ago.
+    ns.NextFrame(function()
+        if not (f:IsShown() and UI._currentBuildKey == buildKey and UI.currentTab == buildTab) then return end
+        local p = UI._rowFrames[rk]
+        local top, ctop = p and p:GetTop(), f.scrollChild:GetTop()
+        if p and p:IsShown() and top and ctop then
+            local maxOff = math.max(0, (f.scrollChild:GetHeight() or 0) - (f.scroll:GetHeight() or 0))
+            f.scroll:SetVerticalScroll(math.max(0, math.min(ctop - top - 40, maxOff)))
+            flashRow(p)
+        elseif t.section then
+            UI:ScrollToSection(t.section)
+        end
+        if UI.UpdateNavActive then UI:UpdateNavActive() end
+    end)
+end
+
+-- ---------------------------------------------------------------------------
+-- Recently changed: every setter on the page reports into an account-wide
+-- ring, newest first, so the overview can list what was touched last and jump
+-- back to it. Sliders report on every drag step; the ring dedupes by row, so
+-- one row is one entry however long the drag was.
+-- ---------------------------------------------------------------------------
+local RECENT_CHANGES_MAX = 12
+local function noteChange(rec)
+    local g = ns.db and ns.db.global
+    if not g then return end
+    local list = g.recentChanges
+    if type(list) ~= "table" then list = {}; g.recentChanges = list end
+    for i = #list, 1, -1 do
+        local e = list[i]
+        if type(e) == "table" and e.mod == rec.mod and e.tab == rec.tab
+           and e.label == rec.label and e.subKey == rec.subKey then
+            table.remove(list, i)
+        end
+    end
+    table.insert(list, 1, rec)
+    for i = #list, RECENT_CHANGES_MAX + 1, -1 do table.remove(list, i) end
+end
+
+local function wrapRecent(items, modKey, tabId, skip)
+    if skip then return end
+    local function wrap(list, section, parents)
+        for _, it in ipairs(list) do
+            if type(it) == "table" then
+                if it.type == "section" then
+                    wrap(it.items or {}, it.title, parents)
+                else
+                    if it.items then wrap(it.items, section, parents) end
+                    if it.subOptions then
+                        local chain = {}
+                        for i, v in ipairs(parents) do chain[i] = v end
+                        chain[#chain + 1] = it.subKey or it.label
+                        wrap(it.subOptions, section, chain)
+                    end
+                    if COMPACT[it.type] and type(it.set) == "function" and it.label
+                       and not it._vcRecentWrapped then
+                        it._vcRecentWrapped = true
+                        local setter = it.set
+                        -- Stored by ENGLISH key, never by the translated text
+                        -- (the house rule in Core/Locale.lua): the overview
+                        -- translates on display, and a language switch keeps
+                        -- every entry readable and reachable.
+                        local ek = ns.EnglishKey and function(s) return ns:EnglishKey(s) end
+                            or function(s) return s end
+                        local label, subKey = ek(it.label), it.subKey
+                        local chain
+                        if #parents > 0 then
+                            chain = {}
+                            for i, v in ipairs(parents) do chain[i] = ek(v) end
+                        end
+                        local sectionKey = section and ek(section) or nil
+                        it.set = function(...)
+                            setter(...)
+                            noteChange({ mod = modKey, tab = tabId, label = label, subKey = subKey,
+                                section = sectionKey, parents = chain, t = time() })
+                        end
+                    end
+                end
+            end
+        end
+    end
+    wrap(items, nil, {})
+end
+
+-- ---------------------------------------------------------------------------
+-- The strip above the page: one chip per heading (click scrolls there, the
+-- heading under the top edge is lit), and at the right the changed-only
+-- filter with its count. Shown only when it has something to say -- two or
+-- more headings, or a row that differs from its default.
+-- ---------------------------------------------------------------------------
+local NAV_CHIP_H, NAV_GAP = 20, 6
+local navChips = {}
+
+local function stripCodes(s)
+    s = tostring(s or "")
+    s = s:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+    return s
+end
+
+local function styleChip(c, active, strong)
+    if not c.SetBackdropColor then return end
+    local a, b = ns.COLORS.accent, ns.COLORS.border
+    if active then
+        c:SetBackdropColor(a.r, a.g, a.b, strong and 0.32 or 0.18)
+        c:SetBackdropBorderColor(a.r, a.g, a.b, 0.9)
+        c.text:SetTextColor(1, 1, 1)
+    else
+        c:SetBackdropColor(0.12, 0.12, 0.15, 0.95)
+        c:SetBackdropBorderColor(b.r, b.g, b.b, 0.6)
+        c.text:SetTextColor(0.82, 0.82, 0.88)
+    end
+end
+
+local function navChip(host, i)
+    local c = navChips[i]
+    if c then c:SetParent(host); return c end
+    c = CreateFrame("Button", nil, host, BackdropTemplateMixin and "BackdropTemplate")
+    c:SetHeight(NAV_CHIP_H)
+    if c.SetBackdrop then
+        c:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8",
+                        edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
+    end
+    local hl = c:CreateTexture(nil, "HIGHLIGHT")
+    hl:SetAllPoints(c)
+    hl:SetColorTexture(1, 1, 1, 0.05)
+    c.text = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    UI.Font(c.text, 11)
+    c.text:SetPoint("CENTER", c, "CENTER", 0, 0)
+    c:SetScript("OnClick", function(self) if self._onClick then self._onClick() end end)
+    c:SetScript("OnEnter", function(self)
+        if self._tip then UI:ShowTooltip(self, { title = self._tip, wrap = true }) end
+    end)
+    c:SetScript("OnLeave", function() UI:HideTooltip() end)
+    navChips[i] = c
+    return c
+end
+
+local function ensurePageNav(f)
+    if f.pageNav then return f.pageNav end
+    local nav = CreateFrame("Frame", nil, f.content)
+    nav:Hide()
+    f.pageNav = nav
+    f.scroll:HookScript("OnVerticalScroll", function() UI:UpdateNavActive() end)
+    return nav
+end
+
+function UI:UpdateNavActive()
+    local f = UI.mainFrame
+    local chips = UI._navSectionChips
+    if not (f and f.pageNav and f.pageNav:IsShown() and chips and #chips > 0) then return end
+    local off = f.scroll:GetVerticalScroll() or 0
+    local active = 1
+    for i, c in ipairs(chips) do
+        if c._section and c._section.y <= off + 12 then active = i end
+    end
+    -- At the very bottom the last heading is what the reader is looking at,
+    -- whether or not it ever reached the top edge.
+    local maxOff = (f.scrollChild:GetHeight() or 0) - (f.scroll:GetHeight() or 0)
+    if maxOff > 0 and off >= maxOff - 1 then active = #chips end
+    for i, c in ipairs(chips) do styleChip(c, i == active) end
+end
+
+local function layoutPageNav(f, changedN)
+    local nav = ensurePageNav(f)
+    for _, c in ipairs(navChips) do c:Hide() end
+    UI._navSectionChips = nil
+    local sections = UI._sectionList or {}
+    local showFilter = changedN > 0 or UI.onlyChanged
+    if #sections < 2 and not showFilter then nav:Hide(); return 0 end
+
+    local width = (f.content:GetWidth() or 0) - 56
+    if width < 200 then width = 600 end
+    local n, filterW = 0, 0
+
+    if showFilter then
+        n = n + 1
+        local c = navChip(nav, n)
+        c.text:SetText(string.format("%s  %d", L["Changed"], changedN))
+        c:SetWidth((c.text:GetStringWidth() or 40) + 20)
+        c._section = nil
+        c._tip = L["Show only settings that differ from their defaults"]
+        c._onClick = function()
+            UI.onlyChanged = not UI.onlyChanged
+            UI:BuildOptionsPage(UI._currentBuildKey, UI.currentTab)
+        end
+        styleChip(c, UI.onlyChanged, true)
+        c:ClearAllPoints()
+        c:SetPoint("TOPRIGHT", nav, "TOPRIGHT", 0, 0)
+        c:Show()
+        filterW = (c:GetWidth() or 60) + 12
+    end
+
+    local x, row, chips = 0, 0, {}
+    if #sections >= 2 then
+        for _, s in ipairs(sections) do
+            n = n + 1
+            local c = navChip(nav, n)
+            c.text:SetText(stripCodes(s.title))
+            local w = (c.text:GetStringWidth() or 40) + 18
+            c:SetWidth(w)
+            local limit = width - (row == 0 and filterW or 0)
+            if x > 0 and x + w > limit then x = 0; row = row + 1 end
+            c:ClearAllPoints()
+            c:SetPoint("TOPLEFT", nav, "TOPLEFT", x, -row * (NAV_CHIP_H + NAV_GAP))
+            c._section = s
+            c._tip = nil
+            local title = s.title
+            c._onClick = function() UI:ScrollToSection(title); UI:UpdateNavActive() end
+            styleChip(c, false)
+            c:Show()
+            chips[#chips + 1] = c
+            x = x + w + NAV_GAP
+        end
+    end
+    UI._navSectionChips = chips
+    local h = (row + 1) * (NAV_CHIP_H + NAV_GAP) - NAV_GAP
+    nav:SetHeight(h)
+    nav:Show()
+    return h
+end
+
+-- The content column from the top down: nav strip, pinned page header, scroll
+-- area -- each one anchored under whichever of the two above it is shown.
+-- The nav is inset to the rows' own left edge (scroll inset + CONTENT_PADDING)
+-- so its chips line up with the cards below.
+local function layoutTop(f, navH, hh)
+    local nav, header, scroll = f.pageNav, f.pageHeader, f.scroll
+    local top = f.content
+    if nav then
+        if navH > 0 then
+            nav:ClearAllPoints()
+            nav:SetPoint("TOPLEFT",  f.content, "TOPLEFT",  8 + CONTENT_PADDING, -10)
+            nav:SetPoint("TOPRIGHT", f.content, "TOPRIGHT", -20 - CONTENT_PADDING, -10)
+            nav:SetHeight(navH)
+            nav:Show()
+            top = nav
+        else
+            nav:Hide()
+        end
+    end
+    if header then
+        if hh > 0 then
+            header:ClearAllPoints()
+            if top == f.content then
+                header:SetPoint("TOPLEFT",  f.content, "TOPLEFT",  8, -8)
+                header:SetPoint("TOPRIGHT", f.content, "TOPRIGHT", -20, -8)
+            else
+                header:SetPoint("TOPLEFT",  top, "BOTTOMLEFT",  -CONTENT_PADDING, -8)
+                header:SetPoint("TOPRIGHT", top, "BOTTOMRIGHT", CONTENT_PADDING, -8)
+            end
+            header:SetHeight(hh)
+            header:Show()
+            scroll:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, -6)
+            return
+        end
+        header:Hide()
+    end
+    if top == f.content then
+        scroll:SetPoint("TOPLEFT", f.content, "TOPLEFT", 8, -8)
+    else
+        scroll:SetPoint("TOPLEFT", top, "BOTTOMLEFT", -CONTENT_PADDING, -8)
+    end
+end
+
+-- "Group › Module › Tab" for the title bar. The group is left out where the
+-- sidebar never shows it as a heading.
+local function crumbText(mod, tabId)
+    local parts = {}
+    local g = mod.group
+    if g and not (UI.sidebarHiddenGroups and UI.sidebarHiddenGroups[g]) then
+        parts[#parts + 1] = L[g]
+    end
+    parts[#parts + 1] = L[mod.name]
+    if mod.tabs and #mod.tabs > 1 then
+        for _, t in ipairs(mod.tabs) do
+            if t.id == tabId then parts[#parts + 1] = L[t.label]; break end
+        end
+    end
+    return table.concat(parts, "  \226\128\186  ")
+end
+
 -- Rebuild whatever page is open, without knowing which one that is. Used when
 -- something outside the page changes how it must be drawn -- entering or leaving
 -- the talent-override editing mode, for one.
@@ -1581,11 +2278,15 @@ function UI:BuildOptionsPage(key, tabId)
     UI._currentBuildKey = key
     -- Section positions of THIS build, for ScrollToSection below.
     UI._sectionY = {}
+    UI._sectionList = {}
+    UI._rowFrames   = {}
+    if UI.SetCrumb then UI:SetCrumb(crumbText(mod, tabId)) end
 
     -- Pinned page header: a module that defines BuildPageHeader(host) gets the
     -- strip above the scroll area, visible at every scroll position. For every
     -- other module the header hides and the scroll takes its old top anchor.
     local header = f.pageHeader
+    local hh = 0
     if header then
         -- More than one module pins a frame into this ONE shared host now
         -- (cooldown manager strip, action-bar picker + preview). Each child
@@ -1593,7 +2294,6 @@ function UI:BuildOptionsPage(key, tabId)
         -- module's builder shows its own again -- without this, switching
         -- pages stacked one module's header over the other's.
         for _, child in ipairs({ header:GetChildren() }) do child:Hide() end
-        local hh = 0
         if mod.BuildPageHeader then
             -- tabId rides along: a header may only belong to SOME tabs (the
             -- cooldown manager's preview has no business over the power bar)
@@ -1601,14 +2301,7 @@ function UI:BuildOptionsPage(key, tabId)
             if ok then hh = tonumber(res) or 0
             else ns:Print(L["|cffff5555Options page '%s' failed to build:|r %s"], tostring(mod.key or mod.name), tostring(res)) end
         end
-        if hh > 0 then
-            header:SetHeight(hh)
-            header:Show()
-            f.scroll:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, -6)
-        else
-            header:Hide()
-            f.scroll:SetPoint("TOPLEFT", f.content, "TOPLEFT", 8, -8)
-        end
+        -- Anchored below, in layoutTop, once the nav strip's height is known.
     end
 
     local y = -8
@@ -1699,6 +2392,13 @@ function UI:BuildOptionsPage(key, tabId)
         wrap(items)
     end
 
+    -- Which rows differ from their defaults, and the change log every setter
+    -- reports into. Neither on the profile page: which profile is active is
+    -- not a setting with a default, and the switch that records overrides
+    -- must not be listed as a change of the profile.
+    local changedN = markChanged(items, isProfilePage)
+    wrapRecent(items, key, tabId, isProfilePage)
+
     -- Grid pages decide their column count and their label column ONCE, here,
     -- so every row on the page lines up with every other. Cleared afterwards:
     -- other callers of the placement helpers (the edit-mode toolbar) must not
@@ -1731,10 +2431,28 @@ function UI:BuildOptionsPage(key, tabId)
     -- to do with the grid opt-in.
     UI._soloCol = soloLabelColumn(items, availW)
 
-    y = placeItemList(parent, items, y)
+    UI._building = true
+    UI._sectionDepth = 0
+    local okPlace, res = pcall(placeItemList, parent, items, y)
+    UI._building = false
     UI._grid = nil
     UI._soloCol = nil
+    if okPlace then
+        y = res
+    else
+        ns:Print(L["|cffff5555Options page '%s' failed to build:|r %s"], tostring(mod.key or mod.name), tostring(res))
+    end
+
+    if UI.onlyChanged and changedN == 0 then
+        local note = createWidget(parent, { type = "desc",
+            text = L["Nothing on this page differs from its defaults."], width = availW })
+        note:SetPoint("TOPLEFT", parent, "TOPLEFT", CONTENT_PADDING, y - 4)
+        y = y - math.max(24, note:GetDescHeight() + 10)
+    end
 
     local totalHeight = math.max(400, math.abs(y) + 20)
     parent:SetHeight(totalHeight)
+
+    layoutTop(f, layoutPageNav(f, changedN), hh)
+    UI:UpdateNavActive()
 end

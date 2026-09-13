@@ -481,9 +481,22 @@ end
 -- Without one it is a plain heading: no glyph, no hover, not even a mouse
 -- target, because a heading that lights up under the cursor promises a click
 -- that does nothing.
-local function collapsibleSetup(b, title, expanded, onClick)
+local function collapsibleSetup(b, title, expanded, onClick, count)
     b._label:SetText(string.upper(title or ""))
     b._label:SetTextColor(0.92, 0.90, 0.96)
+
+    -- How many settings the heading groups, in the muted tone beside it. A
+    -- pooled header carries the last page's number otherwise, so it is set on
+    -- every setup -- to nothing when the caller has no count.
+    if b._count then
+        if count and count > 0 then
+            b._count:SetText(tostring(count))
+            b._count:Show()
+        else
+            b._count:SetText("")
+            b._count:Hide()
+        end
+    end
 
     b._vcOnClick = onClick
     b:EnableMouse(onClick ~= nil)
@@ -511,7 +524,7 @@ local function collapsibleSetup(b, title, expanded, onClick)
     end
 end
 
-function UI:CreateCollapsibleHeader(parent, text, expanded, onClick)
+function UI:CreateCollapsibleHeader(parent, text, expanded, onClick, count)
     local b = CreateFrame("Button", nil, parent)
     b:SetSize(480, 24)
 
@@ -530,6 +543,13 @@ function UI:CreateCollapsibleHeader(parent, text, expanded, onClick)
     UI.Font(fs, 13)
     b._label = fs
 
+    local cnt = b:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    cnt:SetPoint("BOTTOMLEFT", fs, "BOTTOMRIGHT", 8, 1)
+    UI.Font(cnt, 11)
+    cnt:SetTextColor(ns.COLORS.textMuted.r, ns.COLORS.textMuted.g, ns.COLORS.textMuted.b)
+    cnt:Hide()
+    b._count = cnt
+
     local line = b:CreateTexture(nil, "ARTWORK")
     line:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 0, 0)
     line:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -10, 0)
@@ -544,7 +564,7 @@ function UI:CreateCollapsibleHeader(parent, text, expanded, onClick)
 
     b._vcType  = "collapsible"
     b._vcSetup = collapsibleSetup
-    collapsibleSetup(b, text, expanded, onClick)
+    collapsibleSetup(b, text, expanded, onClick, count)
     return b
 end
 
