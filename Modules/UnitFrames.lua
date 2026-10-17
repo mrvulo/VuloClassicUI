@@ -464,12 +464,19 @@ local function applyRealHealth(bar)
         hpTexts[bar] = t
     end
     local left, right, ts = t[1], t[2], t[3]
-    -- Only rewrite the text Blizzard's updater left visible: which regions
-    -- show is the player's status-text setting, not ours to override.
-    if left and right and left:IsShown() and right:IsShown() then
-        left:SetText(pct .. "%")
-        right:SetText(abbrev(cur))
-    elseif ts and ts:IsShown() then
+    -- Nothing visible means the status-text setting hides it (None, or only on
+    -- mouseover): leave it hidden. Otherwise the split layout, percent left and
+    -- value right, like the mana bar under it -- the game itself falls back to
+    -- the single centred string for units whose health it only knows in
+    -- percent, which put the health text off-line with the mana text.
+    if not ((left and left:IsShown()) or (right and right:IsShown()) or (ts and ts:IsShown())) then
+        return
+    end
+    if left and right then
+        left:SetText(pct .. "%");   left:Show()
+        right:SetText(abbrev(cur)); right:Show()
+        if ts then ts:SetText("") end
+    elseif ts then
         ts:SetText(pct .. "%  " .. abbrev(cur))
     end
 end
