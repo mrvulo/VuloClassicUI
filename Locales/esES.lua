@@ -3631,6 +3631,7 @@ local function T() return {
     ["The charges line in the small tooltips and the engineering check no longer depend on the English client."] = "La línea de cargas en las descripciones emergentes pequeñas y la comprobación de ingeniería ya no dependen del cliente en inglés.",
     ["The addon no longer stores its own data on the game's frames, one of the ways its code could get blamed for blocked actions."] = "El addon ya no guarda sus propios datos en los marcos del juego, una de las vías por las que se podía culpar a su código de acciones bloqueadas.",
     ["The health text on the target frame follows the game's status text setting again."] = "El texto de salud del marco de objetivo vuelve a seguir el ajuste de texto de estado del juego.",
+    ["Since 1.62.1 the health text on the target frame stood in one centred line while the mana text below it was split. Percent sits on the left and the value on the right again, in line with the mana bar."] = "Desde la 1.62.1, el texto de salud del marco de objetivo aparecía en una sola línea centrada, mientras que el texto de maná de debajo estaba dividido. El porcentaje vuelve a ir a la izquierda y el valor a la derecha, alineados con la barra de maná.",
 } end
 
 ns:RegisterLocale("esES", T)

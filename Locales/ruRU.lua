@@ -3630,4 +3630,5 @@ ns:RegisterLocale("ruRU", function() return {
     ["The charges line in the small tooltips and the engineering check no longer depend on the English client."] = "Строка зарядов в маленьких подсказках и проверка инженерного дела больше не зависят от английского клиента.",
     ["The addon no longer stores its own data on the game's frames, one of the ways its code could get blamed for blocked actions."] = "Аддон больше не хранит собственные данные на рамках игры — это был один из путей, по которым его код могли обвинить в заблокированных действиях.",
     ["The health text on the target frame follows the game's status text setting again."] = "Текст здоровья на рамке цели снова следует настройке текста состояния в игре.",
+    ["Since 1.62.1 the health text on the target frame stood in one centred line while the mana text below it was split. Percent sits on the left and the value on the right again, in line with the mana bar."] = "Начиная с 1.62.1 текст здоровья на рамке цели стоял одной строкой по центру, а текст маны под ним был разделён. Проценты снова слева, а значение справа, на одной линии с полосой маны.",
 } end)

@@ -3623,4 +3623,5 @@ ns:RegisterLocale("zhTW", function() return {
     ["The charges line in the small tooltips and the engineering check no longer depend on the English client."] = "小型提示資訊中的充能行與工程學檢查不再依賴英文客戶端。",
     ["The addon no longer stores its own data on the game's frames, one of the ways its code could get blamed for blocked actions."] = "插件不再把自己的資料存放在遊戲的框體上，這是它的程式碼可能因動作被封鎖而遭到歸咎的途徑之一。",
     ["The health text on the target frame follows the game's status text setting again."] = "目標框體上的生命值文字再次遵循遊戲的狀態文字設定。",
+    ["Since 1.62.1 the health text on the target frame stood in one centred line while the mana text below it was split. Percent sits on the left and the value on the right again, in line with the mana bar."] = "自 1.62.1 起，目標框體上的生命值文字顯示為置中的一行，而下方的法力值文字是左右分開的。現在百分比重新顯示在左側、數值在右側，與法力條對齊。",
 } end)
