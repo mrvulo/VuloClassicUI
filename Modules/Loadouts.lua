@@ -46,6 +46,8 @@ local GetContainerItemLink  = (C_Container and C_Container.GetContainerItemLink)
 local GetContainerNumSlots  = (C_Container and C_Container.GetContainerNumSlots)  or _G.GetContainerNumSlots
 local GetContainerNumFreeSlots = (C_Container and C_Container.GetContainerNumFreeSlots) or _G.GetContainerNumFreeSlots
 local UseContainerItem      = (C_Container and C_Container.UseContainerItem)      or _G.UseContainerItem
+-- Legacy tuple (Core/Compat.lua shims it on C_Container clients); 3rd return is locked.
+local GetContainerItemInfo  = _G.GetContainerItemInfo
 
 -- Skips shirt (4) and tabard (19).
 local EQUIP_SLOTS = { 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18 }
@@ -113,16 +115,32 @@ local function itemExact(link)
         .. (f[5] or "") .. ":" .. (f[6] or "") .. ":" .. (f[7] or "") .. ":" .. (f[8] or "")
 end
 
+-- nil when the client cannot tell, so callers can treat "unknown" apart from "no".
+local function isSlotLocked(bag, slot)
+    if not GetContainerItemInfo then return nil end
+    local _, _, locked = GetContainerItemInfo(bag, slot)
+    return locked and true or false
+end
+
+-- A slot already used in this equip run, or one still locked by a pending move,
+-- keeps reporting its old item until the server answers; picking it again is
+-- what left the second of two identical weapons/rings/trinkets unequipped.
+local function slotKey(bag, slot) return bag .. ":" .. slot end
+local function slotUnavailable(claimed, bag, slot)
+    return (claimed and claimed[slotKey(bag, slot)]) or isSlotLocked(bag, slot)
+end
+
 -- The exact match wins; a variant match is kept before the id fallback so two
 -- copies can be distinguished without making a changed single copy missing.
-local function findItemInBags(targetItemID, wantVariant, wantExact)
+local function findItemInBags(targetItemID, wantVariant, wantExact, claimed)
     if not GetContainerItemID or not GetContainerNumSlots then return nil end
     local anyBag, anySlot
     local variantBag, variantSlot
     for bag = 0, (NUM_BAG_SLOTS or 4) do
         local slots = GetContainerNumSlots(bag) or 0
         for slot = 1, slots do
-            if GetContainerItemID(bag, slot) == targetItemID then
+            if GetContainerItemID(bag, slot) == targetItemID
+               and not slotUnavailable(claimed, bag, slot) then
                 if not wantVariant and not wantExact then return bag, slot end
                 local l = GetContainerItemLink and GetContainerItemLink(bag, slot)
                 if wantExact and itemExact(l) == wantExact then return bag, slot end
@@ -161,13 +179,14 @@ end
 -- on the EVENT, not on BankFrame:IsShown() -- the bank module hides Blizzard's
 -- window and puts its own up, while the session that makes the containers
 -- readable runs from BANKFRAME_OPENED to BANKFRAME_CLOSED either way.
-local function findItemInBank(targetItemID, wantVariant, wantExact)
+local function findItemInBank(targetItemID, wantVariant, wantExact, claimed)
     if not (_bankOpen and GetContainerItemID and GetContainerNumSlots) then return nil end
     local anyBag, anySlot
     local variantBag, variantSlot
     for _, bag in ipairs(bankBagList()) do
         for slot = 1, (GetContainerNumSlots(bag) or 0) do
-            if GetContainerItemID(bag, slot) == targetItemID then
+            if GetContainerItemID(bag, slot) == targetItemID
+               and not slotUnavailable(claimed, bag, slot) then
                 if not wantVariant and not wantExact then return bag, slot end
                 local l = GetContainerItemLink and GetContainerItemLink(bag, slot)
                 if wantExact and itemExact(l) == wantExact then return bag, slot end
@@ -327,7 +346,9 @@ end
 -- The dedupe key is the item LINK, not a flag: OnTooltipSetItem fires twice per
 -- fill on the older clients, and whichever mechanism gets there second finds the
 -- link already annotated. Cleared on OnTooltipCleared, so the same item is
--- annotated again on the next hover.
+-- annotated again on the next hover. Kept in a weak-keyed side table rather
+-- than as a field on the tooltip frame, which belongs to the client.
+local lastSetLink = setmetatable({}, { __mode = "k" })
 local _tipHooked = false
 local function installSetTooltip()
     if _tipHooked then return end
@@ -351,18 +372,18 @@ local function installSetTooltip()
             if ok then link = l end
         end
         if not link then return end
-        if tip._vcuiSetLink == link then return end
+        if lastSetLink[tip] == link then return end
         local sets = ns.ItemSetMembership(getItemIDFromLink(link))
         if not sets then return end
         -- Only ever set where a line actually went in, so an item in no set does
         -- not block the next fill of the same tooltip.
-        tip._vcuiSetLink = link
+        lastSetLink[tip] = link
         tip:AddLine(string.format(L["Part of set: %s"], sets),
             ns.COLORS.accent.r, ns.COLORS.accent.g, ns.COLORS.accent.b)
         tip:Show()
     end
 
-    local function onCleared(tip) tip._vcuiSetLink = nil end
+    local function onCleared(tip) lastSetLink[tip] = nil end
 
     -- pcall'd per script name: the newer clients dropped OnTooltipSetItem
     -- entirely, and hooking a script a frame does not have is an error, not a
@@ -599,6 +620,8 @@ local function equipLoadout(name)
     -- that actually needs it and shared across the whole run: one snapshot,
     -- each strip consumes one concrete slot from it.
     local empties = nil
+    -- Bag/bank slots already taken from in this run (see slotUnavailable).
+    local claimed = {}
     -- Ascending order so paired slots (11/12, 13/14) resolve predictably.
     local sortedSlots = {}
     for slot in pairs(loadout.slots) do table.insert(sortedSlots, slot) end
@@ -639,10 +662,10 @@ local function equipLoadout(name)
                     -- server really allows that out of a BANK slot is measured now
                     -- rather than assumed: tried in the game on 06.08.2026, it
                     -- equips. No detour over the bags is needed, so none is built.
-                    local bag, bagSlot = findItemInBags(itemID, want, wantExact)
+                    local bag, bagSlot = findItemInBags(itemID, want, wantExact, claimed)
                     local viaBank = false
                     if not bag then
-                        bag, bagSlot = findItemInBank(itemID, want, wantExact)
+                        bag, bagSlot = findItemInBank(itemID, want, wantExact, claimed)
                         viaBank = bag and true or false
                     end
                     local usable = bag and bagSlot
@@ -654,14 +677,20 @@ local function equipLoadout(name)
                         end
                     end
                     if usable then
+                        claimed[slotKey(bag, bagSlot)] = true
                         local ok = ns:EquipBagItemToSlot(bag, bagSlot, slot)
                         -- The fallback is for BAG slots only. On a bank slot
                         -- UseContainerItem does not equip anything -- it MOVES the
                         -- item into the bags -- so counting it as swapped would
                         -- report an equip that never happened and leave the piece
                         -- lying in a bag.
+                        -- pcall returning true says nothing: on a slot it cannot use
+                        -- the call is a silent no-op. A move in flight locks the
+                        -- slot, so only that counts; an unknowable lock keeps the
+                        -- old trust in the call.
                         if not ok and not viaBank and UseContainerItem then
                             ok = pcall(UseContainerItem, bag, bagSlot)
+                                and isSlotLocked(bag, bagSlot) ~= false
                         end
                         if ok then
                             swapped = swapped + 1

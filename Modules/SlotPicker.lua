@@ -337,7 +337,6 @@ showSlotPicker = function(slotID, anchorBtn, compact)
             showSlotPicker(self.slotID, self.anchorBtn, self._compact)
         end)
     end
-    popup.slotID = slotID
 
     -- flyout and click picker share one pooled popup; never hijack a click popup
     if compact and popup:IsShown() and (popup.pinned or not popup._compact) then
@@ -351,6 +350,8 @@ showSlotPicker = function(slotID, anchorBtn, compact)
         return
     end
 
+    -- after the hijack check: a hover elsewhere must not re-target an open popup
+    popup.slotID = slotID
     popup._compact = compact and true or nil
     if compact then
         popup.title:Hide()
@@ -533,6 +534,12 @@ function mod:OnEnable()
     end
 
     hookSlots()
+end
+
+-- The slot hooks stay installed but stand down on _enabled; an open popup does
+-- not, and its bag refill only runs while it is shown.
+function mod:OnDisable()
+    if popup then popup:Hide() end
 end
 
 -- The two options Loadouts embeds on its page as well. Built HERE so adding

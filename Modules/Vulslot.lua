@@ -112,11 +112,56 @@ end
 -- refuse the other hundred, and the load report shows the gap as skipped slots.
 local VALID_ACTION = { spell = true, item = true, macro = true }
 
-local function sanitizeSetup(d)
+-- The longest macro body and name the client stores; longer ones from a string
+-- are cut here rather than half-created by CreateMacro. The name matters twice:
+-- CreateMacro would shorten it on its own, and GetMacroIndexByName(full name)
+-- would then never find it -- so every load of an approved import created one
+-- more copy.
+local MACRO_BODY_MAX = 255
+local MACRO_NAME_MAX = 16
+
+-- Cuts to at most n BYTES without splitting a multi-byte character: when the
+-- byte right after the cut continues a sequence (10xxxxxx), the cut moves back
+-- to the start of that character.
+local function cutBytes(s, n)
+    if #s <= n then return s end
+    while n > 0 do
+        local b = s:byte(n + 1)
+        if not b or b < 0x80 or b >= 0xC0 then break end
+        n = n - 1
+    end
+    return s:sub(1, n)
+end
+
+-- Which binding commands a FOREIGN setup may set. Built-in commands are plain
+-- tokens (ACTIONBUTTON1, MULTIACTIONBAR1BUTTON3, MOVEFORWARD, our own
+-- VULO_ACTIONRING1). The four with an argument -- MACRO <name>, SPELL <name>,
+-- ITEM <name>, CLICK <frame> -- point a key at something the string itself
+-- named, a stranger's macro or any clickable frame, so an import never brings
+-- them. A setup saved on this client keeps all of its bindings.
+local function bindingAllowed(command, foreign)
+    if not foreign then return true end
+    return type(command) == "string" and #command <= 64
+        and command:find("^[%u%d_]+$") ~= nil
+end
+
+-- Text that came from a string and ends up in chat, a dropdown or a dialog:
+-- no UI escapes, no control characters, capped.
+local function cleanText(s, maxLen)
+    s = (type(s) == "string" and s or ""):gsub("|", ""):gsub("%c", "")
+    return cutBytes(s, maxLen)
+end
+
+-- foreign: the setup came out of a string, not out of this client.
+local function sanitizeSetup(d, foreign)
     if type(d) ~= "table" then return nil end
     local out = { actions = {}, macros = {}, bindings = {} }
 
-    if type(d.class) == "string" then out.class = d.class end
+    -- a class token is upper-case letters (WARRIOR, DEATHKNIGHT); anything else
+    -- would be drawn as markup beside the name
+    if type(d.class) == "string" and d.class:match("^%u+$") and #d.class <= 16 then
+        out.class = d.class
+    end
 
     if type(d.actions) == "table" then
         for slot, e in pairs(d.actions) do
@@ -139,10 +184,16 @@ local function sanitizeSetup(d)
                 -- so both shapes are legal here; anything else is dropped and
                 -- restoreMacros falls back to its question mark.
                 local icon = (type(m.icon) == "string" or type(m.icon) == "number") and m.icon or nil
+                local body = type(m.body) == "string" and m.body or ""
+                local name = m.name
+                if foreign then
+                    body = cutBytes(body, MACRO_BODY_MAX)
+                    name = cutBytes(name, MACRO_NAME_MAX)
+                end
                 out.macros[#out.macros + 1] = {
-                    name    = m.name,
+                    name    = name,
                     icon    = icon,
-                    body    = type(m.body) == "string" and m.body or "",
+                    body    = body,
                     perchar = m.perchar and true or false,
                 }
             end
@@ -163,7 +214,7 @@ local function sanitizeSetup(d)
                 -- legitimate is lost by dropping it: snapshotBindings only ever
                 -- stores entries that have a key, so this shape cannot come out
                 -- of a setup saved here.
-                if k1 or k2 then
+                if (k1 or k2) and bindingAllowed(b.command, foreign) then
                     out.bindings[#out.bindings + 1] = {
                         command = b.command,
                         k1 = k1,
@@ -301,6 +352,16 @@ local function restoreBindings(list)
     return n
 end
 
+-- Imports from before the review existed are in the library unfiltered; the
+-- rule is applied again on the way out, not only on the way in.
+local function importedBindings(p)
+    local out = {}
+    for _, b in ipairs(p.bindings or {}) do
+        if bindingAllowed(b.command, true) then out[#out + 1] = b end
+    end
+    return out
+end
+
 local function doLoadProfile(name)
     local p = library()[name]
     if not p then return end
@@ -310,8 +371,9 @@ local function doLoadProfile(name)
     end
 
     local _, class = UnitClass("player")
-    if p.class and p.class ~= class then
-        ns:Print(L["Note: profile '%s' was saved on another class (%s)."], name, p.class)
+    local saved = type(p.class) == "string" and p.class:match("^%u+$")
+    if saved and saved ~= class then
+        ns:Print(L["Note: profile '%s' was saved on another class (%s)."], name, saved)
     end
 
     -- Order matters: macros first so slots can resolve them by name
@@ -324,11 +386,36 @@ local function doLoadProfile(name)
     --
     -- A switch that is off is said out loud too. "Nothing happened" is not an
     -- answer anyone can act on; "you asked me not to" is.
+    --
+    -- An imported setup brings its macros and keys only when the player ticked
+    -- them in the review (reviewImport); that answer is kept on the setup.
     if p.macros and #p.macros > 0 then
         if not mod.db.restoreMacros then
             ns:Print(L["Macros left alone: the switch above is off."])
+        elseif p.imported and not p.applyMacros then
+            -- only worth a line when something would have been CREATED; a
+            -- macro of yours under the same name is kept either way
+            local missing = 0
+            for _, m in ipairs(p.macros) do
+                if (GetMacroIndexByName(m.name) or 0) == 0 then missing = missing + 1 end
+            end
+            if missing > 0 then
+                ns:Print(L["Macros left alone: not ticked when this import was reviewed."])
+            end
         else
-            local done, failed, kept = restoreMacros(p.macros, p.imported)
+            -- An import creates only the macros the review showed: one that
+            -- was yours at review time and deleted since was never shown.
+            local list = p.macros
+            if p.imported then
+                list = {}
+                local ok = type(p.approvedMacros) == "table" and p.approvedMacros or {}
+                for _, m in ipairs(p.macros) do
+                    if ok[m.name] or (GetMacroIndexByName(m.name) or 0) > 0 then
+                        list[#list + 1] = m
+                    end
+                end
+            end
+            local done, failed, kept = restoreMacros(list, p.imported)
             if (failed or 0) > 0 then
                 ns:Print(L["Macros: %d restored, |cffff8800%d failed|r -- the macro list may be full."],
                     done or 0, failed)
@@ -350,8 +437,11 @@ local function doLoadProfile(name)
     if p.bindings and #p.bindings > 0 then
         if not mod.db.restoreBindings then
             ns:Print(L["Key bindings left alone: the switch above is off."])
+        elseif p.imported and not p.applyBindings then
+            ns:Print(L["Key bindings left alone: not ticked when this import was reviewed."])
         else
-            ns:Print(L["Key bindings: %d applied."], restoreBindings(p.bindings) or 0)
+            ns:Print(L["Key bindings: %d applied."], restoreBindings(p.imported
+                and importedBindings(p) or p.bindings) or 0)
         end
     end
 
@@ -394,11 +484,125 @@ ns.OnLocaleReady(function()
     }
 end)
 
+-- The first load of an IMPORTED setup is a review, not the plain question:
+-- the string was written by someone else, and what it will do -- create
+-- macros that run on a button press, put keys on commands -- has to be on
+-- screen before it happens, not counted in chat afterwards. Both parts start
+-- unticked; the answer is stored on the setup, so the review comes once.
+local SCRIPT_SLASH = { "/run", "/script", "/console", "/click", "/dump" }
+local function scriptCommands()
+    local set = {}
+    for _, c in ipairs(SCRIPT_SLASH) do set[c] = true end
+    -- the localized spellings the client registers for the same commands
+    for _, base in ipairs({ "SLASH_SCRIPT", "SLASH_CONSOLE", "SLASH_CLICK", "SLASH_DUMP" }) do
+        for i = 1, 8 do
+            local v = _G[base .. i]
+            if type(v) == "string" then set[v:lower()] = true end
+        end
+    end
+    return set
+end
+
+local function hasScript(body, set)
+    for line in (body .. "\n"):gmatch("([^\n]*)\n") do
+        local cmd = line:match("^%s*(/%S+)")
+        if cmd and set[cmd:lower()] then return true end
+    end
+    return false
+end
+
+-- | doubled: a body or a name is shown as written, never as markup
+local function shown(s)
+    return (tostring(s or ""):gsub("|", "||"))
+end
+
+local function reviewImport(name, p)
+    local newMacros, kept = {}, {}
+    for _, m in ipairs(p.macros or {}) do
+        if (GetMacroIndexByName(m.name) or 0) == 0 then
+            newMacros[#newMacros + 1] = m
+        else
+            kept[#kept + 1] = shown(m.name)
+        end
+    end
+    local binds = importedBindings(p)
+    if #newMacros == 0 and #binds == 0 then return false end
+
+    local scripts = scriptCommands()
+    local lines = {
+        L["Load '%s'? Every button on your bars is overwritten or cleared."]:format(shown(name)),
+        "",
+        L["This setup was imported from a string. Check what it brings before you allow it:"],
+    }
+    if #newMacros > 0 then
+        lines[#lines + 1] = ""
+        lines[#lines + 1] = "|cffffd100" .. L["New macros (%d):"]:format(#newMacros) .. "|r"
+        for _, m in ipairs(newMacros) do
+            lines[#lines + 1] = ""
+            lines[#lines + 1] = "|cffffd100" .. shown(m.name) .. "|r"
+            if hasScript(m.body or "", scripts) then
+                lines[#lines + 1] = "|cffff5555" .. L["Runs script commands: this macro can do anything you can type."] .. "|r"
+            end
+            lines[#lines + 1] = shown(m.body)
+        end
+    end
+    if #kept > 0 then
+        lines[#lines + 1] = ""
+        lines[#lines + 1] = L["Your own macros with these names stay as they are: %s"]:format(table.concat(kept, ", "))
+    end
+    if #binds > 0 then
+        lines[#lines + 1] = ""
+        lines[#lines + 1] = "|cffffd100" .. L["Key bindings (%d), each key is first taken off what it does now:"]:format(#binds) .. "|r"
+        for _, b in ipairs(binds) do
+            local keys = shown(b.k1 or "") .. ((b.k1 and b.k2) and ", " or "") .. shown(b.k2 or "")
+            lines[#lines + 1] = keys .. "  ->  " .. shown(b.command)
+        end
+    end
+
+    local choice = { macros = false, bindings = false }
+    local toggles = {}
+    if #newMacros > 0 then
+        toggles[#toggles + 1] = { label = L["Create these macros"],
+            get = function() return choice.macros end,
+            set = function(_, v) choice.macros = v and true or false end }
+    end
+    if #binds > 0 then
+        toggles[#toggles + 1] = { label = L["Set these key bindings"],
+            get = function() return choice.bindings end,
+            set = function(_, v) choice.bindings = v and true or false end }
+    end
+    ns.UI:ShowReviewDialog({
+        title   = L["Bar Setups"],
+        text    = table.concat(lines, "\n"),
+        accept  = L["Load profile"],
+        toggles = toggles,
+        onAccept = function()
+            -- the same table, not just the same name: the list may have been
+            -- re-imported or deleted while the window stood
+            if library()[name] ~= p then return end
+            p.reviewed      = true
+            p.applyMacros   = choice.macros or nil
+            if choice.macros then
+                p.approvedMacros = {}
+                for _, m in ipairs(newMacros) do p.approvedMacros[m.name] = true end
+            end
+            p.applyBindings = choice.bindings or nil
+            doLoadProfile(name)
+        end,
+    })
+    return true
+end
+
 local function loadProfile(name)
-    if not library()[name] then return end
+    local p = library()[name]
+    if not p then return end
     -- Refused before the question, not after it: a fight is no state to ask in.
     if InCombatLockdown and InCombatLockdown() then
         ns:Print(L["Not in combat — bars can't be changed while fighting."])
+        return
+    end
+    if p.imported and not p.reviewed and ns.UI and ns.UI.ShowReviewDialog
+        and reviewImport(name, p) then
         return
     end
     if not (StaticPopupDialogs and StaticPopupDialogs["VCUI_VULSLOT_LOAD"]
@@ -439,8 +643,11 @@ function mod:GetOptions()
     local values = {}
     for _, n in ipairs(names) do
         local p = library()[n]
-        local suffix = (p and p.class) and (" |cff888888(" .. p.class .. ")|r") or ""
-        values[#values + 1] = { value = n, text = n .. suffix }
+        -- a class from an import made before the check is shown only if it
+        -- is a class token, never as whatever text it carried
+        local cls = p and type(p.class) == "string" and p.class:match("^%u+$")
+        local suffix = cls and (" |cff888888(" .. cls .. ")|r") or ""
+        values[#values + 1] = { value = n, text = shown(n) .. suffix }
     end
 
     local function doSave()
@@ -543,24 +750,28 @@ function mod:GetOptions()
                 if not payload then
                     -- The framework says WHY in one word; the sentence is ours,
                     -- because only we know a bar setup was expected.
+                    if why == "toolarge" then return L["The string is too large to import."] end
                     return (why == "damaged") and L["The bar setup string is damaged."]
                         or L["This is not a bar setup string."]
                 end
                 -- Nothing from the string is stored as it arrived: sanitizeSetup
                 -- rebuilds it entry by entry, so the restore can only ever walk
                 -- shapes it knows.
-                local d = sanitizeSetup(payload.d)
+                local d = sanitizeSetup(payload.d, true)
                 if not d or (not next(d.actions)
                     and #d.macros == 0 and #d.bindings == 0) then
                     return L["The bar setup string is damaged."]
                 end
                 -- Marked as foreign, and it stays marked: restoreMacros reads
-                -- this to leave macros of your own alone. Saving over the setup
+                -- this to leave macros of your own alone, loadProfile to show
+                -- the review before the first load. Saving over the setup
                 -- later builds a fresh table without the flag, which is right --
                 -- from then on it is yours.
                 d.imported = true
-                local name = (type(payload.n) == "string" and payload.n ~= "")
-                    and payload.n or L["Imported"]
+                -- the name is shown in chat, the dropdown and the review:
+                -- whatever markup it carried is gone before it is stored
+                local name = cleanText(payload.n, 48):match("^%s*(.-)%s*$")
+                if name == "" then name = L["Imported"] end
                 -- Never overwrite silently. Someone else's setup arriving under
                 -- a name you already use must not eat yours.
                 local base, n = name, 2

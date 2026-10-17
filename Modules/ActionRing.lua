@@ -212,6 +212,23 @@ local function cycleNext(slot)
     return last % CYCLE_N + 1
 end
 
+-- The entry fields come out of the profile, and a profile can come out of a
+-- string someone else wrote. Everything that is stamped into a secure
+-- attribute is checked for shape first: a spell or item is a number, a macro
+-- a name. The marker index of a raidtarget entry is the strict one -- it is
+-- concatenated into a macrotext, where a string id could carry a second line
+-- ("1\n/run ...") that runs on the key press. Only an integer 0-8 passes;
+-- anything else makes the entry an empty slot.
+local function numId(slot)
+    return type(slot.id) == "number" and slot.id or nil
+end
+
+local function markerIndex(slot)
+    local n = tonumber(slot.id)
+    if n and n >= 0 and n <= 8 and n == math.floor(n) then return n end
+    return nil
+end
+
 -- One entry -> the (type, attribute key, value) triple the snippet stamps onto
 -- the button. A slot that resolves to nothing either has no secure action
 -- type at all (clearmarkers -> fired insecurely from PostClick) or is broken;
@@ -219,18 +236,18 @@ end
 local function resolveAction(slot)
     if not slot or not slot.kind then return nil end
     local kind = slot.kind
-    if kind == "spell" and slot.id then
+    if kind == "spell" and numId(slot) then
         -- By ID: casts exactly the rank that was picked, which matters here.
         return "spell", "spell", slot.id
-    elseif kind == "item" and slot.id then
+    elseif kind == "item" and numId(slot) then
         return "item", "item", "item:" .. slot.id
-    elseif kind == "macro" and slot.name then
+    elseif kind == "macro" and type(slot.name) == "string" then
         return "macro", "macro", slot.name
-    elseif kind == "macrotext" and slot.text and slot.text ~= "" then
+    elseif kind == "macrotext" and type(slot.text) == "string" and slot.text ~= "" then
         return "macro", "macrotext", slot.text
-    elseif kind == "raidtarget" and slot.id then
+    elseif kind == "raidtarget" and markerIndex(slot) then
         -- One attribute per entry: the slash command carries the marker index.
-        return "macro", "macrotext", "/tm " .. slot.id
+        return "macro", "macrotext", "/tm " .. markerIndex(slot)
     elseif kind == "cycleraidtarget" then
         -- The base value is the fallback; the real step list is pushed as
         -- vrCycV attributes and the snippet advances the position itself.
@@ -255,14 +272,14 @@ local RAID_ICON = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_%d"
 local function slotDisplay(slot)
     if not slot or not slot.kind then return nil, nil end
     local kind = slot.kind
-    if kind == "spell" and slot.id then
+    if kind == "spell" and numId(slot) then
         local name = GetSpellInfo(slot.id)
         return GetSpellTexture(slot.id), name or (slot.name or ("#" .. slot.id))
-    elseif kind == "item" and slot.id then
+    elseif kind == "item" and numId(slot) then
         local icon = select(5, GetItemInfoInstant(slot.id))
         local name = GetItemInfo(slot.id)
         return icon, name or (slot.name or ("#" .. slot.id))
-    elseif kind == "macro" and slot.name then
+    elseif kind == "macro" and type(slot.name) == "string" then
         local idx = GetMacroIndexByName(slot.name) or 0
         if idx > 0 then
             local name, icon = GetMacroInfo(idx)
@@ -271,11 +288,12 @@ local function slotDisplay(slot)
         return 134400, slot.name   -- question mark: macro was deleted
     elseif kind == "macrotext" then
         return slot.icon or 134400, slot.name or L["Custom command"]
-    elseif kind == "raidtarget" and slot.id then
-        if slot.id == 0 then
+    elseif kind == "raidtarget" and markerIndex(slot) then
+        local n = markerIndex(slot)
+        if n == 0 then
             return "Interface\\Buttons\\UI-GroupLoot-Pass-Up", L["Remove marker"]
         end
-        return RAID_ICON:format(slot.id), _G["RAID_TARGET_" .. slot.id] or L["Raid marker"]
+        return RAID_ICON:format(n), _G["RAID_TARGET_" .. n] or L["Raid marker"]
     elseif kind == "cycleraidtarget" then
         -- Drawn as the marker the NEXT press will place.
         return RAID_ICON:format(cycleNext(slot)), L["Cycle raid markers"]
@@ -287,11 +305,11 @@ end
 
 local function slotCooldown(slot)
     if not slot then return end
-    if slot.kind == "spell" and slot.id then
+    if slot.kind == "spell" and numId(slot) then
         return GetSpellCooldown(slot.id)
-    elseif slot.kind == "item" and slot.id and GetItemCooldownFn then
+    elseif slot.kind == "item" and numId(slot) and GetItemCooldownFn then
         return GetItemCooldownFn(slot.id)
-    elseif slot.kind == "macro" and slot.name then
+    elseif slot.kind == "macro" and type(slot.name) == "string" then
         local idx = GetMacroIndexByName(slot.name) or 0
         local spell = idx > 0 and GetMacroSpell and GetMacroSpell(idx)
         if spell then return GetSpellCooldown(spell) end
@@ -300,17 +318,17 @@ end
 
 local function slotUsable(slot)
     if not slot then return true end
-    if slot.kind == "spell" and slot.id then
+    if slot.kind == "spell" and numId(slot) then
         local usable, noMana = IsUsableSpell(slot.id)
         return usable or noMana
-    elseif slot.kind == "item" and slot.id then
+    elseif slot.kind == "item" and numId(slot) then
         return (GetItemCount(slot.id) or 0) > 0
     end
     return true
 end
 
 local function slotCount(slot)
-    if slot and slot.kind == "item" and slot.id then
+    if slot and slot.kind == "item" and numId(slot) then
         local c = GetItemCount(slot.id) or 0
         if c > 1 then return c end
     end
@@ -320,7 +338,7 @@ end
 -- against one character's own kit are tested; items and markers stay.
 local function slotKnown(slot)
     local k = slot and slot.kind
-    if k == "spell" and slot.id then
+    if k == "spell" and numId(slot) then
         -- Fail OPEN: with no API to ask, hiding would take entries away on
         -- the strength of nothing.
         if not (IsPlayerSpell or IsSpellKnown) then return true end
@@ -1436,7 +1454,12 @@ local requestPush   -- forward
 local pushDirty = false
 local function flushPendingPush()
     if not pushDirty then return end
-    if InCombatLockdown() then return end   -- RunOutOfCombatOnce below re-runs this
+    -- Keep the flag and queue the regen: combat can start inside the coalescer's
+    -- 0.05 s timer, and requestPush returns early while the flag stands.
+    if InCombatLockdown() then
+        ns:RunOutOfCombatOnce("actionring-push", flushPendingPush)
+        return
+    end
     pushDirty = false
     -- Wiped ONLY when a push actually lands: the memo is what keeps the drawn
     -- ring and the pushed secure attributes reading the SAME list even when
@@ -1815,7 +1838,7 @@ function mod:OnEnable()
     self:RegisterEvent("UPDATE_MACROS", function() requestPush() end)
     mod.UpdateBindings()
     pushDirty = true
-    if not InCombatLockdown() then flushPendingPush() end
+    flushPendingPush()   -- in combat it queues itself for the regen
 end
 
 function mod:OnDisable()
