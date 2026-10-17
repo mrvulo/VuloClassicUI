@@ -3226,7 +3226,7 @@ local function T() return {
     -- Patch notes 1.57.1
     ["The form-paging section shows up in Standard mode too. The switch itself already reached the standard main bar; the row that flips it was only drawn in Modern mode, so nobody running the standard bars could find it."] = "La sección contra el cambio de página por formas aparece ahora también en el modo estándar. El interruptor ya alcanzaba la barra principal estándar; su fila solo se dibujaba en el modo moderno, así que nadie con barras estándar podía encontrarla.",
     ["Seven hot paths allocate less memory: unit-frame health text, nameplate number formatting and health smoothing, cooldown-manager scan keys, combat-text throttling, bag refreshes, the arena bar-text hook and the reminder pass all reuse what they used to rebuild, so the garbage collector has less to clean up in combat."] = "Siete rutas calientes reservan menos memoria: el texto de salud de los marcos de unidad, el formato de números y el suavizado de salud de las placas, las claves de exploración del gestor de reutilización, el limitador del texto de combate, el refresco de bolsas, el texto de barras de arena y la pasada de recordatorios reutilizan lo que antes reconstruían; el recolector de basura tiene menos que limpiar en combate.",
-    ["The red auto-attack blink sits on the icon in every button style now, the untouched standard button included. The game defines that blink with retail-sized frame art and a single corner anchor, so on the classic button art it hung past the button to the right and bottom."] = "El parpadeo rojo del ataque automático se asienta ahora sobre el icono en todos los estilos de botón, incluido el botón estándar intacto. El juego define ese parpadeo con arte de marco a tamaño de Retail y una sola ancla de esquina, por lo que en el arte clásico sobresalía por la derecha y por abajo.",
+    ["The red auto-attack blink sits on the icon in every button style now, the untouched standard button included. The game defines that blink with oversized frame art and a single corner anchor, so on the classic button art it hung past the button to the right and bottom."] = "El parpadeo rojo del ataque automático se asienta ahora sobre el icono en todos los estilos de botón, incluido el botón estándar intacto. El juego define ese parpadeo con arte de marco sobredimensionado y una sola ancla de esquina, por lo que en el arte clásico sobresalía por la derecha y por abajo.",
 -- Trackbars
 ["Clock"] = "Reloj",
 ["Start empty"] = "Empezar vacía",
@@ -3602,6 +3602,22 @@ local function T() return {
     ["Combat timer – How long the current fight has been running, and the last fight's length out of combat"] = "Temporizador de combate – Cuánto lleva el combate actual, y fuera de combate la duración del último",
     ["A fifth template, Side bar, puts professions, hearthstone, combat timer and clock on the left screen edge."] = "Una quinta plantilla, Barra lateral, coloca profesiones, piedra de hogar, temporizador de combate y reloj en el borde izquierdo de la pantalla.",
     ["The professions block expands the Professions and Secondary Skills headers of the skills window if they were collapsed: the game hides collapsed lines from addons. Other headers keep their state."] = "El bloque de profesiones despliega los encabezados Profesiones y Habilidades secundarias de la ventana de habilidades si estaban plegados: el juego oculta las líneas plegadas a los addons. Los demás encabezados conservan su estado.",
+    ["The string is too large to import."] = "La cadena es demasiado grande para importarla.",
+    ["The default cast bar comes back after a /reload."] = "La barra de lanzamiento estándar vuelve tras un /reload.",
+    ["Macros left alone: not ticked when this import was reviewed."] = "Macros sin tocar: no se marcaron al revisar esta importación.",
+    ["Key bindings left alone: not ticked when this import was reviewed."] = "Asignaciones de teclas sin tocar: no se marcaron al revisar esta importación.",
+    ["This setup was imported from a string. Check what it brings before you allow it:"] = "Esta configuración procede de una cadena importada. Revisa lo que trae antes de permitirla:",
+    ["New macros (%d):"] = "Macros nuevas (%d):",
+    ["Runs script commands: this macro can do anything you can type."] = "Ejecuta comandos de script: esta macro puede hacer todo lo que tú puedas escribir.",
+    ["Your own macros with these names stay as they are: %s"] = "Tus propias macros con estos nombres se quedan como están: %s",
+    ["Key bindings (%d), each key is first taken off what it does now:"] = "Asignaciones de teclas (%d); cada tecla se libera primero de su función actual:",
+    ["Create these macros"] = "Crear estas macros",
+    ["Set these key bindings"] = "Asignar estas teclas",
+    ["Import these macro texts"] = "Importar estos textos de macro",
+    ["This string contains %d texts that run as macros when a key is pressed. Unless you tick the box below, they are left out:"] = "Esta cadena contiene %d textos que se ejecutan como macros al pulsar una tecla. Si no marcas la casilla de abajo, se omiten:",
+    ["... and %d more."] = "... y %d más.",
+    ["%s (unknown module)"] = "%s (módulo desconocido)",
+    ["%d further unknown modules are left out."] = "Se omiten otros %d módulos desconocidos.",
 } end
 
 ns:RegisterLocale("esES", T)
