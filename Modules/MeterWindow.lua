@@ -593,7 +593,12 @@ rowEnter = function(self)
     -- the spec first: it is what the icon on the bar just claimed
     if mode ~= "enemies" then
         local tree = Meter.SpecOf and Meter:SpecOf(self.guid)
-        local _, specName = tree and Meter:SpecInfo(p.class, tree)
+        -- not `tree and SpecInfo(...)`: `and` keeps one value, the name is the second
+        local specName
+        if tree then
+            local _, n = Meter:SpecInfo(p.class, tree)
+            specName = n
+        end
         if specName then tipLines[#tipLines + 1] = format("%s: %s", L["Spec"], specName) end
     end
     if mode == "deaths" then
@@ -1632,7 +1637,11 @@ local function sendReport(w, chatType, target)
     local head = "VuloClassicUI \194\183 " .. modeLabel(mode) .. " \194\183 " .. segmentLabel(w, seg)
     if mode ~= "threat" then head = head .. " (" .. clock(dur) .. ")" end
     SendChatMessage(head, chatType, nil, target)
-    local rows = min(n, tonumber(mod.db.reportRows) or 10)
+    -- clamped to the slider's 3..25: an imported profile can carry any number,
+    -- and every row is one SendChatMessage in the same frame
+    local want = tonumber(mod.db.reportRows) or 10
+    if want ~= want then want = 10 end
+    local rows = min(n, max(3, min(25, floor(want))))
     for i = 1, rows do
         local guid = order[i]
         local p = set[guid]
@@ -2030,6 +2039,7 @@ local function bind(w, wdb)
     w.scroll  = 0
     w.lastTitle, w.lastCount = nil, nil
     w.mover.opts.db = wdb
+    ns:SetMoverDisabled(w.mover, false)   -- a re-used slot gets its box back
     w.dragging, w.dragEnd = nil, nil
     if w.paintLock then w.paintLock() end
     w.frame:SetSize(wdb.width, wdb.height)
@@ -2048,6 +2058,8 @@ syncFrames = function()
     for i = #list + 1, #frames do
         local w = frames[i]
         w.db = nil
+        -- the mover stays registered: keep its box out of edit mode
+        ns:SetMoverDisabled(w.mover, true)
         w.frame:Hide()
     end
     syncThreatEvents()

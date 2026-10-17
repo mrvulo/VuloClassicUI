@@ -23,6 +23,13 @@ local IsClassic = (_vui and _vui.isClassic) or (WOW_PROJECT_ID and WOW_PROJECT_I
 local IsVanillaClassic = (_vui and _vui.isEra) or (WOW_PROJECT_ID == WOW_PROJECT_CLASSIC)
 local IsRetail = WOW_PROJECT_ID == WOW_PROJECT_MAINLINE
 
+-- The wrapper module (Modules/Trinkets.lua) can be switched off; the auto queue
+-- must stop swapping then, not just lose its frame.
+local function moduleOff()
+	local m = ns.modules and ns.modules.trinkets
+	return m and not m.active
+end
+
 -- Locale-dependent GetItemInfo returns (6th = type, 7th = subtype) used to detect engineering bags/trinkets.
 Trinkets.BAG = "Bag"
 Trinkets.ENGINEERING_BAG = "Engineering Bag"
@@ -361,13 +368,32 @@ function Trinkets.Initialize()
 	Trinkets_Trinket1:SetAttribute("type", "macro")
 	Trinkets_Trinket0:SetAttribute("macrotext", "/use 13")
 	Trinkets_Trinket1:SetAttribute("macrotext", "/use 14")
+	-- 2.5.5: the secure action only fires through the "*" wildcard attributes
+	-- (with AnyUp+AnyDown, see TrinketsFrames.lua); the plain forms stay as the
+	-- fallback. *macrotext2 is set by ReflectMenuOnRight.
+	for slot = 13, 14 do
+		local b = _G["Trinkets_Trinket" .. (slot - 13)]
+		b:SetAttribute("*type1", "macro")
+		b:SetAttribute("*type2", "macro")
+		b:SetAttribute("*macrotext1", "/use " .. slot)
+	end
+	-- The lookup tries "*macrotext1" BEFORE "alt-macrotext*", so each modifier
+	-- no-op is also set per button or the wildcard would use the trinket.
 	if Trinkets.QueueInit then
 		-- Queue module claims alt-click, so the secure alt action must be a no-op.
 		Trinkets_Trinket0:SetAttribute("alt-macrotext*", ATTRIBUTE_NOOP)
 		Trinkets_Trinket1:SetAttribute("alt-macrotext*", ATTRIBUTE_NOOP)
+		for i = 0, 1 do
+			_G["Trinkets_Trinket" .. i]:SetAttribute("alt-macrotext1", ATTRIBUTE_NOOP)
+			_G["Trinkets_Trinket" .. i]:SetAttribute("alt-macrotext2", ATTRIBUTE_NOOP)
+		end
 	end
 	Trinkets_Trinket0:SetAttribute("shift-macrotext*", ATTRIBUTE_NOOP)
 	Trinkets_Trinket1:SetAttribute("shift-macrotext*", ATTRIBUTE_NOOP)
+	for i = 0, 1 do
+		_G["Trinkets_Trinket" .. i]:SetAttribute("shift-macrotext1", ATTRIBUTE_NOOP)
+		_G["Trinkets_Trinket" .. i]:SetAttribute("shift-macrotext2", ATTRIBUTE_NOOP)
+	end
 	Trinkets.ReflectMenuOnRight()
 	Trinkets.InitTimers()
 	Trinkets.CreateTimer("UpdateWornTrinkets", Trinkets.UpdateWornTrinkets, .75)
@@ -425,7 +451,7 @@ function Trinkets.Initialize()
 			end
 		end
 	end
-	if Trinkets.PeriodicQueueCheck then
+	if Trinkets.PeriodicQueueCheck and not moduleOff() then
 		Trinkets.PeriodicQueueCheck()
 	end
 	if TrinketsPerOptions.Visible == "ON" and (GetInventoryItemLink("player", 13) or GetInventoryItemLink("player", 14)) then
@@ -442,10 +468,20 @@ function Trinkets.Initialize()
 end
 
 function Trinkets.ReflectMenuOnRight()
+	-- SetAttribute on the secure buttons is blocked in combat (the option can be
+	-- ticked mid-fight): apply once combat ends.
+	if InCombatLockdown() then
+		ns:RunOutOfCombatOnce("trinkets:menuOnRight", Trinkets.ReflectMenuOnRight)
+		return
+	end
 	-- Right-click opens the menu instead of using the trinket; must match the
 	-- action type set in the init above (macrotext, not slot).
-	Trinkets_Trinket0:SetAttribute("macrotext2", TrinketsOptions.MenuOnRight == "ON" and ATTRIBUTE_NOOP or nil)
-	Trinkets_Trinket1:SetAttribute("macrotext2", TrinketsOptions.MenuOnRight == "ON" and ATTRIBUTE_NOOP or nil)
+	local on = TrinketsOptions.MenuOnRight == "ON"
+	Trinkets_Trinket0:SetAttribute("macrotext2", on and ATTRIBUTE_NOOP or nil)
+	Trinkets_Trinket1:SetAttribute("macrotext2", on and ATTRIBUTE_NOOP or nil)
+	-- the wildcard twin, which the lookup reaches first
+	Trinkets_Trinket0:SetAttribute("*macrotext2", on and ATTRIBUTE_NOOP or "/use 13")
+	Trinkets_Trinket1:SetAttribute("*macrotext2", on and ATTRIBUTE_NOOP or "/use 14")
 end
 
 function Trinkets.IsPlayerReallyDead()
@@ -642,6 +678,11 @@ function Trinkets.SlashHandler(msg)
 		end
 		Trinkets.ReflectAlpha()
 	elseif string.find(msg, "scale") then
+		-- Both frames parent secure buttons; SetScale on them is blocked in combat.
+		if InCombatLockdown() then
+			ns:Print(VL["Not possible in combat."])
+			return
+		end
 		local _, _, menuscale = string.find(msg, "scale menu (.+)")
 		if tonumber(menuscale) then
 			Trinkets.FrameToScale = Trinkets_MenuFrame
@@ -784,6 +825,12 @@ function Trinkets.TimerDebug()
 end
 
 function Trinkets.MainTrinket_OnClick(self, button, down)
+	-- The buttons register AnyUp+AnyDown (the secure recipe), so every click
+	-- arrives twice. Keep the halves the old registration delivered (left down,
+	-- left up, right up) so each branch below still runs once; the use itself
+	-- is reflected on the release only (it used to run on both left halves).
+	if button ~= "LeftButton" and button ~= "RightButton" then return end
+	if down and button == "RightButton" then return end
 	self:SetChecked(false)
 	if button == "RightButton" and TrinketsOptions.MenuOnRight == "ON" then
 		if Trinkets_MenuFrame:IsVisible() then
@@ -805,7 +852,10 @@ function Trinkets.MainTrinket_OnClick(self, button, down)
 		end
 		Trinkets.ReflectQueueEnabled()
 		Trinkets.UpdateCombatQueue()
-	else
+	elseif not down then
+		-- once per press, on the release: which half fires the secure action
+		-- depends on the client (mouse vs. key, ActionButtonUseKeyDown), but
+		-- the release always comes
 		Trinkets.ReflectTrinketUse(self:GetID())
 	end
 end
@@ -1059,8 +1109,39 @@ function Trinkets.OnTooltip(self, line1, line2)
 	end
 end
 
--- Strip positional format specifiers (%1$d) so the string can be used as a plain pattern.
-Trinkets.ITEM_SPELL_CHARGES = string.gsub(ITEM_SPELL_CHARGES, "%%%d%$d", "%%d")
+-- Turn a client format string into a Lua pattern: %d / %1$d -> a number,
+-- %s / %1$s -> `str` (escaped) or any word, and a |4one:two; grammar sequence
+-- (the client resolves it to ONE of its words when formatting) -> any word.
+-- Everything else is escaped so a "(" or "." in the global stays literal.
+function Trinkets.FormatToPattern(fmt, str)
+	fmt = string.gsub(fmt, "%%%d?%$?d", "\001")
+	fmt = string.gsub(fmt, "%%%d?%$?s", "\002")
+	fmt = string.gsub(fmt, "|4[^;]*;", "\003")
+	fmt = string.gsub(fmt, "[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%0")
+	local word = str and string.gsub(str, "[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%0") or "%S+"
+	fmt = string.gsub(fmt, "\001", "%%d+")
+	fmt = string.gsub(fmt, "\002", (string.gsub(word, "%%", "%%%%")))
+	fmt = string.gsub(fmt, "\003", "%%S+")
+	return fmt
+end
+
+-- Anchored: unanchored "%d+ %S+" would also hit "by 5 points" in a bonus line.
+Trinkets.ITEM_SPELL_CHARGES = "^" .. Trinkets.FormatToPattern(ITEM_SPELL_CHARGES or "%d |4Charge:Charges;") .. "$"
+
+-- The "Requires Engineering (300)" line in the client's language: ITEM_MIN_SKILL
+-- with the localized skill name (the Engineering skill spell, 4036, carries the
+-- same name as the skill line). Built on first use, when the spell data is in.
+local engineeringPattern
+function Trinkets.EngineeringPattern()
+	if engineeringPattern then return engineeringPattern end
+	local name = (C_Spell and C_Spell.GetSpellName and C_Spell.GetSpellName(4036))
+		or (GetSpellInfo and GetSpellInfo(4036))
+	if name and ITEM_MIN_SKILL then
+		engineeringPattern = Trinkets.FormatToPattern(ITEM_MIN_SKILL, name)
+		return engineeringPattern
+	end
+	return Trinkets.REQUIRES_ENGINEERING
+end
 
 function Trinkets.ShrinkTooltip(owner)
 	if TrinketsOptions.TinyTooltips == "ON" then
@@ -1096,7 +1177,8 @@ function Trinkets.IsEngineered(bag, slot)
 		Trinkets_TooltipScan:SetOwner(WorldFrame, "ANCHOR_NONE")
 		Trinkets_TooltipScan:SetHyperlink(item)
 		for i = 1, Trinkets_TooltipScan:NumLines() do
-			if string.match(_G["Trinkets_TooltipScanTextLeft"..i]:GetText() or "", Trinkets.REQUIRES_ENGINEERING) then
+			local text = _G["Trinkets_TooltipScanTextLeft"..i]:GetText() or ""
+			if string.match(text, Trinkets.EngineeringPattern()) or string.find(text, Trinkets.REQUIRES_ENGINEERING, 1, true) then
 				return 1
 			end
 		end
@@ -1279,6 +1361,10 @@ function Trinkets.CooldownUpdate()
 end
 
 function Trinkets.QueueUpdate()
+	if moduleOff() then
+		Trinkets.StopTimer("QueueUpdate")
+		return
+	end
 	if Trinkets.PeriodicQueueCheck then
 		Trinkets.PeriodicQueueCheck()
 	end

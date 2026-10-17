@@ -24,6 +24,12 @@ local CreateFrame  = CreateFrame
 local GetSpellInfo = GetSpellInfo
 local GetTime      = GetTime
 local wipe         = wipe
+local UnitCastingInfo  = UnitCastingInfo
+local UnitChannelInfo  = UnitChannelInfo
+local GetSpellCooldown = GetSpellCooldown or (C_Spell and C_Spell.GetSpellCooldown and function(id)
+    local c = C_Spell.GetSpellCooldown(id)
+    if c then return c.startTime, c.duration end
+end)
 
 -- Auto attacks and shots are not casts anyone wants a strip of.
 local SKIP = { [6603] = true, [75] = true, [5019] = true }
@@ -62,6 +68,20 @@ local function markInterrupted(spellId)
     push(spellId, "interrupted")
 end
 
+-- FAILED also fires for every key press that only bounced: another cast or
+-- channel still running, or the global (or the spell's own) cooldown not yet
+-- over. Those are not failed casts. The spell's own cooldown carries the GCD
+-- for every GCD-bound spell, and these clients have no GCD probe spell.
+local function bouncedPress(spellId)
+    if UnitCastingInfo and UnitCastingInfo("player") then return true end
+    if UnitChannelInfo and UnitChannelInfo("player") then return true end
+    if GetSpellCooldown then
+        local start, dur = GetSpellCooldown(spellId)
+        if start and dur and start > 0 and dur > 0 and start + dur > GetTime() then return true end
+    end
+    return false
+end
+
 local function onSpellcast(_, event, unit, _, spellId)
     if unit ~= "player" then return end
     if event == "UNIT_SPELLCAST_SUCCEEDED" then
@@ -70,7 +90,7 @@ local function onSpellcast(_, event, unit, _, spellId)
         local e = history[1]
         if e and e.spell == spellId then e.channel = true end
     elseif event == "UNIT_SPELLCAST_FAILED" then
-        if mod.db.showFailed then push(spellId, "failed") end
+        if mod.db.showFailed and not bouncedPress(spellId) then push(spellId, "failed") end
     elseif event == "UNIT_SPELLCAST_INTERRUPTED" then
         if mod.db.showFailed then markInterrupted(spellId) end
     end

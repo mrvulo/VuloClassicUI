@@ -324,7 +324,15 @@ local function syncDynEvents()
         local want = mod._eventsLive and dynWant[d.fn] or false
         if want ~= (dynLive[d.fn] or false) then
             dynLive[d.fn] = want
-            if want then
+            -- The combat log goes through the shared reader, which reads each
+            -- line once for all listeners and passes the values as arguments.
+            if d.event == "COMBAT_LOG_EVENT_UNFILTERED" then
+                if want then
+                    ns:RegisterCombatLog(mod, d.fn)
+                else
+                    ns:UnregisterCombatLog(mod, d.fn)
+                end
+            elseif want then
                 ns:RegisterEvent(d.event, d.fn)
             else
                 ns:UnregisterEvent(d.event, d.fn)
@@ -345,6 +353,13 @@ function mod:OnEnable()
     -- before OnEnableCore, so the handlers it wires on a first enable are not
     -- also caught by the re-install loop and registered twice
     reinstallEvents()
+    -- Combat-log listeners are module-owned: a failed earlier enable lets
+    -- SafeEnable drop them while dynLive still says live, and sync would then
+    -- never put them back. RegisterCombatLog refuses doubles, so forgetting
+    -- the live flag here is safe.
+    for i = 1, #dynList do
+        if dynList[i].event == "COMBAT_LOG_EVENT_UNFILTERED" then dynLive[dynList[i].fn] = nil end
+    end
     syncDynEvents()
     if self.OnEnableCore then self:OnEnableCore() end
     for _, h in ipairs(self._onEnableHandlers) do
@@ -478,6 +493,13 @@ local unlocked = false
 local hookedManage = false
 local dragOverlay
 
+-- deliberate write: the post-hooks below can only put the container back
+-- after combat (it parents secure buttons), so without this entry gone every
+-- manager pass in a fight would park it in Blizzard's slot until the fight
+-- ends. The table exists only on the older Wrath-shaped clients (the shipped
+-- ones lay out through the managed-frame containers) and is read there only
+-- by the manager's own pass, which then skips the frame. Written once: the
+-- guard makes every later call a read.
 local function unmanageOwner()
     if UIPARENT_MANAGED_FRAME_POSITIONS and UIPARENT_MANAGED_FRAME_POSITIONS["ArenaEnemyFrames"] then
         UIPARENT_MANAGED_FRAME_POSITIONS["ArenaEnemyFrames"] = nil
@@ -552,6 +574,9 @@ mod.ApplyFonts = applyAllFonts
 
 -- Blizzard rewrites bar text fonts in TextStatusBar_UpdateTextString; re-apply ours after it.
 local fontHooksInstalled = false
+-- verdict per bar, beside the bar instead of on it: the hook sees every status
+-- bar of the UI, the secure unit frames' bars included
+local arenaBarKind = setmetatable({}, { __mode = "k" })
 local function installFontHooks()
     if fontHooksInstalled or not hooksecurefunc or not TextStatusBar_UpdateTextString then return end
     fontHooksInstalled = true
@@ -562,7 +587,7 @@ local function installFontHooks()
         -- of them -- in raids, far from any arena (perf sweep 26.08.2026).
         -- A bar's arena-ness never changes, and an arena bar cannot fire
         -- before its frame exists, so the first look decides for good.
-        local kind = bar._vcuiArenaKind
+        local kind = arenaBarKind[bar]
         if kind == nil then
             kind = false
             for i = 1, 5 do
@@ -574,7 +599,7 @@ local function installFontHooks()
                     if kind then break end
                 end
             end
-            bar._vcuiArenaKind = kind
+            arenaBarKind[bar] = kind
         end
         if kind == "health" then
             ns:SetBarTextFontSize(bar, mod.db.healthSize)
@@ -778,15 +803,21 @@ local function ev_core_PLAYER_REGEN_ENABLED()
 end
 
 local coreEventsWired = false
+local fontReadyWired = false
 
 function mod:OnEnableCore()
     installFontHooks()
     hookManageFramePositions()
     ensureDragOverlay()
 
-    self:OnArenaFramesReady(function(frame, i)
-        applyArenaFonts(frame)
-    end)
+    -- Once per session as well: the ready list is never pruned, so each enable
+    -- used to stack another copy of this handler.
+    if not fontReadyWired then
+        fontReadyWired = true
+        self:OnArenaFramesReady(function(frame, i)
+            applyArenaFonts(frame)
+        end)
+    end
 
     -- Once per session: OnEnable re-installs the recorded set on a later enable,
     -- and wiring these again here would add a second copy of each.
@@ -1167,7 +1198,9 @@ local function moveSlot(slotIndex, direction)
     if newPos < 1 or newPos > #order then return end
     order[pos], order[newPos] = order[newPos], order[pos]
     applyLayout()
-    ns.UI:BuildOptionsPage("arenaframes")
+    -- the tab the buttons sit on: nil would build every section on one page
+    -- and record overrides under the empty tab instead of this one
+    ns.UI:BuildOptionsPage("arenaframes", ns.UI.currentTab)
 end
 
 mod:OnArenaFramesReady(function(frame, i)
@@ -1230,7 +1263,7 @@ mod:AddOptionsSection("layout", function()
         onClick = function()
             mod.db.slotOrder = { 1, 2, 3, 4, 5 }
             applyLayout()
-            ns.UI:BuildOptionsPage("arenaframes")
+            ns.UI:BuildOptionsPage("arenaframes", ns.UI.currentTab)
         end,
     })
 
@@ -1659,10 +1692,7 @@ local function refreshAllTrinketsFromAPI()
     end
 end
 
-local function onCombatLog()
-    local _, subevent, _, sourceGUID, _, _, _, _, _, _, _, spellId =
-        CombatLogGetCurrentEventInfo()
-
+local function onCombatLog(_, subevent, _, sourceGUID, _, _, _, _, _, _, _, spellId)
     if subevent ~= "SPELL_CAST_SUCCESS" then return end
     if not TRINKET_SPELLS[spellId] then return end
 
@@ -1690,9 +1720,9 @@ mod:OnArenaFramesReady(function(frame, i)
 end)
 
 -- named handler so the very hot combat log stays registered only inside arenas
-local function onCLEU()
+local function onCLEU(...)
     if not mod._enabled or not mod.db.trinketEnabled then return end
-    onCombatLog()
+    onCombatLog(...)
 end
 
 local function setCombatLog(active)
@@ -2081,10 +2111,7 @@ local function onAuraApplied(destUnit, spellId, spellName)
     updateDRDisplay(destUnit)
 end
 
-local function onCombatLog()
-    local _, subevent, _, _, _, _, _, destGUID, _, _, _, spellId, spellName =
-        CombatLogGetCurrentEventInfo()
-
+local function onCombatLog(_, subevent, _, _, _, _, _, destGUID, _, _, _, spellId, spellName)
     if subevent ~= "SPELL_AURA_APPLIED" and subevent ~= "SPELL_AURA_REFRESH" then return end
     -- The same gate the handler uses, so a rank that only the NAME knows is not
     -- dropped here before it ever gets there.
@@ -2134,9 +2161,9 @@ end
 mod:RegisterOnDisable(resetAll)
 
 -- named handler so the very hot combat log stays registered only inside arenas
-local function onCLEU()
+local function onCLEU(...)
     if not mod._enabled or not mod.db.drEnabled then return end
-    onCombatLog()
+    onCombatLog(...)
 end
 
 local function setCombatLog(active)
@@ -2609,7 +2636,7 @@ local function stopTimers()
 end
 
 local function tick()
-    if not mod.db.shadowsightEnabled then stopTimers(); return end
+    if not (mod.active and mod.db.shadowsightEnabled) then stopTimers(); return end
     local now = GetTime()
     local ready, soonest = 0, nil
     for _, t in ipairs(orbs) do
@@ -3124,10 +3151,8 @@ end)
 
 -- Racials, dispels and Shadow Sight all come from the combat log; one handler
 -- keeps the hot event registered exactly once.
-local function onPvPCombatLog()
+local function onPvPCombatLog(_, subevent, _, sourceGUID, _, _, _, destGUID, _, _, _, spellId)
     if not mod._enabled then return end
-    local _, subevent, _, sourceGUID, _, _, _, destGUID, _, _, _, spellId =
-        CombatLogGetCurrentEventInfo()
 
     if spellId == mod.ShadowsightID and mod.db.shadowsightEnabled
         and (subevent == "SPELL_AURA_APPLIED" or subevent == "SPELL_CAST_SUCCESS") then
@@ -3194,13 +3219,20 @@ local function ev_PLAYER_ENTERING_WORLD_3()
 end
 mod.RegEvent("PLAYER_ENTERING_WORLD", ev_PLAYER_ENTERING_WORLD_3)
 mod:RegisterOnEnable(ev_PLAYER_ENTERING_WORLD_3)
+-- The handler above is their only stopper and removeEvents takes it out, so a
+-- disable inside an arena would leave both tickers running for the session.
+mod:RegisterOnDisable(function()
+    if mod.StopShadowsight then mod.StopShadowsight() end
+    if mod.StopRangeCheck then mod.StopRangeCheck() end
+end)
 
 -- Gates opening is what starts the orb clock; the first opponent becoming
 -- visible is the closest reliable signal for it on this client.
 local gatesOpen = false
 local function ev_ARENA_OPPONENT_UPDATE_3(_, unit, eventType)
     if eventType ~= "seen" then return end
-    if not gatesOpen then
+    -- the event also fires in battlegrounds (flag carriers); orbs exist only in arenas
+    if not gatesOpen and IsInInstance and select(2, IsInInstance()) == "arena" then
         gatesOpen = true
         if mod.StartShadowsight then mod.StartShadowsight() end
     end
@@ -4102,11 +4134,8 @@ local function spellDef(spellID, spellName)
     return BY_NAME[spellName]
 end
 
-local function onCombatLog()
+local function onCombatLog(_, sub, _, sourceGUID, sourceName, sourceFlags, _, _, _, _, _, spellID, spellName)
     if not mod._enabled or not db().enabled then return end
-    local info = CombatLogGetCurrentEventInfo
-    if not info then return end
-    local _, sub, _, sourceGUID, sourceName, sourceFlags, _, _, _, _, _, spellID, spellName = info()
     if sub ~= "SPELL_CAST_SUCCESS" then return end
 
     local def = spellDef(spellID, spellName)
@@ -4377,7 +4406,7 @@ local function build(host)
     local name = box:CreateFontString(nil, "OVERLAY")
     ns.UI.Font(name, 10)
     name:SetPoint("TOPLEFT", box, "TOPLEFT", 5, -4)
-    name:SetText("|cffff7c0aGegner|r")
+    name:SetText("|cffff7c0a" .. L["Enemies"] .. "|r")
 
     local hp = box:CreateTexture(nil, "ARTWORK")
     hp:SetPoint("TOPLEFT", box, "TOPLEFT", 5, -18)

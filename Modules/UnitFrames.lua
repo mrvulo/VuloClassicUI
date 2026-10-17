@@ -194,6 +194,8 @@ local function styleOffset(s)
 end
 
 local function applyPlayerStyle()
+    -- the options dropdown calls this too; an inactive module paints nothing
+    if not mod.active then return end
     if not capturePlayerDefaults() then return end
     local s = STYLES[mod.db.playerStyle]
     if not s then
@@ -231,6 +233,10 @@ local function abbrev(v)
     elseif v >= 1e4 then return string.format("%.1fk", v / 1e3)
     else return tostring(v) end
 end
+
+-- Our per-frame bookkeeping on Blizzard frames lives in weak-keyed side
+-- tables, never as fields on the frames themselves.
+local hpTexts      = setmetatable({}, { __mode = "k" })  -- health bar -> { left, right, textString }
 
 -- Fallback table for clients without GetThreatStatusColor.
 local THREAT_COLOR = { [0] = { 0.69, 0.69, 0.69 }, [1] = { 1, 1, 0.47 }, [2] = { 1, 0.6, 0 }, [3] = { 1, 0, 0 } }
@@ -447,19 +453,23 @@ local function applyRealHealth(bar)
     -- the busiest text hook in the addon -- resolving them through a fresh
     -- closure and _G[name..suffix] lookups on every call was the hottest
     -- allocation the perf sweep found (26.08.2026). Resolved once per bar.
-    if not bar._vcuiTextResolved then
-        bar._vcuiTextResolved = true
+    local t = hpTexts[bar]
+    if not t then
         local name = (bar.GetName and bar:GetName()) or ""
-        bar._vcuiLeftT  = bar.LeftText   or _G[name .. "LeftText"]
-        bar._vcuiRightT = bar.RightText  or _G[name .. "RightText"]
-        bar._vcuiTS     = bar.TextString or _G[name .. "TextString"]
+        t = {
+            bar.LeftText   or _G[name .. "LeftText"],
+            bar.RightText  or _G[name .. "RightText"],
+            bar.TextString or _G[name .. "TextString"],
+        }
+        hpTexts[bar] = t
     end
-    local left, right, ts = bar._vcuiLeftT, bar._vcuiRightT, bar._vcuiTS
-    if left and right then
-        left:SetText(pct .. "%");   left:Show()
-        right:SetText(abbrev(cur)); right:Show()
-        if ts then ts:SetText("") end
-    elseif ts then
+    local left, right, ts = t[1], t[2], t[3]
+    -- Only rewrite the text Blizzard's updater left visible: which regions
+    -- show is the player's status-text setting, not ours to override.
+    if left and right and left:IsShown() and right:IsShown() then
+        left:SetText(pct .. "%")
+        right:SetText(abbrev(cur))
+    elseif ts and ts:IsShown() then
         ts:SetText(pct .. "%  " .. abbrev(cur))
     end
 end
@@ -683,20 +693,23 @@ local function remember(fs)
         origSizes[fs] = size or false
     end
 end
+-- bookkeeping on Blizzard's bars beside them, not on them
+local barTexts = setmetatable({}, { __mode = "k" })  -- bar -> { text, left, right } (false = absent)
+
 local function setBarSize(bar, size)
     if not bar then return end
     -- The three text regions never change, but this runs from the
     -- TextStatusBar hook on every health/power text tick -- so they are
     -- resolved (and remembered for OnDisable) once per bar, not per call.
     -- false marks a region the bar simply does not have.
-    local c = bar._vcuiTexts
+    local c = barTexts[bar]
     if not c then
         c = {
             bar.TextString or ns:SafeGetFontString(bar, "Text")      or false,
             bar.LeftText   or ns:SafeGetFontString(bar, "TextLeft")  or false,
             bar.RightText  or ns:SafeGetFontString(bar, "TextRight") or false,
         }
-        bar._vcuiTexts = c
+        barTexts[bar] = c
         for i = 1, 3 do if c[i] then remember(c[i]) end end
     end
     for i = 1, 3 do if c[i] then ns:ApplyFontSize(c[i], size) end end
@@ -1017,6 +1030,14 @@ local Blizzard = {}
 
 local FALLBACK_W, FALLBACK_H = 260, 18
 
+-- Our bookkeeping on Blizzard's cast bar lives beside it, never on it.
+local bzStatusbars = setmetatable({}, { __mode = "k" })  -- cast bar -> status bars below it
+local bzTextures   = setmetatable({}, { __mode = "k" })  -- cast bar -> textures below it
+local bzOrigColors = setmetatable({}, { __mode = "k" })  -- cast bar -> original status bar colours
+local bzOverlay    = setmetatable({}, { __mode = "k" })  -- cast bar -> our overlay frame
+local bzHookedUpd  = setmetatable({}, { __mode = "k" })  -- cast bar -> OnUpdate hook installed
+local bzHideHooked = setmetatable({}, { __mode = "k" })  -- cast bar -> OnShow hook installed
+
 local function bz_getBar()
     return _G.PlayerCastingBarFrame or _G.CastingBarFrame
 end
@@ -1043,41 +1064,41 @@ local function bz_walkAndCollect(frame, depth, statusbars, textures)
 end
 
 local function bz_ensureStatusBars(bar)
-    if bar._vcui_statusbars then return end
-    bar._vcui_statusbars = {}
-    bar._vcui_textures   = {}
-    bz_walkAndCollect(bar, 0, bar._vcui_statusbars, bar._vcui_textures)
-    bar._vcui_origColors = {}
-    for i, sb in ipairs(bar._vcui_statusbars) do
+    if bzStatusbars[bar] then return end
+    bzStatusbars[bar] = {}
+    bzTextures[bar]   = {}
+    bz_walkAndCollect(bar, 0, bzStatusbars[bar], bzTextures[bar])
+    bzOrigColors[bar] = {}
+    for i, sb in ipairs(bzStatusbars[bar]) do
         local r, g, b, a = 1, 1, 1, 1
         if sb.GetStatusBarColor then r, g, b, a = sb:GetStatusBarColor() end
-        bar._vcui_origColors[i] = { r = r, g = g, b = b, a = a }
+        bzOrigColors[bar][i] = { r = r, g = g, b = b, a = a }
     end
 end
 
 local function bz_setChannelColor(bar, isChannel)
-    if not bar or not bar._vcui_statusbars then return end
+    if not bar or not bzStatusbars[bar] then return end
     local c = mod.db.accentColor or { r = 0.75, g = 0.35, b = 1.00, a = 0.90 }
 
     if isChannel then
-        for _, sb in ipairs(bar._vcui_statusbars) do
+        for _, sb in ipairs(bzStatusbars[bar]) do
             if sb.SetStatusBarColor then
                 sb:SetStatusBarColor(c.r, c.g, c.b, c.a or 0.9)
             end
         end
-        for _, t in ipairs(bar._vcui_textures or {}) do
+        for _, t in ipairs(bzTextures[bar] or {}) do
             if t.tex and t.tex.SetVertexColor then
                 t.tex:SetVertexColor(c.r, c.g, c.b, c.a or 0.9)
             end
         end
     else
-        for i, sb in ipairs(bar._vcui_statusbars) do
-            local orig = bar._vcui_origColors and bar._vcui_origColors[i]
+        for i, sb in ipairs(bzStatusbars[bar]) do
+            local orig = bzOrigColors[bar] and bzOrigColors[bar][i]
             if sb.SetStatusBarColor and orig then
                 sb:SetStatusBarColor(orig.r, orig.g, orig.b, orig.a)
             end
         end
-        for _, t in ipairs(bar._vcui_textures or {}) do
+        for _, t in ipairs(bzTextures[bar] or {}) do
             if t.tex and t.tex.SetVertexColor then
                 t.tex:SetVertexColor(t.origR or 1, t.origG or 1, t.origB or 1, t.origA or 1)
             end
@@ -1086,7 +1107,7 @@ local function bz_setChannelColor(bar, isChannel)
 end
 
 local function bz_ensureOverlay(bar)
-    if bar._vcui_overlay then return bar._vcui_overlay end
+    if bzOverlay[bar] then return bzOverlay[bar] end
     local o = CreateFrame("Frame", nil, bar)
     o:SetAllPoints(bar)
 
@@ -1106,12 +1127,12 @@ local function bz_ensureOverlay(bar)
 
     o.ticks = {}
 
-    bar._vcui_overlay = o
+    bzOverlay[bar] = o
     return o
 end
 
 local function bz_hideAllTicks(bar)
-    local o = bar and bar._vcui_overlay
+    local o = bar and bzOverlay[bar]
     if not o or not o.ticks then return end
     for i = 1, #o.ticks do
         o.ticks[i]:Hide()
@@ -1122,7 +1143,7 @@ end
 
 -- Marks the completion end: channels drain leftward, casts fill rightward.
 local function bz_showClip(bar, duration, atRight)
-    local o = bar and bar._vcui_overlay
+    local o = bar and bzOverlay[bar]
     if not o then return end
     if not (mod.db.showClipMarker and duration and duration > 0) then
         if o.clip then o.clip:Hide() end
@@ -1147,7 +1168,7 @@ local function bz_showClip(bar, duration, atRight)
 end
 
 local function bz_showTicks(bar, count)
-    local o = bar and bar._vcui_overlay
+    local o = bar and bzOverlay[bar]
     if not o or not mod.db.showTicks then return end
     bz_hideAllTicks(bar)
     if not count or count <= 1 then return end
@@ -1180,8 +1201,8 @@ function Blizzard:Enable()
     bz_ensureStatusBars(bar)
     bz_ensureOverlay(bar)
 
-    if bar._vcui_hookedUpdate then return end
-    bar._vcui_hookedUpdate = true
+    if bzHookedUpd[bar] then return end
+    bzHookedUpd[bar] = true
     local acc = 0
     bar:HookScript("OnUpdate", function(self, elapsed)
         if not mod._enabled or mod.db.mode ~= "blizzard" then return end
@@ -1189,7 +1210,7 @@ function Blizzard:Enable()
         if acc < 0.03 then return end
         acc = 0
 
-        local o = self._vcui_overlay
+        local o = bzOverlay[self]
         if not o then return end
 
         if o._pushUntil then
@@ -1256,8 +1277,8 @@ function Blizzard:Enable()
     end)
 
     bar:HookScript("OnHide", function(self)
-        if self._vcui_overlay then
-            self._vcui_overlay.timeText:SetText("")
+        if bzOverlay[self] then
+            bzOverlay[self].timeText:SetText("")
             bz_hideAllTicks(self)
         end
         bz_setChannelColor(self, false)
@@ -1269,14 +1290,15 @@ end
 function Blizzard:Disable()
     local bar = bz_getBar()
     if not bar then return end
-    if bar._vcui_overlay then
-        bar._vcui_overlay.timeText:SetText("")
+    if bzOverlay[bar] then
+        bzOverlay[bar].timeText:SetText("")
         bz_hideAllTicks(bar)
     end
     bz_setChannelColor(bar, false)
 end
 
 local Custom = {}
+local bzEventsCut = false   -- Custom:Enable unregistered the default bar's events
 local cFrame
 local castInfo
 local c_showTestContent   -- forward declaration: the mover's editPreview closes over this
@@ -1827,10 +1849,10 @@ function Custom:Enable()
 
     local b = bz_getBar()
     if b then
-        if b.UnregisterAllEvents then b:UnregisterAllEvents() end
+        if b.UnregisterAllEvents then b:UnregisterAllEvents(); bzEventsCut = true end
         if b.Hide then b:Hide() end
-        if not b._vcui_hideHooked then
-            b._vcui_hideHooked = true
+        if not bzHideHooked[b] then
+            bzHideHooked[b] = true
             b:HookScript("OnShow", function(self)
                 if mod._enabled and (mod.db.mode == "custom" or mod.db.mode == "modern") then self:Hide() end
             end)
@@ -1838,9 +1860,42 @@ function Custom:Enable()
     end
 end
 
+-- Custom:Enable silenced the default bar with UnregisterAllEvents; without
+-- this it stayed dead after the module went off or back to "blizzard" until
+-- a /reload. Blizzard's own SetUnit registers the cast events again, and only
+-- does so when the unit changes -- hence the round trip through nil. The
+-- arguments are the ones the player bar's OnLoad passes.
+local BZ_UNIT_EVENTS = {
+    "UNIT_SPELLCAST_INTERRUPTED", "UNIT_SPELLCAST_DELAYED",
+    "UNIT_SPELLCAST_CHANNEL_START", "UNIT_SPELLCAST_CHANNEL_UPDATE", "UNIT_SPELLCAST_CHANNEL_STOP",
+    "UNIT_SPELLCAST_EMPOWER_START", "UNIT_SPELLCAST_EMPOWER_UPDATE", "UNIT_SPELLCAST_EMPOWER_STOP",
+    "UNIT_SPELLCAST_INTERRUPTIBLE", "UNIT_SPELLCAST_NOT_INTERRUPTIBLE",
+    "UNIT_SPELLCAST_START", "UNIT_SPELLCAST_STOP", "UNIT_SPELLCAST_FAILED",
+}
+local function bz_restoreEvents()
+    if not bzEventsCut then return end
+    local b = bz_getBar()
+    if not b then return end
+    -- Re-register what Blizzard's SetUnit registers (Shared/CastingBarFrame.lua)
+    -- instead of calling SetUnit: that writes self.unit and other fields from
+    -- our code, and every later OnEvent of the bar would read them tainted.
+    -- self.unit is still "player" -- UnregisterAllEvents never cleared it.
+    -- pcall per event: a client that does not know one (empower) skips it.
+    local ok = false
+    if b.RegisterUnitEvent then
+        for _, ev in ipairs(BZ_UNIT_EVENTS) do
+            if pcall(b.RegisterUnitEvent, b, ev, "player") then ok = true end
+        end
+        pcall(b.RegisterEvent, b, "PLAYER_ENTERING_WORLD")
+    end
+    bzEventsCut = false
+    if not ok then ns:Print(L["The default cast bar comes back after a /reload."]) end
+end
+
 function Custom:Disable()
     if cFrame then cFrame:Hide() end
     castInfo = nil
+    bz_restoreEvents()
 end
 
 local function c_applyLayout()
@@ -1898,7 +1953,7 @@ local function showPushback(txt)
         end
     else
         local bar = bz_getBar()
-        local o = bar and bar._vcui_overlay
+        local o = bar and bzOverlay[bar]
         if o and o.pushText and bar:IsShown() then
             o.pushText:SetText(txt)
             o.pushText:SetAlpha(1)
@@ -1975,7 +2030,6 @@ local function switchMode(newMode)
 
     if newMode == "blizzard" then
         Custom:Disable()
-        -- The default bar's events cannot be re-registered without a /reload.
         Blizzard:Enable()
     else
         Blizzard:Disable()
@@ -2865,9 +2919,32 @@ local function triggerItem(itemID)
     -- GetItemInfo index 10 = icon
     local texture = select(10, GetItemInfo(itemID))
     watching[itemID] = { GetTime(), "item", texture }
-    itemSpells[itemID] = nil
     if DCP and not DCP:IsMouseEnabled() then
         DCP:SetScript("OnUpdate", OnUpdate)
+    end
+end
+
+-- Pet casts. The values come from the shared reader (ns:RegisterCombatLog),
+-- already read once for every listener; the pet test stays first.
+local function onCombatLog(_, subEvent, _, _, _, sourceFlags, _, _, _, _, _, spellID)
+    if not mod._enabled then return end
+    if not UnitExists("pet") then return end
+    if subEvent ~= "SPELL_CAST_SUCCESS" then return end
+    if sourceFlags and spellID then
+        local isPet = (bit.band(sourceFlags, COMBATLOG_OBJECT_TYPE_PET or 0) ~= 0)
+        local mine  = (bit.band(sourceFlags, COMBATLOG_OBJECT_AFFILIATION_MINE or 0) ~= 0)
+        if isPet and mine then
+            local name = GetSpellInfo(spellID)
+            local index = getPetActionIndexByName(name)
+            if index and not select(6, GetPetActionInfo(index)) then
+                watching[spellID] = { GetTime(), "pet", index }
+                if DCP and not DCP:IsMouseEnabled() then
+                    DCP:SetScript("OnUpdate", OnUpdate)
+                end
+            elseif not index and spellID then
+                triggerSpell(spellID)
+            end
+        end
     end
 end
 
@@ -2879,7 +2956,6 @@ local function setupEvents()
 
     eventFrame:RegisterEvent("SPELL_UPDATE_COOLDOWN")
     eventFrame:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED")
-    eventFrame:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
     eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 
     eventFrame:SetScript("OnEvent", function(self, event, ...)
@@ -2895,31 +2971,12 @@ local function setupEvents()
             if unit ~= "player" then return end
             local itemID = itemSpells[spellID]
             if itemID then
+                -- keyed by spellID (trackItemSpell). Kept, not cleared: a use
+                -- through a macro or a secure item button never passes the
+                -- use hooks that would re-arm it.
                 triggerItem(itemID)
             else
                 triggerSpell(spellID)
-            end
-
-        elseif event == "COMBAT_LOG_EVENT_UNFILTERED" then
-            -- Hot path: bail on the cheap subevent read before UnitExists and the full destructure.
-            if select(2, CombatLogGetCurrentEventInfo()) ~= "SPELL_CAST_SUCCESS" then return end
-            if not UnitExists("pet") then return end
-            local _, _, _, _, _, sourceFlags, _, _, _, _, _, spellID = CombatLogGetCurrentEventInfo()
-            if sourceFlags and spellID then
-                local isPet = (bit.band(sourceFlags, COMBATLOG_OBJECT_TYPE_PET or 0) ~= 0)
-                local mine  = (bit.band(sourceFlags, COMBATLOG_OBJECT_AFFILIATION_MINE or 0) ~= 0)
-                if isPet and mine then
-                    local name = GetSpellInfo(spellID)
-                    local index = getPetActionIndexByName(name)
-                    if index and not select(6, GetPetActionInfo(index)) then
-                        watching[spellID] = { GetTime(), "pet", index }
-                        if DCP and not DCP:IsMouseEnabled() then
-                            DCP:SetScript("OnUpdate", OnUpdate)
-                        end
-                    elseif not index and spellID then
-                        triggerSpell(spellID)
-                    end
-                end
             end
 
         elseif event == "PLAYER_ENTERING_WORLD" then
@@ -2998,6 +3055,9 @@ end
 function mod:OnEnable()
     ensureFrame()
     setupEvents()
+    -- Module-owned: SafeDisable releases it, so no combat-log line reaches a
+    -- handler that would only bail on _enabled until the next enable.
+    ns:RegisterCombatLog(mod, onCombatLog)
 end
 
 function mod:OnDisable()

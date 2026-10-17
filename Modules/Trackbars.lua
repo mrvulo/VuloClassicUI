@@ -144,6 +144,11 @@ function mod.EnsureBarFrame(cfg)
             label = "|cffffffff" .. (cfg.name or ("Trackbar " .. cfg.id)) .. "|r",
             db    = cfg,
         })
+    elseif f.mover and cfg.lengthMode ~= "full" then
+        -- re-created bar with the same id (profile switch/reset): point the
+        -- box at the live config and undo DeleteBar's disable
+        f.mover.opts.db = cfg
+        ns:SetMoverDisabled(f.mover, false)
     end
     if cfg.lengthMode == "full" and f.mover then
         -- The mover/edit-mode system may briefly re-show this during an active
@@ -239,6 +244,12 @@ function mod.ApplyBar(id)
     -- The options page can call in while the module is toggled off; config
     -- edits stay stored, frames wait for enable.
     if not mod.active then return end
+    -- Slots hold secure buttons, so moving or resizing the bar and its slots is
+    -- blocked in combat; run once when it ends, from the config of that moment.
+    if InCombatLockdown() then
+        ns:RunOutOfCombatOnce("tb-apply" .. cfg.id, mod.ApplyBar, cfg.id)
+        return
+    end
     local rec = barRecs[cfg.id] or {}
     mod.EnsureBarFrame(cfg)
     rec = barRecs[cfg.id]
@@ -382,6 +393,8 @@ function mod.DeleteBar(barId)
             if inst.Destroy then inst:Destroy() end
             rec.insts[blockId] = nil
         end
+        -- the mover stays registered: keep its box out of edit mode
+        if rec.frame.mover then ns:SetMoverDisabled(rec.frame.mover, true) end
         rec.frame:Hide()
     end
     updateMouseoverTicker()
@@ -398,6 +411,12 @@ function mod.RenameBar(barId, name)
 end
 
 function mod.LayoutBar(barId)
+    -- A text block changing width at the pull lands here in combat; the slots
+    -- it would move hold secure buttons, so wait for combat to end.
+    if InCombatLockdown() then
+        ns:RunOutOfCombatOnce("tb-layout" .. barId, mod.LayoutBar, barId)
+        return
+    end
     local cfg, rec = mod.BarCfg(barId), barRecs[barId]
     if not (cfg and rec) then return end
     local f = rec.frame

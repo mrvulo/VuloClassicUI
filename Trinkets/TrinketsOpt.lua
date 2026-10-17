@@ -1,5 +1,7 @@
 --[[ TrinketsOpt.lua : Options and sort window for Trinkets ]]
 
+local _, ns = ...
+
 local _G, math, string, table = _G, math, string, table
 
 local IsRetail = WOW_PROJECT_ID == WOW_PROJECT_MAINLINE
@@ -83,6 +85,11 @@ function Trinkets.InitOptions()
 end
 
 function Trinkets.ToggleFrame(frame)
+	-- The main frame holds secure buttons: Show/Hide is blocked in combat.
+	if frame == Trinkets_MainFrame and InCombatLockdown() then
+		ns:Print(Trinkets.VL["Not possible in combat."])
+		return
+	end
 	if frame:IsVisible() then
 		frame:Hide()
 	else

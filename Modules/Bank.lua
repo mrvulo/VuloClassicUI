@@ -827,6 +827,8 @@ end
 local _GetItemCount = (C_Item and C_Item.GetItemCount) or _G.GetItemCount
 
 local _countTipHooked = false
+-- tooltip -> link already annotated; kept off the Blizzard tooltip itself
+local _countTipLink = setmetatable({}, { __mode = "k" })
 function bank.installTooltipCounts()
     if _countTipHooked then return end
     _countTipHooked = true
@@ -844,7 +846,7 @@ function bank.installTooltipCounts()
             if ok then link = l end
         end
         if not link then return end
-        if tip._vcuiCountLink == link then return end
+        if _countTipLink[tip] == link then return end
         local itemID = tonumber(string.match(link, "item:(%d+)"))
         if not itemID then return end
         local bags = _GetItemCount and _GetItemCount(itemID) or 0
@@ -852,7 +854,7 @@ function bank.installTooltipCounts()
         if bags <= 0 and inBank <= 0 then return end
         -- only marked when a line actually went in, so an unowned item does
         -- not block the next fill of the same tooltip
-        tip._vcuiCountLink = link
+        _countTipLink[tip] = link
         if bags > 0 then
             tip:AddLine(string.format(L["In your bags: %d"], bags), 0.85, 0.85, 0.9)
         end
@@ -862,7 +864,7 @@ function bank.installTooltipCounts()
         tip:Show()
     end
 
-    local function onCleared(tip) tip._vcuiCountLink = nil end
+    local function onCleared(tip) _countTipLink[tip] = nil end
 
     -- pcall'd per script name: the newer clients dropped OnTooltipSetItem, and
     -- hooking a script a frame does not have is an error, not a no-op

@@ -153,6 +153,10 @@ local function repairAll()
 end
 
 local _stackSplitHooked = false
+-- our markers live here, never as fields on Blizzard frames
+local skinnedButtons = setmetatable({}, { __mode = "k" })
+local stackSplitHeightExtended = false
+local labelHiddenGroups = setmetatable({}, { __mode = "k" })
 
 local function applyMaxStackButton()
     if not StackSplitFrame then return end
@@ -172,8 +176,8 @@ local function setupStackSplitMaxButton()
     _stackSplitHooked = true
 
     -- Height only: the Classic backdrop has a fixed size and does not grow with SetWidth.
-    if not StackSplitFrame._vcuiHeightExtended then
-        StackSplitFrame._vcuiHeightExtended = true
+    if not stackSplitHeightExtended then
+        stackSplitHeightExtended = true
         local h = StackSplitFrame:GetHeight() or 50
         StackSplitFrame:SetHeight(h + 28)
     end
@@ -253,8 +257,8 @@ local function setupStackSplitSkin()
     end
 
     local function skinPanelButton(b)
-        if not b or b._vcuiSkin then return end
-        b._vcuiSkin = true
+        if not b or skinnedButtons[b] then return end
+        skinnedButtons[b] = true
         stripTextures(b)
         local bg = b:CreateTexture(nil, "BACKGROUND")
         bg:SetAllPoints(b)
@@ -274,8 +278,8 @@ local function setupStackSplitSkin()
     end
 
     local function skinArrow(b, dir)
-        if not b or b._vcuiSkin then return end
-        b._vcuiSkin = true
+        if not b or skinnedButtons[b] then return end
+        skinnedButtons[b] = true
         stripTextures(b)
         local icon = b:CreateTexture(nil, "ARTWORK")
         icon:SetPoint("CENTER", b, "CENTER", 0, 0)
@@ -519,22 +523,29 @@ local function applyMaxCameraZoom()
     end
 end
 
-local function applyHideErrors()
+-- forceOff: OnDisable runs the "off" branch so a disabled module gives the frames back
+local function applyHideErrors(forceOff)
     if not UIErrorsFrame then return end
-    if mod.db.hideErrors then
+    if mod.db.hideErrors and not forceOff then
         UIErrorsFrame:UnregisterAllEvents()
         UIErrorsFrame:Hide()
     else
-        UIErrorsFrame:RegisterEvent("UI_ERROR_MESSAGE")
+        -- the three events Blizzard's UIErrorsFrame OnLoad registers
+        UIErrorsFrame:RegisterEvent("SYSMSG")
+        -- unless fishing is muting errors mid-cast; it gives them back itself
+        local fish = ns.modules and ns.modules.vulfishing
+        if not (fish and fish.active and fish._errQuiet) then
+            UIErrorsFrame:RegisterEvent("UI_ERROR_MESSAGE")
+        end
         UIErrorsFrame:RegisterEvent("UI_INFO_MESSAGE")
         UIErrorsFrame:Show()
     end
 end
 
-local function applyHideZoneText()
+local function applyHideZoneText(forceOff)
     local zt = _G.ZoneTextFrame
     local szt = _G.SubZoneTextFrame
-    if mod.db.hideZoneText then
+    if mod.db.hideZoneText and not forceOff then
         if zt  then zt:UnregisterAllEvents();  zt:Hide()  end
         if szt then szt:UnregisterAllEvents(); szt:Hide() end
     else
@@ -560,20 +571,36 @@ local function applyHidePortraitNumbers()
     end
 end
 
--- Blizzard's combat-feedback animation rescales the font (blurry); freeze SetFont/SetTextHeight at a fixed size.
+-- Blizzard's combat feedback rescales the text with SetTextHeight (blurry). Replacing
+-- the methods tainted the portrait frames' feedback path; instead a post-hook sets
+-- our real font size again right after each Blizzard SetTextHeight call.
+local HIT_FONT     = "Fonts\\FRIZQT__.TTF"
+local hitWantSize  = setmetatable({}, { __mode = "k" })  -- fs -> size while on
+local hitOrigFont  = setmetatable({}, { __mode = "k" })  -- fs -> { file, size, flags }
+local hitHooked    = setmetatable({}, { __mode = "k" })
+
+local function hitReapply(fs)
+    local size = hitWantSize[fs]
+    if size then pcall(fs.SetFont, fs, HIT_FONT, size, "THICKOUTLINE") end
+end
+
 local function applyHitNumberFont(fs, on, size)
     if not fs then return end
     if on then
-        if not fs._vcOrigSetFont then
-            fs._vcOrigSetFont       = fs.SetFont
-            fs._vcOrigSetTextHeight = fs.SetTextHeight
+        if not hitOrigFont[fs] then
+            local ok, file, h, flags = pcall(fs.GetFont, fs)
+            hitOrigFont[fs] = ok and { file, h, flags } or {}
         end
-        pcall(fs._vcOrigSetFont, fs, "Fonts\\FRIZQT__.TTF", size, "THICKOUTLINE")
-        fs.SetFont       = function() end
-        fs.SetTextHeight = function() end
-    elseif fs._vcOrigSetFont then
-        fs.SetFont       = fs._vcOrigSetFont
-        fs.SetTextHeight = fs._vcOrigSetTextHeight
+        if not hitHooked[fs] and type(fs.SetTextHeight) == "function" then
+            hitHooked[fs] = true
+            hooksecurefunc(fs, "SetTextHeight", hitReapply)
+        end
+        hitWantSize[fs] = size
+        hitReapply(fs)
+    elseif hitWantSize[fs] then
+        hitWantSize[fs] = nil
+        local o = hitOrigFont[fs]
+        if o and o[1] then pcall(fs.SetFont, fs, o[1], o[2], o[3] or "") end
     end
 end
 
@@ -599,28 +626,38 @@ local function forEachActionButton(fn)
     end
 end
 
-local function applyHideKeybindText()
+-- Alpha instead of Hide: Blizzard's hotkey/range updates call :Show() on these
+-- regions again, which undid a one-time Hide. Alpha 0 survives every Show, and
+-- switching off only gives back what we zeroed (the Show state stays Blizzard's
+-- and the action-bar module's).
+local zeroedText = {
+    HotKey = setmetatable({}, { __mode = "k" }),
+    Name   = setmetatable({}, { __mode = "k" }),
+    Count  = setmetatable({}, { __mode = "k" }),
+}
+local function applyButtonTextAlpha(field, hide)
+    local set = zeroedText[field]
     forEachActionButton(function(b)
-        if b.HotKey then
-            if mod.db.hideKeybindText then b.HotKey:Hide() else b.HotKey:Show() end
+        local r = b[field]
+        if not r then return end
+        if hide then
+            r:SetAlpha(0); set[r] = true
+        elseif set[r] then
+            r:SetAlpha(1); set[r] = nil
         end
     end)
 end
 
-local function applyHideMacroText()
-    forEachActionButton(function(b)
-        if b.Name then
-            if mod.db.hideMacroText then b.Name:Hide() else b.Name:Show() end
-        end
-    end)
+local function applyHideKeybindText(forceOff)
+    applyButtonTextAlpha("HotKey", mod.db.hideKeybindText and not forceOff)
 end
 
-local function applyHideStackCount()
-    forEachActionButton(function(b)
-        if b.Count then
-            if mod.db.hideStackCount then b.Count:Hide() else b.Count:Show() end
-        end
-    end)
+local function applyHideMacroText(forceOff)
+    applyButtonTextAlpha("Name", mod.db.hideMacroText and not forceOff)
+end
+
+local function applyHideStackCount(forceOff)
+    applyButtonTextAlpha("Count", mod.db.hideStackCount and not forceOff)
 end
 
 -- CompactRaidGroup* are secure: Hide/Show taints the compact-frame layout, so use SetAlpha and never touch them in combat.
@@ -633,10 +670,10 @@ local function applyHideRaidGroupLabels()
         if title then
             if hide then
                 title:SetAlpha(0)
-                g._vcuiLabelHidden = true
-            elseif g._vcuiLabelHidden then
+                labelHiddenGroups[g] = true
+            elseif labelHiddenGroups[g] then
                 title:SetAlpha(1)
-                g._vcuiLabelHidden = nil
+                labelHiddenGroups[g] = nil
             end
         end
     end
@@ -1109,8 +1146,8 @@ local function onTradeClosed() userInitiatedTrade = false end
 local gameMenuDone = false
 
 local function skinMenuButton(b, bc)
-    if not b or b._vcuiSkin then return end
-    b._vcuiSkin = true
+    if not b or skinnedButtons[b] then return end
+    skinnedButtons[b] = true
     b:SetHeight((b:GetHeight() or 26) + 4)
     local fs = b.GetFontString and b:GetFontString()
     for i = 1, select("#", b:GetRegions()) do
@@ -1328,6 +1365,12 @@ function mod:OnDisable()
         pcall(SetCVar, CAMERA_CVAR, mod.db.cameraZoomPrev or CAMERA_DEFAULT)
         mod.db.cameraZoomPrev = nil
     end
+    -- give the hidden frames and texts back; only where we took them
+    if mod.db.hideErrors   then applyHideErrors(true)   end
+    if mod.db.hideZoneText then applyHideZoneText(true) end
+    applyHideKeybindText(true)
+    applyHideMacroText(true)
+    applyHideStackCount(true)
 end
 
 -- Macro Factory: builds per-character macros; potion IDs are best tier first.
@@ -1613,7 +1656,15 @@ local owner = CreateFrame("Frame", "VulFishOwner", UIParent)
 owner:Hide()
 local macroBtn = CreateFrame("Button", "VulFishMacroButton", UIParent, "SecureActionButtonTemplate")
 macroBtn:SetAttribute("type", "macro")
+-- 2.5.5 fires a secure click only through the "*" wildcard attributes (the
+-- disenchant button's recipe); the plain pair stays for the other clients
+macroBtn:SetAttribute("*type1", "macro")
 macroBtn:RegisterForClicks("AnyUp", "AnyDown")
+
+local function setMacro(text)
+    macroBtn:SetAttribute("macrotext", text)
+    macroBtn:SetAttribute("*macrotext1", text)
+end
 
 local midFishing = false
 
@@ -1691,12 +1742,25 @@ end
 -- the same session where the crash happened keeps the fishing values until the
 -- next time it is on. Restoring from a module that is off would mean touching
 -- the client's settings behind the back of a switch the player just turned off.
+-- Only the CVars this module itself changes: the backup rides in the saved
+-- profile, so an imported profile string could otherwise name any CVar.
+local OWN_CVARS = {
+    autoLootDefault = true, Sound_MasterVolume = true, Sound_SFXVolume = true,
+    Sound_EnableSoundWhenGameIsInBG = true,
+}
+for k in pairs(FISH_CVARS) do OWN_CVARS[k] = true end
+for k in pairs(SOUND_DIM) do OWN_CVARS[k] = true end
+
 local function restoreOrphanedCVars()
     local saved = mod.db and mod.db.cvarBackup
     if not saved then return end
     mod.db.cvarBackup = nil
+    if type(saved) ~= "table" then return end
     for k, v in pairs(saved) do
-        if v ~= nil and GetCVar(k) ~= nil then SetCVar(k, v) end
+        if OWN_CVARS[k] and (type(v) == "string" or type(v) == "number")
+           and GetCVar(k) ~= nil then
+            SetCVar(k, v)
+        end
     end
 end
 
@@ -1805,13 +1869,30 @@ local function extraReady(r)
         return true
     end
 end
+-- The key is re-checked every 0.3 s but only rebound when the wanted target
+-- changes: every override write fires UPDATE_BINDINGS, and the action bars and
+-- the cooldown manager rebind on each one.
+local boundSig
+local function bindTo(sig, apply)
+    if sig == boundSig then return end
+    ClearOverrideBindings(owner)
+    boundSig = sig
+    if apply then apply() end
+end
+
+local function bindMacro(k, text)
+    bindTo(k .. "|macro|" .. text, function()
+        setMacro(text)
+        SetOverrideBindingClick(owner, true, k, "VulFishMacroButton")
+    end)
+end
+
 local function bindExtra(k, r)
     if r.kind == "item" then
-        macroBtn:SetAttribute("macrotext", "/use " .. (r.name or ("item:" .. r.itemID)))
+        bindMacro(k, "/use " .. (r.name or ("item:" .. r.itemID)))
     else
-        macroBtn:SetAttribute("macrotext", r.body)
+        bindMacro(k, r.body)
     end
-    SetOverrideBindingClick(owner, true, k, "VulFishMacroButton")
 end
 
 local function chosenKey()
@@ -1822,16 +1903,15 @@ end
 local function actionHandler()
     if InCombatLockdown() then return end
     local k = chosenKey()
-    if not k then ClearOverrideBindings(owner); return end
+    if not k then bindTo("none"); return end
     if IsKeyDown and IsKeyDown(k) then return end   -- rebinding a held key breaks the press; API may be absent
-    ClearOverrideBindings(owner)
-    if UnitIsDeadOrGhost("player") then return end
+    if UnitIsDeadOrGhost("player") then bindTo("none"); return end
 
     if midFishing then
         if mod.db.softInteract then
-            SetOverrideBinding(owner, true, k, "INTERACTMOUSEOVER")
+            bindTo(k .. "|interact", function() SetOverrideBinding(owner, true, k, "INTERACTMOUSEOVER") end)
         else
-            SetOverrideBindingSpell(owner, true, k, FISHING_NAME)
+            bindTo(k .. "|cast", function() SetOverrideBindingSpell(owner, true, k, FISHING_NAME) end)
         end
         return
     end
@@ -1844,13 +1924,12 @@ local function actionHandler()
     -- This does turn off the auto-equip below, and it has to: that branch works
     -- by owning the key while no pole is worn, which is exactly the state this
     -- setting hands back.
-    if mod.db.onlyWithPole and not poleEquipped() then return end
+    if mod.db.onlyWithPole and not poleEquipped() then bindTo("none"); return end
 
     if mod.db.equipPole and not poleEquipped() then
         local pole = poleInBags()
         if pole then
-            macroBtn:SetAttribute("macrotext", "/equip " .. pole)
-            SetOverrideBindingClick(owner, true, k, "VulFishMacroButton")
+            bindMacro(k, "/equip " .. pole)
             return
         end
     end
@@ -1858,8 +1937,7 @@ local function actionHandler()
     if mod.db.lure and not hasLure() then
         local lure = bestOwnedLure()
         if lure then
-            macroBtn:SetAttribute("macrotext", "/use " .. lure .. "\n/use 16")
-            SetOverrideBindingClick(owner, true, k, "VulFishMacroButton")
+            bindMacro(k, "/use " .. lure .. "\n/use 16")
             return
         end
     end
@@ -1869,7 +1947,7 @@ local function actionHandler()
         if r and extraReady(r) then bindExtra(k, r); return end
     end
 
-    SetOverrideBindingSpell(owner, true, k, FISHING_NAME)
+    bindTo(k .. "|cast", function() SetOverrideBindingSpell(owner, true, k, FISHING_NAME) end)
 end
 mod._apply = actionHandler
 
@@ -1889,8 +1967,14 @@ local function setQuiet(on)
     on = (on and mod.db.quietErrors ~= false) or false
     if on == errQuiet then return end
     errQuiet = on
+    mod._errQuiet = on   -- read by the General "hide UI error messages" restore
     if on then UIErrorsFrame:UnregisterEvent("UI_ERROR_MESSAGE")
-    else UIErrorsFrame:RegisterEvent("UI_ERROR_MESSAGE") end
+    else
+        -- the General toggle "hide UI error messages" owns the frame while it is on
+        local misc = ns.modules and ns.modules.miscqol
+        if misc and misc.active and misc.db and misc.db.hideErrors then return end
+        UIErrorsFrame:RegisterEvent("UI_ERROR_MESSAGE")
+    end
 end
 
 local function onChannelStart(_, unit, _, spellID)
@@ -1973,9 +2057,21 @@ end
 
 function mod:OnDisable()
     owner:Hide()
+    -- the channel-stop event is gone with the module; a stale flag would keep
+    -- the key on "interact" forever after the next enable
+    midFishing = false
     setQuiet(false)
     restoreFishCVars()
-    if not InCombatLockdown() then ClearOverrideBindings(owner) end
+    if not InCombatLockdown() then
+        ClearOverrideBindings(owner); boundSig = nil
+    else
+        -- not module-bound: SafeDisable drops the module's own events, and the
+        -- key must not keep casting until the next /reload
+        ns:RegisterEventOnce("PLAYER_REGEN_ENABLED", function()
+            if mod._enabled then return end
+            ClearOverrideBindings(owner); boundSig = nil
+        end)
+    end
 end
 
 function mod:GetOptions()
@@ -2066,32 +2162,37 @@ local function stopUpdateFrame()
     end
 end
 
+-- Our labels live in a side table, not as fields on Blizzard's dialogs.
+local dialogLabels = setmetatable({}, { __mode = "k" })
+
 local function createCustomFontStrings(dialog)
-    if dialog.queueTimerLabels then return end
+    if dialogLabels[dialog] then return dialogLabels[dialog] end
     local maxWidth = dialog:GetWidth()
+    local lbl = {}
 
-    dialog.customLabel = dialog:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    dialog.customLabel:SetPoint("TOP", dialog.label or dialog.text, "TOP", 0, 0)
-    dialog.customLabel:SetText(L["Queue expires in"])
-    local f = dialog.customLabel:GetFont(); dialog.customLabel:SetFont(f, 15, "OUTLINE")
-    dialog.customLabel:SetWidth(maxWidth)
+    lbl.custom = dialog:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    lbl.custom:SetPoint("TOP", dialog.label or dialog.text, "TOP", 0, 0)
+    lbl.custom:SetText(L["Queue expires in"])
+    local f = lbl.custom:GetFont(); lbl.custom:SetFont(f, 15, "OUTLINE")
+    lbl.custom:SetWidth(maxWidth)
 
-    dialog.timerLabel = dialog:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    dialog.timerLabel:SetPoint("TOP", dialog.customLabel, "BOTTOM", 0, -44)
-    f = dialog.timerLabel:GetFont(); dialog.timerLabel:SetFont(f, 24, "OUTLINE")
-    dialog.timerLabel:SetWidth(maxWidth)
+    lbl.timer = dialog:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    lbl.timer:SetPoint("TOP", lbl.custom, "BOTTOM", 0, -44)
+    f = lbl.timer:GetFont(); lbl.timer:SetFont(f, 24, "OUTLINE")
+    lbl.timer:SetWidth(maxWidth)
 
-    dialog.bgLabel = dialog:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    dialog.bgLabel:SetPoint("TOP", dialog.timerLabel, "BOTTOM", 0, -4)
-    f = dialog.bgLabel:GetFont(); dialog.bgLabel:SetFont(f, 15, "OUTLINE")
-    dialog.bgLabel:SetWidth(maxWidth)
+    lbl.bg = dialog:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    lbl.bg:SetPoint("TOP", lbl.timer, "BOTTOM", 0, -4)
+    f = lbl.bg:GetFont(); lbl.bg:SetFont(f, 15, "OUTLINE")
+    lbl.bg:SetWidth(maxWidth)
 
-    dialog.statusTextLabel = dialog:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    dialog.statusTextLabel:SetPoint("TOP", dialog.bgLabel, "BOTTOM", 0, -3)
-    f = dialog.statusTextLabel:GetFont(); dialog.statusTextLabel:SetFont(f, 11, "OUTLINE")
-    dialog.statusTextLabel:SetWidth(maxWidth)
+    lbl.status = dialog:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    lbl.status:SetPoint("TOP", lbl.bg, "BOTTOM", 0, -3)
+    f = lbl.status:GetFont(); lbl.status:SetFont(f, 11, "OUTLINE")
+    lbl.status:SetWidth(maxWidth)
 
-    dialog.queueTimerLabels = true
+    dialogLabels[dialog] = lbl
+    return lbl
 end
 
 local function setExpiresText(timeRemaining, dialog, pvp)
@@ -2107,25 +2208,25 @@ local function setExpiresText(timeRemaining, dialog, pvp)
         bgName = mapName or ""
     end
 
-    createCustomFontStrings(dialog)
+    local lbl = createCustomFontStrings(dialog)
     if dialog.instanceInfo then
-        dialog.customLabel:SetPoint("TOP", dialog.label, "TOP", 0, 0)
+        lbl.custom:SetPoint("TOP", dialog.label, "TOP", 0, 0)
         dialog.instanceInfo:SetAlpha(0)
         dialog.label:SetText("")
-        dialog.timerLabel:SetText(timerText)
+        lbl.timer:SetText(timerText)
         if bgName == "" and dialog.instanceInfo.name and (dialog.instanceInfo:IsShown() or pvp) then
             bgName = dialog.instanceInfo.name:GetText() or ""
         end
-        dialog.bgLabel:SetText(bgName)
+        lbl.bg:SetText(bgName)
         -- statusText sub-region isn't present on every dialog variant — guard it
         local st = dialog.instanceInfo.statusText
-        dialog.statusTextLabel:SetText((st and st:GetText()) or "")
+        lbl.status:SetText((st and st:GetText()) or "")
     else
-        dialog.customLabel:SetPoint("TOP", dialog.text, "TOP", 0, 0)
+        lbl.custom:SetPoint("TOP", dialog.text, "TOP", 0, 0)
         dialog.text:SetText("")
-        dialog.timerLabel:SetText(timerText)
-        dialog.bgLabel:SetText(bgName)
-        dialog.statusTextLabel:SetText("")
+        lbl.timer:SetText(timerText)
+        lbl.bg:SetText(bgName)
+        lbl.status:SetText("")
     end
 end
 
@@ -2298,11 +2399,12 @@ end
 -- reconstructed here, so a dialog that is showing RIGHT NOW stays textless
 -- until this pop expires; the next pop repaints it.
 local function clearCustomLabels(dialog)
-    if dialog and dialog.queueTimerLabels then
-        dialog.customLabel:SetText("")
-        dialog.timerLabel:SetText("")
-        dialog.bgLabel:SetText("")
-        dialog.statusTextLabel:SetText("")
+    local lbl = dialog and dialogLabels[dialog]
+    if lbl then
+        lbl.custom:SetText("")
+        lbl.timer:SetText("")
+        lbl.bg:SetText("")
+        lbl.status:SetText("")
         if dialog.instanceInfo then dialog.instanceInfo:SetAlpha(1) end
     end
 end
@@ -2611,26 +2713,27 @@ local function buildFrame()
     f:SetScript("OnEvent", function(_, event, unit)
         -- Introspection refreshes announce themselves via the player's aura
         -- event; the old 0.1s poll rescanned all debuff slots while shown.
-        if event == "UNIT_AURA" then
-            if unit ~= "player" then return end
-            local exp = introspectionExpire()
-            if exp and exp ~= lastExpire then
-                lastExpire = exp
-                shiftQueue()
-            end
-            return
+        if event ~= "UNIT_AURA" or unit ~= "player" then return end
+        local exp = introspectionExpire()
+        if exp and exp ~= lastExpire then
+            lastExpire = exp
+            shiftQueue()
         end
-        local _, sub, _, _, _, _, _, _, _, destFlags, _, sid = CombatLogGetCurrentEventInfo()
+    end)
+
+    -- Values from the shared reader (ns:RegisterCombatLog). Held only while the
+    -- window is shown, exactly like the event registration it replaces.
+    local function onCombatLog(_, sub, _, _, _, _, _, _, _, destFlags, _, sid)
         if sub == "SPELL_DAMAGE" and sid == REPRISAL_ID
            and destFlags == SELF_FLAGS and consumed then
             unshiftQueue()
         end
-    end)
+    end
 
     f:SetScript("OnShow", function(self)
         -- sync to a running Introspection so reopening mid-game doesn't eat a queue entry
         lastExpire = introspectionExpire() or 0
-        self:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
+        ns:RegisterCombatLog(mod, onCombatLog)
         if self.RegisterUnitEvent then
             self:RegisterUnitEvent("UNIT_AURA", "player")
         else
@@ -2639,7 +2742,7 @@ local function buildFrame()
         bindKeys()
     end)
     f:SetScript("OnHide", function(self)
-        self:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
+        ns:UnregisterCombatLog(mod, onCombatLog)
         self:UnregisterEvent("UNIT_AURA")
         if InCombatLockdown() and self._bound then
             self._pendingUnbind = true
@@ -2723,9 +2826,22 @@ function mod:OnEnable()
     mod:RegisterEvent("PLAYER_REGEN_ENABLED",  onRegenEnabled)
 end
 
+-- Not module-bound: SafeDisable drops the module's own PLAYER_REGEN_ENABLED,
+-- which would leave the override keys clicking the record buttons until /reload.
+local function unbindAfterCombat()
+    if mod.active or not f then return end
+    f._pendingUnbind = nil
+    f._pendingBind = nil
+    unbindKeys()
+end
+
 function mod:OnDisable()
     if f then
-        if not InCombatLockdown() then unbindKeys() end
+        if not InCombatLockdown() then
+            unbindKeys()
+        elseif f._bound then
+            ns:RegisterEventOnce("PLAYER_REGEN_ENABLED", unbindAfterCombat)
+        end
         f:Hide()
     end
 end
@@ -3024,9 +3140,11 @@ local function findMoneyFontString(frame, depth)
     return nil
 end
 
+local moneyHooked = setmetatable({}, { __mode = "k" })
+
 local function hookOnce(frame, withLeave)
-    if not frame or frame._vcui_moneyHooked then return false end
-    frame._vcui_moneyHooked = true
+    if not frame or moneyHooked[frame] then return false end
+    moneyHooked[frame] = true
     frame:HookScript("OnEnter", showTooltip)
     if withLeave then
         frame:HookScript("OnLeave", hideTooltip)
@@ -3501,8 +3619,12 @@ end
 
 local STAR = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_1"
 
+-- per row button: our star button and the overlay textures we hide
+local rowStar  = setmetatable({}, { __mode = "k" })
+local rowBoxes = setmetatable({}, { __mode = "k" })
+
 local function enhanceRow(btn, cfg)
-    if btn._vcuiStarBtn then return end
+    if rowStar[btn] then return end
 
     local sb = CreateFrame("Button", nil, btn)
     sb:SetSize(14, 14)
@@ -3511,16 +3633,17 @@ local function enhanceRow(btn, cfg)
     tex:SetAllPoints()
     tex:SetTexture(STAR)
     sb._tex = tex
-    btn._vcuiStarBtn = sb
+    rowStar[btn] = sb
 
     -- Textureless overlays render as a box around the row text; real icons keep a texture path.
-    btn._vcuiBoxes = {}
+    local boxes = {}
+    rowBoxes[btn] = boxes
     for _, r in ipairs({ btn:GetRegions() }) do
         if r.GetObjectType and r:GetObjectType() == "Texture" then
             local t = r.GetTexture and r:GetTexture()
             -- 130835 is UI-QuestTitleHighlight; the selection stays readable via its bold text.
             if not t or t == 130835 or (type(t) == "string" and t:lower():find("highlight")) then
-                btn._vcuiBoxes[#btn._vcuiBoxes + 1] = r
+                boxes[#boxes + 1] = r
                 r:Hide()
             end
         end
@@ -3840,13 +3963,14 @@ local function refreshList(cfg)
         local btn = _G[cfg.rowFmt:format(i)]
         if btn and btn:IsShown() then
             enhanceRow(btn, cfg)
-            if btn._vcuiStarBtn then
-                btn._vcuiStarBtn:ClearAllPoints()
-                btn._vcuiStarBtn:SetPoint("RIGHT", btn, "RIGHT", starInset, 0)
+            local sb = rowStar[btn]
+            if sb then
+                sb:ClearAllPoints()
+                sb:SetPoint("RIGHT", btn, "RIGHT", starInset, 0)
             end
-            if btn._vcuiBoxes then for _, r in ipairs(btn._vcuiBoxes) do r:Hide() end end
+            local boxes = rowBoxes[btn]
+            if boxes then for _, r in ipairs(boxes) do r:Hide() end end
             local name, skillType, numAvailable = cfg.info(btn:GetID())
-            local sb = btn._vcuiStarBtn
             if name and skillType and skillType ~= "header" then
                 sb:Show()
                 if mod.db.favorites[name] then
@@ -4007,7 +4131,9 @@ bankWatcher:SetScript("OnEvent", function(_, event)
     if event == "BANKFRAME_OPENED" then
         bankOpen = true; scanBank(); bankWatcher:RegisterEvent("BAG_UPDATE")
     elseif event == "BANKFRAME_CLOSED" then
-        bankOpen = false; scanBank(); bankWatcher:UnregisterEvent("BAG_UPDATE")
+        -- no scan here: the bank may already read as empty when this fires,
+        -- and a scan would wipe the cached counts it exists to keep
+        bankOpen = false; bankWatcher:UnregisterEvent("BAG_UPDATE")
     elseif event == "BAG_UPDATE" and bankOpen then
         scanBank()
     end
@@ -4294,6 +4420,7 @@ local function setupFrame(cfg)
                 local b = _G[cfg.rowFmt:format(i)]
                 if b then b:Hide() end
             end
+            -- deliberate write: the row count is a plain global the list update loops over, no API sets it — read only by TradeSkillFrame_Update/CraftFrame_Update (non-secure)
             _G[cfg.displayed] = fitRows
 
             -- Blizzard resets the width on every Show, so the hook has to reapply it.
@@ -4482,6 +4609,7 @@ local PARCHMENT = "Interface\\AddOns\\VuloClassicUI\\Media\\textures\\questlog-p
 local hooked   = false
 local enlarged = false
 local bgDone   = false
+local bgRegs          -- the parchment textures setupBg retextured
 
 local function formatTitle(title, level, questID)
     local prefix = (mod.db.levels and level and level > 0) and format("[%d] ", level) or ""
@@ -4579,11 +4707,11 @@ local function setupBg()
 
             if q[5] then q[5]:Hide() end
             if q[6] then q[6]:Hide() end
-            QLF._vcuiRegs = { q[3], q[4] }
+            bgRegs = { q[3], q[4] }
         else
             local list = {}
             for i = 3, 6 do if q[i] then list[#list + 1] = q[i] end end
-            QLF._vcuiRegs = list
+            bgRegs = list
         end
     end)
 end
@@ -4592,8 +4720,8 @@ local function applyTheme()
     local QLF = _G.QuestLogFrame
     if not QLF then return end
     local dark = (mod.db.theme == "dark")
-    if QLF._vcuiRegs then
-        for _, r in ipairs(QLF._vcuiRegs) do
+    if bgRegs then
+        for _, r in ipairs(bgRegs) do
             if r.SetDesaturated then r:SetDesaturated(dark) end
             if dark then r:SetVertexColor(0.16, 0.15, 0.14, 1)
             else        r:SetVertexColor(1, 1, 1, 1) end
@@ -4638,6 +4766,7 @@ local function enlarge()
         end
 
         local old = _G.QUESTS_DISPLAYED or 0
+        -- deliberate write: the row count is a plain global the list update loops over, no API sets it — read only by QuestLog_Update and its helpers (non-secure)
         _G.QUESTS_DISPLAYED = old + extra
         for i = old + 1, _G.QUESTS_DISPLAYED do
             if not _G["QuestLogTitle" .. i] and _G["QuestLogTitle" .. (i - 1)] then
@@ -4907,7 +5036,8 @@ local function buildWindow()
     f.mover = ns:CreateMover(f, { key = "disenchantqueue", label = "|cffffffff" .. L["Disenchant Queue"] .. "|r", db = mod.db, width = 280, height = 184,
         scalable = true, anchorable = true })
 
-    -- only the cast button child is protected, so moving the frame itself is legal
+    -- the secure cast button makes this frame protected as well: no moving,
+    -- showing or hiding it in combat (drag start and HideWindow guard that)
     f:SetMovable(true)
     f:RegisterForDrag("LeftButton")
     f:SetScript("OnDragStart", function(self)
@@ -4928,7 +5058,7 @@ local function buildWindow()
 
     local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
     close:SetPoint("TOPRIGHT", 2, 2)
-    close:SetScript("OnClick", function() f:Hide() end)
+    close:SetScript("OnClick", function() mod:HideWindow() end)
 
     f.icon = f:CreateTexture(nil, "ARTWORK")
     f.icon:SetSize(32, 32)
@@ -5056,7 +5186,27 @@ local function buildWindow()
     return f
 end
 
+-- Hide is blocked while the frame is protected (combat): finish it afterwards.
+-- One shared function, so repeated requests in one fight collapse into one.
+local function hideAfterCombat()
+    if win and not InCombatLockdown() then win:Hide() end
+end
+
+function mod:HideWindow()
+    if not win or not win:IsShown() then return end
+    if InCombatLockdown() then
+        ns:RegisterEventOnce("PLAYER_REGEN_ENABLED", hideAfterCombat)
+        return
+    end
+    win:Hide()
+end
+
 function mod:OpenWindow()
+    -- building creates a secure button and showing a protected frame is blocked
+    if InCombatLockdown() then
+        ns:Print(L["Not possible in combat."])
+        return
+    end
     if not isEnchanter() then
         ns:Print(L["You need the Enchanting profession (Disenchant) to use this."])
         return
@@ -5066,7 +5216,7 @@ function mod:OpenWindow()
 end
 
 function mod:ToggleWindow()
-    if win and win:IsShown() then win:Hide() else mod:OpenWindow() end
+    if win and win:IsShown() then mod:HideWindow() else mod:OpenWindow() end
 end
 
 function mod:OnEnable()
@@ -5080,7 +5230,7 @@ function mod:OnEnable()
 end
 
 function mod:OnDisable()
-    if win then win:Hide() end
+    mod:HideWindow()
 end
 
 local QUALITY_VALUES = {
@@ -6014,7 +6164,7 @@ local _watchdog
 local _lastNotify         = 0
 local _retriedGUID        = nil   -- one automatic re-request per inspected target
 
--- softReset keeps InspectFrame.unit (an open frame still needs it for tooltips); hardReset clears it.
+-- softReset leaves the retry marker; hardReset also forgets it (InspectFrame.unit is cleared by Blizzard's OnHide).
 local function softReset()
     if _G.ClearInspectPlayer then
         pcall(_G.ClearInspectPlayer)
@@ -6026,8 +6176,8 @@ end
 local function hardReset()
     softReset()
     _retriedGUID = nil
-    local f = _G.InspectFrame
-    if f then f.unit = nil end
+    -- InspectFrame.unit is not ours to clear: Blizzard's InspectFrame_OnHide does
+    -- it, and every caller here either runs in that OnHide or hides the frame next
 end
 
 -- Blizzard: INSPECT_READY fires before item data has streamed in and the paperdoll paints only once — repaint late, re-request if still empty.
@@ -6114,9 +6264,12 @@ local function installInspectTracking()
 end
 
 -- Blizzard: inspect-slot OnEnter shows no tooltip while item data is still streaming and never retries — replaced (tooltip-only, taint-legal); UpdateTooltip re-invokes this until data lands.
+local origSlotEnter = setmetatable({}, { __mode = "k" })   -- slot button -> Blizzard's OnEnter script
+
 local function inspectSlotOnEnter(self)
     if not mod._enabled then
-        if self._vcuiOrigEnter then self._vcuiOrigEnter(self) end
+        local orig = origSlotEnter[self]
+        if orig then orig(self) end
         return
     end
     local fr = _G.InspectFrame
@@ -6148,10 +6301,10 @@ end
 local function hardenInspectTooltips()
     for _, name in ipairs(INSPECT_SLOT_NAMES) do
         local btn = _G["Inspect" .. name .. "Slot"]
-        if btn and not btn._vcuiTipFixed then
-            btn._vcuiTipFixed = true
-            btn._vcuiOrigEnter = btn:GetScript("OnEnter")
+        if btn and origSlotEnter[btn] == nil then
+            origSlotEnter[btn] = btn:GetScript("OnEnter") or false
             btn:SetScript("OnEnter", inspectSlotOnEnter)
+            -- deliberate write: the stub tooltip must refresh once item data lands — read only by GameTooltip_OnUpdate (non-secure), as its last statement
             btn.UpdateTooltip = inspectSlotOnEnter
         end
     end
@@ -7980,6 +8133,10 @@ end
 
 local function requestInspect(unit)
     if not unit or not UnitExists(unit) or not UnitIsPlayer(unit) then return end
+    -- an open inspect window owns the server's inspect target; a hover request
+    -- would swap it for the hovered player and empty the window's data
+    local insp = _G.InspectFrame
+    if insp and insp:IsShown() then return end
     if not CanInspect or not CanInspect(unit) then return end
     if UnitIsVisible and not UnitIsVisible(unit) then return end
     if (GetTime() - lastInspectTime) < INSPECT_THROTTLE then return end
@@ -8260,22 +8417,25 @@ function mod:GetOptions()
         { type = "desc",   text = L["Shows additional ID lines in tooltips, e.g. spell, item or NPC IDs."] },
         { type = "spacer" },
         { type = "header", text = L["Quick Select"] },
+        -- The buttons redraw the page that is OPEN -- this module is shown as
+        -- a block of a collection page, and building "tooltipids" by name drew
+        -- it alone, with nil for the tab, under ids the window never hands out.
         {
             type = "group", layout = "row", gap = 6,
             items = {
                 { type = "button", label = L["All on"], width = 80, onClick = function()
                     for k in pairs(kinds) do mod.db[k] = true end
-                    ns.UI:BuildOptionsPage("tooltipids")
+                    ns.UI:RebuildCurrentPage()
                 end },
                 { type = "button", label = L["All off"], width = 80, onClick = function()
                     for k in pairs(kinds) do mod.db[k] = false end
-                    ns.UI:BuildOptionsPage("tooltipids")
+                    ns.UI:RebuildCurrentPage()
                 end },
                 { type = "button", label = L["Defaults"], width = 80, onClick = function()
                     for k in pairs(kinds) do
                         mod.db[k] = not defaultDisabledKinds[k]
                     end
-                    ns.UI:BuildOptionsPage("tooltipids")
+                    ns.UI:RebuildCurrentPage()
                 end },
             },
         },
@@ -8379,7 +8539,9 @@ local function normalize(s)
     return s
 end
 
-local cachedKeywords
+-- Both caches remember the db table they were built from: a profile switch
+-- hands the module a new table, and the old lists must not outlive it.
+local cachedKeywords, cachedKeywordsDB
 local function buildKeywords()
     local list, seen = {}, {}
     local function add(kw)
@@ -8388,7 +8550,7 @@ local function buildKeywords()
     end
     for _, kw in ipairs(DEFAULT_KEYWORDS) do add(kw) end
     for kw in tostring(mod.db.extraKeywords or ""):gmatch("[^,%s]+") do add(kw) end
-    cachedKeywords = list
+    cachedKeywords, cachedKeywordsDB = list, mod.db
     return list
 end
 
@@ -8396,7 +8558,8 @@ local function matches(s)
     if not s then return false end
     local n = normalize(s)
     if n == "" then return false end
-    for _, kw in ipairs(cachedKeywords or buildKeywords()) do
+    local list = (cachedKeywordsDB == mod.db and cachedKeywords) or buildKeywords()
+    for _, kw in ipairs(list) do
         if n:find(kw, 1, true) then return true end
     end
     return false
@@ -8419,18 +8582,18 @@ end
 
 mod._blocked = 0  -- session counter (shown in options)
 
-local cachedWhitelist
+local cachedWhitelist, cachedWhitelistDB
 local function buildWhitelist()
     local set = {}
     for n in tostring(mod.db and mod.db.whitelist or ""):gmatch("[^,]+") do
         n = normalize(n)
         if n ~= "" then set[n] = true end
     end
-    cachedWhitelist = set
+    cachedWhitelist, cachedWhitelistDB = set, mod.db
     return set
 end
 local function isWhitelisted(name)
-    local set = cachedWhitelist or buildWhitelist()
+    local set = (cachedWhitelistDB == mod.db and cachedWhitelist) or buildWhitelist()
     return set[normalize(name)] == true
 end
 

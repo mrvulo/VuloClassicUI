@@ -418,7 +418,14 @@ ST.heldIcon, ST.twistIcon = nil, nil
 ST.heldExpires, ST.twistExpires = nil, nil
 ST.heldDuration, ST.twistDuration = nil, nil
 
-function ST.DB() return csMod.db and csMod.db.sealtwist end
+-- A profile switch or reset re-points csMod.db at a table without `sealtwist`
+-- (only onEnable creates it), so seed the defaults rather than return nil.
+function ST.DB()
+    local db = csMod.db
+    if not db then return nil end
+    if not db.sealtwist then db.sealtwist = ns:ApplyDefaults(nil, ST.DEFAULTS) end
+    return db.sealtwist
+end
 
 function ST.FontPath()
     if ns.UI and ns.UI.FONT_PATH then return ns.UI.FONT_PATH end

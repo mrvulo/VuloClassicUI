@@ -125,7 +125,9 @@ local function ensureDB()
     csMod.db.totems = d
     return d
 end
-local function db() return csMod.db.totems end
+-- A profile switch or reset re-points csMod.db at a table without `totems`
+-- (it is not in the module defaults), and the container's OnUpdate keeps calling.
+local function db() return csMod.db.totems or ensureDB() end
 
 local function buttonSpell(t)
     local d = db()
@@ -718,15 +720,16 @@ local function styleFlyoutPanel(fl)
         else fl:SetBackdropColor(0.05, 0.05, 0.08, 0.96) end
         if bd then fl:SetBackdropBorderColor(bd.r, bd.g, bd.b, 1)
         else fl:SetBackdropBorderColor(0.3, 0.3, 0.35, 1) end
-        if not fl._vcShadow and ns.UI and ns.UI.CreateShadow then
+        if ns.UI and ns.UI.CreateShadow and not ns.UI:GetShadow(fl) then
             ns.UI:CreateShadow(fl)
         end
     else
         fl:SetBackdropColor(0.05, 0.05, 0.08, 0.92)
         fl:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
     end
-    if fl._vcShadow then
-        for _, t in ipairs(fl._vcShadow) do t:SetShown(vulo) end
+    local shadow = ns.UI and ns.UI.GetShadow and ns.UI:GetShadow(fl)
+    if shadow then
+        for _, t in ipairs(shadow) do t:SetShown(vulo) end
     end
 end
 
@@ -999,6 +1002,15 @@ end
 
 local function onEnable()
     ensureDB()
+    -- The first build creates SecureActionButtons and sets their attributes,
+    -- which is blocked in combat: run the whole enable once combat ends,
+    -- unless the module was switched off again in the meantime.
+    if not container and InCombatLockdown and InCombatLockdown() then
+        ns:RunOutOfCombatOnce("shaman:enable", function()
+            if csMod.active then onEnable() end
+        end)
+        return
+    end
     build()
     wipe(spellIconCache)      -- the spellbook may have changed while SPELLS_CHANGED was unregistered
     playerAurasDirty = true   -- auras may have changed while UNIT_AURA was unregistered
@@ -1017,7 +1029,11 @@ local function onDisable()
     if container then
         container:SetScript("OnUpdate", nil)
         if container.mover then container.mover:Hide() end
-        container:Hide()
+        -- container parents secure buttons -> Hide() only out of combat; the
+        -- queue is not module-bound, so it survives the disable
+        ns:RunOutOfCombatOnce("shaman:hide", function()
+            if not csMod.active and container then container:Hide() end
+        end)
     end
 end
 

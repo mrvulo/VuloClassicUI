@@ -124,14 +124,17 @@ local function makeWornTrinket(name, parent, id, point, retailX, retailY, classi
     end)
 
     -- The per-button OnLoad from the XML, which replaced the template's. Note it
-    -- registers THREE click types where the template registered two, and never
-    -- blanks TogglePopup -- both differences are the XML's, kept as they are.
+    -- never blanks TogglePopup -- the XML's difference, kept as it is.
     if WOW_PROJECT_ID == WOW_PROJECT_MAINLINE then
         b:SetPoint(point, retailX, retailY)
     else
         b:SetPoint(point, classicX, classicY)
     end
-    b:RegisterForClicks("LeftButtonDown", "LeftButtonUp", "RightButtonUp")
+    -- Was LeftButtonDown/LeftButtonUp/RightButtonUp: with ActionButtonUseKeyDown
+    -- on, the client fires the secure action only on the DOWN half, so a right
+    -- click never used the trinket. The house recipe is AnyUp+AnyDown plus the
+    -- "*" attributes (Trinkets.lua); MainTrinket_OnClick filters the halves.
+    b:RegisterForClicks("AnyUp", "AnyDown")
     styleActionButton(b)
     return b
 end

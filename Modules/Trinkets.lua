@@ -16,11 +16,18 @@ local function getMainFrame()    return _G.Trinkets_MainFrame end
 local function getIconFrame()    return _G.Trinkets_IconFrame end
 local function getOptFrame()     return _G.Trinkets_OptFrame  end
 
+local wantShown   -- last state asked for; a deferred run applies this, not a stale one
+
 local function setShown(state)
     local f = getMainFrame()
     if not f then return end
-    -- Secure frame: Show/Hide from insecure code is blocked, so bail in combat and pcall otherwise.
-    if InCombatLockdown and InCombatLockdown() then return end
+    -- Secure frame: Show/Hide from insecure code is blocked, so wait for combat
+    -- to end (the toggle has already written db) and pcall otherwise.
+    wantShown = state
+    if InCombatLockdown and InCombatLockdown() then
+        ns:RunOutOfCombatOnce("trinkets-shown", function() setShown(wantShown) end)
+        return
+    end
     if state and f:IsShown() then return end
     if not state and not f:IsShown() then return end
     pcall(function()
@@ -30,6 +37,12 @@ end
 
 local function rescaleMain()
     local f = getMainFrame()
+    -- Same secure frame: SetScale waits for combat to end, then reads the
+    -- newest slider value.
+    if f and InCombatLockdown() then
+        ns:RunOutOfCombatOnce("trinkets-scale", rescaleMain)
+        return
+    end
     if f and TrinketsPerOptions and TrinketsPerOptions.MainScale then
         f:SetScale(TrinketsPerOptions.MainScale)
     end
@@ -65,6 +78,7 @@ function mod:OnEnable()
     -- Engine initializes on load, so this is deferred; setShown must never run
     -- inline here (secure frame), which is why it sits inside the timers.
     local function apply()
+        if not mod.active then return end   -- switched off again within the 2 s
         suppressEngineUI()
         -- The engine persists its own visibility flag whenever the frame is
         -- hidden, so OnDisable below told it to stay hidden for good. Nothing
@@ -72,6 +86,10 @@ function mod:OnEnable()
         -- "Show frame" still read as on, and only toggling that option twice
         -- brought them back. The player's own setting decides here.
         setShown(mod.db.showFrame ~= false)
+        -- OnDisable stopped the auto queue; this re-arms it if a slot is armed.
+        if Trinkets and Trinkets.Timers and Trinkets.UpdateCombatQueue then
+            Trinkets.UpdateCombatQueue()
+        end
     end
     if C_Timer and C_Timer.After then
         C_Timer.After(0.3, apply)
@@ -83,6 +101,16 @@ end
 
 function mod:OnDisable()
     setShown(false)
+    -- Hiding the frame alone left the engine swapping trinkets: stop the queue
+    -- timer and drop swaps waiting for combat to end. The engine's QueueUpdate
+    -- also checks `active`, so nothing re-arms it behind our back.
+    if Trinkets and Trinkets.Timers then
+        Trinkets.StopTimer("QueueUpdate")
+        if Trinkets.CombatQueue then
+            Trinkets.CombatQueue[0] = nil
+            Trinkets.CombatQueue[1] = nil
+        end
+    end
 end
 
 -- =========================================================================
@@ -171,25 +199,29 @@ end
 
 -- Trinkets in the bags that are not in this slot's list yet.
 --
--- Two traps in Trinkets.BaggedTrinkets, both read out of the scan in
--- Trinkets.BuildMenu: it is filled by that scan and would otherwise be stale or
--- empty when this page is opened first, and it is never SHORTENED -- entries
--- past NumberOfTrinkets are leftovers from a fuller bag. So: rescan, then count
--- to that number rather than walking the table with ipairs.
+-- Own bag scan, the same filter as the engine's menu scan. Calling that scan
+-- (Trinkets.BuildMenu) from here Show()ed the trinket menu as a side effect --
+-- a flash, or a menu left open with KeepOpen on -- and with MenuOnShift on it
+-- returned before scanning and left the list stale.
 local function addableValues(which)
-    if Trinkets and Trinkets.BuildMenu and not InCombatLockdown() then
-        pcall(Trinkets.BuildMenu)
-    end
-    local bagged = (Trinkets and Trinkets.BaggedTrinkets) or {}
-    local n      = (Trinkets and Trinkets.NumberOfTrinkets) or 0
-
     local out, seen = {}, {}
     for _, id in ipairs(queueList(which)) do seen[tostring(id)] = true end
-    for i = 1, n do
-        local id = bagged[i] and bagged[i].id
-        if id and not seen[tostring(id)] then
-            seen[tostring(id)] = true
-            out[#out + 1] = { value = tostring(id), text = bagged[i].name or queueName(id) }
+    if not (Trinkets and Trinkets.GetContainerNumSlots and Trinkets.GetContainerItemLink) then
+        return out
+    end
+    local per    = _G.TrinketsPerOptions
+    local hidden = per and per.Hidden or {}
+    for bag = 0, 4 do
+        for slot = 1, (Trinkets.GetContainerNumSlots(bag) or 0) do
+            local link = Trinkets.GetContainerItemLink(bag, slot)
+            local _, _, id, name = string.find(link or "", "item:(%d+).+%[(.+)%]")
+            if id and not seen[id] then
+                local equipSlot = select(9, GetItemInfo(id))
+                if equipSlot == "INVTYPE_TRINKET" and (IsAltKeyDown() or not hidden[id]) then
+                    seen[id] = true
+                    out[#out + 1] = { value = id, text = name or queueName(id) }
+                end
+            end
         end
     end
     return out

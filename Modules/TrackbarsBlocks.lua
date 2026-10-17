@@ -739,7 +739,11 @@ addType("hearth", "Hearthstone", { showLocation = true }, function(b, slot, cont
         end
         if btn then btn.tex:SetVertexColor(cd and 0.5 or 1, cd and 0.5 or 1, cd and 0.5 or 1) end
         local len = self:GetAutoLength()
-        content:SetSize(math.max(len, 1), bar.thickness or 26)
+        -- content anchors the secure button, so it cannot be resized in combat;
+        -- the PLAYER_REGEN_ENABLED refresh below catches up the size
+        if not InCombatLockdown() then
+            content:SetSize(math.max(len, 1), bar.thickness or 26)
+        end
         if len ~= lastLen then lastLen = len; mod.RequestLayout(bar.id) end
     end
     function inst:GetAutoLength()

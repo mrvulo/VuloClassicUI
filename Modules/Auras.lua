@@ -58,31 +58,14 @@ local function timeText(left)
 end
 
 ------------------------------------------------------------------------
--- Dressing a button. Regions are created once, out of combat, on the
--- first paint after the header made the button; a button first seen in
--- combat stays bare until the fight ends and is dressed on the next pass.
+-- Dressing a button. Regions (textures, font strings) are created on the
+-- first paint after the header made the button, in combat too -- creating
+-- regions is not protected. Scripts and click registration are, so a button
+-- first seen in combat gets those on the regen pass.
 ------------------------------------------------------------------------
-local function dress(btn)
-    if btn._vcDressed then return true end
-    if InCombatLockdown() then return false end
-    local db = mod.db
-    btn.icon = btn:CreateTexture(nil, "ARTWORK")
-    btn.icon:SetPoint("TOPLEFT", btn, "TOPLEFT", 1, -1)
-    btn.icon:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -1, 1)
-    btn.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-    -- pixel border from the house helper (four edge textures keyed by side)
-    btn.edges = ns.MakeEdges and ns.MakeEdges(btn, "OVERLAY") or nil
-    if not btn.edges then
-        btn.border = CreateFrame("Frame", nil, btn, BackdropTemplateMixin and "BackdropTemplate")
-        btn.border:SetAllPoints(btn)
-        if btn.border.SetBackdrop then btn.border:SetBackdrop({ edgeFile = TEX_FLAT, edgeSize = 1 }) end
-    end
-    btn.count = btn:CreateFontString(nil, "OVERLAY")
-    UI.FontFor("auras", btn.count, db.fontSize, "OUTLINE")
-    btn.count:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -1, 1)
-    btn.duration = btn:CreateFontString(nil, "OVERLAY")
-    UI.FontFor("auras", btn.duration, db.fontSize, "OUTLINE")
-    btn.duration:SetPoint("TOP", btn, "BOTTOM", 0, -1)
+local function dressScripts(btn)
+    if btn._vcScripted then return end
+    if InCombatLockdown() then pending = true; return end
     btn:SetScript("OnEnter", function(self)
         if not self._vcUnit then return end
         GameTooltip:SetOwner(self, "ANCHOR_BOTTOMLEFT")
@@ -98,7 +81,32 @@ local function dress(btn)
     -- client a secure button fires only with AnyUp + AnyDown registered and
     -- the wildcard type attribute (house recipe, verified live on 20505).
     btn:RegisterForClicks("AnyUp", "AnyDown")
-    btn._vcDressed = true
+    btn._vcScripted = true
+end
+
+local function dress(btn)
+    if not btn._vcDressed then
+        local db = mod.db
+        btn.icon = btn:CreateTexture(nil, "ARTWORK")
+        btn.icon:SetPoint("TOPLEFT", btn, "TOPLEFT", 1, -1)
+        btn.icon:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -1, 1)
+        btn.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        -- pixel border from the house helper (four edge textures keyed by side)
+        btn.edges = ns.MakeEdges and ns.MakeEdges(btn, "OVERLAY") or nil
+        if not btn.edges then
+            btn.border = CreateFrame("Frame", nil, btn, BackdropTemplateMixin and "BackdropTemplate")
+            btn.border:SetAllPoints(btn)
+            if btn.border.SetBackdrop then btn.border:SetBackdrop({ edgeFile = TEX_FLAT, edgeSize = 1 }) end
+        end
+        btn.count = btn:CreateFontString(nil, "OVERLAY")
+        UI.FontFor("auras", btn.count, db.fontSize, "OUTLINE")
+        btn.count:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -1, 1)
+        btn.duration = btn:CreateFontString(nil, "OVERLAY")
+        UI.FontFor("auras", btn.duration, db.fontSize, "OUTLINE")
+        btn.duration:SetPoint("TOP", btn, "BOTTOM", 0, -1)
+        btn._vcDressed = true
+    end
+    dressScripts(btn)
     return true
 end
 
@@ -238,11 +246,17 @@ local function applyHeader(kind)
         h:SetAttribute("weaponTemplate", "SecureActionButtonTemplate")
     end
     -- Every button the header creates: right-click cancels through the
-    -- secure action; the restricted snippet runs once per new button.
-    h:SetAttribute("initialConfigFunction", [[
+    -- secure action; the restricted snippet runs once per new button. It
+    -- also gives the button its size (SetWidth/SetHeight are restricted
+    -- handle methods), so a button born in combat is not left 0 x 0. The
+    -- size is baked into the snippet, which is rewritten here, out of
+    -- combat, whenever the option changes.
+    h:SetAttribute("initialConfigFunction", format([[
+        self:SetWidth(%d)
+        self:SetHeight(%d)
         self:SetAttribute("*type2", "cancelaura")
         self:SetAttribute("type2", "cancelaura")
-    ]])
+    ]], size, size))
     -- button geometry the header does not know about
     local i = 1
     while true do
@@ -280,7 +294,7 @@ local function ensureHeader(kind)
     })
     -- Buttons are born SecureActionButtonTemplate-sized (nothing); the
     -- header sizes its rect from them, so they get their size at creation
-    -- through the paint pass, and applyHeader keeps them in step.
+    -- from the config snippet, and applyHeader keeps them in step.
     return h
 end
 
@@ -299,6 +313,9 @@ end
 ------------------------------------------------------------------------
 -- Hooks and the game's own frames
 ------------------------------------------------------------------------
+-- game frame -> its parent before we parked it (kept off the frame itself)
+local blizzParent = setmetatable({}, { __mode = "k" })
+
 local hooked = false
 local function installHook()
     if hooked or not _G.SecureAuraHeader_Update then return end
@@ -311,8 +328,8 @@ local function installHook()
         local db = mod.db
         local resized = false
         if InCombatLockdown() then
-            -- a button born in combat stays 0 x 0 until the fight ends;
-            -- the regen pass sizes every child
+            -- a button born in combat got its size from the header's config
+            -- snippet; the regen pass still marks it and re-applies the rest
             local i = 1
             while true do
                 local btn = header:GetAttribute("child" .. i)
@@ -361,7 +378,7 @@ local function hideBlizzard()
     for _, name in ipairs({ "BuffFrame", "DebuffFrame", "TemporaryEnchantFrame" }) do
         local f = _G[name]
         if f and f:GetParent() ~= shadow then
-            f._vcParent = f:GetParent()
+            blizzParent[f] = f:GetParent()
             f:SetParent(shadow)
         end
     end
@@ -370,25 +387,34 @@ end
 local function showBlizzard()
     for _, name in ipairs({ "BuffFrame", "DebuffFrame", "TemporaryEnchantFrame" }) do
         local f = _G[name]
-        if f and f._vcParent then
-            f:SetParent(f._vcParent)
-            f._vcParent = nil
+        if f and blizzParent[f] then
+            f:SetParent(blizzParent[f])
+            blizzParent[f] = nil
         end
     end
 end
 
-function mod:OnEnable()
-    installHook()
+-- Creating a secure header is protected, so in combat the whole build waits
+-- for the fight to end (and is dropped if the module went off meanwhile).
+local function buildHeaders()
+    if not mod.active then return end
     ensureHeader("buffs")
     ensureHeader("debuffs")
     hideBlizzard()
     applyAll()
+end
+
+function mod:OnEnable()
+    installHook()
+    ns:RunOutOfCombatOnce("auras.build", buildHeaders)
     if not ticker then ticker = ns:AddTicker(0.1, tick, nil, "auras") end
     self:RegisterEvent("PLAYER_REGEN_ENABLED", function() if pending then applyAll() end end)
     self:RegisterEvent("PLAYER_ENTERING_WORLD", function() if not InCombatLockdown() then applyAll() end end)
 end
 
 local function hideHeaders()
+    -- off and on again within one fight: the deferred hide must not win
+    if mod.active then return end
     for _, h in pairs(headers) do h:Hide() end
 end
 

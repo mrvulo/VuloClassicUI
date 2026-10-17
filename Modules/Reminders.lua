@@ -684,11 +684,17 @@ local dismissed = {}
 -- Strata and opacity live on the anchor so every icon inherits both; the
 -- mover applies db.scale on the same frame (scalable), so all three follow
 -- one target.
-local function applyAnchorLook()
+-- The anchor parents the secure icons, so in combat its strata and scale are
+-- locked; those wait for the fight to end (alpha is free and lands at once).
+local function applyAnchorProtected()
     if not anchor then return end
     anchor:SetFrameStrata(mod.db.strata or "MEDIUM")
-    anchor:SetAlpha(mod.db.opacity or 1)
     anchor:SetScale(mod.db.scale or 1)
+end
+local function applyAnchorLook()
+    if not anchor then return end
+    anchor:SetAlpha(mod.db.opacity or 1)
+    ns:RunOutOfCombatOnce("reminders:anchorLook", applyAnchorProtected)
 end
 mod.ApplyAnchorLook = applyAnchorLook
 

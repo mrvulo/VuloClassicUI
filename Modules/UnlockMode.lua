@@ -55,17 +55,22 @@ local anchors = {}
 -- open (lootUnderMouse / the UIPanel manager). Once the player has chosen a
 -- spot the frame also leaves the UIPanel manager -- otherwise the next panel
 -- that opens would shove it back into the dock.
+local directHooked = setmetatable({}, { __mode = "k" })
 local function applyDirect(def)
     local frame = _G[def.name]
     local fdb   = mod.db.frames[def.key]
     if not (frame and fdb and fdb.placed) then return end
+    -- deliberate write: the panel manager has no opt-out per frame, and a
+    -- re-place after its pass is not equivalent -- it would still reserve the
+    -- dock slot and push the next panel aside of an empty spot. Read by
+    -- ShowUIPanel/HideUIPanel, which then find no area and just show/hide it.
     if _G.UIPanelWindows then _G.UIPanelWindows[def.name] = nil end
     if frame.SetAttribute then pcall(frame.SetAttribute, frame, "UIPanelLayout-defined", false) end
     pcall(frame.SetMovable, frame, true)
     frame:ClearAllPoints()
     frame:SetPoint("CENTER", UIParent, "CENTER", fdb.x or 0, fdb.y or 0)
-    if frame.HookScript and not frame._vcuiDirectHook then
-        frame._vcuiDirectHook = true
+    if frame.HookScript and not directHooked[frame] then
+        directHooked[frame] = true
         frame:HookScript("OnShow", function(f)
             local d = mod.db.frames[def.key]
             if d and d.placed then
@@ -374,7 +379,8 @@ function mod:OnEnable()
             placeAnchor(anchor, ax, ay)
             anchors[def.key] = anchor
 
-            local mover = ns:CreateMover(anchor, {
+            local mover   -- declared first: onMove below reads it
+            mover = ns:CreateMover(anchor, {
                 key    = "blizz:" .. def.key,
                 label  = "|cffffffff" .. (L[def.label] or def.label) .. "|r",
                 db     = fdb,
@@ -382,7 +388,11 @@ function mod:OnEnable()
                 width  = anchor:GetWidth(),
                 height = anchor:GetHeight(),
                 onMove = function()
-                    fdb.placed = true
+                    -- the mover's live table, not the captured fdb: a profile
+                    -- switch re-points it, and applyDirect / emReanchor read
+                    -- mod.db.frames of the new profile
+                    local d = mover.opts.db or fdb
+                    d.placed = true
                     if def.direct then
                         applyDirect(def)
                     elseif emClient() then
@@ -395,13 +405,13 @@ function mod:OnEnable()
                         -- A restore hands us the position the frame already
                         -- holds; only a real displacement is worth the write.
                         local target = _G[def.name]
-                        local moved  = target and drifted(target, fdb)
+                        local moved  = target and drifted(target, d)
                         local shown  = target and target:IsShown()
                         if moved and shown then
                             if emEnsure() and emReanchor(def) then emApplyDebounced() end
-                        elseif moved and wroteHidden[def.key] ~= hiddenWriteKey(fdb) then
+                        elseif moved and wroteHidden[def.key] ~= hiddenWriteKey(d) then
                             if emEnsure() and emReanchor(def) then
-                                wroteHidden[def.key] = hiddenWriteKey(fdb)
+                                wroteHidden[def.key] = hiddenWriteKey(d)
                                 emSaveOnly()
                             end
                         end

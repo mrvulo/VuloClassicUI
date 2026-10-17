@@ -54,7 +54,6 @@ local ST = ns.SealTwist
 if not ST then return end
 
 local GetTime, GetSpellInfo, UnitGUID = GetTime, GetSpellInfo, UnitGUID
-local CLGetInfo = CombatLogGetCurrentEventInfo
 
 -- How long after the swing the seal's damage may still arrive. Generous
 -- compared to the round trip it is really bounded by: a late confirmation is a
@@ -369,15 +368,17 @@ function ST.OnTwistLanded()
     if d.hitText then ST.ApplyHitTextLook(); showText(d) end
 end
 
-local logFrame
+local listening = false
 local playerGUID
 local attemptAt
 -- The two seal auras as the COMBAT LOG sees them. Deliberately not the same
 -- pair the bar draws -- see the header.
 local logHeld, logTwist = false, false
 
-local function onCombatLog()
-    local _, sub, _, srcGUID = CLGetInfo()
+-- The values come from the shared reader (ns:RegisterCombatLog), read once
+-- per line for every listener; the payload offsets are the C call's own.
+local function onCombatLog(...)
+    local _, sub, _, srcGUID = ...
     if srcGUID ~= playerGUID then return end
 
     if sub == "SWING_DAMAGE" or sub == "SWING_MISSED" then
@@ -394,9 +395,9 @@ local function onCombatLog()
         -- Our own seals on ourselves. A seal another paladin put on themselves
         -- passes the source test only for them, but a blessing WE cast on
         -- somebody else would pass it here -- hence the destination check.
-        local _, _, _, _, _, _, _, destGUID = CLGetInfo()
+        local _, _, _, _, _, _, _, destGUID = ...
         if destGUID ~= playerGUID then return end
-        local _, spellName = select(12, CLGetInfo())
+        local _, spellName = select(12, ...)
         local on = (sub ~= "SPELL_AURA_REMOVED")
         if spellName == ST.heldName then logHeld = on
         elseif spellName == ST.twistName then logTwist = on end
@@ -406,7 +407,7 @@ local function onCombatLog()
     if sub ~= "SPELL_DAMAGE" then return end
     if not attemptAt or (GetTime() - attemptAt) > CONFIRM_WINDOW then return end
 
-    local spellId, spellName = select(12, CLGetInfo())
+    local spellId, spellName = select(12, ...)
     if not ((ST.heldName and spellName == ST.heldName) or PROC_IDS[spellId]) then return end
 
     -- STAGE 2. One confirmation per attempt: a seal can tick more than once
@@ -429,7 +430,10 @@ end
 -- the game and a raid fires it thousands of times a fight, so a paladin who
 -- wants no confirmation should not be paying to compute one.
 function ST.StopHitLog()
-    if logFrame then logFrame:UnregisterAllEvents() end
+    if listening then
+        listening = false
+        ns:UnregisterCombatLog(ST.csMod, onCombatLog)
+    end
     attemptAt = nil
     logHeld, logTwist = false, false
 end
@@ -440,15 +444,14 @@ function ST.SyncHitLog()
         and (d.soundHit or d.hitGlow or d.hitText)
 
     if not want then ST.StopHitLog(); return end
-    if not logFrame then
-        logFrame = CreateFrame("Frame")
-        logFrame:SetScript("OnEvent", onCombatLog)
-    end
     playerGUID = playerGUID or UnitGUID("player")
     -- Re-seeded on every sync, not only on the first: a seal choice can change
     -- under a listener that is already running, and the pair is keyed by name.
     ST.SeedHitAuras()
-    logFrame:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
+    -- Owned by the module that hosts the helper, so its SafeDisable releases
+    -- the listener too; a repeat call while listening is a no-op in the registry.
+    ns:RegisterCombatLog(ST.csMod, onCombatLog)
+    listening = true
 end
 
 -- The GUID is not known at login time, so it is refreshed on the event that
