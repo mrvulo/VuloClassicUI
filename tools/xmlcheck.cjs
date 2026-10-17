@@ -1,16 +1,31 @@
-// Well-formedness check for the three XML files: a stack of open tags, so a
-// mismatched or orphaned element is reported with its line instead of showing up
-// in the game as a window that never appears.
+// Well-formedness check for every XML file of the addon: a stack of open tags,
+// so a mismatched or orphaned element is reported with its line instead of
+// showing up in the game as a window that never appears.
+//   node tools/xmlcheck.cjs [file ...]   (paths relative to the addon root)
 const fs = require('fs');
 const path = require('path');
 
-const DIR = 'c:\\Program Files (x86)\\World of Warcraft\\_anniversary_\\Interface\\AddOns\\VuloClassicUI\\Trinkets';
+// The directory used to be an absolute path on the old Windows machine, so the
+// check failed everywhere else. Resolve from this file instead.
+const ROOT = path.resolve(__dirname, '..');
+const SKIP = new Set(['.git', 'node_modules', 'tools', 'docs']);
+
+function walk(dir, out) {
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (SKIP.has(e.name)) continue;
+    const full = path.join(dir, e.name);
+    if (e.isDirectory()) walk(full, out);
+    else if (e.name.endsWith('.xml')) out.push(path.relative(ROOT, full));
+  }
+  return out;
+}
+
 const FILES = process.argv.slice(2);
-const list = FILES.length ? FILES : fs.readdirSync(DIR).filter((n) => n.endsWith('.xml'));
+const list = FILES.length ? FILES : walk(ROOT, []);
 
 let bad = 0;
 for (const f of list) {
-  const src = fs.readFileSync(path.join(DIR, f), 'utf8');
+  const src = fs.readFileSync(path.join(ROOT, f), 'utf8');
 
   // A double hyphen inside a comment is illegal XML and the parser rejects the
   // WHOLE file -- which reads in game as "Couldn't find inherited node", because

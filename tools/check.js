@@ -6,6 +6,9 @@
 //   1. Lua 5.1 syntax of every .lua file (luaparse)
 //   1c. a local function read above its own definition (compiles as a nil
 //      global; hard fail -- shipped twice on 2026-09-12 before this existed)
+//   1d. a local read outside the scope that declares it, e.g. in another
+//      (function(...) ... end)(...) capsule of the same file (a nil global
+//      at run time; hard fail)
 //   2. top-level locals per chunk (Lua 5.1 hard cap: 200; warn at 175)
 //   3. locale coverage: every L["..."] key used in code exists in deDE.lua
 //      (missing keys fall back to English — listed so nothing slips through)
@@ -23,9 +26,13 @@
 //  10. TOC file lists: identical across flavors, nothing missing or orphaned
 //  11. CHANGELOG-release.md matches the newest CHANGELOG.md section (the
 //      packager falls back to the German git log silently when it is stale)
+//  12. SavedVariables names in every TOC are exactly the fixed set
+//  13. no writes into RAID_CLASS_COLORS / PowerBarColor, also via _G, rawset/
+//      wipe and a local alias (taints the raid frames)
+//  14. every Media .tga is a real 32-bit truecolor TGA with power-of-two sides
 //
-// Exit code 1 only on syntax errors or locals-cap violations; everything
-// else is a warning report for human judgment.
+// Exit code 1 (RESULT: FAIL) on 1, 1c, 1d, 2, 5, 8, 9, 10, 11, 12, 13 and 14;
+// 3, 4, 6 and 7 are a warning report for human judgment.
 const fs = require('fs');
 const path = require('path');
 const luaparse = require('luaparse');
@@ -186,6 +193,78 @@ console.log('\n== local functions read before their definition ==');
 }
 
 // ---- 3: locale coverage -----------------------------------------------------
+// ---- 1d: a local used outside the scope that declares it ----------------------
+// Our larger files are several (function(...) ... end)(...) capsules. A local
+// declared in one capsule and read in another compiles as a GLOBAL read and is
+// nil at run time -- pass 1c cannot see it, because the declaration really is
+// above the read. Shipped-to-be on 2026-10-17: eight side tables in
+// Modules/UnitFrames.lua sat in the first capsule and would have broken the
+// player cast bar at every login. Rule: a global read of a name that the same
+// file declares as a local somewhere is a hard fail -- unless that local is an
+// alias of the global itself (local X = X / local X = _G.X), the usual caching
+// pattern, where the bare global read elsewhere is legitimate.
+console.log('\n== locals read outside their scope ==');
+{
+    let hits = 0;
+    for (const f of files) {
+        const rel = path.relative(ROOT, f);
+        if (rel.split(path.sep)[0] === 'Locales') continue;
+        let ast;
+        try {
+            ast = luaparse.parse(fs.readFileSync(f, 'utf8'), { luaVersion: '5.1', scope: true, locations: true });
+        } catch (e) { continue; }   // reported by check 1
+        const STDLIB = new Set(['string', 'math', 'table', 'bit', 'coroutine', 'os']);
+        const declared = new Map();   // name -> first line
+        const aliases = new Set();
+        const isAliasOf = (name, init) => init && (
+            (init.type === 'Identifier' && init.name === name) ||
+            (init.type === 'MemberExpression' && init.base.type === 'Identifier' && init.base.name === '_G'
+                && init.identifier && init.identifier.name === name) ||
+            (init.type === 'LogicalExpression' && (isAliasOf(name, init.left) || isAliasOf(name, init.right))) ||
+            // local format = string.format: the client also exports the
+            // standard library flat (format, floor, tinsert ...), so a bare
+            // read elsewhere is that real global
+            (init.type === 'MemberExpression' && init.base.type === 'Identifier'
+                && STDLIB.has(init.base.name)));
+        const reads = [];
+        const walk = (n, parent, key) => {
+            if (!n || typeof n !== 'object') return;
+            if (Array.isArray(n)) { for (const x of n) walk(x, parent, key); return; }
+            if (n.type === 'LocalStatement') {
+                n.variables.forEach((v, i) => {
+                    if (!declared.has(v.name)) declared.set(v.name, v.loc.start.line);
+                    if (isAliasOf(v.name, n.init && n.init[i])) aliases.add(v.name);
+                });
+            } else if (n.type === 'FunctionDeclaration' && n.isLocal && n.identifier) {
+                if (!declared.has(n.identifier.name)) declared.set(n.identifier.name, n.loc.start.line);
+            } else if (n.type === 'Identifier' && n.isLocal === false) {
+                // the name of a global function declaration / assignment target is a write, check 6
+                const isWrite = (parent && parent.type === 'AssignmentStatement' && key === 'variables')
+                    || (parent && parent.type === 'FunctionDeclaration' && key === 'identifier');
+                if (!isWrite) reads.push(n);
+            }
+            for (const k of Object.keys(n)) {
+                if (k === 'loc' || k === 'range' || k === 'type') continue;
+                const v = n[k];
+                if (v && typeof v === 'object') walk(v, n, k);
+            }
+        };
+        walk(ast.body, null, null);
+        const seen = new Set();
+        for (const r of reads) {
+            if (!declared.has(r.name) || aliases.has(r.name)) continue;
+            const id = r.name + ':' + r.loc.start.line;
+            if (seen.has(id)) continue;
+            seen.add(id);
+            hits++;
+            console.log('  OUT-OF-SCOPE ' + rel + ':' + r.loc.start.line + '  ' + r.name
+                + ' (a local of that name is declared at line ' + declared.get(r.name) + ', not visible here)');
+        }
+    }
+    if (hits) hardFail = true;
+    else console.log('clean');
+}
+
 console.log('\n== locale coverage (deDE) ==');
 const KEY_RE = /L\[\s*"((?:[^"\\]|\\.)*)"\s*\]/g;
 const DEF_RE = /\["((?:[^"\\]|\\.)*)"\]\s*=/g;   // global: lines can hold SEVERAL defs
@@ -408,8 +487,36 @@ for (const f of [...files, ...tocs]) {
         }
     });
 }
-if (nhits === 0) console.log('clean');
-else console.log('(known pre-existing functional references may be acceptable — judge each hit)');
+// Hard fail since 2026-10-17: as a warning it let "retail" ship in a patch note
+// in all nine languages. The functional references the user allowed (a skin
+// target's own label, hooks on another addon's mixin) are counted per file
+// instead of named here; one more hit in that file, or any hit elsewhere, fails.
+const NAME_ALLOWED = {
+    [path.join('Modules', 'AddonSkins.lua')]: 1,
+    [path.join('Modules', 'General.lua')]: 4,
+};
+{
+    const perFile = {};
+    for (const f of [...files, ...tocs]) {
+        const src = fs.readFileSync(f, 'utf8');
+        src.split('\n').forEach((line) => {
+            if (patternFor(f).test(stripAllowed(line))) {
+                const rel = path.relative(ROOT, f);
+                perFile[rel] = (perFile[rel] || 0) + 1;
+            }
+        });
+    }
+    let over = 0;
+    for (const [rel, n] of Object.entries(perFile)) {
+        if (n > (NAME_ALLOWED[rel] || 0)) {
+            over++;
+            console.log('  NAME-FAIL ' + rel + ': ' + n + ' hit(s), ' + (NAME_ALLOWED[rel] || 0) + ' allowed');
+        }
+    }
+    if (over) hardFail = true;
+    else if (nhits) console.log('(all hits are allowed functional references)');
+    else console.log('clean');
+}
 
 // ---- 6: writes to bare globals ----------------------------------------------
 // The read side of this question is not worth asking: 264 names over 1190 sites,
@@ -754,6 +861,175 @@ console.log('\n== release notes ==');
             console.log('clean (' + (lines[start] || '').replace(/^##\s+/, '') + ')');
         }
     }
+}
+
+// ---- 12: saved variable names --------------------------------------------------
+// Renaming or dropping one of these loses every player's settings on the next
+// login. The three Trinkets* names stay declared for characters that have not
+// logged in since their data moved into our own tables (Trinkets/TrinketsStore.lua).
+console.log('\n== saved variable names ==');
+{
+    const WANT = {
+        'SavedVariables': 'VuloClassicUIDB, TrinketsOptions',
+        'SavedVariablesPerCharacter': 'VuloClassicUICharDB, TrinketsPerOptions, TrinketsQueue',
+    };
+    let shits = 0;
+    for (const toc of tocs) {
+        const src = fs.readFileSync(toc, 'utf8');
+        for (const [field, want] of Object.entries(WANT)) {
+            const m = src.match(new RegExp('^##\\s*' + field + ':\\s*(.*?)\\s*$', 'm'));
+            const have = m ? m[1].split(',').map(s => s.trim()).filter(Boolean).join(', ') : '(missing)';
+            if (have !== want) {
+                shits++;
+                console.log('  SAVEDVAR ' + path.basename(toc) + ' ' + field + ': ' + have + '  (expected: ' + want + ')');
+            }
+        }
+    }
+    if (shits) hardFail = true;
+    else console.log('clean (' + tocs.length + ' TOCs)');
+}
+
+// ---- 13: writes into the game's shared color tables ---------------------------
+// The party and raid frames read RAID_CLASS_COLORS in combat. Writing into it
+// from our code tainted them on every login, so they refused SetSize/Hide in
+// combat (fixed 2026-08-11, 155fab0). Our colors live in ns.CLASS_COLORS.
+// Caught: X.a = v, X[k].r = v, _G.X.a = v, _G["X"][k] = v, rawset/wipe/
+// table.wipe/table.insert on X, and a local alias (local c = X[token];
+// c.r = v -- the shape of the 155fab0 bug). An alias passed through a function
+// argument or a table is not caught.
+console.log('\n== writes into shared color tables ==');
+{
+    const SHARED = new Set(['RAID_CLASS_COLORS', 'PowerBarColor', 'CUSTOM_CLASS_COLORS']);
+    // the shared table an expression starts from, looking through one _G step
+    const sharedRoot = (n) => {
+        const chain = [];
+        while (n && (n.type === 'MemberExpression' || n.type === 'IndexExpression')) { chain.push(n); n = n.base; }
+        if (!n || n.type !== 'Identifier') return null;
+        if (SHARED.has(n.name)) return n.name;
+        if (n.name === '_G' && chain.length) {
+            const first = chain[chain.length - 1];
+            const k = first.type === 'MemberExpression' ? first.identifier && first.identifier.name
+                : (first.index && first.index.type === 'StringLiteral' ? litVal(first.index) : null);
+            if (k && SHARED.has(k)) return k;
+        }
+        return null;
+    };
+    const rootIdent = (n) => {
+        while (n && (n.type === 'MemberExpression' || n.type === 'IndexExpression')) n = n.base;
+        return n && n.type === 'Identifier' ? n.name : null;
+    };
+    const MUTATORS = new Set(['rawset', 'wipe', 'table.wipe', 'table.insert', 'table.remove', 'tinsert', 'tremove']);
+    const calleeName = (c) => c.type === 'Identifier' ? c.name
+        : (c.type === 'MemberExpression' && c.base.type === 'Identifier' ? c.base.name + '.' + c.identifier.name : null);
+    let chits = 0;
+    for (const f of files) {
+        const rel = path.relative(ROOT, f);
+        if (rel.split(path.sep)[0] === 'Locales') continue;
+        let ast;
+        try {
+            ast = luaparse.parse(fs.readFileSync(f, 'utf8'), { luaVersion: '5.1', locations: true });
+        } catch (e) { continue; }   // already reported by check 1
+        // Walk with a scope stack: a local that holds a shared table (or one of
+        // its entries) is an alias inside its function; a parameter or a later
+        // local of the same name shadows it.
+        const hit = (line, what) => {
+            chits++;
+            console.log('  SHARED-WRITE ' + rel + ':' + line + '  ' + what);
+        };
+        const scopes = [new Map()];
+        const lookup = (name) => {
+            for (let i = scopes.length - 1; i >= 0; i--) if (scopes[i].has(name)) return scopes[i].get(name);
+            return null;
+        };
+        const aliasOf = (n) => {
+            const r = rootIdent(n);
+            return r ? lookup(r) : null;
+        };
+        const visit = (n) => {
+            if (!n || typeof n !== 'object') return;
+            if (Array.isArray(n)) { for (const x of n) visit(x); return; }
+            const isFn = n.type === 'FunctionDeclaration' || n.type === 'FunctionExpression';
+            if (isFn) {
+                if (n.isLocal && n.identifier && n.identifier.type === 'Identifier') scopes[scopes.length - 1].set(n.identifier.name, null);
+                const sc = new Map();
+                for (const p of n.parameters || []) if (p.type === 'Identifier') sc.set(p.name, null);
+                scopes.push(sc);
+                visit(n.body);
+                scopes.pop();
+                return;
+            }
+            if (n.type === 'LocalStatement') {
+                visit(n.init);
+                n.variables.forEach((v, i) => {
+                    const src = n.init && n.init[i] && (sharedRoot(n.init[i]) || aliasOf(n.init[i]));
+                    scopes[scopes.length - 1].set(v.name, src || null);
+                });
+                return;
+            }
+            if (n.type === 'AssignmentStatement') {
+                for (const t of n.variables || []) {
+                    if (t.type === 'Identifier') continue;   // rebinding the name itself is check 6
+                    const name = sharedRoot(t);
+                    if (name) { hit(t.loc.start.line, name); continue; }
+                    const al = aliasOf(t);
+                    if (al) hit(t.loc.start.line, al + ' (via local ' + rootIdent(t) + ')');
+                }
+            }
+            if (n.type === 'CallExpression') {
+                const fn = calleeName(n.base);
+                const a0 = n.arguments && n.arguments[0];
+                if (fn && MUTATORS.has(fn) && a0) {
+                    const name = sharedRoot(a0) || (a0.type === 'Identifier' && SHARED.has(a0.name) ? a0.name : null) || aliasOf(a0);
+                    if (name) hit(n.loc.start.line, name + ' (' + fn + ')');
+                }
+            }
+            for (const k of Object.keys(n)) {
+                if (k === 'type' || k === 'loc' || k === 'range') continue;
+                const v = n[k];
+                if (v && typeof v === 'object') visit(v);
+            }
+        };
+        visit(ast.body);
+    }
+    if (chits) hardFail = true;
+    else console.log('clean');
+}
+
+// ---- 14: texture format --------------------------------------------------------
+// The client picks the decoder by file extension and draws nothing when the
+// bytes do not match -- SetTexture still "succeeds", so nothing errors. PNG data
+// saved as .tga stayed invisible (19 files, 2026-07-04), and 256x40 bar textures
+// never loaded (1.62.0). Every .tga must be a real 32-bit truecolor TGA with
+// power-of-two sides.
+console.log('\n== texture format ==');
+{
+    const tgas = [];
+    (function walkMedia(dir) {
+        if (!fs.existsSync(dir)) return;
+        for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+            const full = path.join(dir, e.name);
+            if (e.isDirectory()) walkMedia(full);
+            else if (/\.tga$/i.test(e.name)) tgas.push(full);
+        }
+    })(path.join(ROOT, 'Media'));
+    const pot = (n) => n > 0 && (n & (n - 1)) === 0;
+    let xhits = 0;
+    for (const f of tgas) {
+        const b = fs.readFileSync(f);
+        const rel = path.relative(ROOT, f);
+        let why = null;
+        if (b.length < 18) why = 'too short for a TGA header';
+        else if (b.readUInt32BE(0) === 0x89504e47) why = 'PNG data in a .tga file';
+        else {
+            const type = b[2], w = b.readUInt16LE(12), h = b.readUInt16LE(14), bpp = b[16];
+            if (type !== 2 && type !== 10) why = 'image type ' + type + ' (want 2 or 10, truecolor)';
+            else if (bpp !== 32) why = bpp + ' bit (want 32)';
+            else if (!pot(w) || !pot(h)) why = w + 'x' + h + ' (sides must be powers of two)';
+        }
+        if (why) { xhits++; console.log('  TGA ' + rel + '  ' + why); }
+    }
+    if (xhits) hardFail = true;
+    else console.log('clean (' + tgas.length + ' files)');
 }
 
 console.log('\n' + (hardFail ? 'RESULT: FAIL' : 'RESULT: OK (warnings above, if any)'));

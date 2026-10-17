@@ -5,7 +5,7 @@
 //   node tools/optcheck.cjs <file.lua>  -- check one file
 //
 // WHY THIS IS PARSED AND NOT GREPPED
-// All four findings below are about WHERE a table sits, not what a line says.
+// All the findings below are about WHERE a table sits, not what a line says.
 // A text search cannot see nesting, and the first three of these shipped as
 // real bugs before this file existed.
 //
@@ -21,6 +21,17 @@
 //   4. a segmented row whose values are not a literal list of 2 to 4 entries.
 //      Values from a function (VisibilityValues()) would draw a dozen buttons
 //      three pixels wide.
+//   5. two override-capturable rows (get + set + label, no noOverride) with the
+//      same label in the same place on one page -- same section, same gear
+//      parent, same subKey or none. ns:AssignOverrideIds (Core/TalentOverrides)
+//      can only tell them apart by an ordinal in page order, so moving one row
+//      would silently swap their recorded overrides. Give one a subKey.
+//      "One page" is approximated by the innermost function the rows are
+//      written in (a GetOptions body or a page helper); rows split across two
+//      helpers are missed, if/elseif branches are kept apart, and of
+//      `c and {A} or {B}` only A is counted. A WARNING, not a failure: it
+//      fired on shipped pages when it was added, and fixing those is a
+//      module change (a subKey plus a migration of recorded ids).
 //
 // RUN THE SELF-TEST WHEN YOU TOUCH THIS FILE. Check 1 was silently dead on the
 // first write -- the flag was handed to the items TABLE instead of to each item
@@ -34,6 +45,18 @@ const ROOT = path.resolve(__dirname, '..');
 const CARD_TYPES = new Set(['toggle', 'checkbox', 'dropdown', 'editbox', 'slider', 'color', 'segmented']);
 
 const SELFTEST = `
+local function branches(items, wide)
+    if wide then
+        items[#items + 1] = { type = "slider", label = L["Either"], get = function() end, set = function() end }
+    else
+        items[#items + 1] = { type = "slider", label = L["Either"], get = function() end, set = function() end }
+    end
+    items[#items + 1] = wide and { type = "slider", label = L["Or"], get = function() end, set = function() end }
+                              or { type = "slider", label = L["Or"], get = function() end, set = function() end }
+    items[#items + 1] = { type = "checkbox", label = L["Swatch"], get = function() end, set = function() end,
+        inline = { { kind = "gear", popup = { items = {
+            { type = "color", label = L["Swatch"], get = function() end, set = function() end } } } } } }
+end
 return {
     { type = "group", layout = "row", items = {
         { type = "checkbox", label = L["Trap one"],
@@ -53,6 +76,17 @@ return {
       subOptions = { { type = "slider", label = L["Also lost"] } } },
     { type = "checkbox", label = L["Perfectly fine"], subKey = "ok/1",
       subOptions = { { type = "slider", label = L["Visible"] } } },
+    { type = "section", title = L["Twins"], items = {
+        { type = "group", layout = "row", items = {
+            { type = "slider", label = L["Twin"], get = function() end, set = function() end },
+        } },
+        { type = "slider", label = L["Twin"], get = function() end, set = function() end },
+    } },
+    { type = "section", title = L["Not twins"], items = {
+        { type = "slider", label = L["Twin"], get = function() end, set = function() end },
+        { type = "slider", label = L["Twin"], subKey = "b", get = function() end, set = function() end },
+        { type = "slider", label = L["Twin"], noOverride = true, get = function() end, set = function() end },
+    } },
 }
 `;
 
@@ -146,6 +180,91 @@ function visit(node, file, insideGroup) {
     }
 }
 
+// Check 5. ctx mirrors ns:AssignOverrideIds: a section adds its key or title, a
+// gear row adds its subKey or label for its subOptions, a group adds nothing.
+// scope is the outermost function, one bucket per page body.
+const idKeys = {};
+const warnings = [];
+function visitIds(node, file, ctx, scope) {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) { for (const n of node) visitIds(n, file, ctx, scope); return; }
+
+    if (node.type === 'FunctionDeclaration' || node.type === 'FunctionExpression') {
+        scope = `${file}:${node.loc ? node.loc.start.line : 0}`;
+    }
+
+    // `cond and { A } or { B }`: only one of the two rows ever exists, so
+    // they cannot collide with each other. Only the first branch is counted.
+    if (node.type === 'LogicalExpression' && node.operator === 'or'
+        && node.left && node.left.type === 'LogicalExpression' && node.left.operator === 'and'
+        && node.left.right && node.left.right.type === 'TableConstructorExpression'
+        && node.right && node.right.type === 'TableConstructorExpression') {
+        visitIds(node.left.left, file, ctx, scope);
+        visitIds(node.left.right, file, ctx, scope);
+        return;
+    }
+
+    // if/elseif/else: the branches are alternatives, each its own bucket. Rows
+    // before or after the if are then not compared with the branch rows --
+    // a miss, never a false alarm.
+    if (node.type === 'IfStatement' && node.clauses.length > 1) {
+        const line = node.loc ? node.loc.start.line : 0;
+        node.clauses.forEach((c, i) => {
+            visitIds(c.condition, file, ctx, scope);
+            visitIds(c.body, file, ctx, `${scope || file}|if${line}#${i}`);
+        });
+        return;
+    }
+
+    if (node.type === 'TableConstructorExpression') {
+        const f = fields(node);
+        const t = str(f.type);
+        if (!t) {
+            // a plain list (the page itself, a group's items): look inside
+            for (const f2 of node.fields) visitIds(f2.value !== undefined ? f2.value : f2, file, ctx, scope);
+            return;
+        }
+        const line = node.loc ? node.loc.start.line : 0;
+        if (t !== 'section') {
+            const label = str(f.label);
+            const noOv = f.noOverride && f.noOverride.type === 'BooleanLiteral' && f.noOverride.value;
+            if (label !== null && f.get && f.set && !noOv) {
+                const sk = str(f.subKey) || (f.subKey ? '?' + line : null);
+                const key = [label].concat(ctx, sk !== null ? [sk] : []).join(' > ');
+                const b = (idKeys[scope || file] = idKeys[scope || file] || {});
+                (b[key] = b[key] || []).push(line);
+            }
+        }
+        // Only where AssignOverrideIds walks: items and subOptions. Inline
+        // swatches and gear popups are not override rows.
+        if (f.items) {
+            const inner = (t === 'section') ? ctx.concat([str(f.key) || str(f.title) || '?']) : ctx;
+            visitIds(f.items, file, inner, scope);
+        }
+        if (f.subOptions && t !== 'section') {
+            visitIds(f.subOptions, file, ctx.concat([str(f.subKey) || str(f.label) || '?']), scope);
+        }
+        return;
+    }
+
+    for (const k of Object.keys(node)) {
+        if (k === 'loc' || k === 'range') continue;
+        visitIds(node[k], file, ctx, scope);
+    }
+}
+
+function reportDuplicateIds(sink) {
+    for (const scope of Object.keys(idKeys)) {
+        for (const key of Object.keys(idKeys[scope])) {
+            const lines = idKeys[scope][key];
+            if (lines.length > 1) {
+                const file = scope.split(':')[0].split('|')[0];
+                sink.push(`${file}  Override-Zeile "${key}" ${lines.length}x (Zeilen ${lines.join(', ')}) -- nur die Reihenfolge trennt sie, subKey setzen`);
+            }
+        }
+    }
+}
+
 function scan(label, src) {
     let ast;
     try {
@@ -155,6 +274,7 @@ function scan(label, src) {
         return;
     }
     visit(ast.body, label, false);
+    visitIds(ast.body, label, [], null);
 }
 
 // Runs after everything is scanned, in BOTH modes. It lived only in the file
@@ -177,7 +297,8 @@ let scanned = 0;
 if (arg === '--selftest') {
     scan('selftest', SELFTEST);
     reportDuplicateGears();
-    const want = 5;
+    reportDuplicateIds(problems);
+    const want = 6;
     console.log(`selftest: ${problems.length} von ${want} erwarteten Befunden`);
     problems.forEach(p => console.log('  ' + p));
     if (problems.length !== want) {
@@ -196,8 +317,12 @@ for (const file of files) {
 }
 
 reportDuplicateGears();
+// A hard fail since the one shipped case (two "Border color" rows in DarkSkin)
+// got its subKeys on 2026-10-17.
+reportDuplicateIds(problems);
 
 console.log(`${scanned} Datei(en), ${gearCount} Zahnraeder`);
+warnings.forEach(w => console.log("  WARNUNG " + w));
 if (!problems.length) {
     console.log('RESULT: OK');
 } else {

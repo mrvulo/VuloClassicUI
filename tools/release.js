@@ -235,5 +235,6 @@ console.log([
   '  git push origin master',
   '  git tag -a v' + target + ' -m "v' + target + ': <summary>"',
   '  git push origin v' + target,
+  '  (Discord posts only after the Release run succeeded -- check a few minutes later)',
   '  curl -sS "https://api.github.com/repos/mrvulo/VuloClassicUI/actions/workflows/discord.yml/runs?per_page=3"',
 ].join('\n'));

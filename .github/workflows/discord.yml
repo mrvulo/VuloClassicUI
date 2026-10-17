@@ -1,7 +1,9 @@
 name: Discord Changelog
 
-# Posts the newest CHANGELOG.md section to a Discord channel on every v* tag.
-# Runs alongside the packager release; needs no GitHub token, only the webhook.
+# Posts the newest CHANGELOG.md section to a Discord channel once the Release
+# workflow of a v* tag has succeeded. It used to run on the tag push itself,
+# alongside the release, so a tag whose checks failed was still announced.
+# Needs no GitHub token, only the webhook.
 #
 # Required repo secrets (Settings -> Secrets and variables -> Actions):
 #   DISCORD_CHANGELOG_WEBHOOK   the channel webhook URL   (required)
@@ -9,21 +11,31 @@ name: Discord Changelog
 # If DISCORD_CHANGELOG_WEBHOOK is missing the job skips cleanly.
 
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_run:
+    workflows: ['Release']
+    types: [completed]
   workflow_dispatch: {}   # manual test run: posts the current top CHANGELOG.md section
 
 jobs:
   discord:
+    # a finished Release run for a v* tag that succeeded, or a manual run
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       startsWith(github.event.workflow_run.head_branch, 'v'))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # the tagged commit, not the default branch the trigger runs on
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Post changelog to Discord
         env:
           WEBHOOK: ${{ secrets.DISCORD_CHANGELOG_WEBHOOK }}
           ROLE_ID: ${{ secrets.DISCORD_UPDATES_ROLE_ID }}
+          # for a tag push, workflow_run reports the tag name as head_branch
+          TAG:     ${{ github.event.workflow_run.head_branch }}
         run: |
           set -eo pipefail
 
@@ -35,9 +47,9 @@ jobs:
           fi
 
           # On a tag push use the tag; on a manual run take the top CHANGELOG version.
-          if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
-            VERSION="${GITHUB_REF_NAME#v}"
-            RELEASE_URL="https://github.com/${GITHUB_REPOSITORY}/releases/tag/${GITHUB_REF_NAME}"
+          if [ -n "${TAG:-}" ]; then
+            VERSION="${TAG#v}"
+            RELEASE_URL="https://github.com/${GITHUB_REPOSITORY}/releases/tag/${TAG}"
           else
             VERSION="$(awk '/^## /{sub(/^## +/,""); print; exit}' CHANGELOG.md)"
             RELEASE_URL="https://github.com/${GITHUB_REPOSITORY}/releases"
@@ -116,4 +128,4 @@ jobs:
             # long changelog well clear of the limit and preserves the order.
             if [ "$i" -lt "$N" ]; then sleep 1; fi
           done
-          echo "Posted changelog for ${GITHUB_REF_NAME} to Discord in ${N} message(s)."
+          echo "Posted changelog for ${TAG:-the top section} to Discord in ${N} message(s)."

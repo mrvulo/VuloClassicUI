@@ -23,7 +23,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'   # Node 20 ist seit April 2026 ohne Sicherheitsupdates
 
       - name: Run pre-release checks
         run: |
@@ -31,6 +31,10 @@ jobs:
           npm ci --no-audit --no-fund
           cd ..
           node tools/check.js
+          # dieselben Prüfungen, die tools/release.js lokal verlangt
+          node tools/optcheck.cjs --selftest
+          node tools/optcheck.cjs
+          node tools/xmlcheck.cjs
 
       - name: Package and release
         uses: BigWigsMods/packager@v2
