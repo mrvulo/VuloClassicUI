@@ -926,7 +926,8 @@ local function rebuildLinkValues(m)
     if m and m.key then
         local sorted = {}
         for _, other in ipairs(ns._movers) do
-            if other ~= m and other.key
+            -- a disabled mover belongs to a closed window or a deleted bar
+            if other ~= m and other.key and not (other.opts and other.opts.disabled)
                 and not ns:MoverLinkWouldCycle(m.key, other.key) then
                 sorted[#sorted + 1] = {
                     value = other.key,
@@ -948,7 +949,7 @@ local function rebuildSizeValues(m)
         if m and m.key then
             local sorted = {}
             for _, other in ipairs(ns._movers) do
-                if other ~= m and other.key
+                if other ~= m and other.key and not (other.opts and other.opts.disabled)
                     and not ns:MoverSizeWouldCycle(m.key, other.key, axis) then
                     sorted[#sorted + 1] = {
                         value = other.key,

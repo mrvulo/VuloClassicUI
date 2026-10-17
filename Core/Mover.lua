@@ -6,6 +6,9 @@ ns._moverEditGlobal = ns._moverEditGlobal or false
 ns._moverEditScopes = ns._moverEditScopes or {}
 
 local function moverShouldEdit(mover)
+    -- a mover whose frame was closed or deleted (opts.disabled, see
+    -- ns:SetMoverDisabled) never joins edit mode: it would be an empty box
+    if mover.opts and mover.opts.disabled then return false end
     if ns._moverEditGlobal then return true end
     local sc = mover.opts and mover.opts.scope
     return (sc and ns._moverEditScopes[sc]) and true or false
@@ -176,6 +179,77 @@ end
 function ns:GetMoverByKey(key)
     if not key then return nil end
     return ns._moversByKey[key]
+end
+
+-- A profile switch re-points mod.db, but every mover still holds the table it
+-- was created with, so a drag after the switch landed in the profile just
+-- left. LoadProfile records where each position table sits inside its
+-- module's db (the db itself or up to three levels in: mod.db.frames[key],
+-- mod.db.bars[i], …) and hands the mover the same spot in the new profile.
+-- Tables outside every module db (account-wide ones) are left alone, and so
+-- is a mover whose spot does not exist yet in the new profile.
+-- path[i] is the key taken at step i; path.ids[i] the id of the table reached
+-- there, when it has one -- a list entry is found again by that, see below.
+local function findMoverPath(t, target, depth, path)
+    for k, v in pairs(t) do
+        if type(v) == "table" then
+            path[#path + 1] = k
+            path.ids[#path] = v.id
+            if rawequal(v, target) then return true end
+            if depth > 1 and findMoverPath(v, target, depth - 1, path) then return true end
+            path.ids[#path] = nil
+            path[#path] = nil
+        end
+    end
+    return false
+end
+
+-- A list entry (mod.db.bars[i], mod.db.groups[i]) is found again by its id,
+-- not by its position: the new profile may hold other entries or another order.
+-- That holds at every level of the path, not only at its end: a mover whose
+-- table sits INSIDE a list entry (bars[i].pos) is found through the entry's
+-- id, or by position it would land on another bar when the order differs.
+-- opts.noRepoint keeps a mover on its table (its module holds the table in
+-- closures of its own and would split its writes across two profiles).
+function ns:CaptureMoverPaths()
+    local snap = {}
+    for _, m in ipairs(ns._movers) do
+        local db = not (m.opts and m.opts.noRepoint) and m.opts and m.opts.db
+        if type(db) == "table" then
+            for _, key in ipairs(ns.moduleOrder) do
+                local mdb = ns.modules[key] and ns.modules[key].db
+                if type(mdb) == "table" then
+                    local path = { key = key, ids = {} }
+                    if rawequal(mdb, db) or findMoverPath(mdb, db, 3, path) then
+                        snap[m] = path
+                        break
+                    end
+                end
+            end
+        end
+    end
+    return snap
+end
+
+function ns:RepointMovers(snap)
+    for m, path in pairs(snap) do
+        local t = ns.modules[path.key] and ns.modules[path.key].db
+        for i = 1, #path do
+            local parent = type(t) == "table" and t or nil
+            t = parent and parent[path[i]]
+            local id = path.ids[i]
+            if id ~= nil and not (type(t) == "table" and t.id == id) then
+                t = nil
+                if parent then
+                    for _, v in pairs(parent) do
+                        if type(v) == "table" and v.id == id then t = v; break end
+                    end
+                end
+            end
+            if t == nil then break end
+        end
+        if type(t) == "table" then m.opts.db = t end
+    end
 end
 
 -- frame centre as an offset from UIParent's centre, in UIParent units —
@@ -422,7 +496,7 @@ function ns:OnMoverRepositioned(mover, visited)
     visited[mover.key] = true
 
     local own = store[mover.key]
-    if own then
+    if type(own) == "table" then
         local parent = ns:GetMoverByKey(own.to)
         if parent and parent.target then
             local dx, dy = computeLinkOffsets(mover.target, parent.target, own.side or "CENTER")
@@ -431,7 +505,7 @@ function ns:OnMoverRepositioned(mover, visited)
     end
 
     for key, link in pairs(store) do
-        if link.to == mover.key and not visited[key] then
+        if type(link) == "table" and link.to == mover.key and not visited[key] then
             local child = ns:GetMoverByKey(key)
             if child then
                 applyLink(child, link)
@@ -450,7 +524,7 @@ function ns:ApplyAllMoverLinks()
         if resolved[key] then return end
         resolved[key] = true
         local link = store[key]
-        if not link then return end
+        if type(link) ~= "table" then return end   -- an imported string can hold anything here
         if store[link.to] then resolve(link.to) end
         local child = ns:GetMoverByKey(key)
         if child then applyLink(child, link) end
@@ -707,7 +781,7 @@ function ns:SetMoverFreeMove(mover, on)
     if not (mover and mover.opts and mover.opts.db) then return end
     on = on and true or false
     mover.opts.db.freeMove = on
-    if on or moverShouldEdit(mover) then
+    if (on and not mover.opts.disabled) or moverShouldEdit(mover) then
         mover:Show()
     else
         mover:Hide()
@@ -718,7 +792,7 @@ end
 function ns:RestoreFreeMovers()
     for _, mover in ipairs(ns._movers) do
         local db = mover.opts and mover.opts.db
-        if db and db.freeMove then mover:Show() end
+        if db and db.freeMove and not mover.opts.disabled then mover:Show() end
     end
     if ns.RefreshMoverStyles then ns:RefreshMoverStyles() end
 end
@@ -798,6 +872,27 @@ function ns:SerializeLayout(name, snap)
     return "VCUI1!" .. payload .. "!" .. checksum(payload)
 end
 
+-- The checksum only catches a damaged paste, not a crafted one, so every value
+-- is held to what the editor itself could have written. Offsets are from the
+-- screen centre in UIParent units: half of even a 32:9 screen at the smallest
+-- UI scale stays far inside 5000. Scale gets a wider band than the edit-mode
+-- slider (0.5-2) because the bag and bank pages drive it through their own.
+local LAYOUT_MAX_OFFSET  = 5000
+local LAYOUT_MIN_SCALE   = 0.3
+local LAYOUT_MAX_SCALE   = 3
+local LAYOUT_MAX_ENTRIES = 500
+local LAYOUT_POINTS = {
+    TOPLEFT = true, TOP = true, TOPRIGHT = true, LEFT = true, CENTER = true,
+    RIGHT = true, BOTTOMLEFT = true, BOTTOM = true, BOTTOMRIGHT = true,
+}
+
+-- tonumber also reads "inf", "nan" and "1e999"; none of them is a position
+local function finiteNumber(s)
+    local v = tonumber(s)
+    if not v or v ~= v or v == math.huge or v == -math.huge then return nil end
+    return v
+end
+
 -- Returns name, snap on success; nil, errorKey on failure.
 function ns:DeserializeLayout(str)
     if type(str) ~= "string" then return nil, "empty" end
@@ -808,24 +903,49 @@ function ns:DeserializeLayout(str)
     if checksum(payload) ~= sum then return nil, "checksum" end
     local namePart, body = payload:match("^(.-)!(.*)$")
     if not namePart then return nil, "format" end
-    local snap = {}
+    local snap, count = {}, 0
     if body ~= "" then
         for entry in body:gmatch("[^;]+") do
+            if count >= LAYOUT_MAX_ENTRIES then break end
             local k, vals = entry:match("^(.-)=(.+)$")
             if k then
                 local e = {}
                 for tok in vals:gmatch("[^,]+") do
                     local p = tok:sub(1, 1)
-                    if     p == "s" then e.scale  = tonumber(tok:sub(2))
-                    elseif p == "a" then e.anchor = unesc(tok:sub(2))
-                    elseif not e.x  then e.x = tonumber(tok)
-                    elseif not e.y  then e.y = tonumber(tok) end
+                    if p == "s" then
+                        -- zero or less throws in SetScale on every apply
+                        local s = finiteNumber(tok:sub(2))
+                        if s and s > 0 then
+                            e.scale = math.max(LAYOUT_MIN_SCALE, math.min(LAYOUT_MAX_SCALE, s))
+                        end
+                    elseif p == "a" then
+                        local a = unesc(tok:sub(2))
+                        if LAYOUT_POINTS[a] then e.anchor = a end
+                    elseif e.x == nil then e.x = finiteNumber(tok) or false
+                    elseif e.y == nil then e.y = finiteNumber(tok) or false end
                 end
-                if e.x and e.y then snap[unesc(k)] = e end
+                -- an entry without two real numbers is dropped whole
+                if e.x and e.y then
+                    e.x = math.max(-LAYOUT_MAX_OFFSET, math.min(LAYOUT_MAX_OFFSET, e.x))
+                    e.y = math.max(-LAYOUT_MAX_OFFSET, math.min(LAYOUT_MAX_OFFSET, e.y))
+                    snap[unesc(k)] = e
+                    count = count + 1
+                end
             end
         end
     end
-    return unesc(namePart), snap
+    -- the name ends up in the layout list: no UI escapes, no line breaks, at
+    -- most 48 bytes -- cut between characters, never inside a multi-byte one
+    -- (the byte after the cut continuing a sequence, 10xxxxxx, moves it back)
+    local name = unesc(namePart):gsub("|", ""):gsub("%c", "")
+    local cut = 48
+    while cut > 0 and #name > cut do
+        local b = name:byte(cut + 1)
+        if b < 0x80 or b >= 0xC0 then break end
+        cut = cut - 1
+    end
+    name = name:sub(1, cut)
+    return name, snap
 end
 
 -- Cursor in UIParent units (GetCursorPosition reports raw screen pixels).
@@ -1296,10 +1416,33 @@ function ns:SetMoverTempHidden(mover, on)
     if on then
         if ns._draggingMover == mover then ns:AbortMoverDrag(mover) end
         mover:Hide()
-    elseif moverShouldEdit(mover) or (mover.opts.db and mover.opts.db.freeMove) then
+    elseif moverShouldEdit(mover)
+        or (mover.opts.db and mover.opts.db.freeMove and not mover.opts.disabled) then
         mover:Show()
     end
     ns:SortMoverLevels()
+end
+
+-- Opt-in for movers whose frame can go away while the mover stays registered
+-- (a closed meter window, a deleted bar): disabled keeps the box out of edit
+-- mode and free-move, so no empty box shows and no drag writes into the
+-- orphaned table. Re-binding the frame clears it again.
+function ns:SetMoverDisabled(mover, on)
+    if not (mover and mover.opts) then return end
+    on = on and true or nil
+    if mover.opts.disabled == on then return end
+    mover.opts.disabled = on
+    if on then
+        if ns._draggingMover == mover then ns:AbortMoverDrag(mover) end
+        if ns._activeMover == mover then ns._activeMover = nil end
+        if ns.IsSelected and ns:IsSelected(mover) and ns.DeselectMover then ns:DeselectMover() end
+        mover:Hide()
+    elseif not mover._tempHidden and (moverShouldEdit(mover)
+        or (mover.opts.db and (mover.opts.db.unlocked or mover.opts.db.freeMove))) then
+        mover:Show()
+    end
+    ns:SortMoverLevels()
+    if ns.RefreshMoverStyles then ns:RefreshMoverStyles() end
 end
 
 function ns:ClearMoverTempHidden()
@@ -1325,7 +1468,7 @@ function ns:SetMoversEditMode(state, scope)
         if opts.editPreview then pcall(opts.editPreview, edit) end
         if edit and not mover._tempHidden then
             mover:Show()
-        elseif not (opts.db and (opts.db.unlocked or opts.db.freeMove)) then
+        elseif opts.disabled or not (opts.db and (opts.db.unlocked or opts.db.freeMove)) then
             mover:Hide()
         end
     end

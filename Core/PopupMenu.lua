@@ -63,9 +63,23 @@ local function createLevel(i)
         -- Click-elsewhere closes. Registered only while shown; the down event
         -- fires BEFORE any OnClick, so clicks on the open anchor are left to
         -- the anchor's own toggle (hiding here would make its click reopen).
-        f:SetScript("OnShow", function(self) self:RegisterEvent("GLOBAL_MOUSE_DOWN") end)
+        -- Escape closes the menu first, not the options window behind it
+        -- (both sit in UISpecialFrames). The helper lives in UI/Widgets.lua,
+        -- which loads after this file, so it is looked up at show time.
+        f:SetScript("OnShow", function(self)
+            self:RegisterEvent("GLOBAL_MOUSE_DOWN")
+            local UI = ns.UI
+            if UI and UI.EscapeCloses and UI.ArmEscape then
+                if not self._vcEscWired then
+                    UI.EscapeCloses(self)
+                    self._vcEscWired = true
+                end
+                UI.ArmEscape(self)
+            end
+        end)
         f:SetScript("OnHide", function(self)
             self:UnregisterEvent("GLOBAL_MOUSE_DOWN")
+            if ns.UI and ns.UI.DisarmEscape then ns.UI.DisarmEscape(self) end
             hideFrom(2)
         end)
         f:SetScript("OnEvent", function(self)

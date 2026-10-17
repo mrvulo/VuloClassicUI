@@ -33,7 +33,19 @@
 -- and what they write is the module's business, so there is no key to store.
 -- What IS stable is the option's place in its page: module, tab and label --
 -- the label being an English locale key, not a translation. That triple is the
--- id.
+-- id for every row whose label occurs once on its page, which is nearly all.
+--
+-- A label CAN repeat on one page: three "Offset X" sliders, five "Colour"
+-- swatches, each under a different switch. Those used to share one id, so
+-- recording one of them overrode all of them and marked all of them. A
+-- repeated label gets a fourth part: the row's place, as the enclosing section
+-- titles and gear-parent rows (English keys, or the subKey a page gave them)
+-- and the row's own subKey; two rows that even share that get an ordinal. The
+-- place is only added when the label repeats, so an existing id stays valid
+-- until the day a page grows a second row of the same name -- and then the
+-- old id is a whole-field PREFIX of each new one, which is how it is migrated
+-- (see "Reading ids back" below): it applied to all of them, so it becomes all
+-- of them, and from there the rows can be changed one by one.
 --
 -- CAPTURING
 -- Every option a page builds passes through UI/OptionsBuilder, which wraps `set`
@@ -435,10 +447,195 @@ function ns:OverrideId(modKey, tabId, label)
     return modKey .. SEP .. (tabId or "") .. SEP .. ns:EnglishKey(label)
 end
 
+-- modKey, tabId (nil for the empty field), label, and the place parts after the
+-- label as a list -- nil when the id is the plain triple.
 local function splitId(id)
-    local a, b, c = id:match("^(.-)" .. SEP .. "(.-)" .. SEP .. "(.+)$")
+    local a, b, rest = id:match("^(.-)" .. SEP .. "(.-)" .. SEP .. "(.+)$")
     if not a then return nil end
-    return a, (b ~= "" and b or nil), c
+    local label, parts = rest, nil
+    local cut = rest:find(SEP, 1, true)
+    if cut then
+        label, parts = rest:sub(1, cut - 1), {}
+        for p in (rest:sub(cut + 1) .. SEP):gmatch("(.-)" .. SEP) do parts[#parts + 1] = p end
+    end
+    return a, (b ~= "" and b or nil), label, parts
+end
+
+local function joinId(modKey, tabId, label, parts)
+    local id = modKey .. SEP .. (tabId or "") .. SEP .. label
+    if parts and #parts > 0 then id = id .. SEP .. table.concat(parts, SEP) end
+    return id
+end
+
+-- The rows an override can attach to: what the builder wraps, and nothing else.
+local function capturable(it)
+    return type(it) == "table" and type(it.set) == "function" and type(it.get) == "function"
+        and it.label ~= nil and not it.noOverride
+end
+
+-- Walks ONE page's option tree (what mod:GetOptions(tabId) returned) and gives
+-- every capturable row its id, on the row as _vcOverrideId and in the returned
+-- list of { item, id }. The second return maps an id to its rows.
+--
+-- Two passes, because the shape of an id depends on the whole page: the plain
+-- triple is counted first, and only a label counted twice gets its place
+-- appended. Sections contribute their key or title, gear rows their subKey or
+-- label; a group is layout and contributes nothing. A row still not alone after
+-- that gets "#n" in page order -- the last resort, and a page that lands there
+-- should rather give those rows a subKey.
+--
+-- The tab field a page's ids carry. "default" is what the window passes for a
+-- module without tabs -- and for one with a single tab, which it draws without
+-- a tab bar (MainFrame: hasRealTabs needs more than one). A rebuild handing in
+-- nil for such a module would otherwise record under the EMPTY tab, an id the
+-- window's own build never hands out, and at the next migration the older
+-- default-tab value would win over the newer one. A module with real tabs
+-- keeps nil: there it means "every section". The options builder applies the
+-- same rule before it asks GetOptions, so the page and its ids agree.
+local function pageTab(modKey, tabId)
+    if tabId ~= nil then return tabId end
+    local mod = ns.modules and ns.modules[modKey]
+    if mod and mod.tabs and #mod.tabs > 1 then return nil end
+    return "default"
+end
+
+-- The place is the same whichever tab filter produced the tree, because it is
+-- read off the row's own ancestors and siblings, never off the page. That is
+-- what lets an id recorded before a page had tabs be re-homed into a tab.
+function ns:AssignOverrideIds(modKey, tabId, items)
+    tabId = pageTab(modKey, tabId)
+    local rows, byPlain, ctx = {}, {}, {}
+    local function walk(list)
+        for _, it in ipairs(list or {}) do
+            if type(it) == "table" then
+                if it.type == "section" then
+                    ctx[#ctx + 1] = type(it.key) == "string" and it.key or ns:EnglishKey(tostring(it.title or ""))
+                    walk(it.items)
+                    ctx[#ctx] = nil
+                else
+                    if it.items then walk(it.items) end
+                    if capturable(it) then
+                        local plain = ns:OverrideId(modKey, tabId, it.label)
+                        local parts = {}
+                        for i, c in ipairs(ctx) do parts[i] = c end
+                        if it.subKey ~= nil then parts[#parts + 1] = tostring(it.subKey) end
+                        rows[#rows + 1] = { item = it, plain = plain, parts = parts }
+                        byPlain[plain] = (byPlain[plain] or 0) + 1
+                    end
+                    if it.subOptions then
+                        ctx[#ctx + 1] = it.subKey ~= nil and tostring(it.subKey)
+                            or ns:EnglishKey(tostring(it.label or ""))
+                        walk(it.subOptions)
+                        ctx[#ctx] = nil
+                    end
+                end
+            end
+        end
+    end
+    walk(items)
+
+    local seen = {}
+    for _, r in ipairs(rows) do
+        r.id = r.plain
+        if byPlain[r.plain] > 1 then
+            r.placed = (#r.parts > 0) and (r.plain .. SEP .. table.concat(r.parts, SEP)) or r.plain
+            r.id = r.placed
+            seen[r.placed] = (seen[r.placed] or 0) + 1
+        end
+    end
+    local nth, byId = {}, {}
+    for _, r in ipairs(rows) do
+        -- An ordinal where the place is still shared -- and ALWAYS where a
+        -- repeated row has no place at all, or it would answer to the very
+        -- triple that used to reach all of them and the others would lose it.
+        if r.placed and (seen[r.placed] > 1 or r.placed == r.plain) then
+            nth[r.placed] = (nth[r.placed] or 0) + 1
+            r.id = r.placed .. SEP .. "#" .. nth[r.placed]
+        end
+        r.item._vcOverrideId = r.id
+        local l = byId[r.id]
+        if not l then l = {}; byId[r.id] = l end
+        l[#l + 1] = r
+    end
+    return rows, byId
+end
+
+-- Which rows of a page a STORED id reaches. Exact first; then the id as a
+-- whole-field prefix of a row's id, which is an id from before the page gained
+-- a second row of that label; then, for an id whose tab field is empty
+-- (recorded before the page had tabs), the same two with the tab filled in.
+-- The second return says whether the id is current -- false means the caller
+-- should rewrite it into the rows it reached.
+local function resolveId(oid, rows, byId, modKey, tabId)
+    if byId[oid] then return byId[oid], true end
+    local m, t, label, parts = splitId(oid)
+    if not m or m ~= modKey then return nil end
+    local probe = oid
+    if t == nil and tabId then
+        probe = joinId(m, tabId, label, parts)
+        if byId[probe] then return byId[probe], false end
+    elseif t ~= tabId then
+        return nil
+    end
+    local prefix, out = probe .. SEP, nil
+    for _, r in ipairs(rows) do
+        if r.id:sub(1, #prefix) == prefix then
+            out = out or {}
+            out[#out + 1] = r
+        end
+    end
+    -- A placed id whose place is gone: the label was repeated when the value
+    -- was recorded (one glow section per watcher) and stands alone again. The
+    -- plain triple is that row now -- and only a row that HAS the plain id
+    -- answers, so a page where the label is still repeated is not reached.
+    if not out and parts then
+        out = byId[joinId(m, t or tabId, label)]
+    end
+    return out, false
+end
+
+-- Moves one group's stored ids onto the ids a page hands out today. An id that
+-- names a row as it stands is left alone. One that reached several rows -- or
+-- one row under a tab it did not name -- is copied onto each of them, where no
+-- value is stored yet. An id that named its tab is then dropped: this page was
+-- all it could reach. An id with an EMPTY tab field reaches every tab of its
+-- page, and one call sees one tab, so it is kept and handed back in the second
+-- return; the caller that has walked every tab retires it. Second and later
+-- runs find nothing to do.
+local function migrateValues(values, rows, byId, modKey, tabId)
+    local add, drop, legacy = {}, {}, {}
+    for oid, value in pairs(values) do
+        local targets, direct = resolveId(oid, rows, byId, modKey, tabId)
+        if targets and not direct then
+            -- Two old ids can reach one row (the empty-tab one and the one
+            -- that named the tab). The more specific one wins -- a rule, where
+            -- applying them both used to leave it to pairs().
+            local _, t, _, parts = splitId(oid)
+            local rank = (t and 2 or 1) + (parts and #parts or 0)
+            for _, r in ipairs(targets) do
+                local a = add[r.id]
+                if not a or rank > a.rank then add[r.id] = { v = value, rank = rank } end
+            end
+            if t ~= nil then drop[oid] = true else legacy[oid] = true end
+        end
+    end
+    for nid, a in pairs(add) do if values[nid] == nil then values[nid] = a.v end end
+    for oid in pairs(drop) do values[oid] = nil end
+    return legacy
+end
+
+-- Every group of the active profile, against the page the builder has just
+-- assigned ids for. Called before the rows are drawn, so an old id shows its
+-- accent bar on the rows it now belongs to rather than on none of them.
+function ns:MigrateOverrideIds(modKey, tabId, rows, byId)
+    tabId = pageTab(modKey, tabId)
+    local c = cards(false)
+    if not c then return end
+    for _, g in pairs(c) do
+        if type(g) == "table" and type(g.values) == "table" then
+            migrateValues(g.values, rows, byId, modKey, tabId)
+        end
+    end
 end
 
 -- Used by the options builder to mark a row. While editing, that one group is
@@ -472,8 +669,10 @@ end
 
 -- modKey/tabId/label are the STORED english keys. They are translated here and
 -- only here, so what the row shows follows the player's language while the id
--- underneath never moves.
-function ns:DescribeOverride(modKey, tabId, label)
+-- underneath never moves. `place` is the id's fourth part, if any: section and
+-- gear-row keys read through L as well, a page's subKey or an ordinal shows as
+-- it is -- a raw "slot/name" beats two rows that read identically.
+function ns:DescribeOverride(modKey, tabId, label, place)
     local m = ns.modules and ns.modules[modKey]
     local parts = { L[(m and m.name) or modKey] }
     if tabId and tabId ~= "" and m and m.tabs then
@@ -484,6 +683,7 @@ function ns:DescribeOverride(modKey, tabId, label)
             end
         end
     end
+    for _, p in ipairs(place or {}) do parts[#parts + 1] = L[p] end
     parts[#parts + 1] = L[label]
     return table.concat(parts, " > ")
 end
@@ -519,12 +719,12 @@ function ns:OverrideList(id)
     local out = {}
     if not g or not g.values then return out end
     for oid, value in pairs(g.values) do
-        local modKey, tabId, label = splitId(oid)
+        local modKey, tabId, label, place = splitId(oid)
         if modKey then
             out[#out + 1] = {
                 id    = oid,
                 value = value,
-                text  = ns:DescribeOverride(modKey, tabId, label),
+                text  = ns:DescribeOverride(modKey, tabId, label, place),
             }
         end
     end
@@ -593,36 +793,52 @@ end
 -- Applying
 -- =========================================================================
 
-local function walkItems(items, fn)
-    for _, it in ipairs(items or {}) do
-        if type(it) == "table" then
-            if it.items then walkItems(it.items, fn) end
-            -- Behind the gear too: the CAPTURE side has descended subOptions
-            -- since the Wanderer fix, so overrides on those rows were recorded
-            -- and listed -- and then never replayed, because only this walk
-            -- resolves them at apply time.
-            if it.subOptions then walkItems(it.subOptions, fn) end
-            fn(it)
-        end
+-- Two setter shapes, one call: a colour takes (r, g, b) and no self, everything
+-- else takes (self, value).
+local function applyTo(it, want)
+    if type(it.set) ~= "function" then return false end
+    if it.type == "color" then
+        if type(want) ~= "table" then return false end
+        return (pcall(it.set, want.r, want.g, want.b))
     end
+    return (pcall(it.set, nil, want))
+end
+
+-- The tabs an id's page has to be asked for. A tab in the id names one page. An
+-- empty tab field is older than the page's tabs -- it used to be answered with
+-- GetOptions(nil), which the nameplates alone still spell out as "everything";
+-- asking each tab instead gives every row a tab to be re-homed into. "default"
+-- is what the window passes for a module without tabs.
+local function pageTabs(mod, tabId)
+    if tabId then return { tabId } end
+    local out = {}
+    for _, t in ipairs(mod.tabs or {}) do out[#out + 1] = t.id end
+    -- A single tab is drawn without a tab bar, and the window builds that page
+    -- as "default" too (the class tools: only the played class). Re-homing into
+    -- the one tab would make an id the window never hands out again.
+    if #out <= 1 then return { "default" } end
+    return out
 end
 
 -- Grouped by module+tab so GetOptions runs once per page, not once per setting.
+-- The same walk that applies a value also migrates its id: the rows it reached
+-- are the rows it now names (migrateValues), and because every tab the id
+-- could reach has been asked, an old id is retired here for good.
 function ns:ApplyOverrideGroup(id)
     local g = ns:OverrideGroup(id)
     if not g or not g.values then return 0 end
 
     local byPage = {}
     for oid, value in pairs(g.values) do
-        local modKey, tabId, label = splitId(oid)
+        local modKey, tabId = splitId(oid)
         if modKey and ns.modules[modKey] then
             local pageKey = modKey .. SEP .. (tabId or "")
             local page = byPage[pageKey]
             if not page then
-                page = { modKey = modKey, tabId = tabId, items = {} }
+                page = { modKey = modKey, tabId = tabId, values = {} }
                 byPage[pageKey] = page
             end
-            page.items[label] = value
+            page.values[oid] = value
         end
     end
 
@@ -630,26 +846,33 @@ function ns:ApplyOverrideGroup(id)
     for _, page in pairs(byPage) do
         local mod = ns.modules[page.modKey]
         if mod and mod.GetOptions then
-            local ok, items = pcall(mod.GetOptions, mod, page.tabId)
-            if ok and type(items) == "table" then
-                walkItems(items, function(it)
-                    local want = it.label and page.items[ns:EnglishKey(it.label)]
-                    -- nil means "not overridden"; false is a real stored value.
-                    if want ~= nil and type(it.set) == "function" then
-                        -- Two setter shapes, one loop: a colour takes (r, g, b)
-                        -- and no self, everything else takes (self, value).
-                        local ok
-                        if it.type == "color" then
-                            if type(want) == "table" then
-                                ok = pcall(it.set, want.r, want.g, want.b)
-                            end
-                        else
-                            ok = pcall(it.set, nil, want)
+            local retire = {}
+            for _, tab in ipairs(pageTabs(mod, page.tabId)) do
+                local ok, items = pcall(mod.GetOptions, mod, tab)
+                if ok and type(items) == "table" then
+                    local rows, byId = ns:AssignOverrideIds(page.modKey, tab, items)
+                    -- nil means "not overridden"; false is a real stored value,
+                    -- and pairs() hands those out like any other.
+                    for oid, want in pairs(page.values) do
+                        local targets = resolveId(oid, rows, byId, page.modKey, tab)
+                        for _, r in ipairs(targets or {}) do
+                            if applyTo(r.item, want) then applied = applied + 1 end
                         end
-                        if ok then applied = applied + 1 end
                     end
-                end)
+                    -- Only ids of THIS page may be retired here: migrateValues
+                    -- walks the whole group, so the legacy ids of the module's
+                    -- empty-tab page come back from an explicit-tab page too --
+                    -- and retiring one there, after ONE tab had its copy, lost
+                    -- the copies of every tab not walked yet. The empty-tab
+                    -- page is the one that walks them all (pageTabs).
+                    for oid in pairs(migrateValues(g.values, rows, byId, page.modKey, tab)) do
+                        if page.values[oid] ~= nil then retire[oid] = true end
+                    end
+                end
             end
+            -- Only now: an empty-tab id had to be copied onto EVERY tab's rows
+            -- before it may go, and the loop above saw one tab at a time.
+            for oid in pairs(retire) do g.values[oid] = nil end
         end
     end
     return applied
@@ -701,9 +924,12 @@ ns.OnLocaleReady(function()
                 if type(values) == "table" then
                     local rekey
                     for oid in pairs(values) do
-                        local modKey, tabId, label = splitId(oid)
+                        -- The place parts ride along untouched: they were never
+                        -- recorded in a translation, and a second EnglishKey
+                        -- pass over an English key is the one way to move it.
+                        local modKey, tabId, label, place = splitId(oid)
                         if modKey then
-                            local nid = ns:OverrideId(modKey, tabId, label)
+                            local nid = joinId(modKey, tabId, ns:EnglishKey(label), place)
                             if nid and nid ~= oid then
                                 rekey = rekey or {}
                                 rekey[oid] = nid
@@ -893,6 +1119,12 @@ local lastGroup
 local function onTalentSwitch()
     local now = ns:ActiveTalentGroup()
     if now == lastGroup then return end
+    -- Same reason as the situation path below: setters touch protected frames.
+    -- lastGroup stays behind, so the replay after combat still sees the change.
+    if ns:InCombat() then
+        ns._ovPendingTalent = true
+        return
+    end
     lastGroup = now
     -- Leaving edit mode on a switch: what is being recorded belongs to the group
     -- that was active when recording started, and that is no longer this one.
@@ -910,6 +1142,12 @@ ns:RegisterEvent("PLAYER_TALENT_UPDATE", onTalentSwitch)
 local lastSituation
 
 local function applyNow()
+    -- A /reload or a loading screen can land mid-fight; replay the full apply
+    -- once combat ends instead of reaching into protected frames now.
+    if ns:InCombat() then
+        ns._ovPendingApply = true
+        return
+    end
     lastSituation = ns:CurrentSituation()
     lastGroup     = ns:ActiveTalentGroup()
     ns:ApplyOverrides(lastGroup, lastSituation)
@@ -937,7 +1175,18 @@ ns:RegisterEvent("ZONE_CHANGED_NEW_AREA", onSituationMaybeChanged)
 ns:RegisterEvent("GROUP_ROSTER_UPDATE",   onSituationMaybeChanged)
 
 ns:RegisterEvent("PLAYER_REGEN_ENABLED", function()
-    if not ns._ovPendingSituation then return end
-    ns._ovPendingSituation = nil
-    onSituationMaybeChanged()
+    if ns._ovPendingApply then
+        -- The full apply covers both build and situation.
+        ns._ovPendingApply, ns._ovPendingTalent, ns._ovPendingSituation = nil, nil, nil
+        applyNow()
+        return
+    end
+    if ns._ovPendingTalent then
+        ns._ovPendingTalent = nil
+        onTalentSwitch()
+    end
+    if ns._ovPendingSituation then
+        ns._ovPendingSituation = nil
+        onSituationMaybeChanged()
+    end
 end)

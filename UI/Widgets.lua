@@ -139,18 +139,30 @@ end
 --
 -- Calling it twice is now "switch back on" instead of a no-op, so a caller can
 -- toggle without knowing which state it is in.
+--
+-- Most of these buttons are Blizzard's, so what we remember about them lives in
+-- side tables here rather than as fields on the button and its regions.
+local panelSkin   = setmetatable({}, { __mode = "k" })  -- button -> { blizz, bg, edges }
+local regionAlpha = setmetatable({}, { __mode = "k" })  -- faded region -> alpha it had
+
+function UI:IsPanelButtonSkinned(b)
+    return b and panelSkin[b] ~= nil or false
+end
+
 function UI:SkinPanelButton(b, opts)
     if not b then return end
     local ac = ns.COLORS.accent
     local bc = (opts and opts.border) or ns.COLORS.border or { r = 0.22, g = 0.22, b = 0.27 }
 
-    if b._vcuiSkin then
-        for _, r in ipairs(b._vcuiBlizzRegions or {}) do r:SetAlpha(0) end
-        if b._vcuiBG then b._vcuiBG:Show() end
-        for _, t in ipairs(b._vcuiEdges or {}) do t:Show() end
+    local ps = panelSkin[b]
+    if ps then
+        for _, r in ipairs(ps.blizz or {}) do r:SetAlpha(0) end
+        if ps.bg then ps.bg:Show() end
+        for _, t in ipairs(ps.edges or {}) do t:Show() end
         return
     end
-    b._vcuiSkin = true
+    ps = {}
+    panelSkin[b] = ps
 
     -- Only regions that carried artwork at skin time, with the alpha they had:
     -- a region Blizzard keeps invisible must stay invisible when we hand it back.
@@ -158,11 +170,11 @@ function UI:SkinPanelButton(b, opts)
     for _, r in ipairs({ b:GetRegions() }) do
         if r.IsObjectType and r:IsObjectType("Texture") then
             blizz[#blizz + 1] = r
-            r._vcuiAlpha = r:GetAlpha()
+            regionAlpha[r] = r:GetAlpha()
             r:SetAlpha(0)
         end
     end
-    b._vcuiBlizzRegions = blizz
+    ps.blizz = blizz
 
     local bg = b:CreateTexture(nil, "BACKGROUND")
     bg:SetAllPoints(b)
@@ -177,7 +189,7 @@ function UI:SkinPanelButton(b, opts)
     edges[2]:SetPoint("BOTTOMLEFT"); edges[2]:SetPoint("BOTTOMRIGHT"); edges[2]:SetHeight(1)
     edges[3]:SetPoint("TOPLEFT"); edges[3]:SetPoint("BOTTOMLEFT"); edges[3]:SetWidth(1)
     edges[4]:SetPoint("TOPRIGHT"); edges[4]:SetPoint("BOTTOMRIGHT"); edges[4]:SetWidth(1)
-    b._vcuiBG, b._vcuiEdges = bg, edges
+    ps.bg, ps.edges = bg, edges
     local fonts = opts and opts.fonts
     if fonts then
         if b.SetNormalFontObject then b:SetNormalFontObject(fonts[1]) end
@@ -202,24 +214,45 @@ end
 --
 -- Safe on a button that was never skinned: there is nothing to restore.
 function UI:UnskinPanelButton(b)
-    if not b or not b._vcuiSkin then return end
-    if b._vcuiBG then b._vcuiBG:Hide() end
-    for _, t in ipairs(b._vcuiEdges or {}) do t:Hide() end
-    for _, r in ipairs(b._vcuiBlizzRegions or {}) do
-        r:SetAlpha(r._vcuiAlpha or 1)
+    local ps = b and panelSkin[b]
+    if not ps then return end
+    if ps.bg then ps.bg:Hide() end
+    for _, t in ipairs(ps.edges or {}) do t:Hide() end
+    for _, r in ipairs(ps.blizz or {}) do
+        r:SetAlpha(regionAlpha[r] or 1)
     end
 end
 
+-- Shadow/backdrop pieces live here, not on the frame: these helpers also style
+-- Blizzard frames (talent window, static popups, friends list), and addon
+-- fields on those taint them. Weak keys so a discarded frame frees its entry.
+local shadows = setmetatable({}, { __mode = "k" })
+local backdropBG = setmetatable({}, { __mode = "k" })
+local backdropBorders = setmetatable({}, { __mode = "k" })
+
+-- The four shadow textures CreateShadow made for this frame, or nil.
+function UI:GetShadow(frame)
+    return frame and shadows[frame]
+end
+
+-- StyleBackdrop's background texture and its four edges (top, bottom, left,
+-- right), or nil for a frame it never styled.
+function UI:BackdropParts(frame)
+    if not frame then return nil end
+    return backdropBG[frame], backdropBorders[frame]
+end
+
 function UI:CreateShadow(frame)
-    if frame._vcShadow then return end
-    frame._vcShadow = {}
+    if shadows[frame] then return end
+    local list = {}
+    shadows[frame] = list
     local layers = { { 1, 0.45 }, { 3, 0.28 }, { 5, 0.15 }, { 7, 0.07 } }
     for i, l in ipairs(layers) do
         local t = frame:CreateTexture(nil, "BACKGROUND", nil, -8 + (i - 1))
         t:SetPoint("TOPLEFT",     frame, "TOPLEFT",     -l[1],  l[1])
         t:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT",  l[1], -l[1])
         t:SetColorTexture(0, 0, 0, l[2])
-        frame._vcShadow[i] = t
+        list[i] = t
     end
 end
 
@@ -360,20 +393,24 @@ function UI:StyleBackdrop(frame, opts)
     local bgColor    = opts.bg     or ns.COLORS.bg
     local borderRGB  = opts.border or ns.COLORS.border
 
-    if not frame._vcBG then
-        frame._vcBG = frame:CreateTexture(nil, "BACKGROUND")
-        frame._vcBG:SetAllPoints(frame)
+    local bg = backdropBG[frame]
+    if not bg then
+        bg = frame:CreateTexture(nil, "BACKGROUND")
+        bg:SetAllPoints(frame)
+        backdropBG[frame] = bg
     end
-    frame._vcBG:SetColorTexture(bgColor.r, bgColor.g, bgColor.b, bgColor.a or 1)
+    bg:SetColorTexture(bgColor.r, bgColor.g, bgColor.b, bgColor.a or 1)
 
-    if not frame._vcBorders then
-        frame._vcBorders = {}
+    local borders = backdropBorders[frame]
+    if not borders then
+        borders = {}
+        backdropBorders[frame] = borders
         for i = 1, 4 do
             local b = frame:CreateTexture(nil, "BORDER")
             b:SetColorTexture(borderRGB.r, borderRGB.g, borderRGB.b, borderRGB.a or 1)
-            frame._vcBorders[i] = b
+            borders[i] = b
         end
-        local t, b, l, r = unpack(frame._vcBorders)
+        local t, b, l, r = unpack(borders)
         t:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
         t:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, 0)
         t:SetHeight(1)
@@ -387,7 +424,7 @@ function UI:StyleBackdrop(frame, opts)
         r:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0)
         r:SetWidth(1)
     end
-    for _, b in ipairs(frame._vcBorders) do
+    for _, b in ipairs(borders) do
         b:SetColorTexture(borderRGB.r, borderRGB.g, borderRGB.b, borderRGB.a or 1)
     end
 end
@@ -608,7 +645,9 @@ end
 
 local function toggleFlip(container)
     local cfg = container._vcConfig
-    if not cfg then return end
+    -- A disabled row keeps its mouse for the tooltip's sake; the flip is what
+    -- it must not do (the builder sets the flag, see applyDisabled).
+    if not cfg or container._vcuiDisabled then return end
     local newState = not (cfg.get(container._switch) and true or false)
     cfg.set(container._switch, newState)
     toggleRefresh(container)
@@ -618,6 +657,13 @@ local function toggleSetup(container, config)
     container._vcConfig = config
     local label = container._label
     label:SetText(clean(config.label) or "")
+    -- Pooled: a row with inline icons moves the label's right edge out of their
+    -- way, and only the placement paths that draw icons move it back. A plain
+    -- card row draws none and never did, so a toggle coming from an icon row
+    -- kept the shortened label there. Reset on every setup instead.
+    label:ClearAllPoints()
+    label:SetPoint("LEFT", container, "LEFT", 0, 0)
+    label:SetPoint("RIGHT", container._switch, "LEFT", -8, 0)
 
     if config.width then
         container:SetSize(config.width, 22)
@@ -803,6 +849,11 @@ local function sliderSetup(row, config)
     -- Also on the row: callers outside the options builder hold the row and read
     -- _vcConfig off it to rebuild themselves (UI/EditMode.lua does).
     row._vcConfig = config
+    -- Pooled: the label column the last page measured must not stick. The
+    -- builder sets it again only where it has a column, and a row placed
+    -- without one (a group's columns layout, a bare caller) read the old width
+    -- both here, in the row's own size, and in layoutSliderRow.
+    row._labelW = SLIDER_LABEL_W
     s._min  = config.min or 0
     s._max  = config.max or 100
     s._step = config.step or 1
@@ -1102,6 +1153,12 @@ function UI:CreateSlider(parent, config)
     row._slider = s
     row._labelW = SLIDER_LABEL_W
     row._endW   = 90
+    -- The row answers for the tooltip as well as the track: a disabled row
+    -- takes the track's mouse away (applyDisabled), and the row is what is
+    -- left to hover. _label is the name configTip looks for.
+    row._label = row.label
+    row:EnableMouse(true)
+    attachTooltip(row)
 
     -- Re-anchored now that the row exists: the block hangs off the ROW's right
     -- edge, not the track's. Chained to the track it inherited every pixel the
@@ -1145,6 +1202,56 @@ local function closeActivePopup()
     end
 end
 UI.CloseDropdownPopup = closeActivePopup
+
+-- Escape closes THIS frame and nothing behind it.
+--
+-- UISpecialFrames alone cannot do that: CloseSpecialWindows hides EVERY listed
+-- frame that is showing, so one Escape on an open menu took the row panel and
+-- the options window down with it. While the frame is shown it takes the
+-- keyboard, swallows Escape and passes every other key on.
+--
+-- SetPropagateKeyboardInput is protected in combat (Core/Mover.lua learned this
+-- first), so the keyboard is only taken out of combat, and a key arriving in
+-- combat is left alone. The frame STAYS in UISpecialFrames for exactly that
+-- case: in combat Escape still closes it -- with everything else, as before.
+-- The three pieces are called from the frame's own OnShow/OnHide rather than
+-- hooked, so a frame that already owns those scripts keeps one handler each.
+local function escapeKeyDown(self, key)
+    if InCombatLockdown and InCombatLockdown() then return end
+    if key == "ESCAPE" then
+        self:SetPropagateKeyboardInput(false)
+        self:Hide()
+    else
+        self:SetPropagateKeyboardInput(true)
+    end
+end
+
+function UI.EscapeCloses(frame)
+    if not frame.SetPropagateKeyboardInput then return end
+    frame:EnableKeyboard(false)
+    frame:SetScript("OnKeyDown", escapeKeyDown)
+end
+
+function UI.ArmEscape(frame)
+    if not frame.SetPropagateKeyboardInput then return end
+    if InCombatLockdown and InCombatLockdown() then return end
+    frame:EnableKeyboard(true)
+    frame:SetPropagateKeyboardInput(true)
+end
+
+function UI.DisarmEscape(frame)
+    if frame.EnableKeyboard then frame:EnableKeyboard(false) end
+end
+
+-- An entry's caption through L, by its text or -- when a module hands a list
+-- without one -- by its value. L[nil] is not a lookup but a crash: the memo
+-- step does rawset(t, nil, ...).
+local function optText(opt)
+    if opt.text == nil then
+        return opt.value == nil and "" or tostring(opt.value)
+    end
+    return L[tostring(opt.text)]
+end
 
 -- Forward-declared: the wheel handler below is written before the function
 -- exists, and a plain reference there would resolve to a nil GLOBAL and scroll
@@ -1249,7 +1356,9 @@ local function ensurePopupFrame()
         p:SetScript("OnUpdate", sbDragTick)
     end)
 
+    p:SetScript("OnShow", function(self) UI.ArmEscape(self) end)
     p:SetScript("OnHide", function(self)
+        UI.DisarmEscape(self)
         if self._owner and self._owner._setHovered then
             self._owner._setHovered(false)
         end
@@ -1260,7 +1369,8 @@ local function ensurePopupFrame()
         self:SetScript("OnUpdate", nil)
     end)
 
-    tinsert(UISpecialFrames, "VCDropdownPopup")  -- ESC closes
+    tinsert(UISpecialFrames, "VCDropdownPopup")  -- ESC closes (in combat: with everything else)
+    UI.EscapeCloses(p)                            -- out of combat: only this
 
     activePopup = p
     return p
@@ -1305,7 +1415,7 @@ end
 local function popupWidth(button, values)
     local w = button:GetWidth() or 0
     for _, opt in ipairs(values) do
-        local need = measureItem(clean(L[opt.text])) + ITEM_PAD + rowButtonRoom(opt)
+        local need = measureItem(clean(optText(opt))) + ITEM_PAD + rowButtonRoom(opt)
         if need > w then w = need end
     end
     local room = (UIParent:GetWidth() or 1024) - 40
@@ -1560,7 +1670,7 @@ local function openPopup(button, config)
             p._items[i] = item
         end
 
-        local full = clean(L[opt.text])
+        local full = clean(optText(opt))
         item._text:SetText(full)
         item._full = full
         item._idx  = i
@@ -1634,9 +1744,17 @@ local function openPopup(button, config)
                 item._text:SetTextColor(0.88, 0.88, 0.90)
             end
             item:SetScript("OnClick", function()
-                config.set(button, opt.value)
-                if button._setText then button._setText(L[opt.text]) end
+                -- Text and menu first, the setter LAST. A setter is free to
+                -- rebuild its page, and then `button` is back in the pool or
+                -- already serving another row -- writing the caption into it
+                -- afterwards put this choice's text on that row. If the row
+                -- survived, it re-reads its value, so a setter that clamps or
+                -- refuses shows what the module really stored.
+                if button._setText then button._setText(optText(opt)) end
                 closeActivePopup()
+                config.set(button, opt.value)
+                local row = button:GetParent()
+                if row and row._vcConfig == config and button._refresh then button._refresh() end
             end)
         end
     end
@@ -1864,10 +1982,10 @@ function UI:CreateDropdown(parent, config)
         end
     end
 
-    -- same geometry StyleBackdrop draws; it keeps the four edges on the frame as
-    -- _vcBorders, which is what the hover recolour below uses
+    -- same geometry StyleBackdrop draws; its four edges (BackdropParts) are
+    -- what the hover recolour below uses
     UI:StyleBackdrop(btn, { bg = { r = 0.06, g = 0.06, b = 0.08, a = 1 } })
-    local borders = btn._vcBorders
+    local _, borders = UI:BackdropParts(btn)
 
     local valueText = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     UI.Font(valueText, 12)
@@ -1905,13 +2023,19 @@ function UI:CreateDropdown(parent, config)
         local current = cfg.get(btn)
         for _, opt in ipairs(cfg.values or {}) do
             if opt.value == current then
-                setText(L[opt.text])
+                setText(optText(opt))
                 return
             end
         end
         setText(tostring(current or ""))
     end
     btn._refresh = refresh
+
+    -- The row carries the tooltip too, not only its box: a disabled row takes
+    -- the box's mouse away (applyDisabled) and the row is what is left to
+    -- hover. Over the box itself the richer handler below still wins.
+    container:EnableMouse(true)
+    attachTooltip(container)
 
     btn:SetScript("OnEnter", function(self)
         setHovered(true)
@@ -2034,6 +2158,21 @@ function UI:CreateEditBox(parent, config)
             self._borderFrame:SetBackdropBorderColor(c.r, c.g, c.b, 1)
         end
     end)
+    -- What the box holds, as the module wants it. A numeric box with text that
+    -- is not a number used to hand the setter nil, which most setters stored --
+    -- the value was gone and the box showed the garbage. Now the module's own
+    -- value comes back into the box and nothing is written.
+    local function typedValue(self, cfg)
+        local v = self:GetText()
+        if not cfg.numeric then return v, true end
+        local n = tonumber(v)
+        if n == nil then
+            self:SetText(tostring(cfg.get(self) or ""))
+            return nil, false
+        end
+        return n, true
+    end
+
     eb:SetScript("OnEditFocusLost", function(self)
         if self._borderFrame and self._borderFrame.SetBackdropBorderColor then
             self._borderFrame:SetBackdropBorderColor(borderColor.r, borderColor.g, borderColor.b, borderColor.a or 1)
@@ -2041,20 +2180,18 @@ function UI:CreateEditBox(parent, config)
         -- opt-in: an adjacent button steals focus before its OnClick, so commit here too
         local cfg = container._vcConfig
         if cfg and cfg.commitOnFocusLost then
-            local v = self:GetText()
-            if cfg.numeric then v = tonumber(v) end
-            cfg.set(self, v)
+            local v, ok = typedValue(self, cfg)
+            if ok then cfg.set(self, v) end
         end
     end)
 
     eb:SetScript("OnEnterPressed", function(self)
         local cfg = container._vcConfig
         if not cfg then self:ClearFocus(); return end
-        local v = self:GetText()
-        if cfg.numeric then v = tonumber(v) end
-        cfg.set(self, v)
+        local v, ok = typedValue(self, cfg)
+        if ok then cfg.set(self, v) end
         self:ClearFocus()
-        if cfg.onEnter then cfg.onEnter(v) end
+        if ok and cfg.onEnter then cfg.onEnter(v) end
     end)
     eb:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
 
@@ -2165,6 +2302,7 @@ function UI:CreateButton(parent, config)
         -- does the click handler run.
         local focus = GetCurrentKeyBoardFocus and GetCurrentKeyBoardFocus()
         if focus and focus.ClearFocus then focus:ClearFocus() end
+        if self._vcuiDisabled then return end   -- mouse kept for the tooltip only
         local cfg = self._vcConfig
         if cfg and cfg.onClick then cfg.onClick(self) end
     end)
@@ -2237,6 +2375,7 @@ function UI:CreateIconButton(parent, config)
         UI:HideTooltip()
     end)
     b:SetScript("OnClick", function(self)
+        if self._vcuiDisabled then return end
         local cfg = self._vcConfig
         if cfg and cfg.onClick then cfg.onClick(self) end
     end)
@@ -2335,6 +2474,7 @@ function UI:CreateColorSwatch(parent, config)
         end
     end
     local function open()
+        if b._vcuiDisabled then return end   -- the row keeps its mouse for the tooltip
         local r, g, bl = curRGB()
         ns:ShowColorPicker({ r = r, g = g, b = bl, onChange = function(nr, ng, nb)
             local cfg = b._vcConfig

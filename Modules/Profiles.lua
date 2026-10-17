@@ -236,6 +236,7 @@ function mod:GetOptions()
             { type = "button", label = L["Select all"], width = 130,
               onClick = function()
                   wipe(exportSel)
+                  exportSel.__look = false   -- fonts/colors stay opt-in, as on open
                   refreshUI()
               end },
             { type = "button", label = L["Deselect all"], width = 130,

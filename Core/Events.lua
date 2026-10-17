@@ -74,6 +74,86 @@ function ns:UnregisterEvent(event, handler)
     end
 end
 
+-- Combat log fan-out. COMBAT_LOG_EVENT_UNFILTERED carries no payload; every
+-- listener used to call CombatLogGetCurrentEventInfo itself, so N listeners
+-- paid N reads of ~20 values (GUID and name strings included) on every line
+-- of the busiest event in the game. The reader below calls it ONCE per line
+-- and hands the values on as plain arguments -- no table per line. Listeners
+-- receive exactly the C function's returns:
+--   fn(timestamp, subEvent, hideCaster, srcGUID, srcName, srcFlags,
+--      srcRaidFlags, dstGUID, dstName, dstFlags, dstRaidFlags, ...)
+-- The event itself is only registered while at least one listener exists.
+-- Same immutability rule as handlers[]: register/unregister publish a copy.
+local COMBAT_LOG = "COMBAT_LOG_EVENT_UNFILTERED"
+local CLGetInfo = CombatLogGetCurrentEventInfo
+local combatLog = {}
+-- Marker in mod._ownedEvents for a combat-log listener (never an event name).
+local OWNED_COMBAT_LOG = {}
+
+-- 24 slots cover the longest line these clients write (SPELL_ABSORBED with a
+-- spell prefix is 23); the single-listener case forwards the returns as is.
+local function onCombatLog()
+    local list = combatLog
+    local n = #list
+    if n == 1 then return list[1](CLGetInfo()) end
+    if n == 0 then return end   -- last listener left earlier in this firing
+    local a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12,
+          a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24 = CLGetInfo()
+    for i = 1, n do
+        list[i](a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12,
+                a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24)
+    end
+end
+
+-- Measuring variant, swapped in by ns:SetEventProfiling: the read is billed to
+-- the event name, each listener to its module, so the dispatcher's profiled
+-- loop must not time this function a second time (see onEventProfiled).
+local function onCombatLogProfiled()
+    local list = combatLog
+    local record, clock, owners = ns.Prof.Record, debugprofilestop, ns.eventOwners
+    local t0 = clock()
+    local a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12,
+          a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24 = CLGetInfo()
+    record(COMBAT_LOG, clock() - t0)
+    for i = 1, #list do
+        local h = list[i]
+        local t1 = clock()
+        h(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12,
+          a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24)
+        local dt = clock() - t1
+        record(owners[h] or COMBAT_LOG, dt)
+    end
+end
+
+local combatLogEntry = onCombatLog   -- whichever reader is registered
+
+local function addCombatLog(fn)
+    local old = combatLog
+    for i = 1, #old do
+        if old[i] == fn then return false end
+    end
+    if #old == 0 then
+        if not CLGetInfo or not ns:RegisterEvent(COMBAT_LOG, combatLogEntry) then return false end
+    end
+    local new = {}
+    for i = 1, #old do new[i] = old[i] end
+    new[#new + 1] = fn
+    combatLog = new
+    return true
+end
+
+local function removeCombatLog(fn)
+    local old = combatLog
+    local new, n = {}, 0
+    for i = 1, #old do
+        if old[i] ~= fn then n = n + 1; new[n] = old[i] end
+    end
+    if n == #old then return false end
+    combatLog = new
+    if n == 0 then ns:UnregisterEvent(COMBAT_LOG, combatLogEntry) end
+    return true
+end
+
 -- Per-module ownership. A module used to mirror every registration by hand in
 -- OnDisable, one line per event; several simply did not, and one registers
 -- anonymous functions that can never be taken back out by identity at all. The
@@ -95,13 +175,44 @@ function ns:ModRegisterEvent(mod, event, handler)
     return true
 end
 
+-- Module-bound like ModRegisterEvent: SafeDisable releases it on its own.
+function ns:RegisterCombatLog(mod, fn)
+    if type(fn) ~= "function" or not addCombatLog(fn) then return false end
+    local owned = mod._ownedEvents
+    if not owned then owned = {}; mod._ownedEvents = owned end
+    owned[#owned + 1] = OWNED_COMBAT_LOG
+    owned[#owned + 1] = fn
+    ns.eventOwners[fn] = mod.key or mod.name
+    return true
+end
+
+-- Also drops the ownership pair, so a listener that follows an option on and
+-- off does not grow the module's list by one pair per toggle.
+function ns:UnregisterCombatLog(mod, fn)
+    removeCombatLog(fn)
+    local owned = mod._ownedEvents
+    if not owned then return end
+    for i = #owned - 1, 1, -2 do
+        if owned[i] == OWNED_COMBAT_LOG and owned[i + 1] == fn then
+            table.remove(owned, i + 1)
+            table.remove(owned, i)
+            if ns.eventOwners[fn] == (mod.key or mod.name) then ns.eventOwners[fn] = nil end
+            return
+        end
+    end
+end
+
 function ns:ModUnregisterAllEvents(mod)
     local owned = mod._ownedEvents
     if not owned then return end
     local key = mod.key or mod.name
     for i = #owned - 1, 1, -2 do
         local handler = owned[i + 1]
-        ns:UnregisterEvent(owned[i], handler)
+        if owned[i] == OWNED_COMBAT_LOG then
+            removeCombatLog(handler)
+        else
+            ns:UnregisterEvent(owned[i], handler)
+        end
         -- The owner note goes with it. Left behind, this table keeps a hard
         -- reference to every handler a module ever registered, so nothing a
         -- switched-off module built can be collected. It shows most on the
@@ -190,7 +301,11 @@ local function onEventProfiled(_, event, ...)
     for i = 1, #list do
         local h = list[i]
         local t0 = clock()
-        if hot then
+        if h == onCombatLogProfiled then
+            -- bills the read and each listener itself; timing it here too
+            -- would count every combat-log line twice
+            h(event, ...)
+        elseif hot then
             h(event, ...)
         else
             local ok, err = pcall(h, event, ...)
@@ -203,7 +318,7 @@ local function onEventProfiled(_, event, ...)
         -- part of the handler it is labelling -- a bias weighted by call count,
         -- i.e. worst exactly where the measurement matters most.
         local dt = clock() - t0
-        record(labelFor(h, event), dt)
+        if h ~= onCombatLogProfiled then record(labelFor(h, event), dt) end
     end
 end
 
@@ -211,4 +326,12 @@ dispatcher:SetScript("OnEvent", onEvent)
 
 function ns:SetEventProfiling(on)
     dispatcher:SetScript("OnEvent", on and onEventProfiled or onEvent)
+    local want = on and onCombatLogProfiled or onCombatLog
+    if want ~= combatLogEntry then
+        if #combatLog > 0 then
+            ns:UnregisterEvent(COMBAT_LOG, combatLogEntry)
+            ns:RegisterEvent(COMBAT_LOG, want)
+        end
+        combatLogEntry = want
+    end
 end

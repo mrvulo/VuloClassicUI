@@ -864,9 +864,14 @@ local function ensureRowPopup()
     catcher:SetScript("OnMouseDown", closeRowPopup)
     f._catcher = catcher
 
-    f:SetScript("OnShow", function(self) self._catcher:Show() end)
+    f:SetScript("OnShow", function(self)
+        self._catcher:Show()
+        -- Escape closes this panel and only this panel; see UI.ArmEscape.
+        if UI.ArmEscape then UI.ArmEscape(self) end
+    end)
     f:SetScript("OnHide", function(self)
         self._catcher:Hide()
+        if UI.DisarmEscape then UI.DisarmEscape(self) end
         self._owner = nil
         -- A menu opened from one of these rows would otherwise outlive the
         -- button it belongs to -- that button is about to go back to the pool.
@@ -878,6 +883,7 @@ local function ensureRowPopup()
     if _G.UISpecialFrames then
         tinsert(_G.UISpecialFrames, "VuloOptionsRowPopup")
     end
+    if UI.EscapeCloses then UI.EscapeCloses(f) end
     rowPopup = f
     return f
 end
@@ -1581,23 +1587,38 @@ end
 --
 -- Mouse state is REMEMBERED rather than switched back on. Blanket EnableMouse
 -- (true) would hand clicks to children that never took any.
+--
+-- `disabled` is a function or a plain boolean; it used to be called whatever it
+-- was, and `disabled = true` crashed the page build.
+--
+-- The widget's OWN frame keeps its mouse. It used to lose it with the rest, and
+-- with it went the hover tooltip -- the one thing a greyed-out row still has to
+-- say. Its click handlers read _vcuiDisabled instead (toggle, swatch, button).
+-- Everything inside goes quiet to the full depth: one level stopped at the
+-- slider's track and left the -/+ buttons under it clickable, and at the
+-- segmented strip while its buttons stayed live.
 local function applyDisabled(w, item)
     if not (w and w.SetAlpha) then return end
-    local off = (item.disabled and item.disabled()) and true or false
+    local d = item.disabled
+    if type(d) == "function" then d = d() end
+    local off = d and true or false
     if w._vcuiDisabled == off then return end
     w._vcuiDisabled = off
     w:SetAlpha(off and 0.35 or 1)
     local function mouse(f)
-        if not f.EnableMouse then return end
-        if off then
-            if f._vcuiMouseWas == nil then f._vcuiMouseWas = f:IsMouseEnabled() end
-            f:EnableMouse(false)
-        elseif f._vcuiMouseWas ~= nil then
-            f:EnableMouse(f._vcuiMouseWas)
-            f._vcuiMouseWas = nil
+        if f.EnableMouse then
+            if off then
+                if f._vcuiMouseWas == nil then f._vcuiMouseWas = f:IsMouseEnabled() end
+                f:EnableMouse(false)
+            elseif f._vcuiMouseWas ~= nil then
+                f:EnableMouse(f._vcuiMouseWas)
+                f._vcuiMouseWas = nil
+            end
+        end
+        if f.GetChildren then
+            for _, c in ipairs({ f:GetChildren() }) do mouse(c) end
         end
     end
-    mouse(w)
     if w.GetChildren then
         for _, c in ipairs({ w:GetChildren() }) do mouse(c) end
     end
@@ -2263,6 +2284,11 @@ function UI:BuildOptionsPage(key, tabId)
     -- panel's own setters close over the OLD spec table. Closing first also
     -- hands its rows back to the pools before the page asks for them.
     closeRowPopup()
+    -- The same for an open dropdown menu: its rows close over the old page's
+    -- `set` and over a button that is about to go back to the pool -- a click
+    -- after the rebuild would run a stale setter and write the chosen text into
+    -- whatever row the pool handed that button to next.
+    if UI.CloseDropdownPopup then UI.CloseDropdownPopup() end
     -- a sub-module redirects to its container + own tab, so rebuildPage("itskey") keeps working
     local m0 = ns.modules[key]
     if m0 and m0.parentTab then
@@ -2271,6 +2297,12 @@ function UI:BuildOptionsPage(key, tabId)
     end
     local mod = ns.modules[key]
     if not mod then return end
+    -- A module the window draws without a tab bar (no tabs, or a single one)
+    -- is built by the window as "default"; a rebuild handing in nil gets the
+    -- same, so GetOptions and the override ids see one tab and not two (an id
+    -- under the empty tab is a second id for the same row -- Core/TalentOverrides
+    -- pageTab has the rule). With real tabs nil stays: "every section".
+    if tabId == nil and not (mod.tabs and #mod.tabs > 1) then tabId = "default" end
 
     local parent = f.scrollChild
     clearChildren(parent)
@@ -2353,43 +2385,32 @@ function UI:BuildOptionsPage(key, tabId)
     -- it from: ns.modules["profile"] does not exist.
     local isProfilePage = (key == "profiles") or (tabId == "profile")
 
-    if ns.NoteOverrideWrite then
-        local function wrap(list)
-            for _, it in ipairs(list) do
-                if type(it) == "table" then
-                    if it.items then wrap(it.items) end
-                    -- subOptions too: a row behind a gear is an ordinary
-                    -- setting that happens to be folded away. Without this it
-                    -- silently records nothing and never shows the accent bar --
-                    -- which was already true for the six on the cooldown page
-                    -- and the ones on the trinket page, long before the
-                    -- nameplates were folded up.
-                    if it.subOptions then wrap(it.subOptions) end
-                    -- Colours used to be excluded here. They are three values
-                    -- through a setter that takes no self, which is why they
-                    -- were skipped -- but skipping meant changing one while
-                    -- editing a group did nothing and said nothing. Both shapes
-                    -- are handled now; ns:NoteOverrideWrite needs the type to
-                    -- know it may keep the table (as a copy).
-                    if type(it.set) == "function" and type(it.get) == "function"
-                       and it.label
-                       and not it.noOverride and not isProfilePage then
-                        local id       = ns:OverrideId(key, tabId, it.label)
-                        local setter   = it.set
-                        local getter   = it.get
-                        local itemType = it.type
-                        it._vcOverrideId = id
-                        it.set = function(...)
-                            setter(...)
-                            -- read back rather than read the arguments: what the
-                            -- module chose to store is the value that matters
-                            ns:NoteOverrideWrite(id, getter, itemType)
-                        end
-                    end
-                end
+    if ns.NoteOverrideWrite and ns.AssignOverrideIds and not isProfilePage then
+        -- Which rows get an id, and what it is, is decided in one place for the
+        -- whole page (Core/TalentOverrides): gear rows included, groups looked
+        -- through, a repeated label told apart by its place. Then the stored
+        -- ids of every group are moved onto today's ids BEFORE any row is drawn,
+        -- so the accent bar lands on the rows an old id now belongs to.
+        local rows, byId = ns:AssignOverrideIds(key, tabId, items)
+        if ns.MigrateOverrideIds then ns:MigrateOverrideIds(key, tabId, rows, byId) end
+        for _, r in ipairs(rows) do
+            -- Colours used to be excluded here. They are three values through a
+            -- setter that takes no self, which is why they were skipped -- but
+            -- skipping meant changing one while editing a group did nothing and
+            -- said nothing. Both shapes are handled now; ns:NoteOverrideWrite
+            -- needs the type to know it may keep the table (as a copy).
+            local it       = r.item
+            local id       = r.id
+            local setter   = it.set
+            local getter   = it.get
+            local itemType = it.type
+            it.set = function(...)
+                setter(...)
+                -- read back rather than read the arguments: what the module
+                -- chose to store is the value that matters
+                ns:NoteOverrideWrite(id, getter, itemType)
             end
         end
-        wrap(items)
     end
 
     -- Which rows differ from their defaults, and the change log every setter

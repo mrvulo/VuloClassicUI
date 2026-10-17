@@ -163,13 +163,15 @@ local function card(parent, t)
     c:SetScript("OnEnter", function(self)
         if chosen ~= self.key then
             local a = ns.COLORS.accent
-            for _, b in ipairs(self._vcBorders) do b:SetColorTexture(a.r, a.g, a.b, 0.5) end
+            local _, borders = UI:BackdropParts(self)
+            for _, b in ipairs(borders) do b:SetColorTexture(a.r, a.g, a.b, 0.5) end
         end
     end)
     c:SetScript("OnLeave", function(self)
         if chosen ~= self.key then
             local b0 = ns.COLORS.border
-            for _, b in ipairs(self._vcBorders) do b:SetColorTexture(b0.r, b0.g, b0.b, 1) end
+            local _, borders = UI:BackdropParts(self)
+            for _, b in ipairs(borders) do b:SetColorTexture(b0.r, b0.g, b0.b, 1) end
         end
     end)
     return c
@@ -179,11 +181,12 @@ local function paintCards()
     local a, b0, bg, bgSel = ns.COLORS.accent, ns.COLORS.border, ns.COLORS.bgContent, ns.COLORS.bg
     for _, c in ipairs(w.cards) do
         local sel = c.key == chosen
-        for _, b in ipairs(c._vcBorders) do
+        local cbg, borders = UI:BackdropParts(c)
+        for _, b in ipairs(borders) do
             if sel then b:SetColorTexture(a.r, a.g, a.b, 1) else b:SetColorTexture(b0.r, b0.g, b0.b, 1) end
         end
         local col = sel and bgSel or bg
-        c._vcBG:SetColorTexture(col.r, col.g, col.b, col.a or 1)
+        cbg:SetColorTexture(col.r, col.g, col.b, col.a or 1)
         if sel then c.name:SetTextColor(a.r, a.g, a.b) else c.name:SetTextColor(0.95, 0.95, 0.97) end
     end
 end

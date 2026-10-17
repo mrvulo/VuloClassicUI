@@ -458,8 +458,15 @@ function ns:LoadProfile(profileName)
     ns.db = ns.db or {}
     ns.db.profile = profileData
 
+    -- movers keep their position table across the switch (see CaptureMoverPaths)
+    local moverPaths = ns.CaptureMoverPaths and ns:CaptureMoverPaths()
     for key, mod in pairs(ns.modules or {}) do
         mod.db = profileData.modules[key]
+    end
+    if moverPaths then
+        ns:RepointMovers(moverPaths)
+        -- an open edit session must discard back to THIS profile's layout
+        if ns._editSnapshot and ns.SnapshotEditState then ns:SnapshotEditState() end
     end
 
     -- theme color rides the profile — must run BEFORE modules paint anything
@@ -599,8 +606,12 @@ function ns:SwitchProfile(name)
     end
     -- The new profile carries its own talent overrides; the ones from the old
     -- profile are still sitting in the live settings until these run.
+    -- Setters reach into modules that own protected frames: in combat the
+    -- profile still switches, the overrides follow once combat ends.
     if ns.ApplyOverrides and ns.ActiveTalentGroup then
-        pcall(ns.ApplyOverrides, ns, ns:ActiveTalentGroup())
+        ns:RunOutOfCombatOnce("profile-overrides", function()
+            pcall(ns.ApplyOverrides, ns, ns:ActiveTalentGroup())
+        end)
     end
     ns:Print(L["Profile '%s' loaded. |cffffff00/reload|r recommended so all modules use the new settings."], name)
     return true
@@ -1083,9 +1094,32 @@ local function serialize(v, out)
     end
 end
 
+-- Limits for strings from strangers. Measured against what this code can
+-- produce: every module default together serializes to about 21 KB (1369
+-- values), a heavy real profile with rings, bars and groups stays well under
+-- 200 KB raw, and the 40 KB strings the paste box was built for are the large
+-- end of what has been seen. Each limit sits an order of magnitude above that,
+-- so no real string meets one; they exist so a crafted one cannot stall the
+-- client or park megabytes in the saved file. The longest legitimate texts are
+-- macro bodies and ring commands, a few hundred characters; nesting in a real
+-- profile is under ten levels.
+local SHARE_MAX_TEXT  = 250000     -- pasted characters
+local SHARE_MAX_RAW   = 4000000    -- bytes after unpacking
+local SHARE_MAX_DEPTH = 40
+local SHARE_MAX_STR   = 16384
+local SHARE_MAX_KEYS  = 200000     -- table entries in the whole payload
+ns.SHARE_MAX_TEXT = SHARE_MAX_TEXT -- the paste box stops collecting there
+
+local function isFinite(n)
+    return n == n and n ~= math.huge and n ~= -math.huge
+end
+
+-- per-read state: entries left, and why a read gave up ("toolarge" or nil)
+local readKeysLeft, readFault
+
 -- returns value, nextPos; nextPos == nil signals a corrupt stream (a plain
 -- nil value is legal for booleans-false keys, so nil alone is not the marker)
-local function deserialize(str, pos)
+local function deserialize(str, pos, depth)
     local c = str:sub(pos, pos)
     if c == "t" then return true, pos + 1 end
     if c == "f" then return false, pos + 1 end
@@ -1093,7 +1127,9 @@ local function deserialize(str, pos)
         local semi = str:find(";", pos + 1, true)
         if not semi then return nil, nil end
         local num = tonumber(str:sub(pos + 1, semi - 1))
-        if num == nil then return nil, nil end
+        -- the writer turns inf/nan into 0, so one here was put in by hand;
+        -- nan as a key throws, inf as a size or offset breaks the frame
+        if num == nil or not isFinite(num) then return nil, nil end
         return num, semi + 1
     end
     if c == "s" then
@@ -1101,25 +1137,39 @@ local function deserialize(str, pos)
         if not colon then return nil, nil end
         local len = tonumber(str:sub(pos + 1, colon - 1))
         if not len or len < 0 then return nil, nil end
+        if len > SHARE_MAX_STR then readFault = "toolarge"; return nil, nil end
         local s = str:sub(colon + 1, colon + len)
         if #s ~= len then return nil, nil end
         return s, colon + len + 1
     end
     if c == "{" then
+        depth = depth + 1
+        if depth > SHARE_MAX_DEPTH then readFault = "toolarge"; return nil, nil end
         local tbl = {}
         pos = pos + 1
         while true do
             if str:sub(pos, pos) == "}" then return tbl, pos + 1 end
             if pos > #str then return nil, nil end
+            readKeysLeft = readKeysLeft - 1
+            if readKeysLeft < 0 then readFault = "toolarge"; return nil, nil end
             local k, v
-            k, pos = deserialize(str, pos)
+            k, pos = deserialize(str, pos, depth)
             if pos == nil then return nil, nil end
-            v, pos = deserialize(str, pos)
+            v, pos = deserialize(str, pos, depth)
             if pos == nil then return nil, nil end
             if k ~= nil then tbl[k] = v end
         end
     end
     return nil, nil
+end
+
+-- One read with fresh limits. Returns the table, or nil + "toolarge"/"damaged".
+local function readPayload(raw)
+    if #raw > SHARE_MAX_RAW then return nil, "toolarge" end
+    readKeysLeft, readFault = SHARE_MAX_KEYS, nil
+    local payload, pos = deserialize(raw, 1, 0)
+    if pos == nil or type(payload) ~= "table" then return nil, readFault or "damaged" end
+    return payload
 end
 
 local B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
@@ -1212,8 +1262,13 @@ end
 -- bar setup string" has to be said by whoever asked for one.
 --   nil, "foreign"  -- neither prefix matched; somebody else's string
 --   nil, "damaged"  -- our prefix, but it does not survive unpacking
-function ns:DecodeShareString(plainPrefix, packedPrefix, text)
-    text = tostring(text or ""):gsub("%s+", "")
+--   nil, "toolarge" -- over one of the SHARE_MAX_* limits above
+local function unpackShareString(plainPrefix, packedPrefix, text)
+    text = tostring(text or "")
+    -- checked before the whitespace wash too: gsub over megabytes is the stall
+    if #text > 2 * SHARE_MAX_TEXT then return nil, "toolarge" end
+    text = text:gsub("%s+", "")
+    if #text > SHARE_MAX_TEXT then return nil, "toolarge" end
     local raw
     if text:sub(1, #packedPrefix) == packedPrefix then
         -- A missing library counts as damage, not as a foreign string: the
@@ -1227,9 +1282,11 @@ function ns:DecodeShareString(plainPrefix, packedPrefix, text)
         return nil, "foreign"
     end
     if not raw then return nil, "damaged" end
-    local payload, pos = deserialize(raw, 1)
-    if pos == nil or type(payload) ~= "table" then return nil, "damaged" end
-    return payload
+    return readPayload(raw)
+end
+
+function ns:DecodeShareString(plainPrefix, packedPrefix, text)
+    return unpackShareString(plainPrefix, packedPrefix, text)
 end
 
 function ns:ExportProfileString(name, opts)
@@ -1277,51 +1334,153 @@ function ns:ExportProfileString(name, opts)
     return ns:EncodeShareString(PROFILE_STRING_PREFIX, PROFILE_STRING_PREFIX2, payload)
 end
 
+-- Module tables a string may bring in: every one this build knows, plus up to
+-- PROFILE_MAX_UNKNOWN it does not. Those are kept rather than dropped -- a
+-- string from a newer version may carry a module this one lacks, and it is
+-- picked up after the update -- but a crafted string with ten thousand keys
+-- would otherwise be ten thousand preview rows and as many saved tables.
+-- Sorted, so the preview and the import cut at the same place.
+local PROFILE_MAX_UNKNOWN = 16
+
+local function importableModuleKeys(modules)
+    local known, unknown = {}, {}
+    if type(modules) == "table" then
+        for k, v in pairs(modules) do
+            if type(k) == "string" and type(v) == "table" then
+                if ns.modules and ns.modules[k] then
+                    known[#known + 1] = k
+                else
+                    unknown[#unknown + 1] = k
+                end
+            end
+        end
+    end
+    table.sort(known)
+    table.sort(unknown)
+    local dropped = math.max(0, #unknown - PROFILE_MAX_UNKNOWN)
+    for i = 1, math.min(#unknown, PROFILE_MAX_UNKNOWN) do
+        known[#known + 1] = unknown[i]
+    end
+    return known, dropped
+end
+
+-- Texts that run as a macro on a key press: an action ring entry of the
+-- custom-command kind, a fishing extra written as a /macro, and the same two
+-- arriving through an override group (a talent switch replays its values
+-- through the option setters). A /run in one of them does whatever the
+-- player could type -- delete items, mail gold, post in the guild -- the first
+-- time the key is pressed. Collected for the preview; with strip set, removed
+-- from the copy that is about to be saved.
+local MACRO_TEXT_MODULES = { actionring = true, vulfishing = true }
+
+local function isSlashText(v)
+    return type(v) == "string" and v:find("^%s*/") ~= nil
+end
+
+-- The module an override id belongs to. Field one is the module the page was
+-- built for -- and a module shown as a tab of a group container (the Extras
+-- under "General": fishing, friend list, QoL) is built through its container,
+-- so its ids read `general\31vulfishing\31Slot 1`: the real module sits in
+-- field two. Returns both candidates; a lookup that matches either is right,
+-- because a module key is never also one of its own tab ids.
+local function overrideModules(oid)
+    if type(oid) ~= "string" then return nil end
+    local m, t = oid:match("^([^\031]*)\031([^\031]*)\031")
+    if not m then return nil end
+    local c = ns.modules and ns.modules[m]
+    if c and type(c.subKeys) == "table" and t ~= "" then
+        for _, k in ipairs(c.subKeys) do
+            if k == t then return m, t end
+        end
+    end
+    return m
+end
+
+local function scanMacroTexts(d, strip)
+    local found = {}
+    local mods = type(d.modules) == "table" and d.modules
+    local ring = mods and type(mods.actionring) == "table" and mods.actionring.menus
+    if type(ring) == "table" then
+        for _, menu in pairs(ring) do
+            if type(menu) == "table" and type(menu.slots) == "table" then
+                for _, s in pairs(menu.slots) do
+                    if type(s) == "table" and s.kind == "macrotext"
+                       and type(s.text) == "string" and s.text ~= "" then
+                        found[#found + 1] = s.text
+                        -- the entry stays as an empty custom command: removing
+                        -- it would leave a hole in the slot list
+                        if strip then s.text = nil end
+                    elseif type(s) == "table" and s.kind == "raidtarget" then
+                        -- The marker index is concatenated into "/tm <id>" on
+                        -- the ring button: a string id could carry a second
+                        -- line. Anything but an integer 0-8 is dropped here --
+                        -- not a text to preview, so with or without strip. The
+                        -- ring treats the id-less entry as an empty slot.
+                        local n = s.id
+                        if not (type(n) == "number" and n >= 0 and n <= 8
+                                and n == math.floor(n)) then
+                            s.id = nil
+                        end
+                    end
+                end
+            end
+        end
+    end
+    local fish = mods and type(mods.vulfishing) == "table" and mods.vulfishing.extra
+    if type(fish) == "table" then
+        for i, v in pairs(fish) do
+            if isSlashText(v) then
+                found[#found + 1] = v
+                if strip then fish[i] = nil end
+            end
+        end
+    end
+    if type(d.overrideGroups) == "table" then
+        for _, g in pairs(d.overrideGroups) do
+            local values = type(g) == "table" and g.values
+            if type(values) == "table" then
+                for oid, v in pairs(values) do
+                    local m1, m2 = overrideModules(oid)
+                    if m1 and (MACRO_TEXT_MODULES[m1] or (m2 and MACRO_TEXT_MODULES[m2]))
+                       and isSlashText(v) then
+                        found[#found + 1] = v
+                        if strip then values[oid] = nil end
+                    end
+                end
+            end
+        end
+    end
+    return found
+end
+
 -- Decodes a profile string WITHOUT importing anything -- the import preview
 -- is built from this. Returns payload + summary, or nil + error text.
 function ns:DecodeProfileString(text)
-    text = tostring(text or ""):gsub("%s+", "")
-    local raw
-    if text:sub(1, #PROFILE_STRING_PREFIX2) == PROFILE_STRING_PREFIX2 then
-        -- Missing library counts as damage, not as a foreign string: the
-        -- prefix already proved whose string this is.
-        if not LibDeflate then return nil, L["The profile string is damaged."] end
-        local packed = LibDeflate:DecodeForPrint(text:sub(#PROFILE_STRING_PREFIX2 + 1))
-        raw = packed and LibDeflate:DecompressDeflate(packed)
-    elseif text:sub(1, #PROFILE_STRING_PREFIX) == PROFILE_STRING_PREFIX then
-        raw = b64decode(text:sub(#PROFILE_STRING_PREFIX + 1))
-    else
-        return nil, L["This is not a VuloClassicUI profile string."]
+    local payload, why = unpackShareString(PROFILE_STRING_PREFIX, PROFILE_STRING_PREFIX2, text)
+    if not payload then
+        if why == "foreign" then return nil, L["This is not a VuloClassicUI profile string."] end
+        if why == "toolarge" then return nil, L["The string is too large to import."] end
+        return nil, L["The profile string is damaged."]
     end
-    if not raw then return nil, L["The profile string is damaged."] end
-    local payload, pos = deserialize(raw, 1)
-    if pos == nil or type(payload) ~= "table"
-        or (payload.v ~= 1 and payload.v ~= 2)
-        or type(payload.d) ~= "table" then
+    if (payload.v ~= 1 and payload.v ~= 2) or type(payload.d) ~= "table" then
         return nil, L["The profile string is damaged."]
     end
 
     local d = payload.d
-    local moduleKeys = {}
-    if type(d.modules) == "table" then
-        for k, v in pairs(d.modules) do
-            if type(k) == "string" and type(v) == "table" then
-                moduleKeys[#moduleKeys + 1] = k
-            end
-        end
-    end
-    table.sort(moduleKeys)
+    local moduleKeys, droppedUnknown = importableModuleKeys(d.modules)
     local hasLayout = false
     for _, k in ipairs(PROFILE_LAYOUT_KEYS) do
         if d[k] ~= nil then hasLayout = true; break end
     end
     return payload, {
-        name         = sanitizeProfileName(payload.n),
-        partial      = payload.p and true or false,
-        moduleKeys   = moduleKeys,
-        hasLayout    = hasLayout,
-        hasOverrides = d.overrideGroups ~= nil,
-        hasLook      = type(payload.g) == "table",
+        name           = sanitizeProfileName(payload.n),
+        partial        = payload.p and true or false,
+        moduleKeys     = moduleKeys,
+        droppedUnknown = droppedUnknown,
+        hasLayout      = hasLayout,
+        hasOverrides   = d.overrideGroups ~= nil,
+        hasLook        = type(payload.g) == "table",
+        macroTexts     = scanMacroTexts(d, false),
     }
 end
 
@@ -1333,6 +1492,62 @@ end
 -- time flips the build to the partial rule below, for the same reason the
 -- exporter does: holes filled with defaults would hand the importer a profile
 -- that silently reset every setting the unticked part carried.
+--
+-- Macro texts (see scanMacroTexts) are the one part that is opt-IN: they come
+-- along only with opts.macroTexts == true, the preview's tick, which is off
+-- until the player sets it. nil opts does not count as consent.
+
+-- A value whose type differs from its default would sit in the profile for
+-- good (ApplyDefaults only fills holes) and throw in its module on every
+-- refresh: a string where SetHeight wants a number, a number where a colour
+-- table is read. Dropped, so LoadProfile puts the default back. Import path
+-- only -- the live profiles are not walked. A default of false is skipped:
+-- it is the "none" of fields that otherwise hold a name or a table (a font
+-- override, an outline), so any type is legal there.
+local function dropMistypedValues(t, d)
+    for k, dv in pairs(d) do
+        local tv = t[k]
+        if tv ~= nil and dv ~= false then
+            if type(dv) == "table" then
+                if type(tv) == "table" then dropMistypedValues(tv, dv) else t[k] = nil end
+            elseif type(tv) ~= type(dv) then
+                t[k] = nil
+            end
+        end
+    end
+end
+
+-- Switches that decide whom this client trusts. A string must not be able to
+-- turn them on (a stranger's friend request accepted, then his group invite,
+-- then his summon), nor -- the same rule both ways -- off: they keep the value
+-- the importing player has right now. The labels name the same switches in
+-- override groups, which replay through the option setters on a talent swap.
+local KEEP_LOCAL = {
+    friendlist = {
+        autoAccept      = "Auto-accept Battle.net friend invites",
+        autoAcceptGroup = "Auto-accept group invites from friends",
+    },
+    miscqol = {
+        autoAcceptRes    = "Auto-accept resurrect",
+        autoAcceptSummon = "Auto-accept summon",
+    },
+}
+
+local function isKeepLocalOverride(oid)
+    if type(oid) ~= "string" then return false end
+    -- module, tab, label, then optional place parts: the label is field three.
+    -- The module may sit in field two (a tab of a group container, see
+    -- overrideModules): friendlist and miscqol both do.
+    local label = oid:match("^[^\031]*\031[^\031]*\031([^\031]+)")
+    local m1, m2 = overrideModules(oid)
+    local keys = label and ((m1 and KEEP_LOCAL[m1]) or (m2 and KEEP_LOCAL[m2]))
+    if not keys then return false end
+    for _, l in pairs(keys) do
+        if l == label then return true end
+    end
+    return false
+end
+
 function ns:ImportProfilePayload(payload, opts)
     if type(payload) ~= "table" or type(payload.d) ~= "table" then
         return nil, L["The profile string is damaged."]
@@ -1356,6 +1571,14 @@ function ns:ImportProfilePayload(payload, opts)
     if data.overrideGroups ~= nil and type(data.overrideGroups) ~= "table" then
         data.overrideGroups = nil
     end
+    -- the same cut the preview made, so nothing unlisted slips in
+    if type(data.modules) == "table" then
+        local keep = {}
+        for _, k in ipairs((importableModuleKeys(data.modules))) do keep[k] = true end
+        for k in pairs(data.modules) do
+            if not keep[k] then data.modules[k] = nil end
+        end
+    end
 
     if opts then
         if opts.modules and type(data.modules) == "table" then
@@ -1371,6 +1594,33 @@ function ns:ImportProfilePayload(payload, opts)
         if opts.overrides == false and data.overrideGroups ~= nil then
             data.overrideGroups = nil
             partial = true
+        end
+    end
+
+    -- Everything below works on what the STRING brought, before the partial
+    -- merge pulls in the importer's own profile: that one is not ours to wash.
+    if not (opts and opts.macroTexts == true) then scanMacroTexts(data, true) end
+
+    local defs = fullProfileDefaults()
+    if type(data.modules) == "table" then
+        for k, m in pairs(data.modules) do
+            if type(defs.modules[k]) == "table" then dropMistypedValues(m, defs.modules[k]) end
+        end
+    end
+    for k, dv in pairs(defs) do
+        if k ~= "modules" and type(dv) == "table" and type(data[k]) == "table" then
+            dropMistypedValues(data[k], dv)
+        end
+    end
+
+    if type(data.overrideGroups) == "table" then
+        for _, g in pairs(data.overrideGroups) do
+            local values = type(g) == "table" and g.values
+            if type(values) == "table" then
+                for oid in pairs(values) do
+                    if isKeepLocalOverride(oid) then values[oid] = nil end
+                end
+            end
         end
     end
 
@@ -1417,6 +1667,24 @@ function ns:ImportProfilePayload(payload, opts)
                          set4 = true, set5 = true }
         if not waKeep[dsk.waStyle] then dsk.waStyle = nil end
         dsk.barIconSize = nil
+    end
+
+    -- Trust switches: the player's live value, whatever the string said and
+    -- whether or not it carried the module at all. nil (no module loaded)
+    -- leaves the default to LoadProfile.
+    data.modules = type(data.modules) == "table" and data.modules or {}
+    for mk, keys in pairs(KEEP_LOCAL) do
+        local live = ns.modules and ns.modules[mk] and ns.modules[mk].db
+        for k in pairs(keys) do
+            local cur    -- not `live and live[k] or nil`: that turns false into nil
+            if type(live) == "table" then cur = live[k] end
+            local dm = data.modules[mk]
+            if dm == nil and cur ~= nil then
+                dm = {}
+                data.modules[mk] = dm
+            end
+            if dm then dm[k] = cur end
+        end
     end
 
     -- defaults are refilled by LoadProfile when the profile gets activated
@@ -1485,7 +1753,8 @@ function ns:ImportProfilePayload(payload, opts)
     return name
 end
 
--- The classic one-call entry: decode + import everything the string carries.
+-- The classic one-call entry: decode + import everything the string carries
+-- (macro texts excepted, see ImportProfilePayload).
 function ns:ImportProfileString(text)
     local payload, err = ns:DecodeProfileString(text)
     if not payload then return nil, err end
