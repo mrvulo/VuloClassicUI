@@ -705,7 +705,6 @@ function Meter:ThreatSegment() return threatSeg end
 ------------------------------------------------------------------------
 -- Segment boundaries
 ------------------------------------------------------------------------
-local CLGetInfo = CombatLogGetCurrentEventInfo
 local waitTicker, clearChecks
 local pendingReset = false
 local kind                     -- "solo" | "party" | "raid", for resetOnNewGroup
@@ -830,7 +829,7 @@ local function onUnitPet(_, unit)
 end
 
 ------------------------------------------------------------------------
--- Combat log reader: one CombatLogGetCurrentEventInfo per firing, one table
+-- Combat log reader: values from the shared reader in Core/Events, one table
 -- lookup per subevent, no allocation on the hot path.
 ------------------------------------------------------------------------
 local HANDLERS = Meter.HANDLERS
@@ -1033,7 +1032,26 @@ HANDLERS.SPELL_PERIODIC_ENERGIZE = HANDLERS.SPELL_ENERGIZE
 -- SPELL_AURA_BROKEN(_SPELL) are not hooked: the client sends REMOVED for
 -- the same aura, and their source is the breaker, not the applier.
 local auraStart = {}
-local function auraKey(guid, id, dst) return guid .. ":" .. id .. (dst or "") end
+-- Memoised: a key was two fresh strings per aura event of the group, even
+-- when the record already existed. Same strings as before (guid:id[dst]);
+-- the cache only bounds memory, so it is wiped where the debuffs are dropped.
+local buffKeys, debuffKeys = {}, {}
+local function auraKey(guid, id, dst)
+    if not dst then
+        local t = buffKeys[guid]
+        if not t then t = {}; buffKeys[guid] = t end
+        local k = t[id]
+        if not k then k = guid .. ":" .. id; t[id] = k end
+        return k
+    end
+    local t = debuffKeys[guid]
+    if not t then t = {}; debuffKeys[guid] = t end
+    local u = t[id]
+    if not u then u = {}; t[id] = u end
+    local k = u[dst]
+    if not k then k = guid .. ":" .. id .. dst; u[dst] = k end
+    return k
+end
 
 local function creditOne(key, now)
     local rec = auraStart[key]
@@ -1053,6 +1071,7 @@ creditAuras = function(now)
         creditOne(key, now)
         if rec.key == "debuffUp" then auraStart[key] = nil end
     end
+    wipe(debuffKeys)   -- keyed by mob GUID: grows with every pull otherwise
 end
 
 -- Fight start: the clock restarts for whatever is still up, and the buffs
@@ -1083,6 +1102,7 @@ resetAuras = function()
     for key, rec in pairs(auraStart) do
         if rec.key == "debuffUp" then auraStart[key] = nil else rec.t = now end
     end
+    wipe(buffKeys); wipe(debuffKeys)
 end
 
 -- Seconds of the auras still up in the running fight, added into `into`
@@ -1183,8 +1203,8 @@ HANDLERS.ENVIRONMENTAL_DAMAGE = function(_, _, dst, a12, _, _, a13)
     if type(a12) == "string" then addTaken(dst, nil, a13, a12, nil) end
 end
 
-local function onCLEU()
-    local _, sub, _, src, srcName, _, _, dst, dstName, _, _, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21 = CLGetInfo()
+-- The values come from the shared reader (ns:RegisterCombatLog), already read.
+local function onCLEU(_, sub, _, src, srcName, _, _, dst, dstName, _, _, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21)
     local h = HANDLERS[sub]
     if h then h(src, srcName, dst, a12, a15, a16, a13, dstName, a18, a21, a14, a17, a19, a20) end
 end
@@ -1250,7 +1270,7 @@ function mod:EngineEnable()
     self:RegisterEvent("ENCOUNTER_END",               onEncounterEnd)
     self:RegisterEvent("INSTANCE_ENCOUNTER_ENGAGE_UNIT", onEngageUnit)
     self:RegisterEvent("PLAYER_TARGET_CHANGED",          onTargetChanged)
-    self:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", onCLEU)
+    ns:RegisterCombatLog(self, onCLEU)
     -- A reload or logout mid-fight: the counters are already in the overall,
     -- the fight's duration is not until it closes. Close it here, or the saved
     -- overall carries the damage of that fight with none of its seconds and

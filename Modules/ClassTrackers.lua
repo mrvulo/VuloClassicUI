@@ -6,10 +6,9 @@
 -- an event or a pixel lives here instead, so the host stays readable.
 --
 -- The two trackers stay in ONE file, and NOT in Modules/Classes/Priest.lua,
--- because they share a single COMBAT_LOG_EVENT_UNFILTERED handler (onCombatLog
--- below) that destructures the event once and feeds both. Two files would mean
--- two subscribers to the hottest event in the game, or a fan-out call per
--- event. The coupling is the optimisation; keep them together.
+-- because they share a single combat-log listener (onCombatLog below) that
+-- feeds both. Two files would mean two subscribers to the hottest event in
+-- the game, i.e. two Lua calls per combat-log line instead of one. The coupling is the optimisation; keep them together.
 --
 -- Loads after the host (it reads mod.dotSets) and before Modules/Classes/, so
 -- a class file that registers a DoT set finds the registry ready.
@@ -177,23 +176,21 @@ local function dotsGain(dot, mult)
 end
 
 -- ONE handler for both trackers: the combat log is too hot to destructure twice.
-local function onCombatLog()
+-- The values come from the shared reader (ns:RegisterCombatLog): the line is
+-- read once for every listener, so there is no second destructure to avoid.
+local function onCombatLog(_, subEvent, _, sourceGUID, _, _, _, destGUID, _, _, _,
+                           _, spellName, _, amount, _, school)
     if not playerGUID then
         playerGUID = UnitGUID("player")
         if not playerGUID then return end
     end
 
-    -- Cheap pre-filter: bail before the full destructure.
-    local _, subEvent, _, sourceGUID = CombatLogGetCurrentEventInfo()
     if sourceGUID ~= playerGUID then return end
 
     local kind   = vtSpellName and TRACKED_EVENTS[subEvent]
     local apply  = (subEvent == "SPELL_AURA_APPLIED" or subEvent == "SPELL_AURA_REFRESH")
     local remove = (subEvent == "SPELL_AURA_REMOVED")
     if not kind and not apply and not remove then return end
-
-    local _, _, _, _, _, _, _, destGUID, _, _, _,
-          _, spellName, _, amount, _, school = CombatLogGetCurrentEventInfo()
 
     if kind == "apply" then
         if spellName == vtSpellName then
@@ -619,7 +616,7 @@ local function trackersEnable(class)
     end
 
     if hasDots then
-        mod:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", onCombatLog)
+        ns:RegisterCombatLog(mod, onCombatLog)
 
         -- Migration from the old standalone "shadowdots" module
         if ns.db and ns.db.profile and ns.db.profile.modules then

@@ -495,17 +495,17 @@ local CLEU_WANTED = {
     SWING_MISSED    = true, RANGE_MISSED = true, SPELL_MISSED = true,
     SPELL_AURA_APPLIED = true, UNIT_DIED = true,
 }
-local function onCLEU()
+-- The values come from the shared reader (ns:RegisterCombatLog), read once
+-- for every listener of the addon.
+-- Slots: 12=spellId/SWING missType, 15=extraSpellId/SPELL missType/auraType(APPLIED), 18=auraType(DISPEL/STOLEN).
+local function onCLEU(_, subEvent, _, sourceGUID, _, _, _, destGUID, destName, _, _,
+                      arg12, spellName, _, arg15, extraSpellName, _, auraType18)
     if not mod._enabled then return end
-    if not CLEU_WANTED[select(2, CombatLogGetCurrentEventInfo())] then return end
+    if not CLEU_WANTED[subEvent] then return end
     if not playerGUID then
         playerGUID = UnitGUID("player")
         if not playerGUID then return end
     end
-    -- Slots: 12=spellId/SWING missType, 15=extraSpellId/SPELL missType/auraType(APPLIED), 18=auraType(DISPEL/STOLEN).
-    local _, subEvent, _, sourceGUID, _, _, _, destGUID, destName, _, _,
-          arg12, spellName, _, arg15, extraSpellName, _, auraType18
-          = CombatLogGetCurrentEventInfo()
 
     if subEvent == "UNIT_DIED" then
         if not destGUID or destGUID == playerGUID or not isPlayerGUID(destGUID) then return end
@@ -588,12 +588,47 @@ local FONTS_TO_SHARPEN = {
     "NumberFontNormalHuge", "PetHitIndicator", "PlayerHitIndicator",
 }
 
+-- What the two appliers below change outside our own frames, remembered on
+-- the first apply so switching the option or the module off puts it back.
+local origSharp = {}        -- font object -> { path, size, flags } before our SetFont
+local origCTFont = {}       -- the same for CombatTextFont
+local origDamageFont        -- DAMAGE_TEXT_FONT before our first write
+local damageFontSet = false
+
+local function rememberFont(set, f)
+    if set[f] == nil then set[f] = { f:GetFont() } end
+end
+
+-- The face to go back to: the global game-text font when that sweep is on
+-- (it rewrites every named font object), otherwise the remembered one.
+local function restoreFontSet(set)
+    local g = ns.db and ns.db.global and ns.db.global.fonts
+    local face = g and g.gameText and ns.UI.FONT_PATH or nil
+    for f, o in pairs(set) do
+        if (face or o[1]) and o[2] then pcall(f.SetFont, f, face or o[1], o[2], o[3] or "") end
+        set[f] = nil
+    end
+end
+
+local function restoreSharpFonts() restoreFontSet(origSharp) end
+
+local function restoreDamageTextFont()
+    restoreFontSet(origCTFont)
+    if damageFontSet then
+        -- deliberate write: puts the client's own value back -- read only by
+        -- the engine's world-text setup at load (non-secure)
+        _G.DAMAGE_TEXT_FONT = origDamageFont
+        damageFontSet = false
+    end
+end
+
 local function applySharpFonts()
     if not mod.db.sharpFonts then return end
     local font = getActiveFontPath()
     for _, name in ipairs(FONTS_TO_SHARPEN) do
         local f = _G[name]
         if f and f.SetFont and f.GetFont then
+            rememberFont(origSharp, f)
             local _, size, flags = f:GetFont()
             size = size or 16
             flags = flags or "OUTLINE"
@@ -608,8 +643,13 @@ end
 local function applyDamageTextFont()
     if not mod.db or mod.db.applyToMobFCT == false then return end
     local path = getActiveFontPath()
+    if not damageFontSet then origDamageFont = _G.DAMAGE_TEXT_FONT; damageFontSet = true end
+    -- deliberate write: the client takes the floating combat text font from
+    -- this global and no setter exists -- read only by the engine's world-text
+    -- setup at load (non-secure), hence the /reload note on the option
     _G.DAMAGE_TEXT_FONT = path
     if _G.CombatTextFont and _G.CombatTextFont.SetFont then
+        if _G.CombatTextFont.GetFont then rememberFont(origCTFont, _G.CombatTextFont) end
         pcall(_G.CombatTextFont.SetFont, _G.CombatTextFont, path, 120, "")
     end
 end
@@ -712,7 +752,7 @@ function mod:OnEnable()
 
     mod:RegisterEvent("PLAYER_REGEN_DISABLED", onCombatStart)
     mod:RegisterEvent("PLAYER_REGEN_ENABLED",  onCombatEnd)
-    mod:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", onCLEU)
+    ns:RegisterCombatLog(mod, onCLEU)
     mod:RegisterEvent("UPDATE_INVENTORY_DURABILITY", scheduleDurabilityCheck)
 
     C_Timer.After(2.0, scheduleDurabilityCheck)
@@ -722,6 +762,9 @@ function mod:OnDisable()
     hidePreview()
     for _, f in pairs(notifyFrames) do f:Hide() end
     if container then container:Hide() end
+    -- the font objects and the global are the client's, not ours: hand them back
+    restoreSharpFonts()
+    restoreDamageTextFont()
 end
 
 local function ensurePreviewAutoStop()
@@ -829,11 +872,17 @@ function mod:GetOptions()
         { type = "section", title = L["Engine FCT (above mob/pet)"], items = {
             { type = "toggle", label = L["Sharper hit indicator font (Friz Quadrata)"],
               get = function() return mod.db.sharpFonts ~= false end,
-              set = function(_, v) mod.db.sharpFonts = v; applySharpFonts() end },
+              set = function(_, v)
+                  mod.db.sharpFonts = v
+                  if v then applySharpFonts() else restoreSharpFonts() end
+              end },
             { type = "toggle", label = L["Also apply font to Blizzard mob FCT"],
               tooltip = L["Additionally sets DAMAGE_TEXT_FONT globally - changes the font of the damage numbers above mobs/pets. Requires /reload to take effect."],
               get = function() return mod.db.applyToMobFCT ~= false end,
-              set = function(_, v) mod.db.applyToMobFCT = v; applyDamageTextFont() end },
+              set = function(_, v)
+                  mod.db.applyToMobFCT = v
+                  if v then applyDamageTextFont() else restoreDamageTextFont() end
+              end },
             { type = "slider", label = L["Engine FCT Scale"], min = 0.5, max = 2.0, step = 0.05, width = SLW,
               tooltip = L["Damage numbers above mob/pet — bitmap scaling."],
               get = function() return tonumber(mod.db.worldTextScale) or 1.0 end,

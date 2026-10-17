@@ -51,17 +51,19 @@ local function fontPath()
     return (ns.UI and ns.UI.FONT_PATH) or FONT
 end
 
-local ARROW_LEFT  = "Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\arrow_left.tga"
-local ARROW_RIGHT = "Interface\\AddOns\\VuloClassicUI\\Media\\Icons\\arrow_right.tga"
+-- Block-scoped constants here and below: the main chunk sits close to Lua's
+-- 200-locals wall, and a do-block frees its slots at the `end`.
+local shapeMask
+do
+    local MASK_ROUNDED = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\csquare_mask.tga"
+    local MASK_CIRCLE  = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\circle_mask.tga"
+    local MASK_SQUARE  = "Interface\\Buttons\\WHITE8X8"
 
-local MASK_ROUNDED = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\csquare_mask.tga"
-local MASK_CIRCLE  = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\circle_mask.tga"
-local MASK_SQUARE  = "Interface\\Buttons\\WHITE8X8"
-
-local function shapeMask(shape)
-    if shape == "circle"  then return MASK_CIRCLE  end
-    if shape == "rounded" then return MASK_ROUNDED end
-    return MASK_SQUARE
+    function shapeMask(shape)
+        if shape == "circle"  then return MASK_CIRCLE  end
+        if shape == "rounded" then return MASK_ROUNDED end
+        return MASK_SQUARE
+    end
 end
 
 local STACK_INSETS = {
@@ -394,76 +396,79 @@ end
 local relayoutGroup, refreshGroup, refreshAll, layoutIcons, positionBar  -- forward declarations
 local stopCustomGlow   -- glow engine, defined further down; relayoutGroup calls it
 
--- Keybind lookup: action slot base -> binding command. Only the always-active
--- bars; stance/page slots are deliberately excluded (their binding follows the
--- page, not the slot).
-local SLOT_BINDINGS = {
-    [0]  = "ACTIONBUTTON",          -- 1-12 main bar
-    [24] = "MULTIACTIONBAR3BUTTON", -- 25-36 right bar
-    [36] = "MULTIACTIONBAR4BUTTON", -- 37-48 right bar 2
-    [48] = "MULTIACTIONBAR2BUTTON", -- 49-60 bottom right
-    [60] = "MULTIACTIONBAR1BUTTON", -- 61-72 bottom left
-}
-local KEY_ABBREV = {
-    { "SHIFT%-", "s" }, { "CTRL%-", "c" }, { "ALT%-", "a" },
-    { "MOUSEWHEELUP", "wU" }, { "MOUSEWHEELDOWN", "wD" },
-    { "BUTTON", "m" }, { "NUMPAD", "n" },
-    { "PAGEUP", "PU" }, { "PAGEDOWN", "PD" }, { "SPACE", "Sp" },
-}
-local function abbrevKey(key)
-    if not key then return nil end
-    for _, p in ipairs(KEY_ABBREV) do key = key:gsub(p[1], p[2]) end
-    return key
-end
+local keybindFor, onBindingsChanged
+do
+    -- Keybind lookup: action slot base -> binding command. Only the always-active
+    -- bars; stance/page slots are deliberately excluded (their binding follows the
+    -- page, not the slot).
+    local SLOT_BINDINGS = {
+        [0]  = "ACTIONBUTTON",          -- 1-12 main bar
+        [24] = "MULTIACTIONBAR3BUTTON", -- 25-36 right bar
+        [36] = "MULTIACTIONBAR4BUTTON", -- 37-48 right bar 2
+        [48] = "MULTIACTIONBAR2BUTTON", -- 49-60 bottom right
+        [60] = "MULTIACTIONBAR1BUTTON", -- 61-72 bottom left
+    }
+    local KEY_ABBREV = {
+        { "SHIFT%-", "s" }, { "CTRL%-", "c" }, { "ALT%-", "a" },
+        { "MOUSEWHEELUP", "wU" }, { "MOUSEWHEELDOWN", "wD" },
+        { "BUTTON", "m" }, { "NUMPAD", "n" },
+        { "PAGEUP", "PU" }, { "PAGEDOWN", "PD" }, { "SPACE", "Sp" },
+    }
+    local function abbrevKey(key)
+        if not key then return nil end
+        for _, p in ipairs(KEY_ABBREV) do key = key:gsub(p[1], p[2]) end
+        return key
+    end
 
--- ranks differ between the tracked entry and the slotted action, so spells are
--- matched by id AND by lowercase name
-local kbBySpellName, kbBySpellID, kbByItemID = {}, {}, {}
-local kbDirty = true
-local function rebuildKeybinds()
-    kbDirty = false
-    wipe(kbBySpellName); wipe(kbBySpellID); wipe(kbByItemID)
-    if not (GetActionInfo and GetBindingKey) then return end
-    for base, cmd in pairs(SLOT_BINDINGS) do
-        for i = 1, 12 do
-            local aType, id = GetActionInfo(base + i)
-            if aType == "spell" or aType == "item" then
-                local key = abbrevKey(GetBindingKey(cmd .. i))
-                if key and key ~= "" then
-                    if aType == "spell" and id and id ~= 0 then
-                        if not kbBySpellID[id] then kbBySpellID[id] = key end
-                        local n = GetSpellInfo(id)
-                        if n and not kbBySpellName[n:lower()] then kbBySpellName[n:lower()] = key end
-                    elseif aType == "item" and id and not kbByItemID[id] then
-                        kbByItemID[id] = key
+    -- ranks differ between the tracked entry and the slotted action, so spells are
+    -- matched by id AND by lowercase name
+    local kbBySpellName, kbBySpellID, kbByItemID = {}, {}, {}
+    local kbDirty = true
+    local function rebuildKeybinds()
+        kbDirty = false
+        wipe(kbBySpellName); wipe(kbBySpellID); wipe(kbByItemID)
+        if not (GetActionInfo and GetBindingKey) then return end
+        for base, cmd in pairs(SLOT_BINDINGS) do
+            for i = 1, 12 do
+                local aType, id = GetActionInfo(base + i)
+                if aType == "spell" or aType == "item" then
+                    local key = abbrevKey(GetBindingKey(cmd .. i))
+                    if key and key ~= "" then
+                        if aType == "spell" and id and id ~= 0 then
+                            if not kbBySpellID[id] then kbBySpellID[id] = key end
+                            local n = GetSpellInfo(id)
+                            if n and not kbBySpellName[n:lower()] then kbBySpellName[n:lower()] = key end
+                        elseif aType == "item" and id and not kbByItemID[id] then
+                            kbByItemID[id] = key
+                        end
                     end
                 end
             end
         end
     end
-end
 
-local function keybindFor(e, ename)
-    if kbDirty then rebuildKeybinds() end
-    if e.kind == "item" then return kbByItemID[e.id] end
-    local k = type(e.id) == "number" and kbBySpellID[e.id] or nil
-    if not k and ename then k = kbBySpellName[ename:lower()] end
-    return k
-end
+    function keybindFor(e, ename)
+        if kbDirty then rebuildKeybinds() end
+        if e.kind == "item" then return kbByItemID[e.id] end
+        local k = type(e.id) == "number" and kbBySpellID[e.id] or nil
+        if not k and ename then k = kbBySpellName[ename:lower()] end
+        return k
+    end
 
--- ACTIONBAR_SLOT_CHANGED storms on login (one event per slot); coalesce
-local kbQueued = false
-local function onBindingsChanged()
-    kbDirty = true
-    if kbQueued then return end
-    kbQueued = true
-    C_Timer.After(0.2, function()
-        kbQueued = false
-        if not mod._enabled then return end
-        for _, group in ipairs(db().groups) do
-            if group.showKeybind then relayoutGroup(group) end
-        end
-    end)
+    -- ACTIONBAR_SLOT_CHANGED storms on login (one event per slot); coalesce
+    local kbQueued = false
+    function onBindingsChanged()
+        kbDirty = true
+        if kbQueued then return end
+        kbQueued = true
+        C_Timer.After(0.2, function()
+            kbQueued = false
+            if not mod._enabled then return end
+            for _, group in ipairs(db().groups) do
+                if group.showKeybind then relayoutGroup(group) end
+            end
+        end)
+    end
 end
 
 -- ONE SNAPSHOT PER UNIT AND FILTER, not 40 buffs per icon. UnitAura's spellId
@@ -906,6 +911,9 @@ local function ensureBar(group)
         key    = "cdm:" .. tostring(group.id or group.name or "?"),
         label  = group.name,
         db     = group,
+        -- onMove/applyPos and barOf work on this group table itself; a profile
+        -- switch must not hand the mover another one (see CaptureMoverPaths)
+        noRepoint = true,
         width  = 150,
         height = 34,
         -- a manual drag writes an absolute position, so it detaches the bar from any anchor
@@ -1016,6 +1024,12 @@ layoutIcons = function(group, list)
 end
 
 relayoutGroup = function(group)
+    -- Same rule as rebuildBars: ensureBar on a disabled module would put a bar
+    -- with frozen icons on screen. The options strip does not need the bar.
+    if not mod._enabled then
+        if mod.RefreshStrip then mod.RefreshStrip(group) end
+        return
+    end
     local bar = ensureBar(group)
     -- drop the pack memory, else packIfChanged skips an unchanged set now sitting at stale coordinates
     activePrevOf[group] = nil
@@ -1150,154 +1164,157 @@ end
 -- styles need a 10.x animation API and its sparkle texture does not exist on
 -- this client.
 
-local GLOW_GOLD = { r = 1, g = 0.788, b = 0.137 }   -- the reference's default gold
+local applyGroupGlows
+do
+    local GLOW_GOLD = { r = 1, g = 0.788, b = 0.137 }   -- the reference's default gold
 
-local GLOW_RING = "Interface\\SpellActivationOverlay\\IconAlert"
-local GLOW_ANTS = "Interface\\SpellActivationOverlay\\IconAlertAnts"
--- 5x5 grid of 48px cells on 256px; the last three cells are blank
-local ANTS_COLS, ANTS_CELLS, ANTS_CELL = 5, 22, 48 / 256
+    local GLOW_RING = "Interface\\SpellActivationOverlay\\IconAlert"
+    local GLOW_ANTS = "Interface\\SpellActivationOverlay\\IconAlertAnts"
+    -- 5x5 grid of 48px cells on 256px; the last three cells are blank
+    local ANTS_COLS, ANTS_CELLS, ANTS_CELL = 5, 22, 48 / 256
 
-local function glowColor(g)
-    if g.colorMode == "class" then
-        local _, cls = UnitClass("player")
-        local c = cls and ns.ClassColor(cls)
-        if c then return c.r, c.g, c.b end
-    elseif g.colorMode == "custom" and g.color then
-        return g.color.r or 1, g.color.g or 1, g.color.b or 1
+    local function glowColor(g)
+        if g.colorMode == "class" then
+            local _, cls = UnitClass("player")
+            local c = cls and ns.ClassColor(cls)
+            if c then return c.r, c.g, c.b end
+        elseif g.colorMode == "custom" and g.color then
+            return g.color.r or 1, g.color.g or 1, g.color.b or 1
+        end
+        return GLOW_GOLD.r, GLOW_GOLD.g, GLOW_GOLD.b
     end
-    return GLOW_GOLD.r, GLOW_GOLD.g, GLOW_GOLD.b
-end
 
-local function glowConditionHolds(g)
-    if g.combat and not (InCombatLockdown() or UnitAffectingCombat("player")) then
-        return false
+    local function glowConditionHolds(g)
+        if g.combat and not (InCombatLockdown() or UnitAffectingCombat("player")) then
+            return false
+        end
+        local s = scanFor("player", "HELPFUL")
+        local present = (g.id and s.byID[g.id]) or (g.name and s.byName[g.name])
+        if g.mode == "MISSING" then return not present end
+        return present ~= nil
     end
-    local s = scanFor("player", "HELPFUL")
-    local present = (g.id and s.byID[g.id]) or (g.name and s.byName[g.name])
-    if g.mode == "MISSING" then return not present end
-    return present ~= nil
-end
 
-local function ensureGlowOverlay(f)
-    local o = f.customGlow
-    if o then return o end
-    o = CreateFrame("Frame", nil, f)
-    o:SetAllPoints(f)
-    o:SetFrameLevel(f:GetFrameLevel() + 15)   -- the reference's overlay level
+    local function ensureGlowOverlay(f)
+        local o = f.customGlow
+        if o then return o end
+        o = CreateFrame("Frame", nil, f)
+        o:SetAllPoints(f)
+        o:SetFrameLevel(f:GetFrameLevel() + 15)   -- the reference's overlay level
 
-    o.edges = ns.MakeEdges(o, "OVERLAY")
+        o.edges = ns.MakeEdges(o, "OVERLAY")
 
-    o.ring = o:CreateTexture(nil, "OVERLAY", nil, 1)
-    o.ring:SetTexture(GLOW_RING)
-    o.ring:SetTexCoord(0.00781250, 0.50781250, 0.53515625, 0.78515625)
-    o.ring:SetBlendMode("ADD")
-    o.ring:SetPoint("CENTER", o, "CENTER", 0, 0)
-    o.ring:Hide()
+        o.ring = o:CreateTexture(nil, "OVERLAY", nil, 1)
+        o.ring:SetTexture(GLOW_RING)
+        o.ring:SetTexCoord(0.00781250, 0.50781250, 0.53515625, 0.78515625)
+        o.ring:SetBlendMode("ADD")
+        o.ring:SetPoint("CENTER", o, "CENTER", 0, 0)
+        o.ring:Hide()
 
-    o.ants = o:CreateTexture(nil, "OVERLAY", nil, 2)
-    o.ants:SetTexture(GLOW_ANTS)
-    o.ants:SetDesaturated(true)
-    o.ants:SetBlendMode("ADD")
-    o.ants:SetPoint("CENTER", o, "CENTER", 0, 0)
-    o.ants:Hide()
+        o.ants = o:CreateTexture(nil, "OVERLAY", nil, 2)
+        o.ants:SetTexture(GLOW_ANTS)
+        o.ants:SetDesaturated(true)
+        o.ants:SetBlendMode("ADD")
+        o.ants:SetPoint("CENTER", o, "CENTER", 0, 0)
+        o.ants:Hide()
 
-    o.fill = o:CreateTexture(nil, "OVERLAY", nil, 0)
-    o.fill:SetTexture("Interface\\Buttons\\WHITE8X8")
-    o.fill:SetBlendMode("ADD")
-    o.fill:SetAllPoints(f)
-    -- the same mask that shapes the icon shapes the fill (the reference's
-    -- shape glow); square icons simply have no mask to add
-    if f.mask and o.fill.AddMaskTexture then o.fill:AddMaskTexture(f.mask) end
-    o.fill:Hide()
+        o.fill = o:CreateTexture(nil, "OVERLAY", nil, 0)
+        o.fill:SetTexture("Interface\\Buttons\\WHITE8X8")
+        o.fill:SetBlendMode("ADD")
+        o.fill:SetAllPoints(f)
+        -- the same mask that shapes the icon shapes the fill (the reference's
+        -- shape glow); square icons simply have no mask to add
+        if f.mask and o.fill.AddMaskTexture then o.fill:AddMaskTexture(f.mask) end
+        o.fill:Hide()
 
-    o:Hide()
-    f.customGlow = o
-    return o
-end
+        o:Hide()
+        f.customGlow = o
+        return o
+    end
 
--- assignment, not declaration: forward-declared next to relayoutGroup, which
--- stops a glow whenever an icon is re-purposed or re-sized
-stopCustomGlow = function(f)
-    local o = f.customGlow
-    if not (o and o._style) then return end
-    o._style = nil
-    o:SetScript("OnUpdate", nil)
-    o:Hide()
-end
+    -- assignment, not declaration: forward-declared next to relayoutGroup, which
+    -- stops a glow whenever an icon is re-purposed or re-sized
+    stopCustomGlow = function(f)
+        local o = f.customGlow
+        if not (o and o._style) then return end
+        o._style = nil
+        o:SetScript("OnUpdate", nil)
+        o:Hide()
+    end
 
-local function glowDriver(o, elapsed)
-    local t = GetTime()
-    if o._style == "pixel" then
-        o:SetAlpha(0.55 + 0.35 * math.sin(t * 6))
-    elseif o._style == "fill" then
-        -- 0.25 +- 0.25, the reference's pulse at its speed
-        o:SetAlpha(0.5 + 0.5 * math.sin(t * 10))
-    elseif o._style == "button" then
-        o._acc = (o._acc or 0) + elapsed
-        if o._acc >= 0.017 then                  -- the reference's cell cadence
-            o._cell = ((o._cell or 0) + 1) % ANTS_CELLS
-            o._acc = 0
-            local col = o._cell % ANTS_COLS
-            local row = math.floor(o._cell / ANTS_COLS)
-            o.ants:SetTexCoord(col * ANTS_CELL, (col + 1) * ANTS_CELL,
-                               row * ANTS_CELL, (row + 1) * ANTS_CELL)
+    local function glowDriver(o, elapsed)
+        local t = GetTime()
+        if o._style == "pixel" then
+            o:SetAlpha(0.55 + 0.35 * math.sin(t * 6))
+        elseif o._style == "fill" then
+            -- 0.25 +- 0.25, the reference's pulse at its speed
+            o:SetAlpha(0.5 + 0.5 * math.sin(t * 10))
+        elseif o._style == "button" then
+            o._acc = (o._acc or 0) + elapsed
+            if o._acc >= 0.017 then                  -- the reference's cell cadence
+                o._cell = ((o._cell or 0) + 1) % ANTS_CELLS
+                o._acc = 0
+                local col = o._cell % ANTS_COLS
+                local row = math.floor(o._cell / ANTS_COLS)
+                o.ants:SetTexCoord(col * ANTS_CELL, (col + 1) * ANTS_CELL,
+                                   row * ANTS_CELL, (row + 1) * ANTS_CELL)
+            end
         end
     end
-end
 
-local function startCustomGlow(f, style, r, g, b)
-    local o = ensureGlowOverlay(f)
-    if o._style == style and o._r == r and o._g == g and o._b == b then return end
-    o._style, o._r, o._g, o._b = style, r, g, b
-    o._acc, o._cell = 0, 0
+    local function startCustomGlow(f, style, r, g, b)
+        local o = ensureGlowOverlay(f)
+        if o._style == style and o._r == r and o._g == g and o._b == b then return end
+        o._style, o._r, o._g, o._b = style, r, g, b
+        o._acc, o._cell = 0, 0
 
-    for _, e in pairs(o.edges) do e:Hide() end
-    o.ring:Hide(); o.ants:Hide(); o.fill:Hide()
-    o:SetAlpha(1)
+        for _, e in pairs(o.edges) do e:Hide() end
+        o.ring:Hide(); o.ants:Hide(); o.fill:Hide()
+        o:SetAlpha(1)
 
-    if style == "button" then
-        -- the reference's scale chain: ants 1.35x the button, ring 1.3x the ants
-        local w, h = f:GetWidth() or 32, f:GetHeight() or 32
-        o.ants:SetSize(w * 1.35, h * 1.35)
-        o.ants:SetVertexColor(r, g, b)
-        o.ants:Show()
-        o.ring:SetSize(w * 1.35 * 1.3, h * 1.35 * 1.3)
-        o.ring:SetVertexColor(r, g, b)
-        o.ring:Show()
-    elseif style == "fill" then
-        o.fill:SetVertexColor(r, g, b, 0.5)
-        o.fill:Show()
-    else -- pixel
-        ns.LayoutEdges(o.edges, o, 2, r, g, b, 1, 1)
+        if style == "button" then
+            -- the reference's scale chain: ants 1.35x the button, ring 1.3x the ants
+            local w, h = f:GetWidth() or 32, f:GetHeight() or 32
+            o.ants:SetSize(w * 1.35, h * 1.35)
+            o.ants:SetVertexColor(r, g, b)
+            o.ants:Show()
+            o.ring:SetSize(w * 1.35 * 1.3, h * 1.35 * 1.3)
+            o.ring:SetVertexColor(r, g, b)
+            o.ring:Show()
+        elseif style == "fill" then
+            o.fill:SetVertexColor(r, g, b, 0.5)
+            o.fill:Show()
+        else -- pixel
+            ns.LayoutEdges(o.edges, o, 2, r, g, b, 1, 1)
+        end
+
+        o:SetScript("OnUpdate", glowDriver)
+        o:Show()
     end
 
-    o:SetScript("OnUpdate", glowDriver)
-    o:Show()
-end
-
--- One pass per group per tick, both bar modes. Hidden icons are skipped but
--- keep their glow state: OnUpdate does not run on hidden frames, and the state
--- memory prevents an animation restart when they come back.
-local function applyGroupGlows(group)
-    local bar = barOf[group]
-    local icons = bar and bar._icons
-    if not icons then return end
-    for i = 1, #group.entries do
-        local f = icons[i]
-        if f then
-            local glows = group.entries[i].glows
-            if f:IsShown() and glows and #glows > 0 then
-                local win
-                for gi = 1, #glows do
-                    if glowConditionHolds(glows[gi]) then win = glows[gi]; break end
-                end
-                if win then
-                    startCustomGlow(f, win.style or "pixel", glowColor(win))
-                else
+    -- One pass per group per tick, both bar modes. Hidden icons are skipped but
+    -- keep their glow state: OnUpdate does not run on hidden frames, and the state
+    -- memory prevents an animation restart when they come back.
+    function applyGroupGlows(group)
+        local bar = barOf[group]
+        local icons = bar and bar._icons
+        if not icons then return end
+        for i = 1, #group.entries do
+            local f = icons[i]
+            if f then
+                local glows = group.entries[i].glows
+                if f:IsShown() and glows and #glows > 0 then
+                    local win
+                    for gi = 1, #glows do
+                        if glowConditionHolds(glows[gi]) then win = glows[gi]; break end
+                    end
+                    if win then
+                        startCustomGlow(f, win.style or "pixel", glowColor(win))
+                    else
+                        stopCustomGlow(f)
+                    end
+                elseif f.customGlow then
                     stopCustomGlow(f)
                 end
-            elseif f.customGlow then
-                stopCustomGlow(f)
             end
         end
     end
@@ -3924,6 +3941,9 @@ local function setUnlocked(state)
         ns:Print(L["Power Bar mover active. |cff9b6cffDrag the purple box|r or use |cff9b6cffarrow keys|r (SHIFT = 5px). Click 'Unlock / Move' again to finish."])
     else
         frame.mover:Hide()
+        -- unlock forced the bar on; hand it back to the visibility rules, or
+        -- hide it outright when the module is off
+        if mod.active then updateVisibility() else frame:Hide() end
         ns:Print(L["Power Bar mover disabled."])
     end
 end

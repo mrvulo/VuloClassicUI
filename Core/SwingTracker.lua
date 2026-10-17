@@ -10,7 +10,6 @@
 -- feature on registers nothing at all.
 local _, ns = ...
 
-local CLGetInfo = CombatLogGetCurrentEventInfo
 local GetTime, UnitAttackSpeed, UnitGUID = GetTime, UnitAttackSpeed, UnitGUID
 local GetInventoryItemID = GetInventoryItemID
 local UnitRangedDamage   = UnitRangedDamage
@@ -37,6 +36,10 @@ local mhItem, ohItem
 local holders    = {}   -- tag -> listener function or true
 local holderCount = 0
 local frame
+-- Owner of the combat-log listener. Not a module: several modules hold the
+-- tracker, and one of them switching off must not take the clock from the
+-- others, so the holder count decides and nothing ever SafeDisables this.
+local logOwner = { key = "swingtracker" }
 
 -- reason tells a swing that LANDED from a swing that merely MOVED. Both are news
 -- for anything drawing a bar, and only the first is news for anything counting
@@ -275,8 +278,12 @@ local function takeExtraCredit()
     return true
 end
 
-local function onCombatLog()
-    local _, subevent, _, sourceGUID, _, _, _, destGUID = CLGetInfo()
+-- The values come from the shared reader (ns:RegisterCombatLog), called
+-- synchronously from the same event firing, so GetTime is the frame's own and
+-- the cleave stamp below still identifies one frame. Payload offsets are the
+-- C call's own, select() now walks the passed values instead of re-reading.
+local function onCombatLog(...)
+    local _, subevent, _, sourceGUID, _, _, _, destGUID = ...
     if sourceGUID ~= playerGUID then
         if destGUID == playerGUID then
             -- Parry haste does not care whether what we parried was a plain
@@ -285,16 +292,16 @@ local function onCombatLog()
             -- SWING_MISSED puts it first, SPELL_MISSED behind the three spell
             -- fields.
             if subevent == "SWING_MISSED" then
-                if select(12, CLGetInfo()) == "PARRY" then parryHaste() end
+                if select(12, ...) == "PARRY" then parryHaste() end
             elseif subevent == "SPELL_MISSED" then
-                if select(15, CLGetInfo()) == "PARRY" then parryHaste() end
+                if select(15, ...) == "PARRY" then parryHaste() end
             end
         end
         return
     end
     if subevent == "SWING_DAMAGE" then
         -- isOffHand is param 21 of SWING_DAMAGE.
-        local isOffHand = select(21, CLGetInfo())
+        local isOffHand = select(21, ...)
         if isOffHand then
             resetOH(); notify("offhand")
         elseif not takeExtraCredit() then
@@ -302,7 +309,7 @@ local function onCombatLog()
         end
     elseif subevent == "SWING_MISSED" then
         -- SWING_MISSED puts isOffHand at param 13, or 14 when an amount is present.
-        local p13, p14 = select(13, CLGetInfo())
+        local p13, p14 = select(13, ...)
         if (p13 == true) or (p14 == true) then
             resetOH(); notify("offhand")
         elseif not takeExtraCredit() then
@@ -326,7 +333,7 @@ local function onCombatLog()
         -- have been a free attack. GetTime is constant within a frame and both
         -- lines dispatch in the same one, so the timestamp is the frame's
         -- identity.
-        if isOnNextSwing(select(13, CLGetInfo())) then
+        if isOnNextSwing((select(13, ...))) then
             local now = GetTime()
             if now ~= lastQueuedHit then
                 lastQueuedHit = now
@@ -335,7 +342,7 @@ local function onCombatLog()
         end
     elseif subevent == "SPELL_EXTRA_ATTACKS" then
         -- amount is the last payload field; 12..14 are spellId, name, school.
-        local amount = select(15, CLGetInfo())
+        local amount = select(15, ...)
         amount = tonumber(amount) or 0
         if amount > 0 then
             extraLeft = extraLeft + amount
@@ -345,9 +352,7 @@ local function onCombatLog()
 end
 
 local function onEvent(_, event, arg1, _, arg3)
-    if event == "COMBAT_LOG_EVENT_UNFILTERED" then
-        onCombatLog()
-    elseif event == "PLAYER_ENTER_COMBAT" then
+    if event == "PLAYER_ENTER_COMBAT" then
         recomputeDualWield()
         resetMH()
         if dualWield then resetOH() end
@@ -416,7 +421,7 @@ local function startListening()
     playerGUID = playerGUID or UnitGUID("player")
     recomputeDualWield()
     snapshotWeapons()
-    frame:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
+    ns:RegisterCombatLog(logOwner, onCombatLog)
     frame:RegisterEvent("PLAYER_ENTER_COMBAT")
     frame:RegisterEvent("PLAYER_LEAVE_COMBAT")
     frame:RegisterEvent("PLAYER_ENTERING_WORLD")
@@ -454,6 +459,7 @@ function ns:ReleaseSwingTracker(tag)
     if holderCount <= 0 then
         holderCount = 0
         if frame then frame:UnregisterAllEvents() end
+        ns:UnregisterCombatLog(logOwner, onCombatLog)
         mh.active, oh.active, ra.active = false, false, false
     end
 end

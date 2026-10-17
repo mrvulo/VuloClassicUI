@@ -1155,7 +1155,8 @@ function mod:GetOptions(tabId)
                                   return v > 0
                               end,
                               set = function(_, v)
-                                  mod.db.castBorderSize = v and nil or 0
+                                  -- not "v and nil or 0": that is 0 for both values
+                                  if v then mod.db.castBorderSize = nil else mod.db.castBorderSize = 0 end
                                   mod.db.borderOnCast = nil
                                   applyAndRefresh()
                               end },

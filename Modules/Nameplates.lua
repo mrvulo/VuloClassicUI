@@ -625,82 +625,85 @@ local function buildVisuals(f)
     f.cpGroup:Hide()
 end
 
--- Rounded bars: one mask per bar, shared by the fill and everything riding on
--- it, so they all clip to the same shape. Tracked per texture because
--- SetStatusBarTexture hands back a different object when the texture changes.
-local function maskApply(t, mask)
-    if not (t and t.AddMaskTexture) then return end
-    if t._vcMasked == mask then return end
-    if t._vcMasked and t.RemoveMaskTexture then pcall(t.RemoveMaskTexture, t, t._vcMasked) end
-    pcall(t.AddMaskTexture, t, mask)
-    t._vcMasked = mask
-end
-
-local function maskClear(t)
-    if not (t and t._vcMasked) then return end
-    if t.RemoveMaskTexture then pcall(t.RemoveMaskTexture, t, t._vcMasked) end
-    t._vcMasked = nil
-end
-
--- The round shape does not fill its own image. Measured 02.08.2026 on
--- csquare_mask.tga: 128x128 with the shape at x=10..117, so a transparent border
--- of 10 px -- 7.8% -- runs all the way round it. SetAllPoints stretches that
--- border with the rest, which on a 120x15 health bar means about 11 px of dead
--- bar at each END and barely 1 px above and below. That is why it reads as a gap
--- on the left and the right only, and it is exactly what was reported.
---
--- The cure is to hang the mask OUT past the bar by the width of its own border,
--- so the shape lands on the bar's edges instead of inside them. Anchors only --
--- the shared mask file is not touched, so sliders, cooldown icons and the dark
--- skin keep the look they have.
---
--- NOT a fact about the client, and therefore deliberately NOT in Core/Wrath.lua:
--- the border is in the file and the gap appears wherever rounded bars are
--- switched on. It is scoped to this client generation by the owner's decision
--- (02.08.2026), taken with the measurement above on the table. Widening it later
--- is this one condition.
-local MASK_SHAPE = 108 / 128     -- the shape's share of the mask image, per axis
-local MASK_GROW  = (1 / MASK_SHAPE - 1) / 2
-
-local function anchorRoundMask(bar)
-    local m = bar._vcMask
-    if not m then return end
-    m:ClearAllPoints()
-    local w, h = bar:GetWidth(), bar:GetHeight()
-    -- Sizes are not always known the first time round; OnSizeChanged brings us
-    -- back with real ones, and until then this is exactly today's behaviour.
-    if not ns.Wrath.is or not w or not h or w <= 0 or h <= 0 then
-        m:SetAllPoints(bar)
-        return
+local applyBarRounding
+do
+    -- Rounded bars: one mask per bar, shared by the fill and everything riding on
+    -- it, so they all clip to the same shape. Tracked per texture because
+    -- SetStatusBarTexture hands back a different object when the texture changes.
+    local function maskApply(t, mask)
+        if not (t and t.AddMaskTexture) then return end
+        if t._vcMasked == mask then return end
+        if t._vcMasked and t.RemoveMaskTexture then pcall(t.RemoveMaskTexture, t, t._vcMasked) end
+        pcall(t.AddMaskTexture, t, mask)
+        t._vcMasked = mask
     end
-    local gx, gy = w * MASK_GROW, h * MASK_GROW
-    m:SetPoint("TOPLEFT",     bar, "TOPLEFT",     -gx,  gy)
-    m:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT",  gx, -gy)
-end
 
--- Varargs, not a list: GetStatusBarTexture() can return nil, and a nil hole
--- would stop ipairs early and strand masks on the later textures.
-local function applyBarRounding(bar, on, ...)
-    if not bar then return end
-    local mask
-    if on and bar.CreateMaskTexture then
-        if not bar._vcMask then
-            bar._vcMask = bar:CreateMaskTexture()
-            bar._vcMask:SetTexture(MASK_ROUND, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
-            -- The width and height sliders resize the bar without coming back
-            -- through here, so the mask has to follow the bar itself.
-            if not bar._vcMaskFollows then
-                bar._vcMaskFollows = true
-                bar:HookScript("OnSizeChanged", anchorRoundMask)
-            end
+    local function maskClear(t)
+        if not (t and t._vcMasked) then return end
+        if t.RemoveMaskTexture then pcall(t.RemoveMaskTexture, t, t._vcMasked) end
+        t._vcMasked = nil
+    end
+
+    -- The round shape does not fill its own image. Measured 02.08.2026 on
+    -- csquare_mask.tga: 128x128 with the shape at x=10..117, so a transparent border
+    -- of 10 px -- 7.8% -- runs all the way round it. SetAllPoints stretches that
+    -- border with the rest, which on a 120x15 health bar means about 11 px of dead
+    -- bar at each END and barely 1 px above and below. That is why it reads as a gap
+    -- on the left and the right only, and it is exactly what was reported.
+    --
+    -- The cure is to hang the mask OUT past the bar by the width of its own border,
+    -- so the shape lands on the bar's edges instead of inside them. Anchors only --
+    -- the shared mask file is not touched, so sliders, cooldown icons and the dark
+    -- skin keep the look they have.
+    --
+    -- NOT a fact about the client, and therefore deliberately NOT in Core/Wrath.lua:
+    -- the border is in the file and the gap appears wherever rounded bars are
+    -- switched on. It is scoped to this client generation by the owner's decision
+    -- (02.08.2026), taken with the measurement above on the table. Widening it later
+    -- is this one condition.
+    local MASK_SHAPE = 108 / 128     -- the shape's share of the mask image, per axis
+    local MASK_GROW  = (1 / MASK_SHAPE - 1) / 2
+
+    local function anchorRoundMask(bar)
+        local m = bar._vcMask
+        if not m then return end
+        m:ClearAllPoints()
+        local w, h = bar:GetWidth(), bar:GetHeight()
+        -- Sizes are not always known the first time round; OnSizeChanged brings us
+        -- back with real ones, and until then this is exactly today's behaviour.
+        if not ns.Wrath.is or not w or not h or w <= 0 or h <= 0 then
+            m:SetAllPoints(bar)
+            return
         end
-        anchorRoundMask(bar)
-        mask = bar._vcMask
+        local gx, gy = w * MASK_GROW, h * MASK_GROW
+        m:SetPoint("TOPLEFT",     bar, "TOPLEFT",     -gx,  gy)
+        m:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT",  gx, -gy)
     end
-    for i = 1, select("#", ...) do
-        local t = select(i, ...)
-        if t then
-            if mask then maskApply(t, mask) else maskClear(t) end
+
+    -- Varargs, not a list: GetStatusBarTexture() can return nil, and a nil hole
+    -- would stop ipairs early and strand masks on the later textures.
+    function applyBarRounding(bar, on, ...)
+        if not bar then return end
+        local mask
+        if on and bar.CreateMaskTexture then
+            if not bar._vcMask then
+                bar._vcMask = bar:CreateMaskTexture()
+                bar._vcMask:SetTexture(MASK_ROUND, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+                -- The width and height sliders resize the bar without coming back
+                -- through here, so the mask has to follow the bar itself.
+                if not bar._vcMaskFollows then
+                    bar._vcMaskFollows = true
+                    bar:HookScript("OnSizeChanged", anchorRoundMask)
+                end
+            end
+            anchorRoundMask(bar)
+            mask = bar._vcMask
+        end
+        for i = 1, select("#", ...) do
+            local t = select(i, ...)
+            if t then
+                if mask then maskApply(t, mask) else maskClear(t) end
+            end
         end
     end
 end
@@ -1033,8 +1036,9 @@ local function smoothHealthTo(f, cur)
 end
 
 -- Glow pinned to the fill edge and tinted with the bar colour. Anchoring to the
--- status bar's own texture means it tracks the fill without any OnUpdate; it is
--- re-anchored on every paint because changing the bar texture swaps that object.
+-- status bar's own texture means it tracks the fill without any OnUpdate. It is
+-- re-anchored when that texture OBJECT changes (a new bar texture can swap it),
+-- and size and tint are compared before written: this runs per health tick.
 -- goalValue overrides the bar's live value: with smooth health the bar is still
 -- animating towards 0, and the glow must vanish on the killing blow, not later.
 local function paintSpark(bar, spark, r, g, b, show, width, hideAtZero, goalValue)
@@ -1047,10 +1051,20 @@ local function paintSpark(bar, spark, r, g, b, show, width, hideAtZero, goalValu
     if mx <= mn then spark:Hide(); return end
     -- a dead unit shouldn't glow at the left edge; a cast legitimately starts there
     if hideAtZero and v <= mn then spark:Hide(); return end
-    spark:ClearAllPoints()
-    spark:SetPoint("CENTER", tex, "RIGHT", 0, 0)
-    spark:SetSize(math.max(2, width or 10), h * 1.6)
-    spark:SetVertexColor(r, g, b, 0.85)
+    if spark._anchor ~= tex then
+        spark._anchor = tex
+        spark:ClearAllPoints()
+        spark:SetPoint("CENTER", tex, "RIGHT", 0, 0)
+    end
+    local sw, sh = math.max(2, width or 10), h * 1.6
+    if spark._w ~= sw or spark._h ~= sh then
+        spark._w, spark._h = sw, sh
+        spark:SetSize(sw, sh)
+    end
+    if spark._r ~= r or spark._g ~= g or spark._b ~= b then
+        spark._r, spark._g, spark._b = r, g, b
+        spark:SetVertexColor(r, g, b, 0.85)
+    end
     spark:Show()
 end
 
@@ -1118,7 +1132,9 @@ end
 local function paintHealth(f, ctx, cur, max)
     local d = db()
     if max <= 0 then max = 1 end
-    f.health:SetMinMaxValues(0, max)
+    -- Only the bar itself writes these, and the max moves on a level-up or a
+    -- buff, not on a hit.
+    if f._hMax ~= max then f._hMax = max; f.health:SetMinMaxValues(0, max) end
     if d.healthSmooth and f.unit then
         smoothHealthTo(f, cur)
     else
@@ -1129,29 +1145,47 @@ local function paintHealth(f, ctx, cur, max)
     end
     local r, g, b = healthColor(d, ctx)
     f.health:SetStatusBarColor(r, g, b)
-    if f.healthBG then
+    local bg = f.healthBG
+    if bg then
+        local br, bgg, bb, ba
         if d.bgTintByBar then
-            f.healthBG:SetColorTexture(r * 0.28, g * 0.28, b * 0.28, 0.9)
+            br, bgg, bb, ba = r * 0.28, g * 0.28, b * 0.28, 0.9
         else
             -- The plain shade is a SETTING now (style section, 02.08.2026); the
             -- default is the 0.05/0.05/0.06 it was hardcoded to, so an untouched
             -- profile paints the same pixel. Alpha stays out of it -- bgAlpha
             -- already rides on the texture's own frame (see applyPlateStyle).
             local bc = d.bgColor
-            f.healthBG:SetColorTexture((bc and bc.r) or 0.05, (bc and bc.g) or 0.05,
-                                       (bc and bc.b) or 0.06, 0.85)
+            br, bgg, bb, ba = (bc and bc.r) or 0.05, (bc and bc.g) or 0.05,
+                              (bc and bc.b) or 0.06, 0.85
+        end
+        -- Compared before written: nothing else colours this texture after
+        -- buildVisuals, and the colour only moves with the bar's.
+        if bg._r ~= br or bg._g ~= bgg or bg._b ~= bb or bg._a ~= ba then
+            bg._r, bg._g, bg._b, bg._a = br, bgg, bb, ba
+            bg:SetColorTexture(br, bgg, bb, ba)
         end
     end
     paintSpark(f.health, f.spark, r, g, b, d.showSpark, d.sparkWidth, true, cur)
     -- The slot again, not the retired switch: with showHealthText still read
     -- here, a profile that had it off would show an empty text in a slot that
     -- says it is on -- and nothing on the page could put the text back.
+    --
+    -- Rebuilt only when what it shows can differ: in percent mode a boss takes
+    -- a hundred hits per step. The other inputs (format, short form, percent
+    -- sign, slot) are options, and every option change runs refreshPlate,
+    -- which clears the key; so does the preview before it paints.
     if textCfg("health").slot ~= "none" then
-        f.healthText:SetText(healthTextString(d, cur, max))
+        local mode = d.healthTextMode
+        local k = (mode == "percent") and floor(cur / max * 100 + 0.5) or cur
+        if f._htK ~= k or f._htMax ~= max or f._htMode ~= mode then
+            f._htK, f._htMax, f._htMode = k, max, mode
+            f.healthText:SetText(healthTextString(d, cur, max))
+            -- After the numbers, not before: how much room the name has left
+            -- depends on what they now read.
+            clampNameWidth(f)
+        end
     end
-    -- After the numbers, not before: how much room the name has left depends on
-    -- what they now read.
-    clampNameWidth(f)
 
     -- The mark for "almost dead", once the unit drops below the chosen share:
     -- the thin ring this always drew, or the breathing halo (style dropdown).
@@ -1163,7 +1197,10 @@ local function paintHealth(f, ctx, cur, max)
         if below and not pulse then
             local c = d.colLowHp or { r = 1, g = 0.2, b = 0.2 }
             layoutEdges(f.lowHpGlow, f.health, 2, c.r, c.g, c.b, 1, 1)
-        else
+            f._lowOn = true
+        elseif f._lowOn ~= false then
+            -- nil = never painted: fresh edges start visible, so hide once
+            f._lowOn = false
             for _, t in pairs(f.lowHpGlow) do t:Hide() end
         end
     end
@@ -1187,17 +1224,23 @@ local function paintHealth(f, ctx, cur, max)
     end
 end
 
+-- Hidden once, not per tick: on clients without absorbs every health change
+-- lands here with 0. ab._on is ours alone; the only Show is at the end below.
+local function hideAbsorb(ab)
+    if ab._on ~= false then ab._on = false; ab:Hide() end
+end
+
 local function paintAbsorb(f, cur, max, absorb)
     local d = db()
     local ab = f.absorb
-    if not d.showAbsorb or not absorb or absorb <= 0 or max <= 0 then ab:Hide(); return end
+    if not d.showAbsorb or not absorb or absorb <= 0 or max <= 0 then hideAbsorb(ab); return end
     local w = f.health:GetWidth() or 0
-    if w <= 0 then ab:Hide(); return end
+    if w <= 0 then hideAbsorb(ab); return end
     local startFrac = cur / max
     if startFrac > 1 then startFrac = 1 end
     local absorbFrac = absorb / max
     if startFrac + absorbFrac > 1 then absorbFrac = 1 - startFrac end
-    if absorbFrac <= 0 then ab:Hide(); return end
+    if absorbFrac <= 0 then hideAbsorb(ab); return end
     -- The style IS the texture, same as where this idea comes from. "flat" keeps
     -- the old plain fill; anything else is one of our bar textures, tinted with
     -- the absorb colour. Resolved through the same helper the bars use, so a
@@ -1217,6 +1260,7 @@ local function paintAbsorb(f, cur, max, absorb)
     ab:SetPoint("TOPLEFT", f.health, "TOPLEFT", w * startFrac, 0)
     ab:SetPoint("BOTTOMLEFT", f.health, "BOTTOMLEFT", w * startFrac, 0)
     ab:SetWidth(w * absorbFrac)
+    ab._on = true
     ab:Show()
 end
 
@@ -1484,9 +1528,6 @@ end
 local UnitAura = UnitAura     -- Compat.lua guarantees this exists on this client
 local wipe = wipe
 
-local _dbuf, _bbuf, _ccbuf, _dotbuf = {}, {}, {}, {}   -- scratch aura lists (single-threaded reuse)
-local _harm = {}   -- one full HARMFUL scan per update; the harmful rows derive from it
-
 -- No CROWD_CONTROL aura filter on this client, so CC is matched by spell id.
 local CC_SPELLS = {}
 for _, id in ipairs({
@@ -1678,6 +1719,9 @@ local function auraGroupOnUpdate(self, elapsed)
     end
 end
 
+-- Bumped by restyleAllPlates: every aura icon refonts once on its next paint.
+local auraFontGen = 0
+
 local function renderAuraGroup(g, list, o)
     local d = db()
     local n = #list
@@ -1705,6 +1749,16 @@ local function renderAuraGroup(g, list, o)
     local bsz = (d.auraBorder == false) and 0 or (d.borderSize or 0)
     local flash = d.auraExpireFlash and (d.auraExpirePct or 30) > 0
     local now = GetTime()
+    -- What plateFont would resolve, worked out once per row instead of twice per
+    -- icon: the face (or the module/global font it falls back to) and the
+    -- outline. An icon whose stamp matches already carries exactly this font.
+    -- auraFontGen covers everything else: restyleAllPlates bumps it.
+    local fontFace = d.fontFace
+    local fontPath = fontFace and fontFace ~= "" and ns.LSM and ns.LSM:Fetch("font", fontFace, true)
+    if not fontPath then
+        fontPath = (ns.ModuleFontPath and ns.ModuleFontPath("nameplates")) or (ns.UI and ns.UI.FONT_PATH)
+    end
+    local fontOutline = d.fontOutline
     for i, ic in ipairs(g.icons) do
         local a = list[i]
         if a then
@@ -1749,10 +1803,22 @@ local function renderAuraGroup(g, list, o)
                 dy = line * (ih + spacing) * ((o.side == "bottom") and -1 or 1)
                    - (lines - 1) * (ih + spacing) / 2 * ((o.side == "bottom") and -1 or 1)
             end
-            ic:SetSize(iw, ih)
-            ic:ClearAllPoints()
-            ic:SetPoint("CENTER", g, "CENTER", dx, dy)
-            ic.tex:SetTexture(a.icon)
+            -- Size, slot and art compared before written, like everything below:
+            -- this loop runs per icon per row per UNIT_AURA, and on a busy mob
+            -- most events change one icon's timer and nothing else.
+            if ic._w ~= iw or ic._h ~= ih then
+                ic._w, ic._h = iw, ih
+                ic:SetSize(iw, ih)
+            end
+            if ic._dx ~= dx or ic._dy ~= dy then
+                ic._dx, ic._dy = dx, dy
+                ic:ClearAllPoints()
+                ic:SetPoint("CENTER", g, "CENTER", dx, dy)
+            end
+            if ic._icon ~= a.icon then
+                ic._icon = a.icon
+                ic.tex:SetTexture(a.icon)
+            end
             -- Compared before it is written: this loop runs per icon per row per
             -- UNIT_AURA, and the value only ever changes when a slider moves.
             if ic._crop ~= crop then
@@ -1762,8 +1828,17 @@ local function renderAuraGroup(g, list, o)
             -- Border takes the dispel school's colour so you can read what is
             -- removable at a glance; plain dark border when there is no school.
             -- Thickness is never forced: border size 0 means the user wants none.
+            --
+            -- Both rims are re-laid only when thickness, colour or the icon's
+            -- pixel size moved (layoutEdges sizes in physical pixels, and a
+            -- target or cast emphasis rescales the plate). ns:Pixel(ic, 1) is
+            -- that pixel size; nothing else touches ic.border or ic.dispelGlow.
+            local px = ns:Pixel(ic, 1)
             local ec = (d.auraTypeBorder and dispelColor(a.dispelType)) or bc
-            layoutEdges(ic.border, ic, bsz, ec.r, ec.g, ec.b, 1, 0)
+            if ic._bPx ~= px or ic._bSz ~= bsz or ic._bR ~= ec.r or ic._bG ~= ec.g or ic._bB ~= ec.b then
+                ic._bPx, ic._bSz, ic._bR, ic._bG, ic._bB = px, bsz, ec.r, ec.g, ec.b
+                layoutEdges(ic.border, ic, bsz, ec.r, ec.g, ec.b, 1, 0)
+            end
             if d.showDispelGlow and a.dispel then
                 -- Either one colour for "you can remove this", or the aura's own
                 -- school -- magic blue, curse purple, disease orange, poison
@@ -1773,8 +1848,13 @@ local function renderAuraGroup(g, list, o)
                 if d.dispelGlowBySchool then
                     gc = dispelColor(a.dispelType) or gc
                 end
-                layoutEdges(ic.dispelGlow, ic, 2, gc.r, gc.g, gc.b, 1, 1)
-            else
+                if not ic._dgOn or ic._dgPx ~= px or ic._dgR ~= gc.r or ic._dgG ~= gc.g or ic._dgB ~= gc.b then
+                    ic._dgOn, ic._dgPx, ic._dgR, ic._dgG, ic._dgB = true, px, gc.r, gc.g, gc.b
+                    layoutEdges(ic.dispelGlow, ic, 2, gc.r, gc.g, gc.b, 1, 1)
+                end
+            elseif ic._dgOn ~= false then
+                -- nil = never painted: fresh edges start visible, so hide once
+                ic._dgOn = false
                 for _, t in pairs(ic.dispelGlow) do t:Hide() end
             end
             -- Which way the shade runs. Reversed, it GROWS back as the aura runs
@@ -1827,16 +1907,40 @@ local function renderAuraGroup(g, list, o)
                     ic.count:SetPoint(a2[1], ic, a2[2], a2[3], a2[4])
                 end
             end
-            plateFont(ic.timer, d.auraTimerSize)
-            plateFont(ic.count, d.auraStackSize)
+            -- A stamp of our own, never GetFont: the client hands sizes back
+            -- as 9.999999, so comparing against it would refont every time.
+            local fresh = ic._fGen ~= auraFontGen or ic._fPath ~= fontPath or ic._fOut ~= fontOutline
+            if fresh or ic._tSz ~= d.auraTimerSize then
+                ic._tSz = d.auraTimerSize
+                plateFont(ic.timer, d.auraTimerSize)
+                ic._tcR = nil
+            end
+            if fresh or ic._sSz ~= d.auraStackSize then
+                ic._sSz = d.auraStackSize
+                plateFont(ic.count, d.auraStackSize)
+                ic._scR = nil
+            end
+            if fresh then ic._fGen, ic._fPath, ic._fOut = auraFontGen, fontPath, fontOutline end
             -- Absent = white, which is what both drew before they had a colour
-            -- of their own. Set here rather than once at creation because
-            -- plateFont above can rebuild the font object.
+            -- of their own. Re-set after every plateFont above (it can rebuild
+            -- the font object), otherwise only when the colour moved.
             local tc = d.auraTimerColor
-            ic.timer:SetTextColor((tc and tc.r) or 1, (tc and tc.g) or 1, (tc and tc.b) or 1)
+            local tr, tg, tb = (tc and tc.r) or 1, (tc and tc.g) or 1, (tc and tc.b) or 1
+            if ic._tcR ~= tr or ic._tcG ~= tg or ic._tcB ~= tb then
+                ic._tcR, ic._tcG, ic._tcB = tr, tg, tb
+                ic.timer:SetTextColor(tr, tg, tb)
+            end
             local sc = d.auraStackColor
-            ic.count:SetTextColor((sc and sc.r) or 1, (sc and sc.g) or 1, (sc and sc.b) or 1)
-            ic.count:SetText((showStacks and a.count > 1) and a.count or "")
+            local sr, sg, sb = (sc and sc.r) or 1, (sc and sc.g) or 1, (sc and sc.b) or 1
+            if ic._scR ~= sr or ic._scG ~= sg or ic._scB ~= sb then
+                ic._scR, ic._scG, ic._scB = sr, sg, sb
+                ic.count:SetTextColor(sr, sg, sb)
+            end
+            local cnt = (showStacks and a.count > 1) and a.count or ""
+            if ic._cnt ~= cnt then
+                ic._cnt = cnt
+                ic.count:SetText(cnt)
+            end
             ic._showTimer = showTimer
             -- Painted now rather than at the next tick, so a new aura never
             -- shows an empty slot first; an unchanged one is a no-op here.
@@ -2118,143 +2222,149 @@ local function applyAuras(f, lists)
     end
 end
 
--- Per-row spell lists (the aura-list dialog): include = always show, exclude =
--- never show. Values are tri-state -- true is active, false is kept but
--- switched off -- so every reader tests == true. Read-only on this path:
--- absent tables stay absent, the dialog creates them on first write.
-local function rowLists(key)
-    local d = db()
-    local rows = d and d.auraRows
-    local r = rows and rows[key]
-    if type(r) ~= "table" then return nil, nil, nil end
-    return r.include, r.includeAny, r.exclude
-end
+local plateUpdateAuras
+do
+    local _dbuf, _bbuf, _ccbuf, _dotbuf = {}, {}, {}, {}   -- scratch aura lists (single-threaded reuse)
+    local _harm = {}   -- one full HARMFUL scan per update; the harmful rows derive from it
 
--- One verdict for both filter stages below. Excludes always win; an include
--- overrides whatever gate the caller was about to apply, but only counts your
--- own casts unless the entry is flagged for any caster -- the same reading in
--- every row, so a spell cannot show through one stage and vanish in the next.
--- nil = the lists have no opinion, the caller's own gates decide.
-local function listVerdict(a, inc, incAny, ex)
-    local id = a.spellId
-    if not id then return nil end
-    if ex and ex[id] == true then return false end
-    if inc and inc[id] == true then
-        return (a.mine or (incAny and incAny[id] == true)) and true or false
+    -- Per-row spell lists (the aura-list dialog): include = always show, exclude =
+    -- never show. Values are tri-state -- true is active, false is kept but
+    -- switched off -- so every reader tests == true. Read-only on this path:
+    -- absent tables stay absent, the dialog creates them on first write.
+    local function rowLists(key)
+        local d = db()
+        local rows = d and d.auraRows
+        local r = rows and rows[key]
+        if type(r) ~= "table" then return nil, nil, nil end
+        return r.include, r.includeAny, r.exclude
     end
-    return nil
-end
 
--- Drops entries a row's filter rejects, then trims to max. The client filter
--- string cannot express "removable", so it has to happen here -- and it has to
--- happen BEFORE the cap, or a target whose first entries are all unremovable
--- yields an empty row while a removable aura sits just past the cut.
-local function applyRowFilter(list, filter, max, inc, incAny, ex)
-    if not list then return list end
-    if (filter and filter ~= "all") or inc or ex then
-        local keep = 0
-        for i = 1, #list do
-            local a = list[i]
-            local ok = listVerdict(a, inc, incAny, ex)
-            if ok == nil then
-                if filter == "dispel" then
-                    -- harmful auras carry a school; enemy buffs carry the steal flag
-                    ok = (a.dispelType ~= nil and a.dispelType ~= "") or a.dispel == true
-                elseif filter == "mine" then
-                    ok = a.mine == true
-                else
-                    ok = true
+    -- One verdict for both filter stages below. Excludes always win; an include
+    -- overrides whatever gate the caller was about to apply, but only counts your
+    -- own casts unless the entry is flagged for any caster -- the same reading in
+    -- every row, so a spell cannot show through one stage and vanish in the next.
+    -- nil = the lists have no opinion, the caller's own gates decide.
+    local function listVerdict(a, inc, incAny, ex)
+        local id = a.spellId
+        if not id then return nil end
+        if ex and ex[id] == true then return false end
+        if inc and inc[id] == true then
+            return (a.mine or (incAny and incAny[id] == true)) and true or false
+        end
+        return nil
+    end
+
+    -- Drops entries a row's filter rejects, then trims to max. The client filter
+    -- string cannot express "removable", so it has to happen here -- and it has to
+    -- happen BEFORE the cap, or a target whose first entries are all unremovable
+    -- yields an empty row while a removable aura sits just past the cut.
+    local function applyRowFilter(list, filter, max, inc, incAny, ex)
+        if not list then return list end
+        if (filter and filter ~= "all") or inc or ex then
+            local keep = 0
+            for i = 1, #list do
+                local a = list[i]
+                local ok = listVerdict(a, inc, incAny, ex)
+                if ok == nil then
+                    if filter == "dispel" then
+                        -- harmful auras carry a school; enemy buffs carry the steal flag
+                        ok = (a.dispelType ~= nil and a.dispelType ~= "") or a.dispel == true
+                    elseif filter == "mine" then
+                        ok = a.mine == true
+                    else
+                        ok = true
+                    end
+                end
+                if ok then
+                    keep = keep + 1
+                    list[keep] = a
                 end
             end
-            if ok then
-                keep = keep + 1
-                list[keep] = a
+            for i = #list, keep + 1, -1 do list[i] = nil end
+        end
+        if max and max > 0 then
+            for i = #list, max + 1, -1 do list[i] = nil end
+        end
+        return list
+    end
+
+    local _lists = {}
+
+    -- The debuff, own-debuff and CC rows are all views of the same HARMFUL list;
+    -- scanning it once and deriving the three rows here replaces up to three full
+    -- UnitAura sweeps of the same unit per event with one. mineOnly matches the
+    -- client's PLAYER filter (those auras carry caster == "player"), and mineOnly
+    -- and skipMine are never requested together. dst entries are references into
+    -- _harm, which stays untouched until the next scan.
+    local function deriveHarm(dst, ccOnly, skipCC, mineOnly, skipMine, max, inc, incAny, ex)
+        local n = 0
+        for i = 1, #_harm do
+            local a = _harm[i]
+            local keep = listVerdict(a, inc, incAny, ex)
+            if keep == nil then
+                if ccOnly then keep = a.isCC
+                else keep = not (skipCC and a.isCC) end
+                if keep and mineOnly and not a.mine then keep = false end
+                if keep and skipMine and a.mine then keep = false end
+            end
+            if keep then
+                n = n + 1
+                dst[n] = a
+                if max and max > 0 and n >= max then break end
             end
         end
-        for i = #list, keep + 1, -1 do list[i] = nil end
+        for i = #dst, n + 1, -1 do dst[i] = nil end
+        return dst
     end
-    if max and max > 0 then
-        for i = #list, max + 1, -1 do list[i] = nil end
-    end
-    return list
-end
 
-local _lists = {}
-
--- The debuff, own-debuff and CC rows are all views of the same HARMFUL list;
--- scanning it once and deriving the three rows here replaces up to three full
--- UnitAura sweeps of the same unit per event with one. mineOnly matches the
--- client's PLAYER filter (those auras carry caster == "player"), and mineOnly
--- and skipMine are never requested together. dst entries are references into
--- _harm, which stays untouched until the next scan.
-local function deriveHarm(dst, ccOnly, skipCC, mineOnly, skipMine, max, inc, incAny, ex)
-    local n = 0
-    for i = 1, #_harm do
-        local a = _harm[i]
-        local keep = listVerdict(a, inc, incAny, ex)
-        if keep == nil then
-            if ccOnly then keep = a.isCC
-            else keep = not (skipCC and a.isCC) end
-            if keep and mineOnly and not a.mine then keep = false end
-            if keep and skipMine and a.mine then keep = false end
+    function plateUpdateAuras(f)
+        if not f.unit then return end
+        if f._mode and f._mode ~= "full" then
+            hideGroup(f.debuffGroup); hideGroup(f.dotGroup)
+            hideGroup(f.buffGroup);   hideGroup(f.ccGroup)
+            return
         end
-        if keep then
-            n = n + 1
-            dst[n] = a
-            if max and max > 0 and n >= max then break end
+        local d = db()
+        -- Filters and caps interact, so collect wide (40 is the scan ceiling anyway)
+        -- and let applyRowFilter do the trimming.
+        local WIDE = 40
+        wipe(_lists)
+        if d.showDebuffs or d.showDots or d.showCC then
+            collectAuras(f.unit, "HARMFUL", WIDE, _harm)
         end
+        if d.showDebuffs then
+            local cfg = rowCfg("debuff")
+            local inc, incAny, ex = rowLists("debuff")
+            local wantsMine = (cfg.filter == "mine")
+            -- Your own auras belong to the dedicated row while it is on, or the two
+            -- rows show an identical list twice on stock settings. A row explicitly
+            -- set to "only mine" keeps them.
+            local handOff = d.showDots and not wantsMine
+            local mineOnly = wantsMine or (not d.debuffsAll and not handOff)
+            deriveHarm(_dbuf, false, d.showCC, mineOnly, handOff, nil, inc, incAny, ex)
+            applyRowFilter(_dbuf, cfg.filter, d.maxDebuffs, inc, incAny, ex)
+            _lists.debuff = _dbuf
+        end
+        if d.showDots then
+            local inc, incAny, ex = rowLists("dot")
+            deriveHarm(_dotbuf, false, d.showCC, true, false, nil, inc, incAny, ex)
+            applyRowFilter(_dotbuf, nil, d.maxDots)
+            _lists.dot = _dotbuf
+        end
+        if d.showBuffs then
+            local cfg = rowCfg("buff")
+            local inc, incAny, ex = rowLists("buff")
+            collectAuras(f.unit, "HELPFUL", WIDE, _bbuf)
+            applyRowFilter(_bbuf, cfg.filter, d.maxBuffs, inc, incAny, ex)
+            _lists.buff = _bbuf
+        end
+        if d.showCC then
+            local inc, incAny, ex = rowLists("cc")
+            deriveHarm(_ccbuf, true, false, false, false, d.maxCC, inc, incAny, ex)
+            _lists.cc = _ccbuf
+        end
+        applyAuras(f, _lists)
     end
-    for i = #dst, n + 1, -1 do dst[i] = nil end
-    return dst
-end
-
-local function plateUpdateAuras(f)
-    if not f.unit then return end
-    if f._mode and f._mode ~= "full" then
-        hideGroup(f.debuffGroup); hideGroup(f.dotGroup)
-        hideGroup(f.buffGroup);   hideGroup(f.ccGroup)
-        return
-    end
-    local d = db()
-    -- Filters and caps interact, so collect wide (40 is the scan ceiling anyway)
-    -- and let applyRowFilter do the trimming.
-    local WIDE = 40
-    wipe(_lists)
-    if d.showDebuffs or d.showDots or d.showCC then
-        collectAuras(f.unit, "HARMFUL", WIDE, _harm)
-    end
-    if d.showDebuffs then
-        local cfg = rowCfg("debuff")
-        local inc, incAny, ex = rowLists("debuff")
-        local wantsMine = (cfg.filter == "mine")
-        -- Your own auras belong to the dedicated row while it is on, or the two
-        -- rows show an identical list twice on stock settings. A row explicitly
-        -- set to "only mine" keeps them.
-        local handOff = d.showDots and not wantsMine
-        local mineOnly = wantsMine or (not d.debuffsAll and not handOff)
-        deriveHarm(_dbuf, false, d.showCC, mineOnly, handOff, nil, inc, incAny, ex)
-        applyRowFilter(_dbuf, cfg.filter, d.maxDebuffs, inc, incAny, ex)
-        _lists.debuff = _dbuf
-    end
-    if d.showDots then
-        local inc, incAny, ex = rowLists("dot")
-        deriveHarm(_dotbuf, false, d.showCC, true, false, nil, inc, incAny, ex)
-        applyRowFilter(_dotbuf, nil, d.maxDots)
-        _lists.dot = _dotbuf
-    end
-    if d.showBuffs then
-        local cfg = rowCfg("buff")
-        local inc, incAny, ex = rowLists("buff")
-        collectAuras(f.unit, "HELPFUL", WIDE, _bbuf)
-        applyRowFilter(_bbuf, cfg.filter, d.maxBuffs, inc, incAny, ex)
-        _lists.buff = _bbuf
-    end
-    if d.showCC then
-        local inc, incAny, ex = rowLists("cc")
-        deriveHarm(_ccbuf, true, false, false, false, d.maxCC, inc, incAny, ex)
-        _lists.cc = _ccbuf
-    end
-    applyAuras(f, _lists)
 end
 
 ns.plates = ns.plates or {}          -- unit token -> our plate frame  (side table, taint-safe)
@@ -2338,9 +2448,9 @@ end
 
 -- CLEU and the UI event can arrive in either order, so both sides check the other.
 local lastInterrupt = { guid = nil, name = nil, t = 0 }
-local function onCombatLogEvent()
+-- Values from the shared reader (ns:RegisterCombatLog).
+local function onCombatLogEvent(_, sub, _, _, srcName, _, _, dstGUID)
     if not db().castInterrupter then return end
-    local _, sub, _, _, srcName, _, _, dstGUID = CombatLogGetCurrentEventInfo()
     if sub ~= "SPELL_INTERRUPT" or not dstGUID then return end
     lastInterrupt.guid, lastInterrupt.name, lastInterrupt.t = dstGUID, srcName, GetTime()
     for _, f in pairs(ns.plates) do
@@ -2518,7 +2628,7 @@ local function paintLevel(f, unit)
     local fs = f.level
     if not fs then return end
     local d = db()
-    if not d.showLevel then fs:Hide(); return end
+    if not d.showLevel then f._lvl = nil; fs:Hide(); return end
     -- Re-anchored on every paint, not only at creation: the two offsets are
     -- settings, and this is the one path every refresh already runs through.
     -- Same point name, so SetPoint replaces rather than accumulates.
@@ -2528,6 +2638,9 @@ local function paintLevel(f, unit)
     local rank = unit and (UnitClassification and UnitClassification(unit) or "normal")
         or "elite"
     local tag  = d.showLevelMod and CLASS_TAGS[rank] or nil
+    -- What this paint was based on, for refreshPlateThreat: the colour is the
+    -- difficulty relative to YOUR level, so that one counts too.
+    if unit then f._lvl, f._lvlRank, f._lvlMine = lvl, rank, UnitLevel("player") end
     local txt  = (lvl and lvl > 0) and tostring(lvl) or "??"
     if tag then txt = txt .. tag end
     fs:SetText(txt)
@@ -2625,68 +2738,71 @@ local function updateRaidIcon(f)
     ic:Show()
 end
 
-local MAX_CP = MAX_COMBO_POINTS or 5
+local renderComboPips, updateAllComboPips
+do
+    local MAX_CP = MAX_COMBO_POINTS or 5
 
-local function makePip(g)
-    local p = g:CreateTexture(nil, "OVERLAY")
-    p:SetColorTexture(1, 1, 1, 1)
-    return p
-end
-
-local PIP_TEX = {
-    circle   = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\pip_circle.tga",
-    diamond  = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\pip_diamond.tga",
-    triangle = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\pip_triangle.tga",
-}
-
-local function renderComboPips(f, count)
-    local d = db()
-    local g = f.cpGroup
-    if not d.showClassPower or count <= 0 or (f._mode and f._mode ~= "full") then
-        for _, p in ipairs(g.pips) do p:Hide() end
-        g:Hide(); return
+    local function makePip(g)
+        local p = g:CreateTexture(nil, "OVERLAY")
+        p:SetColorTexture(1, 1, 1, 1)
+        return p
     end
-    for i = #g.pips + 1, MAX_CP do g.pips[i] = makePip(g) end
-    local size, sp = d.cpSize, d.cpSpacing
-    local ox, oy = d.cpOffsetX or 0, d.cpOffsetY or 0
-    g:ClearAllPoints()
-    if d.cpPos == "above" then
-        g:SetPoint("BOTTOM", f.health, "TOP", ox, 3 + oy)
-    else
-        local anchor = (d.showCastbar and f.cast) or f.health
-        g:SetPoint("TOP", anchor, "BOTTOM", ox, -3 + oy)
-    end
-    g:Show()
-    local c = d.cpColor
-    local tex = PIP_TEX[d.cpShape]
-    for i = 1, MAX_CP do
-        local p = g.pips[i]
-        p:SetSize(size, size)
-        p:ClearAllPoints()
-        p:SetPoint("CENTER", g, "CENTER", (i - (MAX_CP + 1) / 2) * (size + sp), 0)
-        if tex then
-            p:SetTexture(tex)
-            if i <= count then p:SetVertexColor(c.r, c.g, c.b, 1)
-            else p:SetVertexColor(0.25, 0.25, 0.25, 0.6) end
-        else
-            if i <= count then p:SetColorTexture(c.r, c.g, c.b, 1)
-            else p:SetColorTexture(0.25, 0.25, 0.25, 0.6) end
+
+    local PIP_TEX = {
+        circle   = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\pip_circle.tga",
+        diamond  = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\pip_diamond.tga",
+        triangle = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\pip_triangle.tga",
+    }
+
+    function renderComboPips(f, count)
+        local d = db()
+        local g = f.cpGroup
+        if not d.showClassPower or count <= 0 or (f._mode and f._mode ~= "full") then
+            for _, p in ipairs(g.pips) do p:Hide() end
+            g:Hide(); return
         end
-        p:Show()
+        for i = #g.pips + 1, MAX_CP do g.pips[i] = makePip(g) end
+        local size, sp = d.cpSize, d.cpSpacing
+        local ox, oy = d.cpOffsetX or 0, d.cpOffsetY or 0
+        g:ClearAllPoints()
+        if d.cpPos == "above" then
+            g:SetPoint("BOTTOM", f.health, "TOP", ox, 3 + oy)
+        else
+            local anchor = (d.showCastbar and f.cast) or f.health
+            g:SetPoint("TOP", anchor, "BOTTOM", ox, -3 + oy)
+        end
+        g:Show()
+        local c = d.cpColor
+        local tex = PIP_TEX[d.cpShape]
+        for i = 1, MAX_CP do
+            local p = g.pips[i]
+            p:SetSize(size, size)
+            p:ClearAllPoints()
+            p:SetPoint("CENTER", g, "CENTER", (i - (MAX_CP + 1) / 2) * (size + sp), 0)
+            if tex then
+                p:SetTexture(tex)
+                if i <= count then p:SetVertexColor(c.r, c.g, c.b, 1)
+                else p:SetVertexColor(0.25, 0.25, 0.25, 0.6) end
+            else
+                if i <= count then p:SetColorTexture(c.r, c.g, c.b, 1)
+                else p:SetColorTexture(0.25, 0.25, 0.25, 0.6) end
+            end
+            p:Show()
+        end
+        for i = MAX_CP + 1, #g.pips do g.pips[i]:Hide() end
     end
-    for i = MAX_CP + 1, #g.pips do g.pips[i]:Hide() end
-end
 
-local function getComboPoints()
-    if not GetComboPoints then return 0 end
-    local ok, cp = pcall(GetComboPoints, "player", "target")
-    return (ok and cp) or 0
-end
+    local function getComboPoints()
+        if not GetComboPoints then return 0 end
+        local ok, cp = pcall(GetComboPoints, "player", "target")
+        return (ok and cp) or 0
+    end
 
-local function updateAllComboPips()
-    local cp = getComboPoints()
-    for _, f in pairs(ns.plates) do
-        renderComboPips(f, (f.unit and UnitIsUnit(f.unit, "target")) and cp or 0)
+    function updateAllComboPips()
+        local cp = getComboPoints()
+        for _, f in pairs(ns.plates) do
+            renderComboPips(f, (f.unit and UnitIsUnit(f.unit, "target")) and cp or 0)
+        end
     end
 end
 
@@ -2694,6 +2810,7 @@ local function refreshPlate(f)
     local unit = f.unit
     if not unit then return end
     f._ctxMode = nil
+    f._htK = nil   -- options may have changed the health text's format; rebuild it
     local d = db()
     local isPlayer = UnitIsPlayer(unit)
     local enemy    = UnitCanAttack("player", unit) and true or false
@@ -2709,8 +2826,12 @@ local function refreshPlate(f)
     clampNameWidth(f)
     applyNameColor(f, d, unit, enemy, isPlayer)
 
-    if mode == "nameonly" and not enemy and not isPlayer and d.showNPCTitle and f._npcTitle then
-        f.title:SetText(f._npcTitle); f.title:Show()
+    if mode == "nameonly" and not enemy and not isPlayer and d.showNPCTitle then
+        -- Scanned on first need, not on add: the tooltip scan ran for every
+        -- hostile mob too, and this is the only reader. false = scanned, none.
+        local t = f._npcTitle
+        if t == nil then t = getNPCTitle(unit) or false; f._npcTitle = t end
+        if t then f.title:SetText(t); f.title:Show() else f.title:Hide() end
     else
         f.title:Hide()
     end
@@ -2758,7 +2879,34 @@ local function refreshPlateHealth(f)
     paintAbsorb(f, hp, hpmax, (UnitGetTotalAbsorbs and UnitGetTotalAbsorbs(unit)) or 0)
 end
 
+-- UNIT_THREAT_LIST_UPDATE fires several times a second per mob in a fight,
+-- and almost always with the outcome unchanged. The full refresh it used to run
+-- (~40 API calls) only differs from the current paint when one of its inputs
+-- moved, so those are compared first: everything the colour context holds,
+-- plus the level label's own inputs while it is shown. The rest of what
+-- refreshPlate paints has its own event (name, faction, health, absorb, raid
+-- marker, focus) or follows the options through restyleAllPlates.
+local function refreshPlateThreat(f)
+    local ctx, unit = f._ctx, f.unit
+    if f._ctxMode ~= "full" or not ctx or not unit then return refreshPlate(f) end
+    local threat = UnitAffectingCombat("player") and UnitThreatSituation("player", unit) or nil
+    if threat ~= ctx.threat
+        or (UnitAffectingCombat(unit) and true or false) ~= ctx.inCombat
+        or (UnitIsTapDenied(unit) and true or false) ~= ctx.tapped
+        or (UnitCanAttack("player", unit) and true or false) ~= ctx.enemy
+        or UnitReaction(unit, "player") ~= ctx.reaction
+        or UnitIsUnit(unit, "target") ~= ctx.isTarget then
+        return refreshPlate(f)
+    end
+    local lvl = f._lvl
+    if lvl ~= nil and ((UnitLevel(unit) or 0) ~= lvl or UnitLevel("player") ~= f._lvlMine
+        or (UnitClassification and UnitClassification(unit) or "normal") ~= f._lvlRank) then
+        return refreshPlate(f)
+    end
+end
+
 local function restyleAllPlates()
+    auraFontGen = auraFontGen + 1
     for _, f in pairs(ns.plates) do
         applyPlateScale(f)
         layoutPlate(f); skinPlate(f); refreshPlate(f); plateUpdateAuras(f)
@@ -2800,7 +2948,7 @@ local function acquirePlate()
         elseif event == "UNIT_NAME_UPDATE" or event == "UNIT_FACTION" then
             refreshPlate(self)
         elseif event == "UNIT_THREAT_LIST_UPDATE" then
-            refreshPlate(self)
+            refreshPlateThreat(self)
         elseif event == "UNIT_AURA" then
             plateUpdateAuras(self)
         end
@@ -2818,7 +2966,7 @@ local function onPlateAdded(_, unit)
 
     local f = acquirePlate()
     f.unit = unit
-    f._npcTitle = getNPCTitle(unit)   -- scanned once; NPC subnames don't change
+    f._npcTitle = nil   -- scanned once, lazily in refreshPlate; NPC subnames don't change
     ns.plates[unit] = f
     f:SetParent(nameplate)
     f:ClearAllPoints()
@@ -2876,6 +3024,7 @@ function onPlateRemoved(_, unit)
     -- The slot the aura queue worked out belonged to the unit that just left;
     -- the next one gets its own on the first aura pass.
     f._markerPoint = nil
+    f.absorb._on = false
     f.absorb:Hide()
     f.title:Hide()
     -- The halo hangs on the plate ROOT, not on f.health, so a mode that hides
@@ -3202,6 +3351,7 @@ local function buildPreview(parent)
         end
         if mode ~= "full" then return end
 
+        self._htK = nil   -- fixed sample values: the options are what changed
         paintHealth(self, PREVIEW_CTX, 68, 100)
         paintAbsorb(self, 68, 100, 20)
         if d.showCastbar then
@@ -3320,6 +3470,14 @@ local function applyScaleCVars()
     for _, name in ipairs({ "nameplateMinScale", "nameplateMaxScale", "nameplateSelectedScale" }) do
         local ok, cur = pcall(GetCVar, name)
         if ok and cur ~= nil and tonumber(cur) ~= 1 then
+            -- Remember the player's value so OnDisable can hand it back. Saved
+            -- account-wide, not in the profile: the CVar does not follow profile
+            -- switches, and a /reload in between must not lose it.
+            local g = ns.db and ns.db.global
+            if g then
+                g.nameplateScaleCVars = g.nameplateScaleCVars or {}
+                g.nameplateScaleCVars[name] = cur
+            end
             pcall(SetCVar, name, 1)
         end
     end
@@ -3330,77 +3488,80 @@ local function applyAndRefresh()
     if previewFrame then previewFrame:Update() end
 end
 
--- The clickable area, as a PERCENTAGE.
---
--- MEASURED, not assumed. There is no getter for the default hitbox --
--- C_NamePlate.GetNamePlateEnemySize does not exist on this client -- but the
--- base nameplate frame IS that area, so its own size answers the question:
---
---     /run local p=C_NamePlate.GetNamePlateForUnit("target")
---          if p then print(p:GetSize()) end   --> 152.0001  54.99999
---
--- Read while both sliders sat at 100, i.e. while the setter had never been
--- called, so that size is the client's own. The first guess here was 128x32 and
--- the height was off by nearly three quarters.
---
--- 100 still computes nothing: it means "do not call the setter at all", which
--- leaves the client's size untouched no matter what these numbers say.
-local HITBOX_BASE_W, HITBOX_BASE_H = 152, 55
+local applyHitbox, restoreHitbox, migrateHitbox
+do
+    -- The clickable area, as a PERCENTAGE.
+    --
+    -- MEASURED, not assumed. There is no getter for the default hitbox --
+    -- C_NamePlate.GetNamePlateEnemySize does not exist on this client -- but the
+    -- base nameplate frame IS that area, so its own size answers the question:
+    --
+    --     /run local p=C_NamePlate.GetNamePlateForUnit("target")
+    --          if p then print(p:GetSize()) end   --> 152.0001  54.99999
+    --
+    -- Read while both sliders sat at 100, i.e. while the setter had never been
+    -- called, so that size is the client's own. The first guess here was 128x32 and
+    -- the height was off by nearly three quarters.
+    --
+    -- 100 still computes nothing: it means "do not call the setter at all", which
+    -- leaves the client's size untouched no matter what these numbers say.
+    local HITBOX_BASE_W, HITBOX_BASE_H = 152, 55
 
--- Whether the setter has been called in THIS session. Not a setting: it is a
--- statement about the client's current state, and a reload starts it over.
-local hitboxWritten = false
+    -- Whether the setter has been called in THIS session. Not a setting: it is a
+    -- statement about the client's current state, and a reload starts it over.
+    local hitboxWritten = false
 
-local function applyHitbox()
-    if InCombatLockdown() then return end
-    if not (C_NamePlate and C_NamePlate.SetNamePlateEnemySize) then return end
-    local pw = mod.db.hitboxPctW or 100
-    local ph = mod.db.hitboxPctH or 100
-    -- No calibration factor here: the click box is sized in HOST units, and
-    -- with the scale CVars pinned to 1 the host runs at UIParent's scale --
-    -- the same units the normalized visuals land in.
-    if pw == 100 and ph == 100 then
-        -- 100 means the client's own size, and NOT calling the setter only
-        -- delivers that while it has never been called. Once it has, the old box
-        -- stands until a reload -- so the sliders went up and never came back
-        -- down again, and the same held for switching the module off. The
-        -- measured base size is what puts it back. An untouched client is still
-        -- never called at all, exactly as the note above claims.
-        if hitboxWritten then
-            hitboxWritten = false
-            pcall(C_NamePlate.SetNamePlateEnemySize, HITBOX_BASE_W, HITBOX_BASE_H)
+    function applyHitbox()
+        if InCombatLockdown() then return end
+        if not (C_NamePlate and C_NamePlate.SetNamePlateEnemySize) then return end
+        local pw = mod.db.hitboxPctW or 100
+        local ph = mod.db.hitboxPctH or 100
+        -- No calibration factor here: the click box is sized in HOST units, and
+        -- with the scale CVars pinned to 1 the host runs at UIParent's scale --
+        -- the same units the normalized visuals land in.
+        if pw == 100 and ph == 100 then
+            -- 100 means the client's own size, and NOT calling the setter only
+            -- delivers that while it has never been called. Once it has, the old box
+            -- stands until a reload -- so the sliders went up and never came back
+            -- down again, and the same held for switching the module off. The
+            -- measured base size is what puts it back. An untouched client is still
+            -- never called at all, exactly as the note above claims.
+            if hitboxWritten then
+                hitboxWritten = false
+                pcall(C_NamePlate.SetNamePlateEnemySize, HITBOX_BASE_W, HITBOX_BASE_H)
+            end
+            return
         end
-        return
+        hitboxWritten = true
+        pcall(C_NamePlate.SetNamePlateEnemySize,
+            math.floor(HITBOX_BASE_W * pw / 100 + 0.5),
+            math.floor(HITBOX_BASE_H * ph / 100 + 0.5))
     end
-    hitboxWritten = true
-    pcall(C_NamePlate.SetNamePlateEnemySize,
-        math.floor(HITBOX_BASE_W * pw / 100 + 0.5),
-        math.floor(HITBOX_BASE_H * ph / 100 + 0.5))
-end
 
--- Handed back on the way out, for the same reason: a module that is off must not
--- leave the client with a click box nobody can see the cause of any more.
-local function restoreHitbox()
-    if InCombatLockdown() or not hitboxWritten then return end
-    if not (C_NamePlate and C_NamePlate.SetNamePlateEnemySize) then return end
-    hitboxWritten = false
-    pcall(C_NamePlate.SetNamePlateEnemySize, HITBOX_BASE_W, HITBOX_BASE_H)
-end
-
--- One-time per profile: the two settings used to be absolute pixels, with 0
--- meaning "leave it alone". Same shape as migrateAuraRows -- flag written only
--- after the work, and the old keys removed rather than left looking like
--- settings without a control.
-local function migrateHitbox()
-    local d = db()
-    if not d or d.hitboxPctMigrated then return end
-    if (d.hitboxW or 0) > 0 then
-        d.hitboxPctW = math.floor(d.hitboxW / HITBOX_BASE_W * 100 + 0.5)
-        d.hitboxPctH = ((d.hitboxH or 0) > 0)
-            and math.floor(d.hitboxH / HITBOX_BASE_H * 100 + 0.5) or 100
+    -- Handed back on the way out, for the same reason: a module that is off must not
+    -- leave the client with a click box nobody can see the cause of any more.
+    function restoreHitbox()
+        if InCombatLockdown() or not hitboxWritten then return end
+        if not (C_NamePlate and C_NamePlate.SetNamePlateEnemySize) then return end
+        hitboxWritten = false
+        pcall(C_NamePlate.SetNamePlateEnemySize, HITBOX_BASE_W, HITBOX_BASE_H)
     end
-    d.hitboxPctMigrated = true
-    d.hitboxW, d.hitboxH = nil, nil
+
+    -- One-time per profile: the two settings used to be absolute pixels, with 0
+    -- meaning "leave it alone". Same shape as migrateAuraRows -- flag written only
+    -- after the work, and the old keys removed rather than left looking like
+    -- settings without a control.
+    function migrateHitbox()
+        local d = db()
+        if not d or d.hitboxPctMigrated then return end
+        if (d.hitboxW or 0) > 0 then
+            d.hitboxPctW = math.floor(d.hitboxW / HITBOX_BASE_W * 100 + 0.5)
+            d.hitboxPctH = ((d.hitboxH or 0) > 0)
+                and math.floor(d.hitboxH / HITBOX_BASE_H * 100 + 0.5) or 100
+        end
+        d.hitboxPctMigrated = true
+        d.hitboxW, d.hitboxH = nil, nil
+    end
 end
 
 function mod:OnEnable()
@@ -3436,7 +3597,10 @@ function mod:OnEnable()
     mod:RegisterEvent("PLAYER_FOCUS_CHANGED", updateAllFocus)
     mod:RegisterEvent("RAID_TARGET_UPDATE", onRaidTargetUpdate)
     registerComboEvents()
-    mod:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", onCombatLogEvent)
+    -- Registered for the whole enable, the handler checks its option itself: a
+    -- profile switch re-points mod.db without running any setter, and on the
+    -- shared reader a bail-out costs one Lua call per line.
+    ns:RegisterCombatLog(mod, onCombatLogEvent)
     if C_NamePlate and C_NamePlate.GetNamePlates then
         for _, p in ipairs(C_NamePlate.GetNamePlates()) do
             local u = p.namePlateUnitToken or (p.UnitFrame and p.UnitFrame.unit)
@@ -3449,13 +3613,26 @@ function mod:OnDisable()
     if hoverTicker then hoverTicker:Hide() end
     -- the combo frame is private, so the module's event sweep does not cover it
     if comboEvents then comboEvents:UnregisterAllEvents() end
-    for unit in pairs(ns.plates) do onPlateRemoved(nil, unit) end
-    restoreHitbox()
-    if C_NamePlate and C_NamePlate.GetNamePlates then
-        for _, p in ipairs(C_NamePlate.GetNamePlates()) do
-            if p.UnitFrame then p.UnitFrame:SetAlpha(1); p.UnitFrame:Show() end
+    -- Only the Blizzard frames we hid come back: one the client hid itself
+    -- (no plate of ours on it) stays as the client left it.
+    local ours = {}
+    if C_NamePlate and C_NamePlate.GetNamePlateForUnit then
+        for unit in pairs(ns.plates) do
+            local np = C_NamePlate.GetNamePlateForUnit(unit)
+            if np and np.UnitFrame then ours[np.UnitFrame] = true end
         end
     end
+    for unit in pairs(ns.plates) do onPlateRemoved(nil, unit) end
+    restoreHitbox()
+    for uf in pairs(ours) do uf:SetAlpha(1); uf:Show() end
+    -- Hand the scale CVars back the way the player had them (combat-locked).
+    ns:RunOutOfCombatOnce("nameplates:restoreScaleCVars", function()
+        local g = ns.db and ns.db.global
+        local saved = g and g.nameplateScaleCVars
+        if mod.active or not saved or not SetCVar then return end
+        for name, v in pairs(saved) do pcall(SetCVar, name, v) end
+        g.nameplateScaleCVars = nil
+    end)
 end
 
 -- The options page lives in Modules/NameplatesOptions.lua. Measured before the
