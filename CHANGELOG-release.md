@@ -1,58 +1,108 @@
-## 1.62.0
-**Auras:**
-- **NEW: Auras** – Your buffs and debuffs as rows of dark icons with the time left underneath, in place of the game's own frames; right-click cancels a buff, weapon enchants ride along, and the two rows move in edit mode
-- Built on the game's own secure aura rows, so cancelling works in combat too. The module ships disabled: switch it on under HUD.
+## 1.62.1
+**Action Ring:**
+- A ring set up right before a pull could fire its old contents for the whole fight. The update now waits for the fight to end instead of getting lost, and raid marker entries only take a real marker number.
 
-**Bar Textures:**
-- The bundled bar textures never loaded: fifteen of the seventeen were 256 by 40 pixels, and the client draws only textures whose sides are powers of two, so every choice in a texture dropdown fell back to the same flat fill. They are 256 by 32 now and each one looks like its name. One full client restart is needed; a reload is not enough.
+**Arena:**
+- Shadow Sight and range fading kept running for the rest of the session when the module was switched off inside an arena, and the Shadow Sight timer no longer starts in battlegrounds.
+
+**Auras:**
+- Buffs and debuffs that appear for the first time in a fight now show at full size with their icon right away, instead of staying invisible until the fight ended. Switching the module off and on within one fight no longer leaves the rows hidden.
+
+**Bar Setups:**
+- A bar setup imported from a string now shows the macros it would create and the keys it would bind before it is loaded the first time, and only applies them when you tick them. Imported setups no longer carry key bindings that run macros, clicks, spells or items. Your own saved setups load as before.
 
 **Cast History:**
-- **NEW: Cast History** – A strip of icons for the spells you just cast, newest first, a failed or interrupted cast in red; size, count, direction and fade are options, and the strip moves in edit mode. Ships disabled.
+- Pressing a key during the global cooldown or while already casting no longer adds a red icon.
+
+**Chat:**
+- Timestamps could not be switched off again after a reload; they now go back to your own setting. Turning off class-coloured names restores what each chat type had before, instead of switching it off everywhere.
 
 **Combat Meter:**
-- **NEW: Enemies** – A tenth mode that lists what the group hit: each enemy with the damage it took, every mob of a kind folded into one row, and the attackers behind it in the tooltip
-- **NEW: Keep your own bar in view** – When your bar scrolls out of the window it stays pinned at the top or bottom edge with its real rank
-- **NEW: Back to the current fight on pull** – A window parked on a previous fight returns to the running one when the next fight starts
-- **NEW: Spec icon** – The bar can show a player's talent tree instead of the class: read from your own talents, from a talent-only spell in the log, or from an inspect in range, with the class icon standing in until then
-- **NEW: Hit statistics** – Hovering a row of the ability breakdown shows the hits, the critical hits with their share, and the average, smallest and largest amount
-- **NEW: Active time** – The per-second values can divide by the seconds a player was actually casting or hitting instead of the whole fight; the tooltip shows the active time either way
-- **NEW: Bar colour and window background** – A custom bar colour instead of the class colour, the window's background colour and opacity, the spacing between bars, bars that grow upwards from a title at the bottom, and a scale per window
-- **NEW: Reset on entering an instance** – A new dungeon or raid resets the overall total at once, after a question, or never
-- **NEW: Timeline** – The breakdown of a player opens with a strip of bars, one per five seconds of the fight, showing where the damage or healing fell
-- **NEW: Buff uptime and Debuff uptime** – Two modes that list how long each buff sat on a group member and how long each debuff a member applied stayed up, as a share of the fight
-- **NEW: Avoidance** – A mode for tanks: attacks dodged, parried, blocked, missed, absorbed and resisted as a share of everything that came in, with the amounts taken off the hits that landed
-- **NEW: Mana gained** – A mode for mana returned by spells and effects, with the sources in the tooltip
-- **NEW: Boss damage only** – The damage modes can count only what went into the encounter's bosses
-- **NEW: Icon box beside the bar** – The class or spec icon in its own framed square left of the bar, the way the big meters draw their rows
-- **NEW: Switch to Overall after a fight** – A window on the current fight shows the overall total once the fight ends and comes back on the next pull
-- The bars glide to their new length instead of jumping; a switch turns that off.
-- A left-click on the title steps to the next mode and a right-click opens the menu; the wheel and the arrow button keep doing what they did.
-- The death tooltip ends with a death recap: the last hits and heals before the newest death, each with the seconds before it, the amount, the health left afterwards and the overkill of the killing blow. Healing received counts, so a death shows what came in as well as what took it.
-- A keybinding under VuloClassicUI in the game's key bindings shows and hides every meter window at once; the hidden state is never saved, so a reload brings the windows back.
-- **NEW: Mode follows your talents** – The first window opens on healing while your talents make you a healer and on damage otherwise, switching with your spec
-- A left-click on a bar turns the window into that player's ability list for the current mode, sorted by value with the share of their total; right-click or a click on the title goes back. The list is not saved, and a mode or segment change leaves it.
-- The windows can hide in arenas and battlegrounds, next to the existing switch that hides them outside a group.
+- The bar tooltip shows the spec again; it had been missing all along. A report to chat sends at most as many lines as the option allows.
 
-**Quest Tracker:**
-- **NEW: Quest Tracker** – The quest watch list in the addon font with accent titles and green finished objectives, movable in edit mode once you drag it; until then it keeps the game's own place
+**Combat Text:**
+- Switching the module or its font options off now gives the game's own combat text fonts back.
+
+**Cooldown Manager:**
+- Changing options while the module was switched off put a frozen bar on the screen until the next reload.
+
+**Edit Mode:**
+- After switching profiles without a reload, moving a window saved its position into the profile you had just left. It now lands in the active profile, for list bars and the game's own frames too, and Discard returns to the active profile's layout.
+- A closed meter window or a deleted trackbar no longer leaves an empty box behind.
+
+**Extras:**
+- The disenchant window can no longer be opened in combat, where it was blocked, and closing it in a fight takes effect when the fight ends.
+- Hidden key, macro and stack texts on the action buttons stay hidden; they came back whenever the game refreshed its bindings.
+- Switching the module off brings error messages and zone text back.
+- Hovering another player no longer replaces the gear of the player you are inspecting.
+- The bank material count for professions is no longer wiped when the bank closes.
+
+**Fishing:**
+- Equipping the pole, applying a lure and using the extra items went through a button form this client does not fire; the button now uses the form that it does. The key is only rebound when its target changes instead of three times a second, and switching fishing off in combat frees the key once the fight ends.
+
+**Friends List:**
+- Auto-accepting a group invite from a friend sent a decline right after accepting.
+
+**Global Settings:**
+- The UI scale can no longer be changed in combat, where the game blocked it.
+
+**Languages:**
+- Notes of versions that dropped out of the patch notes list were removed from all language files.
+
+**Loadouts:**
+- A set with two identical items, such as the same weapon twice or a pair of rings, equipped only one of them and still reported both as swapped.
+
+**Minimap:**
+- Switching the minimap button off now removes it right away, and the button tray no longer rearranges other buttons in combat.
+
+**Nameplates:**
+- Border around the cast bar could not be switched back on once it was off.
+- Switching the module off gives back the game's nameplate scale settings and only shows the nameplates it hid itself.
+
+**Paladin:**
+- The seal twist bar threw errors after a profile switch without a reload.
+
+**Performance:**
+- The combat log is read once per line for all modules together instead of once per module, and nameplates now redraw only what actually changed on threat, aura and health updates.
+
+**Player Castbar:**
+- The game's own cast bar comes back when the module is switched off or set to the default look, instead of staying gone until a reload.
+
+**Power Bar:**
+- Unlocking and locking the bar while the module was off left an empty bar on the screen.
+
+**Profiles:**
+- Macro texts in an imported profile string, such as custom action ring commands and fishing extras, are listed in the preview and only imported when you tick them. The auto-accept switches for friend requests, group invites, summons and resurrection always keep your own setting, and damaged or oversized strings are refused.
+- Select all in the export no longer includes fonts and colours.
+
+**Reminders:**
+- Changing the scale or layer of the reminders in combat now applies after the fight instead of being blocked.
 
 **Settings Window:**
-- **NEW: Search that lands on the row** – A hit in the settings search opens its page, unfolds the gear or section hiding it, scrolls to the row and lights it up; the list shows the path to each hit, the arrow keys and Enter walk it, tooltips are searched too, and /vcui search <word> opens the window with the word already typed
-- **NEW: Changed marker** – A dot on the left edge of every setting that differs from its default; hovering shows the default, a click puts it back. A Changed chip above the page counts them and filters the page down to only those rows
-- **NEW: Section chips** – A page with two or more headings carries a row of chips above it: a click scrolls to the heading, and the heading under the top edge is lit while you scroll. Every heading also shows how many settings it groups
-- **NEW: Pinned modules** – A pin on each sidebar row, shown on hover, keeps the module in a Pinned group at the top of the sidebar; a filter box above the list narrows it by module, group, tab or the name of a module folded into a container
-- **NEW: Recently changed** – The overview lists the last settings you changed with how long ago, each a click away from its row, and lays every sidebar group out with its modules as chips
-- **NEW: Settings from the editor** – The edit-mode panel of a selected box carries a gear that closes the editor and opens that element's settings page
-- When the tabs outgrow their row, a menu beside the arrows lists them all, and the title bar names where you are: group, module and tab.
-- Every module row in the sidebar carries its own glyph now. The combat meter, the action ring, the trackbars, the talent window, the nameplate role fix and the new auras and quest tracker used to show the placeholder.
+- Escape closes an open menu first and the window only on the next press.
+- A dropdown no longer writes into another row when the page rebuilds after a choice, and an open menu closes with the rebuild.
+- Greyed-out rows block all their buttons and still show their tooltip, and a typo in a number field keeps the old value.
+
+**Shaman:**
+- The totem bar threw errors after a profile switch without a reload, and switching the class tools in combat is applied after the fight instead of being blocked.
+
+**Slot Picker:**
+- An open picker no longer switches to another slot when the mouse passes over it, and switching the module off closes it.
 
 **Talent Overrides:**
-- The group menu behind the class icon offers Rename... for the group being edited. Renaming existed as a function without a door; the door is there now.
+- Rows with the same name on one page, such as several offset sliders, now each keep their own override. Existing overrides are carried over to every row they used to change.
+- Overrides wait for the end of the fight when a reload, a zone change or a talent switch happens in combat.
 
 **Trackbars:**
-- **NEW: Vertical** – A bar can stand upright: full height on the left or right screen edge or free-standing, with its blocks stacked top-down
-- **NEW: Professions** – One icon per profession with its skill rank; a crafting icon opens its window, and the secondary skills are optional
-- **NEW: Hearthstone** – A button that uses the hearthstone, with the inn it is bound to beside it and the cooldown while it runs
-- **NEW: Combat timer** – How long the current fight has been running, and the last fight's length out of combat
-- A fifth template, Side bar, puts professions, hearthstone, combat timer and clock on the left screen edge.
-- The professions block expands the Professions and Secondary Skills headers of the skills window if they were collapsed: the game hides collapsed lines from addons. Other headers keep their state.
+- Bars with a hearthstone, profession or micro menu block no longer cause blocked actions in combat; their layout updates after the fight.
+
+**Trinkets:**
+- The trinket slash command, the size slider and the show option no longer cause blocked actions in combat.
+- Switching the module off stops the automatic trinket swaps, and opening its options no longer flashes the trinket menu.
+- The charges line in the small tooltips and the engineering check no longer depend on the English client.
+
+**Under the hood:**
+- The addon no longer stores its own data on the game's frames, one of the ways its code could get blamed for blocked actions.
+
+**Unit Frames:**
+- The health text on the target frame follows the game's status text setting again.

@@ -6,6 +6,116 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+    { version = "1.62.1", sections = {
+        { category = "Action Ring", lines = {
+            "A ring set up right before a pull could fire its old contents for the whole fight. The update now waits for the fight to end instead of getting lost, and raid marker entries only take a real marker number.",
+        } },
+        { category = "Arena", lines = {
+            "Shadow Sight and range fading kept running for the rest of the session when the module was switched off inside an arena, and the Shadow Sight timer no longer starts in battlegrounds.",
+        } },
+        { category = "Auras", lines = {
+            "Buffs and debuffs that appear for the first time in a fight now show at full size with their icon right away, instead of staying invisible until the fight ended. Switching the module off and on within one fight no longer leaves the rows hidden.",
+        } },
+        { category = "Bar Setups", lines = {
+            "A bar setup imported from a string now shows the macros it would create and the keys it would bind before it is loaded the first time, and only applies them when you tick them. Imported setups no longer carry key bindings that run macros, clicks, spells or items. Your own saved setups load as before.",
+        } },
+        { category = "Cast History", lines = {
+            "Pressing a key during the global cooldown or while already casting no longer adds a red icon.",
+        } },
+        { category = "Chat", lines = {
+            "Timestamps could not be switched off again after a reload; they now go back to your own setting. Turning off class-coloured names restores what each chat type had before, instead of switching it off everywhere.",
+        } },
+        { category = "Combat Meter", lines = {
+            "The bar tooltip shows the spec again; it had been missing all along. A report to chat sends at most as many lines as the option allows.",
+        } },
+        { category = "Combat Text", lines = {
+            "Switching the module or its font options off now gives the game's own combat text fonts back.",
+        } },
+        { category = "Cooldown Manager", lines = {
+            "Changing options while the module was switched off put a frozen bar on the screen until the next reload.",
+        } },
+        { category = "Edit Mode", lines = {
+            "After switching profiles without a reload, moving a window saved its position into the profile you had just left. It now lands in the active profile, for list bars and the game's own frames too, and Discard returns to the active profile's layout.",
+            "A closed meter window or a deleted trackbar no longer leaves an empty box behind.",
+        } },
+        { category = "Extras", lines = {
+            "The disenchant window can no longer be opened in combat, where it was blocked, and closing it in a fight takes effect when the fight ends.",
+            "Hidden key, macro and stack texts on the action buttons stay hidden; they came back whenever the game refreshed its bindings.",
+            "Switching the module off brings error messages and zone text back.",
+            "Hovering another player no longer replaces the gear of the player you are inspecting.",
+            "The bank material count for professions is no longer wiped when the bank closes.",
+        } },
+        { category = "Fishing", lines = {
+            "Equipping the pole, applying a lure and using the extra items went through a button form this client does not fire; the button now uses the form that it does. The key is only rebound when its target changes instead of three times a second, and switching fishing off in combat frees the key once the fight ends.",
+        } },
+        { category = "Friends List", lines = {
+            "Auto-accepting a group invite from a friend sent a decline right after accepting.",
+        } },
+        { category = "Global Settings", lines = {
+            "The UI scale can no longer be changed in combat, where the game blocked it.",
+        } },
+        { category = "Languages", lines = {
+            "Notes of versions that dropped out of the patch notes list were removed from all language files.",
+        } },
+        { category = "Loadouts", lines = {
+            "A set with two identical items, such as the same weapon twice or a pair of rings, equipped only one of them and still reported both as swapped.",
+        } },
+        { category = "Minimap", lines = {
+            "Switching the minimap button off now removes it right away, and the button tray no longer rearranges other buttons in combat.",
+        } },
+        { category = "Nameplates", lines = {
+            "Border around the cast bar could not be switched back on once it was off.",
+            "Switching the module off gives back the game's nameplate scale settings and only shows the nameplates it hid itself.",
+        } },
+        { category = "Paladin", lines = {
+            "The seal twist bar threw errors after a profile switch without a reload.",
+        } },
+        { category = "Performance", lines = {
+            "The combat log is read once per line for all modules together instead of once per module, and nameplates now redraw only what actually changed on threat, aura and health updates.",
+        } },
+        { category = "Player Castbar", lines = {
+            "The game's own cast bar comes back when the module is switched off or set to the default look, instead of staying gone until a reload.",
+        } },
+        { category = "Power Bar", lines = {
+            "Unlocking and locking the bar while the module was off left an empty bar on the screen.",
+        } },
+        { category = "Profiles", lines = {
+            "Macro texts in an imported profile string, such as custom action ring commands and fishing extras, are listed in the preview and only imported when you tick them. The auto-accept switches for friend requests, group invites, summons and resurrection always keep your own setting, and damaged or oversized strings are refused.",
+            "Select all in the export no longer includes fonts and colours.",
+        } },
+        { category = "Reminders", lines = {
+            "Changing the scale or layer of the reminders in combat now applies after the fight instead of being blocked.",
+        } },
+        { category = "Settings Window", lines = {
+            "Escape closes an open menu first and the window only on the next press.",
+            "A dropdown no longer writes into another row when the page rebuilds after a choice, and an open menu closes with the rebuild.",
+            "Greyed-out rows block all their buttons and still show their tooltip, and a typo in a number field keeps the old value.",
+        } },
+        { category = "Shaman", lines = {
+            "The totem bar threw errors after a profile switch without a reload, and switching the class tools in combat is applied after the fight instead of being blocked.",
+        } },
+        { category = "Slot Picker", lines = {
+            "An open picker no longer switches to another slot when the mouse passes over it, and switching the module off closes it.",
+        } },
+        { category = "Talent Overrides", lines = {
+            "Rows with the same name on one page, such as several offset sliders, now each keep their own override. Existing overrides are carried over to every row they used to change.",
+            "Overrides wait for the end of the fight when a reload, a zone change or a talent switch happens in combat.",
+        } },
+        { category = "Trackbars", lines = {
+            "Bars with a hearthstone, profession or micro menu block no longer cause blocked actions in combat; their layout updates after the fight.",
+        } },
+        { category = "Trinkets", lines = {
+            "The trinket slash command, the size slider and the show option no longer cause blocked actions in combat.",
+            "Switching the module off stops the automatic trinket swaps, and opening its options no longer flashes the trinket menu.",
+            "The charges line in the small tooltips and the engineering check no longer depend on the English client.",
+        } },
+        { category = "Under the hood", lines = {
+            "The addon no longer stores its own data on the game's frames, one of the ways its code could get blamed for blocked actions.",
+        } },
+        { category = "Unit Frames", lines = {
+            "The health text on the target frame follows the game's status text setting again.",
+        } },
+    } },
     { version = "1.62.0", sections = {
         { category = "Auras", lines = {
             "NEW: Auras – Your buffs and debuffs as rows of dark icons with the time left underneath, in place of the game's own frames; right-click cancels a buff, weapon enchants ride along, and the two rows move in edit mode",
@@ -450,56 +560,6 @@ ns.CHANGELOG = {
         } },
         { category = "Unit Frames", lines = {
             "The level number on the player frame sits where the client puts it on the Wrath client. Our two anchors are measured against one frame sheet, and where a different one ships, the number landed beside the portrait — the client keeps that anchor itself there anyway, moving it as the rest and PvP icons come and go.",
-        } },
-    } },
-    { version = "1.49.0", sections = {
-        { category = "Action Bars", lines = {
-            "NEW: Hide The Gryphons – Takes the two beasts off the ends of Blizzard's main bar without dimming anything else",
-        } },
-        { category = "Arena Frames", lines = {
-            "Switching the module off now switches it off. Its handlers are registered when the addon loads, so a module that was already off at login never ran its shutdown: being stunned in a battleground still popped the loss-of-control display, and the interrupt bar filled up and never emptied again, because the ticker that clears its icons only starts when the module is switched on.",
-            "The interrupt bar no longer reads the whole world's combat log. It registered on load and never unregistered, so every combat line anywhere — several thousand a second in a raid — was taken apart for a bar whose own default is arena and battlegrounds only. It uses the same zone filter as the display beside it now.",
-            "Switching the module on inside an arena counts as arriving. The zone decision used to live in the loading screen alone, so anyone who enabled it while already in there got no diminishing-returns ticker until the next one.",
-        } },
-        { category = "Character Panel", lines = {
-            "The item level text size slider works again. It looked for the numbers in two places it hoped they would be, and where a client parents its paper doll buttons elsewhere it found none and quietly did nothing — which from the outside is indistinguishable from the text simply being too small.",
-        } },
-        { category = "Chat", lines = {
-            "NEW: Input Line Above The Chat – Puts the input line over the message area instead of under it, with the panel and the tab bar following it; Wrath client only",
-            "NEW: Own Background For The Input Line – Draws the input line on its own dark background instead of Blizzard's, which is what you saw once the dark panel was off; Wrath client only",
-        } },
-        { category = "Cooldown Manager", lines = {
-            "Icon zoom is now called Icon crop and reads in percent. It is the same question the nameplate sliders ask, and it was answering in hundredths while they answered in percent.",
-        } },
-        { category = "Friends List", lines = {
-            "The extra width belongs to the friends tab alone now. The row texts there stretch with the window, but the column headers on the who, guild and raid tabs sit at fixed offsets and stay put, so every point of width you added landed in an empty right half. Those three tabs go back to Blizzard's own proportions, which is what their columns were measured for.",
-        } },
-        { category = "Loadouts", lines = {
-            "The set list and the icon picker take the character panel's style. In the classic style they used to be a flat dark surface with a purple edge holding Blizzard's red buttons — two materials in a hand's width. They now carry Blizzard's dialog frame there and stand in the same material as the window they hang off, while the modern style keeps the flat look.",
-            "The character panel no longer breaks when the sidebar builds its first set row. The marker bar on the row still reached for an accent colour that had been removed, so the list stayed empty and the panel came up bare.",
-        } },
-        { category = "Minimap", lines = {
-            "NEW: Addon Buttons – Choose where other addons' buttons sit: around the map, hidden until you mouse over it, or gathered in one box below it; Wrath client only",
-        } },
-        { category = "Nameplates", lines = {
-            "NEW: Icon Crop (%) – How much of the border the game bakes into its icons is cut away, set per aura row and for the cast bar icon",
-            "The rounded bar style no longer leaves dead space at both ends. The round shape does not fill its own image — a transparent border runs all the way round it — and stretching that border across a wide, short bar put roughly eleven points of empty bar at each end and barely one above and below, which is why it showed up sideways and not upright.",
-            "The options page is cut by question instead of by mechanism. Sixteen sections had settings that belong together lying far apart, with the bar texture under one heading and the cast bar's texture under another; eight settings were reachable from two sections at once.",
-            "Every text on the plate sits in a slot now, the way the aura rows already did: top, left, right or centred, filled with the unit name or the health text. Four on/off switches became position pickers, each starting on the place its text already had.",
-            "The stacking dropdown had no readable value at all. It was reading a setting this client does not have; the one it does have is now read and written, measured in the running game.",
-        } },
-        { category = "Options", lines = {
-            "A gear icon on a half-width row opens a small floating window instead of unfolding inside the cell. Half a cell has no room for a slider, and six of them had been squeezed into stubs.",
-            "Colour swatches, eyes, gears and arrows sit directly beside the control they belong to rather than in the icon strip on the right, which stays reserved for the gear and the info dot.",
-        } },
-        { category = "Profession Window", lines = {
-            "On the Wrath client the module stands down completely and the client keeps its own window. Our restyle addresses Blizzard's widgets by name and by region number, and behind those names that client has a different anatomy: black holes where the hidden regions used to be, a stretched title bar, dropdowns over the recipe list — and no error, because nothing throws, it simply lands on the wrong widgets.",
-        } },
-        { category = "Talent Window", lines = {
-            "Talent group buttons run down the right edge, one for each group you have bought. Left-click shows a group, right-click activates it, the same split Blizzard's own window uses. Talents can only be learned in the active group, so a click in the preview does nothing and the tooltip says so beforehand.",
-        } },
-        { category = "Trainer", lines = {
-            "The tab carries a book instead of a question mark. That mark is Blizzard's placeholder for a missing icon and read like a defect.",
         } },
     } },
 }
