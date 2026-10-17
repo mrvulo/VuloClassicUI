@@ -117,7 +117,8 @@ end
 
 local function applyVisibility()
     if not button then return end
-    if mod.db.hide then button:Hide() else button:Show() end
+    -- `active` too: the options toggle must not bring back a switched-off button
+    if mod.db.hide or not mod.active then button:Hide() else button:Show() end
 end
 
 mod.ApplyVisibility = applyVisibility
@@ -155,6 +156,11 @@ end
 function mod:OnEnable()
     createButton()
     updatePosition()
+    applyVisibility()
+end
+
+-- Without this the button stayed on the minimap until /reload.
+function mod:OnDisable()
     applyVisibility()
 end
 

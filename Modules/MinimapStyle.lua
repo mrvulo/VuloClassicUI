@@ -653,14 +653,36 @@ local function snapButtonPlace(b)
     b._vcTrayParent = b:GetParent()
 end
 
+-- After a fight: hand back what could not move in combat and close a tray that
+-- is no longer wanted. A tray holding a protected button is protected itself,
+-- so its Hide is blocked in combat too.
+local settleTrayAfterCombat
+local function scheduleTraySettle()
+    ns:RunOutOfCombatOnce("minimap-tray-settle", settleTrayAfterCombat)
+end
+
+local function hideTray()
+    if not mm.tray then return end
+    if InCombatLockdown() and mm.tray:IsProtected() then scheduleTraySettle(); return end
+    mm.tray:Hide()
+end
+
 local function restoreButtonPlace(b)
     if not b._vcTrayPts then return end
+    -- kept stored: the settle pass after the fight puts it back
+    if InCombatLockdown() and b.IsProtected and b:IsProtected() then scheduleTraySettle(); return end
     if b._vcTrayParent then pcall(b.SetParent, b, b._vcTrayParent) end
     b:ClearAllPoints()
     for _, p in ipairs(b._vcTrayPts) do
         pcall(b.SetPoint, b, p[1], p[2], p[3], p[4], p[5])
     end
     b._vcTrayPts, b._vcTrayParent = nil, nil
+end
+
+settleTrayAfterCombat = function()
+    if mod.active and trayOn() then return end   -- in use again: layoutTray owns it
+    for _, btn in ipairs(mm.addonButtons or {}) do restoreButtonPlace(btn) end
+    hideTray()
 end
 
 function mm.ensureTray()
@@ -733,7 +755,7 @@ function mm.layoutTray()
     local on = trayOn()
     if not on then
         for _, b in ipairs(mm.addonButtons or {}) do restoreButtonPlace(b) end
-        if mm.tray then mm.tray:Hide() end
+        hideTray()
         if mm.trayToggle then mm.trayToggle:Hide() end
         return
     end
@@ -741,15 +763,20 @@ function mm.layoutTray()
     mm.trayToggle:Show()
 
     local n = 0
+    local fighting = InCombatLockdown()
     for _, b in ipairs(mm.addonButtons or {}) do
-        snapButtonPlace(b)
-        if b:GetParent() ~= mm.tray then pcall(b.SetParent, b, mm.tray) end
-        local col, row = n % TRAY_COLS, math.floor(n / TRAY_COLS)
-        b:ClearAllPoints()
-        b:SetPoint("TOPLEFT", mm.tray, "TOPLEFT",
-            TRAY_PAD + col * (TRAY_BTN + TRAY_GAP),
-            -(TRAY_PAD + row * (TRAY_BTN + TRAY_GAP)))
-        b:SetAlpha(1)
+        -- a protected button (secure template) cannot be moved in combat; it
+        -- keeps its slot and is placed on the next pass after the fight
+        if not (fighting and b.IsProtected and b:IsProtected()) then
+            snapButtonPlace(b)
+            if b:GetParent() ~= mm.tray then pcall(b.SetParent, b, mm.tray) end
+            local col, row = n % TRAY_COLS, math.floor(n / TRAY_COLS)
+            b:ClearAllPoints()
+            b:SetPoint("TOPLEFT", mm.tray, "TOPLEFT",
+                TRAY_PAD + col * (TRAY_BTN + TRAY_GAP),
+                -(TRAY_PAD + row * (TRAY_BTN + TRAY_GAP)))
+            b:SetAlpha(1)
+        end
         n = n + 1
     end
 
@@ -772,9 +799,9 @@ function mm.applyButtonVisibility()
         mm.layoutTray()
         return
     end
-    if mm.tray then mm.tray:Hide() end
-    if mm.trayToggle then mm.trayToggle:Hide() end
     for _, b in ipairs(mm.addonButtons or {}) do restoreButtonPlace(b) end
+    hideTray()
+    if mm.trayToggle then mm.trayToggle:Hide() end
     local hover = db().buttonsOnHover
     for _, b in ipairs(mm.addonButtons or {}) do
         b:SetAlpha((hover and not mm.hovered) and 0 or 1)
@@ -810,7 +837,9 @@ function mm.setupHover()
         -- of SetPoint calls.
         if trayOn() then
             trayAcc = trayAcc + 0.1
-            if trayAcc >= 0.5 then trayAcc = 0; mm.layoutTray() end
+            -- not in combat: the sweep moves other addons' buttons, and one of
+            -- them may be protected or anchor something that is
+            if trayAcc >= 0.5 and not InCombatLockdown() then trayAcc = 0; mm.layoutTray() end
             return
         end
         if not db().buttonsOnHover then return end
@@ -891,7 +920,7 @@ function mod:OnDisable()
     -- tray, and a tray that gets hidden with them still inside would take every
     -- addon's icon off the screen with it.
     for _, b in ipairs(mm.addonButtons or {}) do restoreButtonPlace(b) end
-    if mm.tray then mm.tray:Hide() end
+    hideTray()
     if mm.trayToggle then mm.trayToggle:Hide() end
     -- Best-effort restore; fonts and moved children only come back fully with a /reload.
     if mm.adopted then

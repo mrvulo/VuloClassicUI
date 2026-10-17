@@ -43,10 +43,14 @@ end
 
 ------------------------------------------------------------------------
 -- Painting. The role of a line is decided ONCE, at the hook where Blizzard
--- has just painted it, and cached on the FontString; every later repaint
+-- has just painted it, and cached per FontString; every later repaint
 -- (option change, world entry) reuses the cached role. Reading our own
 -- colours back would misfile a green title as an objective.
 ------------------------------------------------------------------------
+-- Role cache keyed by Blizzard's FontStrings, kept off the objects themselves.
+local kindOf = setmetatable({}, { __mode = "k" })
+local doneOf = setmetatable({}, { __mode = "k" })
+
 -- Blizzard's own colours: title 0.75/0.61/0, title with everything done
 -- 1/0.82/0, finished objective 1/1/1, open objective 0.8/0.8/0.8.
 local function classify(fs, text)
@@ -63,7 +67,7 @@ end
 local function paint(fs)
     local db = mod.db
     UI.FontFor("questtracker", fs, db.fontSize)
-    local kind, done = fs._vcKind, fs._vcDone
+    local kind, done = kindOf[fs], doneOf[fs]
     if done then
         local c = db.doneColor
         fs:SetTextColor(c.r, c.g, c.b)
@@ -97,19 +101,20 @@ local function onClassicUpdate()
         if not fs then break end
         if fs:IsShown() then
             local text = fs:GetText()
-            fs._vcKind, fs._vcDone = classify(fs, text)
+            kindOf[fs], doneOf[fs] = classify(fs, text)
             paint(fs)
             fs:SetHeight(h)
-            total = total + h + (fs._vcKind == "title" and 4 or 0)
+            total = total + h + (kindOf[fs] == "title" and 4 or 0)
         end
     end
     local w = _G.QuestWatchFrame
     if w and total > 0 and total ~= lastFrameHeight then
         lastFrameHeight = total
         w:SetHeight(total)
-        -- The manager also anchors protected bars (pet, stance). Called from
-        -- our insecure hook in combat that would be a blocked SetPoint, so the
-        -- relayout waits for the fight to end.
+        -- Blizzard already ran the manager at the end of QuestWatch_Update,
+        -- but with its own 13 px lines; our height only lands after that, so
+        -- one more pass is needed. The manager also anchors protected bars
+        -- (pet, stance), so in combat the relayout waits for the fight to end.
         if not mod.db.moved and _G.UIParent_ManageFramePositions then
             if InCombatLockdown() then
                 ns:RegisterEventOnce("PLAYER_REGEN_ENABLED", function()
@@ -129,7 +134,7 @@ local function restyleClassic()
     for i = 1, n do
         local fs = _G["QuestWatchLine" .. i]
         if not fs then break end
-        if fs:IsShown() and fs._vcKind then
+        if fs:IsShown() and kindOf[fs] then
             paint(fs)
             fs:SetHeight(h)
         end
@@ -145,8 +150,8 @@ local wrathLines = setmetatable({}, { __mode = "k" })
 
 local function onWrathSetLine(line, _, _, isHeader)
     if not mod.active or not (line and line.text) then return end
-    line.text._vcKind = isHeader and "title" or "objective"
-    line.text._vcDone = false
+    kindOf[line.text] = isHeader and "title" or "objective"
+    doneOf[line.text] = false
     wrathLines[line] = true
     paint(line.text)
     if line.dash then UI.FontFor("questtracker", line.dash, mod.db.fontSize) end
@@ -155,7 +160,7 @@ end
 local function restyleWrath()
     if not mod.active then return end
     for line in pairs(wrathLines) do
-        if line.text and line:IsShown() and line.text._vcKind then
+        if line.text and line:IsShown() and kindOf[line.text] then
             paint(line.text)
             if line.dash then UI.FontFor("questtracker", line.dash, mod.db.fontSize) end
         end
@@ -188,6 +193,9 @@ end
 local function attach()
     local w = watchFrame()
     if not (w and anchor) then return end
+    -- deliberate write: Blizzard's documented opt-out of the managed-frame stack
+    -- (no setter exists) -- read only by the container's AddManagedFrame from
+    -- the list's own OnShow, which returns on it before touching anything.
     w.ignoreFramePositionManager = true
     local container = w.layoutParent or w:GetParent()
     if container and container.RemoveManagedFrame then pcall(container.RemoveManagedFrame, container, w) end

@@ -131,12 +131,22 @@ local function buttonFriendInfo(button)
     return nil
 end
 
+-- What we remember about Blizzard's friends/communities frames and rows, kept
+-- here instead of as fields on them. One record per frame, made on first ask.
+local bzState = setmetatable({}, { __mode = "k" })
+local function bzOf(f)
+    local r = bzState[f]
+    if not r then r = {}; bzState[f] = r end
+    return r
+end
+
 local function ensureClassIcon(button)
-    if button._vcClassIcon then return button._vcClassIcon end
+    local st = bzOf(button)
+    if st.classIcon then return st.classIcon end
     -- anchor to the row button, not the name FontString: left of the name gets clipped by the scroll frame
     local t = button:CreateTexture(nil, "OVERLAY")
     t:Hide()
-    button._vcClassIcon = t
+    st.classIcon = t
     return t
 end
 
@@ -159,50 +169,53 @@ local function rowHeight(button)
 end
 
 local function applyRowLayout(button, styled)
-    if (button._vcRowStyled or false) == (styled or false) then return end
-    button._vcRowStyled = styled or false
+    local stt = bzOf(button)
+    if (stt.rowStyled or false) == (styled or false) then return end
+    stt.rowStyled = styled or false
     local name, info = button.name, button.info
     local st, gi = button.status, button.gameIcon
     if styled then
         local x0 = 4 + (rowHeight(button) - 10) + 6
         -- TOPRIGHT/BOTTOMRIGHT, not "RIGHT": a RIGHT point pins the vertical center and stretches the FontString over the info line.
         if name then
-            button._vcNamePts = button._vcNamePts or snapPoints(name)
+            stt.namePts = stt.namePts or snapPoints(name)
             name:ClearAllPoints()
             name:SetPoint("TOPLEFT", button, "TOPLEFT", x0, -4)
             name:SetPoint("TOPRIGHT", button, "TOPRIGHT", -44, -4)
             name:SetWordWrap(false)
         end
         if info then
-            button._vcInfoPts = button._vcInfoPts or snapPoints(info)
+            stt.infoPts = stt.infoPts or snapPoints(info)
             info:ClearAllPoints()
             info:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", x0, 5)
             info:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -28, 5)
             info:SetWordWrap(false)
         end
     else
-        if name then restorePoints(name, button._vcNamePts); name:SetWordWrap(true) end
-        if info then restorePoints(info, button._vcInfoPts); info:SetWordWrap(true) end
+        if name then restorePoints(name, stt.namePts); name:SetWordWrap(true) end
+        if info then restorePoints(info, stt.infoPts); info:SetWordWrap(true) end
         if st then st:SetAlpha(1) end
         if gi then gi:SetAlpha(1) end
     end
 end
 
 local function ensureOrb(button)
-    if button._vcOrb then return button._vcOrb end
+    local st = bzOf(button)
+    if st.orb then return st.orb end
     local t = button:CreateTexture(nil, "OVERLAY")
     t:SetSize(12, 12)
     t:Hide()
-    button._vcOrb = t
+    st.orb = t
     return t
 end
 
 local function ensureFactionBg(button)
-    if button._vcFactionBg then return button._vcFactionBg end
+    local st = bzOf(button)
+    if st.factionBg then return st.factionBg end
     local t = button:CreateTexture(nil, "BACKGROUND")
     t:SetAllPoints(button)
     t:Hide()
-    button._vcFactionBg = t
+    st.factionBg = t
     return t
 end
 
@@ -216,9 +229,10 @@ local function restyleButton(button)
             button.background:SetColorTexture(1, 1, 1, 0.02)
         end
         applyRowLayout(button, false)
-        if button._vcClassIcon then button._vcClassIcon:Hide() end
-        if button._vcOrb then button._vcOrb:Hide() end
-        if button._vcFactionBg then button._vcFactionBg:Hide() end
+        local st = bzOf(button)
+        if st.classIcon then st.classIcon:Hide() end
+        if st.orb then st.orb:Hide() end
+        if st.factionBg then st.factionBg:Hide() end
         return
     end
 
@@ -247,9 +261,9 @@ local function restyleButton(button)
             if faction == "Horde" then button.info:SetTextColor(0.92, 0.36, 0.36)
             elseif alliance then button.info:SetTextColor(0.45, 0.60, 0.98)
             else button.info:SetTextColor(0.69, 0.69, 0.69) end
-            button._vcInfoTinted = true
-        elseif button._vcInfoTinted then
-            button._vcInfoTinted = nil
+            bzOf(button).infoTinted = true
+        elseif bzOf(button).infoTinted then
+            bzOf(button).infoTinted = nil
             local gc = _G.GRAY_FONT_COLOR
             if gc then button.info:SetTextColor(gc.r, gc.g, gc.b)
             else button.info:SetTextColor(0.5, 0.5, 0.5) end
@@ -265,7 +279,7 @@ local function restyleButton(button)
         end
     end
 
-    local orb = button._vcOrb
+    local orb = bzOf(button).orb
     if on and mod.db.statusDot and status then
         orb = ensureOrb(button)
         orb:SetTexture(ORB[status] or ORB.offline)
@@ -281,7 +295,7 @@ local function restyleButton(button)
         orb:Hide()
     end
 
-    local bg = button._vcFactionBg
+    local bg = bzOf(button).factionBg
     if on and mod.db.factionTint and faction and status ~= "offline" then
         bg = ensureFactionBg(button)
         if faction == "Horde" then
@@ -296,8 +310,8 @@ local function restyleButton(button)
     end
 
     if on and mod.db.skinFrame ~= false then
-        if not button._vcRowSkin then
-            button._vcRowSkin = true
+        if not bzOf(button).rowSkin then
+            bzOf(button).rowSkin = true
             if button.highlight and button.highlight.SetVertexColor then
                 local ac = ns.COLORS and ns.COLORS.accent or { r = 0.608, g = 0.424, b = 1 }
                 button.highlight:SetVertexColor(ac.r, ac.g, ac.b, 0.35)
@@ -318,7 +332,7 @@ local function restyleButton(button)
         or style == "vulostyle" then
         style = "blizzard"
     end
-    local icon = button._vcClassIcon
+    local icon = bzOf(button).classIcon
     if on and mod.db.classIcons then
         icon = ensureClassIcon(button)
         applyRowLayout(button, true)
@@ -466,26 +480,26 @@ local function skinFriendsFrame()
     skinPanelButton(_G.WhoFrameGroupInviteButton)
 
     local function skinTab(tab)
-        if not tab or tab._vcuiSkin then return end
-        tab._vcuiSkin = true
+        if not tab or bzOf(tab).skin then return end
+        bzOf(tab).skin = true
         local fs = tab.Text or (tab.GetName and _G[(tab:GetName() or "") .. "Text"])
             or (tab.GetFontString and tab:GetFontString())
         for _, r in ipairs({ tab:GetRegions() }) do
             if r.IsObjectType and r:IsObjectType("Texture") then hideRegion(r) end
         end
-        tab._vcText = fs
+        bzOf(tab).tabText = fs
         if fs then
             local bg = tab:CreateTexture(nil, "BACKGROUND")
             bg:SetPoint("TOPLEFT", fs, "TOPLEFT", -8, 5)
             bg:SetPoint("BOTTOMRIGHT", fs, "BOTTOMRIGHT", 8, -5)
             bg:SetColorTexture(0.10, 0.10, 0.13, 0.95)
-            tab._vcBgTex = bg
+            bzOf(tab).tabBg = bg
             local ul = tab:CreateTexture(nil, "ARTWORK")
             ul:SetHeight(2)
             ul:SetPoint("BOTTOMLEFT", bg, "BOTTOMLEFT", 0, 0)
             ul:SetPoint("BOTTOMRIGHT", bg, "BOTTOMRIGHT", 0, 0)
             ul:SetColorTexture(ac.r, ac.g, ac.b, 0.9)
-            tab._vcUnderline = ul
+            bzOf(tab).tabUnderline = ul
         end
     end
 
@@ -497,18 +511,19 @@ local function skinFriendsFrame()
     local function paintTabs(owner, tabs)
         local sel = owner and owner.selectedTab or 1
         for i, tab in ipairs(tabs) do
-            local fs = tab and tab._vcText
+            local st = tab and bzOf(tab)
+            local fs = st and st.tabText
             if fs then
                 -- re-apply the font (tab switches swap FontObjects); keep 11px or deDE labels overflow
                 if UI.Font then UI.Font(fs, 11) end
                 if i == sel then
                     fs:SetTextColor(ac.r, ac.g, ac.b)
-                    if tab._vcUnderline then tab._vcUnderline:Show() end
-                    if tab._vcBgTex then tab._vcBgTex:SetColorTexture(0.14, 0.14, 0.18, 0.95) end
+                    if st.tabUnderline then st.tabUnderline:Show() end
+                    if st.tabBg then st.tabBg:SetColorTexture(0.14, 0.14, 0.18, 0.95) end
                 else
                     fs:SetTextColor(0.72, 0.72, 0.78)
-                    if tab._vcUnderline then tab._vcUnderline:Hide() end
-                    if tab._vcBgTex then tab._vcBgTex:SetColorTexture(0.10, 0.10, 0.13, 0.95) end
+                    if st.tabUnderline then st.tabUnderline:Hide() end
+                    if st.tabBg then st.tabBg:SetColorTexture(0.10, 0.10, 0.13, 0.95) end
                 end
             end
         end
@@ -536,8 +551,8 @@ local function skinFriendsFrame()
         thumb:SetWidth(6)
     end
     local function skinArrow(b, dir)
-        if not b or b._vcuiSkin then return end
-        b._vcuiSkin = true
+        if not b or bzOf(b).skin then return end
+        bzOf(b).skin = true
         stripTextures(b)
         local icon = b:CreateTexture(nil, "ARTWORK")
         icon:SetPoint("CENTER", b, "CENTER", 0, 0)
@@ -672,9 +687,10 @@ end
 
 local function widenClassicRow(b)
     local delta = mod._widthDelta or 0
-    if delta == 0 and not b._vcBaseW then return end
-    b._vcBaseW = b._vcBaseW or b:GetWidth()
-    if b._vcBaseW and b._vcBaseW > 0 then b:SetWidth(b._vcBaseW + delta) end
+    local st = bzOf(b)
+    if delta == 0 and not st.baseW then return end
+    st.baseW = st.baseW or b:GetWidth()
+    if st.baseW and st.baseW > 0 then b:SetWidth(st.baseW + delta) end
 end
 
 local function restyleAll()
@@ -717,18 +733,18 @@ local function skinCommEntry(btn)
         t:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", 0, 2)
     end
     if btn.Background then
-        if not btn._vcuiPinned then pin(btn.Background) end
+        if not bzOf(btn).pinned then pin(btn.Background) end
         btn.Background:SetTexture(nil)
         btn.Background:SetColorTexture(0.085, 0.085, 0.11, 0.9)
     end
     if btn.Selection then
-        if not btn._vcuiPinned then pin(btn.Selection) end
+        if not bzOf(btn).pinned then pin(btn.Selection) end
         btn.Selection:SetTexture(nil)
         btn.Selection:SetColorTexture(ac.r, ac.g, ac.b, 0.22)
     end
     if btn.IconRing then btn.IconRing:SetAlpha(0) end
-    if not btn._vcuiSkin then
-        btn._vcuiSkin = true
+    if not bzOf(btn).skin then
+        bzOf(btn).skin = true
         local hl = btn.GetHighlightTexture and btn:GetHighlightTexture()
         if hl then
             pin(hl)
@@ -737,7 +753,7 @@ local function skinCommEntry(btn)
             hl:SetBlendMode("BLEND")   -- template ships ADD; a solid tint needs BLEND
         end
         if btn.Name and ns.UI and ns.UI.Font then ns.UI.Font(btn.Name, 12) end
-        btn._vcuiPinned = true
+        bzOf(btn).pinned = true
     end
 end
 
@@ -745,8 +761,8 @@ local function skinCommMemberRow(row)
     if not row or not row.GetObjectType then return end
     local nt = row.GetNormalTexture and row:GetNormalTexture()
     if nt then nt:SetAlpha(0) end
-    if not row._vcuiRowSkin then
-        row._vcuiRowSkin = true
+    if not bzOf(row).commRowSkin then
+        bzOf(row).commRowSkin = true
         local ac = ns.COLORS and ns.COLORS.accent or { r = 0.608, g = 0.424, b = 1 }
         local hl = row.GetHighlightTexture and row:GetHighlightTexture()
         if hl then
@@ -803,8 +819,8 @@ local function skinCommunitiesFrame()
         cf.TitleText:SetTextColor(0.95, 0.95, 1)
     end
     local cb = cf.CloseButton
-    if cb and not cb._vcuiSkin then
-        cb._vcuiSkin = true
+    if cb and not bzOf(cb).skin then
+        bzOf(cb).skin = true
         commStrip(cb)
         local x = cb:CreateFontString(nil, "OVERLAY")
         if UI.Font then UI.Font(x, 20) else x:SetFontObject("GameFontNormalLarge") end
@@ -822,8 +838,8 @@ local function skinCommunitiesFrame()
     if mm then
         for _, key in ipairs({ "MaximizeButton", "MinimizeButton" }) do
             local b = mm[key]
-            if b and not b._vcuiSkin then
-                b._vcuiSkin = true
+            if b and not bzOf(b).skin then
+                bzOf(b).skin = true
                 commStrip(b)
                 local g = b:CreateFontString(nil, "OVERLAY")
                 if UI.Font then UI.Font(g, 14) else g:SetFontObject("GameFontNormal") end
@@ -904,8 +920,8 @@ local function skinCommunitiesFrame()
             hideRegion(cd.TopTileStreaks)
             local function skinHeaders()
                 for _, child in ipairs({ cd:GetChildren() }) do
-                    if child.IsObjectType and child:IsObjectType("Button") and not child._vcuiSkin then
-                        child._vcuiSkin = true
+                    if child.IsObjectType and child:IsObjectType("Button") and not bzOf(child).skin then
+                        bzOf(child).skin = true
                         local chl = child.GetHighlightTexture and child:GetHighlightTexture()
                         for _, r in ipairs({ child:GetRegions() }) do
                             if r.IsObjectType and r:IsObjectType("Texture") and r ~= chl then
@@ -967,8 +983,8 @@ local function skinCommunitiesFrame()
     end
 
     local function skinSideTab(tab)
-        if not tab or tab._vcuiSkin then return end
-        tab._vcuiSkin = true
+        if not tab or bzOf(tab).skin then return end
+        bzOf(tab).skin = true
         local hl = tab.GetHighlightTexture and tab:GetHighlightTexture()
         local ck = tab.GetCheckedTexture and tab:GetCheckedTexture()
         for _, r in ipairs({ tab:GetRegions() }) do
@@ -1056,6 +1072,15 @@ local function onPartyInvite(_, name)
     if IsInGroup and IsInGroup() then return end
     if name and isFriendName(name) then
         if AcceptGroup then AcceptGroup() end
+        -- The dialog's OnHide declines unless it was accepted through its own
+        -- button, so hiding it bare sent a DeclineGroup right after the accept.
+        for i = 1, (STATICPOPUP_NUMDIALOGS or 4) do
+            local f = _G["StaticPopup" .. i]
+            -- deliberate write: the field Blizzard's own accept button sets; read
+            -- only by the dialog's OnHide (unprotected DeclineGroup), and reset
+            -- by the dialog on its next show
+            if f and f:IsShown() and f.which == "PARTY_INVITE" then f.inviteAccepted = 1 end
+        end
         if StaticPopup_Hide then StaticPopup_Hide("PARTY_INVITE") end
     end
 end

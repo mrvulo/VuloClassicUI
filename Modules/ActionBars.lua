@@ -107,6 +107,17 @@ local taken = false
 local hidden = {}         -- Blizzard frame -> original parent (restore)
 local pendingRestore = false
 local updater
+-- our markers on Blizzard frames live here, never as fields on the frames
+local origMouse = setmetatable({}, { __mode = "k" })  -- frame -> mouse state before we touched it
+local pinTo     = setmetatable({}, { __mode = "k" })  -- frame -> { SetPoint args } we hold it at
+local pinning   = setmetatable({}, { __mode = "k" })  -- frame -> true while our own SetPoint runs
+local pinHooked = setmetatable({}, { __mode = "k" })  -- frame -> SetPoint hook installed
+local textDef   = setmetatable({}, { __mode = "k" })  -- button text -> its first SetPoint before we offset it
+local textMoved = setmetatable({}, { __mode = "k" })  -- button text -> true while offset from that point
+local microGlyph = setmetatable({}, { __mode = "k" }) -- micro/bag button -> our glyph texture
+local microAdopt = setmetatable({}, { __mode = "k" }) -- adopted micro button -> its glyph icon
+local ttHooked  = setmetatable({}, { __mode = "k" })  -- action button -> our OnEnter tooltip hook installed
+local qkbHooked = setmetatable({}, { __mode = "k" })  -- quick keybind frame -> our show/hide hooks installed
 
 local MAIN_ART = {
     "MainMenuBarLeftEndCap", "MainMenuBarRightEndCap",
@@ -444,16 +455,16 @@ local function layoutBar(desc)
         if not fs then return end
         if color then fs:SetTextColor(color.r or 1, color.g or 1, color.b or 1) end
         ox2, oy2 = ox2 or 0, oy2 or 0
-        if ox2 ~= 0 or oy2 ~= 0 or fs._vcuiMoved then
-            if not fs._vcuiDef then
+        if ox2 ~= 0 or oy2 ~= 0 or textMoved[fs] then
+            if not textDef[fs] then
                 local p, rel, rp, x, y = fs:GetPoint(1)
-                if p then fs._vcuiDef = { p, rel, rp, x or 0, y or 0 } end
+                if p then textDef[fs] = { p, rel, rp, x or 0, y or 0 } end
             end
-            local d0 = fs._vcuiDef
+            local d0 = textDef[fs]
             if d0 then
                 fs:ClearAllPoints()
                 fs:SetPoint(d0[1], d0[2], d0[3], d0[4] + ox2, d0[5] + oy2)
-                fs._vcuiMoved = (ox2 ~= 0 or oy2 ~= 0) or nil
+                textMoved[fs] = (ox2 ~= 0 or oy2 ~= 0) or nil
             end
         end
     end
@@ -621,11 +632,11 @@ local function setFramesHidden(names, hide)
     for _, n in ipairs(names) do
         local f = _G[n]
         if f then
-            if f._vcuiMouse == nil and f.IsMouseEnabled then
-                f._vcuiMouse = f:IsMouseEnabled() and true or false
+            if origMouse[f] == nil and f.IsMouseEnabled then
+                origMouse[f] = f:IsMouseEnabled() and true or false
             end
             f:SetAlpha(hide and 0 or 1)
-            if f.EnableMouse then f:EnableMouse((not hide) and f._vcuiMouse or false) end
+            if f.EnableMouse then f:EnableMouse((not hide) and origMouse[f] or false) end
         end
     end
 end
@@ -685,20 +696,20 @@ local function pinFrame(f, point, holder, relPoint, x, y)
         end
         if #pts > 0 then origAnchor[f] = pts end
     end
-    f._vcuiPinTo = { point, holder, relPoint, x, y }
-    f._vcuiPinning = true
+    pinTo[f] = { point, holder, relPoint, x, y }
+    pinning[f] = true
     f:ClearAllPoints()
     f:SetPoint(point, holder, relPoint, x, y)
-    f._vcuiPinning = false
-    if not f._vcuiPinHook then
-        f._vcuiPinHook = true
+    pinning[f] = false
+    if not pinHooked[f] then
+        pinHooked[f] = true
         hooksecurefunc(f, "SetPoint", function(self)
-            if self._vcuiPinning or not self._vcuiPinTo then return end
+            if pinning[self] or not pinTo[self] then return end
             if not (mod.active and taken) then return end
-            self._vcuiPinning = true
+            pinning[self] = true
             self:ClearAllPoints()
-            self:SetPoint(unpack(self._vcuiPinTo))
-            self._vcuiPinning = false
+            self:SetPoint(unpack(pinTo[self]))
+            pinning[self] = false
         end)
     end
 end
@@ -746,6 +757,11 @@ local function ensureChrome(c)
 end
 
 -- with both frames re-homed, Blizzard's keyring updater errors on every SetPoint
+-- ("anchor family connection" on its perf-bar SetPoint). A post-hook cannot help:
+-- the error is thrown inside the original before any hook runs.
+-- deliberate write: swapping the global is the only way to skip that SetPoint --
+-- read only by MainMenuBar_OnEvent (non-secure, last statement of the handler);
+-- the original is put back in restoreChrome.
 local origUpdateKeyRing
 local function muteKeyRingLayout(mute)
     if mute then
@@ -835,8 +851,8 @@ local function applyChrome()
     local shell = _G.MicroMenuContainer
     local microTarget = chromeState.micro and chromeState.micro.targets and chromeState.micro.targets[1]
     if shell and shell ~= microTarget then
-        if shell._vcuiMouse == nil and shell.IsMouseEnabled then
-            shell._vcuiMouse = shell:IsMouseEnabled() and true or false
+        if origMouse[shell] == nil and shell.IsMouseEnabled then
+            origMouse[shell] = shell:IsMouseEnabled() and true or false
         end
         shell:EnableMouse(false)
     end
@@ -864,7 +880,7 @@ local function restoreChrome()
     for f, parent in pairs(chromeOrig) do
         local pts = origAnchor[f]
         local stranded = pinnedToOurHolder(f)
-        f._vcuiPinTo = nil   -- release the pin so Blizzard may anchor freely again
+        pinTo[f] = nil   -- release the pin so Blizzard may anchor freely again
         f:SetParent(parent)
         if pts and stranded then
             -- pcall on purpose, and not to hide anything: restore() shows
@@ -886,7 +902,7 @@ local function restoreChrome()
         chromeOrig[f] = nil
     end
     local shell = _G.MicroMenuContainer
-    if shell and shell._vcuiMouse ~= nil then shell:EnableMouse(shell._vcuiMouse) end
+    if shell and origMouse[shell] ~= nil then shell:EnableMouse(origMouse[shell]) end
     for _, cs in pairs(chromeState) do
         if cs.holder then cs.holder:Hide() end
     end
@@ -976,30 +992,30 @@ local function adoptMicroButton(b, icon)
         end
         adoptSkin[b] = st
     end
-    if not b._vcuiGlyph then
+    if not microGlyph[b] then
         local g = b:CreateTexture(nil, "OVERLAY")
         g:SetPoint("CENTER")
         g:SetVertexColor(1, 1, 1, 0.45)
-        b._vcuiGlyph = g
+        microGlyph[b] = g
         b:HookScript("OnEnter", function(self)
             local a = ns.COLORS.accent
-            if self._vcuiGlyph then self._vcuiGlyph:SetVertexColor(a.r, a.g, a.b, 0.95) end
+            if microGlyph[self] then microGlyph[self]:SetVertexColor(a.r, a.g, a.b, 0.95) end
         end)
         b:HookScript("OnLeave", function(self)
-            if self._vcuiGlyph then self._vcuiGlyph:SetVertexColor(1, 1, 1, 0.45) end
+            if microGlyph[self] then microGlyph[self]:SetVertexColor(1, 1, 1, 0.45) end
         end)
     end
-    b._vcuiGlyph:SetTexture(MICRO_ICON_DIR .. icon .. ".tga")
-    b._vcuiGlyph:SetAlpha(1)
-    b._vcuiGlyph:Show()
+    microGlyph[b]:SetTexture(MICRO_ICON_DIR .. icon .. ".tga")
+    microGlyph[b]:SetAlpha(1)
+    microGlyph[b]:Show()
     if b.EnableMouse then b:EnableMouse(true) end
 end
 
 local function restoreAdoptedMicro()
     for b, st in pairs(adoptSkin) do
         for r, a in pairs(st.alphas) do if r.SetAlpha then r:SetAlpha(a) end end
-        if b._vcuiGlyph then b._vcuiGlyph:Hide() end
-        b._vcuiPinTo = nil
+        if microGlyph[b] then microGlyph[b]:Hide() end
+        pinTo[b] = nil
         b:SetScale(st.scale)
         b:SetParent(st.parent)
         adoptSkin[b] = nil
@@ -1018,7 +1034,7 @@ local function ensureModernMicro()
         if def.adopt then
             local t = _G[def.adopt]
             if t then
-                t._vcuiAdopt = def.icon
+                microAdopt[t] = def.icon
                 adoptMicroButton(t, def.icon)
                 t:SetParent(f)
                 f.buttons[#f.buttons + 1] = t
@@ -1074,8 +1090,8 @@ local function layoutModernMicro()
     if not modernMicro then return end
     local x = MICRO_PAD
     for _, b in ipairs(modernMicro.buttons) do
-        if b._vcuiAdopt then
-            if not adoptSkin[b] then adoptMicroButton(b, b._vcuiAdopt) end
+        if microAdopt[b] then
+            if not adoptSkin[b] then adoptMicroButton(b, microAdopt[b]) end
             local vis = (b:IsShown() or microSeen[b]) and true or false
             b:SetShown(vis)
             if vis then
@@ -1083,7 +1099,7 @@ local function layoutModernMicro()
                 local h = b:GetHeight()
                 local sc = (h and h > 0) and (MICRO_BTN / h) or 1
                 b:SetScale(sc)
-                b._vcuiGlyph:SetSize(MICRO_ICON / sc, MICRO_ICON / sc)
+                microGlyph[b]:SetSize(MICRO_ICON / sc, MICRO_ICON / sc)
                 pinFrame(b, "LEFT", modernMicro, "LEFT", x / sc, 0)
                 x = x + (b:GetWidth() or MICRO_BTN) * sc + MICRO_GAP
             end
@@ -1166,23 +1182,23 @@ local function skinBagButton(b, glyph)
     local nt = b.GetNormalTexture and b:GetNormalTexture()
     if nt then nt:SetAlpha(0) end
     if ic then ic:SetAlpha(0) end
-    if not b._vcuiGlyph then
+    if not microGlyph[b] then
         local g = b:CreateTexture(nil, "ARTWORK")
         g:SetPoint("CENTER")
         g:SetVertexColor(1, 1, 1, 0.45)
-        b._vcuiGlyph = g
+        microGlyph[b] = g
         b:HookScript("OnEnter", function(self)
-            if self._vcuiGlyph and self._vcuiGlyph:IsShown() then
+            if microGlyph[self] and microGlyph[self]:IsShown() then
                 local a = ns.COLORS.accent
-                self._vcuiGlyph:SetVertexColor(a.r, a.g, a.b, 0.95)
+                microGlyph[self]:SetVertexColor(a.r, a.g, a.b, 0.95)
             end
         end)
         b:HookScript("OnLeave", function(self)
-            if self._vcuiGlyph then self._vcuiGlyph:SetVertexColor(1, 1, 1, 0.45) end
+            if microGlyph[self] then microGlyph[self]:SetVertexColor(1, 1, 1, 0.45) end
         end)
     end
-    b._vcuiGlyph:SetTexture(MICRO_ICON_DIR .. glyph .. ".tga")
-    b._vcuiGlyph:Show()
+    microGlyph[b]:SetTexture(MICRO_ICON_DIR .. glyph .. ".tga")
+    microGlyph[b]:Show()
     local cnt = _G[(b:GetName() or "") .. "Count"]
     if cnt then
         if not bagSkin[b].countPoint then
@@ -1201,13 +1217,13 @@ local function unskinBagButton(b)
     local nt = b.GetNormalTexture and b:GetNormalTexture()
     if nt then nt:SetAlpha(1) end
     if ic then ic:SetAlpha(1) end
-    if b._vcuiGlyph then b._vcuiGlyph:Hide() end
+    if microGlyph[b] then microGlyph[b]:Hide() end
     local cnt = _G[(b:GetName() or "") .. "Count"]
     if cnt and o.countPoint then
         cnt:ClearAllPoints()
         cnt:SetPoint(unpack(o.countPoint))
     end
-    b._vcuiPinTo = nil
+    pinTo[b] = nil
     b:SetScale(o.scale)
     if o.width and o.width > 0 then b:SetWidth(o.width) end
     b:SetParent(o.parent)
@@ -1256,7 +1272,7 @@ function applyBagStyle()
                 local sc = (h and h > 0) and (BAG_BTN_H / h) or 1
                 b:SetScale(sc)
                 if b:GetWidth() < (h or 0) then b:SetWidth(h) end
-                b._vcuiGlyph:SetSize(MICRO_ICON / sc, MICRO_ICON / sc)
+                microGlyph[b]:SetSize(MICRO_ICON / sc, MICRO_ICON / sc)
                 pinFrame(b, "LEFT", modernBags, "LEFT", x / sc, 0)
                 x = x + (b:GetWidth() or BAG_BTN_H) * sc + MICRO_GAP
             end
@@ -1296,15 +1312,15 @@ function applyBagStyle()
             if ns.ApplyMover then ns:ApplyMover(cs.mover) end
         end
         if shell then
-            if shell._vcuiMouse == nil and shell.IsMouseEnabled then
-                shell._vcuiMouse = shell:IsMouseEnabled() and true or false
+            if origMouse[shell] == nil and shell.IsMouseEnabled then
+                origMouse[shell] = shell:IsMouseEnabled() and true or false
             end
             shell:EnableMouse(false)
         end
         modernBags:Show()
     else
         if modernBags then modernBags:Hide() end
-        if shell and shell._vcuiMouse ~= nil then shell:EnableMouse(shell._vcuiMouse) end
+        if shell and origMouse[shell] ~= nil then shell:EnableMouse(origMouse[shell]) end
         local restored = false
         for b in pairs(bagSkin) do unskinBagButton(b); restored = true end
         if restored and mod.active and taken and not InCombatLockdown() then
@@ -1662,8 +1678,8 @@ local function applyLook()
         if b.cooldown and b.cooldown.SetSwipeColor then
             b.cooldown:SetSwipeColor(sc.r or 0, sc.g or 0, sc.b or 0, swipe)
         end
-        if not b._vcuiTT and b.HookScript then
-            b._vcuiTT = true
+        if not ttHooked[b] and b.HookScript then
+            ttHooked[b] = true
             b:HookScript("OnEnter", ttHook)
         end
         local icon = buttonIcon(b)
@@ -1789,7 +1805,7 @@ local function restore()
     if modernBags then modernBags:Hide() end
     for b in pairs(bagSkin) do unskinBagButton(b) end
     local bagShell = _G.BagsBar
-    if bagShell and bagShell._vcuiMouse ~= nil then bagShell:EnableMouse(bagShell._vcuiMouse) end
+    if bagShell and origMouse[bagShell] ~= nil then bagShell:EnableMouse(origMouse[bagShell]) end
     setFramesHidden(MICRO_FRAMES, false)
     setFramesHidden(BAG_FRAMES, false)
     setFramesHidden(STANCE_HIDE, false)
@@ -1868,8 +1884,8 @@ local function openQuickKeybind()
         ns:Print(L["|cffff5555Quick keybind mode is not available on this client.|r"])
         return
     end
-    if not qkb._vcuiHooked then
-        qkb._vcuiHooked = true
+    if not qkbHooked[qkb] then
+        qkbHooked[qkb] = true
         qkb:HookScript("OnShow", function() if mod.active then onEditMode(true) end end)
         qkb:HookScript("OnHide", function() if mod.active then onEditMode(false) end end)
     end

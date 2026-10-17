@@ -50,25 +50,35 @@ local TEX_BORDER   = "Interface\\AddOns\\VuloClassicUI\\Media\\Masks\\Normal.tga
 -- scales with the icon; RIM_OUTSET is a fixed bleed for the soft shadow.
 local RIM_OUTSET  = 3
 
+-- Per-button skin state. Most of these buttons are Blizzard's (ActionButtonN,
+-- MultiBar*, pet and stance buttons), so the state lives here, not on them.
+local btnSkin = setmetatable({}, { __mode = "k" })
+local function bsOf(f)
+    local r = btnSkin[f]
+    if not r then r = {}; btnSkin[f] = r end
+    return r
+end
+
 local function attachShadow(frame, store, outset)
     if not frame then return end
     store = store or frame
     outset = outset or RIM_OUTSET
+    local bst = bsOf(store)
 
-    if not store._vcuiBack then
+    if not bst.back then
         local back = frame:CreateTexture(nil, "BACKGROUND", nil, -7)
         back:SetPoint("TOPLEFT",     frame, "TOPLEFT",     -outset,  outset)
         back:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT",  outset, -outset)
         back:SetTexture(TEX_BACKDROP)
         back:SetVertexColor(0.03, 0.03, 0.04, 1)
-        store._vcuiBack = back
+        bst.back = back
 
         local ring = frame:CreateTexture(nil, "BACKGROUND", nil, -6)
         ring:SetPoint("TOPLEFT",     frame, "TOPLEFT",     -outset,  outset)
         ring:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT",  outset, -outset)
         ring:SetTexture(TEX_BORDER)
         ring:SetVertexColor(0, 0, 0, 1)
-        store._vcuiRing = ring
+        bst.ring = ring
     end
 end
 
@@ -143,10 +153,11 @@ local function hideNormalTexture(button)
     end
     local slot = getRegion(button, "SlotBackground", button.SlotBackground)
     if slot then slot:SetAlpha(0) end
-    button._vcuiNTDirty = true
+    bsOf(button).ntDirty = true
 end
 
 local function applyNormalTexture(button)
+    local bst = bsOf(button)
     local st = currentStyle()
     if not (st.darkenNormal or st.standard) then
         hideNormalTexture(button)
@@ -156,8 +167,8 @@ local function applyNormalTexture(button)
     -- (the client owns rim states like the out-of-mana tint and the grid
     -- half-alpha, and Dark Mode may own the tint) -- only a region a previous
     -- style demonstrably altered gets put back, once.
-    if st.standard and not button._vcuiNTDirty then return end
-    button._vcuiNTDirty = not st.standard or nil
+    if st.standard and not bst.ntDirty then return end
+    bst.ntDirty = not st.standard or nil
     local nt = (button.GetNormalTexture and button:GetNormalTexture())
             or getRegion(button, "NormalTexture", button.NormalTexture)
     if nt then
@@ -165,11 +176,11 @@ local function applyNormalTexture(button)
             -- Restore only when a previous style emptied the region: on the
             -- SetNormalTexture hook path Blizzard just wrote the CURRENT
             -- texture (stance/page swaps), and the capture must not undo it.
-            if button._vcuiNTOrig and nt.GetTexture and not nt:GetTexture() then
-                nt:SetTexture(button._vcuiNTOrig)
+            if bst.ntOrig and nt.GetTexture and not nt:GetTexture() then
+                nt:SetTexture(bst.ntOrig)
             end
-        elseif button._vcuiNTOrig then
-            nt:SetTexture(button._vcuiNTOrig)
+        elseif bst.ntOrig then
+            nt:SetTexture(bst.ntOrig)
         end
         nt:SetAlpha(1)
         -- The mirror of the Hide() above: these styles WANT Blizzard's rim, so
@@ -193,24 +204,27 @@ end
 
 -- This client has no reliable global ActionButton_Update, so hook each button's setter.
 local function lockNormalTexture(button)
-    if button._vcuiNTHook or not button.SetNormalTexture then return end
-    button._vcuiNTHook = true
+    local bst = bsOf(button)
+    if bst.ntHook or not button.SetNormalTexture then return end
+    bst.ntHook = true
     hooksecurefunc(button, "SetNormalTexture", function(self)
-        if mod._enabled and barsSkinned and self._vcuiSkinned then
+        if mod._enabled and barsSkinned and bsOf(self).skinned then
             applyNormalTexture(self)
         end
     end)
 end
 
 local function ensureMask(button)
-    if not button._vcuiMask and button.CreateMaskTexture then
-        button._vcuiMask = button:CreateMaskTexture()
+    local bst = bsOf(button)
+    if not bst.mask and button.CreateMaskTexture then
+        bst.mask = button:CreateMaskTexture()
     end
-    return button._vcuiMask
+    return bst.mask
 end
 
 -- `pct` insets the mask by that fraction of icon size, revealing the backdrop as a rim.
 local function setMasked(button, icon, on, maskTex, pct)
+    local bst = bsOf(button)
     if on then
         local m = ensureMask(button)
         if not m then return end
@@ -227,15 +241,15 @@ local function setMasked(button, icon, on, maskTex, pct)
         end
         m:SetTexture(maskTex, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
         m:Show()
-        if not button._vcuiMaskOn then
+        if not bst.maskOn then
             if icon.AddMaskTexture then pcall(icon.AddMaskTexture, icon, m) end
-            button._vcuiMaskOn = true
+            bst.maskOn = true
         end
-    elseif button._vcuiMaskOn and button._vcuiMask then
-        local m = button._vcuiMask
+    elseif bst.maskOn and bst.mask then
+        local m = bst.mask
         if icon.RemoveMaskTexture then pcall(icon.RemoveMaskTexture, icon, m) end
         m:Hide()
-        button._vcuiMaskOn = false
+        bst.maskOn = false
     end
 end
 
@@ -251,9 +265,10 @@ end
 local FLASH_TEX = "Interface\\Buttons\\UI-QuickslotRed"
 
 local function restoreFlash(button, flash)
-    local o = button._vcuiFlashOrig
+    local bst = bsOf(button)
+    local o = bst.flashOrig
     if not o then return end
-    button._vcuiFlashDirty = nil
+    bst.flashDirty = nil
     flash:SetTexCoord(0, 1, 0, 1)
     if flash.SetBlendMode and o.blend then flash:SetBlendMode(o.blend) end
     if o.atlas then
@@ -266,27 +281,28 @@ local function restoreFlash(button, flash)
     for _, p in ipairs(o.points) do
         flash:SetPoint(p[1], p[2], p[3], p[4], p[5])
     end
-    if button._vcuiFlashMasked and button._vcuiMask then
-        pcall(flash.RemoveMaskTexture, flash, button._vcuiMask)
-        button._vcuiFlashMasked = false
+    if bst.flashMasked and bst.mask then
+        pcall(flash.RemoveMaskTexture, flash, bst.mask)
+        bst.flashMasked = false
     end
 end
 
 local function applyFlash(button, icon)
+    local bst = bsOf(button)
     -- Resolved once per button: the region never changes, and getRegion's
     -- name..suffix concat ran per button per pass. false marks "none".
-    local flash = button._vcuiFlashR
+    local flash = bst.flashR
     if flash == nil then
         flash = getRegion(button, "Flash", button.Flash) or false
-        button._vcuiFlashR = flash
+        bst.flashR = flash
     end
     if not flash then return end
     local st = currentStyle()
     if not icon then
-        if button._vcuiFlashDirty then restoreFlash(button, flash) end
+        if bst.flashDirty then restoreFlash(button, flash) end
         return
     end
-    if not button._vcuiFlashOrig then
+    if not bst.flashOrig then
         local o = { points = {} }
         o.atlas = flash.GetAtlas and flash:GetAtlas() or nil
         if not o.atlas then
@@ -295,9 +311,9 @@ local function applyFlash(button, icon)
         end
         o.blend = flash.GetBlendMode and flash:GetBlendMode() or nil
         for i = 1, flash:GetNumPoints() do o.points[i] = { flash:GetPoint(i) } end
-        button._vcuiFlashOrig = o
+        bst.flashOrig = o
     end
-    button._vcuiFlashDirty = true
+    bst.flashDirty = true
     flash:SetTexture(FLASH_TEX)
     -- same crop as the icon: standard leaves the icon uncropped
     if st.standard then
@@ -310,25 +326,26 @@ local function applyFlash(button, icon)
     flash:SetAllPoints(icon)
     -- useAtlasSize leaves an explicit size behind that would beat the anchors
     flash:SetWidth(0); flash:SetHeight(0)
-    local m = button._vcuiMask
-    if m and button._vcuiMaskOn then
-        if not button._vcuiFlashMasked and flash.AddMaskTexture then
+    local m = bst.mask
+    if m and bst.maskOn then
+        if not bst.flashMasked and flash.AddMaskTexture then
             pcall(flash.AddMaskTexture, flash, m)
-            button._vcuiFlashMasked = true
+            bst.flashMasked = true
         end
-    elseif button._vcuiFlashMasked and m then
+    elseif bst.flashMasked and m then
         pcall(flash.RemoveMaskTexture, flash, m)
-        button._vcuiFlashMasked = false
+        bst.flashMasked = false
     end
 end
 
 local function applyStyle(button)
+    local bst = bsOf(button)
     local st   = currentStyle()
     -- Same caching as the flash region in applyFlash: resolve once, keep.
-    local icon = button._vcuiIconR
+    local icon = bst.iconR
     if icon == nil then
         icon = getRegion(button, "Icon", button.icon or button.Icon) or false
-        button._vcuiIconR = icon
+        bst.iconR = icon
     end
     icon = icon or nil
 
@@ -340,13 +357,13 @@ local function applyStyle(button)
         end
     end
 
-    if button._vcuiBg then
-        button._vcuiBg:SetShown((st.bg and not st.shadow) and true or false)
+    if bst.bg then
+        bst.bg:SetShown((st.bg and not st.shadow) and true or false)
     end
 
     local showShadow = st.shadow and true or false
-    if button._vcuiBack then button._vcuiBack:SetShown(showShadow) end
-    if button._vcuiRing then button._vcuiRing:SetShown(showShadow) end
+    if bst.back then bst.back:SetShown(showShadow) end
+    if bst.ring then bst.ring:SetShown(showShadow) end
 
     if icon then
         local maskTex = st.mask or (st.shadow and MASK_SQUARE) or nil
@@ -357,37 +374,37 @@ local function applyStyle(button)
 
     applyFlash(button, icon)
 
-    if button._vcuiBorder then
+    if bst.border then
         if st.border then
-            button._vcuiBorder:Show()
+            bst.border:Show()
             if st.border == "accent" then
                 local a = ns.COLORS.accent
-                button._vcuiBorder:SetBackdropBorderColor(a.r, a.g, a.b, 1)
+                bst.border:SetBackdropBorderColor(a.r, a.g, a.b, 1)
             else
-                button._vcuiBorder:SetBackdropBorderColor(0, 0, 0, 1)
+                bst.border:SetBackdropBorderColor(0, 0, 0, 1)
             end
         else
-            button._vcuiBorder:Hide()
+            bst.border:Hide()
         end
     end
 
     -- The shaped styles bring their own rim art, laid over the masked icon.
     if st.borderTex then
-        if not button._vcuiShape then
+        if not bst.shape then
             local t = button:CreateTexture(nil, "OVERLAY", nil, 1)
             t:SetAllPoints(button)
-            button._vcuiShape = t
+            bst.shape = t
         end
-        button._vcuiShape:SetTexture(st.borderTex)
+        bst.shape:SetTexture(st.borderTex)
         local c = mod.db and mod.db.barBorderTint
         if c then
-            button._vcuiShape:SetVertexColor(c.r or 1, c.g or 1, c.b or 1, 1)
+            bst.shape:SetVertexColor(c.r or 1, c.g or 1, c.b or 1, 1)
         else
-            button._vcuiShape:SetVertexColor(1, 1, 1, 1)
+            bst.shape:SetVertexColor(1, 1, 1, 1)
         end
-        button._vcuiShape:Show()
-    elseif button._vcuiShape then
-        button._vcuiShape:Hide()
+        bst.shape:Show()
+    elseif bst.shape then
+        bst.shape:Hide()
     end
 
     applyNormalTexture(button)
@@ -395,11 +412,12 @@ end
 
 local function skinButton(button)
     if not button then return end
-    if not button._vcuiSkinned then
-        button._vcuiSkinned = true
+    local bst = bsOf(button)
+    if not bst.skinned then
+        bst.skinned = true
 
         local nt0 = button.GetNormalTexture and button:GetNormalTexture()
-        if nt0 and nt0.GetTexture then button._vcuiNTOrig = nt0:GetTexture() end
+        if nt0 and nt0.GetTexture then bst.ntOrig = nt0:GetTexture() end
 
         attachShadow(button, button)
         lockNormalTexture(button)
@@ -408,7 +426,7 @@ local function skinButton(button)
         bg:SetPoint("TOPLEFT", button, "TOPLEFT", 1, -1)
         bg:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -1, 1)
         bg:SetColorTexture(0.04, 0.04, 0.05, 0.9)
-        button._vcuiBg = bg
+        bst.bg = bg
 
         local border = CreateFrame("Frame", nil, button,
             BackdropTemplateMixin and "BackdropTemplate")
@@ -419,7 +437,7 @@ local function skinButton(button)
         end
         local lvl = button:GetFrameLevel() or 1
         border:SetFrameLevel(math.max(0, lvl - 1))
-        button._vcuiBorder = border
+        bst.border = border
     end
 
     applyStyle(button)
@@ -466,7 +484,7 @@ end
 local function refreshAll()
     if not mod._enabled or not mod.db then return end
     forEachButton(function(b)
-        if b._vcuiSkinned then
+        if bsOf(b).skinned then
             applyStyle(b)
         end
     end)
@@ -474,12 +492,13 @@ end
 
 -- Touches only textures/regions, never secure attributes, so it is combat-safe.
 local function unstyleButton(button)
-    if not button or not button._vcuiSkinned then return end
-    if button._vcuiBg     then button._vcuiBg:Hide()     end
-    if button._vcuiBack   then button._vcuiBack:Hide()   end
-    if button._vcuiRing   then button._vcuiRing:Hide()   end
-    if button._vcuiBorder then button._vcuiBorder:Hide() end
-    if button._vcuiShape  then button._vcuiShape:Hide()  end
+    local bst = button and btnSkin[button]
+    if not bst or not bst.skinned then return end
+    if bst.bg     then bst.bg:Hide()     end
+    if bst.back   then bst.back:Hide()   end
+    if bst.ring   then bst.ring:Hide()   end
+    if bst.border then bst.border:Hide() end
+    if bst.shape  then bst.shape:Hide()  end
 
     local icon = getRegion(button, "Icon", button.icon or button.Icon)
     if icon then
@@ -488,12 +507,12 @@ local function unstyleButton(button)
     end
 
     local flash = getRegion(button, "Flash", button.Flash)
-    if flash and button._vcuiFlashDirty then restoreFlash(button, flash) end
+    if flash and bst.flashDirty then restoreFlash(button, flash) end
 
     local nt = (button.GetNormalTexture and button:GetNormalTexture())
             or getRegion(button, "NormalTexture", button.NormalTexture)
     if nt then
-        if button._vcuiNTOrig then nt:SetTexture(button._vcuiNTOrig) end
+        if bst.ntOrig then nt:SetTexture(bst.ntOrig) end
         nt:SetAlpha(1)
         -- Undoing the skin has to undo the Hide() too, or a button handed back to
         -- the client keeps an invisible rim for the rest of the session.
@@ -503,7 +522,7 @@ local function unstyleButton(button)
     end
     local slot = getRegion(button, "SlotBackground", button.SlotBackground)
     if slot then slot:SetAlpha(1) end
-    button._vcuiNTDirty = nil
+    bst.ntDirty = nil
 end
 
 local function setBarsSkinned(on)
@@ -645,9 +664,10 @@ local function styleWAIcon(region)
     placeWALayers(region, region, icon, currentWASet(), w)
 
     -- Leftovers from the older per-style painting of the same session.
-    if region._vcuiBack  then region._vcuiBack:Hide()  end
-    if region._vcuiRing  then region._vcuiRing:Hide()  end
-    if region._vcuiShape then region._vcuiShape:Hide() end
+    local rst = bsOf(region)
+    if rst.back  then rst.back:Hide()  end
+    if rst.ring  then rst.ring:Hide()  end
+    if rst.shape then rst.shape:Hide() end
     setMasked(region, icon, false)
 
     local function fixCD(cd)
@@ -684,9 +704,10 @@ local function styleWAAuraBarIcon(region)
     placeWALayers(region, frame, icon, currentWASet(), w)
 
     -- Leftovers from the older per-style painting of the same session.
-    if region._vcuiBack  then region._vcuiBack:Hide()  end
-    if region._vcuiRing  then region._vcuiRing:Hide()  end
-    if region._vcuiShape then region._vcuiShape:Hide() end
+    local rst = bsOf(region)
+    if rst.back  then rst.back:Hide()  end
+    if rst.ring  then rst.ring:Hide()  end
+    if rst.shape then rst.shape:Hide() end
     setMasked(frame, icon, false)
 end
 
@@ -741,8 +762,11 @@ local function skinAllWAIcons()
     skinFrameTree(UIParent, 0)
 end
 
+-- Both hooks below only look for the integrated aura addon's regions; without
+-- it loaded the walk can find nothing, so skip the closure, timer and walk.
 local function onNamePlateAdded(_, unit)
     if not (mod._enabled and mod.db and mod.db.skinWeakAuras) then return end
+    if not (WeakAuras and WeakAuras.GetRegion) then return end
     if not (unit and C_NamePlate and C_NamePlate.GetNamePlateForUnit) then return end
     if C_Timer and C_Timer.After then
         C_Timer.After(0.05, function()
@@ -753,6 +777,7 @@ local function onNamePlateAdded(_, unit)
 end
 local function onTargetChangedWA()
     if not (mod._enabled and mod.db and mod.db.skinWeakAuras) then return end
+    if not (WeakAuras and WeakAuras.GetRegion) then return end
     if C_Timer and C_Timer.After then
         C_Timer.After(0.05, function() skinFrameTree(_G.TargetFrame, 0) end)
     end
@@ -1031,7 +1056,7 @@ function mod:OnEnable()
         hookInstalled = true
         if _G.ActionButton_Update then
             hooksecurefunc("ActionButton_Update", function(button)
-                if mod._enabled and barsSkinned and button and button._vcuiSkinned then
+                if mod._enabled and barsSkinned and button and bsOf(button).skinned then
                     applyNormalTexture(button)
                 end
             end)
@@ -1123,7 +1148,9 @@ function mod:GetOptions()
           -- Dark Mode, the skin takes it back -- either way the tint must be
           -- re-decided right now, not at the next button update.
           set = function(_, v) mod.db.style = v; refreshAll(); applyAllDM() end },
-        { type = "color", label = L["Border color"],
+        -- subKey: two "Border color" rows on this page; it keeps their talent
+        -- override ids apart independent of row order
+        { type = "color", label = L["Border color"], subKey = "bars",
           tooltip = L["Tints the frame of the Shadow and shape styles. Reset it to get each style's built-in coloring back."],
           get = function() return mod.db.barBorderTint or { r = DARK_TINT, g = DARK_TINT, b = DARK_TINT } end,
           set = function(r, g, b) mod.db.barBorderTint = { r = r, g = g, b = b }; refreshAll() end,
@@ -1163,7 +1190,7 @@ function mod:GetOptions()
           },
           get = function() return mod.db.waStyle or "set1" end,
           set = function(_, v) mod.db.waStyle = v; skinAllWAIcons() end },
-        { type = "color", label = L["Border color"],
+        { type = "color", label = L["Border color"], subKey = "auras",
           tooltip = L["Tints the border layer of the aura sets. Reset it to get each set's built-in coloring back."],
           get = function() return mod.db.waBorderTint or { r = 1, g = 1, b = 1 } end,
           set = function(r, g, b) mod.db.waBorderTint = { r = r, g = g, b = b }; skinAllWAIcons() end,
@@ -1218,7 +1245,7 @@ ns.Slash.WEAKAURASKIN = function()
         if (rt == "icon" or rt == "aurabar") and f.icon and f.IsShown and f:IsShown() then
             types[rt] = (types[rt] or 0) + 1
             shown = shown + 1
-            if f._vcuiRing then
+            if bsOf(f).ring then
                 skinned = skinned + 1
             else
                 local ok, err = pcall(skinWARegion, f)

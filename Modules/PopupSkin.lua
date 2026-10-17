@@ -15,6 +15,10 @@ local mod = ns:RegisterModule("popupskin", {
 -- Every popup we have touched, so the toggle can restore Blizzard's look
 -- without a /reload. Each entry keeps the regions we faded plus our own.
 local skinned = {}
+-- Our state for Blizzard's popup frames, kept off the frames themselves.
+local origBd     = setmetatable({}, { __mode = "k" })  -- frame -> { bd, color, border } before we stripped it
+local partSkin   = setmetatable({}, { __mode = "k" })  -- button/edit box -> skinned once
+local hideHooked = setmetatable({}, { __mode = "k" })  -- popup -> deferred OnHide hook installed
 
 local function stripBackdrop(f)
     if not f.SetBackdrop then return end
@@ -22,20 +26,22 @@ local function stripBackdrop(f)
     -- backdropInfo; backdropInfo alone is nil on XML-defined chrome and the
     -- SetBackdrop(nil) below would then be unrecoverable. SetBackdrop also
     -- resets both colors to white, so they have to be saved separately.
-    if f._vcOrigBackdrop == nil then
-        f._vcOrigBackdrop = (f.GetBackdrop and f:GetBackdrop()) or f.backdropInfo or false
-        if f.GetBackdropColor then f._vcOrigBdColor = { f:GetBackdropColor() } end
-        if f.GetBackdropBorderColor then f._vcOrigBdBorder = { f:GetBackdropBorderColor() } end
+    if origBd[f] == nil then
+        local rec = { bd = (f.GetBackdrop and f:GetBackdrop()) or f.backdropInfo or false }
+        if f.GetBackdropColor then rec.color = { f:GetBackdropColor() } end
+        if f.GetBackdropBorderColor then rec.border = { f:GetBackdropBorderColor() } end
+        origBd[f] = rec
     end
     f:SetBackdrop(nil)
 end
 
 local function restoreBackdrop(f)
-    if not (f.SetBackdrop and f._vcOrigBackdrop) then return end
-    f:SetBackdrop(f._vcOrigBackdrop)
-    local c = f._vcOrigBdColor
+    local rec = origBd[f]
+    if not (f.SetBackdrop and rec and rec.bd) then return end
+    f:SetBackdrop(rec.bd)
+    local c = rec.color
     if c and c[1] and f.SetBackdropColor then f:SetBackdropColor(c[1], c[2], c[3], c[4]) end
-    local b = f._vcOrigBdBorder
+    local b = rec.border
     if b and b[1] and f.SetBackdropBorderColor then f:SetBackdropBorderColor(b[1], b[2], b[3], b[4]) end
 end
 
@@ -99,8 +105,8 @@ local function fadeButtonTextures(b, store)
 end
 
 local function skinPopupButton(b, entry)
-    if not b or b._vcPopupSkin or not b.HookScript then return end
-    b._vcPopupSkin = true
+    if not b or partSkin[b] or not b.HookScript then return end
+    partSkin[b] = true
 
     local ac = ns.COLORS.accent
     local bc = ns.COLORS.border or { r = 0.22, g = 0.22, b = 0.27 }
@@ -146,8 +152,8 @@ local function skinPopupButton(b, entry)
 end
 
 local function skinEditBox(eb, entry)
-    if not eb or eb._vcPopupSkin or not eb.CreateTexture then return end
-    eb._vcPopupSkin = true
+    if not eb or partSkin[eb] or not eb.CreateTexture then return end
+    partSkin[eb] = true
     fadeRegions(eb, entry.faded)
 
     local bg = eb:CreateTexture(nil, "BACKGROUND")
@@ -224,8 +230,8 @@ local function skinPopup(f)
         pending[f] = true
         -- the hook must go in exactly once — HookScript stacks, and `pending`
         -- gets cleared, so it cannot double as the installed-marker
-        if not f._vcHideHooked then
-            f._vcHideHooked = true
+        if not hideHooked[f] then
+            hideHooked[f] = true
             f:HookScript("OnHide", function()
                 -- fonts arrive via the Show-hook's setShown on the next show
                 if pending[f] and not skinned[f] and mod.active then
@@ -249,17 +255,18 @@ local function skinPopup(f)
     local UI = ns.UI
     if UI and UI.StyleBackdrop then
         UI:StyleBackdrop(f, { bg = ns.COLORS.bg, border = ns.COLORS.accentDim or ns.COLORS.border })
-        -- StyleBackdrop parks its pieces on the frame itself; collect them so the
-        -- revert can hide them again
-        if f._vcBG then entry.ours[#entry.ours + 1] = f._vcBG end
-        if f._vcBorders then
-            for _, b in ipairs(f._vcBorders) do entry.ours[#entry.ours + 1] = b end
+        -- collect StyleBackdrop's pieces so the revert can hide them again
+        local bg, borders = UI:BackdropParts(f)
+        if bg then entry.ours[#entry.ours + 1] = bg end
+        if borders then
+            for _, b in ipairs(borders) do entry.ours[#entry.ours + 1] = b end
         end
     end
     if UI and UI.CreateShadow then
         UI:CreateShadow(f)
-        if f._vcShadow then
-            for _, t in ipairs(f._vcShadow) do entry.ours[#entry.ours + 1] = t end
+        local shadow = UI:GetShadow(f)
+        if shadow then
+            for _, t in ipairs(shadow) do entry.ours[#entry.ours + 1] = t end
         end
     end
 

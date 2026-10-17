@@ -45,6 +45,9 @@ end
 
 local function applyUIScale(scale)
     if not scale or scale <= 0 then return end
+    -- UIParent is protected: SetScale is blocked in combat, and pcall does not
+    -- catch that
+    if InCombatLockdown() then ns:Print(L["Not possible in combat."]); return end
     -- useUiScale must be "1" for uiScale to take effect
     setCVar("useUiScale", "1")
     setCVar("uiScale", scale)
@@ -216,6 +219,9 @@ local function applyGameTextFont()
     -- and a guard here turned a reload issued during combat into a whole
     -- session without the font (PLAYER_LOGIN fires while still in lockdown).
     local path = ns.UI.FONT_PATH
+    -- deliberate write: text built later from the global follows the chosen
+    -- face; no Blizzard Lua reads it after GameFonts.xml defines it -- read
+    -- only by insecure addon code creating its own text.
     _G.STANDARD_TEXT_FONT = path
     if type(GetFonts) == "function" then
         for _, name in ipairs(GetFonts() or {}) do

@@ -77,16 +77,31 @@ local function eachChatFrame(fn)
     end
 end
 
+-- The CVar is account-saved, so after a /reload it already holds OUR format
+-- and a per-session capture would hand that back on disable. The true original
+-- is kept in the db (_tsOrig) until it is restored.
 local _tsOrig
-local function applyTimestamps()
-    if not (active and mod.db.timestamps) then
-        if _tsOrig ~= nil then pcall(SetCVar, "showTimestamps", _tsOrig); _tsOrig = nil end
-        return
-    end
-    if _tsOrig == nil then _tsOrig = GetCVar and GetCVar("showTimestamps") or "none" end
+local function ownTimestampFormat()
     local fmt = mod.db.timestampFormat
     if not fmt or fmt == "" then fmt = "%H:%M" end
-    pcall(SetCVar, "showTimestamps", fmt .. " ")
+    return fmt .. " "
+end
+local function applyTimestamps()
+    if not (active and mod.db.timestamps) then
+        if _tsOrig ~= nil then
+            pcall(SetCVar, "showTimestamps", _tsOrig)
+            _tsOrig, mod.db._tsOrig = nil, nil
+        end
+        return
+    end
+    local own = ownTimestampFormat()
+    if _tsOrig == nil then
+        local cur = GetCVar and GetCVar("showTimestamps") or "none"
+        if cur == own then cur = mod.db._tsOrig or "none" end
+        _tsOrig = cur
+        mod.db._tsOrig = cur
+    end
+    pcall(SetCVar, "showTimestamps", own)
 end
 
 local function applyIndentWrap()
@@ -101,16 +116,50 @@ local CLASS_TYPES = {
     "PARTY", "PARTY_LEADER", "RAID", "RAID_LEADER", "RAID_WARNING",
     "INSTANCE_CHAT", "INSTANCE_CHAT_LEADER", "GUILD", "OFFICER", "CHANNEL",
 }
+-- The game's setter is saved per character and its event updates ChatTypeInfo
+-- from Blizzard code, so nothing of ours lands in that table. Only the types we
+-- switched on are remembered (per character, a /reload would otherwise hand
+-- back our own state) and only those are switched back off.
+local function setNameByClass(t, info, v)
+    if SetChatColorNameByClass then
+        pcall(SetChatColorNameByClass, t, v)
+    else
+        -- deliberate write: client without the setter -- read only by the
+        -- insecure chat formatting code
+        info.colorNameByClass = v
+    end
+end
 local function applyClassColors()
-    local on = (active and mod.db.classColors) and true or false
+    local db = mod.db
+    local on = (active and db.classColors) and true or false
     -- chatClassColorOverride "1" forces colouring off and silently voids the per-type flag
-    if on and GetCVar and GetCVar("chatClassColorOverride") == "1" then
-        pcall(SetCVar, "chatClassColorOverride", "2")
+    if on then
+        if GetCVar and GetCVar("chatClassColorOverride") == "1" then
+            db._ccOverrideOrig = "1"
+            pcall(SetCVar, "chatClassColorOverride", "2")
+        end
+    elseif db._ccOverrideOrig then
+        pcall(SetCVar, "chatClassColorOverride", db._ccOverrideOrig)
+        db._ccOverrideOrig = nil
     end
     if type(ChatTypeInfo) ~= "table" then return end
-    for _, t in ipairs(CLASS_TYPES) do
-        local info = ChatTypeInfo[t]
-        if info then info.colorNameByClass = on end
+    local cdb = _G.VuloClassicUICharDB
+    if on then
+        local orig = cdb and cdb.chatNameColorOrig
+        if cdb and not orig then orig = {}; cdb.chatNameColorOrig = orig end
+        for _, t in ipairs(CLASS_TYPES) do
+            local info = ChatTypeInfo[t]
+            if info and not info.colorNameByClass then
+                if orig and orig[t] == nil then orig[t] = false end
+                setNameByClass(t, info, true)
+            end
+        end
+    elseif cdb and cdb.chatNameColorOrig then
+        for t, old in pairs(cdb.chatNameColorOrig) do
+            local info = ChatTypeInfo[t]
+            if info then setNameByClass(t, info, old) end
+        end
+        cdb.chatNameColorOrig = nil
     end
 end
 
@@ -946,7 +995,7 @@ local function styleCombatLog()
     local bgt = qbf:CreateTexture(nil, "BACKGROUND")
     bgt:SetAllPoints()
     bgt:SetColorTexture(BG.r, BG.g, BG.b, BG.a or 0.9)
-    qbf._vcuiBg = bgt   -- so the opacity slider can repaint this strip too
+    d.bg = bgt   -- so the opacity slider can repaint this strip too
 end
 
 -- Blizzard anchors GeneralDockManagerScrollFrame below the dock manager, misaligning scroll-child tabs. Must run deferred (positions must be settled to measure); the >0.5 gate keeps it idempotent.
@@ -1335,8 +1384,9 @@ local function applyPanelOpacity()
         sidebarFrame._vcuiBg:SetColorTexture(BG.r, BG.g, BG.b, BG.a)
     end
     local qbf = _G.CombatLogQuickButtonFrame_Custom or _G.CombatLogQuickButtonFrame
-    if qbf and qbf._vcuiBg then
-        qbf._vcuiBg:SetColorTexture(BG.r, BG.g, BG.b, BG.a)
+    local qd = qbf and fdata[qbf]
+    if qd and qd.bg then
+        qd.bg:SetColorTexture(BG.r, BG.g, BG.b, BG.a)
     end
 end
 
@@ -1423,7 +1473,8 @@ local function ensureChatMover()
         label    = L["Chat"],
         db       = db,
         fill     = true,   -- overlay covers the whole chat window, not a small box
-        onMove   = function() db.moved = true end,
+        -- the live table, not the captured one: a profile switch re-points both
+        onMove   = function() if mod.db and mod.db.chatPos then mod.db.chatPos.moved = true end end,
         applyPos = applyChatPos,
     })
     -- ChatFrame1 is only the message area; the visible "window" is our dark panel,

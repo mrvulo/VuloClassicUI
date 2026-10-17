@@ -68,7 +68,8 @@ local function buttonFonts()
 end
 
 local function skinButton(b)
-    if not b or b._vcuiSkin then return end
+    -- SkinPanelButton keeps its own marker in UI/Widgets.lua now
+    if not b or b._vcuiSkin or ns.UI:IsPanelButtonSkinned(b) then return end
     buttonFonts()
     ns.UI:SkinPanelButton(b, { fonts = { sk.fontN, sk.fontH, sk.fontD } })
 end
@@ -400,7 +401,8 @@ function sk.skinHealPredict()
     local function skinButtonsIn(frame, depth)
         for _, child in ipairs({ frame:GetChildren() }) do
             local ot = child.GetObjectType and child:GetObjectType()
-            if ot == "Button" and not child._vcuiSkin and not child._vcuiClose then
+            if ot == "Button" and not child._vcuiSkin and not child._vcuiClose
+                and not ns.UI:IsPanelButtonSkinned(child) then
                 local fs = child.GetFontString and child:GetFontString()
                 local txt = fs and fs:GetText()
                 if txt and txt ~= "" then skinButton(child) end

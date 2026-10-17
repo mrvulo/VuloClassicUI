@@ -847,13 +847,16 @@ local PANEL_CHROME = {
 --     Blizzard_GlyphUI.xml, not Blizzard_TalentUI. Skinning on the talent
 --     addon's load ran while GlyphFrame did not exist yet and quietly gave up
 --     halfway.
---   * THE FRAME REPAINTS ITSELF. PlayerTalentFrame._vcBG was in the stack --
---     our backdrop WAS there -- with Blizzard's parchment still on top of it.
+--   * THE FRAME REPAINTS ITSELF. Our backdrop on PlayerTalentFrame was in the
+--     stack -- it WAS there -- with Blizzard's parchment still on top of it.
 --     The corner art is re-set when the page changes, so a one-shot pass loses.
 --
 -- Hence: the paint is idempotent and runs again on every show and every update.
 -- Only what must exist once is guarded.
 local chromeBuilt
+-- Our state for Blizzard's frames lives here, not as fields on them.
+local tabSkin  = setmetatable({}, { __mode = "k" })  -- talent tab -> { art, plate, underline, text }
+local hookedBz = setmetatable({}, { __mode = "k" })  -- Blizzard frame -> our OnShow hook installed
 
 applyGlyphSkin = function()
     local UI = ns.UI
@@ -903,8 +906,10 @@ applyGlyphSkin = function()
     for i = 1, 6 do
         local tab = _G["PlayerTalentFrameTab" .. i]
         if tab then
-            if not tab._vcTabSkin then
-                tab._vcTabSkin = true
+            local ts = tabSkin[tab]
+            if not ts then
+                ts = {}
+                tabSkin[tab] = ts
                 -- Blizzard's own textures, collected ONCE. This pass runs on
                 -- every talent-frame update, and rebuilding the region list each
                 -- time meant a fresh table per tab per update for a set that
@@ -918,7 +923,7 @@ applyGlyphSkin = function()
                         r:SetAlpha(0)
                     end
                 end
-                tab._vcArt = art
+                ts.art = art
                 local fs = tab.GetFontString and tab:GetFontString()
                 if fs then
                     local plate = tab:CreateTexture(nil, "BACKGROUND")
@@ -930,29 +935,29 @@ applyGlyphSkin = function()
                     ul:SetPoint("BOTTOMLEFT", plate, "BOTTOMLEFT", 0, 0)
                     ul:SetPoint("BOTTOMRIGHT", plate, "BOTTOMRIGHT", 0, 0)
                     ul:SetColorTexture(ac.r, ac.g, ac.b, 0.9)
-                    tab._vcPlate, tab._vcUnderline, tab._vcText = plate, ul, fs
+                    ts.plate, ts.underline, ts.text = plate, ul, fs
                 end
             end
             -- Selection can change without a reload, and the tab art comes back
             -- with it, so it is re-asserted here rather than at build time --
             -- over the snapshot, without building a list each pass.
             -- Not `i`: that is the tab index of the loop this sits inside.
-            local art = tab._vcArt
+            local art = ts.art
             if art then
                 for a = 1, #art do art[a]:SetAlpha(0) end
             end
             local selected = (tf.selectedTab or 1) == i
-            if tab._vcText then
-                if UI.Font then UI.Font(tab._vcText, 11) end
+            if ts.text then
+                if UI.Font then UI.Font(ts.text, 11) end
                 if selected then
-                    tab._vcText:SetTextColor(ac.r, ac.g, ac.b)
+                    ts.text:SetTextColor(ac.r, ac.g, ac.b)
                 else
-                    tab._vcText:SetTextColor(0.72, 0.72, 0.78)
+                    ts.text:SetTextColor(0.72, 0.72, 0.78)
                 end
             end
-            if tab._vcUnderline then tab._vcUnderline:SetShown(selected) end
-            if tab._vcPlate then
-                tab._vcPlate:SetColorTexture(selected and 0.14 or 0.10,
+            if ts.underline then ts.underline:SetShown(selected) end
+            if ts.plate then
+                ts.plate:SetColorTexture(selected and 0.14 or 0.10,
                                              selected and 0.14 or 0.10,
                                              selected and 0.18 or 0.13, 0.95)
             end
@@ -961,8 +966,8 @@ applyGlyphSkin = function()
 
     local gf = _G.GlyphFrame
     if not gf then return end
-    if not gf._vcGlyphHook then
-        gf._vcGlyphHook = true
+    if not hookedBz[gf] then
+        hookedBz[gf] = true
         gf:HookScript("OnShow", applyGlyphSkin)
     end
 
@@ -1000,8 +1005,8 @@ end
 
 local function wireBlizzard()
     local tf = _G.PlayerTalentFrame or _G.TalentFrame
-    if not tf or tf._vcuiTalentHook then return end
-    tf._vcuiTalentHook = true
+    if not tf or hookedBz[tf] then return end
+    hookedBz[tf] = true
     tf:HookScript("OnShow", function(f)
         if not mod.active or mod.db.replace == false or mod._suppress or buildBroken then return end
         if win and win:IsShown() then

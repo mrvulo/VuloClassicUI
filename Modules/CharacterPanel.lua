@@ -89,6 +89,8 @@ local function reapplyItemLevelSize()
 end
 mod.reapplyItemLevelSize = reapplyItemLevelSize
 
+local ilvlHooked = setmetatable({}, { __mode = "k" })  -- Blizzard frame -> OnShow hook installed
+
 function mod:OnEnable()
     -- The implementation below only ever ran from a one-shot PLAYER_LOGIN
     -- handler, so switching this module on during a session did nothing at all
@@ -99,8 +101,9 @@ function mod:OnEnable()
     end
 
     -- the impl recreates the iLvL font strings at a fixed size on each open, so reapply
-    if _G.CharacterFrame and not _G.CharacterFrame._vcui_ilvlHook then
-        _G.CharacterFrame._vcui_ilvlHook = true
+    -- (hook flag kept in a side table, not on the Blizzard frame)
+    if _G.CharacterFrame and not ilvlHooked[_G.CharacterFrame] then
+        ilvlHooked[_G.CharacterFrame] = true
         _G.CharacterFrame:HookScript("OnShow", function()
             if C_Timer and C_Timer.After then
                 C_Timer.After(0.1, reapplyItemLevelSize)
