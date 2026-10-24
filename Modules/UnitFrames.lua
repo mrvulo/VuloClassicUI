@@ -889,6 +889,10 @@ local mod = ns:RegisterModule("playercastbar", {
         mode          = "blizzard",
         showTimeText  = true,
         timeTextMode  = "both",
+        timePos       = "auto",   -- auto = each style's own spot
+        timeX         = 0,
+        timeY         = 0,
+        timeSize      = 0,        -- 0 = the style's font size
         showTicks     = true,
         showClipMarker = true,
         showPushback  = true,
@@ -998,6 +1002,33 @@ local function fmtTime(remaining, duration)
         return string.format("%.1f / %.1f", remaining, duration)
     end
     return string.format("%.1f", remaining)
+end
+
+-- Cast timer placement (user request, 24.10.2026): "auto" keeps each style's
+-- own spot, the rest put it at the bar's right end, beside the bar on the
+-- right, or over / under its right edge. X and Y nudge every choice; a size of
+-- 0 keeps the style's font size. auto = { point, relativeTo, relPoint, x, y }.
+local TIME_POS = {
+    inside = { "RIGHT",       "RIGHT",       -4,  0 },
+    right  = { "LEFT",        "RIGHT",        4,  0 },
+    above  = { "BOTTOMRIGHT", "TOPRIGHT",     0,  2 },
+    below  = { "TOPRIGHT",    "BOTTOMRIGHT",  0, -2 },
+}
+local function placeTimeText(fs, bar, auto, baseSize)
+    local d = mod.db
+    local x, y = d.timeX or 0, d.timeY or 0
+    fs:ClearAllPoints()
+    local p = TIME_POS[d.timePos]
+    if p then
+        fs:SetPoint(p[1], bar, p[2], p[3] + x, p[4] + y)
+        fs:SetJustifyH(p[1] == "LEFT" and "LEFT" or "RIGHT")
+    else
+        fs:SetPoint(auto[1], auto[2], auto[3], auto[4] + x, auto[5] + y)
+        fs:SetJustifyH("RIGHT")
+    end
+    local size = tonumber(d.timeSize) or 0
+    local font, _, flags = fs:GetFont()
+    if font then fs:SetFont(font, size > 0 and size or baseSize, flags) end
 end
 
 local craftSeries   -- { name, total, done, stamp }; armed by the craft hooks, counted by the tracker below
@@ -1122,8 +1153,8 @@ local function bz_ensureOverlay(bar)
     local font, size, flags = o.timeText:GetFont()
     o.timeText:SetFont(font, (size or 10) + 2, flags)
     o.timeText:SetTextColor(1, 1, 1, 1)
-    o.timeText:SetPoint("RIGHT", o, "RIGHT", -10, 3)
-    o.timeText:SetJustifyH("RIGHT")
+    o.timeBase = (size or 10) + 2
+    placeTimeText(o.timeText, o, { "RIGHT", o, "RIGHT", -10, 3 }, o.timeBase)
     o.timeText:SetText("")
 
     o.pushText = o:CreateFontString(nil, "OVERLAY")
@@ -1483,14 +1514,20 @@ local function c_applySkin()
     cFrame.timeText:ClearAllPoints()
     cFrame.nameText:SetWordWrap(false)
     if modern then
-        cFrame.timeText:SetPoint("RIGHT", cFrame.bar, "RIGHT", -4, 0)
-        cFrame.nameText:SetPoint("LEFT", cFrame.bar, "LEFT", 4, 0)
-        -- capped at the timer so a long spell name truncates instead of
-        -- running underneath it (the timer keeps its anchor while hidden)
-        cFrame.nameText:SetPoint("RIGHT", cFrame.timeText, "LEFT", -4, 0)
         if ns.UI and ns.UI.Font then
             ns.UI.Font(cFrame.nameText, 11, "OUTLINE")
             ns.UI.Font(cFrame.timeText, 11, "OUTLINE")
+        end
+        placeTimeText(cFrame.timeText, cFrame.bar, { "RIGHT", cFrame.bar, "RIGHT", -4, 0 }, 11)
+        cFrame.nameText:SetPoint("LEFT", cFrame.bar, "LEFT", 4, 0)
+        -- capped at the timer so a long spell name truncates instead of
+        -- running underneath it (the timer keeps its anchor while hidden);
+        -- a timer placed off the bar caps it at the bar's end instead
+        local onBar = TIME_POS[mod.db.timePos] == nil or mod.db.timePos == "inside"
+        if onBar then
+            cFrame.nameText:SetPoint("RIGHT", cFrame.timeText, "LEFT", -4, 0)
+        else
+            cFrame.nameText:SetPoint("RIGHT", cFrame.bar, "RIGHT", -4, 0)
         end
         -- reset the classic dress's gray vertex tint first: it would multiply
         -- into the flat color and turn the background pure black
@@ -1500,9 +1537,9 @@ local function c_applySkin()
         cFrame.spark:Hide()
     else
         cFrame.nameText:SetPoint("TOPLEFT", cFrame, "BOTTOMLEFT", 2, -2)
-        cFrame.timeText:SetPoint("TOPRIGHT", cFrame, "BOTTOMRIGHT", -2, -2)
         cFrame.nameText:SetFont("Fonts\\FRIZQT__.TTF", 11, "OUTLINE")
         cFrame.timeText:SetFont("Fonts\\FRIZQT__.TTF", 11, "OUTLINE")
+        placeTimeText(cFrame.timeText, cFrame.bar, { "TOPRIGHT", cFrame, "BOTTOMRIGHT", -2, -2 }, 11)
         cFrame.bg:SetTexture(TEX_BG)
         cFrame.bg:SetVertexColor(0.1, 0.1, 0.1, 0.85)
         cFrame.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
@@ -1918,6 +1955,14 @@ local function c_applyLayout()
     c_applySkin()
 end
 
+-- Every timer that exists, after a placement option changed.
+function mod.ApplyTimeLayout()
+    for _, o in pairs(bzOverlay) do
+        placeTimeText(o.timeText, o, { "RIGHT", o, "RIGHT", -10, 3 }, o.timeBase or 12)
+    end
+    if cFrame then c_applySkin() end
+end
+
 c_showTestContent = function()
     cFrame:Show()
     cFrame:SetAlpha(1)
@@ -2126,6 +2171,7 @@ local function pvStyle()
         ns.UI.Font(pv.name, 11, "OUTLINE")
         ns.UI.Font(pv.timer, 11, "OUTLINE")
     end
+    placeTimeText(pv.timer, pv.bar, { "RIGHT", pv.bar, "RIGHT", -4, 0 }, 11)
     pv.name:SetShown(d.showSpellName ~= false)
     pv.timer:SetShown(d.showTimeText ~= false)
     pv.timer:SetText(d.timeTextMode == "seconds" and "3"
@@ -2230,6 +2276,34 @@ function mod.BuildPreview(host)
     return 44
 end
 
+-- The timer placement rows, shared by both option layouts (behind the
+-- timer's gear: with the timer off they do nothing).
+local function timerPlacementRows()
+    local function apply() if mod.ApplyTimeLayout then mod.ApplyTimeLayout() end end
+    return {
+        { type = "dropdown", label = L["Position"], width = 200, subKey = "timer",
+          values = {
+              { value = "auto",   text = L["Default"] },
+              { value = "inside", text = L["Inside the bar"] },
+              { value = "right",  text = L["Right of the bar"] },
+              { value = "above",  text = L["Above the bar"] },
+              { value = "below",  text = L["Below the bar"] },
+          },
+          get = function() return mod.db.timePos or "auto" end,
+          set = function(_, v) mod.db.timePos = v; apply() end },
+        { type = "slider", label = L["X offset"], min = -100, max = 100, step = 1, subKey = "timer",
+          get = function() return mod.db.timeX or 0 end,
+          set = function(_, v) mod.db.timeX = v; apply() end },
+        { type = "slider", label = L["Y offset"], min = -50, max = 50, step = 1, subKey = "timer",
+          get = function() return mod.db.timeY or 0 end,
+          set = function(_, v) mod.db.timeY = v; apply() end },
+        { type = "slider", label = L["Font size"], min = 0, max = 24, step = 1, subKey = "timer",
+          tooltip = L["0 keeps the style's size."],
+          get = function() return mod.db.timeSize or 0 end,
+          set = function(_, v) mod.db.timeSize = v; apply() end },
+    }
+end
+
 function mod:GetOptions()
     local items = {}
 
@@ -2272,9 +2346,10 @@ function mod:GetOptions()
         set = function(_, v) mod.db.showSpellName = v end,
     })
     table.insert(items, {
-        type = "toggle", label = L["Show cast timer"],
+        type = "toggle", label = L["Show cast timer"], subKey = "timerClassic",
         get = function() return mod.db.showTimeText end,
         set = function(_, v) mod.db.showTimeText = v end,
+        subOptions = timerPlacementRows(),
     })
     table.insert(items, {
         type = "dropdown", label = L["Timer format"],
@@ -2518,6 +2593,7 @@ function mod:GetOptions()
                     },
                     get = function() return mod.db.timeTextMode or "both" end,
                     set = function(_, v) mod.db.timeTextMode = v end },
+                  unpack(timerPlacementRows()),
               } },
         } })
         table.insert(items, { type = "section", title = L["Behaviour"], items = {

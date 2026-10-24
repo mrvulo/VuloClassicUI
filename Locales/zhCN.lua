@@ -3624,4 +3624,7 @@ ns:RegisterLocale("zhCN", function() return {
     ["The addon no longer stores its own data on the game's frames, one of the ways its code could get blamed for blocked actions."] = "插件不再把自己的数据存放在游戏的框体上，这曾是插件代码可能被归咎于动作被阻止的原因之一。",
     ["The health text on the target frame follows the game's status text setting again."] = "目标框体上的生命值文字重新遵循游戏的状态文字设置。",
     ["Since 1.62.1 the health text on the target frame stood in one centred line while the mana text below it was split. Percent sits on the left and the value on the right again, in line with the mana bar."] = "自 1.62.1 起，目标框体上的生命值文字显示为居中的一行，而下方的法力值文字是左右分开的。现在百分比重新显示在左侧、数值在右侧，与法力条对齐。",
+    ["Inside the bar"] = "条内",
+    ["Right of the bar"] = "条的右侧",
+    ["0 keeps the style's size."] = "0 表示保持样式自身的大小。",
 } end)

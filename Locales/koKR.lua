@@ -3631,4 +3631,7 @@ ns:RegisterLocale("koKR", function() return {
     ["The addon no longer stores its own data on the game's frames, one of the ways its code could get blamed for blocked actions."] = "애드온이 더 이상 게임의 프레임에 자체 데이터를 저장하지 않습니다. 이는 애드온 코드가 행동 차단의 원인으로 지목될 수 있던 경로 중 하나였습니다.",
     ["The health text on the target frame follows the game's status text setting again."] = "대상 프레임의 생명력 문자가 다시 게임의 상태 문자 설정을 따릅니다.",
     ["Since 1.62.1 the health text on the target frame stood in one centred line while the mana text below it was split. Percent sits on the left and the value on the right again, in line with the mana bar."] = "1.62.1부터 대상 프레임의 생명력 텍스트가 가운데 한 줄로 표시되고 그 아래 마나 텍스트는 나뉘어 표시되었습니다. 이제 다시 백분율은 왼쪽, 수치는 오른쪽에 마나 바와 나란히 표시됩니다.",
+    ["Inside the bar"] = "바 안쪽",
+    ["Right of the bar"] = "바 오른쪽",
+    ["0 keeps the style's size."] = "0이면 스타일 크기를 유지합니다.",
 } end)

@@ -3749,4 +3749,7 @@ ns:RegisterLocale("deDE", function() return {
     ["The addon no longer stores its own data on the game's frames, one of the ways its code could get blamed for blocked actions."] = "Das Addon legt keine eigenen Daten mehr auf den Fenstern des Spiels ab, einer der Wege, auf denen sein Code für blockierte Aktionen verantwortlich gemacht werden konnte.",
     ["The health text on the target frame follows the game's status text setting again."] = "Der Lebenspunkte-Text am Zielrahmen folgt wieder der Statustext-Einstellung des Spiels.",
     ["Since 1.62.1 the health text on the target frame stood in one centred line while the mana text below it was split. Percent sits on the left and the value on the right again, in line with the mana bar."] = "Seit 1.62.1 stand der Lebenstext am Zielrahmen in einer mittigen Zeile, während der Manatext darunter geteilt war. Prozent steht wieder links und der Wert rechts, auf einer Linie mit der Manaleiste.",
+    ["Inside the bar"] = "In der Leiste",
+    ["Right of the bar"] = "Rechts neben der Leiste",
+    ["0 keeps the style's size."] = "0 behält die Größe des Stils.",
 } end)

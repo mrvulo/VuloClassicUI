@@ -3631,4 +3631,7 @@ ns:RegisterLocale("itIT", function() return {
     ["The addon no longer stores its own data on the game's frames, one of the ways its code could get blamed for blocked actions."] = "L'addon non memorizza più i propri dati sui riquadri del gioco, uno dei modi in cui il suo codice poteva essere incolpato di azioni bloccate.",
     ["The health text on the target frame follows the game's status text setting again."] = "Il testo della salute sul riquadro del bersaglio segue di nuovo l'impostazione del testo di stato del gioco.",
     ["Since 1.62.1 the health text on the target frame stood in one centred line while the mana text below it was split. Percent sits on the left and the value on the right again, in line with the mana bar."] = "Dalla 1.62.1 il testo della salute nel riquadro del bersaglio stava su un'unica riga centrata, mentre il testo del mana sotto era diviso. La percentuale è di nuovo a sinistra e il valore a destra, in linea con la barra del mana.",
+    ["Inside the bar"] = "Dentro la barra",
+    ["Right of the bar"] = "A destra della barra",
+    ["0 keeps the style's size."] = "0 mantiene la dimensione dello stile.",
 } end)
