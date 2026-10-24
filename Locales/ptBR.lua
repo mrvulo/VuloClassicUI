@@ -3630,4 +3630,6 @@ ns:RegisterLocale("ptBR", function() return {
     ["Inside the bar"] = "Dentro da barra",
     ["Right of the bar"] = "À direita da barra",
     ["0 keeps the style's size."] = "0 mantém o tamanho do estilo.",
+    ["Position – Puts the cast timer inside the bar, beside it on the right, above or below it, with its own X and Y offset and font size"] = "Posição – Coloca o tempo de conjuração dentro da barra, à direita dela, acima ou abaixo, com deslocamento X e Y e tamanho de fonte próprios",
+    ["In the Original style the timer sat at the right end of the bar and ran into the centred spell name; any of the other positions keeps them apart."] = "No estilo Original, o tempo ficava na ponta direita da barra e invadia o nome do feitiço centralizado; qualquer uma das outras posições os mantém separados.",
 } end)

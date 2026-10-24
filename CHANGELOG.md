@@ -16,6 +16,11 @@
   ~1900 characters or it gets truncated with a link to the full notes.
 -->
 
+## 1.62.3
+**Player Castbar:**
+- **NEW: Position** – Puts the cast timer inside the bar, beside it on the right, above or below it, with its own X and Y offset and font size
+- In the Original style the timer sat at the right end of the bar and ran into the centred spell name; any of the other positions keeps them apart.
+
 ## 1.62.2
 **Unit Frames:**
 - Since 1.62.1 the health text on the target frame stood in one centred line while the mana text below it was split. Percent sits on the left and the value on the right again, in line with the mana bar.

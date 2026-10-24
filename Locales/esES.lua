@@ -3631,6 +3631,8 @@ local function T() return {
     ["Inside the bar"] = "Dentro de la barra",
     ["Right of the bar"] = "A la derecha de la barra",
     ["0 keeps the style's size."] = "0 mantiene el tamaño del estilo.",
+    ["Position – Puts the cast timer inside the bar, beside it on the right, above or below it, with its own X and Y offset and font size"] = "Posición – Coloca el tiempo de lanzamiento dentro de la barra, a su derecha, encima o debajo, con su propio desplazamiento X e Y y su propio tamaño de fuente",
+    ["In the Original style the timer sat at the right end of the bar and ran into the centred spell name; any of the other positions keeps them apart."] = "En el estilo Original, el tiempo estaba en el extremo derecho de la barra y se montaba sobre el nombre del hechizo centrado; cualquiera de las otras posiciones los mantiene separados.",
 } end
 
 ns:RegisterLocale("esES", T)

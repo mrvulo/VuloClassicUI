@@ -3630,4 +3630,6 @@ ns:RegisterLocale("koKR", function() return {
     ["Inside the bar"] = "바 안쪽",
     ["Right of the bar"] = "바 오른쪽",
     ["0 keeps the style's size."] = "0이면 스타일 크기를 유지합니다.",
+    ["Position – Puts the cast timer inside the bar, beside it on the right, above or below it, with its own X and Y offset and font size"] = "위치 – 시전 시간을 바 안쪽, 바 오른쪽, 바 위 또는 아래에 표시하며 X·Y 오프셋과 글꼴 크기를 따로 설정합니다",
+    ["In the Original style the timer sat at the right end of the bar and ran into the centred spell name; any of the other positions keeps them apart."] = "기본형 스타일에서는 시간이 바 오른쪽 끝에 있어 가운데의 주문 이름과 겹쳤습니다. 다른 위치를 고르면 서로 떨어집니다.",
 } end)

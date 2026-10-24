@@ -3630,4 +3630,6 @@ ns:RegisterLocale("itIT", function() return {
     ["Inside the bar"] = "Dentro la barra",
     ["Right of the bar"] = "A destra della barra",
     ["0 keeps the style's size."] = "0 mantiene la dimensione dello stile.",
+    ["Position – Puts the cast timer inside the bar, beside it on the right, above or below it, with its own X and Y offset and font size"] = "Posizione – Mette il tempo di lancio dentro la barra, alla sua destra, sopra o sotto, con il proprio scostamento X e Y e la propria dimensione del carattere",
+    ["In the Original style the timer sat at the right end of the bar and ran into the centred spell name; any of the other positions keeps them apart."] = "Nello stile Originale il tempo stava all'estremità destra della barra e finiva sul nome dell'incantesimo centrato; qualsiasi altra posizione li tiene separati.",
 } end)
