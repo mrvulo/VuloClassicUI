@@ -16,6 +16,10 @@
   ~1900 characters or it gets truncated with a link to the full notes.
 -->
 
+## 1.62.5
+**Character Panel:**
+- On Season of Discovery the rune panel wears the house look of the character window and sits flush to its right, on the same top and bottom line as the set list, which docks beside it. It used to keep its grey frame and golden rows and reach into the character window.
+
 ## 1.62.4
 **Player Castbar:**
 - Everything about the cast timer now sits in a section of its own, Cast timer, instead of partly in General and partly behind a gear where it was not found.

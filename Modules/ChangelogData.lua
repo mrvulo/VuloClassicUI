@@ -6,6 +6,11 @@
 local _, ns = ...
 
 ns.CHANGELOG = {
+    { version = "1.62.5", sections = {
+        { category = "Character Panel", lines = {
+            "On Season of Discovery the rune panel wears the house look of the character window and sits flush to its right, on the same top and bottom line as the set list, which docks beside it. It used to keep its grey frame and golden rows and reach into the character window.",
+        } },
+    } },
     { version = "1.62.4", sections = {
         { category = "Player Castbar", lines = {
             "Everything about the cast timer now sits in a section of its own, Cast timer, instead of partly in General and partly behind a gear where it was not found.",
@@ -519,22 +524,6 @@ ns.CHANGELOG = {
         } },
         { category = "Trainer", lines = {
             "The trainer tab is a button of its own now. It used to be a spare tab of the spell book that we wrote on with every update, and the book reads those tabs back in the middle of its own pass. It also goes away with the pet book, where it used to stay behind.",
-        } },
-    } },
-    { version = "1.52.1", sections = {
-        { category = "Action Bars", lines = {
-            "NEW: Keep the main bar on its page in every form – Cat, bear, stealth, stances and Shadowform stop swapping action bar 1 to a page of their own",
-            "The ticker that paints cooldown dimming and range colouring no longer walks switched-off bars. It read and repainted every action bar five times a second, including the ones whose buttons nobody can see, so running two bars cost as much as running all of them.",
-            "Leaving a button no longer builds a fresh check each time. The check only ever reads the bar, not the button, so it is built once per bar and shared by all of its buttons.",
-        } },
-        { category = "Arena", lines = {
-            "The opponent frames are left alone unless you actually asked for a different arrangement. They are protected frames: anchoring one from our side is allowed outside a fight, but it marks the frame for the rest of the session, and the next time the default interface repositions it during a round its own call is refused and the block is reported against us. There is no way to anchor a protected frame without leaving that mark, so an untouched setup now keeps the default stacking. Order, spacing, grow direction and slot offsets all still work — the message becomes the price of a feature you asked for rather than something every arena hands out for free.",
-        } },
-        { category = "Bags", lines = {
-            "Move up and move down work again on a category you switched off and back on. The order list was filled once, while it was still empty, so anything that did not exist at that moment never got an entry, and its arrows then did nothing at all for the rest of the session without saying so.",
-        } },
-        { category = "Under the hood", lines = {
-            "Switching a module off releases its event handlers again. The note recording which module owns a handler stayed behind when the handler was unregistered, and that note kept a hard reference to every handler the module had ever registered.",
         } },
     } },
 }
