@@ -3617,4 +3617,8 @@ ns:RegisterLocale("zhTW", function() return {
     ["Position – Puts the cast timer inside the bar, beside it on the right, above or below it, with its own X and Y offset and font size"] = "位置 – 將施法時間放在條內、條的右側、上方或下方，並可單獨設定 X/Y 偏移與字型大小",
     ["In the Original style the timer sat at the right end of the bar and ran into the centred spell name; any of the other positions keeps them apart."] = "在原始樣式中，時間位於條的右端，會壓到置中的法術名稱上；選擇其他任一位置即可將兩者分開。",
     ["The target of target was pinned to a fixed screen spot. It sits at the target frame again after the next /reload."] = "目標的目標被固定在螢幕上的某個位置。下次 /reload 後它會重新回到目標框體旁。",
+    ["Everything about the cast timer now sits in a section of its own, Cast timer, instead of partly in General and partly behind a gear where it was not found."] = "施法時間的所有設定現在都位於獨立的施法計時分區中，而不是一部分在一般裡、一部分藏在找不到的齒輪後面。",
+    ["On Season of Discovery the Vampiric Touch row of the DoT tracker stayed empty behind a placeholder icon and the mana counter never counted: the tracker only knew the talent, not the rune. It knows both now, and the counter uses the rune's own 2 percent there."] = "在探索賽季中，DoT 追蹤器的吸血之觸一行一直空著，只顯示佔位圖示，法力計數器也從不計數：追蹤器只認得天賦，不認得符文。現在兩者都認得，計數器在那裡按符文的 2% 計算。",
+    ["Switches in the right-hand column of a two-column page now line up with the switches on full-width rows; they stood further right before."] = "雙欄頁面右欄中的開關現在與整列寬度的開關對齊；之前它們更靠右。",
+    ["A target of target that the game had pinned to a fixed spot on the screen stayed there while the target frame moved. The addon now drops that pin out of combat, and after the next reload the frame hangs at the target frame again."] = "遊戲把目標的目標固定在螢幕上的某個位置，目標框體移動時它仍留在原地。現在插件會在戰鬥外解除這種固定，下次重載後該框體會重新掛在目標框體上。",
 } end)
