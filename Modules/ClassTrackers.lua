@@ -26,7 +26,24 @@ if not mod then return end
 local DOT_SETS = mod.dotSets
 local dotDefs  = {}   -- active set, chosen by class in Enable
 
-local VT_SPELL_ID_BASE = 34914  -- Vampiric Touch base (TBC)
+-- Vampiric Touch exists twice: the TBC talent (34914) and, on Season of
+-- Discovery, a rune (402668) that the Era client knows instead -- there 34914
+-- resolves to nothing, so the counter never matched and the DoT row stayed
+-- empty behind a placeholder icon (user report 24.10.2026). The first ID the
+-- client knows wins. The rune returns 2 % of shadow damage as mana, the
+-- talent 5 % (both read off the client's own tooltips).
+local VT_SPELLS = {
+    { id = 34914,  manaPct = 0.05 },
+    { id = 402668, manaPct = 0.02 },
+}
+local vtManaPct = 0.05
+local function resolveVT()
+    for _, v in ipairs(VT_SPELLS) do
+        local n = GetSpellInfo(v.id)
+        if n then vtManaPct = v.manaPct; return n end
+    end
+    return nil
+end
 local SHADOW_SCHOOL    = 32
 
 local playerGUID
@@ -54,7 +71,7 @@ local function reportChat()
 end
 
 local function refreshSpell()
-    vtSpellName = GetSpellInfo(VT_SPELL_ID_BASE)
+    vtSpellName = resolveVT()
 end
 
 local TRACKED_EVENTS = {
@@ -205,7 +222,7 @@ local function onCombatLog(_, subEvent, _, sourceGUID, _, _, _, destGUID, _, _, 
         end
     elseif kind then -- "damage"
         if vtTargets[destGUID] and amount and amount > 0 and school == SHADOW_SCHOOL then
-            local mana = amount * 0.05
+            local mana = amount * vtManaPct
             totalMana = totalMana + mana
             lastTick  = mana
             updateFrame()
@@ -238,7 +255,15 @@ local dotsAuraExp = {}
 local function dotsRefreshSpellData()
     for k in pairs(dotsWanted) do dotsWanted[k] = nil end
     for _, dot in ipairs(dotDefs) do
+        -- dot.alt: IDs the same DoT has on another client (Season of
+        -- Discovery runes); the first one this client knows wins
         local n, _, icon = GetSpellInfo(dot.id)
+        if not n and dot.alt then
+            for _, aid in ipairs(dot.alt) do
+                n, _, icon = GetSpellInfo(aid)
+                if n then break end
+            end
+        end
         dot.name = n
         dot.icon = icon
         if n then dotsWanted[n] = true end
@@ -606,7 +631,7 @@ local function trackersEnable(class)
     playerGUID = UnitGUID("player")
 
     if isPriest then
-        vtSpellName = GetSpellInfo(VT_SPELL_ID_BASE)
+        vtSpellName = resolveVT()
         createFrame()
         if mod.db.showFrame then cFrame:Show() else cFrame:Hide() end
         mod:RegisterEvent("PLAYER_REGEN_DISABLED", resetCombat)
