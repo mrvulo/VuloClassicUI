@@ -3781,4 +3781,5 @@ ns:RegisterLocale("frFR", function() return {
     ["0 keeps the style's size."] = "0 conserve la taille du style.",
     ["Position – Puts the cast timer inside the bar, beside it on the right, above or below it, with its own X and Y offset and font size"] = "Position – Place le temps d'incantation dans la barre, à sa droite, au-dessus ou en dessous, avec son propre décalage X et Y et sa propre taille de police",
     ["In the Original style the timer sat at the right end of the bar and ran into the centred spell name; any of the other positions keeps them apart."] = "Dans le style Originale, le temps se trouvait à l'extrémité droite de la barre et chevauchait le nom du sort centré ; toutes les autres positions les séparent.",
+    ["The target of target was pinned to a fixed screen spot. It sits at the target frame again after the next /reload."] = "La cible de la cible était fixée à un point de l'écran. Après le prochain /reload, elle se trouve de nouveau au cadre de cible.",
 } end)

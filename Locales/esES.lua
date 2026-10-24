@@ -3633,6 +3633,7 @@ local function T() return {
     ["0 keeps the style's size."] = "0 mantiene el tamaño del estilo.",
     ["Position – Puts the cast timer inside the bar, beside it on the right, above or below it, with its own X and Y offset and font size"] = "Posición – Coloca el tiempo de lanzamiento dentro de la barra, a su derecha, encima o debajo, con su propio desplazamiento X e Y y su propio tamaño de fuente",
     ["In the Original style the timer sat at the right end of the bar and ran into the centred spell name; any of the other positions keeps them apart."] = "En el estilo Original, el tiempo estaba en el extremo derecho de la barra y se montaba sobre el nombre del hechizo centrado; cualquiera de las otras posiciones los mantiene separados.",
+    ["The target of target was pinned to a fixed screen spot. It sits at the target frame again after the next /reload."] = "El objetivo del objetivo estaba fijado en un punto fijo de la pantalla. Tras el próximo /reload vuelve a estar junto al marco de objetivo.",
 } end
 
 ns:RegisterLocale("esES", T)

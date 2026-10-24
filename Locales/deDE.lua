@@ -3750,4 +3750,5 @@ ns:RegisterLocale("deDE", function() return {
     ["0 keeps the style's size."] = "0 behält die Größe des Stils.",
     ["Position – Puts the cast timer inside the bar, beside it on the right, above or below it, with its own X and Y offset and font size"] = "Position – Setzt die Zauberzeit in die Leiste, rechts daneben, darüber oder darunter, mit eigenem X- und Y-Versatz und eigener Schriftgröße",
     ["In the Original style the timer sat at the right end of the bar and ran into the centred spell name; any of the other positions keeps them apart."] = "Im Stil Original saß die Zeit am rechten Ende der Leiste und lief in den mittigen Zaubernamen; jede der anderen Positionen hält beide auseinander.",
+    ["The target of target was pinned to a fixed screen spot. It sits at the target frame again after the next /reload."] = "Das Ziel des Ziels war an einer festen Bildschirmstelle festgehalten. Nach dem nächsten /reload sitzt es wieder am Zielrahmen.",
 } end)

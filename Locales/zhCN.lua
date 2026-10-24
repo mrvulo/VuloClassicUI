@@ -3625,4 +3625,5 @@ ns:RegisterLocale("zhCN", function() return {
     ["0 keeps the style's size."] = "0 表示保持样式自身的大小。",
     ["Position – Puts the cast timer inside the bar, beside it on the right, above or below it, with its own X and Y offset and font size"] = "位置 – 将施法时间放在条内、条的右侧、上方或下方，并可单独设置 X/Y 偏移和字体大小",
     ["In the Original style the timer sat at the right end of the bar and ran into the centred spell name; any of the other positions keeps them apart."] = "在原版样式中，时间位于条的右端，会压到居中的法术名称上；选择其他任一位置即可将两者分开。",
+    ["The target of target was pinned to a fixed screen spot. It sits at the target frame again after the next /reload."] = "目标的目标被固定在屏幕上的某个位置。下次 /reload 后它会重新回到目标框体旁。",
 } end)

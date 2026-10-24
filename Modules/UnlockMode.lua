@@ -533,9 +533,37 @@ function mod:OnEnable()
     if not mod._evt then
         mod._evt = true
         ns:RegisterEvent("PLAYER_ENTERING_WORLD", restoreAll)
+        ns:RegisterEvent("PLAYER_ENTERING_WORLD", mod.ForgetDetachedToT)
         ns:RegisterEvent("PLAYER_REGEN_ENABLED", function()
             if mod._restorePending then restoreAll() end
         end)
+    end
+end
+
+-- Target of target held at a fixed SCREEN point (measured on Season of
+-- Discovery 24.10.2026: BOTTOM / nil / BOTTOM 345, 264) instead of hanging off
+-- its target frame, so it stayed put while the target frame moved. The template
+-- is movable, and once the frame has been dragged the client's layout cache
+-- puts it back at that point on every login. Re-anchoring it from here is not
+-- an option -- an addon SetPoint on this secure button is exactly what once got
+-- TargetFrameToT:Show() refused in combat. Only the user-placed flag is cleared
+-- (out of combat): the cache then forgets the point, and from the next reload
+-- the frame sits at Blizzard's own anchor on its parent again.
+local TOT_FRAMES = { { "TargetFrameToT", "TargetFrame" }, { "FocusFrameToT", "FocusFrame" } }
+function mod.ForgetDetachedToT()
+    if InCombatLockdown() then return end   -- runs again on the next zoning
+    for _, d in ipairs(TOT_FRAMES) do
+        local tot, parent = _G[d[1]], _G[d[2]]
+        if tot and parent and tot.IsUserPlaced and tot.SetUserPlaced then
+            local _, rel = tot:GetPoint(1)
+            local okPlaced, placed = pcall(tot.IsUserPlaced, tot)
+            if rel ~= parent and okPlaced and placed then
+                if pcall(tot.SetUserPlaced, tot, false) and not mod._totNoted then
+                    mod._totNoted = true
+                    ns:Print(L["The target of target was pinned to a fixed screen spot. It sits at the target frame again after the next /reload."])
+                end
+            end
+        end
     end
 end
 

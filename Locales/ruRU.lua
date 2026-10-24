@@ -3632,4 +3632,5 @@ ns:RegisterLocale("ruRU", function() return {
     ["0 keeps the style's size."] = "0 — размер стиля.",
     ["Position – Puts the cast timer inside the bar, beside it on the right, above or below it, with its own X and Y offset and font size"] = "Положение – Размещает время заклинания внутри полосы, справа от неё, над ней или под ней, со своим смещением по X и Y и своим размером шрифта",
     ["In the Original style the timer sat at the right end of the bar and ran into the centred spell name; any of the other positions keeps them apart."] = "В стиле «Оригинальная» время стояло у правого края полосы и наезжало на название заклинания по центру; любое другое положение разводит их.",
+    ["The target of target was pinned to a fixed screen spot. It sits at the target frame again after the next /reload."] = "Цель цели была закреплена в фиксированной точке экрана. После следующего /reload она снова будет у рамки цели.",
 } end)
