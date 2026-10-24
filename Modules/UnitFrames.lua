@@ -2276,11 +2276,23 @@ function mod.BuildPreview(host)
     return 44
 end
 
--- The timer placement rows, shared by both option layouts (behind the
--- timer's gear: with the timer off they do nothing).
-local function timerPlacementRows()
+-- Everything about the cast timer in one block of its own, shared by both
+-- option layouts. Visible rows, not a gear: hidden behind the switch's gear
+-- the placement was not found at all (user report 24.10.2026).
+local function timerRows()
     local function apply() if mod.ApplyTimeLayout then mod.ApplyTimeLayout() end end
     return {
+        { type = "toggle", label = L["Show cast timer"],
+          get = function() return mod.db.showTimeText end,
+          set = function(_, v) mod.db.showTimeText = v end },
+        { type = "dropdown", label = L["Timer format"], width = 280,
+          values = {
+              { value = "both",      text = L["Remaining / total (1.5 / 2.0)"] },
+              { value = "remaining", text = L["Remaining only (1.5)"] },
+              { value = "seconds",   text = L["Whole seconds (2)"] },
+          },
+          get = function() return mod.db.timeTextMode or "both" end,
+          set = function(_, v) mod.db.timeTextMode = v end },
         { type = "dropdown", label = L["Position"], width = 200, subKey = "timer",
           values = {
               { value = "auto",   text = L["Default"] },
@@ -2346,23 +2358,6 @@ function mod:GetOptions()
         set = function(_, v) mod.db.showSpellName = v end,
     })
     table.insert(items, {
-        type = "toggle", label = L["Show cast timer"], subKey = "timerClassic",
-        get = function() return mod.db.showTimeText end,
-        set = function(_, v) mod.db.showTimeText = v end,
-        subOptions = timerPlacementRows(),
-    })
-    table.insert(items, {
-        type = "dropdown", label = L["Timer format"],
-        width = 280,
-        values = {
-            { value = "both",      text = L["Remaining / total (1.5 / 2.0)"] },
-            { value = "remaining", text = L["Remaining only (1.5)"] },
-            { value = "seconds",   text = L["Whole seconds (2)"] },
-        },
-        get = function() return mod.db.timeTextMode or "both" end,
-        set = function(_, v) mod.db.timeTextMode = v end,
-    })
-    table.insert(items, {
         type = "toggle", label = L["Show channel ticks"],
         tooltip = L["Shows vertical lines at tick points (Mind Flay, Drain Soul, Hellfire, etc.)"],
         get = function() return mod.db.showTicks end,
@@ -2386,6 +2381,10 @@ function mod:GetOptions()
         get = function() return mod.db.mergeCrafts ~= false end,
         set = function(_, v) mod.db.mergeCrafts = v end,
     })
+
+    table.insert(items, { type = "spacer", height = 8 })
+    table.insert(items, { type = "header", text = L["Cast timer"] })
+    for _, row in ipairs(timerRows()) do table.insert(items, row) end
 
     end
 
@@ -2581,21 +2580,8 @@ function mod:GetOptions()
             { type = "toggle", label = L["Show spell name"],
               get = function() return mod.db.showSpellName end,
               set = function(_, v) mod.db.showSpellName = v end },
-            { type = "toggle", label = L["Show cast timer"],
-              get = function() return mod.db.showTimeText end,
-              set = function(_, v) mod.db.showTimeText = v end,
-              subOptions = {
-                  { type = "dropdown", label = L["Timer format"], width = 280,
-                    values = {
-                        { value = "both",      text = L["Remaining / total (1.5 / 2.0)"] },
-                        { value = "remaining", text = L["Remaining only (1.5)"] },
-                        { value = "seconds",   text = L["Whole seconds (2)"] },
-                    },
-                    get = function() return mod.db.timeTextMode or "both" end,
-                    set = function(_, v) mod.db.timeTextMode = v end },
-                  unpack(timerPlacementRows()),
-              } },
         } })
+        table.insert(items, { type = "section", title = L["Cast timer"], items = timerRows() })
         table.insert(items, { type = "section", title = L["Behaviour"], items = {
             { type = "toggle", label = L["Show channel ticks"],
               tooltip = L["Shows vertical lines at tick points (Mind Flay, Drain Soul, Hellfire, etc.)"],

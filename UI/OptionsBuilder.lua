@@ -689,7 +689,9 @@ local function fitColumns(run, availW)
         local cellW  = math.floor((availW - (cols - 1) * COL_GAP) / cols)
         -- what the ROW is given, which is what layoutSliderRow divides up: the
         -- card's inner padding, and the info glyph if any row in the run has one
-        local rowW   = cellW - 20 - (anyTip and 22 or 0)
+        -- minus the icon strip: the RIGHT column reserves it (see placeColumns),
+        -- so the measurement is the right column's, the narrower of the two
+        local rowW   = cellW - 20 - ROW_ICON_STRIP - (anyTip and 22 or 0)
         -- the same cap the row applies, so this answer is the geometry that
         -- gets drawn rather than an optimistic version of it
         local labelW = math.min(widest + 10, math.floor(rowW * 0.5))
@@ -1091,7 +1093,8 @@ local function placeInlineIcons(parent, item, widget, level)
     return used
 end
 
-local function placeSubColumn(parent, item, cellX, subY, cellW)
+local function placeSubColumn(parent, item, cellX, subY, cellW, strip)
+    strip = strip or ROW_ICON_SLOT
     local sub = makeSubColumn(parent)
     sub:ClearAllPoints()
     sub:SetPoint("TOPLEFT", parent, "TOPLEFT", cellX - CONTENT_PADDING, subY)
@@ -1108,8 +1111,8 @@ local function placeSubColumn(parent, item, cellX, subY, cellW)
     -- sub-rows' controls should end on that same edge.
     local savedGrid, savedSolo = UI._grid, UI._soloCol
     local col = runLabelColumn(collectCompact(item.subOptions, {}),
-        cellW - 20 - ROW_ICON_SLOT, true)
-    UI._grid    = { cols = 1, labelCol = col, iconStrip = ROW_ICON_SLOT }
+        cellW - 20 - strip, true)
+    UI._grid    = { cols = 1, labelCol = col, iconStrip = strip }
     UI._soloCol = col
     local yEnd = placeItemList(sub, item.subOptions, 0)
     UI._grid, UI._soloCol = savedGrid, savedSolo
@@ -1211,6 +1214,14 @@ local function placeColumns(parent, run, y)
         -- EVERY cell of a run that contains gear rows -- a gearless neighbour
         -- whose switch ends 21px further right reads as a misalignment, which
         -- is the exact thing the icon-strip rule exists to prevent.
+        -- The RIGHT column ends where a full-width row ends: it reserves the
+        -- same two-slot icon strip, and its gear sits in the strip's outer slot
+        -- like a full row's. Without this every switch in the right column
+        -- stood 42 px right of the switch on a full-width row below it -- the
+        -- one place the always-reserved strip rule still broke (user report
+        -- 24.10.2026). fitColumns measures with the strip, so nothing that
+        -- fitted before is squeezed now.
+        local lastCol = cols > 1 and not fullW and col == cols - 1
         local gearLead = 0
         if runHasGear then gearLead = 21 end
         -- On a strict-grid page EVERY half cell reserves the slot, occupied or
@@ -1221,6 +1232,7 @@ local function placeColumns(parent, run, y)
         -- already reserves this same slot -- adding it twice would indent the
         -- sub-rows against their own gear row.
         if grid and cols > 1 then gearLead = 21 end
+        if lastCol then gearLead = 0 end
         if item.subOptions then
             local key = rowKey(item)
             local g = setRowIcon(makeRowIcon(parent), ICON_GEAR, L["Extra settings"], function()
@@ -1228,8 +1240,12 @@ local function placeColumns(parent, run, y)
                 UI:BuildOptionsPage(UI._currentBuildKey, UI.currentTab)
             end, base + 5)
             g:ClearAllPoints()
-            g:SetPoint("RIGHT", parent, "TOPLEFT", cellX + cellW - 8, cellY - CARD_H / 2)
-            gearLead = 21
+            if lastCol then
+                g:SetPoint("RIGHT", parent, "TOPLEFT", CONTENT_PADDING + availW - 6, cellY - CARD_H / 2)
+            else
+                g:SetPoint("RIGHT", parent, "TOPLEFT", cellX + cellW - 8, cellY - CARD_H / 2)
+                gearLead = 21
+            end
         end
 
         -- A cell that spans the page keeps the same right-hand strip free as a
@@ -1246,7 +1262,8 @@ local function placeColumns(parent, run, y)
         -- single gear slot, so the sub-rows end on the edge their own gear
         -- row reserved above them.
         local rightStrip = (fullW or cols == 1)
-            and ((grid and grid.iconStrip) or ROW_ICON_STRIP) or 0
+            and ((grid and grid.iconStrip) or ROW_ICON_STRIP)
+            or (lastCol and ROW_ICON_STRIP) or 0
 
         -- Inline icons live between the label and the control, so the label
         -- column has to give up their width -- otherwise a long label runs
@@ -1273,7 +1290,8 @@ local function placeColumns(parent, run, y)
         -- The filter unfolds a gear whose rows changed even if nobody opened it.
         if item.subOptions and (UI.rowExpanded[rowKey(item)]
                 or (UI.onlyChanged and UI._building and item._vcChangedInside)) then
-            used = used + placeSubColumn(parent, item, cellX, cellY - ROW_H, cellW)
+            used = used + placeSubColumn(parent, item, cellX, cellY - ROW_H, cellW,
+                lastCol and ROW_ICON_STRIP or nil)
         end
         if fullW then
             for c = 0, cols - 1 do colY[c] = cellY - used end
