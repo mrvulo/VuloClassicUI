@@ -1393,6 +1393,179 @@ end
 ns.StyleLoadoutsWindow = styleWindow
 ns.LoadoutsWindowInset = sidebarInset
 
+-- =========================================================
+-- Rune panel (Season of Discovery)
+--
+-- Blizzard's EngravingFrame opens right of the character sheet in its own grey
+-- tooltip frame and golden trainer art, pushed 24 px INTO the sheet (user
+-- report with a screenshot, 24.10.2026: wants it in the house look, flush right
+-- of the sheet, overlapping nothing). It wears the set list's material and takes
+-- the first docking slot right of the sheet, with the same top and bottom line
+-- as the set list, which then docks right of it.
+--
+-- Facts from Blizzard_EngravingUI (classic_era): a plain, non-secure frame on
+-- UIParent, 193 wide, its content reaching 57 px above and 21 px below it and
+-- 10 px to each side (the Border frame's anchors). Rune clicks, search and the
+-- filter stay Blizzard's own code paths -- only looks and the anchor change.
+-- Nothing is written onto Blizzard's frames: what we fade is remembered here.
+-- =========================================================
+do
+    local RUNE_W, RUNE_TOP, RUNE_SIDE = 193, 57, 10
+    local skin                                    -- our backdrop behind the panel
+    local faded   = {}                            -- region -> alpha before we faded it
+    local extras  = {}                            -- our own textures on Blizzard's rows
+    local lastKey                                 -- layout signature, nothing moved = no work
+
+    local function runeOn()
+        local cp = ns.modules and ns.modules.characterpanel
+        return cp and cp.active and true or false
+    end
+
+    local function fade(r)
+        if r and r.SetAlpha and faded[r] == nil then
+            faded[r] = r:GetAlpha() or 1
+            r:SetAlpha(0)
+        end
+    end
+
+    local function extra(owner, key, layer)
+        local e = extras[owner]
+        if not e then e = {}; extras[owner] = e end
+        if not e[key] then e[key] = owner:CreateTexture(nil, layer) end
+        return e[key]
+    end
+
+    -- The sheet's docking geometry without the set list's own drag offset:
+    -- the classic art's offsets, or the Modern window's extension.
+    local function dockGeometry()
+        local x, topOff, botOff = -4, (mod.db and mod.db.sidebarTopOffset) or 0,
+            (mod.db and mod.db.sidebarBottomOffset) or 0
+        if ns.CharacterPanelModernExt then
+            local ext, extTop, extBot, modernOn = ns.CharacterPanelModernExt()
+            x = -4 + ext + (ext > 0 and 6 or 0)
+            if modernOn then topOff, botOff = extTop, extBot end
+        end
+        return x, topOff, botOff
+    end
+
+    local function skinRows(ef)
+        local ac = ns.COLORS.accent
+        for i = 1, 15 do
+            local h = _G["EngravingFrameHeader" .. i]
+            if h then
+                fade(h.leftEdge); fade(h.rightEdge); fade(h.middle)
+                local band = extra(h, "band", "BACKGROUND")
+                band:SetPoint("TOPLEFT", 2, -1); band:SetPoint("BOTTOMRIGHT", -2, 1)
+                band:SetColorTexture(1, 1, 1, 0.06)
+                local line = extra(h, "line", "BORDER")
+                line:SetPoint("BOTTOMLEFT", 2, 1); line:SetPoint("BOTTOMRIGHT", -2, 1)
+                line:SetHeight(1)
+                line:SetColorTexture(ac.r, ac.g, ac.b, 0.7)
+                band:Show(); line:Show()
+            end
+        end
+        local buttons = ef.scrollFrame and ef.scrollFrame.buttons
+        for _, b in ipairs(buttons or {}) do
+            fade(b.GetNormalTexture and b:GetNormalTexture())
+            fade(b.GetHighlightTexture and b:GetHighlightTexture())
+            local bg = extra(b, "bg", "BACKGROUND")
+            bg:SetPoint("TOPLEFT", 1, -1); bg:SetPoint("BOTTOMRIGHT", -1, 1)
+            bg:SetColorTexture(1, 1, 1, 0.04)
+            local hl = extra(b, "hl", "HIGHLIGHT")
+            hl:SetPoint("TOPLEFT", 1, -1); hl:SetPoint("BOTTOMRIGHT", -1, 1)
+            hl:SetColorTexture(ac.r, ac.g, ac.b, 0.18)
+            bg:Show(); hl:Show()
+        end
+        local sb = _G.EngravingFrameSearchBox
+        if sb then
+            fade(_G.EngravingFrameSearchBoxLeft); fade(_G.EngravingFrameSearchBoxRight)
+            fade(_G.EngravingFrameSearchBoxMiddle)
+            local f = extra(sb, "field", "BACKGROUND")
+            f:SetPoint("TOPLEFT", -5, 0); f:SetPoint("BOTTOMRIGHT", 0, 0)
+            f:SetColorTexture(0, 0, 0, 0.45)
+            f:Show()
+        end
+    end
+
+    local function restore()
+        local ef = _G.EngravingFrame
+        for r, a in pairs(faded) do r:SetAlpha(a); faded[r] = nil end
+        for _, e in pairs(extras) do for _, t in pairs(e) do t:Hide() end end
+        if skin then skin:Hide() end
+        if ef and lastKey and _G.CharacterFrame then
+            ef:ClearAllPoints()
+            ef:SetPoint("TOPLEFT", _G.CharacterFrame, "TOPRIGHT", -24, -70)   -- Blizzard's own anchor
+        end
+        lastKey = nil
+    end
+
+    -- Re-run cheaply: called on every show and from the set list's re-anchor
+    -- tick; returns at once while nothing moved.
+    function ns.LayoutRunePanel()
+        local ef, cf = _G.EngravingFrame, _G.CharacterFrame
+        if not (ef and cf) then return end
+        if not runeOn() then if lastKey then restore() end return end
+        local x, topOff, botOff = dockGeometry()
+        -- classic: in by the border art like the set list; modern: a small
+        -- margin so the search field does not sit on the 1 px edge (the
+        -- content is 426 px tall and the Modern slot 434)
+        local e = sidebarInset()
+        if e == 0 then e = 4 end
+        local key = table.concat({ x, topOff, botOff, e, sidebarClassic() and 1 or 0,
+            ef.scrollFrame and ef.scrollFrame.buttons and #ef.scrollFrame.buttons or 0 }, ":")
+        if key == lastKey and skin and skin:IsShown() then return end
+        lastKey = key
+
+        if not skin then
+            skin = CreateFrame("Frame", nil, ef, BackdropTemplateMixin and "BackdropTemplate")
+            skin:EnableMouse(false)
+        end
+        skin:SetFrameLevel(math.max(0, ef:GetFrameLevel()))
+        fade(ef.Border)
+        fade(ef.sideInset)
+        skinRows(ef)
+        styleWindow(skin)
+
+        local w = RUNE_W + 2 * RUNE_SIDE + 2 * e
+        skin:ClearAllPoints()
+        skin:SetPoint("TOPLEFT", cf, "TOPRIGHT", x, topOff)
+        skin:SetPoint("BOTTOMRIGHT", cf, "BOTTOMRIGHT", x + w, botOff)
+        skin:Show()
+        ef:ClearAllPoints()
+        ef:SetPoint("TOPLEFT", cf, "TOPRIGHT", x + RUNE_SIDE + e, topOff - RUNE_TOP - e)
+    end
+
+    -- Right edge of the docked rune panel while it is open, for the set list.
+    function ns.RunePanelRight()
+        local ef = _G.EngravingFrame
+        if not (ef and ef:IsShown()) then return nil end
+        if skin and skin:IsShown() then return skin:GetRight() end
+        return ef:GetRight()
+    end
+
+    -- The panel is created on demand (Blizzard_EngravingUI loads with it).
+    local hooked = false
+    local function hookRunePanel()
+        local ef = _G.EngravingFrame
+        if hooked or not (ef and ef.HookScript) then return end
+        hooked = true
+        ef:HookScript("OnShow", function()
+            lastKey = nil   -- rows may have been rebuilt while hidden
+            ns.LayoutRunePanel()
+            if ns.ReanchorLoadoutsSidebar then ns.ReanchorLoadoutsSidebar() end
+        end)
+        ef:HookScript("OnHide", function()
+            if ns.ReanchorLoadoutsSidebar then ns.ReanchorLoadoutsSidebar() end
+        end)
+        if ef:IsShown() then ns.LayoutRunePanel() end
+    end
+    ns.HookRunePanel = hookRunePanel
+    ns:RegisterEvent("ADDON_LOADED", function(_, name)
+        if name == "Blizzard_EngravingUI" then hookRunePanel() end
+    end)
+    ns:RegisterEventOnce("PLAYER_LOGIN", hookRunePanel)   -- loaded before us
+end
+
 local _iconPicker
 local _iconBtns = {}
 local ICON_SIZE = 30
@@ -2366,15 +2539,10 @@ local function createSidebar()
     -- load; this waits for the frame and takes the first chance it gets. Both
     -- directions matter: without OnHide the list would stay parked out in the open
     -- after the runes are closed again.
-    local engravingHooked = false
+    -- The rune panel block above owns the hooks (show and hide re-anchor this
+    -- list); here only the chance to install them once the frame exists.
     local function hookEngravingFrame()
-        if engravingHooked then return end
-        local ef = _G.EngravingFrame
-        if not (ef and ef.HookScript) then return end
-        engravingHooked = true
-        local function again() if ns.ReanchorLoadoutsSidebar then ns.ReanchorLoadoutsSidebar() end end
-        ef:HookScript("OnShow", again)
-        ef:HookScript("OnHide", again)
+        if ns.HookRunePanel then ns.HookRunePanel() end
     end
 
     -- Both corners anchor to CharacterFrame so the height tracks it live; never snapshot GetHeight().
@@ -2401,11 +2569,10 @@ local function createSidebar()
         -- width into nowhere. The edge is read live rather than assumed from the
         -- panel's width, because that width is not ours to depend on.
         local cr = CharacterFrame.GetRight and CharacterFrame:GetRight()
-        local ef = _G.EngravingFrame
-        if ef and ef.IsShown and ef:IsShown() and ef.GetRight and cr then
-            local er = ef:GetRight()
-            if er and er > cr then x = -4 + px + (er - cr) + 6 end
-        end
+        if ns.LayoutRunePanel then ns.LayoutRunePanel() end
+        -- the rune panel's own edge, its house-style backdrop included
+        local er = ns.RunePanelRight and ns.RunePanelRight()
+        if er and cr and er > cr then x = -4 + px + (er - cr) + 6 end
 
         -- Character sheet plus rune panel plus this list is wider than some
         -- screens, and a list off the right edge cannot be reached. Then it goes
